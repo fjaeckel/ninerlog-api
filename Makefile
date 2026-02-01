@@ -21,21 +21,33 @@ generate: ## Generate Go types from OpenAPI spec
 	@go mod tidy
 	@echo "✅ Generation complete"
 
-test: ## Run all tests with coverage
-	@echo "🧪 Running tests..."
-	@go test -v -cover ./...
+test: ## Run unit tests only
+	@echo "🧪 Running unit tests..."
+	@go test -v -short -cover ./...
 
-test-short: ## Run unit tests only
-	@echo "🧪 Running unit tests only..."
-	@go test -v -short ./...
+test-short: test ## Alias for test (unit tests only)
 
-test-integration: ## Run integration tests
+test-integration: ## Run integration tests (requires test DB)
 	@echo "🧪 Running integration tests..."
-	@go test -v -run Integration ./...
+	@docker compose -f docker-compose.test.yaml up -d
+	@sleep 3
+	@docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d pilotlog_test < db/migrations/test_init.sql 2>/dev/null || true
+	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=pilotlog_test && \
+		go test -v ./internal/repository/postgres/... | grep -v "no test files"
+	@docker compose -f docker-compose.test.yaml down
 
-test-e2e: ## Run end-to-end tests
+test-e2e: ## Run end-to-end tests (requires test DB)
 	@echo "🧪 Running e2e tests..."
-	@go test -v -tags=e2e ./...
+	@docker compose -f docker-compose.test.yaml up -d
+	@sleep 3
+	@docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d pilotlog_test < db/migrations/test_init.sql 2>/dev/null || true
+	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=pilotlog_test && \
+		go test -v -tags=e2e ./test/e2e/...
+	@docker compose -f docker-compose.test.yaml down
+
+test-all: ## Run all tests (unit, integration, e2e)
+	@echo "🧪 Running all tests..."
+	@./scripts/run-all-tests.sh
 
 coverage: ## Generate HTML coverage report
 	@echo "📊 Generating coverage report..."

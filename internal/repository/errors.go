@@ -1,0 +1,11 @@
+package repository
+
+import "errors"
+
+var (
+	// ErrNotFound is returned when a resource is not found
+	ErrNotFound = errors.New("not found")
+
+	// ErrDuplicateEmail is returned when attempting to create a user with an email that already exists
+	ErrDuplicateEmail = errors.New("email already exists")
+)
