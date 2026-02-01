@@ -18,10 +18,13 @@ fi
 
 echo "🔍 Using OpenAPI spec: $OPENAPI_SPEC"
 
+# Ensure Go bin directory is in PATH
+export PATH="$PATH:$(go env GOPATH)/bin"
+
 # Check if oapi-codegen is installed
 if ! command -v oapi-codegen &> /dev/null; then
     echo "📦 Installing oapi-codegen..."
-    go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@latest
+    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 fi
 
 # Output directory

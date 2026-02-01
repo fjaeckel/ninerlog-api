@@ -48,17 +48,20 @@ docker-compose down
 # Install dependencies
 go mod download
 
+# See all available commands
+make help
+
 # Generate Go types from OpenAPI spec
-./Makefile generate
+make generate
 
 # Start PostgreSQL (if using Docker)
-docker-compose up -d postgres
+make docker-up
 
 # Run database migrations
-./Makefile migrate-up
+make migrate-up
 
 # Start development server
-./Makefile run
+make run
 # Or with live reload:
 air
 ```
@@ -76,7 +79,7 @@ When the OpenAPI spec changes in `pilotlog-project`, GitHub Actions automaticall
 ### Manual
 ```bash
 # Generate server types
-./Makefile generate
+make generate
 
 # Or use script directly
 ./scripts/generate-server-types.sh
@@ -339,30 +342,76 @@ This generates:
 - Automatic request validation
 - Response marshaling
 
+## Makefile Commands
+
+The project includes a comprehensive Makefile for common tasks:
+
+```bash
+# View all available commands with descriptions
+make help
+
+# Code Generation
+make generate          # Generate Go types from OpenAPI spec
+make sqlc-generate     # Generate sqlc code from SQL queries
+
+# Testing
+make test             # Run all tests with coverage
+make test-short       # Run unit tests only
+make test-integration # Run integration tests
+make test-e2e         # Run end-to-end tests
+make coverage         # Generate HTML coverage report
+
+# Development
+make run              # Run application
+make build            # Build binary to bin/pilotlog-api
+make fmt              # Format code with go fmt
+make lint             # Lint code with golangci-lint
+
+# Database
+make migrate-up       # Apply database migrations
+make migrate-down     # Rollback last migration
+make migrate-create NAME=migration_name  # Create new migration
+
+# Docker
+make docker-build     # Build Docker image
+make docker-up        # Start Docker containers
+make docker-down      # Stop Docker containers
+make docker-logs      # View Docker logs
+
+# Maintenance
+make clean            # Clean build artifacts and test files
+```
+
+### Example Usage
+
+```bash
+# Start fresh development setup
+make docker-up        # Start PostgreSQL
+make migrate-up       # Run migrations
+make generate         # Generate code
+make test             # Verify setup
+make run             # Start server
+
+# Before committing
+make fmt             # Format code
+make lint            # Check for issues
+make test            # Run tests
+make coverage        # Verify coverage
+```
+
 ## Testing
 
 ```bash
-# Run all tests
-go test ./...
+# Quick test commands
+make test              # Run all tests
+make test-short        # Unit tests only
+make coverage          # Generate HTML report
 
-# Run tests with coverage
-go test -cover ./...
-
-# Run tests with detailed output
-go test -v ./...
-
-# Run tests with coverage report
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-
-# Run integration tests (with build tag)
-go test -tags=integration ./...
-
-# Run specific package tests
-go test ./internal/service/...
-
-# Run benchmarks
-go test -bench=. ./...
+# Detailed testing with go test
+go test -v ./...                            # Verbose output
+go test -tags=integration ./...             # Integration tests
+go test ./internal/service/...              # Specific package
+go test -bench=. ./...                      # Benchmarks
 ```
 
 ## Deployment
@@ -377,19 +426,15 @@ docker run -p 3000:3000 --env-file .env.production pilotlog-api:latest
 ### Database Migrations
 
 ```bash
-# Create a new migration
-migrate create -ext sql -dir db/migrations -seq add_field_name
+# Using Makefile (recommended)
+make migrate-up                          # Apply all migrations
+make migrate-down                        # Rollback one migration
+make migrate-create NAME=add_field_name  # Create new migration
 
-# Run migrations up
+# Using migrate CLI directly
 migrate -path db/migrations -database "${DATABASE_URL}" up
-
-# Rollback one migration
 migrate -path db/migrations -database "${DATABASE_URL}" down 1
-
-# Check migration version
 migrate -path db/migrations -database "${DATABASE_URL}" version
-
-# Force version (if migrations are out of sync)
 migrate -path db/migrations -database "${DATABASE_URL}" force VERSION
 ```
 
@@ -411,36 +456,44 @@ migrate -path db/migrations -database "${DATABASE_URL}" force VERSION
 ## Common Commands
 
 ```bash
+# Quick reference - prefer using Makefile commands (see above)
+
 # Development
-air                              # Start dev server with live reload
-go run cmd/api/main.go          # Run without live reload
+make run                        # Start development server
+air                            # Start dev server with live reload (if installed)
 
 # Database
-migrate -path db/migrations -database "$DATABASE_URL" up    # Run migrations
-sqlc generate                                                # Generate Go from SQL
+make migrate-up                 # Run migrations
+make migrate-create NAME=name   # Create new migration
+make sqlc-generate             # Generate Go from SQL
 
 # Code generation
-go generate ./...               # Generate OpenAPI code
-oapi-codegen -config oapi-codegen.yaml openapi.yaml        # Manual OpenAPI generation
+make generate                  # Generate OpenAPI code (recommended)
+go generate ./...              # Alternative method
 
 # Testing
-go test ./...                   # Run all tests
-go test -v ./...                # Verbose output
-go test -cover ./...            # With coverage
+make test                      # Run all tests (recommended)
+make coverage                  # Generate coverage report
+go test -v ./...              # Verbose test output
 
 # Linting and formatting
-go fmt ./...                    # Format code
-go vet ./...                    # Vet code
-golangci-lint run               # Run linter
+make fmt                       # Format code (recommended)
+make lint                      # Run linter
+go vet ./...                  # Go vet checks
 
 # Building
-go build -o bin/api cmd/api/main.go     # Build binary
-go build -ldflags="-s -w" -o bin/api cmd/api/main.go  # Optimized build
+make build                     # Build binary (recommended)
+go build -o bin/api cmd/api/main.go  # Direct build
+
+# Docker
+make docker-up                 # Start all services
+make docker-down               # Stop all services
+make docker-logs               # View logs
 
 # Dependencies
-go mod tidy                     # Clean up dependencies
-go mod download                 # Download dependencies
-go mod verify                   # Verify dependencies
+go mod tidy                    # Clean up dependencies
+go mod download                # Download dependencies
+go mod verify                  # Verify dependencies
 ```
 
 ## Related Repositories
