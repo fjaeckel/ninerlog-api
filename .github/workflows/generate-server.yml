@@ -23,12 +23,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25.6'
           cache: true
 
       - name: Install oapi-codegen
-        run: go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@latest
-
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
       - name: Checkout project repository for OpenAPI spec
         uses: actions/checkout@v4
         with:
