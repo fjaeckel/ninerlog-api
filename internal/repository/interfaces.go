@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/google/uuid"
@@ -44,6 +45,63 @@ type RefreshTokenRepository interface {
 
 	// DeleteExpired deletes expired refresh tokens
 	DeleteExpired(ctx context.Context) error
+}
+
+// LicenseRepository defines the interface for license data access
+type LicenseRepository interface {
+	// Create creates a new license
+	Create(ctx context.Context, license *models.License) error
+
+	// GetByID retrieves a license by its ID
+	GetByID(ctx context.Context, id uuid.UUID) (*models.License, error)
+
+	// GetByUserID retrieves all licenses for a user
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error)
+
+	// GetActiveByUserID retrieves all active licenses for a user
+	GetActiveByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error)
+
+	// Update updates a license
+	Update(ctx context.Context, license *models.License) error
+
+	// Delete deletes a license
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// FlightRepository defines the interface for flight data access
+type FlightRepository interface {
+	// Create creates a new flight
+	Create(ctx context.Context, flight *models.Flight) error
+
+	// GetByID retrieves a flight by its ID
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error)
+
+	// GetByUserID retrieves flights for a user with optional filters
+	GetByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions) ([]*models.Flight, error)
+
+	// GetByLicenseID retrieves flights for a license with optional filters
+	GetByLicenseID(ctx context.Context, licenseID uuid.UUID, opts *FlightQueryOptions) ([]*models.Flight, error)
+
+	// Update updates a flight
+	Update(ctx context.Context, flight *models.Flight) error
+
+	// Delete deletes a flight
+	Delete(ctx context.Context, id uuid.UUID) error
+
+	// CountByUserID counts flights for a user with optional filters
+	CountByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions) (int, error)
+}
+
+// FlightQueryOptions represents query parameters for filtering flights
+type FlightQueryOptions struct {
+	LicenseID   *uuid.UUID
+	StartDate   *time.Time
+	EndDate     *time.Time
+	AircraftReg *string
+	Page        int
+	PageSize    int
+	SortBy      string // "date", "totalTime", "createdAt"
+	SortOrder   string // "asc", "desc"
 }
 
 // PasswordResetTokenRepository defines the interface for password reset token data access
