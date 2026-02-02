@@ -116,6 +116,15 @@ func (m *mockRefreshTokenRepo) RevokeAllForUser(ctx context.Context, userID uuid
 	return nil
 }
 
+func (m *mockRefreshTokenRepo) DeleteForUser(ctx context.Context, userID uuid.UUID) error {
+	for hash, token := range m.tokens {
+		if token.UserID == userID {
+			delete(m.tokens, hash)
+		}
+	}
+	return nil
+}
+
 func (m *mockRefreshTokenRepo) DeleteExpired(ctx context.Context) error {
 	now := time.Now()
 	for hash, token := range m.tokens {

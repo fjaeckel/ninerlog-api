@@ -36,11 +36,13 @@ func NewManager(accessSecret, refreshSecret string, accessExpiry, refreshExpiry 
 
 // GenerateAccessToken creates a new JWT access token
 func (m *Manager) GenerateAccessToken(userID uuid.UUID) (string, error) {
+	now := time.Now()
 	claims := Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.accessTokenExpiry)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        uuid.New().String(), // Add unique JTI for each token
+			ExpiresAt: jwt.NewNumericDate(now.Add(m.accessTokenExpiry)),
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 
@@ -50,11 +52,13 @@ func (m *Manager) GenerateAccessToken(userID uuid.UUID) (string, error) {
 
 // GenerateRefreshToken creates a new JWT refresh token
 func (m *Manager) GenerateRefreshToken(userID uuid.UUID) (string, error) {
+	now := time.Now()
 	claims := Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.refreshTokenExpiry)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        uuid.New().String(), // Add unique JTI for each token
+			ExpiresAt: jwt.NewNumericDate(now.Add(m.refreshTokenExpiry)),
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 

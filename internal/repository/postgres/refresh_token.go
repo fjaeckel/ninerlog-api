@@ -108,6 +108,16 @@ func (r *refreshTokenRepository) RevokeAllForUser(ctx context.Context, userID uu
 	return err
 }
 
+func (r *refreshTokenRepository) DeleteForUser(ctx context.Context, userID uuid.UUID) error {
+	query := `
+		DELETE FROM refresh_tokens
+		WHERE user_id = $1
+	`
+
+	_, err := r.db.ExecContext(ctx, query, userID)
+	return err
+}
+
 func (r *refreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	query := `
 		DELETE FROM refresh_tokens

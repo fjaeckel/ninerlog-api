@@ -36,7 +36,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 	if err != nil {
 		// Check for unique constraint violation (duplicate email)
-		if errMsg := err.Error(); errMsg == "pq: duplicate key value violates unique constraint \"users_email_key\"" || 
+		if errMsg := err.Error(); errMsg == "pq: duplicate key value violates unique constraint \"users_email_key\"" ||
 			errMsg == "pq: duplicate key value violates unique constraint \"users_email_key\" (23505)" {
 			return repository.ErrDuplicateEmail
 		}

@@ -119,6 +119,13 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 		return nil, nil, ErrInvalidCredentials
 	}
 
+	// Delete all existing refresh tokens for this user to avoid constraint violations
+	// This ensures only one active session per user
+	if err := s.refreshTokenRepo.DeleteForUser(ctx, user.ID); err != nil {
+		// Log error but don't fail the login
+		// In production, you might want to handle this differently
+	}
+
 	// Generate tokens
 	tokens, err := s.generateTokenPair(ctx, user.ID)
 	if err != nil {

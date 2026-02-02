@@ -39,6 +39,9 @@ type RefreshTokenRepository interface {
 	// RevokeAllForUser revokes all refresh tokens for a user
 	RevokeAllForUser(ctx context.Context, userID uuid.UUID) error
 
+	// DeleteForUser deletes all refresh tokens for a user
+	DeleteForUser(ctx context.Context, userID uuid.UUID) error
+
 	// DeleteExpired deletes expired refresh tokens
 	DeleteExpired(ctx context.Context) error
 }
