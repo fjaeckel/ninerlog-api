@@ -12,9 +12,6 @@ bin/
 # Go dependencies
 vendor/
 
-# Generated files
-internal/api/generated/
-
 # Environment files
 .env
 .env.local
