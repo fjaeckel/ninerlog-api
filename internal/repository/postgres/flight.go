@@ -25,10 +25,11 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 	query := `
 		INSERT INTO flights (
 			user_id, license_id, date, aircraft_reg, aircraft_type,
-			departure_icao, arrival_icao, departure_time, arrival_time,
+			departure_icao, arrival_icao, off_block_time, on_block_time,
+			departure_time, arrival_time,
 			total_time, pic_time, dual_time, solo_time, night_time, ifr_time,
 			landings_day, landings_night, remarks
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -41,6 +42,8 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 		flight.AircraftType,
 		flight.DepartureICAO,
 		flight.ArrivalICAO,
+		flight.OffBlockTime,
+		flight.OnBlockTime,
 		flight.DepartureTime,
 		flight.ArrivalTime,
 		flight.TotalTime,
@@ -58,7 +61,8 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error) {
 	query := `
 		SELECT id, user_id, license_id, date, aircraft_reg, aircraft_type,
-		       departure_icao, arrival_icao, departure_time, arrival_time,
+		       departure_icao, arrival_icao, off_block_time, on_block_time,
+		       departure_time, arrival_time,
 		       total_time, pic_time, dual_time, solo_time, night_time, ifr_time,
 		       landings_day, landings_night, remarks, created_at, updated_at
 		FROM flights
@@ -75,6 +79,8 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.AircraftType,
 		&flight.DepartureICAO,
 		&flight.ArrivalICAO,
+		&flight.OffBlockTime,
+		&flight.OnBlockTime,
 		&flight.DepartureTime,
 		&flight.ArrivalTime,
 		&flight.TotalTime,
@@ -128,11 +134,13 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 	query := `
 		UPDATE flights
 		SET date = $1, aircraft_reg = $2, aircraft_type = $3,
-		    departure_icao = $4, arrival_icao = $5, departure_time = $6, arrival_time = $7,
-		    total_time = $8, pic_time = $9, dual_time = $10, solo_time = $11,
-		    night_time = $12, ifr_time = $13, landings_day = $14, landings_night = $15,
-		    remarks = $16, updated_at = $17
-		WHERE id = $18
+		    departure_icao = $4, arrival_icao = $5,
+		    off_block_time = $6, on_block_time = $7,
+		    departure_time = $8, arrival_time = $9,
+		    total_time = $10, pic_time = $11, dual_time = $12, solo_time = $13,
+		    night_time = $14, ifr_time = $15, landings_day = $16, landings_night = $17,
+		    remarks = $18, updated_at = $19
+		WHERE id = $20
 	`
 
 	result, err := r.db.ExecContext(
@@ -142,6 +150,8 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		flight.AircraftType,
 		flight.DepartureICAO,
 		flight.ArrivalICAO,
+		flight.OffBlockTime,
+		flight.OnBlockTime,
 		flight.DepartureTime,
 		flight.ArrivalTime,
 		flight.TotalTime,
@@ -228,7 +238,8 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{}, opts *repository.FlightQueryOptions) (string, []interface{}) {
 	query := `
 		SELECT id, user_id, license_id, date, aircraft_reg, aircraft_type,
-		       departure_icao, arrival_icao, departure_time, arrival_time,
+		       departure_icao, arrival_icao, off_block_time, on_block_time,
+		       departure_time, arrival_time,
 		       total_time, pic_time, dual_time, solo_time, night_time, ifr_time,
 		       landings_day, landings_night, remarks, created_at, updated_at
 		FROM flights
@@ -303,6 +314,8 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.AircraftType,
 			&flight.DepartureICAO,
 			&flight.ArrivalICAO,
+			&flight.OffBlockTime,
+			&flight.OnBlockTime,
 			&flight.DepartureTime,
 			&flight.ArrivalTime,
 			&flight.TotalTime,

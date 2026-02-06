@@ -112,7 +112,7 @@ type Flight struct {
 	// ArrivalIcao ICAO code of arrival airport
 	ArrivalIcao *string `json:"arrivalIcao"`
 
-	// ArrivalTime Local arrival time
+	// ArrivalTime Landing time in UTC. Marks the end of airborne/flight time.
 	ArrivalTime *string            `json:"arrivalTime"`
 	CreatedAt   time.Time          `json:"createdAt"`
 	Date        openapi_types.Date `json:"date"`
@@ -120,7 +120,7 @@ type Flight struct {
 	// DepartureIcao ICAO code of departure airport
 	DepartureIcao *string `json:"departureIcao"`
 
-	// DepartureTime Local departure time
+	// DepartureTime Takeoff time in UTC. Marks the beginning of airborne/flight time.
 	DepartureTime *string `json:"departureTime"`
 
 	// DualTime Dual instruction time in hours
@@ -140,6 +140,12 @@ type Flight struct {
 	// NightTime Night flying time in hours
 	NightTime float32 `json:"nightTime"`
 
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+	OffBlockTime *string `json:"offBlockTime"`
+
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+	OnBlockTime *string `json:"onBlockTime"`
+
 	// PicTime Pilot-in-command time in hours
 	PicTime float32 `json:"picTime"`
 
@@ -157,12 +163,16 @@ type Flight struct {
 
 // FlightCreate defines model for FlightCreate.
 type FlightCreate struct {
-	AircraftReg   string             `json:"aircraftReg"`
-	AircraftType  string             `json:"aircraftType"`
-	ArrivalIcao   *string            `json:"arrivalIcao"`
+	AircraftReg  string  `json:"aircraftReg"`
+	AircraftType string  `json:"aircraftType"`
+	ArrivalIcao  *string `json:"arrivalIcao"`
+
+	// ArrivalTime Landing time in UTC
 	ArrivalTime   *string            `json:"arrivalTime"`
 	Date          openapi_types.Date `json:"date"`
 	DepartureIcao *string            `json:"departureIcao"`
+
+	// DepartureTime Takeoff time in UTC
 	DepartureTime *string            `json:"departureTime"`
 	DualTime      *float32           `json:"dualTime,omitempty"`
 	IfrTime       *float32           `json:"ifrTime,omitempty"`
@@ -170,30 +180,46 @@ type FlightCreate struct {
 	LandingsNight *int               `json:"landingsNight,omitempty"`
 	LicenseId     openapi_types.UUID `json:"licenseId"`
 	NightTime     *float32           `json:"nightTime,omitempty"`
-	PicTime       *float32           `json:"picTime,omitempty"`
-	Remarks       *string            `json:"remarks"`
-	SoloTime      *float32           `json:"soloTime,omitempty"`
-	TotalTime     float32            `json:"totalTime"`
+
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC
+	OffBlockTime *string `json:"offBlockTime"`
+
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
+	OnBlockTime *string  `json:"onBlockTime"`
+	PicTime     *float32 `json:"picTime,omitempty"`
+	Remarks     *string  `json:"remarks"`
+	SoloTime    *float32 `json:"soloTime,omitempty"`
+	TotalTime   float32  `json:"totalTime"`
 }
 
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
-	AircraftReg   *string             `json:"aircraftReg,omitempty"`
-	AircraftType  *string             `json:"aircraftType,omitempty"`
-	ArrivalIcao   *string             `json:"arrivalIcao"`
+	AircraftReg  *string `json:"aircraftReg,omitempty"`
+	AircraftType *string `json:"aircraftType,omitempty"`
+	ArrivalIcao  *string `json:"arrivalIcao"`
+
+	// ArrivalTime Landing time in UTC
 	ArrivalTime   *string             `json:"arrivalTime"`
 	Date          *openapi_types.Date `json:"date,omitempty"`
 	DepartureIcao *string             `json:"departureIcao"`
-	DepartureTime *string             `json:"departureTime"`
-	DualTime      *float32            `json:"dualTime,omitempty"`
-	IfrTime       *float32            `json:"ifrTime,omitempty"`
-	LandingsDay   *int                `json:"landingsDay,omitempty"`
-	LandingsNight *int                `json:"landingsNight,omitempty"`
-	NightTime     *float32            `json:"nightTime,omitempty"`
-	PicTime       *float32            `json:"picTime,omitempty"`
-	Remarks       *string             `json:"remarks"`
-	SoloTime      *float32            `json:"soloTime,omitempty"`
-	TotalTime     *float32            `json:"totalTime,omitempty"`
+
+	// DepartureTime Takeoff time in UTC
+	DepartureTime *string  `json:"departureTime"`
+	DualTime      *float32 `json:"dualTime,omitempty"`
+	IfrTime       *float32 `json:"ifrTime,omitempty"`
+	LandingsDay   *int     `json:"landingsDay,omitempty"`
+	LandingsNight *int     `json:"landingsNight,omitempty"`
+	NightTime     *float32 `json:"nightTime,omitempty"`
+
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC
+	OffBlockTime *string `json:"offBlockTime"`
+
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
+	OnBlockTime *string  `json:"onBlockTime"`
+	PicTime     *float32 `json:"picTime,omitempty"`
+	Remarks     *string  `json:"remarks"`
+	SoloTime    *float32 `json:"soloTime,omitempty"`
+	TotalTime   *float32 `json:"totalTime,omitempty"`
 }
 
 // License defines model for License.

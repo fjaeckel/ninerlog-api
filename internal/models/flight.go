@@ -20,8 +20,10 @@ type Flight struct {
 	// Route information
 	DepartureICAO *string `json:"departureIcao,omitempty"`
 	ArrivalICAO   *string `json:"arrivalIcao,omitempty"`
-	DepartureTime *string `json:"departureTime,omitempty"` // HH:MM:SS format
-	ArrivalTime   *string `json:"arrivalTime,omitempty"`   // HH:MM:SS format
+	OffBlockTime  *string `json:"offBlockTime,omitempty"`  // HH:MM:SS format - chocks off / engine start (UTC)
+	OnBlockTime   *string `json:"onBlockTime,omitempty"`   // HH:MM:SS format - chocks on / engine shutdown (UTC)
+	DepartureTime *string `json:"departureTime,omitempty"` // HH:MM:SS format - takeoff time (UTC)
+	ArrivalTime   *string `json:"arrivalTime,omitempty"`   // HH:MM:SS format - landing time (UTC)
 
 	// Flight times (in decimal hours)
 	TotalTime float64 `json:"totalTime"`

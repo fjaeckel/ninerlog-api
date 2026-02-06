@@ -98,6 +98,12 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	if req.ArrivalIcao != nil {
 		flight.ArrivalICAO = req.ArrivalIcao
 	}
+	if req.OffBlockTime != nil {
+		flight.OffBlockTime = req.OffBlockTime
+	}
+	if req.OnBlockTime != nil {
+		flight.OnBlockTime = req.OnBlockTime
+	}
 	if req.DepartureTime != nil {
 		flight.DepartureTime = req.DepartureTime
 	}
@@ -209,6 +215,12 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.ArrivalIcao != nil {
 		flight.ArrivalICAO = req.ArrivalIcao
 	}
+	if req.OffBlockTime != nil {
+		flight.OffBlockTime = req.OffBlockTime
+	}
+	if req.OnBlockTime != nil {
+		flight.OnBlockTime = req.OnBlockTime
+	}
 	if req.DepartureTime != nil {
 		flight.DepartureTime = req.DepartureTime
 	}
@@ -276,6 +288,12 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	}
 	if f.ArrivalICAO != nil {
 		flight.ArrivalIcao = f.ArrivalICAO
+	}
+	if f.OffBlockTime != nil {
+		flight.OffBlockTime = f.OffBlockTime
+	}
+	if f.OnBlockTime != nil {
+		flight.OnBlockTime = f.OnBlockTime
 	}
 	if f.DepartureTime != nil {
 		flight.DepartureTime = f.DepartureTime
