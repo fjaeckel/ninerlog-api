@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
 	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
@@ -78,10 +79,8 @@ func main() {
 	licenseService := service.NewLicenseService(licenseRepo)
 	flightService := service.NewFlightService(flightRepo, licenseRepo)
 
-	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService)
-	licenseHandler := handlers.NewLicenseHandler(licenseService, jwtManager)
-	flightHandler := handlers.NewFlightHandler(flightService, jwtManager)
+	// Initialize unified API handler that implements the OpenAPI ServerInterface
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, jwtManager)
 
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)
@@ -102,37 +101,12 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// API routes
+	// Register OpenAPI-generated routes
+	// This automatically maps all routes to the correct handlers with proper parameter extraction
 	api := router.Group("/api/v1")
-	{
-		// Auth routes
-		auth := api.Group("/auth")
-		{
-			auth.POST("/register", authHandler.RegisterUser)
-			auth.POST("/login", authHandler.LoginUser)
-			auth.POST("/refresh", authHandler.RefreshToken)
-		}
+	generated.RegisterHandlers(api, apiHandler)
 
-		// License routes (protected)
-		licenses := api.Group("/licenses")
-		{
-			licenses.GET("", licenseHandler.ListLicenses)
-			licenses.POST("", licenseHandler.CreateLicense)
-			licenses.GET("/:id", licenseHandler.GetLicense)
-			licenses.PATCH("/:id", licenseHandler.UpdateLicense)
-			licenses.DELETE("/:id", licenseHandler.DeleteLicense)
-		}
-
-		// Flight routes (protected)
-		flights := api.Group("/flights")
-		{
-			flights.GET("", flightHandler.ListFlights)
-			flights.POST("", flightHandler.CreateFlight)
-			flights.GET("/:id", flightHandler.GetFlight)
-			flights.PUT("/:id", flightHandler.UpdateFlight)
-			flights.DELETE("/:id", flightHandler.DeleteFlight)
-		}
-	}
+	log.Println("✅ Routes registered from OpenAPI specification")
 
 	// Start server
 	srv := &http.Server{

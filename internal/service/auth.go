@@ -294,3 +294,14 @@ func (s *AuthService) generateTokenPair(ctx context.Context, userID uuid.UUID) (
 		RefreshToken: refreshToken,
 	}, nil
 }
+
+// GetUserByID retrieves a user by ID
+func (s *AuthService) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
+	return s.userRepo.GetByID(ctx, userID)
+}
+
+// UpdateUser updates user information
+func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
+	user.UpdatedAt = time.Now()
+	return s.userRepo.Update(ctx, user)
+}

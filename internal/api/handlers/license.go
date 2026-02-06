@@ -1,237 +1,285 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
+	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
-	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-type LicenseHandler struct {
-	licenseService *service.LicenseService
-	jwtManager     *jwt.Manager
-}
-
-func NewLicenseHandler(licenseService *service.LicenseService, jwtManager *jwt.Manager) *LicenseHandler {
-	return &LicenseHandler{
-		licenseService: licenseService,
-		jwtManager:     jwtManager,
-	}
-}
-
-// createLicenseRequest is the JSON request body for creating a license.
-// Uses string dates (YYYY-MM-DD) matching the OpenAPI spec.
-type createLicenseRequest struct {
-	LicenseType      models.LicenseType `json:"licenseType" binding:"required"`
-	LicenseNumber    string             `json:"licenseNumber" binding:"required"`
-	IssueDate        string             `json:"issueDate" binding:"required"`
-	ExpiryDate       *string            `json:"expiryDate,omitempty"`
-	IssuingAuthority string             `json:"issuingAuthority" binding:"required"`
-	IsActive         *bool              `json:"isActive,omitempty"`
-}
-
-func (h *LicenseHandler) CreateLicense(c *gin.Context) {
-	userID, err := h.getUserIDFromToken(c)
+// ListLicenses implements GET /licenses
+// (GET /licenses)
+func (h *APIHandler) ListLicenses(c *gin.Context, params generated.ListLicensesParams) {
+	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	var req createLicenseRequest
+	isActive := params.IsActive != nil && *params.IsActive
+	licenses, err := h.licenseService.ListLicenses(c.Request.Context(), userID, isActive)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve licenses")
+		return
+	}
+
+	// Convert to OpenAPI License type
+	response := make([]generated.License, 0, len(licenses))
+	for _, lic := range licenses {
+		response = append(response, convertToGeneratedLicense(lic))
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// CreateLicense implements POST /licenses
+// (POST /licenses)
+func (h *APIHandler) CreateLicense(c *gin.Context) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req generated.CreateLicenseJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	issueDate, err := time.Parse("2006-01-02", req.IssueDate)
+	issueDate, err := time.Parse("2006-01-02", req.IssueDate.String())
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid issueDate format, expected YYYY-MM-DD"})
+		h.sendError(c, http.StatusBadRequest, "Invalid issueDate format")
 		return
 	}
 
 	license := models.License{
 		UserID:           userID,
-		LicenseType:      req.LicenseType,
+		LicenseType:      models.LicenseType(req.LicenseType),
 		LicenseNumber:    req.LicenseNumber,
 		IssueDate:        issueDate,
 		IssuingAuthority: req.IssuingAuthority,
 		IsActive:         true,
 	}
 
-	if req.ExpiryDate != nil && *req.ExpiryDate != "" {
-		expiryDate, err := time.Parse("2006-01-02", *req.ExpiryDate)
+	if req.ExpiryDate != nil {
+		expiryDate, err := time.Parse("2006-01-02", req.ExpiryDate.String())
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid expiryDate format, expected YYYY-MM-DD"})
+			h.sendError(c, http.StatusBadRequest, "Invalid expiryDate format")
 			return
 		}
 		license.ExpiryDate = &expiryDate
 	}
 
-	if req.IsActive != nil {
-		license.IsActive = *req.IsActive
-	}
-
 	if err := h.licenseService.CreateLicense(c.Request.Context(), &license); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.sendError(c, http.StatusInternalServerError, "Failed to create license")
 		return
 	}
 
-	c.JSON(http.StatusCreated, license)
+	c.JSON(http.StatusCreated, convertToGeneratedLicense(&license))
 }
 
-func (h *LicenseHandler) GetLicense(c *gin.Context) {
-	userID, err := h.getUserIDFromToken(c)
+// GetLicense implements GET /licenses/{licenseId}
+// (GET /licenses/{licenseId})
+func (h *APIHandler) GetLicense(c *gin.Context, licenseId generated.LicenseId) {
+	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	licenseIDStr := c.Param("id")
-	licenseID, err := uuid.Parse(licenseIDStr)
+	license, err := h.licenseService.GetLicense(c.Request.Context(), uuid.UUID(licenseId), userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid license ID"})
+		if errors.Is(err, service.ErrLicenseNotFound) || errors.Is(err, service.ErrUnauthorizedAccess) {
+			h.sendError(c, http.StatusNotFound, "License not found")
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve license")
 		return
 	}
 
-	license, err := h.licenseService.GetLicense(c.Request.Context(), licenseID, userID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "license not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, license)
+	c.JSON(http.StatusOK, convertToGeneratedLicense(license))
 }
 
-func (h *LicenseHandler) ListLicenses(c *gin.Context) {
-	userID, err := h.getUserIDFromToken(c)
+// UpdateLicense implements PATCH /licenses/{licenseId}
+// (PATCH /licenses/{licenseId})
+func (h *APIHandler) UpdateLicense(c *gin.Context, licenseId generated.LicenseId) {
+	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	activeOnly := c.Query("active") == "true"
-	licenses, err := h.licenseService.ListLicenses(c.Request.Context(), userID, activeOnly)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, licenses)
-}
-
-func (h *LicenseHandler) UpdateLicense(c *gin.Context) {
-	userID, err := h.getUserIDFromToken(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
-
-	licenseIDStr := c.Param("id")
-	licenseID, err := uuid.Parse(licenseIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid license ID"})
+	var req generated.UpdateLicenseJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Get existing license
-	license, err := h.licenseService.GetLicense(c.Request.Context(), licenseID, userID)
+	license, err := h.licenseService.GetLicense(c.Request.Context(), uuid.UUID(licenseId), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "license not found"})
-		return
-	}
-
-	// Parse update fields
-	var updates struct {
-		LicenseType      *string `json:"licenseType"`
-		LicenseNumber    *string `json:"licenseNumber"`
-		IssueDate        *string `json:"issueDate"`
-		ExpiryDate       *string `json:"expiryDate"`
-		IssuingAuthority *string `json:"issuingAuthority"`
-		IsActive         *bool   `json:"isActive"`
-	}
-	if err := c.ShouldBindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if updates.LicenseType != nil {
-		license.LicenseType = models.LicenseType(*updates.LicenseType)
-	}
-	if updates.LicenseNumber != nil {
-		license.LicenseNumber = *updates.LicenseNumber
-	}
-	if updates.IssueDate != nil {
-		parsed, err := time.Parse("2006-01-02", *updates.IssueDate)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid issueDate format, expected YYYY-MM-DD"})
+		if errors.Is(err, service.ErrLicenseNotFound) || errors.Is(err, service.ErrUnauthorizedAccess) {
+			h.sendError(c, http.StatusNotFound, "License not found")
 			return
 		}
-		license.IssueDate = parsed
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve license")
+		return
 	}
-	if updates.ExpiryDate != nil {
-		if *updates.ExpiryDate == "" {
-			license.ExpiryDate = nil
-		} else {
-			parsed, err := time.Parse("2006-01-02", *updates.ExpiryDate)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid expiryDate format, expected YYYY-MM-DD"})
-				return
-			}
-			license.ExpiryDate = &parsed
+
+	// Apply updates
+	if req.ExpiryDate != nil {
+		expiryDate, err := time.Parse("2006-01-02", req.ExpiryDate.String())
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, "Invalid expiryDate format")
+			return
 		}
+		license.ExpiryDate = &expiryDate
 	}
-	if updates.IssuingAuthority != nil {
-		license.IssuingAuthority = *updates.IssuingAuthority
-	}
-	if updates.IsActive != nil {
-		license.IsActive = *updates.IsActive
+	if req.IsActive != nil {
+		license.IsActive = *req.IsActive
 	}
 
 	if err := h.licenseService.UpdateLicense(c.Request.Context(), license, userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.sendError(c, http.StatusInternalServerError, "Failed to update license")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "license updated successfully"})
+	c.JSON(http.StatusOK, convertToGeneratedLicense(license))
 }
 
-func (h *LicenseHandler) DeleteLicense(c *gin.Context) {
-	userID, err := h.getUserIDFromToken(c)
+// DeleteLicense implements DELETE /licenses/{licenseId}
+// (DELETE /licenses/{licenseId})
+func (h *APIHandler) DeleteLicense(c *gin.Context, licenseId generated.LicenseId) {
+	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	licenseIDStr := c.Param("id")
-	licenseID, err := uuid.Parse(licenseIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid license ID"})
+	if err := h.licenseService.DeleteLicense(c.Request.Context(), uuid.UUID(licenseId), userID); err != nil {
+		if errors.Is(err, service.ErrLicenseNotFound) || errors.Is(err, service.ErrUnauthorizedAccess) {
+			h.sendError(c, http.StatusNotFound, "License not found")
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Failed to delete license")
 		return
 	}
 
-	if err := h.licenseService.DeleteLicense(c.Request.Context(), licenseID, userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "license deleted successfully"})
+	// OpenAPI spec requires 204 No Content for successful DELETE
+	c.Status(http.StatusNoContent)
 }
 
-func (h *LicenseHandler) getUserIDFromToken(c *gin.Context) (uuid.UUID, error) {
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" || len(authHeader) < 8 {
-		return uuid.Nil, jwt.ErrInvalidToken
-	}
-
-	tokenString := authHeader[7:]
-	claims, err := h.jwtManager.ValidateAccessToken(tokenString)
+// GetLicenseCurrency implements GET /licenses/{licenseId}/currency
+// (GET /licenses/{licenseId}/currency)
+func (h *APIHandler) GetLicenseCurrency(c *gin.Context, licenseId generated.LicenseId) {
+	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
-		return uuid.Nil, err
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
 	}
 
-	return claims.UserID, nil
+	// Verify license ownership
+	license, err := h.licenseService.GetLicense(c.Request.Context(), uuid.UUID(licenseId), userID)
+	if err != nil {
+		if errors.Is(err, service.ErrLicenseNotFound) || errors.Is(err, service.ErrUnauthorizedAccess) {
+			h.sendError(c, http.StatusNotFound, "License not found")
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve license")
+		return
+	}
+
+	// TODO: Implement currency calculation service
+	// For now, return a placeholder response matching the OpenAPI schema
+	currency := generated.Currency{
+		LicenseId:     openapi_types.UUID(license.ID),
+		IsCurrent:     false,
+		DaysCurrent:   false,
+		NightsCurrent: false,
+		Last90Days: struct {
+			DayLandings   int "json:\"dayLandings\""
+			Flights       int "json:\"flights\""
+			NightLandings int "json:\"nightLandings\""
+			TotalLandings int "json:\"totalLandings\""
+		}{
+			Flights:       0,
+			TotalLandings: 0,
+			DayLandings:   0,
+			NightLandings: 0,
+		},
+	}
+
+	if license.ExpiryDate != nil {
+		expiryDate := openapi_types.Date{Time: *license.ExpiryDate}
+		currency.ExpiryDate = &expiryDate
+	}
+
+	c.JSON(http.StatusOK, currency)
+}
+
+// GetLicenseStatistics implements GET /licenses/{licenseId}/statistics
+// (GET /licenses/{licenseId}/statistics)
+func (h *APIHandler) GetLicenseStatistics(c *gin.Context, licenseId generated.LicenseId, params generated.GetLicenseStatisticsParams) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	// Verify license ownership
+	_, err = h.licenseService.GetLicense(c.Request.Context(), uuid.UUID(licenseId), userID)
+	if err != nil {
+		if errors.Is(err, service.ErrLicenseNotFound) || errors.Is(err, service.ErrUnauthorizedAccess) {
+			h.sendError(c, http.StatusNotFound, "License not found")
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve license")
+		return
+	}
+
+	// TODO: Implement statistics calculation with date filters
+	// For now, return a placeholder response matching the OpenAPI schema
+	statistics := generated.Statistics{
+		LicenseId:     openapi_types.UUID(licenseId),
+		TotalFlights:  0,
+		TotalHours:    0,
+		PicHours:      0,
+		DualHours:     0,
+		SoloHours:     0,
+		NightHours:    0,
+		IfrHours:      0,
+		LandingsDay:   0,
+		LandingsNight: 0,
+	}
+
+	c.JSON(http.StatusOK, statistics)
+}
+
+// Helper function to convert models.License to generated.License
+func convertToGeneratedLicense(lic *models.License) generated.License {
+	license := generated.License{
+		Id:               openapi_types.UUID(lic.ID),
+		UserId:           openapi_types.UUID(lic.UserID),
+		LicenseType:      generated.LicenseType(lic.LicenseType),
+		LicenseNumber:    lic.LicenseNumber,
+		IssueDate:        openapi_types.Date{Time: lic.IssueDate},
+		IssuingAuthority: lic.IssuingAuthority,
+		IsActive:         lic.IsActive,
+		CreatedAt:        lic.CreatedAt,
+		UpdatedAt:        lic.UpdatedAt,
+	}
+
+	if lic.ExpiryDate != nil {
+		expiryDate := openapi_types.Date{Time: *lic.ExpiryDate}
+		license.ExpiryDate = &expiryDate
+	}
+
+	return license
 }
