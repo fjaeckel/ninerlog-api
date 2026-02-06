@@ -43,7 +43,7 @@ func main() {
 	}
 	corsOrigin := os.Getenv("CORS_ORIGIN")
 	if corsOrigin == "" {
-		corsOrigin = "http://localhost:5173,http://localhost:80"
+		corsOrigin = "http://localhost:5173,http://localhost:80,http://192.168.148.1"
 	}
 	corsOrigins := strings.Split(corsOrigin, ",")
 	for i := range corsOrigins {

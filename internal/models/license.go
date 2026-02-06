@@ -26,11 +26,11 @@ const (
 type License struct {
 	ID               uuid.UUID   `json:"id"`
 	UserID           uuid.UUID   `json:"userId"`
-	LicenseType      LicenseType `json:"licenseType"`
-	LicenseNumber    string      `json:"licenseNumber"`
-	IssueDate        time.Time   `json:"issueDate"`
+	LicenseType      LicenseType `json:"licenseType" binding:"required"`
+	LicenseNumber    string      `json:"licenseNumber" binding:"required"`
+	IssueDate        time.Time   `json:"issueDate" binding:"required"`
 	ExpiryDate       *time.Time  `json:"expiryDate,omitempty"`
-	IssuingAuthority string      `json:"issuingAuthority"`
+	IssuingAuthority string      `json:"issuingAuthority" binding:"required"`
 	IsActive         bool        `json:"isActive"`
 	CreatedAt        time.Time   `json:"createdAt"`
 	UpdatedAt        time.Time   `json:"updatedAt"`

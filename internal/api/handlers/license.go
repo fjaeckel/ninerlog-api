@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
@@ -22,6 +23,17 @@ func NewLicenseHandler(licenseService *service.LicenseService, jwtManager *jwt.M
 	}
 }
 
+// createLicenseRequest is the JSON request body for creating a license.
+// Uses string dates (YYYY-MM-DD) matching the OpenAPI spec.
+type createLicenseRequest struct {
+	LicenseType      models.LicenseType `json:"licenseType" binding:"required"`
+	LicenseNumber    string             `json:"licenseNumber" binding:"required"`
+	IssueDate        string             `json:"issueDate" binding:"required"`
+	ExpiryDate       *string            `json:"expiryDate,omitempty"`
+	IssuingAuthority string             `json:"issuingAuthority" binding:"required"`
+	IsActive         *bool              `json:"isActive,omitempty"`
+}
+
 func (h *LicenseHandler) CreateLicense(c *gin.Context) {
 	userID, err := h.getUserIDFromToken(c)
 	if err != nil {
@@ -29,13 +41,40 @@ func (h *LicenseHandler) CreateLicense(c *gin.Context) {
 		return
 	}
 
-	var license models.License
-	if err := c.ShouldBindJSON(&license); err != nil {
+	var req createLicenseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	license.UserID = userID
+	issueDate, err := time.Parse("2006-01-02", req.IssueDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid issueDate format, expected YYYY-MM-DD"})
+		return
+	}
+
+	license := models.License{
+		UserID:           userID,
+		LicenseType:      req.LicenseType,
+		LicenseNumber:    req.LicenseNumber,
+		IssueDate:        issueDate,
+		IssuingAuthority: req.IssuingAuthority,
+		IsActive:         true,
+	}
+
+	if req.ExpiryDate != nil && *req.ExpiryDate != "" {
+		expiryDate, err := time.Parse("2006-01-02", *req.ExpiryDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid expiryDate format, expected YYYY-MM-DD"})
+			return
+		}
+		license.ExpiryDate = &expiryDate
+	}
+
+	if req.IsActive != nil {
+		license.IsActive = *req.IsActive
+	}
+
 	if err := h.licenseService.CreateLicense(c.Request.Context(), &license); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -106,24 +145,50 @@ func (h *LicenseHandler) UpdateLicense(c *gin.Context) {
 	}
 
 	// Parse update fields
-	var updates map[string]interface{}
+	var updates struct {
+		LicenseType      *string `json:"licenseType"`
+		LicenseNumber    *string `json:"licenseNumber"`
+		IssueDate        *string `json:"issueDate"`
+		ExpiryDate       *string `json:"expiryDate"`
+		IssuingAuthority *string `json:"issuingAuthority"`
+		IsActive         *bool   `json:"isActive"`
+	}
 	if err := c.ShouldBindJSON(&updates); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Apply updates to license (only ExpiryDate and IsActive are updatable)
-	if expiryDate, ok := updates["expiry_date"].(string); ok {
-		if expiryDate != "" {
-			parsed, err := uuid.Parse(expiryDate)
-			if err == nil {
-				// Handle time parsing if needed
-				_ = parsed
+	if updates.LicenseType != nil {
+		license.LicenseType = models.LicenseType(*updates.LicenseType)
+	}
+	if updates.LicenseNumber != nil {
+		license.LicenseNumber = *updates.LicenseNumber
+	}
+	if updates.IssueDate != nil {
+		parsed, err := time.Parse("2006-01-02", *updates.IssueDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid issueDate format, expected YYYY-MM-DD"})
+			return
+		}
+		license.IssueDate = parsed
+	}
+	if updates.ExpiryDate != nil {
+		if *updates.ExpiryDate == "" {
+			license.ExpiryDate = nil
+		} else {
+			parsed, err := time.Parse("2006-01-02", *updates.ExpiryDate)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid expiryDate format, expected YYYY-MM-DD"})
+				return
 			}
+			license.ExpiryDate = &parsed
 		}
 	}
-	if isActive, ok := updates["is_active"].(bool); ok {
-		license.IsActive = isActive
+	if updates.IssuingAuthority != nil {
+		license.IssuingAuthority = *updates.IssuingAuthority
+	}
+	if updates.IsActive != nil {
+		license.IsActive = *updates.IsActive
 	}
 
 	if err := h.licenseService.UpdateLicense(c.Request.Context(), license, userID); err != nil {
