@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
 	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/fjaeckel/pilotlog-api/internal/testutil"
@@ -31,6 +33,8 @@ func setupTestServer(t *testing.T) (*gin.Engine, *testutil.APITestClient) {
 	userRepo := postgres.NewUserRepository(db)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
 	passwordResetRepo := postgres.NewPasswordResetTokenRepository(db)
+	licenseRepo := postgres.NewLicenseRepository(db)
+	flightRepo := postgres.NewFlightRepository(db)
 
 	authService := service.NewAuthService(
 		userRepo,
@@ -38,148 +42,67 @@ func setupTestServer(t *testing.T) (*gin.Engine, *testutil.APITestClient) {
 		passwordResetRepo,
 		jwtManager,
 	)
+	licenseService := service.NewLicenseService(licenseRepo)
+	flightService := service.NewFlightService(flightRepo, licenseRepo)
+
+	// Use unified API handler that implements ServerInterface
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, jwtManager)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	// Register test handlers
+	// Register routes using the generated OpenAPI handler registration
 	v1 := router.Group("/api/v1")
+	generated.RegisterHandlers(v1, apiHandler)
+
+	// Add test-specific endpoints for password reset (not in OpenAPI spec yet)
+	auth := v1.Group("/auth")
 	{
-		auth := v1.Group("/auth")
-		{
-			auth.POST("/register", func(c *gin.Context) {
-				var input service.RegisterInput
-				if err := c.ShouldBindJSON(&input); err != nil {
+		auth.POST("/password-reset", func(c *gin.Context) {
+			var input struct {
+				Email string `json:"email"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+
+			token, err := authService.RequestPasswordReset(c.Request.Context(), input.Email)
+			if err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+
+			// In production, don't return the token - send it via email
+			// For testing, we return it so tests can use it
+			c.JSON(200, gin.H{
+				"message": "if the email exists, a reset link will be sent",
+				"token":   token, // Test-only: return token for testing
+			})
+		})
+
+		auth.POST("/reset-password", func(c *gin.Context) {
+			var input struct {
+				Token       string `json:"token"`
+				NewPassword string `json:"newPassword"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+
+			err := authService.ResetPassword(c.Request.Context(), input.Token, input.NewPassword)
+			if err != nil {
+				if err == service.ErrInvalidToken || err == service.ErrTokenExpired || err == service.ErrTokenUsed {
 					c.JSON(400, gin.H{"error": err.Error()})
 					return
 				}
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
 
-				user, tokens, err := authService.Register(c.Request.Context(), input)
-				if err != nil {
-					if err == service.ErrUserAlreadyExists {
-						c.JSON(409, gin.H{"error": "user already exists"})
-						return
-					}
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
-
-				c.JSON(201, gin.H{
-					"user":         user,
-					"accessToken":  tokens.AccessToken,
-					"refreshToken": tokens.RefreshToken,
-				})
-			})
-
-			auth.POST("/login", func(c *gin.Context) {
-				var input service.LoginInput
-				if err := c.ShouldBindJSON(&input); err != nil {
-					c.JSON(400, gin.H{"error": err.Error()})
-					return
-				}
-
-				user, tokens, err := authService.Login(c.Request.Context(), input)
-				if err != nil {
-					if err == service.ErrInvalidCredentials {
-						c.JSON(401, gin.H{"error": "invalid credentials"})
-						return
-					}
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
-
-				c.JSON(200, gin.H{
-					"user":         user,
-					"accessToken":  tokens.AccessToken,
-					"refreshToken": tokens.RefreshToken,
-				})
-			})
-
-			auth.POST("/refresh", func(c *gin.Context) {
-				var input struct {
-					RefreshToken string `json:"refreshToken"`
-				}
-				if err := c.ShouldBindJSON(&input); err != nil {
-					c.JSON(400, gin.H{"error": err.Error()})
-					return
-				}
-
-				tokens, err := authService.RefreshToken(c.Request.Context(), input.RefreshToken)
-				if err != nil {
-					c.JSON(401, gin.H{"error": err.Error()})
-					return
-				}
-
-				c.JSON(200, gin.H{
-					"accessToken":  tokens.AccessToken,
-					"refreshToken": tokens.RefreshToken,
-				})
-			})
-
-			auth.POST("/password-reset", func(c *gin.Context) {
-				var input struct {
-					Email string `json:"email"`
-				}
-				if err := c.ShouldBindJSON(&input); err != nil {
-					c.JSON(400, gin.H{"error": err.Error()})
-					return
-				}
-
-				token, err := authService.RequestPasswordReset(c.Request.Context(), input.Email)
-				if err != nil {
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
-
-				// In production, don't return the token - send it via email
-				// For testing, we return it so tests can use it
-				c.JSON(200, gin.H{
-					"message": "if the email exists, a reset link will be sent",
-					"token":   token, // Test-only: return token for testing
-				})
-			})
-
-			// Add the reset-password endpoint
-			auth.POST("/reset-password", func(c *gin.Context) {
-				var input struct {
-					Token       string `json:"token"`
-					NewPassword string `json:"newPassword"`
-				}
-				if err := c.ShouldBindJSON(&input); err != nil {
-					c.JSON(400, gin.H{"error": err.Error()})
-					return
-				}
-
-				err := authService.ResetPassword(c.Request.Context(), input.Token, input.NewPassword)
-				if err != nil {
-					if err == service.ErrInvalidToken || err == service.ErrTokenExpired || err == service.ErrTokenUsed {
-						c.JSON(400, gin.H{"error": err.Error()})
-						return
-					}
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
-
-				c.JSON(200, gin.H{"message": "password reset successful"})
-			})
-		}
-
-		users := v1.Group("/users")
-		{
-			users.GET("/me", func(c *gin.Context) {
-				authHeader := c.GetHeader("Authorization")
-				if authHeader == "" {
-					c.JSON(401, gin.H{"error": "missing authorization header"})
-					return
-				}
-
-				c.JSON(200, gin.H{
-					"id":    "test-user-id",
-					"email": "e2e@example.com",
-					"name":  "E2E Test User",
-				})
-			})
-		}
+			c.JSON(200, gin.H{"message": "password reset successful"})
+		})
 	}
 
 	return router, testutil.NewAPITestClient(t, router)

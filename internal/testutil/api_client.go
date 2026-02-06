@@ -41,6 +41,10 @@ func (c *APITestClient) PUT(path string, body interface{}) *httptest.ResponseRec
 	return c.makeRequest("PUT", path, body)
 }
 
+func (c *APITestClient) PATCH(path string, body interface{}) *httptest.ResponseRecorder {
+	return c.makeRequest("PATCH", path, body)
+}
+
 func (c *APITestClient) DELETE(path string) *httptest.ResponseRecorder {
 	return c.makeRequest("DELETE", path, nil)
 }

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
-	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/fjaeckel/pilotlog-api/internal/testutil"
@@ -45,61 +45,15 @@ func setupLicenseFlightTestServer(t *testing.T) (*gin.Engine, *testutil.APITestC
 	licenseService := service.NewLicenseService(licenseRepo)
 	flightService := service.NewFlightService(flightRepo, licenseRepo)
 
-	// Handlers
-	licenseHandler := handlers.NewLicenseHandler(licenseService, jwtManager)
-	flightHandler := handlers.NewFlightHandler(flightService, jwtManager)
+	// Use unified API handler that implements ServerInterface
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, jwtManager)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
+	// Register routes using the generated OpenAPI handler registration
 	v1 := router.Group("/api/v1")
-	{
-		// Auth routes
-		auth := v1.Group("/auth")
-		{
-			auth.POST("/register", func(c *gin.Context) {
-				var input service.RegisterInput
-				if err := c.ShouldBindJSON(&input); err != nil {
-					c.JSON(400, gin.H{"error": err.Error()})
-					return
-				}
-				user, tokens, err := authService.Register(c.Request.Context(), input)
-				if err != nil {
-					if err == service.ErrUserAlreadyExists {
-						c.JSON(409, gin.H{"error": "user already exists"})
-						return
-					}
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
-				c.JSON(201, gin.H{
-					"user":         user,
-					"accessToken":  tokens.AccessToken,
-					"refreshToken": tokens.RefreshToken,
-				})
-			})
-		}
-
-		// License routes
-		licenses := v1.Group("/licenses")
-		{
-			licenses.POST("", licenseHandler.CreateLicense)
-			licenses.GET("", licenseHandler.ListLicenses)
-			licenses.GET("/:id", licenseHandler.GetLicense)
-			licenses.PUT("/:id", licenseHandler.UpdateLicense)
-			licenses.DELETE("/:id", licenseHandler.DeleteLicense)
-		}
-
-		// Flight routes
-		flights := v1.Group("/flights")
-		{
-			flights.POST("", flightHandler.CreateFlight)
-			flights.GET("", flightHandler.ListFlights)
-			flights.GET("/:id", flightHandler.GetFlight)
-			flights.PUT("/:id", flightHandler.UpdateFlight)
-			flights.DELETE("/:id", flightHandler.DeleteFlight)
-		}
-	}
+	generated.RegisterHandlers(v1, apiHandler)
 
 	return router, testutil.NewAPITestClient(t, router)
 }
@@ -134,21 +88,20 @@ func TestLicenseManagementE2E(t *testing.T) {
 		resp := client.POST("/api/v1/licenses", map[string]interface{}{
 			"licenseType":      "EASA_PPL",
 			"licenseNumber":    "PPL-12345",
-			"issueDate":        time.Now().Format(time.RFC3339),
-			"expiryDate":       expiryDate.Format(time.RFC3339),
+			"issueDate":        time.Now().Format("2006-01-02"),
+			"expiryDate":       expiryDate.Format("2006-01-02"),
 			"issuingAuthority": "EASA",
-			"isActive":         true,
 		})
 
 		if resp.Code != http.StatusCreated {
 			t.Fatalf("Failed to create license: %d - %s", resp.Code, resp.Body.String())
 		}
 
-		var license models.License
+		var license generated.License
 		json.Unmarshal(resp.Body.Bytes(), &license)
-		createdLicenseID = license.ID.String()
+		createdLicenseID = license.Id.String()
 
-		if license.LicenseType != models.LicenseTypeEASAPPL {
+		if license.LicenseType != generated.EASAPPL {
 			t.Errorf("Expected license type EASA_PPL, got %v", license.LicenseType)
 		}
 		if license.LicenseNumber != "PPL-12345" {
@@ -163,7 +116,7 @@ func TestLicenseManagementE2E(t *testing.T) {
 			t.Fatalf("Failed to list licenses: %d - %s", resp.Code, resp.Body.String())
 		}
 
-		var licenses []models.License
+		var licenses []generated.License
 		json.Unmarshal(resp.Body.Bytes(), &licenses)
 
 		if len(licenses) != 1 {
@@ -178,16 +131,16 @@ func TestLicenseManagementE2E(t *testing.T) {
 			t.Fatalf("Failed to get license: %d - %s", resp.Code, resp.Body.String())
 		}
 
-		var license models.License
+		var license generated.License
 		json.Unmarshal(resp.Body.Bytes(), &license)
 
-		if license.ID.String() != createdLicenseID {
-			t.Errorf("Expected license ID %s, got %s", createdLicenseID, license.ID.String())
+		if license.Id.String() != createdLicenseID {
+			t.Errorf("Expected license ID %s, got %s", createdLicenseID, license.Id.String())
 		}
 	})
 
 	t.Run("Update license", func(t *testing.T) {
-		resp := client.PUT(fmt.Sprintf("/api/v1/licenses/%s", createdLicenseID), map[string]interface{}{
+		resp := client.PATCH(fmt.Sprintf("/api/v1/licenses/%s", createdLicenseID), map[string]interface{}{
 			"isActive": false,
 		})
 
@@ -199,7 +152,7 @@ func TestLicenseManagementE2E(t *testing.T) {
 	t.Run("Delete license", func(t *testing.T) {
 		resp := client.DELETE(fmt.Sprintf("/api/v1/licenses/%s", createdLicenseID))
 
-		if resp.Code != http.StatusOK {
+		if resp.Code != http.StatusNoContent {
 			t.Fatalf("Failed to delete license: %d - %s", resp.Code, resp.Body.String())
 		}
 	})
@@ -232,30 +185,29 @@ func TestFlightLoggingE2E(t *testing.T) {
 	licenseResp := client.POST("/api/v1/licenses", map[string]interface{}{
 		"licenseType":      "EASA_PPL",
 		"licenseNumber":    "PPL-67890",
-		"issueDate":        time.Now().Format(time.RFC3339),
-		"expiryDate":       time.Now().AddDate(2, 0, 0).Format(time.RFC3339),
+		"issueDate":        time.Now().Format("2006-01-02"),
+		"expiryDate":       time.Now().AddDate(2, 0, 0).Format("2006-01-02"),
 		"issuingAuthority": "EASA",
-		"isActive":         true,
 	})
 
 	if licenseResp.Code != http.StatusCreated {
 		t.Fatalf("Failed to create license: %d - %s", licenseResp.Code, licenseResp.Body.String())
 	}
 
-	var license models.License
+	var license generated.License
 	json.Unmarshal(licenseResp.Body.Bytes(), &license)
-	licenseID := license.ID.String()
+	licenseID := license.Id.String()
 
 	var createdFlightID string
 
 	t.Run("Create flight", func(t *testing.T) {
 		resp := client.POST("/api/v1/flights", map[string]interface{}{
 			"licenseId":     licenseID,
-			"date":          time.Now().Format(time.RFC3339),
+			"date":          time.Now().Format("2006-01-02"),
 			"aircraftReg":   "D-EXXX",
 			"aircraftType":  "C172",
-			"departure":     "EDNY",
-			"arrival":       "EDNY",
+			"departureIcao": "EDNY",
+			"arrivalIcao":   "EDNY",
 			"totalTime":     1.5,
 			"picTime":       1.5,
 			"dualTime":      0.0,
@@ -270,9 +222,9 @@ func TestFlightLoggingE2E(t *testing.T) {
 			t.Fatalf("Failed to create flight: %d - %s", resp.Code, resp.Body.String())
 		}
 
-		var flight models.Flight
+		var flight generated.Flight
 		json.Unmarshal(resp.Body.Bytes(), &flight)
-		createdFlightID = flight.ID.String()
+		createdFlightID = flight.Id.String()
 
 		if flight.AircraftReg != "D-EXXX" {
 			t.Errorf("Expected aircraft reg D-EXXX, got %s", flight.AircraftReg)
@@ -286,11 +238,11 @@ func TestFlightLoggingE2E(t *testing.T) {
 			t.Fatalf("Failed to list flights: %d - %s", resp.Code, resp.Body.String())
 		}
 
-		var flights []models.Flight
-		json.Unmarshal(resp.Body.Bytes(), &flights)
+		var paginatedFlights generated.PaginatedFlights
+		json.Unmarshal(resp.Body.Bytes(), &paginatedFlights)
 
-		if len(flights) != 1 {
-			t.Errorf("Expected 1 flight, got %d", len(flights))
+		if len(paginatedFlights.Data) != 1 {
+			t.Errorf("Expected 1 flight, got %d", len(paginatedFlights.Data))
 		}
 	})
 
@@ -301,11 +253,11 @@ func TestFlightLoggingE2E(t *testing.T) {
 			t.Fatalf("Failed to get flight: %d - %s", resp.Code, resp.Body.String())
 		}
 
-		var flight models.Flight
+		var flight generated.Flight
 		json.Unmarshal(resp.Body.Bytes(), &flight)
 
-		if flight.ID.String() != createdFlightID {
-			t.Errorf("Expected flight ID %s, got %s", createdFlightID, flight.ID.String())
+		if flight.Id.String() != createdFlightID {
+			t.Errorf("Expected flight ID %s, got %s", createdFlightID, flight.Id.String())
 		}
 	})
 
@@ -322,7 +274,7 @@ func TestFlightLoggingE2E(t *testing.T) {
 	t.Run("Delete flight", func(t *testing.T) {
 		resp := client.DELETE(fmt.Sprintf("/api/v1/flights/%s", createdFlightID))
 
-		if resp.Code != http.StatusOK {
+		if resp.Code != http.StatusNoContent {
 			t.Fatalf("Failed to delete flight: %d - %s", resp.Code, resp.Body.String())
 		}
 	})
