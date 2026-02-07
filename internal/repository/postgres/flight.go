@@ -21,6 +21,15 @@ func NewFlightRepository(db *sql.DB) repository.FlightRepository {
 	return &flightRepository{db: db}
 }
 
+// timeToString converts a *time.Time (from a PostgreSQL TIME column) to a *string in HH:MM:SS format.
+func timeToString(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.Format("15:04:05")
+	return &s
+}
+
 func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) error {
 	query := `
 		INSERT INTO flights (
@@ -70,6 +79,7 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 	`
 
 	flight := &models.Flight{}
+	var offBlock, onBlock, depTime, arrTime *time.Time
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&flight.ID,
 		&flight.UserID,
@@ -79,10 +89,10 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.AircraftType,
 		&flight.DepartureICAO,
 		&flight.ArrivalICAO,
-		&flight.OffBlockTime,
-		&flight.OnBlockTime,
-		&flight.DepartureTime,
-		&flight.ArrivalTime,
+		&offBlock,
+		&onBlock,
+		&depTime,
+		&arrTime,
 		&flight.TotalTime,
 		&flight.PICTime,
 		&flight.DualTime,
@@ -102,6 +112,11 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 	if err != nil {
 		return nil, err
 	}
+
+	flight.OffBlockTime = timeToString(offBlock)
+	flight.OnBlockTime = timeToString(onBlock)
+	flight.DepartureTime = timeToString(depTime)
+	flight.ArrivalTime = timeToString(arrTime)
 
 	return flight, nil
 }
@@ -305,6 +320,7 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 
 	for rows.Next() {
 		flight := &models.Flight{}
+		var offBlock, onBlock, depTime, arrTime *time.Time
 		err := rows.Scan(
 			&flight.ID,
 			&flight.UserID,
@@ -314,10 +330,10 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.AircraftType,
 			&flight.DepartureICAO,
 			&flight.ArrivalICAO,
-			&flight.OffBlockTime,
-			&flight.OnBlockTime,
-			&flight.DepartureTime,
-			&flight.ArrivalTime,
+			&offBlock,
+			&onBlock,
+			&depTime,
+			&arrTime,
 			&flight.TotalTime,
 			&flight.PICTime,
 			&flight.DualTime,
@@ -333,6 +349,10 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 		if err != nil {
 			return nil, err
 		}
+		flight.OffBlockTime = timeToString(offBlock)
+		flight.OnBlockTime = timeToString(onBlock)
+		flight.DepartureTime = timeToString(depTime)
+		flight.ArrivalTime = timeToString(arrTime)
 		flights = append(flights, flight)
 	}
 
