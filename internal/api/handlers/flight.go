@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -76,40 +78,42 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
+	// Compute totalTime from off-block and on-block times
+	totalTime, err := calculateBlockTime(req.OffBlockTime, req.OnBlockTime)
+	if err != nil {
+		h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Invalid block times: %v", err))
+		return
+	}
+
+	departureIcao := req.DepartureIcao
+	arrivalIcao := req.ArrivalIcao
+	offBlockTime := req.OffBlockTime
+	onBlockTime := req.OnBlockTime
+	departureTime := req.DepartureTime
+	arrivalTime := req.ArrivalTime
+
 	flight := models.Flight{
 		UserID:        userID,
 		LicenseID:     uuid.UUID(req.LicenseId),
 		Date:          flightDate,
 		AircraftReg:   req.AircraftReg,
 		AircraftType:  req.AircraftType,
-		TotalTime:     float64(req.TotalTime),
+		DepartureICAO: &departureIcao,
+		ArrivalICAO:   &arrivalIcao,
+		OffBlockTime:  &offBlockTime,
+		OnBlockTime:   &onBlockTime,
+		DepartureTime: &departureTime,
+		ArrivalTime:   &arrivalTime,
+		TotalTime:     totalTime,
 		PICTime:       float64(getFloat32OrDefault(req.PicTime, 0)),
 		DualTime:      float64(getFloat32OrDefault(req.DualTime, 0)),
 		SoloTime:      float64(getFloat32OrDefault(req.SoloTime, 0)),
 		NightTime:     float64(getFloat32OrDefault(req.NightTime, 0)),
 		IFRTime:       float64(getFloat32OrDefault(req.IfrTime, 0)),
-		LandingsDay:   getIntOrDefault(req.LandingsDay, 0),
-		LandingsNight: getIntOrDefault(req.LandingsNight, 0),
+		LandingsDay:   req.LandingsDay,
+		LandingsNight: req.LandingsNight,
 	}
 
-	if req.DepartureIcao != nil {
-		flight.DepartureICAO = req.DepartureIcao
-	}
-	if req.ArrivalIcao != nil {
-		flight.ArrivalICAO = req.ArrivalIcao
-	}
-	if req.OffBlockTime != nil {
-		flight.OffBlockTime = req.OffBlockTime
-	}
-	if req.OnBlockTime != nil {
-		flight.OnBlockTime = req.OnBlockTime
-	}
-	if req.DepartureTime != nil {
-		flight.DepartureTime = req.DepartureTime
-	}
-	if req.ArrivalTime != nil {
-		flight.ArrivalTime = req.ArrivalTime
-	}
 	if req.Remarks != nil {
 		flight.Remarks = req.Remarks
 	}
@@ -185,9 +189,6 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.AircraftType != nil {
 		flight.AircraftType = *req.AircraftType
 	}
-	if req.TotalTime != nil {
-		flight.TotalTime = float64(*req.TotalTime)
-	}
 	if req.PicTime != nil {
 		flight.PICTime = float64(*req.PicTime)
 	}
@@ -229,6 +230,29 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	}
 	if req.Remarks != nil {
 		flight.Remarks = req.Remarks
+	}
+
+	// Recalculate totalTime from block times if either was updated
+	if req.OffBlockTime != nil || req.OnBlockTime != nil {
+		offBlock := ""
+		onBlock := ""
+		if flight.OffBlockTime != nil {
+			offBlock = *flight.OffBlockTime
+		}
+		if flight.OnBlockTime != nil {
+			onBlock = *flight.OnBlockTime
+		}
+		if offBlock != "" && onBlock != "" {
+			totalTime, err := calculateBlockTime(offBlock, onBlock)
+			if err != nil {
+				h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Invalid block times: %v", err))
+				return
+			}
+			flight.TotalTime = totalTime
+		}
+	} else if req.TotalTime != nil {
+		// Allow direct totalTime override only if block times are not being updated
+		flight.TotalTime = float64(*req.TotalTime)
 	}
 
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
@@ -315,9 +339,35 @@ func getFloat32OrDefault(val *float32, def float32) float32 {
 	return def
 }
 
-func getIntOrDefault(val *int, def int) int {
-	if val != nil {
-		return *val
+// calculateBlockTime computes total block time in hours from off-block and on-block time strings (HH:MM:SS).
+// Handles overnight flights (on-block before off-block crosses midnight).
+func calculateBlockTime(offBlock, onBlock string) (float64, error) {
+	offT, err := time.Parse("15:04:05", offBlock)
+	if err != nil {
+		// Try HH:MM format as well
+		offT, err = time.Parse("15:04", offBlock)
+		if err != nil {
+			return 0, fmt.Errorf("invalid off-block time format: %s", offBlock)
+		}
 	}
-	return def
+	onT, err := time.Parse("15:04:05", onBlock)
+	if err != nil {
+		onT, err = time.Parse("15:04", onBlock)
+		if err != nil {
+			return 0, fmt.Errorf("invalid on-block time format: %s", onBlock)
+		}
+	}
+
+	duration := onT.Sub(offT)
+	if duration < 0 {
+		// Overnight: add 24 hours
+		duration += 24 * time.Hour
+	}
+	if duration == 0 {
+		return 0, fmt.Errorf("off-block and on-block times cannot be identical")
+	}
+
+	hours := duration.Hours()
+	// Round to 1 decimal place (standard logbook precision)
+	return math.Round(hours*10) / 10, nil
 }

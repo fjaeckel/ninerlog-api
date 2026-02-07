@@ -13,6 +13,30 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for AircraftEngineType.
+const (
+	AircraftEngineTypeElectric  AircraftEngineType = "electric"
+	AircraftEngineTypeJet       AircraftEngineType = "jet"
+	AircraftEngineTypePiston    AircraftEngineType = "piston"
+	AircraftEngineTypeTurboprop AircraftEngineType = "turboprop"
+)
+
+// Defines values for AircraftCreateEngineType.
+const (
+	AircraftCreateEngineTypeElectric  AircraftCreateEngineType = "electric"
+	AircraftCreateEngineTypeJet       AircraftCreateEngineType = "jet"
+	AircraftCreateEngineTypePiston    AircraftCreateEngineType = "piston"
+	AircraftCreateEngineTypeTurboprop AircraftCreateEngineType = "turboprop"
+)
+
+// Defines values for AircraftUpdateEngineType.
+const (
+	Electric  AircraftUpdateEngineType = "electric"
+	Jet       AircraftUpdateEngineType = "jet"
+	Piston    AircraftUpdateEngineType = "piston"
+	Turboprop AircraftUpdateEngineType = "turboprop"
+)
+
 // Defines values for LicenseType.
 const (
 	EASAATPL LicenseType = "EASA_ATPL"
@@ -39,6 +63,93 @@ const (
 	Asc  ListFlightsParamsSortOrder = "asc"
 	Desc ListFlightsParamsSortOrder = "desc"
 )
+
+// Aircraft defines model for Aircraft.
+type Aircraft struct {
+	// Category Aircraft category (e.g., SEP - Single Engine Piston, MEP - Multi Engine Piston, TMG - Touring Motor Glider)
+	Category  *string   `json:"category"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// EngineType Engine type
+	EngineType *AircraftEngineType `json:"engineType"`
+	Id         openapi_types.UUID  `json:"id"`
+
+	// IsActive Whether aircraft is still active in the user's fleet
+	IsActive *bool `json:"isActive,omitempty"`
+
+	// IsComplex Whether aircraft has retractable gear, flaps, and constant speed propeller
+	IsComplex *bool `json:"isComplex,omitempty"`
+
+	// IsHighPerformance Whether aircraft has more than 200 HP
+	IsHighPerformance *bool `json:"isHighPerformance,omitempty"`
+
+	// IsTailwheel Whether aircraft has tailwheel (conventional gear)
+	IsTailwheel *bool `json:"isTailwheel,omitempty"`
+
+	// Make Aircraft manufacturer
+	Make string `json:"make"`
+
+	// Model Aircraft model name
+	Model string `json:"model"`
+
+	// Notes Additional notes about the aircraft
+	Notes *string `json:"notes"`
+
+	// Registration Aircraft registration/tail number
+	Registration string `json:"registration"`
+
+	// Type Aircraft type designation (e.g., C172, PA28, ASK21)
+	Type      string             `json:"type"`
+	UpdatedAt time.Time          `json:"updatedAt"`
+	UserId    openapi_types.UUID `json:"userId"`
+}
+
+// AircraftEngineType Engine type
+type AircraftEngineType string
+
+// AircraftCreate defines model for AircraftCreate.
+type AircraftCreate struct {
+	// Category Aircraft category
+	Category          *string                   `json:"category"`
+	EngineType        *AircraftCreateEngineType `json:"engineType"`
+	IsComplex         *bool                     `json:"isComplex,omitempty"`
+	IsHighPerformance *bool                     `json:"isHighPerformance,omitempty"`
+	IsTailwheel       *bool                     `json:"isTailwheel,omitempty"`
+
+	// Make Aircraft manufacturer
+	Make string `json:"make"`
+
+	// Model Aircraft model name
+	Model string  `json:"model"`
+	Notes *string `json:"notes"`
+
+	// Registration Aircraft registration/tail number
+	Registration string `json:"registration"`
+
+	// Type Aircraft type designation
+	Type string `json:"type"`
+}
+
+// AircraftCreateEngineType defines model for AircraftCreate.EngineType.
+type AircraftCreateEngineType string
+
+// AircraftUpdate defines model for AircraftUpdate.
+type AircraftUpdate struct {
+	Category          *string                   `json:"category"`
+	EngineType        *AircraftUpdateEngineType `json:"engineType"`
+	IsActive          *bool                     `json:"isActive,omitempty"`
+	IsComplex         *bool                     `json:"isComplex,omitempty"`
+	IsHighPerformance *bool                     `json:"isHighPerformance,omitempty"`
+	IsTailwheel       *bool                     `json:"isTailwheel,omitempty"`
+	Make              *string                   `json:"make,omitempty"`
+	Model             *string                   `json:"model,omitempty"`
+	Notes             *string                   `json:"notes"`
+	Registration      *string                   `json:"registration,omitempty"`
+	Type              *string                   `json:"type,omitempty"`
+}
+
+// AircraftUpdateEngineType defines model for AircraftUpdate.EngineType.
+type AircraftUpdateEngineType string
 
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
@@ -163,33 +274,43 @@ type Flight struct {
 
 // FlightCreate defines model for FlightCreate.
 type FlightCreate struct {
-	AircraftReg  string  `json:"aircraftReg"`
-	AircraftType string  `json:"aircraftType"`
-	ArrivalIcao  *string `json:"arrivalIcao"`
+	AircraftReg  string `json:"aircraftReg"`
+	AircraftType string `json:"aircraftType"`
+
+	// ArrivalIcao Arrival airport ICAO code
+	ArrivalIcao string `json:"arrivalIcao"`
 
 	// ArrivalTime Landing time in UTC
-	ArrivalTime   *string            `json:"arrivalTime"`
-	Date          openapi_types.Date `json:"date"`
-	DepartureIcao *string            `json:"departureIcao"`
+	ArrivalTime string             `json:"arrivalTime"`
+	Date        openapi_types.Date `json:"date"`
+
+	// DepartureIcao Departure airport ICAO code
+	DepartureIcao string `json:"departureIcao"`
 
 	// DepartureTime Takeoff time in UTC
-	DepartureTime *string            `json:"departureTime"`
-	DualTime      *float32           `json:"dualTime,omitempty"`
-	IfrTime       *float32           `json:"ifrTime,omitempty"`
-	LandingsDay   *int               `json:"landingsDay,omitempty"`
-	LandingsNight *int               `json:"landingsNight,omitempty"`
+	DepartureTime string   `json:"departureTime"`
+	DualTime      *float32 `json:"dualTime,omitempty"`
+	IfrTime       *float32 `json:"ifrTime,omitempty"`
+
+	// LandingsDay Number of day landings performed during this flight
+	LandingsDay int `json:"landingsDay"`
+
+	// LandingsNight Number of night landings performed during this flight
+	LandingsNight int                `json:"landingsNight"`
 	LicenseId     openapi_types.UUID `json:"licenseId"`
 	NightTime     *float32           `json:"nightTime,omitempty"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC
-	OffBlockTime *string `json:"offBlockTime"`
+	OffBlockTime string `json:"offBlockTime"`
 
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
-	OnBlockTime *string  `json:"onBlockTime"`
+	OnBlockTime string   `json:"onBlockTime"`
 	PicTime     *float32 `json:"picTime,omitempty"`
 	Remarks     *string  `json:"remarks"`
 	SoloTime    *float32 `json:"soloTime,omitempty"`
-	TotalTime   float32  `json:"totalTime"`
+
+	// TotalTime Total block time calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
+	TotalTime *float32 `json:"totalTime,omitempty"`
 }
 
 // FlightUpdate defines model for FlightUpdate.
@@ -288,6 +409,24 @@ type LicenseCreate struct {
 // - FAA_IR: FAA Instrument Rating
 type LicenseType string
 
+// PaginatedAircraft defines model for PaginatedAircraft.
+type PaginatedAircraft struct {
+	Data       []Aircraft `json:"data"`
+	Pagination struct {
+		// Page Current page (1-indexed)
+		Page int `json:"page"`
+
+		// PageSize Items per page
+		PageSize int `json:"pageSize"`
+
+		// Total Total number of items
+		Total int `json:"total"`
+
+		// TotalPages Total number of pages
+		TotalPages int `json:"totalPages"`
+	} `json:"pagination"`
+}
+
 // PaginatedFlights defines model for PaginatedFlights.
 type PaginatedFlights struct {
 	Data       []Flight `json:"data"`
@@ -346,6 +485,9 @@ type User struct {
 	UpdatedAt time.Time           `json:"updatedAt"`
 }
 
+// AircraftId defines model for AircraftId.
+type AircraftId = openapi_types.UUID
+
 // FlightId defines model for FlightId.
 type FlightId = openapi_types.UUID
 
@@ -360,6 +502,15 @@ type NotFound = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
+
+// ListAircraftParams defines parameters for ListAircraft.
+type ListAircraftParams struct {
+	// Page Page number (1-indexed)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Items per page
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
 
 // LoginUserJSONBody defines parameters for LoginUser.
 type LoginUserJSONBody struct {
@@ -440,6 +591,12 @@ type UpdateCurrentUserJSONBody struct {
 	Email *openapi_types.Email `json:"email,omitempty"`
 	Name  *string              `json:"name,omitempty"`
 }
+
+// CreateAircraftJSONRequestBody defines body for CreateAircraft for application/json ContentType.
+type CreateAircraftJSONRequestBody = AircraftCreate
+
+// UpdateAircraftJSONRequestBody defines body for UpdateAircraft for application/json ContentType.
+type UpdateAircraftJSONRequestBody = AircraftUpdate
 
 // LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
 type LoginUserJSONRequestBody LoginUserJSONBody

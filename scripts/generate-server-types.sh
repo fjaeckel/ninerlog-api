@@ -18,6 +18,18 @@ fi
 
 echo "🔍 Using OpenAPI spec: $OPENAPI_SPEC"
 
+# Pre-process OpenAPI 3.1 spec to 3.0 compatible format for oapi-codegen
+# oapi-codegen does not support OpenAPI 3.1 features like type: [string, 'null']
+TEMP_SPEC=$(mktemp /tmp/openapi-3.0-XXXXXX.yaml)
+trap "rm -f $TEMP_SPEC" EXIT
+
+echo "🔄 Converting OpenAPI 3.1 → 3.0 for oapi-codegen compatibility..."
+sed -E \
+    -e 's/^openapi: 3\.1\.0/openapi: 3.0.3/' \
+    -e "s/^([[:space:]]*)type: \[string, 'null'\]/\1type: string\n\1nullable: true/" \
+    -e "s/enum: \[([^]]*), 'null'\]/enum: [\1]/" \
+    "$OPENAPI_SPEC" > "$TEMP_SPEC"
+
 # Ensure Go bin directory is in PATH
 export PATH="$PATH:$(go env GOPATH)/bin"
 
@@ -37,17 +49,17 @@ rm -f "$OUTPUT_DIR"/*.go
 echo "⚙️  Generating Go types..."
 oapi-codegen -package generated -generate types \
     -o "$OUTPUT_DIR/types.go" \
-    "$OPENAPI_SPEC"
+    "$TEMP_SPEC"
 
 echo "⚙️  Generating Gin server interface..."
 oapi-codegen -package generated -generate gin \
     -o "$OUTPUT_DIR/server.go" \
-    "$OPENAPI_SPEC"
+    "$TEMP_SPEC"
 
 echo "⚙️  Generating request/response helpers..."
 oapi-codegen -package generated -generate spec \
     -o "$OUTPUT_DIR/spec.go" \
-    "$OPENAPI_SPEC"
+    "$TEMP_SPEC"
 
 echo "📝 Adding package documentation..."
 cat > "$OUTPUT_DIR/doc.go" << 'EOF'

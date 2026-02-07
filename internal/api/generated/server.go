@@ -13,6 +13,21 @@ import (
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List aircraft
+	// (GET /aircraft)
+	ListAircraft(c *gin.Context, params ListAircraftParams)
+	// Add aircraft
+	// (POST /aircraft)
+	CreateAircraft(c *gin.Context)
+	// Delete aircraft
+	// (DELETE /aircraft/{aircraftId})
+	DeleteAircraft(c *gin.Context, aircraftId AircraftId)
+	// Get aircraft details
+	// (GET /aircraft/{aircraftId})
+	GetAircraft(c *gin.Context, aircraftId AircraftId)
+	// Update aircraft
+	// (PATCH /aircraft/{aircraftId})
+	UpdateAircraft(c *gin.Context, aircraftId AircraftId)
 	// Login
 	// (POST /auth/login)
 	LoginUser(c *gin.Context)
@@ -74,6 +89,135 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// ListAircraft operation middleware
+func (siw *ServerInterfaceWrapper) ListAircraft(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAircraftParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAircraft(c, params)
+}
+
+// CreateAircraft operation middleware
+func (siw *ServerInterfaceWrapper) CreateAircraft(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAircraft(c)
+}
+
+// DeleteAircraft operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAircraft(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "aircraftId" -------------
+	var aircraftId AircraftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aircraftId", c.Param("aircraftId"), &aircraftId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAircraft(c, aircraftId)
+}
+
+// GetAircraft operation middleware
+func (siw *ServerInterfaceWrapper) GetAircraft(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "aircraftId" -------------
+	var aircraftId AircraftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aircraftId", c.Param("aircraftId"), &aircraftId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAircraft(c, aircraftId)
+}
+
+// UpdateAircraft operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAircraft(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "aircraftId" -------------
+	var aircraftId AircraftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aircraftId", c.Param("aircraftId"), &aircraftId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAircraft(c, aircraftId)
+}
 
 // LoginUser operation middleware
 func (siw *ServerInterfaceWrapper) LoginUser(c *gin.Context) {
@@ -540,6 +684,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.GET(options.BaseURL+"/aircraft", wrapper.ListAircraft)
+	router.POST(options.BaseURL+"/aircraft", wrapper.CreateAircraft)
+	router.DELETE(options.BaseURL+"/aircraft/:aircraftId", wrapper.DeleteAircraft)
+	router.GET(options.BaseURL+"/aircraft/:aircraftId", wrapper.GetAircraft)
+	router.PATCH(options.BaseURL+"/aircraft/:aircraftId", wrapper.UpdateAircraft)
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.POST(options.BaseURL+"/auth/register", wrapper.RegisterUser)
