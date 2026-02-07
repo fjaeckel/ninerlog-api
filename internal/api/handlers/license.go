@@ -196,23 +196,38 @@ func (h *APIHandler) GetLicenseCurrency(c *gin.Context, licenseId generated.Lice
 		return
 	}
 
-	// TODO: Implement currency calculation service
-	// For now, return a placeholder response matching the OpenAPI schema
+	// Calculate currency from real flight data
+	result, err := h.flightService.GetCurrency(c.Request.Context(), uuid.UUID(licenseId), userID)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to calculate currency")
+		return
+	}
+
+	reqDay := result.RequiredDay
+	reqNight := result.RequiredNight
+
 	currency := generated.Currency{
 		LicenseId:     openapi_types.UUID(license.ID),
-		IsCurrent:     false,
-		DaysCurrent:   false,
-		NightsCurrent: false,
+		IsCurrent:     result.IsCurrent,
+		DaysCurrent:   result.DaysCurrent,
+		NightsCurrent: result.NightsCurrent,
 		Last90Days: struct {
 			DayLandings   int "json:\"dayLandings\""
 			Flights       int "json:\"flights\""
 			NightLandings int "json:\"nightLandings\""
 			TotalLandings int "json:\"totalLandings\""
 		}{
-			Flights:       0,
-			TotalLandings: 0,
-			DayLandings:   0,
-			NightLandings: 0,
+			Flights:       result.Flights90Days,
+			TotalLandings: result.TotalLandings,
+			DayLandings:   result.DayLandings,
+			NightLandings: result.NightLandings,
+		},
+		RequiredLandings: &struct {
+			Day   int "json:\"day\""
+			Night int "json:\"night\""
+		}{
+			Day:   reqDay,
+			Night: reqNight,
 		},
 	}
 

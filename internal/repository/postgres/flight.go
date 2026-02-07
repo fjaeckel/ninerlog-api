@@ -298,6 +298,30 @@ func (r *flightRepository) GetStatsByLicenseID(ctx context.Context, licenseID uu
 	return stats, nil
 }
 
+func (r *flightRepository) GetCurrencyData(ctx context.Context, licenseID uuid.UUID, since time.Time) (*models.CurrencyData, error) {
+	query := `
+		SELECT
+			COUNT(*) as flights,
+			COALESCE(SUM(landings_day + landings_night), 0) as total_landings,
+			COALESCE(SUM(landings_day), 0) as day_landings,
+			COALESCE(SUM(landings_night), 0) as night_landings
+		FROM flights
+		WHERE license_id = $1 AND date >= $2
+	`
+
+	data := &models.CurrencyData{}
+	err := r.db.QueryRowContext(ctx, query, licenseID, since).Scan(
+		&data.Flights,
+		&data.TotalLandings,
+		&data.DayLandings,
+		&data.NightLandings,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{}, opts *repository.FlightQueryOptions) (string, []interface{}) {
 	query := `
 		SELECT id, user_id, license_id, date, aircraft_reg, aircraft_type,

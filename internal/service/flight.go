@@ -178,3 +178,68 @@ func (s *FlightService) GetStatsByLicenseID(ctx context.Context, licenseID, user
 
 	return s.flightRepo.GetStatsByLicenseID(ctx, licenseID, startDate, endDate)
 }
+
+// CurrencyResult holds the calculated currency status
+type CurrencyResult struct {
+	IsCurrent     bool
+	DaysCurrent   bool
+	NightsCurrent bool
+	Flights90Days int
+	TotalLandings int
+	DayLandings   int
+	NightLandings int
+	RequiredDay   int
+	RequiredNight int
+}
+
+// GetCurrency calculates currency status for a license based on EASA/FAA rules.
+// FAA 14 CFR 61.57: 3 takeoffs and landings in the preceding 90 days
+// EASA FCL.060: Recent experience — 3 takeoffs and landings in the preceding 90 days (simplified)
+func (s *FlightService) GetCurrency(ctx context.Context, licenseID, userID uuid.UUID) (*CurrencyResult, error) {
+	// Verify license ownership
+	license, err := s.licenseRepo.GetByID(ctx, licenseID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrFlightNotFound
+		}
+		return nil, err
+	}
+	if license.UserID != userID {
+		return nil, ErrUnauthorizedFlight
+	}
+
+	// Query last 90 days
+	since := time.Now().AddDate(0, 0, -90)
+	data, err := s.flightRepo.GetCurrencyData(ctx, licenseID, since)
+	if err != nil {
+		return nil, err
+	}
+
+	// Both EASA and FAA require 3 landings in 90 days for passenger currency
+	requiredDay := 3
+	requiredNight := 3
+
+	daysCurrent := data.DayLandings >= requiredDay
+	nightsCurrent := data.NightLandings >= requiredNight
+
+	// SPL/Sport — no night currency applicable
+	if license.LicenseType == models.LicenseTypeEASASPL || license.LicenseType == models.LicenseTypeFAASport {
+		nightsCurrent = true // Not applicable
+		requiredNight = 0
+	}
+
+	// Overall current = day current (night is separate per FAA)
+	isCurrent := daysCurrent
+
+	return &CurrencyResult{
+		IsCurrent:     isCurrent,
+		DaysCurrent:   daysCurrent,
+		NightsCurrent: nightsCurrent,
+		Flights90Days: data.Flights,
+		TotalLandings: data.TotalLandings,
+		DayLandings:   data.DayLandings,
+		NightLandings: data.NightLandings,
+		RequiredDay:   requiredDay,
+		RequiredNight: requiredNight,
+	}, nil
+}

@@ -101,6 +101,19 @@ func (m *mockFlightRepo) GetStatsByLicenseID(ctx context.Context, licenseID uuid
 	return stats, nil
 }
 
+func (m *mockFlightRepo) GetCurrencyData(ctx context.Context, licenseID uuid.UUID, since time.Time) (*models.CurrencyData, error) {
+	data := &models.CurrencyData{}
+	for _, f := range m.flights {
+		if f.LicenseID == licenseID && !f.Date.Before(since) {
+			data.Flights++
+			data.DayLandings += f.LandingsDay
+			data.NightLandings += f.LandingsNight
+			data.TotalLandings += f.LandingsDay + f.LandingsNight
+		}
+	}
+	return data, nil
+}
+
 func TestCreateFlight(t *testing.T) {
 	flightRepo := newMockFlightRepo()
 	licenseRepo := newMockLicenseRepo()

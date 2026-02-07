@@ -93,6 +93,9 @@ type FlightRepository interface {
 
 	// GetStatsByLicenseID returns aggregated flight statistics for a license
 	GetStatsByLicenseID(ctx context.Context, licenseID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error)
+
+	// GetCurrencyData returns landing counts and flight count for a license within a date range
+	GetCurrencyData(ctx context.Context, licenseID uuid.UUID, since time.Time) (*models.CurrencyData, error)
 }
 
 // FlightQueryOptions represents query parameters for filtering flights

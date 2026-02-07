@@ -98,3 +98,11 @@ type FlightStatistics struct {
 	LandingsDay   int
 	LandingsNight int
 }
+
+// CurrencyData holds landing/flight counts for currency calculation
+type CurrencyData struct {
+	Flights       int
+	TotalLandings int
+	DayLandings   int
+	NightLandings int
+}
