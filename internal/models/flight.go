@@ -27,6 +27,8 @@ type Flight struct {
 
 	// Flight times (in decimal hours)
 	TotalTime float64 `json:"totalTime"`
+	IsPIC     bool    `json:"isPic"`
+	IsDual    bool    `json:"isDual"`
 	PICTime   float64 `json:"picTime"`
 	DualTime  float64 `json:"dualTime"`
 	SoloTime  float64 `json:"soloTime"`
@@ -57,9 +59,13 @@ func (f *Flight) IsValid() bool {
 
 // ValidateTimeDistribution checks if time distribution is valid
 func (f *Flight) ValidateTimeDistribution() error {
-	// Sum of pic_time, dual_time, solo_time should not exceed total_time
-	timeSum := f.PICTime + f.DualTime + f.SoloTime
-	if timeSum > f.TotalTime {
+	// isPic and isDual are mutually exclusive
+	if f.IsPIC && f.IsDual {
+		return ErrInvalidTimeDistribution
+	}
+
+	// Solo time should not exceed total time
+	if f.SoloTime > f.TotalTime {
 		return ErrInvalidTimeDistribution
 	}
 
@@ -74,8 +80,7 @@ func (f *Flight) ValidateTimeDistribution() error {
 	}
 
 	// All times must be non-negative
-	if f.TotalTime < 0 || f.PICTime < 0 || f.DualTime < 0 ||
-		f.SoloTime < 0 || f.NightTime < 0 || f.IFRTime < 0 {
+	if f.TotalTime < 0 || f.SoloTime < 0 || f.NightTime < 0 || f.IFRTime < 0 {
 		return ErrNegativeTime
 	}
 

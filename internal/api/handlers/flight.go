@@ -85,6 +85,29 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
+	// Determine PIC/Dual from booleans (default to PIC if neither specified)
+	isPic := true
+	isDual := false
+	if req.IsPic != nil {
+		isPic = *req.IsPic
+	}
+	if req.IsDual != nil {
+		isDual = *req.IsDual
+	}
+	if isPic && isDual {
+		h.sendError(c, http.StatusBadRequest, "isPic and isDual are mutually exclusive")
+		return
+	}
+
+	// Compute picTime/dualTime from booleans
+	var picTime, dualTime float64
+	if isPic {
+		picTime = totalTime
+	}
+	if isDual {
+		dualTime = totalTime
+	}
+
 	departureIcao := req.DepartureIcao
 	arrivalIcao := req.ArrivalIcao
 	offBlockTime := req.OffBlockTime
@@ -105,8 +128,10 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		DepartureTime: &departureTime,
 		ArrivalTime:   &arrivalTime,
 		TotalTime:     totalTime,
-		PICTime:       float64(getFloat32OrDefault(req.PicTime, 0)),
-		DualTime:      float64(getFloat32OrDefault(req.DualTime, 0)),
+		IsPIC:         isPic,
+		IsDual:        isDual,
+		PICTime:       picTime,
+		DualTime:      dualTime,
 		SoloTime:      float64(getFloat32OrDefault(req.SoloTime, 0)),
 		NightTime:     float64(getFloat32OrDefault(req.NightTime, 0)),
 		IFRTime:       float64(getFloat32OrDefault(req.IfrTime, 0)),
@@ -189,11 +214,16 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.AircraftType != nil {
 		flight.AircraftType = *req.AircraftType
 	}
-	if req.PicTime != nil {
-		flight.PICTime = float64(*req.PicTime)
+	if req.IsPic != nil {
+		flight.IsPIC = *req.IsPic
 	}
-	if req.DualTime != nil {
-		flight.DualTime = float64(*req.DualTime)
+	if req.IsDual != nil {
+		flight.IsDual = *req.IsDual
+	}
+	// Validate mutual exclusivity
+	if flight.IsPIC && flight.IsDual {
+		h.sendError(c, http.StatusBadRequest, "isPic and isDual are mutually exclusive")
+		return
 	}
 	if req.SoloTime != nil {
 		flight.SoloTime = float64(*req.SoloTime)
@@ -255,6 +285,18 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.TotalTime = float64(*req.TotalTime)
 	}
 
+	// Recompute picTime/dualTime from booleans and totalTime
+	if flight.IsPIC {
+		flight.PICTime = flight.TotalTime
+		flight.DualTime = 0
+	} else if flight.IsDual {
+		flight.DualTime = flight.TotalTime
+		flight.PICTime = 0
+	} else {
+		flight.PICTime = 0
+		flight.DualTime = 0
+	}
+
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
@@ -296,6 +338,8 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		AircraftReg:   f.AircraftReg,
 		AircraftType:  f.AircraftType,
 		TotalTime:     float32(f.TotalTime),
+		IsPic:         f.IsPIC,
+		IsDual:        f.IsDual,
 		PicTime:       float32(f.PICTime),
 		DualTime:      float32(f.DualTime),
 		SoloTime:      float32(f.SoloTime),

@@ -234,12 +234,18 @@ type Flight struct {
 	// DepartureTime Takeoff time in UTC. Marks the beginning of airborne/flight time.
 	DepartureTime *string `json:"departureTime"`
 
-	// DualTime Dual instruction time in hours
+	// DualTime Dual instruction time in hours (computed from isDual and totalTime)
 	DualTime float32            `json:"dualTime"`
 	Id       openapi_types.UUID `json:"id"`
 
 	// IfrTime Instrument flight time in hours
 	IfrTime float32 `json:"ifrTime"`
+
+	// IsDual Whether this flight was logged as dual instruction received. Mutually exclusive with isPic.
+	IsDual bool `json:"isDual"`
+
+	// IsPic Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
+	IsPic bool `json:"isPic"`
 
 	// LandingsDay Number of day landings
 	LandingsDay int `json:"landingsDay"`
@@ -257,7 +263,7 @@ type Flight struct {
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
 	OnBlockTime *string `json:"onBlockTime"`
 
-	// PicTime Pilot-in-command time in hours
+	// PicTime Pilot-in-command time in hours (computed from isPic and totalTime)
 	PicTime float32 `json:"picTime"`
 
 	// Remarks Free text notes
@@ -288,9 +294,17 @@ type FlightCreate struct {
 	DepartureIcao string `json:"departureIcao"`
 
 	// DepartureTime Takeoff time in UTC
-	DepartureTime string   `json:"departureTime"`
-	DualTime      *float32 `json:"dualTime,omitempty"`
-	IfrTime       *float32 `json:"ifrTime,omitempty"`
+	DepartureTime string `json:"departureTime"`
+
+	// DualTime Dual instruction time in hours. Computed by server — equals totalTime when isDual is true, 0 otherwise.
+	DualTime *float32 `json:"dualTime,omitempty"`
+	IfrTime  *float32 `json:"ifrTime,omitempty"`
+
+	// IsDual Whether this flight is logged as dual instruction received. When true, dualTime is set to totalTime. Mutually exclusive with isPic.
+	IsDual *bool `json:"isDual,omitempty"`
+
+	// IsPic Whether this flight is logged as pilot-in-command. When true, picTime is set to totalTime. Mutually exclusive with isDual.
+	IsPic *bool `json:"isPic,omitempty"`
 
 	// LandingsDay Number of day landings performed during this flight
 	LandingsDay int `json:"landingsDay"`
@@ -304,10 +318,12 @@ type FlightCreate struct {
 	OffBlockTime string `json:"offBlockTime"`
 
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
-	OnBlockTime string   `json:"onBlockTime"`
-	PicTime     *float32 `json:"picTime,omitempty"`
-	Remarks     *string  `json:"remarks"`
-	SoloTime    *float32 `json:"soloTime,omitempty"`
+	OnBlockTime string `json:"onBlockTime"`
+
+	// PicTime Pilot-in-command time in hours. Computed by server — equals totalTime when isPic is true, 0 otherwise.
+	PicTime  *float32 `json:"picTime,omitempty"`
+	Remarks  *string  `json:"remarks"`
+	SoloTime *float32 `json:"soloTime,omitempty"`
 
 	// TotalTime Total block time calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
 	TotalTime *float32 `json:"totalTime,omitempty"`
@@ -326,8 +342,13 @@ type FlightUpdate struct {
 
 	// DepartureTime Takeoff time in UTC
 	DepartureTime *string  `json:"departureTime"`
-	DualTime      *float32 `json:"dualTime,omitempty"`
 	IfrTime       *float32 `json:"ifrTime,omitempty"`
+
+	// IsDual Whether this flight is logged as dual instruction received
+	IsDual *bool `json:"isDual,omitempty"`
+
+	// IsPic Whether this flight is logged as pilot-in-command
+	IsPic         *bool    `json:"isPic,omitempty"`
 	LandingsDay   *int     `json:"landingsDay,omitempty"`
 	LandingsNight *int     `json:"landingsNight,omitempty"`
 	NightTime     *float32 `json:"nightTime,omitempty"`
@@ -337,7 +358,6 @@ type FlightUpdate struct {
 
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
 	OnBlockTime *string  `json:"onBlockTime"`
-	PicTime     *float32 `json:"picTime,omitempty"`
 	Remarks     *string  `json:"remarks"`
 	SoloTime    *float32 `json:"soloTime,omitempty"`
 	TotalTime   *float32 `json:"totalTime,omitempty"`

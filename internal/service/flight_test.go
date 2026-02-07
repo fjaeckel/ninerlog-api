@@ -113,6 +113,7 @@ func TestCreateFlight(t *testing.T) {
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
 		TotalTime:    2.5,
+		IsPIC:        true,
 		PICTime:      2.5,
 		LandingsDay:  3,
 	}
@@ -146,7 +147,7 @@ func TestCreateFlightInvalidTimeDistribution(t *testing.T) {
 	}
 	_ = licenseRepo.Create(ctx, license)
 
-	// Create invalid flight (times exceed total)
+	// Create invalid flight (isPic and isDual both true — mutually exclusive)
 	flightDate := time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC)
 	flight := &models.Flight{
 		UserID:       userID,
@@ -155,7 +156,8 @@ func TestCreateFlightInvalidTimeDistribution(t *testing.T) {
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
 		TotalTime:    2.0,
-		PICTime:      2.5, // Exceeds total
+		IsPIC:        true,
+		IsDual:       true, // Cannot be both PIC and Dual
 		LandingsDay:  3,
 	}
 
@@ -194,6 +196,7 @@ func TestCreateFlightSPLNoNight(t *testing.T) {
 		AircraftReg:  "D-KXYZ",
 		AircraftType: "ASK21",
 		TotalTime:    1.5,
+		IsPIC:        true,
 		PICTime:      1.5,
 		NightTime:    0.5, // SPL shouldn't have night time
 		LandingsDay:  2,
@@ -232,6 +235,7 @@ func TestUpdateFlight(t *testing.T) {
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
 		TotalTime:    2.5,
+		IsPIC:        true,
 		PICTime:      2.5,
 		LandingsDay:  3,
 	}
@@ -282,6 +286,7 @@ func TestDeleteFlight(t *testing.T) {
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
 		TotalTime:    2.5,
+		IsPIC:        true,
 		PICTime:      2.5,
 		LandingsDay:  3,
 	}
