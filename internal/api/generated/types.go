@@ -269,9 +269,6 @@ type Flight struct {
 	// Remarks Free text notes
 	Remarks *string `json:"remarks"`
 
-	// SoloTime Solo flight time in hours
-	SoloTime float32 `json:"soloTime"`
-
 	// TotalTime Total flight time in hours
 	TotalTime float32            `json:"totalTime"`
 	UpdatedAt time.Time          `json:"updatedAt"`
@@ -321,9 +318,8 @@ type FlightCreate struct {
 	OnBlockTime string `json:"onBlockTime"`
 
 	// PicTime Pilot-in-command time in hours. Computed by server — equals totalTime when isPic is true, 0 otherwise.
-	PicTime  *float32 `json:"picTime,omitempty"`
-	Remarks  *string  `json:"remarks"`
-	SoloTime *float32 `json:"soloTime,omitempty"`
+	PicTime *float32 `json:"picTime,omitempty"`
+	Remarks *string  `json:"remarks"`
 
 	// TotalTime Total block time calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
 	TotalTime *float32 `json:"totalTime,omitempty"`
@@ -359,7 +355,6 @@ type FlightUpdate struct {
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
 	OnBlockTime *string  `json:"onBlockTime"`
 	Remarks     *string  `json:"remarks"`
-	SoloTime    *float32 `json:"soloTime,omitempty"`
 	TotalTime   *float32 `json:"totalTime,omitempty"`
 }
 
@@ -485,9 +480,6 @@ type Statistics struct {
 
 	// PicHours Total PIC hours
 	PicHours float32 `json:"picHours"`
-
-	// SoloHours Total solo hours
-	SoloHours float32 `json:"soloHours"`
 
 	// TotalFlights Total number of flights
 	TotalFlights int `json:"totalFlights"`

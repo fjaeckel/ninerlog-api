@@ -132,7 +132,6 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		IsDual:        isDual,
 		PICTime:       picTime,
 		DualTime:      dualTime,
-		SoloTime:      float64(getFloat32OrDefault(req.SoloTime, 0)),
 		NightTime:     float64(getFloat32OrDefault(req.NightTime, 0)),
 		IFRTime:       float64(getFloat32OrDefault(req.IfrTime, 0)),
 		LandingsDay:   req.LandingsDay,
@@ -224,9 +223,6 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if flight.IsPIC && flight.IsDual {
 		h.sendError(c, http.StatusBadRequest, "isPic and isDual are mutually exclusive")
 		return
-	}
-	if req.SoloTime != nil {
-		flight.SoloTime = float64(*req.SoloTime)
 	}
 	if req.NightTime != nil {
 		flight.NightTime = float64(*req.NightTime)
@@ -342,7 +338,6 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		IsDual:        f.IsDual,
 		PicTime:       float32(f.PICTime),
 		DualTime:      float32(f.DualTime),
-		SoloTime:      float32(f.SoloTime),
 		NightTime:     float32(f.NightTime),
 		IfrTime:       float32(f.IFRTime),
 		LandingsDay:   f.LandingsDay,

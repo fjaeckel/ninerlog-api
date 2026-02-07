@@ -244,19 +244,34 @@ func (h *APIHandler) GetLicenseStatistics(c *gin.Context, licenseId generated.Li
 		return
 	}
 
-	// TODO: Implement statistics calculation with date filters
-	// For now, return a placeholder response matching the OpenAPI schema
+	// Parse optional date filters
+	var startDate, endDate *time.Time
+	if params.StartDate != nil {
+		t := params.StartDate.Time
+		startDate = &t
+	}
+	if params.EndDate != nil {
+		t := params.EndDate.Time
+		endDate = &t
+	}
+
+	// Get real statistics from database
+	stats, err := h.flightService.GetStatsByLicenseID(c.Request.Context(), uuid.UUID(licenseId), userID, startDate, endDate)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to calculate statistics")
+		return
+	}
+
 	statistics := generated.Statistics{
 		LicenseId:     openapi_types.UUID(licenseId),
-		TotalFlights:  0,
-		TotalHours:    0,
-		PicHours:      0,
-		DualHours:     0,
-		SoloHours:     0,
-		NightHours:    0,
-		IfrHours:      0,
-		LandingsDay:   0,
-		LandingsNight: 0,
+		TotalFlights:  stats.TotalFlights,
+		TotalHours:    float32(stats.TotalHours),
+		PicHours:      float32(stats.PICHours),
+		DualHours:     float32(stats.DualHours),
+		NightHours:    float32(stats.NightHours),
+		IfrHours:      float32(stats.IFRHours),
+		LandingsDay:   stats.LandingsDay,
+		LandingsNight: stats.LandingsNight,
 	}
 
 	c.JSON(http.StatusOK, statistics)

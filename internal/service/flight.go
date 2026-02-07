@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/repository"
@@ -159,4 +160,21 @@ func (s *FlightService) DeleteFlight(ctx context.Context, flightID, userID uuid.
 // CountFlights counts flights for a user with optional filters
 func (s *FlightService) CountFlights(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	return s.flightRepo.CountByUserID(ctx, userID, opts)
+}
+
+// GetStatsByLicenseID returns aggregated statistics for a license
+func (s *FlightService) GetStatsByLicenseID(ctx context.Context, licenseID, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
+	// Verify license ownership
+	license, err := s.licenseRepo.GetByID(ctx, licenseID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrFlightNotFound
+		}
+		return nil, err
+	}
+	if license.UserID != userID {
+		return nil, ErrUnauthorizedFlight
+	}
+
+	return s.flightRepo.GetStatsByLicenseID(ctx, licenseID, startDate, endDate)
 }

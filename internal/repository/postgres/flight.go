@@ -36,9 +36,9 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 			user_id, license_id, date, aircraft_reg, aircraft_type,
 			departure_icao, arrival_icao, off_block_time, on_block_time,
 			departure_time, arrival_time,
-			total_time, is_pic, is_dual, pic_time, dual_time, solo_time, night_time, ifr_time,
+			total_time, is_pic, is_dual, pic_time, dual_time, night_time, ifr_time,
 			landings_day, landings_night, remarks
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -60,7 +60,6 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 		flight.IsDual,
 		flight.PICTime,
 		flight.DualTime,
-		flight.SoloTime,
 		flight.NightTime,
 		flight.IFRTime,
 		flight.LandingsDay,
@@ -74,7 +73,7 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		SELECT id, user_id, license_id, date, aircraft_reg, aircraft_type,
 		       departure_icao, arrival_icao, off_block_time, on_block_time,
 		       departure_time, arrival_time,
-		       total_time, is_pic, is_dual, pic_time, dual_time, solo_time, night_time, ifr_time,
+		       total_time, is_pic, is_dual, pic_time, dual_time, night_time, ifr_time,
 		       landings_day, landings_night, remarks, created_at, updated_at
 		FROM flights
 		WHERE id = $1
@@ -100,7 +99,6 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.IsDual,
 		&flight.PICTime,
 		&flight.DualTime,
-		&flight.SoloTime,
 		&flight.NightTime,
 		&flight.IFRTime,
 		&flight.LandingsDay,
@@ -157,10 +155,10 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		    off_block_time = $6, on_block_time = $7,
 		    departure_time = $8, arrival_time = $9,
 		    total_time = $10, is_pic = $11, is_dual = $12,
-		    pic_time = $13, dual_time = $14, solo_time = $15,
-		    night_time = $16, ifr_time = $17, landings_day = $18, landings_night = $19,
-		    remarks = $20, updated_at = $21
-		WHERE id = $22
+		    pic_time = $13, dual_time = $14,
+		    night_time = $15, ifr_time = $16, landings_day = $17, landings_night = $18,
+		    remarks = $19, updated_at = $20
+		WHERE id = $21
 	`
 
 	result, err := r.db.ExecContext(
@@ -179,7 +177,6 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		flight.IsDual,
 		flight.PICTime,
 		flight.DualTime,
-		flight.SoloTime,
 		flight.NightTime,
 		flight.IFRTime,
 		flight.LandingsDay,
@@ -257,12 +254,56 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 	return count, err
 }
 
+func (r *flightRepository) GetStatsByLicenseID(ctx context.Context, licenseID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
+	query := `
+		SELECT
+			COUNT(*) as total_flights,
+			COALESCE(SUM(total_time), 0) as total_hours,
+			COALESCE(SUM(pic_time), 0) as pic_hours,
+			COALESCE(SUM(dual_time), 0) as dual_hours,
+			COALESCE(SUM(night_time), 0) as night_hours,
+			COALESCE(SUM(ifr_time), 0) as ifr_hours,
+			COALESCE(SUM(landings_day), 0) as landings_day,
+			COALESCE(SUM(landings_night), 0) as landings_night
+		FROM flights
+		WHERE license_id = $1
+	`
+	args := []interface{}{licenseID}
+	argNum := 2
+
+	if startDate != nil {
+		query += fmt.Sprintf(" AND date >= $%d", argNum)
+		args = append(args, *startDate)
+		argNum++
+	}
+	if endDate != nil {
+		query += fmt.Sprintf(" AND date <= $%d", argNum)
+		args = append(args, *endDate)
+	}
+
+	stats := &models.FlightStatistics{LicenseID: licenseID}
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
+		&stats.TotalFlights,
+		&stats.TotalHours,
+		&stats.PICHours,
+		&stats.DualHours,
+		&stats.NightHours,
+		&stats.IFRHours,
+		&stats.LandingsDay,
+		&stats.LandingsNight,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
 func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{}, opts *repository.FlightQueryOptions) (string, []interface{}) {
 	query := `
 		SELECT id, user_id, license_id, date, aircraft_reg, aircraft_type,
 		       departure_icao, arrival_icao, off_block_time, on_block_time,
 		       departure_time, arrival_time,
-		       total_time, is_pic, is_dual, pic_time, dual_time, solo_time, night_time, ifr_time,
+		       total_time, is_pic, is_dual, pic_time, dual_time, night_time, ifr_time,
 		       landings_day, landings_night, remarks, created_at, updated_at
 		FROM flights
 		WHERE ` + baseCondition
@@ -346,7 +387,6 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.IsDual,
 			&flight.PICTime,
 			&flight.DualTime,
-			&flight.SoloTime,
 			&flight.NightTime,
 			&flight.IFRTime,
 			&flight.LandingsDay,

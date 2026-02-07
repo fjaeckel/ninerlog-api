@@ -84,6 +84,23 @@ func (m *mockFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, op
 	return count, nil
 }
 
+func (m *mockFlightRepo) GetStatsByLicenseID(ctx context.Context, licenseID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
+	stats := &models.FlightStatistics{LicenseID: licenseID}
+	for _, f := range m.flights {
+		if f.LicenseID == licenseID {
+			stats.TotalFlights++
+			stats.TotalHours += f.TotalTime
+			stats.PICHours += f.PICTime
+			stats.DualHours += f.DualTime
+			stats.NightHours += f.NightTime
+			stats.IFRHours += f.IFRTime
+			stats.LandingsDay += f.LandingsDay
+			stats.LandingsNight += f.LandingsNight
+		}
+	}
+	return stats, nil
+}
+
 func TestCreateFlight(t *testing.T) {
 	flightRepo := newMockFlightRepo()
 	licenseRepo := newMockLicenseRepo()

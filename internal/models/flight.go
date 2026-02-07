@@ -31,7 +31,6 @@ type Flight struct {
 	IsDual    bool    `json:"isDual"`
 	PICTime   float64 `json:"picTime"`
 	DualTime  float64 `json:"dualTime"`
-	SoloTime  float64 `json:"soloTime"`
 	NightTime float64 `json:"nightTime"`
 	IFRTime   float64 `json:"ifrTime"`
 
@@ -64,11 +63,6 @@ func (f *Flight) ValidateTimeDistribution() error {
 		return ErrInvalidTimeDistribution
 	}
 
-	// Solo time should not exceed total time
-	if f.SoloTime > f.TotalTime {
-		return ErrInvalidTimeDistribution
-	}
-
 	// Night time should not exceed total time
 	if f.NightTime > f.TotalTime {
 		return ErrInvalidNightTime
@@ -80,7 +74,7 @@ func (f *Flight) ValidateTimeDistribution() error {
 	}
 
 	// All times must be non-negative
-	if f.TotalTime < 0 || f.SoloTime < 0 || f.NightTime < 0 || f.IFRTime < 0 {
+	if f.TotalTime < 0 || f.NightTime < 0 || f.IFRTime < 0 {
 		return ErrNegativeTime
 	}
 
@@ -90,4 +84,17 @@ func (f *Flight) ValidateTimeDistribution() error {
 	}
 
 	return nil
+}
+
+// FlightStatistics holds aggregated flight statistics for a license
+type FlightStatistics struct {
+	LicenseID     uuid.UUID
+	TotalFlights  int
+	TotalHours    float64
+	PICHours      float64
+	DualHours     float64
+	NightHours    float64
+	IFRHours      float64
+	LandingsDay   int
+	LandingsNight int
 }

@@ -90,6 +90,9 @@ type FlightRepository interface {
 
 	// CountByUserID counts flights for a user with optional filters
 	CountByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions) (int, error)
+
+	// GetStatsByLicenseID returns aggregated flight statistics for a license
+	GetStatsByLicenseID(ctx context.Context, licenseID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error)
 }
 
 // FlightQueryOptions represents query parameters for filtering flights
