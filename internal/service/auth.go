@@ -305,3 +305,56 @@ func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
 	user.UpdatedAt = time.Now()
 	return s.userRepo.Update(ctx, user)
 }
+
+// ChangePassword changes the user's password after verifying the current password
+func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Verify current password
+	if err := hash.ComparePassword(user.PasswordHash, currentPassword); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	// Validate new password
+	if len(newPassword) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+
+	// Hash new password
+	hashedPassword, err := hash.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	user.PasswordHash = hashedPassword
+	user.UpdatedAt = time.Now()
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	// Revoke all refresh tokens (force re-login on all devices)
+	return s.refreshTokenRepo.RevokeAllForUser(ctx, userID)
+}
+
+// DeleteUser permanently deletes a user account after verifying the password
+func (s *AuthService) DeleteUser(ctx context.Context, userID uuid.UUID, password string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Verify password
+	if err := hash.ComparePassword(user.PasswordHash, password); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	// Clean up tokens
+	_ = s.refreshTokenRepo.DeleteForUser(ctx, userID)
+	_ = s.passwordResetRepo.DeleteForUser(ctx, userID)
+
+	// Delete user (cascades to licenses, flights via FK)
+	return s.userRepo.Delete(ctx, userID)
+}

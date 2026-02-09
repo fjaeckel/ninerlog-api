@@ -530,3 +530,93 @@ func TestResetPasswordUsedToken(t *testing.T) {
 		t.Errorf("Expected ErrTokenUsed, got %v", err)
 	}
 }
+
+func TestChangePassword(t *testing.T) {
+	userRepo := newMockUserRepo()
+	refreshTokenRepo := newMockRefreshTokenRepo()
+	passwordResetRepo := newMockPasswordResetRepo()
+	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
+
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
+	ctx := context.Background()
+
+	// Register a user
+	registerInput := service.RegisterInput{
+		Email:    "change@example.com",
+		Password: "oldpassword123",
+		Name:     "Change Test",
+	}
+	_, _, err := authService.Register(ctx, registerInput)
+	if err != nil {
+		t.Fatalf("Registration failed: %v", err)
+	}
+
+	// Get user to find ID
+	user, _ := userRepo.GetByEmail(ctx, "change@example.com")
+
+	// Change password with correct current password
+	err = authService.ChangePassword(ctx, user.ID, "oldpassword123", "newpassword456")
+	if err != nil {
+		t.Fatalf("ChangePassword failed: %v", err)
+	}
+
+	// Verify new password works
+	err = hash.ComparePassword(user.PasswordHash, "newpassword456")
+	if err != nil {
+		t.Error("New password doesn't match after change")
+	}
+
+	// Change password with wrong current password should fail
+	err = authService.ChangePassword(ctx, user.ID, "wrongpassword", "another123")
+	if err != service.ErrInvalidCredentials {
+		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
+	}
+
+	// Change to short password should fail
+	err = authService.ChangePassword(ctx, user.ID, "newpassword456", "short")
+	if err == nil {
+		t.Error("Expected error for short password, got nil")
+	}
+}
+
+func TestDeleteUser(t *testing.T) {
+	userRepo := newMockUserRepo()
+	refreshTokenRepo := newMockRefreshTokenRepo()
+	passwordResetRepo := newMockPasswordResetRepo()
+	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
+
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
+	ctx := context.Background()
+
+	// Register a user
+	registerInput := service.RegisterInput{
+		Email:    "delete@example.com",
+		Password: "password123",
+		Name:     "Delete Test",
+	}
+	_, _, err := authService.Register(ctx, registerInput)
+	if err != nil {
+		t.Fatalf("Registration failed: %v", err)
+	}
+
+	user, _ := userRepo.GetByEmail(ctx, "delete@example.com")
+	userID := user.ID
+
+	// Delete with wrong password should fail
+	err = authService.DeleteUser(ctx, userID, "wrongpassword")
+	if err != service.ErrInvalidCredentials {
+		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
+	}
+
+	// Delete with correct password should succeed
+	err = authService.DeleteUser(ctx, userID, "password123")
+	if err != nil {
+		t.Fatalf("DeleteUser failed: %v", err)
+	}
+
+	// Verify user is gone
+	_, err = authService.GetUserByID(ctx, userID)
+	if err == nil {
+		t.Error("Expected error when getting deleted user, got nil")
+	}
+}

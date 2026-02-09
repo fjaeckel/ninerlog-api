@@ -28,6 +28,9 @@ type ServerInterface interface {
 	// Update aircraft
 	// (PATCH /aircraft/{aircraftId})
 	UpdateAircraft(c *gin.Context, aircraftId AircraftId)
+	// Change password
+	// (POST /auth/change-password)
+	ChangePassword(c *gin.Context)
 	// Login
 	// (POST /auth/login)
 	LoginUser(c *gin.Context)
@@ -73,6 +76,9 @@ type ServerInterface interface {
 	// Get license statistics
 	// (GET /licenses/{licenseId}/statistics)
 	GetLicenseStatistics(c *gin.Context, licenseId LicenseId, params GetLicenseStatisticsParams)
+	// Delete current user account
+	// (DELETE /users/me)
+	DeleteCurrentUser(c *gin.Context)
 	// Get current user profile
 	// (GET /users/me)
 	GetCurrentUser(c *gin.Context)
@@ -217,6 +223,21 @@ func (siw *ServerInterfaceWrapper) UpdateAircraft(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAircraft(c, aircraftId)
+}
+
+// ChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangePassword(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ChangePassword(c)
 }
 
 // LoginUser operation middleware
@@ -627,6 +648,21 @@ func (siw *ServerInterfaceWrapper) GetLicenseStatistics(c *gin.Context) {
 	siw.Handler.GetLicenseStatistics(c, licenseId, params)
 }
 
+// DeleteCurrentUser operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCurrentUser(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteCurrentUser(c)
+}
+
 // GetCurrentUser operation middleware
 func (siw *ServerInterfaceWrapper) GetCurrentUser(c *gin.Context) {
 
@@ -689,6 +725,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/aircraft/:aircraftId", wrapper.DeleteAircraft)
 	router.GET(options.BaseURL+"/aircraft/:aircraftId", wrapper.GetAircraft)
 	router.PATCH(options.BaseURL+"/aircraft/:aircraftId", wrapper.UpdateAircraft)
+	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.POST(options.BaseURL+"/auth/register", wrapper.RegisterUser)
@@ -704,6 +741,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PATCH(options.BaseURL+"/licenses/:licenseId", wrapper.UpdateLicense)
 	router.GET(options.BaseURL+"/licenses/:licenseId/currency", wrapper.GetLicenseCurrency)
 	router.GET(options.BaseURL+"/licenses/:licenseId/statistics", wrapper.GetLicenseStatistics)
+	router.DELETE(options.BaseURL+"/users/me", wrapper.DeleteCurrentUser)
 	router.GET(options.BaseURL+"/users/me", wrapper.GetCurrentUser)
 	router.PATCH(options.BaseURL+"/users/me", wrapper.UpdateCurrentUser)
 }

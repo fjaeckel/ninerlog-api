@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
@@ -109,11 +110,63 @@ func (h *APIHandler) RefreshToken(c *gin.Context) {
 	}
 
 	// Return new access and refresh tokens with expiry
-	response := map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"accessToken":  tokens.AccessToken,
 		"refreshToken": tokens.RefreshToken,
-		"expiresIn":    900, // 15 minutes in seconds
+		"expiresIn":    900,
+	})
+}
+
+// ChangePassword implements POST /auth/change-password
+// (POST /auth/change-password)
+func (h *APIHandler) ChangePassword(c *gin.Context) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	var req generated.ChangePasswordJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if err := h.authService.ChangePassword(c.Request.Context(), userID, req.CurrentPassword, req.NewPassword); err != nil {
+		if errors.Is(err, service.ErrInvalidCredentials) {
+			h.sendError(c, http.StatusUnauthorized, "Current password is incorrect")
+			return
+		}
+		h.sendError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// DeleteCurrentUser implements DELETE /users/me
+// (DELETE /users/me)
+func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req generated.DeleteCurrentUserJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if err := h.authService.DeleteUser(c.Request.Context(), userID, req.Password); err != nil {
+		if errors.Is(err, service.ErrInvalidCredentials) {
+			h.sendError(c, http.StatusUnauthorized, "Password is incorrect")
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Failed to delete account")
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

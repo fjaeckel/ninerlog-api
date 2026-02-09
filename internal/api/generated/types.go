@@ -234,11 +234,11 @@ type Flight struct {
 	// DepartureTime Takeoff time in UTC. Marks the beginning of airborne/flight time.
 	DepartureTime *string `json:"departureTime"`
 
-	// DualTime Dual instruction time in hours (computed from isDual and totalTime)
+	// DualTime Dual instruction block time in hours (computed from isDual and totalTime)
 	DualTime float32            `json:"dualTime"`
 	Id       openapi_types.UUID `json:"id"`
 
-	// IfrTime Instrument flight time in hours
+	// IfrTime Instrument block time in hours
 	IfrTime float32 `json:"ifrTime"`
 
 	// IsDual Whether this flight was logged as dual instruction received. Mutually exclusive with isPic.
@@ -254,7 +254,7 @@ type Flight struct {
 	LandingsNight int                `json:"landingsNight"`
 	LicenseId     openapi_types.UUID `json:"licenseId"`
 
-	// NightTime Night flying time in hours
+	// NightTime Night block time in hours
 	NightTime float32 `json:"nightTime"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
@@ -263,13 +263,13 @@ type Flight struct {
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
 	OnBlockTime *string `json:"onBlockTime"`
 
-	// PicTime Pilot-in-command time in hours (computed from isPic and totalTime)
+	// PicTime Pilot-in-command block time in hours (computed from isPic and totalTime)
 	PicTime float32 `json:"picTime"`
 
 	// Remarks Free text notes
 	Remarks *string `json:"remarks"`
 
-	// TotalTime Total flight time in hours
+	// TotalTime Total block time in hours (off-block to on-block)
 	TotalTime float32            `json:"totalTime"`
 	UpdatedAt time.Time          `json:"updatedAt"`
 	UserId    openapi_types.UUID `json:"userId"`
@@ -462,10 +462,10 @@ type PaginatedFlights struct {
 
 // Statistics defines model for Statistics.
 type Statistics struct {
-	// DualHours Total dual instruction hours
+	// DualHours Total dual instruction block hours
 	DualHours float32 `json:"dualHours"`
 
-	// IfrHours Total IFR hours
+	// IfrHours Total IFR block hours
 	IfrHours float32 `json:"ifrHours"`
 
 	// LandingsDay Total day landings
@@ -475,16 +475,16 @@ type Statistics struct {
 	LandingsNight int                `json:"landingsNight"`
 	LicenseId     openapi_types.UUID `json:"licenseId"`
 
-	// NightHours Total night hours
+	// NightHours Total night block hours
 	NightHours float32 `json:"nightHours"`
 
-	// PicHours Total PIC hours
+	// PicHours Total PIC block hours
 	PicHours float32 `json:"picHours"`
 
 	// TotalFlights Total number of flights
 	TotalFlights int `json:"totalFlights"`
 
-	// TotalHours Total flight hours
+	// TotalHours Total block hours
 	TotalHours float32 `json:"totalHours"`
 }
 
@@ -522,6 +522,15 @@ type ListAircraftParams struct {
 
 	// PageSize Items per page
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ChangePasswordJSONBody defines parameters for ChangePassword.
+type ChangePasswordJSONBody struct {
+	// CurrentPassword The user's current password
+	CurrentPassword string `json:"currentPassword"`
+
+	// NewPassword The new password (minimum 8 characters)
+	NewPassword string `json:"newPassword"`
 }
 
 // LoginUserJSONBody defines parameters for LoginUser.
@@ -598,6 +607,12 @@ type GetLicenseStatisticsParams struct {
 	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
 }
 
+// DeleteCurrentUserJSONBody defines parameters for DeleteCurrentUser.
+type DeleteCurrentUserJSONBody struct {
+	// Password Current password for confirmation
+	Password string `json:"password"`
+}
+
 // UpdateCurrentUserJSONBody defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBody struct {
 	Email *openapi_types.Email `json:"email,omitempty"`
@@ -609,6 +624,9 @@ type CreateAircraftJSONRequestBody = AircraftCreate
 
 // UpdateAircraftJSONRequestBody defines body for UpdateAircraft for application/json ContentType.
 type UpdateAircraftJSONRequestBody = AircraftUpdate
+
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody ChangePasswordJSONBody
 
 // LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
 type LoginUserJSONRequestBody LoginUserJSONBody
@@ -630,6 +648,9 @@ type CreateLicenseJSONRequestBody = LicenseCreate
 
 // UpdateLicenseJSONRequestBody defines body for UpdateLicense for application/json ContentType.
 type UpdateLicenseJSONRequestBody UpdateLicenseJSONBody
+
+// DeleteCurrentUserJSONRequestBody defines body for DeleteCurrentUser for application/json ContentType.
+type DeleteCurrentUserJSONRequestBody DeleteCurrentUserJSONBody
 
 // UpdateCurrentUserJSONRequestBody defines body for UpdateCurrentUser for application/json ContentType.
 type UpdateCurrentUserJSONRequestBody UpdateCurrentUserJSONBody
