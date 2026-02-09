@@ -127,3 +127,21 @@ type PasswordResetTokenRepository interface {
 	// DeleteForUser deletes all password reset tokens for a user
 	DeleteForUser(ctx context.Context, userID uuid.UUID) error
 }
+
+// CredentialRepository defines the interface for credential data access
+type CredentialRepository interface {
+	Create(ctx context.Context, credential *models.Credential) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Credential, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Credential, error)
+	Update(ctx context.Context, credential *models.Credential) error
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// NotificationRepository defines the interface for notification data access
+type NotificationRepository interface {
+	GetPreferences(ctx context.Context, userID uuid.UUID) (*models.NotificationPreferences, error)
+	UpsertPreferences(ctx context.Context, prefs *models.NotificationPreferences) error
+	LogNotification(ctx context.Context, log *models.NotificationLog) error
+	HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int) (bool, error)
+	GetAllUsersWithPreferences(ctx context.Context) ([]*models.NotificationPreferences, error)
+}

@@ -10,10 +10,12 @@ import (
 
 // APIHandler implements the generated.ServerInterface from OpenAPI spec
 type APIHandler struct {
-	authService    *service.AuthService
-	licenseService *service.LicenseService
-	flightService  *service.FlightService
-	jwtManager     *jwt.Manager
+	authService         *service.AuthService
+	licenseService      *service.LicenseService
+	flightService       *service.FlightService
+	credentialService   *service.CredentialService
+	notificationService *service.NotificationService
+	jwtManager          *jwt.Manager
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface
@@ -21,13 +23,17 @@ func NewAPIHandler(
 	authService *service.AuthService,
 	licenseService *service.LicenseService,
 	flightService *service.FlightService,
+	credentialService *service.CredentialService,
+	notificationService *service.NotificationService,
 	jwtManager *jwt.Manager,
 ) *APIHandler {
 	return &APIHandler{
-		authService:    authService,
-		licenseService: licenseService,
-		flightService:  flightService,
-		jwtManager:     jwtManager,
+		authService:         authService,
+		licenseService:      licenseService,
+		flightService:       flightService,
+		credentialService:   credentialService,
+		notificationService: notificationService,
+		jwtManager:          jwtManager,
 	}
 }
 

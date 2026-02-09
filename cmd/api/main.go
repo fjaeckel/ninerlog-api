@@ -16,6 +16,7 @@ import (
 	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
 	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
+	"github.com/fjaeckel/pilotlog-api/pkg/email"
 	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -78,9 +79,15 @@ func main() {
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
 	licenseService := service.NewLicenseService(licenseRepo)
 	flightService := service.NewFlightService(flightRepo, licenseRepo)
+	credentialRepo := postgres.NewCredentialRepository(db)
+	credentialService := service.NewCredentialService(credentialRepo)
+	notifRepo := postgres.NewNotificationRepository(db)
+	smtpConfig := email.LoadSMTPConfig()
+	emailSender := email.NewSender(smtpConfig)
+	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender)
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, jwtManager)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, notificationService, jwtManager)
 
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)
@@ -107,6 +114,11 @@ func main() {
 	generated.RegisterHandlers(api, apiHandler)
 
 	log.Println("✅ Routes registered from OpenAPI specification")
+
+	// Start background notification checker (runs every hour)
+	notifCtx, notifCancel := context.WithCancel(context.Background())
+	defer notifCancel()
+	notificationService.StartBackgroundChecker(notifCtx, 1*time.Hour)
 
 	// Start server
 	srv := &http.Server{

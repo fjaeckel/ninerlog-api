@@ -37,6 +37,22 @@ const (
 	Turboprop AircraftUpdateEngineType = "turboprop"
 )
 
+// Defines values for CredentialType.
+const (
+	EASACLASS1MEDICAL CredentialType = "EASA_CLASS1_MEDICAL"
+	EASACLASS2MEDICAL CredentialType = "EASA_CLASS2_MEDICAL"
+	EASALAPLMEDICAL   CredentialType = "EASA_LAPL_MEDICAL"
+	FAACLASS1MEDICAL  CredentialType = "FAA_CLASS1_MEDICAL"
+	FAACLASS2MEDICAL  CredentialType = "FAA_CLASS2_MEDICAL"
+	FAACLASS3MEDICAL  CredentialType = "FAA_CLASS3_MEDICAL"
+	LANGICAOLEVEL4    CredentialType = "LANG_ICAO_LEVEL4"
+	LANGICAOLEVEL5    CredentialType = "LANG_ICAO_LEVEL5"
+	LANGICAOLEVEL6    CredentialType = "LANG_ICAO_LEVEL6"
+	OTHER             CredentialType = "OTHER"
+	SECCLEARANCEZUBB  CredentialType = "SEC_CLEARANCE_ZUBB"
+	SECCLEARANCEZUP   CredentialType = "SEC_CLEARANCE_ZUP"
+)
+
 // Defines values for LicenseType.
 const (
 	EASAATPL LicenseType = "EASA_ATPL"
@@ -162,6 +178,103 @@ type AuthResponse struct {
 	// RefreshToken JWT refresh token (7 days validity)
 	RefreshToken string `json:"refreshToken"`
 	User         User   `json:"user"`
+}
+
+// Credential defines model for Credential.
+type Credential struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// CredentialNumber Official credential number/reference
+	CredentialNumber *string `json:"credentialNumber"`
+
+	// CredentialType Credential type:
+	// - EASA_CLASS1_MEDICAL: EASA Class 1 Medical Certificate
+	// - EASA_CLASS2_MEDICAL: EASA Class 2 Medical Certificate
+	// - EASA_LAPL_MEDICAL: EASA LAPL Medical Certificate
+	// - FAA_CLASS1_MEDICAL: FAA First-Class Medical Certificate
+	// - FAA_CLASS2_MEDICAL: FAA Second-Class Medical Certificate
+	// - FAA_CLASS3_MEDICAL: FAA Third-Class Medical Certificate
+	// - LANG_ICAO_LEVEL4: Language Proficiency ICAO Level 4
+	// - LANG_ICAO_LEVEL5: Language Proficiency ICAO Level 5
+	// - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
+	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
+	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+	// - OTHER: Other credential
+	CredentialType CredentialType `json:"credentialType"`
+
+	// ExpiryDate Null if credential doesn't expire
+	ExpiryDate *openapi_types.Date `json:"expiryDate"`
+	Id         openapi_types.UUID  `json:"id"`
+	IssueDate  openapi_types.Date  `json:"issueDate"`
+
+	// IssuingAuthority Authority or examiner that issued the credential
+	IssuingAuthority string             `json:"issuingAuthority"`
+	Notes            *string            `json:"notes"`
+	UpdatedAt        time.Time          `json:"updatedAt"`
+	UserId           openapi_types.UUID `json:"userId"`
+}
+
+// CredentialCreate defines model for CredentialCreate.
+type CredentialCreate struct {
+	CredentialNumber *string `json:"credentialNumber"`
+
+	// CredentialType Credential type:
+	// - EASA_CLASS1_MEDICAL: EASA Class 1 Medical Certificate
+	// - EASA_CLASS2_MEDICAL: EASA Class 2 Medical Certificate
+	// - EASA_LAPL_MEDICAL: EASA LAPL Medical Certificate
+	// - FAA_CLASS1_MEDICAL: FAA First-Class Medical Certificate
+	// - FAA_CLASS2_MEDICAL: FAA Second-Class Medical Certificate
+	// - FAA_CLASS3_MEDICAL: FAA Third-Class Medical Certificate
+	// - LANG_ICAO_LEVEL4: Language Proficiency ICAO Level 4
+	// - LANG_ICAO_LEVEL5: Language Proficiency ICAO Level 5
+	// - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
+	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
+	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+	// - OTHER: Other credential
+	CredentialType   CredentialType      `json:"credentialType"`
+	ExpiryDate       *openapi_types.Date `json:"expiryDate"`
+	IssueDate        openapi_types.Date  `json:"issueDate"`
+	IssuingAuthority string              `json:"issuingAuthority"`
+	Notes            *string             `json:"notes"`
+}
+
+// CredentialType Credential type:
+// - EASA_CLASS1_MEDICAL: EASA Class 1 Medical Certificate
+// - EASA_CLASS2_MEDICAL: EASA Class 2 Medical Certificate
+// - EASA_LAPL_MEDICAL: EASA LAPL Medical Certificate
+// - FAA_CLASS1_MEDICAL: FAA First-Class Medical Certificate
+// - FAA_CLASS2_MEDICAL: FAA Second-Class Medical Certificate
+// - FAA_CLASS3_MEDICAL: FAA Third-Class Medical Certificate
+// - LANG_ICAO_LEVEL4: Language Proficiency ICAO Level 4
+// - LANG_ICAO_LEVEL5: Language Proficiency ICAO Level 5
+// - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
+// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
+// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+// - OTHER: Other credential
+type CredentialType string
+
+// CredentialUpdate defines model for CredentialUpdate.
+type CredentialUpdate struct {
+	CredentialNumber *string `json:"credentialNumber"`
+
+	// CredentialType Credential type:
+	// - EASA_CLASS1_MEDICAL: EASA Class 1 Medical Certificate
+	// - EASA_CLASS2_MEDICAL: EASA Class 2 Medical Certificate
+	// - EASA_LAPL_MEDICAL: EASA LAPL Medical Certificate
+	// - FAA_CLASS1_MEDICAL: FAA First-Class Medical Certificate
+	// - FAA_CLASS2_MEDICAL: FAA Second-Class Medical Certificate
+	// - FAA_CLASS3_MEDICAL: FAA Third-Class Medical Certificate
+	// - LANG_ICAO_LEVEL4: Language Proficiency ICAO Level 4
+	// - LANG_ICAO_LEVEL5: Language Proficiency ICAO Level 5
+	// - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
+	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
+	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+	// - OTHER: Other credential
+	CredentialType   *CredentialType     `json:"credentialType,omitempty"`
+	ExpiryDate       *openapi_types.Date `json:"expiryDate"`
+	IssueDate        *openapi_types.Date `json:"issueDate,omitempty"`
+	IssuingAuthority *string             `json:"issuingAuthority,omitempty"`
+	Notes            *string             `json:"notes"`
 }
 
 // Currency defines model for Currency.
@@ -424,6 +537,29 @@ type LicenseCreate struct {
 // - FAA_IR: FAA Instrument Rating
 type LicenseType string
 
+// NotificationPreferences defines model for NotificationPreferences.
+type NotificationPreferences struct {
+	// CredentialWarnings Email warnings when credentials (medicals, etc.) are about to expire
+	CredentialWarnings bool `json:"credentialWarnings"`
+
+	// CurrencyWarnings Email warnings when currency is about to expire
+	CurrencyWarnings bool `json:"currencyWarnings"`
+
+	// EmailEnabled Master switch for all email notifications
+	EmailEnabled bool `json:"emailEnabled"`
+
+	// WarningDays Days before expiry to send warnings
+	WarningDays []int `json:"warningDays"`
+}
+
+// NotificationPreferencesUpdate defines model for NotificationPreferencesUpdate.
+type NotificationPreferencesUpdate struct {
+	CredentialWarnings *bool  `json:"credentialWarnings,omitempty"`
+	CurrencyWarnings   *bool  `json:"currencyWarnings,omitempty"`
+	EmailEnabled       *bool  `json:"emailEnabled,omitempty"`
+	WarningDays        *[]int `json:"warningDays,omitempty"`
+}
+
 // PaginatedAircraft defines model for PaginatedAircraft.
 type PaginatedAircraft struct {
 	Data       []Aircraft `json:"data"`
@@ -499,6 +635,9 @@ type User struct {
 
 // AircraftId defines model for AircraftId.
 type AircraftId = openapi_types.UUID
+
+// CredentialId defines model for CredentialId.
+type CredentialId = openapi_types.UUID
 
 // FlightId defines model for FlightId.
 type FlightId = openapi_types.UUID
@@ -637,6 +776,12 @@ type RefreshTokenJSONRequestBody RefreshTokenJSONBody
 // RegisterUserJSONRequestBody defines body for RegisterUser for application/json ContentType.
 type RegisterUserJSONRequestBody RegisterUserJSONBody
 
+// CreateCredentialJSONRequestBody defines body for CreateCredential for application/json ContentType.
+type CreateCredentialJSONRequestBody = CredentialCreate
+
+// UpdateCredentialJSONRequestBody defines body for UpdateCredential for application/json ContentType.
+type UpdateCredentialJSONRequestBody = CredentialUpdate
+
 // CreateFlightJSONRequestBody defines body for CreateFlight for application/json ContentType.
 type CreateFlightJSONRequestBody = FlightCreate
 
@@ -654,3 +799,6 @@ type DeleteCurrentUserJSONRequestBody DeleteCurrentUserJSONBody
 
 // UpdateCurrentUserJSONRequestBody defines body for UpdateCurrentUser for application/json ContentType.
 type UpdateCurrentUserJSONRequestBody UpdateCurrentUserJSONBody
+
+// UpdateNotificationPreferencesJSONRequestBody defines body for UpdateNotificationPreferences for application/json ContentType.
+type UpdateNotificationPreferencesJSONRequestBody = NotificationPreferencesUpdate

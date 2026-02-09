@@ -40,6 +40,21 @@ type ServerInterface interface {
 	// Register a new user
 	// (POST /auth/register)
 	RegisterUser(c *gin.Context)
+	// List credentials
+	// (GET /credentials)
+	ListCredentials(c *gin.Context)
+	// Add credential
+	// (POST /credentials)
+	CreateCredential(c *gin.Context)
+	// Delete credential
+	// (DELETE /credentials/{credentialId})
+	DeleteCredential(c *gin.Context, credentialId CredentialId)
+	// Get credential details
+	// (GET /credentials/{credentialId})
+	GetCredential(c *gin.Context, credentialId CredentialId)
+	// Update credential
+	// (PATCH /credentials/{credentialId})
+	UpdateCredential(c *gin.Context, credentialId CredentialId)
 	// List flights
 	// (GET /flights)
 	ListFlights(c *gin.Context, params ListFlightsParams)
@@ -85,6 +100,12 @@ type ServerInterface interface {
 	// Update current user profile
 	// (PATCH /users/me)
 	UpdateCurrentUser(c *gin.Context)
+	// Get notification preferences
+	// (GET /users/me/notifications)
+	GetNotificationPreferences(c *gin.Context)
+	// Update notification preferences
+	// (PATCH /users/me/notifications)
+	UpdateNotificationPreferences(c *gin.Context)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -277,6 +298,114 @@ func (siw *ServerInterfaceWrapper) RegisterUser(c *gin.Context) {
 	}
 
 	siw.Handler.RegisterUser(c)
+}
+
+// ListCredentials operation middleware
+func (siw *ServerInterfaceWrapper) ListCredentials(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListCredentials(c)
+}
+
+// CreateCredential operation middleware
+func (siw *ServerInterfaceWrapper) CreateCredential(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateCredential(c)
+}
+
+// DeleteCredential operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCredential(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "credentialId" -------------
+	var credentialId CredentialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "credentialId", c.Param("credentialId"), &credentialId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter credentialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteCredential(c, credentialId)
+}
+
+// GetCredential operation middleware
+func (siw *ServerInterfaceWrapper) GetCredential(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "credentialId" -------------
+	var credentialId CredentialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "credentialId", c.Param("credentialId"), &credentialId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter credentialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCredential(c, credentialId)
+}
+
+// UpdateCredential operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCredential(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "credentialId" -------------
+	var credentialId CredentialId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "credentialId", c.Param("credentialId"), &credentialId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter credentialId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateCredential(c, credentialId)
 }
 
 // ListFlights operation middleware
@@ -693,6 +822,36 @@ func (siw *ServerInterfaceWrapper) UpdateCurrentUser(c *gin.Context) {
 	siw.Handler.UpdateCurrentUser(c)
 }
 
+// GetNotificationPreferences operation middleware
+func (siw *ServerInterfaceWrapper) GetNotificationPreferences(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetNotificationPreferences(c)
+}
+
+// UpdateNotificationPreferences operation middleware
+func (siw *ServerInterfaceWrapper) UpdateNotificationPreferences(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateNotificationPreferences(c)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -729,6 +888,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.POST(options.BaseURL+"/auth/register", wrapper.RegisterUser)
+	router.GET(options.BaseURL+"/credentials", wrapper.ListCredentials)
+	router.POST(options.BaseURL+"/credentials", wrapper.CreateCredential)
+	router.DELETE(options.BaseURL+"/credentials/:credentialId", wrapper.DeleteCredential)
+	router.GET(options.BaseURL+"/credentials/:credentialId", wrapper.GetCredential)
+	router.PATCH(options.BaseURL+"/credentials/:credentialId", wrapper.UpdateCredential)
 	router.GET(options.BaseURL+"/flights", wrapper.ListFlights)
 	router.POST(options.BaseURL+"/flights", wrapper.CreateFlight)
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)
@@ -744,4 +908,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/users/me", wrapper.DeleteCurrentUser)
 	router.GET(options.BaseURL+"/users/me", wrapper.GetCurrentUser)
 	router.PATCH(options.BaseURL+"/users/me", wrapper.UpdateCurrentUser)
+	router.GET(options.BaseURL+"/users/me/notifications", wrapper.GetNotificationPreferences)
+	router.PATCH(options.BaseURL+"/users/me/notifications", wrapper.UpdateNotificationPreferences)
 }
