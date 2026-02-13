@@ -102,3 +102,31 @@ func (m *Manager) validateToken(tokenString, secret string) (*Claims, error) {
 func (m *Manager) GetRefreshTokenExpiry() time.Duration {
 	return m.refreshTokenExpiry
 }
+
+// Generate2FAToken creates a short-lived token for 2FA challenge (5 minutes)
+func (m *Manager) Generate2FAToken(userID uuid.UUID) (string, error) {
+	now := time.Now()
+	claims := Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        "2fa-" + uuid.New().String(),
+			ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			Subject:   "2fa-challenge",
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(m.accessSecret))
+}
+
+// Validate2FAToken validates a 2FA challenge token
+func (m *Manager) Validate2FAToken(tokenString string) (*Claims, error) {
+	claims, err := m.validateToken(tokenString, m.accessSecret)
+	if err != nil {
+		return nil, err
+	}
+	if claims.Subject != "2fa-challenge" {
+		return nil, ErrInvalidToken
+	}
+	return claims, nil
+}

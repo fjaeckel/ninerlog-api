@@ -85,9 +85,10 @@ func main() {
 	smtpConfig := email.LoadSMTPConfig()
 	emailSender := email.NewSender(smtpConfig)
 	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender)
+	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager)
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, notificationService, jwtManager)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, notificationService, twoFactorService, jwtManager)
 
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)

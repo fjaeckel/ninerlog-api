@@ -300,6 +300,11 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID uuid.UUID) (*model
 	return s.userRepo.GetByID(ctx, userID)
 }
 
+// GenerateTokensForUser generates access and refresh tokens for a user (used after 2FA verification)
+func (s *AuthService) GenerateTokensForUser(ctx context.Context, userID uuid.UUID) (*TokenPair, error) {
+	return s.generateTokenPair(ctx, userID)
+}
+
 // UpdateUser updates user information
 func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
 	user.UpdatedAt = time.Now()

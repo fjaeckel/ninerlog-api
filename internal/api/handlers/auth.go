@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -35,21 +36,7 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Match AuthResponse schema from OpenAPI spec
-	response := generated.AuthResponse{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-		ExpiresIn:    900, // 15 minutes in seconds
-		User: generated.User{
-			Id:        openapi_types.UUID(user.ID),
-			Email:     openapi_types.Email(user.Email),
-			Name:      user.Name,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
-		},
-	}
-
-	c.JSON(http.StatusCreated, response)
+	c.JSON(http.StatusCreated, convertAuthResponse(user, tokens))
 }
 
 // LoginUser implements POST /auth/login
@@ -76,21 +63,23 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	// Match AuthResponse schema from OpenAPI spec
-	response := generated.AuthResponse{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-		ExpiresIn:    900, // 15 minutes in seconds
-		User: generated.User{
-			Id:        openapi_types.UUID(user.ID),
-			Email:     openapi_types.Email(user.Email),
-			Name:      user.Name,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
-		},
+	// Check if 2FA is enabled
+	if user.TwoFactorEnabled {
+		// Generate a short-lived 2FA challenge token
+		twoFactorToken, err := h.jwtManager.Generate2FAToken(user.ID)
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to generate 2FA token")
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"requiresTwoFactor": true,
+			"twoFactorToken":    twoFactorToken,
+		})
+		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, convertAuthResponse(user, tokens))
 }
 
 // RefreshToken implements POST /auth/refresh
@@ -169,4 +158,21 @@ func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func convertAuthResponse(user *models.User, tokens *service.TokenPair) generated.AuthResponse {
+	twoFA := user.TwoFactorEnabled
+	return generated.AuthResponse{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+		ExpiresIn:    900,
+		User: generated.User{
+			Id:               openapi_types.UUID(user.ID),
+			Email:            openapi_types.Email(user.Email),
+			Name:             user.Name,
+			TwoFactorEnabled: &twoFA,
+			CreatedAt:        user.CreatedAt,
+			UpdatedAt:        user.UpdatedAt,
+		},
+	}
 }

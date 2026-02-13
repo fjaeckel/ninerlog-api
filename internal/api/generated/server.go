@@ -28,6 +28,18 @@ type ServerInterface interface {
 	// Update aircraft
 	// (PATCH /aircraft/{aircraftId})
 	UpdateAircraft(c *gin.Context, aircraftId AircraftId)
+	// Disable 2FA
+	// (POST /auth/2fa/disable)
+	Disable2FA(c *gin.Context)
+	// Complete login with 2FA code
+	// (POST /auth/2fa/login)
+	Login2FA(c *gin.Context)
+	// Start 2FA setup
+	// (POST /auth/2fa/setup)
+	Setup2FA(c *gin.Context)
+	// Verify and enable 2FA
+	// (POST /auth/2fa/verify)
+	Verify2FA(c *gin.Context)
 	// Change password
 	// (POST /auth/change-password)
 	ChangePassword(c *gin.Context)
@@ -244,6 +256,64 @@ func (siw *ServerInterfaceWrapper) UpdateAircraft(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAircraft(c, aircraftId)
+}
+
+// Disable2FA operation middleware
+func (siw *ServerInterfaceWrapper) Disable2FA(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Disable2FA(c)
+}
+
+// Login2FA operation middleware
+func (siw *ServerInterfaceWrapper) Login2FA(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Login2FA(c)
+}
+
+// Setup2FA operation middleware
+func (siw *ServerInterfaceWrapper) Setup2FA(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Setup2FA(c)
+}
+
+// Verify2FA operation middleware
+func (siw *ServerInterfaceWrapper) Verify2FA(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Verify2FA(c)
 }
 
 // ChangePassword operation middleware
@@ -884,6 +954,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/aircraft/:aircraftId", wrapper.DeleteAircraft)
 	router.GET(options.BaseURL+"/aircraft/:aircraftId", wrapper.GetAircraft)
 	router.PATCH(options.BaseURL+"/aircraft/:aircraftId", wrapper.UpdateAircraft)
+	router.POST(options.BaseURL+"/auth/2fa/disable", wrapper.Disable2FA)
+	router.POST(options.BaseURL+"/auth/2fa/login", wrapper.Login2FA)
+	router.POST(options.BaseURL+"/auth/2fa/setup", wrapper.Setup2FA)
+	router.POST(options.BaseURL+"/auth/2fa/verify", wrapper.Verify2FA)
 	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)

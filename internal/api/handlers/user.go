@@ -23,12 +23,14 @@ func (h *APIHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
+	twoFA := user.TwoFactorEnabled
 	response := generated.User{
-		Id:        openapi_types.UUID(user.ID),
-		Email:     openapi_types.Email(user.Email),
-		Name:      user.Name,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		Id:               openapi_types.UUID(user.ID),
+		Email:            openapi_types.Email(user.Email),
+		Name:             user.Name,
+		TwoFactorEnabled: &twoFA,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -70,12 +72,14 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 		return
 	}
 
+	twoFA2 := user.TwoFactorEnabled
 	response := generated.User{
-		Id:        openapi_types.UUID(user.ID),
-		Email:     openapi_types.Email(user.Email),
-		Name:      user.Name,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		Id:               openapi_types.UUID(user.ID),
+		Email:            openapi_types.Email(user.Email),
+		Name:             user.Name,
+		TwoFactorEnabled: &twoFA2,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
 	}
 
 	c.JSON(http.StatusOK, response)

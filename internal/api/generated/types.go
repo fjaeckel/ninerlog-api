@@ -624,13 +624,31 @@ type Statistics struct {
 	TotalHours float32 `json:"totalHours"`
 }
 
+// TwoFactorEnabled defines model for TwoFactorEnabled.
+type TwoFactorEnabled struct {
+	// RecoveryCodes One-time recovery codes to use if authenticator is unavailable
+	RecoveryCodes []string `json:"recoveryCodes"`
+}
+
+// TwoFactorSetup defines model for TwoFactorSetup.
+type TwoFactorSetup struct {
+	// QrUri otpauth:// URI for QR code generation
+	QrUri string `json:"qrUri"`
+
+	// Secret Base32-encoded TOTP secret for manual entry
+	Secret string `json:"secret"`
+}
+
 // User defines model for User.
 type User struct {
 	CreatedAt time.Time           `json:"createdAt"`
 	Email     openapi_types.Email `json:"email"`
 	Id        openapi_types.UUID  `json:"id"`
 	Name      string              `json:"name"`
-	UpdatedAt time.Time           `json:"updatedAt"`
+
+	// TwoFactorEnabled Whether 2FA is enabled for this account
+	TwoFactorEnabled *bool     `json:"twoFactorEnabled,omitempty"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // AircraftId defines model for AircraftId.
@@ -661,6 +679,26 @@ type ListAircraftParams struct {
 
 	// PageSize Items per page
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// Disable2FAJSONBody defines parameters for Disable2FA.
+type Disable2FAJSONBody struct {
+	Password string `json:"password"`
+}
+
+// Login2FAJSONBody defines parameters for Login2FA.
+type Login2FAJSONBody struct {
+	// Code 6-digit TOTP code or recovery code
+	Code string `json:"code"`
+
+	// TwoFactorToken Temporary token from login response
+	TwoFactorToken string `json:"twoFactorToken"`
+}
+
+// Verify2FAJSONBody defines parameters for Verify2FA.
+type Verify2FAJSONBody struct {
+	// Code 6-digit TOTP code from authenticator app
+	Code string `json:"code"`
 }
 
 // ChangePasswordJSONBody defines parameters for ChangePassword.
@@ -763,6 +801,15 @@ type CreateAircraftJSONRequestBody = AircraftCreate
 
 // UpdateAircraftJSONRequestBody defines body for UpdateAircraft for application/json ContentType.
 type UpdateAircraftJSONRequestBody = AircraftUpdate
+
+// Disable2FAJSONRequestBody defines body for Disable2FA for application/json ContentType.
+type Disable2FAJSONRequestBody Disable2FAJSONBody
+
+// Login2FAJSONRequestBody defines body for Login2FA for application/json ContentType.
+type Login2FAJSONRequestBody Login2FAJSONBody
+
+// Verify2FAJSONRequestBody defines body for Verify2FA for application/json ContentType.
+type Verify2FAJSONRequestBody Verify2FAJSONBody
 
 // ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
 type ChangePasswordJSONRequestBody ChangePasswordJSONBody
