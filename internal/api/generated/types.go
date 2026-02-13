@@ -167,6 +167,43 @@ type AircraftUpdate struct {
 // AircraftUpdateEngineType defines model for AircraftUpdate.EngineType.
 type AircraftUpdateEngineType string
 
+// Airport defines model for Airport.
+type Airport struct {
+	// Country Country code (ISO 3166-1 alpha-2)
+	Country *string `json:"country,omitempty"`
+
+	// Elevation Airport elevation in feet
+	Elevation *int `json:"elevation,omitempty"`
+
+	// Icao ICAO airport code
+	Icao string `json:"icao"`
+
+	// Latitude Latitude in decimal degrees
+	Latitude float64 `json:"latitude"`
+
+	// Longitude Longitude in decimal degrees
+	Longitude float64 `json:"longitude"`
+
+	// Name Airport name
+	Name string `json:"name"`
+}
+
+// AirportStats defines model for AirportStats.
+type AirportStats struct {
+	// Arrivals Number of arrivals to this airport
+	Arrivals int `json:"arrivals"`
+
+	// Departures Number of departures from this airport
+	Departures int     `json:"departures"`
+	Icao       string  `json:"icao"`
+	Latitude   float64 `json:"latitude"`
+	Longitude  float64 `json:"longitude"`
+	Name       string  `json:"name"`
+
+	// TotalFlights Total flights (departures + arrivals)
+	TotalFlights int `json:"totalFlights"`
+}
+
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
 	// AccessToken JWT access token (15 minutes validity)
@@ -438,6 +475,29 @@ type FlightCreate struct {
 	TotalTime *float32 `json:"totalTime,omitempty"`
 }
 
+// FlightRoute defines model for FlightRoute.
+type FlightRoute struct {
+	ArrivalCoords struct {
+		Lat float64 `json:"lat"`
+		Lng float64 `json:"lng"`
+	} `json:"arrivalCoords"`
+	ArrivalIcao     string `json:"arrivalIcao"`
+	DepartureCoords struct {
+		Lat float64 `json:"lat"`
+		Lng float64 `json:"lng"`
+	} `json:"departureCoords"`
+	DepartureIcao string `json:"departureIcao"`
+
+	// FlightCount Number of flights on this route
+	FlightCount int `json:"flightCount"`
+}
+
+// FlightRoutesResponse defines model for FlightRoutesResponse.
+type FlightRoutesResponse struct {
+	Airports []Airport     `json:"airports"`
+	Routes   []FlightRoute `json:"routes"`
+}
+
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
 	AircraftReg  *string `json:"aircraftReg,omitempty"`
@@ -679,6 +739,13 @@ type ListAircraftParams struct {
 
 	// PageSize Items per page
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// SearchAirportsParams defines parameters for SearchAirports.
+type SearchAirportsParams struct {
+	// Q Search query (ICAO code prefix)
+	Q     string `form:"q" json:"q"`
+	Limit *int   `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // Disable2FAJSONBody defines parameters for Disable2FA.

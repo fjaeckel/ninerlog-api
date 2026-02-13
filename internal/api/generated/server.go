@@ -28,6 +28,12 @@ type ServerInterface interface {
 	// Update aircraft
 	// (PATCH /aircraft/{aircraftId})
 	UpdateAircraft(c *gin.Context, aircraftId AircraftId)
+	// Search airports
+	// (GET /airports/search)
+	SearchAirports(c *gin.Context, params SearchAirportsParams)
+	// Get airport coordinates
+	// (GET /airports/{icaoCode})
+	GetAirport(c *gin.Context, icaoCode string)
 	// Disable 2FA
 	// (POST /auth/2fa/disable)
 	Disable2FA(c *gin.Context)
@@ -103,6 +109,12 @@ type ServerInterface interface {
 	// Get license statistics
 	// (GET /licenses/{licenseId}/statistics)
 	GetLicenseStatistics(c *gin.Context, licenseId LicenseId, params GetLicenseStatisticsParams)
+	// Get airport statistics
+	// (GET /reports/airport-stats)
+	GetAirportStats(c *gin.Context)
+	// Get flight routes for map
+	// (GET /reports/routes)
+	GetFlightRoutes(c *gin.Context)
 	// Delete current user account
 	// (DELETE /users/me)
 	DeleteCurrentUser(c *gin.Context)
@@ -256,6 +268,75 @@ func (siw *ServerInterfaceWrapper) UpdateAircraft(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAircraft(c, aircraftId)
+}
+
+// SearchAirports operation middleware
+func (siw *ServerInterfaceWrapper) SearchAirports(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchAirportsParams
+
+	// ------------- Required query parameter "q" -------------
+
+	if paramValue := c.Query("q"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument q is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "q", c.Request.URL.Query(), &params.Q)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SearchAirports(c, params)
+}
+
+// GetAirport operation middleware
+func (siw *ServerInterfaceWrapper) GetAirport(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "icaoCode" -------------
+	var icaoCode string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "icaoCode", c.Param("icaoCode"), &icaoCode, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter icaoCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAirport(c, icaoCode)
 }
 
 // Disable2FA operation middleware
@@ -847,6 +928,36 @@ func (siw *ServerInterfaceWrapper) GetLicenseStatistics(c *gin.Context) {
 	siw.Handler.GetLicenseStatistics(c, licenseId, params)
 }
 
+// GetAirportStats operation middleware
+func (siw *ServerInterfaceWrapper) GetAirportStats(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAirportStats(c)
+}
+
+// GetFlightRoutes operation middleware
+func (siw *ServerInterfaceWrapper) GetFlightRoutes(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFlightRoutes(c)
+}
+
 // DeleteCurrentUser operation middleware
 func (siw *ServerInterfaceWrapper) DeleteCurrentUser(c *gin.Context) {
 
@@ -954,6 +1065,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/aircraft/:aircraftId", wrapper.DeleteAircraft)
 	router.GET(options.BaseURL+"/aircraft/:aircraftId", wrapper.GetAircraft)
 	router.PATCH(options.BaseURL+"/aircraft/:aircraftId", wrapper.UpdateAircraft)
+	router.GET(options.BaseURL+"/airports/search", wrapper.SearchAirports)
+	router.GET(options.BaseURL+"/airports/:icaoCode", wrapper.GetAirport)
 	router.POST(options.BaseURL+"/auth/2fa/disable", wrapper.Disable2FA)
 	router.POST(options.BaseURL+"/auth/2fa/login", wrapper.Login2FA)
 	router.POST(options.BaseURL+"/auth/2fa/setup", wrapper.Setup2FA)
@@ -979,6 +1092,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PATCH(options.BaseURL+"/licenses/:licenseId", wrapper.UpdateLicense)
 	router.GET(options.BaseURL+"/licenses/:licenseId/currency", wrapper.GetLicenseCurrency)
 	router.GET(options.BaseURL+"/licenses/:licenseId/statistics", wrapper.GetLicenseStatistics)
+	router.GET(options.BaseURL+"/reports/airport-stats", wrapper.GetAirportStats)
+	router.GET(options.BaseURL+"/reports/routes", wrapper.GetFlightRoutes)
 	router.DELETE(options.BaseURL+"/users/me", wrapper.DeleteCurrentUser)
 	router.GET(options.BaseURL+"/users/me", wrapper.GetCurrentUser)
 	router.PATCH(options.BaseURL+"/users/me", wrapper.UpdateCurrentUser)

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fjaeckel/pilotlog-api/internal/airports"
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
 	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
@@ -65,6 +66,9 @@ func main() {
 	}
 	log.Println("✅ Database connected")
 
+	// Load airport database from OurAirports (async-safe, cached)
+	airports.Init()
+
 	// Initialize JWT manager
 	jwtManager := jwt.NewManager(jwtSecret, refreshSecret, 15*time.Minute, 7*24*time.Hour)
 
@@ -91,6 +95,7 @@ func main() {
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, jwtManager)
+	apiHandler.SetDB(db)
 
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)

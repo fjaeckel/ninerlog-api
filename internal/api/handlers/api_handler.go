@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
@@ -18,6 +20,7 @@ type APIHandler struct {
 	notificationService *service.NotificationService
 	twoFactorService    *service.TwoFactorService
 	jwtManager          *jwt.Manager
+	db                  *sql.DB
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface
