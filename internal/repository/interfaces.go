@@ -100,14 +100,19 @@ type FlightRepository interface {
 
 // FlightQueryOptions represents query parameters for filtering flights
 type FlightQueryOptions struct {
-	LicenseID   *uuid.UUID
-	StartDate   *time.Time
-	EndDate     *time.Time
-	AircraftReg *string
-	Page        int
-	PageSize    int
-	SortBy      string // "date", "totalTime", "createdAt"
-	SortOrder   string // "asc", "desc"
+	LicenseID     *uuid.UUID
+	StartDate     *time.Time
+	EndDate       *time.Time
+	AircraftReg   *string
+	DepartureICAO *string
+	ArrivalICAO   *string
+	IsPIC         *bool
+	IsDual        *bool
+	Search        *string
+	Page          int
+	PageSize      int
+	SortBy        string // "date", "totalTime", "createdAt"
+	SortOrder     string // "asc", "desc"
 }
 
 // PasswordResetTokenRepository defines the interface for password reset token data access

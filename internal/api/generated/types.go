@@ -811,6 +811,21 @@ type ListFlightsParams struct {
 	// AircraftReg Filter by aircraft registration
 	AircraftReg *string `form:"aircraftReg,omitempty" json:"aircraftReg,omitempty"`
 
+	// DepartureIcao Filter by departure airport ICAO code
+	DepartureIcao *string `form:"departureIcao,omitempty" json:"departureIcao,omitempty"`
+
+	// ArrivalIcao Filter by arrival airport ICAO code
+	ArrivalIcao *string `form:"arrivalIcao,omitempty" json:"arrivalIcao,omitempty"`
+
+	// IsPic Filter by PIC flights only
+	IsPic *bool `form:"isPic,omitempty" json:"isPic,omitempty"`
+
+	// IsDual Filter by dual instruction flights only
+	IsDual *bool `form:"isDual,omitempty" json:"isDual,omitempty"`
+
+	// Search Free-text search across registration, type, ICAO codes, and remarks
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
 	// Page Page number (1-indexed)
 	Page *int `form:"page,omitempty" json:"page,omitempty"`
 

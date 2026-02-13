@@ -9,6 +9,7 @@ import (
 
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/fjaeckel/pilotlog-api/internal/repository"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -24,19 +25,78 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		return
 	}
 
-	// TODO: Implement filtering, pagination, and sorting based on params
-	// For now, return all flights for the user
-	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, nil)
+	// Build query options from params
+	opts := &repository.FlightQueryOptions{
+		Page:      1,
+		PageSize:  20,
+		SortBy:    "date",
+		SortOrder: "desc",
+	}
+	if params.LicenseId != nil {
+		id := uuid.UUID(*params.LicenseId)
+		opts.LicenseID = &id
+	}
+	if params.StartDate != nil {
+		t := params.StartDate.Time
+		opts.StartDate = &t
+	}
+	if params.EndDate != nil {
+		t := params.EndDate.Time
+		opts.EndDate = &t
+	}
+	if params.AircraftReg != nil {
+		opts.AircraftReg = params.AircraftReg
+	}
+	if params.DepartureIcao != nil {
+		opts.DepartureICAO = params.DepartureIcao
+	}
+	if params.ArrivalIcao != nil {
+		opts.ArrivalICAO = params.ArrivalIcao
+	}
+	if params.IsPic != nil {
+		opts.IsPIC = params.IsPic
+	}
+	if params.IsDual != nil {
+		opts.IsDual = params.IsDual
+	}
+	if params.Search != nil {
+		opts.Search = params.Search
+	}
+	if params.Page != nil && *params.Page > 0 {
+		opts.Page = *params.Page
+	}
+	if params.PageSize != nil && *params.PageSize > 0 {
+		opts.PageSize = *params.PageSize
+		if opts.PageSize > 100 {
+			opts.PageSize = 100
+		}
+	}
+	if params.SortBy != nil {
+		opts.SortBy = string(*params.SortBy)
+	}
+	if params.SortOrder != nil {
+		opts.SortOrder = string(*params.SortOrder)
+	}
+
+	// Get total count for pagination
+	total, err := h.flightService.CountFlights(c.Request.Context(), userID, opts)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to count flights")
+		return
+	}
+
+	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, opts)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
 
-	// Convert to paginated response as per OpenAPI spec
 	flightList := make([]generated.Flight, 0, len(flights))
 	for _, f := range flights {
 		flightList = append(flightList, convertToGeneratedFlight(f))
 	}
+
+	totalPages := (total + opts.PageSize - 1) / opts.PageSize
 
 	response := generated.PaginatedFlights{
 		Data: flightList,
@@ -46,10 +106,10 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 			Total      int "json:\"total\""
 			TotalPages int "json:\"totalPages\""
 		}{
-			Page:       1,
-			PageSize:   len(flightList),
-			Total:      len(flightList),
-			TotalPages: 1,
+			Page:       opts.Page,
+			PageSize:   opts.PageSize,
+			Total:      total,
+			TotalPages: totalPages,
 		},
 	}
 

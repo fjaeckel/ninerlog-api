@@ -601,6 +601,46 @@ func (siw *ServerInterfaceWrapper) ListFlights(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "departureIcao" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "departureIcao", c.Request.URL.Query(), &params.DepartureIcao)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departureIcao: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "arrivalIcao" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "arrivalIcao", c.Request.URL.Query(), &params.ArrivalIcao)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter arrivalIcao: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "isPic" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "isPic", c.Request.URL.Query(), &params.IsPic)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter isPic: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "isDual" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "isDual", c.Request.URL.Query(), &params.IsDual)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter isDual: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", c.Request.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter search: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	// ------------- Optional query parameter "page" -------------
 
 	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)

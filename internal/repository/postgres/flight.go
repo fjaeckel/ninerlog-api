@@ -243,8 +243,37 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 			argNum++
 		}
 		if opts.AircraftReg != nil {
-			query += fmt.Sprintf(" AND aircraft_reg = $%d", argNum)
+			query += fmt.Sprintf(" AND UPPER(aircraft_reg) = UPPER($%d)", argNum)
 			args = append(args, *opts.AircraftReg)
+			argNum++
+		}
+		if opts.DepartureICAO != nil {
+			query += fmt.Sprintf(" AND UPPER(departure_icao) = UPPER($%d)", argNum)
+			args = append(args, *opts.DepartureICAO)
+			argNum++
+		}
+		if opts.ArrivalICAO != nil {
+			query += fmt.Sprintf(" AND UPPER(arrival_icao) = UPPER($%d)", argNum)
+			args = append(args, *opts.ArrivalICAO)
+			argNum++
+		}
+		if opts.IsPIC != nil {
+			query += fmt.Sprintf(" AND is_pic = $%d", argNum)
+			args = append(args, *opts.IsPIC)
+			argNum++
+		}
+		if opts.IsDual != nil {
+			query += fmt.Sprintf(" AND is_dual = $%d", argNum)
+			args = append(args, *opts.IsDual)
+			argNum++
+		}
+		if opts.Search != nil && *opts.Search != "" {
+			searchPattern := "%" + *opts.Search + "%"
+			query += fmt.Sprintf(
+				" AND (UPPER(aircraft_reg) LIKE UPPER($%d) OR UPPER(aircraft_type) LIKE UPPER($%d) OR UPPER(departure_icao) LIKE UPPER($%d) OR UPPER(arrival_icao) LIKE UPPER($%d) OR UPPER(COALESCE(remarks, '')) LIKE UPPER($%d))",
+				argNum, argNum, argNum, argNum, argNum,
+			)
+			args = append(args, searchPattern)
 			argNum++
 		}
 	}
@@ -352,24 +381,58 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 			argNum++
 		}
 		if opts.AircraftReg != nil {
-			query += fmt.Sprintf(" AND aircraft_reg = $%d", argNum)
+			query += fmt.Sprintf(" AND UPPER(aircraft_reg) = UPPER($%d)", argNum)
 			args = append(args, *opts.AircraftReg)
+			argNum++
+		}
+		if opts.DepartureICAO != nil {
+			query += fmt.Sprintf(" AND UPPER(departure_icao) = UPPER($%d)", argNum)
+			args = append(args, *opts.DepartureICAO)
+			argNum++
+		}
+		if opts.ArrivalICAO != nil {
+			query += fmt.Sprintf(" AND UPPER(arrival_icao) = UPPER($%d)", argNum)
+			args = append(args, *opts.ArrivalICAO)
+			argNum++
+		}
+		if opts.IsPIC != nil {
+			query += fmt.Sprintf(" AND is_pic = $%d", argNum)
+			args = append(args, *opts.IsPIC)
+			argNum++
+		}
+		if opts.IsDual != nil {
+			query += fmt.Sprintf(" AND is_dual = $%d", argNum)
+			args = append(args, *opts.IsDual)
+			argNum++
+		}
+		if opts.Search != nil && *opts.Search != "" {
+			searchPattern := "%" + *opts.Search + "%"
+			query += fmt.Sprintf(
+				" AND (UPPER(aircraft_reg) LIKE UPPER($%d) OR UPPER(aircraft_type) LIKE UPPER($%d) OR UPPER(departure_icao) LIKE UPPER($%d) OR UPPER(arrival_icao) LIKE UPPER($%d) OR UPPER(COALESCE(remarks, '')) LIKE UPPER($%d))",
+				argNum, argNum, argNum, argNum, argNum,
+			)
+			args = append(args, searchPattern)
 			argNum++
 		}
 	}
 
-	// Sorting
-	sortBy := "date"
-	sortOrder := "DESC"
+	// Sorting — map camelCase API field names to snake_case DB columns
+	sortColumn := "date"
+	sortDirection := "DESC"
 	if opts != nil {
-		if opts.SortBy != "" {
-			sortBy = opts.SortBy
+		switch opts.SortBy {
+		case "date":
+			sortColumn = "date"
+		case "totalTime":
+			sortColumn = "total_time"
+		case "createdAt":
+			sortColumn = "created_at"
 		}
-		if opts.SortOrder != "" {
-			sortOrder = strings.ToUpper(opts.SortOrder)
+		if strings.EqualFold(opts.SortOrder, "asc") {
+			sortDirection = "ASC"
 		}
 	}
-	query += fmt.Sprintf(" ORDER BY %s %s", sortBy, sortOrder)
+	query += fmt.Sprintf(" ORDER BY %s %s", sortColumn, sortDirection)
 
 	// Pagination
 	if opts != nil && opts.PageSize > 0 {
