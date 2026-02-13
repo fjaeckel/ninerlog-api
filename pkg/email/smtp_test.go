@@ -1,0 +1,101 @@
+package email
+
+import (
+	"os"
+	"testing"
+)
+
+func TestLoadSMTPConfig_Defaults(t *testing.T) {
+	os.Unsetenv("SMTP_HOST")
+	os.Unsetenv("SMTP_PORT")
+	os.Unsetenv("SMTP_USERNAME")
+	os.Unsetenv("SMTP_PASSWORD")
+	os.Unsetenv("SMTP_FROM")
+
+	cfg := LoadSMTPConfig()
+	if cfg.Host != "" {
+		t.Errorf("Host = %q, want empty", cfg.Host)
+	}
+	if cfg.Port != "587" {
+		t.Errorf("Port = %q, want 587", cfg.Port)
+	}
+	if cfg.Username != "" {
+		t.Errorf("Username = %q, want empty", cfg.Username)
+	}
+	if cfg.From != "noreply@pilotlog.app" {
+		t.Errorf("From = %q, want noreply@pilotlog.app", cfg.From)
+	}
+}
+
+func TestLoadSMTPConfig_FromEnv(t *testing.T) {
+	t.Setenv("SMTP_HOST", "smtp.example.com")
+	t.Setenv("SMTP_PORT", "465")
+	t.Setenv("SMTP_USERNAME", "user@example.com")
+	t.Setenv("SMTP_PASSWORD", "secret")
+	t.Setenv("SMTP_FROM", "admin@example.com")
+
+	cfg := LoadSMTPConfig()
+	if cfg.Host != "smtp.example.com" {
+		t.Errorf("Host = %q, want smtp.example.com", cfg.Host)
+	}
+	if cfg.Port != "465" {
+		t.Errorf("Port = %q, want 465", cfg.Port)
+	}
+	if cfg.Username != "user@example.com" {
+		t.Errorf("Username = %q, want user@example.com", cfg.Username)
+	}
+}
+
+func TestIsConfigured_NotConfigured(t *testing.T) {
+	cfg := &SMTPConfig{}
+	if cfg.IsConfigured() {
+		t.Error("IsConfigured() = true for empty config")
+	}
+}
+
+func TestIsConfigured_FullyConfigured(t *testing.T) {
+	cfg := &SMTPConfig{Host: "smtp.example.com", Username: "user"}
+	if !cfg.IsConfigured() {
+		t.Error("IsConfigured() = false for configured SMTP")
+	}
+}
+
+func TestIsConfigured_OnlyHost(t *testing.T) {
+	cfg := &SMTPConfig{Host: "smtp.example.com"}
+	if cfg.IsConfigured() {
+		t.Error("IsConfigured() = true with only host set")
+	}
+}
+
+func TestNewSender(t *testing.T) {
+	cfg := &SMTPConfig{Host: "smtp.example.com", Port: "587"}
+	sender := NewSender(cfg)
+	if sender == nil {
+		t.Error("NewSender() returned nil")
+	}
+}
+
+func TestSend_DryRun(t *testing.T) {
+	cfg := &SMTPConfig{}
+	sender := NewSender(cfg)
+	err := sender.Send("test@example.com", "Test Subject", "<p>Hello</p>")
+	if err != nil {
+		t.Errorf("Send() dry-run error = %v, want nil", err)
+	}
+}
+
+func TestGetEnv_WithValue(t *testing.T) {
+	t.Setenv("TEST_SMTP_VAR", "custom_value")
+	val := getEnv("TEST_SMTP_VAR", "default")
+	if val != "custom_value" {
+		t.Errorf("getEnv() = %q, want custom_value", val)
+	}
+}
+
+func TestGetEnv_WithDefault(t *testing.T) {
+	os.Unsetenv("TEST_SMTP_MISSING")
+	val := getEnv("TEST_SMTP_MISSING", "default_val")
+	if val != "default_val" {
+		t.Errorf("getEnv() = %q, want default_val", val)
+	}
+}

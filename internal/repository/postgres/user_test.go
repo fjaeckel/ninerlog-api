@@ -54,8 +54,8 @@ func TestUserGetByEmail(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := context.Background()
 
-	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "created_at", "updated_at"}).
-		AddRow(uuid.New(), "test@example.com", "hashed_password", "Test User", time.Now(), time.Now())
+	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "two_factor_enabled", "two_factor_secret", "recovery_codes", "created_at", "updated_at"}).
+		AddRow(uuid.New(), "test@example.com", "hashed_password", "Test User", false, nil, nil, time.Now(), time.Now())
 
 	mock.ExpectQuery("SELECT (.+) FROM users WHERE email").
 		WithArgs("test@example.com").
@@ -109,15 +109,18 @@ func TestUserUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	user := &models.User{
-		ID:           uuid.New(),
-		Email:        "updated@example.com",
-		PasswordHash: "new_hashed_password",
-		Name:         "Updated User",
-		UpdatedAt:    time.Now(),
+		ID:               uuid.New(),
+		Email:            "updated@example.com",
+		PasswordHash:     "new_hashed_password",
+		Name:             "Updated User",
+		TwoFactorEnabled: false,
+		TwoFactorSecret:  nil,
+		RecoveryCodes:    nil,
+		UpdatedAt:        time.Now(),
 	}
 
 	mock.ExpectExec("UPDATE users").
-		WithArgs(user.Email, user.PasswordHash, user.Name, user.UpdatedAt, user.ID).
+		WithArgs(user.Email, user.PasswordHash, user.Name, user.TwoFactorEnabled, user.TwoFactorSecret, user.RecoveryCodes, user.UpdatedAt, user.ID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = repo.Update(ctx, user)
