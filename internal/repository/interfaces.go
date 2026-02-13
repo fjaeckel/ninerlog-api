@@ -159,3 +159,20 @@ type NotificationRepository interface {
 	HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int) (bool, error)
 	GetAllUsersWithPreferences(ctx context.Context) ([]*models.NotificationPreferences, error)
 }
+
+// ContactRepository defines the interface for contact (reusable people) data access
+type ContactRepository interface {
+	Create(ctx context.Context, contact *models.Contact) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Contact, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error)
+	Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error)
+	Update(ctx context.Context, contact *models.Contact) error
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// FlightCrewRepository defines the interface for flight crew member data access
+type FlightCrewRepository interface {
+	SetCrewMembers(ctx context.Context, flightID uuid.UUID, members []models.FlightCrewMember) error
+	GetByFlightID(ctx context.Context, flightID uuid.UUID) ([]models.FlightCrewMember, error)
+	DeleteByFlightID(ctx context.Context, flightID uuid.UUID) error
+}

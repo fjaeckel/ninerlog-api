@@ -92,9 +92,11 @@ func main() {
 	emailSender := email.NewSender(smtpConfig)
 	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender)
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager)
+	contactRepo := postgres.NewContactRepository(db)
+	contactService := service.NewContactService(contactRepo)
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, jwtManager)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, jwtManager)
 	apiHandler.SetDB(db)
 
 	// Setup router
@@ -123,6 +125,9 @@ func main() {
 
 	// Register custom reports routes (not in OpenAPI spec)
 	handlers.RegisterReportsRoutes(api, apiHandler, db)
+
+	// Register contact routes
+	handlers.RegisterContactRoutes(api, apiHandler)
 
 	log.Println("✅ Routes registered from OpenAPI specification")
 

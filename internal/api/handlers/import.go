@@ -442,16 +442,6 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			totalTime = float64(*flight.TotalTime)
 		}
 
-		isPic := flight.IsPic == nil || *flight.IsPic
-		isDual := flight.IsDual != nil && *flight.IsDual
-		var picTime, dualTime float64
-		if isPic {
-			picTime = totalTime
-		}
-		if isDual {
-			dualTime = totalTime
-		}
-
 		flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
 
 		offBlock := flight.OffBlockTime
@@ -468,14 +458,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			DepartureICAO: &flight.DepartureIcao,
 			ArrivalICAO:   &flight.ArrivalIcao,
 			TotalTime:     totalTime,
-			IsPIC:         isPic,
-			IsDual:        isDual,
-			PICTime:       picTime,
-			DualTime:      dualTime,
-			NightTime:     float64(getFloat32OrDefault(flight.NightTime, 0)),
 			IFRTime:       float64(getFloat32OrDefault(flight.IfrTime, 0)),
-			LandingsDay:   flight.LandingsDay,
-			LandingsNight: flight.LandingsNight,
+			AllLandings:   flight.Landings,
 		}
 		if offBlock != "" {
 			newFlight.OffBlockTime = &offBlock
@@ -674,9 +658,8 @@ type fieldError struct {
 
 func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping, licenseID uuid.UUID) (generated.FlightCreate, []fieldError) {
 	flight := generated.FlightCreate{
-		LicenseId:     openapi_types.UUID(licenseID),
-		LandingsDay:   0,
-		LandingsNight: 0,
+		LicenseId: openapi_types.UUID(licenseID),
+		Landings:  0,
 	}
 	var errs []fieldError
 
@@ -721,17 +704,11 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				flight.TotalTime = &f32
 			}
 		case "isPic":
-			b := parseBoolish(val, mapping.TrueValue)
-			flight.IsPic = &b
+			// Auto-calculated from crew; ignore imported value
 		case "isDual":
-			b := parseBoolish(val, mapping.TrueValue)
-			flight.IsDual = &b
+			// Auto-calculated from crew; ignore imported value
 		case "nightTime":
-			f, err := strconv.ParseFloat(val, 32)
-			if err == nil {
-				f32 := float32(f)
-				flight.NightTime = &f32
-			}
+			// Auto-calculated from solar data; ignore imported value
 		case "ifrTime":
 			f, err := strconv.ParseFloat(val, 32)
 			if err == nil {
@@ -740,26 +717,12 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			}
 		case "landingsDay":
 			n, _ := strconv.Atoi(val)
-			flight.LandingsDay = n
+			flight.Landings += n
 		case "landingsNight":
 			n, _ := strconv.Atoi(val)
-			flight.LandingsNight = n
+			flight.Landings += n
 		case "remarks":
 			flight.Remarks = &val
-		}
-	}
-
-	// ForeFlight PIC handling: if PIC is a float > 0, treat as isPic=true
-	if flight.IsPic != nil && !*flight.IsPic {
-		// Check if any mapping mapped PIC as a time value
-		for col, m := range mappings {
-			if m.TargetField == "isPic" {
-				val := strings.TrimSpace(row[col])
-				if f, err := strconv.ParseFloat(val, 64); err == nil && f > 0 {
-					t := true
-					flight.IsPic = &t
-				}
-			}
 		}
 	}
 

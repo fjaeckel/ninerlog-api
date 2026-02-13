@@ -146,19 +146,9 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
-	// Determine PIC/Dual from booleans (default to PIC if neither specified)
+	// PIC/Dual will be auto-determined by ApplyAutoCalculations based on crew
 	isPic := true
 	isDual := false
-	if req.IsPic != nil {
-		isPic = *req.IsPic
-	}
-	if req.IsDual != nil {
-		isDual = *req.IsDual
-	}
-	if isPic && isDual {
-		h.sendError(c, http.StatusBadRequest, "isPic and isDual are mutually exclusive")
-		return
-	}
 
 	// Compute picTime/dualTime from booleans
 	var picTime, dualTime float64
@@ -193,10 +183,9 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		IsDual:        isDual,
 		PICTime:       picTime,
 		DualTime:      dualTime,
-		NightTime:     float64(getFloat32OrDefault(req.NightTime, 0)),
+		NightTime:     0,
 		IFRTime:       float64(getFloat32OrDefault(req.IfrTime, 0)),
-		LandingsDay:   req.LandingsDay,
-		LandingsNight: req.LandingsNight,
+		AllLandings:   req.Landings,
 	}
 
 	// Set route if provided
@@ -218,7 +207,30 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.Remarks = req.Remarks
 	}
 
-	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
+	// New fields: instructor, comments, advanced times
+	flight.InstructorName = req.InstructorName
+	flight.InstructorComments = req.InstructorComments
+	flight.SICTime = float64(getFloat32OrDefault(req.SicTime, 0))
+	flight.DualGivenTime = float64(getFloat32OrDefault(req.DualGivenTime, 0))
+	flight.SimulatedFlightTime = float64(getFloat32OrDefault(req.SimulatedFlightTime, 0))
+	flight.GroundTrainingTime = float64(getFloat32OrDefault(req.GroundTrainingTime, 0))
+
+	// Parse crew members
+	if req.CrewMembers != nil {
+		for _, cm := range *req.CrewMembers {
+			member := models.FlightCrewMember{
+				Name: cm.Name,
+				Role: models.CrewRole(cm.Role),
+			}
+			if cm.ContactId != nil {
+				cid := uuid.UUID(*cm.ContactId)
+				member.ContactID = &cid
+			}
+			flight.CrewMembers = append(flight.CrewMembers, member)
+		}
+	}
+
+	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
 	flightcalc.ApplyAutoCalculations(&flight)
 
 	if err := h.flightService.CreateFlight(c.Request.Context(), &flight); err != nil {
@@ -292,28 +304,11 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.AircraftType != nil {
 		flight.AircraftType = *req.AircraftType
 	}
-	if req.IsPic != nil {
-		flight.IsPIC = *req.IsPic
-	}
-	if req.IsDual != nil {
-		flight.IsDual = *req.IsDual
-	}
-	// Validate mutual exclusivity
-	if flight.IsPIC && flight.IsDual {
-		h.sendError(c, http.StatusBadRequest, "isPic and isDual are mutually exclusive")
-		return
-	}
-	if req.NightTime != nil {
-		flight.NightTime = float64(*req.NightTime)
-	}
 	if req.IfrTime != nil {
 		flight.IFRTime = float64(*req.IfrTime)
 	}
-	if req.LandingsDay != nil {
-		flight.LandingsDay = *req.LandingsDay
-	}
-	if req.LandingsNight != nil {
-		flight.LandingsNight = *req.LandingsNight
+	if req.Landings != nil {
+		flight.AllLandings = *req.Landings
 	}
 	if req.DepartureIcao != nil {
 		flight.DepartureICAO = req.DepartureIcao
@@ -348,6 +343,40 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.TakeoffsNightOverride = true
 	}
 
+	// New fields
+	if req.InstructorName != nil {
+		flight.InstructorName = req.InstructorName
+	}
+	if req.InstructorComments != nil {
+		flight.InstructorComments = req.InstructorComments
+	}
+	if req.SicTime != nil {
+		flight.SICTime = float64(*req.SicTime)
+	}
+	if req.DualGivenTime != nil {
+		flight.DualGivenTime = float64(*req.DualGivenTime)
+	}
+	if req.SimulatedFlightTime != nil {
+		flight.SimulatedFlightTime = float64(*req.SimulatedFlightTime)
+	}
+	if req.GroundTrainingTime != nil {
+		flight.GroundTrainingTime = float64(*req.GroundTrainingTime)
+	}
+	if req.CrewMembers != nil {
+		flight.CrewMembers = nil
+		for _, cm := range *req.CrewMembers {
+			member := models.FlightCrewMember{
+				Name: cm.Name,
+				Role: models.CrewRole(cm.Role),
+			}
+			if cm.ContactId != nil {
+				cid := uuid.UUID(*cm.ContactId)
+				member.ContactID = &cid
+			}
+			flight.CrewMembers = append(flight.CrewMembers, member)
+		}
+	}
+
 	// Recalculate totalTime from block times if either was updated
 	if req.OffBlockTime != nil || req.OnBlockTime != nil {
 		offBlock := ""
@@ -369,18 +398,6 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	} else if req.TotalTime != nil {
 		// Allow direct totalTime override only if block times are not being updated
 		flight.TotalTime = float64(*req.TotalTime)
-	}
-
-	// Recompute picTime/dualTime from booleans and totalTime
-	if flight.IsPIC {
-		flight.PICTime = flight.TotalTime
-		flight.DualTime = 0
-	} else if flight.IsDual {
-		flight.DualTime = flight.TotalTime
-		flight.PICTime = 0
-	} else {
-		flight.PICTime = 0
-		flight.DualTime = 0
 	}
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
@@ -468,6 +485,32 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	}
 	if f.Remarks != nil {
 		flight.Remarks = f.Remarks
+	}
+
+	// New fields
+	flight.InstructorName = f.InstructorName
+	flight.InstructorComments = f.InstructorComments
+	flight.SicTime = ptrFloat32(float32(f.SICTime))
+	flight.DualGivenTime = ptrFloat32(float32(f.DualGivenTime))
+	flight.SimulatedFlightTime = ptrFloat32(float32(f.SimulatedFlightTime))
+	flight.GroundTrainingTime = ptrFloat32(float32(f.GroundTrainingTime))
+
+	// Crew members
+	if len(f.CrewMembers) > 0 {
+		crew := make([]generated.FlightCrewMember, len(f.CrewMembers))
+		for i, m := range f.CrewMembers {
+			crew[i] = generated.FlightCrewMember{
+				Id:       openapi_types.UUID(m.ID),
+				FlightId: openapi_types.UUID(m.FlightID),
+				Name:     m.Name,
+				Role:     generated.CrewRole(m.Role),
+			}
+			if m.ContactID != nil {
+				cid := openapi_types.UUID(*m.ContactID)
+				crew[i].ContactId = &cid
+			}
+		}
+		flight.CrewMembers = &crew
 	}
 
 	return flight

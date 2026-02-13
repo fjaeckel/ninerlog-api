@@ -42,8 +42,10 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 			route, solo_time, cross_country_time, distance,
 			takeoffs_day_override, takeoffs_night_override,
 			landings_day_override, landings_night_override,
-			remarks
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
+			remarks,
+			instructor_name, instructor_comments,
+			sic_time, dual_given_time, simulated_flight_time, ground_training_time
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -81,6 +83,12 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 		flight.LandingsDayOverride,
 		flight.LandingsNightOverride,
 		flight.Remarks,
+		flight.InstructorName,
+		flight.InstructorComments,
+		flight.SICTime,
+		flight.DualGivenTime,
+		flight.SimulatedFlightTime,
+		flight.GroundTrainingTime,
 	).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
 }
 
@@ -95,7 +103,9 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		       route, solo_time, cross_country_time, distance,
 		       takeoffs_day_override, takeoffs_night_override,
 		       landings_day_override, landings_night_override,
-		       remarks, created_at, updated_at
+		       remarks, created_at, updated_at,
+		       instructor_name, instructor_comments,
+		       sic_time, dual_given_time, simulated_flight_time, ground_training_time
 		FROM flights
 		WHERE id = $1
 	`
@@ -138,6 +148,12 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.Remarks,
 		&flight.CreatedAt,
 		&flight.UpdatedAt,
+		&flight.InstructorName,
+		&flight.InstructorComments,
+		&flight.SICTime,
+		&flight.DualGivenTime,
+		&flight.SimulatedFlightTime,
+		&flight.GroundTrainingTime,
 	)
 
 	if err == sql.ErrNoRows {
@@ -193,8 +209,11 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		    route = $22, solo_time = $23, cross_country_time = $24, distance = $25,
 		    takeoffs_day_override = $26, takeoffs_night_override = $27,
 		    landings_day_override = $28, landings_night_override = $29,
-		    remarks = $30, updated_at = $31
-		WHERE id = $32
+		    remarks = $30,
+		    instructor_name = $31, instructor_comments = $32,
+		    sic_time = $33, dual_given_time = $34, simulated_flight_time = $35, ground_training_time = $36,
+		    updated_at = $37
+		WHERE id = $38
 	`
 
 	result, err := r.db.ExecContext(
@@ -229,6 +248,12 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		flight.LandingsDayOverride,
 		flight.LandingsNightOverride,
 		flight.Remarks,
+		flight.InstructorName,
+		flight.InstructorComments,
+		flight.SICTime,
+		flight.DualGivenTime,
+		flight.SimulatedFlightTime,
+		flight.GroundTrainingTime,
 		time.Now(),
 		flight.ID,
 	)
@@ -342,7 +367,9 @@ func (r *flightRepository) GetStatsByLicenseID(ctx context.Context, licenseID uu
 			COALESCE(SUM(solo_time), 0) as solo_hours,
 			COALESCE(SUM(cross_country_time), 0) as cross_country_hours,
 			COALESCE(SUM(landings_day), 0) as landings_day,
-			COALESCE(SUM(landings_night), 0) as landings_night
+			COALESCE(SUM(landings_night), 0) as landings_night,
+			COALESCE(SUM(sic_time), 0) as sic_hours,
+			COALESCE(SUM(dual_given_time), 0) as dual_given_hours
 		FROM flights
 		WHERE license_id = $1
 	`
@@ -371,6 +398,8 @@ func (r *flightRepository) GetStatsByLicenseID(ctx context.Context, licenseID uu
 		&stats.CrossCountryHours,
 		&stats.LandingsDay,
 		&stats.LandingsNight,
+		&stats.SICHours,
+		&stats.DualGivenHours,
 	)
 	if err != nil {
 		return nil, err
@@ -413,7 +442,9 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		       route, solo_time, cross_country_time, distance,
 		       takeoffs_day_override, takeoffs_night_override,
 		       landings_day_override, landings_night_override,
-		       remarks, created_at, updated_at
+		       remarks, created_at, updated_at,
+		       instructor_name, instructor_comments,
+		       sic_time, dual_given_time, simulated_flight_time, ground_training_time
 		FROM flights
 		WHERE ` + baseCondition
 
@@ -548,6 +579,12 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.Remarks,
 			&flight.CreatedAt,
 			&flight.UpdatedAt,
+			&flight.InstructorName,
+			&flight.InstructorComments,
+			&flight.SICTime,
+			&flight.DualGivenTime,
+			&flight.SimulatedFlightTime,
+			&flight.GroundTrainingTime,
 		)
 		if err != nil {
 			return nil, err

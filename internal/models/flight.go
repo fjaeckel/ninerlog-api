@@ -57,6 +57,19 @@ type Flight struct {
 	LandingsDayOverride   bool `json:"-"` // When true, landingsDay is not auto-calculated
 	LandingsNightOverride bool `json:"-"` // When true, landingsNight is not auto-calculated
 
+	// Instructor & comments
+	InstructorName     *string `json:"instructorName,omitempty"`
+	InstructorComments *string `json:"instructorComments,omitempty"`
+
+	// Multi-crew / advanced times
+	SICTime             float64 `json:"sicTime"`
+	DualGivenTime       float64 `json:"dualGivenTime"`
+	SimulatedFlightTime float64 `json:"simulatedFlightTime"`
+	GroundTrainingTime  float64 `json:"groundTrainingTime"`
+
+	// Crew members on board (populated from flight_crew_members table)
+	CrewMembers []FlightCrewMember `json:"crewMembers,omitempty"`
+
 	// Additional information
 	Remarks *string `json:"remarks,omitempty"`
 
@@ -118,6 +131,8 @@ type FlightStatistics struct {
 	CrossCountryHours float64
 	LandingsDay       int
 	LandingsNight     int
+	SICHours          float64
+	DualGivenHours    float64
 }
 
 // CurrencyData holds landing/flight counts for currency calculation

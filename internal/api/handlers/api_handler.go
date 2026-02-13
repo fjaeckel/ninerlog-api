@@ -19,6 +19,7 @@ type APIHandler struct {
 	aircraftService     *service.AircraftService
 	notificationService *service.NotificationService
 	twoFactorService    *service.TwoFactorService
+	contactService      *service.ContactService
 	jwtManager          *jwt.Manager
 	db                  *sql.DB
 }
@@ -32,6 +33,7 @@ func NewAPIHandler(
 	aircraftService *service.AircraftService,
 	notificationService *service.NotificationService,
 	twoFactorService *service.TwoFactorService,
+	contactService *service.ContactService,
 	jwtManager *jwt.Manager,
 ) *APIHandler {
 	return &APIHandler{
@@ -42,6 +44,7 @@ func NewAPIHandler(
 		aircraftService:     aircraftService,
 		notificationService: notificationService,
 		twoFactorService:    twoFactorService,
+		contactService:      contactService,
 		jwtManager:          jwtManager,
 	}
 }
