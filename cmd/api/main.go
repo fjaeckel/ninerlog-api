@@ -81,6 +81,8 @@ func main() {
 	flightService := service.NewFlightService(flightRepo, licenseRepo)
 	credentialRepo := postgres.NewCredentialRepository(db)
 	credentialService := service.NewCredentialService(credentialRepo)
+	aircraftRepo := postgres.NewAircraftRepository(db)
+	aircraftService := service.NewAircraftService(aircraftRepo)
 	notifRepo := postgres.NewNotificationRepository(db)
 	smtpConfig := email.LoadSMTPConfig()
 	emailSender := email.NewSender(smtpConfig)
@@ -88,7 +90,7 @@ func main() {
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager)
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, notificationService, twoFactorService, jwtManager)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, jwtManager)
 
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)

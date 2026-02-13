@@ -14,6 +14,7 @@ type APIHandler struct {
 	licenseService      *service.LicenseService
 	flightService       *service.FlightService
 	credentialService   *service.CredentialService
+	aircraftService     *service.AircraftService
 	notificationService *service.NotificationService
 	twoFactorService    *service.TwoFactorService
 	jwtManager          *jwt.Manager
@@ -25,6 +26,7 @@ func NewAPIHandler(
 	licenseService *service.LicenseService,
 	flightService *service.FlightService,
 	credentialService *service.CredentialService,
+	aircraftService *service.AircraftService,
 	notificationService *service.NotificationService,
 	twoFactorService *service.TwoFactorService,
 	jwtManager *jwt.Manager,
@@ -34,6 +36,7 @@ func NewAPIHandler(
 		licenseService:      licenseService,
 		flightService:       flightService,
 		credentialService:   credentialService,
+		aircraftService:     aircraftService,
 		notificationService: notificationService,
 		twoFactorService:    twoFactorService,
 		jwtManager:          jwtManager,

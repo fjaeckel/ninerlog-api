@@ -137,6 +137,15 @@ type CredentialRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
+type AircraftRepository interface {
+	Create(ctx context.Context, aircraft *models.Aircraft) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Aircraft, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error)
+	Update(ctx context.Context, aircraft *models.Aircraft) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	CountByUserID(ctx context.Context, userID uuid.UUID) (int, error)
+}
+
 // NotificationRepository defines the interface for notification data access
 type NotificationRepository interface {
 	GetPreferences(ctx context.Context, userID uuid.UUID) (*models.NotificationPreferences, error)
