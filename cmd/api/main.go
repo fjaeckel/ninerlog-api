@@ -116,6 +116,9 @@ func main() {
 	api := router.Group("/api/v1")
 	generated.RegisterHandlers(api, apiHandler)
 
+	// Register custom reports routes (not in OpenAPI spec)
+	handlers.RegisterReportsRoutes(api, apiHandler, db)
+
 	log.Println("✅ Routes registered from OpenAPI specification")
 
 	// Start background notification checker (runs every hour)
