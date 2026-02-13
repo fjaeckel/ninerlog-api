@@ -88,6 +88,21 @@ type ServerInterface interface {
 	// Update flight
 	// (PUT /flights/{flightId})
 	UpdateFlight(c *gin.Context, flightId FlightId)
+	// List import history
+	// (GET /imports)
+	ListImports(c *gin.Context, params ListImportsParams)
+	// Confirm and execute import
+	// (POST /imports/confirm)
+	ConfirmImport(c *gin.Context)
+	// Preview mapped flights
+	// (POST /imports/preview)
+	PreviewImport(c *gin.Context)
+	// Upload file for import
+	// (POST /imports/upload)
+	UploadImportFile(c *gin.Context)
+	// Get import details
+	// (GET /imports/{importId})
+	GetImport(c *gin.Context, importId ImportId)
 	// List user's licenses
 	// (GET /licenses)
 	ListLicenses(c *gin.Context, params ListLicensesParams)
@@ -776,6 +791,113 @@ func (siw *ServerInterfaceWrapper) UpdateFlight(c *gin.Context) {
 	siw.Handler.UpdateFlight(c, flightId)
 }
 
+// ListImports operation middleware
+func (siw *ServerInterfaceWrapper) ListImports(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListImportsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListImports(c, params)
+}
+
+// ConfirmImport operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmImport(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConfirmImport(c)
+}
+
+// PreviewImport operation middleware
+func (siw *ServerInterfaceWrapper) PreviewImport(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PreviewImport(c)
+}
+
+// UploadImportFile operation middleware
+func (siw *ServerInterfaceWrapper) UploadImportFile(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadImportFile(c)
+}
+
+// GetImport operation middleware
+func (siw *ServerInterfaceWrapper) GetImport(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "importId" -------------
+	var importId ImportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "importId", c.Param("importId"), &importId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter importId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetImport(c, importId)
+}
+
 // ListLicenses operation middleware
 func (siw *ServerInterfaceWrapper) ListLicenses(c *gin.Context) {
 
@@ -1125,6 +1247,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)
 	router.GET(options.BaseURL+"/flights/:flightId", wrapper.GetFlight)
 	router.PUT(options.BaseURL+"/flights/:flightId", wrapper.UpdateFlight)
+	router.GET(options.BaseURL+"/imports", wrapper.ListImports)
+	router.POST(options.BaseURL+"/imports/confirm", wrapper.ConfirmImport)
+	router.POST(options.BaseURL+"/imports/preview", wrapper.PreviewImport)
+	router.POST(options.BaseURL+"/imports/upload", wrapper.UploadImportFile)
+	router.GET(options.BaseURL+"/imports/:importId", wrapper.GetImport)
 	router.GET(options.BaseURL+"/licenses", wrapper.ListLicenses)
 	router.POST(options.BaseURL+"/licenses", wrapper.CreateLicense)
 	router.DELETE(options.BaseURL+"/licenses/:licenseId", wrapper.DeleteLicense)

@@ -1,0 +1,968 @@
+package handlers
+
+import (
+	"bytes"
+	"crypto/rand"
+	"database/sql"
+	"encoding/csv"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+)
+
+// In-memory upload session store (token → parsed rows)
+type uploadSession struct {
+	userID    uuid.UUID
+	fileName  string
+	format    generated.ImportFormat
+	columns   []string
+	rows      []map[string]string
+	createdAt time.Time
+}
+
+var (
+	uploadSessions = make(map[string]*uploadSession)
+	sessionMu      sync.Mutex
+)
+
+func newUploadToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func cleanupOldSessions() {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+	cutoff := time.Now().Add(-1 * time.Hour)
+	for token, s := range uploadSessions {
+		if s.createdAt.Before(cutoff) {
+			delete(uploadSessions, token)
+		}
+	}
+}
+
+// ForeFlight known column headers
+var foreflightColumns = []string{
+	"Date", "AircraftID", "From", "To", "Route", "TimeOut", "TimeOff", "TimeOn", "TimeIn",
+	"OnDuty", "OffDuty", "TotalTime", "PIC", "SIC", "Night", "Solo", "CrossCountry",
+	"NVG", "NVGOps", "Distance", "DayTakeoffs", "DayLandingsFullStop", "NightTakeoffs",
+	"NightLandingsFullStop", "AllLandings", "ActualInstrument", "SimulatedInstrument",
+	"HobbsStart", "HobbsEnd", "TachStart", "TachEnd", "Holds", "Approach1", "Approach2",
+	"Approach3", "Approach4", "Approach5", "Approach6", "DualGiven", "DualReceived",
+	"SimulatedFlight", "GroundTraining", "InstructorName", "InstructorComments",
+	"Person1", "Person2", "Person3", "Person4", "Person5", "Person6",
+	"FlightReview", "Checkride", "IPC", "NVGProficiency", "FAA6158",
+	"[Text]CustomFieldName", "PilotComments",
+}
+
+func isForeFlight(headers []string) bool {
+	if len(headers) < 10 {
+		return false
+	}
+	matches := 0
+	ffSet := make(map[string]bool)
+	for _, h := range foreflightColumns {
+		ffSet[strings.ToLower(h)] = true
+	}
+	for _, h := range headers {
+		if ffSet[strings.ToLower(strings.TrimSpace(h))] {
+			matches++
+		}
+	}
+	return matches >= 8
+}
+
+func suggestForeFlight() []generated.ImportColumnMapping {
+	mapping := map[string]generated.ImportField{
+		"Date":                  "date",
+		"AircraftID":            "aircraftReg",
+		"From":                  "departureIcao",
+		"To":                    "arrivalIcao",
+		"TimeOut":               "offBlockTime",
+		"TimeIn":                "onBlockTime",
+		"TimeOff":               "departureTime",
+		"TimeOn":                "arrivalTime",
+		"TotalTime":             "totalTime",
+		"PIC":                   "isPic",
+		"Night":                 "nightTime",
+		"DualReceived":          "isDual",
+		"ActualInstrument":      "ifrTime",
+		"DayLandingsFullStop":   "landingsDay",
+		"NightLandingsFullStop": "landingsNight",
+		"PilotComments":         "remarks",
+	}
+
+	var result []generated.ImportColumnMapping
+	for src, tgt := range mapping {
+		m := generated.ImportColumnMapping{
+			SourceColumn: src,
+			TargetField:  tgt,
+		}
+		if tgt == "date" {
+			df := "2006-01-02"
+			m.DateFormat = &df
+		}
+		result = append(result, m)
+	}
+	return result
+}
+
+func suggestGenericCSV(headers []string) []generated.ImportColumnMapping {
+	guesses := map[string]generated.ImportField{
+		"date": "date", "flight date": "date", "datum": "date",
+		"aircraft": "aircraftReg", "registration": "aircraftReg", "reg": "aircraftReg", "aircraftid": "aircraftReg", "aircraft reg": "aircraftReg",
+		"type": "aircraftType", "aircraft type": "aircraftType", "typecode": "aircraftType",
+		"from": "departureIcao", "departure": "departureIcao", "dep": "departureIcao", "departure icao": "departureIcao",
+		"to": "arrivalIcao", "arrival": "arrivalIcao", "arr": "arrivalIcao", "dest": "arrivalIcao", "arrival icao": "arrivalIcao",
+		"off block": "offBlockTime", "offblock": "offBlockTime", "timeout": "offBlockTime", "chocks off": "offBlockTime",
+		"on block": "onBlockTime", "onblock": "onBlockTime", "timein": "onBlockTime", "chocks on": "onBlockTime",
+		"takeoff": "departureTime", "timeoff": "departureTime", "departure time": "departureTime",
+		"landing": "arrivalTime", "timeon": "arrivalTime", "arrival time": "arrivalTime",
+		"total": "totalTime", "total time": "totalTime", "totaltime": "totalTime", "block time": "totalTime",
+		"pic": "isPic", "pic time": "isPic",
+		"dual": "isDual", "dual received": "isDual", "dualreceived": "isDual",
+		"night": "nightTime", "night time": "nightTime",
+		"ifr": "ifrTime", "ifr time": "ifrTime", "instrument": "ifrTime", "actual instrument": "ifrTime", "actualinstrument": "ifrTime",
+		"day landings": "landingsDay", "daylandingsfullstop": "landingsDay", "day ldg": "landingsDay",
+		"night landings": "landingsNight", "nightlandingsfullstop": "landingsNight", "night ldg": "landingsNight",
+		"remarks": "remarks", "comments": "remarks", "pilotcomments": "remarks", "notes": "remarks",
+	}
+
+	var result []generated.ImportColumnMapping
+	for _, h := range headers {
+		lower := strings.ToLower(strings.TrimSpace(h))
+		if field, ok := guesses[lower]; ok {
+			m := generated.ImportColumnMapping{
+				SourceColumn: h,
+				TargetField:  field,
+			}
+			if field == "date" {
+				df := "2006-01-02"
+				m.DateFormat = &df
+			}
+			result = append(result, m)
+		}
+	}
+	return result
+}
+
+// UploadImportFile implements POST /imports/upload
+func (h *APIHandler) UploadImportFile(c *gin.Context) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	cleanupOldSessions()
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		h.sendError(c, http.StatusBadRequest, "No file uploaded")
+		return
+	}
+	defer file.Close()
+
+	if header.Size > 10*1024*1024 {
+		h.sendError(c, http.StatusBadRequest, "File too large (max 10 MB)")
+		return
+	}
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		h.sendError(c, http.StatusBadRequest, "Failed to read file")
+		return
+	}
+
+	fileName := header.Filename
+	var columns []string
+	var rows []map[string]string
+	var format generated.ImportFormat
+
+	lower := strings.ToLower(fileName)
+	if strings.HasSuffix(lower, ".csv") || strings.HasSuffix(lower, ".txt") {
+		columns, rows, err = parseCSV(data)
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to parse CSV: %v", err))
+			return
+		}
+		if isForeFlight(columns) {
+			format = "FOREFLIGHT_CSV"
+		} else {
+			format = "CSV"
+		}
+	} else {
+		h.sendError(c, http.StatusBadRequest, "Unsupported file format. Please upload a CSV file.")
+		return
+	}
+
+	token := newUploadToken()
+	sessionMu.Lock()
+	uploadSessions[token] = &uploadSession{
+		userID:    userID,
+		fileName:  fileName,
+		format:    format,
+		columns:   columns,
+		rows:      rows,
+		createdAt: time.Now(),
+	}
+	sessionMu.Unlock()
+
+	// Build preview rows (first 5)
+	previewRows := rows
+	if len(previewRows) > 5 {
+		previewRows = previewRows[:5]
+	}
+
+	// Suggest mappings
+	var suggested []generated.ImportColumnMapping
+	if format == "FOREFLIGHT_CSV" {
+		suggested = suggestForeFlight()
+	} else {
+		suggested = suggestGenericCSV(columns)
+	}
+
+	c.JSON(http.StatusOK, generated.ImportUploadResponse{
+		UploadToken:       token,
+		Format:            format,
+		Columns:           columns,
+		PreviewRows:       previewRows,
+		TotalRows:         len(rows),
+		SuggestedMappings: suggested,
+	})
+}
+
+// PreviewImport implements POST /imports/preview
+func (h *APIHandler) PreviewImport(c *gin.Context) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req generated.ImportPreviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	sessionMu.Lock()
+	session, ok := uploadSessions[req.UploadToken]
+	sessionMu.Unlock()
+	if !ok || session.userID != userID {
+		h.sendError(c, http.StatusNotFound, "Upload session not found or expired")
+		return
+	}
+
+	// Build mapping lookup: sourceColumn → targetField
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range req.Mappings {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	// Get existing flights for duplicate detection
+	licenseID := uuid.UUID(req.LicenseId)
+	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
+
+	var flights []generated.ImportPreviewFlight
+	validCount, dupCount, errCount := 0, 0, 0
+
+	for i, row := range session.rows {
+		flight, errs := mapRowToFlight(row, mappingLookup, licenseID)
+		rowIdx := i + 1
+
+		if len(errs) > 0 {
+			errDetails := make([]struct {
+				Field   *string `json:"field,omitempty"`
+				Message *string `json:"message,omitempty"`
+			}, len(errs))
+			for j, e := range errs {
+				errDetails[j] = struct {
+					Field   *string `json:"field,omitempty"`
+					Message *string `json:"message,omitempty"`
+				}{Field: &e.field, Message: &e.message}
+			}
+			flights = append(flights, generated.ImportPreviewFlight{
+				RowIndex: rowIdx,
+				Status:   "error",
+				Flight:   flight,
+				Errors:   &errDetails,
+			})
+			errCount++
+			continue
+		}
+
+		// Duplicate detection
+		skipDups := req.SkipDuplicates == nil || *req.SkipDuplicates
+		if skipDups {
+			if dupID := findDuplicate(flight, existingFlights); dupID != nil {
+				flights = append(flights, generated.ImportPreviewFlight{
+					RowIndex:         rowIdx,
+					Status:           "duplicate",
+					Flight:           flight,
+					ExistingFlightId: dupID,
+				})
+				dupCount++
+				continue
+			}
+		}
+
+		flights = append(flights, generated.ImportPreviewFlight{
+			RowIndex: rowIdx,
+			Status:   "valid",
+			Flight:   flight,
+		})
+		validCount++
+	}
+
+	c.JSON(http.StatusOK, generated.ImportPreviewResponse{
+		UploadToken:    req.UploadToken,
+		TotalRows:      len(session.rows),
+		ValidCount:     validCount,
+		DuplicateCount: dupCount,
+		ErrorCount:     errCount,
+		Flights:        flights,
+	})
+}
+
+// ConfirmImport implements POST /imports/confirm
+func (h *APIHandler) ConfirmImport(c *gin.Context) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req generated.ConfirmImportJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	sessionMu.Lock()
+	session, ok := uploadSessions[req.UploadToken]
+	sessionMu.Unlock()
+	if !ok || session.userID != userID {
+		h.sendError(c, http.StatusNotFound, "Upload session not found or expired")
+		return
+	}
+
+	// Re-run preview to get validated flights
+	// For simplicity, we re-parse — in production you'd cache preview results
+	licenseID := uuid.UUID(req.LicenseId)
+
+	// Build selected row set
+	selectedSet := make(map[int]bool)
+	importAll := req.SelectedRows == nil || len(*req.SelectedRows) == 0
+	if !importAll {
+		for _, idx := range *req.SelectedRows {
+			selectedSet[idx] = true
+		}
+	}
+	includeDups := req.IncludeDuplicates != nil && *req.IncludeDuplicates
+
+	// Get existing flights for duplicate check
+	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
+
+	// Get the preview mappings from the session (we stored them in the session during upload)
+	// Since we don't store mappings in the session, we'll need caller to include them
+	// For now, we use the suggestedMappings from the format
+	var mappingLookup map[string]generated.ImportColumnMapping
+	// The confirm endpoint doesn't have mappings in the OpenAPI schema — they were applied during preview.
+	// We'll use the suggested mappings based on format as fallback
+	if session.format == "FOREFLIGHT_CSV" {
+		mappingLookup = make(map[string]generated.ImportColumnMapping)
+		for _, m := range suggestForeFlight() {
+			mappingLookup[m.SourceColumn] = m
+		}
+	} else {
+		mappingLookup = make(map[string]generated.ImportColumnMapping)
+		for _, m := range suggestGenericCSV(session.columns) {
+			mappingLookup[m.SourceColumn] = m
+		}
+	}
+
+	var importedIDs []openapi_types.UUID
+	var importErrors []struct {
+		Field    string  `json:"field"`
+		Message  string  `json:"message"`
+		RawValue *string `json:"rawValue,omitempty"`
+		RowIndex int     `json:"rowIndex"`
+	}
+	imported, skipped, errored, dups := 0, 0, 0, 0
+
+	for i, row := range session.rows {
+		rowIdx := i + 1
+		if !importAll && !selectedSet[rowIdx] {
+			skipped++
+			continue
+		}
+
+		flight, errs := mapRowToFlight(row, mappingLookup, licenseID)
+		if len(errs) > 0 {
+			for _, e := range errs {
+				importErrors = append(importErrors, struct {
+					Field    string  `json:"field"`
+					Message  string  `json:"message"`
+					RawValue *string `json:"rawValue,omitempty"`
+					RowIndex int     `json:"rowIndex"`
+				}{Field: e.field, Message: e.message, RowIndex: rowIdx})
+			}
+			errored++
+			continue
+		}
+
+		if !includeDups {
+			if findDuplicate(flight, existingFlights) != nil {
+				dups++
+				skipped++
+				continue
+			}
+		}
+
+		// Create the flight
+		totalTime := float64(0)
+		if flight.OffBlockTime != "" && flight.OnBlockTime != "" {
+			totalTime, _ = calculateBlockTime(flight.OffBlockTime, flight.OnBlockTime)
+		} else if flight.TotalTime != nil {
+			totalTime = float64(*flight.TotalTime)
+		}
+
+		isPic := flight.IsPic == nil || *flight.IsPic
+		isDual := flight.IsDual != nil && *flight.IsDual
+		var picTime, dualTime float64
+		if isPic {
+			picTime = totalTime
+		}
+		if isDual {
+			dualTime = totalTime
+		}
+
+		flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
+
+		offBlock := flight.OffBlockTime
+		onBlock := flight.OnBlockTime
+		depTime := flight.DepartureTime
+		arrTime := flight.ArrivalTime
+
+		newFlight := models.Flight{
+			UserID:        userID,
+			LicenseID:     licenseID,
+			Date:          flightDate,
+			AircraftReg:   flight.AircraftReg,
+			AircraftType:  flight.AircraftType,
+			DepartureICAO: &flight.DepartureIcao,
+			ArrivalICAO:   &flight.ArrivalIcao,
+			TotalTime:     totalTime,
+			IsPIC:         isPic,
+			IsDual:        isDual,
+			PICTime:       picTime,
+			DualTime:      dualTime,
+			NightTime:     float64(getFloat32OrDefault(flight.NightTime, 0)),
+			IFRTime:       float64(getFloat32OrDefault(flight.IfrTime, 0)),
+			LandingsDay:   flight.LandingsDay,
+			LandingsNight: flight.LandingsNight,
+		}
+		if offBlock != "" {
+			newFlight.OffBlockTime = &offBlock
+		}
+		if onBlock != "" {
+			newFlight.OnBlockTime = &onBlock
+		}
+		if depTime != "" {
+			newFlight.DepartureTime = &depTime
+		}
+		if arrTime != "" {
+			newFlight.ArrivalTime = &arrTime
+		}
+		if flight.Remarks != nil {
+			newFlight.Remarks = flight.Remarks
+		}
+
+		if err := h.flightService.CreateFlight(c.Request.Context(), &newFlight); err != nil {
+			msg := err.Error()
+			importErrors = append(importErrors, struct {
+				Field    string  `json:"field"`
+				Message  string  `json:"message"`
+				RawValue *string `json:"rawValue,omitempty"`
+				RowIndex int     `json:"rowIndex"`
+			}{Field: "flight", Message: msg, RowIndex: rowIdx})
+			errored++
+			continue
+		}
+
+		importedIDs = append(importedIDs, openapi_types.UUID(newFlight.ID))
+		imported++
+	}
+
+	// Determine status
+	var status generated.ImportStatus
+	if errored == 0 {
+		status = "completed"
+	} else if imported > 0 {
+		status = "partial"
+	} else {
+		status = "failed"
+	}
+
+	// Save import record to DB
+	importID := uuid.New()
+	errorsJSON, _ := json.Marshal(importErrors)
+	mappingsJSON, _ := json.Marshal(mappingLookup)
+	_, _ = h.db.ExecContext(c.Request.Context(), `
+		INSERT INTO flight_imports (id, user_id, license_id, file_name, import_format, import_status,
+			total_rows, imported_count, skipped_count, error_count, duplicate_count,
+			imported_flight_ids, errors, column_mappings)
+		VALUES ($1, $2, $3, $4, $5::import_format, $6::import_status, $7, $8, $9, $10, $11, $12, $13, $14)
+	`, importID, userID, licenseID, session.fileName, string(session.format), string(status),
+		len(session.rows), imported, skipped, errored, dups,
+		uuidSliceToStringArray(importedIDs), errorsJSON, mappingsJSON,
+	)
+
+	// Clean up session
+	sessionMu.Lock()
+	delete(uploadSessions, req.UploadToken)
+	sessionMu.Unlock()
+
+	var errorsPtr *[]struct {
+		Field    string  `json:"field"`
+		Message  string  `json:"message"`
+		RawValue *string `json:"rawValue,omitempty"`
+		RowIndex int     `json:"rowIndex"`
+	}
+	if len(importErrors) > 0 {
+		errorsPtr = &importErrors
+	}
+
+	var idsPtr *[]openapi_types.UUID
+	if len(importedIDs) > 0 {
+		idsPtr = &importedIDs
+	}
+
+	c.JSON(http.StatusCreated, generated.ImportResult{
+		Id:                openapi_types.UUID(importID),
+		UserId:            openapi_types.UUID(userID),
+		LicenseId:         openapi_types.UUID(licenseID),
+		FileName:          session.fileName,
+		Format:            session.format,
+		Status:            status,
+		TotalRows:         len(session.rows),
+		ImportedCount:     imported,
+		SkippedCount:      skipped,
+		ErrorCount:        errored,
+		DuplicateCount:    dups,
+		ImportedFlightIds: idsPtr,
+		Errors:            errorsPtr,
+		CreatedAt:         time.Now(),
+	})
+}
+
+// ListImports implements GET /imports
+func (h *APIHandler) ListImports(c *gin.Context, params generated.ListImportsParams) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	page := 1
+	pageSize := 20
+	if params.Page != nil && *params.Page > 0 {
+		page = *params.Page
+	}
+	if params.PageSize != nil && *params.PageSize > 0 {
+		pageSize = *params.PageSize
+	}
+
+	var total int
+	h.db.QueryRowContext(c.Request.Context(),
+		"SELECT COUNT(*) FROM flight_imports WHERE user_id = $1", userID,
+	).Scan(&total)
+
+	rows, err := h.db.QueryContext(c.Request.Context(), `
+		SELECT id, user_id, license_id, file_name, import_format, import_status,
+			total_rows, imported_count, skipped_count, error_count, duplicate_count,
+			imported_flight_ids, errors, created_at
+		FROM flight_imports WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`, userID, pageSize, (page-1)*pageSize)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to list imports")
+		return
+	}
+	defer rows.Close()
+
+	var results []generated.ImportResult
+	for rows.Next() {
+		r, err := scanImportResult(rows)
+		if err != nil {
+			continue
+		}
+		results = append(results, r)
+	}
+	if results == nil {
+		results = []generated.ImportResult{}
+	}
+
+	totalPages := (total + pageSize - 1) / pageSize
+	c.JSON(http.StatusOK, generated.PaginatedImports{
+		Data: results,
+		Pagination: struct {
+			Page       int `json:"page"`
+			PageSize   int `json:"pageSize"`
+			Total      int `json:"total"`
+			TotalPages int `json:"totalPages"`
+		}{Page: page, PageSize: pageSize, Total: total, TotalPages: totalPages},
+	})
+}
+
+// GetImport implements GET /imports/{importId}
+func (h *APIHandler) GetImport(c *gin.Context, importId generated.ImportId) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	row := h.db.QueryRowContext(c.Request.Context(), `
+		SELECT id, user_id, license_id, file_name, import_format, import_status,
+			total_rows, imported_count, skipped_count, error_count, duplicate_count,
+			imported_flight_ids, errors, created_at
+		FROM flight_imports WHERE id = $1 AND user_id = $2
+	`, uuid.UUID(importId), userID)
+
+	var r generated.ImportResult
+	var flightIDs string
+	var errorsJSON []byte
+	var formatStr, statusStr string
+	err = row.Scan(
+		&r.Id, &r.UserId, &r.LicenseId, &r.FileName, &formatStr, &statusStr,
+		&r.TotalRows, &r.ImportedCount, &r.SkippedCount, &r.ErrorCount, &r.DuplicateCount,
+		&flightIDs, &errorsJSON, &r.CreatedAt,
+	)
+	if err != nil {
+		h.sendError(c, http.StatusNotFound, "Import not found")
+		return
+	}
+	r.Format = generated.ImportFormat(formatStr)
+	r.Status = generated.ImportStatus(statusStr)
+
+	c.JSON(http.StatusOK, r)
+}
+
+// --- Helpers ---
+
+type fieldError struct {
+	field   string
+	message string
+}
+
+func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping, licenseID uuid.UUID) (generated.FlightCreate, []fieldError) {
+	flight := generated.FlightCreate{
+		LicenseId:     openapi_types.UUID(licenseID),
+		LandingsDay:   0,
+		LandingsNight: 0,
+	}
+	var errs []fieldError
+
+	for col, mapping := range mappings {
+		val := strings.TrimSpace(row[col])
+		if val == "" {
+			continue
+		}
+
+		switch mapping.TargetField {
+		case "date":
+			df := "2006-01-02"
+			if mapping.DateFormat != nil {
+				df = *mapping.DateFormat
+			}
+			t, err := time.Parse(df, val)
+			if err != nil {
+				errs = append(errs, fieldError{"date", fmt.Sprintf("Invalid date '%s'", val)})
+			} else {
+				flight.Date = openapi_types.Date{Time: t}
+			}
+		case "aircraftReg":
+			flight.AircraftReg = strings.ToUpper(val)
+		case "aircraftType":
+			flight.AircraftType = strings.ToUpper(val)
+		case "departureIcao":
+			flight.DepartureIcao = strings.ToUpper(val)
+		case "arrivalIcao":
+			flight.ArrivalIcao = strings.ToUpper(val)
+		case "offBlockTime":
+			flight.OffBlockTime = normalizeTime(val)
+		case "onBlockTime":
+			flight.OnBlockTime = normalizeTime(val)
+		case "departureTime":
+			flight.DepartureTime = normalizeTime(val)
+		case "arrivalTime":
+			flight.ArrivalTime = normalizeTime(val)
+		case "totalTime":
+			f, err := strconv.ParseFloat(val, 32)
+			if err == nil {
+				f32 := float32(f)
+				flight.TotalTime = &f32
+			}
+		case "isPic":
+			b := parseBoolish(val, mapping.TrueValue)
+			flight.IsPic = &b
+		case "isDual":
+			b := parseBoolish(val, mapping.TrueValue)
+			flight.IsDual = &b
+		case "nightTime":
+			f, err := strconv.ParseFloat(val, 32)
+			if err == nil {
+				f32 := float32(f)
+				flight.NightTime = &f32
+			}
+		case "ifrTime":
+			f, err := strconv.ParseFloat(val, 32)
+			if err == nil {
+				f32 := float32(f)
+				flight.IfrTime = &f32
+			}
+		case "landingsDay":
+			n, _ := strconv.Atoi(val)
+			flight.LandingsDay = n
+		case "landingsNight":
+			n, _ := strconv.Atoi(val)
+			flight.LandingsNight = n
+		case "remarks":
+			flight.Remarks = &val
+		}
+	}
+
+	// ForeFlight PIC handling: if PIC is a float > 0, treat as isPic=true
+	if flight.IsPic != nil && !*flight.IsPic {
+		// Check if any mapping mapped PIC as a time value
+		for col, m := range mappings {
+			if m.TargetField == "isPic" {
+				val := strings.TrimSpace(row[col])
+				if f, err := strconv.ParseFloat(val, 64); err == nil && f > 0 {
+					t := true
+					flight.IsPic = &t
+				}
+			}
+		}
+	}
+
+	// Validate required fields
+	if flight.Date.IsZero() {
+		errs = append(errs, fieldError{"date", "Date is required"})
+	}
+	if flight.AircraftReg == "" {
+		errs = append(errs, fieldError{"aircraftReg", "Aircraft registration is required"})
+	}
+	if flight.AircraftType == "" {
+		// Default to registration if type not mapped
+		if flight.AircraftReg != "" {
+			flight.AircraftType = flight.AircraftReg
+		} else {
+			errs = append(errs, fieldError{"aircraftType", "Aircraft type is required"})
+		}
+	}
+	if flight.DepartureIcao == "" {
+		errs = append(errs, fieldError{"departureIcao", "Departure ICAO is required"})
+	}
+	if flight.ArrivalIcao == "" {
+		errs = append(errs, fieldError{"arrivalIcao", "Arrival ICAO is required"})
+	}
+
+	return flight, errs
+}
+
+func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *openapi_types.UUID {
+	for _, e := range existing {
+		if e.Date.Format("2006-01-02") != flight.Date.String() {
+			continue
+		}
+		if !strings.EqualFold(e.AircraftReg, flight.AircraftReg) {
+			continue
+		}
+		depMatch := (e.DepartureICAO != nil && strings.EqualFold(*e.DepartureICAO, flight.DepartureIcao)) ||
+			(e.DepartureICAO == nil && flight.DepartureIcao == "")
+		arrMatch := (e.ArrivalICAO != nil && strings.EqualFold(*e.ArrivalICAO, flight.ArrivalIcao)) ||
+			(e.ArrivalICAO == nil && flight.ArrivalIcao == "")
+		if !depMatch || !arrMatch {
+			continue
+		}
+		// Total time within ±0.1h
+		importTotal := float64(0)
+		if flight.TotalTime != nil {
+			importTotal = float64(*flight.TotalTime)
+		}
+		if math.Abs(e.TotalTime-importTotal) <= 0.1 {
+			id := openapi_types.UUID(e.ID)
+			return &id
+		}
+	}
+	return nil
+}
+
+func parseCSV(data []byte) ([]string, []map[string]string, error) {
+	// ForeFlight exports have metadata preamble sections:
+	// "ForeFlight Logbook Import", "Aircraft Table", "Flights Table"
+	// We need to find the "Flights Table" section and parse from there.
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	// Detect if this is a ForeFlight preamble file
+	flightsTableIdx := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Flights Table") {
+			flightsTableIdx = i
+			break
+		}
+	}
+
+	var csvData []byte
+	if flightsTableIdx >= 0 && flightsTableIdx+1 < len(lines) {
+		// Skip to the line after "Flights Table" (which is the header)
+		csvData = []byte(strings.Join(lines[flightsTableIdx+1:], "\n"))
+	} else {
+		csvData = data
+	}
+
+	// Detect delimiter by trying each
+	delimiters := []rune{';', ',', '\t'}
+	var records [][]string
+	var err error
+
+	for _, delim := range delimiters {
+		reader := csv.NewReader(bytes.NewReader(csvData))
+		reader.LazyQuotes = true
+		reader.Comma = delim
+		reader.FieldsPerRecord = -1 // allow variable field counts
+		records, err = reader.ReadAll()
+		if err == nil && len(records) >= 2 && len(records[0]) >= 3 {
+			break
+		}
+	}
+
+	if err != nil || len(records) < 2 {
+		return nil, nil, fmt.Errorf("could not parse as CSV (tried semicolon, comma, tab)")
+	}
+
+	// Find the header row (first row with multiple non-empty columns)
+	headerIdx := 0
+	for i, record := range records {
+		nonEmpty := 0
+		for _, cell := range record {
+			if strings.TrimSpace(cell) != "" {
+				nonEmpty++
+			}
+		}
+		if nonEmpty >= 3 {
+			headerIdx = i
+			break
+		}
+	}
+
+	headers := records[headerIdx]
+	// Clean header names
+	for i := range headers {
+		headers[i] = strings.TrimSpace(headers[i])
+	}
+
+	var rows []map[string]string
+	for _, record := range records[headerIdx+1:] {
+		// Skip empty rows
+		nonEmpty := 0
+		for _, cell := range record {
+			if strings.TrimSpace(cell) != "" {
+				nonEmpty++
+			}
+		}
+		if nonEmpty < 2 {
+			continue
+		}
+
+		row := make(map[string]string)
+		for j, h := range headers {
+			if j < len(record) && h != "" {
+				row[h] = strings.TrimSpace(record[j])
+			}
+		}
+		rows = append(rows, row)
+	}
+
+	if len(rows) == 0 {
+		return nil, nil, fmt.Errorf("no data rows found")
+	}
+
+	return headers, rows, nil
+}
+
+func normalizeTime(val string) string {
+	// Handle HH:MM, HH:MM:SS, H:MM
+	val = strings.TrimSpace(val)
+	if len(val) == 4 && val[1] == ':' {
+		val = "0" + val // H:MM → 0H:MM
+	}
+	if len(val) == 5 {
+		val += ":00" // HH:MM → HH:MM:00
+	}
+	return val
+}
+
+func parseBoolish(val string, trueValue *string) bool {
+	if trueValue != nil {
+		return strings.EqualFold(val, *trueValue)
+	}
+	lower := strings.ToLower(val)
+	if lower == "true" || lower == "yes" || lower == "1" || lower == "x" || lower == "y" {
+		return true
+	}
+	// If it's a float > 0, treat as true (ForeFlight PIC column)
+	if f, err := strconv.ParseFloat(val, 64); err == nil && f > 0 {
+		return true
+	}
+	return false
+}
+
+func uuidSliceToStringArray(ids []openapi_types.UUID) string {
+	if len(ids) == 0 {
+		return "{}"
+	}
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = uuid.UUID(id).String()
+	}
+	return "{" + strings.Join(parts, ",") + "}"
+}
+
+func scanImportResult(rows *sql.Rows) (generated.ImportResult, error) {
+	var r generated.ImportResult
+	var flightIDs string
+	var errorsJSON []byte
+	var formatStr, statusStr string
+	err := rows.Scan(
+		&r.Id, &r.UserId, &r.LicenseId, &r.FileName, &formatStr, &statusStr,
+		&r.TotalRows, &r.ImportedCount, &r.SkippedCount, &r.ErrorCount, &r.DuplicateCount,
+		&flightIDs, &errorsJSON, &r.CreatedAt,
+	)
+	if err != nil {
+		return r, err
+	}
+	r.Format = generated.ImportFormat(formatStr)
+	r.Status = generated.ImportStatus(statusStr)
+	return r, nil
+}

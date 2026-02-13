@@ -53,6 +53,50 @@ const (
 	SECCLEARANCEZUP   CredentialType = "SEC_CLEARANCE_ZUP"
 )
 
+// Defines values for ImportField.
+const (
+	ImportFieldAircraftReg   ImportField = "aircraftReg"
+	ImportFieldAircraftType  ImportField = "aircraftType"
+	ImportFieldArrivalIcao   ImportField = "arrivalIcao"
+	ImportFieldArrivalTime   ImportField = "arrivalTime"
+	ImportFieldDate          ImportField = "date"
+	ImportFieldDepartureIcao ImportField = "departureIcao"
+	ImportFieldDepartureTime ImportField = "departureTime"
+	ImportFieldIfrTime       ImportField = "ifrTime"
+	ImportFieldIgnore        ImportField = "ignore"
+	ImportFieldIsDual        ImportField = "isDual"
+	ImportFieldIsPic         ImportField = "isPic"
+	ImportFieldLandingsDay   ImportField = "landingsDay"
+	ImportFieldLandingsNight ImportField = "landingsNight"
+	ImportFieldNightTime     ImportField = "nightTime"
+	ImportFieldOffBlockTime  ImportField = "offBlockTime"
+	ImportFieldOnBlockTime   ImportField = "onBlockTime"
+	ImportFieldRemarks       ImportField = "remarks"
+	ImportFieldTotalTime     ImportField = "totalTime"
+)
+
+// Defines values for ImportFormat.
+const (
+	CSV           ImportFormat = "CSV"
+	FOREFLIGHTCSV ImportFormat = "FOREFLIGHT_CSV"
+	XLS           ImportFormat = "XLS"
+	XLSX          ImportFormat = "XLSX"
+)
+
+// Defines values for ImportPreviewFlightStatus.
+const (
+	ImportPreviewFlightStatusDuplicate ImportPreviewFlightStatus = "duplicate"
+	ImportPreviewFlightStatusError     ImportPreviewFlightStatus = "error"
+	ImportPreviewFlightStatusValid     ImportPreviewFlightStatus = "valid"
+)
+
+// Defines values for ImportStatus.
+const (
+	Completed ImportStatus = "completed"
+	Failed    ImportStatus = "failed"
+	Partial   ImportStatus = "partial"
+)
+
 // Defines values for LicenseType.
 const (
 	EASAATPL LicenseType = "EASA_ATPL"
@@ -69,9 +113,9 @@ const (
 
 // Defines values for ListFlightsParamsSortBy.
 const (
-	CreatedAt ListFlightsParamsSortBy = "createdAt"
-	Date      ListFlightsParamsSortBy = "date"
-	TotalTime ListFlightsParamsSortBy = "totalTime"
+	ListFlightsParamsSortByCreatedAt ListFlightsParamsSortBy = "createdAt"
+	ListFlightsParamsSortByDate      ListFlightsParamsSortBy = "date"
+	ListFlightsParamsSortByTotalTime ListFlightsParamsSortBy = "totalTime"
 )
 
 // Defines values for ListFlightsParamsSortOrder.
@@ -531,6 +575,201 @@ type FlightUpdate struct {
 	TotalTime   *float32 `json:"totalTime,omitempty"`
 }
 
+// ImportColumnMapping defines model for ImportColumnMapping.
+type ImportColumnMapping struct {
+	// DateFormat Date parsing format (Go / strftime-style). Only relevant when targetField is `date`.
+	DateFormat *string `json:"dateFormat,omitempty"`
+
+	// SourceColumn Column header name from the uploaded file
+	SourceColumn string `json:"sourceColumn"`
+
+	// TargetField Target flight log field for column mapping.
+	// Use `ignore` to skip a column during import.
+	TargetField ImportField `json:"targetField"`
+
+	// TimeFormat Time parsing format. Only relevant for time fields.
+	TimeFormat *string `json:"timeFormat,omitempty"`
+
+	// TrueValue String value that maps to boolean `true` (e.g. "Yes", "X", "1"). Only relevant for isPic / isDual.
+	TrueValue *string `json:"trueValue,omitempty"`
+}
+
+// ImportConfirmRequest defines model for ImportConfirmRequest.
+type ImportConfirmRequest struct {
+	// IncludeDuplicates When true, import all duplicate rows as well (overrides selectedRows filtering)
+	IncludeDuplicates *bool `json:"includeDuplicates,omitempty"`
+
+	// LicenseId License to associate imported flights with
+	LicenseId openapi_types.UUID `json:"licenseId"`
+
+	// SelectedRows Row indices to import (1-based). If omitted or empty, all `valid` rows are imported.
+	// Include duplicate row indices here to force-import them.
+	SelectedRows *[]int `json:"selectedRows,omitempty"`
+
+	// UploadToken Upload token from the preview response
+	UploadToken string `json:"uploadToken"`
+}
+
+// ImportField Target flight log field for column mapping.
+// Use `ignore` to skip a column during import.
+type ImportField string
+
+// ImportFormat Detected file format:
+// - CSV: Generic comma/semicolon/tab-separated values
+// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+// - XLS: Microsoft Excel 97-2003 workbook
+// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
+type ImportFormat string
+
+// ImportPreviewFlight defines model for ImportPreviewFlight.
+type ImportPreviewFlight struct {
+	// Errors Validation errors when status is `error`
+	Errors *[]struct {
+		Field   *string `json:"field,omitempty"`
+		Message *string `json:"message,omitempty"`
+	} `json:"errors,omitempty"`
+
+	// ExistingFlightId ID of the matching existing flight when status is `duplicate`
+	ExistingFlightId *openapi_types.UUID `json:"existingFlightId"`
+	Flight           FlightCreate        `json:"flight"`
+
+	// RowIndex 1-based row number in the original file
+	RowIndex int `json:"rowIndex"`
+
+	// Status Row validation result:
+	// - valid: Ready to import
+	// - duplicate: Matches an existing flight (same date, aircraft, departure, arrival, total time ±0.1h)
+	// - error: Validation failed — see `errors` field
+	Status ImportPreviewFlightStatus `json:"status"`
+}
+
+// ImportPreviewFlightStatus Row validation result:
+// - valid: Ready to import
+// - duplicate: Matches an existing flight (same date, aircraft, departure, arrival, total time ±0.1h)
+// - error: Validation failed — see `errors` field
+type ImportPreviewFlightStatus string
+
+// ImportPreviewRequest defines model for ImportPreviewRequest.
+type ImportPreviewRequest struct {
+	// LicenseId License to associate imported flights with
+	LicenseId openapi_types.UUID `json:"licenseId"`
+
+	// Mappings Column → field mappings (user-confirmed or adjusted)
+	Mappings []ImportColumnMapping `json:"mappings"`
+
+	// SkipDuplicates Whether to flag rows that match existing flights as duplicates
+	SkipDuplicates *bool `json:"skipDuplicates,omitempty"`
+
+	// UploadToken Upload token from the upload response
+	UploadToken string `json:"uploadToken"`
+}
+
+// ImportPreviewResponse defines model for ImportPreviewResponse.
+type ImportPreviewResponse struct {
+	// DuplicateCount Rows matching existing flights
+	DuplicateCount int `json:"duplicateCount"`
+
+	// ErrorCount Rows with validation errors
+	ErrorCount int `json:"errorCount"`
+
+	// Flights All rows with their validation status, sorted by rowIndex
+	Flights []ImportPreviewFlight `json:"flights"`
+
+	// TotalRows Total rows processed
+	TotalRows int `json:"totalRows"`
+
+	// UploadToken Upload token to use in the confirm request
+	UploadToken string `json:"uploadToken"`
+
+	// ValidCount Rows ready to import
+	ValidCount int `json:"validCount"`
+}
+
+// ImportResult defines model for ImportResult.
+type ImportResult struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DuplicateCount Number of rows detected as duplicates
+	DuplicateCount int `json:"duplicateCount"`
+
+	// ErrorCount Number of rows that failed validation
+	ErrorCount int `json:"errorCount"`
+
+	// Errors Per-row errors for rows that were not imported
+	Errors *[]struct {
+		Field   string `json:"field"`
+		Message string `json:"message"`
+
+		// RawValue The original value from the file that caused the error
+		RawValue *string `json:"rawValue,omitempty"`
+
+		// RowIndex 1-based row number that caused the error
+		RowIndex int `json:"rowIndex"`
+	} `json:"errors,omitempty"`
+	FileName string `json:"fileName"`
+
+	// Format Detected file format:
+	// - CSV: Generic comma/semicolon/tab-separated values
+	// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+	// - XLS: Microsoft Excel 97-2003 workbook
+	// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
+	Format ImportFormat       `json:"format"`
+	Id     openapi_types.UUID `json:"id"`
+
+	// ImportedCount Number of flights successfully created
+	ImportedCount int `json:"importedCount"`
+
+	// ImportedFlightIds IDs of the created flight log entries
+	ImportedFlightIds *[]openapi_types.UUID `json:"importedFlightIds,omitempty"`
+	LicenseId         openapi_types.UUID    `json:"licenseId"`
+
+	// SkippedCount Number of rows skipped (duplicates not imported)
+	SkippedCount int `json:"skippedCount"`
+
+	// Status Overall import result:
+	// - completed: All selected rows imported successfully
+	// - partial: Some rows imported, some failed
+	// - failed: No rows imported (all failed validation)
+	Status ImportStatus `json:"status"`
+
+	// TotalRows Total rows in the uploaded file
+	TotalRows int                `json:"totalRows"`
+	UserId    openapi_types.UUID `json:"userId"`
+}
+
+// ImportStatus Overall import result:
+// - completed: All selected rows imported successfully
+// - partial: Some rows imported, some failed
+// - failed: No rows imported (all failed validation)
+type ImportStatus string
+
+// ImportUploadResponse defines model for ImportUploadResponse.
+type ImportUploadResponse struct {
+	// Columns Column headers found in the file
+	Columns []string `json:"columns"`
+
+	// Format Detected file format:
+	// - CSV: Generic comma/semicolon/tab-separated values
+	// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+	// - XLS: Microsoft Excel 97-2003 workbook
+	// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
+	Format ImportFormat `json:"format"`
+
+	// PreviewRows First 5 rows as key-value objects (column header → cell value)
+	PreviewRows []map[string]string `json:"previewRows"`
+
+	// SuggestedMappings Server-suggested column mappings based on header names.
+	// For ForeFlight exports these are pre-filled from the known column layout.
+	// The user can adjust mappings before submitting the preview request.
+	SuggestedMappings []ImportColumnMapping `json:"suggestedMappings"`
+
+	// TotalRows Total number of data rows in the file (excluding header)
+	TotalRows int `json:"totalRows"`
+
+	// UploadToken Opaque token identifying this upload session. Valid for 1 hour.
+	UploadToken string `json:"uploadToken"`
+}
+
 // License defines model for License.
 type License struct {
 	CreatedAt time.Time `json:"createdAt"`
@@ -656,6 +895,24 @@ type PaginatedFlights struct {
 	} `json:"pagination"`
 }
 
+// PaginatedImports defines model for PaginatedImports.
+type PaginatedImports struct {
+	Data       []ImportResult `json:"data"`
+	Pagination struct {
+		// Page Current page (1-indexed)
+		Page int `json:"page"`
+
+		// PageSize Items per page
+		PageSize int `json:"pageSize"`
+
+		// Total Total number of imports
+		Total int `json:"total"`
+
+		// TotalPages Total number of pages
+		TotalPages int `json:"totalPages"`
+	} `json:"pagination"`
+}
+
 // Statistics defines model for Statistics.
 type Statistics struct {
 	// DualHours Total dual instruction block hours
@@ -719,6 +976,9 @@ type CredentialId = openapi_types.UUID
 
 // FlightId defines model for FlightId.
 type FlightId = openapi_types.UUID
+
+// ImportId defines model for ImportId.
+type ImportId = openapi_types.UUID
 
 // LicenseId defines model for LicenseId.
 type LicenseId = openapi_types.UUID
@@ -845,6 +1105,21 @@ type ListFlightsParamsSortBy string
 // ListFlightsParamsSortOrder defines parameters for ListFlights.
 type ListFlightsParamsSortOrder string
 
+// ListImportsParams defines parameters for ListImports.
+type ListImportsParams struct {
+	// Page Page number (1-indexed)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Items per page
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// UploadImportFileMultipartBody defines parameters for UploadImportFile.
+type UploadImportFileMultipartBody struct {
+	// File CSV or XLS/XLSX file to import
+	File openapi_types.File `json:"file"`
+}
+
 // ListLicensesParams defines parameters for ListLicenses.
 type ListLicensesParams struct {
 	// IsActive Filter by active status
@@ -916,6 +1191,15 @@ type CreateFlightJSONRequestBody = FlightCreate
 
 // UpdateFlightJSONRequestBody defines body for UpdateFlight for application/json ContentType.
 type UpdateFlightJSONRequestBody = FlightUpdate
+
+// ConfirmImportJSONRequestBody defines body for ConfirmImport for application/json ContentType.
+type ConfirmImportJSONRequestBody = ImportConfirmRequest
+
+// PreviewImportJSONRequestBody defines body for PreviewImport for application/json ContentType.
+type PreviewImportJSONRequestBody = ImportPreviewRequest
+
+// UploadImportFileMultipartRequestBody defines body for UploadImportFile for multipart/form-data ContentType.
+type UploadImportFileMultipartRequestBody UploadImportFileMultipartBody
 
 // CreateLicenseJSONRequestBody defines body for CreateLicense for application/json ContentType.
 type CreateLicenseJSONRequestBody = LicenseCreate
