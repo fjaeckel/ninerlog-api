@@ -11,6 +11,7 @@ import (
 	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/repository"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
+	"github.com/fjaeckel/pilotlog-api/internal/service/flightcalc"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -198,9 +199,27 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		LandingsNight: req.LandingsNight,
 	}
 
+	// Set route if provided
+	if req.Route != nil {
+		flight.Route = req.Route
+	}
+
+	// Set takeoffs with manual override flags if provided
+	if req.TakeoffsDay != nil {
+		flight.TakeoffsDay = *req.TakeoffsDay
+		flight.TakeoffsDayOverride = true
+	}
+	if req.TakeoffsNight != nil {
+		flight.TakeoffsNight = *req.TakeoffsNight
+		flight.TakeoffsNightOverride = true
+	}
+
 	if req.Remarks != nil {
 		flight.Remarks = req.Remarks
 	}
+
+	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
+	flightcalc.ApplyAutoCalculations(&flight)
 
 	if err := h.flightService.CreateFlight(c.Request.Context(), &flight); err != nil {
 		h.sendError(c, http.StatusBadRequest, err.Error())
@@ -317,6 +336,17 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.Remarks != nil {
 		flight.Remarks = req.Remarks
 	}
+	if req.Route != nil {
+		flight.Route = req.Route
+	}
+	if req.TakeoffsDay != nil {
+		flight.TakeoffsDay = *req.TakeoffsDay
+		flight.TakeoffsDayOverride = true
+	}
+	if req.TakeoffsNight != nil {
+		flight.TakeoffsNight = *req.TakeoffsNight
+		flight.TakeoffsNightOverride = true
+	}
 
 	// Recalculate totalTime from block times if either was updated
 	if req.OffBlockTime != nil || req.OnBlockTime != nil {
@@ -353,6 +383,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.DualTime = 0
 	}
 
+	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
+	flightcalc.ApplyAutoCalculations(flight)
+
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
@@ -387,23 +420,29 @@ func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId) {
 
 func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	flight := generated.Flight{
-		Id:            openapi_types.UUID(f.ID),
-		UserId:        openapi_types.UUID(f.UserID),
-		LicenseId:     openapi_types.UUID(f.LicenseID),
-		Date:          openapi_types.Date{Time: f.Date},
-		AircraftReg:   f.AircraftReg,
-		AircraftType:  f.AircraftType,
-		TotalTime:     float32(f.TotalTime),
-		IsPic:         f.IsPIC,
-		IsDual:        f.IsDual,
-		PicTime:       float32(f.PICTime),
-		DualTime:      float32(f.DualTime),
-		NightTime:     float32(f.NightTime),
-		IfrTime:       float32(f.IFRTime),
-		LandingsDay:   f.LandingsDay,
-		LandingsNight: f.LandingsNight,
-		CreatedAt:     f.CreatedAt,
-		UpdatedAt:     f.UpdatedAt,
+		Id:               openapi_types.UUID(f.ID),
+		UserId:           openapi_types.UUID(f.UserID),
+		LicenseId:        openapi_types.UUID(f.LicenseID),
+		Date:             openapi_types.Date{Time: f.Date},
+		AircraftReg:      f.AircraftReg,
+		AircraftType:     f.AircraftType,
+		TotalTime:        float32(f.TotalTime),
+		IsPic:            f.IsPIC,
+		IsDual:           f.IsDual,
+		PicTime:          float32(f.PICTime),
+		DualTime:         float32(f.DualTime),
+		NightTime:        float32(f.NightTime),
+		IfrTime:          float32(f.IFRTime),
+		SoloTime:         float32(f.SoloTime),
+		CrossCountryTime: float32(f.CrossCountryTime),
+		Distance:         float32(f.Distance),
+		LandingsDay:      f.LandingsDay,
+		LandingsNight:    f.LandingsNight,
+		AllLandings:      f.AllLandings,
+		TakeoffsDay:      f.TakeoffsDay,
+		TakeoffsNight:    f.TakeoffsNight,
+		CreatedAt:        f.CreatedAt,
+		UpdatedAt:        f.UpdatedAt,
 	}
 
 	if f.DepartureICAO != nil {
@@ -424,6 +463,9 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	if f.ArrivalTime != nil {
 		flight.ArrivalTime = f.ArrivalTime
 	}
+	if f.Route != nil {
+		flight.Route = f.Route
+	}
 	if f.Remarks != nil {
 		flight.Remarks = f.Remarks
 	}
@@ -436,6 +478,10 @@ func getFloat32OrDefault(val *float32, def float32) float32 {
 		return *val
 	}
 	return def
+}
+
+func ptrFloat32(v float32) *float32 {
+	return &v
 }
 
 // calculateBlockTime computes total block time in hours from off-block and on-block time strings (HH:MM:SS).

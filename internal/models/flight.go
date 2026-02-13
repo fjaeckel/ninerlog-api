@@ -37,6 +37,25 @@ type Flight struct {
 	// Landings
 	LandingsDay   int `json:"landingsDay"`
 	LandingsNight int `json:"landingsNight"`
+	AllLandings   int `json:"allLandings"` // Auto-calculated: day + night
+
+	// Takeoffs
+	TakeoffsDay   int `json:"takeoffsDay"`   // Auto-calculated from sunset/sunrise at departure (with manual override)
+	TakeoffsNight int `json:"takeoffsNight"` // Auto-calculated from sunset/sunrise at departure (with manual override)
+
+	// Route
+	Route *string `json:"route,omitempty"` // Comma-separated ICAO waypoints
+
+	// Auto-calculated fields
+	SoloTime         float64 `json:"soloTime"`         // Auto-calculated when not dual and not PIC with crew
+	CrossCountryTime float64 `json:"crossCountryTime"` // Auto-calculated when departure ≠ arrival
+	Distance         float64 `json:"distance"`         // Auto-calculated from airport coordinates (NM)
+
+	// Manual override flags
+	TakeoffsDayOverride   bool `json:"-"` // When true, takeoffsDay is not auto-calculated
+	TakeoffsNightOverride bool `json:"-"` // When true, takeoffsNight is not auto-calculated
+	LandingsDayOverride   bool `json:"-"` // When true, landingsDay is not auto-calculated
+	LandingsNightOverride bool `json:"-"` // When true, landingsNight is not auto-calculated
 
 	// Additional information
 	Remarks *string `json:"remarks,omitempty"`
@@ -88,15 +107,17 @@ func (f *Flight) ValidateTimeDistribution() error {
 
 // FlightStatistics holds aggregated flight statistics for a license
 type FlightStatistics struct {
-	LicenseID     uuid.UUID
-	TotalFlights  int
-	TotalHours    float64
-	PICHours      float64
-	DualHours     float64
-	NightHours    float64
-	IFRHours      float64
-	LandingsDay   int
-	LandingsNight int
+	LicenseID         uuid.UUID
+	TotalFlights      int
+	TotalHours        float64
+	PICHours          float64
+	DualHours         float64
+	NightHours        float64
+	IFRHours          float64
+	SoloHours         float64
+	CrossCountryHours float64
+	LandingsDay       int
+	LandingsNight     int
 }
 
 // CurrencyData holds landing/flight counts for currency calculation

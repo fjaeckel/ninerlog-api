@@ -414,19 +414,28 @@ type Flight struct {
 	// AircraftType Aircraft type
 	AircraftType string `json:"aircraftType"`
 
+	// AllLandings Total landings (day + night). Auto-calculated by the server.
+	AllLandings int `json:"allLandings"`
+
 	// ArrivalIcao ICAO code of arrival airport
 	ArrivalIcao *string `json:"arrivalIcao"`
 
 	// ArrivalTime Landing time in UTC. Marks the end of airborne/flight time.
-	ArrivalTime *string            `json:"arrivalTime"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	Date        openapi_types.Date `json:"date"`
+	ArrivalTime *string   `json:"arrivalTime"`
+	CreatedAt   time.Time `json:"createdAt"`
+
+	// CrossCountryTime Cross-country time in hours. Auto-calculated when departure ≠ arrival.
+	CrossCountryTime float32            `json:"crossCountryTime"`
+	Date             openapi_types.Date `json:"date"`
 
 	// DepartureIcao ICAO code of departure airport
 	DepartureIcao *string `json:"departureIcao"`
 
 	// DepartureTime Takeoff time in UTC. Marks the beginning of airborne/flight time.
 	DepartureTime *string `json:"departureTime"`
+
+	// Distance Distance in nautical miles. Auto-calculated from airport coordinates.
+	Distance float32 `json:"distance"`
 
 	// DualTime Dual instruction block time in hours (computed from isDual and totalTime)
 	DualTime float32            `json:"dualTime"`
@@ -463,6 +472,18 @@ type Flight struct {
 	// Remarks Free text notes
 	Remarks *string `json:"remarks"`
 
+	// Route Route waypoints as comma-separated ICAO codes for VFR/IFR flight plans
+	Route *string `json:"route"`
+
+	// SoloTime Solo time in hours. Auto-calculated when no crew and not dual instruction.
+	SoloTime float32 `json:"soloTime"`
+
+	// TakeoffsDay Number of day takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
+	TakeoffsDay int `json:"takeoffsDay"`
+
+	// TakeoffsNight Number of night takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
+	TakeoffsNight int `json:"takeoffsNight"`
+
 	// TotalTime Total block time in hours (off-block to on-block)
 	TotalTime float32            `json:"totalTime"`
 	UpdatedAt time.Time          `json:"updatedAt"`
@@ -474,18 +495,27 @@ type FlightCreate struct {
 	AircraftReg  string `json:"aircraftReg"`
 	AircraftType string `json:"aircraftType"`
 
+	// AllLandings Total landings (day + night). Auto-calculated by the server.
+	AllLandings *int `json:"allLandings,omitempty"`
+
 	// ArrivalIcao Arrival airport ICAO code
 	ArrivalIcao string `json:"arrivalIcao"`
 
 	// ArrivalTime Landing time in UTC
-	ArrivalTime string             `json:"arrivalTime"`
-	Date        openapi_types.Date `json:"date"`
+	ArrivalTime string `json:"arrivalTime"`
+
+	// CrossCountryTime Cross-country time in hours. Auto-calculated by the server.
+	CrossCountryTime *float32           `json:"crossCountryTime,omitempty"`
+	Date             openapi_types.Date `json:"date"`
 
 	// DepartureIcao Departure airport ICAO code
 	DepartureIcao string `json:"departureIcao"`
 
 	// DepartureTime Takeoff time in UTC
 	DepartureTime string `json:"departureTime"`
+
+	// Distance Distance in nautical miles. Auto-calculated by the server.
+	Distance *float32 `json:"distance,omitempty"`
 
 	// DualTime Dual instruction time in hours. Computed by server — equals totalTime when isDual is true, 0 otherwise.
 	DualTime *float32 `json:"dualTime,omitempty"`
@@ -514,6 +544,18 @@ type FlightCreate struct {
 	// PicTime Pilot-in-command time in hours. Computed by server — equals totalTime when isPic is true, 0 otherwise.
 	PicTime *float32 `json:"picTime,omitempty"`
 	Remarks *string  `json:"remarks"`
+
+	// Route Route waypoints as comma-separated ICAO codes
+	Route *string `json:"route"`
+
+	// SoloTime Solo time in hours. Auto-calculated by the server.
+	SoloTime *float32 `json:"soloTime,omitempty"`
+
+	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
+	TakeoffsDay *int `json:"takeoffsDay,omitempty"`
+
+	// TakeoffsNight Number of night takeoffs. Provide to override auto-calculation.
+	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
 
 	// TotalTime Total block time calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
 	TotalTime *float32 `json:"totalTime,omitempty"`
@@ -570,9 +612,18 @@ type FlightUpdate struct {
 	OffBlockTime *string `json:"offBlockTime"`
 
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
-	OnBlockTime *string  `json:"onBlockTime"`
-	Remarks     *string  `json:"remarks"`
-	TotalTime   *float32 `json:"totalTime,omitempty"`
+	OnBlockTime *string `json:"onBlockTime"`
+	Remarks     *string `json:"remarks"`
+
+	// Route Route waypoints as comma-separated ICAO codes
+	Route *string `json:"route"`
+
+	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
+	TakeoffsDay *int `json:"takeoffsDay,omitempty"`
+
+	// TakeoffsNight Number of night takeoffs. Provide to override auto-calculation.
+	TakeoffsNight *int     `json:"takeoffsNight,omitempty"`
+	TotalTime     *float32 `json:"totalTime,omitempty"`
 }
 
 // ImportColumnMapping defines model for ImportColumnMapping.
@@ -915,6 +966,9 @@ type PaginatedImports struct {
 
 // Statistics defines model for Statistics.
 type Statistics struct {
+	// CrossCountryHours Total cross-country hours
+	CrossCountryHours *float32 `json:"crossCountryHours,omitempty"`
+
 	// DualHours Total dual instruction block hours
 	DualHours float32 `json:"dualHours"`
 
@@ -933,6 +987,9 @@ type Statistics struct {
 
 	// PicHours Total PIC block hours
 	PicHours float32 `json:"picHours"`
+
+	// SoloHours Total solo hours
+	SoloHours *float32 `json:"soloHours,omitempty"`
 
 	// TotalFlights Total number of flights
 	TotalFlights int `json:"totalFlights"`

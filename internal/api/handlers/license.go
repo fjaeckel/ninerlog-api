@@ -278,15 +278,17 @@ func (h *APIHandler) GetLicenseStatistics(c *gin.Context, licenseId generated.Li
 	}
 
 	statistics := generated.Statistics{
-		LicenseId:     openapi_types.UUID(licenseId),
-		TotalFlights:  stats.TotalFlights,
-		TotalHours:    float32(stats.TotalHours),
-		PicHours:      float32(stats.PICHours),
-		DualHours:     float32(stats.DualHours),
-		NightHours:    float32(stats.NightHours),
-		IfrHours:      float32(stats.IFRHours),
-		LandingsDay:   stats.LandingsDay,
-		LandingsNight: stats.LandingsNight,
+		LicenseId:         openapi_types.UUID(licenseId),
+		TotalFlights:      stats.TotalFlights,
+		TotalHours:        float32(stats.TotalHours),
+		PicHours:          float32(stats.PICHours),
+		DualHours:         float32(stats.DualHours),
+		NightHours:        float32(stats.NightHours),
+		IfrHours:          float32(stats.IFRHours),
+		SoloHours:         ptrFloat32(float32(stats.SoloHours)),
+		CrossCountryHours: ptrFloat32(float32(stats.CrossCountryHours)),
+		LandingsDay:       stats.LandingsDay,
+		LandingsNight:     stats.LandingsNight,
 	}
 
 	c.JSON(http.StatusOK, statistics)
