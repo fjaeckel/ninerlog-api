@@ -168,18 +168,15 @@ func (m *mockNotifFlightRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 func (m *mockNotifFlightRepo) GetByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) ([]*models.Flight, error) {
 	return nil, nil
 }
-func (m *mockNotifFlightRepo) GetByLicenseID(ctx context.Context, licenseID uuid.UUID, opts *repository.FlightQueryOptions) ([]*models.Flight, error) {
-	return nil, nil
-}
 func (m *mockNotifFlightRepo) Update(ctx context.Context, flight *models.Flight) error { return nil }
 func (m *mockNotifFlightRepo) Delete(ctx context.Context, id uuid.UUID) error          { return nil }
 func (m *mockNotifFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	return 0, nil
 }
-func (m *mockNotifFlightRepo) GetStatsByLicenseID(ctx context.Context, licenseID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
+func (m *mockNotifFlightRepo) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
 	return &models.FlightStatistics{}, nil
 }
-func (m *mockNotifFlightRepo) GetCurrencyData(ctx context.Context, licenseID uuid.UUID, since time.Time) (*models.CurrencyData, error) {
+func (m *mockNotifFlightRepo) GetCurrencyData(ctx context.Context, userID uuid.UUID, since time.Time) (*models.CurrencyData, error) {
 	return m.currencyData, nil
 }
 
@@ -210,16 +207,6 @@ func (m *mockNotifLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID
 	var result []*models.License
 	for _, l := range m.licenses {
 		if l.UserID == userID {
-			result = append(result, l)
-		}
-	}
-	return result, nil
-}
-
-func (m *mockNotifLicenseRepo) GetActiveByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error) {
-	var result []*models.License
-	for _, l := range m.licenses {
-		if l.UserID == userID && l.IsActive {
 			result = append(result, l)
 		}
 	}

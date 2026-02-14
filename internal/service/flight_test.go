@@ -47,16 +47,6 @@ func (m *mockFlightRepo) GetByUserID(ctx context.Context, userID uuid.UUID, opts
 	return result, nil
 }
 
-func (m *mockFlightRepo) GetByLicenseID(ctx context.Context, licenseID uuid.UUID, opts *repository.FlightQueryOptions) ([]*models.Flight, error) {
-	var result []*models.Flight
-	for _, flight := range m.flights {
-		if flight.LicenseID == licenseID {
-			result = append(result, flight)
-		}
-	}
-	return result, nil
-}
-
 func (m *mockFlightRepo) Update(ctx context.Context, flight *models.Flight) error {
 	if _, exists := m.flights[flight.ID]; !exists {
 		return repository.ErrNotFound
@@ -84,10 +74,10 @@ func (m *mockFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, op
 	return count, nil
 }
 
-func (m *mockFlightRepo) GetStatsByLicenseID(ctx context.Context, licenseID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
-	stats := &models.FlightStatistics{LicenseID: licenseID}
+func (m *mockFlightRepo) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
+	stats := &models.FlightStatistics{}
 	for _, f := range m.flights {
-		if f.LicenseID == licenseID {
+		if f.UserID == userID {
 			stats.TotalFlights++
 			stats.TotalHours += f.TotalTime
 			stats.PICHours += f.PICTime
@@ -101,10 +91,10 @@ func (m *mockFlightRepo) GetStatsByLicenseID(ctx context.Context, licenseID uuid
 	return stats, nil
 }
 
-func (m *mockFlightRepo) GetCurrencyData(ctx context.Context, licenseID uuid.UUID, since time.Time) (*models.CurrencyData, error) {
+func (m *mockFlightRepo) GetCurrencyData(ctx context.Context, userID uuid.UUID, since time.Time) (*models.CurrencyData, error) {
 	data := &models.CurrencyData{}
 	for _, f := range m.flights {
-		if f.LicenseID == licenseID && !f.Date.Before(since) {
+		if f.UserID == userID && !f.Date.Before(since) {
 			data.Flights++
 			data.DayLandings += f.LandingsDay
 			data.NightLandings += f.LandingsNight
@@ -116,29 +106,15 @@ func (m *mockFlightRepo) GetCurrencyData(ctx context.Context, licenseID uuid.UUI
 
 func TestCreateFlight(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	licenseRepo := newMockLicenseRepo()
-	service := NewFlightService(flightRepo, licenseRepo)
+	service := NewFlightService(flightRepo)
 	ctx := context.Background()
 
 	userID := uuid.New()
-	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
-
-	// Create a license first
-	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
-	}
-	_ = licenseRepo.Create(ctx, license)
 
 	// Create a flight
 	flightDate := time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC)
 	flight := &models.Flight{
 		UserID:       userID,
-		LicenseID:    license.ID,
 		Date:         flightDate,
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
@@ -160,28 +136,15 @@ func TestCreateFlight(t *testing.T) {
 
 func TestCreateFlightInvalidTimeDistribution(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	licenseRepo := newMockLicenseRepo()
-	service := NewFlightService(flightRepo, licenseRepo)
+	service := NewFlightService(flightRepo)
 	ctx := context.Background()
 
 	userID := uuid.New()
-	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
-
-	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
-	}
-	_ = licenseRepo.Create(ctx, license)
 
 	// Create invalid flight (isPic and isDual both true — mutually exclusive)
 	flightDate := time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC)
 	flight := &models.Flight{
 		UserID:       userID,
-		LicenseID:    license.ID,
 		Date:         flightDate,
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
@@ -197,70 +160,16 @@ func TestCreateFlightInvalidTimeDistribution(t *testing.T) {
 	}
 }
 
-func TestCreateFlightSPLNoNight(t *testing.T) {
-	flightRepo := newMockFlightRepo()
-	licenseRepo := newMockLicenseRepo()
-	service := NewFlightService(flightRepo, licenseRepo)
-	ctx := context.Background()
-
-	userID := uuid.New()
-	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
-
-	// Create SPL license
-	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASASPL,
-		LicenseNumber:    "SPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
-	}
-	_ = licenseRepo.Create(ctx, license)
-
-	// Try to create flight with night time
-	flightDate := time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC)
-	flight := &models.Flight{
-		UserID:       userID,
-		LicenseID:    license.ID,
-		Date:         flightDate,
-		AircraftReg:  "D-KXYZ",
-		AircraftType: "ASK21",
-		TotalTime:    1.5,
-		IsPIC:        true,
-		PICTime:      1.5,
-		NightTime:    0.5, // SPL shouldn't have night time
-		LandingsDay:  2,
-	}
-
-	err := service.CreateFlight(ctx, flight)
-	if err == nil {
-		t.Error("Expected error for SPL with night time")
-	}
-}
-
 func TestUpdateFlight(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	licenseRepo := newMockLicenseRepo()
-	service := NewFlightService(flightRepo, licenseRepo)
+	service := NewFlightService(flightRepo)
 	ctx := context.Background()
 
 	userID := uuid.New()
-	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
-
-	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
-	}
-	_ = licenseRepo.Create(ctx, license)
 
 	flightDate := time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC)
 	flight := &models.Flight{
 		UserID:       userID,
-		LicenseID:    license.ID,
 		Date:         flightDate,
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
@@ -291,27 +200,14 @@ func TestUpdateFlight(t *testing.T) {
 
 func TestDeleteFlight(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	licenseRepo := newMockLicenseRepo()
-	service := NewFlightService(flightRepo, licenseRepo)
+	service := NewFlightService(flightRepo)
 	ctx := context.Background()
 
 	userID := uuid.New()
-	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
-
-	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
-	}
-	_ = licenseRepo.Create(ctx, license)
 
 	flightDate := time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC)
 	flight := &models.Flight{
 		UserID:       userID,
-		LicenseID:    license.ID,
 		Date:         flightDate,
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",

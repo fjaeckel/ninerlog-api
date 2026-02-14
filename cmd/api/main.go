@@ -82,7 +82,7 @@ func main() {
 	// Initialize services
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
 	licenseService := service.NewLicenseService(licenseRepo)
-	flightService := service.NewFlightService(flightRepo, licenseRepo)
+	flightService := service.NewFlightService(flightRepo)
 	credentialRepo := postgres.NewCredentialRepository(db)
 	credentialService := service.NewCredentialService(credentialRepo)
 	aircraftRepo := postgres.NewAircraftRepository(db)
@@ -94,9 +94,11 @@ func main() {
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager)
 	contactRepo := postgres.NewContactRepository(db)
 	contactService := service.NewContactService(contactRepo)
+	classRatingRepo := postgres.NewClassRatingRepository(db)
+	classRatingService := service.NewClassRatingService(classRatingRepo, licenseRepo)
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, jwtManager)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, jwtManager)
 	apiHandler.SetDB(db)
 
 	// Setup router
@@ -128,9 +130,6 @@ func main() {
 
 	// Register contact routes
 	handlers.RegisterContactRoutes(api, apiHandler)
-
-	// Register default license route
-	api.PUT("/users/me/default-license", apiHandler.SetDefaultLicense)
 
 	log.Println("✅ Routes registered from OpenAPI specification")
 

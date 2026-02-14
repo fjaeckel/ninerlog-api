@@ -8,10 +8,9 @@ import (
 
 // Flight represents a flight log entry
 type Flight struct {
-	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"userId"`
-	LicenseID uuid.UUID `json:"licenseId"`
-	Date      time.Time `json:"date"`
+	ID     uuid.UUID `json:"id"`
+	UserID uuid.UUID `json:"userId"`
+	Date   time.Time `json:"date"`
 
 	// Aircraft information
 	AircraftReg  string `json:"aircraftReg"`
@@ -81,7 +80,6 @@ type Flight struct {
 // IsValid checks if all required fields are set
 func (f *Flight) IsValid() bool {
 	return f.UserID != uuid.Nil &&
-		f.LicenseID != uuid.Nil &&
 		!f.Date.IsZero() &&
 		f.AircraftReg != "" &&
 		f.AircraftType != "" &&
@@ -120,7 +118,6 @@ func (f *Flight) ValidateTimeDistribution() error {
 
 // FlightStatistics holds aggregated flight statistics for a license
 type FlightStatistics struct {
-	LicenseID         uuid.UUID
 	TotalFlights      int
 	TotalHours        float64
 	PICHours          float64

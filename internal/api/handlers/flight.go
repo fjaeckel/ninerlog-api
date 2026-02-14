@@ -33,10 +33,6 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		SortBy:    "date",
 		SortOrder: "desc",
 	}
-	if params.LicenseId != nil {
-		id := uuid.UUID(*params.LicenseId)
-		opts.LicenseID = &id
-	}
 	if params.StartDate != nil {
 		t := params.StartDate.Time
 		opts.StartDate = &t
@@ -168,7 +164,6 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 
 	flight := models.Flight{
 		UserID:        userID,
-		LicenseID:     uuid.UUID(req.LicenseId),
 		Date:          flightDate,
 		AircraftReg:   req.AircraftReg,
 		AircraftType:  req.AircraftType,
@@ -439,7 +434,6 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	flight := generated.Flight{
 		Id:               openapi_types.UUID(f.ID),
 		UserId:           openapi_types.UUID(f.UserID),
-		LicenseId:        openapi_types.UUID(f.LicenseID),
 		Date:             openapi_types.Date{Time: f.Date},
 		AircraftReg:      f.AircraftReg,
 		AircraftType:     f.AircraftType,

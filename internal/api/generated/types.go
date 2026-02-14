@@ -37,20 +37,33 @@ const (
 	Turboprop AircraftUpdateEngineType = "turboprop"
 )
 
+// Defines values for ClassType.
+const (
+	ClassTypeIR      ClassType = "IR"
+	ClassTypeMEPLAND ClassType = "MEP_LAND"
+	ClassTypeMEPSEA  ClassType = "MEP_SEA"
+	ClassTypeOTHER   ClassType = "OTHER"
+	ClassTypeSEPLAND ClassType = "SEP_LAND"
+	ClassTypeSEPSEA  ClassType = "SEP_SEA"
+	ClassTypeSETLAND ClassType = "SET_LAND"
+	ClassTypeSETSEA  ClassType = "SET_SEA"
+	ClassTypeTMG     ClassType = "TMG"
+)
+
 // Defines values for CredentialType.
 const (
-	EASACLASS1MEDICAL CredentialType = "EASA_CLASS1_MEDICAL"
-	EASACLASS2MEDICAL CredentialType = "EASA_CLASS2_MEDICAL"
-	EASALAPLMEDICAL   CredentialType = "EASA_LAPL_MEDICAL"
-	FAACLASS1MEDICAL  CredentialType = "FAA_CLASS1_MEDICAL"
-	FAACLASS2MEDICAL  CredentialType = "FAA_CLASS2_MEDICAL"
-	FAACLASS3MEDICAL  CredentialType = "FAA_CLASS3_MEDICAL"
-	LANGICAOLEVEL4    CredentialType = "LANG_ICAO_LEVEL4"
-	LANGICAOLEVEL5    CredentialType = "LANG_ICAO_LEVEL5"
-	LANGICAOLEVEL6    CredentialType = "LANG_ICAO_LEVEL6"
-	OTHER             CredentialType = "OTHER"
-	SECCLEARANCEZUBB  CredentialType = "SEC_CLEARANCE_ZUBB"
-	SECCLEARANCEZUP   CredentialType = "SEC_CLEARANCE_ZUP"
+	CredentialTypeEASACLASS1MEDICAL CredentialType = "EASA_CLASS1_MEDICAL"
+	CredentialTypeEASACLASS2MEDICAL CredentialType = "EASA_CLASS2_MEDICAL"
+	CredentialTypeEASALAPLMEDICAL   CredentialType = "EASA_LAPL_MEDICAL"
+	CredentialTypeFAACLASS1MEDICAL  CredentialType = "FAA_CLASS1_MEDICAL"
+	CredentialTypeFAACLASS2MEDICAL  CredentialType = "FAA_CLASS2_MEDICAL"
+	CredentialTypeFAACLASS3MEDICAL  CredentialType = "FAA_CLASS3_MEDICAL"
+	CredentialTypeLANGICAOLEVEL4    CredentialType = "LANG_ICAO_LEVEL4"
+	CredentialTypeLANGICAOLEVEL5    CredentialType = "LANG_ICAO_LEVEL5"
+	CredentialTypeLANGICAOLEVEL6    CredentialType = "LANG_ICAO_LEVEL6"
+	CredentialTypeOTHER             CredentialType = "OTHER"
+	CredentialTypeSECCLEARANCEZUBB  CredentialType = "SEC_CLEARANCE_ZUBB"
+	CredentialTypeSECCLEARANCEZUP   CredentialType = "SEC_CLEARANCE_ZUP"
 )
 
 // Defines values for CrewRole.
@@ -108,20 +121,6 @@ const (
 	Partial   ImportStatus = "partial"
 )
 
-// Defines values for LicenseType.
-const (
-	EASAATPL LicenseType = "EASA_ATPL"
-	EASACPL  LicenseType = "EASA_CPL"
-	EASAIR   LicenseType = "EASA_IR"
-	EASAPPL  LicenseType = "EASA_PPL"
-	EASASPL  LicenseType = "EASA_SPL"
-	FAAATPL  LicenseType = "FAA_ATPL"
-	FAACPL   LicenseType = "FAA_CPL"
-	FAAIR    LicenseType = "FAA_IR"
-	FAAPPL   LicenseType = "FAA_PPL"
-	FAASPORT LicenseType = "FAA_SPORT"
-)
-
 // Defines values for ListFlightsParamsSortBy.
 const (
 	ListFlightsParamsSortByCreatedAt ListFlightsParamsSortBy = "createdAt"
@@ -137,9 +136,15 @@ const (
 
 // Aircraft defines model for Aircraft.
 type Aircraft struct {
-	// Category Aircraft category (e.g., SEP - Single Engine Piston, MEP - Multi Engine Piston, TMG - Touring Motor Glider)
-	Category  *string   `json:"category"`
-	CreatedAt time.Time `json:"createdAt"`
+	// AircraftClass Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	AircraftClass *ClassType `json:"aircraftClass,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
 
 	// EngineType Engine type
 	EngineType *AircraftEngineType `json:"engineType"`
@@ -180,8 +185,14 @@ type AircraftEngineType string
 
 // AircraftCreate defines model for AircraftCreate.
 type AircraftCreate struct {
-	// Category Aircraft category
-	Category          *string                   `json:"category"`
+	// AircraftClass Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	AircraftClass     *ClassType                `json:"aircraftClass,omitempty"`
 	EngineType        *AircraftCreateEngineType `json:"engineType"`
 	IsComplex         *bool                     `json:"isComplex,omitempty"`
 	IsHighPerformance *bool                     `json:"isHighPerformance,omitempty"`
@@ -206,7 +217,14 @@ type AircraftCreateEngineType string
 
 // AircraftUpdate defines model for AircraftUpdate.
 type AircraftUpdate struct {
-	Category          *string                   `json:"category"`
+	// AircraftClass Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	AircraftClass     *ClassType                `json:"aircraftClass,omitempty"`
 	EngineType        *AircraftUpdateEngineType `json:"engineType"`
 	IsActive          *bool                     `json:"isActive,omitempty"`
 	IsComplex         *bool                     `json:"isComplex,omitempty"`
@@ -271,6 +289,60 @@ type AuthResponse struct {
 	RefreshToken string `json:"refreshToken"`
 	User         User   `json:"user"`
 }
+
+// ClassRating defines model for ClassRating.
+type ClassRating struct {
+	// ClassType Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	ClassType ClassType `json:"classType"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// ExpiryDate Null if rating doesn't expire (e.g., FAA ratings)
+	ExpiryDate *openapi_types.Date `json:"expiryDate"`
+	Id         openapi_types.UUID  `json:"id"`
+	IssueDate  openapi_types.Date  `json:"issueDate"`
+	LicenseId  openapi_types.UUID  `json:"licenseId"`
+
+	// Notes Optional notes about this rating
+	Notes     *string   `json:"notes"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// ClassRatingCreate defines model for ClassRatingCreate.
+type ClassRatingCreate struct {
+	// ClassType Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	ClassType  ClassType           `json:"classType"`
+	ExpiryDate *openapi_types.Date `json:"expiryDate"`
+	IssueDate  openapi_types.Date  `json:"issueDate"`
+	Notes      *string             `json:"notes"`
+}
+
+// ClassRatingUpdate defines model for ClassRatingUpdate.
+type ClassRatingUpdate struct {
+	ExpiryDate *openapi_types.Date `json:"expiryDate"`
+	IssueDate  *openapi_types.Date `json:"issueDate,omitempty"`
+	Notes      *string             `json:"notes"`
+}
+
+// ClassType Aircraft class rating type:
+// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+// - TMG: Touring Motor Glider
+// - IR: Instrument Rating
+// - OTHER: Other rating type
+type ClassType string
 
 // Credential defines model for Credential.
 type Credential struct {
@@ -483,8 +555,7 @@ type Flight struct {
 	LandingsDay int `json:"landingsDay"`
 
 	// LandingsNight Number of night landings. Auto-calculated from sunset/sunrise at arrival airport.
-	LandingsNight int                `json:"landingsNight"`
-	LicenseId     openapi_types.UUID `json:"licenseId"`
+	LandingsNight int `json:"landingsNight"`
 
 	// NightTime Night block time in hours. Auto-calculated from departure/arrival times and airport sunset/sunrise data.
 	NightTime float32 `json:"nightTime"`
@@ -564,8 +635,7 @@ type FlightCreate struct {
 	InstructorName     *string  `json:"instructorName"`
 
 	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport.
-	Landings  int                `json:"landings"`
-	LicenseId openapi_types.UUID `json:"licenseId"`
+	Landings int `json:"landings"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC
 	OffBlockTime string `json:"offBlockTime"`
@@ -708,9 +778,6 @@ type ImportConfirmRequest struct {
 	// IncludeDuplicates When true, import all duplicate rows as well (overrides selectedRows filtering)
 	IncludeDuplicates *bool `json:"includeDuplicates,omitempty"`
 
-	// LicenseId License to associate imported flights with
-	LicenseId openapi_types.UUID `json:"licenseId"`
-
 	// SelectedRows Row indices to import (1-based). If omitted or empty, all `valid` rows are imported.
 	// Include duplicate row indices here to force-import them.
 	SelectedRows *[]int `json:"selectedRows,omitempty"`
@@ -760,9 +827,6 @@ type ImportPreviewFlightStatus string
 
 // ImportPreviewRequest defines model for ImportPreviewRequest.
 type ImportPreviewRequest struct {
-	// LicenseId License to associate imported flights with
-	LicenseId openapi_types.UUID `json:"licenseId"`
-
 	// Mappings Column → field mappings (user-confirmed or adjusted)
 	Mappings []ImportColumnMapping `json:"mappings"`
 
@@ -830,7 +894,6 @@ type ImportResult struct {
 
 	// ImportedFlightIds IDs of the created flight log entries
 	ImportedFlightIds *[]openapi_types.UUID `json:"importedFlightIds,omitempty"`
-	LicenseId         openapi_types.UUID    `json:"licenseId"`
 
 	// SkippedCount Number of rows skipped (duplicates not imported)
 	SkippedCount int `json:"skippedCount"`
@@ -881,69 +944,35 @@ type ImportUploadResponse struct {
 
 // License defines model for License.
 type License struct {
-	CreatedAt time.Time `json:"createdAt"`
-
-	// ExpiryDate Null if license doesn't expire
-	ExpiryDate *openapi_types.Date `json:"expiryDate"`
-	Id         openapi_types.UUID  `json:"id"`
-
-	// IsActive Whether license is currently active
-	IsActive  bool               `json:"isActive"`
+	CreatedAt time.Time          `json:"createdAt"`
+	Id        openapi_types.UUID `json:"id"`
 	IssueDate openapi_types.Date `json:"issueDate"`
 
 	// IssuingAuthority e.g., EASA, FAA, CAA UK
 	IssuingAuthority string `json:"issuingAuthority"`
 	LicenseNumber    string `json:"licenseNumber"`
 
-	// LicenseType License type:
-	// - EASA_PPL: EASA Private Pilot License
-	// - FAA_PPL: FAA Private Pilot Certificate
-	// - EASA_SPL: EASA Sailplane Pilot License
-	// - FAA_SPORT: FAA Sport Pilot Certificate
-	// - EASA_CPL: EASA Commercial Pilot License
-	// - FAA_CPL: FAA Commercial Pilot Certificate
-	// - EASA_ATPL: EASA Airline Transport Pilot License
-	// - FAA_ATPL: FAA Airline Transport Pilot Certificate
-	// - EASA_IR: EASA Instrument Rating
-	// - FAA_IR: FAA Instrument Rating
-	LicenseType LicenseType        `json:"licenseType"`
-	UpdatedAt   time.Time          `json:"updatedAt"`
-	UserId      openapi_types.UUID `json:"userId"`
+	// LicenseType License type (e.g., PPL, CPL, ATPL, SPL, LAPL, UL)
+	LicenseType string `json:"licenseType"`
+
+	// RegulatoryAuthority Regulatory authority (e.g., EASA, FAA, CAA UK, Transport Canada)
+	RegulatoryAuthority string `json:"regulatoryAuthority"`
+
+	// RequiresSeparateLogbook Whether this license requires a separate logbook (e.g., SPL, Ultralight)
+	RequiresSeparateLogbook *bool              `json:"requiresSeparateLogbook,omitempty"`
+	UpdatedAt               time.Time          `json:"updatedAt"`
+	UserId                  openapi_types.UUID `json:"userId"`
 }
 
 // LicenseCreate defines model for LicenseCreate.
 type LicenseCreate struct {
-	ExpiryDate       *openapi_types.Date `json:"expiryDate"`
-	IssueDate        openapi_types.Date  `json:"issueDate"`
-	IssuingAuthority string              `json:"issuingAuthority"`
-	LicenseNumber    string              `json:"licenseNumber"`
-
-	// LicenseType License type:
-	// - EASA_PPL: EASA Private Pilot License
-	// - FAA_PPL: FAA Private Pilot Certificate
-	// - EASA_SPL: EASA Sailplane Pilot License
-	// - FAA_SPORT: FAA Sport Pilot Certificate
-	// - EASA_CPL: EASA Commercial Pilot License
-	// - FAA_CPL: FAA Commercial Pilot Certificate
-	// - EASA_ATPL: EASA Airline Transport Pilot License
-	// - FAA_ATPL: FAA Airline Transport Pilot Certificate
-	// - EASA_IR: EASA Instrument Rating
-	// - FAA_IR: FAA Instrument Rating
-	LicenseType LicenseType `json:"licenseType"`
+	IssueDate               openapi_types.Date `json:"issueDate"`
+	IssuingAuthority        string             `json:"issuingAuthority"`
+	LicenseNumber           string             `json:"licenseNumber"`
+	LicenseType             string             `json:"licenseType"`
+	RegulatoryAuthority     string             `json:"regulatoryAuthority"`
+	RequiresSeparateLogbook *bool              `json:"requiresSeparateLogbook,omitempty"`
 }
-
-// LicenseType License type:
-// - EASA_PPL: EASA Private Pilot License
-// - FAA_PPL: FAA Private Pilot Certificate
-// - EASA_SPL: EASA Sailplane Pilot License
-// - FAA_SPORT: FAA Sport Pilot Certificate
-// - EASA_CPL: EASA Commercial Pilot License
-// - FAA_CPL: FAA Commercial Pilot Certificate
-// - EASA_ATPL: EASA Airline Transport Pilot License
-// - FAA_ATPL: FAA Airline Transport Pilot Certificate
-// - EASA_IR: EASA Instrument Rating
-// - FAA_IR: FAA Instrument Rating
-type LicenseType string
 
 // NotificationPreferences defines model for NotificationPreferences.
 type NotificationPreferences struct {
@@ -1037,8 +1066,8 @@ type Statistics struct {
 	LandingsDay int `json:"landingsDay"`
 
 	// LandingsNight Total night landings
-	LandingsNight int                `json:"landingsNight"`
-	LicenseId     openapi_types.UUID `json:"licenseId"`
+	LandingsNight int                 `json:"landingsNight"`
+	LicenseId     *openapi_types.UUID `json:"licenseId,omitempty"`
 
 	// NightHours Total night block hours
 	NightHours float32 `json:"nightHours"`
@@ -1073,13 +1102,10 @@ type TwoFactorSetup struct {
 
 // User defines model for User.
 type User struct {
-	CreatedAt time.Time `json:"createdAt"`
-
-	// DefaultLicenseId The user's default license ID, used to pre-select in forms and filter flights
-	DefaultLicenseId *openapi_types.UUID `json:"defaultLicenseId"`
-	Email            openapi_types.Email `json:"email"`
-	Id               openapi_types.UUID  `json:"id"`
-	Name             string              `json:"name"`
+	CreatedAt time.Time           `json:"createdAt"`
+	Email     openapi_types.Email `json:"email"`
+	Id        openapi_types.UUID  `json:"id"`
+	Name      string              `json:"name"`
 
 	// TwoFactorEnabled Whether 2FA is enabled for this account
 	TwoFactorEnabled *bool     `json:"twoFactorEnabled,omitempty"`
@@ -1177,9 +1203,6 @@ type RegisterUserJSONBody struct {
 
 // ListFlightsParams defines parameters for ListFlights.
 type ListFlightsParams struct {
-	// LicenseId Filter by license ID
-	LicenseId *openapi_types.UUID `form:"licenseId,omitempty" json:"licenseId,omitempty"`
-
 	// StartDate Filter from this date (inclusive)
 	StartDate *openapi_types.Date `form:"startDate,omitempty" json:"startDate,omitempty"`
 
@@ -1238,16 +1261,13 @@ type UploadImportFileMultipartBody struct {
 	File openapi_types.File `json:"file"`
 }
 
-// ListLicensesParams defines parameters for ListLicenses.
-type ListLicensesParams struct {
-	// IsActive Filter by active status
-	IsActive *bool `form:"isActive,omitempty" json:"isActive,omitempty"`
-}
-
 // UpdateLicenseJSONBody defines parameters for UpdateLicense.
 type UpdateLicenseJSONBody struct {
-	ExpiryDate *openapi_types.Date `json:"expiryDate"`
-	IsActive   *bool               `json:"isActive,omitempty"`
+	IssuingAuthority        *string `json:"issuingAuthority,omitempty"`
+	LicenseNumber           *string `json:"licenseNumber,omitempty"`
+	LicenseType             *string `json:"licenseType,omitempty"`
+	RegulatoryAuthority     *string `json:"regulatoryAuthority,omitempty"`
+	RequiresSeparateLogbook *bool   `json:"requiresSeparateLogbook,omitempty"`
 }
 
 // GetLicenseStatisticsParams defines parameters for GetLicenseStatistics.
@@ -1324,6 +1344,12 @@ type CreateLicenseJSONRequestBody = LicenseCreate
 
 // UpdateLicenseJSONRequestBody defines body for UpdateLicense for application/json ContentType.
 type UpdateLicenseJSONRequestBody UpdateLicenseJSONBody
+
+// CreateClassRatingJSONRequestBody defines body for CreateClassRating for application/json ContentType.
+type CreateClassRatingJSONRequestBody = ClassRatingCreate
+
+// UpdateClassRatingJSONRequestBody defines body for UpdateClassRating for application/json ContentType.
+type UpdateClassRatingJSONRequestBody = ClassRatingUpdate
 
 // DeleteCurrentUserJSONRequestBody defines body for DeleteCurrentUser for application/json ContentType.
 type DeleteCurrentUserJSONRequestBody DeleteCurrentUserJSONBody

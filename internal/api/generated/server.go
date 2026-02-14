@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ServerInterface represents all server handlers.
@@ -105,7 +106,7 @@ type ServerInterface interface {
 	GetImport(c *gin.Context, importId ImportId)
 	// List user's licenses
 	// (GET /licenses)
-	ListLicenses(c *gin.Context, params ListLicensesParams)
+	ListLicenses(c *gin.Context)
 	// Create a new license
 	// (POST /licenses)
 	CreateLicense(c *gin.Context)
@@ -121,6 +122,18 @@ type ServerInterface interface {
 	// Check currency status
 	// (GET /licenses/{licenseId}/currency)
 	GetLicenseCurrency(c *gin.Context, licenseId LicenseId)
+	// List class ratings for a license
+	// (GET /licenses/{licenseId}/ratings)
+	ListClassRatings(c *gin.Context, licenseId LicenseId)
+	// Add class rating to license
+	// (POST /licenses/{licenseId}/ratings)
+	CreateClassRating(c *gin.Context, licenseId LicenseId)
+	// Delete class rating
+	// (DELETE /licenses/{licenseId}/ratings/{ratingId})
+	DeleteClassRating(c *gin.Context, licenseId LicenseId, ratingId openapi_types.UUID)
+	// Update class rating
+	// (PATCH /licenses/{licenseId}/ratings/{ratingId})
+	UpdateClassRating(c *gin.Context, licenseId LicenseId, ratingId openapi_types.UUID)
 	// Get license statistics
 	// (GET /licenses/{licenseId}/statistics)
 	GetLicenseStatistics(c *gin.Context, licenseId LicenseId, params GetLicenseStatisticsParams)
@@ -584,14 +597,6 @@ func (siw *ServerInterfaceWrapper) ListFlights(c *gin.Context) {
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListFlightsParams
 
-	// ------------- Optional query parameter "licenseId" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "licenseId", c.Request.URL.Query(), &params.LicenseId)
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
-		return
-	}
-
 	// ------------- Optional query parameter "startDate" -------------
 
 	err = runtime.BindQueryParameter("form", true, false, "startDate", c.Request.URL.Query(), &params.StartDate)
@@ -901,20 +906,7 @@ func (siw *ServerInterfaceWrapper) GetImport(c *gin.Context) {
 // ListLicenses operation middleware
 func (siw *ServerInterfaceWrapper) ListLicenses(c *gin.Context) {
 
-	var err error
-
 	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListLicensesParams
-
-	// ------------- Optional query parameter "isActive" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "isActive", c.Request.URL.Query(), &params.IsActive)
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter isActive: %w", err), http.StatusBadRequest)
-		return
-	}
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -923,7 +915,7 @@ func (siw *ServerInterfaceWrapper) ListLicenses(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ListLicenses(c, params)
+	siw.Handler.ListLicenses(c)
 }
 
 // CreateLicense operation middleware
@@ -1043,6 +1035,128 @@ func (siw *ServerInterfaceWrapper) GetLicenseCurrency(c *gin.Context) {
 	}
 
 	siw.Handler.GetLicenseCurrency(c, licenseId)
+}
+
+// ListClassRatings operation middleware
+func (siw *ServerInterfaceWrapper) ListClassRatings(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListClassRatings(c, licenseId)
+}
+
+// CreateClassRating operation middleware
+func (siw *ServerInterfaceWrapper) CreateClassRating(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateClassRating(c, licenseId)
+}
+
+// DeleteClassRating operation middleware
+func (siw *ServerInterfaceWrapper) DeleteClassRating(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "ratingId" -------------
+	var ratingId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ratingId", c.Param("ratingId"), &ratingId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ratingId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteClassRating(c, licenseId, ratingId)
+}
+
+// UpdateClassRating operation middleware
+func (siw *ServerInterfaceWrapper) UpdateClassRating(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "ratingId" -------------
+	var ratingId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ratingId", c.Param("ratingId"), &ratingId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ratingId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateClassRating(c, licenseId, ratingId)
 }
 
 // GetLicenseStatistics operation middleware
@@ -1258,6 +1372,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/licenses/:licenseId", wrapper.GetLicense)
 	router.PATCH(options.BaseURL+"/licenses/:licenseId", wrapper.UpdateLicense)
 	router.GET(options.BaseURL+"/licenses/:licenseId/currency", wrapper.GetLicenseCurrency)
+	router.GET(options.BaseURL+"/licenses/:licenseId/ratings", wrapper.ListClassRatings)
+	router.POST(options.BaseURL+"/licenses/:licenseId/ratings", wrapper.CreateClassRating)
+	router.DELETE(options.BaseURL+"/licenses/:licenseId/ratings/:ratingId", wrapper.DeleteClassRating)
+	router.PATCH(options.BaseURL+"/licenses/:licenseId/ratings/:ratingId", wrapper.UpdateClassRating)
 	router.GET(options.BaseURL+"/licenses/:licenseId/statistics", wrapper.GetLicenseStatistics)
 	router.GET(options.BaseURL+"/reports/airport-stats", wrapper.GetAirportStats)
 	router.GET(options.BaseURL+"/reports/routes", wrapper.GetFlightRoutes)

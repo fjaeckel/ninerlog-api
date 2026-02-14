@@ -33,7 +33,7 @@ func timeToString(t *time.Time) *string {
 func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) error {
 	query := `
 		INSERT INTO flights (
-			user_id, license_id, date, aircraft_reg, aircraft_type,
+			user_id, date, aircraft_reg, aircraft_type,
 			departure_icao, arrival_icao, off_block_time, on_block_time,
 			departure_time, arrival_time,
 			total_time, is_pic, is_dual, pic_time, dual_time, night_time, ifr_time,
@@ -45,14 +45,13 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 			remarks,
 			instructor_name, instructor_comments,
 			sic_time, dual_given_time, simulated_flight_time, ground_training_time
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)
 		RETURNING id, created_at, updated_at
 	`
 
 	return r.db.QueryRowContext(
 		ctx, query,
 		flight.UserID,
-		flight.LicenseID,
 		flight.Date,
 		flight.AircraftReg,
 		flight.AircraftType,
@@ -94,7 +93,7 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 
 func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error) {
 	query := `
-		SELECT id, user_id, license_id, date, aircraft_reg, aircraft_type,
+		SELECT id, user_id, date, aircraft_reg, aircraft_type,
 		       departure_icao, arrival_icao, off_block_time, on_block_time,
 		       departure_time, arrival_time,
 		       total_time, is_pic, is_dual, pic_time, dual_time, night_time, ifr_time,
@@ -115,7 +114,6 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&flight.ID,
 		&flight.UserID,
-		&flight.LicenseID,
 		&flight.Date,
 		&flight.AircraftReg,
 		&flight.AircraftType,
@@ -173,18 +171,6 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 
 func (r *flightRepository) GetByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) ([]*models.Flight, error) {
 	query, args := r.buildQuery("user_id = $1", userID, opts)
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	return r.scanFlights(rows)
-}
-
-func (r *flightRepository) GetByLicenseID(ctx context.Context, licenseID uuid.UUID, opts *repository.FlightQueryOptions) ([]*models.Flight, error) {
-	query, args := r.buildQuery("license_id = $1", licenseID, opts)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -299,11 +285,6 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 	argNum := 2
 
 	if opts != nil {
-		if opts.LicenseID != nil {
-			query += fmt.Sprintf(" AND license_id = $%d", argNum)
-			args = append(args, *opts.LicenseID)
-			argNum++
-		}
 		if opts.StartDate != nil {
 			query += fmt.Sprintf(" AND date >= $%d", argNum)
 			args = append(args, *opts.StartDate)
@@ -355,7 +336,7 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 	return count, err
 }
 
-func (r *flightRepository) GetStatsByLicenseID(ctx context.Context, licenseID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
+func (r *flightRepository) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
 	query := `
 		SELECT
 			COUNT(*) as total_flights,
@@ -371,9 +352,9 @@ func (r *flightRepository) GetStatsByLicenseID(ctx context.Context, licenseID uu
 			COALESCE(SUM(sic_time), 0) as sic_hours,
 			COALESCE(SUM(dual_given_time), 0) as dual_given_hours
 		FROM flights
-		WHERE license_id = $1
+		WHERE user_id = $1
 	`
-	args := []interface{}{licenseID}
+	args := []interface{}{userID}
 	argNum := 2
 
 	if startDate != nil {
@@ -386,7 +367,7 @@ func (r *flightRepository) GetStatsByLicenseID(ctx context.Context, licenseID uu
 		args = append(args, *endDate)
 	}
 
-	stats := &models.FlightStatistics{LicenseID: licenseID}
+	stats := &models.FlightStatistics{}
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&stats.TotalFlights,
 		&stats.TotalHours,
@@ -407,7 +388,7 @@ func (r *flightRepository) GetStatsByLicenseID(ctx context.Context, licenseID uu
 	return stats, nil
 }
 
-func (r *flightRepository) GetCurrencyData(ctx context.Context, licenseID uuid.UUID, since time.Time) (*models.CurrencyData, error) {
+func (r *flightRepository) GetCurrencyData(ctx context.Context, userID uuid.UUID, since time.Time) (*models.CurrencyData, error) {
 	query := `
 		SELECT
 			COUNT(*) as flights,
@@ -415,11 +396,11 @@ func (r *flightRepository) GetCurrencyData(ctx context.Context, licenseID uuid.U
 			COALESCE(SUM(landings_day), 0) as day_landings,
 			COALESCE(SUM(landings_night), 0) as night_landings
 		FROM flights
-		WHERE license_id = $1 AND date >= $2
+		WHERE user_id = $1 AND date >= $2
 	`
 
 	data := &models.CurrencyData{}
-	err := r.db.QueryRowContext(ctx, query, licenseID, since).Scan(
+	err := r.db.QueryRowContext(ctx, query, userID, since).Scan(
 		&data.Flights,
 		&data.TotalLandings,
 		&data.DayLandings,
@@ -433,7 +414,7 @@ func (r *flightRepository) GetCurrencyData(ctx context.Context, licenseID uuid.U
 
 func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{}, opts *repository.FlightQueryOptions) (string, []interface{}) {
 	query := `
-		SELECT id, user_id, license_id, date, aircraft_reg, aircraft_type,
+		SELECT id, user_id, date, aircraft_reg, aircraft_type,
 		       departure_icao, arrival_icao, off_block_time, on_block_time,
 		       departure_time, arrival_time,
 		       total_time, is_pic, is_dual, pic_time, dual_time, night_time, ifr_time,
@@ -452,11 +433,6 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 	argNum := 2
 
 	if opts != nil {
-		if opts.LicenseID != nil {
-			query += fmt.Sprintf(" AND license_id = $%d", argNum)
-			args = append(args, *opts.LicenseID)
-			argNum++
-		}
 		if opts.StartDate != nil {
 			query += fmt.Sprintf(" AND date >= $%d", argNum)
 			args = append(args, *opts.StartDate)
@@ -546,7 +522,6 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 		err := rows.Scan(
 			&flight.ID,
 			&flight.UserID,
-			&flight.LicenseID,
 			&flight.Date,
 			&flight.AircraftReg,
 			&flight.AircraftType,

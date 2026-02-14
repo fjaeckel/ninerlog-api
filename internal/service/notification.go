@@ -162,10 +162,6 @@ func (s *NotificationService) checkCurrencyExpiry(ctx context.Context, prefs *mo
 	since90Days := now.AddDate(0, 0, -90)
 
 	for _, lic := range licenses {
-		if !lic.IsActive {
-			continue
-		}
-
 		// Check currency data
 		data, err := s.flightRepo.GetCurrencyData(ctx, lic.ID, since90Days)
 		if err != nil {

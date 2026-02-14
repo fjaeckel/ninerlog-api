@@ -9,12 +9,12 @@ import (
 
 func validLicense() *License {
 	return &License{
-		UserID:           uuid.New(),
-		LicenseType:      LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC),
-		IssuingAuthority: "EASA",
-		IsActive:         true,
+		UserID:              uuid.New(),
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "EASA_PPL",
+		LicenseNumber:       "PPL-123456",
+		IssueDate:           time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC),
+		IssuingAuthority:    "EASA",
 	}
 }
 
@@ -65,42 +65,10 @@ func TestLicenseIsValid_EmptyIssuingAuthority(t *testing.T) {
 	}
 }
 
-func TestLicenseIsExpired_NoExpiryDate(t *testing.T) {
+func TestLicenseIsValid_EmptyRegulatoryAuthority(t *testing.T) {
 	l := validLicense()
-	if l.IsExpired() {
-		t.Error("IsExpired() = true, want false for nil ExpiryDate")
-	}
-}
-
-func TestLicenseIsExpired_FutureDate(t *testing.T) {
-	l := validLicense()
-	future := time.Now().Add(365 * 24 * time.Hour)
-	l.ExpiryDate = &future
-	if l.IsExpired() {
-		t.Error("IsExpired() = true, want false for future date")
-	}
-}
-
-func TestLicenseIsExpired_PastDate(t *testing.T) {
-	l := validLicense()
-	past := time.Now().Add(-24 * time.Hour)
-	l.ExpiryDate = &past
-	if !l.IsExpired() {
-		t.Error("IsExpired() = false, want true for past date")
-	}
-}
-
-func TestLicenseTypes(t *testing.T) {
-	types := []LicenseType{
-		LicenseTypeEASAPPL, LicenseTypeFAAPPL,
-		LicenseTypeEASASPL, LicenseTypeFAASport,
-		LicenseTypeEASACPL, LicenseTypeFAACPL,
-		LicenseTypeEASAATPL, LicenseTypeFAAATPL,
-		LicenseTypeEASAIR, LicenseTypeFAAIR,
-	}
-	for _, lt := range types {
-		if lt == "" {
-			t.Error("License type constant is empty")
-		}
+	l.RegulatoryAuthority = ""
+	if l.IsValid() {
+		t.Error("IsValid() = true, want false for empty RegulatoryAuthority")
 	}
 }

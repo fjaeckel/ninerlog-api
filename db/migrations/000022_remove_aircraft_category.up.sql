@@ -1,0 +1,1 @@
+ALTER TABLE aircraft DROP COLUMN IF EXISTS category;

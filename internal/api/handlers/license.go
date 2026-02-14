@@ -15,15 +15,14 @@ import (
 
 // ListLicenses implements GET /licenses
 // (GET /licenses)
-func (h *APIHandler) ListLicenses(c *gin.Context, params generated.ListLicensesParams) {
+func (h *APIHandler) ListLicenses(c *gin.Context) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	isActive := params.IsActive != nil && *params.IsActive
-	licenses, err := h.licenseService.ListLicenses(c.Request.Context(), userID, isActive)
+	licenses, err := h.licenseService.ListLicenses(c.Request.Context(), userID)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve licenses")
 		return
@@ -60,36 +59,20 @@ func (h *APIHandler) CreateLicense(c *gin.Context) {
 	}
 
 	license := models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseType(req.LicenseType),
-		LicenseNumber:    req.LicenseNumber,
-		IssueDate:        issueDate,
-		IssuingAuthority: req.IssuingAuthority,
-		IsActive:         false, // only the default license is active
+		UserID:              userID,
+		RegulatoryAuthority: req.RegulatoryAuthority,
+		LicenseType:         req.LicenseType,
+		LicenseNumber:       req.LicenseNumber,
+		IssueDate:           issueDate,
+		IssuingAuthority:    req.IssuingAuthority,
 	}
-
-	if req.ExpiryDate != nil {
-		expiryDate, err := time.Parse("2006-01-02", req.ExpiryDate.String())
-		if err != nil {
-			h.sendError(c, http.StatusBadRequest, "Invalid expiryDate format")
-			return
-		}
-		license.ExpiryDate = &expiryDate
+	if req.RequiresSeparateLogbook != nil {
+		license.RequiresSeparateLogbook = *req.RequiresSeparateLogbook
 	}
 
 	if err := h.licenseService.CreateLicense(c.Request.Context(), &license); err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to create license")
 		return
-	}
-
-	// Auto-set as default license if user has no default yet
-	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
-	if err == nil && user.DefaultLicenseID == nil {
-		user.DefaultLicenseID = &license.ID
-		_ = h.authService.UpdateUser(c.Request.Context(), user)
-		// First license becomes active
-		license.IsActive = true
-		_ = h.licenseService.UpdateLicense(c.Request.Context(), &license, userID)
 	}
 
 	c.JSON(http.StatusCreated, convertToGeneratedLicense(&license))
@@ -144,16 +127,20 @@ func (h *APIHandler) UpdateLicense(c *gin.Context, licenseId generated.LicenseId
 	}
 
 	// Apply updates
-	if req.ExpiryDate != nil {
-		expiryDate, err := time.Parse("2006-01-02", req.ExpiryDate.String())
-		if err != nil {
-			h.sendError(c, http.StatusBadRequest, "Invalid expiryDate format")
-			return
-		}
-		license.ExpiryDate = &expiryDate
+	if req.RegulatoryAuthority != nil {
+		license.RegulatoryAuthority = *req.RegulatoryAuthority
 	}
-	if req.IsActive != nil {
-		license.IsActive = *req.IsActive
+	if req.LicenseType != nil {
+		license.LicenseType = *req.LicenseType
+	}
+	if req.LicenseNumber != nil {
+		license.LicenseNumber = *req.LicenseNumber
+	}
+	if req.IssuingAuthority != nil {
+		license.IssuingAuthority = *req.IssuingAuthority
+	}
+	if req.RequiresSeparateLogbook != nil {
+		license.RequiresSeparateLogbook = *req.RequiresSeparateLogbook
 	}
 
 	if err := h.licenseService.UpdateLicense(c.Request.Context(), license, userID); err != nil {
@@ -207,7 +194,7 @@ func (h *APIHandler) GetLicenseCurrency(c *gin.Context, licenseId generated.Lice
 	}
 
 	// Calculate currency from real flight data
-	result, err := h.flightService.GetCurrency(c.Request.Context(), uuid.UUID(licenseId), userID)
+	result, err := h.flightService.GetCurrency(c.Request.Context(), userID)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to calculate currency")
 		return
@@ -239,11 +226,6 @@ func (h *APIHandler) GetLicenseCurrency(c *gin.Context, licenseId generated.Lice
 			Day:   reqDay,
 			Night: reqNight,
 		},
-	}
-
-	if license.ExpiryDate != nil {
-		expiryDate := openapi_types.Date{Time: *license.ExpiryDate}
-		currency.ExpiryDate = &expiryDate
 	}
 
 	c.JSON(http.StatusOK, currency)
@@ -281,14 +263,15 @@ func (h *APIHandler) GetLicenseStatistics(c *gin.Context, licenseId generated.Li
 	}
 
 	// Get real statistics from database
-	stats, err := h.flightService.GetStatsByLicenseID(c.Request.Context(), uuid.UUID(licenseId), userID, startDate, endDate)
+	stats, err := h.flightService.GetStatsByUserID(c.Request.Context(), userID, startDate, endDate)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to calculate statistics")
 		return
 	}
 
+	lid := openapi_types.UUID(licenseId)
 	statistics := generated.Statistics{
-		LicenseId:         openapi_types.UUID(licenseId),
+		LicenseId:         &lid,
 		TotalFlights:      stats.TotalFlights,
 		TotalHours:        float32(stats.TotalHours),
 		PicHours:          float32(stats.PICHours),
@@ -306,21 +289,18 @@ func (h *APIHandler) GetLicenseStatistics(c *gin.Context, licenseId generated.Li
 
 // Helper function to convert models.License to generated.License
 func convertToGeneratedLicense(lic *models.License) generated.License {
+	reqSepLogbook := lic.RequiresSeparateLogbook
 	license := generated.License{
-		Id:               openapi_types.UUID(lic.ID),
-		UserId:           openapi_types.UUID(lic.UserID),
-		LicenseType:      generated.LicenseType(lic.LicenseType),
-		LicenseNumber:    lic.LicenseNumber,
-		IssueDate:        openapi_types.Date{Time: lic.IssueDate},
-		IssuingAuthority: lic.IssuingAuthority,
-		IsActive:         lic.IsActive,
-		CreatedAt:        lic.CreatedAt,
-		UpdatedAt:        lic.UpdatedAt,
-	}
-
-	if lic.ExpiryDate != nil {
-		expiryDate := openapi_types.Date{Time: *lic.ExpiryDate}
-		license.ExpiryDate = &expiryDate
+		Id:                      openapi_types.UUID(lic.ID),
+		UserId:                  openapi_types.UUID(lic.UserID),
+		RegulatoryAuthority:     lic.RegulatoryAuthority,
+		LicenseType:             lic.LicenseType,
+		LicenseNumber:           lic.LicenseNumber,
+		IssueDate:               openapi_types.Date{Time: lic.IssueDate},
+		IssuingAuthority:        lic.IssuingAuthority,
+		RequiresSeparateLogbook: &reqSepLogbook,
+		CreatedAt:               lic.CreatedAt,
+		UpdatedAt:               lic.UpdatedAt,
 	}
 
 	return license

@@ -96,9 +96,6 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 		Model:        req.Model,
 		IsActive:     true,
 	}
-	if req.Category != nil {
-		aircraft.Category = req.Category
-	}
 	if req.EngineType != nil {
 		et := models.EngineType(*req.EngineType)
 		aircraft.EngineType = &et
@@ -187,9 +184,6 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 	if req.Model != nil {
 		aircraft.Model = *req.Model
 	}
-	if req.Category != nil {
-		aircraft.Category = req.Category
-	}
 	if req.EngineType != nil {
 		et := models.EngineType(*req.EngineType)
 		aircraft.EngineType = &et
@@ -251,7 +245,6 @@ func convertToGeneratedAircraft(a *models.Aircraft) generated.Aircraft {
 		Type:              a.Type,
 		Make:              a.Make,
 		Model:             a.Model,
-		Category:          a.Category,
 		IsComplex:         &a.IsComplex,
 		IsHighPerformance: &a.IsHighPerformance,
 		IsTailwheel:       &a.IsTailwheel,

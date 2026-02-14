@@ -58,9 +58,6 @@ type LicenseRepository interface {
 	// GetByUserID retrieves all licenses for a user
 	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error)
 
-	// GetActiveByUserID retrieves all active licenses for a user
-	GetActiveByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error)
-
 	// Update updates a license
 	Update(ctx context.Context, license *models.License) error
 
@@ -79,9 +76,6 @@ type FlightRepository interface {
 	// GetByUserID retrieves flights for a user with optional filters
 	GetByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions) ([]*models.Flight, error)
 
-	// GetByLicenseID retrieves flights for a license with optional filters
-	GetByLicenseID(ctx context.Context, licenseID uuid.UUID, opts *FlightQueryOptions) ([]*models.Flight, error)
-
 	// Update updates a flight
 	Update(ctx context.Context, flight *models.Flight) error
 
@@ -91,16 +85,15 @@ type FlightRepository interface {
 	// CountByUserID counts flights for a user with optional filters
 	CountByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions) (int, error)
 
-	// GetStatsByLicenseID returns aggregated flight statistics for a license
-	GetStatsByLicenseID(ctx context.Context, licenseID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error)
+	// GetStatsByUserID returns aggregated flight statistics for a user
+	GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error)
 
-	// GetCurrencyData returns landing counts and flight count for a license within a date range
-	GetCurrencyData(ctx context.Context, licenseID uuid.UUID, since time.Time) (*models.CurrencyData, error)
+	// GetCurrencyData returns landing counts and flight count for a user within a date range
+	GetCurrencyData(ctx context.Context, userID uuid.UUID, since time.Time) (*models.CurrencyData, error)
 }
 
 // FlightQueryOptions represents query parameters for filtering flights
 type FlightQueryOptions struct {
-	LicenseID     *uuid.UUID
 	StartDate     *time.Time
 	EndDate       *time.Time
 	AircraftReg   *string

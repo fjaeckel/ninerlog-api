@@ -54,10 +54,7 @@ func (s *LicenseService) GetLicense(ctx context.Context, licenseID, userID uuid.
 }
 
 // ListLicenses retrieves all licenses for a user
-func (s *LicenseService) ListLicenses(ctx context.Context, userID uuid.UUID, activeOnly bool) ([]*models.License, error) {
-	if activeOnly {
-		return s.licenseRepo.GetActiveByUserID(ctx, userID)
-	}
+func (s *LicenseService) ListLicenses(ctx context.Context, userID uuid.UUID) ([]*models.License, error) {
 	return s.licenseRepo.GetByUserID(ctx, userID)
 }
 
@@ -77,8 +74,11 @@ func (s *LicenseService) UpdateLicense(ctx context.Context, license *models.Lice
 	}
 
 	// Only allow updating certain fields
-	existing.ExpiryDate = license.ExpiryDate
-	existing.IsActive = license.IsActive
+	existing.RegulatoryAuthority = license.RegulatoryAuthority
+	existing.LicenseType = license.LicenseType
+	existing.LicenseNumber = license.LicenseNumber
+	existing.IssuingAuthority = license.IssuingAuthority
+	existing.RequiresSeparateLogbook = license.RequiresSeparateLogbook
 
 	return s.licenseRepo.Update(ctx, existing)
 }

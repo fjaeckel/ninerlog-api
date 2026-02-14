@@ -275,14 +275,13 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	}
 
 	// Get existing flights for duplicate detection
-	licenseID := uuid.UUID(req.LicenseId)
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 
 	var flights []generated.ImportPreviewFlight
 	validCount, dupCount, errCount := 0, 0, 0
 
 	for i, row := range session.rows {
-		flight, errs := mapRowToFlight(row, mappingLookup, licenseID)
+		flight, errs := mapRowToFlight(row, mappingLookup)
 		rowIdx := i + 1
 
 		if len(errs) > 0 {
@@ -363,7 +362,6 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 
 	// Re-run preview to get validated flights
 	// For simplicity, we re-parse — in production you'd cache preview results
-	licenseID := uuid.UUID(req.LicenseId)
 
 	// Build selected row set
 	selectedSet := make(map[int]bool)
@@ -412,7 +410,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			continue
 		}
 
-		flight, errs := mapRowToFlight(row, mappingLookup, licenseID)
+		flight, errs := mapRowToFlight(row, mappingLookup)
 		if len(errs) > 0 {
 			for _, e := range errs {
 				importErrors = append(importErrors, struct {
@@ -451,7 +449,6 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 
 		newFlight := models.Flight{
 			UserID:        userID,
-			LicenseID:     licenseID,
 			Date:          flightDate,
 			AircraftReg:   flight.AircraftReg,
 			AircraftType:  flight.AircraftType,
@@ -508,11 +505,11 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	errorsJSON, _ := json.Marshal(importErrors)
 	mappingsJSON, _ := json.Marshal(mappingLookup)
 	_, _ = h.db.ExecContext(c.Request.Context(), `
-		INSERT INTO flight_imports (id, user_id, license_id, file_name, import_format, import_status,
+		INSERT INTO flight_imports (id, user_id, file_name, import_format, import_status,
 			total_rows, imported_count, skipped_count, error_count, duplicate_count,
 			imported_flight_ids, errors, column_mappings)
-		VALUES ($1, $2, $3, $4, $5::import_format, $6::import_status, $7, $8, $9, $10, $11, $12, $13, $14)
-	`, importID, userID, licenseID, session.fileName, string(session.format), string(status),
+		VALUES ($1, $2, $3, $4::import_format, $5::import_status, $6, $7, $8, $9, $10, $11, $12, $13)
+	`, importID, userID, session.fileName, string(session.format), string(status),
 		len(session.rows), imported, skipped, errored, dups,
 		uuidSliceToStringArray(importedIDs), errorsJSON, mappingsJSON,
 	)
@@ -540,7 +537,6 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	c.JSON(http.StatusCreated, generated.ImportResult{
 		Id:                openapi_types.UUID(importID),
 		UserId:            openapi_types.UUID(userID),
-		LicenseId:         openapi_types.UUID(licenseID),
 		FileName:          session.fileName,
 		Format:            session.format,
 		Status:            status,
@@ -578,7 +574,7 @@ func (h *APIHandler) ListImports(c *gin.Context, params generated.ListImportsPar
 	).Scan(&total)
 
 	rows, err := h.db.QueryContext(c.Request.Context(), `
-		SELECT id, user_id, license_id, file_name, import_format, import_status,
+		SELECT id, user_id, file_name, import_format, import_status,
 			total_rows, imported_count, skipped_count, error_count, duplicate_count,
 			imported_flight_ids, errors, created_at
 		FROM flight_imports WHERE user_id = $1
@@ -624,7 +620,7 @@ func (h *APIHandler) GetImport(c *gin.Context, importId generated.ImportId) {
 	}
 
 	row := h.db.QueryRowContext(c.Request.Context(), `
-		SELECT id, user_id, license_id, file_name, import_format, import_status,
+		SELECT id, user_id, file_name, import_format, import_status,
 			total_rows, imported_count, skipped_count, error_count, duplicate_count,
 			imported_flight_ids, errors, created_at
 		FROM flight_imports WHERE id = $1 AND user_id = $2
@@ -635,7 +631,7 @@ func (h *APIHandler) GetImport(c *gin.Context, importId generated.ImportId) {
 	var errorsJSON []byte
 	var formatStr, statusStr string
 	err = row.Scan(
-		&r.Id, &r.UserId, &r.LicenseId, &r.FileName, &formatStr, &statusStr,
+		&r.Id, &r.UserId, &r.FileName, &formatStr, &statusStr,
 		&r.TotalRows, &r.ImportedCount, &r.SkippedCount, &r.ErrorCount, &r.DuplicateCount,
 		&flightIDs, &errorsJSON, &r.CreatedAt,
 	)
@@ -656,10 +652,9 @@ type fieldError struct {
 	message string
 }
 
-func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping, licenseID uuid.UUID) (generated.FlightCreate, []fieldError) {
+func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping) (generated.FlightCreate, []fieldError) {
 	flight := generated.FlightCreate{
-		LicenseId: openapi_types.UUID(licenseID),
-		Landings:  0,
+		Landings: 0,
 	}
 	var errs []fieldError
 
@@ -918,7 +913,7 @@ func scanImportResult(rows *sql.Rows) (generated.ImportResult, error) {
 	var errorsJSON []byte
 	var formatStr, statusStr string
 	err := rows.Scan(
-		&r.Id, &r.UserId, &r.LicenseId, &r.FileName, &formatStr, &statusStr,
+		&r.Id, &r.UserId, &r.FileName, &formatStr, &statusStr,
 		&r.TotalRows, &r.ImportedCount, &r.SkippedCount, &r.ErrorCount, &r.DuplicateCount,
 		&flightIDs, &errorsJSON, &r.CreatedAt,
 	)

@@ -170,10 +170,6 @@ func convertAuthResponse(user *models.User, tokens *service.TokenPair) generated
 		CreatedAt:        user.CreatedAt,
 		UpdatedAt:        user.UpdatedAt,
 	}
-	if user.DefaultLicenseID != nil {
-		dlid := openapi_types.UUID(*user.DefaultLicenseID)
-		userResp.DefaultLicenseId = &dlid
-	}
 	return generated.AuthResponse{
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,

@@ -24,13 +24,13 @@ type Aircraft struct {
 	Type              string      `json:"type"`
 	Make              string      `json:"make"`
 	Model             string      `json:"model"`
-	Category          *string     `json:"category,omitempty"`
 	EngineType        *EngineType `json:"engineType,omitempty"`
 	IsComplex         bool        `json:"isComplex"`
 	IsHighPerformance bool        `json:"isHighPerformance"`
 	IsTailwheel       bool        `json:"isTailwheel"`
 	Notes             *string     `json:"notes,omitempty"`
 	IsActive          bool        `json:"isActive"`
+	AircraftClass     *ClassType  `json:"aircraftClass,omitempty"`
 	CreatedAt         time.Time   `json:"createdAt"`
 	UpdatedAt         time.Time   `json:"updatedAt"`
 }

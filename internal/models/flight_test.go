@@ -10,7 +10,6 @@ import (
 func validFlight() *Flight {
 	return &Flight{
 		UserID:       uuid.New(),
-		LicenseID:    uuid.New(),
 		Date:         time.Now(),
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
@@ -33,14 +32,6 @@ func TestFlightIsValid_NilUserID(t *testing.T) {
 	f.UserID = uuid.Nil
 	if f.IsValid() {
 		t.Error("IsValid() = true, want false for nil UserID")
-	}
-}
-
-func TestFlightIsValid_NilLicenseID(t *testing.T) {
-	f := validFlight()
-	f.LicenseID = uuid.Nil
-	if f.IsValid() {
-		t.Error("IsValid() = true, want false for nil LicenseID")
 	}
 }
 

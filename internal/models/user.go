@@ -18,7 +18,6 @@ type User struct {
 	RecoveryCodes    pq.StringArray `json:"-"` // never exposed in JSON
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
-	DefaultLicenseID *uuid.UUID     `json:"defaultLicenseId,omitempty"`
 }
 
 // RefreshToken represents a refresh token in the system

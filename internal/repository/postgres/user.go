@@ -48,7 +48,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes, created_at, updated_at, default_license_id
+		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -64,7 +64,6 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.RecoveryCodes,
 		&user.CreatedAt,
 		&user.UpdatedAt,
-		&user.DefaultLicenseID,
 	)
 
 	if err != nil {
@@ -79,7 +78,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes, created_at, updated_at, default_license_id
+		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -95,7 +94,6 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.RecoveryCodes,
 		&user.CreatedAt,
 		&user.UpdatedAt,
-		&user.DefaultLicenseID,
 	)
 
 	if err != nil {
@@ -112,8 +110,8 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	query := `
 		UPDATE users
 		SET email = $1, password_hash = $2, name = $3, two_factor_enabled = $4,
-		    two_factor_secret = $5, recovery_codes = $6, updated_at = $7, default_license_id = $8
-		WHERE id = $9
+		    two_factor_secret = $5, recovery_codes = $6, updated_at = $7
+		WHERE id = $8
 	`
 
 	result, err := r.db.ExecContext(ctx, query,
@@ -124,7 +122,6 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.TwoFactorSecret,
 		user.RecoveryCodes,
 		user.UpdatedAt,
-		user.DefaultLicenseID,
 		user.ID,
 	)
 

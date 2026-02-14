@@ -17,14 +17,12 @@ var (
 )
 
 type FlightService struct {
-	flightRepo  repository.FlightRepository
-	licenseRepo repository.LicenseRepository
+	flightRepo repository.FlightRepository
 }
 
-func NewFlightService(flightRepo repository.FlightRepository, licenseRepo repository.LicenseRepository) *FlightService {
+func NewFlightService(flightRepo repository.FlightRepository) *FlightService {
 	return &FlightService{
-		flightRepo:  flightRepo,
-		licenseRepo: licenseRepo,
+		flightRepo: flightRepo,
 	}
 }
 
@@ -38,26 +36,6 @@ func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight)
 	// Validate time distribution
 	if err := flight.ValidateTimeDistribution(); err != nil {
 		return err
-	}
-
-	// Verify license ownership
-	license, err := s.licenseRepo.GetByID(ctx, flight.LicenseID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return errors.New("license not found")
-		}
-		return err
-	}
-
-	if license.UserID != flight.UserID {
-		return ErrUnauthorizedFlight
-	}
-
-	// Validate SPL-specific rules (no night flying for sailplane licenses)
-	if license.LicenseType == models.LicenseTypeEASASPL || license.LicenseType == models.LicenseTypeFAASport {
-		if flight.NightTime > 0 {
-			return errors.New("sailplane/sport licenses do not allow night flying")
-		}
 	}
 
 	return s.flightRepo.Create(ctx, flight)
@@ -111,26 +89,6 @@ func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight,
 		return err
 	}
 
-	// Verify license ownership
-	license, err := s.licenseRepo.GetByID(ctx, flight.LicenseID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return errors.New("license not found")
-		}
-		return err
-	}
-
-	if license.UserID != userID {
-		return ErrUnauthorizedFlight
-	}
-
-	// Validate SPL-specific rules
-	if license.LicenseType == models.LicenseTypeEASASPL || license.LicenseType == models.LicenseTypeFAASport {
-		if flight.NightTime > 0 {
-			return errors.New("sailplane/sport licenses do not allow night flying")
-		}
-	}
-
 	// Keep original IDs and timestamps
 	flight.ID = existing.ID
 	flight.UserID = existing.UserID
@@ -162,21 +120,9 @@ func (s *FlightService) CountFlights(ctx context.Context, userID uuid.UUID, opts
 	return s.flightRepo.CountByUserID(ctx, userID, opts)
 }
 
-// GetStatsByLicenseID returns aggregated statistics for a license
-func (s *FlightService) GetStatsByLicenseID(ctx context.Context, licenseID, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
-	// Verify license ownership
-	license, err := s.licenseRepo.GetByID(ctx, licenseID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrFlightNotFound
-		}
-		return nil, err
-	}
-	if license.UserID != userID {
-		return nil, ErrUnauthorizedFlight
-	}
-
-	return s.flightRepo.GetStatsByLicenseID(ctx, licenseID, startDate, endDate)
+// GetStatsByUserID returns aggregated statistics for a user
+func (s *FlightService) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
+	return s.flightRepo.GetStatsByUserID(ctx, userID, startDate, endDate)
 }
 
 // CurrencyResult holds the calculated currency status
@@ -192,25 +138,13 @@ type CurrencyResult struct {
 	RequiredNight int
 }
 
-// GetCurrency calculates currency status for a license based on EASA/FAA rules.
+// GetCurrency calculates currency status for a user based on EASA/FAA rules.
 // FAA 14 CFR 61.57: 3 takeoffs and landings in the preceding 90 days
 // EASA FCL.060: Recent experience — 3 takeoffs and landings in the preceding 90 days (simplified)
-func (s *FlightService) GetCurrency(ctx context.Context, licenseID, userID uuid.UUID) (*CurrencyResult, error) {
-	// Verify license ownership
-	license, err := s.licenseRepo.GetByID(ctx, licenseID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrFlightNotFound
-		}
-		return nil, err
-	}
-	if license.UserID != userID {
-		return nil, ErrUnauthorizedFlight
-	}
-
+func (s *FlightService) GetCurrency(ctx context.Context, userID uuid.UUID) (*CurrencyResult, error) {
 	// Query last 90 days
 	since := time.Now().AddDate(0, 0, -90)
-	data, err := s.flightRepo.GetCurrencyData(ctx, licenseID, since)
+	data, err := s.flightRepo.GetCurrencyData(ctx, userID, since)
 	if err != nil {
 		return nil, err
 	}
@@ -221,12 +155,6 @@ func (s *FlightService) GetCurrency(ctx context.Context, licenseID, userID uuid.
 
 	daysCurrent := data.DayLandings >= requiredDay
 	nightsCurrent := data.NightLandings >= requiredNight
-
-	// SPL/Sport — no night currency applicable
-	if license.LicenseType == models.LicenseTypeEASASPL || license.LicenseType == models.LicenseTypeFAASport {
-		nightsCurrent = true // Not applicable
-		requiredNight = 0
-	}
 
 	// Overall current = day current (night is separate per FAA)
 	isCurrent := daysCurrent

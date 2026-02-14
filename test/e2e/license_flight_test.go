@@ -43,7 +43,7 @@ func setupLicenseFlightTestServer(t *testing.T) (*gin.Engine, *testutil.APITestC
 	// Services
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
 	licenseService := service.NewLicenseService(licenseRepo)
-	flightService := service.NewFlightService(flightRepo, licenseRepo)
+	flightService := service.NewFlightService(flightRepo)
 
 	// Use unified API handler that implements ServerInterface
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, jwtManager)

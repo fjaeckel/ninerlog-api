@@ -47,16 +47,6 @@ func (m *mockLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]
 	return result, nil
 }
 
-func (m *mockLicenseRepo) GetActiveByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error) {
-	var result []*models.License
-	for _, license := range m.licenses {
-		if license.UserID == userID && license.IsActive {
-			result = append(result, license)
-		}
-	}
-	return result, nil
-}
-
 func (m *mockLicenseRepo) Update(ctx context.Context, license *models.License) error {
 	if _, exists := m.licenses[license.ID]; !exists {
 		return repository.ErrNotFound
@@ -83,12 +73,12 @@ func TestCreateLicense(t *testing.T) {
 	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
+		UserID:              userID,
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "EASA_PPL",
+		LicenseNumber:       "PPL-123456",
+		IssueDate:           issueDate,
+		IssuingAuthority:    "EASA",
 	}
 
 	err := service.CreateLicense(ctx, license)
@@ -108,7 +98,7 @@ func TestCreateInvalidLicense(t *testing.T) {
 
 	// Missing required fields
 	license := &models.License{
-		LicenseType: models.LicenseTypeEASAPPL,
+		LicenseType: "EASA_PPL",
 	}
 
 	err := service.CreateLicense(ctx, license)
@@ -126,12 +116,12 @@ func TestGetLicense(t *testing.T) {
 	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
+		UserID:              userID,
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "EASA_PPL",
+		LicenseNumber:       "PPL-123456",
+		IssueDate:           issueDate,
+		IssuingAuthority:    "EASA",
 	}
 
 	_ = service.CreateLicense(ctx, license)
@@ -156,12 +146,12 @@ func TestGetLicenseUnauthorized(t *testing.T) {
 	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
+		UserID:              userID,
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "EASA_PPL",
+		LicenseNumber:       "PPL-123456",
+		IssueDate:           issueDate,
+		IssuingAuthority:    "EASA",
 	}
 
 	_ = service.CreateLicense(ctx, license)
@@ -182,43 +172,33 @@ func TestListLicenses(t *testing.T) {
 
 	// Create two licenses
 	license1 := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
+		UserID:              userID,
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "EASA_PPL",
+		LicenseNumber:       "PPL-123456",
+		IssueDate:           issueDate,
+		IssuingAuthority:    "EASA",
 	}
 	_ = service.CreateLicense(ctx, license1)
 
 	license2 := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASASPL,
-		LicenseNumber:    "SPL-789012",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         false,
+		UserID:              userID,
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "EASA_SPL",
+		LicenseNumber:       "SPL-789012",
+		IssueDate:           issueDate,
+		IssuingAuthority:    "EASA",
 	}
 	_ = service.CreateLicense(ctx, license2)
 
 	// List all licenses
-	licenses, err := service.ListLicenses(ctx, userID, false)
+	licenses, err := service.ListLicenses(ctx, userID)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	if len(licenses) != 2 {
 		t.Errorf("Expected 2 licenses, got %d", len(licenses))
-	}
-
-	// List active only
-	activeLicenses, err := service.ListLicenses(ctx, userID, true)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if len(activeLicenses) != 1 {
-		t.Errorf("Expected 1 active license, got %d", len(activeLicenses))
 	}
 }
 
@@ -229,22 +209,21 @@ func TestUpdateLicense(t *testing.T) {
 
 	userID := uuid.New()
 	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
-	expiryDate := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
+		UserID:              userID,
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "EASA_PPL",
+		LicenseNumber:       "PPL-123456",
+		IssueDate:           issueDate,
+		IssuingAuthority:    "EASA",
 	}
 
 	_ = service.CreateLicense(ctx, license)
 
 	// Update license
-	license.ExpiryDate = &expiryDate
-	license.IsActive = false
+	license.LicenseNumber = "PPL-999999"
+	license.RequiresSeparateLogbook = true
 
 	err := service.UpdateLicense(ctx, license, userID)
 	if err != nil {
@@ -253,11 +232,11 @@ func TestUpdateLicense(t *testing.T) {
 
 	// Verify update
 	updated, _ := service.GetLicense(ctx, license.ID, userID)
-	if updated.IsActive != false {
-		t.Error("Expected license to be inactive")
+	if updated.LicenseNumber != "PPL-999999" {
+		t.Error("Expected license number to be updated")
 	}
-	if updated.ExpiryDate == nil || !updated.ExpiryDate.Equal(expiryDate) {
-		t.Error("Expected expiry date to be updated")
+	if !updated.RequiresSeparateLogbook {
+		t.Error("Expected RequiresSeparateLogbook to be true")
 	}
 }
 
@@ -270,12 +249,12 @@ func TestDeleteLicense(t *testing.T) {
 	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	license := &models.License{
-		UserID:           userID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
+		UserID:              userID,
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "EASA_PPL",
+		LicenseNumber:       "PPL-123456",
+		IssueDate:           issueDate,
+		IssuingAuthority:    "EASA",
 	}
 
 	_ = service.CreateLicense(ctx, license)
