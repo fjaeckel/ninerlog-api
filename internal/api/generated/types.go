@@ -1073,10 +1073,13 @@ type TwoFactorSetup struct {
 
 // User defines model for User.
 type User struct {
-	CreatedAt time.Time           `json:"createdAt"`
-	Email     openapi_types.Email `json:"email"`
-	Id        openapi_types.UUID  `json:"id"`
-	Name      string              `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DefaultLicenseId The user's default license ID, used to pre-select in forms and filter flights
+	DefaultLicenseId *openapi_types.UUID `json:"defaultLicenseId"`
+	Email            openapi_types.Email `json:"email"`
+	Id               openapi_types.UUID  `json:"id"`
+	Name             string              `json:"name"`
 
 	// TwoFactorEnabled Whether 2FA is enabled for this account
 	TwoFactorEnabled *bool     `json:"twoFactorEnabled,omitempty"`

@@ -129,6 +129,9 @@ func main() {
 	// Register contact routes
 	handlers.RegisterContactRoutes(api, apiHandler)
 
+	// Register default license route
+	api.PUT("/users/me/default-license", apiHandler.SetDefaultLicense)
+
 	log.Println("✅ Routes registered from OpenAPI specification")
 
 	// Start background notification checker (runs every hour)

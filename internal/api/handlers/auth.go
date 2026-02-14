@@ -162,17 +162,22 @@ func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
 
 func convertAuthResponse(user *models.User, tokens *service.TokenPair) generated.AuthResponse {
 	twoFA := user.TwoFactorEnabled
+	userResp := generated.User{
+		Id:               openapi_types.UUID(user.ID),
+		Email:            openapi_types.Email(user.Email),
+		Name:             user.Name,
+		TwoFactorEnabled: &twoFA,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
+	}
+	if user.DefaultLicenseID != nil {
+		dlid := openapi_types.UUID(*user.DefaultLicenseID)
+		userResp.DefaultLicenseId = &dlid
+	}
 	return generated.AuthResponse{
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,
 		ExpiresIn:    900,
-		User: generated.User{
-			Id:               openapi_types.UUID(user.ID),
-			Email:            openapi_types.Email(user.Email),
-			Name:             user.Name,
-			TwoFactorEnabled: &twoFA,
-			CreatedAt:        user.CreatedAt,
-			UpdatedAt:        user.UpdatedAt,
-		},
+		User:         userResp,
 	}
 }

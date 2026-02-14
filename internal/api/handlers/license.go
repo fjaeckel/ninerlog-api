@@ -65,7 +65,7 @@ func (h *APIHandler) CreateLicense(c *gin.Context) {
 		LicenseNumber:    req.LicenseNumber,
 		IssueDate:        issueDate,
 		IssuingAuthority: req.IssuingAuthority,
-		IsActive:         true,
+		IsActive:         false, // only the default license is active
 	}
 
 	if req.ExpiryDate != nil {
@@ -80,6 +80,16 @@ func (h *APIHandler) CreateLicense(c *gin.Context) {
 	if err := h.licenseService.CreateLicense(c.Request.Context(), &license); err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to create license")
 		return
+	}
+
+	// Auto-set as default license if user has no default yet
+	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
+	if err == nil && user.DefaultLicenseID == nil {
+		user.DefaultLicenseID = &license.ID
+		_ = h.authService.UpdateUser(c.Request.Context(), user)
+		// First license becomes active
+		license.IsActive = true
+		_ = h.licenseService.UpdateLicense(c.Request.Context(), &license, userID)
 	}
 
 	c.JSON(http.StatusCreated, convertToGeneratedLicense(&license))
