@@ -170,21 +170,6 @@ func TestCreateAircraftValidation(t *testing.T) {
 	if err == nil {
 		t.Error("Expected validation error for missing model")
 	}
-
-	// Invalid engine type
-	invalidEngine := models.EngineType("nuclear")
-	aircraft = &models.Aircraft{
-		UserID:       userID,
-		Registration: "D-EFGH",
-		Type:         "C172",
-		Make:         "Cessna",
-		Model:        "172",
-		EngineType:   &invalidEngine,
-	}
-	err = svc.CreateAircraft(ctx, aircraft)
-	if err == nil {
-		t.Error("Expected validation error for invalid engine type")
-	}
 }
 
 func TestCreateAircraftDuplicateRegistration(t *testing.T) {
@@ -466,29 +451,56 @@ func TestCountAircraft(t *testing.T) {
 	}
 }
 
-func TestCreateAircraftWithEngineType(t *testing.T) {
+func TestCreateAircraftWithAircraftClass(t *testing.T) {
 	svc := setupAircraftService()
 	ctx := context.Background()
 	userID := uuid.New()
 
-	piston := models.EngineTypePiston
+	sepLand := "SEP_LAND"
 	aircraft := &models.Aircraft{
-		UserID:       userID,
-		Registration: "D-EFGH",
-		Type:         "C172",
-		Make:         "Cessna",
-		Model:        "172",
-		EngineType:   &piston,
-		IsActive:     true,
+		UserID:        userID,
+		Registration:  "D-EFGH",
+		Type:          "C172",
+		Make:          "Cessna",
+		Model:         "172",
+		AircraftClass: &sepLand,
+		IsActive:      true,
 	}
 
 	err := svc.CreateAircraft(ctx, aircraft)
 	if err != nil {
-		t.Fatalf("CreateAircraft with engine type failed: %v", err)
+		t.Fatalf("CreateAircraft with aircraft class failed: %v", err)
 	}
 
 	result, _ := svc.GetAircraft(ctx, aircraft.ID, userID)
-	if result.EngineType == nil || *result.EngineType != models.EngineTypePiston {
-		t.Error("Expected engine type piston")
+	if result.AircraftClass == nil || *result.AircraftClass != "SEP_LAND" {
+		t.Error("Expected aircraft class SEP_LAND")
+	}
+}
+
+func TestCreateAircraftWithCustomClass(t *testing.T) {
+	svc := setupAircraftService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	customClass := "ULTRALIGHT"
+	aircraft := &models.Aircraft{
+		UserID:        userID,
+		Registration:  "D-ULXX",
+		Type:          "WT9",
+		Make:          "Aerospool",
+		Model:         "Dynamic",
+		AircraftClass: &customClass,
+		IsActive:      true,
+	}
+
+	err := svc.CreateAircraft(ctx, aircraft)
+	if err != nil {
+		t.Fatalf("CreateAircraft with custom class failed: %v", err)
+	}
+
+	result, _ := svc.GetAircraft(ctx, aircraft.ID, userID)
+	if result.AircraftClass == nil || *result.AircraftClass != "ULTRALIGHT" {
+		t.Error("Expected aircraft class ULTRALIGHT")
 	}
 }

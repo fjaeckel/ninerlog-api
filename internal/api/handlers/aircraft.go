@@ -96,10 +96,6 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 		Model:        req.Model,
 		IsActive:     true,
 	}
-	if req.EngineType != nil {
-		et := models.EngineType(*req.EngineType)
-		aircraft.EngineType = &et
-	}
 	if req.IsComplex != nil {
 		aircraft.IsComplex = *req.IsComplex
 	}
@@ -111,6 +107,10 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 	}
 	if req.Notes != nil {
 		aircraft.Notes = req.Notes
+	}
+	if req.AircraftClass != nil {
+		s := string(*req.AircraftClass)
+		aircraft.AircraftClass = &s
 	}
 
 	if err := h.aircraftService.CreateAircraft(c.Request.Context(), aircraft); err != nil {
@@ -184,10 +184,6 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 	if req.Model != nil {
 		aircraft.Model = *req.Model
 	}
-	if req.EngineType != nil {
-		et := models.EngineType(*req.EngineType)
-		aircraft.EngineType = &et
-	}
 	if req.IsComplex != nil {
 		aircraft.IsComplex = *req.IsComplex
 	}
@@ -202,6 +198,10 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 	}
 	if req.IsActive != nil {
 		aircraft.IsActive = *req.IsActive
+	}
+	if req.AircraftClass != nil {
+		s := string(*req.AircraftClass)
+		aircraft.AircraftClass = &s
 	}
 
 	if err := h.aircraftService.UpdateAircraft(c.Request.Context(), aircraft, userID); err != nil {
@@ -253,9 +253,8 @@ func convertToGeneratedAircraft(a *models.Aircraft) generated.Aircraft {
 		CreatedAt:         a.CreatedAt,
 		UpdatedAt:         a.UpdatedAt,
 	}
-	if a.EngineType != nil {
-		et := generated.AircraftEngineType(*a.EngineType)
-		ac.EngineType = &et
+	if a.AircraftClass != nil {
+		ac.AircraftClass = a.AircraftClass
 	}
 	return ac
 }

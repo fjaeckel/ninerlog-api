@@ -6,33 +6,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// EngineType represents the type of engine on an aircraft
-type EngineType string
-
-const (
-	EngineTypePiston    EngineType = "piston"
-	EngineTypeTurboprop EngineType = "turboprop"
-	EngineTypeJet       EngineType = "jet"
-	EngineTypeElectric  EngineType = "electric"
-)
-
 // Aircraft represents an aircraft in a user's fleet
 type Aircraft struct {
-	ID                uuid.UUID   `json:"id"`
-	UserID            uuid.UUID   `json:"userId"`
-	Registration      string      `json:"registration"`
-	Type              string      `json:"type"`
-	Make              string      `json:"make"`
-	Model             string      `json:"model"`
-	EngineType        *EngineType `json:"engineType,omitempty"`
-	IsComplex         bool        `json:"isComplex"`
-	IsHighPerformance bool        `json:"isHighPerformance"`
-	IsTailwheel       bool        `json:"isTailwheel"`
-	Notes             *string     `json:"notes,omitempty"`
-	IsActive          bool        `json:"isActive"`
-	AircraftClass     *ClassType  `json:"aircraftClass,omitempty"`
-	CreatedAt         time.Time   `json:"createdAt"`
-	UpdatedAt         time.Time   `json:"updatedAt"`
+	ID                uuid.UUID `json:"id"`
+	UserID            uuid.UUID `json:"userId"`
+	Registration      string    `json:"registration"`
+	Type              string    `json:"type"`
+	Make              string    `json:"make"`
+	Model             string    `json:"model"`
+	IsComplex         bool      `json:"isComplex"`
+	IsHighPerformance bool      `json:"isHighPerformance"`
+	IsTailwheel       bool      `json:"isTailwheel"`
+	Notes             *string   `json:"notes,omitempty"`
+	IsActive          bool      `json:"isActive"`
+	AircraftClass     *string   `json:"aircraftClass,omitempty"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 // Validate checks basic Aircraft field requirements
@@ -48,14 +37,6 @@ func (a *Aircraft) Validate() error {
 	}
 	if a.Model == "" {
 		return ErrAircraftModelRequired
-	}
-	if a.EngineType != nil {
-		switch *a.EngineType {
-		case EngineTypePiston, EngineTypeTurboprop, EngineTypeJet, EngineTypeElectric:
-			// valid
-		default:
-			return ErrAircraftInvalidEngineType
-		}
 	}
 	return nil
 }

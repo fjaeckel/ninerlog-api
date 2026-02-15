@@ -13,30 +13,6 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
-// Defines values for AircraftEngineType.
-const (
-	AircraftEngineTypeElectric  AircraftEngineType = "electric"
-	AircraftEngineTypeJet       AircraftEngineType = "jet"
-	AircraftEngineTypePiston    AircraftEngineType = "piston"
-	AircraftEngineTypeTurboprop AircraftEngineType = "turboprop"
-)
-
-// Defines values for AircraftCreateEngineType.
-const (
-	AircraftCreateEngineTypeElectric  AircraftCreateEngineType = "electric"
-	AircraftCreateEngineTypeJet       AircraftCreateEngineType = "jet"
-	AircraftCreateEngineTypePiston    AircraftCreateEngineType = "piston"
-	AircraftCreateEngineTypeTurboprop AircraftCreateEngineType = "turboprop"
-)
-
-// Defines values for AircraftUpdateEngineType.
-const (
-	Electric  AircraftUpdateEngineType = "electric"
-	Jet       AircraftUpdateEngineType = "jet"
-	Piston    AircraftUpdateEngineType = "piston"
-	Turboprop AircraftUpdateEngineType = "turboprop"
-)
-
 // Defines values for ClassRatingCurrencyStatus.
 const (
 	Current  ClassRatingCurrencyStatus = "current"
@@ -144,19 +120,10 @@ const (
 
 // Aircraft defines model for Aircraft.
 type Aircraft struct {
-	// AircraftClass Aircraft class rating type:
-	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
-	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
-	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
-	// - TMG: Touring Motor Glider
-	// - IR: Instrument Rating
-	// - OTHER: Other rating type
-	AircraftClass *ClassType `json:"aircraftClass,omitempty"`
-	CreatedAt     time.Time  `json:"createdAt"`
-
-	// EngineType Engine type
-	EngineType *AircraftEngineType `json:"engineType"`
-	Id         openapi_types.UUID  `json:"id"`
+	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+	AircraftClass *string            `json:"aircraftClass"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	Id            openapi_types.UUID `json:"id"`
 
 	// IsActive Whether aircraft is still active in the user's fleet
 	IsActive *bool `json:"isActive,omitempty"`
@@ -188,23 +155,13 @@ type Aircraft struct {
 	UserId    openapi_types.UUID `json:"userId"`
 }
 
-// AircraftEngineType Engine type
-type AircraftEngineType string
-
 // AircraftCreate defines model for AircraftCreate.
 type AircraftCreate struct {
-	// AircraftClass Aircraft class rating type:
-	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
-	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
-	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
-	// - TMG: Touring Motor Glider
-	// - IR: Instrument Rating
-	// - OTHER: Other rating type
-	AircraftClass     *ClassType                `json:"aircraftClass,omitempty"`
-	EngineType        *AircraftCreateEngineType `json:"engineType"`
-	IsComplex         *bool                     `json:"isComplex,omitempty"`
-	IsHighPerformance *bool                     `json:"isHighPerformance,omitempty"`
-	IsTailwheel       *bool                     `json:"isTailwheel,omitempty"`
+	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+	AircraftClass     *string `json:"aircraftClass"`
+	IsComplex         *bool   `json:"isComplex,omitempty"`
+	IsHighPerformance *bool   `json:"isHighPerformance,omitempty"`
+	IsTailwheel       *bool   `json:"isTailwheel,omitempty"`
 
 	// Make Aircraft manufacturer
 	Make string `json:"make"`
@@ -220,33 +177,20 @@ type AircraftCreate struct {
 	Type string `json:"type"`
 }
 
-// AircraftCreateEngineType defines model for AircraftCreate.EngineType.
-type AircraftCreateEngineType string
-
 // AircraftUpdate defines model for AircraftUpdate.
 type AircraftUpdate struct {
-	// AircraftClass Aircraft class rating type:
-	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
-	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
-	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
-	// - TMG: Touring Motor Glider
-	// - IR: Instrument Rating
-	// - OTHER: Other rating type
-	AircraftClass     *ClassType                `json:"aircraftClass,omitempty"`
-	EngineType        *AircraftUpdateEngineType `json:"engineType"`
-	IsActive          *bool                     `json:"isActive,omitempty"`
-	IsComplex         *bool                     `json:"isComplex,omitempty"`
-	IsHighPerformance *bool                     `json:"isHighPerformance,omitempty"`
-	IsTailwheel       *bool                     `json:"isTailwheel,omitempty"`
-	Make              *string                   `json:"make,omitempty"`
-	Model             *string                   `json:"model,omitempty"`
-	Notes             *string                   `json:"notes"`
-	Registration      *string                   `json:"registration,omitempty"`
-	Type              *string                   `json:"type,omitempty"`
+	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+	AircraftClass     *string `json:"aircraftClass"`
+	IsActive          *bool   `json:"isActive,omitempty"`
+	IsComplex         *bool   `json:"isComplex,omitempty"`
+	IsHighPerformance *bool   `json:"isHighPerformance,omitempty"`
+	IsTailwheel       *bool   `json:"isTailwheel,omitempty"`
+	Make              *string `json:"make,omitempty"`
+	Model             *string `json:"model,omitempty"`
+	Notes             *string `json:"notes"`
+	Registration      *string `json:"registration,omitempty"`
+	Type              *string `json:"type,omitempty"`
 }
-
-// AircraftUpdateEngineType defines model for AircraftUpdate.EngineType.
-type AircraftUpdateEngineType string
 
 // Airport defines model for Airport.
 type Airport struct {

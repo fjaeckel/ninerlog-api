@@ -57,30 +57,28 @@ func TestAircraftValidate_MissingModel(t *testing.T) {
 	}
 }
 
-func TestAircraftValidate_ValidEngineTypes(t *testing.T) {
-	validTypes := []EngineType{EngineTypePiston, EngineTypeTurboprop, EngineTypeJet, EngineTypeElectric}
-	for _, et := range validTypes {
-		a := validAircraft()
-		a.EngineType = &et
-		if err := a.Validate(); err != nil {
-			t.Errorf("Validate() with engine type %s = %v, want nil", et, err)
-		}
-	}
-}
-
-func TestAircraftValidate_InvalidEngineType(t *testing.T) {
+func TestAircraftValidate_AircraftClass(t *testing.T) {
 	a := validAircraft()
-	invalid := EngineType("nuclear")
-	a.EngineType = &invalid
-	if err := a.Validate(); err != ErrAircraftInvalidEngineType {
-		t.Errorf("Validate() = %v, want ErrAircraftInvalidEngineType", err)
-	}
-}
-
-func TestAircraftValidate_NilEngineType(t *testing.T) {
-	a := validAircraft()
-	a.EngineType = nil
+	sep := "SEP_LAND"
+	a.AircraftClass = &sep
 	if err := a.Validate(); err != nil {
-		t.Errorf("Validate() = %v, want nil for nil engine type", err)
+		t.Errorf("Validate() = %v, want nil for valid aircraft class", err)
+	}
+}
+
+func TestAircraftValidate_CustomAircraftClass(t *testing.T) {
+	a := validAircraft()
+	custom := "ULTRALIGHT"
+	a.AircraftClass = &custom
+	if err := a.Validate(); err != nil {
+		t.Errorf("Validate() = %v, want nil for custom aircraft class", err)
+	}
+}
+
+func TestAircraftValidate_NilAircraftClass(t *testing.T) {
+	a := validAircraft()
+	a.AircraftClass = nil
+	if err := a.Validate(); err != nil {
+		t.Errorf("Validate() = %v, want nil for nil aircraft class", err)
 	}
 }
