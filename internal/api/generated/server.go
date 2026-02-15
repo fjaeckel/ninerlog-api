@@ -74,6 +74,9 @@ type ServerInterface interface {
 	// Update credential
 	// (PATCH /credentials/{credentialId})
 	UpdateCredential(c *gin.Context, credentialId CredentialId)
+	// Get currency status for all class ratings
+	// (GET /currency)
+	GetAllCurrencyStatus(c *gin.Context)
 	// List flights
 	// (GET /flights)
 	ListFlights(c *gin.Context, params ListFlightsParams)
@@ -585,6 +588,21 @@ func (siw *ServerInterfaceWrapper) UpdateCredential(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateCredential(c, credentialId)
+}
+
+// GetAllCurrencyStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetAllCurrencyStatus(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAllCurrencyStatus(c)
 }
 
 // ListFlights operation middleware
@@ -1356,6 +1374,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/credentials/:credentialId", wrapper.DeleteCredential)
 	router.GET(options.BaseURL+"/credentials/:credentialId", wrapper.GetCredential)
 	router.PATCH(options.BaseURL+"/credentials/:credentialId", wrapper.UpdateCredential)
+	router.GET(options.BaseURL+"/currency", wrapper.GetAllCurrencyStatus)
 	router.GET(options.BaseURL+"/flights", wrapper.ListFlights)
 	router.POST(options.BaseURL+"/flights", wrapper.CreateFlight)
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)

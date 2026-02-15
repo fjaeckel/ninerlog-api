@@ -37,6 +37,14 @@ const (
 	Turboprop AircraftUpdateEngineType = "turboprop"
 )
 
+// Defines values for ClassRatingCurrencyStatus.
+const (
+	Current  ClassRatingCurrencyStatus = "current"
+	Expired  ClassRatingCurrencyStatus = "expired"
+	Expiring ClassRatingCurrencyStatus = "expiring"
+	Unknown  ClassRatingCurrencyStatus = "unknown"
+)
+
 // Defines values for ClassType.
 const (
 	ClassTypeIR      ClassType = "IR"
@@ -328,6 +336,83 @@ type ClassRatingCreate struct {
 	Notes      *string             `json:"notes"`
 }
 
+// ClassRatingCurrency defines model for ClassRatingCurrency.
+type ClassRatingCurrency struct {
+	ClassRatingId openapi_types.UUID `json:"classRatingId"`
+
+	// ClassType Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	ClassType ClassType `json:"classType"`
+
+	// ExpiryDate Class rating expiry date
+	ExpiryDate *openapi_types.Date `json:"expiryDate"`
+	LicenseId  openapi_types.UUID  `json:"licenseId"`
+
+	// LicenseType Type from the parent license
+	LicenseType *string `json:"licenseType,omitempty"`
+
+	// Message Human-readable status message
+	Message *string `json:"message,omitempty"`
+
+	// Progress Progress metrics toward currency requirements (authority-specific)
+	Progress *struct {
+		DayLandings *int `json:"dayLandings,omitempty"`
+
+		// Flights Number of flights in class in the evaluation period
+		Flights *int `json:"flights,omitempty"`
+
+		// IfrHours IFR hours in the evaluation period
+		IfrHours *float32 `json:"ifrHours,omitempty"`
+
+		// InstructorHours Hours with instructor (dual received) in the evaluation period
+		InstructorHours *float32 `json:"instructorHours,omitempty"`
+
+		// Landings Total landings in class in the evaluation period
+		Landings *int `json:"landings,omitempty"`
+
+		// NightHours Night hours in the evaluation period
+		NightHours    *float32 `json:"nightHours,omitempty"`
+		NightLandings *int     `json:"nightLandings,omitempty"`
+
+		// PicHours PIC hours in class in the evaluation period
+		PicHours *float32 `json:"picHours,omitempty"`
+
+		// RequiredHours Required hours for currency (authority-specific)
+		RequiredHours *float32 `json:"requiredHours,omitempty"`
+
+		// RequiredLandings Required landings for currency
+		RequiredLandings *int `json:"requiredLandings,omitempty"`
+
+		// TotalHours Total hours in class in the evaluation period
+		TotalHours *float32 `json:"totalHours,omitempty"`
+	} `json:"progress,omitempty"`
+
+	// RegulatoryAuthority Authority from the parent license (determines which currency rules apply)
+	RegulatoryAuthority string `json:"regulatoryAuthority"`
+
+	// Requirements Per-requirement breakdown showing progress toward each currency requirement
+	Requirements *[]CurrencyRequirement `json:"requirements,omitempty"`
+
+	// Status Currency status:
+	// - current: All requirements met
+	// - expiring: Rating expiry approaching (within 90 days)
+	// - expired: Rating has expired or currency requirements not met
+	// - unknown: Authority not supported for auto-calculation
+	Status ClassRatingCurrencyStatus `json:"status"`
+}
+
+// ClassRatingCurrencyStatus Currency status:
+// - current: All requirements met
+// - expiring: Rating expiry approaching (within 90 days)
+// - expired: Rating has expired or currency requirements not met
+// - unknown: Authority not supported for auto-calculation
+type ClassRatingCurrencyStatus string
+
 // ClassRatingUpdate defines model for ClassRatingUpdate.
 type ClassRatingUpdate struct {
 	ExpiryDate *openapi_types.Date `json:"expiryDate"`
@@ -478,6 +563,32 @@ type Currency struct {
 		// Night Required night landings for night currency
 		Night int `json:"night"`
 	} `json:"requiredLandings,omitempty"`
+}
+
+// CurrencyRequirement defines model for CurrencyRequirement.
+type CurrencyRequirement struct {
+	// Current Current progress value
+	Current float32 `json:"current"`
+
+	// Message Human-readable progress description
+	Message *string `json:"message,omitempty"`
+
+	// Met Whether this requirement is currently satisfied
+	Met bool `json:"met"`
+
+	// Name Requirement name (e.g., "Day Currency", "PIC Hours", "Refresher Training")
+	Name string `json:"name"`
+
+	// Required Required value to meet this requirement
+	Required float32 `json:"required"`
+
+	// Unit Unit of measurement (e.g., "landings", "hours", "flights")
+	Unit string `json:"unit"`
+}
+
+// CurrencyStatusResponse defines model for CurrencyStatusResponse.
+type CurrencyStatusResponse struct {
+	Ratings []ClassRatingCurrency `json:"ratings"`
 }
 
 // Error defines model for Error.

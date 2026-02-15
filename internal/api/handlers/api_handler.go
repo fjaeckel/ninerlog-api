@@ -5,6 +5,7 @@ import (
 
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
+	"github.com/fjaeckel/pilotlog-api/internal/service/currency"
 	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type APIHandler struct {
 	twoFactorService    *service.TwoFactorService
 	contactService      *service.ContactService
 	classRatingService  *service.ClassRatingService
+	currencyService     *currency.Service
 	jwtManager          *jwt.Manager
 	db                  *sql.DB
 }
@@ -36,6 +38,7 @@ func NewAPIHandler(
 	twoFactorService *service.TwoFactorService,
 	contactService *service.ContactService,
 	classRatingService *service.ClassRatingService,
+	currencyService *currency.Service,
 	jwtManager *jwt.Manager,
 ) *APIHandler {
 	return &APIHandler{
@@ -48,6 +51,7 @@ func NewAPIHandler(
 		twoFactorService:    twoFactorService,
 		contactService:      contactService,
 		classRatingService:  classRatingService,
+		currencyService:     currencyService,
 		jwtManager:          jwtManager,
 	}
 }

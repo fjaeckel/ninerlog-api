@@ -17,6 +17,7 @@ import (
 	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
 	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
+	"github.com/fjaeckel/pilotlog-api/internal/service/currency"
 	"github.com/fjaeckel/pilotlog-api/pkg/email"
 	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
 	"github.com/gin-contrib/cors"
@@ -97,8 +98,16 @@ func main() {
 	classRatingRepo := postgres.NewClassRatingRepository(db)
 	classRatingService := service.NewClassRatingService(classRatingRepo, licenseRepo)
 
+	// Initialize currency evaluation
+	flightDataProvider := currency.NewFlightDataProvider(db)
+	currencyRegistry := currency.NewRegistry()
+	currencyRegistry.Register(currency.NewEASAEvaluator())
+	currencyRegistry.Register(currency.NewFAAEvaluator())
+	currencyRegistry.Register(currency.NewOtherEvaluator())
+	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
+
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, jwtManager)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, jwtManager)
 	apiHandler.SetDB(db)
 
 	// Setup router
