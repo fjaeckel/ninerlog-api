@@ -209,6 +209,24 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	flight.DualGivenTime = float64(getFloat32OrDefault(req.DualGivenTime, 0))
 	flight.SimulatedFlightTime = float64(getFloat32OrDefault(req.SimulatedFlightTime, 0))
 	flight.GroundTrainingTime = float64(getFloat32OrDefault(req.GroundTrainingTime, 0))
+	flight.ActualInstrumentTime = float64(getFloat32OrDefault(req.ActualInstrumentTime, 0))
+	flight.SimulatedInstrumentTime = float64(getFloat32OrDefault(req.SimulatedInstrumentTime, 0))
+	// Auto-calculate IFR time as actual + simulated instrument if not explicitly provided
+	if req.IfrTime == nil || *req.IfrTime == 0 {
+		flight.IFRTime = flight.ActualInstrumentTime + flight.SimulatedInstrumentTime
+	}
+	if req.Holds != nil {
+		flight.Holds = *req.Holds
+	}
+	if req.ApproachesCount != nil {
+		flight.ApproachesCount = *req.ApproachesCount
+	}
+	if req.IsIpc != nil {
+		flight.IsIPC = *req.IsIpc
+	}
+	if req.IsFlightReview != nil {
+		flight.IsFlightReview = *req.IsFlightReview
+	}
 
 	// Parse crew members
 	if req.CrewMembers != nil {
@@ -357,6 +375,24 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.GroundTrainingTime != nil {
 		flight.GroundTrainingTime = float64(*req.GroundTrainingTime)
 	}
+	if req.ActualInstrumentTime != nil {
+		flight.ActualInstrumentTime = float64(*req.ActualInstrumentTime)
+	}
+	if req.SimulatedInstrumentTime != nil {
+		flight.SimulatedInstrumentTime = float64(*req.SimulatedInstrumentTime)
+	}
+	if req.Holds != nil {
+		flight.Holds = *req.Holds
+	}
+	if req.ApproachesCount != nil {
+		flight.ApproachesCount = *req.ApproachesCount
+	}
+	if req.IsIpc != nil {
+		flight.IsIPC = *req.IsIpc
+	}
+	if req.IsFlightReview != nil {
+		flight.IsFlightReview = *req.IsFlightReview
+	}
 	if req.CrewMembers != nil {
 		flight.CrewMembers = nil
 		for _, cm := range *req.CrewMembers {
@@ -488,6 +524,12 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	flight.DualGivenTime = ptrFloat32(float32(f.DualGivenTime))
 	flight.SimulatedFlightTime = ptrFloat32(float32(f.SimulatedFlightTime))
 	flight.GroundTrainingTime = ptrFloat32(float32(f.GroundTrainingTime))
+	flight.ActualInstrumentTime = ptrFloat32(float32(f.ActualInstrumentTime))
+	flight.SimulatedInstrumentTime = ptrFloat32(float32(f.SimulatedInstrumentTime))
+	flight.Holds = ptrInt(f.Holds)
+	flight.ApproachesCount = ptrInt(f.ApproachesCount)
+	flight.IsIpc = ptrBool(f.IsIPC)
+	flight.IsFlightReview = ptrBool(f.IsFlightReview)
 
 	// Crew members
 	if len(f.CrewMembers) > 0 {
@@ -518,6 +560,14 @@ func getFloat32OrDefault(val *float32, def float32) float32 {
 }
 
 func ptrFloat32(v float32) *float32 {
+	return &v
+}
+
+func ptrInt(v int) *int {
+	return &v
+}
+
+func ptrBool(v bool) *bool {
 	return &v
 }
 

@@ -605,6 +605,9 @@ type Error struct {
 
 // Flight defines model for Flight.
 type Flight struct {
+	// ActualInstrumentTime Actual instrument flight time in hours (under IMC or simulated IMC with view-limiting device)
+	ActualInstrumentTime *float32 `json:"actualInstrumentTime,omitempty"`
+
 	// AircraftReg Aircraft registration
 	AircraftReg string `json:"aircraftReg"`
 
@@ -613,6 +616,9 @@ type Flight struct {
 
 	// AllLandings Total landings (day + night). Auto-calculated by the server.
 	AllLandings int `json:"allLandings"`
+
+	// ApproachesCount Number of instrument approaches performed
+	ApproachesCount *int `json:"approachesCount,omitempty"`
 
 	// ArrivalIcao ICAO code of arrival airport
 	ArrivalIcao *string `json:"arrivalIcao"`
@@ -644,8 +650,11 @@ type Flight struct {
 	DualTime float32 `json:"dualTime"`
 
 	// GroundTrainingTime Ground training time in hours
-	GroundTrainingTime *float32           `json:"groundTrainingTime,omitempty"`
-	Id                 openapi_types.UUID `json:"id"`
+	GroundTrainingTime *float32 `json:"groundTrainingTime,omitempty"`
+
+	// Holds Number of holding procedures performed
+	Holds *int               `json:"holds,omitempty"`
+	Id    openapi_types.UUID `json:"id"`
 
 	// IfrTime Instrument block time in hours
 	IfrTime float32 `json:"ifrTime"`
@@ -658,6 +667,12 @@ type Flight struct {
 
 	// IsDual Whether this flight was logged as dual instruction received. Mutually exclusive with isPic.
 	IsDual bool `json:"isDual"`
+
+	// IsFlightReview Whether this flight was a Flight Review (FAA 61.56) or equivalent
+	IsFlightReview *bool `json:"isFlightReview,omitempty"`
+
+	// IsIpc Whether this flight included an Instrument Proficiency Check (IPC)
+	IsIpc *bool `json:"isIpc,omitempty"`
 
 	// IsPic Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
 	IsPic bool `json:"isPic"`
@@ -692,6 +707,9 @@ type Flight struct {
 	// SimulatedFlightTime Simulated flight time in hours (FTD/FSTD)
 	SimulatedFlightTime *float32 `json:"simulatedFlightTime,omitempty"`
 
+	// SimulatedInstrumentTime Simulated instrument time in hours (FSTD/FTD/ATD)
+	SimulatedInstrumentTime *float32 `json:"simulatedInstrumentTime,omitempty"`
+
 	// SoloTime Solo time in hours. Auto-calculated when no crew and not dual instruction.
 	SoloTime float32 `json:"soloTime"`
 
@@ -709,11 +727,13 @@ type Flight struct {
 
 // FlightCreate defines model for FlightCreate.
 type FlightCreate struct {
-	AircraftReg  string `json:"aircraftReg"`
-	AircraftType string `json:"aircraftType"`
+	ActualInstrumentTime *float32 `json:"actualInstrumentTime,omitempty"`
+	AircraftReg          string   `json:"aircraftReg"`
+	AircraftType         string   `json:"aircraftType"`
 
 	// AllLandings Total landings (day + night). Auto-calculated by the server.
-	AllLandings *int `json:"allLandings,omitempty"`
+	AllLandings     *int `json:"allLandings,omitempty"`
+	ApproachesCount *int `json:"approachesCount,omitempty"`
 
 	// ArrivalIcao Arrival airport ICAO code
 	ArrivalIcao string `json:"arrivalIcao"`
@@ -741,9 +761,12 @@ type FlightCreate struct {
 	// DualTime Dual instruction time in hours. Computed by server — equals totalTime when isDual is true, 0 otherwise.
 	DualTime           *float32 `json:"dualTime,omitempty"`
 	GroundTrainingTime *float32 `json:"groundTrainingTime,omitempty"`
+	Holds              *int     `json:"holds,omitempty"`
 	IfrTime            *float32 `json:"ifrTime,omitempty"`
 	InstructorComments *string  `json:"instructorComments"`
 	InstructorName     *string  `json:"instructorName"`
+	IsFlightReview     *bool    `json:"isFlightReview,omitempty"`
+	IsIpc              *bool    `json:"isIpc,omitempty"`
 
 	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport.
 	Landings int `json:"landings"`
@@ -759,9 +782,10 @@ type FlightCreate struct {
 	Remarks *string  `json:"remarks"`
 
 	// Route Route waypoints as comma-separated ICAO codes
-	Route               *string  `json:"route"`
-	SicTime             *float32 `json:"sicTime,omitempty"`
-	SimulatedFlightTime *float32 `json:"simulatedFlightTime,omitempty"`
+	Route                   *string  `json:"route"`
+	SicTime                 *float32 `json:"sicTime,omitempty"`
+	SimulatedFlightTime     *float32 `json:"simulatedFlightTime,omitempty"`
+	SimulatedInstrumentTime *float32 `json:"simulatedInstrumentTime,omitempty"`
 
 	// SoloTime Solo time in hours. Auto-calculated by the server.
 	SoloTime *float32 `json:"soloTime,omitempty"`
@@ -822,9 +846,11 @@ type FlightRoutesResponse struct {
 
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
-	AircraftReg  *string `json:"aircraftReg,omitempty"`
-	AircraftType *string `json:"aircraftType,omitempty"`
-	ArrivalIcao  *string `json:"arrivalIcao"`
+	ActualInstrumentTime *float32 `json:"actualInstrumentTime,omitempty"`
+	AircraftReg          *string  `json:"aircraftReg,omitempty"`
+	AircraftType         *string  `json:"aircraftType,omitempty"`
+	ApproachesCount      *int     `json:"approachesCount,omitempty"`
+	ArrivalIcao          *string  `json:"arrivalIcao"`
 
 	// ArrivalTime Landing time in UTC
 	ArrivalTime *string `json:"arrivalTime"`
@@ -838,9 +864,12 @@ type FlightUpdate struct {
 	DepartureTime      *string  `json:"departureTime"`
 	DualGivenTime      *float32 `json:"dualGivenTime,omitempty"`
 	GroundTrainingTime *float32 `json:"groundTrainingTime,omitempty"`
+	Holds              *int     `json:"holds,omitempty"`
 	IfrTime            *float32 `json:"ifrTime,omitempty"`
 	InstructorComments *string  `json:"instructorComments"`
 	InstructorName     *string  `json:"instructorName"`
+	IsFlightReview     *bool    `json:"isFlightReview,omitempty"`
+	IsIpc              *bool    `json:"isIpc,omitempty"`
 
 	// Landings Total number of landings
 	Landings *int `json:"landings,omitempty"`
@@ -853,9 +882,10 @@ type FlightUpdate struct {
 	Remarks     *string `json:"remarks"`
 
 	// Route Route waypoints as comma-separated ICAO codes
-	Route               *string  `json:"route"`
-	SicTime             *float32 `json:"sicTime,omitempty"`
-	SimulatedFlightTime *float32 `json:"simulatedFlightTime,omitempty"`
+	Route                   *string  `json:"route"`
+	SicTime                 *float32 `json:"sicTime,omitempty"`
+	SimulatedFlightTime     *float32 `json:"simulatedFlightTime,omitempty"`
+	SimulatedInstrumentTime *float32 `json:"simulatedInstrumentTime,omitempty"`
 
 	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
 	TakeoffsDay *int `json:"takeoffsDay,omitempty"`

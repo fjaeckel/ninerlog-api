@@ -103,8 +103,6 @@ func (e *FAAEvaluator) evaluatePassengerCurrency(ctx context.Context, rating *mo
 //   - 6 instrument approaches
 //   - Holding procedures and tasks
 //   - Intercepting and tracking courses through the use of navigational systems
-//
-// Until approach tracking is added (Week 3), we track IFR hours as a proxy.
 func (e *FAAEvaluator) evaluateInstrumentCurrency(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
 	// 6 calendar months
 	since := time.Now().AddDate(0, -6, 0)
@@ -118,19 +116,28 @@ func (e *FAAEvaluator) evaluateInstrumentCurrency(ctx context.Context, rating *m
 	}
 	result.Progress = progress
 
-	// IFR hours as a proxy metric until approach tracking is implemented
-	reqIFRHours := Requirement{
-		Name: "IFR Flight Time", Met: progress.IFRHours >= 6,
-		Current: progress.IFRHours, Required: 6, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 6.0 IFR hours in 6 months", progress.IFRHours),
+	// FAA 61.57(c)(1): 6 instrument approaches in 6 months
+	reqApproaches := Requirement{
+		Name: "Instrument Approaches", Met: progress.Approaches >= 6,
+		Current: float64(progress.Approaches), Required: 6, Unit: "approaches",
+		Message: fmt.Sprintf("%d / 6 instrument approaches in 6 months", progress.Approaches),
 	}
 
-	result.Requirements = []Requirement{reqIFRHours}
+	// FAA 61.57(c)(1): Holding procedures
+	reqHolds := Requirement{
+		Name: "Holding Procedures", Met: progress.Holds >= 1,
+		Current: float64(progress.Holds), Required: 1, Unit: "holds",
+		Message: fmt.Sprintf("%d / 1 holding procedure%s in 6 months", progress.Holds, plural(1)),
+	}
+
+	result.Requirements = []Requirement{reqApproaches, reqHolds}
+
+	allMet := reqApproaches.Met && reqHolds.Met
 
 	if rating.ExpiryDate != nil && rating.IsExpired() {
 		result.Status = StatusExpired
 		result.Message = fmt.Sprintf("FAA IR expired on %s", *result.ExpiryDate)
-	} else if !reqIFRHours.Met {
+	} else if !allMet {
 		result.Status = StatusExpiring
 		result.Message = "FAA IR — instrument currency requirements not fully met"
 	} else {

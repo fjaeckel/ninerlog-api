@@ -66,6 +66,14 @@ type Flight struct {
 	SimulatedFlightTime float64 `json:"simulatedFlightTime"`
 	GroundTrainingTime  float64 `json:"groundTrainingTime"`
 
+	// Instrument tracking
+	ActualInstrumentTime    float64 `json:"actualInstrumentTime"`
+	SimulatedInstrumentTime float64 `json:"simulatedInstrumentTime"`
+	Holds                   int     `json:"holds"`
+	ApproachesCount         int     `json:"approachesCount"`
+	IsIPC                   bool    `json:"isIpc"`
+	IsFlightReview          bool    `json:"isFlightReview"`
+
 	// Crew members on board (populated from flight_crew_members table)
 	CrewMembers []FlightCrewMember `json:"crewMembers,omitempty"`
 

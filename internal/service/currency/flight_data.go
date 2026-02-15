@@ -30,7 +30,9 @@ func (p *postgresFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 			COALESCE(SUM(f.night_time), 0) as night_hours,
 			COALESCE(SUM(f.landings_day + f.landings_night), 0) as landings,
 			COALESCE(SUM(f.landings_day), 0) as day_landings,
-			COALESCE(SUM(f.landings_night), 0) as night_landings
+			COALESCE(SUM(f.landings_night), 0) as night_landings,
+			COALESCE(SUM(f.approaches_count), 0) as approaches,
+			COALESCE(SUM(f.holds), 0) as holds
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND a.aircraft_class = $2 AND f.date >= $3
@@ -47,6 +49,8 @@ func (p *postgresFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 		&progress.Landings,
 		&progress.DayLandings,
 		&progress.NightLandings,
+		&progress.Approaches,
+		&progress.Holds,
 	)
 	if err != nil {
 		return nil, err
@@ -65,7 +69,9 @@ func (p *postgresFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 			COALESCE(SUM(night_time), 0) as night_hours,
 			COALESCE(SUM(landings_day + landings_night), 0) as landings,
 			COALESCE(SUM(landings_day), 0) as day_landings,
-			COALESCE(SUM(landings_night), 0) as night_landings
+			COALESCE(SUM(landings_night), 0) as night_landings,
+			COALESCE(SUM(approaches_count), 0) as approaches,
+			COALESCE(SUM(holds), 0) as holds
 		FROM flights
 		WHERE user_id = $1 AND date >= $2
 	`
@@ -81,6 +87,8 @@ func (p *postgresFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 		&progress.Landings,
 		&progress.DayLandings,
 		&progress.NightLandings,
+		&progress.Approaches,
+		&progress.Holds,
 	)
 	if err != nil {
 		return nil, err

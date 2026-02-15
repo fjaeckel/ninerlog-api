@@ -600,7 +600,7 @@ func TestFAA_Passenger_MEP(t *testing.T) {
 func TestFAA_IR_Current(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{IFRHours: 10}
+	dp.progressAll = &Progress{Approaches: 8, Holds: 2, IFRHours: 10}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
@@ -609,12 +609,20 @@ func TestFAA_IR_Current(t *testing.T) {
 	if result.Status != StatusCurrent {
 		t.Errorf("Status = %s, want current (IR)", result.Status)
 	}
+	if len(result.Requirements) != 2 {
+		t.Fatalf("Expected 2 requirements, got %d", len(result.Requirements))
+	}
+	for _, req := range result.Requirements {
+		if !req.Met {
+			t.Errorf("Requirement %q should be met", req.Name)
+		}
+	}
 }
 
 func TestFAA_IR_InsufficientIFR(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{IFRHours: 3}
+	dp.progressAll = &Progress{Approaches: 3, Holds: 0, IFRHours: 3}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
@@ -623,12 +631,21 @@ func TestFAA_IR_InsufficientIFR(t *testing.T) {
 	if result.Status != StatusExpiring {
 		t.Errorf("Status = %s, want expiring (IR)", result.Status)
 	}
+	// Both approaches and holds should be not met
+	for _, req := range result.Requirements {
+		if req.Name == "Instrument Approaches" && req.Met {
+			t.Error("Approaches requirement should NOT be met")
+		}
+		if req.Name == "Holding Procedures" && req.Met {
+			t.Error("Holds requirement should NOT be met")
+		}
+	}
 }
 
 func TestFAA_IR_Expired(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{IFRHours: 10}
+	dp.progressAll = &Progress{Approaches: 10, Holds: 3, IFRHours: 10}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, ExpiryDate: pastDate(30), LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
