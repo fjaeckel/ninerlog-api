@@ -61,6 +61,27 @@ const (
 	Student     CrewRole = "Student"
 )
 
+// Defines values for FlightLaunchMethod.
+const (
+	FlightLaunchMethodAerotow    FlightLaunchMethod = "aerotow"
+	FlightLaunchMethodSelfLaunch FlightLaunchMethod = "self-launch"
+	FlightLaunchMethodWinch      FlightLaunchMethod = "winch"
+)
+
+// Defines values for FlightCreateLaunchMethod.
+const (
+	FlightCreateLaunchMethodAerotow    FlightCreateLaunchMethod = "aerotow"
+	FlightCreateLaunchMethodSelfLaunch FlightCreateLaunchMethod = "self-launch"
+	FlightCreateLaunchMethodWinch      FlightCreateLaunchMethod = "winch"
+)
+
+// Defines values for FlightUpdateLaunchMethod.
+const (
+	Aerotow    FlightUpdateLaunchMethod = "aerotow"
+	SelfLaunch FlightUpdateLaunchMethod = "self-launch"
+	Winch      FlightUpdateLaunchMethod = "winch"
+)
+
 // Defines values for ImportField.
 const (
 	ImportFieldActualInstrumentTime    ImportField = "actualInstrumentTime"
@@ -639,6 +660,9 @@ type Flight struct {
 	// LandingsNight Number of night landings. Auto-calculated from sunset/sunrise at arrival airport.
 	LandingsNight int `json:"landingsNight"`
 
+	// LaunchMethod Launch method for glider/SPL flights (winch, aerotow, or self-launch)
+	LaunchMethod *FlightLaunchMethod `json:"launchMethod"`
+
 	// NightTime Night block time in hours. Auto-calculated from departure/arrival times and airport sunset/sunrise data.
 	NightTime float32 `json:"nightTime"`
 
@@ -681,6 +705,9 @@ type Flight struct {
 	UserId    openapi_types.UUID `json:"userId"`
 }
 
+// FlightLaunchMethod Launch method for glider/SPL flights (winch, aerotow, or self-launch)
+type FlightLaunchMethod string
+
 // FlightCreate defines model for FlightCreate.
 type FlightCreate struct {
 	ActualInstrumentTime *float32 `json:"actualInstrumentTime,omitempty"`
@@ -695,7 +722,7 @@ type FlightCreate struct {
 	ArrivalIcao string `json:"arrivalIcao"`
 
 	// ArrivalTime Landing time in UTC
-	ArrivalTime string `json:"arrivalTime"`
+	ArrivalTime *string `json:"arrivalTime,omitempty"`
 
 	// CrewMembers People on board this flight
 	CrewMembers *[]FlightCrewMemberInput `json:"crewMembers,omitempty"`
@@ -708,7 +735,7 @@ type FlightCreate struct {
 	DepartureIcao string `json:"departureIcao"`
 
 	// DepartureTime Takeoff time in UTC
-	DepartureTime string `json:"departureTime"`
+	DepartureTime *string `json:"departureTime,omitempty"`
 
 	// Distance Distance in nautical miles. Auto-calculated by the server.
 	Distance      *float32 `json:"distance,omitempty"`
@@ -725,7 +752,8 @@ type FlightCreate struct {
 	IsIpc              *bool    `json:"isIpc,omitempty"`
 
 	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport.
-	Landings int `json:"landings"`
+	Landings     int                       `json:"landings"`
+	LaunchMethod *FlightCreateLaunchMethod `json:"launchMethod"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC
 	OffBlockTime string `json:"offBlockTime"`
@@ -755,6 +783,9 @@ type FlightCreate struct {
 	// TotalTime Total block time calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
 	TotalTime *float32 `json:"totalTime,omitempty"`
 }
+
+// FlightCreateLaunchMethod defines model for FlightCreate.LaunchMethod.
+type FlightCreateLaunchMethod string
 
 // FlightCrewMember defines model for FlightCrewMember.
 type FlightCrewMember struct {
@@ -828,7 +859,8 @@ type FlightUpdate struct {
 	IsIpc              *bool    `json:"isIpc,omitempty"`
 
 	// Landings Total number of landings
-	Landings *int `json:"landings,omitempty"`
+	Landings     *int                      `json:"landings,omitempty"`
+	LaunchMethod *FlightUpdateLaunchMethod `json:"launchMethod"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC
 	OffBlockTime *string `json:"offBlockTime"`
@@ -850,6 +882,9 @@ type FlightUpdate struct {
 	TakeoffsNight *int     `json:"takeoffsNight,omitempty"`
 	TotalTime     *float32 `json:"totalTime,omitempty"`
 }
+
+// FlightUpdateLaunchMethod defines model for FlightUpdate.LaunchMethod.
+type FlightUpdateLaunchMethod string
 
 // ImportColumnMapping defines model for ImportColumnMapping.
 type ImportColumnMapping struct {
@@ -1298,6 +1333,12 @@ type RegisterUserJSONBody struct {
 	Password string `json:"password"`
 }
 
+// ExportFlightsPDFParams defines parameters for ExportFlightsPDF.
+type ExportFlightsPDFParams struct {
+	// LogbookLicenseId Filter flights for a specific logbook license
+	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
+}
+
 // ListFlightsParams defines parameters for ListFlights.
 type ListFlightsParams struct {
 	// StartDate Filter from this date (inclusive)
@@ -1335,6 +1376,9 @@ type ListFlightsParams struct {
 
 	// SortOrder Sort order
 	SortOrder *ListFlightsParamsSortOrder `form:"sortOrder,omitempty" json:"sortOrder,omitempty"`
+
+	// LogbookLicenseId Filter flights for a separate-logbook license. Only returns flights on aircraft whose class matches the license's class ratings.
+	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
 }
 
 // ListFlightsParamsSortBy defines parameters for ListFlights.

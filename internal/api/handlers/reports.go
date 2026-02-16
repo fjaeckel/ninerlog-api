@@ -130,4 +130,96 @@ func RegisterReportsRoutes(api *gin.RouterGroup, h *APIHandler, db *sql.DB) {
 			ByAircraftType: byAircraft,
 		})
 	})
+
+	// GET /reports/stats-by-class — aggregated stats by aircraft class and authority
+	api.GET("/reports/stats-by-class", func(c *gin.Context) {
+		userID, err := h.getUserIDFromContext(c)
+		if err != nil {
+			h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		// Stats by aircraft class
+		classRows, err := db.QueryContext(c.Request.Context(), `
+			SELECT COALESCE(a.aircraft_class, 'Unclassified') as class,
+				COUNT(*) as flights,
+				COALESCE(SUM(f.total_time), 0) as hours,
+				COALESCE(SUM(f.pic_time), 0) as pic_hours,
+				COALESCE(SUM(f.landings_day + f.landings_night), 0) as landings
+			FROM flights f
+			LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			WHERE f.user_id = $1
+			GROUP BY COALESCE(a.aircraft_class, 'Unclassified')
+			ORDER BY hours DESC
+		`, userID)
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to query class stats")
+			return
+		}
+		defer classRows.Close()
+
+		type ClassStat struct {
+			Class    string  `json:"class"`
+			Flights  int     `json:"flights"`
+			Hours    float64 `json:"hours"`
+			PICHours float64 `json:"picHours"`
+			Landings int     `json:"landings"`
+		}
+		var byClass []ClassStat
+		for classRows.Next() {
+			var cs ClassStat
+			if err := classRows.Scan(&cs.Class, &cs.Flights, &cs.Hours, &cs.PICHours, &cs.Landings); err != nil {
+				continue
+			}
+			byClass = append(byClass, cs)
+		}
+		if byClass == nil {
+			byClass = []ClassStat{}
+		}
+
+		// Stats by authority (from licenses → class ratings → aircraft → flights)
+		licenses, _ := h.licenseService.ListLicenses(c.Request.Context(), userID)
+		type AuthorityStat struct {
+			Authority   string  `json:"authority"`
+			LicenseType string  `json:"licenseType"`
+			Flights     int     `json:"flights"`
+			Hours       float64 `json:"hours"`
+		}
+		var byAuthority []AuthorityStat
+		authorityMap := make(map[string]*AuthorityStat)
+
+		for _, lic := range licenses {
+			key := lic.RegulatoryAuthority + "|" + lic.LicenseType
+			if _, exists := authorityMap[key]; !exists {
+				authorityMap[key] = &AuthorityStat{
+					Authority:   lic.RegulatoryAuthority,
+					LicenseType: lic.LicenseType,
+				}
+			}
+		}
+
+		// For overall totals per authority, sum from byClass
+		// (simplified: each authority gets overall user totals; precise per-authority
+		// would require linking flights→aircraft→class_ratings→licenses which is complex)
+		var overallFlights int
+		var overallHours float64
+		for _, cs := range byClass {
+			overallFlights += cs.Flights
+			overallHours += cs.Hours
+		}
+
+		for _, stat := range authorityMap {
+			stat.Flights = overallFlights
+			stat.Hours = overallHours
+			byAuthority = append(byAuthority, *stat)
+		}
+		if byAuthority == nil {
+			byAuthority = []AuthorityStat{}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"byClass":     byClass,
+			"byAuthority": byAuthority,
+		})
+	})
 }

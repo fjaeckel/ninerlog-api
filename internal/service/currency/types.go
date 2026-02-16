@@ -25,6 +25,7 @@ type ClassRatingCurrency struct {
 	Status              Status           `json:"status"`
 	ExpiryDate          *string          `json:"expiryDate,omitempty"`
 	Message             string           `json:"message"`
+	RuleDescription     string           `json:"ruleDescription,omitempty"`
 	Progress            *Progress        `json:"progress,omitempty"`
 	Requirements        []Requirement    `json:"requirements,omitempty"`
 }

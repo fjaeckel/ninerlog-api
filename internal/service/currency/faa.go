@@ -27,6 +27,7 @@ func (e *FAAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating,
 		LicenseID:           rating.LicenseID,
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
+		RuleDescription:     faaRuleDescription(rating.ClassType),
 	}
 
 	if rating.ExpiryDate != nil {
@@ -153,4 +154,14 @@ func plural(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+// faaRuleDescription returns a human-readable description of FAA currency rules for a class type
+func faaRuleDescription(classType models.ClassType) string {
+	switch classType {
+	case models.ClassTypeIR:
+		return "Requires 6 instrument approaches + holding procedures within preceding 6 calendar months (14 CFR 61.57(c))"
+	default:
+		return "Requires 3 takeoffs & landings in preceding 90 days in same category/class for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57)"
+	}
 }

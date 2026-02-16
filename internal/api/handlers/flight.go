@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
@@ -86,6 +87,38 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
+	}
+
+	// Logbook filtering: if logbookLicenseId is set, filter to flights on aircraft
+	// whose class matches the license's class ratings
+	if params.LogbookLicenseId != nil {
+		licenseID := uuid.UUID(*params.LogbookLicenseId)
+		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
+		if err == nil && len(classRatings) > 0 {
+			// Build set of allowed class types
+			allowedClasses := make(map[string]bool)
+			for _, cr := range classRatings {
+				allowedClasses[string(cr.ClassType)] = true
+			}
+			// Get user aircraft to build reg → class lookup
+			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+			regToClass := make(map[string]string)
+			for _, ac := range aircraftList {
+				if ac.AircraftClass != nil {
+					regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
+				}
+			}
+			// Filter flights
+			var filtered []*models.Flight
+			for _, f := range flights {
+				acClass := regToClass[strings.ToUpper(f.AircraftReg)]
+				if acClass != "" && allowedClasses[acClass] {
+					filtered = append(filtered, f)
+				}
+			}
+			flights = filtered
+			total = len(filtered)
+		}
 	}
 
 	flightList := make([]generated.Flight, 0, len(flights))
@@ -171,8 +204,8 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		ArrivalICAO:   &arrivalIcao,
 		OffBlockTime:  &offBlockTime,
 		OnBlockTime:   &onBlockTime,
-		DepartureTime: &departureTime,
-		ArrivalTime:   &arrivalTime,
+		DepartureTime: departureTime,
+		ArrivalTime:   arrivalTime,
 		TotalTime:     totalTime,
 		IsPIC:         isPic,
 		IsDual:        isDual,
@@ -226,6 +259,12 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	}
 	if req.IsFlightReview != nil {
 		flight.IsFlightReview = *req.IsFlightReview
+	}
+	if req.LaunchMethod != nil {
+		if *req.LaunchMethod != "null" {
+			lm := string(*req.LaunchMethod)
+			flight.LaunchMethod = &lm
+		}
 	}
 
 	// Parse crew members
@@ -393,6 +432,14 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.IsFlightReview != nil {
 		flight.IsFlightReview = *req.IsFlightReview
 	}
+	if req.LaunchMethod != nil {
+		if *req.LaunchMethod != "null" {
+			lm := string(*req.LaunchMethod)
+			flight.LaunchMethod = &lm
+		} else {
+			flight.LaunchMethod = nil
+		}
+	}
 	if req.CrewMembers != nil {
 		flight.CrewMembers = nil
 		for _, cm := range *req.CrewMembers {
@@ -530,6 +577,10 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	flight.ApproachesCount = ptrInt(f.ApproachesCount)
 	flight.IsIpc = ptrBool(f.IsIPC)
 	flight.IsFlightReview = ptrBool(f.IsFlightReview)
+	if f.LaunchMethod != nil {
+		lm := generated.FlightLaunchMethod(*f.LaunchMethod)
+		flight.LaunchMethod = &lm
+	}
 
 	// Crew members
 	if len(f.CrewMembers) > 0 {

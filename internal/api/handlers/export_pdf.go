@@ -4,14 +4,18 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/gin-gonic/gin"
 	"github.com/go-pdf/fpdf"
+	"github.com/google/uuid"
 )
 
 // ExportFlightsPDF implements GET /exports/pdf
-func (h *APIHandler) ExportFlightsPDF(c *gin.Context) {
+func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFlightsPDFParams) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
@@ -22,6 +26,33 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context) {
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
+	}
+
+	// Logbook filtering — if logbookLicenseId is set, filter flights to matching aircraft classes
+	if params.LogbookLicenseId != nil {
+		licenseID := uuid.UUID(*params.LogbookLicenseId)
+		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
+		if err == nil && len(classRatings) > 0 {
+			allowedClasses := make(map[string]bool)
+			for _, cr := range classRatings {
+				allowedClasses[string(cr.ClassType)] = true
+			}
+			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+			regToClass := make(map[string]string)
+			for _, ac := range aircraftList {
+				if ac.AircraftClass != nil {
+					regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
+				}
+			}
+			var filtered []*models.Flight
+			for _, f := range flights {
+				acClass := regToClass[strings.ToUpper(f.AircraftReg)]
+				if acClass != "" && allowedClasses[acClass] {
+					filtered = append(filtered, f)
+				}
+			}
+			flights = filtered
+		}
 	}
 
 	// Sort flights by date ascending (oldest first, like a physical logbook)

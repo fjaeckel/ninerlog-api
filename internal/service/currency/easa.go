@@ -27,6 +27,7 @@ func (e *EASAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating
 		LicenseID:           rating.LicenseID,
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
+		RuleDescription:     easaRuleDescription(rating.ClassType),
 	}
 
 	if rating.ExpiryDate != nil {
@@ -240,4 +241,18 @@ func (e *EASAEvaluator) evaluateExpiryOnly(rating *models.ClassRating, result Cl
 	}
 
 	return result
+}
+
+// easaRuleDescription returns a human-readable description of EASA currency rules for a class type
+func easaRuleDescription(classType models.ClassType) string {
+	switch classType {
+	case models.ClassTypeSEPLand, models.ClassTypeSEPSea, models.ClassTypeTMG:
+		return "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within 24 months before expiry (EASA FCL.740.A)"
+	case models.ClassTypeMEPLand, models.ClassTypeMEPSea, models.ClassTypeSETLand, models.ClassTypeSETSea:
+		return "Requires proficiency check, or 10 route sectors + 1h refresher training with instructor in the last 3 months of validity (EASA FCL.740.A)"
+	case models.ClassTypeIR:
+		return "Requires 10h IFR flight time within 12 months before expiry, plus annual proficiency check (EASA FCL.625.A)"
+	default:
+		return "EASA class rating — currency tracked by expiry date"
+	}
 }

@@ -27,6 +27,7 @@ func (e *OtherEvaluator) Evaluate(ctx context.Context, rating *models.ClassRatin
 		LicenseID:           rating.LicenseID,
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
+		RuleDescription:     "No auto-calculated rules — currency tracked by class rating expiry date only",
 		Progress:            nil,
 	}
 

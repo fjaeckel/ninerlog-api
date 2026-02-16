@@ -85,7 +85,7 @@ type ServerInterface interface {
 	ExportDataJSON(c *gin.Context)
 	// Export flights as EASA-style PDF logbook
 	// (GET /exports/pdf)
-	ExportFlightsPDF(c *gin.Context)
+	ExportFlightsPDF(c *gin.Context, params ExportFlightsPDFParams)
 	// List flights
 	// (GET /flights)
 	ListFlights(c *gin.Context, params ListFlightsParams)
@@ -647,7 +647,20 @@ func (siw *ServerInterfaceWrapper) ExportDataJSON(c *gin.Context) {
 // ExportFlightsPDF operation middleware
 func (siw *ServerInterfaceWrapper) ExportFlightsPDF(c *gin.Context) {
 
+	var err error
+
 	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportFlightsPDFParams
+
+	// ------------- Optional query parameter "logbookLicenseId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "logbookLicenseId", c.Request.URL.Query(), &params.LogbookLicenseId)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter logbookLicenseId: %w", err), http.StatusBadRequest)
+		return
+	}
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -656,7 +669,7 @@ func (siw *ServerInterfaceWrapper) ExportFlightsPDF(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ExportFlightsPDF(c)
+	siw.Handler.ExportFlightsPDF(c, params)
 }
 
 // ListFlights operation middleware
@@ -762,6 +775,14 @@ func (siw *ServerInterfaceWrapper) ListFlights(c *gin.Context) {
 	err = runtime.BindQueryParameter("form", true, false, "sortOrder", c.Request.URL.Query(), &params.SortOrder)
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sortOrder: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "logbookLicenseId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "logbookLicenseId", c.Request.URL.Query(), &params.LogbookLicenseId)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter logbookLicenseId: %w", err), http.StatusBadRequest)
 		return
 	}
 

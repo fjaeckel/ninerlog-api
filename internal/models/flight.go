@@ -74,6 +74,9 @@ type Flight struct {
 	IsIPC                   bool    `json:"isIpc"`
 	IsFlightReview          bool    `json:"isFlightReview"`
 
+	// SPL / Glider
+	LaunchMethod *string `json:"launchMethod,omitempty"` // winch, aerotow, self-launch
+
 	// Crew members on board (populated from flight_crew_members table)
 	CrewMembers []FlightCrewMember `json:"crewMembers,omitempty"`
 

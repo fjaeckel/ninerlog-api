@@ -547,11 +547,11 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		if onBlock != "" {
 			newFlight.OnBlockTime = &onBlock
 		}
-		if depTime != "" {
-			newFlight.DepartureTime = &depTime
+		if depTime != nil && *depTime != "" {
+			newFlight.DepartureTime = depTime
 		}
-		if arrTime != "" {
-			newFlight.ArrivalTime = &arrTime
+		if arrTime != nil && *arrTime != "" {
+			newFlight.ArrivalTime = arrTime
 		}
 		if flight.Remarks != nil {
 			newFlight.Remarks = flight.Remarks
@@ -775,9 +775,11 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "onBlockTime":
 			flight.OnBlockTime = normalizeTime(val)
 		case "departureTime":
-			flight.DepartureTime = normalizeTime(val)
+			s := normalizeTime(val)
+			flight.DepartureTime = &s
 		case "arrivalTime":
-			flight.ArrivalTime = normalizeTime(val)
+			s := normalizeTime(val)
+			flight.ArrivalTime = &s
 		case "totalTime":
 			f, err := strconv.ParseFloat(val, 32)
 			if err == nil {
