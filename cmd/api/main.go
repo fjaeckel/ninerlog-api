@@ -22,6 +22,9 @@ import (
 	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	migratepg "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 )
 
@@ -66,6 +69,27 @@ func main() {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 	log.Println("✅ Database connected")
+
+	// Run database migrations
+	migrationsPath := os.Getenv("MIGRATIONS_PATH")
+	if migrationsPath == "" {
+		migrationsPath = "db/migrations"
+	}
+	log.Printf("📦 Running database migrations from %s...", migrationsPath)
+	driver, err := migratepg.WithInstance(db, &migratepg.Config{})
+	if err != nil {
+		log.Fatalf("Failed to create migration driver: %v", err)
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		fmt.Sprintf("file://%s", migrationsPath),
+		"postgres", driver)
+	if err != nil {
+		log.Fatalf("Failed to initialize migrations: %v", err)
+	}
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+	log.Println("✅ Database migrations applied")
 
 	// Load airport database from OurAirports (async-safe, cached)
 	airports.Init()
