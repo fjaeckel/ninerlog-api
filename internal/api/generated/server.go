@@ -77,6 +77,15 @@ type ServerInterface interface {
 	// Get currency status for all class ratings
 	// (GET /currency)
 	GetAllCurrencyStatus(c *gin.Context)
+	// Export flights as CSV
+	// (GET /exports/csv)
+	ExportFlightsCSV(c *gin.Context)
+	// Export full data backup as JSON
+	// (GET /exports/json)
+	ExportDataJSON(c *gin.Context)
+	// Export flights as EASA-style PDF logbook
+	// (GET /exports/pdf)
+	ExportFlightsPDF(c *gin.Context)
 	// List flights
 	// (GET /flights)
 	ListFlights(c *gin.Context, params ListFlightsParams)
@@ -603,6 +612,51 @@ func (siw *ServerInterfaceWrapper) GetAllCurrencyStatus(c *gin.Context) {
 	}
 
 	siw.Handler.GetAllCurrencyStatus(c)
+}
+
+// ExportFlightsCSV operation middleware
+func (siw *ServerInterfaceWrapper) ExportFlightsCSV(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportFlightsCSV(c)
+}
+
+// ExportDataJSON operation middleware
+func (siw *ServerInterfaceWrapper) ExportDataJSON(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportDataJSON(c)
+}
+
+// ExportFlightsPDF operation middleware
+func (siw *ServerInterfaceWrapper) ExportFlightsPDF(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportFlightsPDF(c)
 }
 
 // ListFlights operation middleware
@@ -1375,6 +1429,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/credentials/:credentialId", wrapper.GetCredential)
 	router.PATCH(options.BaseURL+"/credentials/:credentialId", wrapper.UpdateCredential)
 	router.GET(options.BaseURL+"/currency", wrapper.GetAllCurrencyStatus)
+	router.GET(options.BaseURL+"/exports/csv", wrapper.ExportFlightsCSV)
+	router.GET(options.BaseURL+"/exports/json", wrapper.ExportDataJSON)
+	router.GET(options.BaseURL+"/exports/pdf", wrapper.ExportFlightsPDF)
 	router.GET(options.BaseURL+"/flights", wrapper.ListFlights)
 	router.POST(options.BaseURL+"/flights", wrapper.CreateFlight)
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)

@@ -63,24 +63,31 @@ const (
 
 // Defines values for ImportField.
 const (
-	ImportFieldAircraftReg   ImportField = "aircraftReg"
-	ImportFieldAircraftType  ImportField = "aircraftType"
-	ImportFieldArrivalIcao   ImportField = "arrivalIcao"
-	ImportFieldArrivalTime   ImportField = "arrivalTime"
-	ImportFieldDate          ImportField = "date"
-	ImportFieldDepartureIcao ImportField = "departureIcao"
-	ImportFieldDepartureTime ImportField = "departureTime"
-	ImportFieldIfrTime       ImportField = "ifrTime"
-	ImportFieldIgnore        ImportField = "ignore"
-	ImportFieldIsDual        ImportField = "isDual"
-	ImportFieldIsPic         ImportField = "isPic"
-	ImportFieldLandingsDay   ImportField = "landingsDay"
-	ImportFieldLandingsNight ImportField = "landingsNight"
-	ImportFieldNightTime     ImportField = "nightTime"
-	ImportFieldOffBlockTime  ImportField = "offBlockTime"
-	ImportFieldOnBlockTime   ImportField = "onBlockTime"
-	ImportFieldRemarks       ImportField = "remarks"
-	ImportFieldTotalTime     ImportField = "totalTime"
+	ImportFieldActualInstrumentTime    ImportField = "actualInstrumentTime"
+	ImportFieldAircraftReg             ImportField = "aircraftReg"
+	ImportFieldAircraftType            ImportField = "aircraftType"
+	ImportFieldApproachesCount         ImportField = "approachesCount"
+	ImportFieldArrivalIcao             ImportField = "arrivalIcao"
+	ImportFieldArrivalTime             ImportField = "arrivalTime"
+	ImportFieldDate                    ImportField = "date"
+	ImportFieldDepartureIcao           ImportField = "departureIcao"
+	ImportFieldDepartureTime           ImportField = "departureTime"
+	ImportFieldHolds                   ImportField = "holds"
+	ImportFieldIfrTime                 ImportField = "ifrTime"
+	ImportFieldIgnore                  ImportField = "ignore"
+	ImportFieldIsDual                  ImportField = "isDual"
+	ImportFieldIsFlightReview          ImportField = "isFlightReview"
+	ImportFieldIsIpc                   ImportField = "isIpc"
+	ImportFieldIsPic                   ImportField = "isPic"
+	ImportFieldLandingsDay             ImportField = "landingsDay"
+	ImportFieldLandingsNight           ImportField = "landingsNight"
+	ImportFieldNightTime               ImportField = "nightTime"
+	ImportFieldOffBlockTime            ImportField = "offBlockTime"
+	ImportFieldOnBlockTime             ImportField = "onBlockTime"
+	ImportFieldRemarks                 ImportField = "remarks"
+	ImportFieldRoute                   ImportField = "route"
+	ImportFieldSimulatedInstrumentTime ImportField = "simulatedInstrumentTime"
+	ImportFieldTotalTime               ImportField = "totalTime"
 )
 
 // Defines values for ImportFormat.
@@ -305,10 +312,15 @@ type ClassRatingCurrency struct {
 
 	// Progress Progress metrics toward currency requirements (authority-specific)
 	Progress *struct {
+		// Approaches Number of instrument approaches in the evaluation period
+		Approaches  *int `json:"approaches,omitempty"`
 		DayLandings *int `json:"dayLandings,omitempty"`
 
 		// Flights Number of flights in class in the evaluation period
 		Flights *int `json:"flights,omitempty"`
+
+		// Holds Number of holding procedures in the evaluation period
+		Holds *int `json:"holds,omitempty"`
 
 		// IfrHours IFR hours in the evaluation period
 		IfrHours *float32 `json:"ifrHours,omitempty"`

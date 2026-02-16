@@ -18,6 +18,7 @@ import (
 
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/fjaeckel/pilotlog-api/internal/service/flightcalc"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -30,6 +31,7 @@ type uploadSession struct {
 	format    generated.ImportFormat
 	columns   []string
 	rows      []map[string]string
+	aircraft  []map[string]string // ForeFlight Aircraft Table rows
 	createdAt time.Time
 }
 
@@ -59,14 +61,14 @@ func cleanupOldSessions() {
 var foreflightColumns = []string{
 	"Date", "AircraftID", "From", "To", "Route", "TimeOut", "TimeOff", "TimeOn", "TimeIn",
 	"OnDuty", "OffDuty", "TotalTime", "PIC", "SIC", "Night", "Solo", "CrossCountry",
-	"NVG", "NVGOps", "Distance", "DayTakeoffs", "DayLandingsFullStop", "NightTakeoffs",
+	"NVG", "NVG Ops", "Distance", "DayTakeoffs", "DayLandingsFullStop", "NightTakeoffs",
 	"NightLandingsFullStop", "AllLandings", "ActualInstrument", "SimulatedInstrument",
 	"HobbsStart", "HobbsEnd", "TachStart", "TachEnd", "Holds", "Approach1", "Approach2",
 	"Approach3", "Approach4", "Approach5", "Approach6", "DualGiven", "DualReceived",
 	"SimulatedFlight", "GroundTraining", "InstructorName", "InstructorComments",
 	"Person1", "Person2", "Person3", "Person4", "Person5", "Person6",
-	"FlightReview", "Checkride", "IPC", "NVGProficiency", "FAA6158",
-	"[Text]CustomFieldName", "PilotComments",
+	"FlightReview", "Checkride", "IPC", "NVG Proficiency", "FAA6158",
+	"PilotComments",
 }
 
 func isForeFlight(headers []string) bool {
@@ -92,6 +94,7 @@ func suggestForeFlight() []generated.ImportColumnMapping {
 		"AircraftID":            "aircraftReg",
 		"From":                  "departureIcao",
 		"To":                    "arrivalIcao",
+		"Route":                 "route",
 		"TimeOut":               "offBlockTime",
 		"TimeIn":                "onBlockTime",
 		"TimeOff":               "departureTime",
@@ -100,9 +103,13 @@ func suggestForeFlight() []generated.ImportColumnMapping {
 		"PIC":                   "isPic",
 		"Night":                 "nightTime",
 		"DualReceived":          "isDual",
-		"ActualInstrument":      "ifrTime",
+		"ActualInstrument":      "actualInstrumentTime",
+		"SimulatedInstrument":   "simulatedInstrumentTime",
 		"DayLandingsFullStop":   "landingsDay",
 		"NightLandingsFullStop": "landingsNight",
+		"Holds":                 "holds",
+		"FlightReview":          "isFlightReview",
+		"IPC":                   "isIpc",
 		"PilotComments":         "remarks",
 	}
 
@@ -191,11 +198,12 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 	fileName := header.Filename
 	var columns []string
 	var rows []map[string]string
+	var aircraftData []map[string]string
 	var format generated.ImportFormat
 
 	lower := strings.ToLower(fileName)
 	if strings.HasSuffix(lower, ".csv") || strings.HasSuffix(lower, ".txt") {
-		columns, rows, err = parseCSV(data)
+		columns, rows, aircraftData, err = parseCSV(data)
 		if err != nil {
 			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to parse CSV: %v", err))
 			return
@@ -218,6 +226,7 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 		format:    format,
 		columns:   columns,
 		rows:      rows,
+		aircraft:  aircraftData,
 		createdAt: time.Now(),
 	}
 	sessionMu.Unlock()
@@ -394,6 +403,63 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 	}
 
+	// Auto-create aircraft from ForeFlight Aircraft Table if present
+	if len(session.aircraft) > 0 {
+		existingAircraft, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+		existingRegs := make(map[string]bool)
+		for _, a := range existingAircraft {
+			existingRegs[strings.ToUpper(a.Registration)] = true
+		}
+		for _, acRow := range session.aircraft {
+			reg := strings.ToUpper(strings.TrimSpace(acRow["AircraftID"]))
+			if reg == "" || existingRegs[reg] {
+				continue
+			}
+			typeCode := strings.ToUpper(strings.TrimSpace(acRow["TypeCode"]))
+			make_ := strings.TrimSpace(acRow["Make"])
+			model_ := strings.TrimSpace(acRow["Model"])
+			if typeCode == "" {
+				typeCode = reg
+			}
+			if make_ == "" {
+				make_ = typeCode
+			}
+			if model_ == "" {
+				model_ = typeCode
+			}
+
+			// Map ForeFlight class to aircraft class
+			var aircraftClass *string
+			ffClass := strings.ToLower(strings.TrimSpace(acRow["Class"]))
+			switch ffClass {
+			case "airplane_single_engine_land":
+				c := "SEP_LAND"
+				aircraftClass = &c
+			case "airplane_single_engine_sea":
+				c := "SEP_SEA"
+				aircraftClass = &c
+			case "airplane_multi_engine_land":
+				c := "MEP_LAND"
+				aircraftClass = &c
+			case "airplane_multi_engine_sea":
+				c := "MEP_SEA"
+				aircraftClass = &c
+			}
+
+			newAircraft := &models.Aircraft{
+				UserID:        userID,
+				Registration:  reg,
+				Type:          typeCode,
+				Make:          make_,
+				Model:         model_,
+				IsActive:      true,
+				AircraftClass: aircraftClass,
+			}
+			_ = h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft)
+			existingRegs[reg] = true
+		}
+	}
+
 	var importedIDs []openapi_types.UUID
 	var importErrors []struct {
 		Field    string  `json:"field"`
@@ -448,15 +514,32 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		arrTime := flight.ArrivalTime
 
 		newFlight := models.Flight{
-			UserID:        userID,
-			Date:          flightDate,
-			AircraftReg:   flight.AircraftReg,
-			AircraftType:  flight.AircraftType,
-			DepartureICAO: &flight.DepartureIcao,
-			ArrivalICAO:   &flight.ArrivalIcao,
-			TotalTime:     totalTime,
-			IFRTime:       float64(getFloat32OrDefault(flight.IfrTime, 0)),
-			AllLandings:   flight.Landings,
+			UserID:                  userID,
+			Date:                    flightDate,
+			AircraftReg:             flight.AircraftReg,
+			AircraftType:            flight.AircraftType,
+			DepartureICAO:           &flight.DepartureIcao,
+			ArrivalICAO:             &flight.ArrivalIcao,
+			TotalTime:               totalTime,
+			IFRTime:                 float64(getFloat32OrDefault(flight.IfrTime, 0)),
+			AllLandings:             flight.Landings,
+			ActualInstrumentTime:    float64(getFloat32OrDefault(flight.ActualInstrumentTime, 0)),
+			SimulatedInstrumentTime: float64(getFloat32OrDefault(flight.SimulatedInstrumentTime, 0)),
+		}
+		if flight.Holds != nil {
+			newFlight.Holds = *flight.Holds
+		}
+		if flight.ApproachesCount != nil {
+			newFlight.ApproachesCount = *flight.ApproachesCount
+		}
+		if flight.IsIpc != nil {
+			newFlight.IsIPC = *flight.IsIpc
+		}
+		if flight.IsFlightReview != nil {
+			newFlight.IsFlightReview = *flight.IsFlightReview
+		}
+		if flight.Route != nil {
+			newFlight.Route = flight.Route
 		}
 		if offBlock != "" {
 			newFlight.OffBlockTime = &offBlock
@@ -473,6 +556,9 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		if flight.Remarks != nil {
 			newFlight.Remarks = flight.Remarks
 		}
+
+		// Apply auto-calculations (solo, cross-country, distance, night, landing split, PIC/Dual)
+		flightcalc.ApplyAutoCalculations(&newFlight)
 
 		if err := h.flightService.CreateFlight(c.Request.Context(), &newFlight); err != nil {
 			msg := err.Error()
@@ -710,6 +796,32 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				f32 := float32(f)
 				flight.IfrTime = &f32
 			}
+		case "actualInstrumentTime":
+			f, err := strconv.ParseFloat(val, 32)
+			if err == nil {
+				f32 := float32(f)
+				flight.ActualInstrumentTime = &f32
+			}
+		case "simulatedInstrumentTime":
+			f, err := strconv.ParseFloat(val, 32)
+			if err == nil {
+				f32 := float32(f)
+				flight.SimulatedInstrumentTime = &f32
+			}
+		case "holds":
+			n, _ := strconv.Atoi(val)
+			flight.Holds = &n
+		case "approachesCount":
+			n, _ := strconv.Atoi(val)
+			flight.ApproachesCount = &n
+		case "isIpc":
+			b := parseBoolish(val, nil)
+			flight.IsIpc = &b
+		case "isFlightReview":
+			b := parseBoolish(val, nil)
+			flight.IsFlightReview = &b
+		case "route":
+			flight.Route = &val
 		case "landingsDay":
 			n, _ := strconv.Atoi(val)
 			flight.Landings += n
@@ -743,6 +855,33 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		errs = append(errs, fieldError{"arrivalIcao", "Arrival ICAO is required"})
 	}
 
+	// ForeFlight: count approaches from Approach1-6 columns
+	if flight.ApproachesCount == nil || *flight.ApproachesCount == 0 {
+		approachCount := 0
+		for _, key := range []string{"Approach1", "Approach2", "Approach3", "Approach4", "Approach5", "Approach6"} {
+			if v := strings.TrimSpace(row[key]); v != "" {
+				approachCount++
+			}
+		}
+		if approachCount > 0 {
+			flight.ApproachesCount = &approachCount
+		}
+	}
+
+	// ForeFlight: auto-calculate IFR time from actual + simulated instrument if not explicitly set
+	if flight.IfrTime == nil || *flight.IfrTime == 0 {
+		var ifrTotal float32
+		if flight.ActualInstrumentTime != nil {
+			ifrTotal += *flight.ActualInstrumentTime
+		}
+		if flight.SimulatedInstrumentTime != nil {
+			ifrTotal += *flight.SimulatedInstrumentTime
+		}
+		if ifrTotal > 0 {
+			flight.IfrTime = &ifrTotal
+		}
+	}
+
 	return flight, errs
 }
 
@@ -774,30 +913,56 @@ func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *op
 	return nil
 }
 
-func parseCSV(data []byte) ([]string, []map[string]string, error) {
+func parseCSV(data []byte) ([]string, []map[string]string, []map[string]string, error) {
 	// ForeFlight exports have metadata preamble sections:
 	// "ForeFlight Logbook Import", "Aircraft Table", "Flights Table"
-	// We need to find the "Flights Table" section and parse from there.
+	// We need to find both sections and parse them.
 	content := string(data)
 	lines := strings.Split(content, "\n")
 
-	// Detect if this is a ForeFlight preamble file
+	// Find section markers
+	aircraftTableIdx := -1
 	flightsTableIdx := -1
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Aircraft Table") {
+			aircraftTableIdx = i
+		}
 		if strings.HasPrefix(trimmed, "Flights Table") {
 			flightsTableIdx = i
-			break
+		}
+	}
+
+	// Parse Aircraft Table if present
+	var aircraftRows []map[string]string
+	if aircraftTableIdx >= 0 {
+		endIdx := flightsTableIdx
+		if endIdx < 0 {
+			endIdx = len(lines)
+		}
+		if aircraftTableIdx+1 < endIdx {
+			acData := []byte(strings.Join(lines[aircraftTableIdx+1:endIdx], "\n"))
+			_, acRows, _ := parseSectionCSV(acData)
+			aircraftRows = acRows
 		}
 	}
 
 	var csvData []byte
 	if flightsTableIdx >= 0 && flightsTableIdx+1 < len(lines) {
-		// Skip to the line after "Flights Table" (which is the header)
 		csvData = []byte(strings.Join(lines[flightsTableIdx+1:], "\n"))
 	} else {
 		csvData = data
 	}
+
+	headers, rows, err := parseSectionCSV(csvData)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return headers, rows, aircraftRows, nil
+}
+
+func parseSectionCSV(csvData []byte) ([]string, []map[string]string, error) {
 
 	// Detect delimiter by trying each
 	delimiters := []rune{';', ',', '\t'}

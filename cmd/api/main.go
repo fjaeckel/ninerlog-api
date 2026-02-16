@@ -140,6 +140,9 @@ func main() {
 	// Register contact routes
 	handlers.RegisterContactRoutes(api, apiHandler)
 
+	// Register flight utility routes
+	handlers.RegisterFlightUtilRoutes(api, apiHandler)
+
 	log.Println("✅ Routes registered from OpenAPI specification")
 
 	// Start background notification checker (runs every hour)
