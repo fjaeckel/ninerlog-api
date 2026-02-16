@@ -205,7 +205,7 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 	if strings.HasSuffix(lower, ".csv") || strings.HasSuffix(lower, ".txt") {
 		columns, rows, aircraftData, err = parseCSV(data)
 		if err != nil {
-			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to parse CSV: %v", err))
+			h.sendError(c, http.StatusBadRequest, "Failed to parse CSV file")
 			return
 		}
 		if isForeFlight(columns) {
@@ -561,13 +561,12 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		flightcalc.ApplyAutoCalculations(&newFlight)
 
 		if err := h.flightService.CreateFlight(c.Request.Context(), &newFlight); err != nil {
-			msg := err.Error()
 			importErrors = append(importErrors, struct {
 				Field    string  `json:"field"`
 				Message  string  `json:"message"`
 				RawValue *string `json:"rawValue,omitempty"`
 				RowIndex int     `json:"rowIndex"`
-			}{Field: "flight", Message: msg, RowIndex: rowIdx})
+			}{Field: "flight", Message: "Failed to import flight", RowIndex: rowIdx})
 			errored++
 			continue
 		}

@@ -58,6 +58,14 @@ func NewAPIHandler(
 
 // getUserIDFromContext extracts and validates user ID from authenticated context
 func (h *APIHandler) getUserIDFromContext(c *gin.Context) (uuid.UUID, error) {
+	// First check if the auth middleware already set the user ID
+	if userID, exists := c.Get("userID"); exists {
+		if id, ok := userID.(uuid.UUID); ok {
+			return id, nil
+		}
+	}
+
+	// Fallback: parse from Authorization header directly (for routes not covered by middleware)
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" || len(authHeader) < 8 {
 		return uuid.Nil, jwt.ErrInvalidToken

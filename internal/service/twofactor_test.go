@@ -61,6 +61,18 @@ func (m *mock2FAUserRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *mock2FAUserRepo) IncrementFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *mock2FAUserRepo) ResetFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *mock2FAUserRepo) LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error {
+	return nil
+}
+
 func setup2FAService() (*service.TwoFactorService, *mock2FAUserRepo) {
 	repo := newMock2FAUserRepo()
 	jwtMgr := jwt.NewManager("test-access-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)

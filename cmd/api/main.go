@@ -15,6 +15,7 @@ import (
 	"github.com/fjaeckel/pilotlog-api/internal/airports"
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
 	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
+	"github.com/fjaeckel/pilotlog-api/internal/api/middleware"
 	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/fjaeckel/pilotlog-api/internal/service/currency"
@@ -138,6 +139,12 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
+	// Trust proxy headers (X-Real-IP, X-Forwarded-For) from nginx
+	// so that c.ClientIP() returns the real client IP, not the proxy's address.
+	router.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"})
+	router.ForwardedByClientIP = true
+	router.RemoteIPHeaders = []string{"X-Real-IP", "X-Forwarded-For"}
+
 	// CORS
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     corsOrigins,
@@ -148,15 +155,50 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// Security headers on all responses
+	router.Use(middleware.SecurityHeadersMiddleware())
+
+	// Request body size limit for multipart uploads (10 MB)
+	router.MaxMultipartMemory = 10 << 20
+
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	// Rate limiting for auth endpoints: 10 requests per minute per IP
+	authRateLimit := middleware.NewRateLimitMiddleware(10, 1*time.Minute)
+
 	// Register OpenAPI-generated routes
 	// This automatically maps all routes to the correct handlers with proper parameter extraction
 	api := router.Group("/api/v1")
-	generated.RegisterHandlers(api, apiHandler)
+
+	// Centralized auth middleware — all routes require auth except explicit public paths
+	api.Use(middleware.AuthMiddleware(jwtManager, []string{
+		"/auth/register",
+		"/auth/login",
+		"/auth/refresh",
+		"/auth/2fa/login",
+		"/airports/search",
+		"/airports/:icaoCode",
+	}))
+
+	// Apply rate limiter to sensitive auth endpoints via path-matching middleware
+	api.Use(middleware.RateLimitByPath(authRateLimit,
+		"/auth/register",
+		"/auth/login",
+		"/auth/refresh",
+		"/auth/2fa/login",
+		"/auth/password-reset-request",
+		"/auth/password-reset",
+	))
+
+	generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{
+		ErrorHandler: func(c *gin.Context, err error, statusCode int) {
+			// Sanitize generated wrapper errors — never expose raw error messages
+			c.JSON(statusCode, gin.H{"error": "Invalid request parameters"})
+		},
+	})
 
 	// Register custom reports routes (not in OpenAPI spec)
 	handlers.RegisterReportsRoutes(api, apiHandler, db)
@@ -174,10 +216,15 @@ func main() {
 	defer notifCancel()
 	notificationService.StartBackgroundChecker(notifCtx, 1*time.Hour)
 
-	// Start server
+	// Start server with timeouts to prevent slow-loris and resource exhaustion
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%s", port),
-		Handler: router,
+		Addr:              fmt.Sprintf(":%s", port),
+		Handler:           router,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	go func() {

@@ -82,7 +82,7 @@ func (h *APIHandler) CreateClassRating(c *gin.Context, licenseId generated.Licen
 
 	if err := h.classRatingService.CreateClassRating(c.Request.Context(), cr, userID); err != nil {
 		if errors.Is(err, service.ErrInvalidClassType) {
-			h.sendError(c, http.StatusBadRequest, err.Error())
+			h.sendError(c, http.StatusBadRequest, "Invalid class type")
 			return
 		}
 		if errors.Is(err, service.ErrLicenseNotFound) || errors.Is(err, service.ErrUnauthorizedAccess) {
@@ -143,7 +143,7 @@ func (h *APIHandler) UpdateClassRating(c *gin.Context, licenseId generated.Licen
 			h.sendError(c, http.StatusNotFound, "Class rating not found")
 			return
 		}
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to update class rating")
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/repository"
@@ -48,7 +49,8 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes, created_at, updated_at
+		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes,
+		       failed_login_attempts, locked_until, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -62,6 +64,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.TwoFactorEnabled,
 		&user.TwoFactorSecret,
 		&user.RecoveryCodes,
+		&user.FailedLoginAttempts,
+		&user.LockedUntil,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -78,7 +82,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes, created_at, updated_at
+		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes,
+		       failed_login_attempts, locked_until, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -92,6 +97,8 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.TwoFactorEnabled,
 		&user.TwoFactorSecret,
 		&user.RecoveryCodes,
+		&user.FailedLoginAttempts,
+		&user.LockedUntil,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -159,4 +166,34 @@ func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (r *UserRepository) IncrementFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	query := `
+		UPDATE users
+		SET failed_login_attempts = failed_login_attempts + 1, updated_at = $1
+		WHERE id = $2
+	`
+	_, err := r.db.ExecContext(ctx, query, time.Now(), id)
+	return err
+}
+
+func (r *UserRepository) ResetFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	query := `
+		UPDATE users
+		SET failed_login_attempts = 0, locked_until = NULL, updated_at = $1
+		WHERE id = $2
+	`
+	_, err := r.db.ExecContext(ctx, query, time.Now(), id)
+	return err
+}
+
+func (r *UserRepository) LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error {
+	query := `
+		UPDATE users
+		SET locked_until = $1, updated_at = $2
+		WHERE id = $3
+	`
+	_, err := r.db.ExecContext(ctx, query, until, time.Now(), id)
+	return err
 }

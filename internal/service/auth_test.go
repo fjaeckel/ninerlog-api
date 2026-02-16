@@ -72,6 +72,18 @@ func (m *mockUserRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return repository.ErrNotFound
 }
 
+func (m *mockUserRepo) IncrementFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *mockUserRepo) ResetFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *mockUserRepo) LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error {
+	return nil
+}
+
 type mockRefreshTokenRepo struct {
 	tokens map[string]*models.RefreshToken
 }

@@ -21,6 +21,12 @@ var (
 	ErrTokenExpired       = errors.New("token expired")
 	ErrTokenRevoked       = errors.New("token revoked")
 	ErrTokenUsed          = errors.New("token already used")
+	ErrAccountLocked      = errors.New("account temporarily locked due to too many failed login attempts")
+)
+
+const (
+	maxFailedLoginAttempts = 5
+	accountLockDuration    = 15 * time.Minute
 )
 
 type AuthService struct {
@@ -114,16 +120,33 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 		return nil, nil, err
 	}
 
+	// Check if account is locked
+	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
+		return nil, nil, ErrAccountLocked
+	}
+
 	// Verify password
 	if err := hash.ComparePassword(user.PasswordHash, input.Password); err != nil {
+		// Increment failed attempts
+		_ = s.userRepo.IncrementFailedLoginAttempts(ctx, user.ID)
+
+		// Lock account after maxFailedLoginAttempts consecutive failures
+		if user.FailedLoginAttempts+1 >= maxFailedLoginAttempts {
+			_ = s.userRepo.LockAccount(ctx, user.ID, time.Now().Add(accountLockDuration))
+		}
+
 		return nil, nil, ErrInvalidCredentials
+	}
+
+	// Successful login — reset failed attempts
+	if user.FailedLoginAttempts > 0 {
+		_ = s.userRepo.ResetFailedLoginAttempts(ctx, user.ID)
 	}
 
 	// Delete all existing refresh tokens for this user to avoid constraint violations
 	// This ensures only one active session per user
 	if err := s.refreshTokenRepo.DeleteForUser(ctx, user.ID); err != nil {
 		// Log error but don't fail the login
-		// In production, you might want to handle this differently
 	}
 
 	// Generate tokens
@@ -162,6 +185,11 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 
 	if storedToken.ExpiresAt.Before(time.Now()) {
 		return nil, ErrTokenExpired
+	}
+
+	// Revoke the old refresh token (rotation: old token becomes invalid immediately)
+	if err := s.refreshTokenRepo.RevokeByTokenHash(ctx, tokenHash); err != nil {
+		return nil, err
 	}
 
 	// Generate new tokens

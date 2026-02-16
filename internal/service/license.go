@@ -31,6 +31,9 @@ func (s *LicenseService) CreateLicense(ctx context.Context, license *models.Lice
 	if !license.IsValid() {
 		return ErrInvalidLicense
 	}
+	if err := models.ValidateLicenseTextFields(license); err != nil {
+		return err
+	}
 
 	return s.licenseRepo.Create(ctx, license)
 }
@@ -79,6 +82,10 @@ func (s *LicenseService) UpdateLicense(ctx context.Context, license *models.Lice
 	existing.LicenseNumber = license.LicenseNumber
 	existing.IssuingAuthority = license.IssuingAuthority
 	existing.RequiresSeparateLogbook = license.RequiresSeparateLogbook
+
+	if err := models.ValidateLicenseTextFields(existing); err != nil {
+		return err
+	}
 
 	return s.licenseRepo.Update(ctx, existing)
 }

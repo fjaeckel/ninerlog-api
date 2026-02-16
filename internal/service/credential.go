@@ -23,6 +23,9 @@ func NewCredentialService(credentialRepo repository.CredentialRepository) *Crede
 }
 
 func (s *CredentialService) CreateCredential(ctx context.Context, credential *models.Credential) error {
+	if err := models.ValidateCredentialTextFields(credential); err != nil {
+		return err
+	}
 	return s.credentialRepo.Create(ctx, credential)
 }
 
@@ -54,6 +57,9 @@ func (s *CredentialService) UpdateCredential(ctx context.Context, credential *mo
 	}
 	if existing.UserID != userID {
 		return ErrUnauthorizedCredential
+	}
+	if err := models.ValidateCredentialTextFields(credential); err != nil {
+		return err
 	}
 	return s.credentialRepo.Update(ctx, credential)
 }

@@ -78,7 +78,7 @@ func (h *APIHandler) CreateCredential(c *gin.Context) {
 	}
 
 	if err := h.credentialService.CreateCredential(c.Request.Context(), credential); err != nil {
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to create credential")
 		return
 	}
 
@@ -160,7 +160,7 @@ func (h *APIHandler) UpdateCredential(c *gin.Context, credentialId generated.Cre
 	}
 
 	if err := h.credentialService.UpdateCredential(c.Request.Context(), credential, userID); err != nil {
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to update credential")
 		return
 	}
 

@@ -27,6 +27,9 @@ func (s *AircraftService) CreateAircraft(ctx context.Context, aircraft *models.A
 	if err := aircraft.Validate(); err != nil {
 		return err
 	}
+	if err := models.ValidateAircraftTextFields(aircraft); err != nil {
+		return err
+	}
 	err := s.aircraftRepo.Create(ctx, aircraft)
 	if errors.Is(err, repository.ErrDuplicateRegistration) {
 		return ErrDuplicateRegistration
@@ -64,6 +67,9 @@ func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.A
 		return ErrUnauthorizedAircraft
 	}
 	if err := aircraft.Validate(); err != nil {
+		return err
+	}
+	if err := models.ValidateAircraftTextFields(aircraft); err != nil {
 		return err
 	}
 	err = s.aircraftRepo.Update(ctx, aircraft)

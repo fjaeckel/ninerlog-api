@@ -57,7 +57,7 @@ func (h *APIHandler) Verify2FA(c *gin.Context) {
 			h.sendError(c, http.StatusConflict, "2FA is already enabled")
 			return
 		}
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to verify 2FA code")
 		return
 	}
 
@@ -85,7 +85,7 @@ func (h *APIHandler) Disable2FA(c *gin.Context) {
 			h.sendError(c, http.StatusUnauthorized, "Password is incorrect")
 			return
 		}
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to disable 2FA")
 		return
 	}
 

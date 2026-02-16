@@ -28,6 +28,11 @@ func NewFlightService(flightRepo repository.FlightRepository) *FlightService {
 
 // CreateFlight creates a new flight log entry
 func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight) error {
+	// Validate text field lengths
+	if err := models.ValidateFlightTextFields(flight); err != nil {
+		return err
+	}
+
 	// Validate basic fields
 	if !flight.IsValid() {
 		return ErrInvalidFlight
@@ -77,6 +82,11 @@ func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight,
 
 	if existing.UserID != userID {
 		return ErrUnauthorizedFlight
+	}
+
+	// Validate text field lengths
+	if err := models.ValidateFlightTextFields(flight); err != nil {
+		return err
 	}
 
 	// Validate basic fields

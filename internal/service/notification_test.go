@@ -107,6 +107,18 @@ func (m *mockNotifUserRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *mockNotifUserRepo) IncrementFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *mockNotifUserRepo) ResetFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *mockNotifUserRepo) LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error {
+	return nil
+}
+
 // mockNotifCredentialRepo for notification tests
 type mockNotifCredentialRepo struct {
 	creds map[uuid.UUID]*models.Credential

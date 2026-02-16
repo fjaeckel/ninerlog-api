@@ -58,7 +58,7 @@ func (h *APIHandler) CreateContact(c *gin.Context) {
 	}
 
 	if err := h.contactService.CreateContact(c.Request.Context(), contact); err != nil {
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to create contact")
 		return
 	}
 
@@ -130,7 +130,7 @@ func (h *APIHandler) UpdateContact(c *gin.Context) {
 			h.sendError(c, http.StatusNotFound, "Contact not found")
 			return
 		}
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to update contact")
 		return
 	}
 

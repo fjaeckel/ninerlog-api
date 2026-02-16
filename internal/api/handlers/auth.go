@@ -59,6 +59,10 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 			h.sendError(c, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
+		if err == service.ErrAccountLocked {
+			h.sendError(c, http.StatusTooManyRequests, "Account temporarily locked due to too many failed login attempts. Please try again later.")
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Login failed")
 		return
 	}
@@ -126,7 +130,7 @@ func (h *APIHandler) ChangePassword(c *gin.Context) {
 			h.sendError(c, http.StatusUnauthorized, "Current password is incorrect")
 			return
 		}
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to change password")
 		return
 	}
 

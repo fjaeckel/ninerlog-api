@@ -24,6 +24,15 @@ type UserRepository interface {
 
 	// Delete deletes a user
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	// IncrementFailedLoginAttempts increments the failed login counter
+	IncrementFailedLoginAttempts(ctx context.Context, id uuid.UUID) error
+
+	// ResetFailedLoginAttempts resets the failed login counter to 0
+	ResetFailedLoginAttempts(ctx context.Context, id uuid.UUID) error
+
+	// LockAccount locks the account until the given time
+	LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error
 }
 
 // RefreshTokenRepository defines the interface for refresh token data access

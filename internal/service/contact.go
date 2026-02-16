@@ -26,6 +26,9 @@ func (s *ContactService) CreateContact(ctx context.Context, contact *models.Cont
 	if contact.Name == "" {
 		return errors.New("contact name is required")
 	}
+	if err := models.ValidateContactTextFields(contact); err != nil {
+		return err
+	}
 	return s.contactRepo.Create(ctx, contact)
 }
 
@@ -70,6 +73,9 @@ func (s *ContactService) UpdateContact(ctx context.Context, contact *models.Cont
 	}
 	if contact.Name == "" {
 		return errors.New("contact name is required")
+	}
+	if err := models.ValidateContactTextFields(contact); err != nil {
+		return err
 	}
 	return s.contactRepo.Update(ctx, contact)
 }

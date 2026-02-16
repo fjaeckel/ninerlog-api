@@ -118,7 +118,7 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 			h.sendError(c, http.StatusConflict, "Aircraft registration already exists")
 			return
 		}
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to create aircraft")
 		return
 	}
 
@@ -209,7 +209,7 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 			h.sendError(c, http.StatusConflict, "Aircraft registration already exists")
 			return
 		}
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to update aircraft")
 		return
 	}
 

@@ -171,7 +171,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	// Compute totalTime from off-block and on-block times
 	totalTime, err := calculateBlockTime(req.OffBlockTime, req.OnBlockTime)
 	if err != nil {
-		h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Invalid block times: %v", err))
+		h.sendError(c, http.StatusBadRequest, "Invalid block times format")
 		return
 	}
 
@@ -286,7 +286,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	flightcalc.ApplyAutoCalculations(&flight)
 
 	if err := h.flightService.CreateFlight(c.Request.Context(), &flight); err != nil {
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
 	}
 
@@ -468,7 +468,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		if offBlock != "" && onBlock != "" {
 			totalTime, err := calculateBlockTime(offBlock, onBlock)
 			if err != nil {
-				h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Invalid block times: %v", err))
+				h.sendError(c, http.StatusBadRequest, "Invalid block times format")
 				return
 			}
 			flight.TotalTime = totalTime
@@ -482,7 +482,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	flightcalc.ApplyAutoCalculations(flight)
 
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
-		h.sendError(c, http.StatusBadRequest, err.Error())
+		h.sendError(c, http.StatusBadRequest, "Failed to update flight")
 		return
 	}
 
