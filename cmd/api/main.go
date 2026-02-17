@@ -122,6 +122,7 @@ func main() {
 	contactService := service.NewContactService(contactRepo)
 	classRatingRepo := postgres.NewClassRatingRepository(db)
 	classRatingService := service.NewClassRatingService(classRatingRepo, licenseRepo)
+	flightCrewRepo := postgres.NewFlightCrewRepository(db)
 
 	// Initialize currency evaluation
 	flightDataProvider := currency.NewFlightDataProvider(db)
@@ -132,7 +133,7 @@ func main() {
 	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, jwtManager)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, jwtManager, flightCrewRepo)
 	apiHandler.SetDB(db)
 
 	// Setup router
@@ -202,9 +203,6 @@ func main() {
 
 	// Register custom reports routes (not in OpenAPI spec)
 	handlers.RegisterReportsRoutes(api, apiHandler, db)
-
-	// Register contact routes
-	handlers.RegisterContactRoutes(api, apiHandler)
 
 	// Register flight utility routes
 	handlers.RegisterFlightUtilRoutes(api, apiHandler)

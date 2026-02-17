@@ -93,9 +93,12 @@ const (
 	ImportFieldDate                    ImportField = "date"
 	ImportFieldDepartureIcao           ImportField = "departureIcao"
 	ImportFieldDepartureTime           ImportField = "departureTime"
+	ImportFieldDualGivenTime           ImportField = "dualGivenTime"
 	ImportFieldHolds                   ImportField = "holds"
 	ImportFieldIfrTime                 ImportField = "ifrTime"
 	ImportFieldIgnore                  ImportField = "ignore"
+	ImportFieldInstructorComments      ImportField = "instructorComments"
+	ImportFieldInstructorName          ImportField = "instructorName"
 	ImportFieldIsDual                  ImportField = "isDual"
 	ImportFieldIsFlightReview          ImportField = "isFlightReview"
 	ImportFieldIsIpc                   ImportField = "isIpc"
@@ -105,6 +108,12 @@ const (
 	ImportFieldNightTime               ImportField = "nightTime"
 	ImportFieldOffBlockTime            ImportField = "offBlockTime"
 	ImportFieldOnBlockTime             ImportField = "onBlockTime"
+	ImportFieldPerson1                 ImportField = "person1"
+	ImportFieldPerson2                 ImportField = "person2"
+	ImportFieldPerson3                 ImportField = "person3"
+	ImportFieldPerson4                 ImportField = "person4"
+	ImportFieldPerson5                 ImportField = "person5"
+	ImportFieldPerson6                 ImportField = "person6"
 	ImportFieldRemarks                 ImportField = "remarks"
 	ImportFieldRoute                   ImportField = "route"
 	ImportFieldSimulatedInstrumentTime ImportField = "simulatedInstrumentTime"
@@ -405,6 +414,26 @@ type ClassRatingUpdate struct {
 // - IR: Instrument Rating
 // - OTHER: Other rating type
 type ClassType string
+
+// Contact defines model for Contact.
+type Contact struct {
+	CreatedAt time.Time            `json:"createdAt"`
+	Email     *openapi_types.Email `json:"email"`
+	Id        openapi_types.UUID   `json:"id"`
+	Name      string               `json:"name"`
+	Notes     *string              `json:"notes"`
+	Phone     *string              `json:"phone"`
+	UpdatedAt time.Time            `json:"updatedAt"`
+	UserId    openapi_types.UUID   `json:"userId"`
+}
+
+// ContactCreate defines model for ContactCreate.
+type ContactCreate struct {
+	Email *openapi_types.Email `json:"email"`
+	Name  string               `json:"name"`
+	Notes *string              `json:"notes"`
+	Phone *string              `json:"phone"`
+}
 
 // Credential defines model for Credential.
 type Credential struct {
@@ -895,6 +924,13 @@ type ImportColumnMapping struct {
 	SourceColumn string `json:"sourceColumn"`
 
 	// TargetField Target flight log field for column mapping.
+	// Person fields (`person1`–`person6`) extract crew members from import rows.
+	// During ForeFlight imports, role assignment is automatic:
+	// - If an instructor is detected (via `instructorName` or dual-received time),
+	//   `person1` is assigned the **Instructor** role and `person2` the **Student** role.
+	// - Otherwise, `person1` is assigned **PIC**.
+	// - `person3`–`person6` default to **Passenger**.
+	// Contacts are auto-created for each unique person name.
 	// Use `ignore` to skip a column during import.
 	TargetField ImportField `json:"targetField"`
 
@@ -919,6 +955,14 @@ type ImportConfirmRequest struct {
 }
 
 // ImportField Target flight log field for column mapping.
+// Person fields (`person1`–`person6`) extract crew members from import rows.
+// During ForeFlight imports, role assignment is automatic:
+//   - If an instructor is detected (via `instructorName` or dual-received time),
+//     `person1` is assigned the **Instructor** role and `person2` the **Student** role.
+//   - Otherwise, `person1` is assigned **PIC**.
+//   - `person3`–`person6` default to **Passenger**.
+//
+// Contacts are auto-created for each unique person name.
 // Use `ignore` to skip a column during import.
 type ImportField string
 
@@ -992,7 +1036,9 @@ type ImportPreviewResponse struct {
 
 // ImportResult defines model for ImportResult.
 type ImportResult struct {
-	CreatedAt time.Time `json:"createdAt"`
+	// ContactsCreated Number of new contacts auto-created from person data during import
+	ContactsCreated *int      `json:"contactsCreated,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
 
 	// DuplicateCount Number of rows detected as duplicates
 	DuplicateCount int `json:"duplicateCount"`
@@ -1333,6 +1379,15 @@ type RegisterUserJSONBody struct {
 	Password string `json:"password"`
 }
 
+// SearchContactsParams defines parameters for SearchContacts.
+type SearchContactsParams struct {
+	// Q Search query string
+	Q string `form:"q" json:"q"`
+
+	// Limit Maximum results (default 10)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ExportFlightsPDFParams defines parameters for ExportFlightsPDF.
 type ExportFlightsPDFParams struct {
 	// LogbookLicenseId Filter flights for a specific logbook license
@@ -1420,6 +1475,12 @@ type GetLicenseStatisticsParams struct {
 	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
 }
 
+// GetFlightTrendsParams defines parameters for GetFlightTrends.
+type GetFlightTrendsParams struct {
+	// Months Number of months to include (default 12, max 60)
+	Months *int `form:"months,omitempty" json:"months,omitempty"`
+}
+
 // DeleteCurrentUserJSONBody defines parameters for DeleteCurrentUser.
 type DeleteCurrentUserJSONBody struct {
 	// Password Current password for confirmation
@@ -1458,6 +1519,12 @@ type RefreshTokenJSONRequestBody RefreshTokenJSONBody
 
 // RegisterUserJSONRequestBody defines body for RegisterUser for application/json ContentType.
 type RegisterUserJSONRequestBody RegisterUserJSONBody
+
+// CreateContactJSONRequestBody defines body for CreateContact for application/json ContentType.
+type CreateContactJSONRequestBody = ContactCreate
+
+// UpdateContactJSONRequestBody defines body for UpdateContact for application/json ContentType.
+type UpdateContactJSONRequestBody = ContactCreate
 
 // CreateCredentialJSONRequestBody defines body for CreateCredential for application/json ContentType.
 type CreateCredentialJSONRequestBody = CredentialCreate

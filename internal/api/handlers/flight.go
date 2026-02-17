@@ -289,7 +289,13 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
 	}
-
+	// Persist crew members
+	if len(flight.CrewMembers) > 0 && h.flightCrewRepo != nil {
+		if err := h.flightCrewRepo.SetCrewMembers(c.Request.Context(), flight.ID, flight.CrewMembers); err != nil {
+			// Flight created but crew failed - log but don't fail the request
+			fmt.Printf("Warning: failed to save crew members for flight %s: %v\n", flight.ID, err)
+		}
+	}
 	c.JSON(http.StatusCreated, convertToGeneratedFlight(&flight))
 }
 
@@ -310,6 +316,14 @@ func (h *APIHandler) GetFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flight")
 		return
+	}
+
+	// Load crew members
+	if h.flightCrewRepo != nil {
+		crew, err := h.flightCrewRepo.GetByFlightID(c.Request.Context(), flight.ID)
+		if err == nil {
+			flight.CrewMembers = crew
+		}
 	}
 
 	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))
@@ -484,6 +498,13 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Failed to update flight")
 		return
+	}
+
+	// Persist crew members if they were updated
+	if req.CrewMembers != nil && h.flightCrewRepo != nil {
+		if err := h.flightCrewRepo.SetCrewMembers(c.Request.Context(), flight.ID, flight.CrewMembers); err != nil {
+			fmt.Printf("Warning: failed to save crew members for flight %s: %v\n", flight.ID, err)
+		}
 	}
 
 	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))

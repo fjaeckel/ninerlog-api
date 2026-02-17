@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/pilotlog-api/internal/repository"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/fjaeckel/pilotlog-api/internal/service/currency"
 	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
@@ -25,6 +26,7 @@ type APIHandler struct {
 	currencyService     *currency.Service
 	jwtManager          *jwt.Manager
 	db                  *sql.DB
+	flightCrewRepo      repository.FlightCrewRepository
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface
@@ -40,6 +42,7 @@ func NewAPIHandler(
 	classRatingService *service.ClassRatingService,
 	currencyService *currency.Service,
 	jwtManager *jwt.Manager,
+	flightCrewRepo repository.FlightCrewRepository,
 ) *APIHandler {
 	return &APIHandler{
 		authService:         authService,
@@ -53,6 +56,7 @@ func NewAPIHandler(
 		classRatingService:  classRatingService,
 		currencyService:     currencyService,
 		jwtManager:          jwtManager,
+		flightCrewRepo:      flightCrewRepo,
 	}
 }
 

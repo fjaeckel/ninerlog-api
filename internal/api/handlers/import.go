@@ -111,6 +111,15 @@ func suggestForeFlight() []generated.ImportColumnMapping {
 		"FlightReview":          "isFlightReview",
 		"IPC":                   "isIpc",
 		"PilotComments":         "remarks",
+		"InstructorName":        "instructorName",
+		"InstructorComments":    "instructorComments",
+		"DualGiven":             "dualGivenTime",
+		"Person1":               "person1",
+		"Person2":               "person2",
+		"Person3":               "person3",
+		"Person4":               "person4",
+		"Person5":               "person5",
+		"Person6":               "person6",
 	}
 
 	var result []generated.ImportColumnMapping
@@ -468,6 +477,9 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		RowIndex int     `json:"rowIndex"`
 	}
 	imported, skipped, errored, dups := 0, 0, 0, 0
+	contactsCreated := 0
+	// Cache for contact lookups to avoid repeated DB queries
+	contactCache := make(map[string]*models.Contact) // lowercase name → contact
 
 	for i, row := range session.rows {
 		rowIdx := i + 1
@@ -556,6 +568,24 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		if flight.Remarks != nil {
 			newFlight.Remarks = flight.Remarks
 		}
+		if flight.InstructorName != nil {
+			newFlight.InstructorName = flight.InstructorName
+		}
+		if flight.InstructorComments != nil {
+			newFlight.InstructorComments = flight.InstructorComments
+		}
+		newFlight.DualGivenTime = float64(getFloat32OrDefault(flight.DualGivenTime, 0))
+
+		// Build crew members from FlightCreate into model for auto-calculations
+		if flight.CrewMembers != nil {
+			for _, cm := range *flight.CrewMembers {
+				member := models.FlightCrewMember{
+					Name: cm.Name,
+					Role: models.CrewRole(cm.Role),
+				}
+				newFlight.CrewMembers = append(newFlight.CrewMembers, member)
+			}
+		}
 
 		// Apply auto-calculations (solo, cross-country, distance, night, landing split, PIC/Dual)
 		flightcalc.ApplyAutoCalculations(&newFlight)
@@ -569,6 +599,32 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			}{Field: "flight", Message: "Failed to import flight", RowIndex: rowIdx})
 			errored++
 			continue
+		}
+
+		// Find or create contacts and persist crew members
+		if len(newFlight.CrewMembers) > 0 && h.flightCrewRepo != nil {
+			for i := range newFlight.CrewMembers {
+				name := strings.TrimSpace(newFlight.CrewMembers[i].Name)
+				if name == "" {
+					continue
+				}
+				cacheKey := strings.ToLower(name)
+				contact, ok := contactCache[cacheKey]
+				if !ok {
+					var created bool
+					contact, created, _ = h.contactService.FindOrCreateContact(c.Request.Context(), userID, name)
+					if contact != nil {
+						contactCache[cacheKey] = contact
+						if created {
+							contactsCreated++
+						}
+					}
+				}
+				if contact != nil {
+					newFlight.CrewMembers[i].ContactID = &contact.ID
+				}
+			}
+			_ = h.flightCrewRepo.SetCrewMembers(c.Request.Context(), newFlight.ID, newFlight.CrewMembers)
 		}
 
 		importedIDs = append(importedIDs, openapi_types.UUID(newFlight.ID))
@@ -630,6 +686,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		SkippedCount:      skipped,
 		ErrorCount:        errored,
 		DuplicateCount:    dups,
+		ContactsCreated:   &contactsCreated,
 		ImportedFlightIds: idsPtr,
 		Errors:            errorsPtr,
 		CreatedAt:         time.Now(),
@@ -743,6 +800,12 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	}
 	var errs []fieldError
 
+	// Collect person names from person1-6 fields
+	personNames := make(map[string]string) // "person1" → name
+	var instructorName string
+	var dualReceivedVal float64
+	var dualGivenVal float64
+
 	for col, mapping := range mappings {
 		val := strings.TrimSpace(row[col])
 		if val == "" {
@@ -788,7 +851,10 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "isPic":
 			// Auto-calculated from crew; ignore imported value
 		case "isDual":
-			// Auto-calculated from crew; ignore imported value
+			// Track DualReceived for crew role inference
+			if f, err := strconv.ParseFloat(val, 64); err == nil {
+				dualReceivedVal = f
+			}
 		case "nightTime":
 			// Auto-calculated from solar data; ignore imported value
 		case "ifrTime":
@@ -831,7 +897,98 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			flight.Landings += n
 		case "remarks":
 			flight.Remarks = &val
+		case "instructorName":
+			instructorName = val
+			flight.InstructorName = &val
+		case "instructorComments":
+			flight.InstructorComments = &val
+		case "dualGivenTime":
+			if f, err := strconv.ParseFloat(val, 32); err == nil {
+				f32 := float32(f)
+				flight.DualGivenTime = &f32
+				dualGivenVal = f
+			}
+		case "person1":
+			personNames["person1"] = val
+		case "person2":
+			personNames["person2"] = val
+		case "person3":
+			personNames["person3"] = val
+		case "person4":
+			personNames["person4"] = val
+		case "person5":
+			personNames["person5"] = val
+		case "person6":
+			personNames["person6"] = val
 		}
+	}
+
+	// Build crew members from person data
+	isTrainingFlight := instructorName != "" || dualReceivedVal > 0
+	isInstructorGiving := dualGivenVal > 0
+
+	var crewMembers []generated.FlightCrewMemberInput
+
+	// Determine Person1 role
+	if name, ok := personNames["person1"]; ok {
+		role := generated.CrewRole("PIC") // default
+		if isTrainingFlight {
+			// Person1 is the instructor when it's a training flight
+			role = "Instructor"
+		} else if isInstructorGiving {
+			// Logged-in user is instructor giving training; Person1 is student
+			role = "Student"
+		}
+		// Avoid duplicate if InstructorName equals Person1
+		if isTrainingFlight && instructorName != "" && !strings.EqualFold(name, instructorName) {
+			// InstructorName is someone different from Person1 — add both
+			crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
+				Name: instructorName,
+				Role: "Instructor",
+			})
+			// Person1 gets a PIC or Passenger role
+			crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
+				Name: name,
+				Role: "PIC",
+			})
+		} else {
+			crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
+				Name: name,
+				Role: role,
+			})
+		}
+	} else if instructorName != "" {
+		// No Person1 but InstructorName is set — add instructor
+		crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
+			Name: instructorName,
+			Role: "Instructor",
+		})
+	}
+
+	// Person2: Student if training flight, otherwise Passenger
+	if name, ok := personNames["person2"]; ok {
+		role := generated.CrewRole("Passenger")
+		if isTrainingFlight {
+			role = "Student"
+		}
+		crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
+			Name: name,
+			Role: role,
+		})
+	}
+
+	// Person3-6: Passenger
+	for _, key := range []string{"person3", "person4", "person5", "person6"} {
+		if name, ok := personNames[key]; ok {
+			crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
+				Name: name,
+				Role: "Passenger",
+			})
+		}
+	}
+
+	if len(crewMembers) > 0 {
+		flight.CrewMembers = &crewMembers
 	}
 
 	// Validate required fields

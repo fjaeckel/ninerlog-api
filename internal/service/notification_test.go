@@ -182,6 +182,9 @@ func (m *mockNotifFlightRepo) GetByUserID(ctx context.Context, userID uuid.UUID,
 }
 func (m *mockNotifFlightRepo) Update(ctx context.Context, flight *models.Flight) error { return nil }
 func (m *mockNotifFlightRepo) Delete(ctx context.Context, id uuid.UUID) error          { return nil }
+func (m *mockNotifFlightRepo) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	return 0, nil
+}
 func (m *mockNotifFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	return 0, nil
 }

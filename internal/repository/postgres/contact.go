@@ -71,6 +71,21 @@ func (r *ContactRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (
 	return contacts, rows.Err()
 }
 
+func (r *ContactRepository) GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error) {
+	query := `SELECT id, user_id, name, email, phone, notes, created_at, updated_at FROM contacts WHERE user_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`
+	c := &models.Contact{}
+	err := r.db.QueryRowContext(ctx, query, userID, name).Scan(
+		&c.ID, &c.UserID, &c.Name, &c.Email, &c.Phone, &c.Notes, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
 func (r *ContactRepository) Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error) {
 	sqlQuery := `
 		SELECT id, user_id, name, email, phone, notes, created_at, updated_at

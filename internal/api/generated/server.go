@@ -59,6 +59,24 @@ type ServerInterface interface {
 	// Register a new user
 	// (POST /auth/register)
 	RegisterUser(c *gin.Context)
+	// List all contacts
+	// (GET /contacts)
+	ListContacts(c *gin.Context)
+	// Create a contact
+	// (POST /contacts)
+	CreateContact(c *gin.Context)
+	// Search contacts
+	// (GET /contacts/search)
+	SearchContacts(c *gin.Context, params SearchContactsParams)
+	// Delete a contact
+	// (DELETE /contacts/{contactId})
+	DeleteContact(c *gin.Context, contactId openapi_types.UUID)
+	// Get a contact
+	// (GET /contacts/{contactId})
+	GetContact(c *gin.Context, contactId openapi_types.UUID)
+	// Update a contact
+	// (PUT /contacts/{contactId})
+	UpdateContact(c *gin.Context, contactId openapi_types.UUID)
 	// List credentials
 	// (GET /credentials)
 	ListCredentials(c *gin.Context)
@@ -92,6 +110,12 @@ type ServerInterface interface {
 	// Create flight log
 	// (POST /flights)
 	CreateFlight(c *gin.Context)
+	// Delete all flights
+	// (DELETE /flights/delete-all)
+	DeleteAllFlights(c *gin.Context)
+	// Recalculate all flights
+	// (POST /flights/recalculate)
+	RecalculateFlights(c *gin.Context)
 	// Delete flight
 	// (DELETE /flights/{flightId})
 	DeleteFlight(c *gin.Context, flightId FlightId)
@@ -155,6 +179,12 @@ type ServerInterface interface {
 	// Get flight routes for map
 	// (GET /reports/routes)
 	GetFlightRoutes(c *gin.Context)
+	// Get statistics by aircraft class
+	// (GET /reports/stats-by-class)
+	GetStatsByClass(c *gin.Context)
+	// Get monthly flight trends
+	// (GET /reports/trends)
+	GetFlightTrends(c *gin.Context, params GetFlightTrendsParams)
 	// Delete current user account
 	// (DELETE /users/me)
 	DeleteCurrentUser(c *gin.Context)
@@ -164,6 +194,9 @@ type ServerInterface interface {
 	// Update current user profile
 	// (PATCH /users/me)
 	UpdateCurrentUser(c *gin.Context)
+	// Delete all user data
+	// (DELETE /users/me/data)
+	DeleteAllUserData(c *gin.Context)
 	// Get notification preferences
 	// (GET /users/me/notifications)
 	GetNotificationPreferences(c *gin.Context)
@@ -491,6 +524,157 @@ func (siw *ServerInterfaceWrapper) RegisterUser(c *gin.Context) {
 	siw.Handler.RegisterUser(c)
 }
 
+// ListContacts operation middleware
+func (siw *ServerInterfaceWrapper) ListContacts(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListContacts(c)
+}
+
+// CreateContact operation middleware
+func (siw *ServerInterfaceWrapper) CreateContact(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateContact(c)
+}
+
+// SearchContacts operation middleware
+func (siw *ServerInterfaceWrapper) SearchContacts(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchContactsParams
+
+	// ------------- Required query parameter "q" -------------
+
+	if paramValue := c.Query("q"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument q is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "q", c.Request.URL.Query(), &params.Q)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SearchContacts(c, params)
+}
+
+// DeleteContact operation middleware
+func (siw *ServerInterfaceWrapper) DeleteContact(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", c.Param("contactId"), &contactId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter contactId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteContact(c, contactId)
+}
+
+// GetContact operation middleware
+func (siw *ServerInterfaceWrapper) GetContact(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", c.Param("contactId"), &contactId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter contactId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetContact(c, contactId)
+}
+
+// UpdateContact operation middleware
+func (siw *ServerInterfaceWrapper) UpdateContact(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "contactId" -------------
+	var contactId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "contactId", c.Param("contactId"), &contactId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter contactId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateContact(c, contactId)
+}
+
 // ListCredentials operation middleware
 func (siw *ServerInterfaceWrapper) ListCredentials(c *gin.Context) {
 
@@ -809,6 +993,36 @@ func (siw *ServerInterfaceWrapper) CreateFlight(c *gin.Context) {
 	}
 
 	siw.Handler.CreateFlight(c)
+}
+
+// DeleteAllFlights operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAllFlights(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAllFlights(c)
+}
+
+// RecalculateFlights operation middleware
+func (siw *ServerInterfaceWrapper) RecalculateFlights(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RecalculateFlights(c)
 }
 
 // DeleteFlight operation middleware
@@ -1327,6 +1541,49 @@ func (siw *ServerInterfaceWrapper) GetFlightRoutes(c *gin.Context) {
 	siw.Handler.GetFlightRoutes(c)
 }
 
+// GetStatsByClass operation middleware
+func (siw *ServerInterfaceWrapper) GetStatsByClass(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetStatsByClass(c)
+}
+
+// GetFlightTrends operation middleware
+func (siw *ServerInterfaceWrapper) GetFlightTrends(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFlightTrendsParams
+
+	// ------------- Optional query parameter "months" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "months", c.Request.URL.Query(), &params.Months)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter months: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFlightTrends(c, params)
+}
+
 // DeleteCurrentUser operation middleware
 func (siw *ServerInterfaceWrapper) DeleteCurrentUser(c *gin.Context) {
 
@@ -1370,6 +1627,21 @@ func (siw *ServerInterfaceWrapper) UpdateCurrentUser(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateCurrentUser(c)
+}
+
+// DeleteAllUserData operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAllUserData(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAllUserData(c)
 }
 
 // GetNotificationPreferences operation middleware
@@ -1444,6 +1716,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.POST(options.BaseURL+"/auth/register", wrapper.RegisterUser)
+	router.GET(options.BaseURL+"/contacts", wrapper.ListContacts)
+	router.POST(options.BaseURL+"/contacts", wrapper.CreateContact)
+	router.GET(options.BaseURL+"/contacts/search", wrapper.SearchContacts)
+	router.DELETE(options.BaseURL+"/contacts/:contactId", wrapper.DeleteContact)
+	router.GET(options.BaseURL+"/contacts/:contactId", wrapper.GetContact)
+	router.PUT(options.BaseURL+"/contacts/:contactId", wrapper.UpdateContact)
 	router.GET(options.BaseURL+"/credentials", wrapper.ListCredentials)
 	router.POST(options.BaseURL+"/credentials", wrapper.CreateCredential)
 	router.DELETE(options.BaseURL+"/credentials/:credentialId", wrapper.DeleteCredential)
@@ -1455,6 +1733,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/exports/pdf", wrapper.ExportFlightsPDF)
 	router.GET(options.BaseURL+"/flights", wrapper.ListFlights)
 	router.POST(options.BaseURL+"/flights", wrapper.CreateFlight)
+	router.DELETE(options.BaseURL+"/flights/delete-all", wrapper.DeleteAllFlights)
+	router.POST(options.BaseURL+"/flights/recalculate", wrapper.RecalculateFlights)
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)
 	router.GET(options.BaseURL+"/flights/:flightId", wrapper.GetFlight)
 	router.PUT(options.BaseURL+"/flights/:flightId", wrapper.UpdateFlight)
@@ -1476,9 +1756,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/licenses/:licenseId/statistics", wrapper.GetLicenseStatistics)
 	router.GET(options.BaseURL+"/reports/airport-stats", wrapper.GetAirportStats)
 	router.GET(options.BaseURL+"/reports/routes", wrapper.GetFlightRoutes)
+	router.GET(options.BaseURL+"/reports/stats-by-class", wrapper.GetStatsByClass)
+	router.GET(options.BaseURL+"/reports/trends", wrapper.GetFlightTrends)
 	router.DELETE(options.BaseURL+"/users/me", wrapper.DeleteCurrentUser)
 	router.GET(options.BaseURL+"/users/me", wrapper.GetCurrentUser)
 	router.PATCH(options.BaseURL+"/users/me", wrapper.UpdateCurrentUser)
+	router.DELETE(options.BaseURL+"/users/me/data", wrapper.DeleteAllUserData)
 	router.GET(options.BaseURL+"/users/me/notifications", wrapper.GetNotificationPreferences)
 	router.PATCH(options.BaseURL+"/users/me/notifications", wrapper.UpdateNotificationPreferences)
 }

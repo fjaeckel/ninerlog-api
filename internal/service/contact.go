@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/repository"
@@ -30,6 +31,28 @@ func (s *ContactService) CreateContact(ctx context.Context, contact *models.Cont
 		return err
 	}
 	return s.contactRepo.Create(ctx, contact)
+}
+
+// FindOrCreateContact finds an existing contact by exact name (case-insensitive)
+// or creates a new one. Returns the contact and whether it was newly created.
+func (s *ContactService) FindOrCreateContact(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, false, errors.New("contact name is required")
+	}
+	existing, err := s.contactRepo.GetByExactName(ctx, userID, name)
+	if err == nil {
+		return existing, false, nil
+	}
+	// Not found — create
+	contact := &models.Contact{
+		UserID: userID,
+		Name:   name,
+	}
+	if err := s.contactRepo.Create(ctx, contact); err != nil {
+		return nil, false, err
+	}
+	return contact, true, nil
 }
 
 func (s *ContactService) GetContact(ctx context.Context, id, userID uuid.UUID) (*models.Contact, error) {

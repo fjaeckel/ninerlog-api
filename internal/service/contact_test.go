@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +66,15 @@ func (m *mockContactRepo) Update(ctx context.Context, c *models.Contact) error {
 	c.UpdatedAt = time.Now()
 	m.contacts[c.ID] = c
 	return nil
+}
+
+func (m *mockContactRepo) GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error) {
+	for _, c := range m.contacts {
+		if c.UserID == userID && strings.EqualFold(c.Name, name) {
+			return c, nil
+		}
+	}
+	return nil, repository.ErrNotFound
 }
 
 func (m *mockContactRepo) Delete(ctx context.Context, id uuid.UUID) error {
@@ -235,5 +245,72 @@ func TestDeleteContactNotFound(t *testing.T) {
 	err := svc.DeleteContact(ctx, uuid.New(), uuid.New())
 	if err != service.ErrContactNotFound {
 		t.Errorf("Expected ErrContactNotFound, got %v", err)
+	}
+}
+
+func TestFindOrCreateContact_CreatesNew(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	contact, created, err := svc.FindOrCreateContact(ctx, userID, "New Person")
+	if err != nil {
+		t.Fatalf("FindOrCreateContact() error = %v", err)
+	}
+	if !created {
+		t.Error("Expected created=true for new contact")
+	}
+	if contact.Name != "New Person" {
+		t.Errorf("Name = %q, want 'New Person'", contact.Name)
+	}
+	if contact.UserID != userID {
+		t.Error("Contact should belong to the correct user")
+	}
+}
+
+func TestFindOrCreateContact_FindsExisting(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	// Create first
+	c1, created1, err := svc.FindOrCreateContact(ctx, userID, "Existing Person")
+	if err != nil {
+		t.Fatalf("First FindOrCreateContact() error = %v", err)
+	}
+	if !created1 {
+		t.Error("Expected created=true for first call")
+	}
+
+	// Find again
+	c2, created2, err := svc.FindOrCreateContact(ctx, userID, "Existing Person")
+	if err != nil {
+		t.Fatalf("Second FindOrCreateContact() error = %v", err)
+	}
+	if created2 {
+		t.Error("Expected created=false for second call")
+	}
+	if c2.ID != c1.ID {
+		t.Error("Expected same contact ID for existing contact")
+	}
+}
+
+func TestFindOrCreateContact_EmptyName(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+
+	_, _, err := svc.FindOrCreateContact(ctx, uuid.New(), "")
+	if err == nil {
+		t.Error("Expected error for empty name")
+	}
+}
+
+func TestFindOrCreateContact_WhitespaceName(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+
+	_, _, err := svc.FindOrCreateContact(ctx, uuid.New(), "   ")
+	if err == nil {
+		t.Error("Expected error for whitespace-only name")
 	}
 }

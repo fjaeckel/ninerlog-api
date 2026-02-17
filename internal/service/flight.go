@@ -125,6 +125,11 @@ func (s *FlightService) DeleteFlight(ctx context.Context, flightID, userID uuid.
 	return s.flightRepo.Delete(ctx, flightID)
 }
 
+// DeleteAllFlights deletes all flights for a user
+func (s *FlightService) DeleteAllFlights(ctx context.Context, userID uuid.UUID) (int64, error) {
+	return s.flightRepo.DeleteAllByUserID(ctx, userID)
+}
+
 // CountFlights counts flights for a user with optional filters
 func (s *FlightService) CountFlights(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	return s.flightRepo.CountByUserID(ctx, userID, opts)

@@ -241,3 +241,261 @@ func TestParseBoolish(t *testing.T) {
 		}
 	}
 }
+
+func TestSuggestForeFlight_IncludesPersonFields(t *testing.T) {
+	mappings := suggestForeFlight()
+	fieldMap := make(map[string]string)
+	for _, m := range mappings {
+		fieldMap[m.SourceColumn] = string(m.TargetField)
+	}
+
+	personExpected := map[string]string{
+		"Person1":            "person1",
+		"Person2":            "person2",
+		"Person3":            "person3",
+		"Person4":            "person4",
+		"Person5":            "person5",
+		"Person6":            "person6",
+		"InstructorName":     "instructorName",
+		"InstructorComments": "instructorComments",
+		"DualGiven":          "dualGivenTime",
+	}
+	for src, want := range personExpected {
+		got, ok := fieldMap[src]
+		if !ok {
+			t.Errorf("Missing mapping for %q", src)
+		} else if got != want {
+			t.Errorf("Column %q mapped to %q, want %q", src, got, want)
+		}
+	}
+}
+
+func TestMapRowToFlight_PersonAsInstructor(t *testing.T) {
+	// When InstructorName is set, Person1 should be Instructor, Person2 should be Student
+	row := map[string]string{
+		"Date":               "2022-06-10",
+		"AircraftID":         "D-EABC",
+		"From":               "EDOI",
+		"To":                 "EDOI",
+		"TimeOut":            "08:11",
+		"TimeIn":             "10:55",
+		"TotalTime":          "2.7",
+		"InstructorName":     "Max Mustermann",
+		"InstructorComments": "Good flight",
+		"DualReceived":       "2.7",
+		"Person1":            "Max Mustermann",
+		"Person2":            "Student Pilot",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+
+	if flight.InstructorName == nil || *flight.InstructorName != "Max Mustermann" {
+		t.Errorf("InstructorName = %v, want Max Mustermann", flight.InstructorName)
+	}
+	if flight.InstructorComments == nil || *flight.InstructorComments != "Good flight" {
+		t.Errorf("InstructorComments = %v, want Good flight", flight.InstructorComments)
+	}
+
+	if flight.CrewMembers == nil {
+		t.Fatal("CrewMembers should not be nil")
+	}
+	crew := *flight.CrewMembers
+	if len(crew) < 2 {
+		t.Fatalf("Expected at least 2 crew members, got %d", len(crew))
+	}
+
+	// Person1 (same as InstructorName) should be Instructor
+	foundInstructor := false
+	foundStudent := false
+	for _, cm := range crew {
+		if cm.Role == "Instructor" && cm.Name == "Max Mustermann" {
+			foundInstructor = true
+		}
+		if cm.Role == "Student" && cm.Name == "Student Pilot" {
+			foundStudent = true
+		}
+	}
+	if !foundInstructor {
+		t.Error("Expected crew member with Instructor role named 'Max Mustermann'")
+	}
+	if !foundStudent {
+		t.Error("Expected crew member with Student role named 'Student Pilot'")
+	}
+}
+
+func TestMapRowToFlight_PersonAsPIC(t *testing.T) {
+	// When no instructor, Person1 should be PIC
+	row := map[string]string{
+		"Date":       "2022-06-10",
+		"AircraftID": "D-EABC",
+		"From":       "EDDF",
+		"To":         "EDDH",
+		"TimeOut":    "08:11",
+		"TimeIn":     "10:55",
+		"TotalTime":  "2.7",
+		"Person1":    "John Captain",
+		"Person2":    "Jane Passenger",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+
+	if flight.CrewMembers == nil {
+		t.Fatal("CrewMembers should not be nil")
+	}
+	crew := *flight.CrewMembers
+	if len(crew) != 2 {
+		t.Fatalf("Expected 2 crew members, got %d", len(crew))
+	}
+
+	// Person1 should be PIC
+	if crew[0].Name != "John Captain" || crew[0].Role != "PIC" {
+		t.Errorf("Person1: name=%q role=%q, want name='John Captain' role='PIC'", crew[0].Name, crew[0].Role)
+	}
+	// Person2 should be Passenger (no instructor present)
+	if crew[1].Name != "Jane Passenger" || crew[1].Role != "Passenger" {
+		t.Errorf("Person2: name=%q role=%q, want name='Jane Passenger' role='Passenger'", crew[1].Name, crew[1].Role)
+	}
+}
+
+func TestMapRowToFlight_DualGivenMakesPersonStudent(t *testing.T) {
+	// When DualGiven > 0, logged-in user is instructor, Person1 is Student
+	row := map[string]string{
+		"Date":       "2022-06-10",
+		"AircraftID": "D-EABC",
+		"From":       "EDDF",
+		"To":         "EDDH",
+		"TimeOut":    "08:11",
+		"TimeIn":     "10:55",
+		"TotalTime":  "2.7",
+		"DualGiven":  "2.7",
+		"Person1":    "Student Learner",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+
+	if flight.CrewMembers == nil {
+		t.Fatal("CrewMembers should not be nil")
+	}
+	crew := *flight.CrewMembers
+	if len(crew) != 1 {
+		t.Fatalf("Expected 1 crew member, got %d", len(crew))
+	}
+
+	if crew[0].Name != "Student Learner" || crew[0].Role != "Student" {
+		t.Errorf("Person1: name=%q role=%q, want name='Student Learner' role='Student'", crew[0].Name, crew[0].Role)
+	}
+
+	if flight.DualGivenTime == nil || *flight.DualGivenTime != 2.7 {
+		t.Errorf("DualGivenTime = %v, want 2.7", flight.DualGivenTime)
+	}
+}
+
+func TestMapRowToFlight_NoPersons(t *testing.T) {
+	// When no person columns have values, CrewMembers should be nil
+	row := map[string]string{
+		"Date":       "2022-06-10",
+		"AircraftID": "D-EABC",
+		"From":       "EDDF",
+		"To":         "EDDH",
+		"TimeOut":    "08:11",
+		"TimeIn":     "10:55",
+		"TotalTime":  "2.7",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+
+	if flight.CrewMembers != nil {
+		t.Errorf("CrewMembers should be nil when no persons, got %v", flight.CrewMembers)
+	}
+}
+
+func TestMapRowToFlight_InstructorNameDiffFromPerson1(t *testing.T) {
+	// When InstructorName != Person1, both should be added as separate crew members
+	row := map[string]string{
+		"Date":           "2022-06-10",
+		"AircraftID":     "D-EABC",
+		"From":           "EDDF",
+		"To":             "EDDH",
+		"TimeOut":        "08:11",
+		"TimeIn":         "10:55",
+		"TotalTime":      "2.7",
+		"InstructorName": "Chief Instructor",
+		"DualReceived":   "2.7",
+		"Person1":        "Safety Pilot",
+		"Person2":        "Student Me",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+
+	if flight.CrewMembers == nil {
+		t.Fatal("CrewMembers should not be nil")
+	}
+	crew := *flight.CrewMembers
+	if len(crew) != 3 {
+		t.Fatalf("Expected 3 crew members, got %d: %+v", len(crew), crew)
+	}
+
+	foundInstructor := false
+	foundPIC := false
+	foundStudent := false
+	for _, cm := range crew {
+		if cm.Role == "Instructor" && cm.Name == "Chief Instructor" {
+			foundInstructor = true
+		}
+		if cm.Role == "PIC" && cm.Name == "Safety Pilot" {
+			foundPIC = true
+		}
+		if cm.Role == "Student" && cm.Name == "Student Me" {
+			foundStudent = true
+		}
+	}
+	if !foundInstructor {
+		t.Error("Expected Instructor crew member 'Chief Instructor'")
+	}
+	if !foundPIC {
+		t.Error("Expected PIC crew member 'Safety Pilot'")
+	}
+	if !foundStudent {
+		t.Error("Expected Student crew member 'Student Me'")
+	}
+}

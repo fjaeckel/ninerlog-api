@@ -64,6 +64,17 @@ func (m *mockFlightRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *mockFlightRepo) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	var count int64
+	for id, f := range m.flights {
+		if f.UserID == userID {
+			delete(m.flights, id)
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (m *mockFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	count := 0
 	for _, flight := range m.flights {

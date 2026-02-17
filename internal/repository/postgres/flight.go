@@ -306,6 +306,17 @@ func (r *flightRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *flightRepository) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	// Crew members cascade via FK, but delete explicitly for safety
+	_, _ = r.db.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id IN (SELECT id FROM flights WHERE user_id = $1)`, userID)
+
+	result, err := r.db.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1`, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	query := "SELECT COUNT(*) FROM flights WHERE user_id = $1"
 	args := []interface{}{userID}

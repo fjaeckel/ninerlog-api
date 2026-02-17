@@ -91,6 +91,9 @@ type FlightRepository interface {
 	// Delete deletes a flight
 	Delete(ctx context.Context, id uuid.UUID) error
 
+	// DeleteAllByUserID deletes all flights for a user, returns count deleted
+	DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
+
 	// CountByUserID counts flights for a user with optional filters
 	CountByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions) (int, error)
 
@@ -167,6 +170,7 @@ type ContactRepository interface {
 	Create(ctx context.Context, contact *models.Contact) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Contact, error)
 	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error)
+	GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error)
 	Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error)
 	Update(ctx context.Context, contact *models.Contact) error
 	Delete(ctx context.Context, id uuid.UUID) error

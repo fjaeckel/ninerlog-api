@@ -9,11 +9,11 @@ import (
 
 // RegisterFlightUtilRoutes registers utility routes for flights
 func RegisterFlightUtilRoutes(api *gin.RouterGroup, h *APIHandler) {
-	api.POST("/flights/recalculate", h.RecalculateAllFlights)
+	// Routes now registered via generated interface
 }
 
-// RecalculateAllFlights recalculates all auto-computed fields for every flight
-func (h *APIHandler) RecalculateAllFlights(c *gin.Context) {
+// RecalculateFlights recalculates all auto-computed fields for every flight
+func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
