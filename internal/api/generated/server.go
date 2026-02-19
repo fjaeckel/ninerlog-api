@@ -14,6 +14,42 @@ import (
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Create a system announcement
+	// (POST /admin/announcements)
+	CreateAnnouncement(c *gin.Context)
+	// Delete an announcement
+	// (DELETE /admin/announcements/{announcementId})
+	DeleteAnnouncement(c *gin.Context, announcementId openapi_types.UUID)
+	// List admin audit log
+	// (GET /admin/audit-log)
+	ListAdminAuditLog(c *gin.Context, params ListAdminAuditLogParams)
+	// Runtime configuration (non-secret)
+	// (GET /admin/config)
+	GetAdminConfig(c *gin.Context)
+	// Clean up expired tokens
+	// (POST /admin/maintenance/cleanup-tokens)
+	CleanupTokens(c *gin.Context)
+	// Send SMTP test email
+	// (POST /admin/maintenance/smtp-test)
+	SmtpTest(c *gin.Context)
+	// System-wide aggregate statistics
+	// (GET /admin/stats)
+	GetAdminStats(c *gin.Context)
+	// List all users (privacy-preserving)
+	// (GET /admin/users)
+	ListAdminUsers(c *gin.Context, params ListAdminUsersParams)
+	// Disable a user account
+	// (POST /admin/users/{userId}/disable)
+	DisableUser(c *gin.Context, userId openapi_types.UUID)
+	// Re-enable a user account
+	// (POST /admin/users/{userId}/enable)
+	EnableUser(c *gin.Context, userId openapi_types.UUID)
+	// Reset 2FA for a user
+	// (POST /admin/users/{userId}/reset-2fa)
+	ResetUser2fa(c *gin.Context, userId openapi_types.UUID)
+	// Unlock a locked user account
+	// (POST /admin/users/{userId}/unlock)
+	UnlockUser(c *gin.Context, userId openapi_types.UUID)
 	// List aircraft
 	// (GET /aircraft)
 	ListAircraft(c *gin.Context, params ListAircraftParams)
@@ -35,6 +71,9 @@ type ServerInterface interface {
 	// Get airport coordinates
 	// (GET /airports/{icaoCode})
 	GetAirport(c *gin.Context, icaoCode string)
+	// Get active announcements and user hints
+	// (GET /announcements)
+	GetAnnouncements(c *gin.Context)
 	// Disable 2FA
 	// (POST /auth/2fa/disable)
 	Disable2FA(c *gin.Context)
@@ -213,6 +252,291 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// CreateAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) CreateAnnouncement(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAnnouncement(c)
+}
+
+// DeleteAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAnnouncement(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", c.Param("announcementId"), &announcementId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter announcementId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAnnouncement(c, announcementId)
+}
+
+// ListAdminAuditLog operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAuditLog(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAuditLogParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminAuditLog(c, params)
+}
+
+// GetAdminConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminConfig(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminConfig(c)
+}
+
+// CleanupTokens operation middleware
+func (siw *ServerInterfaceWrapper) CleanupTokens(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CleanupTokens(c)
+}
+
+// SmtpTest operation middleware
+func (siw *ServerInterfaceWrapper) SmtpTest(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SmtpTest(c)
+}
+
+// GetAdminStats operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminStats(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminStats(c)
+}
+
+// ListAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminUsers(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminUsersParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", c.Request.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter search: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminUsers(c, params)
+}
+
+// DisableUser operation middleware
+func (siw *ServerInterfaceWrapper) DisableUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DisableUser(c, userId)
+}
+
+// EnableUser operation middleware
+func (siw *ServerInterfaceWrapper) EnableUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.EnableUser(c, userId)
+}
+
+// ResetUser2fa operation middleware
+func (siw *ServerInterfaceWrapper) ResetUser2fa(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResetUser2fa(c, userId)
+}
+
+// UnlockUser operation middleware
+func (siw *ServerInterfaceWrapper) UnlockUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UnlockUser(c, userId)
+}
 
 // ListAircraft operation middleware
 func (siw *ServerInterfaceWrapper) ListAircraft(c *gin.Context) {
@@ -410,6 +734,21 @@ func (siw *ServerInterfaceWrapper) GetAirport(c *gin.Context) {
 	}
 
 	siw.Handler.GetAirport(c, icaoCode)
+}
+
+// GetAnnouncements operation middleware
+func (siw *ServerInterfaceWrapper) GetAnnouncements(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAnnouncements(c)
 }
 
 // Disable2FA operation middleware
@@ -1701,6 +2040,18 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.POST(options.BaseURL+"/admin/announcements", wrapper.CreateAnnouncement)
+	router.DELETE(options.BaseURL+"/admin/announcements/:announcementId", wrapper.DeleteAnnouncement)
+	router.GET(options.BaseURL+"/admin/audit-log", wrapper.ListAdminAuditLog)
+	router.GET(options.BaseURL+"/admin/config", wrapper.GetAdminConfig)
+	router.POST(options.BaseURL+"/admin/maintenance/cleanup-tokens", wrapper.CleanupTokens)
+	router.POST(options.BaseURL+"/admin/maintenance/smtp-test", wrapper.SmtpTest)
+	router.GET(options.BaseURL+"/admin/stats", wrapper.GetAdminStats)
+	router.GET(options.BaseURL+"/admin/users", wrapper.ListAdminUsers)
+	router.POST(options.BaseURL+"/admin/users/:userId/disable", wrapper.DisableUser)
+	router.POST(options.BaseURL+"/admin/users/:userId/enable", wrapper.EnableUser)
+	router.POST(options.BaseURL+"/admin/users/:userId/reset-2fa", wrapper.ResetUser2fa)
+	router.POST(options.BaseURL+"/admin/users/:userId/unlock", wrapper.UnlockUser)
 	router.GET(options.BaseURL+"/aircraft", wrapper.ListAircraft)
 	router.POST(options.BaseURL+"/aircraft", wrapper.CreateAircraft)
 	router.DELETE(options.BaseURL+"/aircraft/:aircraftId", wrapper.DeleteAircraft)
@@ -1708,6 +2059,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PATCH(options.BaseURL+"/aircraft/:aircraftId", wrapper.UpdateAircraft)
 	router.GET(options.BaseURL+"/airports/search", wrapper.SearchAirports)
 	router.GET(options.BaseURL+"/airports/:icaoCode", wrapper.GetAirport)
+	router.GET(options.BaseURL+"/announcements", wrapper.GetAnnouncements)
 	router.POST(options.BaseURL+"/auth/2fa/disable", wrapper.Disable2FA)
 	router.POST(options.BaseURL+"/auth/2fa/login", wrapper.Login2FA)
 	router.POST(options.BaseURL+"/auth/2fa/setup", wrapper.Setup2FA)

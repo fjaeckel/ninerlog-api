@@ -127,5 +127,5 @@ func (h *APIHandler) Login2FA(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, convertAuthResponse(user, tokens))
+	c.JSON(http.StatusOK, h.convertAuthResponse(user, tokens))
 }

@@ -1,0 +1,2 @@
+ALTER TABLE users DROP COLUMN IF EXISTS disabled;
+ALTER TABLE users DROP COLUMN IF EXISTS last_login_at;

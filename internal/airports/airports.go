@@ -57,6 +57,14 @@ func Lookup(icao string) *AirportInfo {
 	return nil
 }
 
+// Count returns the number of airports in the database
+func Count() int {
+	if db == nil {
+		return 0
+	}
+	return len(db)
+}
+
 // Search returns airports matching a prefix (case-insensitive)
 func Search(prefix string, limit int) []AirportInfo {
 	if db == nil || prefix == "" {

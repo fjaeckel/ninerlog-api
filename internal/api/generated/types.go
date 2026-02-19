@@ -13,6 +13,14 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for AnnouncementSeverity.
+const (
+	AnnouncementSeverityCritical AnnouncementSeverity = "critical"
+	AnnouncementSeverityInfo     AnnouncementSeverity = "info"
+	AnnouncementSeveritySuccess  AnnouncementSeverity = "success"
+	AnnouncementSeverityWarning  AnnouncementSeverity = "warning"
+)
+
 // Defines values for ClassRatingCurrencyStatus.
 const (
 	Current  ClassRatingCurrencyStatus = "current"
@@ -142,6 +150,14 @@ const (
 	Partial   ImportStatus = "partial"
 )
 
+// Defines values for CreateAnnouncementJSONBodySeverity.
+const (
+	CreateAnnouncementJSONBodySeverityCritical CreateAnnouncementJSONBodySeverity = "critical"
+	CreateAnnouncementJSONBodySeverityInfo     CreateAnnouncementJSONBodySeverity = "info"
+	CreateAnnouncementJSONBodySeveritySuccess  CreateAnnouncementJSONBodySeverity = "success"
+	CreateAnnouncementJSONBodySeverityWarning  CreateAnnouncementJSONBodySeverity = "warning"
+)
+
 // Defines values for ListFlightsParamsSortBy.
 const (
 	ListFlightsParamsSortByCreatedAt ListFlightsParamsSortBy = "createdAt"
@@ -154,6 +170,88 @@ const (
 	Asc  ListFlightsParamsSortOrder = "asc"
 	Desc ListFlightsParamsSortOrder = "desc"
 )
+
+// AdminAuditLogEntry defines model for AdminAuditLogEntry.
+type AdminAuditLogEntry struct {
+	// Action The admin action performed
+	Action      string             `json:"action"`
+	AdminUserId openapi_types.UUID `json:"adminUserId"`
+	CreatedAt   time.Time          `json:"createdAt"`
+
+	// Details Additional details about the action (JSON)
+	Details *map[string]interface{} `json:"details,omitempty"`
+	Id      openapi_types.UUID      `json:"id"`
+
+	// TargetUserId The user affected by the action (if any)
+	TargetUserId *openapi_types.UUID `json:"targetUserId,omitempty"`
+}
+
+// AdminConfig defines model for AdminConfig.
+type AdminConfig struct {
+	// AdminEmailConfigured Whether ADMIN_EMAIL is set
+	AdminEmailConfigured bool `json:"adminEmailConfigured"`
+
+	// AirportDatabaseSize Number of airports loaded
+	AirportDatabaseSize int `json:"airportDatabaseSize"`
+
+	// CorsOrigins Configured CORS allowed origins
+	CorsOrigins []string `json:"corsOrigins"`
+	GoVersion   string   `json:"goVersion"`
+
+	// MigrationVersion Current database migration version
+	MigrationVersion int `json:"migrationVersion"`
+
+	// RateLimitAdmin Admin endpoint rate limit
+	RateLimitAdmin string `json:"rateLimitAdmin"`
+
+	// RateLimitAuth Auth endpoint rate limit
+	RateLimitAuth string `json:"rateLimitAuth"`
+
+	// ServerUptime Human-readable uptime
+	ServerUptime string `json:"serverUptime"`
+
+	// SmtpConfigured Whether SMTP is configured
+	SmtpConfigured bool `json:"smtpConfigured"`
+}
+
+// AdminStats defines model for AdminStats.
+type AdminStats struct {
+	DisabledAccounts int `json:"disabledAccounts"`
+	FlightsThisMonth int `json:"flightsThisMonth"`
+	LockedAccounts   int `json:"lockedAccounts"`
+	NewUsersThisWeek int `json:"newUsersThisWeek"`
+	TotalAircraft    int `json:"totalAircraft"`
+	TotalCredentials int `json:"totalCredentials"`
+	TotalFlights     int `json:"totalFlights"`
+	TotalImports     int `json:"totalImports"`
+	TotalUsers       int `json:"totalUsers"`
+}
+
+// AdminUser defines model for AdminUser.
+type AdminUser struct {
+	// AircraftCount Number of aircraft in database
+	AircraftCount int       `json:"aircraftCount"`
+	CreatedAt     time.Time `json:"createdAt"`
+
+	// Disabled Whether the account is disabled by admin
+	Disabled bool                `json:"disabled"`
+	Email    openapi_types.Email `json:"email"`
+
+	// FlightCount Total number of flights logged
+	FlightCount int                `json:"flightCount"`
+	Id          openapi_types.UUID `json:"id"`
+
+	// LastLoginAt Last successful login timestamp
+	LastLoginAt *time.Time `json:"lastLoginAt,omitempty"`
+
+	// Locked Whether the account is locked due to brute-force protection
+	Locked *bool `json:"locked,omitempty"`
+
+	// LockedUntil When the brute-force lock expires
+	LockedUntil      *time.Time `json:"lockedUntil,omitempty"`
+	Name             string     `json:"name"`
+	TwoFactorEnabled bool       `json:"twoFactorEnabled"`
+}
 
 // Aircraft defines model for Aircraft.
 type Aircraft struct {
@@ -265,6 +363,32 @@ type AirportStats struct {
 	// TotalFlights Total flights (departures + arrivals)
 	TotalFlights int `json:"totalFlights"`
 }
+
+// Announcement defines model for Announcement.
+type Announcement struct {
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// ExpiresAt When this announcement auto-expires (null = permanent until deleted)
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+
+	// Id Unique identifier (UUID for admin announcements, string key for hints)
+	Id      string `json:"id"`
+	Message string `json:"message"`
+
+	// Severity Display severity:
+	// - info: blue — neutral information
+	// - success: green — positive suggestions (e.g. enable 2FA)
+	// - warning: orange — important notices (e.g. maintenance)
+	// - critical: red — urgent alerts
+	Severity AnnouncementSeverity `json:"severity"`
+}
+
+// AnnouncementSeverity Display severity:
+// - info: blue — neutral information
+// - success: green — positive suggestions (e.g. enable 2FA)
+// - warning: orange — important notices (e.g. maintenance)
+// - critical: red — urgent alerts
+type AnnouncementSeverity string
 
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
@@ -1175,6 +1299,28 @@ type NotificationPreferencesUpdate struct {
 	WarningDays        *[]int `json:"warningDays,omitempty"`
 }
 
+// PaginatedAdminAuditLog defines model for PaginatedAdminAuditLog.
+type PaginatedAdminAuditLog struct {
+	Data       []AdminAuditLogEntry `json:"data"`
+	Pagination struct {
+		Page       int `json:"page"`
+		PageSize   int `json:"pageSize"`
+		Total      int `json:"total"`
+		TotalPages int `json:"totalPages"`
+	} `json:"pagination"`
+}
+
+// PaginatedAdminUsers defines model for PaginatedAdminUsers.
+type PaginatedAdminUsers struct {
+	Data       []AdminUser `json:"data"`
+	Pagination struct {
+		Page       int `json:"page"`
+		PageSize   int `json:"pageSize"`
+		Total      int `json:"total"`
+		TotalPages int `json:"totalPages"`
+	} `json:"pagination"`
+}
+
 // PaginatedAircraft defines model for PaginatedAircraft.
 type PaginatedAircraft struct {
 	Data       []Aircraft `json:"data"`
@@ -1283,7 +1429,10 @@ type User struct {
 	CreatedAt time.Time           `json:"createdAt"`
 	Email     openapi_types.Email `json:"email"`
 	Id        openapi_types.UUID  `json:"id"`
-	Name      string              `json:"name"`
+
+	// IsAdmin Whether this user is the platform admin (computed from ADMIN_EMAIL env var, not stored in DB)
+	IsAdmin *bool  `json:"isAdmin,omitempty"`
+	Name    string `json:"name"`
 
 	// TwoFactorEnabled Whether 2FA is enabled for this account
 	TwoFactorEnabled *bool     `json:"twoFactorEnabled,omitempty"`
@@ -1308,11 +1457,40 @@ type LicenseId = openapi_types.UUID
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
+// Forbidden defines model for Forbidden.
+type Forbidden = Error
+
 // NotFound defines model for NotFound.
 type NotFound = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
+
+// CreateAnnouncementJSONBody defines parameters for CreateAnnouncement.
+type CreateAnnouncementJSONBody struct {
+	// ExpiresAt Auto-expire the announcement at this time (optional)
+	ExpiresAt *time.Time                         `json:"expiresAt,omitempty"`
+	Message   string                             `json:"message"`
+	Severity  CreateAnnouncementJSONBodySeverity `json:"severity"`
+}
+
+// CreateAnnouncementJSONBodySeverity defines parameters for CreateAnnouncement.
+type CreateAnnouncementJSONBodySeverity string
+
+// ListAdminAuditLogParams defines parameters for ListAdminAuditLog.
+type ListAdminAuditLogParams struct {
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListAdminUsersParams defines parameters for ListAdminUsers.
+type ListAdminUsersParams struct {
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+
+	// Search Search by email or name
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+}
 
 // ListAircraftParams defines parameters for ListAircraft.
 type ListAircraftParams struct {
@@ -1492,6 +1670,9 @@ type UpdateCurrentUserJSONBody struct {
 	Email *openapi_types.Email `json:"email,omitempty"`
 	Name  *string              `json:"name,omitempty"`
 }
+
+// CreateAnnouncementJSONRequestBody defines body for CreateAnnouncement for application/json ContentType.
+type CreateAnnouncementJSONRequestBody CreateAnnouncementJSONBody
 
 // CreateAircraftJSONRequestBody defines body for CreateAircraft for application/json ContentType.
 type CreateAircraftJSONRequestBody = AircraftCreate

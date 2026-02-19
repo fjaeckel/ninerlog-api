@@ -58,6 +58,12 @@ func main() {
 		corsOrigins[i] = strings.TrimSpace(corsOrigins[i])
 	}
 
+	// Admin email (optional — designates admin user)
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	if adminEmail != "" {
+		log.Printf("🔑 Admin email configured: %s", adminEmail)
+	}
+
 	// Connect to database
 	log.Println("📦 Connecting to database...")
 	db, err := sql.Open("postgres", dbURL)
@@ -133,8 +139,11 @@ func main() {
 	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, jwtManager, flightCrewRepo)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetDB(db)
+	apiHandler.SetEmailSender(emailSender)
+	apiHandler.SetStartedAt(time.Now())
+	apiHandler.SetCORSOrigins(corsOrigins)
 
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)
@@ -192,6 +201,22 @@ func main() {
 		"/auth/2fa/login",
 		"/auth/password-reset-request",
 		"/auth/password-reset",
+	))
+
+	// Stricter rate limiting for admin endpoints: 30 requests per minute per IP
+	adminRateLimit := middleware.NewRateLimitMiddleware(30, 1*time.Minute)
+	api.Use(middleware.RateLimitByPath(adminRateLimit,
+		"/admin/stats",
+		"/admin/users",
+		"/admin/audit-log",
+		"/admin/maintenance/cleanup-tokens",
+		"/admin/maintenance/smtp-test",
+		"/admin/announcements",
+		"/admin/config",
+		"/disable",
+		"/enable",
+		"/unlock",
+		"/reset-2fa",
 	))
 
 	generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{

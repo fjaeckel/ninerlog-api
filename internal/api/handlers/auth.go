@@ -8,7 +8,6 @@ import (
 	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/gin-gonic/gin"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // RegisterUser implements POST /auth/register
@@ -36,7 +35,7 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, convertAuthResponse(user, tokens))
+	c.JSON(http.StatusCreated, h.convertAuthResponse(user, tokens))
 }
 
 // LoginUser implements POST /auth/login
@@ -63,6 +62,10 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 			h.sendError(c, http.StatusTooManyRequests, "Account temporarily locked due to too many failed login attempts. Please try again later.")
 			return
 		}
+		if err == service.ErrAccountDisabled {
+			h.sendError(c, http.StatusForbidden, "Account disabled. Contact the administrator.")
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Login failed")
 		return
 	}
@@ -83,7 +86,7 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, convertAuthResponse(user, tokens))
+	c.JSON(http.StatusOK, h.convertAuthResponse(user, tokens))
 }
 
 // RefreshToken implements POST /auth/refresh
@@ -164,20 +167,11 @@ func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func convertAuthResponse(user *models.User, tokens *service.TokenPair) generated.AuthResponse {
-	twoFA := user.TwoFactorEnabled
-	userResp := generated.User{
-		Id:               openapi_types.UUID(user.ID),
-		Email:            openapi_types.Email(user.Email),
-		Name:             user.Name,
-		TwoFactorEnabled: &twoFA,
-		CreatedAt:        user.CreatedAt,
-		UpdatedAt:        user.UpdatedAt,
-	}
+func (h *APIHandler) convertAuthResponse(user *models.User, tokens *service.TokenPair) generated.AuthResponse {
 	return generated.AuthResponse{
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,
 		ExpiresIn:    900,
-		User:         userResp,
+		User:         h.buildUserResponse(user),
 	}
 }

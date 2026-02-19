@@ -2,14 +2,19 @@ package handlers
 
 import (
 	"database/sql"
+	"strings"
+	"time"
 
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/pilotlog-api/internal/models"
 	"github.com/fjaeckel/pilotlog-api/internal/repository"
 	"github.com/fjaeckel/pilotlog-api/internal/service"
 	"github.com/fjaeckel/pilotlog-api/internal/service/currency"
+	"github.com/fjaeckel/pilotlog-api/pkg/email"
 	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // APIHandler implements the generated.ServerInterface from OpenAPI spec
@@ -27,6 +32,10 @@ type APIHandler struct {
 	jwtManager          *jwt.Manager
 	db                  *sql.DB
 	flightCrewRepo      repository.FlightCrewRepository
+	adminEmail          string
+	emailSender         *email.Sender
+	startedAt           time.Time
+	corsOrigins         []string
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface
@@ -43,6 +52,7 @@ func NewAPIHandler(
 	currencyService *currency.Service,
 	jwtManager *jwt.Manager,
 	flightCrewRepo repository.FlightCrewRepository,
+	adminEmail string,
 ) *APIHandler {
 	return &APIHandler{
 		authService:         authService,
@@ -57,6 +67,7 @@ func NewAPIHandler(
 		currencyService:     currencyService,
 		jwtManager:          jwtManager,
 		flightCrewRepo:      flightCrewRepo,
+		adminEmail:          adminEmail,
 	}
 }
 
@@ -115,3 +126,23 @@ func (h *APIHandler) sendError(c *gin.Context, statusCode int, message string, d
 
 // Verify that APIHandler implements the generated.ServerInterface
 var _ generated.ServerInterface = (*APIHandler)(nil)
+
+// isAdminUser checks if the given email matches the configured admin email
+func (h *APIHandler) isAdminUser(email string) bool {
+	return h.adminEmail != "" && strings.EqualFold(email, h.adminEmail)
+}
+
+// buildUserResponse creates a generated.User from a models.User, including isAdmin
+func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
+	twoFA := user.TwoFactorEnabled
+	isAdmin := h.isAdminUser(user.Email)
+	return generated.User{
+		Id:               openapi_types.UUID(user.ID),
+		Email:            openapi_types.Email(user.Email),
+		Name:             user.Name,
+		TwoFactorEnabled: &twoFA,
+		IsAdmin:          &isAdmin,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
+	}
+}

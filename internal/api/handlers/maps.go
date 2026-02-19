@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/fjaeckel/pilotlog-api/internal/airports"
 	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/pilotlog-api/pkg/email"
 	"github.com/gin-gonic/gin"
 )
 
@@ -191,6 +193,21 @@ func (h *APIHandler) GetAirportStats(c *gin.Context) {
 // SetDB stores the database reference for direct queries in map handlers
 func (h *APIHandler) SetDB(db *sql.DB) {
 	h.db = db
+}
+
+// SetEmailSender stores the email sender for admin SMTP test
+func (h *APIHandler) SetEmailSender(sender *email.Sender) {
+	h.emailSender = sender
+}
+
+// SetStartedAt records the server start time for uptime calculation
+func (h *APIHandler) SetStartedAt(t time.Time) {
+	h.startedAt = t
+}
+
+// SetCORSOrigins stores the configured CORS origins for the config endpoint
+func (h *APIHandler) SetCORSOrigins(origins []string) {
+	h.corsOrigins = origins
 }
 
 func toGeneratedAirport(a *airports.AirportInfo) generated.Airport {

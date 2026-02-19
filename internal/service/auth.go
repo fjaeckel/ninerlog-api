@@ -22,6 +22,7 @@ var (
 	ErrTokenRevoked       = errors.New("token revoked")
 	ErrTokenUsed          = errors.New("token already used")
 	ErrAccountLocked      = errors.New("account temporarily locked due to too many failed login attempts")
+	ErrAccountDisabled    = errors.New("account disabled by administrator")
 )
 
 const (
@@ -120,6 +121,11 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 		return nil, nil, err
 	}
 
+	// Check if account is disabled
+	if user.Disabled {
+		return nil, nil, ErrAccountDisabled
+	}
+
 	// Check if account is locked
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
 		return nil, nil, ErrAccountLocked
@@ -142,6 +148,12 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 	if user.FailedLoginAttempts > 0 {
 		_ = s.userRepo.ResetFailedLoginAttempts(ctx, user.ID)
 	}
+
+	// Update last login timestamp
+	now := time.Now()
+	user.LastLoginAt = &now
+	user.UpdatedAt = now
+	_ = s.userRepo.Update(ctx, user)
 
 	// Delete all existing refresh tokens for this user to avoid constraint violations
 	// This ensures only one active session per user

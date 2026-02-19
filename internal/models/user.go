@@ -18,6 +18,8 @@ type User struct {
 	RecoveryCodes       pq.StringArray `json:"-"` // never exposed in JSON
 	FailedLoginAttempts int            `json:"-"`
 	LockedUntil         *time.Time     `json:"-"`
+	Disabled            bool           `json:"disabled"`
+	LastLoginAt         *time.Time     `json:"lastLoginAt,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 }
