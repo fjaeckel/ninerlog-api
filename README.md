@@ -1,6 +1,6 @@
-# PilotLog API
+# NinerLog API
 
-RESTful backend for PilotLog — an EASA/FAA compliant digital pilot logbook with multi-license tracking, currency evaluation, and PDF export.
+RESTful backend for NinerLog — an EASA/FAA compliant digital pilot logbook with multi-license tracking, currency evaluation, and PDF export.
 
 ## Tech Stack
 
@@ -37,7 +37,7 @@ make test-integration
 | Target | Description |
 |---|---|
 | `make run` | Start the API server |
-| `make build` | Build binary to `bin/pilotlog-api` |
+| `make build` | Build binary to `bin/ninerlog-api` |
 | `make generate` | Generate Go types from OpenAPI spec |
 | `make test` | Unit tests with coverage |
 | `make test-short` | Unit tests (skip slow) |
@@ -105,7 +105,7 @@ All endpoints are under `/api/v1`. Health check at `GET /health`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `DATABASE_URL` | `postgresql://pilotlog:changeme@localhost:5432/pilotlog?sslmode=disable` | PostgreSQL connection |
+| `DATABASE_URL` | `postgresql://ninerlog:changeme@localhost:5432/ninerlog?sslmode=disable` | PostgreSQL connection |
 | `PORT` | `3000` | Server port |
 | `JWT_SECRET` | — | Access token signing secret |
 | `REFRESH_SECRET` | — | Refresh token signing secret |
@@ -115,7 +115,7 @@ All endpoints are under `/api/v1`. Health check at `GET /health`.
 | `SMTP_PORT` | `587` | SMTP port |
 | `SMTP_USERNAME` | — | SMTP username |
 | `SMTP_PASSWORD` | — | SMTP password |
-| `SMTP_FROM` | `noreply@pilotlog.app` | Sender address |
+| `SMTP_FROM` | `noreply@ninerlog.app` | Sender address |
 
 ## Docker
 
@@ -130,5 +130,5 @@ See [DOCKER.md](../DOCKER.md) for full deployment guide.
 
 ## Related Repositories
 
-- [pilotlog-project](../pilotlog-project) — OpenAPI spec & project planning
-- [pilotlog-frontend](../pilotlog-frontend) — React/TypeScript web frontend
+- [ninerlog-project](../ninerlog-project) — OpenAPI spec & project planning
+- [ninerlog-frontend](../ninerlog-frontend) — React/TypeScript web frontend

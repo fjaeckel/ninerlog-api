@@ -22,8 +22,8 @@ func TestLoadSMTPConfig_Defaults(t *testing.T) {
 	if cfg.Username != "" {
 		t.Errorf("Username = %q, want empty", cfg.Username)
 	}
-	if cfg.From != "noreply@pilotlog.app" {
-		t.Errorf("From = %q, want noreply@pilotlog.app", cfg.From)
+	if cfg.From != "noreply@ninerlog.app" {
+		t.Errorf("From = %q, want noreply@ninerlog.app", cfg.From)
 	}
 }
 

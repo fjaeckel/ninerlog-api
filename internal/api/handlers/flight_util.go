@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/fjaeckel/pilotlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/gin-gonic/gin"
 )
 

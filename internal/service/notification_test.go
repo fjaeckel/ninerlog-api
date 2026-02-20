@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
-	"github.com/fjaeckel/pilotlog-api/internal/repository"
-	"github.com/fjaeckel/pilotlog-api/internal/service"
-	"github.com/fjaeckel/pilotlog-api/pkg/email"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )

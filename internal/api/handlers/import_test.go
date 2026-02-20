@@ -3,7 +3,7 @@ package handlers
 import (
 	"testing"
 
-	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 )
 
 func TestParseCSV_ForeFlightFormat(t *testing.T) {

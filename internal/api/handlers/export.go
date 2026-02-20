@@ -25,7 +25,7 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "text/csv")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=pilotlog_flights_%s.csv", time.Now().Format("2006-01-02")))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_flights_%s.csv", time.Now().Format("2006-01-02")))
 
 	w := csv.NewWriter(c.Writer)
 
@@ -161,7 +161,7 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 	backup := map[string]interface{}{
 		"exportedAt":  time.Now().UTC().Format(time.RFC3339),
 		"version":     "1.0",
-		"format":      "PilotLog JSON Backup",
+		"format":      "NinerLog JSON Backup",
 		"flights":     flights,
 		"aircraft":    aircraft,
 		"licenses":    licensesWithRatings,
@@ -169,7 +169,7 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "application/json")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=pilotlog_backup_%s.json", time.Now().Format("2006-01-02")))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_backup_%s.json", time.Now().Format("2006-01-02")))
 
 	encoder := json.NewEncoder(c.Writer)
 	encoder.SetIndent("", "  ")

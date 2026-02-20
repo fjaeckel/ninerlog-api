@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/repository"
-	"github.com/fjaeckel/pilotlog-api/pkg/hash"
-	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/pkg/hash"
+	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/pquerna/otp/totp"
@@ -49,7 +49,7 @@ func (s *TwoFactorService) SetupTOTP(ctx context.Context, userID uuid.UUID) (str
 
 	// Generate TOTP key
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "PilotLog",
+		Issuer:      "NinerLog",
 		AccountName: user.Email,
 		Period:      30,
 		Digits:      6,

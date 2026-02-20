@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
 // FAAEvaluator implements FAA 14 CFR 61.57 currency rules

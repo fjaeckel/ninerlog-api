@@ -9,7 +9,7 @@ echo "⏳ Waiting for database to be ready..."
 sleep 3
 
 echo "📦 Running database migrations..."
-docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d pilotlog_test < db/migrations/test_init.sql || echo "⚠️  Migrations might need manual setup"
+docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d ninerlog_test < db/migrations/test_init.sql || echo "⚠️  Migrations might need manual setup"
 
 echo "🧪 Running unit tests..."
 go test -v -short ./...

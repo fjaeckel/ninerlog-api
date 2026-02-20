@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
 // OtherEvaluator handles authorities without specific currency rules.

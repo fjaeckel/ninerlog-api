@@ -12,15 +12,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/airports"
-	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
-	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
-	"github.com/fjaeckel/pilotlog-api/internal/api/middleware"
-	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
-	"github.com/fjaeckel/pilotlog-api/internal/service"
-	"github.com/fjaeckel/pilotlog-api/internal/service/currency"
-	"github.com/fjaeckel/pilotlog-api/pkg/email"
-	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/api/handlers"
+	"github.com/fjaeckel/ninerlog-api/internal/api/middleware"
+	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
+	"github.com/fjaeckel/ninerlog-api/pkg/email"
+	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -30,12 +30,12 @@ import (
 )
 
 func main() {
-	log.Println("🚀 Starting PilotLog API...")
+	log.Println("🚀 Starting NinerLog API...")
 
 	// Load environment variables
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgresql://pilotlog:changeme@localhost:5432/pilotlog?sslmode=disable"
+		dbURL = "postgresql://ninerlog:changeme@localhost:5432/ninerlog?sslmode=disable"
 	}
 	port := os.Getenv("PORT")
 	if port == "" {

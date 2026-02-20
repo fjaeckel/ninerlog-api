@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Default to project repo spec
-OPENAPI_SPEC="${1:-../pilotlog-project/api-spec/openapi.yaml}"
+OPENAPI_SPEC="${1:-../ninerlog-project/api-spec/openapi.yaml}"
 
 # Check if spec exists
 if [ ! -f "$OPENAPI_SPEC" ]; then
@@ -76,7 +76,7 @@ cat > "$OUTPUT_DIR/doc.go" << 'EOF'
 //
 //	./scripts/generate-server-types.sh
 //
-// Source: pilotlog-project/api-spec/openapi.yaml
+// Source: ninerlog-project/api-spec/openapi.yaml
 // Generator: oapi-codegen v2
 package generated
 EOF

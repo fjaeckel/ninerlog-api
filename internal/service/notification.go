@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
-	"github.com/fjaeckel/pilotlog-api/internal/repository"
-	"github.com/fjaeckel/pilotlog-api/pkg/email"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/google/uuid"
 )
 
@@ -125,12 +125,12 @@ func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *
 					continue
 				}
 
-				subject := fmt.Sprintf("PilotLog: %s expires in %d days", cred.CredentialType, daysUntilExpiry)
+				subject := fmt.Sprintf("NinerLog: %s expires in %d days", cred.CredentialType, daysUntilExpiry)
 				body := fmt.Sprintf(`<h2>Credential Expiry Warning</h2>
 					<p>Hi %s,</p>
 					<p>Your <strong>%s</strong> expires on <strong>%s</strong> (%d days from now).</p>
 					<p>Please renew it before it expires to maintain compliance.</p>
-					<p>— PilotLog</p>`,
+					<p>— NinerLog</p>`,
 					userName, cred.CredentialType, cred.ExpiryDate.Format("02 Jan 2006"), daysUntilExpiry)
 
 				if err := s.emailSender.Send(userEmail, subject, body); err != nil {
@@ -179,13 +179,13 @@ func (s *NotificationService) checkCurrencyExpiry(ctx context.Context, prefs *mo
 					continue
 				}
 
-				subject := fmt.Sprintf("PilotLog: %s currency — %d more landings needed", lic.LicenseType, remaining)
+				subject := fmt.Sprintf("NinerLog: %s currency — %d more landings needed", lic.LicenseType, remaining)
 				body := fmt.Sprintf(`<h2>Currency Warning</h2>
 					<p>Hi %s,</p>
 					<p>Your <strong>%s</strong> license currency requires attention.</p>
 					<p>You have <strong>%d day landings</strong> in the last 90 days. You need <strong>%d more</strong> to maintain currency.</p>
 					<p>Log a flight with landings to stay current!</p>
-					<p>— PilotLog</p>`,
+					<p>— NinerLog</p>`,
 					userName, lic.LicenseType, data.DayLandings, remaining)
 
 				if err := s.emailSender.Send(userEmail, subject, body); err != nil {

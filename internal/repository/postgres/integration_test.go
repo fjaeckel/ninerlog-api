@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fjaeckel/pilotlog-api/internal/repository"
-	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
-	"github.com/fjaeckel/pilotlog-api/internal/testutil"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
+	"github.com/fjaeckel/ninerlog-api/internal/testutil"
 )
 
 func TestUserRepositoryIntegration(t *testing.T) {

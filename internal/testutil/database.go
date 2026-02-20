@@ -25,7 +25,7 @@ func DefaultTestDBConfig() TestDBConfig {
 		Port:     getEnv("TEST_DB_PORT", "5433"),
 		User:     getEnv("TEST_DB_USER", "testuser"),
 		Password: getEnv("TEST_DB_PASSWORD", "testpass"),
-		DBName:   getEnv("TEST_DB_NAME", "pilotlog_test"),
+		DBName:   getEnv("TEST_DB_NAME", "ninerlog_test"),
 	}
 }
 

@@ -1,4 +1,4 @@
-module github.com/fjaeckel/pilotlog-api
+module github.com/fjaeckel/ninerlog-api
 
 go 1.25.6
 

@@ -1,15 +1,15 @@
 services:
   postgres-test:
     image: postgres:16-alpine
-    container_name: pilotlog-test-db
+    container_name: ninerlog-test-db
     environment:
       POSTGRES_USER: testuser
       POSTGRES_PASSWORD: testpass
-      POSTGRES_DB: pilotlog_test
+      POSTGRES_DB: ninerlog_test
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U testuser -d pilotlog_test"]
+      test: ["CMD-SHELL", "pg_isready -U testuser -d ninerlog_test"]
       interval: 5s
       timeout: 5s
       retries: 5

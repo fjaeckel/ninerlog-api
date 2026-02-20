@@ -134,7 +134,7 @@ docker compose -f docker-compose.test.yaml down
 ## Test Organization
 
 ```
-pilotlog-api/
+ninerlog-api/
 ├── internal/
 │   ├── testutil/              # Test utilities
 │   │   ├── database.go        # DB connection & cleanup

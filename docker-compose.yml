@@ -1,11 +1,11 @@
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: pilotlog-db
+    container_name: ninerlog-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-pilotlog}
-      POSTGRES_USER: ${POSTGRES_USER:-pilotlog}
+      POSTGRES_DB: ${POSTGRES_DB:-ninerlog}
+      POSTGRES_USER: ${POSTGRES_USER:-ninerlog}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       POSTGRES_INITDB_ARGS: "-E UTF8"
     volumes:
@@ -14,25 +14,25 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pilotlog}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ninerlog}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - pilotlog-network
+      - ninerlog-network
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pilotlog-api
+    container_name: ninerlog-api
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       # Database
-      DATABASE_URL: postgresql://${POSTGRES_USER:-pilotlog}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-pilotlog}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ninerlog}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-ninerlog}?sslmode=disable
       
       # Server
       PORT: ${API_PORT:-3000}
@@ -52,7 +52,7 @@ services:
     ports:
       - "${API_PORT:-3000}:3000"
     networks:
-      - pilotlog-network
+      - ninerlog-network
     volumes:
       - ./db/migrations:/app/db/migrations:ro
     healthcheck:
@@ -67,5 +67,5 @@ volumes:
     driver: local
 
 networks:
-  pilotlog-network:
+  ninerlog-network:
     driver: bridge

@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
-	"github.com/fjaeckel/pilotlog-api/internal/models"
-	"github.com/fjaeckel/pilotlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"

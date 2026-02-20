@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/airports"
-	"github.com/fjaeckel/pilotlog-api/internal/models"
-	"github.com/fjaeckel/pilotlog-api/pkg/solar"
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/pkg/solar"
 )
 
 // ApplyAutoCalculations computes all auto-calculated fields on a flight.

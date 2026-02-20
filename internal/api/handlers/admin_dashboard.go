@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/airports"
-	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/gin-gonic/gin"
 )
 
@@ -98,9 +98,9 @@ func (h *APIHandler) SmtpTest(c *gin.Context) {
 		return
 	}
 
-	subject := "PilotLog SMTP Test"
+	subject := "NinerLog SMTP Test"
 	body := fmt.Sprintf(`<h2>SMTP Test Successful</h2>
-<p>This is a test email from the PilotLog admin console.</p>
+<p>This is a test email from the NinerLog admin console.</p>
 <p>Sent at: %s</p>
 <p>If you received this email, your SMTP configuration is working correctly.</p>`,
 		time.Now().Format(time.RFC3339))

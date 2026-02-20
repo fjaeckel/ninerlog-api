@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
-	"github.com/fjaeckel/pilotlog-api/internal/repository"
-	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
-	"github.com/fjaeckel/pilotlog-api/internal/testutil"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
+	"github.com/fjaeckel/ninerlog-api/internal/testutil"
 	"github.com/google/uuid"
 )
 

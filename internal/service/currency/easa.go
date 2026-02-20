@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
 // EASAEvaluator implements EASA FCL currency rules per class type

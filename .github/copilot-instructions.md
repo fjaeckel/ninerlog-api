@@ -1,6 +1,6 @@
-# GitHub Copilot Instructions for PilotLog API
+# GitHub Copilot Instructions for NinerLog API
 
-You are assisting with the PilotLog API repository, the backend server for a EASA/FAA compliant pilot logbook application.
+You are assisting with the NinerLog API repository, the backend server for a EASA/FAA compliant pilot logbook application.
 
 ## Repository Context
 
@@ -869,7 +869,7 @@ const flights = await prisma.flightLog.findMany({
 import OpenApiValidator from 'express-openapi-validator';
 
 app.use(OpenApiValidator.middleware({
-  apiSpec: '../pilotlog-project/api-spec/openapi.yaml',
+  apiSpec: '../ninerlog-project/api-spec/openapi.yaml',
   validateRequests: true,
   validateResponses: true,
   operationHandlers: path.join(__dirname, 'api/routes'),
@@ -908,8 +908,8 @@ app.setErrorHandler((error, req, reply) => {
 
 ## Related Repositories
 
-- **pilotlog-project**: OpenAPI spec and documentation
-- **pilotlog-frontend**: React web application
+- **ninerlog-project**: OpenAPI spec and documentation
+- **ninerlog-frontend**: React web application
 
 Coordinate changes that affect:
 - API endpoints (update spec first)
@@ -921,7 +921,7 @@ Coordinate changes that affect:
 ```env
 NODE_ENV=development
 PORT=3000
-DATABASE_URL=postgresql://user:pass@localhost:5432/pilotlog
+DATABASE_URL=postgresql://user:pass@localhost:5432/ninerlog
 JWT_SECRET=your-secret-key
 REFRESH_SECRET=your-refresh-secret
 JWT_EXPIRES_IN=15m

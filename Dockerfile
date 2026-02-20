@@ -14,14 +14,14 @@ RUN go mod download
 COPY . .
 
 # Generate API types from OpenAPI spec (if spec is available)
-RUN if [ -f "../pilotlog-project/api-spec/openapi.yaml" ]; then \
-      ./scripts/generate-server-types.sh ../pilotlog-project/api-spec/openapi.yaml || true; \
+RUN if [ -f "../ninerlog-project/api-spec/openapi.yaml" ]; then \
+      ./scripts/generate-server-types.sh ../ninerlog-project/api-spec/openapi.yaml || true; \
     fi
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
-    -o /build/pilotlog-api \
+    -o /build/ninerlog-api \
     ./cmd/api
 
 # Runtime stage
@@ -37,7 +37,7 @@ RUN addgroup -g 1000 appuser && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /build/pilotlog-api /app/pilotlog-api
+COPY --from=builder /build/ninerlog-api /app/ninerlog-api
 
 # Copy migrations (if they exist)
 COPY --from=builder /build/db/migrations /app/db/migrations
@@ -56,4 +56,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Run the application
-CMD ["/app/pilotlog-api"]
+CMD ["/app/ninerlog-api"]

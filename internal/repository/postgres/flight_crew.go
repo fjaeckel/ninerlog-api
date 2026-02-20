@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
 )
 

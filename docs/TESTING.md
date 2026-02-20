@@ -85,7 +85,7 @@ docker compose -f docker-compose.test.yaml up -d
 
 Run migrations:
 ```bash
-PGPASSWORD=testpass psql -h localhost -p 5433 -U testuser -d pilotlog_test -f db/migrations/test_init.sql
+PGPASSWORD=testpass psql -h localhost -p 5433 -U testuser -d ninerlog_test -f db/migrations/test_init.sql
 ```
 
 Stop the test database:
@@ -102,7 +102,7 @@ TEST_DB_HOST=localhost
 TEST_DB_PORT=5433
 TEST_DB_USER=testuser
 TEST_DB_PASSWORD=testpass
-TEST_DB_NAME=pilotlog_test
+TEST_DB_NAME=ninerlog_test
 ```
 
 ## Writing Tests
@@ -170,7 +170,7 @@ open coverage.html
 ## Test Structure
 
 ```
-pilotlog-api/
+ninerlog-api/
 ├── internal/
 │   ├── testutil/           # Shared test utilities
 │   │   ├── database.go     # DB setup/teardown

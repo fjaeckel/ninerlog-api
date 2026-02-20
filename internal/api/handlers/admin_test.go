@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
 )
 
@@ -69,10 +69,10 @@ func TestIsAdminUser(t *testing.T) {
 
 func TestBuildUserResponse_IncludesIsAdmin(t *testing.T) {
 	// Create a minimal handler with admin email set
-	h := &APIHandler{adminEmail: "admin@pilotlog.app"}
+	h := &APIHandler{adminEmail: "admin@ninerlog.app"}
 
 	t.Run("admin user", func(t *testing.T) {
-		user := createTestUser("admin@pilotlog.app", "Admin User")
+		user := createTestUser("admin@ninerlog.app", "Admin User")
 		resp := h.buildUserResponse(user)
 		if resp.IsAdmin == nil || !*resp.IsAdmin {
 			t.Error("Expected isAdmin=true for admin user")
@@ -89,7 +89,7 @@ func TestBuildUserResponse_IncludesIsAdmin(t *testing.T) {
 
 	t.Run("no admin configured", func(t *testing.T) {
 		h2 := &APIHandler{adminEmail: ""}
-		user := createTestUser("admin@pilotlog.app", "Admin User")
+		user := createTestUser("admin@ninerlog.app", "Admin User")
 		resp := h2.buildUserResponse(user)
 		if resp.IsAdmin == nil || *resp.IsAdmin {
 			t.Error("Expected isAdmin=false when no admin email configured")

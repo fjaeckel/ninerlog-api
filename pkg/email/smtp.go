@@ -24,7 +24,7 @@ func LoadSMTPConfig() *SMTPConfig {
 		Port:     getEnv("SMTP_PORT", "587"),
 		Username: getEnv("SMTP_USERNAME", ""),
 		Password: getEnv("SMTP_PASSWORD", ""),
-		From:     getEnv("SMTP_FROM", "noreply@pilotlog.app"),
+		From:     getEnv("SMTP_FROM", "noreply@ninerlog.app"),
 	}
 }
 
@@ -54,7 +54,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	auth := smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
 
 	headers := []string{
-		fmt.Sprintf("From: PilotLog <%s>", s.config.From),
+		fmt.Sprintf("From: NinerLog <%s>", s.config.From),
 		fmt.Sprintf("To: %s", to),
 		fmt.Sprintf("Subject: %s", subject),
 		"MIME-Version: 1.0",

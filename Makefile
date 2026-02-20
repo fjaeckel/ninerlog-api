@@ -4,13 +4,13 @@
 .DEFAULT_GOAL := help
 
 # Variables
-BINARY_NAME=pilotlog-api
+BINARY_NAME=ninerlog-api
 BUILD_DIR=bin
 COVERAGE_FILE=coverage.out
 COVERAGE_HTML=coverage.html
 
 help: ## Show this help message
-	@echo "PilotLog API - Available commands:"
+	@echo "NinerLog API - Available commands:"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 	@echo ""
@@ -31,8 +31,8 @@ test-integration: ## Run integration tests (requires test DB)
 	@echo "🧪 Running integration tests..."
 	@docker compose -f docker-compose.test.yaml up -d
 	@sleep 3
-	@docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d pilotlog_test < db/migrations/test_init.sql 2>/dev/null || true
-	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=pilotlog_test && \
+	@docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d ninerlog_test < db/migrations/test_init.sql 2>/dev/null || true
+	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=ninerlog_test && \
 		go test -v ./internal/repository/postgres/... | grep -v "no test files"
 	@docker compose -f docker-compose.test.yaml down
 
@@ -40,8 +40,8 @@ test-e2e: ## Run end-to-end tests (requires test DB)
 	@echo "🧪 Running e2e tests..."
 	@docker compose -f docker-compose.test.yaml up -d
 	@sleep 3
-	@docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d pilotlog_test < db/migrations/test_init.sql 2>/dev/null || true
-	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=pilotlog_test && \
+	@docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d ninerlog_test < db/migrations/test_init.sql 2>/dev/null || true
+	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=ninerlog_test && \
 		go test -v -tags=e2e ./test/e2e/...
 	@docker compose -f docker-compose.test.yaml down
 

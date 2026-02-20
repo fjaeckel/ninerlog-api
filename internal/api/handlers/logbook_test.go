@@ -3,7 +3,7 @@ package handlers
 import (
 	"testing"
 
-	"github.com/fjaeckel/pilotlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
 func TestLogbookFilteringLogic(t *testing.T) {

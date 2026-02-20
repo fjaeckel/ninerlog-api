@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/airports"
-	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
-	"github.com/fjaeckel/pilotlog-api/pkg/email"
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/gin-gonic/gin"
 )
 

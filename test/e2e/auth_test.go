@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fjaeckel/pilotlog-api/internal/api/generated"
-	"github.com/fjaeckel/pilotlog-api/internal/api/handlers"
-	"github.com/fjaeckel/pilotlog-api/internal/repository/postgres"
-	"github.com/fjaeckel/pilotlog-api/internal/service"
-	"github.com/fjaeckel/pilotlog-api/internal/testutil"
-	"github.com/fjaeckel/pilotlog-api/pkg/jwt"
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/api/handlers"
+	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/internal/testutil"
+	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
 )
 
