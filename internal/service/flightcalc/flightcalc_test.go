@@ -128,6 +128,39 @@ func TestTakeoffOverride_Respected(t *testing.T) {
 	}
 }
 
+func TestLandingSplit_NoArrivalTime_DefaultsToDay(t *testing.T) {
+	// Regression: when ArrivalTime is nil, calculateLandingSplit returned early
+	// and left LandingsDay/Night at 0, then AllLandings was overwritten to 0.
+	f := baseFlight()
+	f.ArrivalTime = nil
+	f.AllLandings = 3
+	f.LandingsDay = 0
+	f.LandingsNight = 0
+	ApplyAutoCalculations(f)
+	if f.AllLandings != 3 {
+		t.Errorf("expected allLandings=3 when arrivalTime is nil, got %d", f.AllLandings)
+	}
+	if f.LandingsDay != 3 {
+		t.Errorf("expected landingsDay=3 (default to day), got %d", f.LandingsDay)
+	}
+}
+
+func TestLandingSplit_UnknownAirport_DefaultsToDay(t *testing.T) {
+	f := baseFlight()
+	unknownIcao := "ZZZZ"
+	f.ArrivalICAO = &unknownIcao
+	f.AllLandings = 5
+	f.LandingsDay = 0
+	f.LandingsNight = 0
+	ApplyAutoCalculations(f)
+	if f.AllLandings != 5 {
+		t.Errorf("expected allLandings=5 for unknown airport, got %d", f.AllLandings)
+	}
+	if f.LandingsDay != 5 {
+		t.Errorf("expected landingsDay=5 (default to day), got %d", f.LandingsDay)
+	}
+}
+
 func TestLandingOverride_Respected(t *testing.T) {
 	f := baseFlight()
 	f.LandingsDay = 5

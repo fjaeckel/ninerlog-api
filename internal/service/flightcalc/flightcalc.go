@@ -217,16 +217,25 @@ func calculateLandingSplit(flight *models.Flight) {
 
 	arr := normalizeICAO(flight.ArrivalICAO)
 	if arr == "" || flight.ArrivalTime == nil {
+		// Can't determine day/night — default all landings to day
+		flight.LandingsDay = total
+		flight.LandingsNight = 0
 		return
 	}
 
 	arrAP := airports.Lookup(arr)
 	if arrAP == nil {
+		// Unknown airport — default all landings to day
+		flight.LandingsDay = total
+		flight.LandingsNight = 0
 		return
 	}
 
 	arrTime, err := parseTimeOfDay(flight.Date, *flight.ArrivalTime)
 	if err != nil {
+		// Can't parse time — default all landings to day
+		flight.LandingsDay = total
+		flight.LandingsNight = 0
 		return
 	}
 
