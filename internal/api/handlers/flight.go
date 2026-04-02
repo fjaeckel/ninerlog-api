@@ -260,6 +260,9 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	if req.IsFlightReview != nil {
 		flight.IsFlightReview = *req.IsFlightReview
 	}
+	if req.IsProficiencyCheck != nil {
+		flight.IsProficiencyCheck = *req.IsProficiencyCheck
+	}
 	if req.LaunchMethod != nil {
 		if *req.LaunchMethod != "null" {
 			lm := string(*req.LaunchMethod)
@@ -446,6 +449,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.IsFlightReview != nil {
 		flight.IsFlightReview = *req.IsFlightReview
 	}
+	if req.IsProficiencyCheck != nil {
+		flight.IsProficiencyCheck = *req.IsProficiencyCheck
+	}
 	if req.LaunchMethod != nil {
 		if *req.LaunchMethod != "null" {
 			lm := string(*req.LaunchMethod)
@@ -598,6 +604,7 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	flight.ApproachesCount = ptrInt(f.ApproachesCount)
 	flight.IsIpc = ptrBool(f.IsIPC)
 	flight.IsFlightReview = ptrBool(f.IsFlightReview)
+	flight.IsProficiencyCheck = ptrBool(f.IsProficiencyCheck)
 	if f.LaunchMethod != nil {
 		lm := generated.FlightLaunchMethod(*f.LaunchMethod)
 		flight.LaunchMethod = &lm

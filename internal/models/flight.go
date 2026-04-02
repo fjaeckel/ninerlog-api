@@ -73,6 +73,7 @@ type Flight struct {
 	ApproachesCount         int     `json:"approachesCount"`
 	IsIPC                   bool    `json:"isIpc"`
 	IsFlightReview          bool    `json:"isFlightReview"`
+	IsProficiencyCheck      bool    `json:"isProficiencyCheck"`
 
 	// SPL / Glider
 	LaunchMethod *string `json:"launchMethod,omitempty"` // winch, aerotow, self-launch

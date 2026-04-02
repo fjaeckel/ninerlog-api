@@ -45,9 +45,9 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 			remarks,
 			instructor_name, instructor_comments,
 			sic_time, dual_given_time, simulated_flight_time, ground_training_time,
-			actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review,
+			actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 			launch_method
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -96,6 +96,7 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 		flight.ApproachesCount,
 		flight.IsIPC,
 		flight.IsFlightReview,
+		flight.IsProficiencyCheck,
 		flight.LaunchMethod,
 	).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
 }
@@ -114,7 +115,7 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		       remarks, created_at, updated_at,
 		       instructor_name, instructor_comments,
 		       sic_time, dual_given_time, simulated_flight_time, ground_training_time,
-		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review,
+		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 		       launch_method
 		FROM flights
 		WHERE id = $1
@@ -169,6 +170,7 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.ApproachesCount,
 		&flight.IsIPC,
 		&flight.IsFlightReview,
+		&flight.IsProficiencyCheck,
 		&flight.LaunchMethod,
 	)
 
@@ -216,10 +218,10 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		    remarks = $30,
 		    instructor_name = $31, instructor_comments = $32,
 		    sic_time = $33, dual_given_time = $34, simulated_flight_time = $35, ground_training_time = $36,
-		    actual_instrument_time = $37, simulated_instrument_time = $38, holds = $39, approaches_count = $40, is_ipc = $41, is_flight_review = $42,
-		    launch_method = $43,
-		    updated_at = $44
-		WHERE id = $45
+		    actual_instrument_time = $37, simulated_instrument_time = $38, holds = $39, approaches_count = $40, is_ipc = $41, is_flight_review = $42, is_proficiency_check = $43,
+		    launch_method = $44,
+		    updated_at = $45
+		WHERE id = $46
 	`
 
 	result, err := r.db.ExecContext(
@@ -266,6 +268,7 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		flight.ApproachesCount,
 		flight.IsIPC,
 		flight.IsFlightReview,
+		flight.IsProficiencyCheck,
 		flight.LaunchMethod,
 		time.Now(),
 		flight.ID,
@@ -464,7 +467,7 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		       remarks, created_at, updated_at,
 		       instructor_name, instructor_comments,
 		       sic_time, dual_given_time, simulated_flight_time, ground_training_time,
-		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review,
+		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 		       launch_method
 		FROM flights
 		WHERE ` + baseCondition
@@ -606,6 +609,7 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.ApproachesCount,
 			&flight.IsIPC,
 			&flight.IsFlightReview,
+			&flight.IsProficiencyCheck,
 			&flight.LaunchMethod,
 		)
 		if err != nil {
