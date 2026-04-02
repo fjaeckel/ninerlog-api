@@ -52,6 +52,9 @@ func TestFullPipeline_EASAMultiRating(t *testing.T) {
 		IFRHours: 12, TotalHours: 30, Flights: 20,
 		Approaches: 8, Holds: 3,
 	}
+	// Add proficiency check for IR
+	profDate := time.Now().AddDate(0, -3, 0)
+	dp.lastProficiencyCheck = &profDate
 
 	svc := NewService(reg, licRepo, crRepo, dp)
 	result, err := svc.EvaluateAll(context.Background(), userID)
@@ -107,8 +110,8 @@ func TestFullPipeline_EASAMultiRating(t *testing.T) {
 	if irResult.Status != StatusCurrent {
 		t.Errorf("IR status = %s, want current", irResult.Status)
 	}
-	if len(irResult.Requirements) != 1 {
-		t.Errorf("IR requirements count = %d, want 1", len(irResult.Requirements))
+	if len(irResult.Requirements) != 2 {
+		t.Errorf("IR requirements count = %d, want 2 (IFR hours + proficiency check)", len(irResult.Requirements))
 	}
 	if irResult.Requirements[0].Name != "IFR Hours" {
 		t.Errorf("IR requirement name = %s, want IFR Hours", irResult.Requirements[0].Name)
@@ -184,9 +187,9 @@ func TestFullPipeline_FAAPilotMultiClass(t *testing.T) {
 		t.Errorf("MEP status = %s, want expiring (night not current)", statusMap[models.ClassTypeMEPLand])
 	}
 
-	// IR should be expiring (3 approaches < 6, 0 holds < 1)
-	if statusMap[models.ClassTypeIR] != StatusExpiring {
-		t.Errorf("IR status = %s, want expiring", statusMap[models.ClassTypeIR])
+	// IR should be expired (3 approaches < 6, 0 holds < 1, and not met within 12 months either → IPC required)
+	if statusMap[models.ClassTypeIR] != StatusExpired {
+		t.Errorf("IR status = %s, want expired (IPC required — not met within 12 months)", statusMap[models.ClassTypeIR])
 	}
 }
 

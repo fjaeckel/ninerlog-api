@@ -13,8 +13,11 @@ import (
 // ── Mock flight data provider ───────────────────────────────────────────
 
 type mockFlightDataProvider struct {
-	progressByClass map[models.ClassType]*Progress
-	progressAll     *Progress
+	progressByClass      map[models.ClassType]*Progress
+	progressAll          *Progress
+	lastFlightReview     *time.Time
+	lastProficiencyCheck *time.Time
+	launchCounts         map[string]int
 }
 
 func newMockFlightDataProvider() *mockFlightDataProvider {
@@ -35,6 +38,21 @@ func (m *mockFlightDataProvider) GetProgressAll(_ context.Context, _ uuid.UUID, 
 		return m.progressAll, nil
 	}
 	return &Progress{}, nil
+}
+
+func (m *mockFlightDataProvider) GetLastFlightReview(_ context.Context, _ uuid.UUID) (*time.Time, error) {
+	return m.lastFlightReview, nil
+}
+
+func (m *mockFlightDataProvider) GetLastProficiencyCheck(_ context.Context, _ uuid.UUID, _ models.ClassType, _ time.Time) (*time.Time, error) {
+	return m.lastProficiencyCheck, nil
+}
+
+func (m *mockFlightDataProvider) GetLaunchCounts(_ context.Context, _ uuid.UUID, _ time.Time) (map[string]int, error) {
+	if m.launchCounts != nil {
+		return m.launchCounts, nil
+	}
+	return map[string]int{}, nil
 }
 
 // ── Mock repositories ───────────────────────────────────────────────────
@@ -431,6 +449,9 @@ func TestEASA_MEP_AllMet(t *testing.T) {
 	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{
 		Flights: 12, InstructorHours: 1.5,
 	}
+	// Set proficiency check for MEP
+	profDate := time.Now().AddDate(0, -2, 0)
+	dp.lastProficiencyCheck = &profDate
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeMEPLand, ExpiryDate: futureDate(6), LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "CPL"}
@@ -439,8 +460,8 @@ func TestEASA_MEP_AllMet(t *testing.T) {
 	if result.Status != StatusCurrent {
 		t.Errorf("Status = %s, want current (MEP)", result.Status)
 	}
-	if len(result.Requirements) != 2 {
-		t.Fatalf("Expected 2 requirements for MEP, got %d", len(result.Requirements))
+	if len(result.Requirements) != 3 {
+		t.Fatalf("Expected 3 requirements for MEP (sectors, instructor, proficiency check), got %d", len(result.Requirements))
 	}
 }
 
@@ -464,6 +485,8 @@ func TestEASA_IR_Current(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressAll = &Progress{IFRHours: 15}
+	profDate := time.Now().AddDate(0, -3, 0)
+	dp.lastProficiencyCheck = &profDate
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, ExpiryDate: futureDate(6), LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
@@ -628,8 +651,9 @@ func TestFAA_IR_InsufficientIFR(t *testing.T) {
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
 
 	result := eval.Evaluate(context.Background(), rating, license, dp)
-	if result.Status != StatusExpiring {
-		t.Errorf("Status = %s, want expiring (IR)", result.Status)
+	// With grace period: 3 approaches < 6 even in 12-month window (mock returns same) → expired (IPC required)
+	if result.Status != StatusExpired {
+		t.Errorf("Status = %s, want expired (IR — IPC required)", result.Status)
 	}
 	// Both approaches and holds should be not met
 	for _, req := range result.Requirements {

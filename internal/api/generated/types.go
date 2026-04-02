@@ -23,10 +23,10 @@ const (
 
 // Defines values for ClassRatingCurrencyStatus.
 const (
-	Current  ClassRatingCurrencyStatus = "current"
-	Expired  ClassRatingCurrencyStatus = "expired"
-	Expiring ClassRatingCurrencyStatus = "expiring"
-	Unknown  ClassRatingCurrencyStatus = "unknown"
+	ClassRatingCurrencyStatusCurrent  ClassRatingCurrencyStatus = "current"
+	ClassRatingCurrencyStatusExpired  ClassRatingCurrencyStatus = "expired"
+	ClassRatingCurrencyStatusExpiring ClassRatingCurrencyStatus = "expiring"
+	ClassRatingCurrencyStatusUnknown  ClassRatingCurrencyStatus = "unknown"
 )
 
 // Defines values for ClassType.
@@ -81,6 +81,14 @@ const (
 	FlightCreateLaunchMethodAerotow    FlightCreateLaunchMethod = "aerotow"
 	FlightCreateLaunchMethodSelfLaunch FlightCreateLaunchMethod = "self-launch"
 	FlightCreateLaunchMethodWinch      FlightCreateLaunchMethod = "winch"
+)
+
+// Defines values for FlightReviewStatusStatus.
+const (
+	FlightReviewStatusStatusCurrent  FlightReviewStatusStatus = "current"
+	FlightReviewStatusStatusExpired  FlightReviewStatusStatus = "expired"
+	FlightReviewStatusStatusExpiring FlightReviewStatusStatus = "expiring"
+	FlightReviewStatusStatusUnknown  FlightReviewStatusStatus = "unknown"
 )
 
 // Defines values for FlightUpdateLaunchMethod.
@@ -148,6 +156,22 @@ const (
 	Completed ImportStatus = "completed"
 	Failed    ImportStatus = "failed"
 	Partial   ImportStatus = "partial"
+)
+
+// Defines values for PassengerCurrencyDayStatus.
+const (
+	PassengerCurrencyDayStatusCurrent  PassengerCurrencyDayStatus = "current"
+	PassengerCurrencyDayStatusExpired  PassengerCurrencyDayStatus = "expired"
+	PassengerCurrencyDayStatusExpiring PassengerCurrencyDayStatus = "expiring"
+	PassengerCurrencyDayStatusUnknown  PassengerCurrencyDayStatus = "unknown"
+)
+
+// Defines values for PassengerCurrencyNightStatus.
+const (
+	PassengerCurrencyNightStatusCurrent  PassengerCurrencyNightStatus = "current"
+	PassengerCurrencyNightStatusExpired  PassengerCurrencyNightStatus = "expired"
+	PassengerCurrencyNightStatusExpiring PassengerCurrencyNightStatus = "expiring"
+	PassengerCurrencyNightStatusUnknown  PassengerCurrencyNightStatus = "unknown"
 )
 
 // Defines values for CreateAnnouncementJSONBodySeverity.
@@ -456,7 +480,10 @@ type ClassRatingCurrency struct {
 
 	// ExpiryDate Class rating expiry date
 	ExpiryDate *openapi_types.Date `json:"expiryDate"`
-	LicenseId  openapi_types.UUID  `json:"licenseId"`
+
+	// LaunchMethodCurrency SPL launch method currency per FCL.140.S(b)(1) — 5 launches per method in 24 months
+	LaunchMethodCurrency *[]LaunchMethodCurrency `json:"launchMethodCurrency,omitempty"`
+	LicenseId            openapi_types.UUID      `json:"licenseId"`
 
 	// LicenseType Type from the parent license
 	LicenseType *string `json:"licenseType,omitempty"`
@@ -718,6 +745,12 @@ type CurrencyRequirement struct {
 
 // CurrencyStatusResponse defines model for CurrencyStatusResponse.
 type CurrencyStatusResponse struct {
+	FlightReview *FlightReviewStatus `json:"flightReview,omitempty"`
+
+	// PassengerCurrency Tier 2: Passenger currency — determines whether the pilot can carry passengers (rolling from now, separate from rating validity)
+	PassengerCurrency []PassengerCurrency `json:"passengerCurrency"`
+
+	// Ratings Tier 1: Rating/license currency — determines whether the pilot can fly at all in each class
 	Ratings []ClassRatingCurrency `json:"ratings"`
 }
 
@@ -806,6 +839,9 @@ type Flight struct {
 
 	// IsPic Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
 	IsPic bool `json:"isPic"`
+
+	// IsProficiencyCheck Whether this flight was a Proficiency Check (EASA FCL.740.A MEP/SET, FCL.625.A IR, or FAA §61.58)
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// LandingsDay Number of day landings. Auto-calculated from sunset/sunrise at arrival airport.
 	LandingsDay int `json:"landingsDay"`
@@ -903,6 +939,7 @@ type FlightCreate struct {
 	InstructorName     *string  `json:"instructorName"`
 	IsFlightReview     *bool    `json:"isFlightReview,omitempty"`
 	IsIpc              *bool    `json:"isIpc,omitempty"`
+	IsProficiencyCheck *bool    `json:"isProficiencyCheck,omitempty"`
 
 	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport.
 	Landings     int                       `json:"landings"`
@@ -961,6 +998,24 @@ type FlightCrewMemberInput struct {
 	Role CrewRole `json:"role"`
 }
 
+// FlightReviewStatus defines model for FlightReviewStatus.
+type FlightReviewStatus struct {
+	// ExpiresOn Date the flight review expires (24 calendar months after last completed)
+	ExpiresOn *openapi_types.Date `json:"expiresOn"`
+
+	// LastCompleted Date of most recent flight review
+	LastCompleted *openapi_types.Date `json:"lastCompleted"`
+
+	// Message Human-readable flight review status message
+	Message string `json:"message"`
+
+	// Status Flight review currency status
+	Status FlightReviewStatusStatus `json:"status"`
+}
+
+// FlightReviewStatusStatus Flight review currency status
+type FlightReviewStatusStatus string
+
 // FlightRoute defines model for FlightRoute.
 type FlightRoute struct {
 	ArrivalCoords struct {
@@ -1010,6 +1065,7 @@ type FlightUpdate struct {
 	InstructorName     *string  `json:"instructorName"`
 	IsFlightReview     *bool    `json:"isFlightReview,omitempty"`
 	IsIpc              *bool    `json:"isIpc,omitempty"`
+	IsProficiencyCheck *bool    `json:"isProficiencyCheck,omitempty"`
 
 	// Landings Total number of landings
 	Landings     *int                      `json:"landings,omitempty"`
@@ -1244,6 +1300,24 @@ type ImportUploadResponse struct {
 	UploadToken string `json:"uploadToken"`
 }
 
+// LaunchMethodCurrency defines model for LaunchMethodCurrency.
+type LaunchMethodCurrency struct {
+	// Launches Number of launches with this method in evaluation period
+	Launches int `json:"launches"`
+
+	// Message Human-readable progress message
+	Message *string `json:"message,omitempty"`
+
+	// Met Whether the requirement is met
+	Met bool `json:"met"`
+
+	// Method Launch method (winch, aerotow, self-launch)
+	Method string `json:"method"`
+
+	// Required Required number of launches (typically 5)
+	Required int `json:"required"`
+}
+
 // License defines model for License.
 type License struct {
 	CreatedAt time.Time          `json:"createdAt"`
@@ -1374,6 +1448,63 @@ type PaginatedImports struct {
 		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
 }
+
+// PassengerCurrency defines model for PassengerCurrency.
+type PassengerCurrency struct {
+	// ClassType Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	ClassType ClassType `json:"classType"`
+
+	// DayLandings Number of landings in the preceding 90 days
+	DayLandings int `json:"dayLandings"`
+
+	// DayRequired Required landings for day passenger currency (typically 3)
+	DayRequired int `json:"dayRequired"`
+
+	// DayStatus Day passenger currency status
+	DayStatus PassengerCurrencyDayStatus `json:"dayStatus"`
+
+	// Message Human-readable passenger currency status message
+	Message *string `json:"message,omitempty"`
+
+	// NightLandings Number of night landings in the preceding 90 days
+	NightLandings int `json:"nightLandings"`
+
+	// NightPrivilege Whether this license type has night flying privileges. false for Sport, Recreational, Glider (FAA), SPL, LAPL (EASA), UL.
+	NightPrivilege *bool `json:"nightPrivilege,omitempty"`
+
+	// NightRequired Required night landings for night passenger currency (typically 3, 0 if night not applicable)
+	NightRequired int `json:"nightRequired"`
+
+	// NightStatus Night passenger currency status
+	NightStatus PassengerCurrencyNightStatus `json:"nightStatus"`
+
+	// PassengerPrivilege Informational — whether the pilot meets additional requirements to carry passengers (LAPL 10h PIC, SPL 30 launches, etc.)
+	PassengerPrivilege *struct {
+		// Eligible Whether the pilot is eligible to carry passengers (based on total PIC hours/launches since license issue)
+		Eligible *bool `json:"eligible,omitempty"`
+
+		// Message Human-readable explanation of passenger privilege status
+		Message *string `json:"message,omitempty"`
+	} `json:"passengerPrivilege,omitempty"`
+
+	// RegulatoryAuthority Authority that defines the passenger currency rules
+	RegulatoryAuthority string `json:"regulatoryAuthority"`
+
+	// RuleDescription Regulatory reference for the passenger currency rule
+	RuleDescription *string `json:"ruleDescription,omitempty"`
+}
+
+// PassengerCurrencyDayStatus Day passenger currency status
+type PassengerCurrencyDayStatus string
+
+// PassengerCurrencyNightStatus Night passenger currency status
+type PassengerCurrencyNightStatus string
 
 // Statistics defines model for Statistics.
 type Statistics struct {
