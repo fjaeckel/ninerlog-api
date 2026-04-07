@@ -1,0 +1,43 @@
+services:
+  postgres-e2e:
+    image: postgres:16-alpine
+    container_name: ninerlog-e2e-db
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: ninerlog_e2e
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d ninerlog_e2e"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ninerlog-e2e-api
+    depends_on:
+      postgres-e2e:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://testuser:testpass@postgres-e2e:5432/ninerlog_e2e?sslmode=disable"
+      PORT: "3000"
+      JWT_SECRET: "e2e-test-jwt-secret-key-minimum-32-chars"
+      REFRESH_SECRET: "e2e-test-refresh-secret-key-minimum-32"
+      CORS_ORIGIN: "*"
+      ADMIN_EMAIL: "admin@ninerlog-test.com"
+      DISABLE_RATE_LIMIT: "true"
+      MIGRATIONS_PATH: "db/migrations"
+    ports:
+      - "3333:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 10s

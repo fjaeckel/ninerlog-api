@@ -45,6 +45,10 @@ test-e2e: ## Run end-to-end tests (requires test DB)
 		go test -v -tags=e2e ./test/e2e/...
 	@docker compose -f docker-compose.test.yaml down
 
+test-e2e-full: ## Run full e2e tests against real API (docker-compose)
+	@echo "🧪 Running full e2e test suite..."
+	@./scripts/run-e2e-tests.sh
+
 test-all: ## Run all tests (unit, integration, e2e)
 	@echo "🧪 Running all tests..."
 	@./scripts/run-all-tests.sh
