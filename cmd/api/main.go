@@ -177,7 +177,7 @@ func main() {
 	})
 
 	// Rate limiting for auth endpoints: 10 requests per minute per IP
-	authRateLimit := middleware.NewRateLimitMiddleware(10, 1*time.Minute)
+	// Disabled via DISABLE_RATE_LIMIT=true for e2e test environments
 
 	// Register OpenAPI-generated routes
 	// This automatically maps all routes to the correct handlers with proper parameter extraction
@@ -193,31 +193,35 @@ func main() {
 		"/airports/:icaoCode",
 	}))
 
-	// Apply rate limiter to sensitive auth endpoints via path-matching middleware
-	api.Use(middleware.RateLimitByPath(authRateLimit,
-		"/auth/register",
-		"/auth/login",
-		"/auth/refresh",
-		"/auth/2fa/login",
-		"/auth/password-reset-request",
-		"/auth/password-reset",
-	))
+	if os.Getenv("DISABLE_RATE_LIMIT") != "true" {
+		authRateLimit := middleware.NewRateLimitMiddleware(10, 1*time.Minute)
 
-	// Stricter rate limiting for admin endpoints: 30 requests per minute per IP
-	adminRateLimit := middleware.NewRateLimitMiddleware(30, 1*time.Minute)
-	api.Use(middleware.RateLimitByPath(adminRateLimit,
-		"/admin/stats",
-		"/admin/users",
-		"/admin/audit-log",
-		"/admin/maintenance/cleanup-tokens",
-		"/admin/maintenance/smtp-test",
-		"/admin/announcements",
-		"/admin/config",
-		"/disable",
-		"/enable",
-		"/unlock",
-		"/reset-2fa",
-	))
+		// Apply rate limiter to sensitive auth endpoints via path-matching middleware
+		api.Use(middleware.RateLimitByPath(authRateLimit,
+			"/auth/register",
+			"/auth/login",
+			"/auth/refresh",
+			"/auth/2fa/login",
+			"/auth/password-reset-request",
+			"/auth/password-reset",
+		))
+
+		// Stricter rate limiting for admin endpoints: 30 requests per minute per IP
+		adminRateLimit := middleware.NewRateLimitMiddleware(30, 1*time.Minute)
+		api.Use(middleware.RateLimitByPath(adminRateLimit,
+			"/admin/stats",
+			"/admin/users",
+			"/admin/audit-log",
+			"/admin/maintenance/cleanup-tokens",
+			"/admin/maintenance/smtp-test",
+			"/admin/announcements",
+			"/admin/config",
+			"/disable",
+			"/enable",
+			"/unlock",
+			"/reset-2fa",
+		))
+	} // end DISABLE_RATE_LIMIT check
 
 	generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{
 		ErrorHandler: func(c *gin.Context, err error, statusCode int) {
