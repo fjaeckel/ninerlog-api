@@ -50,3 +50,17 @@ Tests are marked with `REGRESSION:` prefix and log the issue without failing.
 - **Expected:** 204 No Content (per OpenAPI spec)
 - **Actual:** 200 OK with `{"message":"All user data deleted successfully"}`
 - **Risk:** Minor OpenAPI compliance issue
+
+### 7. Very long email (>255 chars) causes 500
+- **Endpoint:** `POST /auth/register`
+- **Test:** `TestEmailValidation/REGRESSION:_very_long_email_causes_500`
+- **Expected:** 400 Bad Request with validation error
+- **Actual:** 500 Internal Server Error (exceeds VARCHAR(255) column)
+- **Risk:** Unhandled DB error exposed to client
+
+### 8. Very long password (>72 bytes) causes 500
+- **Endpoint:** `POST /auth/register`
+- **Test:** `TestPasswordValidation/REGRESSION:_very_long_password_causes_500`
+- **Expected:** 400 Bad Request or silent truncation to 72 bytes (bcrypt limit)
+- **Actual:** 500 Internal Server Error
+- **Risk:** Unhandled bcrypt limit error exposed to client
