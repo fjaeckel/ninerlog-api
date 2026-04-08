@@ -45,9 +45,9 @@ func TestCredentialExpiryEdgeCases(t *testing.T) {
 
 	t.Run("expiry before issue date", func(t *testing.T) {
 		r := c.POST("/credentials", map[string]interface{}{
-			"credentialType": "EASA_CLASS2_MEDICAL",
-			"issueDate":      "2025-06-01",
-			"expiryDate":     "2025-01-01", // Before issue
+			"credentialType":   "EASA_CLASS2_MEDICAL",
+			"issueDate":        "2025-06-01",
+			"expiryDate":       "2025-01-01", // Before issue
 			"issuingAuthority": "AME",
 		})
 		if r.StatusCode == 201 {
@@ -60,8 +60,8 @@ func TestCredentialExpiryEdgeCases(t *testing.T) {
 	t.Run("issue equals expiry (immediate expiry)", func(t *testing.T) {
 		r := c.POST("/credentials", map[string]interface{}{
 			"credentialType":   "EASA_CLASS2_MEDICAL",
-			"issueDate":       today(),
-			"expiryDate":      today(),
+			"issueDate":        today(),
+			"expiryDate":       today(),
 			"issuingAuthority": "AME",
 		})
 		requireStatus(t, r, 201) // Unusual but technically valid
@@ -70,7 +70,7 @@ func TestCredentialExpiryEdgeCases(t *testing.T) {
 	t.Run("no expiry date (null)", func(t *testing.T) {
 		r := c.POST("/credentials", map[string]interface{}{
 			"credentialType":   "LANG_ICAO_LEVEL6",
-			"issueDate":       today(),
+			"issueDate":        today(),
 			"issuingAuthority": "LBA",
 		})
 		requireStatus(t, r, 201)
