@@ -64,3 +64,17 @@ Tests are marked with `REGRESSION:` prefix and log the issue without failing.
 - **Expected:** 400 Bad Request or silent truncation to 72 bytes (bcrypt limit)
 - **Actual:** 500 Internal Server Error
 - **Risk:** Unhandled bcrypt limit error exposed to client
+
+### 9. Credential accepts expiry date before issue date
+- **Endpoint:** `POST /credentials`
+- **Test:** `TestCredentialExpiryEdgeCases/expiry_before_issue_date`
+- **Expected:** 400 Bad Request (expiry must be after issue)
+- **Actual:** 201 Created with logically invalid dates
+- **Risk:** Data integrity issue, confusing currency/expiry calculations
+
+### 10. Email update to existing email causes 500
+- **Endpoint:** `PATCH /users/me`
+- **Test:** `TestEmailUpdateDuplicate/update_email_to_another_user_email_fails`
+- **Expected:** 409 Conflict
+- **Actual:** 500 Internal Server Error (`"Failed to update user"`)
+- **Risk:** Unhandled unique constraint violation exposed to client
