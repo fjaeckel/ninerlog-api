@@ -55,9 +55,9 @@ func (e *GermanULEvaluator) Evaluate(ctx context.Context, rating *models.ClassRa
 	result.Progress = progress
 
 	reqTotalHours := Requirement{
-		Name: "Flugzeit", Met: progress.TotalHours >= 12,
-		Current: progress.TotalHours, Required: 12, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 12.0 Stunden Flugzeit", progress.TotalHours),
+		Name: "Flugzeit", Met: progress.TotalMinutes >= 720,
+		Current: float64(progress.TotalMinutes), Required: 720, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 720 Minuten Flugzeit", progress.TotalMinutes),
 	}
 	reqLandings := Requirement{
 		Name: "Starts & Landungen", Met: progress.Landings >= 12,
@@ -65,9 +65,9 @@ func (e *GermanULEvaluator) Evaluate(ctx context.Context, rating *models.ClassRa
 		Message: fmt.Sprintf("%d / 12 Starts & Landungen", progress.Landings),
 	}
 	reqInstructor := Requirement{
-		Name: "Übungsflug mit Fluglehrer", Met: progress.InstructorHours >= 1,
-		Current: progress.InstructorHours, Required: 1, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 1.0 Stunden mit Fluglehrer", progress.InstructorHours),
+		Name: "Übungsflug mit Fluglehrer", Met: progress.InstructorMinutes >= 60,
+		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 60 Minuten mit Fluglehrer", progress.InstructorMinutes),
 	}
 
 	result.Requirements = []Requirement{reqTotalHours, reqLandings, reqInstructor}

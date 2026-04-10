@@ -31,21 +31,21 @@ type ClassRatingCurrency struct {
 	LaunchMethodCurrency []LaunchMethodCurrency `json:"launchMethodCurrency,omitempty"`
 }
 
-// Progress holds progress metrics toward currency requirements
+// Progress holds progress metrics toward currency requirements (all times in minutes)
 type Progress struct {
-	TotalHours       float64 `json:"totalHours"`
-	PICHours         float64 `json:"picHours"`
-	IFRHours         float64 `json:"ifrHours"`
-	InstructorHours  float64 `json:"instructorHours"`
-	NightHours       float64 `json:"nightHours"`
-	Landings         int     `json:"landings"`
-	DayLandings      int     `json:"dayLandings"`
-	NightLandings    int     `json:"nightLandings"`
-	Flights          int     `json:"flights"`
-	Approaches       int     `json:"approaches"`
-	Holds            int     `json:"holds"`
-	RequiredHours    float64 `json:"requiredHours,omitempty"`
-	RequiredLandings int     `json:"requiredLandings,omitempty"`
+	TotalMinutes      int `json:"totalMinutes"`
+	PICMinutes        int `json:"picMinutes"`
+	IFRMinutes        int `json:"ifrMinutes"`
+	InstructorMinutes int `json:"instructorMinutes"`
+	NightMinutes      int `json:"nightMinutes"`
+	Landings          int `json:"landings"`
+	DayLandings       int `json:"dayLandings"`
+	NightLandings     int `json:"nightLandings"`
+	Flights           int `json:"flights"`
+	Approaches        int `json:"approaches"`
+	Holds             int `json:"holds"`
+	RequiredMinutes   int `json:"requiredMinutes,omitempty"`
+	RequiredLandings  int `json:"requiredLandings,omitempty"`
 }
 
 // Requirement represents a single currency requirement with progress

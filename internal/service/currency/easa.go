@@ -99,16 +99,16 @@ func (e *EASAEvaluator) evaluateSEPTMG(ctx context.Context, rating *models.Class
 	}
 	result.Progress = progress
 
-	// Build requirements
+	// Build requirements (thresholds in minutes: 12h=720m, 6h=360m, 1h=60m)
 	reqTotalHours := Requirement{
-		Name: "Total Hours", Met: progress.TotalHours >= 12,
-		Current: progress.TotalHours, Required: 12, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 12.0 hours in class", progress.TotalHours),
+		Name: "Total Time", Met: progress.TotalMinutes >= 720,
+		Current: float64(progress.TotalMinutes), Required: 720, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 720 minutes in class", progress.TotalMinutes),
 	}
 	reqPICHours := Requirement{
-		Name: "PIC Hours", Met: progress.PICHours >= 6,
-		Current: progress.PICHours, Required: 6, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 6.0 PIC hours", progress.PICHours),
+		Name: "PIC Time", Met: progress.PICMinutes >= 360,
+		Current: float64(progress.PICMinutes), Required: 360, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 360 PIC minutes", progress.PICMinutes),
 	}
 	reqLandings := Requirement{
 		Name: "Takeoffs & Landings", Met: progress.Landings >= 12,
@@ -116,9 +116,9 @@ func (e *EASAEvaluator) evaluateSEPTMG(ctx context.Context, rating *models.Class
 		Message: fmt.Sprintf("%d / 12 takeoffs & landings", progress.Landings),
 	}
 	reqInstructor := Requirement{
-		Name: "Refresher Training", Met: progress.InstructorHours >= 1,
-		Current: progress.InstructorHours, Required: 1, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 1.0 hours with instructor", progress.InstructorHours),
+		Name: "Refresher Training", Met: progress.InstructorMinutes >= 60,
+		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 60 minutes with instructor", progress.InstructorMinutes),
 	}
 
 	result.Requirements = []Requirement{reqTotalHours, reqPICHours, reqLandings, reqInstructor}
@@ -175,9 +175,9 @@ func (e *EASAEvaluator) evaluateMEPSET(ctx context.Context, rating *models.Class
 		Message: fmt.Sprintf("%d / 10 route sectors", progress.Flights),
 	}
 	reqInstructor := Requirement{
-		Name: "Refresher Training", Met: progress.InstructorHours >= 1,
-		Current: progress.InstructorHours, Required: 1, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 1.0 hours with instructor", progress.InstructorHours),
+		Name: "Refresher Training", Met: progress.InstructorMinutes >= 60,
+		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 60 minutes with instructor", progress.InstructorMinutes),
 	}
 
 	// Check for proficiency check — if found, it satisfies the revalidation (alternative path)
@@ -239,9 +239,9 @@ func (e *EASAEvaluator) evaluateIR(ctx context.Context, rating *models.ClassRati
 	result.Progress = progress
 
 	reqIFRHours := Requirement{
-		Name: "IFR Hours", Met: progress.IFRHours >= 10,
-		Current: progress.IFRHours, Required: 10, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 10.0 IFR hours", progress.IFRHours),
+		Name: "IFR Time", Met: progress.IFRMinutes >= 600,
+		Current: float64(progress.IFRMinutes), Required: 600, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 600 IFR minutes", progress.IFRMinutes),
 	}
 
 	// Check for annual proficiency check (FCL.625.A requires one)
@@ -328,9 +328,9 @@ func (e *EASAEvaluator) evaluateLAPL_A(ctx context.Context, rating *models.Class
 	result.Progress = progress
 
 	reqTotalHours := Requirement{
-		Name: "Flight Time", Met: progress.TotalHours >= 12,
-		Current: progress.TotalHours, Required: 12, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 12.0 hours in last 24 months", progress.TotalHours),
+		Name: "Flight Time", Met: progress.TotalMinutes >= 720,
+		Current: float64(progress.TotalMinutes), Required: 720, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 720 minutes in last 24 months", progress.TotalMinutes),
 	}
 	reqLandings := Requirement{
 		Name: "Takeoffs & Landings", Met: progress.Landings >= 12,
@@ -338,9 +338,9 @@ func (e *EASAEvaluator) evaluateLAPL_A(ctx context.Context, rating *models.Class
 		Message: fmt.Sprintf("%d / 12 takeoffs & landings in last 24 months", progress.Landings),
 	}
 	reqInstructor := Requirement{
-		Name: "Training Flight", Met: progress.InstructorHours >= 1,
-		Current: progress.InstructorHours, Required: 1, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 1.0 hours with instructor in last 24 months", progress.InstructorHours),
+		Name: "Training Flight", Met: progress.InstructorMinutes >= 60,
+		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 60 minutes with instructor in last 24 months", progress.InstructorMinutes),
 	}
 
 	result.Requirements = []Requirement{reqTotalHours, reqLandings, reqInstructor}
@@ -378,9 +378,9 @@ func (e *EASAEvaluator) evaluateSPL(ctx context.Context, rating *models.ClassRat
 
 	// SPL uses landings as a proxy for launches (each launch results in a landing)
 	reqPICHours := Requirement{
-		Name: "PIC Flight Time", Met: progress.PICHours >= 5,
-		Current: progress.PICHours, Required: 5, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 5.0 PIC hours in last 24 months", progress.PICHours),
+		Name: "PIC Flight Time", Met: progress.PICMinutes >= 300,
+		Current: float64(progress.PICMinutes), Required: 300, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 300 PIC minutes in last 24 months", progress.PICMinutes),
 	}
 	reqLaunches := Requirement{
 		Name: "Launches", Met: progress.Landings >= 15,
@@ -388,9 +388,9 @@ func (e *EASAEvaluator) evaluateSPL(ctx context.Context, rating *models.ClassRat
 		Message: fmt.Sprintf("%d / 15 launches in last 24 months", progress.Landings),
 	}
 	reqTraining := Requirement{
-		Name: "Training Flights", Met: progress.InstructorHours >= 1, // 2 training flights ≈ minimum 1h dual
-		Current: progress.InstructorHours, Required: 1, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 1.0 hours training flights in last 24 months", progress.InstructorHours),
+		Name: "Training Flights", Met: progress.InstructorMinutes >= 60,
+		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 60 minutes training flights in last 24 months", progress.InstructorMinutes),
 	}
 
 	result.Requirements = []Requirement{reqPICHours, reqLaunches, reqTraining}
@@ -444,9 +444,9 @@ func (e *EASAEvaluator) evaluateSPL_TMG(ctx context.Context, rating *models.Clas
 	result.Progress = progress
 
 	reqTotalHours := Requirement{
-		Name: "TMG Flight Time", Met: progress.TotalHours >= 12,
-		Current: progress.TotalHours, Required: 12, Unit: "hours",
-		Message: fmt.Sprintf("%.1f / 12.0 hours on TMG in last 24 months", progress.TotalHours),
+		Name: "TMG Flight Time", Met: progress.TotalMinutes >= 720,
+		Current: float64(progress.TotalMinutes), Required: 720, Unit: "minutes",
+		Message: fmt.Sprintf("%d / 720 minutes on TMG in last 24 months", progress.TotalMinutes),
 	}
 	reqLandings := Requirement{
 		Name: "TMG Takeoffs & Landings", Met: progress.Landings >= 12,
