@@ -50,7 +50,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -68,6 +68,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.LockedUntil,
 		&user.Disabled,
 		&user.LastLoginAt,
+		&user.TimeDisplayFormat,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -85,7 +86,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -103,6 +104,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.LockedUntil,
 		&user.Disabled,
 		&user.LastLoginAt,
+		&user.TimeDisplayFormat,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -122,8 +124,8 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		UPDATE users
 		SET email = $1, password_hash = $2, name = $3, two_factor_enabled = $4,
 		    two_factor_secret = $5, recovery_codes = $6, disabled = $7,
-		    last_login_at = $8, updated_at = $9
-		WHERE id = $10
+		    last_login_at = $8, time_display_format = $9, updated_at = $10
+		WHERE id = $11
 	`
 
 	result, err := r.db.ExecContext(ctx, query,
@@ -135,6 +137,7 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.RecoveryCodes,
 		user.Disabled,
 		user.LastLoginAt,
+		user.TimeDisplayFormat,
 		user.UpdatedAt,
 		user.ID,
 	)

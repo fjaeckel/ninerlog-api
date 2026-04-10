@@ -381,17 +381,17 @@ func (r *flightRepository) GetStatsByUserID(ctx context.Context, userID uuid.UUI
 	query := `
 		SELECT
 			COUNT(*) as total_flights,
-			COALESCE(SUM(total_time), 0) as total_hours,
-			COALESCE(SUM(pic_time), 0) as pic_hours,
-			COALESCE(SUM(dual_time), 0) as dual_hours,
-			COALESCE(SUM(night_time), 0) as night_hours,
-			COALESCE(SUM(ifr_time), 0) as ifr_hours,
-			COALESCE(SUM(solo_time), 0) as solo_hours,
-			COALESCE(SUM(cross_country_time), 0) as cross_country_hours,
+			COALESCE(SUM(total_time), 0) as total_minutes,
+			COALESCE(SUM(pic_time), 0) as pic_minutes,
+			COALESCE(SUM(dual_time), 0) as dual_minutes,
+			COALESCE(SUM(night_time), 0) as night_minutes,
+			COALESCE(SUM(ifr_time), 0) as ifr_minutes,
+			COALESCE(SUM(solo_time), 0) as solo_minutes,
+			COALESCE(SUM(cross_country_time), 0) as cross_country_minutes,
 			COALESCE(SUM(landings_day), 0) as landings_day,
 			COALESCE(SUM(landings_night), 0) as landings_night,
-			COALESCE(SUM(sic_time), 0) as sic_hours,
-			COALESCE(SUM(dual_given_time), 0) as dual_given_hours
+			COALESCE(SUM(sic_time), 0) as sic_minutes,
+			COALESCE(SUM(dual_given_time), 0) as dual_given_minutes
 		FROM flights
 		WHERE user_id = $1
 	`
@@ -411,17 +411,17 @@ func (r *flightRepository) GetStatsByUserID(ctx context.Context, userID uuid.UUI
 	stats := &models.FlightStatistics{}
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&stats.TotalFlights,
-		&stats.TotalHours,
-		&stats.PICHours,
-		&stats.DualHours,
-		&stats.NightHours,
-		&stats.IFRHours,
-		&stats.SoloHours,
-		&stats.CrossCountryHours,
+		&stats.TotalMinutes,
+		&stats.PICMinutes,
+		&stats.DualMinutes,
+		&stats.NightMinutes,
+		&stats.IFRMinutes,
+		&stats.SoloMinutes,
+		&stats.CrossCountryMinutes,
 		&stats.LandingsDay,
 		&stats.LandingsNight,
-		&stats.SICHours,
-		&stats.DualGivenHours,
+		&stats.SICMinutes,
+		&stats.DualGivenMinutes,
 	)
 	if err != nil {
 		return nil, err

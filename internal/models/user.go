@@ -20,6 +20,7 @@ type User struct {
 	LockedUntil         *time.Time     `json:"-"`
 	Disabled            bool           `json:"disabled"`
 	LastLoginAt         *time.Time     `json:"lastLoginAt,omitempty"`
+	TimeDisplayFormat   string         `json:"timeDisplayFormat"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 }

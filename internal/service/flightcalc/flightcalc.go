@@ -109,7 +109,7 @@ func calculateNightTime(flight *models.Flight) {
 		return
 	}
 
-	nightMinutes := 0.0
+	nightMinutes := 0
 	// Walk through flight time in 1-minute increments
 	current := depTime
 	for current.Before(arrTime) {
@@ -124,11 +124,10 @@ func calculateNightTime(flight *models.Flight) {
 		current = current.Add(time.Minute)
 	}
 
-	nightHours := math.Round(nightMinutes/60.0*10) / 10
-	if nightHours > flight.TotalTime {
-		nightHours = flight.TotalTime
+	if nightMinutes > flight.TotalTime {
+		nightMinutes = flight.TotalTime
 	}
-	flight.NightTime = nightHours
+	flight.NightTime = nightMinutes
 }
 
 func calculateSoloTime(flight *models.Flight) {

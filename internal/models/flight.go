@@ -24,14 +24,14 @@ type Flight struct {
 	DepartureTime *string `json:"departureTime,omitempty"` // HH:MM:SS format - takeoff time (UTC)
 	ArrivalTime   *string `json:"arrivalTime,omitempty"`   // HH:MM:SS format - landing time (UTC)
 
-	// Flight times (in decimal hours)
-	TotalTime float64 `json:"totalTime"`
-	IsPIC     bool    `json:"isPic"`
-	IsDual    bool    `json:"isDual"`
-	PICTime   float64 `json:"picTime"`
-	DualTime  float64 `json:"dualTime"`
-	NightTime float64 `json:"nightTime"`
-	IFRTime   float64 `json:"ifrTime"`
+	// Flight times (in minutes)
+	TotalTime int  `json:"totalTime"`
+	IsPIC     bool `json:"isPic"`
+	IsDual    bool `json:"isDual"`
+	PICTime   int  `json:"picTime"`
+	DualTime  int  `json:"dualTime"`
+	NightTime int  `json:"nightTime"`
+	IFRTime   int  `json:"ifrTime"`
 
 	// Landings
 	LandingsDay   int `json:"landingsDay"`
@@ -46,8 +46,8 @@ type Flight struct {
 	Route *string `json:"route,omitempty"` // Comma-separated ICAO waypoints
 
 	// Auto-calculated fields
-	SoloTime         float64 `json:"soloTime"`         // Auto-calculated when not dual and not PIC with crew
-	CrossCountryTime float64 `json:"crossCountryTime"` // Auto-calculated when departure ≠ arrival
+	SoloTime         int     `json:"soloTime"`         // Auto-calculated when not dual and not PIC with crew
+	CrossCountryTime int     `json:"crossCountryTime"` // Auto-calculated when departure ≠ arrival
 	Distance         float64 `json:"distance"`         // Auto-calculated from airport coordinates (NM)
 
 	// Manual override flags
@@ -61,14 +61,14 @@ type Flight struct {
 	InstructorComments *string `json:"instructorComments,omitempty"`
 
 	// Multi-crew / advanced times
-	SICTime             float64 `json:"sicTime"`
-	DualGivenTime       float64 `json:"dualGivenTime"`
-	SimulatedFlightTime float64 `json:"simulatedFlightTime"`
-	GroundTrainingTime  float64 `json:"groundTrainingTime"`
+	SICTime             int `json:"sicTime"`
+	DualGivenTime       int `json:"dualGivenTime"`
+	SimulatedFlightTime int `json:"simulatedFlightTime"`
+	GroundTrainingTime  int `json:"groundTrainingTime"`
 
 	// Instrument tracking
-	ActualInstrumentTime    float64 `json:"actualInstrumentTime"`
-	SimulatedInstrumentTime float64 `json:"simulatedInstrumentTime"`
+	ActualInstrumentTime    int  `json:"actualInstrumentTime"`
+	SimulatedInstrumentTime int  `json:"simulatedInstrumentTime"`
 	Holds                   int     `json:"holds"`
 	ApproachesCount         int     `json:"approachesCount"`
 	IsIPC                   bool    `json:"isIpc"`
@@ -130,18 +130,18 @@ func (f *Flight) ValidateTimeDistribution() error {
 
 // FlightStatistics holds aggregated flight statistics for a license
 type FlightStatistics struct {
-	TotalFlights      int
-	TotalHours        float64
-	PICHours          float64
-	DualHours         float64
-	NightHours        float64
-	IFRHours          float64
-	SoloHours         float64
-	CrossCountryHours float64
-	LandingsDay       int
-	LandingsNight     int
-	SICHours          float64
-	DualGivenHours    float64
+	TotalFlights        int
+	TotalMinutes        int
+	PICMinutes          int
+	DualMinutes         int
+	NightMinutes        int
+	IFRMinutes          int
+	SoloMinutes         int
+	CrossCountryMinutes int
+	LandingsDay         int
+	LandingsNight       int
+	SICMinutes          int
+	DualGivenMinutes    int
 }
 
 // CurrencyData holds landing/flight counts for currency calculation
