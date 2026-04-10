@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 )
 
@@ -93,31 +94,31 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context) {
 			depTime,
 			arrTime,
 			onBlock,
-			fmt.Sprintf("%.1f", f.TotalTime),
-			fmt.Sprintf("%.1f", f.PICTime),
-			fmt.Sprintf("%.1f", f.SICTime),
-			fmt.Sprintf("%.1f", f.NightTime),
-			fmt.Sprintf("%.1f", f.SoloTime),
-			fmt.Sprintf("%.1f", f.CrossCountryTime),
+			duration.FormatDecimal(f.TotalTime),
+			duration.FormatDecimal(f.PICTime),
+			duration.FormatDecimal(f.SICTime),
+			duration.FormatDecimal(f.NightTime),
+			duration.FormatDecimal(f.SoloTime),
+			duration.FormatDecimal(f.CrossCountryTime),
 			fmt.Sprintf("%.1f", f.Distance),
 			fmt.Sprintf("%d", f.TakeoffsDay),
 			fmt.Sprintf("%d", f.LandingsDay),
 			fmt.Sprintf("%d", f.TakeoffsNight),
 			fmt.Sprintf("%d", f.LandingsNight),
 			fmt.Sprintf("%d", f.AllLandings),
-			fmt.Sprintf("%.1f", f.ActualInstrumentTime),
-			fmt.Sprintf("%.1f", f.SimulatedInstrumentTime),
+			duration.FormatDecimal(f.ActualInstrumentTime),
+			duration.FormatDecimal(f.SimulatedInstrumentTime),
 			fmt.Sprintf("%d", f.Holds),
 			fmt.Sprintf("%d", f.ApproachesCount),
-			fmt.Sprintf("%.1f", f.DualGivenTime),
-			fmt.Sprintf("%.1f", f.DualTime),
-			fmt.Sprintf("%.1f", f.SimulatedFlightTime),
-			fmt.Sprintf("%.1f", f.GroundTrainingTime),
+			duration.FormatDecimal(f.DualGivenTime),
+			duration.FormatDecimal(f.DualTime),
+			duration.FormatDecimal(f.SimulatedFlightTime),
+			duration.FormatDecimal(f.GroundTrainingTime),
 			instrName,
 			instrComments,
 			fmt.Sprintf("%t", f.IsFlightReview),
 			fmt.Sprintf("%t", f.IsIPC),
-			fmt.Sprintf("%.1f", f.IFRTime),
+			duration.FormatDecimal(f.IFRTime),
 			remarks,
 		}
 		w.Write(row)

@@ -180,7 +180,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	isDual := false
 
 	// Compute picTime/dualTime from booleans
-	var picTime, dualTime float64
+	var picTime, dualTime int
 	if isPic {
 		picTime = totalTime
 	}
@@ -212,7 +212,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		PICTime:       picTime,
 		DualTime:      dualTime,
 		NightTime:     0,
-		IFRTime:       float64(getFloat32OrDefault(req.IfrTime, 0)),
+		IFRTime:       getIntOrDefault(req.IfrTime, 0),
 		AllLandings:   req.Landings,
 	}
 
@@ -238,12 +238,12 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	// New fields: instructor, comments, advanced times
 	flight.InstructorName = req.InstructorName
 	flight.InstructorComments = req.InstructorComments
-	flight.SICTime = float64(getFloat32OrDefault(req.SicTime, 0))
-	flight.DualGivenTime = float64(getFloat32OrDefault(req.DualGivenTime, 0))
-	flight.SimulatedFlightTime = float64(getFloat32OrDefault(req.SimulatedFlightTime, 0))
-	flight.GroundTrainingTime = float64(getFloat32OrDefault(req.GroundTrainingTime, 0))
-	flight.ActualInstrumentTime = float64(getFloat32OrDefault(req.ActualInstrumentTime, 0))
-	flight.SimulatedInstrumentTime = float64(getFloat32OrDefault(req.SimulatedInstrumentTime, 0))
+	flight.SICTime = getIntOrDefault(req.SicTime, 0)
+	flight.DualGivenTime = getIntOrDefault(req.DualGivenTime, 0)
+	flight.SimulatedFlightTime = getIntOrDefault(req.SimulatedFlightTime, 0)
+	flight.GroundTrainingTime = getIntOrDefault(req.GroundTrainingTime, 0)
+	flight.ActualInstrumentTime = getIntOrDefault(req.ActualInstrumentTime, 0)
+	flight.SimulatedInstrumentTime = getIntOrDefault(req.SimulatedInstrumentTime, 0)
 	// Auto-calculate IFR time as actual + simulated instrument if not explicitly provided
 	if req.IfrTime == nil || *req.IfrTime == 0 {
 		flight.IFRTime = flight.ActualInstrumentTime + flight.SimulatedInstrumentTime
@@ -374,7 +374,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.AircraftType = *req.AircraftType
 	}
 	if req.IfrTime != nil {
-		flight.IFRTime = float64(*req.IfrTime)
+		flight.IFRTime = *req.IfrTime
 	}
 	if req.Landings != nil {
 		flight.AllLandings = *req.Landings
@@ -420,22 +420,22 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.InstructorComments = req.InstructorComments
 	}
 	if req.SicTime != nil {
-		flight.SICTime = float64(*req.SicTime)
+		flight.SICTime = *req.SicTime
 	}
 	if req.DualGivenTime != nil {
-		flight.DualGivenTime = float64(*req.DualGivenTime)
+		flight.DualGivenTime = *req.DualGivenTime
 	}
 	if req.SimulatedFlightTime != nil {
-		flight.SimulatedFlightTime = float64(*req.SimulatedFlightTime)
+		flight.SimulatedFlightTime = *req.SimulatedFlightTime
 	}
 	if req.GroundTrainingTime != nil {
-		flight.GroundTrainingTime = float64(*req.GroundTrainingTime)
+		flight.GroundTrainingTime = *req.GroundTrainingTime
 	}
 	if req.ActualInstrumentTime != nil {
-		flight.ActualInstrumentTime = float64(*req.ActualInstrumentTime)
+		flight.ActualInstrumentTime = *req.ActualInstrumentTime
 	}
 	if req.SimulatedInstrumentTime != nil {
-		flight.SimulatedInstrumentTime = float64(*req.SimulatedInstrumentTime)
+		flight.SimulatedInstrumentTime = *req.SimulatedInstrumentTime
 	}
 	if req.Holds != nil {
 		flight.Holds = *req.Holds
@@ -495,7 +495,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 	} else if req.TotalTime != nil {
 		// Allow direct totalTime override only if block times are not being updated
-		flight.TotalTime = float64(*req.TotalTime)
+		flight.TotalTime = *req.TotalTime
 	}
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
@@ -547,15 +547,15 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		Date:             openapi_types.Date{Time: f.Date},
 		AircraftReg:      f.AircraftReg,
 		AircraftType:     f.AircraftType,
-		TotalTime:        float32(f.TotalTime),
+		TotalTime:        f.TotalTime,
 		IsPic:            f.IsPIC,
 		IsDual:           f.IsDual,
-		PicTime:          float32(f.PICTime),
-		DualTime:         float32(f.DualTime),
-		NightTime:        float32(f.NightTime),
-		IfrTime:          float32(f.IFRTime),
-		SoloTime:         float32(f.SoloTime),
-		CrossCountryTime: float32(f.CrossCountryTime),
+		PicTime:          f.PICTime,
+		DualTime:         f.DualTime,
+		NightTime:        f.NightTime,
+		IfrTime:          f.IFRTime,
+		SoloTime:         f.SoloTime,
+		CrossCountryTime: f.CrossCountryTime,
 		Distance:         float32(f.Distance),
 		LandingsDay:      f.LandingsDay,
 		LandingsNight:    f.LandingsNight,
@@ -594,12 +594,12 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	// New fields
 	flight.InstructorName = f.InstructorName
 	flight.InstructorComments = f.InstructorComments
-	flight.SicTime = ptrFloat32(float32(f.SICTime))
-	flight.DualGivenTime = ptrFloat32(float32(f.DualGivenTime))
-	flight.SimulatedFlightTime = ptrFloat32(float32(f.SimulatedFlightTime))
-	flight.GroundTrainingTime = ptrFloat32(float32(f.GroundTrainingTime))
-	flight.ActualInstrumentTime = ptrFloat32(float32(f.ActualInstrumentTime))
-	flight.SimulatedInstrumentTime = ptrFloat32(float32(f.SimulatedInstrumentTime))
+	flight.SicTime = ptrInt(f.SICTime)
+	flight.DualGivenTime = ptrInt(f.DualGivenTime)
+	flight.SimulatedFlightTime = ptrInt(f.SimulatedFlightTime)
+	flight.GroundTrainingTime = ptrInt(f.GroundTrainingTime)
+	flight.ActualInstrumentTime = ptrInt(f.ActualInstrumentTime)
+	flight.SimulatedInstrumentTime = ptrInt(f.SimulatedInstrumentTime)
 	flight.Holds = ptrInt(f.Holds)
 	flight.ApproachesCount = ptrInt(f.ApproachesCount)
 	flight.IsIpc = ptrBool(f.IsIPC)
@@ -631,15 +631,11 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	return flight
 }
 
-func getFloat32OrDefault(val *float32, def float32) float32 {
+func getIntOrDefault(val *int, def int) int {
 	if val != nil {
 		return *val
 	}
 	return def
-}
-
-func ptrFloat32(v float32) *float32 {
-	return &v
 }
 
 func ptrInt(v int) *int {
@@ -650,9 +646,9 @@ func ptrBool(v bool) *bool {
 	return &v
 }
 
-// calculateBlockTime computes total block time in hours from off-block and on-block time strings (HH:MM:SS).
+// calculateBlockTime computes total block time in minutes from off-block and on-block time strings (HH:MM:SS).
 // Handles overnight flights (on-block before off-block crosses midnight).
-func calculateBlockTime(offBlock, onBlock string) (float64, error) {
+func calculateBlockTime(offBlock, onBlock string) (int, error) {
 	offT, err := time.Parse("15:04:05", offBlock)
 	if err != nil {
 		// Try HH:MM format as well
@@ -678,7 +674,6 @@ func calculateBlockTime(offBlock, onBlock string) (float64, error) {
 		return 0, fmt.Errorf("off-block and on-block times cannot be identical")
 	}
 
-	hours := duration.Hours()
-	// Round to 1 decimal place (standard logbook precision)
-	return math.Round(hours*10) / 10, nil
+	minutes := int(math.Round(duration.Minutes()))
+	return minutes, nil
 }

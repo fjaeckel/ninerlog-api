@@ -174,6 +174,12 @@ const (
 	PassengerCurrencyNightStatusUnknown  PassengerCurrencyNightStatus = "unknown"
 )
 
+// Defines values for UserTimeDisplayFormat.
+const (
+	UserTimeDisplayFormatDecimal UserTimeDisplayFormat = "decimal"
+	UserTimeDisplayFormatHm      UserTimeDisplayFormat = "hm"
+)
+
 // Defines values for CreateAnnouncementJSONBodySeverity.
 const (
 	CreateAnnouncementJSONBodySeverityCritical CreateAnnouncementJSONBodySeverity = "critical"
@@ -193,6 +199,12 @@ const (
 const (
 	Asc  ListFlightsParamsSortOrder = "asc"
 	Desc ListFlightsParamsSortOrder = "desc"
+)
+
+// Defines values for UpdateCurrentUserJSONBodyTimeDisplayFormat.
+const (
+	UpdateCurrentUserJSONBodyTimeDisplayFormatDecimal UpdateCurrentUserJSONBodyTimeDisplayFormat = "decimal"
+	UpdateCurrentUserJSONBodyTimeDisplayFormatHm      UpdateCurrentUserJSONBodyTimeDisplayFormat = "hm"
 )
 
 // AdminAuditLogEntry defines model for AdminAuditLogEntry.
@@ -503,30 +515,30 @@ type ClassRatingCurrency struct {
 		// Holds Number of holding procedures in the evaluation period
 		Holds *int `json:"holds,omitempty"`
 
-		// IfrHours IFR hours in the evaluation period
-		IfrHours *float32 `json:"ifrHours,omitempty"`
+		// IfrMinutes IFR time in minutes in the evaluation period
+		IfrMinutes *int `json:"ifrMinutes,omitempty"`
 
-		// InstructorHours Hours with instructor (dual received) in the evaluation period
-		InstructorHours *float32 `json:"instructorHours,omitempty"`
+		// InstructorMinutes Time with instructor (dual received) in minutes in the evaluation period
+		InstructorMinutes *int `json:"instructorMinutes,omitempty"`
 
 		// Landings Total landings in class in the evaluation period
-		Landings *int `json:"landings,omitempty"`
+		Landings      *int `json:"landings,omitempty"`
+		NightLandings *int `json:"nightLandings,omitempty"`
 
-		// NightHours Night hours in the evaluation period
-		NightHours    *float32 `json:"nightHours,omitempty"`
-		NightLandings *int     `json:"nightLandings,omitempty"`
+		// NightMinutes Night time in minutes in the evaluation period
+		NightMinutes *int `json:"nightMinutes,omitempty"`
 
-		// PicHours PIC hours in class in the evaluation period
-		PicHours *float32 `json:"picHours,omitempty"`
-
-		// RequiredHours Required hours for currency (authority-specific)
-		RequiredHours *float32 `json:"requiredHours,omitempty"`
+		// PicMinutes PIC time in class in minutes in the evaluation period
+		PicMinutes *int `json:"picMinutes,omitempty"`
 
 		// RequiredLandings Required landings for currency
 		RequiredLandings *int `json:"requiredLandings,omitempty"`
 
-		// TotalHours Total hours in class in the evaluation period
-		TotalHours *float32 `json:"totalHours,omitempty"`
+		// RequiredMinutes Required time in minutes for currency (authority-specific)
+		RequiredMinutes *int `json:"requiredMinutes,omitempty"`
+
+		// TotalMinutes Total time in class in minutes in the evaluation period
+		TotalMinutes *int `json:"totalMinutes,omitempty"`
 	} `json:"progress,omitempty"`
 
 	// RegulatoryAuthority Authority from the parent license (determines which currency rules apply)
@@ -768,8 +780,8 @@ type Error struct {
 
 // Flight defines model for Flight.
 type Flight struct {
-	// ActualInstrumentTime Actual instrument flight time in hours (under IMC or simulated IMC with view-limiting device)
-	ActualInstrumentTime *float32 `json:"actualInstrumentTime,omitempty"`
+	// ActualInstrumentTime Actual instrument flight time in minutes (under IMC or simulated IMC with view-limiting device)
+	ActualInstrumentTime *int `json:"actualInstrumentTime,omitempty"`
 
 	// AircraftReg Aircraft registration
 	AircraftReg string `json:"aircraftReg"`
@@ -793,8 +805,8 @@ type Flight struct {
 	// CrewMembers People on board this flight with their roles
 	CrewMembers *[]FlightCrewMember `json:"crewMembers,omitempty"`
 
-	// CrossCountryTime Cross-country time in hours. Auto-calculated when departure ≠ arrival.
-	CrossCountryTime float32            `json:"crossCountryTime"`
+	// CrossCountryTime Cross-country time in minutes. Auto-calculated when departure ≠ arrival.
+	CrossCountryTime int                `json:"crossCountryTime"`
 	Date             openapi_types.Date `json:"date"`
 
 	// DepartureIcao ICAO code of departure airport
@@ -806,21 +818,21 @@ type Flight struct {
 	// Distance Distance in nautical miles. Auto-calculated from airport coordinates.
 	Distance float32 `json:"distance"`
 
-	// DualGivenTime Dual instruction given time in hours. Auto-calculated when user acts as instructor.
-	DualGivenTime *float32 `json:"dualGivenTime,omitempty"`
+	// DualGivenTime Dual instruction given time in minutes. Auto-calculated when user acts as instructor.
+	DualGivenTime *int `json:"dualGivenTime,omitempty"`
 
-	// DualTime Dual instruction block time in hours (computed from isDual and totalTime)
-	DualTime float32 `json:"dualTime"`
+	// DualTime Dual instruction block time in minutes (computed from isDual and totalTime)
+	DualTime int `json:"dualTime"`
 
-	// GroundTrainingTime Ground training time in hours
-	GroundTrainingTime *float32 `json:"groundTrainingTime,omitempty"`
+	// GroundTrainingTime Ground training time in minutes
+	GroundTrainingTime *int `json:"groundTrainingTime,omitempty"`
 
 	// Holds Number of holding procedures performed
 	Holds *int               `json:"holds,omitempty"`
 	Id    openapi_types.UUID `json:"id"`
 
-	// IfrTime Instrument block time in hours
-	IfrTime float32 `json:"ifrTime"`
+	// IfrTime Instrument block time in minutes
+	IfrTime int `json:"ifrTime"`
 
 	// InstructorComments Instructor comments about the flight
 	InstructorComments *string `json:"instructorComments"`
@@ -852,8 +864,8 @@ type Flight struct {
 	// LaunchMethod Launch method for glider/SPL flights (winch, aerotow, or self-launch)
 	LaunchMethod *FlightLaunchMethod `json:"launchMethod"`
 
-	// NightTime Night block time in hours. Auto-calculated from departure/arrival times and airport sunset/sunrise data.
-	NightTime float32 `json:"nightTime"`
+	// NightTime Night block time in minutes. Auto-calculated from departure/arrival times and airport sunset/sunrise data.
+	NightTime int `json:"nightTime"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
 	OffBlockTime *string `json:"offBlockTime"`
@@ -861,8 +873,8 @@ type Flight struct {
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
 	OnBlockTime *string `json:"onBlockTime"`
 
-	// PicTime Pilot-in-command block time in hours (computed from isPic and totalTime)
-	PicTime float32 `json:"picTime"`
+	// PicTime Pilot-in-command block time in minutes (computed from isPic and totalTime)
+	PicTime int `json:"picTime"`
 
 	// Remarks Free text notes
 	Remarks *string `json:"remarks"`
@@ -870,17 +882,17 @@ type Flight struct {
 	// Route Route waypoints as comma-separated ICAO codes for VFR/IFR flight plans
 	Route *string `json:"route"`
 
-	// SicTime Second-in-command time in hours. Auto-calculated when SIC crew role assigned.
-	SicTime *float32 `json:"sicTime,omitempty"`
+	// SicTime Second-in-command time in minutes. Auto-calculated when SIC crew role assigned.
+	SicTime *int `json:"sicTime,omitempty"`
 
-	// SimulatedFlightTime Simulated flight time in hours (FTD/FSTD)
-	SimulatedFlightTime *float32 `json:"simulatedFlightTime,omitempty"`
+	// SimulatedFlightTime Simulated flight time in minutes (FTD/FSTD)
+	SimulatedFlightTime *int `json:"simulatedFlightTime,omitempty"`
 
-	// SimulatedInstrumentTime Simulated instrument time in hours (FSTD/FTD/ATD)
-	SimulatedInstrumentTime *float32 `json:"simulatedInstrumentTime,omitempty"`
+	// SimulatedInstrumentTime Simulated instrument time in minutes (FSTD/FTD/ATD)
+	SimulatedInstrumentTime *int `json:"simulatedInstrumentTime,omitempty"`
 
-	// SoloTime Solo time in hours. Auto-calculated when no crew and not dual instruction.
-	SoloTime float32 `json:"soloTime"`
+	// SoloTime Solo time in minutes. Auto-calculated when no crew and not dual instruction.
+	SoloTime int `json:"soloTime"`
 
 	// TakeoffsDay Number of day takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
 	TakeoffsDay int `json:"takeoffsDay"`
@@ -888,8 +900,8 @@ type Flight struct {
 	// TakeoffsNight Number of night takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
 	TakeoffsNight int `json:"takeoffsNight"`
 
-	// TotalTime Total block time in hours (off-block to on-block)
-	TotalTime float32            `json:"totalTime"`
+	// TotalTime Total block time in minutes (off-block to on-block)
+	TotalTime int                `json:"totalTime"`
 	UpdatedAt time.Time          `json:"updatedAt"`
 	UserId    openapi_types.UUID `json:"userId"`
 }
@@ -899,9 +911,9 @@ type FlightLaunchMethod string
 
 // FlightCreate defines model for FlightCreate.
 type FlightCreate struct {
-	ActualInstrumentTime *float32 `json:"actualInstrumentTime,omitempty"`
-	AircraftReg          string   `json:"aircraftReg"`
-	AircraftType         string   `json:"aircraftType"`
+	ActualInstrumentTime *int   `json:"actualInstrumentTime,omitempty"`
+	AircraftReg          string `json:"aircraftReg"`
+	AircraftType         string `json:"aircraftType"`
 
 	// AllLandings Total landings (day + night). Auto-calculated by the server.
 	AllLandings     *int `json:"allLandings,omitempty"`
@@ -916,8 +928,8 @@ type FlightCreate struct {
 	// CrewMembers People on board this flight
 	CrewMembers *[]FlightCrewMemberInput `json:"crewMembers,omitempty"`
 
-	// CrossCountryTime Cross-country time in hours. Auto-calculated by the server.
-	CrossCountryTime *float32           `json:"crossCountryTime,omitempty"`
+	// CrossCountryTime Cross-country time in minutes. Auto-calculated by the server.
+	CrossCountryTime *int               `json:"crossCountryTime,omitempty"`
 	Date             openapi_types.Date `json:"date"`
 
 	// DepartureIcao Departure airport ICAO code
@@ -928,18 +940,18 @@ type FlightCreate struct {
 
 	// Distance Distance in nautical miles. Auto-calculated by the server.
 	Distance      *float32 `json:"distance,omitempty"`
-	DualGivenTime *float32 `json:"dualGivenTime,omitempty"`
+	DualGivenTime *int     `json:"dualGivenTime,omitempty"`
 
-	// DualTime Dual instruction time in hours. Computed by server — equals totalTime when isDual is true, 0 otherwise.
-	DualTime           *float32 `json:"dualTime,omitempty"`
-	GroundTrainingTime *float32 `json:"groundTrainingTime,omitempty"`
-	Holds              *int     `json:"holds,omitempty"`
-	IfrTime            *float32 `json:"ifrTime,omitempty"`
-	InstructorComments *string  `json:"instructorComments"`
-	InstructorName     *string  `json:"instructorName"`
-	IsFlightReview     *bool    `json:"isFlightReview,omitempty"`
-	IsIpc              *bool    `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool    `json:"isProficiencyCheck,omitempty"`
+	// DualTime Dual instruction time in minutes. Computed by server — equals totalTime when isDual is true, 0 otherwise.
+	DualTime           *int    `json:"dualTime,omitempty"`
+	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
+	Holds              *int    `json:"holds,omitempty"`
+	IfrTime            *int    `json:"ifrTime,omitempty"`
+	InstructorComments *string `json:"instructorComments"`
+	InstructorName     *string `json:"instructorName"`
+	IsFlightReview     *bool   `json:"isFlightReview,omitempty"`
+	IsIpc              *bool   `json:"isIpc,omitempty"`
+	IsProficiencyCheck *bool   `json:"isProficiencyCheck,omitempty"`
 
 	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport.
 	Landings     int                       `json:"landings"`
@@ -951,18 +963,18 @@ type FlightCreate struct {
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
 	OnBlockTime string `json:"onBlockTime"`
 
-	// PicTime Pilot-in-command time in hours. Computed by server — equals totalTime when isPic is true, 0 otherwise.
-	PicTime *float32 `json:"picTime,omitempty"`
-	Remarks *string  `json:"remarks"`
+	// PicTime Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise.
+	PicTime *int    `json:"picTime,omitempty"`
+	Remarks *string `json:"remarks"`
 
 	// Route Route waypoints as comma-separated ICAO codes
-	Route                   *string  `json:"route"`
-	SicTime                 *float32 `json:"sicTime,omitempty"`
-	SimulatedFlightTime     *float32 `json:"simulatedFlightTime,omitempty"`
-	SimulatedInstrumentTime *float32 `json:"simulatedInstrumentTime,omitempty"`
+	Route                   *string `json:"route"`
+	SicTime                 *int    `json:"sicTime,omitempty"`
+	SimulatedFlightTime     *int    `json:"simulatedFlightTime,omitempty"`
+	SimulatedInstrumentTime *int    `json:"simulatedInstrumentTime,omitempty"`
 
-	// SoloTime Solo time in hours. Auto-calculated by the server.
-	SoloTime *float32 `json:"soloTime,omitempty"`
+	// SoloTime Solo time in minutes. Auto-calculated by the server.
+	SoloTime *int `json:"soloTime,omitempty"`
 
 	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
 	TakeoffsDay *int `json:"takeoffsDay,omitempty"`
@@ -970,8 +982,8 @@ type FlightCreate struct {
 	// TakeoffsNight Number of night takeoffs. Provide to override auto-calculation.
 	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
 
-	// TotalTime Total block time calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
-	TotalTime *float32 `json:"totalTime,omitempty"`
+	// TotalTime Total block time in minutes calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
+	TotalTime *int `json:"totalTime,omitempty"`
 }
 
 // FlightCreateLaunchMethod defines model for FlightCreate.LaunchMethod.
@@ -1041,11 +1053,11 @@ type FlightRoutesResponse struct {
 
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
-	ActualInstrumentTime *float32 `json:"actualInstrumentTime,omitempty"`
-	AircraftReg          *string  `json:"aircraftReg,omitempty"`
-	AircraftType         *string  `json:"aircraftType,omitempty"`
-	ApproachesCount      *int     `json:"approachesCount,omitempty"`
-	ArrivalIcao          *string  `json:"arrivalIcao"`
+	ActualInstrumentTime *int    `json:"actualInstrumentTime,omitempty"`
+	AircraftReg          *string `json:"aircraftReg,omitempty"`
+	AircraftType         *string `json:"aircraftType,omitempty"`
+	ApproachesCount      *int    `json:"approachesCount,omitempty"`
+	ArrivalIcao          *string `json:"arrivalIcao"`
 
 	// ArrivalTime Landing time in UTC
 	ArrivalTime *string `json:"arrivalTime"`
@@ -1056,16 +1068,16 @@ type FlightUpdate struct {
 	DepartureIcao *string                  `json:"departureIcao"`
 
 	// DepartureTime Takeoff time in UTC
-	DepartureTime      *string  `json:"departureTime"`
-	DualGivenTime      *float32 `json:"dualGivenTime,omitempty"`
-	GroundTrainingTime *float32 `json:"groundTrainingTime,omitempty"`
-	Holds              *int     `json:"holds,omitempty"`
-	IfrTime            *float32 `json:"ifrTime,omitempty"`
-	InstructorComments *string  `json:"instructorComments"`
-	InstructorName     *string  `json:"instructorName"`
-	IsFlightReview     *bool    `json:"isFlightReview,omitempty"`
-	IsIpc              *bool    `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool    `json:"isProficiencyCheck,omitempty"`
+	DepartureTime      *string `json:"departureTime"`
+	DualGivenTime      *int    `json:"dualGivenTime,omitempty"`
+	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
+	Holds              *int    `json:"holds,omitempty"`
+	IfrTime            *int    `json:"ifrTime,omitempty"`
+	InstructorComments *string `json:"instructorComments"`
+	InstructorName     *string `json:"instructorName"`
+	IsFlightReview     *bool   `json:"isFlightReview,omitempty"`
+	IsIpc              *bool   `json:"isIpc,omitempty"`
+	IsProficiencyCheck *bool   `json:"isProficiencyCheck,omitempty"`
 
 	// Landings Total number of landings
 	Landings     *int                      `json:"landings,omitempty"`
@@ -1079,17 +1091,17 @@ type FlightUpdate struct {
 	Remarks     *string `json:"remarks"`
 
 	// Route Route waypoints as comma-separated ICAO codes
-	Route                   *string  `json:"route"`
-	SicTime                 *float32 `json:"sicTime,omitempty"`
-	SimulatedFlightTime     *float32 `json:"simulatedFlightTime,omitempty"`
-	SimulatedInstrumentTime *float32 `json:"simulatedInstrumentTime,omitempty"`
+	Route                   *string `json:"route"`
+	SicTime                 *int    `json:"sicTime,omitempty"`
+	SimulatedFlightTime     *int    `json:"simulatedFlightTime,omitempty"`
+	SimulatedInstrumentTime *int    `json:"simulatedInstrumentTime,omitempty"`
 
 	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
 	TakeoffsDay *int `json:"takeoffsDay,omitempty"`
 
 	// TakeoffsNight Number of night takeoffs. Provide to override auto-calculation.
-	TakeoffsNight *int     `json:"takeoffsNight,omitempty"`
-	TotalTime     *float32 `json:"totalTime,omitempty"`
+	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
+	TotalTime     *int `json:"totalTime,omitempty"`
 }
 
 // FlightUpdateLaunchMethod defines model for FlightUpdate.LaunchMethod.
@@ -1508,14 +1520,14 @@ type PassengerCurrencyNightStatus string
 
 // Statistics defines model for Statistics.
 type Statistics struct {
-	// CrossCountryHours Total cross-country hours
-	CrossCountryHours *float32 `json:"crossCountryHours,omitempty"`
+	// CrossCountryMinutes Total cross-country time in minutes
+	CrossCountryMinutes *int `json:"crossCountryMinutes,omitempty"`
 
-	// DualHours Total dual instruction block hours
-	DualHours float32 `json:"dualHours"`
+	// DualMinutes Total dual instruction block time in minutes
+	DualMinutes int `json:"dualMinutes"`
 
-	// IfrHours Total IFR block hours
-	IfrHours float32 `json:"ifrHours"`
+	// IfrMinutes Total IFR block time in minutes
+	IfrMinutes int `json:"ifrMinutes"`
 
 	// LandingsDay Total day landings
 	LandingsDay int `json:"landingsDay"`
@@ -1524,20 +1536,20 @@ type Statistics struct {
 	LandingsNight int                 `json:"landingsNight"`
 	LicenseId     *openapi_types.UUID `json:"licenseId,omitempty"`
 
-	// NightHours Total night block hours
-	NightHours float32 `json:"nightHours"`
+	// NightMinutes Total night block time in minutes
+	NightMinutes int `json:"nightMinutes"`
 
-	// PicHours Total PIC block hours
-	PicHours float32 `json:"picHours"`
+	// PicMinutes Total PIC block time in minutes
+	PicMinutes int `json:"picMinutes"`
 
-	// SoloHours Total solo hours
-	SoloHours *float32 `json:"soloHours,omitempty"`
+	// SoloMinutes Total solo time in minutes
+	SoloMinutes *int `json:"soloMinutes,omitempty"`
 
 	// TotalFlights Total number of flights
 	TotalFlights int `json:"totalFlights"`
 
-	// TotalHours Total block hours
-	TotalHours float32 `json:"totalHours"`
+	// TotalMinutes Total block time in minutes
+	TotalMinutes int `json:"totalMinutes"`
 }
 
 // TwoFactorEnabled defines model for TwoFactorEnabled.
@@ -1565,10 +1577,16 @@ type User struct {
 	IsAdmin *bool  `json:"isAdmin,omitempty"`
 	Name    string `json:"name"`
 
+	// TimeDisplayFormat User's preferred time display format. "hm" for hours and minutes (1h 30m), "decimal" for decimal hours (1.5h).
+	TimeDisplayFormat *UserTimeDisplayFormat `json:"timeDisplayFormat,omitempty"`
+
 	// TwoFactorEnabled Whether 2FA is enabled for this account
 	TwoFactorEnabled *bool     `json:"twoFactorEnabled,omitempty"`
 	UpdatedAt        time.Time `json:"updatedAt"`
 }
+
+// UserTimeDisplayFormat User's preferred time display format. "hm" for hours and minutes (1h 30m), "decimal" for decimal hours (1.5h).
+type UserTimeDisplayFormat string
 
 // AircraftId defines model for AircraftId.
 type AircraftId = openapi_types.UUID
@@ -1800,7 +1818,13 @@ type DeleteCurrentUserJSONBody struct {
 type UpdateCurrentUserJSONBody struct {
 	Email *openapi_types.Email `json:"email,omitempty"`
 	Name  *string              `json:"name,omitempty"`
+
+	// TimeDisplayFormat Preferred time display format
+	TimeDisplayFormat *UpdateCurrentUserJSONBodyTimeDisplayFormat `json:"timeDisplayFormat,omitempty"`
 }
+
+// UpdateCurrentUserJSONBodyTimeDisplayFormat defines parameters for UpdateCurrentUser.
+type UpdateCurrentUserJSONBodyTimeDisplayFormat string
 
 // CreateAnnouncementJSONRequestBody defines body for CreateAnnouncement for application/json ContentType.
 type CreateAnnouncementJSONRequestBody CreateAnnouncementJSONBody

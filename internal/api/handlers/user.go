@@ -54,6 +54,12 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 	if req.Email != nil {
 		user.Email = string(*req.Email)
 	}
+	if req.TimeDisplayFormat != nil {
+		format := string(*req.TimeDisplayFormat)
+		if format == "hm" || format == "decimal" {
+			user.TimeDisplayFormat = format
+		}
+	}
 
 	// Update user
 	if err := h.authService.UpdateUser(c.Request.Context(), user); err != nil {

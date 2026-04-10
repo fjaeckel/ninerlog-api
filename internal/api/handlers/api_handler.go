@@ -136,13 +136,15 @@ func (h *APIHandler) isAdminUser(email string) bool {
 func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 	twoFA := user.TwoFactorEnabled
 	isAdmin := h.isAdminUser(user.Email)
+	tdf := generated.UserTimeDisplayFormat(user.TimeDisplayFormat)
 	return generated.User{
-		Id:               openapi_types.UUID(user.ID),
-		Email:            openapi_types.Email(user.Email),
-		Name:             user.Name,
-		TwoFactorEnabled: &twoFA,
-		IsAdmin:          &isAdmin,
-		CreatedAt:        user.CreatedAt,
-		UpdatedAt:        user.UpdatedAt,
+		Id:                openapi_types.UUID(user.ID),
+		Email:             openapi_types.Email(user.Email),
+		Name:              user.Name,
+		TwoFactorEnabled:  &twoFA,
+		IsAdmin:           &isAdmin,
+		TimeDisplayFormat: &tdf,
+		CreatedAt:         user.CreatedAt,
+		UpdatedAt:         user.UpdatedAt,
 	}
 }

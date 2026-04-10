@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -511,11 +511,11 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		// Create the flight
-		totalTime := float64(0)
+		totalTime := 0
 		if flight.OffBlockTime != "" && flight.OnBlockTime != "" {
 			totalTime, _ = calculateBlockTime(flight.OffBlockTime, flight.OnBlockTime)
 		} else if flight.TotalTime != nil {
-			totalTime = float64(*flight.TotalTime)
+			totalTime = *flight.TotalTime
 		}
 
 		flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
@@ -533,10 +533,10 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			DepartureICAO:           &flight.DepartureIcao,
 			ArrivalICAO:             &flight.ArrivalIcao,
 			TotalTime:               totalTime,
-			IFRTime:                 float64(getFloat32OrDefault(flight.IfrTime, 0)),
+			IFRTime:                 getIntOrDefault(flight.IfrTime, 0),
 			AllLandings:             flight.Landings,
-			ActualInstrumentTime:    float64(getFloat32OrDefault(flight.ActualInstrumentTime, 0)),
-			SimulatedInstrumentTime: float64(getFloat32OrDefault(flight.SimulatedInstrumentTime, 0)),
+			ActualInstrumentTime:    getIntOrDefault(flight.ActualInstrumentTime, 0),
+			SimulatedInstrumentTime: getIntOrDefault(flight.SimulatedInstrumentTime, 0),
 		}
 		if flight.Holds != nil {
 			newFlight.Holds = *flight.Holds
@@ -574,7 +574,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		if flight.InstructorComments != nil {
 			newFlight.InstructorComments = flight.InstructorComments
 		}
-		newFlight.DualGivenTime = float64(getFloat32OrDefault(flight.DualGivenTime, 0))
+		newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
 
 		// Build crew members from FlightCreate into model for auto-calculations
 		if flight.CrewMembers != nil {
@@ -843,10 +843,8 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			s := normalizeTime(val)
 			flight.ArrivalTime = &s
 		case "totalTime":
-			f, err := strconv.ParseFloat(val, 32)
-			if err == nil {
-				f32 := float32(f)
-				flight.TotalTime = &f32
+			if mins, err := duration.ParseDuration(val); err == nil {
+				flight.TotalTime = &mins
 			}
 		case "isPic":
 			// Auto-calculated from crew; ignore imported value
@@ -858,22 +856,16 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "nightTime":
 			// Auto-calculated from solar data; ignore imported value
 		case "ifrTime":
-			f, err := strconv.ParseFloat(val, 32)
-			if err == nil {
-				f32 := float32(f)
-				flight.IfrTime = &f32
+			if mins, err := duration.ParseDuration(val); err == nil {
+				flight.IfrTime = &mins
 			}
 		case "actualInstrumentTime":
-			f, err := strconv.ParseFloat(val, 32)
-			if err == nil {
-				f32 := float32(f)
-				flight.ActualInstrumentTime = &f32
+			if mins, err := duration.ParseDuration(val); err == nil {
+				flight.ActualInstrumentTime = &mins
 			}
 		case "simulatedInstrumentTime":
-			f, err := strconv.ParseFloat(val, 32)
-			if err == nil {
-				f32 := float32(f)
-				flight.SimulatedInstrumentTime = &f32
+			if mins, err := duration.ParseDuration(val); err == nil {
+				flight.SimulatedInstrumentTime = &mins
 			}
 		case "holds":
 			n, _ := strconv.Atoi(val)
@@ -903,9 +895,9 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "instructorComments":
 			flight.InstructorComments = &val
 		case "dualGivenTime":
-			if f, err := strconv.ParseFloat(val, 32); err == nil {
-				f32 := float32(f)
-				flight.DualGivenTime = &f32
+			if f, err := strconv.ParseFloat(val, 64); err == nil {
+				mins := duration.DecimalHoursToMinutes(f)
+				flight.DualGivenTime = &mins
 				dualGivenVal = f
 			}
 		case "person1":
@@ -1028,7 +1020,7 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 
 	// ForeFlight: auto-calculate IFR time from actual + simulated instrument if not explicitly set
 	if flight.IfrTime == nil || *flight.IfrTime == 0 {
-		var ifrTotal float32
+		var ifrTotal int
 		if flight.ActualInstrumentTime != nil {
 			ifrTotal += *flight.ActualInstrumentTime
 		}
@@ -1058,12 +1050,16 @@ func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *op
 		if !depMatch || !arrMatch {
 			continue
 		}
-		// Total time within ±0.1h
-		importTotal := float64(0)
+		// Total time within ±6 minutes tolerance
+		importTotal := 0
 		if flight.TotalTime != nil {
-			importTotal = float64(*flight.TotalTime)
+			importTotal = *flight.TotalTime
 		}
-		if math.Abs(e.TotalTime-importTotal) <= 0.1 {
+		diff := e.TotalTime - importTotal
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff <= 6 {
 			id := openapi_types.UUID(e.ID)
 			return &id
 		}

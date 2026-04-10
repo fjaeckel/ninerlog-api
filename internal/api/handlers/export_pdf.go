@@ -137,7 +137,7 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		}
 
 		// Running totals for this page
-		var pageTotalTime, pageNight, pageIFR, pagePIC, pageDual float64
+		var pageTotalTime, pageNight, pageIFR, pagePIC, pageDual int
 		var pageLdgDay, pageLdgNight int
 
 		for _, f := range flights[startIdx:endIdx] {
@@ -222,7 +222,7 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 	pdf.CellFormat(0, 8, "TOTALS SUMMARY", "", 1, "C", false, 0, "")
 	pdf.Ln(4)
 
-	var grandTotal, grandPIC, grandDual, grandNight, grandIFR, grandSolo, grandXC float64
+	var grandTotal, grandPIC, grandDual, grandNight, grandIFR, grandSolo, grandXC int
 	var grandLdgDay, grandLdgNight, grandFlights int
 	for _, f := range flights {
 		grandTotal += f.TotalTime
@@ -243,13 +243,13 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 
 	summaryRows := []struct{ label, value string }{
 		{"Total Flights", fmt.Sprintf("%d", grandFlights)},
-		{"Total Block Time", fmt.Sprintf("%.1f hours", grandTotal)},
-		{"PIC Time", fmt.Sprintf("%.1f hours", grandPIC)},
-		{"Dual Received", fmt.Sprintf("%.1f hours", grandDual)},
-		{"Solo Time", fmt.Sprintf("%.1f hours", grandSolo)},
-		{"Night Time", fmt.Sprintf("%.1f hours", grandNight)},
-		{"IFR Time", fmt.Sprintf("%.1f hours", grandIFR)},
-		{"Cross-Country Time", fmt.Sprintf("%.1f hours", grandXC)},
+		{"Total Block Time", fmtDec(grandTotal)},
+		{"PIC Time", fmtDec(grandPIC)},
+		{"Dual Received", fmtDec(grandDual)},
+		{"Solo Time", fmtDec(grandSolo)},
+		{"Night Time", fmtDec(grandNight)},
+		{"IFR Time", fmtDec(grandIFR)},
+		{"Cross-Country Time", fmtDec(grandXC)},
 		{"Day Landings", fmt.Sprintf("%d", grandLdgDay)},
 		{"Night Landings", fmt.Sprintf("%d", grandLdgNight)},
 		{"Total Landings", fmt.Sprintf("%d", grandLdgDay+grandLdgNight)},
@@ -292,9 +292,11 @@ func fmtTime(s *string) string {
 	return v
 }
 
-func fmtDec(v float64) string {
+func fmtDec(v int) string {
 	if v == 0 {
 		return ""
 	}
-	return fmt.Sprintf("%.1f", v)
+	h := v / 60
+	m := v % 60
+	return fmt.Sprintf("%d:%02d", h, m)
 }
