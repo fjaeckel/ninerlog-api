@@ -14,7 +14,7 @@ func TestEASA_LAPL_Current(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 8, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(12), LicenseID: uuid.New()}
@@ -30,7 +30,7 @@ func TestEASA_LAPL_Current(t *testing.T) {
 	}
 	// Verify PIC Hours is NOT a requirement
 	for _, req := range result.Requirements {
-		if req.Name == "PIC Hours" {
+		if req.Name == "PIC Time" {
 			t.Error("LAPL should NOT have PIC Hours requirement (FCL.140.A has no PIC requirement)")
 		}
 	}
@@ -40,7 +40,7 @@ func TestEASA_LAPL_NoPICRequirement(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 0, Landings: 20, InstructorHours: 2, // Zero PIC — LAPL should still be current
+		TotalMinutes: 900, PICMinutes: 0, Landings: 20, InstructorMinutes: 120, // Zero PIC — LAPL should still be current
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(12), LicenseID: uuid.New()}
@@ -56,7 +56,7 @@ func TestEASA_LAPL_InsufficientHours(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 5, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 300, Landings: 20, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -73,7 +73,7 @@ func TestEASA_LAPL_RollingFromNow(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 0, Landings: 0, InstructorHours: 0,
+		TotalMinutes: 0, Landings: 0, InstructorMinutes: 0,
 	}
 
 	// Even with a far-future expiry, LAPL should be "expiring" if no recent activity
@@ -92,7 +92,7 @@ func TestEASA_SPL_Current(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICHours: 8, Landings: 20, InstructorHours: 2, // 20 "landings" = 20 launches
+		PICMinutes: 480, Landings: 20, InstructorMinutes: 120, // 20 "landings" = 20 launches
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -122,7 +122,7 @@ func TestEASA_SPL_InsufficientLaunches(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICHours: 8, Landings: 10, InstructorHours: 2, // 10 launches < 15
+		PICMinutes: 480, Landings: 10, InstructorMinutes: 120, // 10 launches < 15
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -138,7 +138,7 @@ func TestEASA_SPL_LaunchMethodCurrency(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICHours: 8, Landings: 20, InstructorHours: 2,
+		PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 	}
 	dp.launchCounts = map[string]int{
 		"winch":   8,
@@ -170,7 +170,7 @@ func TestEASA_SPL_TMG_Current(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeTMG] = &Progress{
-		TotalHours: 15, Landings: 20,
+		TotalMinutes: 900, Landings: 20,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeTMG, LicenseID: uuid.New()}
@@ -191,7 +191,7 @@ func TestEASA_SPL_TMG_VsPPL_TMG(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeTMG] = &Progress{
-		TotalHours: 13, PICHours: 7, Landings: 15, InstructorHours: 1.5,
+		TotalMinutes: 780, PICMinutes: 420, Landings: 15, InstructorMinutes: 90,
 	}
 
 	ratingID := uuid.New()
@@ -224,7 +224,7 @@ func TestEASA_SPL_TMG_VsPPL_TMG(t *testing.T) {
 func TestFAA_IR_GracePeriod_Within6Months_Current(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{Approaches: 8, Holds: 2, IFRHours: 10}
+	dp.progressAll = &Progress{Approaches: 8, Holds: 2, IFRMinutes: 600}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
@@ -239,7 +239,7 @@ func TestFAA_IR_GracePeriod_NotMetAnywhere_Expired(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()
 	// 2 approaches, 0 holds — not met in 6 months OR 12 months (mock returns same data)
-	dp.progressAll = &Progress{Approaches: 2, Holds: 0, IFRHours: 3}
+	dp.progressAll = &Progress{Approaches: 2, Holds: 0, IFRMinutes: 180}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
@@ -256,7 +256,7 @@ func TestEASA_Dispatch_PPL_UsesFCL740A(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 8, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(12), LicenseID: uuid.New()}
@@ -273,7 +273,7 @@ func TestEASA_Dispatch_LAPL_UsesFCL140A(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 0, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, PICMinutes: 0, Landings: 20, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(12), LicenseID: uuid.New()}
@@ -290,7 +290,7 @@ func TestEASA_Dispatch_SPL_UsesFCL140S(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICHours: 8, Landings: 20, InstructorHours: 2,
+		PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -314,7 +314,7 @@ func TestEASA_Dispatch_CPL_UsesFCL740A(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 8, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(12), LicenseID: uuid.New()}
@@ -330,7 +330,7 @@ func TestEASA_Dispatch_IR_SameForAllLicenseTypes(t *testing.T) {
 	// IR should always use FCL.625.A regardless of license type
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{IFRHours: 15}
+	dp.progressAll = &Progress{IFRMinutes: 900}
 	profDate := futureDate(-3)
 	dp.lastProficiencyCheck = profDate
 

@@ -19,10 +19,10 @@ func TestFlightFieldRetrieval(t *testing.T) {
 		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
 		"offBlockTime": "08:00", "onBlockTime": "10:30",
 		"departureTime": "08:10", "arrivalTime": "10:20", "landings": 3,
-		"ifrTime": 0.5, "remarks": "Retrieval test", "route": "EDNY,EDTL,EDDS",
+		"ifrTime": 30, "remarks": "Retrieval test", "route": "EDNY,EDTL,EDDS",
 		"holds": 2, "approachesCount": 3, "isFlightReview": true,
-		"actualInstrumentTime": 0.4, "simulatedInstrumentTime": 0.1,
-		"simulatedFlightTime": 0.0, "groundTrainingTime": 0.0,
+		"actualInstrumentTime": 24, "simulatedInstrumentTime": 6,
+		"simulatedFlightTime": 0, "groundTrainingTime": 0,
 		"instructorName": "Capt Retrieval", "instructorComments": "Great job",
 		"launchMethod": nil,
 		"crewMembers": []map[string]interface{}{
@@ -47,9 +47,9 @@ func TestFlightFieldRetrieval(t *testing.T) {
 		assertStr(t, "remarks", f["remarks"], "Retrieval test")
 		assertStr(t, "route", f["route"], "EDNY,EDTL,EDDS")
 
-		assertFloat(t, "ifrTime", gf(f, "ifrTime"), 0.5, 0.01)
-		assertFloat(t, "actualInstrumentTime", gf(f, "actualInstrumentTime"), 0.4, 0.01)
-		assertFloat(t, "simulatedInstrumentTime", gf(f, "simulatedInstrumentTime"), 0.1, 0.01)
+		assertFloat(t, "ifrTime", gf(f, "ifrTime"), 30, 1)
+		assertFloat(t, "actualInstrumentTime", gf(f, "actualInstrumentTime"), 24, 1)
+		assertFloat(t, "simulatedInstrumentTime", gf(f, "simulatedInstrumentTime"), 6, 1)
 		assertInt(t, "holds", gi(f, "holds"), 2)
 		assertInt(t, "approachesCount", gi(f, "approachesCount"), 3)
 

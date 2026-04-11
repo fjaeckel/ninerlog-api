@@ -24,6 +24,16 @@ This is the **backend API server** that provides:
 
 **ALL CODE MUST BE TESTED.** Testing is not optional.
 
+### Mandatory Verification Before Completion
+
+**ALWAYS run ALL tests (unit + e2e) before declaring any task complete or pushing code.**
+
+1. Run unit tests: `go test ./...`
+2. Run e2e tests: `bash scripts/run-e2e-tests.sh`
+3. Both must pass with zero failures before any commit or verification.
+4. If any test fails, fix the failure before proceeding.
+5. Never skip tests or mark a task as done without a green test run.
+
 ### Unit Tests (Go testing + testify)
 - **Required for**: All services, repositories, utilities, validators, and domain logic
 - **Coverage target**: Minimum 90% code coverage

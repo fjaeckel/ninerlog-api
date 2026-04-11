@@ -69,11 +69,11 @@ type Flight struct {
 	// Instrument tracking
 	ActualInstrumentTime    int  `json:"actualInstrumentTime"`
 	SimulatedInstrumentTime int  `json:"simulatedInstrumentTime"`
-	Holds                   int     `json:"holds"`
-	ApproachesCount         int     `json:"approachesCount"`
-	IsIPC                   bool    `json:"isIpc"`
-	IsFlightReview          bool    `json:"isFlightReview"`
-	IsProficiencyCheck      bool    `json:"isProficiencyCheck"`
+	Holds                   int  `json:"holds"`
+	ApproachesCount         int  `json:"approachesCount"`
+	IsIPC                   bool `json:"isIpc"`
+	IsFlightReview          bool `json:"isFlightReview"`
+	IsProficiencyCheck      bool `json:"isProficiencyCheck"`
 
 	// SPL / Glider
 	LaunchMethod *string `json:"launchMethod,omitempty"` // winch, aerotow, self-launch

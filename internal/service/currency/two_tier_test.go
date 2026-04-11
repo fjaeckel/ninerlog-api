@@ -144,7 +144,7 @@ func TestService_TwoTier_HasPassengerCurrency(t *testing.T) {
 		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(12)},
 	}
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 8, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 		NightLandings: 5, DayLandings: 15,
 	}
 
@@ -187,7 +187,7 @@ func TestService_TwoTier_IR_NoPassengerCurrency(t *testing.T) {
 	crRepo.ratings[lic.ID] = []*models.ClassRating{
 		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeIR, ExpiryDate: futureDate(6)},
 	}
-	dp.progressAll = &Progress{IFRHours: 15}
+	dp.progressAll = &Progress{IFRMinutes: 900}
 
 	svc := NewService(reg, licRepo, crRepo, dp)
 	result, err := svc.EvaluateAll(context.Background(), userID)
@@ -231,7 +231,7 @@ func TestService_TwoTier_NoDuplicatePassengerCurrency(t *testing.T) {
 	}
 
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 8, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 		NightLandings: 5, DayLandings: 15,
 	}
 
@@ -293,7 +293,7 @@ func TestEASA_SEP_LookbackIs12Months_NotFlights(t *testing.T) {
 	// the lookback calculation is AddDate(-1,0,0) not AddDate(-2,0,0).
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 0, PICHours: 0, Landings: 0, InstructorHours: 0,
+		TotalMinutes: 0, PICMinutes: 0, Landings: 0, InstructorMinutes: 0,
 	}
 
 	rating := &models.ClassRating{
@@ -317,7 +317,7 @@ func TestEASA_MEP_LookbackIs12Months(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{
-		Flights: 0, InstructorHours: 0,
+		Flights: 0, InstructorMinutes: 0,
 	}
 
 	rating := &models.ClassRating{
@@ -513,7 +513,7 @@ func TestService_EASA_NoFlightReview(t *testing.T) {
 		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(12)},
 	}
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 8, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 	}
 
 	svc := NewService(reg, licRepo, crRepo, dp)
@@ -533,7 +533,7 @@ func TestService_EASA_NoFlightReview(t *testing.T) {
 func TestFAA_SportPilot_IR_Suppressed(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{Approaches: 10, Holds: 3, IFRHours: 15}
+	dp.progressAll = &Progress{Approaches: 10, Holds: 3, IFRMinutes: 900}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "Sport"}

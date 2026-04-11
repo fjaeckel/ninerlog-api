@@ -14,7 +14,7 @@ func TestGermanUL_Current(t *testing.T) {
 	eval := NewGermanULEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, Landings: 20, InstructorHours: 2, Flights: 12,
+		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120, Flights: 12,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -38,7 +38,7 @@ func TestGermanUL_InsufficientHours(t *testing.T) {
 	eval := NewGermanULEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 5, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 300, Landings: 20, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -54,7 +54,7 @@ func TestGermanUL_InsufficientLandings(t *testing.T) {
 	eval := NewGermanULEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, Landings: 5, InstructorHours: 2,
+		TotalMinutes: 900, Landings: 5, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -66,11 +66,11 @@ func TestGermanUL_InsufficientLandings(t *testing.T) {
 	}
 }
 
-func TestGermanUL_NoInstructorHours(t *testing.T) {
+func TestGermanUL_NoInstructorMinutes(t *testing.T) {
 	eval := NewGermanULEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, Landings: 20, InstructorHours: 0,
+		TotalMinutes: 900, Landings: 20, InstructorMinutes: 0,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -86,7 +86,7 @@ func TestGermanUL_RuleDescription(t *testing.T) {
 	eval := NewGermanULEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -198,7 +198,7 @@ func TestService_GermanUL_Integration(t *testing.T) {
 		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeSEPLand},
 	}
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, Landings: 20, InstructorHours: 2, Flights: 12,
+		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120, Flights: 12,
 	}
 
 	svc := NewService(reg, licRepo, crRepo, dp)
@@ -326,7 +326,7 @@ func TestService_MixedAuthorities_WithUL(t *testing.T) {
 	}
 
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 8, Landings: 20, InstructorHours: 2,
+		TotalMinutes: 900, PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 		NightLandings: 5,
 	}
 

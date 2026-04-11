@@ -43,13 +43,13 @@ func TestFullPipeline_EASAMultiRating(t *testing.T) {
 
 	// Simulate flight progress for SEP_LAND (good progress)
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 20, PICHours: 12, Landings: 30, InstructorHours: 2,
-		Flights: 15, NightHours: 3, DayLandings: 25, NightLandings: 5,
+		TotalMinutes: 1200, PICMinutes: 720, Landings: 30, InstructorMinutes: 120,
+		Flights: 15, NightMinutes: 180, DayLandings: 25, NightLandings: 5,
 	}
 
 	// Simulate flight progress for IR (across all classes)
 	dp.progressAll = &Progress{
-		IFRHours: 12, TotalHours: 30, Flights: 20,
+		IFRMinutes: 720, TotalMinutes: 1800, Flights: 20,
 		Approaches: 8, Holds: 3,
 	}
 	// Add proficiency check for IR
@@ -93,14 +93,14 @@ func TestFullPipeline_EASAMultiRating(t *testing.T) {
 	}
 	for _, req := range sepResult.Requirements {
 		if !req.Met {
-			t.Errorf("SEP requirement %q not met (current=%.1f, required=%.1f)", req.Name, req.Current, req.Required)
+			t.Errorf("SEP requirement %q not met (current=%.0f, required=%.0f)", req.Name, req.Current, req.Required)
 		}
 	}
 	if sepResult.Progress == nil {
 		t.Fatal("SEP progress should not be nil")
 	}
-	if sepResult.Progress.TotalHours != 20 {
-		t.Errorf("SEP progress totalHours = %.1f, want 20", sepResult.Progress.TotalHours)
+	if sepResult.Progress.TotalMinutes != 1200 {
+		t.Errorf("SEP progress totalMinutes = %d, want 1200", sepResult.Progress.TotalMinutes)
 	}
 
 	// Verify IR is current (10h IFR met)
@@ -113,11 +113,11 @@ func TestFullPipeline_EASAMultiRating(t *testing.T) {
 	if len(irResult.Requirements) != 2 {
 		t.Errorf("IR requirements count = %d, want 2 (IFR hours + proficiency check)", len(irResult.Requirements))
 	}
-	if irResult.Requirements[0].Name != "IFR Hours" {
-		t.Errorf("IR requirement name = %s, want IFR Hours", irResult.Requirements[0].Name)
+	if irResult.Requirements[0].Name != "IFR Time" {
+		t.Errorf("IR requirement name = %s, want IFR Time", irResult.Requirements[0].Name)
 	}
 	if !irResult.Requirements[0].Met {
-		t.Error("IR IFR Hours requirement should be met")
+		t.Error("IR IFR Time requirement should be met")
 	}
 }
 
@@ -151,15 +151,15 @@ func TestFullPipeline_FAAPilotMultiClass(t *testing.T) {
 
 	// SEP: current (5 landings, 3 night)
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		Landings: 5, DayLandings: 2, NightLandings: 3, Flights: 5, TotalHours: 8,
+		Landings: 5, DayLandings: 2, NightLandings: 3, Flights: 5, TotalMinutes: 480,
 	}
 	// MEP: day current, night not (2 landings, 0 night)
 	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{
-		Landings: 4, DayLandings: 4, NightLandings: 0, Flights: 4, TotalHours: 6,
+		Landings: 4, DayLandings: 4, NightLandings: 0, Flights: 4, TotalMinutes: 360,
 	}
 	// IR: not current (only 3 approaches, 0 holds)
 	dp.progressAll = &Progress{
-		IFRHours: 8, Approaches: 3, Holds: 0, Flights: 10, TotalHours: 20,
+		IFRMinutes: 480, Approaches: 3, Holds: 0, Flights: 10, TotalMinutes: 1200,
 	}
 
 	svc := NewService(reg, licRepo, crRepo, dp)
@@ -228,8 +228,8 @@ func TestFullPipeline_MixedAuthorities(t *testing.T) {
 
 	// Same aircraft class progress applies to both — 5 landings, 3 night
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalHours: 15, PICHours: 10, Landings: 20, InstructorHours: 1.5,
-		Flights: 12, NightLandings: 5, DayLandings: 15, NightHours: 2,
+		TotalMinutes: 900, PICMinutes: 600, Landings: 20, InstructorMinutes: 90,
+		Flights: 12, NightLandings: 5, DayLandings: 15, NightMinutes: 120,
 	}
 
 	svc := NewService(reg, licRepo, crRepo, dp)

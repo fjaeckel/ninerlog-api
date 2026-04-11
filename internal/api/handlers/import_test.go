@@ -156,8 +156,8 @@ func TestMapRowToFlight_ForeFlight(t *testing.T) {
 	if flight.Route == nil || *flight.Route != "EDAY FWE KLF" {
 		t.Errorf("Route = %v, want EDAY FWE KLF", flight.Route)
 	}
-	if flight.ActualInstrumentTime == nil || *flight.ActualInstrumentTime != 0.5 {
-		t.Errorf("ActualInstrumentTime = %v, want 0.5", flight.ActualInstrumentTime)
+	if flight.ActualInstrumentTime == nil || *flight.ActualInstrumentTime != 30 {
+		t.Errorf("ActualInstrumentTime = %v, want 30", flight.ActualInstrumentTime)
 	}
 	if flight.Holds == nil || *flight.Holds != 2 {
 		t.Errorf("Holds = %v, want 2", flight.Holds)
@@ -171,8 +171,8 @@ func TestMapRowToFlight_ForeFlight(t *testing.T) {
 	if flight.IsFlightReview == nil || *flight.IsFlightReview {
 		t.Error("IsFlightReview should be false")
 	}
-	if flight.IfrTime == nil || *flight.IfrTime != 0.8 {
-		t.Errorf("IfrTime = %v, want 0.8", flight.IfrTime)
+	if flight.IfrTime == nil || *flight.IfrTime != 48 {
+		t.Errorf("IfrTime = %v, want 48", flight.IfrTime)
 	}
 	if flight.Landings != 3 {
 		t.Errorf("Landings = %d, want 3", flight.Landings)
@@ -409,8 +409,8 @@ func TestMapRowToFlight_DualGivenMakesPersonStudent(t *testing.T) {
 		t.Errorf("Person1: name=%q role=%q, want name='Student Learner' role='Student'", crew[0].Name, crew[0].Role)
 	}
 
-	if flight.DualGivenTime == nil || *flight.DualGivenTime != 2.7 {
-		t.Errorf("DualGivenTime = %v, want 2.7", flight.DualGivenTime)
+	if flight.DualGivenTime == nil || *flight.DualGivenTime != 162 {
+		t.Errorf("DualGivenTime = %v, want 162", flight.DualGivenTime)
 	}
 }
 

@@ -16,7 +16,7 @@ func TestEASA_MEP_ProfCheckOnly_Current(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{
-		Flights: 0, InstructorHours: 0, // No experience at all
+		Flights: 0, InstructorMinutes: 0, // No experience at all
 	}
 	profDate := time.Now().AddDate(0, -2, 0)
 	dp.lastProficiencyCheck = &profDate
@@ -34,7 +34,7 @@ func TestEASA_MEP_NoProfCheck_NoExperience_Expiring(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{
-		Flights: 3, InstructorHours: 0, // Insufficient experience
+		Flights: 3, InstructorMinutes: 0, // Insufficient experience
 	}
 	// No proficiency check
 
@@ -52,7 +52,7 @@ func TestEASA_MEP_NoProfCheck_NoExperience_Expiring(t *testing.T) {
 func TestEASA_IR_WithProfCheck_Current(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{IFRHours: 15}
+	dp.progressAll = &Progress{IFRMinutes: 900}
 	profDate := time.Now().AddDate(0, -3, 0)
 	dp.lastProficiencyCheck = &profDate
 
@@ -72,7 +72,7 @@ func TestEASA_IR_WithProfCheck_Current(t *testing.T) {
 func TestEASA_IR_NoProfCheck_Expiring(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{IFRHours: 15} // IFR hours met
+	dp.progressAll = &Progress{IFRMinutes: 900} // IFR hours met
 	// No proficiency check
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, ExpiryDate: futureDate(6), LicenseID: uuid.New()}
@@ -87,7 +87,7 @@ func TestEASA_IR_NoProfCheck_Expiring(t *testing.T) {
 func TestEASA_IR_ProfCheck_InsufficientIFR_Expiring(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{IFRHours: 5} // Below 10h threshold
+	dp.progressAll = &Progress{IFRMinutes: 300} // Below 10h threshold
 	profDate := time.Now().AddDate(0, -3, 0)
 	dp.lastProficiencyCheck = &profDate
 
@@ -105,7 +105,7 @@ func TestEASA_IR_ProfCheck_InsufficientIFR_Expiring(t *testing.T) {
 func TestEASA_MEP_ProfCheckRequirement_InResponse(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{Flights: 12, InstructorHours: 1.5}
+	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{Flights: 12, InstructorMinutes: 90}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeMEPLand, ExpiryDate: futureDate(6), LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "CPL"}
@@ -130,7 +130,7 @@ func TestEASA_MEP_ProfCheckRequirement_InResponse(t *testing.T) {
 func TestEASA_IR_ProfCheckRequirement_Met(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressAll = &Progress{IFRHours: 15}
+	dp.progressAll = &Progress{IFRMinutes: 900}
 	profDate := time.Now().AddDate(0, -1, 0)
 	dp.lastProficiencyCheck = &profDate
 

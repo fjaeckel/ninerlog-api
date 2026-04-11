@@ -90,11 +90,11 @@ func (m *mockFlightRepo) GetStatsByUserID(ctx context.Context, userID uuid.UUID,
 	for _, f := range m.flights {
 		if f.UserID == userID {
 			stats.TotalFlights++
-			stats.TotalHours += f.TotalTime
-			stats.PICHours += f.PICTime
-			stats.DualHours += f.DualTime
-			stats.NightHours += f.NightTime
-			stats.IFRHours += f.IFRTime
+			stats.TotalMinutes += f.TotalTime
+			stats.PICMinutes += f.PICTime
+			stats.DualMinutes += f.DualTime
+			stats.NightMinutes += f.NightTime
+			stats.IFRMinutes += f.IFRTime
 			stats.LandingsDay += f.LandingsDay
 			stats.LandingsNight += f.LandingsNight
 		}
@@ -129,9 +129,9 @@ func TestCreateFlight(t *testing.T) {
 		Date:         flightDate,
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
-		TotalTime:    2.5,
+		TotalTime:    150,
 		IsPIC:        true,
-		PICTime:      2.5,
+		PICTime:      150,
 		LandingsDay:  3,
 	}
 
@@ -184,18 +184,18 @@ func TestUpdateFlight(t *testing.T) {
 		Date:         flightDate,
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
-		TotalTime:    2.5,
+		TotalTime:    150,
 		IsPIC:        true,
-		PICTime:      2.5,
+		PICTime:      150,
 		LandingsDay:  3,
 	}
 
 	_ = service.CreateFlight(ctx, flight)
 
 	// Update flight
-	flight.TotalTime = 3.0
-	flight.PICTime = 3.0
-	flight.NightTime = 0.5
+	flight.TotalTime = 180
+	flight.PICTime = 180
+	flight.NightTime = 30
 
 	err := service.UpdateFlight(ctx, flight, userID)
 	if err != nil {
@@ -204,8 +204,8 @@ func TestUpdateFlight(t *testing.T) {
 
 	// Verify update
 	updated, _ := service.GetFlight(ctx, flight.ID, userID)
-	if updated.TotalTime != 3.0 {
-		t.Errorf("Expected total time 3.0, got %f", updated.TotalTime)
+	if updated.TotalTime != 180 {
+		t.Errorf("Expected total time 180, got %d", updated.TotalTime)
 	}
 }
 
@@ -222,9 +222,9 @@ func TestDeleteFlight(t *testing.T) {
 		Date:         flightDate,
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
-		TotalTime:    2.5,
+		TotalTime:    150,
 		IsPIC:        true,
-		PICTime:      2.5,
+		PICTime:      150,
 		LandingsDay:  3,
 	}
 

@@ -13,9 +13,9 @@ func validFlight() *Flight {
 		Date:         time.Now(),
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
-		TotalTime:    1.5,
+		TotalTime:    90,
 		IsPIC:        true,
-		PICTime:      1.5,
+		PICTime:      90,
 		LandingsDay:  2,
 	}
 }
@@ -143,7 +143,7 @@ func TestFlightValidateTimeDistribution_Dual(t *testing.T) {
 	f := validFlight()
 	f.IsPIC = false
 	f.IsDual = true
-	f.DualTime = 1.5
+	f.DualTime = 90
 	f.PICTime = 0
 	if err := f.ValidateTimeDistribution(); err != nil {
 		t.Errorf("ValidateTimeDistribution() for dual = %v, want nil", err)
@@ -152,7 +152,7 @@ func TestFlightValidateTimeDistribution_Dual(t *testing.T) {
 
 func TestFlightStatisticsDefaults(t *testing.T) {
 	s := FlightStatistics{}
-	if s.TotalFlights != 0 || s.TotalHours != 0 {
+	if s.TotalFlights != 0 || s.TotalMinutes != 0 {
 		t.Error("Default FlightStatistics should have zero values")
 	}
 }

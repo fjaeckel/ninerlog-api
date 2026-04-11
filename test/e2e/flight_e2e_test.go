@@ -77,7 +77,7 @@ func TestFlightCRUD(t *testing.T) {
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
 		r.JSON(&f)
-		assertFloat(t, "totalTime", gf(f, "totalTime"), 2.0, 0.1)
+		assertFloat(t, "totalTime", gf(f, "totalTime"), 120, 6)
 	})
 	t.Run("delete", func(t *testing.T) {
 		assertStatus(t, c.DELETE("/flights/"+fid), 204)
@@ -99,14 +99,14 @@ func TestFlightTotalTimeCalc(t *testing.T) {
 		name, off, on string
 		want          float64
 	}{
-		{"1h", "08:00", "09:00", 1.0},
-		{"1.5h", "08:00", "09:30", 1.5},
-		{"2.5h", "08:00", "10:30", 2.5},
-		{"30min", "12:00", "12:30", 0.5},
-		{"3h20m", "06:00", "09:20", 3.3},
-		{"overnight 23-01", "23:00", "01:00", 2.0},
-		{"overnight 22-06", "22:00", "06:00", 8.0},
-		{"HH:MM:SS", "08:00:00", "09:30:00", 1.5},
+		{"1h", "08:00", "09:00", 60},
+		{"1.5h", "08:00", "09:30", 90},
+		{"2.5h", "08:00", "10:30", 150},
+		{"30min", "12:00", "12:30", 30},
+		{"3h20m", "06:00", "09:20", 200},
+		{"overnight 23-01", "23:00", "01:00", 120},
+		{"overnight 22-06", "22:00", "06:00", 480},
+		{"HH:MM:SS", "08:00:00", "09:30:00", 90},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -114,7 +114,7 @@ func TestFlightTotalTimeCalc(t *testing.T) {
 			requireStatus(t, r, 201)
 			var f map[string]interface{}
 			r.JSON(&f)
-			assertFloat(t, "totalTime", gf(f, "totalTime"), tc.want, 0.15)
+			assertFloat(t, "totalTime", gf(f, "totalTime"), tc.want, 6)
 		})
 	}
 }
@@ -130,9 +130,9 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r.JSON(&f)
 		assertBool(t, "isPic", gb(f, "isPic"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), false)
-		assertFloat(t, "picTime", gf(f, "picTime"), 2.0, 0.1)
-		assertFloat(t, "dualTime", gf(f, "dualTime"), 0.0, 0.01)
-		assertFloat(t, "soloTime", gf(f, "soloTime"), 2.0, 0.1)
+		assertFloat(t, "picTime", gf(f, "picTime"), 120, 6)
+		assertFloat(t, "dualTime", gf(f, "dualTime"), 0, 1)
+		assertFloat(t, "soloTime", gf(f, "soloTime"), 120, 6)
 	})
 
 	t.Run("dual with Instructor", func(t *testing.T) {
@@ -142,9 +142,9 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r.JSON(&f)
 		assertBool(t, "isPic", gb(f, "isPic"), false)
 		assertBool(t, "isDual", gb(f, "isDual"), true)
-		assertFloat(t, "dualTime", gf(f, "dualTime"), 2.0, 0.1)
-		assertFloat(t, "picTime", gf(f, "picTime"), 0.0, 0.01)
-		assertFloat(t, "soloTime", gf(f, "soloTime"), 0.0, 0.01)
+		assertFloat(t, "dualTime", gf(f, "dualTime"), 120, 6)
+		assertFloat(t, "picTime", gf(f, "picTime"), 0, 1)
+		assertFloat(t, "soloTime", gf(f, "soloTime"), 0, 1)
 	})
 
 	t.Run("PIC with passenger - still solo per regs", func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r.JSON(&f)
 		assertBool(t, "isPic", gb(f, "isPic"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), false)
-		assertFloat(t, "picTime", gf(f, "picTime"), 1.5, 0.1)
+		assertFloat(t, "picTime", gf(f, "picTime"), 90, 6)
 		t.Logf("soloTime with pax: %.2f", gf(f, "soloTime"))
 	})
 
@@ -167,7 +167,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 	})
 
 	t.Run("Student crew with dualGiven", func(t *testing.T) {
-		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EINST", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "10:00", "landings": 1, "crewMembers": []map[string]interface{}{{"name": "Student", "role": "Student"}}, "dualGivenTime": 2.0})
+		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EINST", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "10:00", "landings": 1, "crewMembers": []map[string]interface{}{{"name": "Student", "role": "Student"}}, "dualGivenTime": 120})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
 		r.JSON(&f)
@@ -184,7 +184,7 @@ func TestFlightXCDistance(t *testing.T) {
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
 		r.JSON(&f)
-		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 1.5, 0.15)
+		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 90, 9)
 		d := gf(f, "distance")
 		if d < 50 || d > 80 {
 			t.Errorf("EDNY-EDDS: want ~63NM, got %.1f", d)
@@ -197,7 +197,7 @@ func TestFlightXCDistance(t *testing.T) {
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
 		r.JSON(&f)
-		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 0.0, 0.01)
+		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 0, 1)
 		assertFloat(t, "distance", gf(f, "distance"), 0.0, 0.1)
 	})
 
@@ -219,7 +219,7 @@ func TestFlightXCDistance(t *testing.T) {
 		var f map[string]interface{}
 		r.JSON(&f)
 		d := gf(f, "distance")
-		assertFloat(t, "totalTime", gf(f, "totalTime"), 7.5, 0.1)
+		assertFloat(t, "totalTime", gf(f, "totalTime"), 450, 6)
 		if d < 2900 || d > 3100 {
 			t.Errorf("KJFK-EGLL: want ~3000NM, got %.1f", d)
 		}
@@ -248,7 +248,7 @@ func TestFlightNightTime(t *testing.T) {
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
 		r.JSON(&f)
-		assertFloat(t, "nightTime", gf(f, "nightTime"), 0.0, 0.1)
+		assertFloat(t, "nightTime", gf(f, "nightTime"), 0, 6)
 		assertInt(t, "landingsDay", gi(f, "landingsDay"), 1)
 		assertInt(t, "landingsNight", gi(f, "landingsNight"), 0)
 		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 1)
@@ -321,10 +321,10 @@ func TestFlightAllFields(t *testing.T) {
 			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
 			"offBlockTime": "08:00", "onBlockTime": "10:30",
 			"departureTime": "08:10", "arrivalTime": "10:20", "landings": 3,
-			"ifrTime": 0.5, "remarks": "Full test", "route": "EDNY,EDTL,EDDS",
+			"ifrTime": 30, "remarks": "Full test", "route": "EDNY,EDTL,EDDS",
 			"holds": 2, "approachesCount": 3,
 			"isFlightReview": false, "isIpc": false, "isProficiencyCheck": false,
-			"actualInstrumentTime": 0.3, "simulatedInstrumentTime": 0.2,
+			"actualInstrumentTime": 18, "simulatedInstrumentTime": 12,
 			"instructorName": "John", "instructorComments": "Good",
 			"crewMembers": []map[string]interface{}{{"name": "Jane", "role": "Passenger"}},
 		})
@@ -336,23 +336,23 @@ func TestFlightAllFields(t *testing.T) {
 		}
 		assertStr(t, "reg", f["aircraftReg"], "D-EALL")
 		assertStr(t, "type", f["aircraftType"], "C172")
-		assertFloat(t, "totalTime", gf(f, "totalTime"), 2.5, 0.1)
+		assertFloat(t, "totalTime", gf(f, "totalTime"), 150, 6)
 		assertBool(t, "isPic", gb(f, "isPic"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), false)
-		assertFloat(t, "picTime", gf(f, "picTime"), 2.5, 0.1)
-		assertFloat(t, "dualTime", gf(f, "dualTime"), 0.0, 0.01)
-		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 2.5, 0.1)
+		assertFloat(t, "picTime", gf(f, "picTime"), 150, 6)
+		assertFloat(t, "dualTime", gf(f, "dualTime"), 0, 1)
+		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 150, 6)
 		d := gf(f, "distance")
 		if d < 50 || d > 80 {
 			t.Errorf("distance: want 50-80, got %.1f", d)
 		}
-		assertFloat(t, "nightTime", gf(f, "nightTime"), 0.0, 0.1) // summer morning
+		assertFloat(t, "nightTime", gf(f, "nightTime"), 0, 6) // summer morning
 		assertInt(t, "allLandings", gi(f, "allLandings"), 3)
 		assertInt(t, "landingsDay", gi(f, "landingsDay"), 3)
 		assertInt(t, "landingsNight", gi(f, "landingsNight"), 0)
-		assertFloat(t, "ifrTime", gf(f, "ifrTime"), 0.5, 0.01)
-		assertFloat(t, "actualInstrumentTime", gf(f, "actualInstrumentTime"), 0.3, 0.01)
-		assertFloat(t, "simulatedInstrumentTime", gf(f, "simulatedInstrumentTime"), 0.2, 0.01)
+		assertFloat(t, "ifrTime", gf(f, "ifrTime"), 30, 1)
+		assertFloat(t, "actualInstrumentTime", gf(f, "actualInstrumentTime"), 18, 1)
+		assertFloat(t, "simulatedInstrumentTime", gf(f, "simulatedInstrumentTime"), 12, 1)
 		assertInt(t, "holds", gi(f, "holds"), 2)
 		assertInt(t, "approachesCount", gi(f, "approachesCount"), 3)
 		assertBool(t, "isIpc", gb(f, "isIpc"), false)
@@ -381,7 +381,7 @@ func TestFlightAllFields(t *testing.T) {
 			"offBlockTime": "08:00", "onBlockTime": "10:00",
 			"departureTime": "08:10", "arrivalTime": "09:50", "landings": 4,
 			"isIpc": true, "approachesCount": 6, "holds": 3,
-			"actualInstrumentTime": 1.5, "simulatedInstrumentTime": 0.0,
+			"actualInstrumentTime": 90, "simulatedInstrumentTime": 0,
 			"crewMembers": []map[string]interface{}{{"name": "CFII", "role": "Instructor"}, {"name": "Safety", "role": "SafetyPilot"}},
 		})
 		requireStatus(t, r, 201)
@@ -389,12 +389,12 @@ func TestFlightAllFields(t *testing.T) {
 		r.JSON(&f)
 		assertBool(t, "isIpc", gb(f, "isIpc"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), true)
-		assertFloat(t, "dualTime", gf(f, "dualTime"), 2.0, 0.1)
-		assertFloat(t, "picTime", gf(f, "picTime"), 0.0, 0.01)
-		assertFloat(t, "actualInstrumentTime", gf(f, "actualInstrumentTime"), 1.5, 0.01)
+		assertFloat(t, "dualTime", gf(f, "dualTime"), 120, 6)
+		assertFloat(t, "picTime", gf(f, "picTime"), 0, 1)
+		assertFloat(t, "actualInstrumentTime", gf(f, "actualInstrumentTime"), 90, 1)
 		assertInt(t, "approachesCount", gi(f, "approachesCount"), 6)
 		assertInt(t, "holds", gi(f, "holds"), 3)
-		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 0.0, 0.01) // local
+		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 0, 1) // local
 		if crew, ok := f["crewMembers"].([]interface{}); ok {
 			assertInt(t, "crewLen", len(crew), 2)
 		}
@@ -531,14 +531,14 @@ func TestFlightEdgeCases(t *testing.T) {
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
 		r.JSON(&f)
-		assertFloat(t, "tt", gf(f, "totalTime"), 0.1, 0.1)
+		assertFloat(t, "tt", gf(f, "totalTime"), 6, 6)
 	})
 	t.Run("12h flight", func(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "N999", "aircraftType": "B738", "departureIcao": "KJFK", "arrivalIcao": "KLAX", "offBlockTime": "06:00", "onBlockTime": "18:00", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
 		r.JSON(&f)
-		assertFloat(t, "tt", gf(f, "totalTime"), 12.0, 0.1)
+		assertFloat(t, "tt", gf(f, "totalTime"), 720, 6)
 	})
 	t.Run("15 landings pattern", func(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": "2025-07-15", "aircraftReg": "D-E", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "10:00", "onBlockTime": "12:00", "departureTime": "10:10", "arrivalTime": "11:50", "landings": 15})
@@ -558,12 +558,12 @@ func TestFlightEdgeCases(t *testing.T) {
 		r = c.PUT(fmt.Sprintf("/flights/%s", fid), map[string]interface{}{"date": today(), "aircraftReg": "D-UPD", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDM", "offBlockTime": "08:00", "onBlockTime": "10:00", "landings": 1})
 		requireStatus(t, r, 200)
 		r.JSON(&f)
-		assertFloat(t, "totalTime", gf(f, "totalTime"), 2.0, 0.1)
+		assertFloat(t, "totalTime", gf(f, "totalTime"), 120, 6)
 		d := gf(f, "distance")
 		if d < 70 {
 			t.Errorf("distance EDNY-EDDM: want >70, got %.1f", d)
 		}
-		assertFloat(t, "xc", gf(f, "crossCountryTime"), 2.0, 0.1)
+		assertFloat(t, "xc", gf(f, "crossCountryTime"), 120, 6)
 	})
 }
 

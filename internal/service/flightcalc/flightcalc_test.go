@@ -18,10 +18,10 @@ func baseFlight() *models.Flight {
 		ArrivalICAO:   strPtr("EDDH"),
 		DepartureTime: strPtr("14:30:00"),
 		ArrivalTime:   strPtr("16:00:00"),
-		TotalTime:     1.5,
+		TotalTime:     90,
 		IsPIC:         true,
 		IsDual:        false,
-		PICTime:       1.5,
+		PICTime:       90,
 		LandingsDay:   2,
 		LandingsNight: 1,
 	}
@@ -227,7 +227,7 @@ func TestSICTime_WithSICCrew(t *testing.T) {
 	ApplyAutoCalculations(f)
 	// No instructor means PIC, SIC is zeroed when PIC
 	if f.SICTime != 0 {
-		t.Errorf("SICTime = %f, want 0 (user is PIC)", f.SICTime)
+		t.Errorf("SICTime = %d, want 0 (user is PIC)", f.SICTime)
 	}
 }
 
@@ -238,7 +238,7 @@ func TestSICTime_PICOverridesSIC(t *testing.T) {
 	}
 	ApplyAutoCalculations(f)
 	if f.SICTime != 0 {
-		t.Errorf("SICTime = %f, want 0 (PIC is set)", f.SICTime)
+		t.Errorf("SICTime = %d, want 0 (PIC is set)", f.SICTime)
 	}
 }
 
@@ -248,7 +248,7 @@ func TestSICTime_NoCrew(t *testing.T) {
 	ApplyAutoCalculations(f)
 	// No crew = PIC, SIC stays 0
 	if f.SICTime != 0 {
-		t.Errorf("SICTime = %f, want 0 (no crew)", f.SICTime)
+		t.Errorf("SICTime = %d, want 0 (no crew)", f.SICTime)
 	}
 }
 
@@ -260,7 +260,7 @@ func TestDualGivenTime_WithInstructorCrew(t *testing.T) {
 	}
 	ApplyAutoCalculations(f)
 	if f.DualGivenTime != f.TotalTime {
-		t.Errorf("DualGivenTime = %f, want %f", f.DualGivenTime, f.TotalTime)
+		t.Errorf("DualGivenTime = %d, expected %d", f.DualGivenTime, f.TotalTime)
 	}
 }
 
@@ -269,7 +269,7 @@ func TestDualGivenTime_NoCrew(t *testing.T) {
 	f.DualGivenTime = 0
 	ApplyAutoCalculations(f)
 	if f.DualGivenTime != 0 {
-		t.Errorf("DualGivenTime = %f, want 0 (no crew)", f.DualGivenTime)
+		t.Errorf("DualGivenTime = %d, expected 0", f.DualGivenTime)
 	}
 }
 
@@ -281,7 +281,7 @@ func TestDualGivenTime_WithPassengerOnly(t *testing.T) {
 	}
 	ApplyAutoCalculations(f)
 	if f.DualGivenTime != 0 {
-		t.Errorf("DualGivenTime = %f, want 0 (no instructor)", f.DualGivenTime)
+		t.Errorf("DualGivenTime = %d, expected 0", f.DualGivenTime)
 	}
 }
 
@@ -297,7 +297,7 @@ func TestPICDual_NoCrew_IsPIC(t *testing.T) {
 		t.Error("expected IsDual=false with no crew")
 	}
 	if f.PICTime != f.TotalTime {
-		t.Errorf("PICTime = %f, want %f", f.PICTime, f.TotalTime)
+		t.Errorf("PICTime = %d, want %d", f.PICTime, f.TotalTime)
 	}
 }
 
@@ -314,10 +314,10 @@ func TestPICDual_InstructorOnBoard_IsDual(t *testing.T) {
 		t.Error("expected IsDual=true with instructor on board")
 	}
 	if f.DualTime != f.TotalTime {
-		t.Errorf("DualTime = %f, want %f", f.DualTime, f.TotalTime)
+		t.Errorf("DualTime = %d, want %d", f.DualTime, f.TotalTime)
 	}
 	if f.PICTime != 0 {
-		t.Errorf("PICTime = %f, want 0", f.PICTime)
+		t.Errorf("PICTime = %d, want 0", f.PICTime)
 	}
 }
 
@@ -343,7 +343,7 @@ func TestNightTime_DaytimeFlight(t *testing.T) {
 	ApplyAutoCalculations(f)
 	// Without airport lookup, nightTime is 0
 	if f.NightTime != 0 {
-		t.Errorf("NightTime = %f, want 0 (no airport data)", f.NightTime)
+		t.Errorf("NightTime = %d, want 0 (no airport data)", f.NightTime)
 	}
 }
 
@@ -356,7 +356,7 @@ func TestNightTime_NightFlight(t *testing.T) {
 	ApplyAutoCalculations(f)
 	// Graceful: stays 0 when no airport data
 	if f.NightTime != 0 {
-		t.Errorf("NightTime = %f, want 0 (no airport data in test)", f.NightTime)
+		t.Errorf("NightTime = %d, want 0 (no airport data in test)", f.NightTime)
 	}
 }
 
@@ -368,7 +368,7 @@ func TestNightTime_MixedFlight(t *testing.T) {
 	ApplyAutoCalculations(f)
 	// Graceful: stays 0 when no airport data
 	if f.NightTime != 0 {
-		t.Errorf("NightTime = %f, want 0 (no airport data in test)", f.NightTime)
+		t.Errorf("NightTime = %d, want 0 (no airport data in test)", f.NightTime)
 	}
 }
 
@@ -379,7 +379,7 @@ func TestCalculateNightTime_NoAirport(t *testing.T) {
 	f.DepartureICAO = strPtr("XXXX")
 	calculateNightTime(f)
 	if f.NightTime != 0 {
-		t.Errorf("NightTime = %f, want 0 for unknown airport", f.NightTime)
+		t.Errorf("NightTime = %d, want 0 for unknown airport", f.NightTime)
 	}
 }
 
@@ -388,7 +388,7 @@ func TestCalculateNightTime_NilTimes(t *testing.T) {
 	f.DepartureTime = nil
 	calculateNightTime(f)
 	if f.NightTime != 0 {
-		t.Errorf("NightTime = %f, want 0 for nil times", f.NightTime)
+		t.Errorf("NightTime = %d, want 0 for nil times", f.NightTime)
 	}
 }
 

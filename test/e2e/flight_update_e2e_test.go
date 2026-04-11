@@ -18,7 +18,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		"offBlockTime": "08:00", "onBlockTime": "09:30",
 		"departureTime": "08:10", "arrivalTime": "09:20",
 		"landings": 2, "remarks": "Original remarks",
-		"ifrTime": 0.5, "holds": 1, "approachesCount": 2,
+		"ifrTime": 30, "holds": 1, "approachesCount": 2,
 		"instructorName": "Original CFI",
 		"crewMembers": []map[string]interface{}{
 			{"name": "Pax One", "role": "Passenger"},
@@ -36,7 +36,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 			"offBlockTime": "10:00", "onBlockTime": "12:00",
 			"departureTime": "10:10", "arrivalTime": "11:50",
 			"landings": 3, "remarks": "Updated remarks",
-			"ifrTime": 1.0, "holds": 2, "approachesCount": 4,
+			"ifrTime": 60, "holds": 2, "approachesCount": 4,
 			"instructorName": "New CFI", "instructorComments": "Updated comments",
 			"crewMembers": []map[string]interface{}{
 				{"name": "Instructor New", "role": "Instructor"},
@@ -47,10 +47,10 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		r.JSON(&f)
 
 		// Verify recalculated fields
-		assertFloat(t, "totalTime", gf(f, "totalTime"), 2.0, 0.1)
+		assertFloat(t, "totalTime", gf(f, "totalTime"), 120, 6)
 		assertBool(t, "isDual (instructor crew)", gb(f, "isDual"), true)
-		assertFloat(t, "dualTime", gf(f, "dualTime"), 2.0, 0.1)
-		assertFloat(t, "picTime", gf(f, "picTime"), 0.0, 0.01)
+		assertFloat(t, "dualTime", gf(f, "dualTime"), 120, 6)
+		assertFloat(t, "picTime", gf(f, "picTime"), 0, 1)
 
 		// Distance should change (EDDS-EDDM != EDNY-EDDS)
 		dist := gf(f, "distance")
@@ -60,7 +60,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 
 		// Verify user-set fields persisted
 		assertStr(t, "remarks", f["remarks"], "Updated remarks")
-		assertFloat(t, "ifrTime", gf(f, "ifrTime"), 1.0, 0.01)
+		assertFloat(t, "ifrTime", gf(f, "ifrTime"), 60, 1)
 		assertInt(t, "holds", gi(f, "holds"), 2)
 		assertInt(t, "approachesCount", gi(f, "approachesCount"), 4)
 		assertStr(t, "aircraftType", f["aircraftType"], "PA28")
@@ -81,8 +81,8 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 
 		assertBool(t, "isPic (no instructor)", gb(f, "isPic"), true)
 		assertBool(t, "isDual (no instructor)", gb(f, "isDual"), false)
-		assertFloat(t, "picTime", gf(f, "picTime"), 2.0, 0.1)
-		assertFloat(t, "dualTime", gf(f, "dualTime"), 0.0, 0.01)
+		assertFloat(t, "picTime", gf(f, "picTime"), 120, 6)
+		assertFloat(t, "dualTime", gf(f, "dualTime"), 0, 1)
 	})
 
 	t.Run("GET after PUT returns updated fields", func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		var f map[string]interface{}
 		r.JSON(&f)
 
-		assertFloat(t, "totalTime on GET", gf(f, "totalTime"), 2.0, 0.1)
+		assertFloat(t, "totalTime on GET", gf(f, "totalTime"), 120, 6)
 		assertBool(t, "isPic on GET", gb(f, "isPic"), true)
 	})
 
@@ -106,7 +106,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		var f map[string]interface{}
 		r.JSON(&f)
 
-		assertFloat(t, "crossCountryTime (local)", gf(f, "crossCountryTime"), 0.0, 0.01)
+		assertFloat(t, "crossCountryTime (local)", gf(f, "crossCountryTime"), 0, 1)
 		assertFloat(t, "distance (local)", gf(f, "distance"), 0.0, 0.1)
 
 		// Back to XC
@@ -118,7 +118,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		requireStatus(t, r, 200)
 		r.JSON(&f)
 
-		assertFloat(t, "crossCountryTime (XC)", gf(f, "crossCountryTime"), 8.0, 0.1)
+		assertFloat(t, "crossCountryTime (XC)", gf(f, "crossCountryTime"), 480, 6)
 		d := gf(f, "distance")
 		if d < 3000 {
 			t.Errorf("Expected >3000NM for EDNY-KJFK, got %.1f", d)
