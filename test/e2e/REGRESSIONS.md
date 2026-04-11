@@ -44,12 +44,10 @@ Tests are marked with `REGRESSION:` prefix and log the issue without failing.
 
 ## LOW Severity
 
-### 6. DELETE /users/me/data returns 200 instead of 204
+### ~~6. DELETE /users/me/data returns 200 instead of 204~~ — NOT A BUG
 - **Endpoint:** `DELETE /users/me/data`
 - **Test:** `TestDeleteAllUserData/delete_data_keeps_account`
-- **Expected:** 204 No Content (per OpenAPI spec)
-- **Actual:** 200 OK with `{"message":"All user data deleted successfully"}`
-- **Risk:** Minor OpenAPI compliance issue
+- **Resolution:** OpenAPI spec intentionally declares `200` with JSON response body, not `204`. Test expectation was incorrect. Closed.
 
 ### 7. Very long email (>255 chars) causes 500
 - **Endpoint:** `POST /auth/register`
