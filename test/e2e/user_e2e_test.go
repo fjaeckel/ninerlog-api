@@ -37,6 +37,63 @@ func TestUserProfile(t *testing.T) {
 		resp := c.PATCH("/users/me", map[string]string{"email": ne})
 		requireStatus(t, resp, http.StatusOK)
 	})
+
+	t.Run("default timeDisplayFormat is hm", func(t *testing.T) {
+		c2 := NewE2EClient(t)
+		registerAndLogin(t, c2, uniqueEmail("tdf-default"), "SecurePass123!", "TDF Default")
+		resp := c2.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["timeDisplayFormat"] != "hm" {
+			t.Errorf("Expected default timeDisplayFormat 'hm', got %v", u["timeDisplayFormat"])
+		}
+	})
+
+	t.Run("update timeDisplayFormat to decimal", func(t *testing.T) {
+		c2 := NewE2EClient(t)
+		registerAndLogin(t, c2, uniqueEmail("tdf-dec"), "SecurePass123!", "TDF Decimal")
+		resp := c2.PATCH("/users/me", map[string]string{"timeDisplayFormat": "decimal"})
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["timeDisplayFormat"] != "decimal" {
+			t.Errorf("Expected timeDisplayFormat 'decimal', got %v", u["timeDisplayFormat"])
+		}
+		// Verify it persists on GET
+		resp = c2.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		resp.JSON(&u)
+		if u["timeDisplayFormat"] != "decimal" {
+			t.Errorf("Expected persisted timeDisplayFormat 'decimal', got %v", u["timeDisplayFormat"])
+		}
+	})
+
+	t.Run("update timeDisplayFormat back to hm", func(t *testing.T) {
+		c2 := NewE2EClient(t)
+		registerAndLogin(t, c2, uniqueEmail("tdf-hm"), "SecurePass123!", "TDF HM")
+		c2.PATCH("/users/me", map[string]string{"timeDisplayFormat": "decimal"})
+		resp := c2.PATCH("/users/me", map[string]string{"timeDisplayFormat": "hm"})
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["timeDisplayFormat"] != "hm" {
+			t.Errorf("Expected timeDisplayFormat 'hm', got %v", u["timeDisplayFormat"])
+		}
+	})
+
+	t.Run("invalid timeDisplayFormat ignored", func(t *testing.T) {
+		c2 := NewE2EClient(t)
+		registerAndLogin(t, c2, uniqueEmail("tdf-inv"), "SecurePass123!", "TDF Invalid")
+		resp := c2.PATCH("/users/me", map[string]string{"timeDisplayFormat": "invalid_value"})
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		// Should remain 'hm' (default), invalid value ignored
+		if u["timeDisplayFormat"] != "hm" {
+			t.Errorf("Expected timeDisplayFormat 'hm' after invalid update, got %v", u["timeDisplayFormat"])
+		}
+	})
 }
 
 func TestUserDeletion(t *testing.T) {
