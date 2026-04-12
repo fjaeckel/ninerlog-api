@@ -136,11 +136,11 @@ type ServerInterface interface {
 	GetAllCurrencyStatus(c *gin.Context)
 	// Export flights as CSV
 	// (GET /exports/csv)
-	ExportFlightsCSV(c *gin.Context)
+	ExportFlightsCSV(c *gin.Context, params ExportFlightsCSVParams)
 	// Export full data backup as JSON
 	// (GET /exports/json)
 	ExportDataJSON(c *gin.Context)
-	// Export flights as EASA-style PDF logbook
+	// Export flights as PDF logbook
 	// (GET /exports/pdf)
 	ExportFlightsPDF(c *gin.Context, params ExportFlightsPDFParams)
 	// List flights
@@ -1140,7 +1140,20 @@ func (siw *ServerInterfaceWrapper) GetAllCurrencyStatus(c *gin.Context) {
 // ExportFlightsCSV operation middleware
 func (siw *ServerInterfaceWrapper) ExportFlightsCSV(c *gin.Context) {
 
+	var err error
+
 	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportFlightsCSVParams
+
+	// ------------- Optional query parameter "format" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "format", c.Request.URL.Query(), &params.Format)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter format: %w", err), http.StatusBadRequest)
+		return
+	}
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1149,7 +1162,7 @@ func (siw *ServerInterfaceWrapper) ExportFlightsCSV(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ExportFlightsCSV(c)
+	siw.Handler.ExportFlightsCSV(c, params)
 }
 
 // ExportDataJSON operation middleware
@@ -1182,6 +1195,14 @@ func (siw *ServerInterfaceWrapper) ExportFlightsPDF(c *gin.Context) {
 	err = runtime.BindQueryParameter("form", true, false, "logbookLicenseId", c.Request.URL.Query(), &params.LogbookLicenseId)
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter logbookLicenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "format" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "format", c.Request.URL.Query(), &params.Format)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter format: %w", err), http.StatusBadRequest)
 		return
 	}
 

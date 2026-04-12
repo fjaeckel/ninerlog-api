@@ -21,6 +21,23 @@ const (
 	AnnouncementSeverityWarning  AnnouncementSeverity = "warning"
 )
 
+// Defines values for ApproachType.
+const (
+	ApproachTypeASR      ApproachType = "ASR"
+	ApproachTypeCircling ApproachType = "Circling"
+	ApproachTypeILS      ApproachType = "ILS"
+	ApproachTypeLDA      ApproachType = "LDA"
+	ApproachTypeLOC      ApproachType = "LOC"
+	ApproachTypeNDB      ApproachType = "NDB"
+	ApproachTypeOther    ApproachType = "Other"
+	ApproachTypePAR      ApproachType = "PAR"
+	ApproachTypeRNAVGPS  ApproachType = "RNAV/GPS"
+	ApproachTypeSDF      ApproachType = "SDF"
+	ApproachTypeUnknown  ApproachType = "Unknown"
+	ApproachTypeVOR      ApproachType = "VOR"
+	ApproachTypeVisual   ApproachType = "Visual"
+)
+
 // Defines values for ClassRatingCurrencyStatus.
 const (
 	ClassRatingCurrencyStatusCurrent  ClassRatingCurrencyStatus = "current"
@@ -168,10 +185,10 @@ const (
 
 // Defines values for PassengerCurrencyNightStatus.
 const (
-	PassengerCurrencyNightStatusCurrent  PassengerCurrencyNightStatus = "current"
-	PassengerCurrencyNightStatusExpired  PassengerCurrencyNightStatus = "expired"
-	PassengerCurrencyNightStatusExpiring PassengerCurrencyNightStatus = "expiring"
-	PassengerCurrencyNightStatusUnknown  PassengerCurrencyNightStatus = "unknown"
+	Current  PassengerCurrencyNightStatus = "current"
+	Expired  PassengerCurrencyNightStatus = "expired"
+	Expiring PassengerCurrencyNightStatus = "expiring"
+	Unknown  PassengerCurrencyNightStatus = "unknown"
 )
 
 // Defines values for UserTimeDisplayFormat.
@@ -186,6 +203,20 @@ const (
 	CreateAnnouncementJSONBodySeverityInfo     CreateAnnouncementJSONBodySeverity = "info"
 	CreateAnnouncementJSONBodySeveritySuccess  CreateAnnouncementJSONBodySeverity = "success"
 	CreateAnnouncementJSONBodySeverityWarning  CreateAnnouncementJSONBodySeverity = "warning"
+)
+
+// Defines values for ExportFlightsCSVParamsFormat.
+const (
+	ExportFlightsCSVParamsFormatEasa     ExportFlightsCSVParamsFormat = "easa"
+	ExportFlightsCSVParamsFormatFaa      ExportFlightsCSVParamsFormat = "faa"
+	ExportFlightsCSVParamsFormatStandard ExportFlightsCSVParamsFormat = "standard"
+)
+
+// Defines values for ExportFlightsPDFParamsFormat.
+const (
+	ExportFlightsPDFParamsFormatEasa    ExportFlightsPDFParamsFormat = "easa"
+	ExportFlightsPDFParamsFormatFaa     ExportFlightsPDFParamsFormat = "faa"
+	ExportFlightsPDFParamsFormatSummary ExportFlightsPDFParamsFormat = "summary"
 )
 
 // Defines values for ListFlightsParamsSortBy.
@@ -426,6 +457,33 @@ type Announcement struct {
 // - critical: red — urgent alerts
 type AnnouncementSeverity string
 
+// ApproachEntry defines model for ApproachEntry.
+type ApproachEntry struct {
+	// Airport ICAO code of the airport where the approach was performed
+	Airport *string `json:"airport"`
+
+	// Runway Runway designation for the approach
+	Runway *string `json:"runway"`
+
+	// Type Type of instrument approach procedure
+	Type ApproachType `json:"type"`
+}
+
+// ApproachEntryInput defines model for ApproachEntryInput.
+type ApproachEntryInput struct {
+	// Airport ICAO code of the airport
+	Airport *string `json:"airport"`
+
+	// Runway Runway designation
+	Runway *string `json:"runway"`
+
+	// Type Type of instrument approach procedure
+	Type ApproachType `json:"type"`
+}
+
+// ApproachType Type of instrument approach procedure
+type ApproachType string
+
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
 	// AccessToken JWT access token (15 minutes validity)
@@ -649,7 +707,9 @@ type CredentialCreate struct {
 	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
 	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
 	// - OTHER: Other credential
-	CredentialType   CredentialType      `json:"credentialType"`
+	CredentialType CredentialType `json:"credentialType"`
+
+	// ExpiryDate Must be after issueDate when provided
 	ExpiryDate       *openapi_types.Date `json:"expiryDate"`
 	IssueDate        openapi_types.Date  `json:"issueDate"`
 	IssuingAuthority string              `json:"issuingAuthority"`
@@ -688,7 +748,9 @@ type CredentialUpdate struct {
 	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
 	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
 	// - OTHER: Other credential
-	CredentialType   *CredentialType     `json:"credentialType,omitempty"`
+	CredentialType *CredentialType `json:"credentialType,omitempty"`
+
+	// ExpiryDate Must be after issueDate when provided
 	ExpiryDate       *openapi_types.Date `json:"expiryDate"`
 	IssueDate        *openapi_types.Date `json:"issueDate,omitempty"`
 	IssuingAuthority *string             `json:"issuingAuthority,omitempty"`
@@ -792,6 +854,9 @@ type Flight struct {
 	// AllLandings Total landings (day + night). Auto-calculated by the server.
 	AllLandings int `json:"allLandings"`
 
+	// Approaches Structured instrument approach details (FAA §61.51(g)(3)) — type, airport, and runway for each approach
+	Approaches *[]ApproachEntry `json:"approaches,omitempty"`
+
 	// ApproachesCount Number of instrument approaches performed
 	ApproachesCount *int `json:"approachesCount,omitempty"`
 
@@ -823,6 +888,12 @@ type Flight struct {
 
 	// DualTime Dual instruction block time in minutes (computed from isDual and totalTime)
 	DualTime int `json:"dualTime"`
+
+	// Endorsements Instructor endorsements, skill test references, examiner notes. EASA AMC1 FCL.050 Col 24 / FAA §61.51(h). Separate from pilot remarks.
+	Endorsements *string `json:"endorsements"`
+
+	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320", "FTD Level 5", "BATD", "AATD"). Required by EASA AMC1 FCL.050 Col 22 and FAA §61.51(b)(1)(iv).
+	FstdType *string `json:"fstdType"`
 
 	// GroundTrainingTime Ground training time in minutes
 	GroundTrainingTime *int `json:"groundTrainingTime,omitempty"`
@@ -864,6 +935,9 @@ type Flight struct {
 	// LaunchMethod Launch method for glider/SPL flights (winch, aerotow, or self-launch)
 	LaunchMethod *FlightLaunchMethod `json:"launchMethod"`
 
+	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
+	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
+
 	// NightTime Night block time in minutes. Auto-calculated from departure/arrival times and airport sunset/sunrise data.
 	NightTime int `json:"nightTime"`
 
@@ -872,6 +946,9 @@ type Flight struct {
 
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
 	OnBlockTime *string `json:"onBlockTime"`
+
+	// PicName Name of the pilot-in-command for this flight (EASA AMC1 FCL.050 Col 12). Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
+	PicName *string `json:"picName"`
 
 	// PicTime Pilot-in-command block time in minutes (computed from isPic and totalTime)
 	PicTime int `json:"picTime"`
@@ -916,8 +993,11 @@ type FlightCreate struct {
 	AircraftType         string `json:"aircraftType"`
 
 	// AllLandings Total landings (day + night). Auto-calculated by the server.
-	AllLandings     *int `json:"allLandings,omitempty"`
-	ApproachesCount *int `json:"approachesCount,omitempty"`
+	AllLandings *int `json:"allLandings,omitempty"`
+
+	// Approaches Structured instrument approach details
+	Approaches      *[]ApproachEntryInput `json:"approaches,omitempty"`
+	ApproachesCount *int                  `json:"approachesCount,omitempty"`
 
 	// ArrivalIcao Arrival airport ICAO code
 	ArrivalIcao string `json:"arrivalIcao"`
@@ -943,7 +1023,13 @@ type FlightCreate struct {
 	DualGivenTime *int     `json:"dualGivenTime,omitempty"`
 
 	// DualTime Dual instruction time in minutes. Computed by server — equals totalTime when isDual is true, 0 otherwise.
-	DualTime           *int    `json:"dualTime,omitempty"`
+	DualTime *int `json:"dualTime,omitempty"`
+
+	// Endorsements Instructor endorsements, skill test references
+	Endorsements *string `json:"endorsements"`
+
+	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320")
+	FstdType           *string `json:"fstdType"`
 	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
 	Holds              *int    `json:"holds,omitempty"`
 	IfrTime            *int    `json:"ifrTime,omitempty"`
@@ -957,11 +1043,17 @@ type FlightCreate struct {
 	Landings     int                       `json:"landings"`
 	LaunchMethod *FlightCreateLaunchMethod `json:"launchMethod"`
 
+	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
+	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
+
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC
 	OffBlockTime string `json:"offBlockTime"`
 
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
 	OnBlockTime string `json:"onBlockTime"`
+
+	// PicName Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
+	PicName *string `json:"picName"`
 
 	// PicTime Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise.
 	PicTime *int    `json:"picTime,omitempty"`
@@ -1053,11 +1145,12 @@ type FlightRoutesResponse struct {
 
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
-	ActualInstrumentTime *int    `json:"actualInstrumentTime,omitempty"`
-	AircraftReg          *string `json:"aircraftReg,omitempty"`
-	AircraftType         *string `json:"aircraftType,omitempty"`
-	ApproachesCount      *int    `json:"approachesCount,omitempty"`
-	ArrivalIcao          *string `json:"arrivalIcao"`
+	ActualInstrumentTime *int                  `json:"actualInstrumentTime,omitempty"`
+	AircraftReg          *string               `json:"aircraftReg,omitempty"`
+	AircraftType         *string               `json:"aircraftType,omitempty"`
+	Approaches           *[]ApproachEntryInput `json:"approaches,omitempty"`
+	ApproachesCount      *int                  `json:"approachesCount,omitempty"`
+	ArrivalIcao          *string               `json:"arrivalIcao"`
 
 	// ArrivalTime Landing time in UTC
 	ArrivalTime *string `json:"arrivalTime"`
@@ -1068,8 +1161,14 @@ type FlightUpdate struct {
 	DepartureIcao *string                  `json:"departureIcao"`
 
 	// DepartureTime Takeoff time in UTC
-	DepartureTime      *string `json:"departureTime"`
-	DualGivenTime      *int    `json:"dualGivenTime,omitempty"`
+	DepartureTime *string `json:"departureTime"`
+	DualGivenTime *int    `json:"dualGivenTime,omitempty"`
+
+	// Endorsements Instructor endorsements, skill test references
+	Endorsements *string `json:"endorsements"`
+
+	// FstdType FSTD type designation
+	FstdType           *string `json:"fstdType"`
 	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
 	Holds              *int    `json:"holds,omitempty"`
 	IfrTime            *int    `json:"ifrTime,omitempty"`
@@ -1083,12 +1182,18 @@ type FlightUpdate struct {
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod *FlightUpdateLaunchMethod `json:"launchMethod"`
 
+	// MultiPilotTime Multi-pilot time in minutes
+	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
+
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC
 	OffBlockTime *string `json:"offBlockTime"`
 
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
 	OnBlockTime *string `json:"onBlockTime"`
-	Remarks     *string `json:"remarks"`
+
+	// PicName Name of the PIC
+	PicName *string `json:"picName"`
+	Remarks *string `json:"remarks"`
 
 	// Route Route waypoints as comma-separated ICAO codes
 	Route                   *string `json:"route"`
@@ -1682,7 +1787,7 @@ type ChangePasswordJSONBody struct {
 	// CurrentPassword The user's current password
 	CurrentPassword string `json:"currentPassword"`
 
-	// NewPassword The new password (minimum 8 characters)
+	// NewPassword The new password (minimum 12 characters)
 	NewPassword string `json:"newPassword"`
 }
 
@@ -1702,7 +1807,7 @@ type RegisterUserJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 	Name  string              `json:"name"`
 
-	// Password Must be at least 8 characters
+	// Password Must be at least 12 characters
 	Password string `json:"password"`
 }
 
@@ -1715,11 +1820,26 @@ type SearchContactsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ExportFlightsCSVParams defines parameters for ExportFlightsCSV.
+type ExportFlightsCSVParams struct {
+	// Format CSV column format — easa, faa, or standard (ForeFlight-compatible default)
+	Format *ExportFlightsCSVParamsFormat `form:"format,omitempty" json:"format,omitempty"`
+}
+
+// ExportFlightsCSVParamsFormat defines parameters for ExportFlightsCSV.
+type ExportFlightsCSVParamsFormat string
+
 // ExportFlightsPDFParams defines parameters for ExportFlightsPDF.
 type ExportFlightsPDFParams struct {
 	// LogbookLicenseId Filter flights for a specific logbook license
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
+
+	// Format PDF format — easa (AMC1 FCL.050 two-page spread), faa (ASA/Jeppesen layout), or summary (simplified totals)
+	Format *ExportFlightsPDFParamsFormat `form:"format,omitempty" json:"format,omitempty"`
 }
+
+// ExportFlightsPDFParamsFormat defines parameters for ExportFlightsPDF.
+type ExportFlightsPDFParamsFormat string
 
 // ListFlightsParams defines parameters for ListFlights.
 type ListFlightsParams struct {
