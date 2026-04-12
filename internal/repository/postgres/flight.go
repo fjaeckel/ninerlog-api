@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -31,6 +32,11 @@ func timeToString(t *time.Time) *string {
 }
 
 func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) error {
+	approachesJSON, err := json.Marshal(flight.Approaches)
+	if err != nil {
+		approachesJSON = []byte("[]")
+	}
+
 	query := `
 		INSERT INTO flights (
 			user_id, date, aircraft_reg, aircraft_type,
@@ -46,8 +52,9 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 			instructor_name, instructor_comments,
 			sic_time, dual_given_time, simulated_flight_time, ground_training_time,
 			actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
-			launch_method
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45)
+			launch_method,
+			pic_name, multi_pilot_time, fstd_type, approaches, endorsements
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -98,6 +105,11 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 		flight.IsFlightReview,
 		flight.IsProficiencyCheck,
 		flight.LaunchMethod,
+		flight.PICName,
+		flight.MultiPilotTime,
+		flight.FSTDType,
+		approachesJSON,
+		flight.Endorsements,
 	).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
 }
 
@@ -116,13 +128,15 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		       instructor_name, instructor_comments,
 		       sic_time, dual_given_time, simulated_flight_time, ground_training_time,
 		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
-		       launch_method
+		       launch_method,
+		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements
 		FROM flights
 		WHERE id = $1
 	`
 
 	flight := &models.Flight{}
 	var offBlock, onBlock, depTime, arrTime *time.Time
+	var approachesJSON []byte
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&flight.ID,
 		&flight.UserID,
@@ -172,6 +186,11 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.IsFlightReview,
 		&flight.IsProficiencyCheck,
 		&flight.LaunchMethod,
+		&flight.PICName,
+		&flight.MultiPilotTime,
+		&flight.FSTDType,
+		&approachesJSON,
+		&flight.Endorsements,
 	)
 
 	if err == sql.ErrNoRows {
@@ -185,6 +204,10 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 	flight.OnBlockTime = timeToString(onBlock)
 	flight.DepartureTime = timeToString(depTime)
 	flight.ArrivalTime = timeToString(arrTime)
+
+	if len(approachesJSON) > 0 {
+		json.Unmarshal(approachesJSON, &flight.Approaches)
+	}
 
 	return flight, nil
 }
@@ -202,6 +225,11 @@ func (r *flightRepository) GetByUserID(ctx context.Context, userID uuid.UUID, op
 }
 
 func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) error {
+	approachesJSON, err := json.Marshal(flight.Approaches)
+	if err != nil {
+		approachesJSON = []byte("[]")
+	}
+
 	query := `
 		UPDATE flights
 		SET date = $1, aircraft_reg = $2, aircraft_type = $3,
@@ -220,8 +248,9 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		    sic_time = $33, dual_given_time = $34, simulated_flight_time = $35, ground_training_time = $36,
 		    actual_instrument_time = $37, simulated_instrument_time = $38, holds = $39, approaches_count = $40, is_ipc = $41, is_flight_review = $42, is_proficiency_check = $43,
 		    launch_method = $44,
-		    updated_at = $45
-		WHERE id = $46
+		    pic_name = $45, multi_pilot_time = $46, fstd_type = $47, approaches = $48, endorsements = $49,
+		    updated_at = $50
+		WHERE id = $51
 	`
 
 	result, err := r.db.ExecContext(
@@ -270,6 +299,11 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		flight.IsFlightReview,
 		flight.IsProficiencyCheck,
 		flight.LaunchMethod,
+		flight.PICName,
+		flight.MultiPilotTime,
+		flight.FSTDType,
+		approachesJSON,
+		flight.Endorsements,
 		time.Now(),
 		flight.ID,
 	)
@@ -468,7 +502,8 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		       instructor_name, instructor_comments,
 		       sic_time, dual_given_time, simulated_flight_time, ground_training_time,
 		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
-		       launch_method
+		       launch_method,
+		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements
 		FROM flights
 		WHERE ` + baseCondition
 
@@ -562,6 +597,7 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 	for rows.Next() {
 		flight := &models.Flight{}
 		var offBlock, onBlock, depTime, arrTime *time.Time
+		var approachesJSON []byte
 		err := rows.Scan(
 			&flight.ID,
 			&flight.UserID,
@@ -611,6 +647,11 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.IsFlightReview,
 			&flight.IsProficiencyCheck,
 			&flight.LaunchMethod,
+			&flight.PICName,
+			&flight.MultiPilotTime,
+			&flight.FSTDType,
+			&approachesJSON,
+			&flight.Endorsements,
 		)
 		if err != nil {
 			return nil, err
@@ -619,6 +660,9 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 		flight.OnBlockTime = timeToString(onBlock)
 		flight.DepartureTime = timeToString(depTime)
 		flight.ArrivalTime = timeToString(arrTime)
+		if len(approachesJSON) > 0 {
+			json.Unmarshal(approachesJSON, &flight.Approaches)
+		}
 		flights = append(flights, flight)
 	}
 

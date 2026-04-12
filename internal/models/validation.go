@@ -40,10 +40,19 @@ func ValidateFlightTextFields(f *Flight) error {
 		ValidateOptionalStringLength("instructorComments", f.InstructorComments, 1000),
 		ValidateOptionalStringLength("launchMethod", f.LaunchMethod, 20),
 		ValidateOptionalStringLength("remarks", f.Remarks, 2000),
+		ValidateOptionalStringLength("picName", f.PICName, 255),
+		ValidateOptionalStringLength("fstdType", f.FSTDType, 50),
+		ValidateOptionalStringLength("endorsements", f.Endorsements, 2000),
 	}
 	for _, err := range checks {
 		if err != nil {
 			return err
+		}
+	}
+	// Validate approach entries
+	for _, a := range f.Approaches {
+		if !ValidApproachTypes[a.Type] {
+			return fmt.Errorf("invalid approach type: %s", a.Type)
 		}
 	}
 	return nil

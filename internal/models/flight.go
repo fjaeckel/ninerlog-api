@@ -6,6 +6,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// ApproachEntry represents a single instrument approach with type and location
+type ApproachEntry struct {
+	Type    string  `json:"type"`
+	Airport *string `json:"airport,omitempty"`
+	Runway  *string `json:"runway,omitempty"`
+}
+
+// ValidApproachTypes lists all valid approach type values
+var ValidApproachTypes = map[string]bool{
+	"ILS": true, "LOC": true, "VOR": true, "RNAV/GPS": true, "NDB": true,
+	"LDA": true, "SDF": true, "PAR": true, "ASR": true, "Visual": true,
+	"Circling": true, "Other": true, "Unknown": true,
+}
+
 // Flight represents a flight log entry
 type Flight struct {
 	ID     uuid.UUID `json:"id"`
@@ -60,20 +74,31 @@ type Flight struct {
 	InstructorName     *string `json:"instructorName,omitempty"`
 	InstructorComments *string `json:"instructorComments,omitempty"`
 
+	// PIC name (EASA AMC1 FCL.050 Col 12)
+	PICName *string `json:"picName,omitempty"`
+
 	// Multi-crew / advanced times
 	SICTime             int `json:"sicTime"`
 	DualGivenTime       int `json:"dualGivenTime"`
 	SimulatedFlightTime int `json:"simulatedFlightTime"`
 	GroundTrainingTime  int `json:"groundTrainingTime"`
+	MultiPilotTime      int `json:"multiPilotTime"` // EASA AMC1 FCL.050 Col 10
+
+	// FSTD type designation (EASA AMC1 FCL.050 Col 22, FAA §61.51(b)(1)(iv))
+	FSTDType *string `json:"fstdType,omitempty"`
 
 	// Instrument tracking
-	ActualInstrumentTime    int  `json:"actualInstrumentTime"`
-	SimulatedInstrumentTime int  `json:"simulatedInstrumentTime"`
-	Holds                   int  `json:"holds"`
-	ApproachesCount         int  `json:"approachesCount"`
-	IsIPC                   bool `json:"isIpc"`
-	IsFlightReview          bool `json:"isFlightReview"`
-	IsProficiencyCheck      bool `json:"isProficiencyCheck"`
+	ActualInstrumentTime    int             `json:"actualInstrumentTime"`
+	SimulatedInstrumentTime int             `json:"simulatedInstrumentTime"`
+	Holds                   int             `json:"holds"`
+	ApproachesCount         int             `json:"approachesCount"`
+	Approaches              []ApproachEntry `json:"approaches,omitempty"` // Structured approach data (FAA §61.51(g)(3))
+	IsIPC                   bool            `json:"isIpc"`
+	IsFlightReview          bool            `json:"isFlightReview"`
+	IsProficiencyCheck      bool            `json:"isProficiencyCheck"`
+
+	// Endorsements (EASA AMC1 FCL.050 Col 24, FAA §61.51(h))
+	Endorsements *string `json:"endorsements,omitempty"`
 
 	// SPL / Glider
 	LaunchMethod *string `json:"launchMethod,omitempty"` // winch, aerotow, self-launch

@@ -270,6 +270,37 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		}
 	}
 
+	// Phase 6c: PIC Name, Multi-Pilot Time, FSTD Type, Approaches, Endorsements
+	flight.PICName = req.PicName
+	flight.MultiPilotTime = getIntOrDefault(req.MultiPilotTime, 0)
+	flight.FSTDType = req.FstdType
+	flight.Endorsements = req.Endorsements
+
+	// Parse structured approaches
+	if req.Approaches != nil {
+		for _, a := range *req.Approaches {
+			entry := models.ApproachEntry{Type: string(a.Type)}
+			if a.Airport != nil {
+				entry.Airport = a.Airport
+			}
+			if a.Runway != nil {
+				entry.Runway = a.Runway
+			}
+			flight.Approaches = append(flight.Approaches, entry)
+		}
+		flight.ApproachesCount = len(flight.Approaches)
+	}
+
+	// Auto-set PIC name
+	if flight.PICName == nil {
+		if flight.IsPIC {
+			self := "Self"
+			flight.PICName = &self
+		} else if flight.IsDual && flight.InstructorName != nil {
+			flight.PICName = flight.InstructorName
+		}
+	}
+
 	// Parse crew members
 	if req.CrewMembers != nil {
 		for _, cm := range *req.CrewMembers {
@@ -460,6 +491,42 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 			flight.LaunchMethod = nil
 		}
 	}
+	// Phase 6c fields
+	if req.PicName != nil {
+		flight.PICName = req.PicName
+	}
+	if req.MultiPilotTime != nil {
+		flight.MultiPilotTime = *req.MultiPilotTime
+	}
+	if req.FstdType != nil {
+		flight.FSTDType = req.FstdType
+	}
+	if req.Endorsements != nil {
+		flight.Endorsements = req.Endorsements
+	}
+	if req.Approaches != nil {
+		flight.Approaches = nil
+		for _, a := range *req.Approaches {
+			entry := models.ApproachEntry{Type: string(a.Type)}
+			if a.Airport != nil {
+				entry.Airport = a.Airport
+			}
+			if a.Runway != nil {
+				entry.Runway = a.Runway
+			}
+			flight.Approaches = append(flight.Approaches, entry)
+		}
+		flight.ApproachesCount = len(flight.Approaches)
+	}
+	// Auto-set PIC name if not explicitly provided
+	if req.PicName == nil && flight.PICName == nil {
+		if flight.IsPIC {
+			self := "Self"
+			flight.PICName = &self
+		} else if flight.IsDual && flight.InstructorName != nil {
+			flight.PICName = flight.InstructorName
+		}
+	}
 	if req.CrewMembers != nil {
 		flight.CrewMembers = nil
 		for _, cm := range *req.CrewMembers {
@@ -608,6 +675,25 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	if f.LaunchMethod != nil {
 		lm := generated.FlightLaunchMethod(*f.LaunchMethod)
 		flight.LaunchMethod = &lm
+	}
+
+	// Phase 6c regulatory compliance fields
+	flight.PicName = f.PICName
+	flight.MultiPilotTime = ptrInt(f.MultiPilotTime)
+	flight.FstdType = f.FSTDType
+	flight.Endorsements = f.Endorsements
+
+	// Structured approaches
+	if len(f.Approaches) > 0 {
+		approaches := make([]generated.ApproachEntry, len(f.Approaches))
+		for i, a := range f.Approaches {
+			approaches[i] = generated.ApproachEntry{
+				Type:    generated.ApproachType(a.Type),
+				Airport: a.Airport,
+				Runway:  a.Runway,
+			}
+		}
+		flight.Approaches = &approaches
 	}
 
 	// Crew members
