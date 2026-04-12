@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -49,10 +52,10 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 
 	// Apply updates
 	if req.Name != nil {
-		user.Name = *req.Name
+		user.Name = strings.TrimSpace(*req.Name)
 	}
 	if req.Email != nil {
-		user.Email = string(*req.Email)
+		user.Email = strings.ToLower(strings.TrimSpace(string(*req.Email)))
 	}
 	if req.TimeDisplayFormat != nil {
 		format := string(*req.TimeDisplayFormat)
@@ -63,6 +66,10 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 
 	// Update user
 	if err := h.authService.UpdateUser(c.Request.Context(), user); err != nil {
+		if errors.Is(err, service.ErrUserAlreadyExists) {
+			h.sendError(c, http.StatusConflict, "This email is already in use by another account")
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to update user")
 		return
 	}

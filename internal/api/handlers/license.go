@@ -71,6 +71,10 @@ func (h *APIHandler) CreateLicense(c *gin.Context) {
 	}
 
 	if err := h.licenseService.CreateLicense(c.Request.Context(), &license); err != nil {
+		if errors.Is(err, service.ErrInvalidLicense) {
+			h.sendError(c, http.StatusBadRequest, "Invalid license data: ensure all required fields are provided")
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to create license")
 		return
 	}

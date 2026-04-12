@@ -31,6 +31,13 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 			h.sendError(c, http.StatusConflict, "Email already exists")
 			return
 		}
+		if err == service.ErrPasswordTooShort || err == service.ErrPasswordTooLong ||
+			err == service.ErrEmailRequired || err == service.ErrPasswordRequired ||
+			err == service.ErrNameRequired || err == service.ErrInvalidEmail ||
+			err == service.ErrEmailTooLong {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Registration failed")
 		return
 	}

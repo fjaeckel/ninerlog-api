@@ -12,6 +12,7 @@ import (
 var (
 	ErrCredentialNotFound     = errors.New("credential not found")
 	ErrUnauthorizedCredential = errors.New("unauthorized access to credential")
+	ErrExpiryBeforeIssue      = errors.New("expiry date must be after issue date")
 )
 
 type CredentialService struct {
@@ -25,6 +26,9 @@ func NewCredentialService(credentialRepo repository.CredentialRepository) *Crede
 func (s *CredentialService) CreateCredential(ctx context.Context, credential *models.Credential) error {
 	if err := models.ValidateCredentialTextFields(credential); err != nil {
 		return err
+	}
+	if credential.ExpiryDate != nil && credential.ExpiryDate.Before(credential.IssueDate) {
+		return ErrExpiryBeforeIssue
 	}
 	return s.credentialRepo.Create(ctx, credential)
 }

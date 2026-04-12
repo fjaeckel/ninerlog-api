@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -23,6 +25,13 @@ var (
 	ErrTokenUsed          = errors.New("token already used")
 	ErrAccountLocked      = errors.New("account temporarily locked due to too many failed login attempts")
 	ErrAccountDisabled    = errors.New("account disabled by administrator")
+	ErrPasswordTooShort   = errors.New("password must be at least 12 characters")
+	ErrPasswordTooLong    = errors.New("password must not exceed 72 characters")
+	ErrEmailRequired      = errors.New("email is required")
+	ErrPasswordRequired   = errors.New("password is required")
+	ErrNameRequired       = errors.New("name is required")
+	ErrInvalidEmail       = errors.New("invalid email format")
+	ErrEmailTooLong       = errors.New("email must not exceed 255 characters")
 )
 
 const (
@@ -69,6 +78,32 @@ type TokenPair struct {
 
 // Register creates a new user account
 func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*models.User, *TokenPair, error) {
+	// Normalize and validate input
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	input.Name = strings.TrimSpace(input.Name)
+
+	if input.Email == "" {
+		return nil, nil, ErrEmailRequired
+	}
+	if input.Password == "" {
+		return nil, nil, ErrPasswordRequired
+	}
+	if input.Name == "" {
+		return nil, nil, ErrNameRequired
+	}
+	if len(input.Email) > 255 {
+		return nil, nil, ErrEmailTooLong
+	}
+	if _, err := mail.ParseAddress(input.Email); err != nil {
+		return nil, nil, ErrInvalidEmail
+	}
+	if len(input.Password) < 12 {
+		return nil, nil, ErrPasswordTooShort
+	}
+	if len(input.Password) > 72 {
+		return nil, nil, ErrPasswordTooLong
+	}
+
 	// Check if user already exists
 	existingUser, err := s.userRepo.GetByEmail(ctx, input.Email)
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
@@ -112,6 +147,9 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*model
 
 // Login authenticates a user and returns tokens
 func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User, *TokenPair, error) {
+	// Normalize email
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+
 	// Get user by email
 	user, err := s.userRepo.GetByEmail(ctx, input.Email)
 	if err != nil {
@@ -216,6 +254,9 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 
 // RequestPasswordReset creates a password reset token
 func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (string, error) {
+	// Normalize email
+	email = strings.ToLower(strings.TrimSpace(email))
+
 	// Get user
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
@@ -347,8 +388,17 @@ func (s *AuthService) GenerateTokensForUser(ctx context.Context, userID uuid.UUI
 
 // UpdateUser updates user information
 func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
+	// Normalize email
+	user.Email = strings.ToLower(strings.TrimSpace(user.Email))
+
 	user.UpdatedAt = time.Now()
-	return s.userRepo.Update(ctx, user)
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		if errors.Is(err, repository.ErrDuplicateEmail) {
+			return ErrUserAlreadyExists
+		}
+		return err
+	}
+	return nil
 }
 
 // ChangePassword changes the user's password after verifying the current password
@@ -364,8 +414,8 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	}
 
 	// Validate new password
-	if len(newPassword) < 8 {
-		return errors.New("password must be at least 8 characters")
+	if len(newPassword) < 12 {
+		return ErrPasswordTooShort
 	}
 
 	// Hash new password

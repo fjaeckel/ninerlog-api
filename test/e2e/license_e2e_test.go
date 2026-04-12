@@ -74,13 +74,10 @@ func TestLicenseCRUD(t *testing.T) {
 		assertStatus(t, c.GET("/licenses/00000000-0000-0000-0000-000000000000"), http.StatusNotFound)
 	})
 
-	t.Run("REGRESSION: missing fields should return 400 not 500", func(t *testing.T) {
+	// Fixed: Missing fields now returns 400 instead of 500
+	t.Run("missing fields should return 400 not 500", func(t *testing.T) {
 		resp := c.POST("/licenses", map[string]interface{}{"licenseType": "PPL"})
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("REGRESSION: Missing license fields causes 500 instead of 400")
-		} else {
-			assertStatus(t, resp, http.StatusBadRequest)
-		}
+		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("no auth returns 401", func(t *testing.T) {

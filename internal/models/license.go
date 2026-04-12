@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,10 +23,28 @@ type License struct {
 
 // IsValid checks if all required fields are set
 func (l *License) IsValid() bool {
-	return l.UserID != uuid.Nil &&
-		l.RegulatoryAuthority != "" &&
-		l.LicenseType != "" &&
-		l.LicenseNumber != "" &&
-		!l.IssueDate.IsZero() &&
-		l.IssuingAuthority != ""
+	return l.Validate() == nil
+}
+
+// Validate checks all required fields and returns a descriptive error
+func (l *License) Validate() error {
+	if l.UserID == uuid.Nil {
+		return errors.New("user ID is required")
+	}
+	if l.RegulatoryAuthority == "" {
+		return errors.New("regulatory authority is required")
+	}
+	if l.LicenseType == "" {
+		return errors.New("license type is required")
+	}
+	if l.LicenseNumber == "" {
+		return errors.New("license number is required")
+	}
+	if l.IssueDate.IsZero() {
+		return errors.New("issue date is required")
+	}
+	if l.IssuingAuthority == "" {
+		return errors.New("issuing authority is required")
+	}
+	return nil
 }

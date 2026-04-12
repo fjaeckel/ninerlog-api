@@ -43,6 +43,7 @@ func TestCredentialExpiryEdgeCases(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("cred-exp"), "SecurePass123!", "CredExp")
 
+	// Fixed: Credential expiry before issue date now returns 400
 	t.Run("expiry before issue date", func(t *testing.T) {
 		r := c.POST("/credentials", map[string]interface{}{
 			"credentialType":   "EASA_CLASS2_MEDICAL",
@@ -50,11 +51,7 @@ func TestCredentialExpiryEdgeCases(t *testing.T) {
 			"expiryDate":       "2025-01-01", // Before issue
 			"issuingAuthority": "AME",
 		})
-		if r.StatusCode == 201 {
-			t.Log("REGRESSION: Credential created with expiry before issue date")
-		} else {
-			t.Logf("Expiry before issue: %d", r.StatusCode)
-		}
+		assertStatus(t, r, http.StatusBadRequest)
 	})
 
 	t.Run("issue equals expiry (immediate expiry)", func(t *testing.T) {
@@ -166,15 +163,10 @@ func TestEmailUpdateDuplicate(t *testing.T) {
 	registerAndLogin(t, c1, email1, "SecurePass123!", "User1")
 	registerAndLogin(t, c2, email2, "SecurePass123!", "User2")
 
+	// Fixed: Email update to existing email now returns 409
 	t.Run("update email to another user email fails", func(t *testing.T) {
 		r := c1.PATCH("/users/me", map[string]string{"email": email2})
-		if r.StatusCode == 200 {
-			t.Log("REGRESSION: Can update email to another user's email — duplicate allowed")
-		} else if r.StatusCode == 409 {
-			t.Log("Correctly rejected duplicate email (409)")
-		} else {
-			t.Logf("Email duplicate update: %d %s", r.StatusCode, string(r.Body))
-		}
+		assertStatus(t, r, http.StatusConflict)
 	})
 
 	t.Run("update email to same email is no-op", func(t *testing.T) {

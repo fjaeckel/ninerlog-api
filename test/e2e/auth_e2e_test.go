@@ -32,14 +32,10 @@ func TestAuthRegistration(t *testing.T) {
 		assertStatus(t, resp, http.StatusConflict)
 	})
 
-	// REGRESSION: API accepts short passwords without validation
-	t.Run("REGRESSION: register with short password should return 400", func(t *testing.T) {
+	// Fixed: API now validates password length (8-72 chars)
+	t.Run("register with short password should return 400", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("short-pw"), "password": "short", "name": "Test"})
-		if resp.StatusCode == http.StatusCreated {
-			t.Log("REGRESSION: API accepts passwords shorter than 8 chars - should be validated")
-		} else {
-			assertStatus(t, resp, http.StatusBadRequest)
-		}
+		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("register with empty email returns 400", func(t *testing.T) {
@@ -47,36 +43,24 @@ func TestAuthRegistration(t *testing.T) {
 		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	// REGRESSION: API accepts empty name
-	t.Run("REGRESSION: register with empty name should return 400", func(t *testing.T) {
+	// Fixed: API now rejects empty name
+	t.Run("register with empty name should return 400", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("no-name"), "password": "SecurePass123!", "name": ""})
-		if resp.StatusCode == http.StatusCreated {
-			t.Log("REGRESSION: API accepts empty name - should validate name is non-empty")
-		} else {
-			assertStatus(t, resp, http.StatusBadRequest)
-		}
+		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	// REGRESSION: API accepts requests with missing required fields
-	t.Run("REGRESSION: register with missing fields should return 400", func(t *testing.T) {
+	// Fixed: API now validates required fields
+	t.Run("register with missing fields should return 400", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("missing")})
-		if resp.StatusCode == http.StatusCreated {
-			t.Log("REGRESSION: API accepts registration without password - should require all fields")
-		} else {
-			assertStatus(t, resp, http.StatusBadRequest)
-		}
+		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	// REGRESSION: Email not normalized to lowercase
-	t.Run("REGRESSION: register email should be case insensitive", func(t *testing.T) {
+	// Fixed: Email now normalized to lowercase
+	t.Run("register email should be case insensitive", func(t *testing.T) {
 		email := uniqueEmail("case")
 		registerUser(t, c, email, "SecurePass123!", "Test")
 		resp := c.POST("/auth/register", map[string]string{"email": strings.ToUpper(email), "password": "SecurePass123!", "name": "Other"})
-		if resp.StatusCode == http.StatusCreated {
-			t.Log("REGRESSION: Email is case-sensitive - should normalize to lowercase before storage")
-		} else {
-			assertStatus(t, resp, http.StatusConflict)
-		}
+		assertStatus(t, resp, http.StatusConflict)
 	})
 }
 

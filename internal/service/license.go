@@ -28,7 +28,7 @@ func NewLicenseService(licenseRepo repository.LicenseRepository) *LicenseService
 
 // CreateLicense creates a new license for a user
 func (s *LicenseService) CreateLicense(ctx context.Context, license *models.License) error {
-	if !license.IsValid() {
+	if err := license.Validate(); err != nil {
 		return ErrInvalidLicense
 	}
 	if err := models.ValidateLicenseTextFields(license); err != nil {

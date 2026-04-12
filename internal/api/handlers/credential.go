@@ -78,6 +78,10 @@ func (h *APIHandler) CreateCredential(c *gin.Context) {
 	}
 
 	if err := h.credentialService.CreateCredential(c.Request.Context(), credential); err != nil {
+		if errors.Is(err, service.ErrExpiryBeforeIssue) {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to create credential")
 		return
 	}

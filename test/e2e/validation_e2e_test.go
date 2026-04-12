@@ -130,45 +130,37 @@ func TestEmailValidation(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{
 			"email": "not-an-email", "password": "SecurePass123!", "name": "Test",
 		})
-		if resp.StatusCode == http.StatusCreated {
-			t.Log("REGRESSION: API accepts invalid email format 'not-an-email'")
-		}
+		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("email without domain rejected", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{
 			"email": "user@", "password": "SecurePass123!", "name": "Test",
 		})
-		if resp.StatusCode == http.StatusCreated {
-			t.Log("REGRESSION: API accepts email without domain")
-		}
+		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	t.Run("REGRESSION: very long email causes 500", func(t *testing.T) {
+	// Fixed: Long email now returns 400 instead of 500
+	t.Run("very long email causes 400", func(t *testing.T) {
 		long := strings.Repeat("a", 250) + "@test.com"
 		resp := c.POST("/auth/register", map[string]string{
 			"email": long, "password": "SecurePass123!", "name": "Test",
 		})
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("REGRESSION: Email >255 chars causes 500 instead of 400")
-		}
+		assertStatus(t, resp, http.StatusBadRequest)
 	})
 }
 
 func TestPasswordValidation(t *testing.T) {
 	c := NewE2EClient(t)
 
-	t.Run("REGRESSION: very long password causes 500", func(t *testing.T) {
+	// Fixed: Long password now returns 400 instead of 500
+	t.Run("very long password causes 400", func(t *testing.T) {
 		longPw := strings.Repeat("Aa1!", 100) // 400 chars, bcrypt limit is 72 bytes
 		email := uniqueEmail("longpw")
 		resp := c.POST("/auth/register", map[string]string{
 			"email": email, "password": longPw, "name": "Test",
 		})
-		if resp.StatusCode == http.StatusInternalServerError {
-			t.Log("REGRESSION: Password >72 bytes causes 500 (bcrypt limit) - should truncate or reject")
-		} else {
-			requireStatus(t, resp, http.StatusCreated)
-		}
+		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("special characters in password", func(t *testing.T) {
