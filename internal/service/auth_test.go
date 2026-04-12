@@ -215,7 +215,7 @@ func TestRegister(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -243,7 +243,7 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -266,7 +266,7 @@ func TestLogin(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -279,7 +279,7 @@ func TestLogin(t *testing.T) {
 	// Test login
 	loginInput := service.LoginInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 	}
 
 	user, tokens, err := authService.Login(ctx, loginInput)
@@ -302,7 +302,7 @@ func TestLoginInvalidPassword(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -315,7 +315,7 @@ func TestLoginInvalidPassword(t *testing.T) {
 	// Test login with wrong password
 	loginInput := service.LoginInput{
 		Email:    "test@example.com",
-		Password: "wrongpassword",
+		Password: "wrongpassword1",
 	}
 
 	_, _, err = authService.Login(ctx, loginInput)
@@ -340,7 +340,7 @@ func TestPasswordHashing(t *testing.T) {
 	}
 
 	// Verify incorrect password
-	err = hash.ComparePassword(hashed, "wrongpassword")
+	err = hash.ComparePassword(hashed, "wrongpassword1")
 	if err == nil {
 		t.Error("Should have failed to verify incorrect password")
 	}
@@ -352,7 +352,7 @@ func TestRefreshToken(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -387,7 +387,7 @@ func TestRefreshTokenRevoked(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -412,7 +412,7 @@ func TestLogout(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -433,7 +433,7 @@ func TestRequestPasswordReset(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -472,7 +472,7 @@ func TestResetPassword(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -518,7 +518,7 @@ func TestResetPasswordUsedToken(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Test User",
 	}
 
@@ -579,7 +579,7 @@ func TestChangePassword(t *testing.T) {
 	}
 
 	// Change password with wrong current password should fail
-	err = authService.ChangePassword(ctx, user.ID, "wrongpassword", "another123")
+	err = authService.ChangePassword(ctx, user.ID, "wrongpassword1", "another123")
 	if err != service.ErrInvalidCredentials {
 		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
 	}
@@ -603,7 +603,7 @@ func TestDeleteUser(t *testing.T) {
 	// Register a user
 	registerInput := service.RegisterInput{
 		Email:    "delete@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     "Delete Test",
 	}
 	_, _, err := authService.Register(ctx, registerInput)
@@ -615,13 +615,13 @@ func TestDeleteUser(t *testing.T) {
 	userID := user.ID
 
 	// Delete with wrong password should fail
-	err = authService.DeleteUser(ctx, userID, "wrongpassword")
+	err = authService.DeleteUser(ctx, userID, "wrongpassword1")
 	if err != service.ErrInvalidCredentials {
 		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
 	}
 
 	// Delete with correct password should succeed
-	err = authService.DeleteUser(ctx, userID, "password123")
+	err = authService.DeleteUser(ctx, userID, "password1234")
 	if err != nil {
 		t.Fatalf("DeleteUser failed: %v", err)
 	}
