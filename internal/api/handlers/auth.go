@@ -140,6 +140,10 @@ func (h *APIHandler) ChangePassword(c *gin.Context) {
 			h.sendError(c, http.StatusUnauthorized, "Current password is incorrect")
 			return
 		}
+		if err == service.ErrPasswordTooShort || err == service.ErrPasswordTooLong {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to change password")
 		return
 	}

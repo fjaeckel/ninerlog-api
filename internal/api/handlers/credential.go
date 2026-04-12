@@ -164,6 +164,10 @@ func (h *APIHandler) UpdateCredential(c *gin.Context, credentialId generated.Cre
 	}
 
 	if err := h.credentialService.UpdateCredential(c.Request.Context(), credential, userID); err != nil {
+		if errors.Is(err, service.ErrExpiryBeforeIssue) {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update credential")
 		return
 	}

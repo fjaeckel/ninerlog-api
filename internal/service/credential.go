@@ -65,6 +65,9 @@ func (s *CredentialService) UpdateCredential(ctx context.Context, credential *mo
 	if err := models.ValidateCredentialTextFields(credential); err != nil {
 		return err
 	}
+	if credential.ExpiryDate != nil && credential.ExpiryDate.Before(credential.IssueDate) {
+		return ErrExpiryBeforeIssue
+	}
 	return s.credentialRepo.Update(ctx, credential)
 }
 

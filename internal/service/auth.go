@@ -321,6 +321,14 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 		return err
 	}
 
+	// Validate new password
+	if len(newPassword) < 12 {
+		return ErrPasswordTooShort
+	}
+	if len(newPassword) > 72 {
+		return ErrPasswordTooLong
+	}
+
 	// Hash new password
 	hashedPassword, err := hash.HashPassword(newPassword)
 	if err != nil {

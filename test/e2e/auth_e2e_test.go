@@ -32,10 +32,20 @@ func TestAuthRegistration(t *testing.T) {
 		assertStatus(t, resp, http.StatusConflict)
 	})
 
-	// Fixed: API now validates password length (8-72 chars)
+	// Fixed: API now validates password length (12-72 chars)
 	t.Run("register with short password should return 400", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("short-pw"), "password": "short", "name": "Test"})
 		assertStatus(t, resp, http.StatusBadRequest)
+	})
+
+	t.Run("register with 11-char password should return 400", func(t *testing.T) {
+		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("11char-pw"), "password": "Abcdefghij1", "name": "Test"})
+		assertStatus(t, resp, http.StatusBadRequest)
+	})
+
+	t.Run("register with 12-char password should succeed", func(t *testing.T) {
+		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("12char-pw"), "password": "Abcdefghij12", "name": "Test"})
+		requireStatus(t, resp, http.StatusCreated)
 	})
 
 	t.Run("register with empty email returns 400", func(t *testing.T) {
