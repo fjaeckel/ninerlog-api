@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -143,6 +144,9 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	)
 
 	if err != nil {
+		if strings.Contains(err.Error(), "unique constraint") && strings.Contains(err.Error(), "email") {
+			return repository.ErrDuplicateEmail
+		}
 		return err
 	}
 
