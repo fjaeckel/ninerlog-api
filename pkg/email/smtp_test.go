@@ -61,9 +61,18 @@ func TestIsConfigured_FullyConfigured(t *testing.T) {
 }
 
 func TestIsConfigured_OnlyHost(t *testing.T) {
+	// Host-only is valid — supports test SMTP servers (MailPit) without auth
 	cfg := &SMTPConfig{Host: "smtp.example.com"}
+	if !cfg.IsConfigured() {
+		t.Error("IsConfigured() = false with host set (host-only is valid for auth-less SMTP)")
+	}
+}
+
+func TestIsConfigured_OnlyUsername(t *testing.T) {
+	// Username without host is NOT valid
+	cfg := &SMTPConfig{Username: "user"}
 	if cfg.IsConfigured() {
-		t.Error("IsConfigured() = true with only host set")
+		t.Error("IsConfigured() = true with only username set (no host)")
 	}
 }
 

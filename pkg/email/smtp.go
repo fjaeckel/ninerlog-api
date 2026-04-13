@@ -30,7 +30,7 @@ func LoadSMTPConfig() *SMTPConfig {
 
 // IsConfigured returns true if SMTP is properly configured
 func (c *SMTPConfig) IsConfigured() bool {
-	return c.Host != "" && c.Username != ""
+	return c.Host != ""
 }
 
 // Sender sends emails via SMTP
@@ -51,7 +51,6 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	}
 
 	addr := fmt.Sprintf("%s:%s", s.config.Host, s.config.Port)
-	auth := smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
 
 	headers := []string{
 		fmt.Sprintf("From: NinerLog <%s>", s.config.From),
@@ -62,6 +61,13 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	}
 
 	msg := []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + htmlBody)
+
+	// Use PlainAuth when password is set, otherwise no auth
+	// (supports test SMTP servers like MailPit that accept unauthenticated connections)
+	var auth smtp.Auth
+	if s.config.Password != "" {
+		auth = smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
+	}
 
 	if err := smtp.SendMail(addr, auth, s.config.From, []string{to}, msg); err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
