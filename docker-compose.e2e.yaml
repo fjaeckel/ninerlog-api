@@ -16,6 +16,13 @@ services:
     tmpfs:
       - /var/lib/postgresql/data
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ninerlog-e2e-mailpit
+    ports:
+      - "8025:8025"   # Web UI / REST API
+      - "1025:1025"   # SMTP
+
   api:
     build:
       context: .
@@ -24,6 +31,8 @@ services:
     depends_on:
       postgres-e2e:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       DATABASE_URL: "postgresql://testuser:testpass@postgres-e2e:5432/ninerlog_e2e?sslmode=disable"
       PORT: "3000"
@@ -33,6 +42,12 @@ services:
       ADMIN_EMAIL: "admin@ninerlog-test.com"
       DISABLE_RATE_LIMIT: "true"
       MIGRATIONS_PATH: "db/migrations"
+      # SMTP — points to MailPit test server (no auth needed)
+      SMTP_HOST: "mailpit"
+      SMTP_PORT: "1025"
+      SMTP_FROM: "noreply@ninerlog-test.com"
+      # Run notification checker less frequently in E2E (manual trigger used)
+      NOTIFICATION_CHECK_INTERVAL: "24h"
     ports:
       - "3333:3000"
     healthcheck:

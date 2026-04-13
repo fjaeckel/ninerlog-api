@@ -8,6 +8,7 @@ cd "$SCRIPT_DIR/.."
 
 COMPOSE_FILE="docker-compose.e2e.yaml"
 API_URL="${E2E_API_URL:-http://localhost:3333}"
+MAILPIT_URL="${E2E_MAILPIT_URL:-http://localhost:8025}"
 
 cleanup() {
     echo "🧹 Tearing down e2e environment..."
@@ -36,8 +37,20 @@ until curl -sf "$API_URL/health" > /dev/null 2>&1; do
 done
 echo "✅ API is ready"
 
+echo "⏳ Waiting for MailPit to be ready at $MAILPIT_URL..."
+RETRY=0
+until curl -sf "$MAILPIT_URL/api/v1/info" > /dev/null 2>&1; do
+    RETRY=$((RETRY + 1))
+    if [ $RETRY -ge 30 ]; then
+        echo "❌ MailPit failed to start after 30 attempts"
+        exit 1
+    fi
+    sleep 1
+done
+echo "✅ MailPit is ready"
+
 echo "🧪 Running e2e tests..."
-E2E_API_URL="$API_URL" go test -v -tags=e2e -count=1 -timeout=300s ./test/e2e/...
+E2E_API_URL="$API_URL" E2E_MAILPIT_URL="$MAILPIT_URL" go test -v -tags=e2e -count=1 -timeout=300s ./test/e2e/...
 TEST_EXIT=$?
 
 if [ $TEST_EXIT -eq 0 ]; then
