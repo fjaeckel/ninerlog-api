@@ -161,8 +161,9 @@ type NotificationRepository interface {
 	GetPreferences(ctx context.Context, userID uuid.UUID) (*models.NotificationPreferences, error)
 	UpsertPreferences(ctx context.Context, prefs *models.NotificationPreferences) error
 	LogNotification(ctx context.Context, log *models.NotificationLog) error
-	HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int) (bool, error)
+	HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int, expiryReferenceDate *time.Time) (bool, error)
 	GetAllUsersWithPreferences(ctx context.Context) ([]*models.NotificationPreferences, error)
+	GetNotificationHistory(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.NotificationLog, int, error)
 }
 
 // ContactRepository defines the interface for contact (reusable people) data access
