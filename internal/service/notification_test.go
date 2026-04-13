@@ -50,11 +50,19 @@ func (m *mockNotificationRepo) LogNotification(ctx context.Context, log *models.
 	return nil
 }
 
-func (m *mockNotificationRepo) HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int) (bool, error) {
+func (m *mockNotificationRepo) HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int, expiryReferenceDate *time.Time) (bool, error) {
 	for _, l := range m.logs {
 		if l.UserID == userID && l.NotificationType == notificationType && l.ReferenceID != nil && *l.ReferenceID == referenceID {
 			if l.DaysBeforeExpiry != nil && *l.DaysBeforeExpiry == daysBeforeExpiry {
-				return true, nil
+				// Check expiry reference date match
+				if expiryReferenceDate == nil && l.ExpiryReferenceDate == nil {
+					return true, nil
+				}
+				if expiryReferenceDate != nil && l.ExpiryReferenceDate != nil {
+					if expiryReferenceDate.Format("2006-01-02") == l.ExpiryReferenceDate.Format("2006-01-02") {
+						return true, nil
+					}
+				}
 			}
 		}
 	}
@@ -63,6 +71,24 @@ func (m *mockNotificationRepo) HasBeenSent(ctx context.Context, userID uuid.UUID
 
 func (m *mockNotificationRepo) GetAllUsersWithPreferences(ctx context.Context) ([]*models.NotificationPreferences, error) {
 	return m.allPrefs, nil
+}
+
+func (m *mockNotificationRepo) GetNotificationHistory(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.NotificationLog, int, error) {
+	var result []*models.NotificationLog
+	for _, l := range m.logs {
+		if l.UserID == userID {
+			result = append(result, l)
+		}
+	}
+	total := len(result)
+	if offset >= len(result) {
+		return []*models.NotificationLog{}, total, nil
+	}
+	end := offset + limit
+	if end > len(result) {
+		end = len(result)
+	}
+	return result[offset:end], total, nil
 }
 
 // mockNotifUserRepo for notification tests
@@ -238,19 +264,31 @@ func (m *mockNotifLicenseRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func newTestNotifService(notifRepo *mockNotificationRepo) *service.NotificationService {
+	return service.NewNotificationService(
+		notifRepo,
+		newMockNotifCredentialRepo(),
+		newMockNotifFlightRepo(),
+		newMockNotifLicenseRepo(),
+		newMockNotifUserRepo(),
+		email.NewSender(&email.SMTPConfig{}),
+		nil, // currencyService — nil is OK for preference tests
+	)
+}
+
 func TestGetPreferences(t *testing.T) {
 	notifRepo := newMockNotificationRepo()
 	userID := uuid.New()
 	notifRepo.prefs[userID] = &models.NotificationPreferences{
-		ID:                 uuid.New(),
-		UserID:             userID,
-		EmailEnabled:       true,
-		CurrencyWarnings:   true,
-		CredentialWarnings: true,
-		WarningDays:        pq.Int64Array{30, 14, 7},
+		ID:                uuid.New(),
+		UserID:            userID,
+		EmailEnabled:      true,
+		EnabledCategories: models.AllNotificationCategories,
+		WarningDays:       pq.Int64Array{30, 14, 7},
+		CheckHour:         8,
 	}
 
-	svc := service.NewNotificationService(notifRepo, newMockNotifCredentialRepo(), newMockNotifFlightRepo(), newMockNotifLicenseRepo(), newMockNotifUserRepo(), email.NewSender(&email.SMTPConfig{}))
+	svc := newTestNotifService(notifRepo)
 	ctx := context.Background()
 
 	prefs, err := svc.GetPreferences(ctx, userID)
@@ -263,10 +301,16 @@ func TestGetPreferences(t *testing.T) {
 	if len(prefs.WarningDays) != 3 {
 		t.Errorf("WarningDays length = %d, want 3", len(prefs.WarningDays))
 	}
+	if prefs.CheckHour != 8 {
+		t.Errorf("CheckHour = %d, want 8", prefs.CheckHour)
+	}
+	if len(prefs.EnabledCategories) != 10 {
+		t.Errorf("EnabledCategories length = %d, want 10", len(prefs.EnabledCategories))
+	}
 }
 
 func TestGetPreferencesNotFound(t *testing.T) {
-	svc := service.NewNotificationService(newMockNotificationRepo(), newMockNotifCredentialRepo(), newMockNotifFlightRepo(), newMockNotifLicenseRepo(), newMockNotifUserRepo(), email.NewSender(&email.SMTPConfig{}))
+	svc := newTestNotifService(newMockNotificationRepo())
 	ctx := context.Background()
 
 	_, err := svc.GetPreferences(ctx, uuid.New())
@@ -276,16 +320,16 @@ func TestGetPreferencesNotFound(t *testing.T) {
 }
 
 func TestUpdatePreferences(t *testing.T) {
-	svc := service.NewNotificationService(newMockNotificationRepo(), newMockNotifCredentialRepo(), newMockNotifFlightRepo(), newMockNotifLicenseRepo(), newMockNotifUserRepo(), email.NewSender(&email.SMTPConfig{}))
+	svc := newTestNotifService(newMockNotificationRepo())
 	ctx := context.Background()
 	userID := uuid.New()
 
 	prefs := &models.NotificationPreferences{
-		UserID:             userID,
-		EmailEnabled:       true,
-		CurrencyWarnings:   true,
-		CredentialWarnings: false,
-		WarningDays:        pq.Int64Array{90, 60, 30},
+		UserID:            userID,
+		EmailEnabled:      true,
+		EnabledCategories: pq.StringArray{string(models.NotifCategoryCredentialMedical), string(models.NotifCategoryRatingExpiry)},
+		WarningDays:       pq.Int64Array{90, 60, 30},
+		CheckHour:         14,
 	}
 
 	err := svc.UpdatePreferences(ctx, prefs)
@@ -304,27 +348,34 @@ func TestUpdatePreferences(t *testing.T) {
 	if !retrieved.EmailEnabled {
 		t.Error("EmailEnabled should be true")
 	}
-	if retrieved.CredentialWarnings {
-		t.Error("CredentialWarnings should be false")
+	if len(retrieved.EnabledCategories) != 2 {
+		t.Errorf("EnabledCategories length = %d, want 2", len(retrieved.EnabledCategories))
+	}
+	if retrieved.CheckHour != 14 {
+		t.Errorf("CheckHour = %d, want 14", retrieved.CheckHour)
 	}
 }
 
 func TestUpdatePreferencesOverwrite(t *testing.T) {
-	svc := service.NewNotificationService(newMockNotificationRepo(), newMockNotifCredentialRepo(), newMockNotifFlightRepo(), newMockNotifLicenseRepo(), newMockNotifUserRepo(), email.NewSender(&email.SMTPConfig{}))
+	svc := newTestNotifService(newMockNotificationRepo())
 	ctx := context.Background()
 	userID := uuid.New()
 
 	prefs1 := &models.NotificationPreferences{
-		UserID:       userID,
-		EmailEnabled: true,
-		WarningDays:  pq.Int64Array{30},
+		UserID:            userID,
+		EmailEnabled:      true,
+		EnabledCategories: models.AllNotificationCategories,
+		WarningDays:       pq.Int64Array{30},
+		CheckHour:         8,
 	}
 	_ = svc.UpdatePreferences(ctx, prefs1)
 
 	prefs2 := &models.NotificationPreferences{
-		UserID:       userID,
-		EmailEnabled: false,
-		WarningDays:  pq.Int64Array{60, 30},
+		UserID:            userID,
+		EmailEnabled:      false,
+		EnabledCategories: pq.StringArray{string(models.NotifCategoryCredentialMedical)},
+		WarningDays:       pq.Int64Array{60, 30},
+		CheckHour:         12,
 	}
 	err := svc.UpdatePreferences(ctx, prefs2)
 	if err != nil {
@@ -337,5 +388,63 @@ func TestUpdatePreferencesOverwrite(t *testing.T) {
 	}
 	if len(retrieved.WarningDays) != 2 {
 		t.Errorf("WarningDays length = %d, want 2", len(retrieved.WarningDays))
+	}
+	if len(retrieved.EnabledCategories) != 1 {
+		t.Errorf("EnabledCategories length = %d, want 1", len(retrieved.EnabledCategories))
+	}
+	if retrieved.CheckHour != 12 {
+		t.Errorf("CheckHour = %d, want 12", retrieved.CheckHour)
+	}
+}
+
+func TestGetNotificationHistory(t *testing.T) {
+	notifRepo := newMockNotificationRepo()
+	userID := uuid.New()
+	refID := uuid.New()
+	subj := "Test notification"
+	days := 30
+
+	notifRepo.logs = []*models.NotificationLog{
+		{
+			ID:               uuid.New(),
+			UserID:           userID,
+			NotificationType: string(models.NotifCategoryCredentialMedical),
+			ReferenceID:      &refID,
+			DaysBeforeExpiry: &days,
+			Subject:          &subj,
+			SentAt:           time.Now(),
+		},
+	}
+
+	svc := newTestNotifService(notifRepo)
+	ctx := context.Background()
+
+	history, total, err := svc.GetNotificationHistory(ctx, userID, 20, 0)
+	if err != nil {
+		t.Fatalf("GetNotificationHistory() error = %v", err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d, want 1", total)
+	}
+	if len(history) != 1 {
+		t.Errorf("history length = %d, want 1", len(history))
+	}
+	if history[0].NotificationType != string(models.NotifCategoryCredentialMedical) {
+		t.Errorf("NotificationType = %s, want %s", history[0].NotificationType, models.NotifCategoryCredentialMedical)
+	}
+}
+
+func TestGetCheckInterval(t *testing.T) {
+	// Default
+	d := service.GetCheckInterval()
+	if d != 1*time.Hour {
+		t.Errorf("default interval = %v, want 1h", d)
+	}
+
+	// Custom
+	t.Setenv("NOTIFICATION_CHECK_INTERVAL", "30m")
+	d = service.GetCheckInterval()
+	if d != 30*time.Minute {
+		t.Errorf("custom interval = %v, want 30m", d)
 	}
 }
