@@ -205,6 +205,12 @@ const (
 	Unknown  PassengerCurrencyNightStatus = "unknown"
 )
 
+// Defines values for UserPreferredLocale.
+const (
+	UserPreferredLocaleDe UserPreferredLocale = "de"
+	UserPreferredLocaleEn UserPreferredLocale = "en"
+)
+
 // Defines values for UserTimeDisplayFormat.
 const (
 	UserTimeDisplayFormatDecimal UserTimeDisplayFormat = "decimal"
@@ -244,6 +250,12 @@ const (
 const (
 	Asc  ListFlightsParamsSortOrder = "asc"
 	Desc ListFlightsParamsSortOrder = "desc"
+)
+
+// Defines values for UpdateCurrentUserJSONBodyPreferredLocale.
+const (
+	UpdateCurrentUserJSONBodyPreferredLocaleDe UpdateCurrentUserJSONBodyPreferredLocale = "de"
+	UpdateCurrentUserJSONBodyPreferredLocaleEn UpdateCurrentUserJSONBodyPreferredLocale = "en"
 )
 
 // Defines values for UpdateCurrentUserJSONBodyTimeDisplayFormat.
@@ -1749,6 +1761,9 @@ type User struct {
 	IsAdmin *bool  `json:"isAdmin,omitempty"`
 	Name    string `json:"name"`
 
+	// PreferredLocale User's preferred language for the interface.
+	PreferredLocale *UserPreferredLocale `json:"preferredLocale,omitempty"`
+
 	// TimeDisplayFormat User's preferred time display format. "hm" for hours and minutes (1h 30m), "decimal" for decimal hours (1.5h).
 	TimeDisplayFormat *UserTimeDisplayFormat `json:"timeDisplayFormat,omitempty"`
 
@@ -1756,6 +1771,9 @@ type User struct {
 	TwoFactorEnabled *bool     `json:"twoFactorEnabled,omitempty"`
 	UpdatedAt        time.Time `json:"updatedAt"`
 }
+
+// UserPreferredLocale User's preferred language for the interface.
+type UserPreferredLocale string
 
 // UserTimeDisplayFormat User's preferred time display format. "hm" for hours and minutes (1h 30m), "decimal" for decimal hours (1.5h).
 type UserTimeDisplayFormat string
@@ -2006,9 +2024,15 @@ type UpdateCurrentUserJSONBody struct {
 	Email *openapi_types.Email `json:"email,omitempty"`
 	Name  *string              `json:"name,omitempty"`
 
+	// PreferredLocale Preferred language for the interface
+	PreferredLocale *UpdateCurrentUserJSONBodyPreferredLocale `json:"preferredLocale,omitempty"`
+
 	// TimeDisplayFormat Preferred time display format
 	TimeDisplayFormat *UpdateCurrentUserJSONBodyTimeDisplayFormat `json:"timeDisplayFormat,omitempty"`
 }
+
+// UpdateCurrentUserJSONBodyPreferredLocale defines parameters for UpdateCurrentUser.
+type UpdateCurrentUserJSONBodyPreferredLocale string
 
 // UpdateCurrentUserJSONBodyTimeDisplayFormat defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyTimeDisplayFormat string

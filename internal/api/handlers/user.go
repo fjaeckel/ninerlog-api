@@ -63,6 +63,12 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 			user.TimeDisplayFormat = format
 		}
 	}
+	if req.PreferredLocale != nil {
+		locale := string(*req.PreferredLocale)
+		if locale == "en" || locale == "de" {
+			user.PreferredLocale = locale
+		}
+	}
 
 	// Update user
 	if err := h.authService.UpdateUser(c.Request.Context(), user); err != nil {
