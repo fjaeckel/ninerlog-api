@@ -32,6 +32,9 @@ type ServerInterface interface {
 	// Send SMTP test email
 	// (POST /admin/maintenance/smtp-test)
 	SmtpTest(c *gin.Context)
+	// Trigger notification check
+	// (POST /admin/maintenance/trigger-notifications)
+	TriggerNotifications(c *gin.Context)
 	// System-wide aggregate statistics
 	// (GET /admin/stats)
 	GetAdminStats(c *gin.Context)
@@ -242,6 +245,9 @@ type ServerInterface interface {
 	// Update notification preferences
 	// (PATCH /users/me/notifications)
 	UpdateNotificationPreferences(c *gin.Context)
+	// Get notification history
+	// (GET /users/me/notifications/history)
+	GetNotificationHistory(c *gin.Context, params GetNotificationHistoryParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -373,6 +379,21 @@ func (siw *ServerInterfaceWrapper) SmtpTest(c *gin.Context) {
 	}
 
 	siw.Handler.SmtpTest(c)
+}
+
+// TriggerNotifications operation middleware
+func (siw *ServerInterfaceWrapper) TriggerNotifications(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.TriggerNotifications(c)
 }
 
 // GetAdminStats operation middleware
@@ -2034,6 +2055,42 @@ func (siw *ServerInterfaceWrapper) UpdateNotificationPreferences(c *gin.Context)
 	siw.Handler.UpdateNotificationPreferences(c)
 }
 
+// GetNotificationHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetNotificationHistory(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetNotificationHistoryParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", c.Request.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetNotificationHistory(c, params)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -2067,6 +2124,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/admin/config", wrapper.GetAdminConfig)
 	router.POST(options.BaseURL+"/admin/maintenance/cleanup-tokens", wrapper.CleanupTokens)
 	router.POST(options.BaseURL+"/admin/maintenance/smtp-test", wrapper.SmtpTest)
+	router.POST(options.BaseURL+"/admin/maintenance/trigger-notifications", wrapper.TriggerNotifications)
 	router.GET(options.BaseURL+"/admin/stats", wrapper.GetAdminStats)
 	router.GET(options.BaseURL+"/admin/users", wrapper.ListAdminUsers)
 	router.POST(options.BaseURL+"/admin/users/:userId/disable", wrapper.DisableUser)
@@ -2137,4 +2195,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/users/me/data", wrapper.DeleteAllUserData)
 	router.GET(options.BaseURL+"/users/me/notifications", wrapper.GetNotificationPreferences)
 	router.PATCH(options.BaseURL+"/users/me/notifications", wrapper.UpdateNotificationPreferences)
+	router.GET(options.BaseURL+"/users/me/notifications/history", wrapper.GetNotificationHistory)
 }

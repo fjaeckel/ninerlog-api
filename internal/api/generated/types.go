@@ -175,6 +175,20 @@ const (
 	Partial   ImportStatus = "partial"
 )
 
+// Defines values for NotificationCategory.
+const (
+	CredentialLanguage   NotificationCategory = "credential_language"
+	CredentialMedical    NotificationCategory = "credential_medical"
+	CredentialOther      NotificationCategory = "credential_other"
+	CredentialSecurity   NotificationCategory = "credential_security"
+	CurrencyFlightReview NotificationCategory = "currency_flight_review"
+	CurrencyInstrument   NotificationCategory = "currency_instrument"
+	CurrencyNight        NotificationCategory = "currency_night"
+	CurrencyPassenger    NotificationCategory = "currency_passenger"
+	CurrencyRevalidation NotificationCategory = "currency_revalidation"
+	RatingExpiry         NotificationCategory = "rating_expiry"
+)
+
 // Defines values for PassengerCurrencyDayStatus.
 const (
 	PassengerCurrencyDayStatusCurrent  PassengerCurrencyDayStatus = "current"
@@ -1467,16 +1481,69 @@ type LicenseCreate struct {
 	RequiresSeparateLogbook *bool              `json:"requiresSeparateLogbook,omitempty"`
 }
 
+// NotificationCategory Notification category for granular control:
+// - credential_medical: Medical certificate expiry
+// - credential_language: Language proficiency expiry
+// - credential_security: Security clearance expiry
+// - credential_other: Other credential expiry
+// - rating_expiry: Class rating expiry date approaching
+// - currency_passenger: Passenger carrying currency (e.g., 3 T&L in 90 days)
+// - currency_night: Night currency
+// - currency_instrument: Instrument currency
+// - currency_flight_review: Flight review / proficiency check due
+// - currency_revalidation: EASA revalidation requirements approaching expiry
+type NotificationCategory string
+
+// NotificationHistoryEntry defines model for NotificationHistoryEntry.
+type NotificationHistoryEntry struct {
+	// Category Notification category for granular control:
+	// - credential_medical: Medical certificate expiry
+	// - credential_language: Language proficiency expiry
+	// - credential_security: Security clearance expiry
+	// - credential_other: Other credential expiry
+	// - rating_expiry: Class rating expiry date approaching
+	// - currency_passenger: Passenger carrying currency (e.g., 3 T&L in 90 days)
+	// - currency_night: Night currency
+	// - currency_instrument: Instrument currency
+	// - currency_flight_review: Flight review / proficiency check due
+	// - currency_revalidation: EASA revalidation requirements approaching expiry
+	Category NotificationCategory `json:"category"`
+
+	// DaysBeforeExpiry Days before expiry when notification was sent
+	DaysBeforeExpiry *int               `json:"daysBeforeExpiry"`
+	Id               openapi_types.UUID `json:"id"`
+
+	// ReferenceDescription Human-readable description of the reference item
+	ReferenceDescription *string `json:"referenceDescription"`
+
+	// ReferenceType Type of item that triggered the notification (e.g., credential, rating)
+	ReferenceType *string `json:"referenceType"`
+
+	// SentAt When the notification was sent
+	SentAt time.Time `json:"sentAt"`
+
+	// Subject Email subject line
+	Subject string `json:"subject"`
+}
+
+// NotificationHistoryResponse defines model for NotificationHistoryResponse.
+type NotificationHistoryResponse struct {
+	Items []NotificationHistoryEntry `json:"items"`
+
+	// Total Total number of notification history entries
+	Total int `json:"total"`
+}
+
 // NotificationPreferences defines model for NotificationPreferences.
 type NotificationPreferences struct {
-	// CredentialWarnings Email warnings when credentials (medicals, etc.) are about to expire
-	CredentialWarnings bool `json:"credentialWarnings"`
-
-	// CurrencyWarnings Email warnings when currency is about to expire
-	CurrencyWarnings bool `json:"currencyWarnings"`
+	// CheckHour Preferred hour (UTC) for daily notification check (0-23)
+	CheckHour int `json:"checkHour"`
 
 	// EmailEnabled Master switch for all email notifications
 	EmailEnabled bool `json:"emailEnabled"`
+
+	// EnabledCategories List of enabled notification categories
+	EnabledCategories []NotificationCategory `json:"enabledCategories"`
 
 	// WarningDays Days before expiry to send warnings
 	WarningDays []int `json:"warningDays"`
@@ -1484,10 +1551,10 @@ type NotificationPreferences struct {
 
 // NotificationPreferencesUpdate defines model for NotificationPreferencesUpdate.
 type NotificationPreferencesUpdate struct {
-	CredentialWarnings *bool  `json:"credentialWarnings,omitempty"`
-	CurrencyWarnings   *bool  `json:"currencyWarnings,omitempty"`
-	EmailEnabled       *bool  `json:"emailEnabled,omitempty"`
-	WarningDays        *[]int `json:"warningDays,omitempty"`
+	CheckHour         *int                    `json:"checkHour,omitempty"`
+	EmailEnabled      *bool                   `json:"emailEnabled,omitempty"`
+	EnabledCategories *[]NotificationCategory `json:"enabledCategories,omitempty"`
+	WarningDays       *[]int                  `json:"warningDays,omitempty"`
 }
 
 // PaginatedAdminAuditLog defines model for PaginatedAdminAuditLog.
@@ -1945,6 +2012,15 @@ type UpdateCurrentUserJSONBody struct {
 
 // UpdateCurrentUserJSONBodyTimeDisplayFormat defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyTimeDisplayFormat string
+
+// GetNotificationHistoryParams defines parameters for GetNotificationHistory.
+type GetNotificationHistoryParams struct {
+	// Limit Maximum number of results to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
 
 // CreateAnnouncementJSONRequestBody defines body for CreateAnnouncement for application/json ContentType.
 type CreateAnnouncementJSONRequestBody CreateAnnouncementJSONBody

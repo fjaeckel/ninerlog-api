@@ -27,6 +27,7 @@ echo "🔄 Converting OpenAPI 3.1 → 3.0 for oapi-codegen compatibility..."
 sed -E \
     -e 's/^openapi: 3\.1\.0/openapi: 3.0.3/' \
     -e "s/^([[:space:]]*)type: \[string, 'null'\]/\1type: string\n\1nullable: true/" \
+    -e "s/^([[:space:]]*)type: \[integer, 'null'\]/\1type: integer\n\1nullable: true/" \
     -e "s/enum: \[([^]]*), 'null'\]/enum: [\1]/" \
     "$OPENAPI_SPEC" > "$TEMP_SPEC"
 

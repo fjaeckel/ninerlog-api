@@ -122,7 +122,6 @@ func main() {
 	notifRepo := postgres.NewNotificationRepository(db)
 	smtpConfig := email.LoadSMTPConfig()
 	emailSender := email.NewSender(smtpConfig)
-	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender)
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager)
 	contactRepo := postgres.NewContactRepository(db)
 	contactService := service.NewContactService(contactRepo)
@@ -137,6 +136,9 @@ func main() {
 	currencyRegistry.Register(currency.NewFAAEvaluator())
 	currencyRegistry.Register(currency.NewOtherEvaluator())
 	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
+
+	// Notification service depends on currency service for two-tier evaluation
+	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService)
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, jwtManager, flightCrewRepo, adminEmail)
@@ -238,10 +240,10 @@ func main() {
 
 	log.Println("✅ Routes registered from OpenAPI specification")
 
-	// Start background notification checker (runs every hour)
+	// Start background notification checker (configurable via NOTIFICATION_CHECK_INTERVAL, defaults to 1h)
 	notifCtx, notifCancel := context.WithCancel(context.Background())
 	defer notifCancel()
-	notificationService.StartBackgroundChecker(notifCtx, 1*time.Hour)
+	notificationService.StartBackgroundChecker(notifCtx, service.GetCheckInterval())
 
 	// Start server with timeouts to prevent slow-loris and resource exhaustion
 	srv := &http.Server{

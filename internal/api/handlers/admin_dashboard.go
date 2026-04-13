@@ -118,6 +118,22 @@ func (h *APIHandler) SmtpTest(c *gin.Context) {
 	})
 }
 
+// TriggerNotifications implements POST /admin/maintenance/trigger-notifications
+func (h *APIHandler) TriggerNotifications(c *gin.Context) {
+	adminUserID, ok := h.requireAdmin(c)
+	if !ok {
+		return
+	}
+
+	h.notificationService.TriggerCheck(c.Request.Context())
+
+	h.logAdminAction(c, adminUserID, "trigger_notifications", nil, `{}`)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Notification check triggered for all users",
+	})
+}
+
 // GetAdminConfig implements GET /admin/config
 func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	_, ok := h.requireAdmin(c)
