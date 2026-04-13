@@ -11,14 +11,14 @@ import (
 type NotificationCategory string
 
 const (
-	NotifCategoryCredentialMedical   NotificationCategory = "credential_medical"
-	NotifCategoryCredentialLanguage  NotificationCategory = "credential_language"
-	NotifCategoryCredentialSecurity  NotificationCategory = "credential_security"
-	NotifCategoryCredentialOther     NotificationCategory = "credential_other"
-	NotifCategoryRatingExpiry        NotificationCategory = "rating_expiry"
-	NotifCategoryCurrencyPassenger   NotificationCategory = "currency_passenger"
-	NotifCategoryCurrencyNight       NotificationCategory = "currency_night"
-	NotifCategoryCurrencyInstrument  NotificationCategory = "currency_instrument"
+	NotifCategoryCredentialMedical    NotificationCategory = "credential_medical"
+	NotifCategoryCredentialLanguage   NotificationCategory = "credential_language"
+	NotifCategoryCredentialSecurity   NotificationCategory = "credential_security"
+	NotifCategoryCredentialOther      NotificationCategory = "credential_other"
+	NotifCategoryRatingExpiry         NotificationCategory = "rating_expiry"
+	NotifCategoryCurrencyPassenger    NotificationCategory = "currency_passenger"
+	NotifCategoryCurrencyNight        NotificationCategory = "currency_night"
+	NotifCategoryCurrencyInstrument   NotificationCategory = "currency_instrument"
 	NotifCategoryCurrencyFlightReview NotificationCategory = "currency_flight_review"
 	NotifCategoryCurrencyRevalidation NotificationCategory = "currency_revalidation"
 )
@@ -39,14 +39,14 @@ var AllNotificationCategories = pq.StringArray{
 
 // NotificationPreferences holds a user's notification settings
 type NotificationPreferences struct {
-	ID                uuid.UUID        `json:"id"`
-	UserID            uuid.UUID        `json:"userId"`
-	EmailEnabled      bool             `json:"emailEnabled"`
-	EnabledCategories pq.StringArray   `json:"enabledCategories"`
-	WarningDays       pq.Int64Array    `json:"warningDays"`
-	CheckHour         int              `json:"checkHour"`
-	CreatedAt         time.Time        `json:"createdAt"`
-	UpdatedAt         time.Time        `json:"updatedAt"`
+	ID                uuid.UUID      `json:"id"`
+	UserID            uuid.UUID      `json:"userId"`
+	EmailEnabled      bool           `json:"emailEnabled"`
+	EnabledCategories pq.StringArray `json:"enabledCategories"`
+	WarningDays       pq.Int64Array  `json:"warningDays"`
+	CheckHour         int            `json:"checkHour"`
+	CreatedAt         time.Time      `json:"createdAt"`
+	UpdatedAt         time.Time      `json:"updatedAt"`
 }
 
 // IsCategoryEnabled checks if a specific notification category is enabled
