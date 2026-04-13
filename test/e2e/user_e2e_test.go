@@ -129,7 +129,8 @@ func TestUserDeletion(t *testing.T) {
 	})
 }
 
-func TestNotificationPreferences(t *testing.T) {
+// TestNotificationPreferences — basic smoke test (comprehensive tests in notification_e2e_test.go)
+func TestNotificationPreferencesSmoke(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("notif"), "SecurePass123!", "Notif")
 
@@ -140,7 +141,7 @@ func TestNotificationPreferences(t *testing.T) {
 
 	t.Run("update preferences", func(t *testing.T) {
 		resp := c.PATCH("/users/me/notifications", map[string]interface{}{
-			"emailEnabled": false, "currencyWarnings": false, "credentialWarnings": true, "warningDays": []int{30, 14, 7},
+			"emailEnabled": false, "enabledCategories": []string{"credential_medical", "rating_expiry"}, "warningDays": []int{30, 14, 7}, "checkHour": 10,
 		})
 		requireStatus(t, resp, http.StatusOK)
 	})
