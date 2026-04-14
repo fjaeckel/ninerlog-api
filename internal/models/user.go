@@ -21,6 +21,8 @@ type User struct {
 	Disabled            bool           `json:"disabled"`
 	LastLoginAt         *time.Time     `json:"lastLoginAt,omitempty"`
 	TimeDisplayFormat   string         `json:"timeDisplayFormat"`
+	DateFormat          string         `json:"dateFormat"`
+	DecimalSeparator    string         `json:"decimalSeparator"`
 	PreferredLocale     string         `json:"preferredLocale"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`

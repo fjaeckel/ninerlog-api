@@ -51,7 +51,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, preferred_locale, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -70,6 +70,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.Disabled,
 		&user.LastLoginAt,
 		&user.TimeDisplayFormat,
+		&user.DateFormat,
+		&user.DecimalSeparator,
 		&user.PreferredLocale,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -88,7 +90,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, preferred_locale, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -107,6 +109,8 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.Disabled,
 		&user.LastLoginAt,
 		&user.TimeDisplayFormat,
+		&user.DateFormat,
+		&user.DecimalSeparator,
 		&user.PreferredLocale,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -127,8 +131,8 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		UPDATE users
 		SET email = $1, password_hash = $2, name = $3, two_factor_enabled = $4,
 		    two_factor_secret = $5, recovery_codes = $6, disabled = $7,
-		    last_login_at = $8, time_display_format = $9, preferred_locale = $10, updated_at = $11
-		WHERE id = $12
+		    last_login_at = $8, time_display_format = $9, date_format = $10, decimal_separator = $11, preferred_locale = $12, updated_at = $13
+		WHERE id = $14
 	`
 
 	result, err := r.db.ExecContext(ctx, query,
@@ -141,6 +145,8 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.Disabled,
 		user.LastLoginAt,
 		user.TimeDisplayFormat,
+		user.DateFormat,
+		user.DecimalSeparator,
 		user.PreferredLocale,
 		user.UpdatedAt,
 		user.ID,
