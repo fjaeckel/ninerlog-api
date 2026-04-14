@@ -64,6 +64,18 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 			user.TimeDisplayFormat = format
 		}
 	}
+	if req.DateFormat != nil {
+		df := string(*req.DateFormat)
+		if df == "DD.MM.YYYY" || df == "MM/DD/YYYY" || df == "YYYY-MM-DD" {
+			user.DateFormat = df
+		}
+	}
+	if req.DecimalSeparator != nil {
+		ds := string(*req.DecimalSeparator)
+		if ds == "comma" || ds == "dot" {
+			user.DecimalSeparator = ds
+		}
+	}
 	if req.PreferredLocale != nil {
 		locale := string(*req.PreferredLocale)
 		if locale == "en" || locale == "de" {
