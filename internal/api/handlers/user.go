@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
@@ -81,4 +82,44 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, h.buildUserResponse(user))
+}
+
+// GetMyStatistics implements GET /users/me/statistics
+func (h *APIHandler) GetMyStatistics(c *gin.Context, params generated.GetMyStatisticsParams) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var startDate, endDate *time.Time
+	if params.StartDate != nil {
+		t := params.StartDate.Time
+		startDate = &t
+	}
+	if params.EndDate != nil {
+		t := params.EndDate.Time
+		endDate = &t
+	}
+
+	stats, err := h.flightService.GetStatsByUserID(c.Request.Context(), userID, startDate, endDate)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to calculate statistics")
+		return
+	}
+
+	statistics := generated.Statistics{
+		TotalFlights:        stats.TotalFlights,
+		TotalMinutes:        stats.TotalMinutes,
+		PicMinutes:          stats.PICMinutes,
+		DualMinutes:         stats.DualMinutes,
+		NightMinutes:        stats.NightMinutes,
+		IfrMinutes:          stats.IFRMinutes,
+		SoloMinutes:         ptrInt(stats.SoloMinutes),
+		CrossCountryMinutes: ptrInt(stats.CrossCountryMinutes),
+		LandingsDay:         stats.LandingsDay,
+		LandingsNight:       stats.LandingsNight,
+	}
+
+	c.JSON(http.StatusOK, statistics)
 }
