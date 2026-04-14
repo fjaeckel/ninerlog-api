@@ -248,6 +248,9 @@ type ServerInterface interface {
 	// Get notification history
 	// (GET /users/me/notifications/history)
 	GetNotificationHistory(c *gin.Context, params GetNotificationHistoryParams)
+	// Get current user's flight statistics
+	// (GET /users/me/statistics)
+	GetMyStatistics(c *gin.Context, params GetMyStatisticsParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -2091,6 +2094,42 @@ func (siw *ServerInterfaceWrapper) GetNotificationHistory(c *gin.Context) {
 	siw.Handler.GetNotificationHistory(c, params)
 }
 
+// GetMyStatistics operation middleware
+func (siw *ServerInterfaceWrapper) GetMyStatistics(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMyStatisticsParams
+
+	// ------------- Optional query parameter "startDate" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "startDate", c.Request.URL.Query(), &params.StartDate)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter startDate: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "endDate", c.Request.URL.Query(), &params.EndDate)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter endDate: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMyStatistics(c, params)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -2196,4 +2235,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/users/me/notifications", wrapper.GetNotificationPreferences)
 	router.PATCH(options.BaseURL+"/users/me/notifications", wrapper.UpdateNotificationPreferences)
 	router.GET(options.BaseURL+"/users/me/notifications/history", wrapper.GetNotificationHistory)
+	router.GET(options.BaseURL+"/users/me/statistics", wrapper.GetMyStatistics)
 }

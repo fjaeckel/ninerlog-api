@@ -2046,6 +2046,15 @@ type GetNotificationHistoryParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// GetMyStatisticsParams defines parameters for GetMyStatistics.
+type GetMyStatisticsParams struct {
+	// StartDate Filter from this date (inclusive)
+	StartDate *openapi_types.Date `form:"startDate,omitempty" json:"startDate,omitempty"`
+
+	// EndDate Filter to this date (inclusive)
+	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
+}
+
 // CreateAnnouncementJSONRequestBody defines body for CreateAnnouncement for application/json ContentType.
 type CreateAnnouncementJSONRequestBody CreateAnnouncementJSONBody
 
