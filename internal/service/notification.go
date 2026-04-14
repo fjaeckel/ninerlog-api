@@ -158,6 +158,12 @@ func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *
 		return
 	}
 
+	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	tmpl := email.Templates(user.PreferredLocale)
+
 	now := time.Now()
 	for _, cred := range credentials {
 		if cred.ExpiryDate == nil {
@@ -182,13 +188,12 @@ func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *
 					continue
 				}
 
-				subject := fmt.Sprintf("NinerLog: %s expires in %d days", cred.CredentialType, daysUntilExpiry)
-				body := fmt.Sprintf(`<h2>Credential Expiry Warning</h2>
-					<p>Hi %s,</p>
-					<p>Your <strong>%s</strong> expires on <strong>%s</strong> (%d days from now).</p>
-					<p>Please renew it before it expires to maintain compliance.</p>
-					<p>— NinerLog</p>`,
-					userName, cred.CredentialType, cred.ExpiryDate.Format("02 Jan 2006"), daysUntilExpiry)
+				subject, body := tmpl.CredentialExpiry(email.CredentialExpiryParams{
+					UserName:       userName,
+					CredentialType: string(cred.CredentialType),
+					ExpiryDate:     formatDateForUser(expiryDate, user.DateFormat),
+					DaysRemaining:  daysUntilExpiry,
+				})
 
 				if err := s.emailSender.Send(userEmail, subject, body); err != nil {
 					log.Printf("🔔 Failed to send credential warning email: %v", err)
@@ -244,20 +249,27 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 		return // No notification needed
 	}
 
+	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	tmpl := email.Templates(user.PreferredLocale)
+
 	// Rating expiry notification
 	if rating.ExpiryDate != nil && prefs.IsCategoryEnabled(models.NotifCategoryRatingExpiry) {
 		expiryTime, err := time.Parse("2006-01-02", *rating.ExpiryDate)
 		if err == nil {
 			daysUntilExpiry := int(time.Until(expiryTime).Hours() / 24)
+			subject, body := tmpl.RatingExpiry(email.RatingExpiryParams{
+				UserName:      userName,
+				LicenseType:   rating.LicenseType,
+				ClassType:     string(rating.ClassType),
+				ExpiryDate:    formatDateForUser(expiryTime, user.DateFormat),
+				DaysRemaining: daysUntilExpiry,
+			})
 			s.sendWarningForDays(ctx, prefs, models.NotifCategoryRatingExpiry, rating.ClassRatingID,
 				"rating", daysUntilExpiry, &expiryTime,
-				fmt.Sprintf("NinerLog: %s %s rating expires in %%d days", rating.LicenseType, rating.ClassType),
-				fmt.Sprintf(`<h2>Class Rating Expiry Warning</h2>
-					<p>Hi %s,</p>
-					<p>Your <strong>%s %s</strong> rating expires on <strong>%s</strong>.</p>
-					<p>Complete the required revalidation flights or proficiency check before expiry.</p>
-					<p>— NinerLog</p>`, userName, rating.LicenseType, rating.ClassType, expiryTime.Format("02 Jan 2006")),
-				userEmail)
+				subject, body, userEmail)
 		}
 	}
 
@@ -270,11 +282,12 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 			return
 		}
 
-		subject := fmt.Sprintf("NinerLog: %s %s — revalidation requirements need attention", rating.LicenseType, rating.ClassType)
-		body := fmt.Sprintf(`<h2>Currency Revalidation Warning</h2>
-			<p>Hi %s,</p>
-			<p>Your <strong>%s %s</strong> rating currency needs attention: %s</p>
-			<p>— NinerLog</p>`, userName, rating.LicenseType, rating.ClassType, rating.Message)
+		subject, body := tmpl.Revalidation(email.RevalidationParams{
+			UserName:    userName,
+			LicenseType: rating.LicenseType,
+			ClassType:   string(rating.ClassType),
+			Message:     rating.Message,
+		})
 
 		if err := s.emailSender.Send(userEmail, subject, body); err != nil {
 			log.Printf("🔔 Failed to send revalidation warning email: %v", err)
@@ -294,6 +307,12 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 }
 
 func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs *models.NotificationPreferences, pax currency.PassengerCurrency, userEmail, userName string) {
+	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	tmpl := email.Templates(user.PreferredLocale)
+
 	// Day passenger currency
 	if pax.DayStatus != currency.StatusCurrent && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
 		// Generate a stable reference ID from class type + authority
@@ -305,12 +324,14 @@ func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs 
 
 		{
 			remaining := pax.DayRequired - pax.DayLandings
-			subject := fmt.Sprintf("NinerLog: %s passenger currency — %d more landings needed", pax.ClassType, remaining)
-			body := fmt.Sprintf(`<h2>Passenger Currency Warning</h2>
-				<p>Hi %s,</p>
-				<p>Your <strong>%s</strong> day passenger currency requires attention.</p>
-				<p>You have <strong>%d day landings</strong> in the last 90 days. You need <strong>%d more</strong> to carry passengers.</p>
-				<p>— NinerLog</p>`, userName, pax.ClassType, pax.DayLandings, remaining)
+			subject, body := tmpl.PassengerCurrency(email.PassengerCurrencyParams{
+				UserName:  userName,
+				ClassType: string(pax.ClassType),
+				Landings:  pax.DayLandings,
+				Required:  pax.DayRequired,
+				Remaining: remaining,
+				Period:    "day",
+			})
 
 			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
 				log.Printf("🔔 Failed to send passenger currency email: %v", err)
@@ -338,12 +359,14 @@ checkNight:
 		}
 
 		remaining := pax.NightRequired - pax.NightLandings
-		subject := fmt.Sprintf("NinerLog: %s night currency — %d more landings needed", pax.ClassType, remaining)
-		body := fmt.Sprintf(`<h2>Night Currency Warning</h2>
-			<p>Hi %s,</p>
-			<p>Your <strong>%s</strong> night passenger currency requires attention.</p>
-			<p>You have <strong>%d night landings</strong> in the last 90 days. You need <strong>%d more</strong> for night passenger carrying.</p>
-			<p>— NinerLog</p>`, userName, pax.ClassType, pax.NightLandings, remaining)
+		subject, body := tmpl.PassengerCurrency(email.PassengerCurrencyParams{
+			UserName:  userName,
+			ClassType: string(pax.ClassType),
+			Landings:  pax.NightLandings,
+			Required:  pax.NightRequired,
+			Remaining: remaining,
+			Period:    "night",
+		})
 
 		if err := s.emailSender.Send(userEmail, subject, body); err != nil {
 			log.Printf("🔔 Failed to send night currency email: %v", err)
@@ -372,20 +395,25 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 
 	refID := uuidFromString("flight_review:" + prefs.UserID.String())
 
+	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	tmpl := email.Templates(user.PreferredLocale)
+
 	// Parse expiry to get days-based warning
 	if fr.ExpiresOn != nil {
 		expiryTime, err := time.Parse("2006-01-02", *fr.ExpiresOn)
 		if err == nil {
 			daysUntilExpiry := int(time.Until(expiryTime).Hours() / 24)
+			subject, body := tmpl.FlightReviewExpiry(email.FlightReviewExpiryParams{
+				UserName:      userName,
+				ExpiryDate:    formatDateForUser(expiryTime, user.DateFormat),
+				DaysRemaining: daysUntilExpiry,
+			})
 			s.sendWarningForDays(ctx, prefs, models.NotifCategoryCurrencyFlightReview, refID,
 				"flight_review", daysUntilExpiry, &expiryTime,
-				"NinerLog: Flight review expires in %d days",
-				fmt.Sprintf(`<h2>Flight Review Expiry Warning</h2>
-					<p>Hi %s,</p>
-					<p>Your flight review expires on <strong>%s</strong>.</p>
-					<p>Complete a flight review (14 CFR §61.56) before expiry to maintain flying privileges.</p>
-					<p>— NinerLog</p>`, userName, expiryTime.Format("02 Jan 2006")),
-				userEmail)
+				subject, body, userEmail)
 			return
 		}
 	}
@@ -402,6 +430,14 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 		<p>%s</p>
 		<p>Complete a flight review (14 CFR §61.56) to regain flying privileges.</p>
 		<p>— NinerLog</p>`, userName, fr.Message)
+	// Use locale-aware template if available
+	if user != nil {
+		tmplFR := email.Templates(user.PreferredLocale)
+		subject, body = tmplFR.FlightReviewRequired(email.FlightReviewRequiredParams{
+			UserName: userName,
+			Message:  fr.Message,
+		})
+	}
 
 	if err := s.emailSender.Send(userEmail, subject, body); err != nil {
 		log.Printf("🔔 Failed to send flight review email: %v", err)
@@ -420,7 +456,7 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 }
 
 // sendWarningForDays checks warning day thresholds and sends the first matching notification
-func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *models.NotificationPreferences, category models.NotificationCategory, refID uuid.UUID, refType string, daysUntilExpiry int, expiryDate *time.Time, subjectTemplate, body, userEmail string) {
+func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *models.NotificationPreferences, category models.NotificationCategory, refID uuid.UUID, refType string, daysUntilExpiry int, expiryDate *time.Time, subject, body, userEmail string) {
 	for _, warningDay := range prefs.WarningDays {
 		wd := int(warningDay)
 		if daysUntilExpiry <= wd && daysUntilExpiry >= 0 {
@@ -428,8 +464,6 @@ func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *mod
 			if err != nil || sent {
 				continue
 			}
-
-			subject := fmt.Sprintf(subjectTemplate, daysUntilExpiry)
 
 			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
 				log.Printf("🔔 Failed to send %s warning email: %v", category, err)
@@ -470,4 +504,18 @@ func parseCheckInterval(s string) (time.Duration, error) {
 		return time.Duration(mins) * time.Minute, nil
 	}
 	return 0, fmt.Errorf("invalid check interval: %s", s)
+}
+
+// formatDateForUser formats a time.Time using the user's preferred date format.
+func formatDateForUser(t time.Time, dateFormat string) string {
+	switch dateFormat {
+	case "DD.MM.YYYY":
+		return t.Format("02.01.2006")
+	case "MM/DD/YYYY":
+		return t.Format("01/02/2006")
+	case "YYYY-MM-DD":
+		return t.Format("2006-01-02")
+	default:
+		return t.Format("02.01.2006")
+	}
 }
