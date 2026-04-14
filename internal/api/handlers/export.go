@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
@@ -12,6 +13,31 @@ import (
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 )
+
+// exportPrefs holds user formatting preferences for export.
+type exportPrefs struct {
+	DateFormat       string // "DD.MM.YYYY", "MM/DD/YYYY", "YYYY-MM-DD"
+	DecimalSeparator string // "comma" or "dot"
+}
+
+func (p exportPrefs) formatDate(t time.Time) string {
+	switch p.DateFormat {
+	case "MM/DD/YYYY":
+		return t.Format("01/02/2006")
+	case "YYYY-MM-DD":
+		return t.Format("2006-01-02")
+	default: // DD.MM.YYYY
+		return t.Format("02.01.2006")
+	}
+}
+
+func (p exportPrefs) formatDecimal(minutes int) string {
+	s := duration.FormatDecimal(minutes)
+	if p.DecimalSeparator == "comma" {
+		return strings.Replace(s, ".", ",", 1)
+	}
+	return s
+}
 
 // ExportFlightsCSV implements GET /exports/csv
 func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFlightsCSVParams) {
@@ -27,6 +53,17 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 		return
 	}
 
+	// Fetch user preferences for formatting
+	prefs := exportPrefs{DateFormat: "DD.MM.YYYY", DecimalSeparator: "dot"}
+	if user, err := h.authService.GetUserByID(c.Request.Context(), userID); err == nil && user != nil {
+		if user.DateFormat != "" {
+			prefs.DateFormat = user.DateFormat
+		}
+		if user.DecimalSeparator != "" {
+			prefs.DecimalSeparator = user.DecimalSeparator
+		}
+	}
+
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_flights_%s.csv", time.Now().Format("2006-01-02")))
 
@@ -39,17 +76,17 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 
 	switch format {
 	case "easa":
-		writeEASACSV(w, flights)
+		writeEASACSV(w, flights, prefs)
 	case "faa":
-		writeFAACSV(w, flights)
+		writeFAACSV(w, flights, prefs)
 	default:
-		writeStandardCSV(w, flights)
+		writeStandardCSV(w, flights, prefs)
 	}
 
 	w.Flush()
 }
 
-func writeStandardCSV(w *csv.Writer, flights []*models.Flight) {
+func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 	// Header row — compatible with ForeFlight import format
 	headers := []string{
 		"Date", "AircraftID", "AircraftType", "From", "To", "Route",
@@ -117,7 +154,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight) {
 		}
 
 		row := []string{
-			f.Date.Format("2006-01-02"),
+			prefs.formatDate(f.Date),
 			f.AircraftReg,
 			f.AircraftType,
 			dep,
@@ -127,34 +164,34 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight) {
 			depTime,
 			arrTime,
 			onBlock,
-			duration.FormatDecimal(f.TotalTime),
-			duration.FormatDecimal(f.PICTime),
-			duration.FormatDecimal(f.SICTime),
-			duration.FormatDecimal(f.NightTime),
-			duration.FormatDecimal(f.SoloTime),
-			duration.FormatDecimal(f.CrossCountryTime),
+			prefs.formatDecimal(f.TotalTime),
+			prefs.formatDecimal(f.PICTime),
+			prefs.formatDecimal(f.SICTime),
+			prefs.formatDecimal(f.NightTime),
+			prefs.formatDecimal(f.SoloTime),
+			prefs.formatDecimal(f.CrossCountryTime),
 			fmt.Sprintf("%.1f", f.Distance),
 			fmt.Sprintf("%d", f.TakeoffsDay),
 			fmt.Sprintf("%d", f.LandingsDay),
 			fmt.Sprintf("%d", f.TakeoffsNight),
 			fmt.Sprintf("%d", f.LandingsNight),
 			fmt.Sprintf("%d", f.AllLandings),
-			duration.FormatDecimal(f.ActualInstrumentTime),
-			duration.FormatDecimal(f.SimulatedInstrumentTime),
+			prefs.formatDecimal(f.ActualInstrumentTime),
+			prefs.formatDecimal(f.SimulatedInstrumentTime),
 			fmt.Sprintf("%d", f.Holds),
 			fmt.Sprintf("%d", f.ApproachesCount),
-			duration.FormatDecimal(f.DualGivenTime),
-			duration.FormatDecimal(f.DualTime),
-			duration.FormatDecimal(f.SimulatedFlightTime),
-			duration.FormatDecimal(f.GroundTrainingTime),
+			prefs.formatDecimal(f.DualGivenTime),
+			prefs.formatDecimal(f.DualTime),
+			prefs.formatDecimal(f.SimulatedFlightTime),
+			prefs.formatDecimal(f.GroundTrainingTime),
 			instrName,
 			instrComments,
 			fmt.Sprintf("%t", f.IsFlightReview),
 			fmt.Sprintf("%t", f.IsIPC),
-			duration.FormatDecimal(f.IFRTime),
+			prefs.formatDecimal(f.IFRTime),
 			remarks,
 			picName,
-			duration.FormatDecimal(f.MultiPilotTime),
+			prefs.formatDecimal(f.MultiPilotTime),
 			fstdType,
 			endorsements,
 		}
@@ -162,7 +199,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight) {
 	}
 }
 
-func writeEASACSV(w *csv.Writer, flights []*models.Flight) {
+func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 	// EASA AMC1 FCL.050 columns (24 cols)
 	headers := []string{
 		"Date", "Dep Place", "Dep Time", "Arr Place", "Arr Time",
@@ -230,7 +267,7 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight) {
 	}
 }
 
-func writeFAACSV(w *csv.Writer, flights []*models.Flight) {
+func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 	// FAA standard logbook columns (ASA/Jeppesen layout)
 	headers := []string{
 		"Date", "A/C Type", "A/C Ident", "From", "To",
