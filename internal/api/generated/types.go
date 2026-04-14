@@ -205,6 +205,19 @@ const (
 	Unknown  PassengerCurrencyNightStatus = "unknown"
 )
 
+// Defines values for UserDateFormat.
+const (
+	UserDateFormatDDMMYYYY UserDateFormat = "DD.MM.YYYY"
+	UserDateFormatMMDDYYYY UserDateFormat = "MM/DD/YYYY"
+	UserDateFormatYYYYMMDD UserDateFormat = "YYYY-MM-DD"
+)
+
+// Defines values for UserDecimalSeparator.
+const (
+	UserDecimalSeparatorComma UserDecimalSeparator = "comma"
+	UserDecimalSeparatorDot   UserDecimalSeparator = "dot"
+)
+
 // Defines values for UserPreferredLocale.
 const (
 	UserPreferredLocaleDe UserPreferredLocale = "de"
@@ -250,6 +263,19 @@ const (
 const (
 	Asc  ListFlightsParamsSortOrder = "asc"
 	Desc ListFlightsParamsSortOrder = "desc"
+)
+
+// Defines values for UpdateCurrentUserJSONBodyDateFormat.
+const (
+	UpdateCurrentUserJSONBodyDateFormatDDMMYYYY UpdateCurrentUserJSONBodyDateFormat = "DD.MM.YYYY"
+	UpdateCurrentUserJSONBodyDateFormatMMDDYYYY UpdateCurrentUserJSONBodyDateFormat = "MM/DD/YYYY"
+	UpdateCurrentUserJSONBodyDateFormatYYYYMMDD UpdateCurrentUserJSONBodyDateFormat = "YYYY-MM-DD"
+)
+
+// Defines values for UpdateCurrentUserJSONBodyDecimalSeparator.
+const (
+	UpdateCurrentUserJSONBodyDecimalSeparatorComma UpdateCurrentUserJSONBodyDecimalSeparator = "comma"
+	UpdateCurrentUserJSONBodyDecimalSeparatorDot   UpdateCurrentUserJSONBodyDecimalSeparator = "dot"
 )
 
 // Defines values for UpdateCurrentUserJSONBodyPreferredLocale.
@@ -1753,9 +1779,15 @@ type TwoFactorSetup struct {
 
 // User defines model for User.
 type User struct {
-	CreatedAt time.Time           `json:"createdAt"`
-	Email     openapi_types.Email `json:"email"`
-	Id        openapi_types.UUID  `json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DateFormat User's preferred date display format.
+	DateFormat *UserDateFormat `json:"dateFormat,omitempty"`
+
+	// DecimalSeparator User's preferred decimal separator for number display. "comma" for European style (1,5), "dot" for US/UK style (1.5).
+	DecimalSeparator *UserDecimalSeparator `json:"decimalSeparator,omitempty"`
+	Email            openapi_types.Email   `json:"email"`
+	Id               openapi_types.UUID    `json:"id"`
 
 	// IsAdmin Whether this user is the platform admin (computed from ADMIN_EMAIL env var, not stored in DB)
 	IsAdmin *bool  `json:"isAdmin,omitempty"`
@@ -1771,6 +1803,12 @@ type User struct {
 	TwoFactorEnabled *bool     `json:"twoFactorEnabled,omitempty"`
 	UpdatedAt        time.Time `json:"updatedAt"`
 }
+
+// UserDateFormat User's preferred date display format.
+type UserDateFormat string
+
+// UserDecimalSeparator User's preferred decimal separator for number display. "comma" for European style (1,5), "dot" for US/UK style (1.5).
+type UserDecimalSeparator string
 
 // UserPreferredLocale User's preferred language for the interface.
 type UserPreferredLocale string
@@ -2021,8 +2059,13 @@ type DeleteCurrentUserJSONBody struct {
 
 // UpdateCurrentUserJSONBody defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBody struct {
-	Email *openapi_types.Email `json:"email,omitempty"`
-	Name  *string              `json:"name,omitempty"`
+	// DateFormat Preferred date display format
+	DateFormat *UpdateCurrentUserJSONBodyDateFormat `json:"dateFormat,omitempty"`
+
+	// DecimalSeparator Preferred decimal separator for number display
+	DecimalSeparator *UpdateCurrentUserJSONBodyDecimalSeparator `json:"decimalSeparator,omitempty"`
+	Email            *openapi_types.Email                       `json:"email,omitempty"`
+	Name             *string                                    `json:"name,omitempty"`
 
 	// PreferredLocale Preferred language for the interface
 	PreferredLocale *UpdateCurrentUserJSONBodyPreferredLocale `json:"preferredLocale,omitempty"`
@@ -2030,6 +2073,12 @@ type UpdateCurrentUserJSONBody struct {
 	// TimeDisplayFormat Preferred time display format
 	TimeDisplayFormat *UpdateCurrentUserJSONBodyTimeDisplayFormat `json:"timeDisplayFormat,omitempty"`
 }
+
+// UpdateCurrentUserJSONBodyDateFormat defines parameters for UpdateCurrentUser.
+type UpdateCurrentUserJSONBodyDateFormat string
+
+// UpdateCurrentUserJSONBodyDecimalSeparator defines parameters for UpdateCurrentUser.
+type UpdateCurrentUserJSONBodyDecimalSeparator string
 
 // UpdateCurrentUserJSONBodyPreferredLocale defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyPreferredLocale string
