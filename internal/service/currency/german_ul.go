@@ -41,6 +41,7 @@ func (e *GermanULEvaluator) Evaluate(ctx context.Context, rating *models.ClassRa
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
 		RuleDescription:     "Erfordert 12h Flugzeit + 12 Starts & Landungen + 1h Übungsflug mit Fluglehrer in 24 Monaten (LuftPersV §45)",
+		RuleDescriptionKey:  "ul_luftpersv",
 	}
 
 	// Rolling 24 months from now (same pattern as EASA LAPL)
@@ -98,6 +99,7 @@ func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, class
 		NightRequired:       0,
 		NightPrivilege:      false, // UL — no night flying
 		RuleDescription:     "Passagierberechtigung erforderlich — 3 Starts & Landungen in 90 Tagen (Passagierflugberechtigung nach LuftPersV)",
+		RuleDescriptionKey:  "ul_pax",
 	}
 
 	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, classType, since)

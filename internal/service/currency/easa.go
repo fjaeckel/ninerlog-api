@@ -29,6 +29,7 @@ func (e *EASAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
 		RuleDescription:     easaRuleDescription(rating.ClassType),
+		RuleDescriptionKey:  easaRuleDescriptionKey(rating.ClassType),
 	}
 
 	if rating.ExpiryDate != nil {
@@ -47,6 +48,7 @@ func (e *EASAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating
 	// LAPL uses FCL.140.A (rolling 24 months from now, no PIC requirement)
 	if lt == "LAPL" || lt == "LAPL(A)" {
 		result.RuleDescription = "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor within the last 24 months (EASA FCL.140.A)"
+		result.RuleDescriptionKey = "easa_lapl"
 		return e.evaluateLAPL_A(ctx, rating, license, dataProvider, result)
 	}
 
@@ -54,9 +56,11 @@ func (e *EASAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating
 	if lt == "SPL" || lt == "LAPL(S)" {
 		if rating.ClassType == models.ClassTypeTMG {
 			result.RuleDescription = "Requires 12h flight time + 12 takeoffs & landings on TMG within the last 24 months (EASA FCL.140.S(b)(2))"
+			result.RuleDescriptionKey = "easa_spl_tmg"
 			return e.evaluateSPL_TMG(ctx, rating, license, dataProvider, result)
 		}
 		result.RuleDescription = "Requires 5h PIC flight time + 15 launches + 2 training flights with instructor within the last 24 months (EASA FCL.140.S)"
+		result.RuleDescriptionKey = "easa_spl"
 		return e.evaluateSPL(ctx, rating, license, dataProvider, result)
 	}
 
@@ -483,6 +487,20 @@ func easaRuleDescription(classType models.ClassType) string {
 	}
 }
 
+// easaRuleDescriptionKey returns the i18n key for the rule description
+func easaRuleDescriptionKey(classType models.ClassType) string {
+	switch classType {
+	case models.ClassTypeSEPLand, models.ClassTypeSEPSea, models.ClassTypeTMG:
+		return "easa_sep_tmg"
+	case models.ClassTypeMEPLand, models.ClassTypeMEPSea, models.ClassTypeSETLand, models.ClassTypeSETSea:
+		return "easa_mep_set"
+	case models.ClassTypeIR:
+		return "easa_ir"
+	default:
+		return ""
+	}
+}
+
 // EvaluatePassengerCurrency evaluates EASA FCL.060(b) passenger-carrying recency.
 // This is SEPARATE from rating revalidation — a pilot can have a valid rating but
 // cannot carry passengers without meeting FCL.060(b).
@@ -499,6 +517,7 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 		NightRequired:       3,
 		NightPrivilege:      HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority),
 		RuleDescription:     "3 takeoffs & landings in same type/class within preceding 90 days to carry passengers (EASA FCL.060(b))",
+		RuleDescriptionKey:  "easa_pax",
 	}
 
 	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, classType, since)

@@ -30,6 +30,7 @@ func (e *FAAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating,
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
 		RuleDescription:     faaRuleDescription(rating.ClassType),
+		RuleDescriptionKey:  faaRuleDescriptionKey(rating.ClassType),
 	}
 
 	if rating.ExpiryDate != nil {
@@ -256,6 +257,15 @@ func faaRuleDescription(classType models.ClassType) string {
 	}
 }
 
+func faaRuleDescriptionKey(classType models.ClassType) string {
+	switch classType {
+	case models.ClassTypeIR:
+		return "faa_ir"
+	default:
+		return "faa_pax_day_night"
+	}
+}
+
 // EvaluatePassengerCurrency evaluates FAA §61.57(a)/(b) as Tier 2 passenger currency.
 // This is separate from rating currency — FAA certificates don't expire, so passenger
 // currency IS the primary rolling metric for non-IR class ratings.
@@ -270,6 +280,7 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 		NightRequired:       3,
 		NightPrivilege:      hasNight,
 		RuleDescription:     "3 takeoffs & landings in preceding 90 days for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57(a)/(b))",
+		RuleDescriptionKey:  "faa_pax_day_night",
 	}
 
 	// Suppress night for license types without night privilege

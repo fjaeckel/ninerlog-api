@@ -26,6 +26,7 @@ type ClassRatingCurrency struct {
 	ExpiryDate           *string                `json:"expiryDate,omitempty"`
 	Message              string                 `json:"message"`
 	RuleDescription      string                 `json:"ruleDescription,omitempty"`
+	RuleDescriptionKey   string                 `json:"ruleDescriptionKey,omitempty"`
 	Progress             *Progress              `json:"progress,omitempty"`
 	Requirements         []Requirement          `json:"requirements,omitempty"`
 	LaunchMethodCurrency []LaunchMethodCurrency `json:"launchMethodCurrency,omitempty"`
@@ -87,6 +88,7 @@ type PassengerCurrency struct {
 	NightPrivilege      bool                `json:"nightPrivilege"`
 	Message             string              `json:"message"`
 	RuleDescription     string              `json:"ruleDescription"`
+	RuleDescriptionKey  string              `json:"ruleDescriptionKey,omitempty"`
 	PassengerPrivilege  *PassengerPrivilege `json:"passengerPrivilege,omitempty"`
 }
 
