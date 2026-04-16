@@ -221,7 +221,7 @@ type ServerInterface interface {
 	// Get flight routes for map
 	// (GET /reports/routes)
 	GetFlightRoutes(c *gin.Context)
-	// Get statistics by aircraft class
+	// Get statistics by aircraft class and category
 	// (GET /reports/stats-by-class)
 	GetStatsByClass(c *gin.Context)
 	// Get monthly flight trends

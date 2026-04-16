@@ -46,28 +46,49 @@ func (h *APIHandler) GetFlightTrends(c *gin.Context, params generated.GetFlightT
 	}
 
 	months := 12
-	if params.Months != nil && *params.Months > 0 && *params.Months <= 60 {
+	if params.Months != nil && *params.Months >= 0 && *params.Months <= 600 {
 		months = *params.Months
 	}
 
-	monthlyQuery := `
-		SELECT
-			TO_CHAR(date_trunc('month', date), 'YYYY-MM') AS month,
-			COUNT(*) AS total_flights,
-			COALESCE(SUM(total_time), 0) AS total_minutes,
-			COALESCE(SUM(pic_time), 0) AS pic_minutes,
-			COALESCE(SUM(dual_time), 0) AS dual_minutes,
-			COALESCE(SUM(night_time), 0) AS night_minutes,
-			COALESCE(SUM(ifr_time), 0) AS ifr_minutes,
-			COALESCE(SUM(landings_day), 0) AS landings_day,
-			COALESCE(SUM(landings_night), 0) AS landings_night
-		FROM flights
-		WHERE user_id = $1
-		  AND date >= date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)
-		GROUP BY date_trunc('month', date)
-		ORDER BY date_trunc('month', date) ASC
-	`
-	rows, err := h.db.QueryContext(c.Request.Context(), monthlyQuery, userID, months)
+	var rows *sql.Rows
+	if months == 0 {
+		monthlyQuery := `
+			SELECT
+				TO_CHAR(date_trunc('month', date), 'YYYY-MM') AS month,
+				COUNT(*) AS total_flights,
+				COALESCE(SUM(total_time), 0) AS total_minutes,
+				COALESCE(SUM(pic_time), 0) AS pic_minutes,
+				COALESCE(SUM(dual_time), 0) AS dual_minutes,
+				COALESCE(SUM(night_time), 0) AS night_minutes,
+				COALESCE(SUM(ifr_time), 0) AS ifr_minutes,
+				COALESCE(SUM(landings_day), 0) AS landings_day,
+				COALESCE(SUM(landings_night), 0) AS landings_night
+			FROM flights
+			WHERE user_id = $1
+			GROUP BY date_trunc('month', date)
+			ORDER BY date_trunc('month', date) ASC
+		`
+		rows, err = h.db.QueryContext(c.Request.Context(), monthlyQuery, userID)
+	} else {
+		monthlyQuery := `
+			SELECT
+				TO_CHAR(date_trunc('month', date), 'YYYY-MM') AS month,
+				COUNT(*) AS total_flights,
+				COALESCE(SUM(total_time), 0) AS total_minutes,
+				COALESCE(SUM(pic_time), 0) AS pic_minutes,
+				COALESCE(SUM(dual_time), 0) AS dual_minutes,
+				COALESCE(SUM(night_time), 0) AS night_minutes,
+				COALESCE(SUM(ifr_time), 0) AS ifr_minutes,
+				COALESCE(SUM(landings_day), 0) AS landings_day,
+				COALESCE(SUM(landings_night), 0) AS landings_night
+			FROM flights
+			WHERE user_id = $1
+			  AND date >= date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)
+			GROUP BY date_trunc('month', date)
+			ORDER BY date_trunc('month', date) ASC
+		`
+		rows, err = h.db.QueryContext(c.Request.Context(), monthlyQuery, userID, months)
+	}
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query monthly trends")
 		return
@@ -140,6 +161,7 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context) {
 			COUNT(*) as flights,
 			COALESCE(SUM(f.total_time), 0) as minutes,
 			COALESCE(SUM(f.pic_time), 0) as pic_minutes,
+			COALESCE(SUM(f.dual_time), 0) as dual_minutes,
 			COALESCE(SUM(f.landings_day + f.landings_night), 0) as landings
 		FROM flights f
 		LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
@@ -154,22 +176,68 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context) {
 	defer classRows.Close()
 
 	type ClassStat struct {
-		Class      string `json:"class"`
-		Flights    int    `json:"flights"`
-		Minutes    int    `json:"minutes"`
-		PICMinutes int    `json:"picMinutes"`
-		Landings   int    `json:"landings"`
+		Class       string `json:"class"`
+		Flights     int    `json:"flights"`
+		Minutes     int    `json:"minutes"`
+		PICMinutes  int    `json:"picMinutes"`
+		DualMinutes int    `json:"dualMinutes"`
+		Landings    int    `json:"landings"`
 	}
 	var byClass []ClassStat
 	for classRows.Next() {
 		var cs ClassStat
-		if err := classRows.Scan(&cs.Class, &cs.Flights, &cs.Minutes, &cs.PICMinutes, &cs.Landings); err != nil {
+		if err := classRows.Scan(&cs.Class, &cs.Flights, &cs.Minutes, &cs.PICMinutes, &cs.DualMinutes, &cs.Landings); err != nil {
 			continue
 		}
 		byClass = append(byClass, cs)
 	}
 	if byClass == nil {
 		byClass = []ClassStat{}
+	}
+
+	// Query time by aircraft category (tailwheel, complex, high-performance)
+	categoryRows, err := h.db.QueryContext(c.Request.Context(), `
+		SELECT category, COUNT(*) as flights,
+			COALESCE(SUM(pic_time), 0) as pic_minutes,
+			COALESCE(SUM(dual_time), 0) as dual_minutes
+		FROM (
+			SELECT f.pic_time, f.dual_time, 'Tailwheel' as category
+			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			WHERE f.user_id = $1 AND a.is_tailwheel
+			UNION ALL
+			SELECT f.pic_time, f.dual_time, 'Complex' as category
+			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			WHERE f.user_id = $1 AND a.is_complex
+			UNION ALL
+			SELECT f.pic_time, f.dual_time, 'High Performance' as category
+			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			WHERE f.user_id = $1 AND a.is_high_performance
+		) sub
+		GROUP BY category
+		ORDER BY COALESCE(SUM(pic_time), 0) + COALESCE(SUM(dual_time), 0) DESC
+	`, userID)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to query category stats")
+		return
+	}
+	defer categoryRows.Close()
+
+	type CategoryStat struct {
+		Category    string `json:"category"`
+		Flights     int    `json:"flights"`
+		PICMinutes  int    `json:"picMinutes"`
+		DualMinutes int    `json:"dualMinutes"`
+	}
+	var byCategory []CategoryStat
+	for categoryRows.Next() {
+		var cs CategoryStat
+		if err := categoryRows.Scan(&cs.Category, &cs.Flights, &cs.PICMinutes, &cs.DualMinutes); err != nil {
+			continue
+		}
+		byCategory = append(byCategory, cs)
+	}
+	if byCategory == nil {
+		byCategory = []CategoryStat{}
 	}
 
 	licenses, _ := h.licenseService.ListLicenses(c.Request.Context(), userID)
@@ -207,6 +275,7 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"byClass":     byClass,
+		"byCategory":  byCategory,
 		"byAuthority": byAuthority,
 	})
 }
