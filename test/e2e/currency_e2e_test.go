@@ -698,11 +698,6 @@ func TestEASA_MEP_InsufficientSectors(t *testing.T) {
 // ─── EASA IR ─────────────────────────────────────────────────────────────────
 
 // TestEASA_IR_Current — FCL.625.A: 10h IFR + proficiency check in 12mo before expiry.
-// KNOWN REGRESSION: GetLastProficiencyCheck filters by aircraft_class='IR', but no
-// aircraft has class "IR" — it's a rating type, not an aircraft class. So the prof
-// check can never be found via the SQL query. This means EASA IR can never show
-// "current" even with a valid proficiency check flight.
-// When this bug is fixed, this test should assert "current".
 func TestEASA_IR_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "easa-ir-cur")
 	createAircraftCur(t, c, "D-EIRC", "C172", "SEP_LAND")
@@ -731,13 +726,6 @@ func TestEASA_IR_Current(t *testing.T) {
 	rc := findRatingCur(result, "IR")
 	if rc == nil {
 		t.Fatal("IR rating currency not found")
-	}
-	// REGRESSION: Prof check never found because GetLastProficiencyCheck
-	// queries aircraft_class='IR' which no aircraft has.
-	// IFR hours ARE met, so status is "expiring" (prof check missing).
-	// When fixed: assertStr(t, "status", rc["status"], "current")
-	if rc["status"].(string) == "expiring" {
-		t.Skip("REGRESSION: EASA IR proficiency check not found — GetLastProficiencyCheck filters by aircraft_class='IR' but no aircraft has that class")
 	}
 	assertStr(t, "status", rc["status"], "current")
 }
@@ -817,7 +805,6 @@ func TestEASA_IR_Expired(t *testing.T) {
 }
 
 // TestEASA_IR_CrossClass — IFR time counted across all aircraft classes (FCL.625.A).
-// KNOWN REGRESSION: Same IR prof check issue as TestEASA_IR_Current.
 func TestEASA_IR_CrossClass(t *testing.T) {
 	c := setupCurrencyUser(t, "easa-ir-xclass")
 	createAircraftCur(t, c, "D-EXCA", "C172", "SEP_LAND")
@@ -855,11 +842,6 @@ func TestEASA_IR_CrossClass(t *testing.T) {
 	rc := findRatingCur(result, "IR")
 	if rc == nil {
 		t.Fatal("IR not found")
-	}
-	// REGRESSION: Same prof check bug — IFR hours met but prof check never found.
-	// When fixed: assertStr(t, "status", rc["status"], "current")
-	if rc["status"].(string) == "expiring" {
-		t.Skip("REGRESSION: EASA IR proficiency check not found — GetLastProficiencyCheck filters by aircraft_class='IR' but no aircraft has that class")
 	}
 	assertStr(t, "status", rc["status"], "current")
 }
@@ -1918,9 +1900,6 @@ func TestFAA_ATPSameAsPrivate(t *testing.T) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // TestGermanUL_DULV_Current — 12h + 12 T&L + 1h instructor in rolling 24mo.
-// KNOWN REGRESSION: GermanULEvaluator is not registered in main.go.
-// The evaluator code exists but is never wired into the registry.
-// Licenses with DULV/DAeC/LBA authorities fall back to OtherEvaluator.
 func TestGermanUL_DULV_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-dulv-cur")
 	createAircraftCur(t, c, "D-MULV", "C42", "SEP_LAND")
@@ -1947,19 +1926,12 @@ func TestGermanUL_DULV_Current(t *testing.T) {
 	result := getCurrencyStatus(t, c)
 	rc := findRatingCur(result, "SEP_LAND")
 	if rc == nil {
-		t.Skip("REGRESSION: German UL (DULV) — GermanULEvaluator not registered in main.go")
-	}
-	// REGRESSION: OtherEvaluator handles DULV instead of GermanULEvaluator.
-	// OtherEvaluator returns "unknown" since there's no expiry date.
-	// When GermanULEvaluator is registered, this should return "current".
-	if rc["status"].(string) == "unknown" {
-		t.Skip("REGRESSION: German UL (DULV) — GermanULEvaluator not registered in main.go, falls back to OtherEvaluator")
+		t.Fatal("German UL (DULV) SEP_LAND rating currency not found")
 	}
 	assertStr(t, "status", rc["status"], "current")
 }
 
 // TestGermanUL_DAeC_Current — same rules via DAeC authority.
-// KNOWN REGRESSION: Same as DULV — evaluator not registered.
 func TestGermanUL_DAeC_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-daec-cur")
 	createAircraftCur(t, c, "D-MAEC", "C42", "SEP_LAND")
@@ -1986,10 +1958,7 @@ func TestGermanUL_DAeC_Current(t *testing.T) {
 	result := getCurrencyStatus(t, c)
 	rc := findRatingCur(result, "SEP_LAND")
 	if rc == nil {
-		t.Skip("REGRESSION: German UL (DAeC) — GermanULEvaluator not registered in main.go")
-	}
-	if rc["status"].(string) == "unknown" {
-		t.Skip("REGRESSION: German UL (DAeC) — GermanULEvaluator not registered in main.go, falls back to OtherEvaluator")
+		t.Fatal("German UL (DAeC) SEP_LAND rating currency not found")
 	}
 	assertStr(t, "status", rc["status"], "current")
 }
@@ -2012,7 +1981,7 @@ func TestGermanUL_NoNightPrivilege(t *testing.T) {
 	result := getCurrencyStatus(t, c)
 	pc := findPaxCur(result, "SEP_LAND")
 	if pc == nil {
-		t.Skip("German UL passenger currency not found — evaluator may not be registered")
+		t.Fatal("German UL passenger currency not found")
 	}
 	assertBool(t, "nightPrivilege", gb(pc, "nightPrivilege"), false)
 }
