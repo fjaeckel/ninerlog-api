@@ -115,15 +115,32 @@ func (p *postgresFlightDataProvider) GetLastFlightReview(ctx context.Context, us
 }
 
 func (p *postgresFlightDataProvider) GetLastProficiencyCheck(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (*time.Time, error) {
-	query := `
-		SELECT f.date FROM flights f
-		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND a.aircraft_class = $2 AND f.is_proficiency_check = true AND f.date >= $3
-		ORDER BY f.date DESC
-		LIMIT 1
-	`
+	var query string
+	var args []interface{}
+
+	// IR is a rating type, not an aircraft class — prof checks for IR can be on any aircraft.
+	// Skip the aircraft class filter for IR (FCL.625.A is cross-class).
+	if classType == models.ClassTypeIR {
+		query = `
+			SELECT date FROM flights
+			WHERE user_id = $1 AND is_proficiency_check = true AND date >= $2
+			ORDER BY date DESC
+			LIMIT 1
+		`
+		args = []interface{}{userID, since}
+	} else {
+		query = `
+			SELECT f.date FROM flights f
+			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			WHERE f.user_id = $1 AND a.aircraft_class = $2 AND f.is_proficiency_check = true AND f.date >= $3
+			ORDER BY f.date DESC
+			LIMIT 1
+		`
+		args = []interface{}{userID, string(classType), since}
+	}
+
 	var checkDate time.Time
-	err := p.db.QueryRowContext(ctx, query, userID, string(classType), since).Scan(&checkDate)
+	err := p.db.QueryRowContext(ctx, query, args...).Scan(&checkDate)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

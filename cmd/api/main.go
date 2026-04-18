@@ -135,6 +135,8 @@ func main() {
 	currencyRegistry.Register(currency.NewEASAEvaluator())
 	currencyRegistry.Register(currency.NewFAAEvaluator())
 	currencyRegistry.Register(currency.NewOtherEvaluator())
+	ulEval := currency.NewGermanULEvaluator()
+	currencyRegistry.RegisterMulti(ulEval, ulEval.Authorities()...)
 	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
 
 	// Notification service depends on currency service for two-tier evaluation
