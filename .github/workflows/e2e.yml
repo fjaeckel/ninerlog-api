@@ -1,0 +1,78 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_filter:
+        description: 'Test filter pattern (e.g. TestEASA_IR, leave empty for all)'
+        required: false
+        default: ''
+
+concurrency:
+  group: e2e-api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: API E2E Tests
+    runs-on: self-hosted
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Start E2E environment
+        run: |
+          docker compose -f docker-compose.e2e.yaml up --build -d
+
+      - name: Wait for API to be ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3333/health > /dev/null 2>&1; then
+              echo "API is ready"
+              exit 0
+            fi
+            echo "Waiting for API... ($i/60)"
+            sleep 2
+          done
+          echo "API failed to start"
+          docker compose -f docker-compose.e2e.yaml logs api
+          exit 1
+
+      - name: Wait for MailPit to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8025/api/v1/info > /dev/null 2>&1; then
+              echo "MailPit is ready"
+              exit 0
+            fi
+            echo "Waiting for MailPit... ($i/30)"
+            sleep 1
+          done
+          echo "MailPit failed to start"
+          exit 1
+
+      - name: Run E2E tests
+        run: |
+          ARGS="-v -tags=e2e -count=1 -timeout=300s"
+          if [ -n "${{ inputs.test_filter }}" ]; then
+            ARGS="$ARGS -run ${{ inputs.test_filter }}"
+          fi
+          E2E_API_URL=http://localhost:3333 \
+          E2E_MAILPIT_URL=http://localhost:8025 \
+            go test $ARGS ./test/e2e/...
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yaml logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.e2e.yaml down -v --remove-orphans
