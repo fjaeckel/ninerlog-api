@@ -32,6 +32,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: fjaeckel/ninerlog-project
+          token: ${{ secrets.PROJECT_REPO_TOKEN }}
           path: .openapi-spec
           sparse-checkout: |
             api-spec/openapi.yaml
