@@ -16,7 +16,7 @@ jobs:
     
     steps:
       - name: Checkout API repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -29,7 +29,7 @@ jobs:
       - name: Install oapi-codegen
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
       - name: Checkout project repository for OpenAPI spec
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: fjaeckel/ninerlog-project
           token: ${{ secrets.PROJECT_REPO_TOKEN }}
