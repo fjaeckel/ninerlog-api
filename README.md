@@ -131,8 +131,6 @@ See [DOCKER.md](../DOCKER.md) for full deployment guide.
 ## Documentation
 
 - [Running Tests](docs/RUNNING_TESTS.md) — How to run unit, integration, and E2E tests
-- [Testing Guide](docs/TESTING.md) — Test architecture and writing tests
-- [OpenAPI Compliance](docs/OPENAPI_COMPLIANCE.md) — API spec compliance details
 
 ## Related Repositories
 
