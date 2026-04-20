@@ -37,8 +37,8 @@ var enTemplates = templateSet{
 		body := fmt.Sprintf(`<h2>Passenger Currency Warning</h2>
 <p>Hi %s,</p>
 <p>Your <strong>%s</strong> %s passenger currency requires attention.</p>
-<p>You have <strong>%d landings</strong> in the last 90 days. You need <strong>%d more</strong> to carry passengers.</p>
-<p>— NinerLog</p>`, p.UserName, p.ClassType, p.Period, p.Landings, p.Remaining)
+<p>You have <strong>%d %s landings</strong> in the last 90 days. You need <strong>%d more</strong> to carry passengers.</p>
+<p>— NinerLog</p>`, p.UserName, p.ClassType, p.Period, p.Landings, p.Period, p.Remaining)
 		return subject, body
 	},
 

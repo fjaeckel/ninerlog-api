@@ -41,8 +41,8 @@ var deTemplates = templateSet{
 		body := fmt.Sprintf(`<h2>Passagier-Gültigkeitswarnung</h2>
 <p>Hallo %s,</p>
 <p>Ihre <strong>%s</strong> %s-Passagiergültigkeit erfordert Aufmerksamkeit.</p>
-<p>Sie haben <strong>%d Landungen</strong> in den letzten 90 Tagen. Sie benötigen <strong>%d weitere</strong> für die Passagiermitnahme.</p>
-<p>— NinerLog</p>`, p.UserName, p.ClassType, periodDE, p.Landings, p.Remaining)
+<p>Sie haben <strong>%d %s-Landungen</strong> in den letzten 90 Tagen. Sie benötigen <strong>%d weitere</strong> für die Passagiermitnahme.</p>
+<p>— NinerLog</p>`, p.UserName, p.ClassType, periodDE, p.Landings, periodDE, p.Remaining)
 		return subject, body
 	},
 
