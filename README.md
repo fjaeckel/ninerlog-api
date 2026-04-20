@@ -1,10 +1,10 @@
 # NinerLog API
 
-RESTful backend for NinerLog — an EASA/FAA compliant digital pilot logbook with multi-license tracking, currency evaluation, and PDF export.
+RESTful backend for [NinerLog](https://ninerlog.com) — a free, open-source, EASA/FAA compliant digital pilot logbook with multi-license tracking, currency evaluation, and PDF export.
 
 ## Tech Stack
 
-- **Go 1.25** / **Gin** / **PostgreSQL 18**
+- **Go** / **Gin** / **PostgreSQL**
 - **JWT** (access + refresh tokens) with **TOTP 2FA**
 - **lib/pq** (Postgres driver) / **golang-migrate** (schema migrations)
 - **oapi-codegen** (OpenAPI server types) / **kin-openapi** (spec parsing)
@@ -12,8 +12,8 @@ RESTful backend for NinerLog — an EASA/FAA compliant digital pilot logbook wit
 
 ## Prerequisites
 
-- Go 1.25+
-- PostgreSQL 18
+- Go
+- PostgreSQL
 - Docker & Docker Compose (recommended)
 
 ## Quick Start
@@ -99,40 +99,40 @@ test/e2e/                    # End-to-end tests
 | **Import** | CSV flight log import |
 | **Export** | Logbook PDF export |
 
-All endpoints are under `/api/v1`. Health check at `GET /health`.
-
 ## Environment Variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_URL` | `postgresql://ninerlog:changeme@localhost:5432/ninerlog?sslmode=disable` | PostgreSQL connection |
-| `PORT` | `3000` | Server port |
-| `JWT_SECRET` | — | Access token signing secret |
-| `REFRESH_SECRET` | — | Refresh token signing secret |
-| `CORS_ORIGIN` | `http://localhost:5173` | Comma-separated allowed origins |
-| `MIGRATIONS_PATH` | `db/migrations` | Path to migration files |
-| `SMTP_HOST` | — | SMTP server (for password reset emails) |
-| `SMTP_PORT` | `587` | SMTP port |
-| `SMTP_USERNAME` | — | SMTP username |
-| `SMTP_PASSWORD` | — | SMTP password |
-| `SMTP_FROM` | `noreply@ninerlog.app` | Sender address |
+See `.env.example` for a complete list of configuration options including database connection, JWT secrets, CORS settings, SMTP configuration, and TLS settings.
 
 ## Docker
 
-Multi-stage build: `golang:1.25-alpine` (build) → `alpine:3.19` (runtime). Runs as non-root user. Health check via `wget` on `/health`.
-
 ```bash
-# Build and run with Docker Compose (from workspace root)
-docker compose -f docker-compose.dev.yml up -d
-```
+# Build and run with Docker Compose
+docker compose up -d
 
-See [DOCKER.md](../DOCKER.md) for full deployment guide.
+# Or build the image directly
+docker build -t ninerlog-api .
+```
 
 ## Documentation
 
-- [Running Tests](docs/RUNNING_TESTS.md) — How to run unit, integration, and E2E tests
+- [Running Tests](docs/RUNNING_TESTS.md) — Unit, integration, and E2E testing guide
+- [API Specification](https://github.com/fjaeckel/ninerlog-project/blob/main/api-spec/openapi.yaml) — OpenAPI 3.1 spec (source of truth)
+- [OpenAPI Quick Reference](https://github.com/fjaeckel/ninerlog-project/blob/main/OPENAPI_QUICKREF.md) — Code generation workflow
+- [Architecture](https://github.com/fjaeckel/ninerlog-project/blob/main/docs/architecture/README.md) — System design decisions
+- [Database Schema](https://github.com/fjaeckel/ninerlog-project/blob/main/docs/database/schema.md) — PostgreSQL schema documentation
 
 ## Related Repositories
 
-- [ninerlog-project](../ninerlog-project) — OpenAPI spec & project planning
-- [ninerlog-frontend](../ninerlog-frontend) — React/TypeScript web frontend
+| Repository | Description |
+|---|---|
+| [ninerlog-project](https://github.com/fjaeckel/ninerlog-project) | Project planning, documentation, OpenAPI spec |
+| [ninerlog-frontend](https://github.com/fjaeckel/ninerlog-frontend) | React/TypeScript PWA frontend |
+| [ninerlog-website](https://github.com/fjaeckel/ninerlog-website) | Marketing website |
+
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/fjaeckel/ninerlog-project/blob/main/CONTRIBUTING.md) for development guidelines.
+
+## Security
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
