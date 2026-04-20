@@ -14,6 +14,9 @@ import (
 
 const ourAirportsURL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
 
+// airportsURL can be overridden in tests
+var airportsURL = ourAirportsURL
+
 // AirportInfo holds metadata about an airport
 type AirportInfo struct {
 	ICAO      string
@@ -89,7 +92,7 @@ func Search(prefix string, limit int) []AirportInfo {
 // gps_code, iata_code, local_code, home_link, wikipedia_link, keywords
 func fetchAirports() (map[string]AirportInfo, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(ourAirportsURL)
+	resp, err := client.Get(airportsURL)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP GET failed: %w", err)
 	}
