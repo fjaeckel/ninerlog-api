@@ -49,3 +49,53 @@ func TestHashToken(t *testing.T) {
 		t.Error("HashToken() not deterministic")
 	}
 }
+
+func TestHashPassword_UniquePerCall(t *testing.T) {
+	password := "samepassword123"
+	hash1, _ := HashPassword(password)
+	hash2, _ := HashPassword(password)
+
+	if hash1 == hash2 {
+		t.Error("Two bcrypt hashes of same password should differ (unique salts)")
+	}
+}
+
+func TestComparePassword_EmptyHash(t *testing.T) {
+	err := ComparePassword("", "password")
+	if err == nil {
+		t.Error("ComparePassword with empty hash should fail")
+	}
+}
+
+func TestHashToken_EmptyInput(t *testing.T) {
+	hash := HashToken("")
+	if len(hash) != 64 {
+		t.Errorf("HashToken('') length = %d, want 64", len(hash))
+	}
+}
+
+func TestHashToken_DifferentInputsDifferentHashes(t *testing.T) {
+	h1 := HashToken("token-a")
+	h2 := HashToken("token-b")
+	if h1 == h2 {
+		t.Error("Different tokens should produce different hashes")
+	}
+}
+
+func TestComparePassword_CorrectAfterHash(t *testing.T) {
+	passwords := []string{
+		"simplepassword",
+		"P@$$w0rd!Complex#123",
+		"unicode-пароль-密码",
+		strings.Repeat("a", 72), // max bcrypt length
+	}
+	for _, pw := range passwords {
+		hashed, err := HashPassword(pw)
+		if err != nil {
+			t.Fatalf("HashPassword(%q) error = %v", pw, err)
+		}
+		if err := ComparePassword(hashed, pw); err != nil {
+			t.Errorf("ComparePassword failed for %q: %v", pw, err)
+		}
+	}
+}
