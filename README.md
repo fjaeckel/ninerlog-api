@@ -136,3 +136,7 @@ See [CONTRIBUTING.md](https://github.com/fjaeckel/ninerlog-project/blob/main/CON
 ## Security
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
