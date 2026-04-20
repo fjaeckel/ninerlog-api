@@ -314,3 +314,85 @@ func TestFindOrCreateContact_WhitespaceName(t *testing.T) {
 		t.Error("Expected error for whitespace-only name")
 	}
 }
+
+func TestDeleteContact_Unauthorized(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+	ownerID := uuid.New()
+	otherID := uuid.New()
+
+	contact := &models.Contact{
+		UserID: ownerID,
+		Name:   "Test Person",
+	}
+	_ = svc.CreateContact(ctx, contact)
+
+	err := svc.DeleteContact(ctx, contact.ID, otherID)
+	if err != service.ErrUnauthorizedContact {
+		t.Errorf("Expected ErrUnauthorizedContact, got %v", err)
+	}
+}
+
+func TestUpdateContact_NotFound(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+
+	contact := &models.Contact{ID: uuid.New(), Name: "Updated"}
+	err := svc.UpdateContact(ctx, contact, uuid.New())
+	if err != service.ErrContactNotFound {
+		t.Errorf("Expected ErrContactNotFound, got %v", err)
+	}
+}
+
+func TestUpdateContact_EmptyName(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	contact := &models.Contact{
+		UserID: userID,
+		Name:   "Test Person",
+	}
+	_ = svc.CreateContact(ctx, contact)
+
+	contact.Name = ""
+	err := svc.UpdateContact(ctx, contact, userID)
+	if err == nil {
+		t.Error("Expected error for empty name update")
+	}
+}
+
+func TestSearchContacts_LimitCapping(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	// With limit 0, should default to 10
+	results, err := svc.SearchContacts(ctx, userID, "test", 0)
+	if err != nil {
+		t.Fatalf("SearchContacts() error = %v", err)
+	}
+	// Should return empty, not error
+	if results == nil {
+		// nil is acceptable for empty results
+	}
+
+	// With negative limit, should default to 10
+	_, err = svc.SearchContacts(ctx, userID, "test", -5)
+	if err != nil {
+		t.Fatalf("SearchContacts() with negative limit error = %v", err)
+	}
+}
+
+func TestListContacts_Empty(t *testing.T) {
+	svc := setupContactService()
+	ctx := context.Background()
+
+	contacts, err := svc.ListContacts(ctx, uuid.New())
+	if err != nil {
+		t.Fatalf("ListContacts() error = %v", err)
+	}
+	if len(contacts) != 0 {
+		t.Errorf("ListContacts() count = %d, want 0", len(contacts))
+	}
+}

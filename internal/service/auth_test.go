@@ -632,3 +632,253 @@ func TestDeleteUser(t *testing.T) {
 		t.Error("Expected error when getting deleted user, got nil")
 	}
 }
+
+func TestRegister_EmptyEmail(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "",
+		Password: "password1234",
+		Name:     "Test User",
+	}
+	_, _, err := authService.Register(ctx, input)
+	if err != service.ErrEmailRequired {
+		t.Errorf("Expected ErrEmailRequired, got %v", err)
+	}
+}
+
+func TestRegister_EmptyPassword(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "",
+		Name:     "Test User",
+	}
+	_, _, err := authService.Register(ctx, input)
+	if err != service.ErrPasswordRequired {
+		t.Errorf("Expected ErrPasswordRequired, got %v", err)
+	}
+}
+
+func TestRegister_EmptyName(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "password1234",
+		Name:     "",
+	}
+	_, _, err := authService.Register(ctx, input)
+	if err != service.ErrNameRequired {
+		t.Errorf("Expected ErrNameRequired, got %v", err)
+	}
+}
+
+func TestRegister_ShortPassword(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "short",
+		Name:     "Test User",
+	}
+	_, _, err := authService.Register(ctx, input)
+	if err != service.ErrPasswordTooShort {
+		t.Errorf("Expected ErrPasswordTooShort, got %v", err)
+	}
+}
+
+func TestRegister_InvalidEmail(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "not-an-email",
+		Password: "password1234",
+		Name:     "Test User",
+	}
+	_, _, err := authService.Register(ctx, input)
+	if err != service.ErrInvalidEmail {
+		t.Errorf("Expected ErrInvalidEmail, got %v", err)
+	}
+}
+
+func TestLogin_NonexistentUser(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	loginInput := service.LoginInput{
+		Email:    "nobody@example.com",
+		Password: "password1234",
+	}
+	_, _, err := authService.Login(ctx, loginInput)
+	if err != service.ErrInvalidCredentials {
+		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
+	}
+}
+
+func TestGetUserByID(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "password1234",
+		Name:     "Test User",
+	}
+	user, _, _ := authService.Register(ctx, input)
+
+	got, err := authService.GetUserByID(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID() error = %v", err)
+	}
+	if got.Email != "test@example.com" {
+		t.Errorf("Email = %q, want test@example.com", got.Email)
+	}
+}
+
+func TestGetUserByID_NotFound(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	_, err := authService.GetUserByID(ctx, uuid.New())
+	if err == nil {
+		t.Error("Expected error for non-existent user")
+	}
+}
+
+func TestUpdateUser(t *testing.T) {
+	userRepo := newMockUserRepo()
+	refreshTokenRepo := newMockRefreshTokenRepo()
+	passwordResetRepo := newMockPasswordResetRepo()
+	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "password1234",
+		Name:     "Test User",
+	}
+	user, _, _ := authService.Register(ctx, input)
+
+	user.Name = "Updated Name"
+	err := authService.UpdateUser(ctx, user)
+	if err != nil {
+		t.Fatalf("UpdateUser() error = %v", err)
+	}
+
+	got, _ := authService.GetUserByID(ctx, user.ID)
+	if got.Name != "Updated Name" {
+		t.Errorf("Name = %q, want Updated Name", got.Name)
+	}
+}
+
+func TestGenerateTokensForUser(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "password1234",
+		Name:     "Test User",
+	}
+	user, _, _ := authService.Register(ctx, input)
+
+	tokens, err := authService.GenerateTokensForUser(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("GenerateTokensForUser() error = %v", err)
+	}
+	if tokens.AccessToken == "" {
+		t.Error("Expected non-empty access token")
+	}
+	if tokens.RefreshToken == "" {
+		t.Error("Expected non-empty refresh token")
+	}
+}
+
+func TestRegister_LongPassword(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	longPassword := make([]byte, 73)
+	for i := range longPassword {
+		longPassword[i] = 'a'
+	}
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: string(longPassword),
+		Name:     "Test User",
+	}
+	_, _, err := authService.Register(ctx, input)
+	if err != service.ErrPasswordTooLong {
+		t.Errorf("Expected ErrPasswordTooLong, got %v", err)
+	}
+}
+
+func TestRegister_EmailNormalization(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "  Test@Example.COM  ",
+		Password: "password1234",
+		Name:     "Test User",
+	}
+	user, _, err := authService.Register(ctx, input)
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if user.Email != "test@example.com" {
+		t.Errorf("Email = %q, want 'test@example.com' (normalized)", user.Email)
+	}
+}
+
+func TestLogin_EmailNormalization(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "password1234",
+		Name:     "Test User",
+	}
+	_, _, _ = authService.Register(ctx, input)
+
+	// Login with different casing should work
+	loginInput := service.LoginInput{
+		Email:    "  TEST@EXAMPLE.COM  ",
+		Password: "password1234",
+	}
+	user, _, err := authService.Login(ctx, loginInput)
+	if err != nil {
+		t.Fatalf("Login with different case failed: %v", err)
+	}
+	if user.Email != "test@example.com" {
+		t.Errorf("Email = %q, want test@example.com", user.Email)
+	}
+}
+
+func TestResetPassword_ShortPassword(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	input := service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "password1234",
+		Name:     "Test User",
+	}
+	_, _, _ = authService.Register(ctx, input)
+
+	resetToken, _ := authService.RequestPasswordReset(ctx, "test@example.com")
+
+	err := authService.ResetPassword(ctx, resetToken, "short")
+	if err != service.ErrPasswordTooShort {
+		t.Errorf("Expected ErrPasswordTooShort, got %v", err)
+	}
+}

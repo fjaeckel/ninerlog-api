@@ -207,3 +207,126 @@ func TestDeleteClassRating_NotFound(t *testing.T) {
 		t.Errorf("Expected ErrClassRatingNotFound, got %v", err)
 	}
 }
+
+func TestUpdateClassRating(t *testing.T) {
+	svc, licRepo := setupClassRatingTest()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	lic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	licRepo.licenses[lic.ID] = lic
+
+	cr := &models.ClassRating{
+		LicenseID: lic.ID,
+		ClassType: models.ClassTypeSEPLand,
+		IssueDate: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	_ = svc.CreateClassRating(ctx, cr, userID)
+
+	// Update the class rating
+	newIssueDate := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	newExpiry := time.Date(2028, 6, 1, 0, 0, 0, 0, time.UTC)
+	notes := "Renewed after proficiency check"
+	cr.IssueDate = newIssueDate
+	cr.ExpiryDate = &newExpiry
+	cr.Notes = &notes
+	err := svc.UpdateClassRating(ctx, cr, userID)
+	if err != nil {
+		t.Fatalf("UpdateClassRating() error = %v", err)
+	}
+}
+
+func TestUpdateClassRating_NotFound(t *testing.T) {
+	svc, _ := setupClassRatingTest()
+	ctx := context.Background()
+
+	cr := &models.ClassRating{ID: uuid.New()}
+	err := svc.UpdateClassRating(ctx, cr, uuid.New())
+	if err != service.ErrClassRatingNotFound {
+		t.Errorf("Expected ErrClassRatingNotFound, got %v", err)
+	}
+}
+
+func TestUpdateClassRating_Unauthorized(t *testing.T) {
+	svc, licRepo := setupClassRatingTest()
+	ctx := context.Background()
+	ownerID := uuid.New()
+	otherID := uuid.New()
+
+	lic := &models.License{ID: uuid.New(), UserID: ownerID, RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	licRepo.licenses[lic.ID] = lic
+
+	cr := &models.ClassRating{
+		LicenseID: lic.ID,
+		ClassType: models.ClassTypeSEPLand,
+		IssueDate: time.Now(),
+	}
+	_ = svc.CreateClassRating(ctx, cr, ownerID)
+
+	err := svc.UpdateClassRating(ctx, cr, otherID)
+	if err != service.ErrUnauthorizedClassRating {
+		t.Errorf("Expected ErrUnauthorizedClassRating, got %v", err)
+	}
+}
+
+func TestDeleteClassRating_Unauthorized(t *testing.T) {
+	svc, licRepo := setupClassRatingTest()
+	ctx := context.Background()
+	ownerID := uuid.New()
+	otherID := uuid.New()
+
+	lic := &models.License{ID: uuid.New(), UserID: ownerID, RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	licRepo.licenses[lic.ID] = lic
+
+	cr := &models.ClassRating{
+		LicenseID: lic.ID,
+		ClassType: models.ClassTypeSEPLand,
+		IssueDate: time.Now(),
+	}
+	_ = svc.CreateClassRating(ctx, cr, ownerID)
+
+	err := svc.DeleteClassRating(ctx, cr.ID, otherID)
+	if err != service.ErrUnauthorizedClassRating {
+		t.Errorf("Expected ErrUnauthorizedClassRating, got %v", err)
+	}
+}
+
+func TestListClassRatings_Unauthorized(t *testing.T) {
+	svc, licRepo := setupClassRatingTest()
+	ctx := context.Background()
+	ownerID := uuid.New()
+	otherID := uuid.New()
+
+	lic := &models.License{ID: uuid.New(), UserID: ownerID}
+	licRepo.licenses[lic.ID] = lic
+
+	_, err := svc.ListClassRatings(ctx, lic.ID, otherID)
+	if err != service.ErrUnauthorizedAccess {
+		t.Errorf("Expected ErrUnauthorizedAccess, got %v", err)
+	}
+}
+
+func TestListClassRatings_LicenseNotFound(t *testing.T) {
+	svc, _ := setupClassRatingTest()
+	ctx := context.Background()
+
+	_, err := svc.ListClassRatings(ctx, uuid.New(), uuid.New())
+	if err != service.ErrLicenseNotFound {
+		t.Errorf("Expected ErrLicenseNotFound, got %v", err)
+	}
+}
+
+func TestCreateClassRating_LicenseNotFound(t *testing.T) {
+	svc, _ := setupClassRatingTest()
+	ctx := context.Background()
+
+	cr := &models.ClassRating{
+		LicenseID: uuid.New(),
+		ClassType: models.ClassTypeSEPLand,
+		IssueDate: time.Now(),
+	}
+	err := svc.CreateClassRating(ctx, cr, uuid.New())
+	if err != service.ErrLicenseNotFound {
+		t.Errorf("Expected ErrLicenseNotFound, got %v", err)
+	}
+}

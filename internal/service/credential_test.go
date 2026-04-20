@@ -274,3 +274,65 @@ func TestDeleteCredentialNotFound(t *testing.T) {
 		t.Errorf("Expected ErrCredentialNotFound, got %v", err)
 	}
 }
+
+func TestCreateCredential_ExpiryBeforeIssue(t *testing.T) {
+	svc := setupCredentialService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	issueDate := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	expiryDate := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) // before issue date
+
+	cred := &models.Credential{
+		UserID:           userID,
+		CredentialType:   models.CredentialTypeEASAClass1Medical,
+		IssueDate:        issueDate,
+		ExpiryDate:       &expiryDate,
+		IssuingAuthority: "EASA",
+	}
+
+	err := svc.CreateCredential(ctx, cred)
+	if err != service.ErrExpiryBeforeIssue {
+		t.Errorf("Expected ErrExpiryBeforeIssue, got %v", err)
+	}
+}
+
+func TestUpdateCredential_ExpiryBeforeIssue(t *testing.T) {
+	svc := setupCredentialService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	cred := &models.Credential{
+		UserID:           userID,
+		CredentialType:   models.CredentialTypeEASAClass1Medical,
+		IssueDate:        time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		IssuingAuthority: "EASA",
+	}
+	_ = svc.CreateCredential(ctx, cred)
+
+	expiryDate := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cred.ExpiryDate = &expiryDate
+	err := svc.UpdateCredential(ctx, cred, userID)
+	if err != service.ErrExpiryBeforeIssue {
+		t.Errorf("Expected ErrExpiryBeforeIssue, got %v", err)
+	}
+}
+
+func TestCreateCredential_NilExpiry(t *testing.T) {
+	svc := setupCredentialService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	cred := &models.Credential{
+		UserID:           userID,
+		CredentialType:   models.CredentialTypeFAAClass3Medical,
+		IssueDate:        time.Now(),
+		ExpiryDate:       nil,
+		IssuingAuthority: "FAA",
+	}
+
+	err := svc.CreateCredential(ctx, cred)
+	if err != nil {
+		t.Fatalf("CreateCredential with nil expiry should succeed, got %v", err)
+	}
+}

@@ -448,3 +448,241 @@ func TestGetCheckInterval(t *testing.T) {
 		t.Errorf("custom interval = %v, want 30m", d)
 	}
 }
+
+func TestGetCheckInterval_InvalidFallback(t *testing.T) {
+	t.Setenv("NOTIFICATION_CHECK_INTERVAL", "not-a-duration")
+	d := service.GetCheckInterval()
+	if d != 1*time.Hour {
+		t.Errorf("invalid interval should default to 1h, got %v", d)
+	}
+}
+
+func newTestNotifServiceWithUsers(notifRepo *mockNotificationRepo, userRepo *mockNotifUserRepo, credRepo *mockNotifCredentialRepo) *service.NotificationService {
+	return service.NewNotificationService(
+		notifRepo,
+		credRepo,
+		newMockNotifFlightRepo(),
+		newMockNotifLicenseRepo(),
+		userRepo,
+		email.NewSender(&email.SMTPConfig{}),
+		nil, // currencyService
+	)
+}
+
+func TestTriggerCheck_NoUsers(t *testing.T) {
+	notifRepo := newMockNotificationRepo()
+	notifRepo.allPrefs = []*models.NotificationPreferences{}
+
+	svc := newTestNotifService(notifRepo)
+	ctx := context.Background()
+
+	// Should not panic
+	svc.TriggerCheck(ctx)
+}
+
+func TestTriggerCheck_SkipsDisabledEmail(t *testing.T) {
+	notifRepo := newMockNotificationRepo()
+	userRepo := newMockNotifUserRepo()
+	credRepo := newMockNotifCredentialRepo()
+
+	userID := uuid.New()
+	userRepo.users[userID] = &models.User{ID: userID, Email: "test@example.com", Name: "Test"}
+
+	notifRepo.allPrefs = []*models.NotificationPreferences{
+		{
+			UserID:       userID,
+			EmailEnabled: false, // disabled
+			WarningDays:  pq.Int64Array{30, 14, 7},
+		},
+	}
+
+	svc := newTestNotifServiceWithUsers(notifRepo, userRepo, credRepo)
+	ctx := context.Background()
+
+	svc.TriggerCheck(ctx)
+
+	// No notifications should be sent
+	if len(notifRepo.logs) != 0 {
+		t.Errorf("Expected 0 notifications for disabled email, got %d", len(notifRepo.logs))
+	}
+}
+
+func TestTriggerCheck_SendsCredentialExpiryWarning(t *testing.T) {
+	notifRepo := newMockNotificationRepo()
+	userRepo := newMockNotifUserRepo()
+	credRepo := newMockNotifCredentialRepo()
+
+	userID := uuid.New()
+	userRepo.users[userID] = &models.User{
+		ID:              userID,
+		Email:           "pilot@example.com",
+		Name:            "Test Pilot",
+		PreferredLocale: "en",
+		DateFormat:      "YYYY-MM-DD",
+	}
+
+	// Credential expiring in 14 days
+	expiryDate := time.Now().Add(14 * 24 * time.Hour)
+	credRepo.creds[uuid.New()] = &models.Credential{
+		ID:             uuid.New(),
+		UserID:         userID,
+		CredentialType: models.CredentialTypeEASAClass1Medical,
+		IssueDate:      time.Now().Add(-365 * 24 * time.Hour),
+		ExpiryDate:     &expiryDate,
+	}
+
+	notifRepo.allPrefs = []*models.NotificationPreferences{
+		{
+			UserID:            userID,
+			EmailEnabled:      true,
+			EnabledCategories: models.AllNotificationCategories,
+			WarningDays:       pq.Int64Array{30, 14, 7},
+			CheckHour:         time.Now().UTC().Hour(),
+		},
+	}
+
+	svc := newTestNotifServiceWithUsers(notifRepo, userRepo, credRepo)
+	ctx := context.Background()
+
+	svc.TriggerCheck(ctx)
+
+	// Should have sent at least one notification
+	if len(notifRepo.logs) == 0 {
+		t.Error("Expected credential expiry notification to be sent")
+	}
+	if len(notifRepo.logs) > 0 {
+		log := notifRepo.logs[0]
+		if log.NotificationType != string(models.NotifCategoryCredentialMedical) {
+			t.Errorf("NotificationType = %q, want %q", log.NotificationType, models.NotifCategoryCredentialMedical)
+		}
+	}
+}
+
+func TestTriggerCheck_SendsOnlyOneWarningPerCredential(t *testing.T) {
+	notifRepo := newMockNotificationRepo()
+	userRepo := newMockNotifUserRepo()
+	credRepo := newMockNotifCredentialRepo()
+
+	userID := uuid.New()
+	userRepo.users[userID] = &models.User{
+		ID:              userID,
+		Email:           "pilot@example.com",
+		Name:            "Test Pilot",
+		PreferredLocale: "en",
+	}
+
+	expiryDate := time.Now().Add(14 * 24 * time.Hour)
+	credID := uuid.New()
+	credRepo.creds[credID] = &models.Credential{
+		ID:             credID,
+		UserID:         userID,
+		CredentialType: models.CredentialTypeEASAClass1Medical,
+		IssueDate:      time.Now().Add(-365 * 24 * time.Hour),
+		ExpiryDate:     &expiryDate,
+	}
+
+	notifRepo.allPrefs = []*models.NotificationPreferences{
+		{
+			UserID:            userID,
+			EmailEnabled:      true,
+			EnabledCategories: models.AllNotificationCategories,
+			WarningDays:       pq.Int64Array{30, 14, 7},
+			CheckHour:         time.Now().UTC().Hour(),
+		},
+	}
+
+	svc := newTestNotifServiceWithUsers(notifRepo, userRepo, credRepo)
+	ctx := context.Background()
+
+	svc.TriggerCheck(ctx)
+
+	// Should send exactly one warning per credential per check (breaks after first match)
+	if len(notifRepo.logs) != 1 {
+		t.Errorf("Expected exactly 1 notification per credential per check, got %d", len(notifRepo.logs))
+	}
+}
+
+func TestTriggerCheck_SkipsCredentialWithoutExpiry(t *testing.T) {
+	notifRepo := newMockNotificationRepo()
+	userRepo := newMockNotifUserRepo()
+	credRepo := newMockNotifCredentialRepo()
+
+	userID := uuid.New()
+	userRepo.users[userID] = &models.User{
+		ID:              userID,
+		Email:           "pilot@example.com",
+		Name:            "Test Pilot",
+		PreferredLocale: "en",
+	}
+
+	// Credential WITHOUT expiry date
+	credRepo.creds[uuid.New()] = &models.Credential{
+		ID:             uuid.New(),
+		UserID:         userID,
+		CredentialType: models.CredentialTypeEASAClass1Medical,
+		IssueDate:      time.Now(),
+		ExpiryDate:     nil, // no expiry
+	}
+
+	notifRepo.allPrefs = []*models.NotificationPreferences{
+		{
+			UserID:            userID,
+			EmailEnabled:      true,
+			EnabledCategories: models.AllNotificationCategories,
+			WarningDays:       pq.Int64Array{30, 14, 7},
+			CheckHour:         time.Now().UTC().Hour(),
+		},
+	}
+
+	svc := newTestNotifServiceWithUsers(notifRepo, userRepo, credRepo)
+	ctx := context.Background()
+
+	svc.TriggerCheck(ctx)
+
+	if len(notifRepo.logs) != 0 {
+		t.Errorf("Expected 0 notifications for credential without expiry, got %d", len(notifRepo.logs))
+	}
+}
+
+func TestTriggerCheck_SkipsDisabledCategory(t *testing.T) {
+	notifRepo := newMockNotificationRepo()
+	userRepo := newMockNotifUserRepo()
+	credRepo := newMockNotifCredentialRepo()
+
+	userID := uuid.New()
+	userRepo.users[userID] = &models.User{
+		ID:              userID,
+		Email:           "pilot@example.com",
+		Name:            "Test Pilot",
+		PreferredLocale: "en",
+	}
+
+	expiryDate := time.Now().Add(14 * 24 * time.Hour)
+	credRepo.creds[uuid.New()] = &models.Credential{
+		ID:             uuid.New(),
+		UserID:         userID,
+		CredentialType: models.CredentialTypeEASAClass1Medical,
+		IssueDate:      time.Now().Add(-365 * 24 * time.Hour),
+		ExpiryDate:     &expiryDate,
+	}
+
+	// Only enable rating expiry, NOT medical
+	notifRepo.allPrefs = []*models.NotificationPreferences{
+		{
+			UserID:            userID,
+			EmailEnabled:      true,
+			EnabledCategories: pq.StringArray{string(models.NotifCategoryRatingExpiry)},
+			WarningDays:       pq.Int64Array{30, 14, 7},
+			CheckHour:         time.Now().UTC().Hour(),
+		},
+	}
+
+	svc := newTestNotifServiceWithUsers(notifRepo, userRepo, credRepo)
+	ctx := context.Background()
+
+	svc.TriggerCheck(ctx)
+
+	if len(notifRepo.logs) != 0 {
+		t.Errorf("Expected 0 notifications when category disabled, got %d", len(notifRepo.logs))
+	}
+}
