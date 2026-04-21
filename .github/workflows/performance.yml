@@ -1,0 +1,101 @@
+name: Performance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    types: [labeled]
+
+concurrency:
+  group: perf-api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-benchmarks:
+    name: Go Benchmarks
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'perf-test')
+    runs-on: self-hosted
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Run benchmarks
+        run: |
+          go test -run='^$' -bench=. -benchmem -count=3 \
+            ./internal/service/flightcalc/... \
+            ./internal/service/currency/... \
+            ./internal/service/... \
+            | tee benchmark-results.txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.txt
+
+  k6-load-tests:
+    name: k6 Load Tests
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'perf-test')
+    runs-on: [self-hosted, docker-host]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D68
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Start performance stack
+        run: docker compose -f docker-compose.perf.yaml up -d --build
+
+      - name: Wait for API
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3334/health > /dev/null 2>&1; then
+              echo "API is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API failed to start"
+          docker compose -f docker-compose.perf.yaml logs api
+          exit 1
+
+      - name: Seed performance data
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/seed.js --quiet
+
+      - name: Run auth scenario
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/auth.js
+
+      - name: Run flights CRUD scenario
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/flights.js
+
+      - name: Run search scenario
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/search.js
+
+      - name: Run dashboard scenario
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/dashboard.js
+
+      - name: Run exports scenario
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/exports.js
+
+      - name: Run spike test
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/spike.js
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.perf.yaml down -v --remove-orphans

@@ -1,4 +1,4 @@
-.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
+.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run bench test-perf test-perf-seed migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
 
 # Default target
 .DEFAULT_GOAL := help
@@ -76,6 +76,17 @@ build: ## Build binary
 run: ## Run application
 	@echo "🚀 Running application..."
 	@go run ./cmd/api/main.go
+
+bench: ## Run Go benchmark tests
+	@echo "⏱  Running benchmark tests..."
+	@go test -run='^$$' -bench=. -benchmem -count=3 ./internal/service/flightcalc/... ./internal/service/currency/... ./internal/service/...
+
+test-perf: ## Run k6 performance tests (requires docker + k6)
+	@echo "🔥 Running performance tests..."
+	@./scripts/run-perf-tests.sh
+
+test-perf-seed: ## Seed performance test data only
+	@./scripts/run-perf-tests.sh --seed-only
 
 migrate-up: ## Apply database migrations
 	@echo "⬆️  Running database migrations..."
