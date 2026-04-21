@@ -6,10 +6,26 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 	limiter "github.com/ulule/limiter/v3"
 	mgin "github.com/ulule/limiter/v3/drivers/middleware/gin"
 	"github.com/ulule/limiter/v3/drivers/store/memory"
 )
+
+var (
+	// RateLimitHitsTotal counts requests that were rate-limited.
+	RateLimitHitsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "rate_limit_hits_total",
+			Help: "Total number of requests that were rate-limited.",
+		},
+		[]string{"path"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(RateLimitHitsTotal)
+}
 
 // NewRateLimitMiddleware creates a Gin middleware that rate-limits requests.
 // rate is the number of requests allowed per period (e.g., 10 requests per 1 minute).
@@ -30,10 +46,12 @@ func NewRateLimitMiddleware(rate int64, period time.Duration) gin.HandlerFunc {
 			return c.ClientIP()
 		}),
 		mgin.WithErrorHandler(func(c *gin.Context, err error) {
+			RateLimitHitsTotal.WithLabelValues(c.Request.URL.Path).Inc()
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests, please try again later"})
 			c.Abort()
 		}),
 		mgin.WithLimitReachedHandler(func(c *gin.Context) {
+			RateLimitHitsTotal.WithLabelValues(c.Request.URL.Path).Inc()
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests, please try again later"})
 			c.Abort()
 		}),
