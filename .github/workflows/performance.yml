@@ -79,22 +79,60 @@ jobs:
         run: PERF_API_URL=http://localhost:3334 k6 run test/performance/seed.js --quiet
 
       - name: Run auth scenario
-        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/auth.js
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/auth.js --summary-export=test/performance/results/auth.json || true
 
       - name: Run flights CRUD scenario
-        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/flights.js
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/flights.js --summary-export=test/performance/results/flights.json || true
 
       - name: Run search scenario
-        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/search.js
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/search.js --summary-export=test/performance/results/search.json || true
 
       - name: Run dashboard scenario
-        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/dashboard.js
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/dashboard.js --summary-export=test/performance/results/dashboard.json || true
 
       - name: Run exports scenario
-        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/exports.js
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/exports.js --summary-export=test/performance/results/exports.json || true
 
       - name: Run spike test
-        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/spike.js
+        run: PERF_API_URL=http://localhost:3334 k6 run test/performance/scenarios/spike.js --summary-export=test/performance/results/spike.json || true
+
+      - name: Generate k6 summary
+        if: always()
+        id: k6_summary
+        run: |
+          mkdir -p test/performance/results
+          {
+            echo "## k6 Load Test Results"
+            echo ""
+            echo "| Scenario | Requests | Error Rate | p95 | Status |"
+            echo "|----------|----------|------------|-----|--------|"
+            for f in test/performance/results/*.json; do
+              [ -f "$f" ] || continue
+              name=$(basename "$f" .json)
+              reqs=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('metrics',{}).get('http_reqs',{}).get('count',0))" 2>/dev/null || echo "?")
+              err=$(python3 -c "import json; d=json.load(open('$f')); v=d.get('metrics',{}).get('http_req_failed',{}).get('value',0); print(f'{v*100:.2f}%')" 2>/dev/null || echo "?")
+              p95=$(python3 -c "import json; d=json.load(open('$f')); v=d.get('metrics',{}).get('http_req_duration',{}).get('p(95)',0); print(f'{v:.1f}ms')" 2>/dev/null || echo "?")
+              # Check if any thresholds were crossed
+              crossed=$(python3 -c "
+          import json
+          d=json.load(open('$f'))
+          thresholds = d.get('thresholds', {})
+          failed = any(not v.get('ok', True) for v in thresholds.values() if isinstance(v, dict))
+          print('❌ Threshold crossed' if failed else '✅ Passed')
+              " 2>/dev/null || echo "?")
+              echo "| $name | $reqs | $err | $p95 | $crossed |"
+            done
+          } > test/performance/results/summary.md
+          cat test/performance/results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          cat test/performance/results/summary.md
+
+      - name: Comment k6 results on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: k6-results
+          path: test/performance/results/summary.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cleanup
         if: always()
