@@ -27,6 +27,8 @@ import (
 	migratepg "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -146,12 +148,21 @@ func main() {
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetDB(db)
 	apiHandler.SetEmailSender(emailSender)
-	apiHandler.SetStartedAt(time.Now())
+	startedAt := time.Now()
+	apiHandler.SetStartedAt(startedAt)
 	apiHandler.SetCORSOrigins(corsOrigins)
 
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)
-	router := gin.Default()
+	router := gin.New() // Use gin.New() instead of gin.Default() for custom recovery
+
+	// Metrics & recovery — first in the middleware chain so all requests are instrumented
+	metricsEnabled := os.Getenv("METRICS_ENABLED") != "false" // default: true
+	if metricsEnabled {
+		router.Use(middleware.MetricsMiddleware())
+	}
+	router.Use(middleware.RecoveryWithMetrics())
+	router.Use(gin.Logger())
 
 	// Trust proxy headers (X-Real-IP, X-Forwarded-For) from nginx
 	// so that c.ClientIP() returns the real client IP, not the proxy's address.
@@ -175,10 +186,36 @@ func main() {
 	// Request body size limit for multipart uploads (10 MB)
 	router.MaxMultipartMemory = 10 << 20
 
-	// Health check
+	// Health check with DB connectivity
 	router.GET("/health", func(c *gin.Context) {
+		if err := db.Ping(); err != nil {
+			if metricsEnabled {
+				middleware.HealthCheckStatus.Set(0)
+			}
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status":   "unhealthy",
+				"database": "unreachable",
+			})
+			return
+		}
+		if metricsEnabled {
+			middleware.HealthCheckStatus.Set(1)
+		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// Prometheus metrics endpoint (no auth required, alongside /health)
+	if metricsEnabled {
+		appVersion := os.Getenv("APP_VERSION")
+		if appVersion == "" {
+			appVersion = "dev"
+		}
+		middleware.RegisterAppMetrics(appVersion, startedAt)
+		prometheus.MustRegister(middleware.NewDBStatsCollector(db))
+
+		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+		log.Println("✅ Prometheus metrics enabled at /metrics")
+	}
 
 	// Rate limiting for auth endpoints: 10 requests per minute per IP
 	// Disabled via DISABLE_RATE_LIMIT=true for e2e test environments
