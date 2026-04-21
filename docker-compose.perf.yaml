@@ -1,0 +1,54 @@
+services:
+  postgres-perf:
+    image: postgres:18-alpine
+    container_name: ninerlog-perf-db
+    environment:
+      POSTGRES_USER: perfuser
+      POSTGRES_PASSWORD: perfpass
+      POSTGRES_DB: ninerlog_perf
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U perfuser -d ninerlog_perf"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    tmpfs:
+      - /var/lib/postgresql
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "work_mem=16MB"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ninerlog-perf-api
+    depends_on:
+      postgres-perf:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://perfuser:perfpass@postgres-perf:5432/ninerlog_perf?sslmode=disable"
+      PORT: "3000"
+      JWT_SECRET: "perf-test-jwt-secret-key-minimum-32-chars"
+      REFRESH_SECRET: "perf-test-refresh-secret-key-minimum-32"
+      CORS_ORIGIN: "*"
+      ADMIN_EMAIL: "admin@ninerlog-perf.com"
+      DISABLE_RATE_LIMIT: "true"
+      MIGRATIONS_PATH: "db/migrations"
+      METRICS_ENABLED: "true"
+      APP_VERSION: "perf-test"
+      NOTIFICATION_CHECK_INTERVAL: "24h"
+    ports:
+      - "3334:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
