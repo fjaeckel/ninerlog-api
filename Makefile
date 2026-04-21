@@ -1,4 +1,4 @@
-.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run bench test-perf test-perf-seed migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
+.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
 
 # Default target
 .DEFAULT_GOAL := help
@@ -87,6 +87,18 @@ test-perf: ## Run k6 performance tests (requires docker + k6)
 
 test-perf-seed: ## Seed performance test data only
 	@./scripts/run-perf-tests.sh --seed-only
+
+profile: ## Run full profiling (pprof + EXPLAIN ANALYZE)
+	@echo "🔬 Running profiling suite..."
+	@./scripts/run-profiling.sh all
+
+profile-pprof: ## Collect pprof profiles under load
+	@echo "🔬 Collecting pprof profiles..."
+	@./scripts/run-profiling.sh pprof
+
+profile-explain: ## Run EXPLAIN ANALYZE queries
+	@echo "🔬 Running EXPLAIN ANALYZE..."
+	@./scripts/run-profiling.sh explain
 
 migrate-up: ## Apply database migrations
 	@echo "⬆️  Running database migrations..."

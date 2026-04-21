@@ -10,6 +10,8 @@
 - [k6 Load Test Scenarios](#k6-load-test-scenarios)
 - [Frontend Bundle Size Baselines](#frontend-bundle-size-baselines)
 - [Frontend Performance Thresholds (Lighthouse)](#frontend-performance-thresholds-lighthouse)
+- [Query Performance (EXPLAIN ANALYZE)](#query-performance-explain-analyze)
+- [pprof Profiling](#pprof-profiling)
 - [How to Run Performance Tests](#how-to-run-performance-tests)
 - [Interpreting Results](#interpreting-results)
 
@@ -207,6 +209,108 @@ npm run build
 
 # Run Lighthouse CI (uses .lighthouserc.js config)
 npm run lighthouse
+```
+
+---
+
+## Query Performance (EXPLAIN ANALYZE)
+
+> Tested with 100 users × 100 flights each, PostgreSQL 18, tmpfs storage.
+
+| # | Query | Exec Time | Scan Type | Buffers | Status |
+|---|-------|-----------|-----------|---------|--------|
+| 1 | Flight list (unfiltered, page 1) | 0.040ms | Index Scan (`idx_flights_user_date`) | shared hit=13 | ✅ Optimal |
+| 2 | Flight list (date range filter) | 0.021ms | Index Scan (`idx_flights_user_date`) | shared hit=13 | ✅ Optimal |
+| 3 | Text search (worst case, 5 cols) | 0.180ms | Bitmap Heap Scan + Filter | shared hit=28 | ⚠️ Degrades at scale |
+| 4 | Flight count (pagination total) | 0.028ms | Index Only Scan | shared hit=4 | ✅ Optimal |
+| 5 | Statistics aggregation | 0.074ms | Bitmap Heap Scan | shared hit=25 | ✅ Good |
+| 6 | Monthly trends (12 months) | 0.289ms | GroupAggregate + Sort | shared hit=8 | ✅ Good |
+| 7 | Route statistics (top routes) | 0.066ms | HashAggregate | shared hit=28 | ✅ Good |
+| 8 | Currency progress (JOIN) | 0.024ms | Nested Loop + Index Scan | shared hit=2 | ✅ Optimal |
+| 9 | Stats by aircraft class | 0.095ms | Hash Left Join | shared hit=31 | ✅ Good |
+| 10 | Last flight review | 0.030ms | Bitmap Heap Scan + Filter | shared hit=25 | ✅ Good |
+
+**Key finding:** All queries under 0.3ms. The `idx_flights_user_date(user_id, date)` composite index handles all primary access patterns. Text search (query #3) is the only query that will degrade at scale due to leading-wildcard LIKE filters across 5 columns.
+
+### Run EXPLAIN ANALYZE
+
+```bash
+# Start perf stack
+docker compose -f docker-compose.perf.yaml up -d
+# Seed data
+PERF_API_URL=http://localhost:3334 k6 run test/performance/seed.js
+# Run queries
+docker exec -i ninerlog-perf-db psql -U perfuser -d ninerlog_perf < test/performance/explain_analyze.sql
+```
+
+---
+
+## pprof Profiling
+
+> Profiled under sustained load (3 concurrent goroutines × 100 requests each), Apple M2.
+
+### CPU Profile (10s under load)
+
+| Function | Flat | Flat% | Cumulative | Notes |
+|----------|------|-------|------------|-------|
+| `syscall.Syscall6` | 220ms | 16.2% | 220ms | Network I/O (expected) |
+| `json.structEncoder.encode` | 50ms | 3.7% | 190ms (14%) | JSON serialization |
+| `runtime.mallocgc` | 40ms | 2.9% | 120ms (8.8%) | GC allocation pressure |
+| `database/sql.convertAssignRows` | 20ms | 1.5% | 90ms (6.6%) | DB row scanning |
+| `lib/pq.decode` | 20ms | 1.5% | 70ms (5.2%) | PostgreSQL wire decoding |
+
+**Total CPU utilization:** 13.6% during load test — server is CPU-idle.
+
+### Heap Profile (after load)
+
+| Function | In-Use | % of Heap | Notes |
+|----------|--------|-----------|-------|
+| `airports.fetchAirports` | 12.8MB | 68.8% | Airport CSV database (startup) |
+| `csv.(*Reader).readRecord` | 6.7MB | 35.7% | Part of airport loading |
+| `runtime.allocm` | 2.6MB | 13.8% | Go runtime M allocation |
+
+**Total heap in-use:** 18.7MB — very lean.
+
+### Allocation Profile (cumulative during load)
+
+| Function | Alloc | % of Total | Notes |
+|----------|-------|------------|-------|
+| `csv.readRecord` | 36.0MB | 9.8% | Airport CSV parsing (startup) |
+| `json.Marshal` | 38.5MB | 10.4% | Response serialization |
+| `driverArgsConnLocked` | 26.5MB | 7.2% | DB parameter conversion |
+| `CreateFlight` handler | 137.1MB | 37.1% | Cumulative through call stack |
+| `ListFlights` handler | 78.6MB | 21.3% | Cumulative through call stack |
+| `scanFlights` | 33.0MB | 8.9% | Row scanning + reflection |
+
+**Total allocations:** 369MB over 600 request pairs (~0.6MB per request pair).
+
+### Goroutine Profile (idle after load)
+
+**8 goroutines** — clean, no leaks:
+- 6 runtime parked goroutines
+- 1 DB connection opener
+- 1 NotificationService background checker
+
+### Run Profiling
+
+```bash
+cd ninerlog-api
+
+# Full profiling (pprof + EXPLAIN ANALYZE)
+make profile
+# or
+./scripts/run-profiling.sh all
+
+# pprof only
+./scripts/run-profiling.sh pprof
+
+# EXPLAIN ANALYZE only
+./scripts/run-profiling.sh explain
+
+# Analyze profiles interactively
+go tool pprof -http=:8080 test/performance/results/cpu.prof
+go tool pprof -http=:8080 test/performance/results/heap-after.prof
+go tool pprof -http=:8080 test/performance/results/allocs.prof
 ```
 
 ---

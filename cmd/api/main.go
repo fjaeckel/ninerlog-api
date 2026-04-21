@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -215,6 +216,20 @@ func main() {
 
 		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 		log.Println("✅ Prometheus metrics enabled at /metrics")
+	}
+
+	// pprof debug server (separate port, opt-in via PPROF_ENABLED=true)
+	if os.Getenv("PPROF_ENABLED") == "true" {
+		pprofPort := os.Getenv("PPROF_PORT")
+		if pprofPort == "" {
+			pprofPort = "6060"
+		}
+		go func() {
+			log.Printf("🔍 pprof debug server listening on :%s/debug/pprof/", pprofPort)
+			if err := http.ListenAndServe(":"+pprofPort, nil); err != nil {
+				log.Printf("pprof server error: %v", err)
+			}
+		}()
 	}
 
 	// Rate limiting for auth endpoints: 10 requests per minute per IP

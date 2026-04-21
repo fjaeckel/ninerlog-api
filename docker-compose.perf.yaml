@@ -42,10 +42,13 @@ services:
       DISABLE_RATE_LIMIT: "true"
       MIGRATIONS_PATH: "db/migrations"
       METRICS_ENABLED: "true"
+      PPROF_ENABLED: "true"
+      PPROF_PORT: "6060"
       APP_VERSION: "perf-test"
       NOTIFICATION_CHECK_INTERVAL: "24h"
     ports:
       - "3334:3000"
+      - "6060:6060"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
       interval: 3s
