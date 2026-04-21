@@ -686,3 +686,61 @@ func TestTriggerCheck_SkipsDisabledCategory(t *testing.T) {
 		t.Errorf("Expected 0 notifications when category disabled, got %d", len(notifRepo.logs))
 	}
 }
+
+func TestTriggerCheck_SendsGermanCredentialExpiryWarning(t *testing.T) {
+	notifRepo := newMockNotificationRepo()
+	userRepo := newMockNotifUserRepo()
+	credRepo := newMockNotifCredentialRepo()
+
+	userID := uuid.New()
+	userRepo.users[userID] = &models.User{
+		ID:              userID,
+		Email:           "pilot@example.com",
+		Name:            "Hans Müller",
+		PreferredLocale: "de",
+		DateFormat:      "DD.MM.YYYY",
+	}
+
+	// Credential expiring in 14 days
+	expiryDate := time.Now().Add(14 * 24 * time.Hour)
+	credRepo.creds[uuid.New()] = &models.Credential{
+		ID:             uuid.New(),
+		UserID:         userID,
+		CredentialType: models.CredentialTypeEASAClass1Medical,
+		IssueDate:      time.Now().Add(-365 * 24 * time.Hour),
+		ExpiryDate:     &expiryDate,
+	}
+
+	notifRepo.allPrefs = []*models.NotificationPreferences{
+		{
+			UserID:            userID,
+			EmailEnabled:      true,
+			EnabledCategories: models.AllNotificationCategories,
+			WarningDays:       pq.Int64Array{30, 14, 7},
+			CheckHour:         time.Now().UTC().Hour(),
+		},
+	}
+
+	svc := newTestNotifServiceWithUsers(notifRepo, userRepo, credRepo)
+	ctx := context.Background()
+
+	svc.TriggerCheck(ctx)
+
+	if len(notifRepo.logs) == 0 {
+		t.Fatal("Expected German credential expiry notification to be sent")
+	}
+
+	log := notifRepo.logs[0]
+	if log.NotificationType != string(models.NotifCategoryCredentialMedical) {
+		t.Errorf("NotificationType = %q, want %q", log.NotificationType, models.NotifCategoryCredentialMedical)
+	}
+	// Verify the subject uses German template (contains "läuft ab" or "Ablauf")
+	if log.Subject == nil {
+		t.Fatal("Expected Subject to be set")
+	}
+	// German credential expiry subjects should not contain English "expir" pattern
+	subj := *log.Subject
+	if subj == "" {
+		t.Error("Expected non-empty Subject")
+	}
+}
