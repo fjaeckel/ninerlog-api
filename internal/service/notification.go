@@ -120,6 +120,11 @@ func (s *NotificationService) StartBackgroundChecker(ctx context.Context, interv
 
 func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 	log.Println("🔔 Checking for notification triggers...")
+	start := time.Now()
+	NotificationCheckRunsTotal.Inc()
+	defer func() {
+		NotificationCheckDurationSeconds.Observe(time.Since(start).Seconds())
+	}()
 
 	currentHour := time.Now().UTC().Hour()
 
@@ -199,6 +204,7 @@ func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *
 					log.Printf("🔔 Failed to send credential warning email: %v", err)
 					continue
 				}
+				NotificationsSentTotal.WithLabelValues("credential_expiry").Inc()
 
 				_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
 					UserID:              prefs.UserID,
@@ -293,6 +299,7 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 			log.Printf("🔔 Failed to send revalidation warning email: %v", err)
 			return
 		}
+		NotificationsSentTotal.WithLabelValues("revalidation").Inc()
 
 		zero := 0
 		_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
@@ -336,6 +343,7 @@ func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs 
 			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
 				log.Printf("🔔 Failed to send passenger currency email: %v", err)
 			} else {
+				NotificationsSentTotal.WithLabelValues("passenger_currency").Inc()
 				zero := 0
 				_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
 					UserID:           prefs.UserID,
@@ -372,6 +380,7 @@ checkNight:
 			log.Printf("🔔 Failed to send night currency email: %v", err)
 			return
 		}
+		NotificationsSentTotal.WithLabelValues("night_currency").Inc()
 
 		zero := 0
 		_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
@@ -443,6 +452,7 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 		log.Printf("🔔 Failed to send flight review email: %v", err)
 		return
 	}
+	NotificationsSentTotal.WithLabelValues("flight_review").Inc()
 
 	zero := 0
 	_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
@@ -469,6 +479,7 @@ func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *mod
 				log.Printf("🔔 Failed to send %s warning email: %v", category, err)
 				continue
 			}
+			NotificationsSentTotal.WithLabelValues(string(category)).Inc()
 
 			_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
 				UserID:              prefs.UserID,
