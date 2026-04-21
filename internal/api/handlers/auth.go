@@ -62,23 +62,28 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 
 	if err != nil {
 		if err == service.ErrInvalidCredentials {
+			AuthLoginAttemptsTotal.WithLabelValues("invalid_credentials").Inc()
 			h.sendError(c, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
 		if err == service.ErrAccountLocked {
+			AuthLoginAttemptsTotal.WithLabelValues("account_locked").Inc()
 			h.sendError(c, http.StatusTooManyRequests, "Account temporarily locked due to too many failed login attempts. Please try again later.")
 			return
 		}
 		if err == service.ErrAccountDisabled {
+			AuthLoginAttemptsTotal.WithLabelValues("account_disabled").Inc()
 			h.sendError(c, http.StatusForbidden, "Account disabled. Contact the administrator.")
 			return
 		}
+		AuthLoginAttemptsTotal.WithLabelValues("error").Inc()
 		h.sendError(c, http.StatusInternalServerError, "Login failed")
 		return
 	}
 
 	// Check if 2FA is enabled
 	if user.TwoFactorEnabled {
+		AuthLoginAttemptsTotal.WithLabelValues("2fa_required").Inc()
 		// Generate a short-lived 2FA challenge token
 		twoFactorToken, err := h.jwtManager.Generate2FAToken(user.ID)
 		if err != nil {
@@ -93,6 +98,7 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
+	AuthLoginAttemptsTotal.WithLabelValues("success").Inc()
 	c.JSON(http.StatusOK, h.convertAuthResponse(user, tokens))
 }
 
@@ -108,10 +114,12 @@ func (h *APIHandler) RefreshToken(c *gin.Context) {
 
 	tokens, err := h.authService.RefreshToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
+		AuthTokenRefreshTotal.WithLabelValues("invalid").Inc()
 		h.sendError(c, http.StatusUnauthorized, "Invalid or expired refresh token")
 		return
 	}
 
+	AuthTokenRefreshTotal.WithLabelValues("success").Inc()
 	// Return new access and refresh tokens with expiry
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"accessToken":  tokens.AccessToken,

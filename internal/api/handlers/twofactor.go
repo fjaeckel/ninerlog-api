@@ -103,6 +103,7 @@ func (h *APIHandler) Login2FA(c *gin.Context) {
 	// Validate the temporary 2FA token
 	claims, err := h.jwtManager.Validate2FAToken(req.TwoFactorToken)
 	if err != nil {
+		Auth2FAAttemptsTotal.WithLabelValues("invalid_token").Inc()
 		h.sendError(c, http.StatusUnauthorized, "Invalid or expired 2FA token. Please login again.")
 		return
 	}
@@ -110,9 +111,12 @@ func (h *APIHandler) Login2FA(c *gin.Context) {
 	// Validate the TOTP code
 	valid, err := h.twoFactorService.ValidateTOTP(c.Request.Context(), claims.UserID, req.Code)
 	if err != nil || !valid {
+		Auth2FAAttemptsTotal.WithLabelValues("invalid_code").Inc()
 		h.sendError(c, http.StatusUnauthorized, "Invalid 2FA code")
 		return
 	}
+
+	Auth2FAAttemptsTotal.WithLabelValues("success").Inc()
 
 	// 2FA passed — generate real tokens
 	tokens, err := h.authService.GenerateTokensForUser(c.Request.Context(), claims.UserID)
