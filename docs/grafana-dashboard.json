@@ -1,0 +1,211 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Request Rate (req/s by route)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[5m])) by (path)",
+          "legendFormat": "{{path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "title": "Error Rate (% 4xx/5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"4..|5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+          "legendFormat": "Error %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "max": 100 }
+      }
+    },
+    {
+      "title": "P50 / P95 / P99 Latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Latency by Route (P95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path))",
+          "legendFormat": "{{path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Goroutines",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "go_goroutines",
+          "legendFormat": "Goroutines"
+        }
+      ]
+    },
+    {
+      "title": "Heap Alloc",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 16 },
+      "targets": [
+        {
+          "expr": "go_memstats_heap_alloc_bytes",
+          "legendFormat": "Heap"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "title": "GC Pause (P99)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 16 },
+      "targets": [
+        {
+          "expr": "go_gc_duration_seconds{quantile=\"0.99\"}",
+          "legendFormat": "P99 GC Pause"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "DB Connection Pool",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "db_connections_open",
+          "legendFormat": "Open"
+        },
+        {
+          "expr": "db_connections_in_use",
+          "legendFormat": "In Use"
+        },
+        {
+          "expr": "db_connections_idle",
+          "legendFormat": "Idle"
+        },
+        {
+          "expr": "db_connections_max_open",
+          "legendFormat": "Max Open"
+        }
+      ]
+    },
+    {
+      "title": "Auth Success / Failure",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "rate(auth_login_attempts_total{result=\"success\"}[5m])",
+          "legendFormat": "Login Success"
+        },
+        {
+          "expr": "rate(auth_login_attempts_total{result!=\"success\"}[5m])",
+          "legendFormat": "Login Failure"
+        },
+        {
+          "expr": "rate(auth_2fa_attempts_total{result=\"success\"}[5m])",
+          "legendFormat": "2FA Success"
+        },
+        {
+          "expr": "rate(auth_2fa_attempts_total{result!=\"success\"}[5m])",
+          "legendFormat": "2FA Failure"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "title": "Background Job Health",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "expr": "rate(notification_check_runs_total[1h])",
+          "legendFormat": "Check runs/hr"
+        },
+        {
+          "expr": "rate(notifications_sent_total[1h])",
+          "legendFormat": "Sent ({{type}})"
+        }
+      ]
+    },
+    {
+      "title": "App Info",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "app_info",
+          "legendFormat": "v{{version}} ({{go_version}})"
+        }
+      ]
+    },
+    {
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "expr": "app_uptime_seconds",
+          "legendFormat": "Uptime"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["ninerlog"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "NinerLog API",
+  "uid": "ninerlog-api",
+  "version": 1
+}
