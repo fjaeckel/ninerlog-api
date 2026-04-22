@@ -7,8 +7,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Default to project repo spec
-OPENAPI_SPEC="${1:-../ninerlog-project/api-spec/openapi.yaml}"
+# Default to local api-spec directory
+OPENAPI_SPEC="${1:-$PROJECT_ROOT/api-spec/openapi.yaml}"
 
 # Check if spec exists
 if [ ! -f "$OPENAPI_SPEC" ]; then
@@ -77,7 +77,7 @@ cat > "$OUTPUT_DIR/doc.go" << 'EOF'
 //
 //	./scripts/generate-server-types.sh
 //
-// Source: ninerlog-project/api-spec/openapi.yaml
+# Source: api-spec/openapi.yaml
 // Generator: oapi-codegen v2
 package generated
 EOF

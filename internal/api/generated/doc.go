@@ -11,6 +11,6 @@
 //
 //	./scripts/generate-server-types.sh
 //
-// Source: ninerlog-project/api-spec/openapi.yaml
+// Source: api-spec/openapi.yaml
 // Generator: oapi-codegen v2
 package generated

@@ -10,13 +10,8 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# Copy source code (includes pre-generated types in internal/api/generated/)
 COPY . .
-
-# Generate API types from OpenAPI spec (if spec is available)
-RUN if [ -f "../ninerlog-project/api-spec/openapi.yaml" ]; then \
-      ./scripts/generate-server-types.sh ../ninerlog-project/api-spec/openapi.yaml || true; \
-    fi
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \

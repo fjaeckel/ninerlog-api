@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/generate-server-types.sh'
+      - 'api-spec/openapi.yaml'
 
 jobs:
   generate-server:
@@ -28,18 +29,10 @@ jobs:
 
       - name: Install oapi-codegen
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-      - name: Checkout project repository for OpenAPI spec
-        uses: actions/checkout@v6
-        with:
-          repository: fjaeckel/ninerlog-project
-          token: ${{ secrets.PROJECT_REPO_TOKEN }}
-          path: .openapi-spec
-          sparse-checkout: |
-            api-spec/openapi.yaml
 
       - name: Generate Go server types
         run: |
-          ./scripts/generate-server-types.sh .openapi-spec/api-spec/openapi.yaml
+          ./scripts/generate-server-types.sh api-spec/openapi.yaml
 
       - name: Format generated code
         run: |
@@ -82,7 +75,7 @@ jobs:
             
             This PR updates the generated Go server types to match the latest OpenAPI specification.
             
-            **Triggered by**: OpenAPI spec change in ninerlog-project
+            **Triggered by**: OpenAPI spec change in ninerlog-api
             **Commit**: ${{ github.event.client_payload.sha }}
             
             ### Changes
