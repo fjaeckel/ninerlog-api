@@ -36,7 +36,7 @@ jobs:
             | tee benchmark-results.txt
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: benchmark-results.txt
@@ -128,7 +128,7 @@ jobs:
 
       - name: Comment k6 results on PR
         if: always() && github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: k6-results
           path: test/performance/results/summary.md
