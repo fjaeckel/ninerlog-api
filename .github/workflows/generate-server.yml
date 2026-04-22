@@ -10,6 +10,9 @@ on:
       - 'scripts/generate-server-types.sh'
       - 'api-spec/openapi.yaml'
 
+permissions:
+  contents: write
+
 jobs:
   generate-server:
     name: Generate Go Server Types
