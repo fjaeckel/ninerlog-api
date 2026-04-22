@@ -77,7 +77,7 @@ cat > "$OUTPUT_DIR/doc.go" << 'EOF'
 //
 //	./scripts/generate-server-types.sh
 //
-# Source: api-spec/openapi.yaml
+// Source: api-spec/openapi.yaml
 // Generator: oapi-codegen v2
 package generated
 EOF
