@@ -13,8 +13,9 @@ RUN go mod download
 # Copy source code (includes pre-generated types in internal/api/generated/)
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Build the application (TARGETARCH is set automatically by Docker Buildx)
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s" \
     -o /build/ninerlog-api \
     ./cmd/api
