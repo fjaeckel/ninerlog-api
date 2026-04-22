@@ -5,7 +5,7 @@ You are assisting with the NinerLog API repository, the backend server for a EAS
 ## Critical Cross-Repo Workflow Rules
 
 ### API-First Development
-- **ALWAYS update the OpenAPI spec first** (`ninerlog-project/api-spec/openapi.yaml`) before making any API changes.
+- **ALWAYS update the OpenAPI spec first** (`api-spec/openapi.yaml`) before making any API changes.
 - **ALWAYS regenerate API clients** in both `ninerlog-api` (`bash scripts/generate-server-types.sh`) and `ninerlog-frontend` (`bash scripts/generate-api-client.sh`) from the OpenAPI changes before implementing features.
 
 ### Pre-Commit / Pre-Push Checklist
@@ -15,7 +15,7 @@ You are assisting with the NinerLog API repository, the backend server for a EAS
 
 ### Regression Handling
 - When regressions are found, **NEVER work around them in tests**.
-- **ALWAYS document regressions** in `ninerlog-project/REGRESSIONS.md` so they can be planned into the roadmap later.
+- **ALWAYS document regressions** in GitHub Issues so they can be planned into the roadmap later.
 - Regressions should be tracked as real issues, not hidden behind test workarounds.
 
 ## Repository Context
@@ -895,7 +895,7 @@ const flights = await prisma.flightLog.findMany({
 import OpenApiValidator from 'express-openapi-validator';
 
 app.use(OpenApiValidator.middleware({
-  apiSpec: '../ninerlog-project/api-spec/openapi.yaml',
+  apiSpec: 'api-spec/openapi.yaml',
   validateRequests: true,
   validateResponses: true,
   operationHandlers: path.join(__dirname, 'api/routes'),
@@ -934,7 +934,6 @@ app.setErrorHandler((error, req, reply) => {
 
 ## Related Repositories
 
-- **ninerlog-project**: OpenAPI spec and documentation
 - **ninerlog-frontend**: React web application
 
 Coordinate changes that affect:

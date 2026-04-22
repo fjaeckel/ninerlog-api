@@ -116,22 +116,18 @@ docker build -t ninerlog-api .
 ## Documentation
 
 - [Running Tests](docs/RUNNING_TESTS.md) — Unit, integration, and E2E testing guide
-- [API Specification](https://github.com/fjaeckel/ninerlog-project/blob/main/api-spec/openapi.yaml) — OpenAPI 3.1 spec (source of truth)
-- [OpenAPI Quick Reference](https://github.com/fjaeckel/ninerlog-project/blob/main/OPENAPI_QUICKREF.md) — Code generation workflow
-- [Architecture](https://github.com/fjaeckel/ninerlog-project/blob/main/docs/architecture/README.md) — System design decisions
-- [Database Schema](https://github.com/fjaeckel/ninerlog-project/blob/main/docs/database/schema.md) — PostgreSQL schema documentation
+- [API Specification](api-spec/openapi.yaml) — OpenAPI 3.1 spec (source of truth)
 
 ## Related Repositories
 
 | Repository | Description |
 |---|---|
-| [ninerlog-project](https://github.com/fjaeckel/ninerlog-project) | Project planning, documentation, OpenAPI spec |
 | [ninerlog-frontend](https://github.com/fjaeckel/ninerlog-frontend) | React/TypeScript PWA frontend |
 | [ninerlog-website](https://github.com/fjaeckel/ninerlog-website) | Marketing website |
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/fjaeckel/ninerlog-project/blob/main/CONTRIBUTING.md) for development guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## Security
 
