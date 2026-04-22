@@ -1,0 +1,5191 @@
+openapi: 3.1.0
+info:
+  title: NinerLog API
+  version: 1.0.0
+  description: |
+    RESTful API for EASA/FAA compliant pilot logbook management.
+    
+    ## Features
+    - Multi-license support (PPL, SPL, CPL, ATPL, IR)
+    - EASA and FAA regulatory compliance
+    - Flight logging with detailed time tracking
+    - Currency calculations
+    - Statistics and hour totals per license
+    
+    ## Authentication
+    All endpoints except `/auth/register` and `/auth/login` require JWT authentication.
+    Include the token in the Authorization header: `Bearer <token>`
+    
+  contact:
+    name: Frederic Jaeckel
+    email: frederic@ninerlog.app
+  license:
+    name: TBD
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+  - url: https://api.ninerlog.app/api/v1
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User registration and login
+  - name: Users
+    description: User profile management
+  - name: Licenses
+    description: Pilot license management
+  - name: Aircraft
+    description: Aircraft database management
+  - name: Flights
+    description: Flight log entries
+  - name: Statistics
+    description: Hour totals and analytics
+  - name: Currency
+    description: Currency status checks
+  - name: Credentials
+    description: Medicals, language proficiency, and security clearances
+  - name: Maps
+    description: Airport coordinates, flight routes, and activity heatmap
+  - name: Import
+    description: Flight log import from CSV and XLS/XLSX files (including ForeFlight export)
+  - name: Reports
+    description: Flight statistics, trends, and breakdowns
+  - name: Contacts
+    description: Reusable crew and contact management
+  - name: Admin
+    description: Admin-only platform management (requires ADMIN_EMAIL env var match)
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Create a new user account with email and password
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: pilot@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 12
+                  example: SecurePass123!
+                  description: Must be at least 12 characters
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  example: John Doe
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login
+      description: Authenticate with email and password to receive JWT tokens
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: pilot@example.com
+                password:
+                  type: string
+                  format: password
+                  example: SecurePass123!
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Use refresh token to obtain a new access token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: New access token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                    description: New refresh token (rotation — old token is invalidated)
+                  expiresIn:
+                    type: integer
+                    description: Token expiry in seconds
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/change-password:
+    post:
+      tags:
+        - Authentication
+      summary: Change password
+      description: Change the authenticated user's password. Requires the current password for verification.
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                  description: The user's current password
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 12
+                  description: The new password (minimum 12 characters)
+      responses:
+        '204':
+          description: Password changed successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/2fa/setup:
+    post:
+      tags:
+        - Authentication
+      summary: Start 2FA setup
+      description: Generate a TOTP secret and return the provisioning URI for authenticator apps. Does not enable 2FA until verified.
+      operationId: setup2FA
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 2FA setup data with secret and QR URI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwoFactorSetup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 2FA is already enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/2fa/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify and enable 2FA
+      description: Verify a TOTP code to confirm setup and enable 2FA. Returns backup recovery codes.
+      operationId: verify2FA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  description: 6-digit TOTP code from authenticator app
+      responses:
+        '200':
+          description: 2FA enabled with recovery codes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwoFactorEnabled'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/2fa/disable:
+    post:
+      tags:
+        - Authentication
+      summary: Disable 2FA
+      description: Disable two-factor authentication. Requires current password for confirmation.
+      operationId: disable2FA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  format: password
+      responses:
+        '204':
+          description: 2FA disabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/2fa/login:
+    post:
+      tags:
+        - Authentication
+      summary: Complete login with 2FA code
+      description: After initial login returns requiresTwoFactor, submit the TOTP code or recovery code here.
+      operationId: login2FA
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - twoFactorToken
+                - code
+              properties:
+                twoFactorToken:
+                  type: string
+                  description: Temporary token from login response
+                code:
+                  type: string
+                  description: 6-digit TOTP code or recovery code
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Get current user profile
+      description: Retrieve the authenticated user's profile information
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags:
+        - Users
+      summary: Update current user profile
+      description: Update the authenticated user's profile information
+      operationId: updateCurrentUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                email:
+                  type: string
+                  format: email
+                timeDisplayFormat:
+                  type: string
+                  enum: [hm, decimal]
+                  description: Preferred time display format
+                dateFormat:
+                  type: string
+                  enum: [DD.MM.YYYY, MM/DD/YYYY, YYYY-MM-DD]
+                  description: Preferred date display format
+                decimalSeparator:
+                  type: string
+                  enum: [comma, dot]
+                  description: Preferred decimal separator for number display
+                preferredLocale:
+                  type: string
+                  enum: [en, de]
+                  description: Preferred language for the interface
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete current user account
+      description: Permanently delete the authenticated user's account and all associated data (licenses, flights, tokens). This action cannot be undone.
+      operationId: deleteCurrentUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  format: password
+                  description: Current password for confirmation
+      responses:
+        '204':
+          description: Account deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/notifications:
+    get:
+      tags:
+        - Users
+      summary: Get notification preferences
+      description: Get the authenticated user's notification preferences
+      operationId: getNotificationPreferences
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags:
+        - Users
+      summary: Update notification preferences
+      description: Update the authenticated user's notification preferences
+      operationId: updateNotificationPreferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferencesUpdate'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/notifications/history:
+    get:
+      tags:
+        - Users
+      summary: Get notification history
+      description: Get the authenticated user's notification history (sent notifications)
+      operationId: getNotificationHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: Maximum number of results to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of results to skip
+      responses:
+        '200':
+          description: Notification history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/statistics:
+    get:
+      tags:
+        - Statistics
+      summary: Get current user's flight statistics
+      description: Get aggregated flight statistics for the authenticated user across all flights, independent of any license.
+      operationId: getMyStatistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          description: Filter from this date (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: Filter to this date (inclusive)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: User flight statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statistics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /licenses:
+    get:
+      tags:
+        - Licenses
+      summary: List user's licenses
+      description: Get all licenses for the authenticated user
+      operationId: listLicenses
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of licenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/License'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Licenses
+      summary: Create a new license
+      description: Add a new pilot license for the authenticated user
+      operationId: createLicense
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LicenseCreate'
+      responses:
+        '201':
+          description: License created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/License'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /licenses/{licenseId}:
+    get:
+      tags:
+        - Licenses
+      summary: Get license details
+      description: Retrieve details of a specific license
+      operationId: getLicense
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      responses:
+        '200':
+          description: License details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/License'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Licenses
+      summary: Update license
+      description: Update license information
+      operationId: updateLicense
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                regulatoryAuthority:
+                  type: string
+                licenseType:
+                  type: string
+                licenseNumber:
+                  type: string
+                issuingAuthority:
+                  type: string
+                requiresSeparateLogbook:
+                  type: boolean
+      responses:
+        '200':
+          description: License updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/License'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Licenses
+      summary: Delete license
+      description: Delete a license and all associated flight logs
+      operationId: deleteLicense
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      responses:
+        '204':
+          description: License deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /licenses/{licenseId}/statistics:
+    get:
+      tags:
+        - Statistics
+      summary: Get license statistics
+      description: Get hour totals and flight counts filtered by aircraft class of the license's ratings
+      operationId: getLicenseStatistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+        - name: startDate
+          in: query
+          description: Filter from this date (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: Filter to this date (inclusive)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: License statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statistics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /licenses/{licenseId}/currency:
+    get:
+      tags:
+        - Currency
+      summary: Check currency status
+      description: Check if pilot is current according to EASA/FAA regulations
+      operationId: getLicenseCurrency
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      responses:
+        '200':
+          description: Currency status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Currency'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /currency:
+    get:
+      tags: [Currency]
+      summary: Get currency status for all class ratings
+      description: Returns currency status per class rating across all licenses. Each class rating's currency is evaluated based on the regulatory authority of its parent license.
+      operationId: getAllCurrencyStatus
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Currency status per class rating
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrencyStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /licenses/{licenseId}/ratings:
+    get:
+      tags: [Licenses]
+      summary: List class ratings for a license
+      operationId: listClassRatings
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      responses:
+        '200':
+          description: List of class ratings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClassRating'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags: [Licenses]
+      summary: Add class rating to license
+      operationId: createClassRating
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassRatingCreate'
+      responses:
+        '201':
+          description: Class rating created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassRating'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /licenses/{licenseId}/ratings/{ratingId}:
+    patch:
+      tags: [Licenses]
+      summary: Update class rating
+      operationId: updateClassRating
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+        - name: ratingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassRatingUpdate'
+      responses:
+        '200':
+          description: Class rating updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassRating'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Licenses]
+      summary: Delete class rating
+      operationId: deleteClassRating
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+        - name: ratingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Class rating deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /credentials:
+    get:
+      tags:
+        - Credentials
+      summary: List credentials
+      description: Get all credentials for the authenticated user
+      operationId: listCredentials
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of credentials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Credential'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Credentials
+      summary: Add credential
+      description: Add a new credential (medical, language proficiency, or security clearance)
+      operationId: createCredential
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialCreate'
+      responses:
+        '201':
+          description: Credential created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /credentials/{credentialId}:
+    get:
+      tags:
+        - Credentials
+      summary: Get credential details
+      operationId: getCredential
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+      responses:
+        '200':
+          description: Credential details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Credentials
+      summary: Update credential
+      operationId: updateCredential
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialUpdate'
+      responses:
+        '200':
+          description: Credential updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Credentials
+      summary: Delete credential
+      operationId: deleteCredential
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+      responses:
+        '204':
+          description: Credential deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /aircraft:
+    get:
+      tags:
+        - Aircraft
+      summary: List aircraft
+      description: Get all aircraft registered by the authenticated user
+      operationId: listAircraft
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of aircraft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAircraft'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Aircraft
+      summary: Add aircraft
+      description: Register a new aircraft to the user's database
+      operationId: createAircraft
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AircraftCreate'
+      responses:
+        '201':
+          description: Aircraft created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Aircraft'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Aircraft registration already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /aircraft/{aircraftId}:
+    get:
+      tags:
+        - Aircraft
+      summary: Get aircraft details
+      description: Get detailed information about a specific aircraft
+      operationId: getAircraft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AircraftId'
+      responses:
+        '200':
+          description: Aircraft details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Aircraft'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Aircraft
+      summary: Update aircraft
+      description: Update aircraft information
+      operationId: updateAircraft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AircraftId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AircraftUpdate'
+      responses:
+        '200':
+          description: Aircraft updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Aircraft'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Aircraft
+      summary: Delete aircraft
+      description: Delete an aircraft from the user's database. Note - flights using this aircraft will retain the registration/type as text.
+      operationId: deleteAircraft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AircraftId'
+      responses:
+        '204':
+          description: Aircraft deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /flights:
+    get:
+      tags:
+        - Flights
+      summary: List flights
+      description: Get flights for the authenticated user
+      operationId: listFlights
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          description: Filter from this date (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: Filter to this date (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: aircraftReg
+          in: query
+          description: Filter by aircraft registration
+          schema:
+            type: string
+        - name: departureIcao
+          in: query
+          description: Filter by departure airport ICAO code
+          schema:
+            type: string
+            maxLength: 4
+        - name: arrivalIcao
+          in: query
+          description: Filter by arrival airport ICAO code
+          schema:
+            type: string
+            maxLength: 4
+        - name: isPic
+          in: query
+          description: Filter by PIC flights only
+          schema:
+            type: boolean
+        - name: isDual
+          in: query
+          description: Filter by dual instruction flights only
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          description: Free-text search across registration, type, ICAO codes, and remarks
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [date, totalTime, createdAt]
+            default: date
+        - name: sortOrder
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: logbookLicenseId
+          in: query
+          description: Filter flights for a separate-logbook license. Only returns flights on aircraft whose class matches the license's class ratings.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated list of flights
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFlights'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Flights
+      summary: Create flight log
+      description: Create a new flight log entry
+      operationId: createFlight
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightCreate'
+      responses:
+        '201':
+          description: Flight created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flight'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /flights/{flightId}:
+    get:
+      tags:
+        - Flights
+      summary: Get flight details
+      description: Retrieve details of a specific flight
+      operationId: getFlight
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+      responses:
+        '200':
+          description: Flight details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flight'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Flights
+      summary: Update flight
+      description: Update an existing flight log entry
+      operationId: updateFlight
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightUpdate'
+      responses:
+        '200':
+          description: Flight updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flight'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Flights
+      summary: Delete flight
+      description: Delete a flight log entry
+      operationId: deleteFlight
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+      responses:
+        '204':
+          description: Flight deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /airports/{icaoCode}:
+    get:
+      tags: [Maps]
+      summary: Get airport coordinates
+      description: Get coordinates and metadata for an airport by ICAO code
+      operationId: getAirport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: icaoCode
+          in: path
+          required: true
+          description: ICAO airport code (4 characters)
+          schema:
+            type: string
+            minLength: 4
+            maxLength: 4
+            example: EDDF
+      responses:
+        '200':
+          description: Airport information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Airport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /airports/search:
+    get:
+      tags: [Maps]
+      summary: Search airports
+      description: Search airports by ICAO code prefix
+      operationId: searchAirports
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (ICAO code prefix)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 4
+            example: EDD
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: List of matching airports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Airport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/routes:
+    get:
+      tags: [Maps]
+      summary: Get flight routes for map
+      description: Get all unique flight routes with coordinates for map visualization
+      operationId: getFlightRoutes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Flight routes with airport coordinates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightRoutesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/airport-stats:
+    get:
+      tags: [Maps]
+      summary: Get airport statistics
+      description: Get flight count and hours per airport for the authenticated user
+      operationId: getAirportStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Airport statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AirportStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Import ────────────────────────────────────────────────────────────
+
+  /imports/upload:
+    post:
+      tags: [Import]
+      summary: Upload file for import
+      description: |
+        Upload a CSV or XLS/XLSX file containing flight log entries.
+        The server parses the file, detects the format (generic CSV, ForeFlight CSV,
+        or Excel), and returns the detected columns along with a preview of the
+        first rows.  No flights are created at this stage.
+
+        **Supported formats:**
+        - Generic CSV (comma, semicolon, or tab delimited)
+        - ForeFlight logbook export CSV (auto-detected via header row)
+        - XLS (Excel 97-2003)
+        - XLSX (Excel 2007+)
+
+        Maximum file size: 10 MB.
+      operationId: uploadImportFile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV or XLS/XLSX file to import
+            encoding:
+              file:
+                contentType: text/csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      responses:
+        '200':
+          description: File parsed successfully — columns and preview rows returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportUploadResponse'
+        '400':
+          description: File is empty, too large, unsupported format, or cannot be parsed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /imports/preview:
+    post:
+      tags: [Import]
+      summary: Preview mapped flights
+      description: |
+        Submit column-to-field mappings for a previously uploaded file.
+        The server validates every row against flight log rules, detects
+        potential duplicates (same date + aircraft + departure + arrival within
+        a time tolerance), and returns the validated flights grouped into
+        `valid`, `duplicate`, and `error` buckets.  No flights are persisted.
+      operationId: previewImport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportPreviewRequest'
+      responses:
+        '200':
+          description: Validation results with categorised flights
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Upload token not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /imports/confirm:
+    post:
+      tags: [Import]
+      summary: Confirm and execute import
+      description: |
+        Confirm a previously previewed import.  The caller specifies which rows
+        to import (by row index) and whether to include detected duplicates.
+        The server creates flight log entries for the selected rows and returns
+        an import summary.
+      operationId: confirmImport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportConfirmRequest'
+      responses:
+        '201':
+          description: Import completed — flights created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Upload token not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /imports:
+    get:
+      tags: [Import]
+      summary: List import history
+      description: Get a paginated list of past imports for the authenticated user
+      operationId: listImports
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated list of imports
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedImports'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /imports/{importId}:
+    get:
+      tags: [Import]
+      summary: Get import details
+      description: Get details of a specific import including per-row results
+      operationId: getImport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ImportId'
+      responses:
+        '200':
+          description: Import details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /exports/csv:
+    get:
+      tags: [Export]
+      summary: Export flights as CSV
+      description: Export all flight data as a CSV file. Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), and standard (ForeFlight-compatible) formats.
+      operationId: exportFlightsCSV
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          description: CSV column format — easa, faa, or standard (ForeFlight-compatible default)
+          schema:
+            type: string
+            enum: [easa, faa, standard]
+            default: standard
+      responses:
+        '200':
+          description: CSV file download
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /exports/json:
+    get:
+      tags: [Export]
+      summary: Export full data backup as JSON
+      description: Export all user data (flights, aircraft, licenses, class ratings, credentials) as a JSON backup file
+      operationId: exportDataJSON
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: JSON backup file download
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /exports/pdf:
+    get:
+      tags: [Export]
+      summary: Export flights as PDF logbook
+      description: Export all flight data as a formatted PDF document. Supports EASA AMC1 FCL.050, FAA (ASA/Jeppesen), and summary formats.
+      operationId: exportFlightsPDF
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: logbookLicenseId
+          in: query
+          description: Filter flights for a specific logbook license
+          schema:
+            type: string
+            format: uuid
+        - name: format
+          in: query
+          description: PDF format — easa (AMC1 FCL.050 two-page spread), faa (ASA/Jeppesen layout), or summary (simplified totals)
+          schema:
+            type: string
+            enum: [easa, faa, summary]
+            default: easa
+      responses:
+        '200':
+          description: PDF file download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Reports ──
+
+  /reports/trends:
+    get:
+      tags:
+        - Reports
+      summary: Get monthly flight trends
+      description: Returns monthly aggregated flight data (hours, flights, aircraft breakdown) for the specified number of months.
+      operationId: getFlightTrends
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: months
+          in: query
+          description: Number of months to include (default 12, max 60)
+          schema:
+            type: integer
+            default: 12
+            maximum: 60
+      responses:
+        '200':
+          description: Monthly trend data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trends:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        month:
+                          type: string
+                          description: Month in YYYY-MM format
+                        totalMinutes:
+                          type: integer
+                        flights:
+                          type: integer
+                  aircraftBreakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        aircraftType:
+                          type: string
+                        minutes:
+                          type: integer
+                        flights:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/stats-by-class:
+    get:
+      tags:
+        - Reports
+      summary: Get statistics by aircraft class and category
+      description: Returns aggregated flight statistics grouped by aircraft class, aircraft category (tailwheel, complex, high-performance), and regulatory authority.
+      operationId: getStatsByClass
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics grouped by class, category, and authority
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  byClass:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        class:
+                          type: string
+                        flights:
+                          type: integer
+                        minutes:
+                          type: integer
+                        picMinutes:
+                          type: integer
+                        dualMinutes:
+                          type: integer
+                        landings:
+                          type: integer
+                  byCategory:
+                    type: array
+                    description: PIC and Dual time grouped by aircraft category (e.g. tailwheel, complex, high-performance). Only categories with flights are included.
+                    items:
+                      type: object
+                      properties:
+                        category:
+                          type: string
+                          description: "Category label, e.g. 'Tailwheel', 'Complex', 'High Performance'"
+                        flights:
+                          type: integer
+                        picMinutes:
+                          type: integer
+                        dualMinutes:
+                          type: integer
+                  byAuthority:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        authority:
+                          type: string
+                        licenseType:
+                          type: string
+                        flights:
+                          type: integer
+                        minutes:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Contacts ──
+
+  /contacts:
+    get:
+      tags:
+        - Contacts
+      summary: List all contacts
+      description: Returns all contacts (crew, instructors, etc.) for the authenticated user.
+      operationId: listContacts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Contacts
+      summary: Create a contact
+      description: Creates a new reusable contact for the authenticated user.
+      operationId: createContact
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactCreate'
+      responses:
+        '201':
+          description: Contact created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /contacts/search:
+    get:
+      tags:
+        - Contacts
+      summary: Search contacts
+      description: Search contacts by name for autocomplete.
+      operationId: searchContacts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query string
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum results (default 10)
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Matching contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /contacts/{contactId}:
+    get:
+      tags:
+        - Contacts
+      summary: Get a contact
+      description: Returns a single contact by ID.
+      operationId: getContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contactId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Contacts
+      summary: Update a contact
+      description: Updates an existing contact.
+      operationId: updateContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contactId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactCreate'
+      responses:
+        '200':
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Contacts
+      summary: Delete a contact
+      description: Deletes a contact by ID.
+      operationId: deleteContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contactId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Contact deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Flight Utilities ──
+
+  /flights/delete-all:
+    delete:
+      tags:
+        - Flights
+      summary: Delete all flights
+      description: |
+        Permanently delete all flight log entries for the authenticated user.
+        This also removes associated crew members and import history.
+        This action cannot be undone.
+      operationId: deleteAllFlights
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Deletion results
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - deleted
+                properties:
+                  deleted:
+                    type: integer
+                    description: Number of flights deleted
+                    example: 42
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/data:
+    delete:
+      tags:
+        - Users
+      summary: Delete all user data
+      description: |
+        Permanently delete all data for the authenticated user while keeping the account.
+        This removes flights, aircraft, licenses, class ratings, contacts, credentials,
+        import history, and notification logs. The user account itself is preserved.
+        This action cannot be undone.
+      operationId: deleteAllUserData
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Deletion results
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                    example: All user data deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /flights/recalculate:
+    post:
+      tags:
+        - Flights
+      summary: Recalculate all flights
+      description: Recalculates auto-computed fields (night time, distance, solo, cross-country, etc.) for all of the authenticated user's flights.
+      operationId: recalculateFlights
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recalculation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+                    description: Number of flights updated
+                  errors:
+                    type: integer
+                    description: Number of flights that failed
+                  total:
+                    type: integer
+                    description: Total flights processed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/audit-log:
+    get:
+      tags:
+        - Admin
+      summary: List admin audit log
+      description: |
+        Returns the admin audit trail — a paginated list of all administrative actions
+        performed via the admin console. Requires admin privileges.
+      operationId: listAdminAuditLog
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated audit log entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminAuditLog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden — admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/users:
+    get:
+      tags:
+        - Admin
+      summary: List all users (privacy-preserving)
+      description: |
+        Returns a paginated list of all user accounts with metadata only.
+        No flight data, credentials, or personal documents are exposed.
+        Requires admin privileges.
+      operationId: listAdminUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by email or name
+      responses:
+        '200':
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminUsers'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{userId}/disable:
+    post:
+      tags:
+        - Admin
+      summary: Disable a user account
+      description: Disable a user account and revoke all tokens. Logged to audit trail.
+      operationId: disableUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{userId}/enable:
+    post:
+      tags:
+        - Admin
+      summary: Re-enable a user account
+      description: Re-enable a previously disabled user account. Logged to audit trail.
+      operationId: enableUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{userId}/unlock:
+    post:
+      tags:
+        - Admin
+      summary: Unlock a locked user account
+      description: Clear brute-force lockout for a user account. Logged to audit trail.
+      operationId: unlockUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User unlocked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{userId}/reset-2fa:
+    post:
+      tags:
+        - Admin
+      summary: Reset 2FA for a user
+      description: Disable 2FA for a user who lost their authenticator. Logged to audit trail.
+      operationId: resetUser2fa
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 2FA reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/stats:
+    get:
+      tags:
+        - Admin
+      summary: System-wide aggregate statistics
+      description: |
+        Returns aggregate platform metrics. No individual user data exposed.
+        Requires admin privileges.
+      operationId: getAdminStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: System statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/maintenance/cleanup-tokens:
+    post:
+      tags:
+        - Admin
+      summary: Clean up expired tokens
+      description: Delete expired refresh tokens and password reset tokens. Requires admin privileges.
+      operationId: cleanupTokens
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cleanup results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refreshTokensDeleted:
+                    type: integer
+                  resetTokensDeleted:
+                    type: integer
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/maintenance/smtp-test:
+    post:
+      tags:
+        - Admin
+      summary: Send SMTP test email
+      description: Send a test email to the admin's email address to verify SMTP configuration. Requires admin privileges.
+      operationId: smtpTest
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Test email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/maintenance/trigger-notifications:
+    post:
+      tags:
+        - Admin
+      summary: Trigger notification check
+      description: |
+        Immediately run the notification checker for all users, bypassing the
+        check-hour gating. Used for testing and manual maintenance.
+        Requires admin privileges.
+      operationId: triggerNotifications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notification check triggered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/config:
+    get:
+      tags:
+        - Admin
+      summary: Runtime configuration (non-secret)
+      description: |
+        Returns non-secret runtime configuration for system diagnostics.
+        Never exposes secrets (JWT keys, SMTP passwords, database credentials).
+        Requires admin privileges.
+      operationId: getAdminConfig
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Runtime configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /announcements:
+    get:
+      tags:
+        - Users
+      summary: Get active announcements and user hints
+      description: |
+        Returns active system announcements (admin-created) and auto-generated
+        user hints (e.g. enable 2FA, add aircraft). Requires authentication.
+      operationId: getAnnouncements
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active announcements and hints
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - announcements
+                  - hints
+                properties:
+                  announcements:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Announcement'
+                  hints:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Announcement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/announcements:
+    post:
+      tags:
+        - Admin
+      summary: Create a system announcement
+      description: Create a banner announcement visible to all users. Requires admin privileges.
+      operationId: createAnnouncement
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+                - severity
+              properties:
+                message:
+                  type: string
+                  example: Scheduled maintenance on Tuesday 8pm-10pm UTC
+                severity:
+                  type: string
+                  enum: [info, success, warning, critical]
+                  example: warning
+                expiresAt:
+                  type: string
+                  format: date-time
+                  description: Auto-expire the announcement at this time (optional)
+      responses:
+        '201':
+          description: Announcement created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Announcement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/announcements/{announcementId}:
+    delete:
+      tags:
+        - Admin
+      summary: Delete an announcement
+      description: Remove a system announcement. Requires admin privileges.
+      operationId: deleteAnnouncement
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Announcement deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from /auth/login or /auth/refresh
+
+  parameters:
+    LicenseId:
+      name: licenseId
+      in: path
+      required: true
+      description: License UUID
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+
+    AircraftId:
+      name: aircraftId
+      in: path
+      required: true
+      description: Aircraft UUID
+      schema:
+        type: string
+        format: uuid
+        example: 770e8400-e29b-41d4-a716-446655440002
+
+    FlightId:
+      name: flightId
+      in: path
+      required: true
+      description: Flight UUID
+      schema:
+        type: string
+        format: uuid
+        example: 660e8400-e29b-41d4-a716-446655440001
+
+    CredentialId:
+      name: credentialId
+      in: path
+      required: true
+      description: Credential UUID
+      schema:
+        type: string
+        format: uuid
+        example: 880e8400-e29b-41d4-a716-446655440003
+
+    ImportId:
+      name: importId
+      in: path
+      required: true
+      description: Import UUID
+      schema:
+        type: string
+        format: uuid
+        example: 990e8400-e29b-41d4-a716-446655440004
+
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        email:
+          type: string
+          format: email
+          example: pilot@example.com
+        name:
+          type: string
+          example: John Doe
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-01-15T10:30:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-01-20T14:45:00Z'
+        twoFactorEnabled:
+          type: boolean
+          example: false
+          description: Whether 2FA is enabled for this account
+        isAdmin:
+          type: boolean
+          example: false
+          description: Whether this user is the platform admin (computed from ADMIN_EMAIL env var, not stored in DB)
+        timeDisplayFormat:
+          type: string
+          enum: [hm, decimal]
+          default: hm
+          example: hm
+          description: User's preferred time display format. "hm" for hours and minutes (1h 30m), "decimal" for decimal hours (1.5h).
+        dateFormat:
+          type: string
+          enum: [DD.MM.YYYY, MM/DD/YYYY, YYYY-MM-DD]
+          default: DD.MM.YYYY
+          example: DD.MM.YYYY
+          description: User's preferred date display format.
+        decimalSeparator:
+          type: string
+          enum: [comma, dot]
+          default: comma
+          example: comma
+          description: User's preferred decimal separator for number display. "comma" for European style (1,5), "dot" for US/UK style (1.5).
+        preferredLocale:
+          type: string
+          enum: [en, de]
+          default: en
+          example: en
+          description: User's preferred language for the interface.
+
+    TwoFactorSetup:
+      type: object
+      required:
+        - secret
+        - qrUri
+      properties:
+        secret:
+          type: string
+          description: Base32-encoded TOTP secret for manual entry
+          example: JBSWY3DPEHPK3PXP
+        qrUri:
+          type: string
+          description: otpauth:// URI for QR code generation
+          example: 'otpauth://totp/NinerLog:pilot@example.com?secret=JBSWY3DPEHPK3PXP&issuer=NinerLog'
+
+    TwoFactorEnabled:
+      type: object
+      required:
+        - recoveryCodes
+      properties:
+        recoveryCodes:
+          type: array
+          items:
+            type: string
+          description: One-time recovery codes to use if authenticator is unavailable
+          example: ['abc12-def34', 'ghi56-jkl78', 'mno90-pqr12']
+
+    TwoFactorLoginRequired:
+      type: object
+      required:
+        - requiresTwoFactor
+        - twoFactorToken
+      properties:
+        requiresTwoFactor:
+          type: boolean
+          example: true
+        twoFactorToken:
+          type: string
+          description: Temporary token to use with /auth/2fa/login
+
+    AuthResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - expiresIn
+        - user
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token (15 minutes validity)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          description: JWT refresh token (7 days validity)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        expiresIn:
+          type: integer
+          description: Access token expiry in seconds
+          example: 900
+        user:
+          $ref: '#/components/schemas/User'
+
+    License:
+      type: object
+      required:
+        - id
+        - userId
+        - regulatoryAuthority
+        - licenseType
+        - licenseNumber
+        - issueDate
+        - issuingAuthority
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        userId:
+          type: string
+          format: uuid
+          example: 660e8400-e29b-41d4-a716-446655440001
+        regulatoryAuthority:
+          type: string
+          example: EASA
+          description: Regulatory authority (e.g., EASA, FAA, CAA UK, Transport Canada)
+        licenseType:
+          type: string
+          example: PPL
+          description: License type (e.g., PPL, CPL, ATPL, SPL, LAPL, UL)
+        licenseNumber:
+          type: string
+          example: PPL-123456
+        issueDate:
+          type: string
+          format: date
+          example: '2020-01-15'
+        issuingAuthority:
+          type: string
+          example: EASA
+          description: e.g., EASA, FAA, CAA UK
+        requiresSeparateLogbook:
+          type: boolean
+          default: false
+          description: Whether this license requires a separate logbook (e.g., SPL, Ultralight)
+        createdAt:
+          type: string
+          format: date-time
+          example: '2020-01-15T10:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-01-20T12:00:00Z'
+
+    LicenseCreate:
+      type: object
+      required:
+        - regulatoryAuthority
+        - licenseType
+        - licenseNumber
+        - issueDate
+        - issuingAuthority
+      properties:
+        regulatoryAuthority:
+          type: string
+          example: EASA
+        licenseType:
+          type: string
+          example: PPL
+        licenseNumber:
+          type: string
+          example: PPL-123456
+        issueDate:
+          type: string
+          format: date
+          example: '2020-01-15'
+        issuingAuthority:
+          type: string
+          example: EASA
+        requiresSeparateLogbook:
+          type: boolean
+          default: false
+
+    Aircraft:
+      type: object
+      required:
+        - id
+        - userId
+        - registration
+        - type
+        - make
+        - model
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 770e8400-e29b-41d4-a716-446655440002
+        userId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        registration:
+          type: string
+          example: D-EFGH
+          description: Aircraft registration/tail number
+        type:
+          type: string
+          example: C172
+          description: Aircraft type designation (e.g., C172, PA28, ASK21)
+        make:
+          type: string
+          example: Cessna
+          description: Aircraft manufacturer
+        model:
+          type: string
+          example: 172 Skyhawk
+          description: Aircraft model name
+        isComplex:
+          type: boolean
+          default: false
+          example: false
+          description: Whether aircraft has retractable gear, flaps, and constant speed propeller
+        isHighPerformance:
+          type: boolean
+          default: false
+          example: false
+          description: Whether aircraft has more than 200 HP
+        isTailwheel:
+          type: boolean
+          default: false
+          example: false
+          description: Whether aircraft has tailwheel (conventional gear)
+        aircraftClass:
+          type: [string, 'null']
+          example: SEP_LAND
+          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+        notes:
+          type: [string, 'null']
+          example: Club aircraft, requires checkout
+          description: Additional notes about the aircraft
+        isActive:
+          type: boolean
+          default: true
+          example: true
+          description: Whether aircraft is still active in the user's fleet
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-01-15T10:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-02-01T14:30:00Z'
+
+    AircraftCreate:
+      type: object
+      required:
+        - registration
+        - type
+        - make
+        - model
+      properties:
+        registration:
+          type: string
+          example: D-EFGH
+          description: Aircraft registration/tail number
+        type:
+          type: string
+          example: C172
+          description: Aircraft type designation
+        make:
+          type: string
+          example: Cessna
+          description: Aircraft manufacturer
+        model:
+          type: string
+          example: 172 Skyhawk
+          description: Aircraft model name
+        isComplex:
+          type: boolean
+          default: false
+          example: false
+        isHighPerformance:
+          type: boolean
+          default: false
+          example: false
+        isTailwheel:
+          type: boolean
+          default: false
+          example: false
+        aircraftClass:
+          type: [string, 'null']
+          example: SEP_LAND
+          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+        notes:
+          type: [string, 'null']
+          example: Club aircraft, requires checkout
+
+    AircraftUpdate:
+      type: object
+      properties:
+        registration:
+          type: string
+          example: D-EFGH
+        type:
+          type: string
+          example: C172
+        make:
+          type: string
+          example: Cessna
+        model:
+          type: string
+          example: 172 Skyhawk
+        isComplex:
+          type: boolean
+          example: false
+        isHighPerformance:
+          type: boolean
+          example: false
+        isTailwheel:
+          type: boolean
+          example: false
+        aircraftClass:
+          type: [string, 'null']
+          example: SEP_LAND
+          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+        notes:
+          type: [string, 'null']
+          example: Club aircraft, requires checkout
+        isActive:
+          type: boolean
+          example: true
+
+    Flight:
+      type: object
+      required:
+        - id
+        - userId
+        - date
+        - aircraftReg
+        - aircraftType
+        - totalTime
+        - isPic
+        - isDual
+        - picTime
+        - dualTime
+        - nightTime
+        - ifrTime
+        - soloTime
+        - crossCountryTime
+        - distance
+        - landingsDay
+        - landingsNight
+        - allLandings
+        - takeoffsDay
+        - takeoffsNight
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 770e8400-e29b-41d4-a716-446655440002
+        userId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        date:
+          type: string
+          format: date
+          example: '2026-01-30'
+        aircraftReg:
+          type: string
+          example: D-EFGH
+          description: Aircraft registration
+        aircraftType:
+          type: string
+          example: C172
+          description: Aircraft type
+        departureIcao:
+          type: [string, 'null']
+          example: EDDF
+          description: ICAO code of departure airport
+        arrivalIcao:
+          type: [string, 'null']
+          example: EDDH
+          description: ICAO code of arrival airport
+        offBlockTime:
+          type: [string, 'null']
+          format: time
+          example: '14:15:00'
+          description: Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+        onBlockTime:
+          type: [string, 'null']
+          format: time
+          example: '16:55:00'
+          description: On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+        departureTime:
+          type: [string, 'null']
+          format: time
+          example: '14:30:00'
+          description: Takeoff time in UTC. Marks the beginning of airborne/flight time.
+        arrivalTime:
+          type: [string, 'null']
+          format: time
+          example: '16:45:00'
+          description: Landing time in UTC. Marks the end of airborne/flight time.
+        totalTime:
+          type: integer
+          minimum: 0
+          example: 150
+          description: Total block time in minutes (off-block to on-block)
+        isPic:
+          type: boolean
+          example: true
+          description: Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
+        isDual:
+          type: boolean
+          example: false
+          description: Whether this flight was logged as dual instruction received. Mutually exclusive with isPic.
+        picTime:
+          type: integer
+          minimum: 0
+          example: 150
+          description: Pilot-in-command block time in minutes (computed from isPic and totalTime)
+        dualTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Dual instruction block time in minutes (computed from isDual and totalTime)
+        nightTime:
+          type: integer
+          minimum: 0
+          example: 30
+          description: Night block time in minutes. Auto-calculated from departure/arrival times and airport sunset/sunrise data.
+        ifrTime:
+          type: integer
+          minimum: 0
+          example: 60
+          description: Instrument block time in minutes
+        landingsDay:
+          type: integer
+          minimum: 0
+          example: 3
+          description: Number of day landings. Auto-calculated from sunset/sunrise at arrival airport.
+        landingsNight:
+          type: integer
+          minimum: 0
+          example: 1
+          description: Number of night landings. Auto-calculated from sunset/sunrise at arrival airport.
+        allLandings:
+          type: integer
+          minimum: 0
+          example: 4
+          description: Total landings (day + night). Auto-calculated by the server.
+        takeoffsDay:
+          type: integer
+          minimum: 0
+          example: 3
+          description: Number of day takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
+        takeoffsNight:
+          type: integer
+          minimum: 0
+          example: 1
+          description: Number of night takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
+        route:
+          type: [string, 'null']
+          example: EDDF,EDDS,EDDM
+          description: Route waypoints as comma-separated ICAO codes for VFR/IFR flight plans
+        soloTime:
+          type: integer
+          minimum: 0
+          example: 90
+          description: Solo time in minutes. Auto-calculated when no crew and not dual instruction.
+        crossCountryTime:
+          type: integer
+          minimum: 0
+          example: 150
+          description: Cross-country time in minutes. Auto-calculated when departure ≠ arrival.
+        distance:
+          type: number
+          format: float
+          minimum: 0
+          example: 185.3
+          description: Distance in nautical miles. Auto-calculated from airport coordinates.
+        remarks:
+          type: [string, 'null']
+          example: Training flight - touch and go practice
+          description: Free text notes
+        instructorName:
+          type: [string, 'null']
+          description: Name of the instructor for this flight
+        instructorComments:
+          type: [string, 'null']
+          description: Instructor comments about the flight
+        sicTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Second-in-command time in minutes. Auto-calculated when SIC crew role assigned.
+        dualGivenTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Dual instruction given time in minutes. Auto-calculated when user acts as instructor.
+        simulatedFlightTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Simulated flight time in minutes (FTD/FSTD)
+        groundTrainingTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Ground training time in minutes
+        actualInstrumentTime:
+          type: integer
+          minimum: 0
+          example: 30
+          description: Actual instrument flight time in minutes (under IMC or simulated IMC with view-limiting device)
+        simulatedInstrumentTime:
+          type: integer
+          minimum: 0
+          example: 18
+          description: Simulated instrument time in minutes (FSTD/FTD/ATD)
+        holds:
+          type: integer
+          minimum: 0
+          example: 1
+          description: Number of holding procedures performed
+        approachesCount:
+          type: integer
+          minimum: 0
+          example: 2
+          description: Number of instrument approaches performed
+        isIpc:
+          type: boolean
+          example: false
+          description: Whether this flight included an Instrument Proficiency Check (IPC)
+        isFlightReview:
+          type: boolean
+          example: false
+          description: Whether this flight was a Flight Review (FAA 61.56) or equivalent
+        isProficiencyCheck:
+          type: boolean
+          example: false
+          description: Whether this flight was a Proficiency Check (EASA FCL.740.A MEP/SET, FCL.625.A IR, or FAA §61.58)
+        launchMethod:
+          type: [string, 'null']
+          enum: [winch, aerotow, self-launch, 'null']
+          example: winch
+          description: Launch method for glider/SPL flights (winch, aerotow, or self-launch)
+        picName:
+          type: [string, 'null']
+          example: Self
+          description: Name of the pilot-in-command for this flight (EASA AMC1 FCL.050 Col 12). Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
+        multiPilotTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
+        fstdType:
+          type: [string, 'null']
+          example: FNPT II
+          description: FSTD type designation (e.g., "FNPT II", "FFS A320", "FTD Level 5", "BATD", "AATD"). Required by EASA AMC1 FCL.050 Col 22 and FAA §61.51(b)(1)(iv).
+        approaches:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApproachEntry'
+          description: Structured instrument approach details (FAA §61.51(g)(3)) — type, airport, and runway for each approach
+        endorsements:
+          type: [string, 'null']
+          example: Skill test passed
+          description: Instructor endorsements, skill test references, examiner notes. EASA AMC1 FCL.050 Col 24 / FAA §61.51(h). Separate from pilot remarks.
+        crewMembers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightCrewMember'
+          description: People on board this flight with their roles
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-01-30T16:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-01-30T16:00:00Z'
+
+    FlightCreate:
+      type: object
+      required:
+        - date
+        - aircraftReg
+        - aircraftType
+        - departureIcao
+        - arrivalIcao
+        - offBlockTime
+        - onBlockTime
+        - landings
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-01-30'
+        aircraftReg:
+          type: string
+          example: D-EFGH
+        aircraftType:
+          type: string
+          example: C172
+        departureIcao:
+          type: string
+          example: EDDF
+          description: Departure airport ICAO code
+        arrivalIcao:
+          type: string
+          example: EDDH
+          description: Arrival airport ICAO code
+        offBlockTime:
+          type: string
+          format: time
+          example: '14:15:00'
+          description: Off-block time (chocks off / engine start) in UTC
+        onBlockTime:
+          type: string
+          format: time
+          example: '16:55:00'
+          description: On-block time (chocks on / engine shutdown) in UTC
+        departureTime:
+          type: string
+          format: time
+          example: '14:30:00'
+          description: Takeoff time in UTC
+        arrivalTime:
+          type: string
+          format: time
+          example: '16:45:00'
+          description: Landing time in UTC
+        totalTime:
+          type: integer
+          minimum: 1
+          example: 150
+          readOnly: true
+          description: Total block time in minutes calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
+        picTime:
+          type: integer
+          minimum: 0
+          readOnly: true
+          example: 150
+          description: Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise.
+        dualTime:
+          type: integer
+          minimum: 0
+          readOnly: true
+          example: 0
+          description: Dual instruction time in minutes. Computed by server — equals totalTime when isDual is true, 0 otherwise.
+        ifrTime:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 60
+        landings:
+          type: integer
+          minimum: 0
+          example: 3
+          description: Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport.
+        takeoffsDay:
+          type: integer
+          minimum: 0
+          example: 3
+          description: Number of day takeoffs. Provide to override auto-calculation.
+        takeoffsNight:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Number of night takeoffs. Provide to override auto-calculation.
+        route:
+          type: [string, 'null']
+          example: EDDF,EDDS,EDDM
+          description: Route waypoints as comma-separated ICAO codes
+        soloTime:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Solo time in minutes. Auto-calculated by the server.
+        crossCountryTime:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Cross-country time in minutes. Auto-calculated by the server.
+        distance:
+          type: number
+          format: float
+          minimum: 0
+          readOnly: true
+          description: Distance in nautical miles. Auto-calculated by the server.
+        allLandings:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Total landings (day + night). Auto-calculated by the server.
+        remarks:
+          type: [string, 'null']
+          example: Training flight - touch and go practice
+        instructorName:
+          type: [string, 'null']
+        instructorComments:
+          type: [string, 'null']
+        sicTime:
+          type: integer
+          minimum: 0
+        dualGivenTime:
+          type: integer
+          minimum: 0
+        simulatedFlightTime:
+          type: integer
+          minimum: 0
+        groundTrainingTime:
+          type: integer
+          minimum: 0
+        actualInstrumentTime:
+          type: integer
+          minimum: 0
+        simulatedInstrumentTime:
+          type: integer
+          minimum: 0
+        holds:
+          type: integer
+          minimum: 0
+        approachesCount:
+          type: integer
+          minimum: 0
+        isIpc:
+          type: boolean
+        isFlightReview:
+          type: boolean
+        isProficiencyCheck:
+          type: boolean
+        launchMethod:
+          type: [string, 'null']
+          enum: [winch, aerotow, self-launch, 'null']
+        picName:
+          type: [string, 'null']
+          description: Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
+        multiPilotTime:
+          type: integer
+          minimum: 0
+          description: Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
+        fstdType:
+          type: [string, 'null']
+          description: FSTD type designation (e.g., "FNPT II", "FFS A320")
+        approaches:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApproachEntryInput'
+          description: Structured instrument approach details
+        endorsements:
+          type: [string, 'null']
+          description: Instructor endorsements, skill test references
+        crewMembers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightCrewMemberInput'
+          description: People on board this flight
+
+    FlightUpdate:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        aircraftReg:
+          type: string
+        aircraftType:
+          type: string
+        departureIcao:
+          type: [string, 'null']
+        arrivalIcao:
+          type: [string, 'null']
+        offBlockTime:
+          type: [string, 'null']
+          format: time
+          description: Off-block time (chocks off / engine start) in UTC
+        onBlockTime:
+          type: [string, 'null']
+          format: time
+          description: On-block time (chocks on / engine shutdown) in UTC
+        departureTime:
+          type: [string, 'null']
+          format: time
+          description: Takeoff time in UTC
+        arrivalTime:
+          type: [string, 'null']
+          format: time
+          description: Landing time in UTC
+        totalTime:
+          type: integer
+          minimum: 1
+        ifrTime:
+          type: integer
+          minimum: 0
+        landings:
+          type: integer
+          minimum: 0
+          description: Total number of landings
+        takeoffsDay:
+          type: integer
+          minimum: 0
+          description: Number of day takeoffs. Provide to override auto-calculation.
+        takeoffsNight:
+          type: integer
+          minimum: 0
+          description: Number of night takeoffs. Provide to override auto-calculation.
+        route:
+          type: [string, 'null']
+          description: Route waypoints as comma-separated ICAO codes
+        remarks:
+          type: [string, 'null']
+        instructorName:
+          type: [string, 'null']
+        instructorComments:
+          type: [string, 'null']
+        sicTime:
+          type: integer
+          minimum: 0
+        dualGivenTime:
+          type: integer
+          minimum: 0
+        simulatedFlightTime:
+          type: integer
+          minimum: 0
+        groundTrainingTime:
+          type: integer
+          minimum: 0
+        actualInstrumentTime:
+          type: integer
+          minimum: 0
+        simulatedInstrumentTime:
+          type: integer
+          minimum: 0
+        holds:
+          type: integer
+          minimum: 0
+        approachesCount:
+          type: integer
+          minimum: 0
+        isIpc:
+          type: boolean
+        isFlightReview:
+          type: boolean
+        isProficiencyCheck:
+          type: boolean
+        launchMethod:
+          type: [string, 'null']
+          enum: [winch, aerotow, self-launch, 'null']
+        picName:
+          type: [string, 'null']
+          description: Name of the PIC
+        multiPilotTime:
+          type: integer
+          minimum: 0
+          description: Multi-pilot time in minutes
+        fstdType:
+          type: [string, 'null']
+          description: FSTD type designation
+        approaches:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApproachEntryInput'
+        endorsements:
+          type: [string, 'null']
+          description: Instructor endorsements, skill test references
+        crewMembers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightCrewMemberInput'
+          description: People on board this flight
+
+    Statistics:
+      type: object
+      required:
+        - totalFlights
+        - totalMinutes
+        - picMinutes
+        - dualMinutes
+        - nightMinutes
+        - ifrMinutes
+        - landingsDay
+        - landingsNight
+      properties:
+        licenseId:
+          type: string
+          format: uuid
+          example: 660e8400-e29b-41d4-a716-446655440001
+        totalFlights:
+          type: integer
+          example: 150
+          description: Total number of flights
+        totalMinutes:
+          type: integer
+          example: 23130
+          description: Total block time in minutes
+        picMinutes:
+          type: integer
+          example: 19200
+          description: Total PIC block time in minutes
+        dualMinutes:
+          type: integer
+          example: 2730
+          description: Total dual instruction block time in minutes
+        nightMinutes:
+          type: integer
+          example: 930
+          description: Total night block time in minutes
+        ifrMinutes:
+          type: integer
+          example: 1800
+          description: Total IFR block time in minutes
+        landingsDay:
+          type: integer
+          example: 450
+          description: Total day landings
+        landingsNight:
+          type: integer
+          example: 35
+          description: Total night landings
+        soloMinutes:
+          type: integer
+          example: 7200
+          description: Total solo time in minutes
+        crossCountryMinutes:
+          type: integer
+          example: 12000
+          description: Total cross-country time in minutes
+
+    Currency:
+      type: object
+      required:
+        - licenseId
+        - isCurrent
+        - daysCurrent
+        - nightsCurrent
+        - last90Days
+      properties:
+        licenseId:
+          type: string
+          format: uuid
+          example: 660e8400-e29b-41d4-a716-446655440001
+        isCurrent:
+          type: boolean
+          example: true
+          description: Overall currency status
+        daysCurrent:
+          type: boolean
+          example: true
+          description: Day currency status
+        nightsCurrent:
+          type: boolean
+          example: false
+          description: Night currency status (FAA requires separate tracking)
+        last90Days:
+          type: object
+          required:
+            - flights
+            - totalLandings
+            - dayLandings
+            - nightLandings
+          properties:
+            flights:
+              type: integer
+              example: 8
+              description: Number of flights in last 90 days
+            totalLandings:
+              type: integer
+              example: 15
+              description: Total landings in last 90 days
+            dayLandings:
+              type: integer
+              example: 12
+              description: Day landings in last 90 days
+            nightLandings:
+              type: integer
+              example: 3
+              description: Night landings in last 90 days
+        requiredLandings:
+          type: object
+          required:
+            - day
+            - night
+          properties:
+            day:
+              type: integer
+              example: 3
+              description: Required day landings for currency
+            night:
+              type: integer
+              example: 3
+              description: Required night landings for night currency
+        expiryDate:
+          type: [string, 'null']
+          format: date
+          example: '2025-01-15'
+          description: License expiry date if applicable
+
+    NotificationPreferences:
+      type: object
+      required:
+        - emailEnabled
+        - enabledCategories
+        - warningDays
+        - checkHour
+      properties:
+        emailEnabled:
+          type: boolean
+          example: true
+          description: Master switch for all email notifications
+        enabledCategories:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationCategory'
+          example: [credential_medical, credential_language, credential_security, credential_other, rating_expiry, currency_passenger, currency_night, currency_instrument, currency_flight_review, currency_revalidation]
+          description: List of enabled notification categories
+        warningDays:
+          type: array
+          items:
+            type: integer
+          example: [30, 14, 7]
+          description: Days before expiry to send warnings
+        checkHour:
+          type: integer
+          minimum: 0
+          maximum: 23
+          example: 8
+          description: Preferred hour (UTC) for daily notification check (0-23)
+
+    NotificationPreferencesUpdate:
+      type: object
+      properties:
+        emailEnabled:
+          type: boolean
+        enabledCategories:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationCategory'
+        warningDays:
+          type: array
+          items:
+            type: integer
+        checkHour:
+          type: integer
+          minimum: 0
+          maximum: 23
+
+    NotificationCategory:
+      type: string
+      enum:
+        - credential_medical
+        - credential_language
+        - credential_security
+        - credential_other
+        - rating_expiry
+        - currency_passenger
+        - currency_night
+        - currency_instrument
+        - currency_flight_review
+        - currency_revalidation
+      description: |
+        Notification category for granular control:
+        - credential_medical: Medical certificate expiry
+        - credential_language: Language proficiency expiry
+        - credential_security: Security clearance expiry
+        - credential_other: Other credential expiry
+        - rating_expiry: Class rating expiry date approaching
+        - currency_passenger: Passenger carrying currency (e.g., 3 T&L in 90 days)
+        - currency_night: Night currency
+        - currency_instrument: Instrument currency
+        - currency_flight_review: Flight review / proficiency check due
+        - currency_revalidation: EASA revalidation requirements approaching expiry
+
+    NotificationHistoryEntry:
+      type: object
+      required:
+        - id
+        - category
+        - subject
+        - sentAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          $ref: '#/components/schemas/NotificationCategory'
+        subject:
+          type: string
+          description: Email subject line
+        referenceType:
+          type: [string, 'null']
+          description: Type of item that triggered the notification (e.g., credential, rating)
+        referenceDescription:
+          type: [string, 'null']
+          description: Human-readable description of the reference item
+        daysBeforeExpiry:
+          type: [integer, 'null']
+          description: Days before expiry when notification was sent
+        sentAt:
+          type: string
+          format: date-time
+          description: When the notification was sent
+
+    NotificationHistoryResponse:
+      type: object
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationHistoryEntry'
+        total:
+          type: integer
+          description: Total number of notification history entries
+
+    CredentialType:
+      type: string
+      enum:
+        - EASA_CLASS1_MEDICAL
+        - EASA_CLASS2_MEDICAL
+        - EASA_LAPL_MEDICAL
+        - FAA_CLASS1_MEDICAL
+        - FAA_CLASS2_MEDICAL
+        - FAA_CLASS3_MEDICAL
+        - LANG_ICAO_LEVEL4
+        - LANG_ICAO_LEVEL5
+        - LANG_ICAO_LEVEL6
+        - SEC_CLEARANCE_ZUP
+        - SEC_CLEARANCE_ZUBB
+        - OTHER
+      description: |
+        Credential type:
+        - EASA_CLASS1_MEDICAL: EASA Class 1 Medical Certificate
+        - EASA_CLASS2_MEDICAL: EASA Class 2 Medical Certificate
+        - EASA_LAPL_MEDICAL: EASA LAPL Medical Certificate
+        - FAA_CLASS1_MEDICAL: FAA First-Class Medical Certificate
+        - FAA_CLASS2_MEDICAL: FAA Second-Class Medical Certificate
+        - FAA_CLASS3_MEDICAL: FAA Third-Class Medical Certificate
+        - LANG_ICAO_LEVEL4: Language Proficiency ICAO Level 4
+        - LANG_ICAO_LEVEL5: Language Proficiency ICAO Level 5
+        - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
+        - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
+        - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+        - OTHER: Other credential
+
+    Credential:
+      type: object
+      required:
+        - id
+        - userId
+        - credentialType
+        - issueDate
+        - issuingAuthority
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        credentialType:
+          $ref: '#/components/schemas/CredentialType'
+        credentialNumber:
+          type: [string, 'null']
+          example: MED-2026-001
+          description: Official credential number/reference
+        issueDate:
+          type: string
+          format: date
+          example: '2026-01-15'
+        expiryDate:
+          type: [string, 'null']
+          format: date
+          example: '2027-01-15'
+          description: Null if credential doesn't expire
+        issuingAuthority:
+          type: string
+          example: EASA AME
+          description: Authority or examiner that issued the credential
+        notes:
+          type: [string, 'null']
+          example: Annual renewal required
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CredentialCreate:
+      type: object
+      required:
+        - credentialType
+        - issueDate
+        - issuingAuthority
+      properties:
+        credentialType:
+          $ref: '#/components/schemas/CredentialType'
+        credentialNumber:
+          type: [string, 'null']
+        issueDate:
+          type: string
+          format: date
+        expiryDate:
+          type: [string, 'null']
+          format: date
+          description: Must be after issueDate when provided
+        issuingAuthority:
+          type: string
+        notes:
+          type: [string, 'null']
+
+    CredentialUpdate:
+      type: object
+      properties:
+        credentialType:
+          $ref: '#/components/schemas/CredentialType'
+        credentialNumber:
+          type: [string, 'null']
+        issueDate:
+          type: string
+          format: date
+        expiryDate:
+          type: [string, 'null']
+          format: date
+          description: Must be after issueDate when provided
+        issuingAuthority:
+          type: string
+        notes:
+          type: [string, 'null']
+
+    PaginatedFlights:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flight'
+        pagination:
+          type: object
+          required:
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            page:
+              type: integer
+              example: 1
+              description: Current page (1-indexed)
+            pageSize:
+              type: integer
+              example: 20
+              description: Items per page
+            total:
+              type: integer
+              example: 150
+              description: Total number of items
+            totalPages:
+              type: integer
+              example: 8
+              description: Total number of pages
+
+    PaginatedAircraft:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Aircraft'
+        pagination:
+          type: object
+          required:
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            page:
+              type: integer
+              example: 1
+              description: Current page (1-indexed)
+            pageSize:
+              type: integer
+              example: 20
+              description: Items per page
+            total:
+              type: integer
+              example: 25
+              description: Total number of items
+            totalPages:
+              type: integer
+              example: 2
+              description: Total number of pages
+
+    Airport:
+      type: object
+      required:
+        - icao
+        - name
+        - latitude
+        - longitude
+      properties:
+        icao:
+          type: string
+          description: ICAO airport code
+          example: EDDF
+        name:
+          type: string
+          description: Airport name
+          example: Frankfurt am Main
+        latitude:
+          type: number
+          format: double
+          description: Latitude in decimal degrees
+          example: 50.033333
+        longitude:
+          type: number
+          format: double
+          description: Longitude in decimal degrees
+          example: 8.570556
+        elevation:
+          type: integer
+          description: Airport elevation in feet
+          example: 364
+        country:
+          type: string
+          description: Country code (ISO 3166-1 alpha-2)
+          example: DE
+
+    FlightRoute:
+      type: object
+      required:
+        - departureIcao
+        - arrivalIcao
+        - departureCoords
+        - arrivalCoords
+        - flightCount
+      properties:
+        departureIcao:
+          type: string
+          example: EDDF
+        arrivalIcao:
+          type: string
+          example: EDDH
+        departureCoords:
+          type: object
+          required: [lat, lng]
+          properties:
+            lat:
+              type: number
+              format: double
+            lng:
+              type: number
+              format: double
+        arrivalCoords:
+          type: object
+          required: [lat, lng]
+          properties:
+            lat:
+              type: number
+              format: double
+            lng:
+              type: number
+              format: double
+        flightCount:
+          type: integer
+          description: Number of flights on this route
+          example: 5
+
+    FlightRoutesResponse:
+      type: object
+      required:
+        - routes
+        - airports
+      properties:
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightRoute'
+        airports:
+          type: array
+          items:
+            $ref: '#/components/schemas/Airport'
+
+    AirportStats:
+      type: object
+      required:
+        - icao
+        - name
+        - latitude
+        - longitude
+        - departures
+        - arrivals
+        - totalFlights
+      properties:
+        icao:
+          type: string
+          example: EDDF
+        name:
+          type: string
+          example: Frankfurt am Main
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        departures:
+          type: integer
+          description: Number of departures from this airport
+        arrivals:
+          type: integer
+          description: Number of arrivals to this airport
+        totalFlights:
+          type: integer
+          description: Total flights (departures + arrivals)
+
+    # ── Crew & Contact schemas ───────────────────────────────────────────
+
+    CrewRole:
+      type: string
+      enum:
+        - PIC
+        - SIC
+        - Instructor
+        - Student
+        - Passenger
+        - SafetyPilot
+        - Examiner
+      description: Role of a person on board a flight
+
+    ApproachType:
+      type: string
+      enum:
+        - ILS
+        - LOC
+        - VOR
+        - RNAV/GPS
+        - NDB
+        - LDA
+        - SDF
+        - PAR
+        - ASR
+        - Visual
+        - Circling
+        - Other
+        - Unknown
+      description: Type of instrument approach procedure
+
+    ApproachEntry:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          $ref: '#/components/schemas/ApproachType'
+        airport:
+          type: [string, 'null']
+          example: EDDF
+          description: ICAO code of the airport where the approach was performed
+        runway:
+          type: [string, 'null']
+          example: '09L'
+          description: Runway designation for the approach
+
+    ApproachEntryInput:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          $ref: '#/components/schemas/ApproachType'
+        airport:
+          type: [string, 'null']
+          description: ICAO code of the airport
+        runway:
+          type: [string, 'null']
+          description: Runway designation
+
+    FlightCrewMember:
+      type: object
+      required:
+        - id
+        - flightId
+        - name
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+        flightId:
+          type: string
+          format: uuid
+        contactId:
+          type: [string, 'null']
+          format: uuid
+          description: Reference to a saved contact for autocomplete reuse
+        name:
+          type: string
+          example: John Smith
+        role:
+          $ref: '#/components/schemas/CrewRole'
+
+    FlightCrewMemberInput:
+      type: object
+      required:
+        - name
+        - role
+      properties:
+        contactId:
+          type: [string, 'null']
+          format: uuid
+        name:
+          type: string
+          example: John Smith
+        role:
+          $ref: '#/components/schemas/CrewRole'
+
+    Contact:
+      type: object
+      required:
+        - id
+        - userId
+        - name
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: John Smith
+        email:
+          type: [string, 'null']
+          format: email
+        phone:
+          type: [string, 'null']
+        notes:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ContactCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: John Smith
+        email:
+          type: [string, 'null']
+          format: email
+        phone:
+          type: [string, 'null']
+        notes:
+          type: [string, 'null']
+
+    # ── Currency Status schemas ──────────────────────────────────────────
+
+    CurrencyStatusResponse:
+      type: object
+      required:
+        - ratings
+        - passengerCurrency
+      properties:
+        ratings:
+          type: array
+          description: "Tier 1: Rating/license currency — determines whether the pilot can fly at all in each class"
+          items:
+            $ref: '#/components/schemas/ClassRatingCurrency'
+        passengerCurrency:
+          type: array
+          description: "Tier 2: Passenger currency — determines whether the pilot can carry passengers (rolling from now, separate from rating validity)"
+          items:
+            $ref: '#/components/schemas/PassengerCurrency'
+        flightReview:
+          $ref: '#/components/schemas/FlightReviewStatus'
+
+    PassengerCurrency:
+      type: object
+      required:
+        - classType
+        - regulatoryAuthority
+        - dayStatus
+        - nightStatus
+        - dayLandings
+        - nightLandings
+        - dayRequired
+        - nightRequired
+      properties:
+        classType:
+          $ref: '#/components/schemas/ClassType'
+        regulatoryAuthority:
+          type: string
+          description: Authority that defines the passenger currency rules
+        dayStatus:
+          type: string
+          enum: [current, expiring, expired, unknown]
+          description: Day passenger currency status
+        nightStatus:
+          type: string
+          enum: [current, expiring, expired, unknown]
+          description: Night passenger currency status
+        dayLandings:
+          type: integer
+          description: Number of landings in the preceding 90 days
+        nightLandings:
+          type: integer
+          description: Number of night landings in the preceding 90 days
+        dayRequired:
+          type: integer
+          description: Required landings for day passenger currency (typically 3)
+          example: 3
+        nightRequired:
+          type: integer
+          description: Required night landings for night passenger currency (typically 3, 0 if night not applicable)
+          example: 3
+        nightPrivilege:
+          type: boolean
+          description: Whether this license type has night flying privileges. false for Sport, Recreational, Glider (FAA), SPL, LAPL (EASA), UL.
+          example: true
+        message:
+          type: string
+          description: Human-readable passenger currency status message
+        ruleDescription:
+          type: string
+          description: Regulatory reference for the passenger currency rule
+          example: "3 takeoffs & landings in same type/class within preceding 90 days to carry passengers (EASA FCL.060(b))"
+        passengerPrivilege:
+          type: object
+          description: Informational — whether the pilot meets additional requirements to carry passengers (LAPL 10h PIC, SPL 30 launches, etc.)
+          properties:
+            eligible:
+              type: boolean
+              description: Whether the pilot is eligible to carry passengers (based on total PIC hours/launches since license issue)
+            message:
+              type: string
+              description: Human-readable explanation of passenger privilege status
+              example: "Eligible to carry passengers (10h PIC completed)"
+
+    FlightReviewStatus:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        lastCompleted:
+          type: [string, 'null']
+          format: date
+          description: Date of most recent flight review
+        expiresOn:
+          type: [string, 'null']
+          format: date
+          description: Date the flight review expires (24 calendar months after last completed)
+        status:
+          type: string
+          enum: [current, expiring, expired, unknown]
+          description: Flight review currency status
+        message:
+          type: string
+          description: Human-readable flight review status message
+
+    ClassRatingCurrency:
+      type: object
+      required:
+        - classRatingId
+        - classType
+        - licenseId
+        - regulatoryAuthority
+        - status
+      properties:
+        classRatingId:
+          type: string
+          format: uuid
+        classType:
+          $ref: '#/components/schemas/ClassType'
+        licenseId:
+          type: string
+          format: uuid
+        regulatoryAuthority:
+          type: string
+          description: Authority from the parent license (determines which currency rules apply)
+        licenseType:
+          type: string
+          description: Type from the parent license
+        status:
+          type: string
+          enum: [current, expiring, expired, unknown]
+          description: |
+            Currency status:
+            - current: All requirements met
+            - expiring: Rating expiry approaching (within 90 days)
+            - expired: Rating has expired or currency requirements not met
+            - unknown: Authority not supported for auto-calculation
+        expiryDate:
+          type: [string, 'null']
+          format: date
+          description: Class rating expiry date
+        message:
+          type: string
+          description: Human-readable status message
+        progress:
+          type: object
+          description: Progress metrics toward currency requirements (authority-specific)
+          properties:
+            totalMinutes:
+              type: integer
+              description: Total time in class in minutes in the evaluation period
+            picMinutes:
+              type: integer
+              description: PIC time in class in minutes in the evaluation period
+            ifrMinutes:
+              type: integer
+              description: IFR time in minutes in the evaluation period
+            instructorMinutes:
+              type: integer
+              description: Time with instructor (dual received) in minutes in the evaluation period
+            nightMinutes:
+              type: integer
+              description: Night time in minutes in the evaluation period
+            landings:
+              type: integer
+              description: Total landings in class in the evaluation period
+            dayLandings:
+              type: integer
+            nightLandings:
+              type: integer
+            flights:
+              type: integer
+              description: Number of flights in class in the evaluation period
+            approaches:
+              type: integer
+              description: Number of instrument approaches in the evaluation period
+            holds:
+              type: integer
+              description: Number of holding procedures in the evaluation period
+            requiredMinutes:
+              type: integer
+              description: Required time in minutes for currency (authority-specific)
+            requiredLandings:
+              type: integer
+              description: Required landings for currency
+        requirements:
+          type: array
+          description: Per-requirement breakdown showing progress toward each currency requirement
+          items:
+            $ref: '#/components/schemas/CurrencyRequirement'
+        launchMethodCurrency:
+          type: array
+          description: SPL launch method currency per FCL.140.S(b)(1) — 5 launches per method in 24 months
+          items:
+            $ref: '#/components/schemas/LaunchMethodCurrency'
+
+    LaunchMethodCurrency:
+      type: object
+      required:
+        - method
+        - launches
+        - required
+        - met
+      properties:
+        method:
+          type: string
+          description: Launch method (winch, aerotow, self-launch)
+          example: winch
+        launches:
+          type: integer
+          description: Number of launches with this method in evaluation period
+        required:
+          type: integer
+          description: Required number of launches (typically 5)
+          example: 5
+        met:
+          type: boolean
+          description: Whether the requirement is met
+        message:
+          type: string
+          description: Human-readable progress message
+
+    CurrencyRequirement:
+      type: object
+      required:
+        - name
+        - met
+        - current
+        - required
+        - unit
+      properties:
+        name:
+          type: string
+          description: Requirement name (e.g., "Day Currency", "PIC Hours", "Refresher Training")
+        met:
+          type: boolean
+          description: Whether this requirement is currently satisfied
+        current:
+          type: number
+          format: float
+          description: Current progress value
+        required:
+          type: number
+          format: float
+          description: Required value to meet this requirement
+        unit:
+          type: string
+          description: Unit of measurement (e.g., "landings", "hours", "flights")
+        message:
+          type: string
+          description: Human-readable progress description
+
+    # ── Class Rating schemas ─────────────────────────────────────────────
+
+    ClassType:
+      type: string
+      enum:
+        - SEP_LAND
+        - SEP_SEA
+        - MEP_LAND
+        - MEP_SEA
+        - SET_LAND
+        - SET_SEA
+        - TMG
+        - IR
+        - OTHER
+      description: |
+        Aircraft class rating type:
+        - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+        - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+        - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+        - TMG: Touring Motor Glider
+        - IR: Instrument Rating
+        - OTHER: Other rating type
+
+    ClassRating:
+      type: object
+      required:
+        - id
+        - licenseId
+        - classType
+        - issueDate
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        licenseId:
+          type: string
+          format: uuid
+        classType:
+          $ref: '#/components/schemas/ClassType'
+        issueDate:
+          type: string
+          format: date
+          example: '2024-03-15'
+        expiryDate:
+          type: [string, 'null']
+          format: date
+          example: '2026-03-15'
+          description: Null if rating doesn't expire (e.g., FAA ratings)
+        notes:
+          type: [string, 'null']
+          description: Optional notes about this rating
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ClassRatingCreate:
+      type: object
+      required:
+        - classType
+        - issueDate
+      properties:
+        classType:
+          $ref: '#/components/schemas/ClassType'
+        issueDate:
+          type: string
+          format: date
+        expiryDate:
+          type: [string, 'null']
+          format: date
+        notes:
+          type: [string, 'null']
+
+    ClassRatingUpdate:
+      type: object
+      properties:
+        issueDate:
+          type: string
+          format: date
+        expiryDate:
+          type: [string, 'null']
+          format: date
+        notes:
+          type: [string, 'null']
+
+    # ── Import schemas ──────────────────────────────────────────────────
+
+    ImportFormat:
+      type: string
+      enum:
+        - CSV
+        - FOREFLIGHT_CSV
+        - XLS
+        - XLSX
+      description: |
+        Detected file format:
+        - CSV: Generic comma/semicolon/tab-separated values
+        - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+        - XLS: Microsoft Excel 97-2003 workbook
+        - XLSX: Microsoft Excel 2007+ workbook (Open XML)
+
+    ImportField:
+      type: string
+      enum:
+        - date
+        - aircraftReg
+        - aircraftType
+        - departureIcao
+        - arrivalIcao
+        - offBlockTime
+        - onBlockTime
+        - departureTime
+        - arrivalTime
+        - totalTime
+        - isPic
+        - isDual
+        - nightTime
+        - ifrTime
+        - landingsDay
+        - landingsNight
+        - remarks
+        - route
+        - approachesCount
+        - holds
+        - isIpc
+        - isFlightReview
+        - actualInstrumentTime
+        - simulatedInstrumentTime
+        - instructorName
+        - instructorComments
+        - dualGivenTime
+        - person1
+        - person2
+        - person3
+        - person4
+        - person5
+        - person6
+        - ignore
+      description: |
+        Target flight log field for column mapping.
+        Person fields (`person1`–`person6`) extract crew members from import rows.
+        During ForeFlight imports, role assignment is automatic:
+        - If an instructor is detected (via `instructorName` or dual-received time),
+          `person1` is assigned the **Instructor** role and `person2` the **Student** role.
+        - Otherwise, `person1` is assigned **PIC**.
+        - `person3`–`person6` default to **Passenger**.
+        Contacts are auto-created for each unique person name.
+        Use `ignore` to skip a column during import.
+
+    ImportColumnMapping:
+      type: object
+      required:
+        - sourceColumn
+        - targetField
+      properties:
+        sourceColumn:
+          type: string
+          description: Column header name from the uploaded file
+          example: Date
+        targetField:
+          $ref: '#/components/schemas/ImportField'
+        dateFormat:
+          type: string
+          description: Date parsing format (Go / strftime-style). Only relevant when targetField is `date`.
+          example: '2006-01-02'
+        timeFormat:
+          type: string
+          description: Time parsing format. Only relevant for time fields.
+          example: '15:04'
+        trueValue:
+          type: string
+          description: String value that maps to boolean `true` (e.g. "Yes", "X", "1"). Only relevant for isPic / isDual.
+          example: 'X'
+
+    ImportUploadResponse:
+      type: object
+      required:
+        - uploadToken
+        - format
+        - columns
+        - previewRows
+        - totalRows
+        - suggestedMappings
+      properties:
+        uploadToken:
+          type: string
+          description: Opaque token identifying this upload session. Valid for 1 hour.
+          example: imp_01HXYZ1234567890ABCDEF
+        format:
+          $ref: '#/components/schemas/ImportFormat'
+        columns:
+          type: array
+          items:
+            type: string
+          description: Column headers found in the file
+          example: [Date, AircraftID, From, To, Route, TimeOut, TimeIn, TotalTime, PIC, Landings]
+        previewRows:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+          description: First 5 rows as key-value objects (column header → cell value)
+          example:
+            - Date: '2025-12-01'
+              AircraftID: D-EFGH
+              From: EDDF
+              To: EDDH
+              TotalTime: '1.5'
+              PIC: '1.5'
+              Landings: '1'
+        totalRows:
+          type: integer
+          description: Total number of data rows in the file (excluding header)
+          example: 42
+        suggestedMappings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportColumnMapping'
+          description: |
+            Server-suggested column mappings based on header names.
+            For ForeFlight exports these are pre-filled from the known column layout.
+            The user can adjust mappings before submitting the preview request.
+
+    ImportPreviewRequest:
+      type: object
+      required:
+        - uploadToken
+        - mappings
+      properties:
+        uploadToken:
+          type: string
+          description: Upload token from the upload response
+          example: imp_01HXYZ1234567890ABCDEF
+        mappings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportColumnMapping'
+          description: Column → field mappings (user-confirmed or adjusted)
+        skipDuplicates:
+          type: boolean
+          default: true
+          description: Whether to flag rows that match existing flights as duplicates
+
+    ImportPreviewFlight:
+      type: object
+      required:
+        - rowIndex
+        - status
+        - flight
+      properties:
+        rowIndex:
+          type: integer
+          description: 1-based row number in the original file
+          example: 2
+        status:
+          type: string
+          enum: [valid, duplicate, error]
+          description: |
+            Row validation result:
+            - valid: Ready to import
+            - duplicate: Matches an existing flight (same date, aircraft, departure, arrival, total time ±0.1h)
+            - error: Validation failed — see `errors` field
+        flight:
+          $ref: '#/components/schemas/FlightCreate'
+        existingFlightId:
+          type: [string, 'null']
+          format: uuid
+          description: ID of the matching existing flight when status is `duplicate`
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: totalTime
+              message:
+                type: string
+                example: Must be greater than 0
+          description: Validation errors when status is `error`
+
+    ImportPreviewResponse:
+      type: object
+      required:
+        - uploadToken
+        - totalRows
+        - validCount
+        - duplicateCount
+        - errorCount
+        - flights
+      properties:
+        uploadToken:
+          type: string
+          description: Upload token to use in the confirm request
+          example: imp_01HXYZ1234567890ABCDEF
+        totalRows:
+          type: integer
+          description: Total rows processed
+          example: 42
+        validCount:
+          type: integer
+          description: Rows ready to import
+          example: 38
+        duplicateCount:
+          type: integer
+          description: Rows matching existing flights
+          example: 3
+        errorCount:
+          type: integer
+          description: Rows with validation errors
+          example: 1
+        flights:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportPreviewFlight'
+          description: All rows with their validation status, sorted by rowIndex
+
+    ImportConfirmRequest:
+      type: object
+      required:
+        - uploadToken
+      properties:
+        uploadToken:
+          type: string
+          description: Upload token from the preview response
+          example: imp_01HXYZ1234567890ABCDEF
+        selectedRows:
+          type: array
+          items:
+            type: integer
+          description: |
+            Row indices to import (1-based). If omitted or empty, all `valid` rows are imported.
+            Include duplicate row indices here to force-import them.
+          example: [1, 2, 3, 5, 7, 8]
+        includeDuplicates:
+          type: boolean
+          default: false
+          description: When true, import all duplicate rows as well (overrides selectedRows filtering)
+
+    ImportStatus:
+      type: string
+      enum:
+        - completed
+        - partial
+        - failed
+      description: |
+        Overall import result:
+        - completed: All selected rows imported successfully
+        - partial: Some rows imported, some failed
+        - failed: No rows imported (all failed validation)
+
+    ImportResult:
+      type: object
+      required:
+        - id
+        - userId
+        - fileName
+        - format
+        - status
+        - totalRows
+        - importedCount
+        - skippedCount
+        - errorCount
+        - duplicateCount
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 990e8400-e29b-41d4-a716-446655440004
+        userId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        fileName:
+          type: string
+          example: foreflight_logbook_2025.csv
+        format:
+          $ref: '#/components/schemas/ImportFormat'
+        status:
+          $ref: '#/components/schemas/ImportStatus'
+        totalRows:
+          type: integer
+          description: Total rows in the uploaded file
+          example: 42
+        importedCount:
+          type: integer
+          description: Number of flights successfully created
+          example: 38
+        skippedCount:
+          type: integer
+          description: Number of rows skipped (duplicates not imported)
+          example: 3
+        errorCount:
+          type: integer
+          description: Number of rows that failed validation
+          example: 1
+        duplicateCount:
+          type: integer
+          description: Number of rows detected as duplicates
+          example: 3
+        contactsCreated:
+          type: integer
+          description: Number of new contacts auto-created from person data during import
+          example: 2
+        importedFlightIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: IDs of the created flight log entries
+        errors:
+          type: array
+          items:
+            type: object
+            required:
+              - rowIndex
+              - field
+              - message
+            properties:
+              rowIndex:
+                type: integer
+                description: 1-based row number that caused the error
+                example: 15
+              field:
+                type: string
+                example: totalTime
+              message:
+                type: string
+                example: Must be greater than 0
+              rawValue:
+                type: string
+                description: The original value from the file that caused the error
+                example: '-1.5'
+          description: Per-row errors for rows that were not imported
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-02-13T18:00:00Z'
+
+    PaginatedImports:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportResult'
+        pagination:
+          type: object
+          required:
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            page:
+              type: integer
+              example: 1
+              description: Current page (1-indexed)
+            pageSize:
+              type: integer
+              example: 20
+              description: Items per page
+            total:
+              type: integer
+              example: 5
+              description: Total number of imports
+            totalPages:
+              type: integer
+              example: 1
+              description: Total number of pages
+
+    AdminAuditLogEntry:
+      type: object
+      required:
+        - id
+        - adminUserId
+        - action
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        adminUserId:
+          type: string
+          format: uuid
+        action:
+          type: string
+          description: The admin action performed
+          example: disable_user
+        targetUserId:
+          type: string
+          format: uuid
+          description: The user affected by the action (if any)
+        details:
+          type: object
+          description: Additional details about the action (JSON)
+        createdAt:
+          type: string
+          format: date-time
+
+    PaginatedAdminAuditLog:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAuditLogEntry'
+        pagination:
+          type: object
+          required:
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+
+    AdminStats:
+      type: object
+      required:
+        - totalUsers
+        - totalFlights
+        - totalAircraft
+        - totalCredentials
+        - totalImports
+        - flightsThisMonth
+        - newUsersThisWeek
+        - lockedAccounts
+        - disabledAccounts
+      properties:
+        totalUsers:
+          type: integer
+        totalFlights:
+          type: integer
+        totalAircraft:
+          type: integer
+        totalCredentials:
+          type: integer
+        totalImports:
+          type: integer
+        flightsThisMonth:
+          type: integer
+        newUsersThisWeek:
+          type: integer
+        lockedAccounts:
+          type: integer
+        disabledAccounts:
+          type: integer
+
+    Announcement:
+      type: object
+      required:
+        - id
+        - message
+        - severity
+      properties:
+        id:
+          type: string
+          description: Unique identifier (UUID for admin announcements, string key for hints)
+        message:
+          type: string
+          example: Scheduled maintenance on Tuesday 8pm-10pm UTC
+        severity:
+          type: string
+          enum: [info, success, warning, critical]
+          description: |
+            Display severity:
+            - info: blue — neutral information
+            - success: green — positive suggestions (e.g. enable 2FA)
+            - warning: orange — important notices (e.g. maintenance)
+            - critical: red — urgent alerts
+        expiresAt:
+          type: string
+          format: date-time
+          description: When this announcement auto-expires (null = permanent until deleted)
+        createdAt:
+          type: string
+          format: date-time
+
+    AdminConfig:
+      type: object
+      required:
+        - goVersion
+        - serverUptime
+        - migrationVersion
+        - airportDatabaseSize
+        - corsOrigins
+        - rateLimitAuth
+        - rateLimitAdmin
+        - smtpConfigured
+        - adminEmailConfigured
+      properties:
+        goVersion:
+          type: string
+          example: go1.23.0
+        serverUptime:
+          type: string
+          description: Human-readable uptime
+          example: 2d 5h 30m
+        migrationVersion:
+          type: integer
+          description: Current database migration version
+          example: 28
+        airportDatabaseSize:
+          type: integer
+          description: Number of airports loaded
+          example: 29331
+        corsOrigins:
+          type: array
+          items:
+            type: string
+          description: Configured CORS allowed origins
+        rateLimitAuth:
+          type: string
+          description: Auth endpoint rate limit
+          example: 10 req/min
+        rateLimitAdmin:
+          type: string
+          description: Admin endpoint rate limit
+          example: 30 req/min
+        smtpConfigured:
+          type: boolean
+          description: Whether SMTP is configured
+        adminEmailConfigured:
+          type: boolean
+          description: Whether ADMIN_EMAIL is set
+
+    AdminUser:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - createdAt
+        - twoFactorEnabled
+        - disabled
+        - flightCount
+        - aircraftCount
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastLoginAt:
+          type: string
+          format: date-time
+          description: Last successful login timestamp
+        twoFactorEnabled:
+          type: boolean
+        disabled:
+          type: boolean
+          description: Whether the account is disabled by admin
+        locked:
+          type: boolean
+          description: Whether the account is locked due to brute-force protection
+        lockedUntil:
+          type: string
+          format: date-time
+          description: When the brute-force lock expires
+        flightCount:
+          type: integer
+          description: Total number of flights logged
+        aircraftCount:
+          type: integer
+          description: Number of aircraft in database
+
+    PaginatedAdminUsers:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        pagination:
+          type: object
+          required:
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: Validation failed
+          description: Error message
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: totalTime
+              message:
+                type: string
+                example: Must be greater than 0
+          description: Detailed validation errors
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Validation failed
+            details:
+              - field: totalTime
+                message: Must be greater than 0
+              - field: nightTime
+                message: Cannot exceed total time
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Unauthorized
+
+    Forbidden:
+      description: Forbidden - admin access required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Admin access required
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Resource not found
