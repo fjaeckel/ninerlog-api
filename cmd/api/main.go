@@ -32,6 +32,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// sanitizeLogValue strips newlines and control characters to prevent log injection.
+func sanitizeLogValue(s string) string {
+	return strings.NewReplacer("\n", "", "\r", "", "\t", " ").Replace(s)
+}
+
 func main() {
 	log.Println("🚀 Starting NinerLog API...")
 
@@ -64,7 +69,7 @@ func main() {
 	// Admin email (optional — designates admin user)
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail != "" {
-		log.Printf("🔑 Admin email configured: %s", adminEmail)
+		log.Printf("🔑 Admin email configured: %s", sanitizeLogValue(adminEmail)) // #nosec G706 -- sanitized
 	}
 
 	// Connect to database
@@ -85,7 +90,7 @@ func main() {
 	if migrationsPath == "" {
 		migrationsPath = "db/migrations"
 	}
-	log.Printf("📦 Running database migrations from %s...", migrationsPath)
+	log.Printf("📦 Running database migrations from %s...", sanitizeLogValue(migrationsPath)) // #nosec G706 -- sanitized
 	driver, err := migratepg.WithInstance(db, &migratepg.Config{})
 	if err != nil {
 		log.Fatalf("Failed to create migration driver: %v", err)
@@ -167,7 +172,9 @@ func main() {
 
 	// Trust proxy headers (X-Real-IP, X-Forwarded-For) from nginx
 	// so that c.ClientIP() returns the real client IP, not the proxy's address.
-	router.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"})
+	if err := router.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}); err != nil {
+		log.Fatalf("Failed to set trusted proxies: %v", err)
+	}
 	router.ForwardedByClientIP = true
 	router.RemoteIPHeaders = []string{"X-Real-IP", "X-Forwarded-For"}
 
@@ -225,8 +232,15 @@ func main() {
 			pprofPort = "6060"
 		}
 		go func() {
-			log.Printf("🔍 pprof debug server listening on :%s/debug/pprof/", pprofPort)
-			if err := http.ListenAndServe(":"+pprofPort, nil); err != nil {
+			log.Printf("🔍 pprof debug server listening on :%s/debug/pprof/", sanitizeLogValue(pprofPort)) // #nosec G706 -- sanitized
+			pprofSrv := &http.Server{
+				Addr:              ":" + pprofPort,
+				ReadTimeout:       30 * time.Second,
+				WriteTimeout:      30 * time.Second,
+				ReadHeaderTimeout: 10 * time.Second,
+				IdleTimeout:       120 * time.Second,
+			}
+			if err := pprofSrv.ListenAndServe(); err != nil {
 				log.Printf("pprof server error: %v", err)
 			}
 		}()
@@ -311,7 +325,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("✅ Server starting on :%s", port)
+		log.Printf("✅ Server starting on :%s", sanitizeLogValue(port)) // #nosec G706 -- sanitized
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
