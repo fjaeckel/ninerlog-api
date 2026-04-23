@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 10
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql
 
   mailpit:
     image: axllent/mailpit:latest
