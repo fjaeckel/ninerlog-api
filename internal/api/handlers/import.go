@@ -711,9 +711,9 @@ func (h *APIHandler) ListImports(c *gin.Context, params generated.ListImportsPar
 	}
 
 	var total int
-	h.db.QueryRowContext(c.Request.Context(),
+	scanCount(h.db.QueryRowContext(c.Request.Context(),
 		"SELECT COUNT(*) FROM flight_imports WHERE user_id = $1", userID,
-	).Scan(&total)
+	), &total)
 
 	rows, err := h.db.QueryContext(c.Request.Context(), `
 		SELECT id, user_id, file_name, import_format, import_status,

@@ -39,9 +39,7 @@ func LoggerMiddleware() gin.HandlerFunc {
 
 		// Log request details
 		// In production, use a structured logger like zerolog or zap
-		if errorMessage != "" {
-			c.Writer.Write([]byte("")) // Placeholder for actual logging
-		}
+		_ = errorMessage
 
 		// Simple log for now
 		_ = latency

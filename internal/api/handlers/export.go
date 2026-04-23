@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +14,14 @@ import (
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 )
+
+// csvWrite writes a record to the CSV writer, logging errors.
+// csv.Writer buffers errors internally, so writes after a failure are no-ops.
+func csvWrite(w *csv.Writer, record []string) {
+	if err := w.Write(record); err != nil {
+		log.Printf("csv write error: %v", err)
+	}
+}
 
 // exportPrefs holds user formatting preferences for export.
 type exportPrefs struct {
@@ -102,7 +111,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 		"IFRTime", "Remarks",
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 	}
-	w.Write(headers)
+	csvWrite(w, headers)
 
 	for _, f := range flights {
 		dep, arr := "", ""
@@ -195,7 +204,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 			fstdType,
 			endorsements,
 		}
-		w.Write(row)
+		csvWrite(w, row)
 	}
 }
 
@@ -213,7 +222,7 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 		"FSTD Date", "FSTD Type", "FSTD Time",
 		"Remarks & Endorsements",
 	}
-	w.Write(headers)
+	csvWrite(w, headers)
 
 	for _, f := range flights {
 		dep := safeStrCSV(f.DepartureICAO)
@@ -263,7 +272,7 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 			fstdDate, fstdType, fstdTime,
 			remarksAndEndorsements,
 		}
-		w.Write(row)
+		csvWrite(w, row)
 	}
 }
 
@@ -278,7 +287,7 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 		"Total",
 		"Remarks/Endorsements",
 	}
-	w.Write(headers)
+	csvWrite(w, headers)
 
 	for _, f := range flights {
 		dep := safeStrCSV(f.DepartureICAO)
@@ -318,7 +327,7 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 			duration.FormatDecimal(f.TotalTime),
 			remarks,
 		}
-		w.Write(row)
+		csvWrite(w, row)
 	}
 }
 
@@ -396,5 +405,7 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 
 	encoder := json.NewEncoder(c.Writer)
 	encoder.SetIndent("", "  ")
-	encoder.Encode(backup)
+	if err := encoder.Encode(backup); err != nil {
+		log.Printf("json export encode error: %v", err)
+	}
 }

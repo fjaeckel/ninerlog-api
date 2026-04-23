@@ -36,9 +36,12 @@ func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdmi
 
 	// Count total
 	var total int
-	h.db.QueryRowContext(c.Request.Context(),
+	if err := h.db.QueryRowContext(c.Request.Context(),
 		"SELECT COUNT(*) FROM admin_audit_log",
-	).Scan(&total)
+	).Scan(&total); err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to count audit log entries")
+		return
+	}
 
 	// Query entries
 	rows, err := h.db.QueryContext(c.Request.Context(), `

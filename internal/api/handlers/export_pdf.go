@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -80,7 +81,9 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 	// Send PDF
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_%s_%s.pdf", format, time.Now().Format("2006-01-02")))
-	pdf.Output(c.Writer)
+	if err := pdf.Output(c.Writer); err != nil {
+		log.Printf("pdf export output error: %v", err)
+	}
 }
 
 // generateEASAPDF creates an EASA AMC1 FCL.050 compliant two-page-spread layout

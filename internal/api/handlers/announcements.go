@@ -71,7 +71,7 @@ func (h *APIHandler) GetAnnouncements(c *gin.Context) {
 
 		// Hint: No flights yet
 		var flightCount int
-		h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flights WHERE user_id = $1", userID).Scan(&flightCount)
+		scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flights WHERE user_id = $1", userID), &flightCount)
 		if flightCount == 0 {
 			hints = append(hints, generated.Announcement{
 				Id:       "hint-add-first-flight",
@@ -82,7 +82,7 @@ func (h *APIHandler) GetAnnouncements(c *gin.Context) {
 
 		// Hint: No aircraft
 		var aircraftCount int
-		h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM aircraft WHERE user_id = $1", userID).Scan(&aircraftCount)
+		scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM aircraft WHERE user_id = $1", userID), &aircraftCount)
 		if aircraftCount == 0 && flightCount > 0 {
 			hints = append(hints, generated.Announcement{
 				Id:       "hint-add-aircraft",
@@ -93,7 +93,7 @@ func (h *APIHandler) GetAnnouncements(c *gin.Context) {
 
 		// Hint: No credentials
 		var credentialCount int
-		h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM credentials WHERE user_id = $1", userID).Scan(&credentialCount)
+		scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM credentials WHERE user_id = $1", userID), &credentialCount)
 		if credentialCount == 0 && flightCount > 3 {
 			hints = append(hints, generated.Announcement{
 				Id:       "hint-add-credentials",

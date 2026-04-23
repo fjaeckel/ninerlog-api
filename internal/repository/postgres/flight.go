@@ -206,7 +206,9 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 	flight.ArrivalTime = timeToString(arrTime)
 
 	if len(approachesJSON) > 0 {
-		json.Unmarshal(approachesJSON, &flight.Approaches)
+		if err := json.Unmarshal(approachesJSON, &flight.Approaches); err != nil {
+			flight.Approaches = nil
+		}
 	}
 
 	return flight, nil
@@ -661,7 +663,9 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 		flight.DepartureTime = timeToString(depTime)
 		flight.ArrivalTime = timeToString(arrTime)
 		if len(approachesJSON) > 0 {
-			json.Unmarshal(approachesJSON, &flight.Approaches)
+			if err := json.Unmarshal(approachesJSON, &flight.Approaches); err != nil {
+				flight.Approaches = nil
+			}
 		}
 		flights = append(flights, flight)
 	}

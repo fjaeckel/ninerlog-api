@@ -72,9 +72,9 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 	// Count total
 	var total int
 	if len(args) > 2 {
-		h.db.QueryRowContext(c.Request.Context(), countQuery, args[0]).Scan(&total)
+		scanCount(h.db.QueryRowContext(c.Request.Context(), countQuery, args[0]), &total)
 	} else {
-		h.db.QueryRowContext(c.Request.Context(), countQuery).Scan(&total)
+		scanCount(h.db.QueryRowContext(c.Request.Context(), countQuery), &total)
 	}
 
 	// Query users

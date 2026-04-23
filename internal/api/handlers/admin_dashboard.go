@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
@@ -10,6 +12,14 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/gin-gonic/gin"
 )
+
+// scanCount scans a single count value from a query row, defaulting to 0 on error.
+func scanCount(row *sql.Row, dest *int) {
+	if err := row.Scan(dest); err != nil {
+		log.Printf("admin stats: count query failed: %v", err)
+		*dest = 0
+	}
+}
 
 // GetAdminStats implements GET /admin/stats
 func (h *APIHandler) GetAdminStats(c *gin.Context) {
@@ -20,33 +30,33 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 
 	var stats generated.AdminStats
 
-	h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM users").Scan(&stats.TotalUsers)
-	h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flights").Scan(&stats.TotalFlights)
-	h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM aircraft").Scan(&stats.TotalAircraft)
-	h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM credentials").Scan(&stats.TotalCredentials)
-	h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flight_imports").Scan(&stats.TotalImports)
+	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM users"), &stats.TotalUsers)
+	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flights"), &stats.TotalFlights)
+	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM aircraft"), &stats.TotalAircraft)
+	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM credentials"), &stats.TotalCredentials)
+	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flight_imports"), &stats.TotalImports)
 
 	// Flights this month
 	monthStart := time.Now().Format("2006-01") + "-01"
-	h.db.QueryRowContext(c.Request.Context(),
+	scanCount(h.db.QueryRowContext(c.Request.Context(),
 		"SELECT COUNT(*) FROM flights WHERE created_at >= $1", monthStart,
-	).Scan(&stats.FlightsThisMonth)
+	), &stats.FlightsThisMonth)
 
 	// New users this week
 	weekAgo := time.Now().AddDate(0, 0, -7)
-	h.db.QueryRowContext(c.Request.Context(),
+	scanCount(h.db.QueryRowContext(c.Request.Context(),
 		"SELECT COUNT(*) FROM users WHERE created_at >= $1", weekAgo,
-	).Scan(&stats.NewUsersThisWeek)
+	), &stats.NewUsersThisWeek)
 
 	// Locked accounts (locked_until in the future)
-	h.db.QueryRowContext(c.Request.Context(),
+	scanCount(h.db.QueryRowContext(c.Request.Context(),
 		"SELECT COUNT(*) FROM users WHERE locked_until IS NOT NULL AND locked_until > $1", time.Now(),
-	).Scan(&stats.LockedAccounts)
+	), &stats.LockedAccounts)
 
 	// Disabled accounts
-	h.db.QueryRowContext(c.Request.Context(),
+	scanCount(h.db.QueryRowContext(c.Request.Context(),
 		"SELECT COUNT(*) FROM users WHERE disabled = true",
-	).Scan(&stats.DisabledAccounts)
+	), &stats.DisabledAccounts)
 
 	c.JSON(http.StatusOK, stats)
 }
@@ -150,9 +160,9 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 
 	// Get migration version
 	var migrationVersion int
-	h.db.QueryRowContext(c.Request.Context(),
+	scanCount(h.db.QueryRowContext(c.Request.Context(),
 		"SELECT COALESCE(MAX(version), 0) FROM schema_migrations WHERE dirty = false",
-	).Scan(&migrationVersion)
+	), &migrationVersion)
 
 	// SMTP configured?
 	smtpConfigured := h.emailSender != nil
