@@ -1783,9 +1783,14 @@ func TestFAA_FlightReview_Expiring(t *testing.T) {
 	licID := createLicenseCur(t, c, "FAA", "Private")
 	createRatingCur(t, c, licID, "SEP_LAND", nil)
 
-	// ~22 months ago → expires in ~2 months
+	// §61.56 uses calendar month math: expiry = last day of (review month + 24).
+	// Use 1st of 23 months ago so expiry is always last day of (now.Month + 1),
+	// i.e. 30-62 days away — safely within the 90-day "expiring" window.
+	review := time.Now().AddDate(0, -23, 0)
+	reviewDate := time.Date(review.Year(), review.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+
 	createFlightCur(t, c, map[string]interface{}{
-		"date": pastDate(660), "aircraftReg": "NFRE01", "aircraftType": "C172",
+		"date": reviewDate, "aircraftReg": "NFRE01", "aircraftType": "C172",
 		"departureIcao": "KJFK", "arrivalIcao": "KLGA",
 		"offBlockTime": "08:00", "onBlockTime": "09:00",
 		"landings": 3, "isFlightReview": true,
