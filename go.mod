@@ -1,6 +1,6 @@
 module github.com/fjaeckel/ninerlog-api
 
-go 1.25.6
+go 1.25.9
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -15,6 +15,7 @@ require (
 	github.com/oapi-codegen/runtime v1.4.0
 	github.com/pquerna/otp v1.5.0
 	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_model v0.6.2
 	github.com/ulule/limiter/v3 v3.11.2
 	golang.org/x/crypto v0.50.0
 )
@@ -52,7 +53,6 @@ require (
 	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
