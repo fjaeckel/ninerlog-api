@@ -12,7 +12,7 @@ on:
 jobs:
   govulncheck:
     name: govulncheck
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 10
 
     steps:
@@ -33,7 +33,7 @@ jobs:
 
   gosec:
     name: gosec
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 10
 
     steps:
@@ -54,7 +54,7 @@ jobs:
 
   trivy:
     name: Trivy filesystem scan
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 10
 
     steps:
