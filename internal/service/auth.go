@@ -335,8 +335,10 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 		return err
 	}
 
-	// Update user password
+	// Update user password and disable 2FA (user lost access to authenticator)
 	user.PasswordHash = hashedPassword
+	user.TwoFactorEnabled = false
+	user.TwoFactorSecret = nil
 	user.UpdatedAt = time.Now()
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return err
