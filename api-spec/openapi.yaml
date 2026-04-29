@@ -222,6 +222,71 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /auth/password-reset-request:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset
+      description: |
+        Send a password reset email to the provided address. Always returns 204 regardless
+        of whether the email exists, to prevent user enumeration.
+      operationId: requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: pilot@example.com
+      responses:
+        '204':
+          description: Password reset email sent (if account exists)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/password-reset:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password with token
+      description: Reset the user's password using a token received via email.
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - newPassword
+              properties:
+                token:
+                  type: string
+                  description: Password reset token from email
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 12
+                  description: The new password (minimum 12 characters)
+      responses:
+        '204':
+          description: Password reset successfully
+        '400':
+          description: Invalid request, expired token, or already used token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /auth/2fa/setup:
     post:
       tags:

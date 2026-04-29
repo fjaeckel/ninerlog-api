@@ -95,6 +95,12 @@ type ServerInterface interface {
 	// Login
 	// (POST /auth/login)
 	LoginUser(c *gin.Context)
+	// Reset password with token
+	// (POST /auth/password-reset)
+	ResetPassword(c *gin.Context)
+	// Request password reset
+	// (POST /auth/password-reset-request)
+	RequestPasswordReset(c *gin.Context)
 	// Refresh access token
 	// (POST /auth/refresh)
 	RefreshToken(c *gin.Context)
@@ -859,6 +865,32 @@ func (siw *ServerInterfaceWrapper) LoginUser(c *gin.Context) {
 	}
 
 	siw.Handler.LoginUser(c)
+}
+
+// ResetPassword operation middleware
+func (siw *ServerInterfaceWrapper) ResetPassword(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResetPassword(c)
+}
+
+// RequestPasswordReset operation middleware
+func (siw *ServerInterfaceWrapper) RequestPasswordReset(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RequestPasswordReset(c)
 }
 
 // RefreshToken operation middleware
@@ -2184,6 +2216,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/2fa/verify", wrapper.Verify2FA)
 	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
+	router.POST(options.BaseURL+"/auth/password-reset", wrapper.ResetPassword)
+	router.POST(options.BaseURL+"/auth/password-reset-request", wrapper.RequestPasswordReset)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.POST(options.BaseURL+"/auth/register", wrapper.RegisterUser)
 	router.GET(options.BaseURL+"/contacts", wrapper.ListContacts)

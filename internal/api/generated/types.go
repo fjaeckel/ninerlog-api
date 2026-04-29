@@ -1920,6 +1920,20 @@ type LoginUserJSONBody struct {
 	Password string              `json:"password"`
 }
 
+// ResetPasswordJSONBody defines parameters for ResetPassword.
+type ResetPasswordJSONBody struct {
+	// NewPassword The new password (minimum 12 characters)
+	NewPassword string `json:"newPassword"`
+
+	// Token Password reset token from email
+	Token string `json:"token"`
+}
+
+// RequestPasswordResetJSONBody defines parameters for RequestPasswordReset.
+type RequestPasswordResetJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+}
+
 // RefreshTokenJSONBody defines parameters for RefreshToken.
 type RefreshTokenJSONBody struct {
 	RefreshToken string `json:"refreshToken"`
@@ -2127,6 +2141,12 @@ type ChangePasswordJSONRequestBody ChangePasswordJSONBody
 
 // LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
 type LoginUserJSONRequestBody LoginUserJSONBody
+
+// ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
+type ResetPasswordJSONRequestBody ResetPasswordJSONBody
+
+// RequestPasswordResetJSONRequestBody defines body for RequestPasswordReset for application/json ContentType.
+type RequestPasswordResetJSONRequestBody RequestPasswordResetJSONBody
 
 // RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
 type RefreshTokenJSONRequestBody RefreshTokenJSONBody
