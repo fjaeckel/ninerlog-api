@@ -43,8 +43,18 @@ func NewSender(config *SMTPConfig) *Sender {
 	return &Sender{config: config}
 }
 
+// sanitizeHeader removes CR and LF characters to prevent email header injection.
+func sanitizeHeader(value string) string {
+	r := strings.NewReplacer("\r", "", "\n", "")
+	return r.Replace(value)
+}
+
 // Send sends an email
 func (s *Sender) Send(to, subject, htmlBody string) error {
+	// Sanitize header values to prevent email header injection (CWE-640)
+	to = sanitizeHeader(to)
+	subject = sanitizeHeader(subject)
+
 	if !s.config.IsConfigured() {
 		log.Printf("📧 [DRY-RUN] Email to %s: %s (SMTP not configured)", to, subject)
 		return nil
