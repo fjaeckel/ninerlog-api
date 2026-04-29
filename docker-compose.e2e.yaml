@@ -46,6 +46,7 @@ services:
       SMTP_HOST: "mailpit"
       SMTP_PORT: "1025"
       SMTP_FROM: "noreply@ninerlog-test.com"
+      FRONTEND_URL: "http://localhost:5173"
       # Run notification checker less frequently in E2E (manual trigger used)
       NOTIFICATION_CHECK_INTERVAL: "24h"
     ports:

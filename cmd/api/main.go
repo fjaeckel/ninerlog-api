@@ -259,6 +259,8 @@ func main() {
 		"/auth/login",
 		"/auth/refresh",
 		"/auth/2fa/login",
+		"/auth/password-reset-request",
+		"/auth/password-reset",
 		"/airports/search",
 		"/airports/:icaoCode",
 	}))

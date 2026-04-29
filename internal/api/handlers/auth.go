@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -180,6 +182,70 @@ func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
 			return
 		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to delete account")
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// RequestPasswordReset implements POST /auth/password-reset-request
+// (POST /auth/password-reset-request)
+func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
+	var req generated.RequestPasswordResetJSONRequestBody
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	token, err := h.authService.RequestPasswordReset(c.Request.Context(), string(req.Email))
+	if err != nil {
+		// Don't reveal internal errors to the client
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	// Send reset email if token was generated (user exists)
+	if token != "" && h.emailSender != nil {
+		frontendURL := os.Getenv("FRONTEND_URL")
+		if frontendURL == "" {
+			frontendURL = "https://app.ninerlog.app"
+		}
+		resetLink := fmt.Sprintf("%s/new-password?token=%s", frontendURL, token)
+		subject := "NinerLog: Password Reset"
+		body := fmt.Sprintf(`<h2>Password Reset</h2>
+<p>You requested a password reset for your NinerLog account.</p>
+<p><a href="%s">Click here to reset your password</a></p>
+<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
+<p>— NinerLog</p>`, resetLink)
+
+		_ = h.emailSender.Send(string(req.Email), subject, body)
+	}
+
+	// Always return 204 to prevent user enumeration
+	c.Status(http.StatusNoContent)
+}
+
+// ResetPassword implements POST /auth/password-reset
+// (POST /auth/password-reset)
+func (h *APIHandler) ResetPassword(c *gin.Context) {
+	var req generated.ResetPasswordJSONRequestBody
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if err := h.authService.ResetPassword(c.Request.Context(), req.Token, req.NewPassword); err != nil {
+		if errors.Is(err, service.ErrInvalidToken) || errors.Is(err, service.ErrTokenUsed) || errors.Is(err, service.ErrTokenExpired) {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		if errors.Is(err, service.ErrPasswordTooShort) || errors.Is(err, service.ErrPasswordTooLong) {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Password reset failed")
 		return
 	}
 
