@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -209,8 +210,17 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 	if token != "" && h.emailSender != nil {
 		frontendURL := os.Getenv("FRONTEND_URL")
 		if frontendURL == "" {
-			frontendURL = "https://app.ninerlog.app"
+			// Fall back to CORS_ORIGIN (the canonical frontend URL in production)
+			frontendURL = os.Getenv("CORS_ORIGIN")
 		}
+		if frontendURL == "" {
+			frontendURL = "http://localhost:5173"
+		}
+		// CORS_ORIGIN may contain multiple comma-separated origins; use the first one
+		if idx := strings.Index(frontendURL, ","); idx > 0 {
+			frontendURL = frontendURL[:idx]
+		}
+		frontendURL = strings.TrimSpace(frontendURL)
 		resetLink := fmt.Sprintf("%s/new-password?token=%s", frontendURL, token)
 		subject := "NinerLog: Password Reset"
 		body := fmt.Sprintf(`<h2>Password Reset</h2>
