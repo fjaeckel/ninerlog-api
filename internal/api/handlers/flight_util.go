@@ -29,6 +29,13 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 	updated := 0
 	errors := 0
 	for _, flight := range flights {
+		// Load crew members so PIC/Dual calculation is correct
+		if h.flightCrewRepo != nil {
+			crew, err := h.flightCrewRepo.GetByFlightID(c.Request.Context(), flight.ID)
+			if err == nil {
+				flight.CrewMembers = crew
+			}
+		}
 		flightcalc.ApplyAutoCalculations(flight)
 		if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 			errors++
