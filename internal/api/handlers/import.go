@@ -295,11 +295,31 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	// Get existing flights for duplicate detection
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 
+	// Build a registration → type lookup from the user's fleet so the importer
+	// can resolve aircraft types when the source row does not include one.
+	aircraftTypes := make(map[string]string)
+	if existingAircraft, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
+		for _, a := range existingAircraft {
+			aircraftTypes[strings.ToUpper(a.Registration)] = a.Type
+		}
+	}
+	// Also seed from the ForeFlight Aircraft Table in this upload session so the
+	// preview reflects types that will be auto-created on confirm.
+	for _, acRow := range session.aircraft {
+		reg := strings.ToUpper(strings.TrimSpace(acRow["AircraftID"]))
+		typeCode := strings.ToUpper(strings.TrimSpace(acRow["TypeCode"]))
+		if reg != "" && typeCode != "" {
+			if _, exists := aircraftTypes[reg]; !exists {
+				aircraftTypes[reg] = typeCode
+			}
+		}
+	}
+
 	var flights []generated.ImportPreviewFlight
 	validCount, dupCount, errCount := 0, 0, 0
 
 	for i, row := range session.rows {
-		flight, errs := mapRowToFlight(row, mappingLookup)
+		flight, errs := mapRowToFlight(row, mappingLookup, aircraftTypes)
 		rowIdx := i + 1
 
 		if len(errs) > 0 {
@@ -481,6 +501,17 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	// Cache for contact lookups to avoid repeated DB queries
 	contactCache := make(map[string]*models.Contact) // lowercase name → contact
 
+	// Build a registration → type lookup from the user's (now-augmented) fleet so
+	// the importer can resolve aircraft types when the source row does not
+	// include one. This must happen AFTER the ForeFlight Aircraft Table
+	// auto-create block above so newly-created aircraft are picked up.
+	aircraftTypes := make(map[string]string)
+	if fleet, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
+		for _, a := range fleet {
+			aircraftTypes[strings.ToUpper(a.Registration)] = a.Type
+		}
+	}
+
 	for i, row := range session.rows {
 		rowIdx := i + 1
 		if !importAll && !selectedSet[rowIdx] {
@@ -488,7 +519,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			continue
 		}
 
-		flight, errs := mapRowToFlight(row, mappingLookup)
+		flight, errs := mapRowToFlight(row, mappingLookup, aircraftTypes)
 		if len(errs) > 0 {
 			for _, e := range errs {
 				importErrors = append(importErrors, struct {
@@ -794,7 +825,11 @@ type fieldError struct {
 	message string
 }
 
-func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping) (generated.FlightCreate, []fieldError) {
+// mapRowToFlight maps a CSV/JSON row to a FlightCreate using the provided field mappings.
+// aircraftTypes is an optional lookup (uppercase registration → aircraft type) used to
+// resolve the aircraft type when the source row does not provide one. When the lookup
+// has no entry, the registration is used as the type as a last-resort fallback.
+func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping, aircraftTypes map[string]string) (generated.FlightCreate, []fieldError) {
 	flight := generated.FlightCreate{
 		Landings: 0,
 	}
@@ -991,11 +1026,19 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		errs = append(errs, fieldError{"aircraftReg", "Aircraft registration is required"})
 	}
 	if flight.AircraftType == "" {
-		// Default to registration if type not mapped
-		if flight.AircraftReg != "" {
-			flight.AircraftType = flight.AircraftReg
-		} else {
-			errs = append(errs, fieldError{"aircraftType", "Aircraft type is required"})
+		// Try to resolve the type from the user's aircraft fleet by registration.
+		if flight.AircraftReg != "" && aircraftTypes != nil {
+			if t, ok := aircraftTypes[strings.ToUpper(flight.AircraftReg)]; ok && t != "" {
+				flight.AircraftType = t
+			}
+		}
+		if flight.AircraftType == "" {
+			// Last-resort fallback: use registration as type so the import does not fail.
+			if flight.AircraftReg != "" {
+				flight.AircraftType = flight.AircraftReg
+			} else {
+				errs = append(errs, fieldError{"aircraftType", "Aircraft type is required"})
+			}
 		}
 	}
 	if flight.DepartureIcao == "" {

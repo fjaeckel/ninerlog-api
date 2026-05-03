@@ -145,7 +145,7 @@ func TestMapRowToFlight_ForeFlight(t *testing.T) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
-	flight, errs := mapRowToFlight(row, mappingLookup)
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
 	if len(errs) > 0 {
 		t.Fatalf("mapRowToFlight() errors = %v", errs)
 	}
@@ -189,7 +189,7 @@ func TestMapRowToFlight_MissingRequiredFields(t *testing.T) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
-	_, errs := mapRowToFlight(row, mappingLookup)
+	_, errs := mapRowToFlight(row, mappingLookup, nil)
 	if len(errs) == 0 {
 		t.Error("Expected validation errors for missing fields")
 	}
@@ -292,7 +292,7 @@ func TestMapRowToFlight_PersonAsInstructor(t *testing.T) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
-	flight, errs := mapRowToFlight(row, mappingLookup)
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
 	if len(errs) > 0 {
 		t.Fatalf("mapRowToFlight() errors = %v", errs)
 	}
@@ -350,7 +350,7 @@ func TestMapRowToFlight_PersonAsPIC(t *testing.T) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
-	flight, errs := mapRowToFlight(row, mappingLookup)
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
 	if len(errs) > 0 {
 		t.Fatalf("mapRowToFlight() errors = %v", errs)
 	}
@@ -392,7 +392,7 @@ func TestMapRowToFlight_DualGivenMakesPersonStudent(t *testing.T) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
-	flight, errs := mapRowToFlight(row, mappingLookup)
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
 	if len(errs) > 0 {
 		t.Fatalf("mapRowToFlight() errors = %v", errs)
 	}
@@ -431,7 +431,7 @@ func TestMapRowToFlight_NoPersons(t *testing.T) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
-	flight, errs := mapRowToFlight(row, mappingLookup)
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
 	if len(errs) > 0 {
 		t.Fatalf("mapRowToFlight() errors = %v", errs)
 	}
@@ -462,7 +462,7 @@ func TestMapRowToFlight_InstructorNameDiffFromPerson1(t *testing.T) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
-	flight, errs := mapRowToFlight(row, mappingLookup)
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
 	if len(errs) > 0 {
 		t.Fatalf("mapRowToFlight() errors = %v", errs)
 	}
