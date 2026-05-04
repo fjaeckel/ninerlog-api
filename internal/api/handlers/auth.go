@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"os"
 	"strings"
 
@@ -199,15 +200,25 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	token, err := h.authService.RequestPasswordReset(c.Request.Context(), string(req.Email))
+	parsedEmail, err := mail.ParseAddress(string(req.Email))
+	if err != nil {
+		// Keep response indistinguishable to prevent user enumeration.
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	token, userEmail, err := h.authService.RequestPasswordReset(c.Request.Context(), parsedEmail.Address)
 	if err != nil {
 		// Don't reveal internal errors to the client
 		c.Status(http.StatusNoContent)
 		return
 	}
 
-	// Send reset email if token was generated (user exists)
-	if token != "" && h.emailSender != nil {
+	// Send reset email if token was generated (user exists). The recipient
+	// is the canonical address loaded from the database, NOT the HTTP
+	// request body — this keeps untrusted input out of the SMTP message
+	// and resolves CodeQL go/email-injection (CWE-640).
+	if token != "" && userEmail != "" && h.emailSender != nil {
 		frontendURL := os.Getenv("FRONTEND_URL")
 		if frontendURL == "" {
 			// Fall back to CORS_ORIGIN (the canonical frontend URL in production)
@@ -229,7 +240,7 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 <p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
 <p>— NinerLog</p>`, resetLink)
 
-		_ = h.emailSender.Send(string(req.Email), subject, body)
+		_ = h.emailSender.Send(userEmail, subject, body)
 	}
 
 	// Always return 204 to prevent user enumeration

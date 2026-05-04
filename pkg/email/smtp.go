@@ -3,6 +3,8 @@ package email
 import (
 	"fmt"
 	"log"
+	"mime"
+	"net/mail"
 	"net/smtp"
 	"os"
 	"strings"
@@ -44,28 +46,54 @@ func NewSender(config *SMTPConfig) *Sender {
 }
 
 // sanitizeHeader removes CR and LF characters to prevent email header injection.
+// Deprecated: prefer net/mail.ParseAddress for addresses and mime.QEncoding.Encode
+// for free-form header values; both are recognized by static analyzers as
+// sanitizers for CWE-640 (email content injection).
 func sanitizeHeader(value string) string {
 	r := strings.NewReplacer("\r", "", "\n", "")
 	return r.Replace(value)
 }
 
-// Send sends an email
+// Send sends an email.
+//
+// Both `to` and the configured `From` address are parsed with net/mail.ParseAddress,
+// which validates the address syntax and rejects CR/LF and other characters that
+// could be used to inject additional headers (CWE-640). The subject is MIME
+// Q-encoded so any non-ASCII or control bytes are escaped and cannot break out
+// of the Subject header.
 func (s *Sender) Send(to, subject, htmlBody string) error {
-	// Sanitize header values to prevent email header injection (CWE-640)
-	to = sanitizeHeader(to)
-	subject = sanitizeHeader(subject)
+	// Validate and canonicalize the recipient address. ParseAddress refuses
+	// CR/LF and other header-injection vectors; using its canonical String()
+	// form is the sanitizer recognized by CodeQL's go/email-injection query.
+	toAddr, err := mail.ParseAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient email address: %w", err)
+	}
+
+	fromAddr, err := mail.ParseAddress(s.config.From)
+	if err != nil {
+		// Fall back to the default sender if the configured From is empty
+		// or invalid; this keeps the dry-run path usable when SMTP is not
+		// configured at all (e.g. in tests).
+		fromAddr = &mail.Address{Address: "noreply@ninerlog.app"}
+	}
+	fromAddr.Name = "NinerLog"
+
+	// Q-encode the subject so any control characters or non-ASCII content
+	// cannot inject additional headers.
+	encodedSubject := mime.QEncoding.Encode("utf-8", subject)
 
 	if !s.config.IsConfigured() {
-		log.Printf("📧 [DRY-RUN] Email to %s: %s (SMTP not configured)", to, subject)
+		log.Printf("📧 [DRY-RUN] Email to %s: %s (SMTP not configured)", toAddr.Address, subject)
 		return nil
 	}
 
 	addr := fmt.Sprintf("%s:%s", s.config.Host, s.config.Port)
 
 	headers := []string{
-		fmt.Sprintf("From: NinerLog <%s>", s.config.From),
-		fmt.Sprintf("To: %s", to),
-		fmt.Sprintf("Subject: %s", subject),
+		"From: " + fromAddr.String(),
+		"To: " + toAddr.String(),
+		"Subject: " + encodedSubject,
 		"MIME-Version: 1.0",
 		"Content-Type: text/html; charset=UTF-8",
 	}
@@ -79,11 +107,11 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 		auth = smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
 	}
 
-	if err := smtp.SendMail(addr, auth, s.config.From, []string{to}, msg); err != nil {
+	if err := smtp.SendMail(addr, auth, fromAddr.Address, []string{toAddr.Address}, msg); err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 
-	log.Printf("📧 Email sent to %s: %s", to, subject)
+	log.Printf("📧 Email sent to %s: %s", toAddr.Address, subject)
 	return nil
 }
 
