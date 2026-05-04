@@ -252,8 +252,13 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 	return s.refreshTokenRepo.RevokeByTokenHash(ctx, tokenHash)
 }
 
-// RequestPasswordReset creates a password reset token
-func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (string, error) {
+// RequestPasswordReset creates a password reset token.
+//
+// On success it returns both the reset token and the recipient email
+// address loaded from the database. The handler uses the database-sourced
+// email (rather than the HTTP request) when sending the reset mail, which
+// keeps untrusted input out of the SMTP message (CWE-640).
+func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (token, userEmail string, err error) {
 	// Normalize email
 	email = strings.ToLower(strings.TrimSpace(email))
 
@@ -262,22 +267,22 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (s
 	if err != nil {
 		// Don't reveal if user exists
 		if errors.Is(err, repository.ErrNotFound) {
-			return "", nil
+			return "", "", nil
 		}
-		return "", err
+		return "", "", err
 	}
 
 	// Delete any existing reset tokens for this user
 	if err := s.passwordResetRepo.DeleteForUser(ctx, user.ID); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// Generate reset token
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
-		return "", err
+		return "", "", err
 	}
-	token := base64.URLEncoding.EncodeToString(tokenBytes)
+	token = base64.URLEncoding.EncodeToString(tokenBytes)
 
 	// Store token
 	resetToken := &models.PasswordResetToken{
@@ -288,10 +293,10 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (s
 	}
 
 	if err := s.passwordResetRepo.Create(ctx, resetToken); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return token, nil
+	return token, user.Email, nil
 }
 
 // ResetPassword resets a user's password using a reset token

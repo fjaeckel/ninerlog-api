@@ -442,7 +442,7 @@ func TestRequestPasswordReset(t *testing.T) {
 		t.Fatalf("Registration failed: %v", err)
 	}
 
-	resetToken, err := authService.RequestPasswordReset(ctx, "test@example.com")
+	resetToken, userEmail, err := authService.RequestPasswordReset(ctx, "test@example.com")
 	if err != nil {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
@@ -450,19 +450,25 @@ func TestRequestPasswordReset(t *testing.T) {
 	if resetToken == "" {
 		t.Error("Expected reset token")
 	}
+	if userEmail != "test@example.com" {
+		t.Errorf("Expected userEmail = test@example.com, got %q", userEmail)
+	}
 }
 
 func TestRequestPasswordResetNonExistentUser(t *testing.T) {
 	authService := setupAuthService()
 	ctx := context.Background()
 
-	resetToken, err := authService.RequestPasswordReset(ctx, "nonexistent@example.com")
+	resetToken, userEmail, err := authService.RequestPasswordReset(ctx, "nonexistent@example.com")
 	if err != nil {
 		t.Errorf("RequestPasswordReset should not error for non-existent user: %v", err)
 	}
 
 	if resetToken != "" {
 		t.Error("Should not return token for non-existent user")
+	}
+	if userEmail != "" {
+		t.Errorf("Should not return email for non-existent user, got %q", userEmail)
 	}
 }
 
@@ -481,7 +487,7 @@ func TestResetPassword(t *testing.T) {
 		t.Fatalf("Registration failed: %v", err)
 	}
 
-	resetToken, err := authService.RequestPasswordReset(ctx, "test@example.com")
+	resetToken, _, err := authService.RequestPasswordReset(ctx, "test@example.com")
 	if err != nil {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
@@ -527,7 +533,7 @@ func TestResetPasswordUsedToken(t *testing.T) {
 		t.Fatalf("Registration failed: %v", err)
 	}
 
-	resetToken, err := authService.RequestPasswordReset(ctx, "test@example.com")
+	resetToken, _, err := authService.RequestPasswordReset(ctx, "test@example.com")
 	if err != nil {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
@@ -875,7 +881,7 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 	}
 	_, _, _ = authService.Register(ctx, input)
 
-	resetToken, _ := authService.RequestPasswordReset(ctx, "test@example.com")
+	resetToken, _, _ := authService.RequestPasswordReset(ctx, "test@example.com")
 
 	err := authService.ResetPassword(ctx, resetToken, "short")
 	if err != service.ErrPasswordTooShort {
