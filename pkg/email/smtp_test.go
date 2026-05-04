@@ -131,12 +131,21 @@ func TestSanitizeHeader(t *testing.T) {
 	}
 }
 
-func TestSend_DryRun_SanitizesHeaders(t *testing.T) {
+func TestSend_DryRun_RejectsInjectionAttempt(t *testing.T) {
 	cfg := &SMTPConfig{}
 	sender := NewSender(cfg)
-	// Should not error even with injection attempt (dry-run strips CRLF)
+	// CRLF in the recipient address must be rejected by mail.ParseAddress
+	// before any SMTP interaction (CWE-640).
 	err := sender.Send("test@example.com\r\nBcc: evil@example.com", "Subject\r\nBcc: evil", "<p>Hello</p>")
-	if err != nil {
-		t.Errorf("Send() dry-run with injection attempt error = %v, want nil", err)
+	if err == nil {
+		t.Error("Send() with CRLF-injected recipient should return an error")
+	}
+}
+
+func TestSend_DryRun_RejectsInvalidAddress(t *testing.T) {
+	cfg := &SMTPConfig{}
+	sender := NewSender(cfg)
+	if err := sender.Send("not-an-email", "Subject", "<p>Hello</p>"); err == nil {
+		t.Error("Send() with malformed recipient should return an error")
 	}
 }
