@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"os"
 	"strings"
 
@@ -199,7 +200,15 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	token, err := h.authService.RequestPasswordReset(c.Request.Context(), string(req.Email))
+	parsedEmail, err := mail.ParseAddress(string(req.Email))
+	if err != nil {
+		// Keep response indistinguishable to prevent user enumeration.
+		c.Status(http.StatusNoContent)
+		return
+	}
+	email := parsedEmail.Address
+
+	token, err := h.authService.RequestPasswordReset(c.Request.Context(), email)
 	if err != nil {
 		// Don't reveal internal errors to the client
 		c.Status(http.StatusNoContent)
@@ -229,7 +238,7 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 <p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
 <p>— NinerLog</p>`, resetLink)
 
-		_ = h.emailSender.Send(string(req.Email), subject, body)
+		_ = h.emailSender.Send(email, subject, body)
 	}
 
 	// Always return 204 to prevent user enumeration
