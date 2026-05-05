@@ -287,6 +287,196 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /auth/webauthn/register/options:
+    post:
+      tags:
+        - Authentication
+      summary: Begin passkey registration
+      description: Returns WebAuthn `PublicKeyCredentialCreationOptions` plus an opaque session id used to verify the attestation.
+      operationId: webauthnRegisterOptions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Registration options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebAuthnRegistrationOptions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: WebAuthn is not configured on this server
+
+  /auth/webauthn/register/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify passkey registration attestation
+      description: Verifies the authenticator attestation produced from the registration options and stores the credential.
+      operationId: webauthnRegisterVerify
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionId
+                - response
+              properties:
+                sessionId:
+                  type: string
+                  description: Session id returned from `/auth/webauthn/register/options`
+                label:
+                  type: string
+                  description: Optional human-readable label for the passkey
+                response:
+                  type: object
+                  description: Raw `PublicKeyCredential` returned from `navigator.credentials.create`
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Newly registered passkey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebAuthnCredential'
+        '400':
+          description: Invalid or expired registration response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: WebAuthn is not configured on this server
+
+  /auth/webauthn/login/options:
+    post:
+      tags:
+        - Authentication
+      summary: Begin passkey login
+      description: Returns WebAuthn `PublicKeyCredentialRequestOptions` for either a discoverable credential (no email) or a specific user.
+      operationId: webauthnLoginOptions
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Optional email to scope the challenge to a specific user
+      responses:
+        '200':
+          description: Login options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebAuthnLoginOptions'
+        '503':
+          description: WebAuthn is not configured on this server
+
+  /auth/webauthn/login/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify passkey assertion and sign in
+      description: Verifies the authenticator assertion and returns a token pair. Successful passkey logins bypass the 2FA challenge.
+      operationId: webauthnLoginVerify
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionId
+                - response
+              properties:
+                sessionId:
+                  type: string
+                response:
+                  type: object
+                  description: Raw `PublicKeyCredential` returned from `navigator.credentials.get`
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid or expired login response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Passkey verification failed or unknown credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: WebAuthn is not configured on this server
+
+  /auth/webauthn/credentials:
+    get:
+      tags:
+        - Authentication
+      summary: List the current user's passkeys
+      operationId: listWebauthnCredentials
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Passkeys registered for the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebAuthnCredential'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/webauthn/credentials/{credentialId}:
+    delete:
+      tags:
+        - Authentication
+      summary: Revoke a passkey
+      operationId: deleteWebauthnCredential
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: credentialId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Passkey revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Passkey not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /auth/2fa/setup:
     post:
       tags:
@@ -2687,6 +2877,63 @@ components:
           type: string
           description: otpauth:// URI for QR code generation
           example: 'otpauth://totp/NinerLog:pilot@example.com?secret=JBSWY3DPEHPK3PXP&issuer=NinerLog'
+
+    WebAuthnRegistrationOptions:
+      type: object
+      required:
+        - sessionId
+        - publicKey
+      properties:
+        sessionId:
+          type: string
+          description: Opaque session id to send back with the verify request
+        publicKey:
+          type: object
+          description: WebAuthn `PublicKeyCredentialCreationOptions` (passed verbatim to `navigator.credentials.create`)
+          additionalProperties: true
+
+    WebAuthnLoginOptions:
+      type: object
+      required:
+        - sessionId
+        - publicKey
+      properties:
+        sessionId:
+          type: string
+          description: Opaque session id to send back with the verify request
+        publicKey:
+          type: object
+          description: WebAuthn `PublicKeyCredentialRequestOptions` (passed verbatim to `navigator.credentials.get`)
+          additionalProperties: true
+
+    WebAuthnCredential:
+      type: object
+      required:
+        - id
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+          nullable: true
+          description: Human-readable label for the passkey
+        transports:
+          type: array
+          items:
+            type: string
+          description: Authenticator transports reported during registration
+        aaguid:
+          type: string
+          description: Authenticator AAGUID as a hex/UUID string
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
 
     TwoFactorEnabled:
       type: object

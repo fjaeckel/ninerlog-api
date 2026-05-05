@@ -136,6 +136,8 @@ func main() {
 	classRatingRepo := postgres.NewClassRatingRepository(db)
 	classRatingService := service.NewClassRatingService(classRatingRepo, licenseRepo)
 	flightCrewRepo := postgres.NewFlightCrewRepository(db)
+	webauthnCredRepo := postgres.NewWebAuthnCredentialRepository(db)
+	webauthnSessionRepo := postgres.NewWebAuthnSessionRepository(db)
 
 	// Initialize currency evaluation
 	flightDataProvider := currency.NewFlightDataProvider(db)
@@ -150,8 +152,37 @@ func main() {
 	// Notification service depends on currency service for two-tier evaluation
 	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService)
 
+	// WebAuthn / passkey service (optional — disabled if WEBAUTHN_RP_ID is not set).
+	webauthnRPID := os.Getenv("WEBAUTHN_RP_ID")
+	webauthnRPName := os.Getenv("WEBAUTHN_RP_NAME")
+	if webauthnRPName == "" {
+		webauthnRPName = "NinerLog"
+	}
+	webauthnOriginsRaw := os.Getenv("WEBAUTHN_RP_ORIGINS")
+	if webauthnOriginsRaw == "" {
+		webauthnOriginsRaw = corsOrigin
+	}
+	webauthnOrigins := strings.Split(webauthnOriginsRaw, ",")
+	for i := range webauthnOrigins {
+		webauthnOrigins[i] = strings.TrimSpace(webauthnOrigins[i])
+	}
+	var webauthnService *service.WebAuthnService
+	if webauthnRPID != "" {
+		webauthnService, err = service.NewWebAuthnService(webauthnRPID, webauthnRPName, webauthnOrigins, webauthnCredRepo, webauthnSessionRepo, userRepo, authService)
+		if err != nil {
+			log.Printf("⚠️  WebAuthn disabled: %v", err)
+			webauthnService = nil
+		} else {
+			log.Printf("✅ WebAuthn enabled (RP ID: %s)", sanitizeLogValue(webauthnRPID)) // #nosec G706 -- sanitized
+		}
+	} else {
+		log.Println("ℹ️  WebAuthn disabled (set WEBAUTHN_RP_ID to enable)")
+		_ = webauthnCredRepo
+		_ = webauthnSessionRepo
+	}
+
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, jwtManager, flightCrewRepo, adminEmail)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetDB(db)
 	apiHandler.SetEmailSender(emailSender)
 	startedAt := time.Now()
@@ -261,6 +292,8 @@ func main() {
 		"/auth/2fa/login",
 		"/auth/password-reset-request",
 		"/auth/password-reset",
+		"/auth/webauthn/login/options",
+		"/auth/webauthn/login/verify",
 		"/airports/search",
 		"/airports/:icaoCode",
 	}))
@@ -276,6 +309,8 @@ func main() {
 			"/auth/2fa/login",
 			"/auth/password-reset-request",
 			"/auth/password-reset",
+			"/auth/webauthn/login/options",
+			"/auth/webauthn/login/verify",
 		))
 
 		// Stricter rate limiting for admin endpoints: 30 requests per minute per IP
