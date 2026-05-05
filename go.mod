@@ -12,6 +12,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
+	github.com/mstephenholl/go-solar v1.0.1
 	github.com/oapi-codegen/runtime v1.4.0
 	github.com/pquerna/otp v1.5.0
 	github.com/prometheus/client_golang v1.23.2
