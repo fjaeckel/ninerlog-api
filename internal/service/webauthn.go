@@ -81,8 +81,8 @@ func (u *webauthnUser) WebAuthnID() []byte {
 	b, _ := u.user.ID.MarshalBinary()
 	return b
 }
-func (u *webauthnUser) WebAuthnName() string                 { return u.user.Email }
-func (u *webauthnUser) WebAuthnDisplayName() string          { return u.user.Name }
+func (u *webauthnUser) WebAuthnName() string                       { return u.user.Email }
+func (u *webauthnUser) WebAuthnDisplayName() string                { return u.user.Name }
 func (u *webauthnUser) WebAuthnCredentials() []webauthn.Credential { return u.credentials }
 
 func (s *WebAuthnService) loadUserWithCredentials(ctx context.Context, user *models.User) (*webauthnUser, error) {
