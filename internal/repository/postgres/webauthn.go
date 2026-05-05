@@ -61,7 +61,17 @@ func (r *webauthnCredentialRepository) scan(row interface {
 	); err != nil {
 		return nil, err
 	}
-	c.SignCount = uint32(signCount)
+	// sign_count is stored as int64 but the WebAuthn spec defines it as a
+	// uint32. Clamp to the valid range to satisfy gosec G115 — values
+	// outside the range cannot occur for a well-behaved authenticator.
+	switch {
+	case signCount < 0:
+		c.SignCount = 0
+	case signCount > int64(^uint32(0)):
+		c.SignCount = ^uint32(0)
+	default:
+		c.SignCount = uint32(signCount)
+	}
 	return c, nil
 }
 
