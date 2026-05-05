@@ -178,7 +178,17 @@ func (s *WebAuthnService) BeginRegistration(ctx context.Context, userID uuid.UUI
 		return "", nil, err
 	}
 
-	creation, sd, err := s.wa.BeginRegistration(wu)
+	// Require a discoverable (resident) credential with user verification so
+	// the resulting credential is a real passkey: it gets saved into the
+	// platform's credential manager, can be used for username-less sign-in,
+	// and shows up in browser autofill on the login page.
+	requireResident := true
+	authenticatorSelection := protocol.AuthenticatorSelection{
+		ResidentKey:        protocol.ResidentKeyRequirementRequired,
+		RequireResidentKey: &requireResident,
+		UserVerification:   protocol.VerificationRequired,
+	}
+	creation, sd, err := s.wa.BeginRegistration(wu, webauthn.WithAuthenticatorSelection(authenticatorSelection))
 	if err != nil {
 		return "", nil, fmt.Errorf("begin registration: %w", err)
 	}
