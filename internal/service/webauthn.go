@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -347,7 +348,26 @@ func (s *WebAuthnService) FinishLogin(ctx context.Context, sessionID string, res
 		return nil, nil, err
 	}
 
-	verified, err := s.wa.ValidateLogin(wu, *sd, parsed)
+	// A session created by BeginDiscoverableLogin has an empty UserID, and must
+	// be finished via ValidateDiscoverableLogin (which dispatches user lookup to
+	// the provided handler). A session created by BeginLogin(user) has the
+	// user's WebAuthnID and must be finished via ValidateLogin.
+	var verified *webauthn.Credential
+	if len(sd.UserID) == 0 {
+		handler := func(rawID, userHandle []byte) (webauthn.User, error) {
+			// userHandle from the authenticator MUST match the user we resolved
+			// from rawID, otherwise someone could try to impersonate via a
+			// crafted handle. Both should equal user.WebAuthnID().
+			expected := wu.WebAuthnID()
+			if len(userHandle) > 0 && !bytes.Equal(userHandle, expected) {
+				return nil, ErrWebAuthnUnknownCredential
+			}
+			return wu, nil
+		}
+		verified, err = s.wa.ValidateDiscoverableLogin(handler, *sd, parsed)
+	} else {
+		verified, err = s.wa.ValidateLogin(wu, *sd, parsed)
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrWebAuthnVerification, err)
 	}
