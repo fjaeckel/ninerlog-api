@@ -29,6 +29,7 @@ type APIHandler struct {
 	contactService      *service.ContactService
 	classRatingService  *service.ClassRatingService
 	currencyService     *currency.Service
+	webauthnService     *service.WebAuthnService
 	jwtManager          *jwt.Manager
 	db                  *sql.DB
 	flightCrewRepo      repository.FlightCrewRepository
@@ -50,6 +51,7 @@ func NewAPIHandler(
 	contactService *service.ContactService,
 	classRatingService *service.ClassRatingService,
 	currencyService *currency.Service,
+	webauthnService *service.WebAuthnService,
 	jwtManager *jwt.Manager,
 	flightCrewRepo repository.FlightCrewRepository,
 	adminEmail string,
@@ -65,6 +67,7 @@ func NewAPIHandler(
 		contactService:      contactService,
 		classRatingService:  classRatingService,
 		currencyService:     currencyService,
+		webauthnService:     webauthnService,
 		jwtManager:          jwtManager,
 		flightCrewRepo:      flightCrewRepo,
 		adminEmail:          adminEmail,

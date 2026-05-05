@@ -183,3 +183,23 @@ type FlightCrewRepository interface {
 	GetByFlightID(ctx context.Context, flightID uuid.UUID) ([]models.FlightCrewMember, error)
 	DeleteByFlightID(ctx context.Context, flightID uuid.UUID) error
 }
+
+// WebAuthnCredentialRepository defines the interface for WebAuthn / passkey
+// credential data access.
+type WebAuthnCredentialRepository interface {
+	Create(ctx context.Context, credential *models.WebAuthnCredential) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.WebAuthnCredential, error)
+	GetByCredentialID(ctx context.Context, credentialID []byte) (*models.WebAuthnCredential, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.WebAuthnCredential, error)
+	UpdateSignCount(ctx context.Context, id uuid.UUID, signCount uint32, lastUsedAt time.Time) error
+	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+}
+
+// WebAuthnSessionRepository defines the interface for transient WebAuthn
+// ceremony session storage.
+type WebAuthnSessionRepository interface {
+	Create(ctx context.Context, session *models.WebAuthnSession) error
+	Get(ctx context.Context, id uuid.UUID) (*models.WebAuthnSession, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	DeleteExpired(ctx context.Context) error
+}
