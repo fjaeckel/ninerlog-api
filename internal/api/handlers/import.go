@@ -634,7 +634,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 				Message  string  `json:"message"`
 				RawValue *string `json:"rawValue,omitempty"`
 				RowIndex int     `json:"rowIndex"`
-			}{Field: "flight", Message: "Failed to import flight", RowIndex: rowIdx})
+			}{Field: "flight", Message: fmt.Sprintf("Failed to import flight: %s", err.Error()), RowIndex: rowIdx})
 			errored++
 			continue
 		}
@@ -1239,8 +1239,37 @@ func parseSectionCSV(csvData []byte) ([]string, []map[string]string, error) {
 }
 
 func normalizeTime(val string) string {
-	// Handle HH:MM, HH:MM:SS, H:MM
+	// Some logbook exports include a date or full ISO-style timestamp in time
+	// columns (e.g. "2026-03-07 16:14:00Z", "2026-03-07T16:14:00Z",
+	// "03/07/2026 16:14"). The flights table stores TIME-only values, so extract
+	// the wall-clock portion before normalising.
 	val = strings.TrimSpace(val)
+	if val == "" {
+		return val
+	}
+	// Strip trailing timezone marker.
+	val = strings.TrimSuffix(val, "Z")
+	val = strings.TrimSuffix(val, "z")
+	// If a 'T' separator is present (ISO 8601), keep only what follows it.
+	if idx := strings.Index(val, "T"); idx >= 0 {
+		val = val[idx+1:]
+	}
+	// If a space separator is present ("YYYY-MM-DD HH:MM:SS"), keep the last
+	// whitespace-separated token (the time-of-day).
+	if strings.Contains(val, " ") {
+		parts := strings.Fields(val)
+		val = parts[len(parts)-1]
+	}
+	// Drop trailing timezone offsets like "+02:00" or "-0500".
+	for _, sep := range []string{"+", "-"} {
+		if idx := strings.Index(val, sep); idx > 2 { // ignore leading sign
+			val = val[:idx]
+			break
+		}
+	}
+	val = strings.TrimSpace(val)
+
+	// Handle HH:MM, HH:MM:SS, H:MM
 	if len(val) == 4 && val[1] == ':' {
 		val = "0" + val // H:MM → 0H:MM
 	}

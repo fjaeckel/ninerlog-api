@@ -252,6 +252,13 @@ func TestNormalizeTime(t *testing.T) {
 		{"08:11:00", "08:11:00"},
 		{"14:30", "14:30:00"},
 		{"", ""},
+		// Regression for https://github.com/fjaeckel/ninerlog-api/issues/16:
+		// some logbook exports put full datetimes in time columns.
+		{"2026-03-07 16:14:00Z", "16:14:00"},
+		{"2026-03-07 16:14:00", "16:14:00"},
+		{"2026-03-07T16:14:00Z", "16:14:00"},
+		{"2026-03-07T08:11", "08:11:00"},
+		{"2026-03-07 16:14:00+02:00", "16:14:00"},
 	}
 	for _, tt := range tests {
 		if got := normalizeTime(tt.input); got != tt.want {
