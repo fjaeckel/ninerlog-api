@@ -205,6 +205,44 @@ func TestMapRowToFlight_MissingRequiredFields(t *testing.T) {
 	}
 }
 
+// TestSuggestGenericCSV_CanonicalFieldAliases is a regression test for
+// https://github.com/fjaeckel/ninerlog-api/issues/16 — the auto-mapper must
+// recognise canonical field names like `aircraftReg`, `aircraftType`,
+// `departureIcao`, `arrivalIcao`, etc. when they appear verbatim as CSV headers.
+func TestSuggestGenericCSV_CanonicalFieldAliases(t *testing.T) {
+	headers := []string{
+		"Date", "Aircraft Type", "aircraftReg", "Day Landings", "Night Landings",
+		"PIC", "Total Time", "Departure ICAO", "Arrival ICAO", "Remarks",
+		"On-Block", "Out-Block",
+	}
+
+	mappings := suggestGenericCSV(headers)
+	got := make(map[string]string)
+	for _, m := range mappings {
+		got[m.SourceColumn] = string(m.TargetField)
+	}
+
+	want := map[string]string{
+		"Date":           "date",
+		"Aircraft Type":  "aircraftType",
+		"aircraftReg":    "aircraftReg",
+		"Day Landings":   "landingsDay",
+		"Night Landings": "landingsNight",
+		"PIC":            "isPic",
+		"Total Time":     "totalTime",
+		"Departure ICAO": "departureIcao",
+		"Arrival ICAO":   "arrivalIcao",
+		"Remarks":        "remarks",
+		"On-Block":       "onBlockTime",
+		"Out-Block":      "offBlockTime",
+	}
+	for src, target := range want {
+		if got[src] != target {
+			t.Errorf("Column %q mapped to %q, want %q", src, got[src], target)
+		}
+	}
+}
+
 func TestNormalizeTime(t *testing.T) {
 	tests := []struct {
 		input, want string

@@ -32,6 +32,7 @@ type uploadSession struct {
 	columns   []string
 	rows      []map[string]string
 	aircraft  []map[string]string // ForeFlight Aircraft Table rows
+	mappings  []generated.ImportColumnMapping // user-confirmed mappings from preview
 	createdAt time.Time
 }
 
@@ -140,21 +141,21 @@ func suggestForeFlight() []generated.ImportColumnMapping {
 func suggestGenericCSV(headers []string) []generated.ImportColumnMapping {
 	guesses := map[string]generated.ImportField{
 		"date": "date", "flight date": "date", "datum": "date",
-		"aircraft": "aircraftReg", "registration": "aircraftReg", "reg": "aircraftReg", "aircraftid": "aircraftReg", "aircraft reg": "aircraftReg",
-		"type": "aircraftType", "aircraft type": "aircraftType", "typecode": "aircraftType",
-		"from": "departureIcao", "departure": "departureIcao", "dep": "departureIcao", "departure icao": "departureIcao",
-		"to": "arrivalIcao", "arrival": "arrivalIcao", "arr": "arrivalIcao", "dest": "arrivalIcao", "arrival icao": "arrivalIcao",
-		"off block": "offBlockTime", "offblock": "offBlockTime", "timeout": "offBlockTime", "chocks off": "offBlockTime",
-		"on block": "onBlockTime", "onblock": "onBlockTime", "timein": "onBlockTime", "chocks on": "onBlockTime",
-		"takeoff": "departureTime", "timeoff": "departureTime", "departure time": "departureTime",
-		"landing": "arrivalTime", "timeon": "arrivalTime", "arrival time": "arrivalTime",
-		"total": "totalTime", "total time": "totalTime", "totaltime": "totalTime", "block time": "totalTime",
+		"aircraft": "aircraftReg", "registration": "aircraftReg", "reg": "aircraftReg", "aircraftid": "aircraftReg", "aircraft reg": "aircraftReg", "aircraftreg": "aircraftReg", "tail": "aircraftReg", "tail number": "aircraftReg",
+		"type": "aircraftType", "aircraft type": "aircraftType", "typecode": "aircraftType", "aircrafttype": "aircraftType",
+		"from": "departureIcao", "departure": "departureIcao", "dep": "departureIcao", "departure icao": "departureIcao", "departureicao": "departureIcao",
+		"to": "arrivalIcao", "arrival": "arrivalIcao", "arr": "arrivalIcao", "dest": "arrivalIcao", "arrival icao": "arrivalIcao", "arrivalicao": "arrivalIcao",
+		"off block": "offBlockTime", "offblock": "offBlockTime", "off-block": "offBlockTime", "out-block": "offBlockTime", "out block": "offBlockTime", "timeout": "offBlockTime", "chocks off": "offBlockTime", "offblocktime": "offBlockTime",
+		"on block": "onBlockTime", "onblock": "onBlockTime", "on-block": "onBlockTime", "in-block": "onBlockTime", "in block": "onBlockTime", "timein": "onBlockTime", "chocks on": "onBlockTime", "onblocktime": "onBlockTime",
+		"takeoff": "departureTime", "timeoff": "departureTime", "departure time": "departureTime", "departuretime": "departureTime",
+		"landing": "arrivalTime", "timeon": "arrivalTime", "arrival time": "arrivalTime", "arrivaltime": "arrivalTime",
+		"total": "totalTime", "total time": "totalTime", "totaltime": "totalTime", "block time": "totalTime", "flight time": "totalTime",
 		"pic": "isPic", "pic time": "isPic",
 		"dual": "isDual", "dual received": "isDual", "dualreceived": "isDual",
-		"night": "nightTime", "night time": "nightTime",
-		"ifr": "ifrTime", "ifr time": "ifrTime", "instrument": "ifrTime", "actual instrument": "ifrTime", "actualinstrument": "ifrTime",
-		"day landings": "landingsDay", "daylandingsfullstop": "landingsDay", "day ldg": "landingsDay",
-		"night landings": "landingsNight", "nightlandingsfullstop": "landingsNight", "night ldg": "landingsNight",
+		"night": "nightTime", "night time": "nightTime", "nighttime": "nightTime",
+		"ifr": "ifrTime", "ifr time": "ifrTime", "ifrtime": "ifrTime", "instrument": "ifrTime", "actual instrument": "ifrTime", "actualinstrument": "ifrTime",
+		"day landings": "landingsDay", "daylandingsfullstop": "landingsDay", "day ldg": "landingsDay", "landingsday": "landingsDay",
+		"night landings": "landingsNight", "nightlandingsfullstop": "landingsNight", "night ldg": "landingsNight", "landingsnight": "landingsNight",
 		"remarks": "remarks", "comments": "remarks", "pilotcomments": "remarks", "notes": "remarks",
 	}
 
@@ -292,6 +293,12 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
+	// Persist user-confirmed mappings on the session so confirm can reuse them
+	// (the confirm endpoint does not re-send mappings).
+	sessionMu.Lock()
+	session.mappings = append(session.mappings[:0], req.Mappings...)
+	sessionMu.Unlock()
+
 	// Get existing flights for duplicate detection
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 
@@ -414,19 +421,19 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	// Get existing flights for duplicate check
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 
-	// Get the preview mappings from the session (we stored them in the session during upload)
-	// Since we don't store mappings in the session, we'll need caller to include them
-	// For now, we use the suggestedMappings from the format
-	var mappingLookup map[string]generated.ImportColumnMapping
-	// The confirm endpoint doesn't have mappings in the OpenAPI schema — they were applied during preview.
-	// We'll use the suggested mappings based on format as fallback
-	if session.format == "FOREFLIGHT_CSV" {
-		mappingLookup = make(map[string]generated.ImportColumnMapping)
+	// Get the preview mappings from the session (they were stored during preview).
+	// Fall back to suggested mappings only when the client called confirm without
+	// having gone through preview (older clients / API misuse).
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	if len(session.mappings) > 0 {
+		for _, m := range session.mappings {
+			mappingLookup[m.SourceColumn] = m
+		}
+	} else if session.format == "FOREFLIGHT_CSV" {
 		for _, m := range suggestForeFlight() {
 			mappingLookup[m.SourceColumn] = m
 		}
 	} else {
-		mappingLookup = make(map[string]generated.ImportColumnMapping)
 		for _, m := range suggestGenericCSV(session.columns) {
 			mappingLookup[m.SourceColumn] = m
 		}
