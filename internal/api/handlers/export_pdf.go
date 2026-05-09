@@ -16,6 +16,117 @@ import (
 	"github.com/google/uuid"
 )
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Page geometry
+// ─────────────────────────────────────────────────────────────────────────────
+
+// pageGeometry describes the printable area of a landscape page. All values in mm.
+type pageGeometry struct {
+	sizeName  string  // "A4", "A5", "Letter"
+	width     float64 // landscape width (long edge)
+	height    float64 // landscape height (short edge)
+	marginLR  float64 // left/right margin
+	marginTB  float64 // top/bottom margin
+	titleH    float64 // title strip height
+	rowH      float64 // data row height
+	headerH   float64 // header row height
+	fontTitle float64
+	fontHdr   float64
+	fontBody  float64
+	fontFoot  float64
+}
+
+func (g pageGeometry) usableWidth() float64  { return g.width - 2*g.marginLR }
+func (g pageGeometry) usableHeight() float64 { return g.height - 2*g.marginTB - g.titleH }
+
+// rowsPerPage returns how many data rows fit on one page (excluding 2 header rows
+// and a single page-totals row).
+func (g pageGeometry) rowsPerPage() int {
+	avail := g.usableHeight() - 2*g.headerH - g.rowH // minus 2 header rows + 1 totals row
+	n := int(avail / g.rowH)
+	if n < 5 {
+		n = 5
+	}
+	return n
+}
+
+func geometryFor(sizeName string) pageGeometry {
+	// Base A4-landscape geometry.
+	base := pageGeometry{
+		sizeName:  "A4",
+		width:     297, height: 210,
+		marginLR: 10, marginTB: 8, titleH: 8,
+		rowH: 5, headerH: 4.5,
+		fontTitle: 11, fontHdr: 5, fontBody: 5, fontFoot: 7,
+	}
+	switch strings.ToLower(sizeName) {
+	case "a5":
+		// A5 landscape: 210 × 148 mm. Scale fonts/rows down proportionally.
+		s := 210.0 / 297.0
+		return pageGeometry{
+			sizeName: "A5",
+			width:    210, height: 148,
+			marginLR: 7, marginTB: 6, titleH: 6,
+			rowH: base.rowH * s, headerH: base.headerH * s,
+			fontTitle: 9, fontHdr: 4, fontBody: 4, fontFoot: 6,
+		}
+	case "letter":
+		// US Letter landscape: 279.4 × 215.9 mm.
+		return pageGeometry{
+			sizeName: "Letter",
+			width:    279.4, height: 215.9,
+			marginLR: 10, marginTB: 8, titleH: 8,
+			rowH: 5, headerH: 4.5,
+			fontTitle: 11, fontHdr: 5, fontBody: 5, fontFoot: 7,
+		}
+	case "a4":
+		fallthrough
+	default:
+		return base
+	}
+}
+
+// fpdfPageSize returns the fpdf SizeType for a given geometry. We always render
+// in landscape, so width is the long edge.
+func (g pageGeometry) fpdfSize() fpdf.SizeType {
+	// Heights here are the *portrait* dimensions; fpdf flips them when "L" is used.
+	// We construct the doc with custom size to support all three sizes uniformly.
+	return fpdf.SizeType{Wd: g.height, Ht: g.width}
+}
+
+// scaleWidths scales a slice of base column widths to fit `target` mm exactly.
+func scaleWidths(base []float64, target float64) []float64 {
+	var sum float64
+	for _, w := range base {
+		sum += w
+	}
+	if sum <= 0 {
+		return base
+	}
+	scale := target / sum
+	out := make([]float64, len(base))
+	for i, w := range base {
+		out[i] = w * scale
+	}
+	return out
+}
+
+// newPDF constructs a new fpdf document for the given geometry.
+func newPDF(g pageGeometry) *fpdf.Fpdf {
+	pdf := fpdf.NewCustom(&fpdf.InitType{
+		OrientationStr: "L",
+		UnitStr:        "mm",
+		Size:           g.fpdfSize(),
+	})
+	pdf.SetMargins(g.marginLR, g.marginTB, g.marginLR)
+	pdf.SetAutoPageBreak(true, g.marginTB)
+	return pdf
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ExportFlightsPDF implements GET /exports/pdf
 func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFlightsPDFParams) {
 	userID, err := h.getUserIDFromContext(c)
@@ -30,7 +141,6 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		return
 	}
 
-	// Logbook filtering — if logbookLicenseId is set, filter flights to matching aircraft classes
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)
 		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
@@ -57,38 +167,80 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		}
 	}
 
-	// Sort flights by date ascending (oldest first, like a physical logbook)
 	sort.Slice(flights, func(i, j int) bool {
 		return flights[i].Date.Before(flights[j].Date)
 	})
 
-	// Determine format
 	format := "easa"
 	if params.Format != nil {
 		format = string(*params.Format)
 	}
+	pageSize := "a4"
+	if params.PageSize != nil {
+		pageSize = string(*params.PageSize)
+	}
+	geom := geometryFor(pageSize)
 
 	var pdf *fpdf.Fpdf
 	switch format {
 	case "faa":
-		pdf = generateFAAPDF(flights)
+		pdf = generateFAAPDF(flights, geom)
 	case "summary":
-		pdf = generateSummaryPDF(flights)
+		pdf = generateSummaryPDF(flights, geom)
 	default:
-		pdf = generateEASAPDF(flights, h, c, userID)
+		pdf = generateEASAPDF(flights, geom, h, c, userID)
 	}
 
-	// Send PDF
 	c.Header("Content-Type", "application/pdf")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_%s_%s.pdf", format, time.Now().Format("2006-01-02")))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_%s_%s_%s.pdf",
+		format, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02")))
 	if err := pdf.Output(c.Writer); err != nil {
 		log.Printf("pdf export output error: %v", err)
 	}
 }
 
-// generateEASAPDF creates an EASA AMC1 FCL.050 compliant two-page-spread layout
-func generateEASAPDF(flights []*models.Flight, h *APIHandler, c *gin.Context, userID uuid.UUID) *fpdf.Fpdf {
-	// Get aircraft for class lookup (to derive SP-SE / SP-ME)
+// ─────────────────────────────────────────────────────────────────────────────
+// EASA — book-style two-page spread
+// ─────────────────────────────────────────────────────────────────────────────
+
+// EASA columns are split across two facing pages. Each `flight` row produces
+// one row on the left page and one row on the right page; when the document is
+// printed double-sided, the bound spread reproduces the AMC1 FCL.050 layout.
+
+// Left page: cols 1–12
+var easaLeftHeaders1 = []string{
+	"", "DEPARTURE", "", "ARRIVAL", "", "AIRCRAFT", "",
+	"SINGLE PILOT", "", "MULTI", "TOTAL", "PIC",
+}
+var easaLeftHeaders2 = []string{
+	"DATE", "PLACE", "TIME", "PLACE", "TIME", "TYPE", "REG",
+	"SE", "ME", "PILOT", "TIME", "NAME",
+}
+var easaLeftBaseW = []float64{
+	18, 18, 14, 18, 14, 22, 22, 14, 14, 14, 16, 86,
+}
+var easaLeftAlign = []string{
+	"C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "L",
+}
+
+// Right page: date (for cross-reference) + cols 13–24
+var easaRightHeaders1 = []string{
+	"", "LANDINGS", "", "OPERATIONAL", "CONDITION", "PILOT FUNCTION", "", "", "",
+	"FSTD", "", "", "",
+}
+var easaRightHeaders2 = []string{
+	"DATE", "DAY", "NIGHT", "NIGHT", "IFR",
+	"PIC", "CO-PLT", "DUAL", "INSTR",
+	"DATE", "TYPE", "TIME", "REMARKS",
+}
+var easaRightBaseW = []float64{
+	18, 12, 12, 16, 16, 16, 16, 16, 16, 14, 22, 14, 82,
+}
+var easaRightAlign = []string{
+	"C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "L",
+}
+
+func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c *gin.Context, userID uuid.UUID) *fpdf.Fpdf {
 	aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 	regToClass := make(map[string]string)
 	for _, ac := range aircraftList {
@@ -96,280 +248,199 @@ func generateEASAPDF(flights []*models.Flight, h *APIHandler, c *gin.Context, us
 			regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
 		}
 	}
+	return renderEASA(flights, g, regToClass)
+}
 
-	pdf := fpdf.New("L", "mm", "A4", "") // Landscape A4
-	pdf.SetAutoPageBreak(true, 10)
+// renderEASA performs the actual EASA PDF rendering. Extracted so tests can
+// invoke it without a full APIHandler.
+func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]string) *fpdf.Fpdf {
+	pdf := newPDF(g)
+	tr := pdf.UnicodeTranslatorFromDescriptor("") // CP1252 mapper for em-dash etc.
 
-	// EASA AMC1 FCL.050 logbook columns — full 24-column layout
-	// Left page: Cols 1-12, Right page: Cols 13-24
-	colWidths := []float64{
-		16, // 1. Date
-		14, // 2. Dep Place
-		10, // 3. Dep Time
-		14, // 4. Arr Place
-		10, // 5. Arr Time
-		16, // 6. A/C Type
-		16, // 7. A/C Reg
-		12, // 8. SP-SE
-		12, // 9. SP-ME
-		12, // 10. Multi-Pilot
-		12, // 11. Total Time
-		22, // 12. PIC Name
-		8,  // 13. Ldg Day
-		8,  // 14. Ldg Night
-		12, // 15. Night
-		12, // 16. IFR
-		12, // 17. PIC
-		12, // 18. Co-Pilot
-		12, // 19. Dual
-		12, // 20. Instructor
-		12, // 21. FSTD Date (narrower)
-		14, // 22. FSTD Type
-		10, // 23. FSTD Time
-		23, // 24. Remarks
-	}
+	leftW := scaleWidths(easaLeftBaseW, g.usableWidth())
+	rightW := scaleWidths(easaRightBaseW, g.usableWidth())
 
-	headers1 := []string{
-		"", "DEPARTURE", "", "ARRIVAL", "", "AIRCRAFT", "",
-		"SINGLE PILOT", "", "MULTI", "TOTAL", "",
-		"LANDINGS", "", "OPERATIONAL", "CONDITION", "PILOT FUNCTION", "", "", "",
-		"FSTD", "", "", "",
-	}
-	headers2 := []string{
-		"DATE", "PLACE", "TIME", "PLACE", "TIME", "TYPE", "REG",
-		"SE", "ME", "PILOT", "TIME", "PIC NAME",
-		"DAY", "NIGHT", "NIGHT", "IFR", "PIC", "CO-PLT", "DUAL", "INSTR",
-		"DATE", "TYPE", "TIME", "REMARKS",
-	}
+	rpp := g.rowsPerPage()
+	spreadNum := 0
 
-	rowH := 5.0
-	headerH := 4.5
-
-	pageNum := 0
-	rowsPerPage := 28
-
-	for startIdx := 0; startIdx < len(flights); startIdx += rowsPerPage {
-		pdf.AddPage()
-		pageNum++
-
-		// Title
-		pdf.SetFont("Helvetica", "B", 10)
-		pdf.CellFormat(0, 6, fmt.Sprintf("PILOT LOGBOOK — Page %d", pageNum), "", 1, "C", false, 0, "")
-		pdf.Ln(2)
-
-		// Header row 1 (group headers)
-		pdf.SetFont("Helvetica", "B", 4)
-		pdf.SetFillColor(230, 230, 230)
-		for i, w := range colWidths {
-			pdf.CellFormat(w, headerH, headers1[i], "1", 0, "C", true, 0, "")
-		}
-		pdf.Ln(-1)
-
-		// Header row 2 (column names)
-		pdf.SetFont("Helvetica", "B", 4.5)
-		for i, w := range colWidths {
-			pdf.CellFormat(w, headerH, headers2[i], "1", 0, "C", true, 0, "")
-		}
-		pdf.Ln(-1)
-
-		// Data rows
-		pdf.SetFont("Helvetica", "", 4.5)
-
-		endIdx := startIdx + rowsPerPage
+	for startIdx := 0; startIdx < len(flights); startIdx += rpp {
+		endIdx := startIdx + rpp
 		if endIdx > len(flights) {
 			endIdx = len(flights)
 		}
+		spreadNum++
+		page := flights[startIdx:endIdx]
 
-		// Running totals for this page
-		var pageTotalTime, pageNight, pageIFR, pagePIC, pageDual int
-		var pageSIC, pageDualGiven, pageSPSE, pageSPME, pageMP, pageFSTD int
-		var pageLdgDay, pageLdgNight int
-
-		for _, f := range flights[startIdx:endIdx] {
-			dep := safeStr(f.DepartureICAO)
-			arr := safeStr(f.ArrivalICAO)
-			depTime := fmtTime(f.OffBlockTime)
-			arrTime := fmtTime(f.OnBlockTime)
-			remarks := safeStr(f.Remarks)
-			if f.Endorsements != nil && *f.Endorsements != "" {
-				if remarks != "" {
-					remarks += " | "
-				}
-				remarks += *f.Endorsements
-			}
-			if len(remarks) > 30 {
-				remarks = remarks[:27] + "..."
-			}
-
-			picName := "SELF"
-			if f.PICName != nil && *f.PICName != "" {
-				picName = *f.PICName
-			} else if f.InstructorName != nil && *f.InstructorName != "" {
-				picName = *f.InstructorName
-			}
-
-			// Derive SP-SE / SP-ME / MP from aircraft class
-			spSE, spME, mp := 0, 0, 0
+		// Build per-row derived values (shared between left/right pages so totals match)
+		type rowData struct {
+			f                            *models.Flight
+			spSE, spME, mp               int
+			fstdDate, fstdType, fstdTime string
+			picName, remarks             string
+		}
+		rows := make([]rowData, len(page))
+		for i, f := range page {
+			rd := rowData{f: f}
 			if f.MultiPilotTime > 0 {
-				mp = f.MultiPilotTime
+				rd.mp = f.MultiPilotTime
 			} else {
 				acClass := regToClass[strings.ToUpper(f.AircraftReg)]
 				if strings.HasPrefix(acClass, "MEP") || strings.HasPrefix(acClass, "SET") {
-					spME = f.TotalTime
+					rd.spME = f.TotalTime
 				} else {
-					spSE = f.TotalTime
+					rd.spSE = f.TotalTime
 				}
 			}
-
-			// FSTD columns
-			fstdDate, fstdType, fstdTime := "", "", ""
 			if f.FSTDType != nil && *f.FSTDType != "" && f.SimulatedFlightTime > 0 {
-				fstdDate = f.Date.Format("02.01")
-				fstdType = *f.FSTDType
-				fstdTime = fmtDec(f.SimulatedFlightTime)
+				rd.fstdDate = f.Date.Format("02.01")
+				rd.fstdType = *f.FSTDType
+				rd.fstdTime = fmtDec(f.SimulatedFlightTime)
 			}
+			rd.picName = "SELF"
+			if f.PICName != nil && *f.PICName != "" {
+				rd.picName = *f.PICName
+			} else if f.InstructorName != nil && *f.InstructorName != "" {
+				rd.picName = *f.InstructorName
+			}
+			rem := safeStr(f.Remarks)
+			if f.Endorsements != nil && *f.Endorsements != "" {
+				if rem != "" {
+					rem += " | "
+				}
+				rem += *f.Endorsements
+			}
+			if len([]rune(rem)) > 38 {
+				rem = string([]rune(rem)[:35]) + "..."
+			}
+			rd.remarks = rem
+			rows[i] = rd
+		}
 
+		// ── LEFT PAGE ───────────────────────────────────────────────────────
+		pdf.AddPage()
+		drawTitle(pdf, g, tr, fmt.Sprintf("Pilot Logbook (EASA) %s Spread %d - Left", emdash(), spreadNum))
+		drawHeaderRow(pdf, g, leftW, easaLeftHeaders1, easaLeftHeaders2)
+
+		var lTotal, lSE, lME, lMP int
+		pdf.SetFont("Helvetica", "", g.fontBody)
+		for i, rd := range rows {
+			f := rd.f
 			cells := []string{
 				f.Date.Format("02.01.06"),
-				dep, depTime, arr, arrTime,
+				safeStr(f.DepartureICAO), fmtTime(f.OffBlockTime),
+				safeStr(f.ArrivalICAO), fmtTime(f.OnBlockTime),
 				f.AircraftType, f.AircraftReg,
-				fmtDec(spSE), fmtDec(spME), fmtDec(mp),
+				fmtDec(rd.spSE), fmtDec(rd.spME), fmtDec(rd.mp),
 				fmtDec(f.TotalTime),
-				picName,
-				fmt.Sprintf("%d", f.LandingsDay), fmt.Sprintf("%d", f.LandingsNight),
-				fmtDec(f.NightTime), fmtDec(f.IFRTime),
-				fmtDec(f.PICTime), fmtDec(f.SICTime), fmtDec(f.DualTime), fmtDec(f.DualGivenTime),
-				fstdDate, fstdType, fstdTime,
-				remarks,
+				rd.picName,
 			}
-
-			for i, w := range colWidths {
-				align := "C"
-				if i == 11 || i == 23 { // PIC Name, Remarks
-					align = "L"
-				}
-				pdf.CellFormat(w, rowH, cells[i], "1", 0, align, false, 0, "")
-			}
-			pdf.Ln(-1)
-
-			pageTotalTime += f.TotalTime
-			pageNight += f.NightTime
-			pageIFR += f.IFRTime
-			pagePIC += f.PICTime
-			pageDual += f.DualTime
-			pageSIC += f.SICTime
-			pageDualGiven += f.DualGivenTime
-			pageLdgDay += f.LandingsDay
-			pageLdgNight += f.LandingsNight
-			pageSPSE += spSE
-			pageSPME += spME
-			pageMP += mp
-			if f.FSTDType != nil && *f.FSTDType != "" {
-				pageFSTD += f.SimulatedFlightTime
-			}
+			drawDataRow(pdf, g, leftW, cells, easaLeftAlign, i, tr)
+			lTotal += f.TotalTime
+			lSE += rd.spSE
+			lME += rd.spME
+			lMP += rd.mp
 		}
-
-		// Page totals row (Row A)
-		pdf.SetFont("Helvetica", "B", 4.5)
-		pdf.SetFillColor(245, 245, 245)
-		totalCells := []string{
+		drawTotalsRow(pdf, g, leftW, []string{
 			"", "", "", "", "", "", "THIS PAGE",
-			fmtDec(pageSPSE), fmtDec(pageSPME), fmtDec(pageMP),
-			fmtDec(pageTotalTime), "",
-			fmt.Sprintf("%d", pageLdgDay), fmt.Sprintf("%d", pageLdgNight),
-			fmtDec(pageNight), fmtDec(pageIFR),
-			fmtDec(pagePIC), fmtDec(pageSIC), fmtDec(pageDual), fmtDec(pageDualGiven),
-			"", "", fmtDec(pageFSTD), "",
-		}
-		for i, w := range colWidths {
-			align := "C"
-			if i == 6 {
-				align = "R"
-			}
-			pdf.CellFormat(w, rowH, totalCells[i], "1", 0, align, true, 0, "")
-		}
-		pdf.Ln(-1)
+			fmtDec(lSE), fmtDec(lME), fmtDec(lMP), fmtDec(lTotal), "",
+		}, easaLeftAlign, tr)
 
-		// Cumulative totals rows (B and C) could be added here for full compliance
-		// For now, the grand summary page covers this
+		// ── RIGHT PAGE ──────────────────────────────────────────────────────
+		pdf.AddPage()
+		drawTitle(pdf, g, tr, fmt.Sprintf("Pilot Logbook (EASA) %s Spread %d - Right", emdash(), spreadNum))
+		drawHeaderRow(pdf, g, rightW, easaRightHeaders1, easaRightHeaders2)
+
+		var rNight, rIFR, rPIC, rSIC, rDual, rInstr, rFSTD int
+		var rLdgD, rLdgN int
+		pdf.SetFont("Helvetica", "", g.fontBody)
+		for i, rd := range rows {
+			f := rd.f
+			cells := []string{
+				f.Date.Format("02.01.06"),
+				fmt.Sprintf("%d", f.LandingsDay),
+				fmt.Sprintf("%d", f.LandingsNight),
+				fmtDec(f.NightTime), fmtDec(f.IFRTime),
+				fmtDec(f.PICTime), fmtDec(f.SICTime),
+				fmtDec(f.DualTime), fmtDec(f.DualGivenTime),
+				rd.fstdDate, rd.fstdType, rd.fstdTime,
+				rd.remarks,
+			}
+			drawDataRow(pdf, g, rightW, cells, easaRightAlign, i, tr)
+			rLdgD += f.LandingsDay
+			rLdgN += f.LandingsNight
+			rNight += f.NightTime
+			rIFR += f.IFRTime
+			rPIC += f.PICTime
+			rSIC += f.SICTime
+			rDual += f.DualTime
+			rInstr += f.DualGivenTime
+			if f.FSTDType != nil && *f.FSTDType != "" {
+				rFSTD += f.SimulatedFlightTime
+			}
+		}
+		drawTotalsRow(pdf, g, rightW, []string{
+			"THIS PAGE",
+			fmt.Sprintf("%d", rLdgD), fmt.Sprintf("%d", rLdgN),
+			fmtDec(rNight), fmtDec(rIFR),
+			fmtDec(rPIC), fmtDec(rSIC),
+			fmtDec(rDual), fmtDec(rInstr),
+			"", "", fmtDec(rFSTD), "",
+		}, easaRightAlign, tr)
 	}
 
-	// Final summary page
-	addGrandSummaryPage(pdf, flights)
-
+	addGrandSummaryPage(pdf, flights, g, tr)
 	return pdf
 }
 
-// generateFAAPDF creates a FAA-style PDF logbook (ASA/Jeppesen standard layout)
-func generateFAAPDF(flights []*models.Flight) *fpdf.Fpdf {
-	pdf := fpdf.New("L", "mm", "A4", "")
-	pdf.SetAutoPageBreak(true, 10)
+// ─────────────────────────────────────────────────────────────────────────────
+// FAA — single-landscape layout, scaled to page
+// ─────────────────────────────────────────────────────────────────────────────
 
-	colWidths := []float64{
-		16, // Date
-		16, // A/C Type
-		18, // A/C Ident
-		14, // From
-		14, // To
-		12, // Solo
-		12, // PIC
-		12, // SIC
-		12, // Dual Rcvd
-		12, // Instr Given
-		12, // Act Inst
-		12, // Sim Inst
-		12, // XC
-		12, // Night
-		9,  // Day Ldg
-		9,  // Ngt Ldg
-		9,  // Appr
-		8,  // Holds
-		12, // Total
-		44, // Remarks
-	}
+var faaBaseW = []float64{
+	16, 16, 18, 14, 14, 12, 12, 12, 12, 12, 12, 12, 12, 12, 9, 9, 9, 8, 12, 44,
+}
+var faaHeaders = []string{
+	"DATE", "A/C TYPE", "A/C IDENT", "FROM", "TO",
+	"SOLO", "PIC", "SIC", "DUAL", "INSTR",
+	"ACT INST", "SIM INST", "XC", "NIGHT",
+	"D LDG", "N LDG", "APPR", "HOLD",
+	"TOTAL", "REMARKS/ENDORSEMENTS",
+}
+var faaAlign = []string{
+	"C", "C", "C", "C", "C",
+	"C", "C", "C", "C", "C",
+	"C", "C", "C", "C",
+	"C", "C", "C", "C",
+	"C", "L",
+}
 
-	headers := []string{
-		"DATE", "A/C TYPE", "A/C IDENT", "FROM", "TO",
-		"SOLO", "PIC", "SIC", "DUAL", "INSTR",
-		"ACT INST", "SIM INST", "XC", "NIGHT",
-		"D LDG", "N LDG", "APPR", "HOLD",
-		"TOTAL", "REMARKS/ENDORSEMENTS",
-	}
+func generateFAAPDF(flights []*models.Flight, g pageGeometry) *fpdf.Fpdf {
+	pdf := newPDF(g)
+	tr := pdf.UnicodeTranslatorFromDescriptor("")
 
-	rowH := 5.0
-	headerH := 4.5
+	colW := scaleWidths(faaBaseW, g.usableWidth())
+	rpp := g.rowsPerPage()
 	pageNum := 0
-	rowsPerPage := 28
 
-	for startIdx := 0; startIdx < len(flights); startIdx += rowsPerPage {
-		pdf.AddPage()
-		pageNum++
-
-		pdf.SetFont("Helvetica", "B", 10)
-		pdf.CellFormat(0, 6, fmt.Sprintf("PILOT LOGBOOK (FAA) — Page %d", pageNum), "", 1, "C", false, 0, "")
-		pdf.Ln(2)
-
-		pdf.SetFont("Helvetica", "B", 4.5)
-		pdf.SetFillColor(230, 230, 230)
-		for i, w := range colWidths {
-			pdf.CellFormat(w, headerH, headers[i], "1", 0, "C", true, 0, "")
-		}
-		pdf.Ln(-1)
-
-		pdf.SetFont("Helvetica", "", 4.5)
-
-		endIdx := startIdx + rowsPerPage
+	for startIdx := 0; startIdx < len(flights); startIdx += rpp {
+		endIdx := startIdx + rpp
 		if endIdx > len(flights) {
 			endIdx = len(flights)
 		}
+		pageNum++
 
-		var pageTotal, pagePIC, pageSIC, pageSolo, pageDual, pageInstr int
-		var pageActInst, pageSimInst, pageXC, pageNight int
-		var pageLdgDay, pageLdgNight, pageAppr, pageHolds int
+		pdf.AddPage()
+		drawTitle(pdf, g, tr, fmt.Sprintf("Pilot Logbook (FAA) %s Page %d", emdash(), pageNum))
 
-		for _, f := range flights[startIdx:endIdx] {
-			dep := safeStr(f.DepartureICAO)
-			arr := safeStr(f.ArrivalICAO)
+		// FAA only has one header row — pass empty group row to keep layout simple.
+		drawHeaderRow(pdf, g, colW, nil, faaHeaders)
+
+		var pTotal, pPIC, pSIC, pSolo, pDual, pInstr int
+		var pAct, pSim, pXC, pNight int
+		var pLdgD, pLdgN, pAppr, pHolds int
+
+		pdf.SetFont("Helvetica", "", g.fontBody)
+		for i, f := range flights[startIdx:endIdx] {
 			remarks := safeStr(f.Remarks)
 			if f.Endorsements != nil && *f.Endorsements != "" {
 				if remarks != "" {
@@ -378,100 +449,92 @@ func generateFAAPDF(flights []*models.Flight) *fpdf.Fpdf {
 				remarks += *f.Endorsements
 			}
 			if f.IsIPC {
-				remarks += " ✓IPC"
+				remarks += " IPC"
 			}
 			if f.IsFlightReview {
-				remarks += " ✓FR"
+				remarks += " FR"
 			}
-			if len(remarks) > 55 {
-				remarks = remarks[:52] + "..."
-			}
-
-			fmtD := func(v int) string {
-				return duration.FormatDecimal(v)
+			if len([]rune(remarks)) > 60 {
+				remarks = string([]rune(remarks)[:57]) + "..."
 			}
 
 			cells := []string{
 				f.Date.Format("01/02/06"),
 				f.AircraftType, f.AircraftReg,
-				dep, arr,
-				fmtD(f.SoloTime), fmtD(f.PICTime), fmtD(f.SICTime),
-				fmtD(f.DualTime), fmtD(f.DualGivenTime),
-				fmtD(f.ActualInstrumentTime), fmtD(f.SimulatedInstrumentTime),
-				fmtD(f.CrossCountryTime), fmtD(f.NightTime),
-				fmt.Sprintf("%d", f.LandingsDay), fmt.Sprintf("%d", f.LandingsNight),
-				fmt.Sprintf("%d", f.ApproachesCount), fmt.Sprintf("%d", f.Holds),
-				fmtD(f.TotalTime),
+				safeStr(f.DepartureICAO), safeStr(f.ArrivalICAO),
+				duration.FormatDecimal(f.SoloTime),
+				duration.FormatDecimal(f.PICTime),
+				duration.FormatDecimal(f.SICTime),
+				duration.FormatDecimal(f.DualTime),
+				duration.FormatDecimal(f.DualGivenTime),
+				duration.FormatDecimal(f.ActualInstrumentTime),
+				duration.FormatDecimal(f.SimulatedInstrumentTime),
+				duration.FormatDecimal(f.CrossCountryTime),
+				duration.FormatDecimal(f.NightTime),
+				fmt.Sprintf("%d", f.LandingsDay),
+				fmt.Sprintf("%d", f.LandingsNight),
+				fmt.Sprintf("%d", f.ApproachesCount),
+				fmt.Sprintf("%d", f.Holds),
+				duration.FormatDecimal(f.TotalTime),
 				remarks,
 			}
+			drawDataRow(pdf, g, colW, cells, faaAlign, i, tr)
 
-			for i, w := range colWidths {
-				align := "C"
-				if i == 19 {
-					align = "L"
-				}
-				pdf.CellFormat(w, rowH, cells[i], "1", 0, align, false, 0, "")
-			}
-			pdf.Ln(-1)
-
-			pageTotal += f.TotalTime
-			pagePIC += f.PICTime
-			pageSIC += f.SICTime
-			pageSolo += f.SoloTime
-			pageDual += f.DualTime
-			pageInstr += f.DualGivenTime
-			pageActInst += f.ActualInstrumentTime
-			pageSimInst += f.SimulatedInstrumentTime
-			pageXC += f.CrossCountryTime
-			pageNight += f.NightTime
-			pageLdgDay += f.LandingsDay
-			pageLdgNight += f.LandingsNight
-			pageAppr += f.ApproachesCount
-			pageHolds += f.Holds
+			pTotal += f.TotalTime
+			pPIC += f.PICTime
+			pSIC += f.SICTime
+			pSolo += f.SoloTime
+			pDual += f.DualTime
+			pInstr += f.DualGivenTime
+			pAct += f.ActualInstrumentTime
+			pSim += f.SimulatedInstrumentTime
+			pXC += f.CrossCountryTime
+			pNight += f.NightTime
+			pLdgD += f.LandingsDay
+			pLdgN += f.LandingsNight
+			pAppr += f.ApproachesCount
+			pHolds += f.Holds
 		}
 
-		// Page totals
-		pdf.SetFont("Helvetica", "B", 4.5)
-		pdf.SetFillColor(245, 245, 245)
-		fmtD := func(v int) string { return duration.FormatDecimal(v) }
-		totalCells := []string{
+		drawTotalsRow(pdf, g, colW, []string{
 			"", "", "", "", "TOTAL",
-			fmtD(pageSolo), fmtD(pagePIC), fmtD(pageSIC),
-			fmtD(pageDual), fmtD(pageInstr),
-			fmtD(pageActInst), fmtD(pageSimInst),
-			fmtD(pageXC), fmtD(pageNight),
-			fmt.Sprintf("%d", pageLdgDay), fmt.Sprintf("%d", pageLdgNight),
-			fmt.Sprintf("%d", pageAppr), fmt.Sprintf("%d", pageHolds),
-			fmtD(pageTotal), "",
-		}
-		for i, w := range colWidths {
-			align := "C"
-			if i == 4 {
-				align = "R"
-			}
-			pdf.CellFormat(w, rowH, totalCells[i], "1", 0, align, true, 0, "")
-		}
-		pdf.Ln(-1)
+			duration.FormatDecimal(pSolo),
+			duration.FormatDecimal(pPIC),
+			duration.FormatDecimal(pSIC),
+			duration.FormatDecimal(pDual),
+			duration.FormatDecimal(pInstr),
+			duration.FormatDecimal(pAct),
+			duration.FormatDecimal(pSim),
+			duration.FormatDecimal(pXC),
+			duration.FormatDecimal(pNight),
+			fmt.Sprintf("%d", pLdgD),
+			fmt.Sprintf("%d", pLdgN),
+			fmt.Sprintf("%d", pAppr),
+			fmt.Sprintf("%d", pHolds),
+			duration.FormatDecimal(pTotal),
+			"",
+		}, faaAlign, tr)
 	}
 
-	addGrandSummaryPage(pdf, flights)
-
+	addGrandSummaryPage(pdf, flights, g, tr)
 	return pdf
 }
 
-// generateSummaryPDF creates a simple summary PDF (legacy format)
-func generateSummaryPDF(flights []*models.Flight) *fpdf.Fpdf {
-	pdf := fpdf.New("L", "mm", "A4", "")
-	pdf.SetAutoPageBreak(true, 10)
-	addGrandSummaryPage(pdf, flights)
+// ─────────────────────────────────────────────────────────────────────────────
+// Summary PDF
+// ─────────────────────────────────────────────────────────────────────────────
+
+func generateSummaryPDF(flights []*models.Flight, g pageGeometry) *fpdf.Fpdf {
+	pdf := newPDF(g)
+	tr := pdf.UnicodeTranslatorFromDescriptor("")
+	addGrandSummaryPage(pdf, flights, g, tr)
 	return pdf
 }
 
-// addGrandSummaryPage adds a final summary page with grand totals
-func addGrandSummaryPage(pdf *fpdf.Fpdf, flights []*models.Flight) {
+func addGrandSummaryPage(pdf *fpdf.Fpdf, flights []*models.Flight, g pageGeometry, tr func(string) string) {
 	pdf.AddPage()
-	pdf.SetFont("Helvetica", "B", 12)
-	pdf.CellFormat(0, 8, "TOTALS SUMMARY", "", 1, "C", false, 0, "")
+	pdf.SetFont("Helvetica", "B", g.fontTitle+1)
+	pdf.CellFormat(0, 8, tr("TOTALS SUMMARY"), "", 1, "C", false, 0, "")
 	pdf.Ln(4)
 
 	var grandTotal, grandPIC, grandDual, grandNight, grandIFR, grandSolo, grandXC int
@@ -493,11 +556,11 @@ func addGrandSummaryPage(pdf *fpdf.Fpdf, flights []*models.Flight) {
 		grandFlights++
 	}
 
-	pdf.SetFont("Helvetica", "", 10)
-	summaryW := 80.0
-	valW := 40.0
+	summaryW := g.usableWidth() * 0.55
+	valW := g.usableWidth() * 0.25
+	x0 := g.marginLR + (g.usableWidth()-summaryW-valW)/2
 
-	summaryRows := []struct{ label, value string }{
+	rows := []struct{ label, value string }{
 		{"Total Flights", fmt.Sprintf("%d", grandFlights)},
 		{"Total Block Time", fmtDec(grandTotal)},
 		{"PIC Time", fmtDec(grandPIC)},
@@ -513,20 +576,120 @@ func addGrandSummaryPage(pdf *fpdf.Fpdf, flights []*models.Flight) {
 		{"Night Landings", fmt.Sprintf("%d", grandLdgNight)},
 		{"Total Landings", fmt.Sprintf("%d", grandLdgDay+grandLdgNight)},
 	}
-
-	x0 := (297 - summaryW - valW) / 2 // center on landscape A4
-	for _, row := range summaryRows {
+	for i, row := range rows {
 		pdf.SetX(x0)
-		pdf.SetFont("Helvetica", "", 10)
-		pdf.CellFormat(summaryW, 7, row.label, "1", 0, "L", false, 0, "")
-		pdf.SetFont("Helvetica", "B", 10)
-		pdf.CellFormat(valW, 7, row.value, "1", 1, "R", false, 0, "")
+		// Zebra stripe summary too for consistency
+		fill := i%2 == 1
+		if fill {
+			pdf.SetFillColor(245, 245, 245)
+		}
+		pdf.SetFont("Helvetica", "", g.fontTitle-1)
+		pdf.CellFormat(summaryW, 7, tr(row.label), "1", 0, "L", fill, 0, "")
+		pdf.SetFont("Helvetica", "B", g.fontTitle-1)
+		pdf.CellFormat(valW, 7, tr(row.value), "1", 1, "R", fill, 0, "")
 	}
 
 	pdf.Ln(6)
-	pdf.SetFont("Helvetica", "", 7)
-	pdf.CellFormat(0, 4, fmt.Sprintf("Generated by NinerLog on %s — https://github.com/fjaeckel/ninerlog", time.Now().Format("02 Jan 2006 15:04 UTC")), "", 1, "C", false, 0, "")
+	pdf.SetFont("Helvetica", "", g.fontFoot)
+	pdf.CellFormat(0, 4, tr(fmt.Sprintf("Generated by NinerLog on %s %s https://github.com/fjaeckel/ninerlog",
+		time.Now().Format("02 Jan 2006 15:04 UTC"), emdash())), "", 1, "C", false, 0, "")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Drawing primitives
+// ─────────────────────────────────────────────────────────────────────────────
+
+func drawTitle(pdf *fpdf.Fpdf, g pageGeometry, tr func(string) string, title string) {
+	pdf.SetFont("Helvetica", "B", g.fontTitle)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.CellFormat(0, g.titleH-2, tr(title), "", 1, "C", false, 0, "")
+	pdf.Ln(1)
+}
+
+// drawHeaderRow draws either a single header row (group=nil) or a two-row
+// grouped header. Header background is mid-grey for visibility.
+func drawHeaderRow(pdf *fpdf.Fpdf, g pageGeometry, widths []float64, group, cols []string) {
+	pdf.SetFillColor(210, 215, 222)
+	pdf.SetTextColor(20, 20, 20)
+	pdf.SetDrawColor(120, 120, 120)
+	pdf.SetLineWidth(0.2)
+
+	if group != nil {
+		pdf.SetFont("Helvetica", "B", g.fontHdr-0.5)
+		for i, w := range widths {
+			label := ""
+			if i < len(group) {
+				label = group[i]
+			}
+			pdf.CellFormat(w, g.headerH, label, "1", 0, "C", true, 0, "")
+		}
+		pdf.Ln(-1)
+	}
+
+	pdf.SetFont("Helvetica", "B", g.fontHdr)
+	for i, w := range widths {
+		label := ""
+		if i < len(cols) {
+			label = cols[i]
+		}
+		pdf.CellFormat(w, g.headerH, label, "1", 0, "C", true, 0, "")
+	}
+	pdf.Ln(-1)
+}
+
+// drawDataRow draws one zebra-striped data row.
+func drawDataRow(pdf *fpdf.Fpdf, g pageGeometry, widths []float64, cells, align []string, rowIdx int, tr func(string) string) {
+	zebra := rowIdx%2 == 1
+	if zebra {
+		pdf.SetFillColor(242, 244, 247)
+	}
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetDrawColor(180, 180, 180)
+	pdf.SetLineWidth(0.15)
+
+	for i, w := range widths {
+		val := ""
+		if i < len(cells) {
+			val = cells[i]
+		}
+		a := "C"
+		if i < len(align) {
+			a = align[i]
+		}
+		pdf.CellFormat(w, g.rowH, tr(val), "1", 0, a, zebra, 0, "")
+	}
+	pdf.Ln(-1)
+}
+
+// drawTotalsRow draws the bold "this page" totals row in a darker shade.
+func drawTotalsRow(pdf *fpdf.Fpdf, g pageGeometry, widths []float64, cells, align []string, tr func(string) string) {
+	pdf.SetFont("Helvetica", "B", g.fontBody)
+	pdf.SetFillColor(220, 226, 235)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetDrawColor(120, 120, 120)
+	pdf.SetLineWidth(0.2)
+	for i, w := range widths {
+		val := ""
+		if i < len(cells) {
+			val = cells[i]
+		}
+		a := "C"
+		if i < len(align) {
+			a = align[i]
+		}
+		pdf.CellFormat(w, g.rowH, tr(val), "1", 0, a, true, 0, "")
+	}
+	pdf.Ln(-1)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+// emdash returns the em-dash character. Centralised so we can swap to a plain
+// hyphen if encoding ever proves problematic. The unicode translator in each
+// generator converts this to CP1252 0x97 for fpdf core fonts.
+func emdash() string { return "\u2014" }
 
 func safeStr(s *string) string {
 	if s == nil {
@@ -541,7 +704,7 @@ func fmtTime(s *string) string {
 	}
 	v := *s
 	if len(v) >= 5 {
-		return v[:5] // HH:MM from HH:MM:SS
+		return v[:5]
 	}
 	return v
 }

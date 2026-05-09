@@ -1921,6 +1921,13 @@ paths:
             type: string
             enum: [easa, faa, summary]
             default: easa
+        - name: page_size
+          in: query
+          description: Page size for the generated PDF. All sizes are rendered in landscape orientation. EASA format is laid out as a book-style two-page spread (left + right) intended for double-sided printing.
+          schema:
+            type: string
+            enum: [a4, a5, letter]
+            default: a4
       responses:
         '200':
           description: PDF file download
