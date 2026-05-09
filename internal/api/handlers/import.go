@@ -31,7 +31,7 @@ type uploadSession struct {
 	format    generated.ImportFormat
 	columns   []string
 	rows      []map[string]string
-	aircraft  []map[string]string // ForeFlight Aircraft Table rows
+	aircraft  []map[string]string             // ForeFlight Aircraft Table rows
 	mappings  []generated.ImportColumnMapping // user-confirmed mappings from preview
 	createdAt time.Time
 }
