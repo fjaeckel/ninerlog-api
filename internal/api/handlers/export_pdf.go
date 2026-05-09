@@ -50,6 +50,17 @@ func (g pageGeometry) rowsPerPage() int {
 	return n
 }
 
+// easaRowsPerPage is like rowsPerPage but reserves space for three totals rows
+// (this page / previous pages / total time) instead of one.
+func (g pageGeometry) easaRowsPerPage() int {
+	avail := g.usableHeight() - 2*g.headerH - 3*g.rowH
+	n := int(avail / g.rowH)
+	if n < 5 {
+		n = 5
+	}
+	return n
+}
+
 func geometryFor(sizeName string) pageGeometry {
 	// Base A4-landscape geometry.
 	base := pageGeometry{
@@ -260,8 +271,16 @@ func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]
 	leftW := scaleWidths(easaLeftBaseW, g.usableWidth())
 	rightW := scaleWidths(easaRightBaseW, g.usableWidth())
 
-	rpp := g.rowsPerPage()
+	rpp := g.easaRowsPerPage()
 	spreadNum := 0
+
+	// Cumulative running totals across all spreads. Left- and right-page
+	// columns are different, so they are tracked separately.
+	var (
+		cumLSE, cumLME, cumLMP, cumLTotal                                int
+		cumRLdgD, cumRLdgN                                               int
+		cumRNight, cumRIFR, cumRPIC, cumRSIC, cumRDual, cumRInstr, cumRFSTD int
+	)
 
 	for startIdx := 0; startIdx < len(flights); startIdx += rpp {
 		endIdx := startIdx + rpp
@@ -341,8 +360,20 @@ func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]
 			lMP += rd.mp
 		}
 		drawTotalsRow(pdf, g, leftW, []string{
-			"", "", "", "", "", "", "THIS PAGE",
+			"", "", "", "", "", "", "TOTAL THIS PAGE",
 			fmtDec(lSE), fmtDec(lME), fmtDec(lMP), fmtDec(lTotal), "",
+		}, easaLeftAlign, tr)
+		drawTotalsRow(pdf, g, leftW, []string{
+			"", "", "", "", "", "", "FROM PREV PAGES",
+			fmtDec(cumLSE), fmtDec(cumLME), fmtDec(cumLMP), fmtDec(cumLTotal), "",
+		}, easaLeftAlign, tr)
+		cumLSE += lSE
+		cumLME += lME
+		cumLMP += lMP
+		cumLTotal += lTotal
+		drawTotalsRow(pdf, g, leftW, []string{
+			"", "", "", "", "", "", "TOTAL TIME",
+			fmtDec(cumLSE), fmtDec(cumLME), fmtDec(cumLMP), fmtDec(cumLTotal), "",
 		}, easaLeftAlign, tr)
 
 		// ── RIGHT PAGE ──────────────────────────────────────────────────────
@@ -379,12 +410,37 @@ func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]
 			}
 		}
 		drawTotalsRow(pdf, g, rightW, []string{
-			"THIS PAGE",
+			"TOTAL THIS PAGE",
 			fmt.Sprintf("%d", rLdgD), fmt.Sprintf("%d", rLdgN),
 			fmtDec(rNight), fmtDec(rIFR),
 			fmtDec(rPIC), fmtDec(rSIC),
 			fmtDec(rDual), fmtDec(rInstr),
 			"", "", fmtDec(rFSTD), "",
+		}, easaRightAlign, tr)
+		drawTotalsRow(pdf, g, rightW, []string{
+			"FROM PREV PAGES",
+			fmt.Sprintf("%d", cumRLdgD), fmt.Sprintf("%d", cumRLdgN),
+			fmtDec(cumRNight), fmtDec(cumRIFR),
+			fmtDec(cumRPIC), fmtDec(cumRSIC),
+			fmtDec(cumRDual), fmtDec(cumRInstr),
+			"", "", fmtDec(cumRFSTD), "",
+		}, easaRightAlign, tr)
+		cumRLdgD += rLdgD
+		cumRLdgN += rLdgN
+		cumRNight += rNight
+		cumRIFR += rIFR
+		cumRPIC += rPIC
+		cumRSIC += rSIC
+		cumRDual += rDual
+		cumRInstr += rInstr
+		cumRFSTD += rFSTD
+		drawTotalsRow(pdf, g, rightW, []string{
+			"TOTAL TIME",
+			fmt.Sprintf("%d", cumRLdgD), fmt.Sprintf("%d", cumRLdgN),
+			fmtDec(cumRNight), fmtDec(cumRIFR),
+			fmtDec(cumRPIC), fmtDec(cumRSIC),
+			fmtDec(cumRDual), fmtDec(cumRInstr),
+			"", "", fmtDec(cumRFSTD), "",
 		}, easaRightAlign, tr)
 	}
 
