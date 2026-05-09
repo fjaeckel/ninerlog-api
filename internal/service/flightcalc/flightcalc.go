@@ -10,11 +10,36 @@ import (
 	"github.com/fjaeckel/ninerlog-api/pkg/solar"
 )
 
+// userPilotRole describes the user's role on the flight, derived from the
+// crew composition relative to the user's own name.
+type userPilotRole int
+
+const (
+	// rolePIC: user is sole/lead pilot, no instruction context.
+	rolePIC userPilotRole = iota
+	// roleDualReceiving: another person on board is the instructor giving the
+	// user instruction (Dual received).
+	roleDualReceiving
+	// roleDualGiving: the user is acting as instructor — either there is a
+	// Student on board, or the user themselves is listed with the Instructor
+	// role (Dual given).
+	roleDualGiving
+)
+
 // ApplyAutoCalculations computes all auto-calculated fields on a flight.
 // Fields with manual override flags set are not overwritten.
-func ApplyAutoCalculations(flight *models.Flight) {
-	// 0. Auto-determine PIC/Dual from crew: always PIC unless Instructor is on board
-	calculatePICDual(flight)
+//
+// userName is the authenticated user's display name. It is used to decide
+// whether an Instructor crew member refers to the user themselves (→ Dual
+// given) or to a third party (→ Dual received). When userName is empty, any
+// Instructor crew member is conservatively treated as a third party (Dual
+// received), preserving prior behaviour for callers that do not yet have the
+// user context (e.g. some legacy tests).
+func ApplyAutoCalculations(flight *models.Flight, userName string) {
+	role := determineUserRole(flight, userName)
+
+	// 0. Auto-determine PIC/Dual from crew + user role
+	calculatePICDual(flight, role)
 
 	// 1. Night time — auto-calculate from departure/arrival times + sunset/sunrise
 	calculateNightTime(flight)
@@ -42,27 +67,58 @@ func ApplyAutoCalculations(flight *models.Flight) {
 	// 7. SIC time: auto-calculated when a crew member has SIC role
 	calculateSICTime(flight)
 
-	// 8. Dual given: auto-calculated when a crew member has Instructor role
-	calculateDualGivenTime(flight)
+	// 8. Dual given: only when the user is acting as instructor
+	calculateDualGivenTime(flight, role)
 }
 
-// calculatePICDual auto-determines PIC/Dual based on crew.
-// Always PIC unless an Instructor is on board (crew member with Instructor role),
-// in which case it's Dual (instruction received).
-func calculatePICDual(flight *models.Flight) {
-	hasInstructor := false
+// normalizeName returns a comparable form of a person name (case- and
+// whitespace-insensitive). Empty input yields empty output.
+func normalizeName(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
+// determineUserRole inspects the crew list to classify the user's pilot role.
+// Precedence: a third-party Instructor (name ≠ user) makes the user a Dual
+// receiver, regardless of any Student also being present (e.g. observed CFI
+// check rides). A Student or self-listed Instructor makes the user a Dual
+// giver. Otherwise the user is PIC.
+func determineUserRole(flight *models.Flight, userName string) userPilotRole {
+	self := normalizeName(userName)
+	hasOtherInstructor := false
+	hasSelfInstructor := false
+	hasStudent := false
 	for _, m := range flight.CrewMembers {
-		if m.Role == models.CrewRoleInstructor {
-			hasInstructor = true
-			break
+		switch m.Role {
+		case models.CrewRoleInstructor:
+			if self != "" && normalizeName(m.Name) == self {
+				hasSelfInstructor = true
+			} else {
+				hasOtherInstructor = true
+			}
+		case models.CrewRoleStudent:
+			hasStudent = true
 		}
 	}
-	if hasInstructor {
+	if hasOtherInstructor {
+		return roleDualReceiving
+	}
+	if hasSelfInstructor || hasStudent {
+		return roleDualGiving
+	}
+	return rolePIC
+}
+
+// calculatePICDual sets PIC/Dual flags and times based on the resolved user
+// role. A user giving instruction is also PIC of the flight.
+func calculatePICDual(flight *models.Flight, role userPilotRole) {
+	switch role {
+	case roleDualReceiving:
 		flight.IsPIC = false
 		flight.IsDual = true
 		flight.DualTime = flight.TotalTime
 		flight.PICTime = 0
-	} else {
+	default:
+		// rolePIC and roleDualGiving — user is PIC.
 		flight.IsPIC = true
 		flight.IsDual = false
 		flight.PICTime = flight.TotalTime
@@ -296,14 +352,20 @@ func calculateSICTime(flight *models.Flight) {
 	// Don't zero out if no crew members — keep manually set value
 }
 
-// calculateDualGivenTime sets dual given time when the user is acting as instructor
-// (indicated by a crew member with Instructor role, meaning user gave instruction).
-func calculateDualGivenTime(flight *models.Flight) {
-	for _, m := range flight.CrewMembers {
-		if m.Role == models.CrewRoleInstructor {
-			flight.DualGivenTime = flight.TotalTime
-			return
-		}
+// calculateDualGivenTime sets dual given time when the user is acting as
+// instructor. Per determineUserRole, that means a Student is on board OR the
+// user themselves is listed with the Instructor role. In all other cases this
+// time is zeroed so stale values do not survive a recalculation (e.g. when a
+// flight is re-saved after fixing crew roles).
+func calculateDualGivenTime(flight *models.Flight, role userPilotRole) {
+	if role == roleDualGiving {
+		flight.DualGivenTime = flight.TotalTime
+		return
 	}
-	// Don't zero out if no crew members — keep manually set value
+	if len(flight.CrewMembers) > 0 {
+		// We have crew context and the user is not the instructor → force 0.
+		flight.DualGivenTime = 0
+		return
+	}
+	// No crew at all — leave any manually entered value untouched.
 }

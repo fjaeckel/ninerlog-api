@@ -26,6 +26,12 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 		return
 	}
 
+	// Resolve user display name once for self-vs-third-party instructor logic.
+	userName := ""
+	if user, err := h.authService.GetUserByID(c.Request.Context(), userID); err == nil && user != nil {
+		userName = user.Name
+	}
+
 	updated := 0
 	errors := 0
 	for _, flight := range flights {
@@ -36,7 +42,7 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 				flight.CrewMembers = crew
 			}
 		}
-		flightcalc.ApplyAutoCalculations(flight)
+		flightcalc.ApplyAutoCalculations(flight, userName)
 		if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 			errors++
 			continue

@@ -418,6 +418,13 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	}
 	includeDups := req.IncludeDuplicates != nil && *req.IncludeDuplicates
 
+	// Resolve user display name once for flight auto-calculations (used to
+	// distinguish self-as-instructor from third-party instructor in crew).
+	userName := ""
+	if user, err := h.authService.GetUserByID(c.Request.Context(), userID); err == nil && user != nil {
+		userName = user.Name
+	}
+
 	// Get existing flights for duplicate check
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 
@@ -626,7 +633,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		// Apply auto-calculations (solo, cross-country, distance, night, landing split, PIC/Dual)
-		flightcalc.ApplyAutoCalculations(&newFlight)
+		flightcalc.ApplyAutoCalculations(&newFlight, userName)
 
 		if err := h.flightService.CreateFlight(c.Request.Context(), &newFlight); err != nil {
 			importErrors = append(importErrors, struct {
