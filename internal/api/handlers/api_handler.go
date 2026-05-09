@@ -98,6 +98,23 @@ func (h *APIHandler) getUserIDFromContext(c *gin.Context) (uuid.UUID, error) {
 	return claims.UserID, nil
 }
 
+// getUserNameFromContext returns the authenticated user's display name, used
+// by flight auto-calculations to resolve whether an Instructor crew member is
+// the user themselves (Dual given) or a third party (Dual received). Returns
+// "" if the user cannot be resolved; flightcalc treats an empty name
+// conservatively (any Instructor → Dual received).
+func (h *APIHandler) getUserNameFromContext(c *gin.Context) string {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		return ""
+	}
+	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
+	if err != nil || user == nil {
+		return ""
+	}
+	return user.Name
+}
+
 // sendError sends a standardized error response matching OpenAPI Error schema
 func (h *APIHandler) sendError(c *gin.Context, statusCode int, message string, details ...map[string]string) {
 	errorResponse := generated.Error{

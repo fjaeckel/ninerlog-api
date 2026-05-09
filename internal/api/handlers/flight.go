@@ -317,7 +317,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	}
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
-	flightcalc.ApplyAutoCalculations(&flight)
+	flightcalc.ApplyAutoCalculations(&flight, h.getUserNameFromContext(c))
 
 	if err := h.flightService.CreateFlight(c.Request.Context(), &flight); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
@@ -566,7 +566,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	}
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
-	flightcalc.ApplyAutoCalculations(flight)
+	flightcalc.ApplyAutoCalculations(flight, h.getUserNameFromContext(c))
 
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Failed to update flight")
