@@ -112,17 +112,33 @@ func (h *APIHandler) GetFlightTrends(c *gin.Context, params generated.GetFlightT
 		monthly = []MonthlyTrend{}
 	}
 
-	aircraftQuery := `
-		SELECT
-			aircraft_type,
-			COUNT(*) AS total_flights,
-			COALESCE(SUM(total_time), 0) AS total_minutes
-		FROM flights
-		WHERE user_id = $1
-		GROUP BY aircraft_type
-		ORDER BY total_minutes DESC
-	`
-	rows2, err := h.db.QueryContext(c.Request.Context(), aircraftQuery, userID)
+	var rows2 *sql.Rows
+	if months == 0 {
+		aircraftQuery := `
+			SELECT
+				aircraft_type,
+				COUNT(*) AS total_flights,
+				COALESCE(SUM(total_time), 0) AS total_minutes
+			FROM flights
+			WHERE user_id = $1
+			GROUP BY aircraft_type
+			ORDER BY total_minutes DESC
+		`
+		rows2, err = h.db.QueryContext(c.Request.Context(), aircraftQuery, userID)
+	} else {
+		aircraftQuery := `
+			SELECT
+				aircraft_type,
+				COUNT(*) AS total_flights,
+				COALESCE(SUM(total_time), 0) AS total_minutes
+			FROM flights
+			WHERE user_id = $1
+			  AND date >= date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)
+			GROUP BY aircraft_type
+			ORDER BY total_minutes DESC
+		`
+		rows2, err = h.db.QueryContext(c.Request.Context(), aircraftQuery, userID, months)
+	}
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query aircraft breakdown")
 		return
@@ -149,11 +165,24 @@ func (h *APIHandler) GetFlightTrends(c *gin.Context, params generated.GetFlightT
 }
 
 // GetStatsByClass implements GET /reports/stats-by-class
-func (h *APIHandler) GetStatsByClass(c *gin.Context) {
+func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsByClassParams) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
+	}
+
+	months := 12
+	if params.Months != nil && *params.Months >= 0 && *params.Months <= 600 {
+		months = *params.Months
+	}
+
+	// Build optional timeframe predicate. months=0 means all time.
+	flightsDateFilter := ""
+	queryArgs := []any{userID}
+	if months > 0 {
+		flightsDateFilter = " AND f.date >= date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)"
+		queryArgs = append(queryArgs, months)
 	}
 
 	classRows, err := h.db.QueryContext(c.Request.Context(), `
@@ -165,10 +194,10 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context) {
 			COALESCE(SUM(f.landings_day + f.landings_night), 0) as landings
 		FROM flights f
 		LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1
+		WHERE f.user_id = $1`+flightsDateFilter+`
 		GROUP BY COALESCE(a.aircraft_class, 'Unclassified')
 		ORDER BY minutes DESC
-	`, userID)
+	`, queryArgs...)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query class stats")
 		return
@@ -203,19 +232,19 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context) {
 		FROM (
 			SELECT f.pic_time, f.dual_time, 'Tailwheel' as category
 			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND a.is_tailwheel
+			WHERE f.user_id = $1 AND a.is_tailwheel`+flightsDateFilter+`
 			UNION ALL
 			SELECT f.pic_time, f.dual_time, 'Complex' as category
 			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND a.is_complex
+			WHERE f.user_id = $1 AND a.is_complex`+flightsDateFilter+`
 			UNION ALL
 			SELECT f.pic_time, f.dual_time, 'High Performance' as category
 			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND a.is_high_performance
+			WHERE f.user_id = $1 AND a.is_high_performance`+flightsDateFilter+`
 		) sub
 		GROUP BY category
 		ORDER BY COALESCE(SUM(pic_time), 0) + COALESCE(SUM(dual_time), 0) DESC
-	`, userID)
+	`, queryArgs...)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query category stats")
 		return
