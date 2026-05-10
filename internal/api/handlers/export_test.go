@@ -35,7 +35,17 @@ func TestWriteEASACSV_UsesInstructorAsPICNameOnDualFlights(t *testing.T) {
 		t.Fatalf("expected header and one row, got %d rows", len(records))
 	}
 
-	const picNameColumn = 11
+	picNameColumn := -1
+	for i, h := range records[0] {
+		if h == "PIC Name" {
+			picNameColumn = i
+			break
+		}
+	}
+	if picNameColumn == -1 {
+		t.Fatal("PIC Name column not found")
+	}
+
 	if got := records[1][picNameColumn]; got != instructor {
 		t.Fatalf("PIC Name = %q, want %q", got, instructor)
 	}
