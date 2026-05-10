@@ -583,14 +583,15 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 }
 
 // hasValidIRRating returns true if the given list of class ratings contains a
-// non-expired Instrument Rating. Ratings without an expiry date are treated
-// as valid (manual data — pilot may not have entered the date yet).
+// current Instrument Rating — i.e. one with a non-nil expiry date that has not
+// yet passed. Ratings without an expiry date are treated as unknown/not current
+// because currency cannot be confirmed.
 func hasValidIRRating(ratings []*models.ClassRating) bool {
 	for _, r := range ratings {
 		if r == nil || r.ClassType != models.ClassTypeIR {
 			continue
 		}
-		if r.IsExpired() {
+		if r.ExpiryDate == nil || r.IsExpired() {
 			continue
 		}
 		return true

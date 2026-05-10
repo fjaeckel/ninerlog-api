@@ -126,6 +126,32 @@ func TestEASA_PassengerCurrency_ExpiredIRDoesNotExempt(t *testing.T) {
 	}
 }
 
+// TestEASA_PassengerCurrency_IRWithNoExpiryDoesNotExempt verifies that an IR
+// without an expiry date (unknown currency) does NOT trigger the
+// FCL.060(b)(2)(ii) exemption — the pilot must still meet the 1-landing
+// requirement.
+func TestEASA_PassengerCurrency_IRWithNoExpiryDoesNotExempt(t *testing.T) {
+	eval := NewEASAEvaluator()
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
+		Landings: 5, NightLandings: 0, DayLandings: 5,
+	}
+
+	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	peerRatings := []*models.ClassRating{
+		{ID: uuid.New(), LicenseID: license.ID, ClassType: models.ClassTypeIR, ExpiryDate: nil},
+	}
+
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, peerRatings, dp)
+
+	if result.NightStatus != StatusExpired {
+		t.Errorf("NightStatus = %s, want expired (IR without expiry date must not waive night recency)", result.NightStatus)
+	}
+	if result.NightRequired != 1 {
+		t.Errorf("NightRequired = %d, want 1 (no IR exemption when expiry unknown)", result.NightRequired)
+	}
+}
+
 func TestEASA_PassengerCurrency_NotCurrent(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
