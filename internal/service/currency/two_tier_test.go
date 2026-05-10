@@ -19,7 +19,7 @@ func TestEASA_PassengerCurrency_FullyCurrent(t *testing.T) {
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.DayStatus != StatusCurrent {
 		t.Errorf("DayStatus = %s, want current", result.DayStatus)
@@ -39,17 +39,90 @@ func TestEASA_PassengerCurrency_DayOnlyNightNot(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		Landings: 4, NightLandings: 1, DayLandings: 3,
+		Landings: 4, NightLandings: 0, DayLandings: 4,
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.DayStatus != StatusCurrent {
 		t.Errorf("DayStatus = %s, want current", result.DayStatus)
 	}
 	if result.NightStatus != StatusExpired {
 		t.Errorf("NightStatus = %s, want expired", result.NightStatus)
+	}
+}
+
+// TestEASA_PassengerCurrency_NightLanding_OneIsEnough verifies FCL.060(b)(2)(i):
+// a single night T&L in the preceding 90 days is sufficient.
+func TestEASA_PassengerCurrency_NightLanding_OneIsEnough(t *testing.T) {
+	eval := NewEASAEvaluator()
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
+		Landings: 4, NightLandings: 1, DayLandings: 3,
+	}
+
+	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
+
+	if result.NightStatus != StatusCurrent {
+		t.Errorf("NightStatus = %s, want current (1 night landing satisfies FCL.060(b)(2)(i))", result.NightStatus)
+	}
+	if result.NightRequired != 1 {
+		t.Errorf("NightRequired = %d, want 1", result.NightRequired)
+	}
+}
+
+// TestEASA_PassengerCurrency_IRExemptsNight verifies FCL.060(b)(2)(ii):
+// a pilot who holds a valid IR is exempt from the night-landing recency.
+func TestEASA_PassengerCurrency_IRExemptsNight(t *testing.T) {
+	eval := NewEASAEvaluator()
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
+		Landings: 5, NightLandings: 0, DayLandings: 5,
+	}
+
+	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	peerRatings := []*models.ClassRating{
+		{ID: uuid.New(), LicenseID: license.ID, ClassType: models.ClassTypeIR, ExpiryDate: futureDate(6)},
+	}
+
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, peerRatings, dp)
+
+	if result.NightStatus != StatusCurrent {
+		t.Errorf("NightStatus = %s, want current (IR exempts night recency)", result.NightStatus)
+	}
+	if result.NightRequired != 0 {
+		t.Errorf("NightRequired = %d, want 0 (IR exemption)", result.NightRequired)
+	}
+	if result.NightLandings != 0 {
+		t.Errorf("NightLandings = %d, want 0", result.NightLandings)
+	}
+}
+
+// TestEASA_PassengerCurrency_ExpiredIRDoesNotExempt verifies that an expired IR
+// does NOT trigger the FCL.060(b)(2)(ii) exemption — the pilot must still meet
+// the 1-landing requirement.
+func TestEASA_PassengerCurrency_ExpiredIRDoesNotExempt(t *testing.T) {
+	eval := NewEASAEvaluator()
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
+		Landings: 5, NightLandings: 0, DayLandings: 5,
+	}
+
+	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	expired := time.Now().AddDate(0, -1, 0)
+	peerRatings := []*models.ClassRating{
+		{ID: uuid.New(), LicenseID: license.ID, ClassType: models.ClassTypeIR, ExpiryDate: &expired},
+	}
+
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, peerRatings, dp)
+
+	if result.NightStatus != StatusExpired {
+		t.Errorf("NightStatus = %s, want expired (expired IR must not waive night recency)", result.NightStatus)
+	}
+	if result.NightRequired != 1 {
+		t.Errorf("NightRequired = %d, want 1 (no IR exemption)", result.NightRequired)
 	}
 }
 
@@ -61,7 +134,7 @@ func TestEASA_PassengerCurrency_NotCurrent(t *testing.T) {
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.DayStatus != StatusExpired {
 		t.Errorf("DayStatus = %s, want expired", result.DayStatus)
@@ -81,7 +154,7 @@ func TestFAA_PassengerCurrency_FullyCurrent(t *testing.T) {
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.DayStatus != StatusCurrent {
 		t.Errorf("DayStatus = %s, want current", result.DayStatus)
@@ -102,7 +175,7 @@ func TestFAA_PassengerCurrency_DayOnlyNightNot(t *testing.T) {
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.DayStatus != StatusCurrent {
 		t.Errorf("DayStatus = %s, want current", result.DayStatus)
@@ -117,7 +190,7 @@ func TestFAA_PassengerCurrency_NotCurrent(t *testing.T) {
 	dp := newMockFlightDataProvider()
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.DayStatus != StatusExpired {
 		t.Errorf("DayStatus = %s, want expired", result.DayStatus)
@@ -606,7 +679,7 @@ func TestFAA_SportPilot_PassengerCurrency_NoNight(t *testing.T) {
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "Sport"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.NightPrivilege {
 		t.Error("NightPrivilege should be false for Sport Pilot")
@@ -630,7 +703,7 @@ func TestFAA_PrivatePilot_PassengerCurrency_HasNight(t *testing.T) {
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "PPL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if !result.NightPrivilege {
 		t.Error("NightPrivilege should be true for Private Pilot")

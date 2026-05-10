@@ -86,7 +86,7 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 			seenPassengerClasses[passengerKey] = true
 
 			if paxEval, ok := eval.(PassengerCurrencyEvaluator); ok {
-				pax := paxEval.EvaluatePassengerCurrency(ctx, cr.ClassType, license, s.flightData)
+				pax := paxEval.EvaluatePassengerCurrency(ctx, cr.ClassType, license, classRatings, s.flightData)
 				passengerCurrency = append(passengerCurrency, pax)
 			}
 		}
