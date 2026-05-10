@@ -232,6 +232,8 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 		picName := "SELF"
 		if f.PICName != nil && *f.PICName != "" {
 			picName = *f.PICName
+		} else if f.InstructorName != nil && *f.InstructorName != "" {
+			picName = *f.InstructorName
 		}
 
 		// SP-SE / SP-ME derived (simplified: if not multi-pilot, it's single-pilot)
