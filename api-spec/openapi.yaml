@@ -1997,10 +1997,18 @@ paths:
       tags:
         - Reports
       summary: Get statistics by aircraft class and category
-      description: Returns aggregated flight statistics grouped by aircraft class, aircraft category (tailwheel, complex, high-performance), and regulatory authority.
+      description: Returns aggregated flight statistics grouped by aircraft class, aircraft category (tailwheel, complex, high-performance), and regulatory authority. Results are scoped to the requested timeframe.
       operationId: getStatsByClass
       security:
         - bearerAuth: []
+      parameters:
+        - name: months
+          in: query
+          description: Number of months to include (default 12, 0 = all time)
+          schema:
+            type: integer
+            default: 12
+            maximum: 600
       responses:
         '200':
           description: Statistics grouped by class, category, and authority
