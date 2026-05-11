@@ -10,6 +10,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 	"github.com/go-pdf/fpdf"
@@ -64,8 +65,8 @@ func (g pageGeometry) easaRowsPerPage() int {
 func geometryFor(sizeName string) pageGeometry {
 	// Base A4-landscape geometry.
 	base := pageGeometry{
-		sizeName:  "A4",
-		width:     297, height: 210,
+		sizeName: "A4",
+		width:    297, height: 210,
 		marginLR: 10, marginTB: 8, titleH: 8,
 		rowH: 5, headerH: 4.5,
 		fontTitle: 11, fontHdr: 5, fontBody: 5, fontFoot: 7,
@@ -277,8 +278,8 @@ func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]
 	// Cumulative running totals across all spreads. Left- and right-page
 	// columns are different, so they are tracked separately.
 	var (
-		cumLSE, cumLME, cumLMP, cumLTotal                                int
-		cumRLdgD, cumRLdgN                                               int
+		cumLSE, cumLME, cumLMP, cumLTotal                                   int
+		cumRLdgD, cumRLdgN                                                  int
 		cumRNight, cumRIFR, cumRPIC, cumRSIC, cumRDual, cumRInstr, cumRFSTD int
 	)
 
@@ -300,34 +301,14 @@ func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]
 		rows := make([]rowData, len(page))
 		for i, f := range page {
 			rd := rowData{f: f}
-			if f.MultiPilotTime > 0 {
-				rd.mp = f.MultiPilotTime
-			} else {
-				acClass := regToClass[strings.ToUpper(f.AircraftReg)]
-				if strings.HasPrefix(acClass, "MEP") || strings.HasPrefix(acClass, "SET") {
-					rd.spME = f.TotalTime
-				} else {
-					rd.spSE = f.TotalTime
-				}
-			}
-			if f.FSTDType != nil && *f.FSTDType != "" && f.SimulatedFlightTime > 0 {
-				rd.fstdDate = f.Date.Format("02.01")
-				rd.fstdType = *f.FSTDType
+			acClass := regToClass[strings.ToUpper(f.AircraftReg)]
+			rd.spSE, rd.spME, rd.mp = flightrules.RowTimes(f, acClass)
+			rd.fstdDate, rd.fstdType, _ = flightrules.FSTDFields(f, "02.01", fmtDec)
+			if rd.fstdDate != "" {
 				rd.fstdTime = fmtDec(f.SimulatedFlightTime)
 			}
-			rd.picName = "SELF"
-			if f.PICName != nil && *f.PICName != "" {
-				rd.picName = *f.PICName
-			} else if f.InstructorName != nil && *f.InstructorName != "" {
-				rd.picName = *f.InstructorName
-			}
-			rem := safeStr(f.Remarks)
-			if f.Endorsements != nil && *f.Endorsements != "" {
-				if rem != "" {
-					rem += " | "
-				}
-				rem += *f.Endorsements
-			}
+			rd.picName = flightrules.DisplayPICName(f)
+			rem := flightrules.CombinedRemarks(f)
 			if len([]rune(rem)) > 38 {
 				rem = string([]rune(rem)[:35]) + "..."
 			}
@@ -386,11 +367,12 @@ func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]
 		pdf.SetFont("Helvetica", "", g.fontBody)
 		for i, rd := range rows {
 			f := rd.f
+			ifrTime := flightrules.EffectiveIFRTime(f)
 			cells := []string{
 				f.Date.Format("02.01.06"),
 				fmt.Sprintf("%d", f.LandingsDay),
 				fmt.Sprintf("%d", f.LandingsNight),
-				fmtDec(f.NightTime), fmtDec(f.IFRTime),
+				fmtDec(f.NightTime), fmtDec(ifrTime),
 				fmtDec(f.PICTime), fmtDec(f.SICTime),
 				fmtDec(f.DualTime), fmtDec(f.DualGivenTime),
 				rd.fstdDate, rd.fstdType, rd.fstdTime,
@@ -400,7 +382,7 @@ func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]
 			rLdgD += f.LandingsDay
 			rLdgN += f.LandingsNight
 			rNight += f.NightTime
-			rIFR += f.IFRTime
+			rIFR += ifrTime
 			rPIC += f.PICTime
 			rSIC += f.SICTime
 			rDual += f.DualTime
@@ -497,19 +479,10 @@ func generateFAAPDF(flights []*models.Flight, g pageGeometry) *fpdf.Fpdf {
 
 		pdf.SetFont("Helvetica", "", g.fontBody)
 		for i, f := range flights[startIdx:endIdx] {
-			remarks := safeStr(f.Remarks)
-			if f.Endorsements != nil && *f.Endorsements != "" {
-				if remarks != "" {
-					remarks += " | "
-				}
-				remarks += *f.Endorsements
-			}
-			if f.IsIPC {
-				remarks += " IPC"
-			}
-			if f.IsFlightReview {
-				remarks += " FR"
-			}
+			// Note: FAA PDF previously used bare "IPC"/"FR" suffixes while
+			// FAA CSV used "[IPC]"/"[FR]". Centralised CombinedRemarks
+			// produces "[IPC]"/"[FR]" — both formats now match.
+			remarks := flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview)
 			if len([]rune(remarks)) > 60 {
 				remarks = string([]rune(remarks)[:57]) + "..."
 			}
@@ -601,7 +574,7 @@ func addGrandSummaryPage(pdf *fpdf.Fpdf, flights []*models.Flight, g pageGeometr
 		grandPIC += f.PICTime
 		grandDual += f.DualTime
 		grandNight += f.NightTime
-		grandIFR += f.IFRTime
+		grandIFR += flightrules.EffectiveIFRTime(f)
 		grandSolo += f.SoloTime
 		grandXC += f.CrossCountryTime
 		grandSIC += f.SICTime

@@ -13,6 +13,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -291,14 +292,9 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.ApproachesCount = len(flight.Approaches)
 	}
 
-	// Auto-set PIC name
+	// Auto-set PIC name via centralised rule.
 	if flight.PICName == nil {
-		if flight.IsPIC {
-			self := "Self"
-			flight.PICName = &self
-		} else if flight.IsDual && flight.InstructorName != nil {
-			flight.PICName = flight.InstructorName
-		}
+		flight.PICName = flightrules.ResolvePICNameForSave(&flight)
 	}
 
 	// Parse crew members
@@ -518,14 +514,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 		flight.ApproachesCount = len(flight.Approaches)
 	}
-	// Auto-set PIC name if not explicitly provided
+	// Auto-set PIC name if not explicitly provided.
 	if req.PicName == nil && flight.PICName == nil {
-		if flight.IsPIC {
-			self := "Self"
-			flight.PICName = &self
-		} else if flight.IsDual && flight.InstructorName != nil {
-			flight.PICName = flight.InstructorName
-		}
+		flight.PICName = flightrules.ResolvePICNameForSave(flight)
 	}
 	if req.CrewMembers != nil {
 		flight.CrewMembers = nil

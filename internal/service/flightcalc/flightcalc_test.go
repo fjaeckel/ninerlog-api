@@ -366,6 +366,55 @@ func TestDualGivenTime_EmptyUserName_TreatsInstructorAsThirdParty(t *testing.T) 
 	}
 }
 
+// Regression: a user reported that adding themselves as Instructor still
+// produced DualGivenTime = 0. Run the same scenario through every plausible
+// name-variant the UI / contacts list could produce, so we can pinpoint
+// which form (if any) breaks the self-instructor detection in
+// `determineUserRole`.
+func TestDualGivenTime_SelfInstructor_NameVariants(t *testing.T) {
+	const profile = "Amelia Earhart"
+
+	cases := []struct {
+		name      string
+		crewName  string
+		wantGiven bool // true => expect DualGivenTime == TotalTime
+	}{
+		{"exact match", "Amelia Earhart", true},
+		{"trailing space", "Amelia Earhart ", true},
+		{"leading space", " Amelia Earhart", true},
+		{"lowercase", "amelia earhart", true},
+		{"uppercase", "AMELIA EARHART", true},
+		{"double space", "Amelia  Earhart", true},             // flightrules.NormalizeName collapses interior whitespace
+		{"reversed Last, First", "Earhart, Amelia", true},     // contact-picker style — handled by MatchesUser
+		{"with middle initial", "Amelia M. Earhart", false},   // still treated as third-party (different identity)
+		{"non-breaking space", "Amelia\u00a0Earhart", true},   // U+00A0 folded to ASCII space by NormalizeName
+		{"trailing tab+newline", "Amelia Earhart\t\n", true},  // tabs/newlines normalised
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := baseFlight()
+			f.CrewMembers = []models.FlightCrewMember{
+				{Name: tc.crewName, Role: models.CrewRoleInstructor},
+			}
+			ApplyAutoCalculations(f, profile)
+
+			gotGiven := f.DualGivenTime == f.TotalTime
+			if gotGiven != tc.wantGiven {
+				t.Errorf("crewName=%q profile=%q: DualGivenTime=%d (TotalTime=%d), IsPIC=%v, IsDual=%v, DualTime=%d — want Dual given=%v",
+					tc.crewName, profile, f.DualGivenTime, f.TotalTime, f.IsPIC, f.IsDual, f.DualTime, tc.wantGiven)
+			}
+			// Sanity: when self-instructor is detected, user must be PIC.
+			if tc.wantGiven && !f.IsPIC {
+				t.Errorf("crewName=%q: expected IsPIC=true when self-instructor", tc.crewName)
+			}
+			if tc.wantGiven && f.IsDual {
+				t.Errorf("crewName=%q: expected IsDual=false when self-instructor", tc.crewName)
+			}
+		})
+	}
+}
+
 // === Auto PIC/Dual tests ===
 
 func TestPICDual_NoCrew_IsPIC(t *testing.T) {

@@ -7,23 +7,20 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/solar"
 )
 
-// userPilotRole describes the user's role on the flight, derived from the
-// crew composition relative to the user's own name.
-type userPilotRole int
+// Role enum + classification moved to internal/service/flightrules so the
+// read path (handlers, exporters, PDF) and the write path (this package)
+// cannot disagree about who is PIC. The flightcalc package keeps a thin
+// alias to avoid touching every internal call site.
+type userPilotRole = flightrules.Role
 
 const (
-	// rolePIC: user is sole/lead pilot, no instruction context.
-	rolePIC userPilotRole = iota
-	// roleDualReceiving: another person on board is the instructor giving the
-	// user instruction (Dual received).
-	roleDualReceiving
-	// roleDualGiving: the user is acting as instructor — either there is a
-	// Student on board, or the user themselves is listed with the Instructor
-	// role (Dual given).
-	roleDualGiving
+	rolePIC           = flightrules.RolePIC
+	roleDualReceiving = flightrules.RoleDualReceiving
+	roleDualGiving    = flightrules.RoleDualGiving
 )
 
 // ApplyAutoCalculations computes all auto-calculated fields on a flight.
@@ -69,43 +66,16 @@ func ApplyAutoCalculations(flight *models.Flight, userName string) {
 
 	// 8. Dual given: only when the user is acting as instructor
 	calculateDualGivenTime(flight, role)
+
+	// 9. IFR time: if user did not set it explicitly, derive from
+	//    Actual + Simulated instrument (capped at TotalTime).
+	flight.IFRTime = flightrules.EffectiveIFRTime(flight)
 }
 
-// normalizeName returns a comparable form of a person name (case- and
-// whitespace-insensitive). Empty input yields empty output.
-func normalizeName(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
-}
-
-// determineUserRole inspects the crew list to classify the user's pilot role.
-// Precedence: a third-party Instructor (name ≠ user) makes the user a Dual
-// receiver, regardless of any Student also being present (e.g. observed CFI
-// check rides). A Student or self-listed Instructor makes the user a Dual
-// giver. Otherwise the user is PIC.
+// determineUserRole is a thin wrapper over flightrules.DetermineRole kept
+// for backward compatibility with this package's internal call sites.
 func determineUserRole(flight *models.Flight, userName string) userPilotRole {
-	self := normalizeName(userName)
-	hasOtherInstructor := false
-	hasSelfInstructor := false
-	hasStudent := false
-	for _, m := range flight.CrewMembers {
-		switch m.Role {
-		case models.CrewRoleInstructor:
-			if self != "" && normalizeName(m.Name) == self {
-				hasSelfInstructor = true
-			} else {
-				hasOtherInstructor = true
-			}
-		case models.CrewRoleStudent:
-			hasStudent = true
-		}
-	}
-	if hasOtherInstructor {
-		return roleDualReceiving
-	}
-	if hasSelfInstructor || hasStudent {
-		return roleDualGiving
-	}
-	return rolePIC
+	return flightrules.DetermineRole(flight, userName)
 }
 
 // calculatePICDual sets PIC/Dual flags and times based on the resolved user

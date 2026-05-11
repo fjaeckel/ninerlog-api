@@ -2,7 +2,24 @@
 
 set -e
 
-echo "🐳 Starting test database..."
+echo "�️  Checking that flight-rule logic is not duplicated outside flightrules/…"
+# Any new fallback chain "PICName → InstructorName" or inline FSTD/remarks
+# concatenation in handlers/ or repository/ must instead use the centralised
+# helpers in internal/service/flightrules.
+violations=$(
+  {
+    grep -RnE 'PICName[^|]*InstructorName|InstructorName[^|]*PICName' internal/api internal/repository 2>/dev/null || true
+    grep -RnE 'remarks \+= "[[:space:]]*\[(IPC|FR|PC)\]"' internal/api internal/repository 2>/dev/null || true
+    grep -RnE 'f\.FSTDType != nil && \*f\.FSTDType != "" && f\.SimulatedFlightTime > 0' internal/api internal/repository 2>/dev/null || true
+  } | grep -v 'flightrules' || true
+)
+if [ -n "$violations" ]; then
+  echo "❌ Flight-rule duplication detected — use internal/service/flightrules helpers:"
+  echo "$violations"
+  exit 1
+fi
+
+echo "�🐳 Starting test database..."
 docker compose -f docker-compose.test.yaml up -d
 
 echo "⏳ Waiting for database to be ready..."
