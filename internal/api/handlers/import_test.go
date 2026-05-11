@@ -544,3 +544,164 @@ func TestMapRowToFlight_InstructorNameDiffFromPerson1(t *testing.T) {
 		t.Error("Expected Student crew member 'Student Me'")
 	}
 }
+
+// TestMapRowToFlight_ForeFlightStructuredApproaches covers the ForeFlight
+// CSV format where each Approach1-6 cell holds a structured
+// "count;type;runway;airport;notes" payload (quoted in the source CSV).
+// It also pins the regression where SimulatedInstrument and TotalTime are
+// both stored as decimal hours rounded independently, so the derived IFR
+// time used to exceed the block-time-derived total by one minute and the
+// row was rejected by ValidateTimeDistribution.
+func TestMapRowToFlight_ForeFlightStructuredApproaches(t *testing.T) {
+	row := map[string]string{
+		"Date":                  "2019-07-26",
+		"AircraftID":            "D-EXAM",
+		"From":                  "EDAY",
+		"To":                    "EDAY",
+		"Route":                 "EDDC EDDP EDDB",
+		"TimeOut":               "09:53",
+		"TimeIn":                "13:10",
+		"TotalTime":             "3.3",
+		"DayLandingsFullStop":   "1",
+		"NightLandingsFullStop": "0",
+		"ActualInstrument":      "0.0",
+		"SimulatedInstrument":   "3.3",
+		"Holds":                 "0",
+		"Approach1":             "1;ILS CAT II;07L;EDDB;",
+		"Approach2":             "1;RNAV;08L;EDDP;",
+		"Approach3":             "1;ILS;04;EDDC;",
+		"DualReceived":          "3.3",
+		"Person1":               "Alice Example;Instructor;",
+		"Person2":               "Bob Example;Student;bob@example.test",
+		"FlightReview":          "FALSE",
+		"IPC":                   "FALSE",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+
+	// ApproachesCount is the sum of the per-cell counts (1+1+1 = 3 here).
+	if flight.ApproachesCount == nil || *flight.ApproachesCount != 3 {
+		t.Errorf("ApproachesCount = %v, want 3", flight.ApproachesCount)
+	}
+
+	// Structured Approaches array carries type/runway/airport.
+	if flight.Approaches == nil {
+		t.Fatal("Approaches array should be populated")
+	}
+	if got := len(*flight.Approaches); got != 3 {
+		t.Fatalf("len(Approaches) = %d, want 3", got)
+	}
+	want := []struct {
+		typ, rwy, ap string
+	}{
+		{"ILS", "07L", "EDDB"},
+		{"RNAV/GPS", "08L", "EDDP"},
+		{"ILS", "04", "EDDC"},
+	}
+	for i, w := range want {
+		got := (*flight.Approaches)[i]
+		if string(got.Type) != w.typ {
+			t.Errorf("Approaches[%d].Type = %s, want %s", i, got.Type, w.typ)
+		}
+		if got.Runway == nil || *got.Runway != w.rwy {
+			t.Errorf("Approaches[%d].Runway = %v, want %s", i, got.Runway, w.rwy)
+		}
+		if got.Airport == nil || *got.Airport != w.ap {
+			t.Errorf("Approaches[%d].Airport = %v, want %s", i, got.Airport, w.ap)
+		}
+	}
+
+	// Crew members: Person cells like "Name;Role;email" must have the
+	// trailing role/email stripped before InferLegacyCrew classifies them.
+	if flight.CrewMembers == nil {
+		t.Fatal("CrewMembers should be populated")
+	}
+	var foundInstr, foundStudent bool
+	for _, cm := range *flight.CrewMembers {
+		if cm.Name == "Alice Example" && string(cm.Role) == "Instructor" {
+			foundInstr = true
+		}
+		if cm.Name == "Bob Example" && string(cm.Role) == "Student" {
+			foundStudent = true
+		}
+	}
+	if !foundInstr {
+		t.Errorf("expected Alice Example (Instructor); got %+v", *flight.CrewMembers)
+	}
+	if !foundStudent {
+		t.Errorf("expected Bob Example (Student); got %+v", *flight.CrewMembers)
+	}
+
+	// IFR derivation: SimulatedInstrument 3.3h rounds to 198 min but the
+	// block time 09:53→13:10 is 197 min. The derived IFR must be capped at
+	// the block-time total so ValidateTimeDistribution does not reject the
+	// flight with ErrInvalidIFRTime.
+	if flight.IfrTime == nil {
+		t.Fatal("IfrTime should be derived")
+	}
+	if *flight.IfrTime > 197 {
+		t.Errorf("IfrTime = %d, want ≤197 (capped at block-time total)", *flight.IfrTime)
+	}
+}
+
+func TestParseForeFlightApproach(t *testing.T) {
+	cases := []struct {
+		name  string
+		in    string
+		want  *generated.ApproachEntryInput
+		count int
+	}{
+		{"empty", "", nil, 0},
+		{"structured ils", "1;ILS CAT II;07L;EDDB;", &generated.ApproachEntryInput{
+			Type:    generated.ApproachTypeILS,
+			Runway:  ptr("07L"),
+			Airport: ptr("EDDB"),
+		}, 1},
+		{"structured rnav", "2;RNAV;25;KSFO;notes here", &generated.ApproachEntryInput{
+			Type:    generated.ApproachTypeRNAVGPS,
+			Runway:  ptr("25"),
+			Airport: ptr("KSFO"),
+		}, 2},
+		{"freetext ils", "ILS RWY 23", &generated.ApproachEntryInput{
+			Type: generated.ApproachTypeILS,
+		}, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, n := parseForeFlightApproach(tc.in)
+			if n != tc.count {
+				t.Errorf("count = %d, want %d", n, tc.count)
+			}
+			if tc.want == nil {
+				if got != nil {
+					t.Errorf("entry = %+v, want nil", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("entry = nil, want non-nil")
+			}
+			if got.Type != tc.want.Type {
+				t.Errorf("Type = %s, want %s", got.Type, tc.want.Type)
+			}
+			if (got.Runway == nil) != (tc.want.Runway == nil) ||
+				(got.Runway != nil && *got.Runway != *tc.want.Runway) {
+				t.Errorf("Runway = %v, want %v", got.Runway, tc.want.Runway)
+			}
+			if (got.Airport == nil) != (tc.want.Airport == nil) ||
+				(got.Airport != nil && *got.Airport != *tc.want.Airport) {
+				t.Errorf("Airport = %v, want %v", got.Airport, tc.want.Airport)
+			}
+		})
+	}
+}
+
+func ptr(s string) *string { return &s }

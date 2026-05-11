@@ -590,6 +590,20 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		if flight.ApproachesCount != nil {
 			newFlight.ApproachesCount = *flight.ApproachesCount
 		}
+		if flight.Approaches != nil {
+			for _, a := range *flight.Approaches {
+				entry := models.ApproachEntry{Type: string(a.Type)}
+				if a.Airport != nil {
+					ap := *a.Airport
+					entry.Airport = &ap
+				}
+				if a.Runway != nil {
+					rw := *a.Runway
+					entry.Runway = &rw
+				}
+				newFlight.Approaches = append(newFlight.Approaches, entry)
+			}
+		}
 		if flight.IsIpc != nil {
 			newFlight.IsIPC = *flight.IsIpc
 		}
@@ -951,17 +965,17 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				dualGivenVal = f
 			}
 		case "person1":
-			personNames["person1"] = val
+			personNames["person1"] = foreFlightPersonName(val)
 		case "person2":
-			personNames["person2"] = val
+			personNames["person2"] = foreFlightPersonName(val)
 		case "person3":
-			personNames["person3"] = val
+			personNames["person3"] = foreFlightPersonName(val)
 		case "person4":
-			personNames["person4"] = val
+			personNames["person4"] = foreFlightPersonName(val)
 		case "person5":
-			personNames["person5"] = val
+			personNames["person5"] = foreFlightPersonName(val)
 		case "person6":
-			personNames["person6"] = val
+			personNames["person6"] = foreFlightPersonName(val)
 		}
 	}
 
@@ -1022,16 +1036,29 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		errs = append(errs, fieldError{"arrivalIcao", "Arrival ICAO is required"})
 	}
 
-	// ForeFlight: count approaches from Approach1-6 columns
+	// ForeFlight: parse Approach1-6 columns into structured approach entries
+	// and sum the per-cell counts into ApproachesCount. Each cell follows the
+	// ForeFlight structured form "count;type;runway;airport;notes"; free-text
+	// cells (e.g. "ILS RWY 23" from older exports) are still counted as one
+	// approach with type "Other".
 	if flight.ApproachesCount == nil || *flight.ApproachesCount == 0 {
 		approachCount := 0
+		var approaches []generated.ApproachEntryInput
 		for _, key := range []string{"Approach1", "Approach2", "Approach3", "Approach4", "Approach5", "Approach6"} {
-			if v := strings.TrimSpace(row[key]); v != "" {
-				approachCount++
+			entry, n := parseForeFlightApproach(row[key])
+			if n == 0 {
+				continue
+			}
+			approachCount += n
+			if entry != nil {
+				approaches = append(approaches, *entry)
 			}
 		}
 		if approachCount > 0 {
 			flight.ApproachesCount = &approachCount
+		}
+		if len(approaches) > 0 && flight.Approaches == nil {
+			flight.Approaches = &approaches
 		}
 	}
 
@@ -1040,6 +1067,15 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	// applied unconditionally in flightcalc.ApplyAutoCalculations at save
 	// time; this pre-derivation lets the validator and dedup logic see the
 	// derived value early.
+	//
+	// The derived value is capped at the effective total time (block-time
+	// derived when available, else the explicit TotalTime cell). ForeFlight
+	// stores both the instrument-time and the total-time columns as decimal
+	// hours rounded independently to one decimal, which can round to slightly
+	// different minute counts (e.g. SimulatedInstrument=3.3 → 198 min while
+	// the block time 09:53→13:10 → 197 min). Without the cap, the rounding
+	// mismatch produces an invalid "IFR exceeds total" flight that fails
+	// validation in flightService.CreateFlight.
 	if (flight.IfrTime == nil || *flight.IfrTime == 0) && (flight.ActualInstrumentTime != nil || flight.SimulatedInstrumentTime != nil) {
 		var ifrTotal int
 		if flight.ActualInstrumentTime != nil {
@@ -1048,12 +1084,127 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		if flight.SimulatedInstrumentTime != nil {
 			ifrTotal += *flight.SimulatedInstrumentTime
 		}
+		totalCap := 0
+		if flight.OffBlockTime != "" && flight.OnBlockTime != "" {
+			if m, err := calculateBlockTime(flight.OffBlockTime, flight.OnBlockTime); err == nil {
+				totalCap = m
+			}
+		}
+		if totalCap == 0 && flight.TotalTime != nil {
+			totalCap = *flight.TotalTime
+		}
+		if totalCap > 0 && ifrTotal > totalCap {
+			ifrTotal = totalCap
+		}
 		if ifrTotal > 0 {
 			flight.IfrTime = &ifrTotal
 		}
 	}
 
 	return flight, errs
+}
+
+// parseForeFlightApproach parses a single ForeFlight Approach cell into an
+// ApproachEntryInput and the number of approaches recorded in that cell.
+// ForeFlight encodes structured approach data inside the cell as
+//
+//	count;type;runway;airport;notes
+//
+// (the inner semicolons live inside a quoted CSV cell). Older or free-text
+// cells like "ILS RWY 23" are still counted as a single approach with the
+// type best-effort normalised against ApproachType. An empty cell returns
+// (nil, 0).
+func parseForeFlightApproach(s string) (*generated.ApproachEntryInput, int) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, 0
+	}
+	parts := strings.Split(s, ";")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	// Drop trailing empties caused by the ForeFlight trailing ';'.
+	for len(parts) > 0 && parts[len(parts)-1] == "" {
+		parts = parts[:len(parts)-1]
+	}
+	if len(parts) == 0 {
+		return nil, 0
+	}
+
+	// Structured form: leading numeric count + at least a type token.
+	if len(parts) >= 2 {
+		if n, err := strconv.Atoi(parts[0]); err == nil && n > 0 {
+			entry := generated.ApproachEntryInput{
+				Type: normalizeApproachType(parts[1]),
+			}
+			if len(parts) >= 3 && parts[2] != "" {
+				rwy := parts[2]
+				entry.Runway = &rwy
+			}
+			if len(parts) >= 4 && parts[3] != "" {
+				ap := strings.ToUpper(parts[3])
+				entry.Airport = &ap
+			}
+			return &entry, n
+		}
+	}
+
+	// Free-text fallback: count as one approach, best-effort type.
+	entry := generated.ApproachEntryInput{Type: normalizeApproachType(parts[0])}
+	return &entry, 1
+}
+
+// normalizeApproachType maps a free-form approach-type string (as written
+// by ForeFlight or a human in a CSV) to a valid generated.ApproachType.
+func normalizeApproachType(s string) generated.ApproachType {
+	u := strings.ToUpper(strings.TrimSpace(s))
+	switch {
+	case u == "":
+		return generated.ApproachTypeUnknown
+	case strings.HasPrefix(u, "ILS"):
+		return generated.ApproachTypeILS
+	case strings.HasPrefix(u, "LOC"):
+		return generated.ApproachTypeLOC
+	case strings.HasPrefix(u, "VOR"):
+		return generated.ApproachTypeVOR
+	case strings.HasPrefix(u, "NDB"):
+		return generated.ApproachTypeNDB
+	case strings.Contains(u, "RNAV"), strings.Contains(u, "GPS"), strings.Contains(u, "RNP"):
+		return generated.ApproachTypeRNAVGPS
+	case strings.HasPrefix(u, "LDA"):
+		return generated.ApproachTypeLDA
+	case strings.HasPrefix(u, "SDF"):
+		return generated.ApproachTypeSDF
+	case strings.HasPrefix(u, "PAR"):
+		return generated.ApproachTypePAR
+	case strings.HasPrefix(u, "ASR"):
+		return generated.ApproachTypeASR
+	case strings.Contains(u, "VISUAL"):
+		return generated.ApproachTypeVisual
+	case strings.Contains(u, "CIRCLING"):
+		return generated.ApproachTypeCircling
+	default:
+		return generated.ApproachTypeOther
+	}
+}
+
+// foreFlightPersonName extracts just the name from a ForeFlight Person cell.
+// ForeFlight encodes crew metadata inside the cell as
+//
+//	name;role;email
+//
+// (inner semicolons live inside a quoted CSV cell). The role is consumed
+// by InferLegacyCrew via DualReceived/DualGiven hints, so only the name is
+// returned here; the role and email portions are discarded.
+func foreFlightPersonName(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if i := strings.IndexByte(s, ';'); i >= 0 {
+		return strings.TrimSpace(s[:i])
+	}
+	return s
 }
 
 func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *openapi_types.UUID {
