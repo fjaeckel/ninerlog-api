@@ -269,7 +269,7 @@ func faaRuleDescriptionKey(classType models.ClassType) string {
 // EvaluatePassengerCurrency evaluates FAA §61.57(a)/(b) as Tier 2 passenger currency.
 // This is separate from rating currency — FAA certificates don't expire, so passenger
 // currency IS the primary rolling metric for non-IR class ratings.
-func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, dp FlightDataProvider) PassengerCurrency {
+func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, _ []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
 	since := time.Now().AddDate(0, 0, -90)
 	hasNight := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority)
 

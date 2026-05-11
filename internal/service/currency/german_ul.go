@@ -89,7 +89,7 @@ func (e *GermanULEvaluator) Evaluate(ctx context.Context, rating *models.ClassRa
 // EvaluatePassengerCurrency evaluates German UL passenger-carrying recency.
 // Note: UL Passagierberechtigung requires separate endorsement training that
 // cannot be auto-evaluated. This returns an informational-only assessment.
-func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, dp FlightDataProvider) PassengerCurrency {
+func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, _ []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
 	since := time.Now().AddDate(0, 0, -90)
 
 	result := PassengerCurrency{
