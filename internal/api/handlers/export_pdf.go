@@ -202,7 +202,6 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 	default:
 		pdf = generateEASAPDF(flights, geom, h, c, userID)
 	}
-
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_%s_%s_%s.pdf",
 		format, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02")))
@@ -260,12 +259,13 @@ func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c 
 			regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
 		}
 	}
-	return renderEASA(flights, g, regToClass)
+	userName := h.getUserNameFromContext(c)
+	return renderEASA(flights, g, regToClass, userName)
 }
 
 // renderEASA performs the actual EASA PDF rendering. Extracted so tests can
 // invoke it without a full APIHandler.
-func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]string) *fpdf.Fpdf {
+func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]string, userName string) *fpdf.Fpdf {
 	pdf := newPDF(g)
 	tr := pdf.UnicodeTranslatorFromDescriptor("") // CP1252 mapper for em-dash etc.
 
@@ -307,7 +307,7 @@ func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]
 			if rd.fstdDate != "" {
 				rd.fstdTime = fmtDec(f.SimulatedFlightTime)
 			}
-			rd.picName = flightrules.DisplayPICName(f)
+			rd.picName = flightrules.DisplayPICName(f, userName)
 			rem := flightrules.CombinedRemarks(f)
 			if len([]rune(rem)) > 38 {
 				rem = string([]rune(rem)[:35]) + "..."
