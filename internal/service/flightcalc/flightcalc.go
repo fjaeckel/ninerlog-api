@@ -96,12 +96,23 @@ func calculatePICDual(flight *models.Flight, role userPilotRole) {
 	}
 }
 
-// calculateNightTime computes night time from the flight's departure/arrival
-// times and the sunset/sunrise at a representative airport (departure).
-// The night portion is the fraction of total time between sunset and sunrise.
+// calculateNightTime computes night time from the flight's off-block /
+// on-block times and the civil twilight boundaries at the departure airport.
+// Per ICAO / EASA, night is the period between the end of evening civil
+// twilight and the beginning of morning civil twilight.
+//
+// Block times are used exclusively (not takeoff/landing times): they are the
+// authoritative recorded times in this logbook, populated by every import
+// path and required for any flight to be valid.
 func calculateNightTime(flight *models.Flight) {
 	dep := normalizeICAO(flight.DepartureICAO)
-	if dep == "" || flight.DepartureTime == nil || flight.ArrivalTime == nil {
+	if dep == "" {
+		return
+	}
+
+	if flight.OffBlockTime == nil || flight.OnBlockTime == nil ||
+		strings.TrimSpace(*flight.OffBlockTime) == "" ||
+		strings.TrimSpace(*flight.OnBlockTime) == "" {
 		return
 	}
 
@@ -110,11 +121,11 @@ func calculateNightTime(flight *models.Flight) {
 		return
 	}
 
-	depTime, err := parseTimeOfDay(flight.Date, *flight.DepartureTime)
+	depTime, err := parseTimeOfDay(flight.Date, *flight.OffBlockTime)
 	if err != nil {
 		return
 	}
-	arrTime, err := parseTimeOfDay(flight.Date, *flight.ArrivalTime)
+	arrTime, err := parseTimeOfDay(flight.Date, *flight.OnBlockTime)
 	if err != nil {
 		return
 	}
@@ -123,11 +134,11 @@ func calculateNightTime(flight *models.Flight) {
 		arrTime = arrTime.Add(24 * time.Hour)
 	}
 
-	sun := solar.Calculate(flight.Date, depAP.Latitude, depAP.Longitude)
-	sunset := sun.Sunset
-	sunrise := sun.Sunrise
-	// Next day sunrise for overnight flights
-	nextSunrise := solar.Calculate(flight.Date.AddDate(0, 0, 1), depAP.Latitude, depAP.Longitude).Sunrise
+	tw := solar.CivilTwilight(flight.Date, depAP.Latitude, depAP.Longitude)
+	dusk := tw.Dusk
+	dawn := tw.Dawn
+	// Next day morning civil twilight for overnight flights
+	nextDawn := solar.CivilTwilight(flight.Date.AddDate(0, 0, 1), depAP.Latitude, depAP.Longitude).Dawn
 
 	totalMinutes := arrTime.Sub(depTime).Minutes()
 	if totalMinutes <= 0 {
@@ -139,9 +150,9 @@ func calculateNightTime(flight *models.Flight) {
 	// Walk through flight time in 1-minute increments
 	current := depTime
 	for current.Before(arrTime) {
-		isNight := current.Before(sunrise) || current.After(sunset)
-		// Also check next-day sunrise for overnight flights
-		if current.After(sunset) && current.Before(nextSunrise) {
+		isNight := current.Before(dawn) || current.After(dusk)
+		// Also check next-day dawn for overnight flights
+		if current.After(dusk) && current.Before(nextDawn) {
 			isNight = true
 		}
 		if isNight {
@@ -201,7 +212,7 @@ func calculateTakeoffSplit(flight *models.Flight) {
 	}
 
 	dep := normalizeICAO(flight.DepartureICAO)
-	if dep == "" || flight.DepartureTime == nil {
+	if dep == "" || flight.OffBlockTime == nil || strings.TrimSpace(*flight.OffBlockTime) == "" {
 		if total > 0 && flight.TakeoffsDay == 0 && flight.TakeoffsNight == 0 {
 			flight.TakeoffsDay = total
 		}
@@ -214,7 +225,7 @@ func calculateTakeoffSplit(flight *models.Flight) {
 		return
 	}
 
-	depTime, err := parseTimeOfDay(flight.Date, *flight.DepartureTime)
+	depTime, err := parseTimeOfDay(flight.Date, *flight.OffBlockTime)
 	if err != nil {
 		flight.TakeoffsDay = total
 		return
@@ -241,7 +252,7 @@ func calculateLandingSplit(flight *models.Flight) {
 	}
 
 	arr := normalizeICAO(flight.ArrivalICAO)
-	if arr == "" || flight.ArrivalTime == nil {
+	if arr == "" || flight.OnBlockTime == nil || strings.TrimSpace(*flight.OnBlockTime) == "" {
 		// Can't determine day/night — default all landings to day
 		flight.LandingsDay = total
 		flight.LandingsNight = 0
@@ -256,7 +267,7 @@ func calculateLandingSplit(flight *models.Flight) {
 		return
 	}
 
-	arrTime, err := parseTimeOfDay(flight.Date, *flight.ArrivalTime)
+	arrTime, err := parseTimeOfDay(flight.Date, *flight.OnBlockTime)
 	if err != nil {
 		// Can't parse time — default all landings to day
 		flight.LandingsDay = total

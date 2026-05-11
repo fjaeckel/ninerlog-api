@@ -17,6 +17,8 @@ func baseFlight() *models.Flight {
 		AircraftType:  "C172",
 		DepartureICAO: strPtr("EDDF"),
 		ArrivalICAO:   strPtr("EDDH"),
+		OffBlockTime:  strPtr("14:30:00"),
+		OnBlockTime:   strPtr("16:00:00"),
 		DepartureTime: strPtr("14:30:00"),
 		ArrivalTime:   strPtr("16:00:00"),
 		TotalTime:     90,
@@ -522,6 +524,37 @@ func TestCalculateNightTime_NilTimes(t *testing.T) {
 	}
 }
 
+// TestCalculateNightTime_OffBlockFallback_Regression covers ninerlog-api#34:
+// EASA-style imports often only carry off-block / on-block times (no separate
+// takeoff / landing time). A flight from EDBO 18:56→19:19 UTC on 19 Mar 2019
+// is entirely after evening civil twilight, so all 23 minutes must be logged
+// as night even when DepartureTime / ArrivalTime are nil.
+func TestCalculateNightTime_OffBlockFallback_Regression(t *testing.T) {
+	airports.SetTestDB(map[string]airports.AirportInfo{
+		// EDBO Oehna Airfield, Brandenburg DE (from OurAirports)
+		"EDBO": {ICAO: "EDBO", Name: "Oehna", Latitude: 51.899734, Longitude: 13.052809, Country: "DE"},
+		"EDAZ": {ICAO: "EDAZ", Name: "Schönhagen", Latitude: 52.204631, Longitude: 13.159526, Country: "DE"},
+	})
+	t.Cleanup(func() { airports.SetTestDB(nil) })
+
+	f := &models.Flight{
+		Date:          time.Date(2019, 3, 19, 0, 0, 0, 0, time.UTC),
+		DepartureICAO: strPtr("EDBO"),
+		ArrivalICAO:   strPtr("EDAZ"),
+		// Only block times set — the EASA CSV import path leaves DepartureTime /
+		// ArrivalTime nil.
+		OffBlockTime: strPtr("18:56:00"),
+		OnBlockTime:  strPtr("19:19:00"),
+		TotalTime:    23,
+	}
+
+	calculateNightTime(f)
+
+	if f.NightTime != 23 {
+		t.Errorf("NightTime = %d, want 23 (all 23 minutes after civil dusk at EDBO 19 Mar 2019)", f.NightTime)
+	}
+}
+
 // === Landing split tests ===
 
 func TestLandingSplit_FromTotalLandings(t *testing.T) {
@@ -574,8 +607,8 @@ func TestNightTime_WithAirportData_NightFlight(t *testing.T) {
 	f := baseFlight()
 	// Late night winter flight: should have significant night time
 	f.Date = time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
-	f.DepartureTime = strPtr("22:00:00")
-	f.ArrivalTime = strPtr("23:30:00")
+	f.OffBlockTime = strPtr("22:00:00")
+	f.OnBlockTime = strPtr("23:30:00")
 	f.TotalTime = 90
 
 	calculateNightTime(f)
@@ -593,8 +626,8 @@ func TestNightTime_WithAirportData_OvernightFlight(t *testing.T) {
 	f := baseFlight()
 	// Overnight flight: departs before midnight, arrives after
 	f.Date = time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
-	f.DepartureTime = strPtr("23:00:00")
-	f.ArrivalTime = strPtr("01:00:00") // next day
+	f.OffBlockTime = strPtr("23:00:00")
+	f.OnBlockTime = strPtr("01:00:00") // next day
 	f.TotalTime = 120
 
 	calculateNightTime(f)
@@ -608,8 +641,8 @@ func TestNightTime_CappedAtTotalTime(t *testing.T) {
 	setupAirportData(t)
 	f := baseFlight()
 	f.Date = time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
-	f.DepartureTime = strPtr("22:00:00")
-	f.ArrivalTime = strPtr("23:30:00")
+	f.OffBlockTime = strPtr("22:00:00")
+	f.OnBlockTime = strPtr("23:30:00")
 	f.TotalTime = 30 // Less than actual elapsed time
 
 	calculateNightTime(f)
@@ -641,7 +674,7 @@ func TestNightTime_EmptyDepartureICAO(t *testing.T) {
 func TestNightTime_InvalidTimeFormat(t *testing.T) {
 	setupAirportData(t)
 	f := baseFlight()
-	f.DepartureTime = strPtr("invalid")
+	f.OffBlockTime = strPtr("invalid")
 	calculateNightTime(f)
 	if f.NightTime != 0 {
 		t.Errorf("NightTime = %d, want 0 for invalid time format", f.NightTime)
@@ -696,7 +729,7 @@ func TestTakeoffSplit_WithAirportData_DayTakeoff(t *testing.T) {
 	setupAirportData(t)
 	f := baseFlight()
 	f.Date = time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)
-	f.DepartureTime = strPtr("10:00:00")
+	f.OffBlockTime = strPtr("10:00:00")
 	f.TakeoffsDay = 0
 	f.TakeoffsNight = 0
 	f.AllLandings = 1
@@ -713,7 +746,7 @@ func TestTakeoffSplit_WithAirportData_NightTakeoff(t *testing.T) {
 	setupAirportData(t)
 	f := baseFlight()
 	f.Date = time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
-	f.DepartureTime = strPtr("22:00:00")
+	f.OffBlockTime = strPtr("22:00:00")
 	f.TakeoffsDay = 0
 	f.TakeoffsNight = 0
 	f.AllLandings = 1
@@ -730,7 +763,7 @@ func TestLandingSplit_WithAirportData_DayLanding(t *testing.T) {
 	setupAirportData(t)
 	f := baseFlight()
 	f.Date = time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)
-	f.ArrivalTime = strPtr("14:00:00")
+	f.OnBlockTime = strPtr("14:00:00")
 	f.AllLandings = 2
 	f.LandingsDay = 0
 	f.LandingsNight = 0
@@ -747,7 +780,7 @@ func TestLandingSplit_WithAirportData_NightLanding(t *testing.T) {
 	setupAirportData(t)
 	f := baseFlight()
 	f.Date = time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
-	f.ArrivalTime = strPtr("22:00:00")
+	f.OnBlockTime = strPtr("22:00:00")
 	f.AllLandings = 3
 	f.LandingsDay = 0
 	f.LandingsNight = 0
