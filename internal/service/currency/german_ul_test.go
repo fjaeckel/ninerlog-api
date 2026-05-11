@@ -116,7 +116,7 @@ func TestGermanUL_PassengerCurrency_Current(t *testing.T) {
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "LBA", LicenseType: "UL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.DayStatus != StatusCurrent {
 		t.Errorf("DayStatus = %s, want current", result.DayStatus)
@@ -137,7 +137,7 @@ func TestGermanUL_PassengerCurrency_NotCurrent(t *testing.T) {
 	}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "DULV", LicenseType: "UL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, dp)
+	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
 
 	if result.DayStatus != StatusExpired {
 		t.Errorf("DayStatus = %s, want expired", result.DayStatus)

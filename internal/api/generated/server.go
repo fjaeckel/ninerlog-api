@@ -247,7 +247,7 @@ type ServerInterface interface {
 	GetFlightRoutes(c *gin.Context)
 	// Get statistics by aircraft class and category
 	// (GET /reports/stats-by-class)
-	GetStatsByClass(c *gin.Context)
+	GetStatsByClass(c *gin.Context, params GetStatsByClassParams)
 	// Get monthly flight trends
 	// (GET /reports/trends)
 	GetFlightTrends(c *gin.Context, params GetFlightTrendsParams)
@@ -2107,7 +2107,21 @@ func (siw *ServerInterfaceWrapper) GetFlightRoutes(c *gin.Context) {
 // GetStatsByClass operation middleware
 func (siw *ServerInterfaceWrapper) GetStatsByClass(c *gin.Context) {
 
+	var err error
+	_ = err
+
 	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetStatsByClassParams
+
+	// ------------- Optional query parameter "months" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "months", c.Request.URL.Query(), &params.Months, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter months: %w", err), http.StatusBadRequest)
+		return
+	}
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -2116,7 +2130,7 @@ func (siw *ServerInterfaceWrapper) GetStatsByClass(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetStatsByClass(c)
+	siw.Handler.GetStatsByClass(c, params)
 }
 
 // GetFlightTrends operation middleware

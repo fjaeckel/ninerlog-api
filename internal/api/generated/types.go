@@ -2701,6 +2701,12 @@ type GetLicenseStatisticsParams struct {
 	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
 }
 
+// GetStatsByClassParams defines parameters for GetStatsByClass.
+type GetStatsByClassParams struct {
+	// Months Number of months to include (default 12, 0 = all time)
+	Months *int `form:"months,omitempty" json:"months,omitempty"`
+}
+
 // GetFlightTrendsParams defines parameters for GetFlightTrends.
 type GetFlightTrendsParams struct {
 	// Months Number of months to include (default 12, max 60)

@@ -506,18 +506,30 @@ func easaRuleDescriptionKey(classType models.ClassType) string {
 // cannot carry passengers without meeting FCL.060(b).
 //
 // FCL.060(b)(1): 3 takeoffs, approaches and landings in same type or class
-// within the preceding 90 days (rolling from now).
-func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, dp FlightDataProvider) PassengerCurrency {
+// within the preceding 90 days (rolling from now) for any passenger flight.
+//
+// FCL.060(b)(2): To carry passengers as PIC at night additionally:
+//   (i)  at least 1 takeoff, approach and landing at night in the preceding 90 days, OR
+//   (ii) holds an IR — in which case no night-landing recency is required.
+func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
 	since := time.Now().AddDate(0, 0, -90)
+
+	hasNightPrivilege := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority)
+	hasValidIR := hasValidIRRating(peerRatings)
 
 	result := PassengerCurrency{
 		ClassType:           classType,
 		RegulatoryAuthority: "EASA",
 		DayRequired:         3,
-		NightRequired:       3,
-		NightPrivilege:      HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority),
-		RuleDescription:     "3 takeoffs & landings in same type/class within preceding 90 days to carry passengers (EASA FCL.060(b))",
+		NightRequired:       1,
+		NightPrivilege:      hasNightPrivilege,
+		RuleDescription:     "3 takeoffs & landings (day) and 1 takeoff & landing at night in same type/class within preceding 90 days to carry passengers; the night requirement is waived for pilots holding a valid IR (EASA FCL.060(b))",
 		RuleDescriptionKey:  "easa_pax",
+	}
+
+	// FCL.060(b)(2)(ii): IR holders are exempt from the night-landing requirement.
+	if hasValidIR {
+		result.NightRequired = 0
 	}
 
 	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, classType, since)
@@ -531,28 +543,58 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 	result.DayLandings = progress.Landings
 	result.NightLandings = progress.NightLandings
 
-	// Day passenger currency
+	// Day passenger currency — FCL.060(b)(1)
 	if progress.Landings >= 3 {
 		result.DayStatus = StatusCurrent
 	} else {
 		result.DayStatus = StatusExpired
 	}
 
-	// Night passenger currency
-	if progress.NightLandings >= 3 {
+	// Night passenger currency — FCL.060(b)(2)
+	switch {
+	case !hasNightPrivilege:
+		// Night not applicable for this license type (e.g. LAPL, SPL).
+		result.NightStatus = StatusUnknown
+	case hasValidIR:
+		// FCL.060(b)(2)(ii): holding an IR exempts the night-landing requirement.
 		result.NightStatus = StatusCurrent
-	} else {
+	case progress.NightLandings >= 1:
+		result.NightStatus = StatusCurrent
+	default:
 		result.NightStatus = StatusExpired
 	}
 
 	// Summary message
-	if result.DayStatus == StatusCurrent && result.NightStatus == StatusCurrent {
+	switch {
+	case result.DayStatus != StatusCurrent:
+		needed := 3 - progress.Landings
+		result.Message = fmt.Sprintf("EASA %s — not current for passengers (need %d more landing%s in 90 days)", classType, needed, plural(needed))
+	case !hasNightPrivilege:
+		result.Message = fmt.Sprintf("EASA %s — passenger current for day (night not applicable for %s)", classType, license.LicenseType)
+	case hasValidIR:
+		result.Message = fmt.Sprintf("EASA %s — passenger current for day and night (night requirement waived under FCL.060(b)(2)(ii) — IR holder)", classType)
+	case result.NightStatus == StatusCurrent:
 		result.Message = fmt.Sprintf("EASA %s — passenger current (day and night)", classType)
-	} else if result.DayStatus == StatusCurrent {
-		result.Message = fmt.Sprintf("EASA %s — day passenger current, night not current", classType)
-	} else {
-		result.Message = fmt.Sprintf("EASA %s — not current for passengers (need %d more landing(s) in 90 days)", classType, 3-progress.Landings)
+	default:
+		result.Message = fmt.Sprintf("EASA %s — day passenger current, night not current (need 1 night landing in 90 days, or hold an IR)", classType)
 	}
 
 	return result
+}
+
+// hasValidIRRating returns true if the given list of class ratings contains a
+// current Instrument Rating — i.e. one with a non-nil expiry date that has not
+// yet passed. Ratings without an expiry date are treated as unknown/not current
+// because currency cannot be confirmed.
+func hasValidIRRating(ratings []*models.ClassRating) bool {
+	for _, r := range ratings {
+		if r == nil || r.ClassType != models.ClassTypeIR {
+			continue
+		}
+		if r.ExpiryDate == nil || r.IsExpired() {
+			continue
+		}
+		return true
+	}
+	return false
 }
