@@ -11,6 +11,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 )
@@ -229,35 +230,28 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 		arr := safeStrCSV(f.ArrivalICAO)
 		depTime := fmtTimeCSV(f.OffBlockTime)
 		arrTime := fmtTimeCSV(f.OnBlockTime)
-		picName := "SELF"
-		if f.PICName != nil && *f.PICName != "" {
-			picName = *f.PICName
-		}
+		picName := flightrules.DisplayPICName(f)
 
-		// SP-SE / SP-ME derived (simplified: if not multi-pilot, it's single-pilot)
+		// SP-SE / SP-ME / MP from the centralised rule. CSV does not have
+		// access to the user's aircraft fleet here, so acClass is empty;
+		// the rule then defaults non-MP rows to SP-SE (CSV's historical
+		// behaviour). PDF export passes a real acClass to split SP-ME.
+		spSEMin, spMEMin, mpMin := flightrules.RowTimes(f, "")
 		spSE, spME, mp := "", "", ""
-		if f.MultiPilotTime > 0 {
-			mp = fmtHM(f.MultiPilotTime)
-		} else {
-			// Default to SP-SE for single-engine (most common)
-			spSE = fmtHM(f.TotalTime)
+		if spSEMin > 0 {
+			spSE = fmtHM(spSEMin)
+		}
+		if spMEMin > 0 {
+			spME = fmtHM(spMEMin)
+		}
+		if mpMin > 0 {
+			mp = fmtHM(mpMin)
 		}
 
 		// FSTD columns
-		fstdDate, fstdType, fstdTime := "", "", ""
-		if f.FSTDType != nil && *f.FSTDType != "" && f.SimulatedFlightTime > 0 {
-			fstdDate = f.Date.Format("02.01.2006")
-			fstdType = *f.FSTDType
-			fstdTime = fmtHM(f.SimulatedFlightTime)
-		}
+		fstdDate, fstdType, fstdTime := flightrules.FSTDFields(f, "02.01.2006", fmtHM)
 
-		remarksAndEndorsements := safeStrCSV(f.Remarks)
-		if f.Endorsements != nil && *f.Endorsements != "" {
-			if remarksAndEndorsements != "" {
-				remarksAndEndorsements += " | "
-			}
-			remarksAndEndorsements += *f.Endorsements
-		}
+		remarksAndEndorsements := flightrules.CombinedRemarks(f)
 
 		row := []string{
 			f.Date.Format("02.01.2006"),
@@ -267,7 +261,7 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 			fmtHM(f.TotalTime),
 			picName,
 			fmt.Sprintf("%d", f.LandingsDay), fmt.Sprintf("%d", f.LandingsNight),
-			fmtHM(f.NightTime), fmtHM(f.IFRTime),
+			fmtHM(f.NightTime), fmtHM(flightrules.EffectiveIFRTime(f)),
 			fmtHM(f.PICTime), fmtHM(f.SICTime), fmtHM(f.DualTime), fmtHM(f.DualGivenTime),
 			fstdDate, fstdType, fstdTime,
 			remarksAndEndorsements,
@@ -293,19 +287,7 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 		dep := safeStrCSV(f.DepartureICAO)
 		arr := safeStrCSV(f.ArrivalICAO)
 
-		remarks := safeStrCSV(f.Remarks)
-		if f.Endorsements != nil && *f.Endorsements != "" {
-			if remarks != "" {
-				remarks += " | "
-			}
-			remarks += *f.Endorsements
-		}
-		if f.IsIPC {
-			remarks += " [IPC]"
-		}
-		if f.IsFlightReview {
-			remarks += " [FR]"
-		}
+		remarks := flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview)
 
 		row := []string{
 			f.Date.Format("01/02/2006"),

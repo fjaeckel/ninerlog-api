@@ -18,6 +18,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -964,68 +965,27 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		}
 	}
 
-	// Build crew members from person data
-	isTrainingFlight := instructorName != "" || dualReceivedVal > 0
-	isInstructorGiving := dualGivenVal > 0
-
+	// Build crew members from person data via the centralised legacy-crew
+	// inference helper. The importer is the only caller today, but any
+	// future re-importer of legacy spreadsheet formats MUST reuse this
+	// helper instead of re-deriving the role logic locally.
+	inferred := flightrules.InferLegacyCrew(flightrules.LegacyCrewInput{
+		Person1:         personNames["person1"],
+		Person2:         personNames["person2"],
+		Person3:         personNames["person3"],
+		Person4:         personNames["person4"],
+		Person5:         personNames["person5"],
+		Person6:         personNames["person6"],
+		InstructorName:  instructorName,
+		HasDualReceived: dualReceivedVal > 0,
+		HasDualGiven:    dualGivenVal > 0,
+	})
 	var crewMembers []generated.FlightCrewMemberInput
-
-	// Determine Person1 role
-	if name, ok := personNames["person1"]; ok {
-		role := generated.CrewRole("PIC") // default
-		if isTrainingFlight {
-			// Person1 is the instructor when it's a training flight
-			role = "Instructor"
-		} else if isInstructorGiving {
-			// Logged-in user is instructor giving training; Person1 is student
-			role = "Student"
-		}
-		// Avoid duplicate if InstructorName equals Person1
-		if isTrainingFlight && instructorName != "" && !strings.EqualFold(name, instructorName) {
-			// InstructorName is someone different from Person1 — add both
-			crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
-				Name: instructorName,
-				Role: "Instructor",
-			})
-			// Person1 gets a PIC or Passenger role
-			crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
-				Name: name,
-				Role: "PIC",
-			})
-		} else {
-			crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
-				Name: name,
-				Role: role,
-			})
-		}
-	} else if instructorName != "" {
-		// No Person1 but InstructorName is set — add instructor
+	for _, m := range inferred {
 		crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
-			Name: instructorName,
-			Role: "Instructor",
+			Name: m.Name,
+			Role: generated.CrewRole(m.Role),
 		})
-	}
-
-	// Person2: Student if training flight, otherwise Passenger
-	if name, ok := personNames["person2"]; ok {
-		role := generated.CrewRole("Passenger")
-		if isTrainingFlight {
-			role = "Student"
-		}
-		crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
-			Name: name,
-			Role: role,
-		})
-	}
-
-	// Person3-6: Passenger
-	for _, key := range []string{"person3", "person4", "person5", "person6"} {
-		if name, ok := personNames[key]; ok {
-			crewMembers = append(crewMembers, generated.FlightCrewMemberInput{
-				Name: name,
-				Role: "Passenger",
-			})
-		}
 	}
 
 	if len(crewMembers) > 0 {
@@ -1075,8 +1035,12 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		}
 	}
 
-	// ForeFlight: auto-calculate IFR time from actual + simulated instrument if not explicitly set
-	if flight.IfrTime == nil || *flight.IfrTime == 0 {
+	// ForeFlight: auto-calculate IFR time from actual + simulated instrument
+	// if not explicitly set. The same rule (flightrules.EffectiveIFRTime) is
+	// applied unconditionally in flightcalc.ApplyAutoCalculations at save
+	// time; this pre-derivation lets the validator and dedup logic see the
+	// derived value early.
+	if (flight.IfrTime == nil || *flight.IfrTime == 0) && (flight.ActualInstrumentTime != nil || flight.SimulatedInstrumentTime != nil) {
 		var ifrTotal int
 		if flight.ActualInstrumentTime != nil {
 			ifrTotal += *flight.ActualInstrumentTime
