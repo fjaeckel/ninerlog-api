@@ -65,6 +65,7 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 
 	// Fetch user preferences for formatting
 	prefs := exportPrefs{DateFormat: "DD.MM.YYYY", DecimalSeparator: "dot"}
+	userName := ""
 	if user, err := h.authService.GetUserByID(c.Request.Context(), userID); err == nil && user != nil {
 		if user.DateFormat != "" {
 			prefs.DateFormat = user.DateFormat
@@ -72,6 +73,7 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 		if user.DecimalSeparator != "" {
 			prefs.DecimalSeparator = user.DecimalSeparator
 		}
+		userName = user.Name
 	}
 
 	c.Header("Content-Type", "text/csv")
@@ -86,7 +88,7 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 
 	switch format {
 	case "easa":
-		writeEASACSV(w, flights, prefs)
+		writeEASACSV(w, flights, prefs, userName)
 	case "faa":
 		writeFAACSV(w, flights, prefs)
 	default:
@@ -209,7 +211,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 	}
 }
 
-func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
+func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, userName string) {
 	// EASA AMC1 FCL.050 columns (24 cols)
 	headers := []string{
 		"Date", "Dep Place", "Dep Time", "Arr Place", "Arr Time",
@@ -230,7 +232,7 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 		arr := safeStrCSV(f.ArrivalICAO)
 		depTime := fmtTimeCSV(f.OffBlockTime)
 		arrTime := fmtTimeCSV(f.OnBlockTime)
-		picName := flightrules.DisplayPICName(f)
+		picName := flightrules.DisplayPICName(f, userName)
 
 		// SP-SE / SP-ME / MP from the centralised rule. CSV does not have
 		// access to the user's aircraft fleet here, so acClass is empty;

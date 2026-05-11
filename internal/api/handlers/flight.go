@@ -292,11 +292,6 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.ApproachesCount = len(flight.Approaches)
 	}
 
-	// Auto-set PIC name via centralised rule.
-	if flight.PICName == nil {
-		flight.PICName = flightrules.ResolvePICNameForSave(&flight)
-	}
-
 	// Parse crew members
 	if req.CrewMembers != nil {
 		for _, cm := range *req.CrewMembers {
@@ -312,8 +307,16 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		}
 	}
 
+	userName := h.getUserNameFromContext(c)
+
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
-	flightcalc.ApplyAutoCalculations(&flight, h.getUserNameFromContext(c))
+	flightcalc.ApplyAutoCalculations(&flight, userName)
+
+	// Auto-set PIC name via centralised rule. Runs AFTER crew parsing and
+	// auto-calc so IsPIC/IsDual + CrewMembers are populated.
+	if flight.PICName == nil {
+		flight.PICName = flightrules.ResolvePICNameForSave(&flight, userName)
+	}
 
 	if err := h.flightService.CreateFlight(c.Request.Context(), &flight); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
@@ -514,10 +517,6 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 		flight.ApproachesCount = len(flight.Approaches)
 	}
-	// Auto-set PIC name if not explicitly provided.
-	if req.PicName == nil && flight.PICName == nil {
-		flight.PICName = flightrules.ResolvePICNameForSave(flight)
-	}
 	if req.CrewMembers != nil {
 		flight.CrewMembers = nil
 		for _, cm := range *req.CrewMembers {
@@ -556,8 +555,16 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.TotalTime = *req.TotalTime
 	}
 
+	userName := h.getUserNameFromContext(c)
+
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
-	flightcalc.ApplyAutoCalculations(flight, h.getUserNameFromContext(c))
+	flightcalc.ApplyAutoCalculations(flight, userName)
+
+	// Auto-set PIC name if not explicitly provided. Runs AFTER crew parsing
+	// and auto-calc so IsPIC/IsDual + CrewMembers are populated.
+	if req.PicName == nil && flight.PICName == nil {
+		flight.PICName = flightrules.ResolvePICNameForSave(flight, userName)
+	}
 
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Failed to update flight")

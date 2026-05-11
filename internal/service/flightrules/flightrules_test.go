@@ -45,22 +45,66 @@ func TestMatchesUser(t *testing.T) {
 
 func TestDisplayPICName(t *testing.T) {
 	s := func(v string) *string { return &v }
+	crewInstr := func(name string) []models.FlightCrewMember {
+		return []models.FlightCrewMember{{Name: name, Role: models.CrewRoleInstructor}}
+	}
 
 	cases := []struct {
-		name string
-		f    *models.Flight
-		want string
+		name     string
+		f        *models.Flight
+		userName string
+		want     string
 	}{
-		{"nil", nil, "SELF"},
-		{"empty", &models.Flight{}, "SELF"},
-		{"pic set", &models.Flight{PICName: s("CPT Doe")}, "CPT Doe"},
-		{"instructor only", &models.Flight{InstructorName: s("CFI Mueller")}, "CFI Mueller"},
-		{"pic blank, instructor set", &models.Flight{PICName: s("  "), InstructorName: s("CFI Mueller")}, "CFI Mueller"},
-		{"both set, pic wins", &models.Flight{PICName: s("CPT Doe"), InstructorName: s("CFI Mueller")}, "CPT Doe"},
+		{"nil", nil, "Amelia Earhart", "SELF"},
+		{"empty", &models.Flight{}, "Amelia Earhart", "SELF"},
+		{"pic set", &models.Flight{PICName: s("CPT Doe")}, "Amelia Earhart", "CPT Doe"},
+		{"instructor only", &models.Flight{InstructorName: s("CFI Mueller")}, "Amelia Earhart", "CFI Mueller"},
+		{"pic blank, instructor set", &models.Flight{PICName: s("  "), InstructorName: s("CFI Mueller")}, "Amelia Earhart", "CFI Mueller"},
+		{"both set, pic wins", &models.Flight{PICName: s("CPT Doe"), InstructorName: s("CFI Mueller")}, "Amelia Earhart", "CPT Doe"},
+		// Modern data shape: legacy InstructorName is nil, instructor only in CrewMembers.
+		{"crew instructor only", &models.Flight{CrewMembers: crewInstr("CFI Mueller")}, "Amelia Earhart", "CFI Mueller"},
+		{"crew instructor reversed name", &models.Flight{CrewMembers: crewInstr("Mueller, CFI")}, "Amelia Earhart", "Mueller, CFI"},
+		{"crew instructor is self → SELF", &models.Flight{CrewMembers: crewInstr("Earhart, Amelia")}, "Amelia Earhart", "SELF"},
+		{"crew instructor self + empty userName → falls through (treated as third party)", &models.Flight{CrewMembers: crewInstr("Amelia Earhart")}, "", "Amelia Earhart"},
+		{"pic set wins over crew", &models.Flight{PICName: s("CPT Doe"), CrewMembers: crewInstr("CFI Mueller")}, "Amelia Earhart", "CPT Doe"},
+		{"legacy instructor wins over crew", &models.Flight{InstructorName: s("Legacy Instructor"), CrewMembers: crewInstr("Crew Instructor")}, "Amelia Earhart", "Legacy Instructor"},
 	}
 	for _, tc := range cases {
-		if got := DisplayPICName(tc.f); got != tc.want {
+		if got := DisplayPICName(tc.f, tc.userName); got != tc.want {
 			t.Errorf("%s: DisplayPICName = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestResolvePICNameForSave_CrewFallback(t *testing.T) {
+	crewInstr := func(name string) []models.FlightCrewMember {
+		return []models.FlightCrewMember{{Name: name, Role: models.CrewRoleInstructor}}
+	}
+	s := func(v string) *string { return &v }
+
+	cases := []struct {
+		name     string
+		f        *models.Flight
+		userName string
+		want     *string
+	}{
+		{"explicit PICName wins", &models.Flight{PICName: s("CPT Doe"), IsDual: true, CrewMembers: crewInstr("CFI M")}, "Amelia Earhart", s("CPT Doe")},
+		{"PIC + not dual → Self", &models.Flight{IsPIC: true}, "Amelia Earhart", s("Self")},
+		{"Dual + legacy InstructorName", &models.Flight{IsDual: true, InstructorName: s("Legacy I")}, "Amelia Earhart", s("Legacy I")},
+		{"Dual + crew instructor (third party)", &models.Flight{IsDual: true, CrewMembers: crewInstr("CFI Mueller")}, "Amelia Earhart", s("CFI Mueller")},
+		{"Dual + crew instructor reversed", &models.Flight{IsDual: true, CrewMembers: crewInstr("Mueller, CFI")}, "Amelia Earhart", s("Mueller, CFI")},
+		{"Dual + crew instructor is self → nil (rendered as SELF)", &models.Flight{IsDual: true, CrewMembers: crewInstr("Earhart, Amelia")}, "Amelia Earhart", nil},
+		{"Dual + no instructor anywhere → nil", &models.Flight{IsDual: true}, "Amelia Earhart", nil},
+	}
+	for _, tc := range cases {
+		got := ResolvePICNameForSave(tc.f, tc.userName)
+		switch {
+		case got == nil && tc.want == nil:
+			// ok
+		case got == nil || tc.want == nil:
+			t.Errorf("%s: ResolvePICNameForSave = %v, want %v", tc.name, got, tc.want)
+		case *got != *tc.want:
+			t.Errorf("%s: ResolvePICNameForSave = %q, want %q", tc.name, *got, *tc.want)
 		}
 	}
 }

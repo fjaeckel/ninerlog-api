@@ -53,7 +53,7 @@ func TestGenerateSamplePDFs(t *testing.T) {
 		case "summary":
 			doc = generateSummaryPDF(flights, geom)
 		case "easa":
-			doc = renderEASA(flights, geom, map[string]string{})
+			doc = renderEASA(flights, geom, map[string]string{}, "")
 		}
 		if err := doc.Output(f); err != nil {
 			t.Fatal(err)
