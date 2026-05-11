@@ -91,6 +91,61 @@ func TestExportCSVFormats(t *testing.T) {
 	})
 }
 
+// TestExportEASACSV_DualFlightShowsInstructorAsPIC is a regression test for
+// the bug where Dual flights with the instructor recorded only in
+// `crewMembers` (not in the legacy `instructorName` column) exported as
+// "SELF" instead of the instructor's name in the EASA CSV "PIC Name" column.
+//
+// Reproduces the exact data shape the modern frontend writes:
+//   - no legacy instructorName field
+//   - Instructor lives in crewMembers
+//   - User is NOT the instructor
+//
+// The exported EASA CSV row MUST contain the instructor's name in the
+// PIC Name column and MUST NOT contain "SELF" for that row.
+func TestExportEASACSV_DualFlightShowsInstructorAsPIC(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("easa-pic"), "SecurePass123!", "Amelia Earhart")
+
+	// Dual flight: instructor only in crewMembers, no legacy instructorName.
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": today(), "aircraftReg": "D-EDUA", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+		"crewMembers": []map[string]interface{}{
+			{"name": "CFI Mueller", "role": "Instructor"},
+		},
+	}), http.StatusCreated)
+
+	resp := c.GET("/exports/csv?format=easa")
+	requireStatus(t, resp, http.StatusOK)
+	body := string(resp.Body)
+
+	// Find the data row (skip header) and check the PIC Name column.
+	lines := strings.Split(body, "\n")
+	if len(lines) < 2 {
+		t.Fatalf("EASA CSV has no data rows: %q", body)
+	}
+	header := lines[0]
+	dataRow := ""
+	for _, ln := range lines[1:] {
+		if strings.Contains(ln, "D-EDUA") {
+			dataRow = ln
+			break
+		}
+	}
+	if dataRow == "" {
+		t.Fatalf("could not find D-EDUA data row in EASA CSV.\nheader: %s\nbody:\n%s", header, body)
+	}
+
+	if !strings.Contains(dataRow, "CFI Mueller") {
+		t.Errorf("EASA CSV PIC Name column should contain 'CFI Mueller' (the crew Instructor) for a Dual flight where the legacy instructorName is empty.\nheader: %s\nrow:    %s", header, dataRow)
+	}
+	if strings.Contains(dataRow, "SELF") {
+		t.Errorf("EASA CSV PIC Name column shows 'SELF' for a Dual flight with crew Instructor — regression of the export-PIC-fallback bug.\nrow: %s", dataRow)
+	}
+}
+
 // TestExportPDFFormats verifies PDF export with EASA, FAA, and summary formats.
 func TestExportPDFFormats(t *testing.T) {
 	c := NewE2EClient(t)
