@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -15,6 +16,37 @@ import (
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 )
+
+// flightChronoTime returns a comparable HH:MM:SS string for sorting flights
+// within the same date. Prefers OffBlockTime (chocks-off) and falls back to
+// DepartureTime (takeoff). Returns "" when neither is set so such flights
+// sort before flights with a known time.
+func flightChronoTime(f *models.Flight) string {
+	if f.OffBlockTime != nil && *f.OffBlockTime != "" {
+		return *f.OffBlockTime
+	}
+	if f.DepartureTime != nil && *f.DepartureTime != "" {
+		return *f.DepartureTime
+	}
+	return ""
+}
+
+// sortFlightsChronological sorts flights ascending by Date, then by
+// off-block / departure time so that the first flight of a day appears
+// first in exports. Falls back to flight ID for a stable order.
+func sortFlightsChronological(flights []*models.Flight) {
+	sort.SliceStable(flights, func(i, j int) bool {
+		a, b := flights[i], flights[j]
+		if !a.Date.Equal(b.Date) {
+			return a.Date.Before(b.Date)
+		}
+		ta, tb := flightChronoTime(a), flightChronoTime(b)
+		if ta != tb {
+			return ta < tb
+		}
+		return a.ID.String() < b.ID.String()
+	})
+}
 
 // csvWrite writes a record to the CSV writer, logging errors.
 // csv.Writer buffers errors internally, so writes after a failure are no-ops.
@@ -65,6 +97,7 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 	// Populate crew members so DisplayPICName can resolve the instructor
 	// (PIC of record on Dual flights) from the flight_crew_members table.
 	h.attachCrewMembers(c.Request.Context(), flights)
+	sortFlightsChronological(flights)
 
 	// Fetch user preferences for formatting
 	prefs := exportPrefs{DateFormat: "DD.MM.YYYY", DecimalSeparator: "dot"}
@@ -356,6 +389,7 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 	// Gather all user data
 	flights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 	h.attachCrewMembers(c.Request.Context(), flights)
+	sortFlightsChronological(flights)
 	aircraft, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 	licenses, _ := h.licenseService.ListLicenses(c.Request.Context(), userID)
 	credentials, _ := h.credentialService.ListCredentials(c.Request.Context(), userID)
