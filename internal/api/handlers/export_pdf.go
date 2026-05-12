@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -182,9 +181,7 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		}
 	}
 
-	sort.Slice(flights, func(i, j int) bool {
-		return flights[i].Date.Before(flights[j].Date)
-	})
+	sortFlightsChronological(flights)
 
 	format := "easa"
 	if params.Format != nil {
