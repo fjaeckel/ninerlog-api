@@ -33,15 +33,25 @@ func InstructorNameFromCrew(f *models.Flight, userName string) string {
 	return ""
 }
 
+// isSelfPlaceholder reports whether s is the literal "Self"/"SELF" placeholder
+// (case-insensitive, ignoring surrounding whitespace). On a Dual flight this
+// value is wrong — the instructor is PIC of record — and any real instructor
+// info should override it.
+func isSelfPlaceholder(s string) bool {
+	return strings.EqualFold(strings.TrimSpace(s), "self")
+}
+
 // DisplayPICName returns the value to render in the "PIC Name" column of a
 // logbook row, applying the canonical fallback chain:
 //
-//  1. flight.PICName, if set
+//  1. flight.PICName, if set (but stale "Self" on a Dual flight is treated as
+//     unset so the instructor — who is PIC of record on a Dual — wins)
 //  2. flight.InstructorName, if set (legacy column; pre-crew-table flights)
 //  3. first non-self Instructor in flight.CrewMembers (modern data shape:
 //     the FE only writes the instructor into CrewMembers, leaving
 //     InstructorName nil — the instructor *is* PIC of record on a Dual)
-//  4. "SELF"
+//  4. original PICName if present (e.g. "Self" with no instructor available)
+//  5. "SELF"
 //
 // userName is the authenticated user's display name; pass "" if unknown.
 // All exporters (CSV, PDF, future formats) MUST use this helper instead of
@@ -50,7 +60,11 @@ func DisplayPICName(f *models.Flight, userName string) string {
 	if f == nil {
 		return "SELF"
 	}
-	if f.PICName != nil && strings.TrimSpace(*f.PICName) != "" {
+	picSet := f.PICName != nil && strings.TrimSpace(*f.PICName) != ""
+	// On a Dual flight, the PIC of record is the instructor — never the
+	// student. Treat a stale "Self" value as unset so the instructor wins.
+	staleSelfOnDual := picSet && f.IsDual && isSelfPlaceholder(*f.PICName)
+	if picSet && !staleSelfOnDual {
 		return *f.PICName
 	}
 	if f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
@@ -58,6 +72,11 @@ func DisplayPICName(f *models.Flight, userName string) string {
 	}
 	if n := InstructorNameFromCrew(f, userName); n != "" {
 		return n
+	}
+	if picSet {
+		// No instructor info available — fall back to the original value
+		// (typically "Self") rather than losing it entirely.
+		return *f.PICName
 	}
 	return "SELF"
 }
@@ -80,7 +99,11 @@ func ResolvePICNameForSave(f *models.Flight, userName string) *string {
 	if f == nil {
 		return nil
 	}
-	if f.PICName != nil && strings.TrimSpace(*f.PICName) != "" {
+	picSet := f.PICName != nil && strings.TrimSpace(*f.PICName) != ""
+	// Existing PICName wins — except a stale "Self" on a Dual flight, where
+	// the instructor is PIC of record and should override.
+	staleSelfOnDual := picSet && f.IsDual && isSelfPlaceholder(*f.PICName)
+	if picSet && !staleSelfOnDual {
 		return f.PICName
 	}
 	if f.IsPIC && !f.IsDual {
@@ -94,6 +117,12 @@ func ResolvePICNameForSave(f *models.Flight, userName string) *string {
 		if n := InstructorNameFromCrew(f, userName); n != "" {
 			return &n
 		}
+	}
+	if picSet {
+		// Stale "Self" on a Dual flight with no instructor info available:
+		// preserve the original rather than clearing (exporter will still
+		// render it; user can correct manually).
+		return f.PICName
 	}
 	return nil
 }
