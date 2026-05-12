@@ -562,7 +562,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	// Auto-set PIC name if not explicitly provided. Runs AFTER crew parsing
 	// and auto-calc so IsPIC/IsDual + CrewMembers are populated.
-	if req.PicName == nil && flight.PICName == nil {
+	// Note: this also canonicalises stale "Self" values on Dual flights
+	// (legacy data where the instructor should be PIC of record).
+	if req.PicName == nil {
 		flight.PICName = flightrules.ResolvePICNameForSave(flight, userName)
 	}
 

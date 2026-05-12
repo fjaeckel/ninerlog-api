@@ -68,6 +68,11 @@ func TestDisplayPICName(t *testing.T) {
 		{"crew instructor self + empty userName → falls through (treated as third party)", &models.Flight{CrewMembers: crewInstr("Amelia Earhart")}, "", "Amelia Earhart"},
 		{"pic set wins over crew", &models.Flight{PICName: s("CPT Doe"), CrewMembers: crewInstr("CFI Mueller")}, "Amelia Earhart", "CPT Doe"},
 		{"legacy instructor wins over crew", &models.Flight{InstructorName: s("Legacy Instructor"), CrewMembers: crewInstr("Crew Instructor")}, "Amelia Earhart", "Legacy Instructor"},
+		// Stale "Self" on Dual flights must NOT mask the actual instructor.
+		{"dual + stale Self + crew instructor → instructor", &models.Flight{PICName: s("Self"), IsDual: true, CrewMembers: crewInstr("CFI Mueller")}, "Amelia Earhart", "CFI Mueller"},
+		{"dual + stale SELF + legacy instructor → instructor", &models.Flight{PICName: s("SELF"), IsDual: true, InstructorName: s("Legacy I")}, "Amelia Earhart", "Legacy I"},
+		{"dual + stale Self + no instructor → keep Self", &models.Flight{PICName: s("Self"), IsDual: true}, "Amelia Earhart", "Self"},
+		{"non-dual + Self stays Self", &models.Flight{PICName: s("Self"), IsDual: false}, "Amelia Earhart", "Self"},
 	}
 	for _, tc := range cases {
 		if got := DisplayPICName(tc.f, tc.userName); got != tc.want {
@@ -95,6 +100,11 @@ func TestResolvePICNameForSave_CrewFallback(t *testing.T) {
 		{"Dual + crew instructor reversed", &models.Flight{IsDual: true, CrewMembers: crewInstr("Mueller, CFI")}, "Amelia Earhart", s("Mueller, CFI")},
 		{"Dual + crew instructor is self → nil (rendered as SELF)", &models.Flight{IsDual: true, CrewMembers: crewInstr("Earhart, Amelia")}, "Amelia Earhart", nil},
 		{"Dual + no instructor anywhere → nil", &models.Flight{IsDual: true}, "Amelia Earhart", nil},
+		// Stale "Self" on Dual must be replaced by the real instructor when known.
+		{"Dual + stale Self + crew instructor → instructor", &models.Flight{PICName: s("Self"), IsDual: true, CrewMembers: crewInstr("CFI Mueller")}, "Amelia Earhart", s("CFI Mueller")},
+		{"Dual + stale SELF + legacy instructor → instructor", &models.Flight{PICName: s("SELF"), IsDual: true, InstructorName: s("Legacy I")}, "Amelia Earhart", s("Legacy I")},
+		{"Dual + stale Self + no instructor → preserve Self", &models.Flight{PICName: s("Self"), IsDual: true}, "Amelia Earhart", s("Self")},
+		{"non-Dual + Self stays Self", &models.Flight{PICName: s("Self"), IsPIC: true}, "Amelia Earhart", s("Self")},
 	}
 	for _, tc := range cases {
 		got := ResolvePICNameForSave(tc.f, tc.userName)
