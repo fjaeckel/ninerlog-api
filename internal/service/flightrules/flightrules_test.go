@@ -213,3 +213,77 @@ func TestInferLegacyCrew(t *testing.T) {
 		t.Errorf("plain: %+v", got)
 	}
 }
+
+func TestInferLegacyCrew_ExplicitRoles(t *testing.T) {
+	// ForeFlight scenario: the instructor is the SECOND person, the first
+	// is the student. The role tags on the Person cells must win over the
+	// positional "Person1 = Instructor on training flight" rule.
+	got := InferLegacyCrew(LegacyCrewInput{
+		Person1:         "Stu Dent",
+		Person1Role:     "Student",
+		Person2:         "CFI Mueller",
+		Person2Role:     "Instructor",
+		HasDualReceived: true,
+	})
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2: %+v", len(got), got)
+	}
+	if got[0].Name != "Stu Dent" || got[0].Role != "Student" {
+		t.Errorf("Person1: %+v, want Stu Dent/Student", got[0])
+	}
+	if got[1].Name != "CFI Mueller" || got[1].Role != "Instructor" {
+		t.Errorf("Person2: %+v, want CFI Mueller/Instructor", got[1])
+	}
+
+	// Explicit Passenger tag on Person3 (the positional default), explicit
+	// SIC on Person2, explicit PIC on Person1 — all roles must round-trip.
+	got = InferLegacyCrew(LegacyCrewInput{
+		Person1:     "Captain",
+		Person1Role: "PIC",
+		Person2:     "First Officer",
+		Person2Role: "SIC",
+		Person3:     "Jumpseater",
+		Person3Role: "Observer",
+	})
+	if len(got) != 3 {
+		t.Fatalf("len = %d, want 3: %+v", len(got), got)
+	}
+	if got[0].Role != "PIC" || got[1].Role != "SIC" || got[2].Role != "Passenger" {
+		t.Errorf("roles = %s/%s/%s, want PIC/SIC/Passenger", got[0].Role, got[1].Role, got[2].Role)
+	}
+
+	// Unknown role tag falls back to positional inference (Person1 on a
+	// training flight → Instructor).
+	got = InferLegacyCrew(LegacyCrewInput{
+		Person1:         "CFI Mueller",
+		Person1Role:     "WeirdTag",
+		HasDualReceived: true,
+	})
+	if len(got) != 1 || got[0].Role != "Instructor" {
+		t.Errorf("unknown tag fallback: %+v", got)
+	}
+}
+
+func TestNormalizeLegacyRole(t *testing.T) {
+	cases := map[string]string{
+		"PIC":              "PIC",
+		"pic":              "PIC",
+		"  Instructor  ":   "Instructor",
+		"CFI":              "Instructor",
+		"student":          "Student",
+		"SIC":              "SIC",
+		"Passenger":        "Passenger",
+		"FlightAttendant":  "Passenger",
+		"Flight Attendant": "Passenger",
+		"Observer":         "Passenger",
+		"Engineer":         "Passenger",
+		"Other":            "Passenger",
+		"":                 "",
+		"NotARole":         "",
+	}
+	for in, want := range cases {
+		if got := NormalizeLegacyRole(in); got != want {
+			t.Errorf("NormalizeLegacyRole(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
