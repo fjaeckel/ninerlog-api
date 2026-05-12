@@ -1899,6 +1899,68 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /imports/json:
+    post:
+      tags: [Import]
+      summary: Restore a NinerLog JSON backup
+      description: |
+        Restore a previously exported NinerLog JSON backup into the authenticated
+        user's account. Recreates aircraft, licenses, class ratings, credentials,
+        flights and crew members from the backup. New UUIDs are assigned so the
+        backup can be restored into any NinerLog installation (including the one
+        it was exported from).
+
+        This is an additive operation — it does not modify or delete existing
+        data. Aircraft whose registration already exists for the user are
+        skipped (and the existing aircraft is referenced by imported flights).
+      operationId: importDataJSON
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A NinerLog JSON backup as produced by `GET /exports/json`
+              required: [format]
+              properties:
+                format:
+                  type: string
+                  example: NinerLog JSON Backup
+                version:
+                  type: string
+                exportedAt:
+                  type: string
+                  format: date-time
+                flights:
+                  type: array
+                  items:
+                    type: object
+                aircraft:
+                  type: array
+                  items:
+                    type: object
+                licenses:
+                  type: array
+                  items:
+                    type: object
+                credentials:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Restore summary with per-entity counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportJSONResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /exports/pdf:
     get:
       tags: [Export]
@@ -5178,6 +5240,42 @@ components:
           type: string
           format: date-time
           example: '2026-02-13T18:00:00Z'
+
+    ImportJSONResult:
+      type: object
+      description: Summary returned by `POST /imports/json` after restoring a backup.
+      required:
+        - aircraftImported
+        - aircraftSkipped
+        - licensesImported
+        - classRatingsImported
+        - credentialsImported
+        - flightsImported
+        - crewMembersImported
+      properties:
+        aircraftImported:
+          type: integer
+          description: Number of aircraft created from the backup
+          example: 3
+        aircraftSkipped:
+          type: integer
+          description: Aircraft skipped because the registration already exists for the user
+          example: 1
+        licensesImported:
+          type: integer
+          example: 2
+        classRatingsImported:
+          type: integer
+          example: 4
+        credentialsImported:
+          type: integer
+          example: 2
+        flightsImported:
+          type: integer
+          example: 27
+        crewMembersImported:
+          type: integer
+          example: 11
 
     PaginatedImports:
       type: object
