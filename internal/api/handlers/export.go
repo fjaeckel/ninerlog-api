@@ -62,6 +62,9 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
+	// Populate crew members so DisplayPICName can resolve the instructor
+	// (PIC of record on Dual flights) from the flight_crew_members table.
+	h.attachCrewMembers(c.Request.Context(), flights)
 
 	// Fetch user preferences for formatting
 	prefs := exportPrefs{DateFormat: "DD.MM.YYYY", DecimalSeparator: "dot"}
@@ -352,6 +355,7 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 
 	// Gather all user data
 	flights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
+	h.attachCrewMembers(c.Request.Context(), flights)
 	aircraft, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 	licenses, _ := h.licenseService.ListLicenses(c.Request.Context(), userID)
 	credentials, _ := h.credentialService.ListCredentials(c.Request.Context(), userID)
