@@ -34,9 +34,9 @@ func InstructorNameFromCrew(f *models.Flight, userName string) string {
 }
 
 // isSelfPlaceholder reports whether s is the literal "Self"/"SELF" placeholder
-// (case-insensitive, ignoring surrounding whitespace). On a Dual flight this
-// value is wrong — the instructor is PIC of record — and any real instructor
-// info should override it.
+// (case-insensitive, ignoring surrounding whitespace). When an actual
+// instructor is known for the flight, this value is wrong — the instructor is
+// PIC of record — and the instructor's name should override it.
 func isSelfPlaceholder(s string) bool {
 	return strings.EqualFold(strings.TrimSpace(s), "self")
 }
@@ -60,21 +60,29 @@ func DisplayPICName(f *models.Flight, userName string) string {
 	if f == nil {
 		return "SELF"
 	}
+	// Resolve any known instructor first — used both as the primary
+	// fallback when PICName is empty AND to override a stale "Self" value
+	// (the student is never PIC of record when an instructor is on board).
+	var instructor string
+	if f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
+		instructor = strings.TrimSpace(*f.InstructorName)
+	}
+	if instructor == "" {
+		instructor = InstructorNameFromCrew(f, userName)
+	}
+
 	picSet := f.PICName != nil && strings.TrimSpace(*f.PICName) != ""
-	// On a Dual flight, the PIC of record is the instructor — never the
-	// student. Treat a stale "Self" value as unset so the instructor wins.
-	staleSelfOnDual := picSet && f.IsDual && isSelfPlaceholder(*f.PICName)
-	if picSet && !staleSelfOnDual {
+	// Stale "Self" is overridden whenever an actual instructor is known,
+	// regardless of IsDual (legacy data can have mismatched flags).
+	staleSelf := picSet && isSelfPlaceholder(*f.PICName) && instructor != ""
+	if picSet && !staleSelf {
 		return *f.PICName
 	}
-	if f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
-		return *f.InstructorName
-	}
-	if n := InstructorNameFromCrew(f, userName); n != "" {
-		return n
+	if instructor != "" {
+		return instructor
 	}
 	if picSet {
-		// No instructor info available — fall back to the original value
+		// No instructor info available — preserve the original value
 		// (typically "Self") rather than losing it entirely.
 		return *f.PICName
 	}
@@ -100,28 +108,32 @@ func ResolvePICNameForSave(f *models.Flight, userName string) *string {
 		return nil
 	}
 	picSet := f.PICName != nil && strings.TrimSpace(*f.PICName) != ""
-	// Existing PICName wins — except a stale "Self" on a Dual flight, where
-	// the instructor is PIC of record and should override.
-	staleSelfOnDual := picSet && f.IsDual && isSelfPlaceholder(*f.PICName)
-	if picSet && !staleSelfOnDual {
+	// Resolve any known instructor first so a stale "Self" can be cleaned
+	// up regardless of the IsDual flag (legacy data may have mismatched
+	// flags).
+	var instructor *string
+	if f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
+		instructor = f.InstructorName
+	} else if n := InstructorNameFromCrew(f, userName); n != "" {
+		instructor = &n
+	}
+	// Existing PICName wins — except a stale "Self" when an actual
+	// instructor is known (instructor is PIC of record on a Dual).
+	staleSelf := picSet && isSelfPlaceholder(*f.PICName) && instructor != nil
+	if picSet && !staleSelf {
 		return f.PICName
+	}
+	if instructor != nil {
+		return instructor
 	}
 	if f.IsPIC && !f.IsDual {
 		s := "Self"
 		return &s
 	}
-	if f.IsDual && f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
-		return f.InstructorName
-	}
-	if f.IsDual {
-		if n := InstructorNameFromCrew(f, userName); n != "" {
-			return &n
-		}
-	}
 	if picSet {
-		// Stale "Self" on a Dual flight with no instructor info available:
-		// preserve the original rather than clearing (exporter will still
-		// render it; user can correct manually).
+		// Stale "Self" with no instructor info available: preserve the
+		// original rather than clearing (exporter will still render it;
+		// user can correct manually).
 		return f.PICName
 	}
 	return nil
