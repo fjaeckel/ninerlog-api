@@ -652,6 +652,103 @@ func TestMapRowToFlight_ForeFlightStructuredApproaches(t *testing.T) {
 	}
 }
 
+// TestMapRowToFlight_ForeFlightPersonRoleTags exercises the case where the
+// instructor on a training flight is recorded as Person2 (not Person1).
+// The role tags on the Person cells must win over the legacy positional
+// rule (which would otherwise label Person1 as the Instructor).
+func TestMapRowToFlight_ForeFlightPersonRoleTagsInstructorIsPerson2(t *testing.T) {
+	row := map[string]string{
+		"Date":                  "2024-05-01",
+		"AircraftID":            "D-ETRN",
+		"From":                  "EDDF",
+		"To":                    "EDDF",
+		"TimeOut":               "10:00",
+		"TimeIn":                "11:00",
+		"TotalTime":             "1.0",
+		"DayLandingsFullStop":   "1",
+		"NightLandingsFullStop": "0",
+		"DualReceived":          "1.0",
+		"Person1":               "Stu Dent;Student;stu@example.test",
+		"Person2":               "CFI Mueller;Instructor;cfi@example.test",
+		"FlightReview":          "FALSE",
+		"IPC":                   "FALSE",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+
+	if flight.CrewMembers == nil {
+		t.Fatal("CrewMembers should be populated")
+	}
+	roles := map[string]string{}
+	for _, cm := range *flight.CrewMembers {
+		roles[cm.Name] = string(cm.Role)
+	}
+	if roles["Stu Dent"] != "Student" {
+		t.Errorf("Stu Dent role = %q, want Student (from ForeFlight tag, not Person1=Instructor positional rule)", roles["Stu Dent"])
+	}
+	if roles["CFI Mueller"] != "Instructor" {
+		t.Errorf("CFI Mueller role = %q, want Instructor (from ForeFlight tag)", roles["CFI Mueller"])
+	}
+}
+
+// TestMapRowToFlight_ForeFlightPersonRoleTagsCrewSICObserver verifies that
+// PIC/SIC/Observer tags from a multi-crew ForeFlight export are preserved
+// rather than collapsed to the legacy positional default (Person2 →
+// Passenger, Person3 → Passenger).
+func TestMapRowToFlight_ForeFlightPersonRoleTagsCrewSICObserver(t *testing.T) {
+	row := map[string]string{
+		"Date":                  "2024-06-01",
+		"AircraftID":            "D-AMUL",
+		"From":                  "EDDF",
+		"To":                    "EGLL",
+		"TimeOut":               "10:00",
+		"TimeIn":                "12:00",
+		"TotalTime":             "2.0",
+		"DayLandingsFullStop":   "1",
+		"NightLandingsFullStop": "0",
+		"Person1":               "Captain Smith;PIC;",
+		"Person2":               "First Officer Jones;SIC;",
+		"Person3":               "Cadet Brown;Observer;",
+		"FlightReview":          "FALSE",
+		"IPC":                   "FALSE",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+
+	if flight.CrewMembers == nil {
+		t.Fatal("CrewMembers should be populated")
+	}
+	roles := map[string]string{}
+	for _, cm := range *flight.CrewMembers {
+		roles[cm.Name] = string(cm.Role)
+	}
+	if roles["Captain Smith"] != "PIC" {
+		t.Errorf("Captain Smith = %q, want PIC", roles["Captain Smith"])
+	}
+	if roles["First Officer Jones"] != "SIC" {
+		t.Errorf("First Officer Jones = %q, want SIC (was Passenger before the role-tag fix)", roles["First Officer Jones"])
+	}
+	if roles["Cadet Brown"] != "Passenger" {
+		t.Errorf("Cadet Brown = %q, want Passenger (Observer → Passenger)", roles["Cadet Brown"])
+	}
+}
+
 func TestParseForeFlightApproach(t *testing.T) {
 	cases := []struct {
 		name  string

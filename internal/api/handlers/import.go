@@ -866,6 +866,7 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 
 	// Collect person names from person1-6 fields
 	personNames := make(map[string]string) // "person1" → name
+	personRoles := make(map[string]string) // "person1" → role tag (ForeFlight only)
 	var instructorName string
 	var dualReceivedVal float64
 	var dualGivenVal float64
@@ -965,17 +966,17 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				dualGivenVal = f
 			}
 		case "person1":
-			personNames["person1"] = foreFlightPersonName(val)
+			personNames["person1"], personRoles["person1"] = foreFlightPersonNameRole(val)
 		case "person2":
-			personNames["person2"] = foreFlightPersonName(val)
+			personNames["person2"], personRoles["person2"] = foreFlightPersonNameRole(val)
 		case "person3":
-			personNames["person3"] = foreFlightPersonName(val)
+			personNames["person3"], personRoles["person3"] = foreFlightPersonNameRole(val)
 		case "person4":
-			personNames["person4"] = foreFlightPersonName(val)
+			personNames["person4"], personRoles["person4"] = foreFlightPersonNameRole(val)
 		case "person5":
-			personNames["person5"] = foreFlightPersonName(val)
+			personNames["person5"], personRoles["person5"] = foreFlightPersonNameRole(val)
 		case "person6":
-			personNames["person6"] = foreFlightPersonName(val)
+			personNames["person6"], personRoles["person6"] = foreFlightPersonNameRole(val)
 		}
 	}
 
@@ -990,6 +991,12 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		Person4:         personNames["person4"],
 		Person5:         personNames["person5"],
 		Person6:         personNames["person6"],
+		Person1Role:     personRoles["person1"],
+		Person2Role:     personRoles["person2"],
+		Person3Role:     personRoles["person3"],
+		Person4Role:     personRoles["person4"],
+		Person5Role:     personRoles["person5"],
+		Person6Role:     personRoles["person6"],
 		InstructorName:  instructorName,
 		HasDualReceived: dualReceivedVal > 0,
 		HasDualGiven:    dualGivenVal > 0,
@@ -1188,23 +1195,34 @@ func normalizeApproachType(s string) generated.ApproachType {
 	}
 }
 
-// foreFlightPersonName extracts just the name from a ForeFlight Person cell.
-// ForeFlight encodes crew metadata inside the cell as
+// foreFlightPersonNameRole extracts the name and (optional) role tag from
+// a ForeFlight Person cell. ForeFlight encodes crew metadata inside the
+// cell as
 //
 //	name;role;email
 //
-// (inner semicolons live inside a quoted CSV cell). The role is consumed
-// by InferLegacyCrew via DualReceived/DualGiven hints, so only the name is
-// returned here; the role and email portions are discarded.
-func foreFlightPersonName(s string) string {
+// (inner semicolons live inside a quoted CSV cell). The email is
+// discarded; the role tag — when present — is returned so callers can
+// honour it via flightrules.InferLegacyCrew instead of relying on
+// positional inference.
+func foreFlightPersonNameRole(s string) (name, role string) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return ""
+		return "", ""
 	}
-	if i := strings.IndexByte(s, ';'); i >= 0 {
-		return strings.TrimSpace(s[:i])
+	parts := strings.SplitN(s, ";", 3)
+	name = strings.TrimSpace(parts[0])
+	if len(parts) >= 2 {
+		role = strings.TrimSpace(parts[1])
 	}
-	return s
+	return name, role
+}
+
+// foreFlightPersonName is retained for callers that only need the name
+// portion of a ForeFlight Person cell.
+func foreFlightPersonName(s string) string {
+	name, _ := foreFlightPersonNameRole(s)
+	return name
 }
 
 func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *openapi_types.UUID {
