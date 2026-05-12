@@ -152,6 +152,9 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
+	// Populate crew members so DisplayPICName can resolve the instructor
+	// (PIC of record on Dual flights) from the flight_crew_members table.
+	h.attachCrewMembers(c.Request.Context(), flights)
 
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)

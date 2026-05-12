@@ -6,6 +6,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type FlightCrewRepository struct {
@@ -69,4 +70,33 @@ func (r *FlightCrewRepository) DeleteByFlightID(ctx context.Context, flightID uu
 	query := `DELETE FROM flight_crew_members WHERE flight_id = $1`
 	_, err := r.db.ExecContext(ctx, query, flightID)
 	return err
+}
+
+// GetByFlightIDs batch-loads crew members for multiple flights and returns
+// them grouped by flight ID. Used by exporters to avoid N+1 queries when
+// rendering many flights.
+func (r *FlightCrewRepository) GetByFlightIDs(ctx context.Context, flightIDs []uuid.UUID) (map[uuid.UUID][]models.FlightCrewMember, error) {
+	out := make(map[uuid.UUID][]models.FlightCrewMember, len(flightIDs))
+	if len(flightIDs) == 0 {
+		return out, nil
+	}
+	query := `
+		SELECT id, flight_id, contact_id, name, role
+		FROM flight_crew_members
+		WHERE flight_id = ANY($1)
+		ORDER BY flight_id, role, name
+	`
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(flightIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		m := models.FlightCrewMember{}
+		if err := rows.Scan(&m.ID, &m.FlightID, &m.ContactID, &m.Name, &m.Role); err != nil {
+			return nil, err
+		}
+		out[m.FlightID] = append(out[m.FlightID], m)
+	}
+	return out, rows.Err()
 }
