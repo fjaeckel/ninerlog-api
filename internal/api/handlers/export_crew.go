@@ -42,3 +42,10 @@ func (h *APIHandler) attachCrewMembers(ctx context.Context, flights []*models.Fl
 		}
 	}
 }
+
+// AttachCrewMembers is the exported wrapper used by the cloud-backup
+// JSON builder so it can reuse the same crew enrichment pathway as the
+// HTTP export handler.
+func (h *APIHandler) AttachCrewMembers(ctx context.Context, flights []*models.Flight) {
+	h.attachCrewMembers(ctx, flights)
+}
