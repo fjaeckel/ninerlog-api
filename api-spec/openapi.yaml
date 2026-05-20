@@ -2460,6 +2460,46 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /admin/users/{userId}:
+    delete:
+      tags:
+        - Admin
+      summary: Permanently delete a user account
+      description: |
+        Permanently delete a user account and ALL their content (flights, aircraft,
+        licenses, contacts, credentials, backups, notifications, etc.) via cascading
+        deletes. This action is irreversible. The deletion is recorded in the admin
+        audit log (with the target user reference set to NULL after the cascade).
+        An admin cannot delete their own account.
+      operationId: deleteUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User and all their content deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /admin/users/{userId}/disable:
     post:
       tags:
