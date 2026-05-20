@@ -772,6 +772,74 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /users/me/baseline:
+    get:
+      tags:
+        - Users
+      summary: Get the user's initial hours snapshot (baseline)
+      description: |
+        Returns the user's optional initial-hours snapshot. The snapshot represents
+        flying experience accumulated up to a chosen cutoff date and is added to
+        aggregated user-level statistics (`/users/me/statistics`) when the
+        requested date range covers the cutoff. Returns 404 when no snapshot exists.
+      operationId: getMyBaseline
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User's flight baseline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightBaseline'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Users
+      summary: Create or replace the user's initial hours snapshot
+      description: |
+        Upserts the authenticated user's initial-hours snapshot. All numeric fields
+        default to zero when omitted. The cutoff date marks the latest moment that
+        the baseline counts toward; logged flights on or after this date are added
+        on top of the baseline.
+      operationId: putMyBaseline
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightBaselineInput'
+      responses:
+        '200':
+          description: Baseline created or updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightBaseline'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags:
+        - Users
+      summary: Remove the user's initial hours snapshot
+      operationId: deleteMyBaseline
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Baseline removed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /users/me/statistics:
     get:
       tags:
@@ -3935,6 +4003,147 @@ components:
           type: integer
           example: 12000
           description: Total cross-country time in minutes
+        baseline:
+          allOf:
+            - $ref: '#/components/schemas/StatisticsBaselineContribution'
+          description: |
+            Present when an initial-hours snapshot was added to these totals.
+            Frontends can use it to display a "(includes initial snapshot)" hint
+            and break down logged vs. carried-forward time.
+
+    StatisticsBaselineContribution:
+      type: object
+      description: Portion of the statistics totals contributed by the user's initial-hours snapshot.
+      required:
+        - baselineDate
+        - totalFlights
+        - totalMinutes
+        - picMinutes
+        - dualMinutes
+        - nightMinutes
+        - ifrMinutes
+        - landingsDay
+        - landingsNight
+      properties:
+        baselineDate:
+          type: string
+          format: date
+        totalFlights:
+          type: integer
+        totalMinutes:
+          type: integer
+        picMinutes:
+          type: integer
+        sicMinutes:
+          type: integer
+        dualMinutes:
+          type: integer
+        dualGivenMinutes:
+          type: integer
+        multiPilotMinutes:
+          type: integer
+        nightMinutes:
+          type: integer
+        ifrMinutes:
+          type: integer
+        soloMinutes:
+          type: integer
+        crossCountryMinutes:
+          type: integer
+        landingsDay:
+          type: integer
+        landingsNight:
+          type: integer
+
+    FlightBaselineInput:
+      type: object
+      description: |
+        Initial-hours snapshot input. Allows a user to record their pre-existing
+        flying experience as a single carried-forward total without entering
+        every historical flight. All numeric fields default to 0 when omitted.
+      required:
+        - baselineDate
+      properties:
+        baselineDate:
+          type: string
+          format: date
+          description: Cutoff date the snapshot covers (inclusive).
+        totalFlights:
+          type: integer
+          minimum: 0
+          default: 0
+        totalMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Total block time in minutes
+        picMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+        sicMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+        dualMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Dual instruction received in minutes
+        dualGivenMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+        multiPilotMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+        nightMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+        ifrMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Total IFR / instrument time in minutes
+        soloMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+        crossCountryMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+        landingsDay:
+          type: integer
+          minimum: 0
+          default: 0
+        landingsNight:
+          type: integer
+          minimum: 0
+          default: 0
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
+          description: Optional free-form context (e.g. "From paper logbook 1998-2010").
+
+    FlightBaseline:
+      allOf:
+        - $ref: '#/components/schemas/FlightBaselineInput'
+        - type: object
+          required:
+            - createdAt
+            - updatedAt
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+            updatedAt:
+              type: string
+              format: date-time
+              readOnly: true
 
     Currency:
       type: object

@@ -12,7 +12,7 @@ import (
 // BenchmarkCreateFlight benchmarks flight creation through the service layer.
 func BenchmarkCreateFlight(b *testing.B) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -44,7 +44,7 @@ func BenchmarkCreateFlight(b *testing.B) {
 // BenchmarkListFlights benchmarks listing flights with a populated repository.
 func BenchmarkListFlights(b *testing.B) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -76,7 +76,7 @@ func BenchmarkListFlights(b *testing.B) {
 // BenchmarkGetFlight benchmarks getting a single flight by ID.
 func BenchmarkGetFlight(b *testing.B) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 

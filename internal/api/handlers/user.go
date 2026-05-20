@@ -114,7 +114,7 @@ func (h *APIHandler) GetMyStatistics(c *gin.Context, params generated.GetMyStati
 		endDate = &t
 	}
 
-	stats, err := h.flightService.GetStatsByUserID(c.Request.Context(), userID, startDate, endDate)
+	stats, baseline, err := h.flightService.GetStatsByUserID(c.Request.Context(), userID, startDate, endDate, true)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to calculate statistics")
 		return
@@ -131,6 +131,9 @@ func (h *APIHandler) GetMyStatistics(c *gin.Context, params generated.GetMyStati
 		CrossCountryMinutes: ptrInt(stats.CrossCountryMinutes),
 		LandingsDay:         stats.LandingsDay,
 		LandingsNight:       stats.LandingsNight,
+	}
+	if baseline != nil {
+		statistics.Baseline = baselineContribution(baseline)
 	}
 
 	c.JSON(http.StatusOK, statistics)

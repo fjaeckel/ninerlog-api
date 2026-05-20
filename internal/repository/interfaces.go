@@ -204,3 +204,18 @@ type WebAuthnSessionRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	DeleteExpired(ctx context.Context) error
 }
+
+// FlightBaselineRepository defines the interface for the per-user "initial
+// hours snapshot" data access.
+type FlightBaselineRepository interface {
+	// Get returns the baseline for the given user, or repository.ErrNotFound.
+	Get(ctx context.Context, userID uuid.UUID) (*models.FlightBaseline, error)
+
+	// Upsert inserts or updates the baseline for a user. The user_id field on
+	// the model must be set; created_at / updated_at are populated by the DB.
+	Upsert(ctx context.Context, baseline *models.FlightBaseline) error
+
+	// Delete removes the baseline for the given user. Returns ErrNotFound when
+	// no baseline existed.
+	Delete(ctx context.Context, userID uuid.UUID) error
+}
