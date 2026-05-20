@@ -118,11 +118,11 @@ func main() {
 	passwordResetRepo := postgres.NewPasswordResetTokenRepository(db)
 	licenseRepo := postgres.NewLicenseRepository(db)
 	flightRepo := postgres.NewFlightRepository(db)
-
+	flightBaselineRepo := postgres.NewFlightBaselineRepository(db)
 	// Initialize services
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
 	licenseService := service.NewLicenseService(licenseRepo)
-	flightService := service.NewFlightService(flightRepo)
+	flightService := service.NewFlightService(flightRepo, flightBaselineRepo)
 	credentialRepo := postgres.NewCredentialRepository(db)
 	credentialService := service.NewCredentialService(credentialRepo)
 	aircraftRepo := postgres.NewAircraftRepository(db)

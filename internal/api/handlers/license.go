@@ -266,8 +266,9 @@ func (h *APIHandler) GetLicenseStatistics(c *gin.Context, licenseId generated.Li
 		endDate = &t
 	}
 
-	// Get real statistics from database
-	stats, err := h.flightService.GetStatsByUserID(c.Request.Context(), userID, startDate, endDate)
+	// License-scoped statistics never include the user-level baseline snapshot
+	// (the baseline is not tied to a specific class rating).
+	stats, _, err := h.flightService.GetStatsByUserID(c.Request.Context(), userID, startDate, endDate, false)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to calculate statistics")
 		return

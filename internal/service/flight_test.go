@@ -117,7 +117,7 @@ func (m *mockFlightRepo) GetCurrencyData(ctx context.Context, userID uuid.UUID, 
 
 func TestCreateFlight(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	service := NewFlightService(flightRepo)
+	service := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
 	userID := uuid.New()
@@ -147,7 +147,7 @@ func TestCreateFlight(t *testing.T) {
 
 func TestCreateFlightInvalidTimeDistribution(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	service := NewFlightService(flightRepo)
+	service := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
 	userID := uuid.New()
@@ -173,7 +173,7 @@ func TestCreateFlightInvalidTimeDistribution(t *testing.T) {
 
 func TestUpdateFlight(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	service := NewFlightService(flightRepo)
+	service := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
 	userID := uuid.New()
@@ -211,7 +211,7 @@ func TestUpdateFlight(t *testing.T) {
 
 func TestDeleteFlight(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	service := NewFlightService(flightRepo)
+	service := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
 	userID := uuid.New()
@@ -244,7 +244,7 @@ func TestDeleteFlight(t *testing.T) {
 
 func TestGetFlight_Success(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -271,7 +271,7 @@ func TestGetFlight_Success(t *testing.T) {
 
 func TestGetFlight_NotFound(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
 	_, err := svc.GetFlight(ctx, uuid.New(), uuid.New())
@@ -282,7 +282,7 @@ func TestGetFlight_NotFound(t *testing.T) {
 
 func TestGetFlight_WrongUser(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	ownerID := uuid.New()
 	otherID := uuid.New()
@@ -307,7 +307,7 @@ func TestGetFlight_WrongUser(t *testing.T) {
 
 func TestListFlights(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -337,7 +337,7 @@ func TestListFlights(t *testing.T) {
 
 func TestListFlights_EmptyForOtherUser(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 	otherID := uuid.New()
@@ -365,7 +365,7 @@ func TestListFlights_EmptyForOtherUser(t *testing.T) {
 
 func TestUpdateFlight_NotFound(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
 	flight := &models.Flight{
@@ -388,7 +388,7 @@ func TestUpdateFlight_NotFound(t *testing.T) {
 
 func TestUpdateFlight_WrongUser(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	ownerID := uuid.New()
 	otherID := uuid.New()
@@ -415,7 +415,7 @@ func TestUpdateFlight_WrongUser(t *testing.T) {
 
 func TestDeleteFlight_NotFound(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
 	err := svc.DeleteFlight(ctx, uuid.New(), uuid.New())
@@ -426,7 +426,7 @@ func TestDeleteFlight_NotFound(t *testing.T) {
 
 func TestDeleteFlight_WrongUser(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	ownerID := uuid.New()
 	otherID := uuid.New()
@@ -451,7 +451,7 @@ func TestDeleteFlight_WrongUser(t *testing.T) {
 
 func TestDeleteAllFlights(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -485,7 +485,7 @@ func TestDeleteAllFlights(t *testing.T) {
 
 func TestCountFlights(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -514,7 +514,7 @@ func TestCountFlights(t *testing.T) {
 
 func TestGetStatsByUserID(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -532,7 +532,7 @@ func TestGetStatsByUserID(t *testing.T) {
 	}
 	_ = svc.CreateFlight(ctx, flight)
 
-	stats, err := svc.GetStatsByUserID(ctx, userID, nil, nil)
+	stats, _, err := svc.GetStatsByUserID(ctx, userID, nil, nil, false)
 	if err != nil {
 		t.Fatalf("GetStatsByUserID() error = %v", err)
 	}
@@ -549,7 +549,7 @@ func TestGetStatsByUserID(t *testing.T) {
 
 func TestGetCurrency_Current(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -586,7 +586,7 @@ func TestGetCurrency_Current(t *testing.T) {
 
 func TestGetCurrency_NotCurrent(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -617,7 +617,7 @@ func TestGetCurrency_NotCurrent(t *testing.T) {
 
 func TestCreateFlight_InvalidData(t *testing.T) {
 	flightRepo := newMockFlightRepo()
-	svc := NewFlightService(flightRepo)
+	svc := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
 	// Empty flight should fail validation

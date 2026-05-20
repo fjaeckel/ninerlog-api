@@ -17,12 +17,14 @@ var (
 )
 
 type FlightService struct {
-	flightRepo repository.FlightRepository
+	flightRepo   repository.FlightRepository
+	baselineRepo repository.FlightBaselineRepository
 }
 
-func NewFlightService(flightRepo repository.FlightRepository) *FlightService {
+func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repository.FlightBaselineRepository) *FlightService {
 	return &FlightService{
-		flightRepo: flightRepo,
+		flightRepo:   flightRepo,
+		baselineRepo: baselineRepo,
 	}
 }
 
@@ -135,9 +137,90 @@ func (s *FlightService) CountFlights(ctx context.Context, userID uuid.UUID, opts
 	return s.flightRepo.CountByUserID(ctx, userID, opts)
 }
 
-// GetStatsByUserID returns aggregated statistics for a user
-func (s *FlightService) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
-	return s.flightRepo.GetStatsByUserID(ctx, userID, startDate, endDate)
+// GetStatsByUserID returns aggregated statistics for a user. The optional
+// initial-hours snapshot (baseline) is added on top when:
+//   - the user has a baseline, AND
+//   - applyBaseline is true, AND
+//   - startDate is nil OR startDate <= baseline_date AND
+//     endDate is nil OR endDate >= baseline_date.
+//
+// When the baseline is applied, it is also returned so callers can surface a
+// breakdown to the client. baseline is nil otherwise.
+func (s *FlightService) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time, applyBaseline bool) (*models.FlightStatistics, *models.FlightBaseline, error) {
+	stats, err := s.flightRepo.GetStatsByUserID(ctx, userID, startDate, endDate)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !applyBaseline || s.baselineRepo == nil {
+		return stats, nil, nil
+	}
+
+	baseline, err := s.baselineRepo.Get(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return stats, nil, nil
+		}
+		return nil, nil, err
+	}
+
+	if !baselineCoversRange(baseline.BaselineDate, startDate, endDate) {
+		return stats, nil, nil
+	}
+
+	stats.TotalFlights += baseline.TotalFlights
+	stats.TotalMinutes += baseline.TotalMinutes
+	stats.PICMinutes += baseline.PICMinutes
+	stats.SICMinutes += baseline.SICMinutes
+	stats.DualMinutes += baseline.DualMinutes
+	stats.DualGivenMinutes += baseline.DualGivenMinutes
+	stats.NightMinutes += baseline.NightMinutes
+	stats.IFRMinutes += baseline.IFRMinutes
+	stats.SoloMinutes += baseline.SoloMinutes
+	stats.CrossCountryMinutes += baseline.CrossCountryMinutes
+	stats.LandingsDay += baseline.LandingsDay
+	stats.LandingsNight += baseline.LandingsNight
+
+	return stats, baseline, nil
+}
+
+// baselineCoversRange reports whether a baseline whose cutoff is `baselineDate`
+// should contribute to a statistics query bounded by [startDate, endDate].
+// The baseline conceptually represents flying done on or before its cutoff;
+// it is therefore excluded only when the requested window is fully after it.
+func baselineCoversRange(baselineDate time.Time, startDate, endDate *time.Time) bool {
+	if startDate != nil && startDate.After(baselineDate) {
+		return false
+	}
+	_ = endDate // endDate alone never excludes the baseline
+	return true
+}
+
+// GetBaseline returns the user's initial-hours snapshot, or repository.ErrNotFound.
+func (s *FlightService) GetBaseline(ctx context.Context, userID uuid.UUID) (*models.FlightBaseline, error) {
+	if s.baselineRepo == nil {
+		return nil, repository.ErrNotFound
+	}
+	return s.baselineRepo.Get(ctx, userID)
+}
+
+// UpsertBaseline validates and stores the user's initial-hours snapshot.
+func (s *FlightService) UpsertBaseline(ctx context.Context, baseline *models.FlightBaseline) error {
+	if s.baselineRepo == nil {
+		return errors.New("baseline repository not configured")
+	}
+	if err := baseline.Validate(); err != nil {
+		return err
+	}
+	return s.baselineRepo.Upsert(ctx, baseline)
+}
+
+// DeleteBaseline removes the user's initial-hours snapshot.
+func (s *FlightService) DeleteBaseline(ctx context.Context, userID uuid.UUID) error {
+	if s.baselineRepo == nil {
+		return repository.ErrNotFound
+	}
+	return s.baselineRepo.Delete(ctx, userID)
 }
 
 // CurrencyResult holds the calculated currency status
