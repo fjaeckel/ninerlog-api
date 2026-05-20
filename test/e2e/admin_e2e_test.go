@@ -90,6 +90,39 @@ func TestAdminEndpoints(t *testing.T) {
 		requireStatus(t, ac.GET("/admin/audit-log"), http.StatusOK)
 	})
 
+	t.Run("admin delete user removes account and content", func(t *testing.T) {
+		// Create a fresh target user.
+		dc := NewE2EClient(t)
+		de := uniqueEmail("admin-delete-target")
+		da := registerAndLogin(t, dc, de, "UserPass123!", "ToDelete")
+
+		// Self-delete must be rejected. Look up the admin's own ID via search.
+		ar := getAdminClient(t)
+		selfResp := ar.GET("/admin/users?search=admin@ninerlog-test.com")
+		requireStatus(t, selfResp, http.StatusOK)
+		var selfList struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		selfResp.JSON(&selfList)
+		if len(selfList.Data) > 0 {
+			assertStatus(t, ar.DELETE(fmt.Sprintf("/admin/users/%s", selfList.Data[0].ID)), http.StatusBadRequest)
+		}
+
+		// Delete the target user. Cascading FKs remove all owned content.
+		requireStatus(t, ar.DELETE(fmt.Sprintf("/admin/users/%s", da.User.ID)), http.StatusOK)
+
+		// Login should now fail (account no longer exists).
+		login := dc.POST("/auth/login", map[string]string{"email": de, "password": "UserPass123!"})
+		if login.StatusCode == http.StatusOK {
+			t.Errorf("Expected login to fail after delete, got %d", login.StatusCode)
+		}
+
+		// Second delete should 404.
+		assertStatus(t, ar.DELETE(fmt.Sprintf("/admin/users/%s", da.User.ID)), http.StatusNotFound)
+	})
+
 	t.Run("admin cleanup tokens", func(t *testing.T) {
 		requireStatus(t, ac.POST("/admin/maintenance/cleanup-tokens", nil), http.StatusOK)
 	})
@@ -113,6 +146,9 @@ func TestAdminAccessControl(t *testing.T) {
 	})
 	t.Run("non-admin disable 403", func(t *testing.T) {
 		assertStatus(t, c.POST("/admin/users/00000000-0000-0000-0000-000000000000/disable", nil), http.StatusForbidden)
+	})
+	t.Run("non-admin delete 403", func(t *testing.T) {
+		assertStatus(t, c.DELETE("/admin/users/00000000-0000-0000-0000-000000000000"), http.StatusForbidden)
 	})
 	t.Run("unauth admin 401", func(t *testing.T) {
 		c.ClearToken()
