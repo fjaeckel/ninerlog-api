@@ -1220,6 +1220,66 @@ type Flight struct {
 // FlightLaunchMethod Launch method for glider/SPL flights (winch, aerotow, or self-launch)
 type FlightLaunchMethod string
 
+// FlightBaseline defines model for FlightBaseline.
+type FlightBaseline struct {
+	// BaselineDate Cutoff date the snapshot covers (inclusive).
+	BaselineDate        openapi_types.Date `json:"baselineDate"`
+	CreatedAt           *time.Time         `json:"createdAt,omitempty"`
+	CrossCountryMinutes *int               `json:"crossCountryMinutes,omitempty"`
+	DualGivenMinutes    *int               `json:"dualGivenMinutes,omitempty"`
+
+	// DualMinutes Dual instruction received in minutes
+	DualMinutes *int `json:"dualMinutes,omitempty"`
+
+	// IfrMinutes Total IFR / instrument time in minutes
+	IfrMinutes        *int `json:"ifrMinutes,omitempty"`
+	LandingsDay       *int `json:"landingsDay,omitempty"`
+	LandingsNight     *int `json:"landingsNight,omitempty"`
+	MultiPilotMinutes *int `json:"multiPilotMinutes,omitempty"`
+	NightMinutes      *int `json:"nightMinutes,omitempty"`
+
+	// Notes Optional free-form context (e.g. "From paper logbook 1998-2010").
+	Notes        *string `json:"notes"`
+	PicMinutes   *int    `json:"picMinutes,omitempty"`
+	SicMinutes   *int    `json:"sicMinutes,omitempty"`
+	SoloMinutes  *int    `json:"soloMinutes,omitempty"`
+	TotalFlights *int    `json:"totalFlights,omitempty"`
+
+	// TotalMinutes Total block time in minutes
+	TotalMinutes *int       `json:"totalMinutes,omitempty"`
+	UpdatedAt    *time.Time `json:"updatedAt,omitempty"`
+}
+
+// FlightBaselineInput Initial-hours snapshot input. Allows a user to record their pre-existing
+// flying experience as a single carried-forward total without entering
+// every historical flight. All numeric fields default to 0 when omitted.
+type FlightBaselineInput struct {
+	// BaselineDate Cutoff date the snapshot covers (inclusive).
+	BaselineDate        openapi_types.Date `json:"baselineDate"`
+	CrossCountryMinutes *int               `json:"crossCountryMinutes,omitempty"`
+	DualGivenMinutes    *int               `json:"dualGivenMinutes,omitempty"`
+
+	// DualMinutes Dual instruction received in minutes
+	DualMinutes *int `json:"dualMinutes,omitempty"`
+
+	// IfrMinutes Total IFR / instrument time in minutes
+	IfrMinutes        *int `json:"ifrMinutes,omitempty"`
+	LandingsDay       *int `json:"landingsDay,omitempty"`
+	LandingsNight     *int `json:"landingsNight,omitempty"`
+	MultiPilotMinutes *int `json:"multiPilotMinutes,omitempty"`
+	NightMinutes      *int `json:"nightMinutes,omitempty"`
+
+	// Notes Optional free-form context (e.g. "From paper logbook 1998-2010").
+	Notes        *string `json:"notes"`
+	PicMinutes   *int    `json:"picMinutes,omitempty"`
+	SicMinutes   *int    `json:"sicMinutes,omitempty"`
+	SoloMinutes  *int    `json:"soloMinutes,omitempty"`
+	TotalFlights *int    `json:"totalFlights,omitempty"`
+
+	// TotalMinutes Total block time in minutes
+	TotalMinutes *int `json:"totalMinutes,omitempty"`
+}
+
 // FlightCreate defines model for FlightCreate.
 type FlightCreate struct {
 	ActualInstrumentTime *int   `json:"actualInstrumentTime,omitempty"`
@@ -1937,6 +1997,11 @@ type PassengerCurrencyNightStatus string
 
 // Statistics defines model for Statistics.
 type Statistics struct {
+	// Baseline Present when an initial-hours snapshot was added to these totals.
+	// Frontends can use it to display a "(includes initial snapshot)" hint
+	// and break down logged vs. carried-forward time.
+	Baseline *StatisticsBaselineContribution `json:"baseline,omitempty"`
+
 	// CrossCountryMinutes Total cross-country time in minutes
 	CrossCountryMinutes *int `json:"crossCountryMinutes,omitempty"`
 
@@ -1967,6 +2032,24 @@ type Statistics struct {
 
 	// TotalMinutes Total block time in minutes
 	TotalMinutes int `json:"totalMinutes"`
+}
+
+// StatisticsBaselineContribution Portion of the statistics totals contributed by the user's initial-hours snapshot.
+type StatisticsBaselineContribution struct {
+	BaselineDate        openapi_types.Date `json:"baselineDate"`
+	CrossCountryMinutes *int               `json:"crossCountryMinutes,omitempty"`
+	DualGivenMinutes    *int               `json:"dualGivenMinutes,omitempty"`
+	DualMinutes         int                `json:"dualMinutes"`
+	IfrMinutes          int                `json:"ifrMinutes"`
+	LandingsDay         int                `json:"landingsDay"`
+	LandingsNight       int                `json:"landingsNight"`
+	MultiPilotMinutes   *int               `json:"multiPilotMinutes,omitempty"`
+	NightMinutes        int                `json:"nightMinutes"`
+	PicMinutes          int                `json:"picMinutes"`
+	SicMinutes          *int               `json:"sicMinutes,omitempty"`
+	SoloMinutes         *int               `json:"soloMinutes,omitempty"`
+	TotalFlights        int                `json:"totalFlights"`
+	TotalMinutes        int                `json:"totalMinutes"`
 }
 
 // TwoFactorEnabled defines model for TwoFactorEnabled.
@@ -2513,6 +2596,9 @@ type DeleteCurrentUserJSONRequestBody DeleteCurrentUserJSONBody
 
 // UpdateCurrentUserJSONRequestBody defines body for UpdateCurrentUser for application/json ContentType.
 type UpdateCurrentUserJSONRequestBody UpdateCurrentUserJSONBody
+
+// PutMyBaselineJSONRequestBody defines body for PutMyBaseline for application/json ContentType.
+type PutMyBaselineJSONRequestBody = FlightBaselineInput
 
 // UpdateNotificationPreferencesJSONRequestBody defines body for UpdateNotificationPreferences for application/json ContentType.
 type UpdateNotificationPreferencesJSONRequestBody = NotificationPreferencesUpdate

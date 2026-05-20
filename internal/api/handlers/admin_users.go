@@ -260,3 +260,42 @@ func (h *APIHandler) ResetUser2fa(c *gin.Context, userId openapi_types.UUID) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "2FA reset for user"})
 }
+
+// DeleteUser implements DELETE /admin/users/{userId}
+// Permanently deletes a user and all of their content via FK ON DELETE CASCADE.
+func (h *APIHandler) DeleteUser(c *gin.Context, userId openapi_types.UUID) {
+	adminUserID, ok := h.requireAdmin(c)
+	if !ok {
+		return
+	}
+
+	targetID := uuid.UUID(userId)
+	if targetID == adminUserID {
+		h.sendError(c, http.StatusBadRequest, "Cannot delete your own account")
+		return
+	}
+
+	user, err := h.authService.GetUserByID(c.Request.Context(), targetID)
+	if err != nil {
+		h.sendError(c, http.StatusNotFound, "User not found")
+		return
+	}
+
+	// Log the action BEFORE deleting so the audit log captures the email in
+	// metadata. The audit row's target_user_id will be set to NULL by the FK
+	// cascade, which is the intended retention behaviour.
+	h.logAdminAction(c, adminUserID, "delete_user", &targetID,
+		fmt.Sprintf(`{"email":"%s","name":"%s"}`,
+			strings.ReplaceAll(user.Email, `"`, `\"`),
+			strings.ReplaceAll(user.Name, `"`, `\"`)))
+
+	// Cascading FKs handle removal of flights, aircraft, licenses, contacts,
+	// credentials, refresh tokens, backups, notifications, etc.
+	if _, err := h.db.ExecContext(c.Request.Context(),
+		"DELETE FROM users WHERE id = $1", targetID); err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to delete user")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User and all their content deleted"})
+}

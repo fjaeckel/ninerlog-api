@@ -41,6 +41,9 @@ type ServerInterface interface {
 	// List all users (privacy-preserving)
 	// (GET /admin/users)
 	ListAdminUsers(c *gin.Context, params ListAdminUsersParams)
+	// Permanently delete a user account
+	// (DELETE /admin/users/{userId})
+	DeleteUser(c *gin.Context, userId openapi_types.UUID)
 	// Disable a user account
 	// (POST /admin/users/{userId}/disable)
 	DisableUser(c *gin.Context, userId openapi_types.UUID)
@@ -293,6 +296,15 @@ type ServerInterface interface {
 	// Update current user profile
 	// (PATCH /users/me)
 	UpdateCurrentUser(c *gin.Context)
+	// Remove the user's initial hours snapshot
+	// (DELETE /users/me/baseline)
+	DeleteMyBaseline(c *gin.Context)
+	// Get the user's initial hours snapshot (baseline)
+	// (GET /users/me/baseline)
+	GetMyBaseline(c *gin.Context)
+	// Create or replace the user's initial hours snapshot
+	// (PUT /users/me/baseline)
+	PutMyBaseline(c *gin.Context)
 	// Delete all user data
 	// (DELETE /users/me/data)
 	DeleteAllUserData(c *gin.Context)
@@ -513,6 +525,32 @@ func (siw *ServerInterfaceWrapper) ListAdminUsers(c *gin.Context) {
 	}
 
 	siw.Handler.ListAdminUsers(c, params)
+}
+
+// DeleteUser operation middleware
+func (siw *ServerInterfaceWrapper) DeleteUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteUser(c, userId)
 }
 
 // DisableUser operation middleware
@@ -2455,6 +2493,51 @@ func (siw *ServerInterfaceWrapper) UpdateCurrentUser(c *gin.Context) {
 	siw.Handler.UpdateCurrentUser(c)
 }
 
+// DeleteMyBaseline operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMyBaseline(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteMyBaseline(c)
+}
+
+// GetMyBaseline operation middleware
+func (siw *ServerInterfaceWrapper) GetMyBaseline(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMyBaseline(c)
+}
+
+// PutMyBaseline operation middleware
+func (siw *ServerInterfaceWrapper) PutMyBaseline(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PutMyBaseline(c)
+}
+
 // DeleteAllUserData operation middleware
 func (siw *ServerInterfaceWrapper) DeleteAllUserData(c *gin.Context) {
 
@@ -2608,6 +2691,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/admin/maintenance/trigger-notifications", wrapper.TriggerNotifications)
 	router.GET(options.BaseURL+"/admin/stats", wrapper.GetAdminStats)
 	router.GET(options.BaseURL+"/admin/users", wrapper.ListAdminUsers)
+	router.DELETE(options.BaseURL+"/admin/users/:userId", wrapper.DeleteUser)
 	router.POST(options.BaseURL+"/admin/users/:userId/disable", wrapper.DisableUser)
 	router.POST(options.BaseURL+"/admin/users/:userId/enable", wrapper.EnableUser)
 	router.POST(options.BaseURL+"/admin/users/:userId/reset-2fa", wrapper.ResetUser2fa)
@@ -2692,6 +2776,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/users/me", wrapper.DeleteCurrentUser)
 	router.GET(options.BaseURL+"/users/me", wrapper.GetCurrentUser)
 	router.PATCH(options.BaseURL+"/users/me", wrapper.UpdateCurrentUser)
+	router.DELETE(options.BaseURL+"/users/me/baseline", wrapper.DeleteMyBaseline)
+	router.GET(options.BaseURL+"/users/me/baseline", wrapper.GetMyBaseline)
+	router.PUT(options.BaseURL+"/users/me/baseline", wrapper.PutMyBaseline)
 	router.DELETE(options.BaseURL+"/users/me/data", wrapper.DeleteAllUserData)
 	router.GET(options.BaseURL+"/users/me/notifications", wrapper.GetNotificationPreferences)
 	router.PATCH(options.BaseURL+"/users/me/notifications", wrapper.UpdateNotificationPreferences)

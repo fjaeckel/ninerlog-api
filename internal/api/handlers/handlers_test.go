@@ -328,7 +328,7 @@ func setupTestHandler() (*APIHandler, *mockUserRepo) {
 	credSvc := service.NewCredentialService(newMockCredentialRepo())
 	aircraftSvc := service.NewAircraftService(newMockAircraftRepo())
 	contactSvc := service.NewContactService(newMockContactRepo())
-	flightSvc := service.NewFlightService(newMockFlightRepo())
+	flightSvc := service.NewFlightService(newMockFlightRepo(), nil)
 
 	handler := &APIHandler{
 		authService:       authSvc,
