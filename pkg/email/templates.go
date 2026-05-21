@@ -45,6 +45,11 @@ type FlightReviewRequiredParams struct {
 	Message  string
 }
 
+type VerifyEmailParams struct {
+	UserName string
+	Link     string
+}
+
 // Templates returns the email template functions for the given locale.
 // Falls back to English if locale is not supported.
 func Templates(locale string) templateSet {
@@ -63,4 +68,5 @@ type templateSet struct {
 	PassengerCurrency    func(p PassengerCurrencyParams) (subject, body string)
 	FlightReviewExpiry   func(p FlightReviewExpiryParams) (subject, body string)
 	FlightReviewRequired func(p FlightReviewRequiredParams) (subject, body string)
+	VerifyEmail          func(p VerifyEmailParams) (subject, body string)
 }

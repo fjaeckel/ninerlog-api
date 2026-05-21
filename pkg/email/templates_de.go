@@ -65,4 +65,15 @@ var deTemplates = templateSet{
 <p>— NinerLog</p>`, p.UserName, p.Message)
 		return subject, body
 	},
+
+	VerifyEmail: func(p VerifyEmailParams) (string, string) {
+		subject := "NinerLog: E-Mail-Adresse bestätigen"
+		body := fmt.Sprintf(`<h2>Willkommen bei NinerLog</h2>
+<p>Hallo %s,</p>
+<p>Vielen Dank für Ihre Registrierung. Bitte bestätigen Sie Ihre E-Mail-Adresse, um Ihr Konto zu aktivieren:</p>
+<p><a href="%s">E-Mail-Adresse bestätigen</a></p>
+<p>Der Link ist 24 Stunden gültig. Wenn Sie kein NinerLog-Konto erstellt haben, können Sie diese E-Mail ignorieren.</p>
+<p>— NinerLog</p>`, p.UserName, p.Link)
+		return subject, body
+	},
 }
