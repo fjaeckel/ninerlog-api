@@ -11,17 +11,24 @@ import (
 func getAdminClient(t *testing.T) *E2EClient {
 	t.Helper()
 	ac := NewE2EClient(t)
+	const adminEmail = "admin@ninerlog-test.com"
+	const adminPw = "AdminPass123!"
 	// Try to register admin; if already exists, just login
 	resp := ac.POST("/auth/register", map[string]string{
-		"email": "admin@ninerlog-test.com", "password": "AdminPass123!", "name": "Admin",
+		"email": adminEmail, "password": adminPw, "name": "Admin",
 	})
 	if resp.StatusCode == http.StatusConflict {
-		auth := loginUser(t, ac, "admin@ninerlog-test.com", "AdminPass123!")
+		auth := loginUser(t, ac, adminEmail, adminPw)
 		ac.SetToken(auth.AccessToken)
 	} else {
 		requireStatus(t, resp, http.StatusCreated)
+		// Email verification is required before login: pull token from mailpit
+		// and exchange it for an auth response.
+		token := extractVerificationToken(t, adminEmail)
+		verifyResp := ac.POST("/auth/verify-email", map[string]string{"token": token})
+		requireStatus(t, verifyResp, http.StatusOK)
 		var auth AuthResponseBody
-		resp.JSON(&auth)
+		verifyResp.JSON(&auth)
 		ac.SetToken(auth.AccessToken)
 	}
 	return ac

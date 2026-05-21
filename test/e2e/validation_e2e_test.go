@@ -166,20 +166,14 @@ func TestPasswordValidation(t *testing.T) {
 	t.Run("special characters in password", func(t *testing.T) {
 		pw := `P@$$w0rd!#%^&*()_+-=[]{}|;':",.<>?`
 		email := uniqueEmail("specpw")
-		resp := c.POST("/auth/register", map[string]string{
-			"email": email, "password": pw, "name": "Test",
-		})
-		requireStatus(t, resp, http.StatusCreated)
+		registerUser(t, c, email, pw, "Test")
 		loginUser(t, c, email, pw)
 	})
 
 	t.Run("unicode password", func(t *testing.T) {
 		pw := "Pässwörd123!日本語"
 		email := uniqueEmail("unipw")
-		resp := c.POST("/auth/register", map[string]string{
-			"email": email, "password": pw, "name": "Test",
-		})
-		requireStatus(t, resp, http.StatusCreated)
+		registerUser(t, c, email, pw, "Test")
 		loginUser(t, c, email, pw)
 	})
 }
