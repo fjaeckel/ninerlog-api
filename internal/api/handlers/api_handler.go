@@ -9,6 +9,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
@@ -37,6 +38,7 @@ type APIHandler struct {
 	emailSender         *email.Sender
 	startedAt           time.Time
 	corsOrigins         []string
+	backupService       *cloudbackup.Service
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

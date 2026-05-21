@@ -205,6 +205,31 @@ type WebAuthnSessionRepository interface {
 	DeleteExpired(ctx context.Context) error
 }
 
+// BackupDestinationRepository persists per-user cloud backup destination
+// configurations (provider + encrypted credentials + schedule + status).
+type BackupDestinationRepository interface {
+	Create(ctx context.Context, dest *models.BackupDestination) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.BackupDestination, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.BackupDestination, error)
+	Update(ctx context.Context, dest *models.BackupDestination) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	// ListDueForRun returns enabled, active destinations whose schedule
+	// indicates they are due to run at the supplied wall-clock time.
+	ListDueForRun(ctx context.Context, now time.Time) ([]*models.BackupDestination, error)
+}
+
+// BackupRunRepository persists immutable audit records for each backup run
+// (one per attempt — success, skipped, or failed).
+type BackupRunRepository interface {
+	Create(ctx context.Context, run *models.BackupRun) error
+	Update(ctx context.Context, run *models.BackupRun) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.BackupRun, error)
+	// GetByDestinationID returns the requested page of runs newest-first
+	// along with the total row count.
+	GetByDestinationID(ctx context.Context, destinationID uuid.UUID, limit, offset int) ([]*models.BackupRun, int, error)
+	DeleteByDestinationID(ctx context.Context, destinationID uuid.UUID) error
+}
+
 // FlightBaselineRepository defines the interface for the per-user "initial
 // hours snapshot" data access.
 type FlightBaselineRepository interface {

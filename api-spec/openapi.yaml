@@ -55,6 +55,8 @@ tags:
     description: Reusable crew and contact management
   - name: Admin
     description: Admin-only platform management (requires ADMIN_EMAIL env var match)
+  - name: Backups
+    description: Cloud backup destinations and scheduled runs (S3 and S3-compatible storage)
 
 paths:
   /auth/register:
@@ -2927,6 +2929,252 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ---------------- Cloud Backups -----------------------------------------
+  /backups/providers:
+    get:
+      tags:
+        - Backups
+      summary: List available backup providers
+      description: Returns the static catalog of cloud backup providers and their configuration/credential field schemas.
+      operationId: listBackupProviders
+      responses:
+        '200':
+          description: Provider catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BackupProvider'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: Cloud backups are not configured on this server
+
+  /backups/destinations:
+    get:
+      tags:
+        - Backups
+      summary: List the user's backup destinations
+      operationId: listBackupDestinations
+      responses:
+        '200':
+          description: Destination list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BackupDestination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: Cloud backups are not configured on this server
+    post:
+      tags:
+        - Backups
+      summary: Create a backup destination
+      operationId: createBackupDestination
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackupDestinationCreate'
+      responses:
+        '201':
+          description: Destination created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupDestination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: Cloud backups are not configured on this server
+
+  /backups/destinations/{destinationId}:
+    get:
+      tags:
+        - Backups
+      summary: Get a backup destination
+      operationId: getBackupDestination
+      parameters:
+        - $ref: '#/components/parameters/BackupDestinationId'
+      responses:
+        '200':
+          description: Destination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupDestination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Backups
+      summary: Update a backup destination
+      description: Partial update — only supplied fields are modified. Credentials cannot be rotated via this endpoint; delete and recreate the destination to change credentials.
+      operationId: updateBackupDestination
+      parameters:
+        - $ref: '#/components/parameters/BackupDestinationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackupDestinationUpdate'
+      responses:
+        '200':
+          description: Destination updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupDestination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Backups
+      summary: Delete a backup destination
+      description: Deletes the destination and its run history. Does NOT delete objects already uploaded to the remote bucket.
+      operationId: deleteBackupDestination
+      parameters:
+        - $ref: '#/components/parameters/BackupDestinationId'
+      responses:
+        '204':
+          description: Destination deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /backups/destinations/{destinationId}/test:
+    post:
+      tags:
+        - Backups
+      summary: Test a backup destination's connectivity
+      description: Re-runs the provider validation (auth + bucket access) without performing a backup.
+      operationId: testBackupDestination
+      parameters:
+        - $ref: '#/components/parameters/BackupDestinationId'
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupTestResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /backups/destinations/{destinationId}/run:
+    post:
+      tags:
+        - Backups
+      summary: Trigger an immediate backup run
+      description: Runs a backup synchronously and returns the resulting BackupRun audit record. Concurrent runs against the same destination are rejected with 409.
+      operationId: runBackupNow
+      parameters:
+        - $ref: '#/components/parameters/BackupDestinationId'
+      responses:
+        '202':
+          description: Run started (or completed; the body reflects the final state)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Another run is already in progress for this destination
+
+  /backups/destinations/{destinationId}/runs:
+    get:
+      tags:
+        - Backups
+      summary: List backup runs for a destination
+      operationId: listBackupRuns
+      parameters:
+        - $ref: '#/components/parameters/BackupDestinationId'
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated run history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBackupRuns'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /backups/runs/{runId}:
+    get:
+      tags:
+        - Backups
+      summary: Get a single backup run by ID
+      operationId: getBackupRun
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2945,6 +3193,15 @@ components:
         type: string
         format: uuid
         example: 550e8400-e29b-41d4-a716-446655440000
+
+    BackupDestinationId:
+      name: destinationId
+      in: path
+      required: true
+      description: Backup destination UUID
+      schema:
+        type: string
+        format: uuid
 
     AircraftId:
       name: aircraftId
@@ -5790,6 +6047,305 @@ components:
             - pageSize
             - total
             - totalPages
+          properties:
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+
+    # ---------------- Cloud Backups -----------------------------------------
+    BackupDestinationId:
+      type: string
+      format: uuid
+      description: Backup destination UUID
+
+    BackupSchedule:
+      type: string
+      enum: [manual, daily, weekly, monthly]
+      description: Cadence at which scheduled runs fire (UTC). 'manual' disables scheduling.
+
+    BackupStatus:
+      type: string
+      enum: [active, paused, error]
+      description: Operational status of a destination. 'error' is set automatically after 3 consecutive run failures.
+
+    BackupRunStatus:
+      type: string
+      enum: [success, failed, skipped]
+
+    BackupRunTrigger:
+      type: string
+      enum: [scheduled, manual]
+
+    BackupFieldType:
+      type: string
+      enum: [string, password, region, url]
+      description: Hint for rendering provider config/credential form fields.
+
+    BackupField:
+      type: object
+      required: [name, label, type, required]
+      properties:
+        name:
+          type: string
+          description: Stable field key sent back as part of the config or credentials map.
+        label:
+          type: string
+          description: Human-readable label.
+        type:
+          $ref: '#/components/schemas/BackupFieldType'
+        required:
+          type: boolean
+        description:
+          type: string
+        placeholder:
+          type: string
+
+    BackupFieldSchema:
+      type: object
+      required: [fields]
+      properties:
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/BackupField'
+
+    BackupProvider:
+      type: object
+      required: [name, displayName, configSchema, credentialSchema]
+      properties:
+        name:
+          type: string
+          example: s3
+        displayName:
+          type: string
+          example: Amazon S3 (and compatible)
+        description:
+          type: string
+        configSchema:
+          $ref: '#/components/schemas/BackupFieldSchema'
+        credentialSchema:
+          $ref: '#/components/schemas/BackupFieldSchema'
+
+    BackupDestination:
+      type: object
+      required:
+        - id
+        - userId
+        - provider
+        - displayName
+        - config
+        - schedule
+        - retentionCount
+        - status
+        - enabled
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          example: s3
+        displayName:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+          description: Provider-specific non-secret configuration (e.g. bucket, region, prefix).
+        credentialHint:
+          type: string
+          description: Non-sensitive hint about the stored credential (e.g. last 4 of access key).
+        schedule:
+          $ref: '#/components/schemas/BackupSchedule'
+        scheduleHourUtc:
+          type: integer
+          minimum: 0
+          maximum: 23
+        scheduleDayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0=Sunday, 6=Saturday. Required when schedule=weekly.
+        scheduleDayOfMonth:
+          type: integer
+          minimum: 1
+          maximum: 28
+          description: Day of month for monthly schedule. Capped at 28 to avoid month-end edge cases.
+        retentionCount:
+          type: integer
+          minimum: 0
+          description: Number of historical backups to retain. 0 means keep all.
+        status:
+          $ref: '#/components/schemas/BackupStatus'
+        lastError:
+          type: string
+        enabled:
+          type: boolean
+        consecutiveFailures:
+          type: integer
+        lastRunAt:
+          type: string
+          format: date-time
+        lastSuccessAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    BackupDestinationCreate:
+      type: object
+      required:
+        - provider
+        - displayName
+        - config
+        - credentials
+        - schedule
+      properties:
+        provider:
+          type: string
+          example: s3
+        displayName:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+        credentials:
+          type: object
+          additionalProperties: true
+          description: Secret fields. Stored encrypted at rest (AES-256-GCM) and never returned in any response.
+        schedule:
+          $ref: '#/components/schemas/BackupSchedule'
+        scheduleHourUtc:
+          type: integer
+          minimum: 0
+          maximum: 23
+        scheduleDayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+        scheduleDayOfMonth:
+          type: integer
+          minimum: 1
+          maximum: 28
+        retentionCount:
+          type: integer
+          minimum: 0
+          default: 30
+        enabled:
+          type: boolean
+          default: true
+
+    BackupDestinationUpdate:
+      type: object
+      description: Partial update — only supplied fields are modified.
+      properties:
+        displayName:
+          type: string
+        schedule:
+          $ref: '#/components/schemas/BackupSchedule'
+        scheduleHourUtc:
+          type: integer
+          minimum: 0
+          maximum: 23
+        scheduleDayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+        scheduleDayOfMonth:
+          type: integer
+          minimum: 1
+          maximum: 28
+        retentionCount:
+          type: integer
+          minimum: 0
+        enabled:
+          type: boolean
+
+    BackupTestResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    BackupRun:
+      type: object
+      required:
+        - id
+        - destinationId
+        - userId
+        - status
+        - startedAt
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        destinationId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/BackupRunStatus'
+        trigger:
+          $ref: '#/components/schemas/BackupRunTrigger'
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: integer
+        sizeBytes:
+          type: integer
+          format: int64
+        sha256:
+          type: string
+        flightCount:
+          type: integer
+        aircraftCount:
+          type: integer
+        licenseCount:
+          type: integer
+        credentialCount:
+          type: integer
+        remotePath:
+          type: string
+        errorMessage:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PaginatedBackupRuns:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BackupRun'
+        pagination:
+          type: object
+          required: [page, pageSize, total, totalPages]
           properties:
             page:
               type: integer

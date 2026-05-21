@@ -19,7 +19,11 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/middleware"
 	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider"
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/s3"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
+	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-contrib/cors"
@@ -189,6 +193,42 @@ func main() {
 	apiHandler.SetStartedAt(startedAt)
 	apiHandler.SetCORSOrigins(corsOrigins)
 
+	// Cloud backup service (optional — enabled only when BACKUP_CREDENTIALS_KEY is set).
+	var backupScheduler *cloudbackup.Scheduler
+	if backupKey := os.Getenv("BACKUP_CREDENTIALS_KEY"); backupKey != "" {
+		aead, err := cryptoutil.NewFromBase64(backupKey)
+		if err != nil {
+			log.Fatalf("Invalid BACKUP_CREDENTIALS_KEY: %v", err)
+		}
+		backupDestRepo := postgres.NewBackupDestinationRepository(db)
+		backupRunRepo := postgres.NewBackupRunRepository(db)
+		registry := provider.NewRegistry()
+		registry.Register(s3.New())
+		builder := &cloudbackup.DefaultJSONBuilder{
+			Flights:     flightService,
+			Aircraft:    aircraftService,
+			Licenses:    licenseService,
+			Credentials: credentialService,
+			ClassRating: classRatingService,
+			AttachCrew:  apiHandler.AttachCrewMembers,
+		}
+		backupSvc, err := cloudbackup.New(cloudbackup.Options{
+			DestinationRepo: backupDestRepo,
+			RunRepo:         backupRunRepo,
+			Registry:        registry,
+			Crypto:          aead,
+			Builder:         builder,
+		})
+		if err != nil {
+			log.Fatalf("Failed to initialize cloud backup service: %v", err)
+		}
+		apiHandler.SetBackupService(backupSvc)
+		backupScheduler = cloudbackup.NewScheduler(backupSvc, 0, nil)
+		log.Println("✅ Cloud backups enabled (S3 provider)")
+	} else {
+		log.Println("ℹ️  Cloud backups disabled (set BACKUP_CREDENTIALS_KEY to enable)")
+	}
+
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New() // Use gin.New() instead of gin.Default() for custom recovery
@@ -350,6 +390,12 @@ func main() {
 	defer notifCancel()
 	notificationService.StartBackgroundChecker(notifCtx, service.GetCheckInterval())
 
+	// Start cloud-backup scheduler if configured
+	if backupScheduler != nil {
+		backupScheduler.Start(notifCtx)
+		log.Println("✅ Cloud backup scheduler started")
+	}
+
 	// Start server with timeouts to prevent slow-loris and resource exhaustion
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%s", port),
@@ -374,6 +420,9 @@ func main() {
 	<-quit
 
 	log.Println("🛑 Shutting down...")
+	if backupScheduler != nil {
+		backupScheduler.Stop()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
