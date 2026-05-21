@@ -157,6 +157,7 @@ func (h *APIHandler) isAdminUser(email string) bool {
 // buildUserResponse creates a generated.User from a models.User, including isAdmin
 func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 	twoFA := user.TwoFactorEnabled
+	emailVerified := user.EmailVerified
 	isAdmin := h.isAdminUser(user.Email)
 	tdf := generated.UserTimeDisplayFormat(user.TimeDisplayFormat)
 	locale := generated.UserPreferredLocale(user.PreferredLocale)
@@ -166,6 +167,7 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 		Id:                openapi_types.UUID(user.ID),
 		Email:             openapi_types.Email(user.Email),
 		Name:              user.Name,
+		EmailVerified:     &emailVerified,
 		TwoFactorEnabled:  &twoFA,
 		IsAdmin:           &isAdmin,
 		TimeDisplayFormat: &tdf,

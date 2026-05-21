@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -147,9 +148,31 @@ func registerUser(t *testing.T, c *E2EClient, email, password, name string) Auth
 	t.Helper()
 	resp := c.POST("/auth/register", map[string]string{"email": email, "password": password, "name": name})
 	requireStatus(t, resp, http.StatusCreated)
+
+	// Email verification is now required: pull the verification token from
+	// the e2e SMTP server (mailpit) and exchange it for an AuthResponse.
+	token := extractVerificationToken(t, email)
+	verifyResp := c.POST("/auth/verify-email", map[string]string{"token": token})
+	requireStatus(t, verifyResp, http.StatusOK)
 	var auth AuthResponseBody
-	resp.JSON(&auth)
+	verifyResp.JSON(&auth)
 	return auth
+}
+
+// extractVerificationToken polls mailpit for the verification email sent to
+// `email` and returns the token query parameter from the verification link.
+func extractVerificationToken(t *testing.T, email string) string {
+	t.Helper()
+	msg := mailpitRequireEmail(t, email, "Confirm your email")
+	re := regexp.MustCompile(`token=([A-Za-z0-9_\-=]+)`)
+	matches := re.FindStringSubmatch(msg.HTML)
+	if len(matches) < 2 {
+		matches = re.FindStringSubmatch(msg.Text)
+	}
+	if len(matches) < 2 {
+		t.Fatalf("Could not extract verification token from email body")
+	}
+	return matches[1]
 }
 
 func loginUser(t *testing.T, c *E2EClient, email, password string) AuthResponseBody {

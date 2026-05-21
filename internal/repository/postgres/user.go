@@ -22,8 +22,8 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, name, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO users (id, email, password_hash, name, email_verified, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
 	user.ID = uuid.New()
@@ -32,6 +32,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 		user.Email,
 		user.PasswordHash,
 		user.Name,
+		user.EmailVerified,
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
@@ -50,7 +51,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes,
+		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
 		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, created_at, updated_at
 		FROM users
 		WHERE email = $1
@@ -62,6 +63,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.Email,
 		&user.PasswordHash,
 		&user.Name,
+		&user.EmailVerified,
 		&user.TwoFactorEnabled,
 		&user.TwoFactorSecret,
 		&user.RecoveryCodes,
@@ -89,7 +91,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT id, email, password_hash, name, two_factor_enabled, two_factor_secret, recovery_codes,
+		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
 		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, created_at, updated_at
 		FROM users
 		WHERE id = $1
@@ -101,6 +103,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.Email,
 		&user.PasswordHash,
 		&user.Name,
+		&user.EmailVerified,
 		&user.TwoFactorEnabled,
 		&user.TwoFactorSecret,
 		&user.RecoveryCodes,
@@ -219,4 +222,24 @@ func (r *UserRepository) LockAccount(ctx context.Context, id uuid.UUID, until ti
 	`
 	_, err := r.db.ExecContext(ctx, query, until, time.Now(), id)
 	return err
+}
+
+func (r *UserRepository) MarkEmailVerified(ctx context.Context, id uuid.UUID) error {
+	query := `
+		UPDATE users
+		SET email_verified = TRUE, updated_at = $1
+		WHERE id = $2
+	`
+	result, err := r.db.ExecContext(ctx, query, time.Now(), id)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
 }

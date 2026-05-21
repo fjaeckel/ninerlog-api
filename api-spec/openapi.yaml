@@ -64,7 +64,11 @@ paths:
       tags:
         - Authentication
       summary: Register a new user
-      description: Create a new user account with email and password
+      description: |
+        Create a new user account with email and password. A verification email is sent
+        to the provided address — the user must click the link in that email to confirm
+        their address before they can log in. No authentication tokens are returned
+        from this endpoint.
       operationId: registerUser
       security: []
       requestBody:
@@ -95,11 +99,11 @@ paths:
                   example: John Doe
       responses:
         '201':
-          description: User created successfully
+          description: User created — verification email sent
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                $ref: '#/components/schemas/RegistrationResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -108,6 +112,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /auth/verify-email:
+    post:
+      tags:
+        - Authentication
+      summary: Verify email address
+      description: |
+        Consume an email-verification token (delivered via the registration email)
+        and mark the user's address as verified. On success, returns a full
+        `AuthResponse` so the frontend can log the user in immediately.
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Verification token from the email link
+      responses:
+        '200':
+          description: Email verified — user is now logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid, expired, or already-used token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/verify-email/resend:
+    post:
+      tags:
+        - Authentication
+      summary: Resend the email-verification message
+      description: |
+        Request a fresh verification email. Always returns 204 regardless of whether
+        the email exists or is already verified, to prevent user enumeration.
+      operationId: resendVerificationEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: pilot@example.com
+      responses:
+        '204':
+          description: Verification email sent (if account exists and is not yet verified)
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /auth/login:
     post:
@@ -144,6 +214,14 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: |
+            Account cannot be used. The error `code` distinguishes the reason:
+            `email_not_verified` (email confirmation pending) or `account_disabled`.
           content:
             application/json:
               schema:
@@ -3276,6 +3354,10 @@ components:
           type: boolean
           example: false
           description: Whether 2FA is enabled for this account
+        emailVerified:
+          type: boolean
+          example: true
+          description: Whether the user has confirmed their email address.
         isAdmin:
           type: boolean
           example: false
@@ -3424,6 +3506,26 @@ components:
           example: 900
         user:
           $ref: '#/components/schemas/User'
+
+    RegistrationResponse:
+      type: object
+      required:
+        - email
+        - message
+        - verificationRequired
+      properties:
+        email:
+          type: string
+          format: email
+          example: pilot@example.com
+          description: Address the verification email was sent to
+        message:
+          type: string
+          example: A verification email has been sent. Please check your inbox to complete registration.
+        verificationRequired:
+          type: boolean
+          example: true
+          description: Always true — clients should display a "check your email" message and not attempt login until verification completes.
 
     License:
       type: object
@@ -6365,6 +6467,13 @@ components:
           type: string
           example: Validation failed
           description: Error message
+        code:
+          type: string
+          example: email_not_verified
+          description: |
+            Optional machine-readable error code, used by clients to distinguish
+            between conditions that share an HTTP status (e.g. `email_not_verified`
+            vs `account_disabled` for 403 on /auth/login).
         details:
           type: array
           items:

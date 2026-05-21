@@ -190,3 +190,109 @@ func TestAuthProtectedEndpoints(t *testing.T) {
 		}
 	})
 }
+
+func TestEmailVerification(t *testing.T) {
+	c := NewE2EClient(t)
+
+	t.Run("register sends verification email", func(t *testing.T) {
+		email := uniqueEmail("verify-send")
+		mailpitDeleteAll(t)
+		resp := c.POST("/auth/register", map[string]string{
+			"email": email, "password": "SecurePass123!", "name": "Verify Send",
+		})
+		requireStatus(t, resp, http.StatusCreated)
+		// Body should not contain tokens — only registration confirmation.
+		var body map[string]any
+		resp.JSON(&body)
+		if _, hasAccess := body["accessToken"]; hasAccess {
+			t.Errorf("Expected no accessToken in register response, got %v", body)
+		}
+		// A verification email must be delivered.
+		_ = mailpitRequireEmail(t, email, "Confirm your email")
+	})
+
+	t.Run("login before verification returns 403 with code email_not_verified", func(t *testing.T) {
+		email := uniqueEmail("verify-block")
+		pw := "SecurePass123!"
+		resp := c.POST("/auth/register", map[string]string{
+			"email": email, "password": pw, "name": "Blocked",
+		})
+		requireStatus(t, resp, http.StatusCreated)
+
+		loginResp := c.POST("/auth/login", map[string]string{"email": email, "password": pw})
+		assertStatus(t, loginResp, http.StatusForbidden)
+		var errBody struct {
+			Code string `json:"code"`
+		}
+		loginResp.JSON(&errBody)
+		if errBody.Code != "email_not_verified" {
+			t.Errorf("Expected error code 'email_not_verified', got %q (body: %s)", errBody.Code, string(loginResp.Body))
+		}
+	})
+
+	t.Run("verify-email returns auth tokens and unlocks login", func(t *testing.T) {
+		email := uniqueEmail("verify-ok")
+		pw := "SecurePass123!"
+		resp := c.POST("/auth/register", map[string]string{
+			"email": email, "password": pw, "name": "Verify OK",
+		})
+		requireStatus(t, resp, http.StatusCreated)
+
+		token := extractVerificationToken(t, email)
+		verifyResp := c.POST("/auth/verify-email", map[string]string{"token": token})
+		requireStatus(t, verifyResp, http.StatusOK)
+		var auth AuthResponseBody
+		verifyResp.JSON(&auth)
+		if auth.AccessToken == "" || auth.RefreshToken == "" {
+			t.Errorf("Expected tokens after verify-email, got %+v", auth)
+		}
+
+		// Login is now permitted.
+		ok := loginUser(t, c, email, pw)
+		if ok.AccessToken == "" {
+			t.Error("Expected login to succeed after verification")
+		}
+	})
+
+	t.Run("verify-email with invalid token returns 400", func(t *testing.T) {
+		resp := c.POST("/auth/verify-email", map[string]string{"token": "not-a-real-token"})
+		assertStatus(t, resp, http.StatusBadRequest)
+	})
+
+	t.Run("verify-email rejects already-used token", func(t *testing.T) {
+		email := uniqueEmail("verify-reuse")
+		resp := c.POST("/auth/register", map[string]string{
+			"email": email, "password": "SecurePass123!", "name": "Reuse",
+		})
+		requireStatus(t, resp, http.StatusCreated)
+		token := extractVerificationToken(t, email)
+		first := c.POST("/auth/verify-email", map[string]string{"token": token})
+		requireStatus(t, first, http.StatusOK)
+		second := c.POST("/auth/verify-email", map[string]string{"token": token})
+		assertStatus(t, second, http.StatusBadRequest)
+	})
+
+	t.Run("resend verification always returns 204", func(t *testing.T) {
+		// Unverified user: should send a new email.
+		email := uniqueEmail("verify-resend")
+		mailpitDeleteAll(t)
+		regResp := c.POST("/auth/register", map[string]string{
+			"email": email, "password": "SecurePass123!", "name": "Resend",
+		})
+		requireStatus(t, regResp, http.StatusCreated)
+		// Drain the original verification email so the next assertion
+		// only sees the resent one.
+		_ = mailpitRequireEmail(t, email, "Confirm your email")
+		mailpitDeleteAll(t)
+
+		resendResp := c.POST("/auth/verify-email/resend", map[string]string{"email": email})
+		assertStatus(t, resendResp, http.StatusNoContent)
+		_ = mailpitRequireEmail(t, email, "Confirm your email")
+
+		// Unknown email: still 204, no enumeration.
+		unknownResp := c.POST("/auth/verify-email/resend", map[string]string{
+			"email": uniqueEmail("verify-unknown"),
+		})
+		assertStatus(t, unknownResp, http.StatusNoContent)
+	})
+}

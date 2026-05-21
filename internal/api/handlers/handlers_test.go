@@ -166,6 +166,8 @@ func newHandlerMockUserRepo() *mockUserRepo {
 
 func (m *mockUserRepo) Create(_ context.Context, u *models.User) error {
 	u.ID = uuid.New()
+	// Auto-verify in handler tests so existing Login-based assertions keep working.
+	u.EmailVerified = true
 	m.users[u.ID] = u
 	return nil
 }
@@ -200,6 +202,13 @@ func (m *mockUserRepo) ResetFailedLoginAttempts(_ context.Context, _ uuid.UUID) 
 }
 func (m *mockUserRepo) LockAccount(_ context.Context, _ uuid.UUID, _ time.Time) error {
 	return nil
+}
+func (m *mockUserRepo) MarkEmailVerified(_ context.Context, id uuid.UUID) error {
+	if u, ok := m.users[id]; ok {
+		u.EmailVerified = true
+		return nil
+	}
+	return repository.ErrNotFound
 }
 
 type mockRefreshTokenRepo struct {
@@ -243,6 +252,18 @@ func (m *mockPasswordResetRepo) GetByTokenHash(_ context.Context, _ string) (*mo
 func (m *mockPasswordResetRepo) MarkAsUsed(_ context.Context, _ string) error       { return nil }
 func (m *mockPasswordResetRepo) DeleteExpired(_ context.Context) error              { return nil }
 func (m *mockPasswordResetRepo) DeleteForUser(_ context.Context, _ uuid.UUID) error { return nil }
+
+type mockEmailVerificationRepo struct{}
+
+func (m *mockEmailVerificationRepo) Create(_ context.Context, _ *models.EmailVerificationToken) error {
+	return nil
+}
+func (m *mockEmailVerificationRepo) GetByTokenHash(_ context.Context, _ string) (*models.EmailVerificationToken, error) {
+	return nil, repository.ErrNotFound
+}
+func (m *mockEmailVerificationRepo) MarkAsUsed(_ context.Context, _ string) error       { return nil }
+func (m *mockEmailVerificationRepo) DeleteForUser(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockEmailVerificationRepo) DeleteExpired(_ context.Context) error              { return nil }
 
 // ---- Mock flight repo ----
 
@@ -324,7 +345,7 @@ func setupTestHandler() (*APIHandler, *mockUserRepo) {
 	passwordRepo := &mockPasswordResetRepo{}
 	jwtMgr := jwt.NewManager("test-access", "test-refresh", 15*time.Minute, 7*24*time.Hour)
 
-	authSvc := service.NewAuthService(userRepo, refreshRepo, passwordRepo, jwtMgr)
+	authSvc := service.NewAuthService(userRepo, refreshRepo, passwordRepo, &mockEmailVerificationRepo{}, jwtMgr)
 	credSvc := service.NewCredentialService(newMockCredentialRepo())
 	aircraftSvc := service.NewAircraftService(newMockAircraftRepo())
 	contactSvc := service.NewContactService(newMockContactRepo())
@@ -368,8 +389,11 @@ func TestRegisterUser_Success(t *testing.T) {
 
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp["accessToken"] == nil {
-		t.Error("Expected accessToken in response")
+	if resp["email"] != "test@example.com" {
+		t.Errorf("Expected email in response, got %v", resp["email"])
+	}
+	if resp["verificationRequired"] != true {
+		t.Error("Expected verificationRequired=true in response")
 	}
 }
 

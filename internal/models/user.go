@@ -13,6 +13,7 @@ type User struct {
 	Email               string         `json:"email"`
 	PasswordHash        string         `json:"-"`
 	Name                string         `json:"name"`
+	EmailVerified       bool           `json:"emailVerified"`
 	TwoFactorEnabled    bool           `json:"twoFactorEnabled"`
 	TwoFactorSecret     *string        `json:"-"` // never exposed in JSON
 	RecoveryCodes       pq.StringArray `json:"-"` // never exposed in JSON
@@ -41,6 +42,17 @@ type RefreshToken struct {
 
 // PasswordResetToken represents a password reset token
 type PasswordResetToken struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	TokenHash string    `json:"-"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Used      bool      `json:"used"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// EmailVerificationToken represents a single-use email-verification token sent
+// to a user after registration (or via the resend endpoint).
+type EmailVerificationToken struct {
 	ID        uuid.UUID `json:"id"`
 	UserID    uuid.UUID `json:"user_id"`
 	TokenHash string    `json:"-"`

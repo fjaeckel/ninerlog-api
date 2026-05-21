@@ -25,6 +25,7 @@ var (
 	ErrTokenUsed          = errors.New("token already used")
 	ErrAccountLocked      = errors.New("account temporarily locked due to too many failed login attempts")
 	ErrAccountDisabled    = errors.New("account disabled by administrator")
+	ErrEmailNotVerified   = errors.New("email address not verified")
 	ErrPasswordTooShort   = errors.New("password must be at least 12 characters")
 	ErrPasswordTooLong    = errors.New("password must not exceed 72 characters")
 	ErrEmailRequired      = errors.New("email is required")
@@ -35,28 +36,32 @@ var (
 )
 
 const (
-	maxFailedLoginAttempts = 5
-	accountLockDuration    = 15 * time.Minute
+	maxFailedLoginAttempts          = 5
+	accountLockDuration             = 15 * time.Minute
+	emailVerificationTokenLifetime  = 24 * time.Hour
 )
 
 type AuthService struct {
-	userRepo          repository.UserRepository
-	refreshTokenRepo  repository.RefreshTokenRepository
-	passwordResetRepo repository.PasswordResetTokenRepository
-	jwtManager        *jwt.Manager
+	userRepo              repository.UserRepository
+	refreshTokenRepo      repository.RefreshTokenRepository
+	passwordResetRepo     repository.PasswordResetTokenRepository
+	emailVerificationRepo repository.EmailVerificationTokenRepository
+	jwtManager            *jwt.Manager
 }
 
 func NewAuthService(
 	userRepo repository.UserRepository,
 	refreshTokenRepo repository.RefreshTokenRepository,
 	passwordResetRepo repository.PasswordResetTokenRepository,
+	emailVerificationRepo repository.EmailVerificationTokenRepository,
 	jwtManager *jwt.Manager,
 ) *AuthService {
 	return &AuthService{
-		userRepo:          userRepo,
-		refreshTokenRepo:  refreshTokenRepo,
-		passwordResetRepo: passwordResetRepo,
-		jwtManager:        jwtManager,
+		userRepo:              userRepo,
+		refreshTokenRepo:      refreshTokenRepo,
+		passwordResetRepo:     passwordResetRepo,
+		emailVerificationRepo: emailVerificationRepo,
+		jwtManager:            jwtManager,
 	}
 }
 
@@ -76,73 +81,173 @@ type TokenPair struct {
 	RefreshToken string
 }
 
-// Register creates a new user account
-func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*models.User, *TokenPair, error) {
+// Register creates a new user account. The account is created with
+// EmailVerified=false, an email-verification token is generated and stored,
+// and the plaintext token is returned to the caller so the handler can
+// deliver it via email. No JWT tokens are issued at this stage — the user
+// must consume the verification token (see VerifyEmail) before they can
+// log in.
+func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*models.User, string, error) {
 	// Normalize and validate input
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
 	input.Name = strings.TrimSpace(input.Name)
 
 	if input.Email == "" {
-		return nil, nil, ErrEmailRequired
+		return nil, "", ErrEmailRequired
 	}
 	if input.Password == "" {
-		return nil, nil, ErrPasswordRequired
+		return nil, "", ErrPasswordRequired
 	}
 	if input.Name == "" {
-		return nil, nil, ErrNameRequired
+		return nil, "", ErrNameRequired
 	}
 	if len(input.Email) > 255 {
-		return nil, nil, ErrEmailTooLong
+		return nil, "", ErrEmailTooLong
 	}
 	if _, err := mail.ParseAddress(input.Email); err != nil {
-		return nil, nil, ErrInvalidEmail
+		return nil, "", ErrInvalidEmail
 	}
 	if len(input.Password) < 12 {
-		return nil, nil, ErrPasswordTooShort
+		return nil, "", ErrPasswordTooShort
 	}
 	if len(input.Password) > 72 {
-		return nil, nil, ErrPasswordTooLong
+		return nil, "", ErrPasswordTooLong
 	}
 
 	// Check if user already exists
 	existingUser, err := s.userRepo.GetByEmail(ctx, input.Email)
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
-		return nil, nil, err
+		return nil, "", err
 	}
 	if existingUser != nil {
-		return nil, nil, ErrUserAlreadyExists
+		return nil, "", ErrUserAlreadyExists
 	}
 
 	// Hash password
 	hashedPassword, err := hash.HashPassword(input.Password)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
-	// Create user
+	// Create user (unverified)
 	now := time.Now()
 	user := &models.User{
-		Email:        input.Email,
-		PasswordHash: hashedPassword,
-		Name:         input.Name,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		Email:         input.Email,
+		PasswordHash:  hashedPassword,
+		Name:          input.Name,
+		EmailVerified: false,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		if errors.Is(err, repository.ErrDuplicateEmail) {
-			return nil, nil, ErrUserAlreadyExists
+			return nil, "", ErrUserAlreadyExists
+		}
+		return nil, "", err
+	}
+
+	// Generate verification token
+	token, err := s.createEmailVerificationToken(ctx, user.ID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return user, token, nil
+}
+
+// createEmailVerificationToken removes any existing verification tokens for the
+// user, then mints, stores, and returns a fresh single-use token.
+func (s *AuthService) createEmailVerificationToken(ctx context.Context, userID uuid.UUID) (string, error) {
+	if err := s.emailVerificationRepo.DeleteForUser(ctx, userID); err != nil {
+		return "", err
+	}
+
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return "", err
+	}
+	token := base64.URLEncoding.EncodeToString(tokenBytes)
+
+	rec := &models.EmailVerificationToken{
+		UserID:    userID,
+		TokenHash: hash.HashToken(token),
+		ExpiresAt: time.Now().Add(emailVerificationTokenLifetime),
+		Used:      false,
+	}
+	if err := s.emailVerificationRepo.Create(ctx, rec); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// VerifyEmail consumes a verification token and, on success, marks the user's
+// email as verified and returns a fresh access/refresh token pair so the
+// frontend can log the user in.
+func (s *AuthService) VerifyEmail(ctx context.Context, token string) (*models.User, *TokenPair, error) {
+	if token == "" {
+		return nil, nil, ErrInvalidToken
+	}
+	tokenHash := hash.HashToken(token)
+	rec, err := s.emailVerificationRepo.GetByTokenHash(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, nil, ErrInvalidToken
 		}
 		return nil, nil, err
 	}
+	if rec.Used {
+		return nil, nil, ErrTokenUsed
+	}
+	if rec.ExpiresAt.Before(time.Now()) {
+		return nil, nil, ErrTokenExpired
+	}
 
-	// Generate tokens
+	user, err := s.userRepo.GetByID(ctx, rec.UserID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !user.EmailVerified {
+		if err := s.userRepo.MarkEmailVerified(ctx, user.ID); err != nil {
+			return nil, nil, err
+		}
+		user.EmailVerified = true
+	}
+
+	if err := s.emailVerificationRepo.MarkAsUsed(ctx, tokenHash); err != nil {
+		return nil, nil, err
+	}
+
 	tokens, err := s.generateTokenPair(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return user, tokens, nil
+}
+
+// ResendVerification issues a fresh verification token for the given email if
+// (and only if) the address belongs to a known, not-yet-verified user. The
+// returned values are empty when nothing should be sent — callers should not
+// distinguish "unknown email" from "already verified" to avoid enumeration.
+func (s *AuthService) ResendVerification(ctx context.Context, email string) (token, userEmail, userName, locale string, err error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", "", "", "", nil
+		}
+		return "", "", "", "", err
+	}
+	if user.EmailVerified {
+		return "", "", "", "", nil
+	}
+	token, err = s.createEmailVerificationToken(ctx, user.ID)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	return token, user.Email, user.Name, user.PreferredLocale, nil
 }
 
 // Login authenticates a user and returns tokens
@@ -162,6 +267,13 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 	// Check if account is disabled
 	if user.Disabled {
 		return nil, nil, ErrAccountDisabled
+	}
+
+	// Block login until the user has confirmed their email address. The
+	// check sits before password verification so we don't leak whether
+	// the password is correct for an unverified account.
+	if !user.EmailVerified {
+		return nil, nil, ErrEmailNotVerified
 	}
 
 	// Check if account is locked

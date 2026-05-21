@@ -120,11 +120,12 @@ func main() {
 	userRepo := postgres.NewUserRepository(db)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
 	passwordResetRepo := postgres.NewPasswordResetTokenRepository(db)
+	emailVerificationRepo := postgres.NewEmailVerificationTokenRepository(db)
 	licenseRepo := postgres.NewLicenseRepository(db)
 	flightRepo := postgres.NewFlightRepository(db)
 	flightBaselineRepo := postgres.NewFlightBaselineRepository(db)
 	// Initialize services
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerificationRepo, jwtManager)
 	licenseService := service.NewLicenseService(licenseRepo)
 	flightService := service.NewFlightService(flightRepo, flightBaselineRepo)
 	credentialRepo := postgres.NewCredentialRepository(db)
@@ -332,6 +333,8 @@ func main() {
 		"/auth/2fa/login",
 		"/auth/password-reset-request",
 		"/auth/password-reset",
+		"/auth/verify-email",
+		"/auth/verify-email/resend",
 		"/auth/webauthn/login/options",
 		"/auth/webauthn/login/verify",
 		"/airports/search",
@@ -349,6 +352,8 @@ func main() {
 			"/auth/2fa/login",
 			"/auth/password-reset-request",
 			"/auth/password-reset",
+			"/auth/verify-email",
+			"/auth/verify-email/resend",
 			"/auth/webauthn/login/options",
 			"/auth/webauthn/login/verify",
 		))

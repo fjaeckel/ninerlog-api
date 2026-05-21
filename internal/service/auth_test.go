@@ -31,6 +31,10 @@ func (m *mockUserRepo) Create(ctx context.Context, user *models.User) error {
 	user.ID = uuid.New()
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
+	// Auto-verify users in tests so existing Login-based assertions keep
+	// working. Tests that exercise the email-verification flow explicitly
+	// reset this flag on the stored user before calling Login.
+	user.EmailVerified = true
 	m.users[user.Email] = user
 	return nil
 }
@@ -81,6 +85,67 @@ func (m *mockUserRepo) ResetFailedLoginAttempts(ctx context.Context, id uuid.UUI
 }
 
 func (m *mockUserRepo) LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error {
+	return nil
+}
+
+func (m *mockUserRepo) MarkEmailVerified(ctx context.Context, id uuid.UUID) error {
+	for _, u := range m.users {
+		if u.ID == id {
+			u.EmailVerified = true
+			return nil
+		}
+	}
+	return repository.ErrNotFound
+}
+
+type mockEmailVerificationRepo struct {
+	tokens map[string]*models.EmailVerificationToken
+}
+
+func newMockEmailVerificationRepo() *mockEmailVerificationRepo {
+	return &mockEmailVerificationRepo{tokens: make(map[string]*models.EmailVerificationToken)}
+}
+
+func (m *mockEmailVerificationRepo) Create(ctx context.Context, token *models.EmailVerificationToken) error {
+	token.ID = uuid.New()
+	token.CreatedAt = time.Now()
+	m.tokens[token.TokenHash] = token
+	return nil
+}
+
+func (m *mockEmailVerificationRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*models.EmailVerificationToken, error) {
+	t, ok := m.tokens[tokenHash]
+	if !ok {
+		return nil, repository.ErrNotFound
+	}
+	return t, nil
+}
+
+func (m *mockEmailVerificationRepo) MarkAsUsed(ctx context.Context, tokenHash string) error {
+	t, ok := m.tokens[tokenHash]
+	if !ok {
+		return repository.ErrNotFound
+	}
+	t.Used = true
+	return nil
+}
+
+func (m *mockEmailVerificationRepo) DeleteForUser(ctx context.Context, userID uuid.UUID) error {
+	for h, t := range m.tokens {
+		if t.UserID == userID {
+			delete(m.tokens, h)
+		}
+	}
+	return nil
+}
+
+func (m *mockEmailVerificationRepo) DeleteExpired(ctx context.Context) error {
+	now := time.Now()
+	for h, t := range m.tokens {
+		if t.ExpiresAt.Before(now) {
+			delete(m.tokens, h)
+		}
+	}
 	return nil
 }
 
@@ -205,8 +270,9 @@ func setupAuthService() *service.AuthService {
 	userRepo := newMockUserRepo()
 	refreshTokenRepo := newMockRefreshTokenRepo()
 	passwordResetRepo := newMockPasswordResetRepo()
+	emailVerifyRepo := newMockEmailVerificationRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
-	return service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
+	return service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerifyRepo, jwtManager)
 }
 
 func TestRegister(t *testing.T) {
@@ -219,7 +285,7 @@ func TestRegister(t *testing.T) {
 		Name:     "Test User",
 	}
 
-	user, tokens, err := authService.Register(ctx, input)
+	user, verificationToken, err := authService.Register(ctx, input)
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -228,12 +294,8 @@ func TestRegister(t *testing.T) {
 		t.Errorf("Expected email %s, got %s", input.Email, user.Email)
 	}
 
-	if tokens.AccessToken == "" {
-		t.Error("Expected access token to be generated")
-	}
-
-	if tokens.RefreshToken == "" {
-		t.Error("Expected refresh token to be generated")
+	if verificationToken == "" {
+		t.Error("Expected verification token to be generated")
 	}
 }
 
@@ -356,9 +418,14 @@ func TestRefreshToken(t *testing.T) {
 		Name:     "Test User",
 	}
 
-	_, tokens, err := authService.Register(ctx, registerInput)
+	_, _, err := authService.Register(ctx, registerInput)
 	if err != nil {
 		t.Fatalf("Registration failed: %v", err)
+	}
+
+	_, tokens, err := authService.Login(ctx, service.LoginInput{Email: registerInput.Email, Password: registerInput.Password})
+	if err != nil {
+		t.Fatalf("Login failed: %v", err)
 	}
 
 	newTokens, err := authService.RefreshToken(ctx, tokens.RefreshToken)
@@ -391,9 +458,14 @@ func TestRefreshTokenRevoked(t *testing.T) {
 		Name:     "Test User",
 	}
 
-	_, tokens, err := authService.Register(ctx, registerInput)
+	_, _, err := authService.Register(ctx, registerInput)
 	if err != nil {
 		t.Fatalf("Registration failed: %v", err)
+	}
+
+	_, tokens, err := authService.Login(ctx, service.LoginInput{Email: registerInput.Email, Password: registerInput.Password})
+	if err != nil {
+		t.Fatalf("Login failed: %v", err)
 	}
 
 	if err := authService.Logout(ctx, tokens.RefreshToken); err != nil {
@@ -416,9 +488,14 @@ func TestLogout(t *testing.T) {
 		Name:     "Test User",
 	}
 
-	_, tokens, err := authService.Register(ctx, registerInput)
+	_, _, err := authService.Register(ctx, registerInput)
 	if err != nil {
 		t.Fatalf("Registration failed: %v", err)
+	}
+
+	_, tokens, err := authService.Login(ctx, service.LoginInput{Email: registerInput.Email, Password: registerInput.Password})
+	if err != nil {
+		t.Fatalf("Login failed: %v", err)
 	}
 
 	err = authService.Logout(ctx, tokens.RefreshToken)
@@ -555,7 +632,7 @@ func TestChangePassword(t *testing.T) {
 	passwordResetRepo := newMockPasswordResetRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager)
 	ctx := context.Background()
 
 	// Register a user
@@ -603,7 +680,7 @@ func TestDeleteUser(t *testing.T) {
 	passwordResetRepo := newMockPasswordResetRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager)
 	ctx := context.Background()
 
 	// Register a user
@@ -763,7 +840,7 @@ func TestUpdateUser(t *testing.T) {
 	refreshTokenRepo := newMockRefreshTokenRepo()
 	passwordResetRepo := newMockPasswordResetRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, jwtManager)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager)
 	ctx := context.Background()
 
 	input := service.RegisterInput{

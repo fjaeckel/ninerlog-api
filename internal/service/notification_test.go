@@ -145,6 +145,10 @@ func (m *mockNotifUserRepo) LockAccount(ctx context.Context, id uuid.UUID, until
 	return nil
 }
 
+func (m *mockNotifUserRepo) MarkEmailVerified(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
 // mockNotifCredentialRepo for notification tests
 type mockNotifCredentialRepo struct {
 	creds map[uuid.UUID]*models.Credential

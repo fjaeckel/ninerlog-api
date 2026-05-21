@@ -33,6 +33,9 @@ type UserRepository interface {
 
 	// LockAccount locks the account until the given time
 	LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error
+
+	// MarkEmailVerified flips the email_verified flag to true.
+	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
 }
 
 // RefreshTokenRepository defines the interface for refresh token data access
@@ -136,6 +139,15 @@ type PasswordResetTokenRepository interface {
 
 	// DeleteForUser deletes all password reset tokens for a user
 	DeleteForUser(ctx context.Context, userID uuid.UUID) error
+}
+
+// EmailVerificationTokenRepository defines the interface for email verification token data access.
+type EmailVerificationTokenRepository interface {
+	Create(ctx context.Context, token *models.EmailVerificationToken) error
+	GetByTokenHash(ctx context.Context, tokenHash string) (*models.EmailVerificationToken, error)
+	MarkAsUsed(ctx context.Context, tokenHash string) error
+	DeleteForUser(ctx context.Context, userID uuid.UUID) error
+	DeleteExpired(ctx context.Context) error
 }
 
 // CredentialRepository defines the interface for credential data access

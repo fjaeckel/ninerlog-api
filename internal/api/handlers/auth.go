@@ -11,7 +11,9 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	emailpkg "github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // RegisterUser implements POST /auth/register
@@ -24,7 +26,7 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.authService.Register(c.Request.Context(), service.RegisterInput{
+	user, verificationToken, err := h.authService.Register(c.Request.Context(), service.RegisterInput{
 		Email:    string(req.Email),
 		Password: req.Password,
 		Name:     req.Name,
@@ -46,7 +48,94 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, h.convertAuthResponse(user, tokens))
+	// Deliver the verification email. Failures here are logged but do not
+	// fail the request — the user can request a fresh email via /auth/verify-email/resend.
+	h.sendVerificationEmail(user.Email, user.Name, user.PreferredLocale, verificationToken)
+
+	c.JSON(http.StatusCreated, generated.RegistrationResponse{
+		Email:                openapi_types.Email(user.Email),
+		Message:              "A verification email has been sent. Please check your inbox to complete registration.",
+		VerificationRequired: true,
+	})
+}
+
+// VerifyEmail implements POST /auth/verify-email
+// (POST /auth/verify-email)
+func (h *APIHandler) VerifyEmail(c *gin.Context) {
+	var req generated.VerifyEmailJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	user, tokens, err := h.authService.VerifyEmail(c.Request.Context(), req.Token)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidToken) || errors.Is(err, service.ErrTokenUsed) || errors.Is(err, service.ErrTokenExpired) {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Email verification failed")
+		return
+	}
+
+	c.JSON(http.StatusOK, h.convertAuthResponse(user, tokens))
+}
+
+// ResendVerificationEmail implements POST /auth/verify-email/resend
+// (POST /auth/verify-email/resend)
+func (h *APIHandler) ResendVerificationEmail(c *gin.Context) {
+	var req generated.ResendVerificationEmailJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	parsed, err := mail.ParseAddress(string(req.Email))
+	if err != nil {
+		// Stay indistinguishable to prevent enumeration.
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	token, userEmail, userName, locale, err := h.authService.ResendVerification(c.Request.Context(), parsed.Address)
+	if err != nil {
+		// Don't leak internal errors.
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	if token != "" && userEmail != "" {
+		h.sendVerificationEmail(userEmail, userName, locale, token)
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// sendVerificationEmail delivers the email-verification message. Errors are
+// swallowed: the operator can inspect SMTP logs and the user can resend.
+func (h *APIHandler) sendVerificationEmail(toEmail, userName, locale, token string) {
+	if h.emailSender == nil || toEmail == "" || token == "" {
+		return
+	}
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = os.Getenv("CORS_ORIGIN")
+	}
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+	if idx := strings.Index(frontendURL, ","); idx > 0 {
+		frontendURL = frontendURL[:idx]
+	}
+	frontendURL = strings.TrimSpace(frontendURL)
+	link := fmt.Sprintf("%s/verify-email?token=%s", frontendURL, token)
+
+	tmpl := emailpkg.Templates(locale)
+	subject, body := tmpl.VerifyEmail(emailpkg.VerifyEmailParams{
+		UserName: userName,
+		Link:     link,
+	})
+	_ = h.emailSender.Send(toEmail, subject, body)
 }
 
 // LoginUser implements POST /auth/login
@@ -78,6 +167,15 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 		if err == service.ErrAccountDisabled {
 			AuthLoginAttemptsTotal.WithLabelValues("account_disabled").Inc()
 			h.sendError(c, http.StatusForbidden, "Account disabled. Contact the administrator.")
+			return
+		}
+		if err == service.ErrEmailNotVerified {
+			AuthLoginAttemptsTotal.WithLabelValues("email_not_verified").Inc()
+			code := "email_not_verified"
+			c.JSON(http.StatusForbidden, generated.Error{
+				Error: "Email address not verified. Please check your inbox for the verification link.",
+				Code:  &code,
+			})
 			return
 		}
 		AuthLoginAttemptsTotal.WithLabelValues("error").Inc()

@@ -61,4 +61,15 @@ var enTemplates = templateSet{
 <p>— NinerLog</p>`, p.UserName, p.Message)
 		return subject, body
 	},
+
+	VerifyEmail: func(p VerifyEmailParams) (string, string) {
+		subject := "NinerLog: Confirm your email address"
+		body := fmt.Sprintf(`<h2>Welcome to NinerLog</h2>
+<p>Hi %s,</p>
+<p>Thanks for signing up. Please confirm your email address to activate your account:</p>
+<p><a href="%s">Verify my email</a></p>
+<p>This link expires in 24 hours. If you did not create a NinerLog account, you can ignore this email.</p>
+<p>— NinerLog</p>`, p.UserName, p.Link)
+		return subject, body
+	},
 }
