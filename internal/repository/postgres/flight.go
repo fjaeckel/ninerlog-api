@@ -575,7 +575,20 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 			sortDirection = "ASC"
 		}
 	}
-	query += fmt.Sprintf(" ORDER BY %s %s", sortColumn, sortDirection)
+	// Stable ordering: tie-break on off_block_time (chronological within a day)
+	// then created_at, then id so paginated results are deterministic even when
+	// multiple flights share the same date / total_time / created_at.
+	nullsOrder := "NULLS LAST"
+	if sortDirection == "ASC" {
+		nullsOrder = "NULLS FIRST"
+	}
+	query += fmt.Sprintf(
+		" ORDER BY %s %s, off_block_time %s %s, created_at %s, id %s",
+		sortColumn, sortDirection,
+		sortDirection, nullsOrder,
+		sortDirection,
+		sortDirection,
+	)
 
 	// Pagination
 	if opts != nil && opts.PageSize > 0 {
