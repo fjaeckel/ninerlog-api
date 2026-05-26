@@ -5988,6 +5988,7 @@ components:
         - newUsersThisWeek
         - lockedAccounts
         - disabledAccounts
+        - cloudBackupDestinations
       properties:
         totalUsers:
           type: integer
@@ -6007,6 +6008,24 @@ components:
           type: integer
         disabledAccounts:
           type: integer
+        cloudBackupDestinations:
+          type: object
+          description: Counts of user-configured cloud backup destinations.
+          required:
+            - total
+            - byProvider
+          properties:
+            total:
+              type: integer
+              description: Total number of cloud backup destinations configured across all users.
+            byProvider:
+              type: object
+              additionalProperties:
+                type: integer
+              description: 'Number of destinations grouped by provider name (e.g. {"s3": 3, "sftp": 1}). Providers with zero destinations are omitted.'
+              example:
+                s3: 3
+                sftp: 1
 
     Announcement:
       type: object

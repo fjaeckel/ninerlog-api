@@ -58,6 +58,28 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 		"SELECT COUNT(*) FROM users WHERE disabled = true",
 	), &stats.DisabledAccounts)
 
+	// Cloud backup destinations: total count + breakdown by provider.
+	// Always queryable since the table is part of the standard schema; an
+	// empty result simply yields total=0 and an empty byProvider map.
+	stats.CloudBackupDestinations.ByProvider = map[string]int{}
+	rows, err := h.db.QueryContext(c.Request.Context(),
+		"SELECT provider, COUNT(*) FROM backup_destinations GROUP BY provider")
+	if err != nil {
+		log.Printf("admin stats: backup_destinations query failed: %v", err)
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			var provider string
+			var count int
+			if err := rows.Scan(&provider, &count); err != nil {
+				log.Printf("admin stats: backup_destinations scan failed: %v", err)
+				continue
+			}
+			stats.CloudBackupDestinations.ByProvider[provider] = count
+			stats.CloudBackupDestinations.Total += count
+		}
+	}
+
 	c.JSON(http.StatusOK, stats)
 }
 
