@@ -59,6 +59,12 @@ func TestAdminEndpoints(t *testing.T) {
 		if cfg["jwtSecret"] != nil {
 			t.Error("Should not expose JWT secret")
 		}
+		if _, ok := cfg["cloudBackupsConfigured"]; !ok {
+			t.Error("Expected cloudBackupsConfigured field")
+		}
+		if _, ok := cfg["cloudBackupProviders"]; !ok {
+			t.Error("Expected cloudBackupProviders field")
+		}
 	})
 
 	t.Run("admin list users", func(t *testing.T) {

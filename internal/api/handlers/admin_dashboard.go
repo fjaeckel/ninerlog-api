@@ -170,16 +170,27 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	// Admin email configured?
 	adminEmailConfigured := h.adminEmail != ""
 
+	// Cloud backups configured? (set when BACKUP_CREDENTIALS_KEY is provided)
+	cloudBackupsConfigured := h.backupService != nil
+	cloudBackupProviders := []string{}
+	if cloudBackupsConfigured {
+		for _, p := range h.backupService.ListProviders() {
+			cloudBackupProviders = append(cloudBackupProviders, p.Name())
+		}
+	}
+
 	config := generated.AdminConfig{
-		GoVersion:            runtime.Version(),
-		ServerUptime:         uptimeStr,
-		MigrationVersion:     migrationVersion,
-		AirportDatabaseSize:  airports.Count(),
-		CorsOrigins:          h.corsOrigins,
-		RateLimitAuth:        "10 req/min",
-		RateLimitAdmin:       "30 req/min",
-		SmtpConfigured:       smtpConfigured,
-		AdminEmailConfigured: adminEmailConfigured,
+		GoVersion:              runtime.Version(),
+		ServerUptime:           uptimeStr,
+		MigrationVersion:       migrationVersion,
+		AirportDatabaseSize:    airports.Count(),
+		CorsOrigins:            h.corsOrigins,
+		RateLimitAuth:          "10 req/min",
+		RateLimitAdmin:         "30 req/min",
+		SmtpConfigured:         smtpConfigured,
+		AdminEmailConfigured:   adminEmailConfigured,
+		CloudBackupsConfigured: cloudBackupsConfigured,
+		CloudBackupProviders:   cloudBackupProviders,
 	}
 
 	c.JSON(http.StatusOK, config)
