@@ -49,6 +49,16 @@ func TestAdminEndpoints(t *testing.T) {
 		if s["totalUsers"] == nil {
 			t.Error("Expected totalUsers")
 		}
+		cbd, ok := s["cloudBackupDestinations"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("Expected cloudBackupDestinations object, got %T", s["cloudBackupDestinations"])
+		}
+		if _, ok := cbd["total"]; !ok {
+			t.Error("Expected cloudBackupDestinations.total")
+		}
+		if _, ok := cbd["byProvider"].(map[string]interface{}); !ok {
+			t.Errorf("Expected cloudBackupDestinations.byProvider map, got %T", cbd["byProvider"])
+		}
 	})
 
 	t.Run("admin config", func(t *testing.T) {

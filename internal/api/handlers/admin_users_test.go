@@ -79,14 +79,35 @@ func TestAdminUserSchema_PrivacyPreserving(t *testing.T) {
 }
 
 // TestAdminStatsSchema_AggregateOnly validates that AdminStats only contains
-// aggregate counters, not individual user data.
+// aggregate counters, not individual user data. Counters may be plain ints or
+// nested structs whose leaf values are ints / maps of ints (e.g. breakdowns by
+// provider name).
 func TestAdminStatsSchema_AggregateOnly(t *testing.T) {
 	statsType := reflect.TypeOf(generated.AdminStats{})
 
+	var isAggregate func(reflect.Type) bool
+	isAggregate = func(ft reflect.Type) bool {
+		switch ft.Kind() {
+		case reflect.Int, reflect.Int32, reflect.Int64:
+			return true
+		case reflect.Map:
+			// Keys must be strings (provider names, etc.) and values must be ints.
+			return ft.Key().Kind() == reflect.String && isAggregate(ft.Elem())
+		case reflect.Struct:
+			for i := 0; i < ft.NumField(); i++ {
+				if !isAggregate(ft.Field(i).Type) {
+					return false
+				}
+			}
+			return true
+		}
+		return false
+	}
+
 	for i := 0; i < statsType.NumField(); i++ {
 		field := statsType.Field(i)
-		if field.Type.Kind() != reflect.Int {
-			t.Errorf("AdminStats field %q has type %v, expected int (aggregate counter only)", field.Name, field.Type.Kind())
+		if !isAggregate(field.Type) {
+			t.Errorf("AdminStats field %q has non-aggregate type %v — only counters allowed", field.Name, field.Type)
 		}
 	}
 }
