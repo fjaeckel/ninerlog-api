@@ -70,6 +70,26 @@ services:
       retries: 20
       start_period: 5s
 
+  webdav:
+    # Lightweight Apache + mod_dav image. Provides RFC 4918 WebDAV with HTTP
+    # Basic auth, which is enough to exercise the WebDAV provider end-to-end.
+    image: bytemark/webdav:latest
+    container_name: ninerlog-e2e-webdav
+    environment:
+      AUTH_TYPE: Basic
+      USERNAME: ninerlog
+      PASSWORD: ninerlogtest
+    ports:
+      - "8088:80"
+    healthcheck:
+      # mod_dav returns 401 (auth required) on /, which proves the server is up
+      # without needing credentials in the healthcheck.
+      test: ["CMD-SHELL", "wget -qO- --tries=1 http://localhost/ 2>&1 | grep -q 'Authorization Required' || wget --server-response -qO- http://localhost/ 2>&1 | grep -q '401' || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
   api:
     build:
       context: .
@@ -83,6 +103,8 @@ services:
       minio-init:
         condition: service_completed_successfully
       sftp:
+        condition: service_started
+      webdav:
         condition: service_started
     environment:
       DATABASE_URL: "postgresql://testuser:testpass@postgres-e2e:5432/ninerlog_e2e?sslmode=disable"

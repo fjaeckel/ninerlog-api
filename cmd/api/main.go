@@ -23,6 +23,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/s3"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/sftp"
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/webdav"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
@@ -207,6 +208,7 @@ func main() {
 		registry := provider.NewRegistry()
 		registry.Register(s3.New())
 		registry.Register(sftp.New())
+		registry.Register(webdav.New())
 		builder := &cloudbackup.DefaultJSONBuilder{
 			Flights:     flightService,
 			Aircraft:    aircraftService,
@@ -227,7 +229,7 @@ func main() {
 		}
 		apiHandler.SetBackupService(backupSvc)
 		backupScheduler = cloudbackup.NewScheduler(backupSvc, 0, nil)
-		log.Println("✅ Cloud backups enabled (S3, SFTP providers)")
+		log.Println("✅ Cloud backups enabled (S3, SFTP, WebDAV providers)")
 	} else {
 		log.Println("ℹ️  Cloud backups disabled (set BACKUP_CREDENTIALS_KEY to enable)")
 	}
