@@ -53,6 +53,23 @@ services:
         done;
       "
 
+  sftp:
+    # atmoz/sftp is a tiny OpenSSH-based SFTP-only image. The command-line
+    # argument follows the format "user:pass:::folder", which creates the
+    # /home/ninerlog/upload writable directory used by the e2e tests.
+    image: atmoz/sftp:alpine
+    container_name: ninerlog-e2e-sftp
+    command: "ninerlog:ninerlogtest:::upload"
+    ports:
+      - "2222:22"
+    healthcheck:
+      # sshd is up as soon as port 22 accepts TCP. Use a portable nc fallback.
+      test: ["CMD-SHELL", "(echo > /dev/tcp/localhost/22) >/dev/null 2>&1 || nc -z localhost 22 || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
   webdav:
     # Lightweight Apache + mod_dav image. Provides RFC 4918 WebDAV with HTTP
     # Basic auth, which is enough to exercise the WebDAV provider end-to-end.
@@ -85,6 +102,8 @@ services:
         condition: service_started
       minio-init:
         condition: service_completed_successfully
+      sftp:
+        condition: service_started
       webdav:
         condition: service_started
     environment:
