@@ -23,35 +23,63 @@ services:
       - "8025:8025"   # Web UI / REST API
       - "1025:1025"   # SMTP
 
-  minio:
-    image: minio/minio:latest
-    container_name: ninerlog-e2e-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: "minioadmin"
-      MINIO_ROOT_PASSWORD: "minioadmin"
+  # SeaweedFS provides an S3-compatible API for cloud-backup e2e tests.
+  # Replaces MinIO (community edition increasingly restricted / repos archived).
+  # Exposes the S3 API on :8333 and a single static admin identity.
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: ninerlog-e2e-seaweedfs
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        mkdir -p /etc/seaweedfs
+        cat > /etc/seaweedfs/s3.json <<'EOF'
+        {
+          "identities": [
+            {
+              "name": "admin",
+              "credentials": [
+                { "accessKey": "ninerlogadmin", "secretKey": "ninerlogsecret" }
+              ],
+              "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+            }
+          ]
+        }
+        EOF
+        exec weed server -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -dir=/data -ip=seaweedfs
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "8333:8333"
     healthcheck:
-      test: ["CMD-SHELL", "mc ready local || curl -fsS http://localhost:9000/minio/health/ready || exit 1"]
+      # Master serves /cluster/status (HTTP 200) once the cluster is up; the S3
+      # gateway returns HTTP 403 to an unauthenticated GET / as soon as it is
+      # listening. Either response proves the daemon is ready.
+      test:
+        - CMD-SHELL
+        - |
+          curl -sf http://localhost:9333/cluster/status > /dev/null \
+          && curl -s -o /dev/null -w '%{http_code}' http://localhost:8333/ | grep -qE '200|403'
       interval: 3s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 5s
 
-  minio-init:
-    image: minio/mc:latest
-    container_name: ninerlog-e2e-minio-init
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:latest
+    container_name: ninerlog-e2e-seaweedfs-init
     depends_on:
-      minio:
-        condition: service_started
-    entrypoint: >
-      /bin/sh -c "
+      seaweedfs:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
         for i in $$(seq 1 30); do
-          (mc alias set local http://minio:9000 minioadmin minioadmin && mc mb --ignore-existing local/ninerlog-backups) && break || sleep 1;
-        done;
-      "
+          echo "s3.bucket.create -name ninerlog-backups" | weed shell -master seaweedfs:9333 && exit 0
+          sleep 1
+        done
+        echo "failed to create bucket" >&2
+        exit 1
 
   sftp:
     # atmoz/sftp is a tiny OpenSSH-based SFTP-only image. The command-line
@@ -100,7 +128,7 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
-      minio-init:
+      seaweedfs-init:
         condition: service_completed_successfully
       sftp:
         condition: service_started

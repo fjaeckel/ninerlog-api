@@ -10,18 +10,18 @@ import (
 	"time"
 )
 
-// MinIO container in docker-compose.e2e.yaml exposes:
-//   endpoint:   http://minio:9000 (inside docker) / http://localhost:9000 (host)
-//   bucket:     ninerlog-backups (pre-created by minio-init)
-//   creds:      minioadmin / minioadmin
+// SeaweedFS container in docker-compose.e2e.yaml exposes an S3-compatible API:
+//   endpoint:   http://seaweedfs:8333 (inside docker) / http://localhost:8333 (host)
+//   bucket:     ninerlog-backups (pre-created by seaweedfs-init)
+//   creds:      ninerlogadmin / ninerlogsecret
 //
-// The API talks to MinIO via its docker network alias, so when constructing a
-// backup destination we use the docker hostname.
-func minioEndpoint() string {
-	if v := os.Getenv("E2E_MINIO_ENDPOINT"); v != "" {
+// The API talks to SeaweedFS via its docker network alias, so when constructing
+// a backup destination we use the docker hostname.
+func s3Endpoint() string {
+	if v := os.Getenv("E2E_S3_ENDPOINT"); v != "" {
 		return v
 	}
-	return "http://minio:9000"
+	return "http://seaweedfs:8333"
 }
 
 type backupProvider struct {
@@ -80,14 +80,14 @@ func newBackupDestPayload(name string) map[string]interface{} {
 		"provider":    "s3",
 		"displayName": name,
 		"config": map[string]interface{}{
-			"endpoint": minioEndpoint(),
+			"endpoint": s3Endpoint(),
 			"region":   "us-east-1",
 			"bucket":   "ninerlog-backups",
 			"prefix":   "e2e/" + name + "/",
 		},
 		"credentials": map[string]interface{}{
-			"access_key_id":     "minioadmin",
-			"secret_access_key": "minioadmin",
+			"access_key_id":     "ninerlogadmin",
+			"secret_access_key": "ninerlogsecret",
 		},
 		"schedule":        "manual",
 		"scheduleHourUtc": 3,
@@ -127,7 +127,7 @@ func TestBackup_ListProviders(t *testing.T) {
 }
 
 // TestBackup_FullLifecycle exercises create → test → run → list runs →
-// get destination → delete on the real MinIO bucket.
+// get destination → delete on the real SeaweedFS bucket.
 func TestBackup_FullLifecycle(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("backup-lifecycle"), "Password123!", "Backup Lifecycle")
@@ -146,7 +146,7 @@ func TestBackup_FullLifecycle(t *testing.T) {
 		t.Errorf("expected credentialHint to be populated, got empty")
 	}
 
-	// Test connection (will exercise MinIO).
+	// Test connection (will exercise SeaweedFS).
 	testResp := c.POST("/backups/destinations/"+dest.ID+"/test", nil)
 	requireStatus(t, testResp, http.StatusOK)
 	var testRes backupTestResult

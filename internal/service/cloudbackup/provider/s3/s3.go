@@ -93,24 +93,23 @@ func (*Provider) CredentialSchema() []provider.Field {
 
 // Validate authenticates and confirms the bucket is reachable and writeable.
 // It performs:
-//  1. A "BucketExists" call (HEAD on the bucket) to verify the bucket and
-//     credentials.
-//  2. A 1-key prefix list to verify list permission.
+//  1. A 1-key prefix list (GET) to verify credentials and list permission.
+//     We probe with GET before HEAD because HEAD responses carry no body, so
+//     when credentials are bad some S3 implementations (SeaweedFS, and minio-go
+//     itself on HEAD) collapse the error to a generic "AccessDenied" instead
+//     of the real "InvalidAccessKeyId" / "SignatureDoesNotMatch" code. A GET
+//     against the bucket always returns an XML <Error> body, so the real code
+//     reaches classifyError.
+//  2. A "BucketExists" call (HEAD on the bucket) to distinguish missing buckets
+//     from auth failures once we know the credentials work.
 func (p *Provider) Validate(ctx context.Context, cfg provider.Config, creds provider.Credentials) error {
 	client, parsed, err := p.newClient(cfg, creds)
 	if err != nil {
 		return err
 	}
 
-	exists, err := client.BucketExists(ctx, parsed.Bucket)
-	if err != nil {
-		return classifyError(err)
-	}
-	if !exists {
-		return fmt.Errorf("%w: bucket %q does not exist", provider.ErrNotFound, parsed.Bucket)
-	}
-
-	// Probe list permission. We do not require any objects to be present.
+	// Probe list permission first — GET returns an XML body even on auth
+	// failure, which is necessary for accurate error classification.
 	ch := client.ListObjects(ctx, parsed.Bucket, minio.ListObjectsOptions{
 		Prefix:    parsed.Prefix,
 		Recursive: false,
@@ -122,6 +121,14 @@ func (p *Provider) Validate(ctx context.Context, cfg provider.Config, creds prov
 		}
 		// We don't actually care about the listed object — just that we got one.
 		break
+	}
+
+	exists, err := client.BucketExists(ctx, parsed.Bucket)
+	if err != nil {
+		return classifyError(err)
+	}
+	if !exists {
+		return fmt.Errorf("%w: bucket %q does not exist", provider.ErrNotFound, parsed.Bucket)
 	}
 	return nil
 }
