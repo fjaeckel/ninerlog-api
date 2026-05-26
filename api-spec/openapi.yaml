@@ -6050,6 +6050,8 @@ components:
         - rateLimitAdmin
         - smtpConfigured
         - adminEmailConfigured
+        - cloudBackupsConfigured
+        - cloudBackupProviders
       properties:
         goVersion:
           type: string
@@ -6085,6 +6087,15 @@ components:
         adminEmailConfigured:
           type: boolean
           description: Whether ADMIN_EMAIL is set
+        cloudBackupsConfigured:
+          type: boolean
+          description: Whether cloud backups are enabled (BACKUP_CREDENTIALS_KEY is set)
+        cloudBackupProviders:
+          type: array
+          items:
+            type: string
+          description: Names of registered cloud backup providers (e.g. s3, sftp, webdav). Empty when cloud backups are disabled.
+          example: [s3, sftp, webdav]
 
     AdminUser:
       type: object
