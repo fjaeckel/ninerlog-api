@@ -43,11 +43,16 @@ func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdmi
 		return
 	}
 
-	// Query entries
+	// Query entries with admin/target user details (LEFT JOIN so deleted
+	// users don't drop their audit rows).
 	rows, err := h.db.QueryContext(c.Request.Context(), `
-		SELECT id, admin_user_id, action, target_user_id, details, created_at
-		FROM admin_audit_log
-		ORDER BY created_at DESC
+		SELECT al.id, al.admin_user_id, au.email, au.name,
+		       al.action, al.target_user_id, tu.email, tu.name,
+		       al.details, al.created_at
+		FROM admin_audit_log al
+		LEFT JOIN users au ON au.id = al.admin_user_id
+		LEFT JOIN users tu ON tu.id = al.target_user_id
+		ORDER BY al.created_at DESC
 		LIMIT $1 OFFSET $2
 	`, pageSize, (page-1)*pageSize)
 	if err != nil {
@@ -59,12 +64,16 @@ func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdmi
 	var entries []generated.AdminAuditLogEntry
 	for rows.Next() {
 		var id, adminUserID uuid.UUID
+		var adminEmail, adminName *string
 		var action string
 		var targetUserID *uuid.UUID
+		var targetEmail, targetName *string
 		var details []byte
 		var createdAt time.Time
 
-		if err := rows.Scan(&id, &adminUserID, &action, &targetUserID, &details, &createdAt); err != nil {
+		if err := rows.Scan(&id, &adminUserID, &adminEmail, &adminName,
+			&action, &targetUserID, &targetEmail, &targetName,
+			&details, &createdAt); err != nil {
 			continue
 		}
 
@@ -74,9 +83,23 @@ func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdmi
 			Action:      action,
 			CreatedAt:   createdAt,
 		}
+		if adminEmail != nil {
+			e := openapi_types.Email(*adminEmail)
+			entry.AdminEmail = &e
+		}
+		if adminName != nil {
+			entry.AdminName = adminName
+		}
 		if targetUserID != nil {
 			tid := openapi_types.UUID(*targetUserID)
 			entry.TargetUserId = &tid
+		}
+		if targetEmail != nil {
+			e := openapi_types.Email(*targetEmail)
+			entry.TargetUserEmail = &e
+		}
+		if targetName != nil {
+			entry.TargetUserName = targetName
 		}
 
 		entries = append(entries, entry)
