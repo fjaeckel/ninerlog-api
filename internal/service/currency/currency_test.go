@@ -399,6 +399,83 @@ func TestEASA_SEP_Expired(t *testing.T) {
 	}
 }
 
+// TestEASA_SEP_WindowNotYetOpen verifies that a freshly revalidated PPL/SEP
+// rating (expiry > 12 months out) is reported as `current` with WindowOpen=false
+// and no requirements list — flights logged before the experience window
+// opens don't count toward FCL.740.A revalidation, so showing red "not met"
+// bars would be misleading.
+func TestEASA_SEP_WindowNotYetOpen(t *testing.T) {
+	eval := NewEASAEvaluator()
+	dp := newMockFlightDataProvider()
+	// Even though the pilot has plenty of recent activity, the FCL.740.A
+	// window has not yet opened, so it must not be considered.
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
+		TotalMinutes: 9999, PICMinutes: 9999, Landings: 99, InstructorMinutes: 999,
+	}
+
+	// Expiry 18 months out → window opens at expiry-12mo = 6 months from now.
+	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(18), LicenseID: uuid.New()}
+	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+
+	result := eval.Evaluate(context.Background(), rating, license, dp)
+
+	if result.Status != StatusCurrent {
+		t.Errorf("Status = %s, want current (window not yet open)", result.Status)
+	}
+	if result.WindowOpensAt == nil {
+		t.Fatal("WindowOpensAt should be set for FCL.740.A ratings")
+	}
+	if result.WindowOpen {
+		t.Errorf("WindowOpen = true, want false (expiry %d months out)", 18)
+	}
+	if len(result.Requirements) != 0 {
+		t.Errorf("Requirements should be empty while window is closed, got %d", len(result.Requirements))
+	}
+	if result.Progress != nil {
+		t.Error("Progress should be nil while window is closed (no flights counted)")
+	}
+}
+
+// TestEASA_MEP_WindowNotYetOpen verifies the same gating for MEP/SET ratings.
+func TestEASA_MEP_WindowNotYetOpen(t *testing.T) {
+	eval := NewEASAEvaluator()
+	dp := newMockFlightDataProvider()
+	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeMEPLand, ExpiryDate: futureDate(20), LicenseID: uuid.New()}
+	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "CPL"}
+
+	result := eval.Evaluate(context.Background(), rating, license, dp)
+
+	if result.Status != StatusCurrent {
+		t.Errorf("Status = %s, want current", result.Status)
+	}
+	if result.WindowOpen {
+		t.Error("WindowOpen should be false for fresh MEP rating")
+	}
+	if len(result.Requirements) != 0 {
+		t.Errorf("Requirements should be empty, got %d", len(result.Requirements))
+	}
+}
+
+// TestEASA_IR_WindowNotYetOpen verifies the same gating for IR.
+func TestEASA_IR_WindowNotYetOpen(t *testing.T) {
+	eval := NewEASAEvaluator()
+	dp := newMockFlightDataProvider()
+	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, ExpiryDate: futureDate(15), LicenseID: uuid.New()}
+	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+
+	result := eval.Evaluate(context.Background(), rating, license, dp)
+
+	if result.Status != StatusCurrent {
+		t.Errorf("Status = %s, want current", result.Status)
+	}
+	if result.WindowOpen {
+		t.Error("WindowOpen should be false for fresh IR rating")
+	}
+	if len(result.Requirements) != 0 {
+		t.Errorf("Requirements should be empty, got %d", len(result.Requirements))
+	}
+}
+
 func TestEASA_SEP_NoExpiry_Unknown(t *testing.T) {
 	eval := NewEASAEvaluator()
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}

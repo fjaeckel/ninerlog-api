@@ -31,7 +31,7 @@ func TestFullPipeline_EASAMultiRating(t *testing.T) {
 	}
 	licRepo.licenses[easaLic.ID] = easaLic
 
-	sepExpiry := time.Now().AddDate(0, 18, 0) // 18 months out
+	sepExpiry := time.Now().AddDate(0, 6, 0) // 6 months out — inside the FCL.740.A 12-month experience window
 	irExpiry := time.Now().AddDate(0, 6, 0)   // 6 months out
 
 	crRepo.ratings[easaLic.ID] = []*models.ClassRating{
