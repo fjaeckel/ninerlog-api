@@ -95,6 +95,16 @@ func (e *EASAEvaluator) evaluateSEPTMG(ctx context.Context, rating *models.Class
 	// Look back 12 months from expiry date — FCL.740.A(b)(1)
 	since := rating.ExpiryDate.AddDate(-1, 0, 0)
 
+	// If we are still in the first 12 months of the 24-month validity
+	// period, the experience-counting window has not opened yet. Flights
+	// logged today will not count toward revalidation, so showing red
+	// "not met" bars is misleading. Surface a friendly "recently
+	// revalidated" status instead and let the UI hide the requirement
+	// breakdown.
+	if r, closed := applyClosedWindow(rating, &since, result); closed {
+		return r
+	}
+
 	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
 	if err != nil {
 		result.Status = StatusUnknown
@@ -165,6 +175,11 @@ func (e *EASAEvaluator) evaluateMEPSET(ctx context.Context, rating *models.Class
 	// Look back 12 months from expiry date — FCL.740.A(b)(2)
 	since := rating.ExpiryDate.AddDate(-1, 0, 0)
 
+	// Window-not-yet-open guard — see evaluateSEPTMG for rationale.
+	if r, closed := applyClosedWindow(rating, &since, result); closed {
+		return r
+	}
+
 	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
 	if err != nil {
 		result.Status = StatusUnknown
@@ -233,6 +248,11 @@ func (e *EASAEvaluator) evaluateIR(ctx context.Context, rating *models.ClassRati
 
 	// Look back 12 months from expiry date; use all aircraft (IR is cross-class)
 	since := rating.ExpiryDate.AddDate(-1, 0, 0)
+
+	// Window-not-yet-open guard — see evaluateSEPTMG for rationale.
+	if r, closed := applyClosedWindow(rating, &since, result); closed {
+		return r
+	}
 
 	progress, err := dp.GetProgressAll(ctx, license.UserID, since)
 	if err != nil {
@@ -471,6 +491,30 @@ func (e *EASAEvaluator) evaluateSPL_TMG(ctx context.Context, rating *models.Clas
 	}
 
 	return result
+}
+
+// applyClosedWindow handles the period between a rating's revalidation and
+// the opening of its 12-month experience-counting window (EASA FCL.740.A,
+// FCL.625.A). It populates the WindowOpensAt / WindowOpen fields on the
+// result, and — if the window is still closed — fills in a "recently
+// revalidated" message and returns (result, true) so the caller can return
+// early without consulting the FlightDataProvider.
+//
+// `since` must be the 12-month look-back anchor (rating.ExpiryDate − 12mo).
+func applyClosedWindow(rating *models.ClassRating, since *time.Time, result ClassRatingCurrency) (ClassRatingCurrency, bool) {
+	windowStr := since.Format("2006-01-02")
+	result.WindowOpensAt = &windowStr
+	if !time.Now().Before(*since) {
+		result.WindowOpen = true
+		return result, false
+	}
+	result.WindowOpen = false
+	result.Status = StatusCurrent
+	result.Message = fmt.Sprintf(
+		"EASA %s — recently revalidated; experience window opens %s",
+		rating.ClassType, windowStr,
+	)
+	return result, true
 }
 
 // easaRuleDescription returns a human-readable description of EASA currency rules for a class type

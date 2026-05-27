@@ -336,7 +336,13 @@ const (
 // AdminAuditLogEntry defines model for AdminAuditLogEntry.
 type AdminAuditLogEntry struct {
 	// Action The admin action performed
-	Action      string             `json:"action"`
+	Action string `json:"action"`
+
+	// AdminEmail Email of the admin who performed the action (if the account still exists)
+	AdminEmail *openapi_types.Email `json:"adminEmail,omitempty"`
+
+	// AdminName Display name of the admin who performed the action (if the account still exists)
+	AdminName   *string            `json:"adminName,omitempty"`
 	AdminUserId openapi_types.UUID `json:"adminUserId"`
 	CreatedAt   time.Time          `json:"createdAt"`
 
@@ -344,8 +350,14 @@ type AdminAuditLogEntry struct {
 	Details *map[string]interface{} `json:"details,omitempty"`
 	Id      openapi_types.UUID      `json:"id"`
 
+	// TargetUserEmail Email of the target user (if any, and if the account still exists)
+	TargetUserEmail *openapi_types.Email `json:"targetUserEmail,omitempty"`
+
 	// TargetUserId The user affected by the action (if any)
 	TargetUserId *openapi_types.UUID `json:"targetUserId,omitempty"`
+
+	// TargetUserName Display name of the target user (if any, and if the account still exists)
+	TargetUserName *string `json:"targetUserName,omitempty"`
 }
 
 // AdminConfig defines model for AdminConfig.
@@ -859,6 +871,21 @@ type ClassRatingCurrency struct {
 	// - expired: Rating has expired or currency requirements not met
 	// - unknown: Authority not supported for auto-calculation
 	Status ClassRatingCurrencyStatus `json:"status"`
+
+	// WindowOpen Only meaningful when `windowOpensAt` is set. True if the
+	// revalidation experience window is currently open
+	// (now >= windowOpensAt). When false, flight experience accrued
+	// today does not yet count toward this rating's revalidation, so
+	// `requirements` is omitted and `status` stays `current` until the
+	// window opens.
+	WindowOpen *bool `json:"windowOpen,omitempty"`
+
+	// WindowOpensAt For ratings whose experience window is anchored to expiry (EASA
+	// FCL.740.A SEP/TMG/MEP/SET and FCL.625.A IR), the date on which
+	// the 12-month experience-counting window opens (expiry − 12
+	// months). Omitted for rolling-window rules (LAPL FCL.140.A,
+	// SPL FCL.140.S) and for expiry-only ratings.
+	WindowOpensAt *openapi_types.Date `json:"windowOpensAt"`
 }
 
 // ClassRatingCurrencyStatus Currency status:

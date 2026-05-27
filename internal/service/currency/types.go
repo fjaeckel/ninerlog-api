@@ -24,6 +24,16 @@ type ClassRatingCurrency struct {
 	LicenseType          string                 `json:"licenseType"`
 	Status               Status                 `json:"status"`
 	ExpiryDate           *string                `json:"expiryDate,omitempty"`
+	// WindowOpensAt is set for expiry-anchored revalidation rules
+	// (EASA FCL.740.A SEP/TMG/MEP/SET, FCL.625.A IR). It is the date on which
+	// the 12-month experience-counting window opens (expiry − 12 months).
+	// Omitted for rolling-window rules (LAPL/SPL) and expiry-only fallbacks.
+	WindowOpensAt *string `json:"windowOpensAt,omitempty"`
+	// WindowOpen is only meaningful when WindowOpensAt is set. It is true
+	// once now >= WindowOpensAt; while false, flight experience does not
+	// yet count toward this rating's revalidation and Requirements is
+	// suppressed so the UI doesn't show misleading "not met" bars.
+	WindowOpen           bool                   `json:"windowOpen"`
 	Message              string                 `json:"message"`
 	RuleDescription      string                 `json:"ruleDescription,omitempty"`
 	RuleDescriptionKey   string                 `json:"ruleDescriptionKey,omitempty"`
