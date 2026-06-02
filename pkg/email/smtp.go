@@ -106,8 +106,8 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 
 	// Sanitize body content before composing the raw RFC822 message to avoid
 	// email content/header injection via control characters.
-	safeHTMLBody := sanitizeMessageBody(htmlBody)
-	msg := []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + safeHTMLBody)
+	sanitizedBody := sanitizeMessageBody(htmlBody)
+	msg := []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + sanitizedBody)
 
 	// Use PlainAuth when password is set, otherwise no auth
 	// (supports test SMTP servers like MailPit that accept unauthenticated connections)
