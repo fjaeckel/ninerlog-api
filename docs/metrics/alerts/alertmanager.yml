@@ -1,0 +1,71 @@
+# Example Alertmanager configuration for the NinerLog API.
+#
+# This routes alerts produced by alerts/prometheus-rules.yml:
+#   severity="critical" -> paging receiver (PagerDuty/Opsgenie/etc.) — wakes you up
+#   severity="warning"  -> non-paging receiver (Slack/email)
+#
+# Replace the placeholder receiver settings (URLs, keys, addresses) with your own.
+# Validate:  amtool check-config alertmanager.yml
+
+global:
+  resolve_timeout: 5m
+  # smtp_smarthost: 'smtp.example.com:587'
+  # smtp_from: 'alertmanager@ninerlog.app'
+  # smtp_auth_username: 'alertmanager@ninerlog.app'
+  # smtp_auth_password: 'CHANGE_ME'
+
+route:
+  receiver: warning-notifications
+  group_by: ['alertname', 'job']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Critical alerts page a human immediately and re-page aggressively until resolved.
+    - matchers:
+        - severity = "critical"
+      receiver: pager
+      group_wait: 10s
+      group_interval: 2m
+      repeat_interval: 1h
+      continue: false
+
+    # Everything else (warnings) goes to a non-paging channel.
+    - matchers:
+        - severity = "warning"
+      receiver: warning-notifications
+
+# Suppress noisy downstream alerts when the whole target is already down.
+inhibit_rules:
+  - source_matchers:
+      - alertname = "NinerlogApiDown"
+    target_matchers:
+      - severity =~ "warning|critical"
+    equal: ['job', 'instance']
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ['alertname', 'instance']
+
+receivers:
+  - name: pager
+    # --- Choose ONE paging integration and fill it in ---
+    pagerduty_configs:
+      - routing_key: CHANGE_ME_PAGERDUTY_ROUTING_KEY
+        description: '{{ .CommonAnnotations.summary }}'
+        severity: '{{ .CommonLabels.severity }}'
+    # opsgenie_configs:
+    #   - api_key: CHANGE_ME_OPSGENIE_API_KEY
+    #     message: '{{ .CommonAnnotations.summary }}'
+
+  - name: warning-notifications
+    # --- Choose ONE non-paging integration and fill it in ---
+    slack_configs:
+      - api_url: 'CHANGE_ME_SLACK_WEBHOOK_URL'
+        channel: '#ninerlog-alerts'
+        title: '{{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}'
+    # email_configs:
+    #   - to: 'oncall@ninerlog.app'
+    #     send_resolved: true

@@ -2,6 +2,10 @@
 
 The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication required).
 
+> **Operations bundle:** Ready-to-import Grafana dashboards, Prometheus alerting
+> rules and an example Alertmanager configuration live in
+> [`docs/metrics/`](./metrics/). Start there to wire up monitoring and paging.
+
 ## Configuration
 
 | Env Var | Default | Description |
@@ -57,6 +61,19 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 | `notification_check_runs_total` | Counter | — | Total background notification check runs |
 | `notification_check_duration_seconds` | Histogram | — | Duration of each check run |
 | `notifications_sent_total` | Counter | `type` | Notifications sent. Types: `credential_expiry`, `revalidation`, `passenger_currency`, `night_currency`, `flight_review`, `rating_expiry`, `currency_revalidation`, `currency_flight_review` |
+| `notification_check_errors_total` | Counter | — | Check runs that aborted early due to an error (e.g. failing to load preferences) |
+| `notification_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last successfully completed check run. Use for staleness alerting |
+
+### Email Delivery Metrics
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `email_send_total` | Counter | `result` | Email send attempts. Results: `success`, `failure`, `dry_run`, `invalid_address` |
+| `email_send_duration_seconds` | Histogram | — | SMTP delivery latency in seconds (successful sends only) |
+
+> **Why this matters:** every user-facing notification is delivered over SMTP.
+> `notifications_sent_total` only increments on success, so SMTP outages are
+> invisible without `email_send_total{result="failure"}`.
 
 ### Rate Limiting Metrics
 
@@ -121,4 +138,11 @@ db_connections_in_use / db_connections_max_open * 100
 
 # Notification send rate by type
 rate(notifications_sent_total[1h])
+
+# Email delivery failure ratio (last 15m)
+sum(rate(email_send_total{result="failure"}[15m]))
+  / sum(rate(email_send_total[15m]))
+
+# Background notification checker staleness (seconds since last success)
+time() - notification_last_success_timestamp_seconds
 ```
