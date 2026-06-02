@@ -1,6 +1,9 @@
 package email
 
-import "fmt"
+import (
+	"fmt"
+	"html"
+)
 
 var deTemplates = templateSet{
 	CredentialExpiry: func(p CredentialExpiryParams) (string, string) {
@@ -9,7 +12,7 @@ var deTemplates = templateSet{
 <p>Hallo %s,</p>
 <p>Ihr <strong>%s</strong> läuft am <strong>%s</strong> ab (noch %d Tage).</p>
 <p>Bitte erneuern Sie den Nachweis rechtzeitig, um die Gültigkeit aufrechtzuerhalten.</p>
-<p>— NinerLog</p>`, p.UserName, p.CredentialType, p.ExpiryDate, p.DaysRemaining)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.CredentialType), html.EscapeString(p.ExpiryDate), p.DaysRemaining)
 		return subject, body
 	},
 
@@ -19,7 +22,7 @@ var deTemplates = templateSet{
 <p>Hallo %s,</p>
 <p>Ihre <strong>%s %s</strong> Berechtigung läuft am <strong>%s</strong> ab.</p>
 <p>Stellen Sie die erforderlichen Verlängerungsflüge oder die Befähigungsüberprüfung vor dem Ablauf sicher.</p>
-<p>— NinerLog</p>`, p.UserName, p.LicenseType, p.ClassType, p.ExpiryDate)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.LicenseType), html.EscapeString(p.ClassType), html.EscapeString(p.ExpiryDate))
 		return subject, body
 	},
 
@@ -28,7 +31,7 @@ var deTemplates = templateSet{
 		body := fmt.Sprintf(`<h2>Verlängerungswarnung</h2>
 <p>Hallo %s,</p>
 <p>Ihre <strong>%s %s</strong> Berechtigungsgültigkeit erfordert Aufmerksamkeit: %s</p>
-<p>— NinerLog</p>`, p.UserName, p.LicenseType, p.ClassType, p.Message)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.LicenseType), html.EscapeString(p.ClassType), html.EscapeString(p.Message))
 		return subject, body
 	},
 
@@ -42,7 +45,7 @@ var deTemplates = templateSet{
 <p>Hallo %s,</p>
 <p>Ihre <strong>%s</strong> %s-Passagiergültigkeit erfordert Aufmerksamkeit.</p>
 <p>Sie haben <strong>%d %s-Landungen</strong> in den letzten 90 Tagen. Sie benötigen <strong>%d weitere</strong> für die Passagiermitnahme.</p>
-<p>— NinerLog</p>`, p.UserName, p.ClassType, periodDE, p.Landings, periodDE, p.Remaining)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.ClassType), periodDE, p.Landings, periodDE, p.Remaining)
 		return subject, body
 	},
 
@@ -52,7 +55,7 @@ var deTemplates = templateSet{
 <p>Hallo %s,</p>
 <p>Ihre Flugüberprüfung läuft am <strong>%s</strong> ab.</p>
 <p>Absolvieren Sie eine Flugüberprüfung (14 CFR §61.56) vor dem Ablauf, um Ihre Flugberechtigung aufrechtzuerhalten.</p>
-<p>— NinerLog</p>`, p.UserName, p.ExpiryDate)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.ExpiryDate))
 		return subject, body
 	},
 
@@ -62,7 +65,7 @@ var deTemplates = templateSet{
 <p>Hallo %s,</p>
 <p>%s</p>
 <p>Absolvieren Sie eine Flugüberprüfung (14 CFR §61.56), um Ihre Flugberechtigung wiederzuerlangen.</p>
-<p>— NinerLog</p>`, p.UserName, p.Message)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Message))
 		return subject, body
 	},
 
@@ -73,7 +76,7 @@ var deTemplates = templateSet{
 <p>Vielen Dank für Ihre Registrierung. Bitte bestätigen Sie Ihre E-Mail-Adresse, um Ihr Konto zu aktivieren:</p>
 <p><a href="%s">E-Mail-Adresse bestätigen</a></p>
 <p>Der Link ist 24 Stunden gültig. Wenn Sie kein NinerLog-Konto erstellt haben, können Sie diese E-Mail ignorieren.</p>
-<p>— NinerLog</p>`, p.UserName, p.Link)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Link))
 		return subject, body
 	},
 }

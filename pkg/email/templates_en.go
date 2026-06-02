@@ -1,6 +1,9 @@
 package email
 
-import "fmt"
+import (
+	"fmt"
+	"html"
+)
 
 var enTemplates = templateSet{
 	CredentialExpiry: func(p CredentialExpiryParams) (string, string) {
@@ -9,7 +12,7 @@ var enTemplates = templateSet{
 <p>Hi %s,</p>
 <p>Your <strong>%s</strong> expires on <strong>%s</strong> (%d days from now).</p>
 <p>Please renew it before it expires to maintain compliance.</p>
-<p>— NinerLog</p>`, p.UserName, p.CredentialType, p.ExpiryDate, p.DaysRemaining)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.CredentialType), html.EscapeString(p.ExpiryDate), p.DaysRemaining)
 		return subject, body
 	},
 
@@ -19,7 +22,7 @@ var enTemplates = templateSet{
 <p>Hi %s,</p>
 <p>Your <strong>%s %s</strong> rating expires on <strong>%s</strong>.</p>
 <p>Complete the required revalidation flights or proficiency check before expiry.</p>
-<p>— NinerLog</p>`, p.UserName, p.LicenseType, p.ClassType, p.ExpiryDate)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.LicenseType), html.EscapeString(p.ClassType), html.EscapeString(p.ExpiryDate))
 		return subject, body
 	},
 
@@ -28,7 +31,7 @@ var enTemplates = templateSet{
 		body := fmt.Sprintf(`<h2>Currency Revalidation Warning</h2>
 <p>Hi %s,</p>
 <p>Your <strong>%s %s</strong> rating currency needs attention: %s</p>
-<p>— NinerLog</p>`, p.UserName, p.LicenseType, p.ClassType, p.Message)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.LicenseType), html.EscapeString(p.ClassType), html.EscapeString(p.Message))
 		return subject, body
 	},
 
@@ -38,7 +41,7 @@ var enTemplates = templateSet{
 <p>Hi %s,</p>
 <p>Your <strong>%s</strong> %s passenger currency requires attention.</p>
 <p>You have <strong>%d %s landings</strong> in the last 90 days. You need <strong>%d more</strong> to carry passengers.</p>
-<p>— NinerLog</p>`, p.UserName, p.ClassType, p.Period, p.Landings, p.Period, p.Remaining)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.ClassType), html.EscapeString(p.Period), p.Landings, html.EscapeString(p.Period), p.Remaining)
 		return subject, body
 	},
 
@@ -48,7 +51,7 @@ var enTemplates = templateSet{
 <p>Hi %s,</p>
 <p>Your flight review expires on <strong>%s</strong>.</p>
 <p>Complete a flight review (14 CFR §61.56) before expiry to maintain flying privileges.</p>
-<p>— NinerLog</p>`, p.UserName, p.ExpiryDate)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.ExpiryDate))
 		return subject, body
 	},
 
@@ -58,7 +61,7 @@ var enTemplates = templateSet{
 <p>Hi %s,</p>
 <p>%s</p>
 <p>Complete a flight review (14 CFR §61.56) to regain flying privileges.</p>
-<p>— NinerLog</p>`, p.UserName, p.Message)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Message))
 		return subject, body
 	},
 
@@ -69,7 +72,7 @@ var enTemplates = templateSet{
 <p>Thanks for signing up. Please confirm your email address to activate your account:</p>
 <p><a href="%s">Verify my email</a></p>
 <p>This link expires in 24 hours. If you did not create a NinerLog account, you can ignore this email.</p>
-<p>— NinerLog</p>`, p.UserName, p.Link)
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Link))
 		return subject, body
 	},
 }

@@ -437,20 +437,11 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 		return
 	}
 
-	subject := "NinerLog: Flight review required"
-	body := fmt.Sprintf(`<h2>Flight Review Required</h2>
-		<p>Hi %s,</p>
-		<p>%s</p>
-		<p>Complete a flight review (14 CFR §61.56) to regain flying privileges.</p>
-		<p>— NinerLog</p>`, userName, fr.Message)
-	// Use locale-aware template if available
-	if user != nil {
-		tmplFR := email.Templates(user.PreferredLocale)
-		subject, body = tmplFR.FlightReviewRequired(email.FlightReviewRequiredParams{
-			UserName: userName,
-			Message:  fr.Message,
-		})
-	}
+	tmplFR := email.Templates(user.PreferredLocale)
+	subject, body := tmplFR.FlightReviewRequired(email.FlightReviewRequiredParams{
+		UserName: userName,
+		Message:  fr.Message,
+	})
 
 	if err := s.emailSender.Send(userEmail, subject, body); err != nil {
 		log.Printf("🔔 Failed to send flight review email: %v", err)
