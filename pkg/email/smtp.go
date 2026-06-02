@@ -46,6 +46,11 @@ func NewSender(config *SMTPConfig) *Sender {
 	return &Sender{config: config}
 }
 
+func sanitizeHeader(value string) string {
+	r := strings.NewReplacer("\r", "", "\n", "")
+	return r.Replace(value)
+}
+
 // Send sends an email.
 //
 // The recipient is validated with net/mail.ParseAddress (which rejects CR/LF and
