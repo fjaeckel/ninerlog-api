@@ -264,3 +264,48 @@ func TestPassengerCurrency_German_Day(t *testing.T) {
 		t.Errorf("German day subject should contain 'Tag', got %q", subj)
 	}
 }
+
+// TestTemplates_HTMLEscapesUserInput ensures user-controlled values are HTML
+// escaped in email bodies so they cannot inject markup (CWE-79/116).
+func TestTemplates_HTMLEscapesUserInput(t *testing.T) {
+	const payload = `<script>alert('xss')</script>`
+	const escaped = `&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;`
+
+	for _, locale := range []string{"en", "de"} {
+		ts := Templates(locale)
+
+		bodies := map[string]string{}
+		_, bodies["CredentialExpiry"] = ts.CredentialExpiry(CredentialExpiryParams{UserName: payload, CredentialType: payload, ExpiryDate: payload})
+		_, bodies["RatingExpiry"] = ts.RatingExpiry(RatingExpiryParams{UserName: payload, LicenseType: payload, ClassType: payload, ExpiryDate: payload})
+		_, bodies["Revalidation"] = ts.Revalidation(RevalidationParams{UserName: payload, LicenseType: payload, ClassType: payload, Message: payload})
+		_, bodies["PassengerCurrency"] = ts.PassengerCurrency(PassengerCurrencyParams{UserName: payload, ClassType: payload, Period: "day"})
+		_, bodies["FlightReviewExpiry"] = ts.FlightReviewExpiry(FlightReviewExpiryParams{UserName: payload, ExpiryDate: payload})
+		_, bodies["FlightReviewRequired"] = ts.FlightReviewRequired(FlightReviewRequiredParams{UserName: payload, Message: payload})
+		_, bodies["VerifyEmail"] = ts.VerifyEmail(VerifyEmailParams{UserName: payload, Link: payload})
+
+		for name, body := range bodies {
+			if strings.Contains(body, payload) {
+				t.Errorf("%s/%s body must not contain raw HTML payload, got %q", locale, name, body)
+			}
+			if !strings.Contains(body, escaped) {
+				t.Errorf("%s/%s body should contain escaped payload, got %q", locale, name, body)
+			}
+		}
+	}
+}
+
+// TestVerifyEmail_EscapesLinkAttribute ensures the verification link cannot break
+// out of the href attribute to inject additional HTML.
+func TestVerifyEmail_EscapesLinkAttribute(t *testing.T) {
+	for _, locale := range []string{"en", "de"} {
+		ts := Templates(locale)
+		_, body := ts.VerifyEmail(VerifyEmailParams{
+			UserName: "Mallory",
+			Link:     `https://x/"><script>alert(1)</script>`,
+		})
+		if strings.Contains(body, `"><script>`) {
+			t.Errorf("%s VerifyEmail must escape href attribute breakout, got %q", locale, body)
+		}
+	}
+}
+

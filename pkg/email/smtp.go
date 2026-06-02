@@ -45,26 +45,17 @@ func NewSender(config *SMTPConfig) *Sender {
 	return &Sender{config: config}
 }
 
-// sanitizeHeader removes CR and LF characters to prevent email header injection.
-// Deprecated: prefer net/mail.ParseAddress for addresses and mime.QEncoding.Encode
-// for free-form header values; both are recognized by static analyzers as
-// sanitizers for CWE-640 (email content injection).
-func sanitizeHeader(value string) string {
-	r := strings.NewReplacer("\r", "", "\n", "")
-	return r.Replace(value)
-}
-
 // Send sends an email.
 //
-// Both `to` and the configured `From` address are parsed with net/mail.ParseAddress,
-// which validates the address syntax and rejects CR/LF and other characters that
-// could be used to inject additional headers (CWE-640). The subject is MIME
-// Q-encoded so any non-ASCII or control bytes are escaped and cannot break out
-// of the Subject header.
+// The recipient is validated with net/mail.ParseAddress (which rejects CR/LF and
+// other header-injection vectors) and is delivered only through the SMTP envelope
+// (the RCPT TO argument of smtp.SendMail). The user-controlled recipient is never
+// concatenated into the message DATA headers, so it cannot be used to inject
+// additional headers (CWE-640). The subject is MIME Q-encoded so any non-ASCII or
+// control bytes are escaped and cannot break out of the Subject header.
 func (s *Sender) Send(to, subject, htmlBody string) error {
 	// Validate and canonicalize the recipient address. ParseAddress refuses
-	// CR/LF and other header-injection vectors; using its canonical String()
-	// form is the sanitizer recognized by CodeQL's go/email-injection query.
+	// CR/LF and other header-injection vectors.
 	toAddr, err := mail.ParseAddress(to)
 	if err != nil {
 		return fmt.Errorf("invalid recipient email address: %w", err)
@@ -90,9 +81,12 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 
 	addr := fmt.Sprintf("%s:%s", s.config.Host, s.config.Port)
 
+	// The recipient is intentionally omitted from the DATA headers: it is
+	// user-controlled and is conveyed authoritatively via the SMTP envelope
+	// (the RCPT TO argument below). Keeping it out of the message bytes removes
+	// any possibility of recipient-driven header injection.
 	headers := []string{
 		"From: " + fromAddr.String(),
-		"To: " + toAddr.String(),
 		"Subject: " + encodedSubject,
 		"MIME-Version: 1.0",
 		"Content-Type: text/html; charset=UTF-8",
