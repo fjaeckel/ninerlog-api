@@ -46,9 +46,13 @@ func NewSender(config *SMTPConfig) *Sender {
 	return &Sender{config: config}
 }
 
-func sanitizeHeader(value string) string {
-	r := strings.NewReplacer("\r", "", "\n", "")
-	return r.Replace(value)
+func sanitizeMessageBody(value string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, value)
 }
 
 // Send sends an email.
@@ -102,7 +106,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 
 	// Sanitize body content before composing the raw RFC822 message to avoid
 	// email content/header injection via control characters.
-	safeHTMLBody := sanitizeHeader(htmlBody)
+	safeHTMLBody := sanitizeMessageBody(htmlBody)
 	msg := []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + safeHTMLBody)
 
 	// Use PlainAuth when password is set, otherwise no auth
