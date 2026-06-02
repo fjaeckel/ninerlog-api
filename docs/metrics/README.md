@@ -8,7 +8,6 @@ NinerLog API and to **get paged when something that matters breaks**.
 | Metric catalogue (all metrics emitted) | [`docs/METRICS.md`](../METRICS.md) and the table below |
 | Grafana dashboards | [`dashboards/`](./dashboards/) |
 | Prometheus alerting rules | [`alerts/prometheus-rules.yml`](./alerts/prometheus-rules.yml) |
-| Example Alertmanager routing | [`alerts/alertmanager.yml`](./alerts/alertmanager.yml) |
 
 The API exposes Prometheus metrics at `GET /metrics` (no auth). Disable with
 `METRICS_ENABLED=false`.
@@ -117,10 +116,9 @@ promtool check rules alerts/prometheus-rules.yml
 
 ### 3. Route alerts so they wake you up
 
-Copy [`alerts/alertmanager.yml`](./alerts/alertmanager.yml), fill in your real
-receiver (PagerDuty / Opsgenie / Slack / email) and start Alertmanager.
-`severity="critical"` alerts are routed to the paging receiver; `warning`
-alerts go to a non-paging channel.
+Configure Alertmanager to route alerts by severity: `severity="critical"`
+alerts should go to a paging receiver (PagerDuty / Opsgenie), while `warning`
+alerts go to a non-paging channel (Slack / email).
 
 ### 4. Import the dashboards
 

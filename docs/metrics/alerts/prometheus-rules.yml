@@ -6,7 +6,7 @@
 #
 # Validate:  promtool check rules prometheus-rules.yml
 #
-# Severity convention (see alertmanager.yml for routing):
+# Severity convention (route by the `severity` label in Alertmanager):
 #   severity="critical" -> pages a human (24/7)
 #   severity="warning"  -> non-paging channel (Slack/email), look at it soon
 #

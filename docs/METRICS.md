@@ -2,8 +2,8 @@
 
 The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication required).
 
-> **Operations bundle:** Ready-to-import Grafana dashboards, Prometheus alerting
-> rules and an example Alertmanager configuration live in
+> **Operations bundle:** Ready-to-import Grafana dashboards and Prometheus
+> alerting rules live in
 > [`docs/metrics/`](./metrics/). Start there to wire up monitoring and paging.
 
 ## Configuration
