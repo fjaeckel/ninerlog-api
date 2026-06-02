@@ -73,7 +73,7 @@ The API exposes Prometheus metrics at `GET /metrics` (no auth). Disable with
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `email_send_total` | Counter | `result` | `success`, `failure`, `dry_run`, `invalid_address` |
-| `email_send_duration_seconds` | Histogram | — | SMTP delivery latency (successful sends only) |
+| `email_send_duration_seconds` | Histogram | — | Latency of the SMTP send call (successful and failed attempts) |
 
 ### Go runtime (built-in collectors)
 
@@ -93,7 +93,7 @@ scrape_configs:
     scrape_interval: 15s
     metrics_path: /metrics
     static_configs:
-      - targets: ['api:3000']   # docker-compose service name; or localhost:3000
+      - targets: ['api:3000']   # replace 'api' with your service name (see docker-compose.yml); or use localhost:3000 when running the binary directly
 ```
 
 ### 2. Load the alerting rules

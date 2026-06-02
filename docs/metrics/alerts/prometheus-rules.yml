@@ -143,9 +143,9 @@ groups:
     rules:
       # Staleness: the background checker writes a fresh timestamp every run.
       # If it stops (crashed goroutine, stuck loop), no notifications go out.
-      # Threshold = 2x the default 1h check interval plus headroom.
+      # Threshold = 2x the default 1h (3600s) check interval + 10m (600s) headroom.
       - alert: NinerlogApiNotificationCheckerStale
-        expr: (time() - notification_last_success_timestamp_seconds) > 7200
+        expr: (time() - notification_last_success_timestamp_seconds) > (2 * 3600 + 600)
         for: 5m
         labels:
           severity: critical

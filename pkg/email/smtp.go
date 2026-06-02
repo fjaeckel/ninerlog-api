@@ -111,11 +111,14 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	}
 
 	sendStart := time.Now()
-	if err := smtp.SendMail(addr, auth, fromAddr.Address, []string{toAddr.Address}, msg); err != nil {
+	err = smtp.SendMail(addr, auth, fromAddr.Address, []string{toAddr.Address}, msg)
+	// Observe the SMTP call latency for every real attempt (success or failure)
+	// so timeouts and slow rejections are visible, not just happy-path latency.
+	EmailSendDurationSeconds.Observe(time.Since(sendStart).Seconds())
+	if err != nil {
 		EmailSendTotal.WithLabelValues("failure").Inc()
 		return fmt.Errorf("failed to send email: %w", err)
 	}
-	EmailSendDurationSeconds.Observe(time.Since(sendStart).Seconds())
 	EmailSendTotal.WithLabelValues("success").Inc()
 
 	log.Printf("📧 Email sent to %s: %s", toAddr.Address, subject)

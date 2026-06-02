@@ -17,7 +17,7 @@ var (
 	EmailSendDurationSeconds = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "email_send_duration_seconds",
-			Help:    "Latency of SMTP email delivery in seconds.",
+			Help:    "Latency of the SMTP send call in seconds (both successful and failed attempts).",
 			Buckets: prometheus.DefBuckets,
 		},
 	)

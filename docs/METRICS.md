@@ -69,7 +69,7 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `email_send_total` | Counter | `result` | Email send attempts. Results: `success`, `failure`, `dry_run`, `invalid_address` |
-| `email_send_duration_seconds` | Histogram | — | SMTP delivery latency in seconds (successful sends only) |
+| `email_send_duration_seconds` | Histogram | — | Latency of the SMTP send call (both successful and failed attempts) |
 
 > **Why this matters:** every user-facing notification is delivered over SMTP.
 > `notifications_sent_total` only increments on success, so SMTP outages are
