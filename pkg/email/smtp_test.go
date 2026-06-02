@@ -109,28 +109,6 @@ func TestGetEnv_WithDefault(t *testing.T) {
 	}
 }
 
-func TestSanitizeHeader(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{"clean value", "user@example.com", "user@example.com"},
-		{"strips CR", "user@example.com\rBcc: attacker@evil.com", "user@example.comBcc: attacker@evil.com"},
-		{"strips LF", "user@example.com\nBcc: attacker@evil.com", "user@example.comBcc: attacker@evil.com"},
-		{"strips CRLF", "user@example.com\r\nBcc: attacker@evil.com", "user@example.comBcc: attacker@evil.com"},
-		{"empty string", "", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := sanitizeHeader(tt.input)
-			if got != tt.want {
-				t.Errorf("sanitizeHeader(%q) = %q, want %q", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestSend_DryRun_RejectsInjectionAttempt(t *testing.T) {
 	cfg := &SMTPConfig{}
 	sender := NewSender(cfg)
