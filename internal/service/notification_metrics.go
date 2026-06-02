@@ -28,6 +28,25 @@ var (
 		},
 		[]string{"type"},
 	)
+
+	// NotificationCheckErrorsTotal counts notification check runs that aborted
+	// early due to an error (e.g. failing to load user preferences).
+	NotificationCheckErrorsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "notification_check_errors_total",
+			Help: "Total number of background notification check runs that failed.",
+		},
+	)
+
+	// NotificationLastSuccessTimestampSeconds records the Unix timestamp of the
+	// last successfully completed notification check. Use it to alert when the
+	// background checker stops running (staleness).
+	NotificationLastSuccessTimestampSeconds = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "notification_last_success_timestamp_seconds",
+			Help: "Unix timestamp of the last successfully completed notification check.",
+		},
+	)
 )
 
 func init() {
@@ -35,5 +54,7 @@ func init() {
 		NotificationCheckRunsTotal,
 		NotificationCheckDurationSeconds,
 		NotificationsSentTotal,
+		NotificationCheckErrorsTotal,
+		NotificationLastSuccessTimestampSeconds,
 	)
 }

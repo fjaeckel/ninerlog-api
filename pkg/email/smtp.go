@@ -8,6 +8,7 @@ import (
 	"net/smtp"
 	"os"
 	"strings"
+	"time"
 )
 
 // SMTPConfig holds SMTP server configuration
@@ -67,6 +68,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	// form is the sanitizer recognized by CodeQL's go/email-injection query.
 	toAddr, err := mail.ParseAddress(to)
 	if err != nil {
+		EmailSendTotal.WithLabelValues("invalid_address").Inc()
 		return fmt.Errorf("invalid recipient email address: %w", err)
 	}
 
@@ -85,6 +87,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 
 	if !s.config.IsConfigured() {
 		log.Printf("📧 [DRY-RUN] Email to %s: %s (SMTP not configured)", toAddr.Address, subject)
+		EmailSendTotal.WithLabelValues("dry_run").Inc()
 		return nil
 	}
 
@@ -107,9 +110,13 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 		auth = smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
 	}
 
+	sendStart := time.Now()
 	if err := smtp.SendMail(addr, auth, fromAddr.Address, []string{toAddr.Address}, msg); err != nil {
+		EmailSendTotal.WithLabelValues("failure").Inc()
 		return fmt.Errorf("failed to send email: %w", err)
 	}
+	EmailSendDurationSeconds.Observe(time.Since(sendStart).Seconds())
+	EmailSendTotal.WithLabelValues("success").Inc()
 
 	log.Printf("📧 Email sent to %s: %s", toAddr.Address, subject)
 	return nil
