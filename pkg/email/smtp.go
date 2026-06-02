@@ -101,7 +101,10 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 		"Content-Type: text/html; charset=UTF-8",
 	}
 
-	msg := []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + htmlBody)
+	// Sanitize body content before composing the raw RFC822 message to avoid
+	// email content/header injection via control characters.
+	safeHTMLBody := sanitizeHeader(htmlBody)
+	msg := []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + safeHTMLBody)
 
 	// Use PlainAuth when password is set, otherwise no auth
 	// (supports test SMTP servers like MailPit that accept unauthenticated connections)
