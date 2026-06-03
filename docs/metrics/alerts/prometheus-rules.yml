@@ -1,0 +1,183 @@
+# Prometheus alerting rules for the NinerLog API.
+#
+# Load via prometheus.yml:
+#   rule_files:
+#     - /etc/prometheus/rules/ninerlog-rules.yml
+#
+# Validate:  promtool check rules prometheus-rules.yml
+#
+# Severity convention (route by the `severity` label in Alertmanager):
+#   severity="critical" -> pages a human (24/7)
+#   severity="warning"  -> non-paging channel (Slack/email), look at it soon
+#
+# The `job="ninerlog-api"` selector assumes the scrape_config job_name from the
+# README. Adjust if you scrape under a different job name.
+
+groups:
+  - name: ninerlog-api.availability
+    rules:
+      - alert: NinerlogApiDown
+        expr: up{job="ninerlog-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NinerLog API target is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} (job {{ $labels.job }}) for more than 1 minute."
+
+      - alert: NinerlogApiUnhealthy
+        expr: health_check_status == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NinerLog API reports unhealthy"
+          description: "health_check_status has been 0 for 2m on {{ $labels.instance }} — the /health check (including DB ping) is failing."
+
+      - alert: NinerlogApiAbsentMetrics
+        expr: absent(up{job="ninerlog-api"})
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NinerLog API has no metrics targets"
+          description: "No targets for job ninerlog-api have been scraped for 5m. Check service discovery / scrape config."
+
+  - name: ninerlog-api.http
+    rules:
+      # Page when the 5xx ratio is high enough to hurt users, with enough traffic
+      # to be statistically meaningful (>0.05 req/s over the window).
+      - alert: NinerlogApiHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="ninerlog-api", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="ninerlog-api"}[5m]))
+          ) > 0.05
+          and
+          sum(rate(http_requests_total{job="ninerlog-api"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate (> 5%)"
+          description: "{{ $value | humanizePercentage }} of requests are returning 5xx over the last 5m."
+
+      - alert: NinerlogApiHighLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="ninerlog-api"}[5m])) by (le)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 request latency above 1s"
+          description: "P95 latency is {{ $value | humanizeDuration }} over the last 5m (sustained 10m)."
+
+      - alert: NinerlogApiPanicsRecovered
+        expr: increase(api_panics_recovered_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Recovered panics in the API"
+          description: "{{ $value }} panic(s) were recovered in the last 5m on {{ $labels.instance }}. Check logs."
+
+      - alert: NinerlogApiRateLimitSaturation
+        expr: sum(rate(rate_limit_hits_total{job="ninerlog-api"}[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sustained rate-limit rejections"
+          description: "Requests are being rate-limited at {{ $value | humanize }}/s for 10m. Possible abuse or an under-provisioned limit."
+
+  - name: ninerlog-api.database
+    rules:
+      # Pool exhaustion: nearly all configured connections are in use and clients
+      # are waiting for one to free up.
+      - alert: NinerlogApiDbPoolExhausted
+        expr: |
+          (db_connections_in_use / db_connections_max_open) > 0.9
+          and
+          rate(db_wait_count_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "{{ $value | humanizePercentage }} of the pool is in use and requests are waiting for connections on {{ $labels.instance }}."
+
+      - alert: NinerlogApiDbConnectionWaits
+        expr: rate(db_wait_duration_seconds_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Clients waiting for database connections"
+          description: "Time spent waiting for DB connections is {{ $value | humanizeDuration }}/s. Consider raising the pool size or investigating slow queries."
+
+  - name: ninerlog-api.email
+    rules:
+      # Email is the only delivery channel for notifications. A high failure
+      # ratio means users silently stop receiving expiry/currency warnings.
+      - alert: NinerlogApiEmailDeliveryFailing
+        expr: |
+          (
+            sum(rate(email_send_total{result="failure"}[15m]))
+            /
+            sum(rate(email_send_total{result=~"success|failure"}[15m]))
+          ) > 0.2
+          and
+          sum(rate(email_send_total{result=~"success|failure"}[15m])) > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Email delivery is failing"
+          description: "{{ $value | humanizePercentage }} of SMTP sends failed over the last 15m. Notifications are not reaching users."
+
+  - name: ninerlog-api.notifications
+    rules:
+      # Staleness: the background checker writes a fresh timestamp every run.
+      # If it stops (crashed goroutine, stuck loop), no notifications go out.
+      # Threshold = 2x the default 1h (3600s) check interval + 10m (600s) headroom.
+      - alert: NinerlogApiNotificationCheckerStale
+        expr: (time() - notification_last_success_timestamp_seconds) > (2 * 3600 + 600)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Notification background checker is stale"
+          description: "The notification checker last completed {{ $value | humanizeDuration }} ago (expected at least hourly). It may be stuck or crashed."
+
+      - alert: NinerlogApiNotificationCheckErrors
+        expr: increase(notification_check_errors_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Notification check runs are erroring"
+          description: "{{ $value }} notification check run(s) aborted with an error in the last hour."
+
+  - name: ninerlog-api.auth
+    rules:
+      # A surge in failed logins relative to successes suggests credential
+      # stuffing / brute force. Requires a meaningful volume to avoid noise.
+      - alert: NinerlogApiLoginFailureSpike
+        expr: |
+          sum(rate(auth_login_attempts_total{result="invalid_credentials"}[5m])) > 1
+          and
+          (
+            sum(rate(auth_login_attempts_total{result="invalid_credentials"}[5m]))
+            /
+            clamp_min(sum(rate(auth_login_attempts_total[5m])), 0.001)
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spike in failed logins"
+          description: "Invalid-credential logins are {{ $value | humanize }}/s and are the majority of attempts — possible brute-force / credential stuffing."

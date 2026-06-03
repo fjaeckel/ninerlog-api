@@ -8,6 +8,7 @@ import (
 	"net/smtp"
 	"os"
 	"strings"
+	"time"
 )
 
 // SMTPConfig holds SMTP server configuration
@@ -45,6 +46,15 @@ func NewSender(config *SMTPConfig) *Sender {
 	return &Sender{config: config}
 }
 
+func sanitizeMessageBody(value string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, value)
+}
+
 // Send sends an email.
 //
 // The recipient is validated with net/mail.ParseAddress (which rejects CR/LF and
@@ -58,6 +68,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	// CR/LF and other header-injection vectors.
 	toAddr, err := mail.ParseAddress(to)
 	if err != nil {
+		EmailSendTotal.WithLabelValues("invalid_address").Inc()
 		return fmt.Errorf("invalid recipient email address: %w", err)
 	}
 
@@ -76,6 +87,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 
 	if !s.config.IsConfigured() {
 		log.Printf("📧 [DRY-RUN] Email to %s: %s (SMTP not configured)", toAddr.Address, subject)
+		EmailSendTotal.WithLabelValues("dry_run").Inc()
 		return nil
 	}
 
@@ -92,7 +104,10 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 		"Content-Type: text/html; charset=UTF-8",
 	}
 
-	msg := []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + htmlBody)
+	// Sanitize body content before composing the raw RFC822 message to avoid
+	// email content/header injection via control characters.
+	sanitizedBody := sanitizeMessageBody(htmlBody)
+	msg := []byte(strings.Join(headers, "\r\n") + "\r\n\r\n" + sanitizedBody)
 
 	// Use PlainAuth when password is set, otherwise no auth
 	// (supports test SMTP servers like MailPit that accept unauthenticated connections)
@@ -101,9 +116,16 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 		auth = smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
 	}
 
-	if err := smtp.SendMail(addr, auth, fromAddr.Address, []string{toAddr.Address}, msg); err != nil {
+	sendStart := time.Now()
+	err = smtp.SendMail(addr, auth, fromAddr.Address, []string{toAddr.Address}, msg)
+	// Observe the SMTP call latency for every real attempt (success or failure)
+	// so timeouts and slow rejections are visible, not just happy-path latency.
+	EmailSendDurationSeconds.Observe(time.Since(sendStart).Seconds())
+	if err != nil {
+		EmailSendTotal.WithLabelValues("failure").Inc()
 		return fmt.Errorf("failed to send email: %w", err)
 	}
+	EmailSendTotal.WithLabelValues("success").Inc()
 
 	log.Printf("📧 Email sent to %s: %s", toAddr.Address, subject)
 	return nil

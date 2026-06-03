@@ -68,6 +68,7 @@ func (s *NotificationService) TriggerCheck(ctx context.Context) {
 	allPrefs, err := s.notifRepo.GetAllUsersWithPreferences(ctx)
 	if err != nil {
 		log.Printf("🔔 Error loading preferences: %v", err)
+		NotificationCheckErrorsTotal.Inc()
 		return
 	}
 
@@ -131,6 +132,7 @@ func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 	allPrefs, err := s.notifRepo.GetAllUsersWithPreferences(ctx)
 	if err != nil {
 		log.Printf("🔔 Error loading preferences: %v", err)
+		NotificationCheckErrorsTotal.Inc()
 		return
 	}
 
@@ -155,6 +157,8 @@ func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 		// Check currency/rating warnings using the two-tier currency system
 		s.checkCurrencyNotifications(ctx, prefs, user.Email, user.Name)
 	}
+
+	NotificationLastSuccessTimestampSeconds.SetToCurrentTime()
 }
 
 func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *models.NotificationPreferences, userEmail, userName string) {

@@ -127,3 +127,12 @@ func TestSend_DryRun_RejectsInvalidAddress(t *testing.T) {
 		t.Error("Send() with malformed recipient should return an error")
 	}
 }
+
+func TestSanitizeMessageBody_RemovesASCIIControlCharacters(t *testing.T) {
+	body := "<p>Hello</p>\r\n\t\x00"
+	want := "<p>Hello</p>"
+
+	if got := sanitizeMessageBody(body); got != want {
+		t.Fatalf("sanitizeMessageBody() = %q, want %q", got, want)
+	}
+}
