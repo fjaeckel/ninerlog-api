@@ -49,6 +49,7 @@ func main() {
 	// Load environment variables
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
+		// Local development fallback; deployed environments should set DATABASE_URL with the required TLS settings.
 		dbURL = "postgresql://localhost:5432/ninerlog?sslmode=disable&user=ninerlog"
 	}
 	port := os.Getenv("PORT")

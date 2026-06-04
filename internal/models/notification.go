@@ -10,11 +10,12 @@ import (
 // NotificationCategory represents a granular notification category
 type NotificationCategory string
 
+// #nosec G101 -- notification category identifiers describe credential reminders, not secrets.
 const (
-	NotifCategoryCredentialMedical    NotificationCategory = "credential_medical"  // #nosec G101 -- notification category identifier, not a credential
-	NotifCategoryCredentialLanguage   NotificationCategory = "credential_language" // #nosec G101 -- notification category identifier, not a credential
-	NotifCategoryCredentialSecurity   NotificationCategory = "credential_security" // #nosec G101 -- notification category identifier, not a credential
-	NotifCategoryCredentialOther      NotificationCategory = "credential_other"    // #nosec G101 -- notification category identifier, not a credential
+	NotifCategoryCredentialMedical    NotificationCategory = "credential_medical"
+	NotifCategoryCredentialLanguage   NotificationCategory = "credential_language"
+	NotifCategoryCredentialSecurity   NotificationCategory = "credential_security"
+	NotifCategoryCredentialOther      NotificationCategory = "credential_other"
 	NotifCategoryRatingExpiry         NotificationCategory = "rating_expiry"
 	NotifCategoryCurrencyPassenger    NotificationCategory = "currency_passenger"
 	NotifCategoryCurrencyNight        NotificationCategory = "currency_night"

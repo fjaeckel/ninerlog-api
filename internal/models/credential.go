@@ -8,18 +8,19 @@ import (
 
 type CredentialType string
 
+// #nosec G101 -- enum identifiers describe credential types, not secrets.
 const (
-	CredentialTypeEASAClass1Medical CredentialType = "EASA_CLASS1_MEDICAL" // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeEASAClass2Medical CredentialType = "EASA_CLASS2_MEDICAL" // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeEASALAPLMedical   CredentialType = "EASA_LAPL_MEDICAL"   // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeFAAClass1Medical  CredentialType = "FAA_CLASS1_MEDICAL"  // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeFAAClass2Medical  CredentialType = "FAA_CLASS2_MEDICAL"  // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeFAAClass3Medical  CredentialType = "FAA_CLASS3_MEDICAL"  // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeLangICAOLevel4    CredentialType = "LANG_ICAO_LEVEL4"    // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeLangICAOLevel5    CredentialType = "LANG_ICAO_LEVEL5"    // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeLangICAOLevel6    CredentialType = "LANG_ICAO_LEVEL6"    // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeSecClearanceZUP   CredentialType = "SEC_CLEARANCE_ZUP"   // #nosec G101 -- enum identifier, not a credential
-	CredentialTypeSecClearanceZUBB  CredentialType = "SEC_CLEARANCE_ZUBB"  // #nosec G101 -- enum identifier, not a credential
+	CredentialTypeEASAClass1Medical CredentialType = "EASA_CLASS1_MEDICAL"
+	CredentialTypeEASAClass2Medical CredentialType = "EASA_CLASS2_MEDICAL"
+	CredentialTypeEASALAPLMedical   CredentialType = "EASA_LAPL_MEDICAL"
+	CredentialTypeFAAClass1Medical  CredentialType = "FAA_CLASS1_MEDICAL"
+	CredentialTypeFAAClass2Medical  CredentialType = "FAA_CLASS2_MEDICAL"
+	CredentialTypeFAAClass3Medical  CredentialType = "FAA_CLASS3_MEDICAL"
+	CredentialTypeLangICAOLevel4    CredentialType = "LANG_ICAO_LEVEL4"
+	CredentialTypeLangICAOLevel5    CredentialType = "LANG_ICAO_LEVEL5"
+	CredentialTypeLangICAOLevel6    CredentialType = "LANG_ICAO_LEVEL6"
+	CredentialTypeSecClearanceZUP   CredentialType = "SEC_CLEARANCE_ZUP"
+	CredentialTypeSecClearanceZUBB  CredentialType = "SEC_CLEARANCE_ZUBB"
 	CredentialTypeOther             CredentialType = "OTHER"
 )
 
