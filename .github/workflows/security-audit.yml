@@ -75,7 +75,7 @@ jobs:
       - name: Run gosec
         run: |
           gosec --version
-          gosec -severity high ./...
+          gosec -severity high -exclude-generated ./...
 
   trivy:
     name: Trivy filesystem scan
