@@ -75,6 +75,7 @@ func (r *webauthnCredentialRepository) scan(row interface {
 	return c, nil
 }
 
+// #nosec G101 -- SQL column identifiers include "public_key" but contain no credentials.
 const webauthnCredColumns = `
 	id, user_id, credential_id, public_key, attestation_type,
 	aaguid, sign_count, transports, label,

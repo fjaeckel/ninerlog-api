@@ -49,7 +49,7 @@ func main() {
 	// Load environment variables
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgresql://ninerlog:changeme@localhost:5432/ninerlog?sslmode=disable"
+		dbURL = "postgresql://ninerlog:changeme@localhost:5432/ninerlog?sslmode=disable" // #nosec G101 -- local development placeholder, production uses DATABASE_URL
 	}
 	port := os.Getenv("PORT")
 	if port == "" {

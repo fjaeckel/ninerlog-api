@@ -261,18 +261,18 @@ func (e ClassType) Valid() bool {
 
 // Defines values for CredentialType.
 const (
-	CredentialTypeEASACLASS1MEDICAL CredentialType = "EASA_CLASS1_MEDICAL"
-	CredentialTypeEASACLASS2MEDICAL CredentialType = "EASA_CLASS2_MEDICAL"
-	CredentialTypeEASALAPLMEDICAL   CredentialType = "EASA_LAPL_MEDICAL"
-	CredentialTypeFAACLASS1MEDICAL  CredentialType = "FAA_CLASS1_MEDICAL"
-	CredentialTypeFAACLASS2MEDICAL  CredentialType = "FAA_CLASS2_MEDICAL"
-	CredentialTypeFAACLASS3MEDICAL  CredentialType = "FAA_CLASS3_MEDICAL"
-	CredentialTypeLANGICAOLEVEL4    CredentialType = "LANG_ICAO_LEVEL4"
-	CredentialTypeLANGICAOLEVEL5    CredentialType = "LANG_ICAO_LEVEL5"
-	CredentialTypeLANGICAOLEVEL6    CredentialType = "LANG_ICAO_LEVEL6"
+	CredentialTypeEASACLASS1MEDICAL CredentialType = "EASA_CLASS1_MEDICAL" // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeEASACLASS2MEDICAL CredentialType = "EASA_CLASS2_MEDICAL" // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeEASALAPLMEDICAL   CredentialType = "EASA_LAPL_MEDICAL"   // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeFAACLASS1MEDICAL  CredentialType = "FAA_CLASS1_MEDICAL"  // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeFAACLASS2MEDICAL  CredentialType = "FAA_CLASS2_MEDICAL"  // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeFAACLASS3MEDICAL  CredentialType = "FAA_CLASS3_MEDICAL"  // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeLANGICAOLEVEL4    CredentialType = "LANG_ICAO_LEVEL4"    // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeLANGICAOLEVEL5    CredentialType = "LANG_ICAO_LEVEL5"    // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeLANGICAOLEVEL6    CredentialType = "LANG_ICAO_LEVEL6"    // #nosec G101 -- generated enum identifier, not a credential
 	CredentialTypeOTHER             CredentialType = "OTHER"
-	CredentialTypeSECCLEARANCEZUBB  CredentialType = "SEC_CLEARANCE_ZUBB"
-	CredentialTypeSECCLEARANCEZUP   CredentialType = "SEC_CLEARANCE_ZUP"
+	CredentialTypeSECCLEARANCEZUBB  CredentialType = "SEC_CLEARANCE_ZUBB" // #nosec G101 -- generated enum identifier, not a credential
+	CredentialTypeSECCLEARANCEZUP   CredentialType = "SEC_CLEARANCE_ZUP"  // #nosec G101 -- generated enum identifier, not a credential
 )
 
 // Valid indicates whether the value is a known member of the CredentialType enum.
@@ -609,10 +609,10 @@ func (e ImportStatus) Valid() bool {
 
 // Defines values for NotificationCategory.
 const (
-	CredentialLanguage   NotificationCategory = "credential_language"
-	CredentialMedical    NotificationCategory = "credential_medical"
-	CredentialOther      NotificationCategory = "credential_other"
-	CredentialSecurity   NotificationCategory = "credential_security"
+	CredentialLanguage   NotificationCategory = "credential_language" // #nosec G101 -- generated enum identifier, not a credential
+	CredentialMedical    NotificationCategory = "credential_medical"  // #nosec G101 -- generated enum identifier, not a credential
+	CredentialOther      NotificationCategory = "credential_other"    // #nosec G101 -- generated enum identifier, not a credential
+	CredentialSecurity   NotificationCategory = "credential_security" // #nosec G101 -- generated enum identifier, not a credential
 	CurrencyFlightReview NotificationCategory = "currency_flight_review"
 	CurrencyInstrument   NotificationCategory = "currency_instrument"
 	CurrencyNight        NotificationCategory = "currency_night"
