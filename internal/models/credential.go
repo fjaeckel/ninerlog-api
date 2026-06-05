@@ -8,6 +8,7 @@ import (
 
 type CredentialType string
 
+// #nosec G101 -- enum identifiers describe credential types, not secrets.
 const (
 	CredentialTypeEASAClass1Medical CredentialType = "EASA_CLASS1_MEDICAL"
 	CredentialTypeEASAClass2Medical CredentialType = "EASA_CLASS2_MEDICAL"

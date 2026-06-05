@@ -49,7 +49,8 @@ func main() {
 	// Load environment variables
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgresql://ninerlog:changeme@localhost:5432/ninerlog?sslmode=disable"
+		// Local development fallback for passwordless local Postgres; deployed environments should set DATABASE_URL with the required TLS settings.
+		dbURL = "postgresql://localhost:5432/ninerlog?sslmode=disable"
 	}
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -10,6 +10,7 @@ import (
 // NotificationCategory represents a granular notification category
 type NotificationCategory string
 
+// #nosec G101 -- notification category identifiers describe credential reminders, not secrets.
 const (
 	NotifCategoryCredentialMedical    NotificationCategory = "credential_medical"
 	NotifCategoryCredentialLanguage   NotificationCategory = "credential_language"
