@@ -77,6 +77,33 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		opts.SortOrder = string(*params.SortOrder)
 	}
 
+	// Logbook filtering: if logbookLicenseId is set, restrict to flights on
+	// aircraft whose class matches the license's class ratings. This is applied
+	// at the SQL level (via opts) so it works correctly together with counting
+	// and pagination — filtering after pagination would only ever consider a
+	// single page of flights and report a wrong total.
+	if params.LogbookLicenseId != nil {
+		licenseID := uuid.UUID(*params.LogbookLicenseId)
+		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
+		if err == nil && len(classRatings) > 0 {
+			// Build set of allowed class types
+			allowedClasses := make(map[string]bool)
+			for _, cr := range classRatings {
+				allowedClasses[string(cr.ClassType)] = true
+			}
+			// Collect registrations of aircraft whose class is allowed
+			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+			regs := make([]string, 0, len(aircraftList))
+			for _, ac := range aircraftList {
+				if ac.AircraftClass != nil && allowedClasses[*ac.AircraftClass] {
+					regs = append(regs, strings.ToUpper(ac.Registration))
+				}
+			}
+			opts.FilterByRegistrations = true
+			opts.AircraftRegistrations = regs
+		}
+	}
+
 	// Get total count for pagination
 	total, err := h.flightService.CountFlights(c.Request.Context(), userID, opts)
 	if err != nil {
@@ -88,38 +115,6 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
-	}
-
-	// Logbook filtering: if logbookLicenseId is set, filter to flights on aircraft
-	// whose class matches the license's class ratings
-	if params.LogbookLicenseId != nil {
-		licenseID := uuid.UUID(*params.LogbookLicenseId)
-		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
-		if err == nil && len(classRatings) > 0 {
-			// Build set of allowed class types
-			allowedClasses := make(map[string]bool)
-			for _, cr := range classRatings {
-				allowedClasses[string(cr.ClassType)] = true
-			}
-			// Get user aircraft to build reg → class lookup
-			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
-			regToClass := make(map[string]string)
-			for _, ac := range aircraftList {
-				if ac.AircraftClass != nil {
-					regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
-				}
-			}
-			// Filter flights
-			var filtered []*models.Flight
-			for _, f := range flights {
-				acClass := regToClass[strings.ToUpper(f.AircraftReg)]
-				if acClass != "" && allowedClasses[acClass] {
-					filtered = append(filtered, f)
-				}
-			}
-			flights = filtered
-			total = len(filtered)
-		}
 	}
 
 	flightList := make([]generated.Flight, 0, len(flights))

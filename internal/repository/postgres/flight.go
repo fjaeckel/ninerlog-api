@@ -22,6 +22,28 @@ func NewFlightRepository(db *sql.DB) repository.FlightRepository {
 	return &flightRepository{db: db}
 }
 
+// appendRegistrationFilter adds the logbook aircraft-registration filter to a
+// query. It is shared between the list and count code paths so pagination and
+// counting stay consistent. Registrations in opts are expected upper-cased.
+func appendRegistrationFilter(query string, args []interface{}, argNum int, opts *repository.FlightQueryOptions) (string, []interface{}, int) {
+	if opts == nil || !opts.FilterByRegistrations {
+		return query, args, argNum
+	}
+	if len(opts.AircraftRegistrations) == 0 {
+		// Filter requested but no aircraft match the license's class ratings →
+		// the logbook has no qualifying flights.
+		return query + " AND 1=0", args, argNum
+	}
+	placeholders := make([]string, 0, len(opts.AircraftRegistrations))
+	for _, reg := range opts.AircraftRegistrations {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", argNum))
+		args = append(args, reg)
+		argNum++
+	}
+	query += " AND UPPER(aircraft_reg) IN (" + strings.Join(placeholders, ", ") + ")"
+	return query, args, argNum
+}
+
 // timeToString converts a *time.Time (from a PostgreSQL TIME column) to a *string in HH:MM:SS format.
 func timeToString(t *time.Time) *string {
 	if t == nil {
@@ -408,6 +430,8 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 		}
 	}
 
+	query, args, _ = appendRegistrationFilter(query, args, argNum, opts)
+
 	var count int
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
 	return count, err
@@ -558,6 +582,8 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 			argNum++
 		}
 	}
+
+	query, args, argNum = appendRegistrationFilter(query, args, argNum, opts)
 
 	// Sorting — map camelCase API field names to snake_case DB columns
 	sortColumn := "date"

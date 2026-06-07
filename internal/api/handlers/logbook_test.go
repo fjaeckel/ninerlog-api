@@ -1,22 +1,43 @@
 package handlers
 
 import (
+	"strings"
 	"testing"
-
-	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
-func TestLogbookFilteringLogic(t *testing.T) {
-	// Simulate the filtering logic used in ListFlights
-	// A license with class ratings SEP_LAND and TMG should only show flights
-	// on aircraft with matching aircraft_class
+// collectAllowedRegistrations mirrors the logic in ListFlights: given the set of
+// class types a license is rated for and the user's aircraft (reg → class), it
+// returns the upper-cased registrations whose class qualifies for the logbook.
+// These registrations are handed to the SQL layer, which filters and paginates
+// together so the reported total stays correct (the previous in-memory filter
+// ran AFTER pagination and undercounted multi-page logbooks).
+func collectAllowedRegistrations(allowedClasses map[string]bool, regToClass map[string]string) []string {
+	regs := make([]string, 0, len(regToClass))
+	for reg, class := range regToClass {
+		if class != "" && allowedClasses[class] {
+			regs = append(regs, strings.ToUpper(reg))
+		}
+	}
+	return regs
+}
 
+func containsReg(haystack []string, needle string) bool {
+	for _, s := range haystack {
+		if s == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func TestCollectAllowedRegistrations(t *testing.T) {
+	// A license rated for SEP_LAND and TMG should only collect registrations of
+	// aircraft whose class matches; aircraft with no class or a different class
+	// must be excluded.
 	allowedClasses := map[string]bool{
 		"SEP_LAND": true,
 		"TMG":      true,
 	}
-
-	// Mock aircraft registry: reg → aircraftClass
 	regToClass := map[string]string{
 		"D-EABC": "SEP_LAND",
 		"D-KXYZ": "TMG",
@@ -24,79 +45,66 @@ func TestLogbookFilteringLogic(t *testing.T) {
 		"D-NOPE": "",         // no class assigned
 	}
 
-	flights := []*models.Flight{
-		{AircraftReg: "D-EABC"}, // SEP_LAND — should pass
-		{AircraftReg: "D-KXYZ"}, // TMG — should pass
-		{AircraftReg: "D-EFGH"}, // MEP_LAND — should be filtered out
-		{AircraftReg: "D-NOPE"}, // no class — should be filtered out
-		{AircraftReg: "D-UNKN"}, // not in registry — should be filtered out
-	}
+	regs := collectAllowedRegistrations(allowedClasses, regToClass)
 
-	var filtered []*models.Flight
-	for _, f := range flights {
-		acClass := regToClass[f.AircraftReg]
-		if acClass != "" && allowedClasses[acClass] {
-			filtered = append(filtered, f)
-		}
+	if len(regs) != 2 {
+		t.Fatalf("Expected 2 allowed registrations, got %d (%v)", len(regs), regs)
 	}
-
-	if len(filtered) != 2 {
-		t.Fatalf("Expected 2 filtered flights, got %d", len(filtered))
+	if !containsReg(regs, "D-EABC") {
+		t.Errorf("Expected D-EABC to be allowed, got %v", regs)
 	}
-	if filtered[0].AircraftReg != "D-EABC" {
-		t.Errorf("First filtered flight should be D-EABC, got %s", filtered[0].AircraftReg)
+	if !containsReg(regs, "D-KXYZ") {
+		t.Errorf("Expected D-KXYZ to be allowed, got %v", regs)
 	}
-	if filtered[1].AircraftReg != "D-KXYZ" {
-		t.Errorf("Second filtered flight should be D-KXYZ, got %s", filtered[1].AircraftReg)
+	if containsReg(regs, "D-EFGH") {
+		t.Errorf("MEP_LAND aircraft should not be allowed, got %v", regs)
+	}
+	if containsReg(regs, "D-NOPE") {
+		t.Errorf("Unclassified aircraft should not be allowed, got %v", regs)
 	}
 }
 
-func TestLogbookFilteringAllPass(t *testing.T) {
-	// When all flights match allowed classes, nothing is filtered
+func TestCollectAllowedRegistrations_AllMatch(t *testing.T) {
 	allowedClasses := map[string]bool{"SEP_LAND": true}
 	regToClass := map[string]string{
 		"D-EABC": "SEP_LAND",
 		"D-EFGH": "SEP_LAND",
 	}
 
-	flights := []*models.Flight{
-		{AircraftReg: "D-EABC"},
-		{AircraftReg: "D-EFGH"},
-	}
+	regs := collectAllowedRegistrations(allowedClasses, regToClass)
 
-	var filtered []*models.Flight
-	for _, f := range flights {
-		acClass := regToClass[f.AircraftReg]
-		if acClass != "" && allowedClasses[acClass] {
-			filtered = append(filtered, f)
-		}
-	}
-
-	if len(filtered) != 2 {
-		t.Fatalf("Expected 2 flights (all pass), got %d", len(filtered))
+	if len(regs) != 2 {
+		t.Fatalf("Expected 2 allowed registrations, got %d (%v)", len(regs), regs)
 	}
 }
 
-func TestLogbookFilteringNonePass(t *testing.T) {
-	// When no flights match, empty list returned
+func TestCollectAllowedRegistrations_NoneMatch(t *testing.T) {
+	// When no aircraft match the license's ratings, the allowed registration set
+	// is empty. The SQL layer treats an empty set (with filtering enabled) as
+	// "no qualifying flights".
 	allowedClasses := map[string]bool{"IR": true}
 	regToClass := map[string]string{
 		"D-EABC": "SEP_LAND",
 	}
 
-	flights := []*models.Flight{
-		{AircraftReg: "D-EABC"},
+	regs := collectAllowedRegistrations(allowedClasses, regToClass)
+
+	if len(regs) != 0 {
+		t.Fatalf("Expected 0 allowed registrations, got %d (%v)", len(regs), regs)
+	}
+}
+
+func TestCollectAllowedRegistrations_UpperCases(t *testing.T) {
+	// Registrations are upper-cased so the SQL UPPER(aircraft_reg) IN (...)
+	// comparison matches regardless of how the aircraft was entered.
+	allowedClasses := map[string]bool{"SEP_LAND": true}
+	regToClass := map[string]string{
+		"d-eabc": "SEP_LAND",
 	}
 
-	var filtered []*models.Flight
-	for _, f := range flights {
-		acClass := regToClass[f.AircraftReg]
-		if acClass != "" && allowedClasses[acClass] {
-			filtered = append(filtered, f)
-		}
-	}
+	regs := collectAllowedRegistrations(allowedClasses, regToClass)
 
-	if len(filtered) != 0 {
-		t.Fatalf("Expected 0 filtered flights, got %d", len(filtered))
+	if len(regs) != 1 || regs[0] != "D-EABC" {
+		t.Fatalf("Expected [D-EABC], got %v", regs)
 	}
 }
