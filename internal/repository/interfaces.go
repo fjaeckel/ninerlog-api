@@ -121,6 +121,14 @@ type FlightQueryOptions struct {
 	PageSize      int
 	SortBy        string // "date", "totalTime", "createdAt"
 	SortOrder     string // "asc", "desc"
+
+	// Logbook filtering: when FilterByRegistrations is true, only flights whose
+	// aircraft_reg matches one of AircraftRegistrations (case-insensitive) are
+	// returned. Registrations should be supplied upper-cased. An empty slice with
+	// FilterByRegistrations=true matches no flights. This filter is applied at the
+	// SQL level so it works correctly together with pagination and counting.
+	FilterByRegistrations bool
+	AircraftRegistrations []string
 }
 
 // PasswordResetTokenRepository defines the interface for password reset token data access

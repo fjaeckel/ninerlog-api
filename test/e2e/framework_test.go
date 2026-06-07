@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -237,12 +238,19 @@ func mailpitDeleteAll(t *testing.T) {
 	defer resp.Body.Close()
 }
 
-// mailpitSearchByRecipient searches MailPit for messages to a specific email address
+// mailpitSearchByRecipient searches MailPit for messages to a specific email address.
+//
+// The query intentionally does NOT use a `to:` prefix. For security (CWE-640),
+// the API delivers the recipient via the SMTP envelope only and omits the `To:`
+// header from the message bytes (see pkg/email/smtp.go). MailPit therefore
+// records the envelope-only recipient as Bcc, so a `to:` search would never
+// match. A bare address query matches the recipient regardless of which address
+// header MailPit assigns it to.
 func mailpitSearchByRecipient(t *testing.T, email string) MailPitSearchResult {
 	t.Helper()
 	client := &http.Client{Timeout: 5 * time.Second}
-	url := fmt.Sprintf("%s/api/v1/search?query=to:%s", mailpitURL, email)
-	resp, err := client.Get(url)
+	searchURL := fmt.Sprintf("%s/api/v1/search?query=%s", mailpitURL, url.QueryEscape(email))
+	resp, err := client.Get(searchURL)
 	if err != nil {
 		t.Fatalf("Failed to query MailPit: %v", err)
 	}
@@ -284,9 +292,32 @@ type MailPitFullMessage struct {
 		Address string `json:"Address"`
 		Name    string `json:"Name"`
 	} `json:"To"`
+	// Bcc carries the recipient when the API delivers it via the SMTP envelope
+	// only (security fix for CWE-640 — see pkg/email/smtp.go). MailPit records an
+	// envelope-only recipient here with a null To header.
+	Bcc []struct {
+		Address string `json:"Address"`
+		Name    string `json:"Name"`
+	} `json:"Bcc"`
 	HTML string `json:"HTML"`
 	Text string `json:"Text"`
 }
+
+// recipientAddresses returns every address the message was delivered to,
+// combining the To and Bcc headers. The recipient may appear in either: the API
+// omits the To header and delivers via the SMTP envelope (CWE-640), which MailPit
+// surfaces as Bcc.
+func (m MailPitFullMessage) recipientAddresses() []string {
+	addrs := make([]string, 0, len(m.To)+len(m.Bcc))
+	for _, t := range m.To {
+		addrs = append(addrs, t.Address)
+	}
+	for _, b := range m.Bcc {
+		addrs = append(addrs, b.Address)
+	}
+	return addrs
+}
+
 
 // mailpitGetMessage retrieves the full message including HTML body
 func mailpitGetMessage(t *testing.T, messageID string) MailPitFullMessage {

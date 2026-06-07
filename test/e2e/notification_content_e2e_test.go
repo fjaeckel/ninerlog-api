@@ -72,9 +72,19 @@ func TestEmailContent_CredentialMedical(t *testing.T) {
 		t.Errorf("From address should be noreply@ninerlog-test.com, got: %s", msg.From.Address)
 	}
 
-	// Verify to address
-	if len(msg.To) == 0 || msg.To[0].Address != email {
-		t.Errorf("To address should be %s", email)
+	// Verify the recipient. The API delivers the recipient via the SMTP envelope
+	// (CWE-640 hardening) so it arrives in Bcc rather than the To header; accept
+	// either.
+	recipients := msg.recipientAddresses()
+	found := false
+	for _, addr := range recipients {
+		if addr == email {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("recipient should be %s, got: %v", email, recipients)
 	}
 }
 
