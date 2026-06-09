@@ -9,7 +9,10 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
-// EASAEvaluator implements EASA FCL currency rules per class type
+// EASAEvaluator implements EASA FCL currency rules per class type. It is a thin
+// adapter: Evaluate() selects the applicable rule from the EASA rule set and
+// runs it through the engine. The regulatory data lives in the ratingRule
+// definitions below.
 type EASAEvaluator struct{}
 
 // NewEASAEvaluator creates a new EASA currency evaluator
@@ -22,475 +25,411 @@ func (e *EASAEvaluator) Authority() string {
 }
 
 func (e *EASAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating, license *models.License, dataProvider FlightDataProvider) ClassRatingCurrency {
-	result := ClassRatingCurrency{
-		ClassRatingID:       rating.ID,
-		ClassType:           rating.ClassType,
-		LicenseID:           rating.LicenseID,
-		RegulatoryAuthority: license.RegulatoryAuthority,
-		LicenseType:         license.LicenseType,
-		RuleDescription:     easaRuleDescription(rating.ClassType),
-		RuleDescriptionKey:  easaRuleDescriptionKey(rating.ClassType),
-	}
+	return evalRatingRule(ctx, easaSelectRule(rating, license), rating, license, dataProvider)
+}
 
-	if rating.ExpiryDate != nil {
-		expStr := rating.ExpiryDate.Format("2006-01-02")
-		result.ExpiryDate = &expStr
-	}
-
-	// License-type-aware dispatch: LAPL/SPL use different regulations than PPL/CPL/ATPL
+// easaSelectRule dispatches a (license type, class type) pair to its rule.
+// License-type-aware: LAPL/SPL use recency regulations (FCL.140.x) while
+// PPL/CPL/ATPL use revalidation regulations (FCL.740.A). IR is always
+// FCL.625.A regardless of license type.
+func easaSelectRule(rating *models.ClassRating, license *models.License) *ratingRule {
 	lt := strings.ToUpper(license.LicenseType)
 
 	// IR is always FCL.625.A regardless of license type
 	if rating.ClassType == models.ClassTypeIR {
-		return e.evaluateIR(ctx, rating, license, dataProvider, result)
+		return &easaIRRule
 	}
 
 	// LAPL uses FCL.140.A (rolling 24 months from now, no PIC requirement)
 	if lt == "LAPL" || lt == "LAPL(A)" {
-		result.RuleDescription = "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor within the last 24 months (EASA FCL.140.A)"
-		result.RuleDescriptionKey = "easa_lapl"
-		return e.evaluateLAPL_A(ctx, rating, license, dataProvider, result)
+		return &easaLAPLRule
 	}
 
 	// SPL/LAPL(S) uses FCL.140.S (rolling 24 months, launches not landings)
 	if lt == "SPL" || lt == "LAPL(S)" {
 		if rating.ClassType == models.ClassTypeTMG {
-			result.RuleDescription = "Requires 12h flight time + 12 takeoffs & landings on TMG within the last 24 months (EASA FCL.140.S(b)(2))"
-			result.RuleDescriptionKey = "easa_spl_tmg"
-			return e.evaluateSPL_TMG(ctx, rating, license, dataProvider, result)
+			return &easaSPLTMGRule
 		}
-		result.RuleDescription = "Requires 5h PIC flight time + 15 launches + 2 training flights with instructor within the last 24 months (EASA FCL.140.S)"
-		result.RuleDescriptionKey = "easa_spl"
-		return e.evaluateSPL(ctx, rating, license, dataProvider, result)
+		return &easaSPLRule
 	}
 
 	// PPL/CPL/ATPL use FCL.740.A (from expiry date)
 	switch rating.ClassType {
 	case models.ClassTypeSEPLand, models.ClassTypeSEPSea, models.ClassTypeTMG:
-		return e.evaluateSEPTMG(ctx, rating, license, dataProvider, result)
+		return &easaSEPTMGRule
 	case models.ClassTypeMEPLand, models.ClassTypeMEPSea, models.ClassTypeSETLand, models.ClassTypeSETSea:
-		return e.evaluateMEPSET(ctx, rating, license, dataProvider, result)
+		return &easaMEPSETRule
 	default:
-		return e.evaluateExpiryOnly(rating, result)
+		return &easaExpiryOnlyRule
 	}
 }
 
-// evaluateSEPTMG evaluates EASA FCL.740.A(b)(1) revalidation requirements for SEP/TMG:
+// ── EASA rule definitions ───────────────────────────────────────────────────
+
+// easaSEPTMGRule — EASA FCL.740.A(b)(1) revalidation for SEP/TMG:
 //   - 12 hours of flight time in class
 //   - 6 hours as PIC in class
 //   - 12 takeoffs and 12 landings
 //   - 1 hour refresher training with instructor (dual received)
 //
 // All within the 12 months preceding the expiry date of the rating.
-// Note: the rating validity period is 24 months, but the experience must be
-// accumulated in the LAST 12 months — not the full 24. Per FCL.740.A(b)(1):
-// "within the 12 months preceding the expiry date of the rating".
-func (e *EASAEvaluator) evaluateSEPTMG(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	if rating.ExpiryDate == nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
-		return result
-	}
+var easaSEPTMGRule = ratingRule{
+	displayKey:  "easa_sep_tmg",
+	description: "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within the 12 months preceding the expiry date (EASA FCL.740.A(b)(1))",
+	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
+	scope:       scopeByClass,
+	baseReqs: []reqSpec{
+		{name: "Total Time", metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes in class"},
+		{name: "PIC Time", metric: mPICMinutes, threshold: 360, unit: "minutes", msgFmt: "%d / 360 PIC minutes"},
+		{name: "Takeoffs & Landings", metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings"},
+		{name: "Refresher Training", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		if rating.ExpiryDate == nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
+			return
+		}
+		since := rating.ExpiryDate.AddDate(-1, 0, 0)
+		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+			*rt.result = r
+			return
+		}
+		rt.since = since
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("EASA %s — unable to evaluate currency", rating.ClassType)
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		rt.result.Requirements = reqs
+		allMet := allReqsMet(reqs)
 
-	// Look back 12 months from expiry date — FCL.740.A(b)(1)
-	since := rating.ExpiryDate.AddDate(-1, 0, 0)
-
-	// If we are still in the first 12 months of the 24-month validity
-	// period, the experience-counting window has not opened yet. Flights
-	// logged today will not count toward revalidation, so showing red
-	// "not met" bars is misleading. Surface a friendly "recently
-	// revalidated" status instead and let the UI hide the requirement
-	// breakdown.
-	if r, closed := applyClosedWindow(rating, &since, result); closed {
-		return r
-	}
-
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("EASA %s — unable to evaluate currency", rating.ClassType)
-		return result
-	}
-	result.Progress = progress
-
-	// Build requirements (thresholds in minutes: 12h=720m, 6h=360m, 1h=60m)
-	reqTotalHours := Requirement{
-		Name: "Total Time", Met: progress.TotalMinutes >= 720,
-		Current: float64(progress.TotalMinutes), Required: 720, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 720 minutes in class", progress.TotalMinutes),
-	}
-	reqPICHours := Requirement{
-		Name: "PIC Time", Met: progress.PICMinutes >= 360,
-		Current: float64(progress.PICMinutes), Required: 360, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 360 PIC minutes", progress.PICMinutes),
-	}
-	reqLandings := Requirement{
-		Name: "Takeoffs & Landings", Met: progress.Landings >= 12,
-		Current: float64(progress.Landings), Required: 12, Unit: "landings",
-		Message: fmt.Sprintf("%d / 12 takeoffs & landings", progress.Landings),
-	}
-	reqInstructor := Requirement{
-		Name: "Refresher Training", Met: progress.InstructorMinutes >= 60,
-		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 60 minutes with instructor", progress.InstructorMinutes),
-	}
-
-	result.Requirements = []Requirement{reqTotalHours, reqPICHours, reqLandings, reqInstructor}
-
-	allMet := reqTotalHours.Met && reqPICHours.Met && reqLandings.Met && reqInstructor.Met
-
-	if rating.IsExpired() {
-		result.Status = StatusExpired
-		result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *result.ExpiryDate)
-	} else if !allMet {
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("EASA %s — revalidation requirements not fully met", rating.ClassType)
-	} else if rating.IsExpiringSoon(90) {
-		daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("EASA %s expires in %d days — requirements met", rating.ClassType, daysLeft)
-	} else {
-		result.Status = StatusCurrent
-		result.Message = fmt.Sprintf("EASA %s current — all revalidation requirements met", rating.ClassType)
-	}
-
-	return result
+		if rating.IsExpired() {
+			rt.result.Status = StatusExpired
+			rt.result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate)
+		} else if !allMet {
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("EASA %s — revalidation requirements not fully met", rating.ClassType)
+		} else if rating.IsExpiringSoon(90) {
+			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("EASA %s expires in %d days — requirements met", rating.ClassType, daysLeft)
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = fmt.Sprintf("EASA %s current — all revalidation requirements met", rating.ClassType)
+		}
+	},
 }
 
-// evaluateMEPSET evaluates EASA FCL.740.A(b)(2) revalidation requirements for MEP/SET:
+// easaMEPSETRule — EASA FCL.740.A(b)(2) revalidation for MEP/SET:
 //   - Proficiency check (manual tracking), OR:
 //   - 10 route sectors (flights) in class
 //   - 1 hour refresher training with instructor
 //
-// Experience must be within the 12 months preceding the expiry date — FCL.740.A(b)(2).
-// Note: the "3 months" in FCL.740.A(d) refers to when revalidation can occur without
-// losing validity overlap, NOT the experience accumulation window.
-func (e *EASAEvaluator) evaluateMEPSET(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	if rating.ExpiryDate == nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
-		return result
-	}
+// Experience must be within the 12 months preceding the expiry date.
+var easaMEPSETRule = ratingRule{
+	displayKey:  "easa_mep_set",
+	description: "Requires proficiency check, or 10 route sectors + 1h refresher training with instructor within the 12 months preceding the expiry date (EASA FCL.740.A(b)(2))",
+	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
+	scope:       scopeByClass,
+	baseReqs: []reqSpec{
+		{name: "Route Sectors", metric: mFlights, threshold: 10, unit: "flights", msgFmt: "%d / 10 route sectors"},
+		{name: "Refresher Training", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		if rating.ExpiryDate == nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
+			return
+		}
+		since := rating.ExpiryDate.AddDate(-1, 0, 0)
+		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+			*rt.result = r
+			return
+		}
+		rt.since = since
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("EASA %s — unable to evaluate currency", rating.ClassType)
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		reqSectors := reqs[0]
+		reqInstructor := reqs[1]
 
-	// Look back 12 months from expiry date — FCL.740.A(b)(2)
-	since := rating.ExpiryDate.AddDate(-1, 0, 0)
+		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, rating.ClassType, since)
+		hasProfCheck := profCheckDate != nil
+		reqProfCheck := Requirement{
+			Name: "Proficiency Check", Met: hasProfCheck,
+			Current: 0, Required: 1, Unit: "check",
+			Message: "Not completed in validity period",
+		}
+		if hasProfCheck {
+			reqProfCheck.Current = 1
+			reqProfCheck.Message = fmt.Sprintf("Proficiency check completed %s", profCheckDate.Format("2006-01-02"))
+		}
 
-	// Window-not-yet-open guard — see evaluateSEPTMG for rationale.
-	if r, closed := applyClosedWindow(rating, &since, result); closed {
-		return r
-	}
+		rt.result.Requirements = []Requirement{reqSectors, reqInstructor, reqProfCheck}
 
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("EASA %s — unable to evaluate currency", rating.ClassType)
-		return result
-	}
-	result.Progress = progress
+		allMetByExperience := reqSectors.Met && reqInstructor.Met
+		allMet := allMetByExperience || hasProfCheck
 
-	reqSectors := Requirement{
-		Name: "Route Sectors", Met: progress.Flights >= 10,
-		Current: float64(progress.Flights), Required: 10, Unit: "flights",
-		Message: fmt.Sprintf("%d / 10 route sectors", progress.Flights),
-	}
-	reqInstructor := Requirement{
-		Name: "Refresher Training", Met: progress.InstructorMinutes >= 60,
-		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 60 minutes with instructor", progress.InstructorMinutes),
-	}
-
-	// Check for proficiency check — if found, it satisfies the revalidation (alternative path)
-	profCheckDate, _ := dp.GetLastProficiencyCheck(ctx, license.UserID, rating.ClassType, since)
-	hasProfCheck := profCheckDate != nil
-	reqProfCheck := Requirement{
-		Name: "Proficiency Check", Met: hasProfCheck,
-		Current: 0, Required: 1, Unit: "check",
-		Message: "Not completed in validity period",
-	}
-	if hasProfCheck {
-		reqProfCheck.Current = 1
-		reqProfCheck.Message = fmt.Sprintf("Proficiency check completed %s", profCheckDate.Format("2006-01-02"))
-	}
-
-	result.Requirements = []Requirement{reqSectors, reqInstructor, reqProfCheck}
-
-	// MEP/SET can be revalidated by EITHER experience (sectors+instructor) OR proficiency check
-	allMetByExperience := reqSectors.Met && reqInstructor.Met
-	allMet := allMetByExperience || hasProfCheck
-
-	if rating.IsExpired() {
-		result.Status = StatusExpired
-		result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *result.ExpiryDate)
-	} else if !allMet {
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("EASA %s — revalidation requirements not fully met (proficiency check may apply)", rating.ClassType)
-	} else if rating.IsExpiringSoon(90) {
-		daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("EASA %s expires in %d days — requirements met", rating.ClassType, daysLeft)
-	} else {
-		result.Status = StatusCurrent
-		result.Message = fmt.Sprintf("EASA %s current — all revalidation requirements met", rating.ClassType)
-	}
-
-	return result
+		if rating.IsExpired() {
+			rt.result.Status = StatusExpired
+			rt.result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate)
+		} else if !allMet {
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("EASA %s — revalidation requirements not fully met (proficiency check may apply)", rating.ClassType)
+		} else if rating.IsExpiringSoon(90) {
+			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("EASA %s expires in %d days — requirements met", rating.ClassType, daysLeft)
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = fmt.Sprintf("EASA %s current — all revalidation requirements met", rating.ClassType)
+		}
+	},
 }
 
-// evaluateIR evaluates EASA FCL.625.A instrument rating currency:
+// easaIRRule — EASA FCL.625.A instrument rating currency:
 //   - 10 hours IFR flight time in 12 months preceding expiry
 //   - Proficiency check (manual tracking)
-func (e *EASAEvaluator) evaluateIR(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	if rating.ExpiryDate == nil {
-		result.Status = StatusUnknown
-		result.Message = "EASA IR — no expiry date set"
-		return result
-	}
-
-	// Look back 12 months from expiry date; use all aircraft (IR is cross-class)
-	since := rating.ExpiryDate.AddDate(-1, 0, 0)
-
-	// Window-not-yet-open guard — see evaluateSEPTMG for rationale.
-	if r, closed := applyClosedWindow(rating, &since, result); closed {
-		return r
-	}
-
-	progress, err := dp.GetProgressAll(ctx, license.UserID, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = "EASA IR — unable to evaluate currency"
-		return result
-	}
-	result.Progress = progress
-
-	reqIFRHours := Requirement{
-		Name: "IFR Time", Met: progress.IFRMinutes >= 600,
-		Current: float64(progress.IFRMinutes), Required: 600, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 600 IFR minutes", progress.IFRMinutes),
-	}
-
-	// Check for annual proficiency check (FCL.625.A requires one)
-	profCheckDate, _ := dp.GetLastProficiencyCheck(ctx, license.UserID, models.ClassTypeIR, since)
-	hasProfCheck := profCheckDate != nil
-	reqProfCheck := Requirement{
-		Name: "Proficiency Check", Met: hasProfCheck,
-		Current: 0, Required: 1, Unit: "check",
-		Message: "Annual proficiency check not completed in validity period",
-	}
-	if hasProfCheck {
-		reqProfCheck.Current = 1
-		reqProfCheck.Message = fmt.Sprintf("Proficiency check completed %s", profCheckDate.Format("2006-01-02"))
-	}
-
-	result.Requirements = []Requirement{reqIFRHours, reqProfCheck}
-
-	allMet := reqIFRHours.Met && hasProfCheck
-
-	if rating.IsExpired() {
-		result.Status = StatusExpired
-		result.Message = fmt.Sprintf("EASA IR expired on %s", *result.ExpiryDate)
-	} else if !allMet {
-		result.Status = StatusExpiring
-		if !reqIFRHours.Met && !hasProfCheck {
-			result.Message = "EASA IR — IFR hours and proficiency check not met"
-		} else if !reqIFRHours.Met {
-			result.Message = "EASA IR — IFR hour requirement not met"
-		} else {
-			result.Message = "EASA IR — annual proficiency check not completed"
+var easaIRRule = ratingRule{
+	displayKey:  "easa_ir",
+	description: "Requires 10h IFR flight time within 12 months before expiry, plus annual proficiency check (EASA FCL.625.A)",
+	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
+	scope:       scopeAll,
+	baseReqs: []reqSpec{
+		{name: "IFR Time", metric: mIFRMinutes, threshold: 600, unit: "minutes", msgFmt: "%d / 600 IFR minutes"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		if rating.ExpiryDate == nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = "EASA IR — no expiry date set"
+			return
 		}
-	} else if rating.IsExpiringSoon(90) {
-		daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("EASA IR expires in %d days — requirements met", daysLeft)
-	} else {
-		result.Status = StatusCurrent
-		result.Message = "EASA IR current — all requirements met"
-	}
+		since := rating.ExpiryDate.AddDate(-1, 0, 0)
+		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+			*rt.result = r
+			return
+		}
+		rt.since = since
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = "EASA IR — unable to evaluate currency"
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		reqIFRHours := reqs[0]
 
-	return result
+		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, models.ClassTypeIR, since)
+		hasProfCheck := profCheckDate != nil
+		reqProfCheck := Requirement{
+			Name: "Proficiency Check", Met: hasProfCheck,
+			Current: 0, Required: 1, Unit: "check",
+			Message: "Annual proficiency check not completed in validity period",
+		}
+		if hasProfCheck {
+			reqProfCheck.Current = 1
+			reqProfCheck.Message = fmt.Sprintf("Proficiency check completed %s", profCheckDate.Format("2006-01-02"))
+		}
+
+		rt.result.Requirements = []Requirement{reqIFRHours, reqProfCheck}
+
+		allMet := reqIFRHours.Met && hasProfCheck
+
+		if rating.IsExpired() {
+			rt.result.Status = StatusExpired
+			rt.result.Message = fmt.Sprintf("EASA IR expired on %s", *rt.result.ExpiryDate)
+		} else if !allMet {
+			rt.result.Status = StatusExpiring
+			if !reqIFRHours.Met && !hasProfCheck {
+				rt.result.Message = "EASA IR — IFR hours and proficiency check not met"
+			} else if !reqIFRHours.Met {
+				rt.result.Message = "EASA IR — IFR hour requirement not met"
+			} else {
+				rt.result.Message = "EASA IR — annual proficiency check not completed"
+			}
+		} else if rating.IsExpiringSoon(90) {
+			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("EASA IR expires in %d days — requirements met", daysLeft)
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = "EASA IR current — all requirements met"
+		}
+	},
 }
 
-// evaluateExpiryOnly falls back to expiry-only tracking for unknown class types
-func (e *EASAEvaluator) evaluateExpiryOnly(rating *models.ClassRating, result ClassRatingCurrency) ClassRatingCurrency {
-	if rating.ExpiryDate == nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
-		return result
-	}
-
-	if rating.IsExpired() {
-		result.Status = StatusExpired
-		result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *result.ExpiryDate)
-	} else if rating.IsExpiringSoon(90) {
-		daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("EASA %s expires in %d days", rating.ClassType, daysLeft)
-	} else {
-		result.Status = StatusCurrent
-		result.Message = fmt.Sprintf("EASA %s valid until %s", rating.ClassType, *result.ExpiryDate)
-	}
-
-	return result
+// easaExpiryOnlyRule — fallback expiry-only tracking for unknown class types.
+var easaExpiryOnlyRule = ratingRule{
+	displayKey:  "",
+	description: "EASA class rating — currency tracked by expiry date",
+	scope:       scopeByClass,
+	finalize: func(_ context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		if rating.ExpiryDate == nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
+			return
+		}
+		if rating.IsExpired() {
+			rt.result.Status = StatusExpired
+			rt.result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate)
+		} else if rating.IsExpiringSoon(90) {
+			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("EASA %s expires in %d days", rating.ClassType, daysLeft)
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = fmt.Sprintf("EASA %s valid until %s", rating.ClassType, *rt.result.ExpiryDate)
+		}
+	},
 }
 
-// evaluateLAPL_A evaluates EASA FCL.140.A(a) recency for LAPL(A):
+// easaLAPLRule — EASA FCL.140.A(a) recency for LAPL(A):
 //   - 12 hours flight time (as PIC, dual, or solo under supervision)
 //   - 12 takeoffs & landings
 //   - 1 hour dual instruction
 //   - NO PIC hour requirement (key difference from FCL.740.A)
 //
-// Lookback: rolling 24 months from NOW (not from any expiry date).
-func (e *EASAEvaluator) evaluateLAPL_A(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	// Rolling 24 months from now — FCL.140.A is a recency requirement, not a revalidation
-	since := time.Now().AddDate(-2, 0, 0)
+// Lookback: rolling 24 months from NOW.
+var easaLAPLRule = ratingRule{
+	displayKey:  "easa_lapl",
+	description: "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor within the last 24 months (EASA FCL.140.A)",
+	window:      windowSpec{kind: windowRollingNow, years: 2},
+	scope:       scopeByClass,
+	baseReqs: []reqSpec{
+		{name: "Flight Time", metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes in last 24 months"},
+		{name: "Takeoffs & Landings", metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings in last 24 months"},
+		{name: "Training Flight", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor in last 24 months"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		rt.since = rt.rule.window.rollingSince(time.Now())
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("EASA LAPL %s — unable to evaluate recency", rating.ClassType)
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		rt.result.Requirements = reqs
 
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("EASA LAPL %s — unable to evaluate recency", rating.ClassType)
-		return result
-	}
-	result.Progress = progress
-
-	reqTotalHours := Requirement{
-		Name: "Flight Time", Met: progress.TotalMinutes >= 720,
-		Current: float64(progress.TotalMinutes), Required: 720, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 720 minutes in last 24 months", progress.TotalMinutes),
-	}
-	reqLandings := Requirement{
-		Name: "Takeoffs & Landings", Met: progress.Landings >= 12,
-		Current: float64(progress.Landings), Required: 12, Unit: "landings",
-		Message: fmt.Sprintf("%d / 12 takeoffs & landings in last 24 months", progress.Landings),
-	}
-	reqInstructor := Requirement{
-		Name: "Training Flight", Met: progress.InstructorMinutes >= 60,
-		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 60 minutes with instructor in last 24 months", progress.InstructorMinutes),
-	}
-
-	result.Requirements = []Requirement{reqTotalHours, reqLandings, reqInstructor}
-
-	allMet := reqTotalHours.Met && reqLandings.Met && reqInstructor.Met
-
-	if !allMet {
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("EASA LAPL %s — recency requirements not fully met (FCL.140.A)", rating.ClassType)
-	} else {
-		result.Status = StatusCurrent
-		result.Message = fmt.Sprintf("EASA LAPL %s — current (FCL.140.A)", rating.ClassType)
-	}
-
-	return result
+		if !allReqsMet(reqs) {
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("EASA LAPL %s — recency requirements not fully met (FCL.140.A)", rating.ClassType)
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = fmt.Sprintf("EASA LAPL %s — current (FCL.140.A)", rating.ClassType)
+		}
+	},
 }
 
-// evaluateSPL evaluates EASA FCL.140.S(a) recency for SPL/LAPL(S):
+// easaSPLRule — EASA FCL.140.S(a) recency for SPL/LAPL(S):
 //   - 5 hours flight time as PIC on sailplanes
 //   - 15 launches (NOT landings)
 //   - 2 training flights with instructor
 //
-// Lookback: rolling 24 months from NOW.
-// Also evaluates launch method currency per FCL.140.S(b)(1).
-func (e *EASAEvaluator) evaluateSPL(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	since := time.Now().AddDate(-2, 0, 0)
-
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("EASA SPL %s — unable to evaluate recency", rating.ClassType)
-		return result
-	}
-	result.Progress = progress
-
-	// SPL uses landings as a proxy for launches (each launch results in a landing)
-	reqPICHours := Requirement{
-		Name: "PIC Flight Time", Met: progress.PICMinutes >= 300,
-		Current: float64(progress.PICMinutes), Required: 300, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 300 PIC minutes in last 24 months", progress.PICMinutes),
-	}
-	reqLaunches := Requirement{
-		Name: "Launches", Met: progress.Landings >= 15,
-		Current: float64(progress.Landings), Required: 15, Unit: "launches",
-		Message: fmt.Sprintf("%d / 15 launches in last 24 months", progress.Landings),
-	}
-	reqTraining := Requirement{
-		Name: "Training Flights", Met: progress.InstructorMinutes >= 60,
-		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 60 minutes training flights in last 24 months", progress.InstructorMinutes),
-	}
-
-	result.Requirements = []Requirement{reqPICHours, reqLaunches, reqTraining}
-
-	allMet := reqPICHours.Met && reqLaunches.Met && reqTraining.Met
-
-	// Evaluate launch method currency — FCL.140.S(b)(1)
-	launchCounts, _ := dp.GetLaunchCounts(ctx, license.UserID, since)
-	var launchMethodCurrency []LaunchMethodCurrency
-	for _, method := range []string{"winch", "aerotow", "self-launch"} {
-		count := launchCounts[method]
-		if count > 0 || launchCounts[method] > 0 {
-			lmc := LaunchMethodCurrency{
-				Method:   method,
-				Launches: count,
-				Required: 5,
-				Met:      count >= 5,
-				Message:  fmt.Sprintf("%d / 5 %s launches in last 24 months", count, method),
-			}
-			launchMethodCurrency = append(launchMethodCurrency, lmc)
+// Lookback: rolling 24 months from NOW. Also evaluates launch method currency
+// per FCL.140.S(b)(1).
+var easaSPLRule = ratingRule{
+	displayKey:  "easa_spl",
+	description: "Requires 5h PIC flight time + 15 launches + 2 training flights with instructor within the last 24 months (EASA FCL.140.S)",
+	window:      windowSpec{kind: windowRollingNow, years: 2},
+	scope:       scopeByClass,
+	baseReqs: []reqSpec{
+		{name: "PIC Flight Time", metric: mPICMinutes, threshold: 300, unit: "minutes", msgFmt: "%d / 300 PIC minutes in last 24 months"},
+		{name: "Launches", metric: mLandings, threshold: 15, unit: "launches", msgFmt: "%d / 15 launches in last 24 months"},
+		{name: "Training Flights", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes training flights in last 24 months"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		since := rt.rule.window.rollingSince(time.Now())
+		rt.since = since
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("EASA SPL %s — unable to evaluate recency", rating.ClassType)
+			return
 		}
-	}
-	result.LaunchMethodCurrency = launchMethodCurrency
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		rt.result.Requirements = reqs
+		allMet := allReqsMet(reqs)
 
-	if !allMet {
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("EASA SPL %s — recency requirements not fully met (FCL.140.S)", rating.ClassType)
-	} else {
-		result.Status = StatusCurrent
-		result.Message = fmt.Sprintf("EASA SPL %s — current (FCL.140.S)", rating.ClassType)
-	}
+		launchCounts, _ := rt.dp.GetLaunchCounts(ctx, rt.license.UserID, since)
+		var launchMethodCurrency []LaunchMethodCurrency
+		for _, method := range []string{"winch", "aerotow", "self-launch"} {
+			count := launchCounts[method]
+			if count > 0 || launchCounts[method] > 0 {
+				launchMethodCurrency = append(launchMethodCurrency, LaunchMethodCurrency{
+					Method:   method,
+					Launches: count,
+					Required: 5,
+					Met:      count >= 5,
+					Message:  fmt.Sprintf("%d / 5 %s launches in last 24 months", count, method),
+				})
+			}
+		}
+		rt.result.LaunchMethodCurrency = launchMethodCurrency
 
-	return result
+		if !allMet {
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("EASA SPL %s — recency requirements not fully met (FCL.140.S)", rating.ClassType)
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = fmt.Sprintf("EASA SPL %s — current (FCL.140.S)", rating.ClassType)
+		}
+	},
 }
 
-// evaluateSPL_TMG evaluates EASA FCL.140.S(b)(2) TMG extension for SPL:
+// easaSPLTMGRule — EASA FCL.140.S(b)(2) TMG extension for SPL:
 //   - 12 hours flight time on TMG
 //   - 12 takeoffs & landings on TMG
 //
-// Lookback: rolling 24 months from NOW.
-// Distinct from PPL TMG (FCL.740.A: requires 6h PIC + 1h instructor + expiry-based).
-func (e *EASAEvaluator) evaluateSPL_TMG(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	since := time.Now().AddDate(-2, 0, 0)
+// Lookback: rolling 24 months from NOW. Distinct from PPL TMG (FCL.740.A).
+var easaSPLTMGRule = ratingRule{
+	displayKey:    "easa_spl_tmg",
+	description:   "Requires 12h flight time + 12 takeoffs & landings on TMG within the last 24 months (EASA FCL.140.S(b)(2))",
+	window:        windowSpec{kind: windowRollingNow, years: 2},
+	scope:         scopeByClassOverride,
+	classOverride: models.ClassTypeTMG,
+	baseReqs: []reqSpec{
+		{name: "TMG Flight Time", metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes on TMG in last 24 months"},
+		{name: "TMG Takeoffs & Landings", metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings on TMG in last 24 months"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rt.since = rt.rule.window.rollingSince(time.Now())
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = "EASA SPL TMG — unable to evaluate recency"
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		rt.result.Requirements = reqs
 
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, models.ClassTypeTMG, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = "EASA SPL TMG — unable to evaluate recency"
-		return result
-	}
-	result.Progress = progress
-
-	reqTotalHours := Requirement{
-		Name: "TMG Flight Time", Met: progress.TotalMinutes >= 720,
-		Current: float64(progress.TotalMinutes), Required: 720, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 720 minutes on TMG in last 24 months", progress.TotalMinutes),
-	}
-	reqLandings := Requirement{
-		Name: "TMG Takeoffs & Landings", Met: progress.Landings >= 12,
-		Current: float64(progress.Landings), Required: 12, Unit: "landings",
-		Message: fmt.Sprintf("%d / 12 takeoffs & landings on TMG in last 24 months", progress.Landings),
-	}
-
-	result.Requirements = []Requirement{reqTotalHours, reqLandings}
-
-	allMet := reqTotalHours.Met && reqLandings.Met
-
-	if !allMet {
-		result.Status = StatusExpiring
-		result.Message = "EASA SPL TMG — recency requirements not fully met (FCL.140.S(b)(2))"
-	} else {
-		result.Status = StatusCurrent
-		result.Message = "EASA SPL TMG — current (FCL.140.S(b)(2))"
-	}
-
-	return result
+		if !allReqsMet(reqs) {
+			rt.result.Status = StatusExpiring
+			rt.result.Message = "EASA SPL TMG — recency requirements not fully met (FCL.140.S(b)(2))"
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = "EASA SPL TMG — current (FCL.140.S(b)(2))"
+		}
+	},
 }
 
 // applyClosedWindow handles the period between a rating's revalidation and
@@ -517,34 +456,6 @@ func applyClosedWindow(rating *models.ClassRating, since *time.Time, result Clas
 	return result, true
 }
 
-// easaRuleDescription returns a human-readable description of EASA currency rules for a class type
-func easaRuleDescription(classType models.ClassType) string {
-	switch classType {
-	case models.ClassTypeSEPLand, models.ClassTypeSEPSea, models.ClassTypeTMG:
-		return "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within the 12 months preceding the expiry date (EASA FCL.740.A(b)(1))"
-	case models.ClassTypeMEPLand, models.ClassTypeMEPSea, models.ClassTypeSETLand, models.ClassTypeSETSea:
-		return "Requires proficiency check, or 10 route sectors + 1h refresher training with instructor within the 12 months preceding the expiry date (EASA FCL.740.A(b)(2))"
-	case models.ClassTypeIR:
-		return "Requires 10h IFR flight time within 12 months before expiry, plus annual proficiency check (EASA FCL.625.A)"
-	default:
-		return "EASA class rating — currency tracked by expiry date"
-	}
-}
-
-// easaRuleDescriptionKey returns the i18n key for the rule description
-func easaRuleDescriptionKey(classType models.ClassType) string {
-	switch classType {
-	case models.ClassTypeSEPLand, models.ClassTypeSEPSea, models.ClassTypeTMG:
-		return "easa_sep_tmg"
-	case models.ClassTypeMEPLand, models.ClassTypeMEPSea, models.ClassTypeSETLand, models.ClassTypeSETSea:
-		return "easa_mep_set"
-	case models.ClassTypeIR:
-		return "easa_ir"
-	default:
-		return ""
-	}
-}
-
 // EvaluatePassengerCurrency evaluates EASA FCL.060(b) passenger-carrying recency.
 // This is SEPARATE from rating revalidation — a pilot can have a valid rating but
 // cannot carry passengers without meeting FCL.060(b).
@@ -553,8 +464,9 @@ func easaRuleDescriptionKey(classType models.ClassType) string {
 // within the preceding 90 days (rolling from now) for any passenger flight.
 //
 // FCL.060(b)(2): To carry passengers as PIC at night additionally:
-//   (i)  at least 1 takeoff, approach and landing at night in the preceding 90 days, OR
-//   (ii) holds an IR — in which case no night-landing recency is required.
+//
+//	(i)  at least 1 takeoff, approach and landing at night in the preceding 90 days, OR
+//	(ii) holds an IR — in which case no night-landing recency is required.
 func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
 	since := time.Now().AddDate(0, 0, -90)
 

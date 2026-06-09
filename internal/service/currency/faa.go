@@ -10,7 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// FAAEvaluator implements FAA 14 CFR 61.57 currency rules
+// FAAEvaluator implements FAA 14 CFR 61.57 currency rules. It is a thin adapter:
+// Evaluate() selects the applicable rule from the FAA rule set and runs it
+// through the engine. The regulatory data lives in the ratingRule definitions.
 type FAAEvaluator struct{}
 
 // NewFAAEvaluator creates a new FAA currency evaluator
@@ -23,201 +25,192 @@ func (e *FAAEvaluator) Authority() string {
 }
 
 func (e *FAAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating, license *models.License, dataProvider FlightDataProvider) ClassRatingCurrency {
-	result := ClassRatingCurrency{
-		ClassRatingID:       rating.ID,
-		ClassType:           rating.ClassType,
-		LicenseID:           rating.LicenseID,
-		RegulatoryAuthority: license.RegulatoryAuthority,
-		LicenseType:         license.LicenseType,
-		RuleDescription:     faaRuleDescription(rating.ClassType),
-		RuleDescriptionKey:  faaRuleDescriptionKey(rating.ClassType),
-	}
+	return evalRatingRule(ctx, faaSelectRule(rating, license), rating, license, dataProvider)
+}
 
-	if rating.ExpiryDate != nil {
-		expStr := rating.ExpiryDate.Format("2006-01-02")
-		result.ExpiryDate = &expStr
-	}
-
-	// License-type-aware dispatch:
-	// - Sport Pilot (§61.315): suppress IR evaluation entirely (day VFR only)
-	// - Glider: use launches instead of landings
+// faaSelectRule dispatches a (license type, class type) pair to its rule.
+//   - Sport/Recreational Pilot (§61.315): IR is suppressed (day VFR only)
+//   - Glider: uses launches instead of landings
+func faaSelectRule(rating *models.ClassRating, license *models.License) *ratingRule {
 	lt := strings.ToUpper(license.LicenseType)
 
 	switch rating.ClassType {
 	case models.ClassTypeIR:
 		// Sport Pilot cannot fly IFR — skip IR evaluation
 		if lt == "SPORT" || lt == "RECREATIONAL" {
-			result.Status = StatusUnknown
-			result.Message = fmt.Sprintf("FAA %s — instrument currency not applicable for %s Pilot (§61.315)", rating.ClassType, license.LicenseType)
-			result.RuleDescription = "Instrument privileges not available for Sport/Recreational Pilot certificates"
-			return result
+			return &faaSuppressedIRRule
 		}
-		return e.evaluateInstrumentCurrency(ctx, rating, license, dataProvider, result)
+		return &faaInstrumentRule
 	default:
 		// Glider uses launches instead of landings
 		if lt == "GLIDER" {
-			return e.evaluateGliderCurrency(ctx, rating, license, dataProvider, result)
+			return &faaGliderRule
 		}
-		return e.evaluatePassengerCurrency(ctx, rating, license, dataProvider, result)
+		return &faaPassengerRatingRule
 	}
 }
 
-// evaluatePassengerCurrency evaluates FAA 14 CFR 61.57(a) and 61.57(b):
+// ── FAA rule definitions ────────────────────────────────────────────────────
+
+// faaPassengerRatingRule — FAA 14 CFR 61.57(a)/(b) Tier-1 rating currency:
 //
-// (a) Day passenger currency: 3 takeoffs and landings in preceding 90 days
-// in same category, class, and type (if type rating required).
-//
-// (b) Night passenger currency: 3 takeoffs and landings to a full stop
-// during the period beginning 1 hour after sunset and ending 1 hour
-// before sunrise within the preceding 90 days.
-func (e *FAAEvaluator) evaluatePassengerCurrency(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	since := time.Now().AddDate(0, 0, -90)
+//	(a) Day: 3 takeoffs and landings in preceding 90 days in same category/class.
+//	(b) Night: 3 full-stop takeoffs and landings at night within preceding 90 days.
+var faaPassengerRatingRule = ratingRule{
+	displayKey:  "faa_pax_day_night",
+	description: "Requires 3 takeoffs & landings in preceding 90 days in same category/class for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57)",
+	window:      windowSpec{kind: windowRollingNow, days: 90},
+	scope:       scopeByClass,
+	baseReqs: []reqSpec{
+		{name: "Day Passenger Currency", metric: mLandings, threshold: 3, unit: "landings", msgFmt: "%d / 3 takeoffs & landings in 90 days"},
+		{name: "Night Passenger Currency", metric: mNightLandings, threshold: 3, unit: "landings", msgFmt: "%d / 3 night full-stop landings in 90 days"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		rt.since = rt.rule.window.rollingSince(time.Now())
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("FAA %s — unable to evaluate currency", rating.ClassType)
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		dayReq := reqs[0]
+		nightReq := reqs[1]
+		rt.result.Requirements = reqs
 
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("FAA %s — unable to evaluate currency", rating.ClassType)
-		return result
-	}
-	result.Progress = progress
-
-	// FAA 61.57(a): 3 T&L in 90 days for day passenger currency
-	dayReq := Requirement{
-		Name: "Day Passenger Currency", Met: progress.Landings >= 3,
-		Current: float64(progress.Landings), Required: 3, Unit: "landings",
-		Message: fmt.Sprintf("%d / 3 takeoffs & landings in 90 days", progress.Landings),
-	}
-
-	// FAA 61.57(b): 3 full-stop night T&L in 90 days
-	nightReq := Requirement{
-		Name: "Night Passenger Currency", Met: progress.NightLandings >= 3,
-		Current: float64(progress.NightLandings), Required: 3, Unit: "landings",
-		Message: fmt.Sprintf("%d / 3 night full-stop landings in 90 days", progress.NightLandings),
-	}
-
-	result.Requirements = []Requirement{dayReq, nightReq}
-
-	// Status based on worst case:
-	// - Day not met → expired (cannot carry passengers at all)
-	// - Day met, night not met → expiring (can fly day only with passengers)
-	// - Both met → current
-	if !dayReq.Met {
-		result.Status = StatusExpired
-		needed := 3 - progress.Landings
-		result.Message = fmt.Sprintf("FAA %s — not current for passengers (need %d more landing%s)", rating.ClassType, needed, plural(needed))
-	} else if !nightReq.Met {
-		result.Status = StatusExpiring
-		needed := 3 - progress.NightLandings
-		result.Message = fmt.Sprintf("FAA %s — day current, night not current (need %d more night landing%s)", rating.ClassType, needed, plural(needed))
-	} else {
-		result.Status = StatusCurrent
-		result.Message = fmt.Sprintf("FAA %s — current for day and night passengers", rating.ClassType)
-	}
-
-	return result
-}
-
-// evaluateInstrumentCurrency evaluates FAA 14 CFR 61.57(c):
-//
-// Within the preceding 6 calendar months:
-//   - 6 instrument approaches
-//   - Holding procedures and tasks
-//   - Intercepting and tracking courses through the use of navigational systems
-func (e *FAAEvaluator) evaluateInstrumentCurrency(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	// 6 calendar months
-	since := time.Now().AddDate(0, -6, 0)
-
-	// IR applies across all aircraft classes
-	progress, err := dp.GetProgressAll(ctx, license.UserID, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = "FAA IR — unable to evaluate currency"
-		return result
-	}
-	result.Progress = progress
-
-	// FAA 61.57(c)(1): 6 instrument approaches in 6 months
-	reqApproaches := Requirement{
-		Name: "Instrument Approaches", Met: progress.Approaches >= 6,
-		Current: float64(progress.Approaches), Required: 6, Unit: "approaches",
-		Message: fmt.Sprintf("%d / 6 instrument approaches in 6 months", progress.Approaches),
-	}
-
-	// FAA 61.57(c)(1): Holding procedures
-	reqHolds := Requirement{
-		Name: "Holding Procedures", Met: progress.Holds >= 1,
-		Current: float64(progress.Holds), Required: 1, Unit: "holds",
-		Message: fmt.Sprintf("%d / 1 holding procedure%s in 6 months", progress.Holds, plural(1)),
-	}
-
-	result.Requirements = []Requirement{reqApproaches, reqHolds}
-
-	allMet := reqApproaches.Met && reqHolds.Met
-
-	if rating.ExpiryDate != nil && rating.IsExpired() {
-		result.Status = StatusExpired
-		result.Message = fmt.Sprintf("FAA IR expired on %s", *result.ExpiryDate)
-	} else if allMet {
-		result.Status = StatusCurrent
-		result.Message = "FAA IR — instrument currency requirements met"
-	} else {
-		// Check 12-month grace period: §61.57(c)/(d)
-		// 0-6 months: current (checked above)
-		// 6-12 months: can regain by practice with safety pilot
-		// >12 months: IPC required
-		since12 := time.Now().AddDate(-1, 0, 0)
-		progress12, err12 := dp.GetProgressAll(ctx, license.UserID, since12)
-		if err12 == nil && (progress12.Approaches >= 6 && progress12.Holds >= 1) {
-			// Met within 12 months but not within 6 — lapsed but recoverable
-			result.Status = StatusExpiring
-			result.Message = "FAA IR — instrument currency lapsed (6+ months), can regain by practice with safety pilot (§61.57(c))"
-			result.RuleDescription = "Instrument currency lapsed past 6 months. Can regain within 12 months by completing 6 approaches + holding with safety pilot. After 12 months, IPC required (14 CFR 61.57(c)/(d))"
+		// Status based on worst case:
+		// - Day not met → expired (cannot carry passengers at all)
+		// - Day met, night not met → expiring (can fly day only with passengers)
+		// - Both met → current
+		if !dayReq.Met {
+			rt.result.Status = StatusExpired
+			needed := 3 - progress.Landings
+			rt.result.Message = fmt.Sprintf("FAA %s — not current for passengers (need %d more landing%s)", rating.ClassType, needed, plural(needed))
+		} else if !nightReq.Met {
+			rt.result.Status = StatusExpiring
+			needed := 3 - progress.NightLandings
+			rt.result.Message = fmt.Sprintf("FAA %s — day current, night not current (need %d more night landing%s)", rating.ClassType, needed, plural(needed))
 		} else {
-			// Not met within 12 months either — IPC required
-			result.Status = StatusExpired
-			result.Message = "FAA IR — instrument currency expired (>12 months without required experience), IPC required (§61.57(d))"
-			result.RuleDescription = "Instrument currency expired. Instrument Proficiency Check (IPC) required to regain currency (14 CFR 61.57(d))"
+			rt.result.Status = StatusCurrent
+			rt.result.Message = fmt.Sprintf("FAA %s — current for day and night passengers", rating.ClassType)
 		}
-	}
-
-	return result
+	},
 }
 
-// evaluateGliderCurrency evaluates FAA §61.57(a) for glider category.
-// Gliders use "launches" instead of "takeoffs" — 3 launches and landings
-// in the preceding 90 days for passenger currency.
+// faaInstrumentRule — FAA 14 CFR 61.57(c) instrument currency:
+//
+// Within the preceding 6 calendar months: 6 instrument approaches, holding
+// procedures, and intercepting/tracking courses. Includes the §61.57(c)/(d)
+// 12-month grace period: 6–12 months → recoverable with safety pilot;
+// >12 months → IPC required.
+var faaInstrumentRule = ratingRule{
+	displayKey:  "faa_ir",
+	description: "Requires 6 instrument approaches + holding procedures within preceding 6 calendar months (14 CFR 61.57(c))",
+	window:      windowSpec{kind: windowRollingNow, months: 6},
+	scope:       scopeAll,
+	baseReqs: []reqSpec{
+		{name: "Instrument Approaches", metric: mApproaches, threshold: 6, unit: "approaches", msgFmt: "%d / 6 instrument approaches in 6 months"},
+		{name: "Holding Procedures", metric: mHolds, threshold: 1, unit: "holds", msgFmt: "%d / 1 holding procedure in 6 months"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		rt.since = rt.rule.window.rollingSince(time.Now())
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = "FAA IR — unable to evaluate currency"
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		reqApproaches := reqs[0]
+		reqHolds := reqs[1]
+		rt.result.Requirements = reqs
+
+		allMet := reqApproaches.Met && reqHolds.Met
+
+		if rating.ExpiryDate != nil && rating.IsExpired() {
+			rt.result.Status = StatusExpired
+			rt.result.Message = fmt.Sprintf("FAA IR expired on %s", *rt.result.ExpiryDate)
+		} else if allMet {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = "FAA IR — instrument currency requirements met"
+		} else {
+			// Check 12-month grace period: §61.57(c)/(d)
+			// 0-6 months: current (checked above)
+			// 6-12 months: can regain by practice with safety pilot
+			// >12 months: IPC required
+			since12 := time.Now().AddDate(-1, 0, 0)
+			progress12, err12 := rt.dp.GetProgressAll(ctx, rt.license.UserID, since12)
+			if err12 == nil && (progress12.Approaches >= 6 && progress12.Holds >= 1) {
+				// Met within 12 months but not within 6 — lapsed but recoverable
+				rt.result.Status = StatusExpiring
+				rt.result.Message = "FAA IR — instrument currency lapsed (6+ months), can regain by practice with safety pilot (§61.57(c))"
+				rt.result.RuleDescription = "Instrument currency lapsed past 6 months. Can regain within 12 months by completing 6 approaches + holding with safety pilot. After 12 months, IPC required (14 CFR 61.57(c)/(d))"
+			} else {
+				// Not met within 12 months either — IPC required
+				rt.result.Status = StatusExpired
+				rt.result.Message = "FAA IR — instrument currency expired (>12 months without required experience), IPC required (§61.57(d))"
+				rt.result.RuleDescription = "Instrument currency expired. Instrument Proficiency Check (IPC) required to regain currency (14 CFR 61.57(d))"
+			}
+		}
+	},
+}
+
+// faaGliderRule — FAA §61.57(a) for glider category. Gliders use "launches"
+// instead of "takeoffs": 3 launches and landings in the preceding 90 days.
 // Night and IR currency are not applicable for gliders.
-func (e *FAAEvaluator) evaluateGliderCurrency(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider, result ClassRatingCurrency) ClassRatingCurrency {
-	since := time.Now().AddDate(0, 0, -90)
+//
+// The description deliberately defaults to the passenger text and is only
+// upgraded to the glider-specific text after a successful data fetch, matching
+// the historical behaviour on the error path.
+var faaGliderRule = ratingRule{
+	displayKey:  "faa_pax_day_night",
+	description: "Requires 3 takeoffs & landings in preceding 90 days in same category/class for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57)",
+	window:      windowSpec{kind: windowRollingNow, days: 90},
+	scope:       scopeByClass,
+	baseReqs: []reqSpec{
+		{name: "Launches & Landings", metric: mLandings, threshold: 3, unit: "launches", msgFmt: "%d / 3 launches & landings in 90 days"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		rt.since = rt.rule.window.rollingSince(time.Now())
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("FAA %s (Glider) — unable to evaluate currency", rating.ClassType)
+			return
+		}
+		rt.result.Progress = progress
+		rt.result.RuleDescription = "Requires 3 launches & landings in preceding 90 days in same category (14 CFR 61.57(a)) — night and IFR not applicable for gliders"
 
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("FAA %s (Glider) — unable to evaluate currency", rating.ClassType)
-		return result
-	}
-	result.Progress = progress
-	result.RuleDescription = "Requires 3 launches & landings in preceding 90 days in same category (14 CFR 61.57(a)) — night and IFR not applicable for gliders"
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		launchReq := reqs[0]
+		rt.result.Requirements = reqs
 
-	// Gliders count launches (= landings in our data model, since each launch results in a landing)
-	launchReq := Requirement{
-		Name: "Launches & Landings", Met: progress.Landings >= 3,
-		Current: float64(progress.Landings), Required: 3, Unit: "launches",
-		Message: fmt.Sprintf("%d / 3 launches & landings in 90 days", progress.Landings),
-	}
+		if !launchReq.Met {
+			rt.result.Status = StatusExpired
+			needed := 3 - progress.Landings
+			rt.result.Message = fmt.Sprintf("FAA Glider — not current (need %d more launch%s)", needed, plural(needed))
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = "FAA Glider — current for passengers"
+		}
+	},
+}
 
-	result.Requirements = []Requirement{launchReq}
-
-	if !launchReq.Met {
-		result.Status = StatusExpired
-		needed := 3 - progress.Landings
-		result.Message = fmt.Sprintf("FAA Glider — not current (need %d more launch%s)", needed, plural(needed))
-	} else {
-		result.Status = StatusCurrent
-		result.Message = "FAA Glider — current for passengers"
-	}
-
-	return result
+// faaSuppressedIRRule — Sport/Recreational Pilot certificates have no instrument
+// privileges (§61.315); IR evaluation is suppressed.
+var faaSuppressedIRRule = ratingRule{
+	displayKey:  "faa_ir",
+	description: "Instrument privileges not available for Sport/Recreational Pilot certificates",
+	scope:       scopeAll,
+	finalize: func(_ context.Context, rt *ratingRuntime) {
+		rt.result.Status = StatusUnknown
+		rt.result.Message = fmt.Sprintf("FAA %s — instrument currency not applicable for %s Pilot (§61.315)", rt.rating.ClassType, rt.license.LicenseType)
+	},
 }
 
 // HasNightPrivilege returns whether the given license type has night flying privileges.
@@ -245,25 +238,6 @@ func plural(n int) string {
 		return ""
 	}
 	return "s"
-}
-
-// faaRuleDescription returns a human-readable description of FAA currency rules for a class type
-func faaRuleDescription(classType models.ClassType) string {
-	switch classType {
-	case models.ClassTypeIR:
-		return "Requires 6 instrument approaches + holding procedures within preceding 6 calendar months (14 CFR 61.57(c))"
-	default:
-		return "Requires 3 takeoffs & landings in preceding 90 days in same category/class for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57)"
-	}
-}
-
-func faaRuleDescriptionKey(classType models.ClassType) string {
-	switch classType {
-	case models.ClassTypeIR:
-		return "faa_ir"
-	default:
-		return "faa_pax_day_night"
-	}
 }
 
 // EvaluatePassengerCurrency evaluates FAA §61.57(a)/(b) as Tier 2 passenger currency.
