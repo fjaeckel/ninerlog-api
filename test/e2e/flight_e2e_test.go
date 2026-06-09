@@ -422,7 +422,7 @@ func TestFlightAllFields(t *testing.T) {
 func TestFlightGliderLaunch(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("flt-gl"), "SecurePass123!", "Glider")
-	for _, m := range []string{"winch", "aerotow", "self-launch"} {
+	for _, m := range []string{"winch", "aerotow", "self-launch", "bungee", "auto-tow"} {
 		t.Run(m, func(t *testing.T) {
 			r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-1234", "aircraftType": "ASK21", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "10:00", "onBlockTime": "10:45", "landings": 1, "launchMethod": m})
 			requireStatus(t, r, 201)
@@ -431,8 +431,34 @@ func TestFlightGliderLaunch(t *testing.T) {
 			if lm, ok := f["launchMethod"].(string); ok {
 				assertStr(t, "launchMethod", lm, m)
 			}
+			// A glider flight defaults to at least one launch.
+			if lc, ok := f["launches"].(float64); ok && lc < 1 {
+				t.Errorf("launches = %v, want >= 1 for a glider flight", lc)
+			}
 		})
 	}
+
+	t.Run("launches and release altitude round-trip", func(t *testing.T) {
+		r := c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftReg": "D-5678", "aircraftType": "ASK21",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"offBlockTime": "10:00", "onBlockTime": "10:45", "landings": 1,
+			"launchMethod": "winch", "launches": 4,
+			"releaseAltitude": 420, "releaseAltitudeRef": "AGL",
+		})
+		requireStatus(t, r, 201)
+		var f map[string]interface{}
+		r.JSON(&f)
+		if lc, ok := f["launches"].(float64); !ok || int(lc) != 4 {
+			t.Errorf("launches = %v, want 4", f["launches"])
+		}
+		if ra, ok := f["releaseAltitude"].(float64); !ok || int(ra) != 420 {
+			t.Errorf("releaseAltitude = %v, want 420", f["releaseAltitude"])
+		}
+		if ref, ok := f["releaseAltitudeRef"].(string); !ok || ref != "AGL" {
+			t.Errorf("releaseAltitudeRef = %v, want AGL", f["releaseAltitudeRef"])
+		}
+	})
 }
 
 func TestFlightCrewConfigs(t *testing.T) {

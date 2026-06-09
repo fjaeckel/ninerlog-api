@@ -92,7 +92,7 @@ func TestEASA_SPL_Current(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICMinutes: 480, Landings: 20, InstructorMinutes: 120, // 20 "landings" = 20 launches
+		PICMinutes: 480, Landings: 20, Launches: 20, InstructorMinutes: 120, // 20 launches
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -122,7 +122,7 @@ func TestEASA_SPL_InsufficientLaunches(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICMinutes: 480, Landings: 10, InstructorMinutes: 120, // 10 launches < 15
+		PICMinutes: 480, Landings: 10, Launches: 10, InstructorMinutes: 120, // 10 launches < 15
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
@@ -138,7 +138,7 @@ func TestEASA_SPL_LaunchMethodCurrency(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
+		PICMinutes: 480, Landings: 20, Launches: 20, InstructorMinutes: 120,
 	}
 	dp.launchCounts = map[string]int{
 		"winch":   8,

@@ -52,6 +52,7 @@ type Progress struct {
 	Landings          int `json:"landings"`
 	DayLandings       int `json:"dayLandings"`
 	NightLandings     int `json:"nightLandings"`
+	Launches          int `json:"launches"`
 	Flights           int `json:"flights"`
 	Approaches        int `json:"approaches"`
 	Holds             int `json:"holds"`

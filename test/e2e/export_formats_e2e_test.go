@@ -195,6 +195,12 @@ func TestExportPDFFormats(t *testing.T) {
 		assertValidPDF(t, resp.Body)
 	})
 
+	t.Run("glider format", func(t *testing.T) {
+		resp := c.GET("/exports/pdf?format=glider")
+		requireStatus(t, resp, http.StatusOK)
+		assertValidPDF(t, resp.Body)
+	})
+
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		c.ClearToken()
 		assertStatus(t, c.GET("/exports/pdf?format=faa"), http.StatusUnauthorized)

@@ -2126,10 +2126,10 @@ paths:
             format: uuid
         - name: format
           in: query
-          description: PDF format — easa (AMC1 FCL.050 two-page spread), faa (ASA/Jeppesen layout), or summary (simplified totals)
+          description: PDF format — easa (AMC1 FCL.050 two-page spread), faa (ASA/Jeppesen layout), glider (EASA SPL sailplane logbook with launch columns), or summary (simplified totals)
           schema:
             type: string
-            enum: [easa, faa, summary]
+            enum: [easa, faa, glider, summary]
             default: easa
         - name: page_size
           in: query
@@ -3977,9 +3977,24 @@ components:
           description: Whether this flight was a Proficiency Check (EASA FCL.740.A MEP/SET, FCL.625.A IR, or FAA §61.58)
         launchMethod:
           type: [string, 'null']
-          enum: [winch, aerotow, self-launch, 'null']
+          enum: [winch, aerotow, self-launch, bungee, auto-tow, 'null']
           example: winch
-          description: Launch method for glider/SPL flights (winch, aerotow, or self-launch)
+          description: Launch method for glider/SPL flights (winch, aerotow, self-launch, bungee, or auto-tow)
+        launches:
+          type: integer
+          minimum: 0
+          example: 1
+          description: Number of launches on this flight (EASA FCL.140.S). Defaults to 1 for glider flights; a club training row may chain several launches in one entry. 0 for powered flights.
+        releaseAltitude:
+          type: [integer, 'null']
+          minimum: 0
+          example: 450
+          description: Release / cable-break altitude in metres for winch and aerotow launches.
+        releaseAltitudeRef:
+          type: [string, 'null']
+          enum: [AGL, AMSL, 'null']
+          example: AGL
+          description: Reference datum for releaseAltitude (above ground level or above mean sea level).
         picName:
           type: [string, 'null']
           example: Self
@@ -4168,7 +4183,19 @@ components:
           type: boolean
         launchMethod:
           type: [string, 'null']
-          enum: [winch, aerotow, self-launch, 'null']
+          enum: [winch, aerotow, self-launch, bungee, auto-tow, 'null']
+        launches:
+          type: integer
+          minimum: 0
+          description: Number of launches on this flight (EASA FCL.140.S). Defaults to 1 for glider flights, 0 for powered flights.
+        releaseAltitude:
+          type: [integer, 'null']
+          minimum: 0
+          description: Release / cable-break altitude in metres for winch and aerotow launches.
+        releaseAltitudeRef:
+          type: [string, 'null']
+          enum: [AGL, AMSL, 'null']
+          description: Reference datum for releaseAltitude (AGL or AMSL).
         picName:
           type: [string, 'null']
           description: Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
@@ -4282,7 +4309,19 @@ components:
           type: boolean
         launchMethod:
           type: [string, 'null']
-          enum: [winch, aerotow, self-launch, 'null']
+          enum: [winch, aerotow, self-launch, bungee, auto-tow, 'null']
+        launches:
+          type: integer
+          minimum: 0
+          description: Number of launches on this flight (EASA FCL.140.S)
+        releaseAltitude:
+          type: [integer, 'null']
+          minimum: 0
+          description: Release / cable-break altitude in metres for winch and aerotow launches.
+        releaseAltitudeRef:
+          type: [string, 'null']
+          enum: [AGL, AMSL, 'null']
+          description: Reference datum for releaseAltitude (AGL or AMSL).
         picName:
           type: [string, 'null']
           description: Name of the PIC
