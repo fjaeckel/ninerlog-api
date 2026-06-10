@@ -23,7 +23,8 @@ func NewGermanULEvaluator() *GermanULEvaluator {
 	return &GermanULEvaluator{}
 }
 
-// Authority returns empty — this evaluator is registered for multiple authorities via RegisterMulti.
+// Authority returns the primary authority — this evaluator is registered for
+// multiple authorities via RegisterMulti / Authorities().
 func (e *GermanULEvaluator) Authority() string {
 	return "LBA"
 }
@@ -34,56 +35,41 @@ func (e *GermanULEvaluator) Authorities() []string {
 }
 
 func (e *GermanULEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider) ClassRatingCurrency {
-	result := ClassRatingCurrency{
-		ClassRatingID:       rating.ID,
-		ClassType:           rating.ClassType,
-		LicenseID:           rating.LicenseID,
-		RegulatoryAuthority: license.RegulatoryAuthority,
-		LicenseType:         license.LicenseType,
-		RuleDescription:     "Erfordert 12h Flugzeit + 12 Starts & Landungen + 1h Übungsflug mit Fluglehrer in 24 Monaten (LuftPersV §45)",
-		RuleDescriptionKey:  "ul_luftpersv",
-	}
+	return evalRatingRule(ctx, &germanULRule, rating, license, dp)
+}
 
-	// Rolling 24 months from now (same pattern as EASA LAPL)
-	since := time.Now().AddDate(-2, 0, 0)
+// germanULRule — German ultralight recency (LuftPersV §45), rolling 24 months.
+var germanULRule = ratingRule{
+	displayKey:  "ul_luftpersv",
+	description: "Erfordert 12h Flugzeit + 12 Starts & Landungen + 1h Übungsflug mit Fluglehrer in 24 Monaten (LuftPersV §45)",
+	window:      windowSpec{kind: windowRollingNow, years: 2},
+	scope:       scopeByClass,
+	baseReqs: []reqSpec{
+		{name: "Flugzeit", metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 Minuten Flugzeit"},
+		{name: "Starts & Landungen", metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 Starts & Landungen"},
+		{name: "Übungsflug mit Fluglehrer", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 Minuten mit Fluglehrer"},
+	},
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
+		rating := rt.rating
+		rt.since = rt.rule.window.rollingSince(time.Now())
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.Message = fmt.Sprintf("UL %s — Flugerfahrung konnte nicht ermittelt werden", rating.ClassType)
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		rt.result.Requirements = reqs
 
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, rating.ClassType, since)
-	if err != nil {
-		result.Status = StatusUnknown
-		result.Message = fmt.Sprintf("UL %s — Flugerfahrung konnte nicht ermittelt werden", rating.ClassType)
-		return result
-	}
-	result.Progress = progress
-
-	reqTotalHours := Requirement{
-		Name: "Flugzeit", Met: progress.TotalMinutes >= 720,
-		Current: float64(progress.TotalMinutes), Required: 720, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 720 Minuten Flugzeit", progress.TotalMinutes),
-	}
-	reqLandings := Requirement{
-		Name: "Starts & Landungen", Met: progress.Landings >= 12,
-		Current: float64(progress.Landings), Required: 12, Unit: "landings",
-		Message: fmt.Sprintf("%d / 12 Starts & Landungen", progress.Landings),
-	}
-	reqInstructor := Requirement{
-		Name: "Übungsflug mit Fluglehrer", Met: progress.InstructorMinutes >= 60,
-		Current: float64(progress.InstructorMinutes), Required: 60, Unit: "minutes",
-		Message: fmt.Sprintf("%d / 60 Minuten mit Fluglehrer", progress.InstructorMinutes),
-	}
-
-	result.Requirements = []Requirement{reqTotalHours, reqLandings, reqInstructor}
-
-	allMet := reqTotalHours.Met && reqLandings.Met && reqInstructor.Met
-
-	if !allMet {
-		result.Status = StatusExpiring
-		result.Message = fmt.Sprintf("UL %s — Flugerfahrungsanforderungen nicht vollständig erfüllt (LuftPersV §45)", rating.ClassType)
-	} else {
-		result.Status = StatusCurrent
-		result.Message = fmt.Sprintf("UL %s — alle Anforderungen erfüllt (LuftPersV §45)", rating.ClassType)
-	}
-
-	return result
+		if !allReqsMet(reqs) {
+			rt.result.Status = StatusExpiring
+			rt.result.Message = fmt.Sprintf("UL %s — Flugerfahrungsanforderungen nicht vollständig erfüllt (LuftPersV §45)", rating.ClassType)
+		} else {
+			rt.result.Status = StatusCurrent
+			rt.result.Message = fmt.Sprintf("UL %s — alle Anforderungen erfüllt (LuftPersV §45)", rating.ClassType)
+		}
+	},
 }
 
 // EvaluatePassengerCurrency evaluates German UL passenger-carrying recency.
