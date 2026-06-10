@@ -796,6 +796,24 @@ func (e CreateAnnouncementJSONBodySeverity) Valid() bool {
 	}
 }
 
+// Defines values for RegisterUserJSONBodyPreferredLocale.
+const (
+	RegisterUserJSONBodyPreferredLocaleDe RegisterUserJSONBodyPreferredLocale = "de"
+	RegisterUserJSONBodyPreferredLocaleEn RegisterUserJSONBodyPreferredLocale = "en"
+)
+
+// Valid indicates whether the value is a known member of the RegisterUserJSONBodyPreferredLocale enum.
+func (e RegisterUserJSONBodyPreferredLocale) Valid() bool {
+	switch e {
+	case RegisterUserJSONBodyPreferredLocaleDe:
+		return true
+	case RegisterUserJSONBodyPreferredLocaleEn:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExportFlightsCSVParamsFormat.
 const (
 	ExportFlightsCSVParamsFormatEasa     ExportFlightsCSVParamsFormat = "easa"
@@ -939,16 +957,16 @@ func (e UpdateCurrentUserJSONBodyDecimalSeparator) Valid() bool {
 
 // Defines values for UpdateCurrentUserJSONBodyPreferredLocale.
 const (
-	UpdateCurrentUserJSONBodyPreferredLocaleDe UpdateCurrentUserJSONBodyPreferredLocale = "de"
-	UpdateCurrentUserJSONBodyPreferredLocaleEn UpdateCurrentUserJSONBodyPreferredLocale = "en"
+	De UpdateCurrentUserJSONBodyPreferredLocale = "de"
+	En UpdateCurrentUserJSONBodyPreferredLocale = "en"
 )
 
 // Valid indicates whether the value is a known member of the UpdateCurrentUserJSONBodyPreferredLocale enum.
 func (e UpdateCurrentUserJSONBodyPreferredLocale) Valid() bool {
 	switch e {
-	case UpdateCurrentUserJSONBodyPreferredLocaleDe:
+	case De:
 		return true
-	case UpdateCurrentUserJSONBodyPreferredLocaleEn:
+	case En:
 		return true
 	default:
 		return false
@@ -2974,7 +2992,13 @@ type RegisterUserJSONBody struct {
 
 	// Password Must be at least 12 characters
 	Password string `json:"password"`
+
+	// PreferredLocale Preferred language for the interface. Defaults to `en` when omitted.
+	PreferredLocale *RegisterUserJSONBodyPreferredLocale `json:"preferredLocale,omitempty"`
 }
+
+// RegisterUserJSONBodyPreferredLocale defines parameters for RegisterUser.
+type RegisterUserJSONBodyPreferredLocale string
 
 // VerifyEmailJSONBody defines parameters for VerifyEmail.
 type VerifyEmailJSONBody struct {

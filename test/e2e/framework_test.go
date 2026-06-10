@@ -164,7 +164,15 @@ func registerUser(t *testing.T, c *E2EClient, email, password, name string) Auth
 // `email` and returns the token query parameter from the verification link.
 func extractVerificationToken(t *testing.T, email string) string {
 	t.Helper()
-	msg := mailpitRequireEmail(t, email, "Confirm your email")
+	return extractVerificationTokenSubject(t, email, "Confirm your email")
+}
+
+// extractVerificationTokenSubject is like extractVerificationToken but allows
+// matching a localized subject line (the verification email is sent in the
+// user's preferredLocale).
+func extractVerificationTokenSubject(t *testing.T, email, subjectContains string) string {
+	t.Helper()
+	msg := mailpitRequireEmail(t, email, subjectContains)
 	re := regexp.MustCompile(`token=([A-Za-z0-9_\-=]+)`)
 	matches := re.FindStringSubmatch(msg.HTML)
 	if len(matches) < 2 {
