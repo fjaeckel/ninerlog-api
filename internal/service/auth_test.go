@@ -299,6 +299,40 @@ func TestRegister(t *testing.T) {
 	}
 }
 
+func TestRegisterPreferredLocale(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"explicit de", "de", "de"},
+		{"explicit en", "en", "en"},
+		{"omitted defaults to en", "", "en"},
+		{"unknown defaults to en", "fr", "en"},
+		{"normalized casing", "DE", "de"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authService := setupAuthService()
+			user, _, err := authService.Register(ctx, service.RegisterInput{
+				Email:           "test@example.com",
+				Password:        "password1234",
+				Name:            "Test User",
+				PreferredLocale: tt.input,
+			})
+			if err != nil {
+				t.Fatalf("Register failed: %v", err)
+			}
+			if user.PreferredLocale != tt.want {
+				t.Errorf("PreferredLocale = %q, want %q", user.PreferredLocale, tt.want)
+			}
+		})
+	}
+}
+
 func TestRegisterDuplicateEmail(t *testing.T) {
 	authService := setupAuthService()
 	ctx := context.Background()

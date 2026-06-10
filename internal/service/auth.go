@@ -36,9 +36,9 @@ var (
 )
 
 const (
-	maxFailedLoginAttempts          = 5
-	accountLockDuration             = 15 * time.Minute
-	emailVerificationTokenLifetime  = 24 * time.Hour
+	maxFailedLoginAttempts         = 5
+	accountLockDuration            = 15 * time.Minute
+	emailVerificationTokenLifetime = 24 * time.Hour
 )
 
 type AuthService struct {
@@ -66,9 +66,10 @@ func NewAuthService(
 }
 
 type RegisterInput struct {
-	Email    string
-	Password string
-	Name     string
+	Email           string
+	Password        string
+	Name            string
+	PreferredLocale string
 }
 
 type LoginInput struct {
@@ -114,6 +115,12 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*model
 		return nil, "", ErrPasswordTooLong
 	}
 
+	// Normalize preferred locale; fall back to the default for unknown values.
+	locale := strings.ToLower(strings.TrimSpace(input.PreferredLocale))
+	if locale != "de" {
+		locale = "en"
+	}
+
 	// Check if user already exists
 	existingUser, err := s.userRepo.GetByEmail(ctx, input.Email)
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
@@ -132,12 +139,13 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*model
 	// Create user (unverified)
 	now := time.Now()
 	user := &models.User{
-		Email:         input.Email,
-		PasswordHash:  hashedPassword,
-		Name:          input.Name,
-		EmailVerified: false,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		Email:           input.Email,
+		PasswordHash:    hashedPassword,
+		Name:            input.Name,
+		EmailVerified:   false,
+		PreferredLocale: locale,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
