@@ -31,7 +31,7 @@ func TestUserCreate(t *testing.T) {
 	}
 
 	mock.ExpectExec("INSERT INTO users").
-		WithArgs(sqlmock.AnyArg(), user.Email, user.PasswordHash, user.Name, user.EmailVerified, user.CreatedAt, user.UpdatedAt).
+		WithArgs(sqlmock.AnyArg(), user.Email, user.PasswordHash, user.Name, user.EmailVerified, "en", user.CreatedAt, user.UpdatedAt).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.Create(ctx, user)

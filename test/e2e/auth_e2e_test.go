@@ -72,6 +72,47 @@ func TestAuthRegistration(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": strings.ToUpper(email), "password": "SecurePass123!", "name": "Other"})
 		assertStatus(t, resp, http.StatusConflict)
 	})
+
+	t.Run("register persists preferredLocale", func(t *testing.T) {
+		ac := NewE2EClient(t)
+		email := uniqueEmail("reg-locale")
+		resp := ac.POST("/auth/register", map[string]string{
+			"email": email, "password": "SecurePass123!", "name": "Locale User", "preferredLocale": "de",
+		})
+		requireStatus(t, resp, http.StatusCreated)
+
+		// The verification email is sent in the user's preferredLocale, so the
+		// German subject confirms the locale propagated into the email layer.
+		token := extractVerificationTokenSubject(t, email, "E-Mail-Adresse bestätigen")
+		verifyResp := ac.POST("/auth/verify-email", map[string]string{"token": token})
+		requireStatus(t, verifyResp, http.StatusOK)
+		var auth AuthResponseBody
+		verifyResp.JSON(&auth)
+		ac.SetToken(auth.AccessToken)
+
+		meResp := ac.GET("/users/me")
+		requireStatus(t, meResp, http.StatusOK)
+		var u map[string]interface{}
+		meResp.JSON(&u)
+		if u["preferredLocale"] != "de" {
+			t.Errorf("Expected preferredLocale 'de', got %v", u["preferredLocale"])
+		}
+	})
+
+	t.Run("register defaults preferredLocale to en when omitted", func(t *testing.T) {
+		ac := NewE2EClient(t)
+		email := uniqueEmail("reg-locale-default")
+		auth := registerUser(t, ac, email, "SecurePass123!", "Default Locale User")
+		ac.SetToken(auth.AccessToken)
+
+		meResp := ac.GET("/users/me")
+		requireStatus(t, meResp, http.StatusOK)
+		var u map[string]interface{}
+		meResp.JSON(&u)
+		if u["preferredLocale"] != "en" {
+			t.Errorf("Expected default preferredLocale 'en', got %v", u["preferredLocale"])
+		}
+	})
 }
 
 func TestAuthLogin(t *testing.T) {

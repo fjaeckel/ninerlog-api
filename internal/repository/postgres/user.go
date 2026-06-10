@@ -21,9 +21,13 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
+	if user.PreferredLocale == "" {
+		user.PreferredLocale = "en"
+	}
+
 	query := `
-		INSERT INTO users (id, email, password_hash, name, email_verified, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (id, email, password_hash, name, email_verified, preferred_locale, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	user.ID = uuid.New()
@@ -33,6 +37,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 		user.PasswordHash,
 		user.Name,
 		user.EmailVerified,
+		user.PreferredLocale,
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
