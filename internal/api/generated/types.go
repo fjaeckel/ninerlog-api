@@ -2812,11 +2812,11 @@ type PassengerCurrencyNightStatus string
 
 // RegistrationResponse defines model for RegistrationResponse.
 type RegistrationResponse struct {
-	// Email Address the verification email was sent to
+	// Email Registered account email address
 	Email   openapi_types.Email `json:"email"`
 	Message string              `json:"message"`
 
-	// VerificationRequired Always true — clients should display a "check your email" message and not attempt login until verification completes.
+	// VerificationRequired True when SMTP is configured and the user must verify via email; false when the backend auto-verifies because SMTP is not configured.
 	VerificationRequired bool `json:"verificationRequired"`
 }
 

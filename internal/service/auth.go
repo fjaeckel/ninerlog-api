@@ -258,6 +258,24 @@ func (s *AuthService) ResendVerification(ctx context.Context, email string) (tok
 	return token, user.Email, user.Name, user.PreferredLocale, nil
 }
 
+// MarkEmailVerified marks a user as verified and clears any outstanding
+// verification tokens. Used for environments where email delivery is disabled.
+func (s *AuthService) MarkEmailVerified(ctx context.Context, userID uuid.UUID) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !user.EmailVerified {
+		if err := s.userRepo.MarkEmailVerified(ctx, userID); err != nil {
+			return err
+		}
+	}
+	if err := s.emailVerificationRepo.DeleteForUser(ctx, userID); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Login authenticates a user and returns tokens
 func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User, *TokenPair, error) {
 	// Normalize email

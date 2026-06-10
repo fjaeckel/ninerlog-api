@@ -49,14 +49,26 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Deliver the verification email. Failures here are logged but do not
-	// fail the request — the user can request a fresh email via /auth/verify-email/resend.
-	h.sendVerificationEmail(user.Email, user.Name, user.PreferredLocale, verificationToken)
+	verificationRequired := h.emailSender != nil && h.emailSender.IsConfigured()
+	message := "A verification email has been sent. Please check your inbox to complete registration."
+
+	if verificationRequired {
+		// Deliver the verification email. Failures here are logged but do not
+		// fail the request — the user can request a fresh email via /auth/verify-email/resend.
+		h.sendVerificationEmail(user.Email, user.Name, user.PreferredLocale, verificationToken)
+	} else {
+		if err := h.authService.MarkEmailVerified(c.Request.Context(), user.ID); err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Registration failed")
+			return
+		}
+		user.EmailVerified = true
+		message = "Account created successfully. You can now sign in."
+	}
 
 	c.JSON(http.StatusCreated, generated.RegistrationResponse{
 		Email:                openapi_types.Email(user.Email),
-		Message:              "A verification email has been sent. Please check your inbox to complete registration.",
-		VerificationRequired: true,
+		Message:              message,
+		VerificationRequired: verificationRequired,
 	})
 }
 
