@@ -235,6 +235,9 @@ func TestFlightLogbookFilter(t *testing.T) {
 		"registration": "D-1234", "type": "ASK21", "make": "Schleicher", "model": "ASK 21", "aircraftClass": "OTHER",
 	}), http.StatusCreated)
 	requireStatus(t, c.POST("/aircraft", map[string]interface{}{
+		"registration": "D-GLDR", "type": "LS8", "make": "Rolladen-Schneider", "model": "LS8", "aircraftClass": "GLIDER",
+	}), http.StatusCreated)
+	requireStatus(t, c.POST("/aircraft", map[string]interface{}{
 		"registration": "D-EFLY", "type": "C172", "make": "Cessna", "model": "172", "aircraftClass": "SEP_LAND",
 	}), http.StatusCreated)
 
@@ -252,18 +255,30 @@ func TestFlightLogbookFilter(t *testing.T) {
 		"offBlockTime": "12:00", "onBlockTime": "13:00", "landings": 1,
 	}), http.StatusCreated)
 
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": today(), "aircraftReg": "D-GLDR", "aircraftType": "LS8",
+		"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+		"offBlockTime": "14:00", "onBlockTime": "14:40", "landings": 1,
+		"launchMethod": "aerotow",
+	}), http.StatusCreated)
+
 	t.Run("SPL logbook shows only glider flights", func(t *testing.T) {
 		resp := c.GET(fmt.Sprintf("/flights?logbookLicenseId=%s", splID))
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
 		resp.JSON(&r)
 		data := r["data"].([]interface{})
-		if len(data) != 1 {
-			t.Fatalf("SPL logbook expected 1 flight, got %d", len(data))
+		if len(data) != 2 {
+			t.Fatalf("SPL logbook expected 2 flights, got %d", len(data))
 		}
-		m := data[0].(map[string]interface{})
-		if reg, _ := m["aircraftReg"].(string); reg != "D-1234" {
-			t.Fatalf("SPL logbook aircraftReg = %s, want D-1234", reg)
+		seen := map[string]bool{}
+		for _, row := range data {
+			m := row.(map[string]interface{})
+			reg, _ := m["aircraftReg"].(string)
+			seen[reg] = true
+		}
+		if !seen["D-1234"] || !seen["D-GLDR"] {
+			t.Fatalf("SPL logbook expected D-1234 and D-GLDR, got %#v", seen)
 		}
 	})
 

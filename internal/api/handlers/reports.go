@@ -300,6 +300,9 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsBy
 			if _, exists := claimedClassOwner["OTHER"]; !exists {
 				claimedClassOwner["OTHER"] = key
 			}
+			if _, exists := claimedClassOwner["GLIDER"]; !exists {
+				claimedClassOwner["GLIDER"] = key
+			}
 		}
 	}
 	for key, stat := range authorityMap {

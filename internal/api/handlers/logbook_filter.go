@@ -26,13 +26,15 @@ func (h *APIHandler) resolveLogbookAllowedClasses(ctx context.Context, userID, l
 	if err == nil && len(classRatings) > 0 {
 		allowed := make(map[string]bool, len(classRatings))
 		for _, cr := range classRatings {
-			allowed[string(cr.ClassType)] = true
+			for _, className := range canonicalAndAliases(string(cr.ClassType)) {
+				allowed[className] = true
+			}
 		}
 		return allowed, nil
 	}
 
 	if isGliderLogbookLicenseType(lic.LicenseType) {
-		return map[string]bool{"OTHER": true}, nil
+		return map[string]bool{"OTHER": true, "GLIDER": true}, nil
 	}
 
 	// License without explicit ratings: include all known classes except those
@@ -46,6 +48,7 @@ func (h *APIHandler) resolveLogbookAllowedClasses(ctx context.Context, userID, l
 			}
 			if isGliderLogbookLicenseType(other.LicenseType) {
 				claimedByOtherLogbooks["OTHER"] = true
+				claimedByOtherLogbooks["GLIDER"] = true
 			}
 		}
 	}
@@ -60,10 +63,11 @@ func (h *APIHandler) resolveLogbookAllowedClasses(ctx context.Context, userID, l
 		if ac.AircraftClass == nil || *ac.AircraftClass == "" {
 			continue
 		}
-		if claimedByOtherLogbooks[*ac.AircraftClass] {
+		className := normalizeAircraftClass(*ac.AircraftClass)
+		if claimedByOtherLogbooks[className] {
 			continue
 		}
-		allowed[*ac.AircraftClass] = true
+		allowed[className] = true
 	}
 
 	return allowed, nil
@@ -72,4 +76,20 @@ func (h *APIHandler) resolveLogbookAllowedClasses(ctx context.Context, userID, l
 func isGliderLogbookLicenseType(licenseType string) bool {
 	lt := strings.ToUpper(strings.TrimSpace(licenseType))
 	return lt == "SPL" || lt == "LAPL(S)" || lt == "FAA_GLIDER" || lt == "GLIDER"
+}
+
+func normalizeAircraftClass(className string) string {
+	cn := strings.ToUpper(strings.TrimSpace(className))
+	if cn == "GLIDER" {
+		return "OTHER"
+	}
+	return cn
+}
+
+func canonicalAndAliases(className string) []string {
+	cn := normalizeAircraftClass(className)
+	if cn == "OTHER" {
+		return []string{"OTHER", "GLIDER"}
+	}
+	return []string{cn}
 }
