@@ -46,6 +46,14 @@ func NewSender(config *SMTPConfig) *Sender {
 	return &Sender{config: config}
 }
 
+// IsConfigured returns true when the sender has a usable SMTP configuration.
+func (s *Sender) IsConfigured() bool {
+	if s == nil || s.config == nil {
+		return false
+	}
+	return s.config.IsConfigured()
+}
+
 func sanitizeMessageBody(value string) string {
 	return strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f {

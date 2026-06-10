@@ -14,6 +14,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -392,8 +393,35 @@ func TestRegisterUser_Success(t *testing.T) {
 	if resp["email"] != "test@example.com" {
 		t.Errorf("Expected email in response, got %v", resp["email"])
 	}
+	if resp["verificationRequired"] != false {
+		t.Error("Expected verificationRequired=false in response when SMTP is not configured")
+	}
+}
+
+func TestRegisterUser_Success_WithSMTPConfigured(t *testing.T) {
+	h, _ := setupTestHandler()
+	h.SetEmailSender(email.NewSender(&email.SMTPConfig{
+		Host: "127.0.0.1",
+		Port: "1",
+		From: "noreply@example.com",
+	}))
+
+	body := `{"email":"smtp@example.com","password":"password1234","name":"SMTP User"}`
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/auth/register", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.RegisterUser(c)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("RegisterUser() status = %d, want 201", w.Code)
+	}
+
+	var resp map[string]interface{}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["verificationRequired"] != true {
-		t.Error("Expected verificationRequired=true in response")
+		t.Error("Expected verificationRequired=true in response when SMTP is configured")
 	}
 }
 

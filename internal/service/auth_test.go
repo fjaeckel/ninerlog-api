@@ -356,6 +356,36 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestMarkEmailVerified(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	user, _, err := authService.Register(ctx, service.RegisterInput{
+		Email:    "mark-verified@example.com",
+		Password: "password1234",
+		Name:     "Mark Verified",
+	})
+	if err != nil {
+		t.Fatalf("Registration failed: %v", err)
+	}
+
+	if user.EmailVerified {
+		user.EmailVerified = false
+	}
+
+	if err := authService.MarkEmailVerified(ctx, user.ID); err != nil {
+		t.Fatalf("MarkEmailVerified failed: %v", err)
+	}
+
+	updated, err := authService.GetUserByID(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed: %v", err)
+	}
+	if !updated.EmailVerified {
+		t.Error("Expected user to be verified after MarkEmailVerified")
+	}
+}
+
 func TestLogin(t *testing.T) {
 	authService := setupAuthService()
 	ctx := context.Background()
