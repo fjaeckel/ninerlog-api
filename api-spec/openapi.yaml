@@ -97,6 +97,11 @@ paths:
                   minLength: 1
                   maxLength: 255
                   example: John Doe
+                preferredLocale:
+                  type: string
+                  enum: [en, de]
+                  description: Preferred language for the interface. Defaults to `en` when omitted.
+                  example: en
       responses:
         '201':
           description: User created — verification email sent

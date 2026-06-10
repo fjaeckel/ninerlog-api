@@ -27,9 +27,10 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 	}
 
 	user, verificationToken, err := h.authService.Register(c.Request.Context(), service.RegisterInput{
-		Email:    string(req.Email),
-		Password: req.Password,
-		Name:     req.Name,
+		Email:           string(req.Email),
+		Password:        req.Password,
+		Name:            req.Name,
+		PreferredLocale: preferredLocaleString(req.PreferredLocale),
 	})
 
 	if err != nil {
@@ -57,6 +58,16 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 		Message:              "A verification email has been sent. Please check your inbox to complete registration.",
 		VerificationRequired: true,
 	})
+}
+
+// preferredLocaleString converts the optional generated locale enum into a
+// plain string, returning an empty value when omitted so the service can
+// apply its default.
+func preferredLocaleString(locale *generated.RegisterUserJSONBodyPreferredLocale) string {
+	if locale == nil {
+		return ""
+	}
+	return string(*locale)
 }
 
 // VerifyEmail implements POST /auth/verify-email
