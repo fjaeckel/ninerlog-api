@@ -226,6 +226,55 @@ func TestServiceEvaluateAll_Empty(t *testing.T) {
 	}
 }
 
+func TestServiceEvaluateAll_SPLWithoutClassRatings_GetsVirtualEntry(t *testing.T) {
+	licRepo := newMockLicenseRepo()
+	crRepo := newMockCRRepo()
+	reg := NewRegistry()
+	reg.Register(&mockEvaluator{authority: "EASA", status: StatusCurrent})
+
+	userID := uuid.New()
+	lic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: "EASA", LicenseType: "SPL"}
+	licRepo.licenses[lic.ID] = lic
+	crRepo.ratings[lic.ID] = []*models.ClassRating{}
+
+	svc := NewService(reg, licRepo, crRepo, newMockFlightDataProvider())
+	result, err := svc.EvaluateAll(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("EvaluateAll() error = %v", err)
+	}
+	if len(result.Ratings) != 1 {
+		t.Fatalf("Expected 1 virtual SPL rating, got %d", len(result.Ratings))
+	}
+	if result.Ratings[0].ClassType != models.ClassTypeOther {
+		t.Errorf("ClassType = %s, want %s", result.Ratings[0].ClassType, models.ClassTypeOther)
+	}
+	if result.Ratings[0].LicenseID != lic.ID {
+		t.Errorf("LicenseID = %s, want %s", result.Ratings[0].LicenseID, lic.ID)
+	}
+	if result.Ratings[0].ClassRatingID != lic.ID {
+		t.Errorf("ClassRatingID = %s, want %s", result.Ratings[0].ClassRatingID, lic.ID)
+	}
+}
+
+func TestServiceEvaluateAll_PPLWithoutClassRatings_RemainsEmpty(t *testing.T) {
+	licRepo := newMockLicenseRepo()
+	crRepo := newMockCRRepo()
+
+	userID := uuid.New()
+	lic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	licRepo.licenses[lic.ID] = lic
+	crRepo.ratings[lic.ID] = []*models.ClassRating{}
+
+	svc := NewService(NewRegistry(), licRepo, crRepo, newMockFlightDataProvider())
+	result, err := svc.EvaluateAll(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("EvaluateAll() error = %v", err)
+	}
+	if len(result.Ratings) != 0 {
+		t.Fatalf("Expected 0 ratings for PPL without class ratings, got %d", len(result.Ratings))
+	}
+}
+
 func TestServiceEvaluateAll_WithMockEvaluator(t *testing.T) {
 	licRepo := newMockLicenseRepo()
 	crRepo := newMockCRRepo()

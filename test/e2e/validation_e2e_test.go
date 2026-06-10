@@ -226,6 +226,17 @@ func TestFlightLogbookFilter(t *testing.T) {
 		"issueDate": today(), "issuingAuthority": "LBA",
 	})
 	requireStatus(t, resp, http.StatusCreated)
+	var ppl map[string]interface{}
+	resp.JSON(&ppl)
+	pplID := ppl["id"].(string)
+
+	// Create aircraft with explicit classes so logbook filtering can map flights.
+	requireStatus(t, c.POST("/aircraft", map[string]interface{}{
+		"registration": "D-1234", "type": "ASK21", "make": "Schleicher", "model": "ASK 21", "aircraftClass": "OTHER",
+	}), http.StatusCreated)
+	requireStatus(t, c.POST("/aircraft", map[string]interface{}{
+		"registration": "D-EFLY", "type": "C172", "make": "Cessna", "model": "172", "aircraftClass": "SEP_LAND",
+	}), http.StatusCreated)
 
 	// Create flights
 	requireStatus(t, c.POST("/flights", map[string]interface{}{
@@ -241,14 +252,33 @@ func TestFlightLogbookFilter(t *testing.T) {
 		"offBlockTime": "12:00", "onBlockTime": "13:00", "landings": 1,
 	}), http.StatusCreated)
 
-	t.Run("filter by logbookLicenseId", func(t *testing.T) {
+	t.Run("SPL logbook shows only glider flights", func(t *testing.T) {
 		resp := c.GET(fmt.Sprintf("/flights?logbookLicenseId=%s", splID))
-		if resp.StatusCode == http.StatusOK {
-			var r map[string]interface{}
-			resp.JSON(&r)
-			t.Logf("logbookLicenseId filter: %d flights", len(r["data"].([]interface{})))
-		} else {
-			t.Logf("logbookLicenseId filter status: %d", resp.StatusCode)
+		requireStatus(t, resp, http.StatusOK)
+		var r map[string]interface{}
+		resp.JSON(&r)
+		data := r["data"].([]interface{})
+		if len(data) != 1 {
+			t.Fatalf("SPL logbook expected 1 flight, got %d", len(data))
+		}
+		m := data[0].(map[string]interface{})
+		if reg, _ := m["aircraftReg"].(string); reg != "D-1234" {
+			t.Fatalf("SPL logbook aircraftReg = %s, want D-1234", reg)
+		}
+	})
+
+	t.Run("PPL logbook excludes separate SPL glider flights", func(t *testing.T) {
+		resp := c.GET(fmt.Sprintf("/flights?logbookLicenseId=%s", pplID))
+		requireStatus(t, resp, http.StatusOK)
+		var r map[string]interface{}
+		resp.JSON(&r)
+		data := r["data"].([]interface{})
+		if len(data) != 1 {
+			t.Fatalf("PPL logbook expected 1 flight, got %d", len(data))
+		}
+		m := data[0].(map[string]interface{})
+		if reg, _ := m["aircraftReg"].(string); reg != "D-EFLY" {
+			t.Fatalf("PPL logbook aircraftReg = %s, want D-EFLY", reg)
 		}
 	})
 }

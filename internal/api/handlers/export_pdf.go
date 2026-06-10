@@ -157,12 +157,8 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)
-		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
-		if err == nil && len(classRatings) > 0 {
-			allowedClasses := make(map[string]bool)
-			for _, cr := range classRatings {
-				allowedClasses[string(cr.ClassType)] = true
-			}
+		allowedClasses, err := h.resolveLogbookAllowedClasses(c.Request.Context(), userID, licenseID)
+		if err == nil {
 			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 			regToClass := make(map[string]string)
 			for _, ac := range aircraftList {
