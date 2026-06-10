@@ -101,7 +101,7 @@ type Flight struct {
 	Endorsements *string `json:"endorsements,omitempty"`
 
 	// SPL / Glider
-	LaunchMethod       *string `json:"launchMethod,omitempty"` // winch, aerotow, self-launch, bungee, auto-tow
+	LaunchMethod       *string `json:"launchMethod,omitempty"`       // winch, aerotow, self-launch, bungee, auto-tow
 	Launches           int     `json:"launches"`                     // Number of launches (EASA FCL.140.S); 0 for powered flights
 	ReleaseAltitude    *int    `json:"releaseAltitude,omitempty"`    // Release/cable-break altitude in metres (winch/aerotow)
 	ReleaseAltitudeRef *string `json:"releaseAltitudeRef,omitempty"` // AGL or AMSL
