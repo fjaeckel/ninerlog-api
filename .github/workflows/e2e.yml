@@ -81,4 +81,11 @@ jobs:
 
       - name: Tear down
         if: always()
-        run: docker compose -f docker-compose.e2e.yaml down -v --remove-orphans
+        run: docker compose -f docker-compose.e2e.yaml down -v --rmi local --remove-orphans
+
+      - name: Reap stale docker resources (free disk)
+        if: always()
+        run: |
+          docker image prune -af
+          docker builder prune -af
+          docker volume prune -f
