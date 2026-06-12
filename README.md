@@ -115,7 +115,19 @@ docker build -t ninerlog-api .
 
 ## Documentation
 
-- [Running Tests](docs/RUNNING_TESTS.md) — Unit, integration, and E2E testing guide
+Full developer documentation lives in [`docs/`](docs/README.md). Start with the
+[Developer Guide](docs/DEVELOPER_GUIDE.md).
+
+- [Developer Guide](docs/DEVELOPER_GUIDE.md) — orientation and documentation map
+- [Architecture](docs/ARCHITECTURE.md) — layers, request lifecycle, wiring
+- [Data Model](docs/DATA_MODEL.md) — entities, relationships, schema & migrations
+- [Aviation Domain](docs/DOMAIN.md) — flights, time handling, validation, currency engine
+- [HTTP API](docs/API.md) — endpoints and the OpenAPI-first workflow
+- [Feature Catalogue](docs/FEATURES.md) — every feature, end to end
+- [Package Reference](docs/PACKAGES.md) — `internal/` and `pkg/` packages
+- [Development Guide](docs/DEVELOPMENT.md) — setup, build, test, conventions
+- [Authentication](docs/AUTHENTICATION.md) — tokens, 2FA, WebAuthn
+- [Metrics](docs/METRICS.md) · [Performance](docs/PERFORMANCE.md) · [Running Tests](docs/RUNNING_TESTS.md)
 - [API Specification](api-spec/openapi.yaml) — OpenAPI 3.1 spec (source of truth)
 
 ## Running NinerLog

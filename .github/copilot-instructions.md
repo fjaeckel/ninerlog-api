@@ -18,6 +18,20 @@ You are assisting with the NinerLog API repository, the backend server for a EAS
 - **ALWAYS document regressions** in GitHub Issues so they can be planned into the roadmap later.
 - Regressions should be tracked as real issues, not hidden behind test workarounds.
 
+### Documentation Maintenance
+The developer documentation in [`docs/`](../docs/README.md) is part of the codebase and **MUST always reflect reality**. Treat docs as a first-class deliverable, not an afterthought.
+- **ALWAYS update the relevant document(s) in the SAME pull request** as the behaviour change. A change is not complete until its documentation is accurate.
+- Use this mapping to decide what to update:
+  - HTTP contract / endpoints → `api-spec/openapi.yaml`, [`docs/API.md`](../docs/API.md), [`docs/FEATURES.md`](../docs/FEATURES.md)
+  - Domain rules (flights, currency, validation, time handling) → [`docs/DOMAIN.md`](../docs/DOMAIN.md)
+  - Entities, schema, or migrations → [`docs/DATA_MODEL.md`](../docs/DATA_MODEL.md)
+  - Packages, responsibilities, or startup wiring → [`docs/PACKAGES.md`](../docs/PACKAGES.md), [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
+  - A product feature (added/removed/changed) → [`docs/FEATURES.md`](../docs/FEATURES.md)
+  - Auth, metrics, performance, or test tooling → the matching deep-dive doc in `docs/`
+- **Start from [`docs/DEVELOPER_GUIDE.md`](../docs/DEVELOPER_GUIDE.md)** to understand the system before making changes.
+- **NEVER leave documentation describing behaviour that no longer exists.** If you cannot fully update a doc, note the gap explicitly in the PR.
+- Do **NOT** hand-edit generated artefacts referenced by docs (e.g. `internal/api/generated/`); regenerate them instead.
+
 ## Repository Context
 
 This is the **backend API server** that provides:
@@ -26,6 +40,10 @@ This is the **backend API server** that provides:
 - EASA and FAA compliance validation
 - JWT authentication and authorization
 - PostgreSQL database integration
+
+Full developer documentation lives in [`docs/`](../docs/README.md) — see
+[`docs/DEVELOPER_GUIDE.md`](../docs/DEVELOPER_GUIDE.md) for the documentation map. Keep it
+up to date (see [Documentation Maintenance](#documentation-maintenance)).
 
 ## Key Principles
 
