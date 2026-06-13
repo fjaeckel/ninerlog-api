@@ -75,8 +75,9 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 			sic_time, dual_given_time, simulated_flight_time, ground_training_time,
 			actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 			launch_method,
-			pic_name, multi_pilot_time, fstd_type, approaches, endorsements
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50)
+			pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
+			launches, release_altitude_m, release_altitude_ref
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -132,6 +133,9 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 		flight.FSTDType,
 		approachesJSON,
 		flight.Endorsements,
+		flight.Launches,
+		flight.ReleaseAltitude,
+		flight.ReleaseAltitudeRef,
 	).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
 }
 
@@ -151,7 +155,8 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		       sic_time, dual_given_time, simulated_flight_time, ground_training_time,
 		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 		       launch_method,
-		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements
+		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
+		       launches, release_altitude_m, release_altitude_ref
 		FROM flights
 		WHERE id = $1
 	`
@@ -213,6 +218,9 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.FSTDType,
 		&approachesJSON,
 		&flight.Endorsements,
+		&flight.Launches,
+		&flight.ReleaseAltitude,
+		&flight.ReleaseAltitudeRef,
 	)
 
 	if err == sql.ErrNoRows {
@@ -273,8 +281,9 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		    actual_instrument_time = $37, simulated_instrument_time = $38, holds = $39, approaches_count = $40, is_ipc = $41, is_flight_review = $42, is_proficiency_check = $43,
 		    launch_method = $44,
 		    pic_name = $45, multi_pilot_time = $46, fstd_type = $47, approaches = $48, endorsements = $49,
-		    updated_at = $50
-		WHERE id = $51
+		    launches = $50, release_altitude_m = $51, release_altitude_ref = $52,
+		    updated_at = $53
+		WHERE id = $54
 	`
 
 	result, err := r.db.ExecContext(
@@ -328,6 +337,9 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		flight.FSTDType,
 		approachesJSON,
 		flight.Endorsements,
+		flight.Launches,
+		flight.ReleaseAltitude,
+		flight.ReleaseAltitudeRef,
 		time.Now(),
 		flight.ID,
 	)
@@ -529,7 +541,8 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		       sic_time, dual_given_time, simulated_flight_time, ground_training_time,
 		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 		       launch_method,
-		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements
+		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
+		       launches, release_altitude_m, release_altitude_ref
 		FROM flights
 		WHERE ` + baseCondition
 
@@ -693,6 +706,9 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.FSTDType,
 			&approachesJSON,
 			&flight.Endorsements,
+			&flight.Launches,
+			&flight.ReleaseAltitude,
+			&flight.ReleaseAltitudeRef,
 		)
 		if err != nil {
 			return nil, err

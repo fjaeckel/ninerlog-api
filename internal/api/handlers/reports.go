@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
+	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/gin-gonic/gin"
@@ -278,6 +279,15 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsBy
 	}
 	var byAuthority []AuthorityStat
 	authorityMap := make(map[string]*AuthorityStat)
+	classStatsByName := make(map[string]ClassStat, len(byClass))
+	for _, cs := range byClass {
+		classStatsByName[cs.Class] = cs
+	}
+
+	// If a glider license explicitly requires a separate logbook, "OTHER"
+	// class time should be attributed to that license only, not duplicated
+	// across all authorities.
+	claimedClassOwner := make(map[string]string)
 	for _, lic := range licenses {
 		key := lic.RegulatoryAuthority + "|" + lic.LicenseType
 		if _, exists := authorityMap[key]; !exists {
@@ -286,16 +296,23 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsBy
 				LicenseType: lic.LicenseType,
 			}
 		}
+		if lic.RequiresSeparateLogbook && isGliderLicenseType(lic.LicenseType) {
+			if _, exists := claimedClassOwner["OTHER"]; !exists {
+				claimedClassOwner["OTHER"] = key
+			}
+			if _, exists := claimedClassOwner["GLIDER"]; !exists {
+				claimedClassOwner["GLIDER"] = key
+			}
+		}
 	}
-	var overallFlights int
-	var overallMinutes int
-	for _, cs := range byClass {
-		overallFlights += cs.Flights
-		overallMinutes += cs.Minutes
-	}
-	for _, stat := range authorityMap {
-		stat.Flights = overallFlights
-		stat.Minutes = overallMinutes
+	for key, stat := range authorityMap {
+		for className, cs := range classStatsByName {
+			if owner, claimed := claimedClassOwner[className]; claimed && owner != key {
+				continue
+			}
+			stat.Flights += cs.Flights
+			stat.Minutes += cs.Minutes
+		}
 		byAuthority = append(byAuthority, *stat)
 	}
 	if byAuthority == nil {
@@ -307,4 +324,9 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsBy
 		"byCategory":  byCategory,
 		"byAuthority": byAuthority,
 	})
+}
+
+func isGliderLicenseType(licenseType string) bool {
+	lt := strings.ToUpper(strings.TrimSpace(licenseType))
+	return lt == "SPL" || lt == "LAPL(S)" || lt == "FAA_GLIDER" || lt == "GLIDER"
 }
