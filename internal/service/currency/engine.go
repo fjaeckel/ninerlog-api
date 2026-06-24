@@ -33,6 +33,7 @@ const (
 	mInstructorMinutes
 	mLandings
 	mNightLandings
+	mLaunches
 	mFlights
 	mApproaches
 	mHolds
@@ -53,6 +54,8 @@ func metricVal(p *Progress, m metric) int {
 		return p.Landings
 	case mNightLandings:
 		return p.NightLandings
+	case mLaunches:
+		return p.Launches
 	case mFlights:
 		return p.Flights
 	case mApproaches:
