@@ -87,8 +87,8 @@ flowchart TD
     SVC[currency.Service]
     SVC --> REG[Registry: authority → Evaluator]
     SVC --> FDP[FlightDataProvider: PostgreSQL aggregation]
-    REG --> EASA["EASAEvaluator (\"EASA\")"]
-    REG --> FAA["FAAEvaluator (\"FAA\")"]
+    REG --> EASA["EASAEvaluator (EASA)"]
+    REG --> FAA["FAAEvaluator (FAA)"]
     REG --> GUL["GermanULEvaluator (multiple authorities via RegisterMulti)"]
     REG --> OTH["OtherEvaluator (generic fallback: expiry-only)"]
 ```
