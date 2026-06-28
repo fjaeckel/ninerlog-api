@@ -66,18 +66,20 @@ Topic-specific deep dives already in this repo:
 
 ## Core concepts and how they relate
 
-```
-User ──owns──▶ License ──has──▶ ClassRating (e.g. SEP, MEP, IR)
-  │                                  │
-  │                                  └── expiry feeds ──▶ Currency engine
-  ├──owns──▶ Aircraft                                         ▲
-  ├──owns──▶ Credential (medical, language, ...)              │
-  ├──owns──▶ Contact (reusable crew/instructor names)         │
-  └──owns──▶ Flight ───────────aggregated by──────────────────┘
-                  │
-                  ├── auto-calculations (night/day, solo, XC, distance)
-                  ├── crew members & approaches
-                  └── feeds Statistics, Reports, Maps, Export, Backups
+```mermaid
+flowchart TD
+    User((User))
+    User -->|owns| License
+    User -->|owns| Aircraft
+    User -->|owns| Credential["Credential (medical, language, …)"]
+    User -->|owns| Contact["Contact (reusable crew/instructor names)"]
+    User -->|owns| Flight
+    License -->|has| ClassRating["ClassRating (e.g. SEP, MEP, IR)"]
+    ClassRating -->|expiry feeds| Currency[Currency engine]
+    Flight -->|aggregated by| Currency
+    Flight --> AC["auto-calculations (night/day, solo, XC, distance)"]
+    Flight --> CM["crew members & approaches"]
+    Flight --> Insights["Statistics, Reports, Maps, Export, Backups"]
 ```
 
 - A **Flight** is the central record. Most other data exists to give flights meaning

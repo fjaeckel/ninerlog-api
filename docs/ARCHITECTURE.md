@@ -10,29 +10,18 @@ The codebase follows a classic **handler → service → repository** layering. 
 depends only on the layer beneath it (and on `models`), which keeps business logic
 testable and independent of HTTP and SQL details.
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│ HTTP / Transport            internal/api/handlers, middleware  │
-│  - Gin handlers (one method per OpenAPI operation)             │
-│  - Parse/validate requests, map errors → HTTP status codes     │
-│  - Middleware: auth, metrics, rate limit, CORS, recovery, ...  │
-├──────────────────────────────────────────────────────────────┤
-│ Business logic              internal/service (+ sub-packages)  │
-│  - All domain rules, validation, calculations, orchestration   │
-│  - Owns ownership checks, sentinel errors                      │
-│  - Sub-engines: currency/, flightcalc/, flightrules/,          │
-│                 cloudbackup/                                    │
-├──────────────────────────────────────────────────────────────┤
-│ Data access                 internal/repository (+ postgres/)  │
-│  - Interfaces in repository/, PostgreSQL impl in postgres/     │
-│  - Parameterized SQL only; returns domain models               │
-├──────────────────────────────────────────────────────────────┤
-│ Domain models               internal/models                   │
-│  - Plain structs + validation helpers; no I/O                  │
-└──────────────────────────────────────────────────────────────┘
-        ▲                                              ▲
-        │ shared, dependency-light utilities           │
-        └──────────────── pkg/ (jwt, hash, duration, cryptoutil, email, solar)
+```mermaid
+flowchart TD
+    H["<b>HTTP / Transport</b> — internal/api/handlers, middleware<br/>Gin handlers (one method per OpenAPI operation)<br/>Parse/validate requests, map errors → HTTP status codes<br/>Middleware: auth, metrics, rate limit, CORS, recovery, …"]
+    S["<b>Business logic</b> — internal/service (+ sub-packages)<br/>All domain rules, validation, calculations, orchestration<br/>Owns ownership checks, sentinel errors<br/>Sub-engines: currency/, flightcalc/, flightrules/, cloudbackup/"]
+    R["<b>Data access</b> — internal/repository (+ postgres/)<br/>Interfaces in repository/, PostgreSQL impl in postgres/<br/>Parameterized SQL only; returns domain models"]
+    M["<b>Domain models</b> — internal/models<br/>Plain structs + validation helpers; no I/O"]
+    P["<b>pkg/</b> — shared, dependency-light utilities<br/>jwt, hash, duration, cryptoutil, email, solar"]
+
+    H --> S --> R --> M
+    P -.-> H
+    P -.-> S
+    P -.-> R
 ```
 
 ### Why these boundaries
@@ -49,37 +38,20 @@ testable and independent of HTTP and SQL details.
 
 A typical authenticated request (e.g. `POST /api/v1/flights`) flows like this:
 
-```
-Client
-  │  HTTP request
-  ▼
-Gin router (cmd/api/main.go)
-  │  global middleware chain:
-  │   Metrics → Recovery(+metrics) → gin.Logger → CORS → SecurityHeaders
-  ▼
-/api/v1 group
-  │   AuthMiddleware (validates JWT, sets userID in context; allow-list for public paths)
-  │   RateLimitByPath (stricter limits on /auth and /admin)
-  ▼
-Generated route dispatch (internal/api/generated, registered against APIHandler)
-  ▼
-Handler method (internal/api/handlers/flight.go)
-  │   - getUserIDFromContext
-  │   - bind & validate request body
-  │   - call service
-  ▼
-Service (internal/service/flight.go)
-  │   - ownership & business-rule validation
-  │   - auto-calculations (delegated to flightrules / flightcalc)
-  │   - call repository
-  ▼
-Repository (internal/repository/postgres/flight.go)
-  │   - parameterized SQL against PostgreSQL
-  ▼
-PostgreSQL
-  ▲  rows → domain model
-  │
-  └── service returns model or sentinel error → handler maps to JSON + status
+```mermaid
+flowchart TD
+    C[Client] -->|HTTP request| GR
+    GR["Gin router (cmd/api/main.go)<br/>global middleware chain:<br/>Metrics → Recovery(+metrics) → gin.Logger → CORS → SecurityHeaders"]
+    GR --> G
+    G["/api/v1 group<br/>AuthMiddleware (validates JWT, sets userID; allow-list for public paths)<br/>RateLimitByPath (stricter limits on /auth and /admin)"]
+    G --> D["Generated route dispatch<br/>(internal/api/generated, registered against APIHandler)"]
+    D --> HM["Handler method (internal/api/handlers/flight.go)<br/>getUserIDFromContext · bind & validate body · call service"]
+    HM --> SV["Service (internal/service/flight.go)<br/>ownership & business-rule validation<br/>auto-calculations (flightrules / flightcalc) · call repository"]
+    SV --> RP["Repository (internal/repository/postgres/flight.go)<br/>parameterized SQL against PostgreSQL"]
+    RP --> PG[(PostgreSQL)]
+    PG -.->|rows → domain model| SV
+    SV -.->|model or sentinel error| HM
+    HM -.->|JSON + status code| C
 ```
 
 Errors propagate as **sentinel errors** from services (e.g. `ErrFlightNotFound`,
@@ -88,19 +60,20 @@ errors are never returned to clients.
 
 ## Package relationships
 
-```
-cmd/api/main.go
-  └─ constructs everything and wires it together
-       ├─ pkg/* (jwt, hash, email, cryptoutil, ...)
-       ├─ internal/config         (env → typed config)
-       ├─ internal/airports       (in-memory airport DB, loaded at startup)
-       ├─ internal/repository/postgres  → implements internal/repository interfaces
-       ├─ internal/service/*      (depends on repository interfaces + pkg/*)
-       │    └─ service/currency, service/flightcalc, service/flightrules,
-       │       service/cloudbackup(+provider/{s3,sftp,webdav})
-       ├─ internal/api/handlers   (APIHandler aggregates all services)
-       ├─ internal/api/middleware (auth, metrics, ratelimit, recovery, ...)
-       └─ internal/api/generated  (oapi-codegen output; route registration)
+```mermaid
+flowchart TD
+    MAIN["cmd/api/main.go<br/>constructs everything and wires it together"]
+    MAIN --> PKG["pkg/* (jwt, hash, email, cryptoutil, …)"]
+    MAIN --> CFG["internal/config (env → typed config)"]
+    MAIN --> AIR["internal/airports (in-memory airport DB, loaded at startup)"]
+    MAIN --> PG["internal/repository/postgres"]
+    MAIN --> SVC["internal/service/* (depends on repository interfaces + pkg/*)"]
+    MAIN --> HND["internal/api/handlers (APIHandler aggregates all services)"]
+    MAIN --> MW["internal/api/middleware (auth, metrics, ratelimit, recovery, …)"]
+    MAIN --> GEN["internal/api/generated (oapi-codegen output; route registration)"]
+
+    PG -->|implements| REPO["internal/repository interfaces"]
+    SVC --> SUB["service/currency · service/flightcalc · service/flightrules<br/>service/cloudbackup (+provider/{s3,sftp,webdav})"]
 ```
 
 `internal/api/handlers.APIHandler` is the aggregate struct that holds every service (and

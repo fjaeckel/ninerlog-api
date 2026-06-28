@@ -10,15 +10,14 @@ and how routes are registered, generated, and secured. For authentication mechan
 (OpenAPI 3.1). Server-side Go types and route registration are generated from it; you do
 not hand-write request/response structs or routing tables.
 
-```
-api-spec/openapi.yaml          ← edit this first
-      │  scripts/generate-server-types.sh  (oapi-codegen)
-      ▼
-internal/api/generated/
-  ├─ types.go    request/response models
-  ├─ server.go   ServerInterface + RegisterHandlersWithOptions
-  ├─ spec.go     embedded spec
-  └─ generate.go //go:generate directive
+```mermaid
+flowchart TD
+    SPEC["api-spec/openapi.yaml<br/><i>edit this first</i>"]
+    SPEC -->|"scripts/generate-server-types.sh (oapi-codegen)"| GEN["internal/api/generated/"]
+    GEN --> T["types.go — request/response models"]
+    GEN --> S["server.go — ServerInterface + RegisterHandlersWithOptions"]
+    GEN --> SP["spec.go — embedded spec"]
+    GEN --> G["generate.go — //go:generate directive"]
 ```
 
 - `internal/api/generated/generate.go` carries `//go:generate bash

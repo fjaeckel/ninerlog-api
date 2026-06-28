@@ -82,14 +82,15 @@ allowed to exercise the privileges of a rating, and to carry passengers?* It liv
 
 ### Design: registry of evaluators
 
-```
-currency.Service
-  └─ Registry (authority → Evaluator)
-        ├─ EASAEvaluator      ("EASA")
-        ├─ FAAEvaluator       ("FAA")
-        ├─ GermanULEvaluator  (registered for multiple authorities via RegisterMulti)
-        └─ OtherEvaluator     (generic fallback: expiry-only)
-  └─ FlightDataProvider (PostgreSQL aggregation)
+```mermaid
+flowchart TD
+    SVC[currency.Service]
+    SVC --> REG[Registry: authority → Evaluator]
+    SVC --> FDP[FlightDataProvider: PostgreSQL aggregation]
+    REG --> EASA["EASAEvaluator (\"EASA\")"]
+    REG --> FAA["FAAEvaluator (\"FAA\")"]
+    REG --> GUL["GermanULEvaluator (multiple authorities via RegisterMulti)"]
+    REG --> OTH["OtherEvaluator (generic fallback: expiry-only)"]
 ```
 
 `Service.EvaluateAll(ctx, userID)` walks the user's licenses and class ratings, looks up

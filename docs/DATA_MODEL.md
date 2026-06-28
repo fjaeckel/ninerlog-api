@@ -10,28 +10,37 @@ Every user-owned entity is scoped by `user_id` and cascades on user deletion. Fl
 intentionally **not** linked to a specific license (they were detached in migration
 `000018`) — currency is computed per class rating by aggregating all of a user's flights.
 
-```
-                         ┌───────────┐
-                         │   User    │
-                         └─────┬─────┘
-        ┌──────────┬───────────┼───────────┬───────────┬────────────┐
-        ▼          ▼           ▼           ▼           ▼            ▼
-   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────┐
-   │ License │ │Aircraft │ │Credential│ │ Contact │ │  Flight  │ │FlightBaseline│
-   └────┬────┘ └─────────┘ └──────────┘ └─────────┘ └────┬─────┘ └──────────────┘
-        │                                                 │
-        ▼                                                 ▼
-  ┌────────────┐                                  ┌────────────────┐
-  │ ClassRating │                                  │ FlightCrewMember│
-  └────────────┘                                  └────────────────┘
+```mermaid
+flowchart TD
+    User((User))
+    User --> License
+    User --> Aircraft
+    User --> Credential
+    User --> Contact
+    User --> Flight
+    User --> FlightBaseline
+    License --> ClassRating
+    Flight --> FlightCrewMember
 
-  Auth/session side tables (owned by User):
-    RefreshToken, PasswordResetToken, EmailVerificationToken,
-    WebAuthnCredential, WebAuthnSession, NotificationPreference,
-    NotificationLog, BackupDestination → BackupRun
+    subgraph auth["Auth / session side tables (owned by User)"]
+        direction LR
+        RefreshToken
+        PasswordResetToken
+        EmailVerificationToken
+        WebAuthnCredential
+        WebAuthnSession
+        NotificationPreference
+        NotificationLog
+        BackupDestination --> BackupRun
+    end
 
-  Platform-wide tables:
-    AdminAuditLog, SystemAnnouncement
+    subgraph platform["Platform-wide tables"]
+        direction LR
+        AdminAuditLog
+        SystemAnnouncement
+    end
+
+    User -.-> auth
 ```
 
 ## Core entities
