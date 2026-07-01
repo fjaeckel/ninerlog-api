@@ -13,7 +13,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
-	github.com/minio/minio-go/v7 v7.2.0
+	github.com/minio/minio-go/v7 v7.2.1
 	github.com/mstephenholl/go-solar v1.0.1
 	github.com/oapi-codegen/runtime v1.4.2
 	github.com/pkg/sftp v1.13.10
