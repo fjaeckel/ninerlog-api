@@ -351,7 +351,7 @@ var easaSPLRule = ratingRule{
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
 		{name: "PIC Flight Time", metric: mPICMinutes, threshold: 300, unit: "minutes", msgFmt: "%d / 300 PIC minutes in last 24 months"},
-		{name: "Launches", metric: mLandings, threshold: 15, unit: "launches", msgFmt: "%d / 15 launches in last 24 months"},
+		{name: "Launches", metric: mLaunches, threshold: 15, unit: "launches", msgFmt: "%d / 15 launches in last 24 months"},
 		{name: "Training Flights", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes training flights in last 24 months"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
@@ -371,9 +371,9 @@ var easaSPLRule = ratingRule{
 
 		launchCounts, _ := rt.dp.GetLaunchCounts(ctx, rt.license.UserID, since)
 		var launchMethodCurrency []LaunchMethodCurrency
-		for _, method := range []string{"winch", "aerotow", "self-launch"} {
+		for _, method := range []string{"winch", "aerotow", "self-launch", "bungee", "auto-tow"} {
 			count := launchCounts[method]
-			if count > 0 || launchCounts[method] > 0 {
+			if count > 0 {
 				launchMethodCurrency = append(launchMethodCurrency, LaunchMethodCurrency{
 					Method:   method,
 					Launches: count,

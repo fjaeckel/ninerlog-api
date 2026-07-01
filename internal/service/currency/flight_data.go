@@ -31,15 +31,18 @@ func (p *postgresFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 			COALESCE(SUM(f.landings_day + f.landings_night), 0) as landings,
 			COALESCE(SUM(f.landings_day), 0) as day_landings,
 			COALESCE(SUM(f.landings_night), 0) as night_landings,
+			COALESCE(SUM(GREATEST(f.launches, CASE WHEN f.launch_method IS NOT NULL THEN 1 ELSE 0 END)), 0) as launches,
 			COALESCE(SUM(f.approaches_count), 0) as approaches,
 			COALESCE(SUM(f.holds), 0) as holds
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND a.aircraft_class = $2 AND f.date >= $3
+		WHERE f.user_id = $1 AND a.aircraft_class = ANY($2) AND f.date >= $3
 	`
 
+	classFilter := classTypeFilter(classType)
+
 	progress := &Progress{}
-	err := p.db.QueryRowContext(ctx, query, userID, string(classType), since).Scan(
+	err := p.db.QueryRowContext(ctx, query, userID, classFilter, since).Scan(
 		&progress.Flights,
 		&progress.TotalMinutes,
 		&progress.PICMinutes,
@@ -49,6 +52,7 @@ func (p *postgresFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 		&progress.Landings,
 		&progress.DayLandings,
 		&progress.NightLandings,
+		&progress.Launches,
 		&progress.Approaches,
 		&progress.Holds,
 	)
@@ -70,6 +74,7 @@ func (p *postgresFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 			COALESCE(SUM(landings_day + landings_night), 0) as landings,
 			COALESCE(SUM(landings_day), 0) as day_landings,
 			COALESCE(SUM(landings_night), 0) as night_landings,
+			COALESCE(SUM(GREATEST(launches, CASE WHEN launch_method IS NOT NULL THEN 1 ELSE 0 END)), 0) as launches,
 			COALESCE(SUM(approaches_count), 0) as approaches,
 			COALESCE(SUM(holds), 0) as holds
 		FROM flights
@@ -87,6 +92,7 @@ func (p *postgresFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 		&progress.Landings,
 		&progress.DayLandings,
 		&progress.NightLandings,
+		&progress.Launches,
 		&progress.Approaches,
 		&progress.Holds,
 	)
@@ -132,11 +138,11 @@ func (p *postgresFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 		query = `
 			SELECT f.date FROM flights f
 			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND a.aircraft_class = $2 AND f.is_proficiency_check = true AND f.date >= $3
+			WHERE f.user_id = $1 AND a.aircraft_class = ANY($2) AND f.is_proficiency_check = true AND f.date >= $3
 			ORDER BY f.date DESC
 			LIMIT 1
 		`
-		args = []interface{}{userID, string(classType), since}
+		args = []interface{}{userID, classTypeFilter(classType), since}
 	}
 
 	var checkDate time.Time
@@ -150,9 +156,16 @@ func (p *postgresFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 	return &checkDate, nil
 }
 
+func classTypeFilter(classType models.ClassType) []string {
+	if classType == models.ClassTypeOther {
+		return []string{"OTHER", "GLIDER"}
+	}
+	return []string{string(classType)}
+}
+
 func (p *postgresFlightDataProvider) GetLaunchCounts(ctx context.Context, userID uuid.UUID, since time.Time) (map[string]int, error) {
 	query := `
-		SELECT launch_method, COUNT(*) as launches
+		SELECT launch_method, COALESCE(SUM(GREATEST(launches, 1)), 0) as launches
 		FROM flights
 		WHERE user_id = $1 AND date >= $2 AND launch_method IS NOT NULL AND launch_method != ''
 		GROUP BY launch_method
