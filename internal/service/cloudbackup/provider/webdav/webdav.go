@@ -40,6 +40,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/netguard"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider"
 	gowebdav "github.com/studio-b12/gowebdav"
 )
@@ -50,10 +51,12 @@ type Provider struct {
 	timeout   time.Duration
 }
 
-// New returns a WebDAV provider using a hardened default HTTP transport.
+// New returns a WebDAV provider using a hardened default HTTP transport whose
+// connections are restricted by an SSRF guard so user-supplied base URLs cannot
+// reach internal addresses.
 func New() *Provider {
 	return &Provider{
-		transport: http.DefaultTransport,
+		transport: netguard.FromEnv().HTTPTransport(),
 		timeout:   60 * time.Second,
 	}
 }

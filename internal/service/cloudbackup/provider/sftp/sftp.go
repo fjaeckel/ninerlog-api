@@ -44,6 +44,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/netguard"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -55,7 +56,8 @@ type Provider struct {
 	netDial     func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-// New returns an SFTP provider with sane defaults.
+// New returns an SFTP provider with sane defaults. Connections are restricted
+// by an SSRF guard so a user-supplied host cannot reach internal addresses.
 func New() *Provider {
 	return &Provider{
 		dialTimeout: 15 * time.Second,
@@ -76,7 +78,7 @@ func NewWithDialer(dial func(ctx context.Context, network, addr string) (net.Con
 }
 
 func defaultDial(ctx context.Context, network, addr string) (net.Conn, error) {
-	d := &net.Dialer{Timeout: 15 * time.Second}
+	d := netguard.FromEnv().Dialer(15 * time.Second)
 	return d.DialContext(ctx, network, addr)
 }
 
@@ -229,11 +231,11 @@ func (p *Provider) Delete(ctx context.Context, cfg provider.Config, creds provid
 // Internal helpers ---------------------------------------------------------
 
 type parsedConfig struct {
-	Host              string
-	Port              int
-	Path              string
-	HostKeyFP         string
-	AcceptAnyHostKey  bool
+	Host             string
+	Port             int
+	Path             string
+	HostKeyFP        string
+	AcceptAnyHostKey bool
 }
 
 func parseConfig(cfg provider.Config, creds provider.Credentials) (*parsedConfig, string, string, error) {

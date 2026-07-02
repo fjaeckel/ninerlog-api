@@ -219,7 +219,7 @@ func newCreds() provider.Credentials {
 }
 
 func TestProviderMetadata(t *testing.T) {
-	p := New()
+	p := NewWithTransport(nil, 0)
 	if p.Name() != "webdav" {
 		t.Errorf("name: %s", p.Name())
 	}
@@ -239,7 +239,7 @@ func TestProviderMetadata(t *testing.T) {
 
 func TestValidateSuccessCreatesDir(t *testing.T) {
 	fake, baseURL := startFakeWebDAV(t)
-	p := New()
+	p := NewWithTransport(nil, 0)
 	if err := p.Validate(context.Background(), newCfg(baseURL), newCreds()); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestValidateSuccessCreatesDir(t *testing.T) {
 
 func TestValidateBadCredentials(t *testing.T) {
 	_, baseURL := startFakeWebDAV(t)
-	p := New()
+	p := NewWithTransport(nil, 0)
 	creds := provider.Credentials{"username": "alice", "password": "wrong"}
 	err := p.Validate(context.Background(), newCfg(baseURL), creds)
 	if !errors.Is(err, provider.ErrInvalidCredentials) {
@@ -261,7 +261,7 @@ func TestValidateBadCredentials(t *testing.T) {
 func TestValidateForbidden(t *testing.T) {
 	fake, baseURL := startFakeWebDAV(t)
 	fake.forbid = true
-	p := New()
+	p := NewWithTransport(nil, 0)
 	err := p.Validate(context.Background(), newCfg(baseURL), newCreds())
 	if !errors.Is(err, provider.ErrPermissionDenied) {
 		t.Fatalf("expected ErrPermissionDenied, got %v", err)
@@ -271,7 +271,7 @@ func TestValidateForbidden(t *testing.T) {
 func TestValidateTransient(t *testing.T) {
 	fake, baseURL := startFakeWebDAV(t)
 	fake.transient = true
-	p := New()
+	p := NewWithTransport(nil, 0)
 	err := p.Validate(context.Background(), newCfg(baseURL), newCreds())
 	if !errors.Is(err, provider.ErrTransient) {
 		t.Fatalf("expected ErrTransient, got %v", err)
@@ -280,7 +280,7 @@ func TestValidateTransient(t *testing.T) {
 
 func TestUploadListDelete(t *testing.T) {
 	fake, baseURL := startFakeWebDAV(t)
-	p := New()
+	p := NewWithTransport(nil, 0)
 	ctx := context.Background()
 	cfg := newCfg(baseURL)
 	creds := newCreds()
@@ -342,7 +342,7 @@ func TestUploadListDelete(t *testing.T) {
 func TestListMissingDirReturnsEmpty(t *testing.T) {
 	fake, baseURL := startFakeWebDAV(t)
 	fake.notFound = true
-	p := New()
+	p := NewWithTransport(nil, 0)
 	objs, err := p.List(context.Background(), newCfg(baseURL), newCreds())
 	if err != nil {
 		t.Fatalf("expected nil error on missing dir, got %v", err)
@@ -353,7 +353,7 @@ func TestListMissingDirReturnsEmpty(t *testing.T) {
 }
 
 func TestParseConfigRequiresHTTPS(t *testing.T) {
-	p := New()
+	p := NewWithTransport(nil, 0)
 	cfg := provider.Config{"base_url": "http://example.com/dav/"}
 	err := p.Validate(context.Background(), cfg, newCreds())
 	if !errors.Is(err, provider.ErrInvalidConfig) {
