@@ -56,13 +56,13 @@ func main() {
 	if port == "" {
 		port = "3000"
 	}
+	// JWT signing secrets are mandatory and must be strong. Fail closed at
+	// startup rather than silently falling back to a public placeholder value,
+	// which would let anyone forge tokens for any user.
 	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "change-this-secret-key-in-production"
-	}
 	refreshSecret := os.Getenv("REFRESH_SECRET")
-	if refreshSecret == "" {
-		refreshSecret = "change-this-refresh-secret-in-production"
+	if err := validateJWTSecrets(jwtSecret, refreshSecret); err != nil {
+		log.Fatalf("Invalid JWT configuration: %v", err)
 	}
 	corsOrigin := os.Getenv("CORS_ORIGIN")
 	if corsOrigin == "" {
