@@ -13,8 +13,23 @@ var (
 	ErrExpiredToken = errors.New("token has expired")
 )
 
+// Token types. The type is embedded as a claim and verified on validation so a
+// token minted for one purpose cannot be replayed for another (e.g. a 2FA
+// challenge token being used as a full access token, which would bypass the
+// second factor).
+const (
+	TokenTypeAccess  = "access"
+	TokenTypeRefresh = "refresh"
+	TokenType2FA     = "2fa"
+
+	// subject2FAChallenge is the subject set on 2FA challenge tokens. Kept for
+	// backwards compatibility with tokens issued before token_type existed.
+	subject2FAChallenge = "2fa-challenge"
+)
+
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	TokenType string    `json:"token_type,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -38,7 +53,8 @@ func NewManager(accessSecret, refreshSecret string, accessExpiry, refreshExpiry 
 func (m *Manager) GenerateAccessToken(userID uuid.UUID) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID: userID,
+		UserID:    userID,
+		TokenType: TokenTypeAccess,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.New().String(), // Add unique JTI for each token
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.accessTokenExpiry)),
@@ -54,7 +70,8 @@ func (m *Manager) GenerateAccessToken(userID uuid.UUID) (string, error) {
 func (m *Manager) GenerateRefreshToken(userID uuid.UUID) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID: userID,
+		UserID:    userID,
+		TokenType: TokenTypeRefresh,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.New().String(), // Add unique JTI for each token
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.refreshTokenExpiry)),
@@ -66,9 +83,21 @@ func (m *Manager) GenerateRefreshToken(userID uuid.UUID) (string, error) {
 	return token.SignedString([]byte(m.refreshSecret))
 }
 
-// ValidateAccessToken validates and parses an access token
+// ValidateAccessToken validates and parses an access token.
+//
+// It rejects 2FA challenge tokens, which are signed with the same secret as
+// access tokens. Without this check a client could take the short-lived
+// twoFactorToken returned by the password step and use it directly as a Bearer
+// access token, bypassing the second factor entirely.
 func (m *Manager) ValidateAccessToken(tokenString string) (*Claims, error) {
-	return m.validateToken(tokenString, m.accessSecret)
+	claims, err := m.validateToken(tokenString, m.accessSecret)
+	if err != nil {
+		return nil, err
+	}
+	if claims.TokenType == TokenType2FA || claims.Subject == subject2FAChallenge {
+		return nil, ErrInvalidToken
+	}
+	return claims, nil
 }
 
 // ValidateRefreshToken validates and parses a refresh token
@@ -107,12 +136,13 @@ func (m *Manager) GetRefreshTokenExpiry() time.Duration {
 func (m *Manager) Generate2FAToken(userID uuid.UUID) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID: userID,
+		UserID:    userID,
+		TokenType: TokenType2FA,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        "2fa-" + uuid.New().String(),
 			ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(now),
-			Subject:   "2fa-challenge",
+			Subject:   subject2FAChallenge,
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -125,7 +155,7 @@ func (m *Manager) Validate2FAToken(tokenString string) (*Claims, error) {
 	if err != nil {
 		return nil, err
 	}
-	if claims.Subject != "2fa-challenge" {
+	if claims.Subject != subject2FAChallenge {
 		return nil, ErrInvalidToken
 	}
 	return claims, nil
