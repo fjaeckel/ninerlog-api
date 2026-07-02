@@ -133,6 +133,50 @@ func TestValidate2FAToken_Expired(t *testing.T) {
 	}
 }
 
+// TestValidateAccessToken_Rejects2FAToken is the core regression test for the
+// 2FA-bypass vulnerability: a 2FA challenge token is signed with the access
+// secret, so before the fix it validated as a full access token. It must now be
+// rejected on the access path.
+func TestValidateAccessToken_Rejects2FAToken(t *testing.T) {
+	manager := NewManager("access-secret-value", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
+	userID := uuid.New()
+
+	twoFAToken, err := manager.Generate2FAToken(userID)
+	if err != nil {
+		t.Fatalf("Generate2FAToken() error = %v", err)
+	}
+
+	if _, err := manager.ValidateAccessToken(twoFAToken); err != ErrInvalidToken {
+		t.Errorf("ValidateAccessToken(2faToken) error = %v, want ErrInvalidToken (2FA bypass!)", err)
+	}
+}
+
+// TestAccessToken_HasAccessTokenType documents the positive claim that lets the
+// server distinguish token purposes.
+func TestAccessToken_HasAccessTokenType(t *testing.T) {
+	manager := NewManager("access-secret-value", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
+	token, _ := manager.GenerateAccessToken(uuid.New())
+	claims, err := manager.ValidateAccessToken(token)
+	if err != nil {
+		t.Fatalf("ValidateAccessToken() error = %v", err)
+	}
+	if claims.TokenType != TokenTypeAccess {
+		t.Errorf("access token TokenType = %q, want %q", claims.TokenType, TokenTypeAccess)
+	}
+}
+
+func Test2FAToken_HasTwoFactorTokenType(t *testing.T) {
+	manager := NewManager("access-secret-value", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
+	token, _ := manager.Generate2FAToken(uuid.New())
+	claims, err := manager.Validate2FAToken(token)
+	if err != nil {
+		t.Fatalf("Validate2FAToken() error = %v", err)
+	}
+	if claims.TokenType != TokenType2FA {
+		t.Errorf("2FA token TokenType = %q, want %q", claims.TokenType, TokenType2FA)
+	}
+}
+
 func TestValidateAccessToken_MalformedToken(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 

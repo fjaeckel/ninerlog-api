@@ -113,6 +113,37 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	}
 }
 
+// TestAuthMiddleware_Rejects2FAChallengeToken is the end-to-end regression test
+// for the 2FA-bypass vulnerability. The short-lived twoFactorToken issued after
+// the password step must NOT be accepted as a Bearer access token on protected
+// routes — otherwise an attacker with only the password could skip the TOTP
+// step entirely.
+func TestAuthMiddleware_Rejects2FAChallengeToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	jwtMgr := newTestJWTManager()
+
+	twoFAToken, err := jwtMgr.Generate2FAToken(uuid.New())
+	if err != nil {
+		t.Fatalf("Failed to generate 2FA token: %v", err)
+	}
+
+	router := gin.New()
+	api := router.Group("/api/v1")
+	api.Use(AuthMiddleware(jwtMgr, []string{"/auth/login"}))
+	api.GET("/flights", func(c *gin.Context) {
+		c.String(http.StatusOK, "flights")
+	})
+
+	req := httptest.NewRequest("GET", "/api/v1/flights", nil)
+	req.Header.Set("Authorization", "Bearer "+twoFAToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("2FA challenge token used as access token returned %d, want 401 (2FA bypass!)", w.Code)
+	}
+}
+
 func TestAuthMiddleware_ExpiredToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	// Create manager with 0 expiry so tokens are instantly expired
