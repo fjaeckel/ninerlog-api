@@ -18,6 +18,19 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// unguardedDial dials without the production SSRF guard so protocol tests can
+// reach the loopback test SSH server. SSRF-blocking behavior of the default
+// (guarded) dialer is covered separately in sftp_ssrf_test.go.
+func unguardedDial(ctx context.Context, network, addr string) (net.Conn, error) {
+	return (&net.Dialer{Timeout: 15 * time.Second}).DialContext(ctx, network, addr)
+}
+
+// newTestProvider returns an SFTP provider that bypasses the SSRF guard, for
+// use with loopback test servers.
+func newTestProvider() *Provider {
+	return NewWithDialer(unguardedDial, 0)
+}
+
 // fakeSSHServer is an in-process SSH+SFTP server backed by pkg/sftp's
 // in-memory handlers. It serves a single ed25519 host key whose fingerprint
 // is exposed for tests that want to assert host-key verification.
@@ -164,7 +177,7 @@ func providerCreds() provider.Credentials {
 // Tests --------------------------------------------------------------------
 
 func TestProviderMetadata(t *testing.T) {
-	p := New()
+	p := newTestProvider()
 	if p.Name() != "sftp" {
 		t.Errorf("Name: %s", p.Name())
 	}
@@ -184,7 +197,7 @@ func TestProviderMetadata(t *testing.T) {
 func TestValidateSuccess(t *testing.T) {
 	srv := startFakeSSH(t)
 	host, port := srv.hostPort()
-	p := New()
+	p := newTestProvider()
 	if err := p.Validate(context.Background(), providerCfg(host, port, srv.hostKeyFP), providerCreds()); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
@@ -193,7 +206,7 @@ func TestValidateSuccess(t *testing.T) {
 func TestValidateBadPassword(t *testing.T) {
 	srv := startFakeSSH(t)
 	host, port := srv.hostPort()
-	p := New()
+	p := newTestProvider()
 	creds := provider.Credentials{"username": "alice", "password": "wrong"}
 	err := p.Validate(context.Background(), providerCfg(host, port, srv.hostKeyFP), creds)
 	if !errors.Is(err, provider.ErrInvalidCredentials) {
@@ -204,7 +217,7 @@ func TestValidateBadPassword(t *testing.T) {
 func TestValidateHostKeyMismatch(t *testing.T) {
 	srv := startFakeSSH(t)
 	host, port := srv.hostPort()
-	p := New()
+	p := newTestProvider()
 	cfg := providerCfg(host, port, "SHA256:bogusbogusbogusbogusbogusbogusbogusbogusbo")
 	err := p.Validate(context.Background(), cfg, providerCreds())
 	if !errors.Is(err, provider.ErrInvalidCredentials) {
@@ -221,7 +234,7 @@ func TestValidateAcceptAnyHostKey(t *testing.T) {
 		"path":                "ninerlog-test/",
 		"accept_any_host_key": true,
 	}
-	p := New()
+	p := newTestProvider()
 	if err := p.Validate(context.Background(), cfg, providerCreds()); err != nil {
 		t.Fatalf("Validate with accept_any_host_key=true: %v", err)
 	}
@@ -230,7 +243,7 @@ func TestValidateAcceptAnyHostKey(t *testing.T) {
 func TestUploadListDelete(t *testing.T) {
 	srv := startFakeSSH(t)
 	host, port := srv.hostPort()
-	p := New()
+	p := newTestProvider()
 	ctx := context.Background()
 	cfg := providerCfg(host, port, srv.hostKeyFP)
 	creds := providerCreds()
@@ -299,7 +312,7 @@ func TestListMissingDirReturnsEmpty(t *testing.T) {
 	host, port := srv.hostPort()
 	cfg := providerCfg(host, port, srv.hostKeyFP)
 	cfg["path"] = "does/not/exist-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "/"
-	p := New()
+	p := newTestProvider()
 	objs, err := p.List(context.Background(), cfg, providerCreds())
 	if err != nil {
 		t.Fatalf("expected nil error on missing dir, got %v", err)

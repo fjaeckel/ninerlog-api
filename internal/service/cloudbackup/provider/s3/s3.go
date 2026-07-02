@@ -34,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/netguard"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -47,7 +48,8 @@ type Provider struct {
 }
 
 // New returns an S3 provider using a hardened default HTTP client (10s
-// dial/handshake, 60s response timeout).
+// dial/handshake, 60s response timeout) whose connections are restricted by an
+// SSRF guard so user-supplied endpoints cannot reach internal addresses.
 func New() *Provider {
 	return &Provider{httpClient: defaultHTTPClient()}
 }
@@ -62,7 +64,7 @@ func NewWithHTTPClient(c *http.Client) *Provider {
 }
 
 func defaultHTTPClient() *http.Client {
-	return &http.Client{Timeout: 60 * time.Second}
+	return netguard.FromEnv().HTTPClient(60 * time.Second)
 }
 
 // Provider metadata --------------------------------------------------------

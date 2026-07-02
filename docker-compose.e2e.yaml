@@ -156,6 +156,10 @@ services:
       NOTIFICATION_CHECK_INTERVAL: "24h"
       # Cloud backups: 32-byte base64 key (deterministic for e2e only)
       BACKUP_CREDENTIALS_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+      # The e2e backup targets (seaweedfs-test, sftp, webdav) are Docker
+      # containers on a private network. The SSRF guard blocks private ranges
+      # by default, so opt in here to let the e2e suite reach them.
+      BACKUP_ALLOW_PRIVATE_NETWORKS: "true"
     ports:
       - "3333:3000"
     healthcheck:
