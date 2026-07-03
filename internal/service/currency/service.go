@@ -3,6 +3,7 @@ package currency
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -62,6 +63,7 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 		if err != nil {
 			continue // skip on error
 		}
+		classRatings = ensureVirtualRatingsForLicense(license, classRatings)
 
 		// Find the evaluator for this license's authority
 		eval := s.registry.Get(license.RegulatoryAuthority)
@@ -112,4 +114,25 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 		PassengerCurrency: passengerCurrency,
 		FlightReview:      flightReview,
 	}, nil
+}
+
+// ensureVirtualRatingsForLicense injects a virtual class-rating row for license
+// types that are evaluated via recency rules without requiring explicit class
+// ratings in the UI/data model.
+func ensureVirtualRatingsForLicense(license *models.License, classRatings []*models.ClassRating) []*models.ClassRating {
+	if len(classRatings) > 0 || license == nil {
+		return classRatings
+	}
+
+	lt := strings.ToUpper(strings.TrimSpace(license.LicenseType))
+	if lt != "SPL" && lt != "LAPL(S)" {
+		return classRatings
+	}
+
+	return []*models.ClassRating{{
+		// Use LicenseID as a stable synthetic ID so frontend keys stay deterministic.
+		ID:        license.ID,
+		LicenseID: license.ID,
+		ClassType: models.ClassTypeOther,
+	}}
 }

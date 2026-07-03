@@ -157,12 +157,8 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)
-		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
-		if err == nil && len(classRatings) > 0 {
-			allowedClasses := make(map[string]bool)
-			for _, cr := range classRatings {
-				allowedClasses[string(cr.ClassType)] = true
-			}
+		allowedClasses, err := h.resolveLogbookAllowedClasses(c.Request.Context(), userID, licenseID)
+		if err == nil {
 			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 			regToClass := make(map[string]string)
 			for _, ac := range aircraftList {
@@ -197,6 +193,8 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 	switch format {
 	case "faa":
 		pdf = generateFAAPDF(flights, geom)
+	case "glider":
+		pdf = generateGliderPDF(flights, geom, h, c, userID)
 	case "summary":
 		pdf = generateSummaryPDF(flights, geom)
 	default:
@@ -556,6 +554,128 @@ func generateFAAPDF(flights []*models.Flight, g pageGeometry) *fpdf.Fpdf {
 func generateSummaryPDF(flights []*models.Flight, g pageGeometry) *fpdf.Fpdf {
 	pdf := newPDF(g)
 	tr := pdf.UnicodeTranslatorFromDescriptor("")
+	addGrandSummaryPage(pdf, flights, g, tr)
+	return pdf
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Glider (EASA SPL) — single-landscape sailplane logbook with launch columns
+// ─────────────────────────────────────────────────────────────────────────────
+
+var gliderBaseW = []float64{
+	16, 20, 16, 14, 10, 14, 16, 16, 12, 12, 16, 28, 40,
+}
+var gliderHeaders = []string{
+	"DATE", "GLIDER TYPE", "REG", "LAUNCH", "# LNCH", "REL. ALT",
+	"DEPARTURE", "ARRIVAL", "T/O", "LDG", "DURATION", "PIC NAME", "REMARKS",
+}
+var gliderAlign = []string{
+	"C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "L", "L",
+}
+
+// launchAbbrev maps a launch method to its single-letter EASA SPL logbook code.
+func launchAbbrev(method *string) string {
+	if method == nil {
+		return ""
+	}
+	switch *method {
+	case "winch":
+		return "W"
+	case "aerotow":
+		return "A"
+	case "self-launch":
+		return "S"
+	case "bungee":
+		return "B"
+	case "auto-tow":
+		return "T"
+	default:
+		return strings.ToUpper(*method)
+	}
+}
+
+// fmtReleaseAltitude renders the release altitude with its reference datum,
+// e.g. "450 AGL". Empty when no altitude is recorded.
+func fmtReleaseAltitude(alt *int, ref *string) string {
+	if alt == nil {
+		return ""
+	}
+	if ref != nil && *ref != "" {
+		return fmt.Sprintf("%d %s", *alt, *ref)
+	}
+	return fmt.Sprintf("%d", *alt)
+}
+
+// generateGliderPDF renders the EASA SPL sailplane logbook. Each row maps to a
+// single glider flight; club-day rows that chain multiple launches are split
+// into one printed line per launch so the regulator sees per-launch detail
+// (EASA paper logbook convention).
+func generateGliderPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c *gin.Context, userID uuid.UUID) *fpdf.Fpdf {
+	_ = userID
+	userName := h.getUserNameFromContext(c)
+	return renderGlider(flights, g, userName)
+}
+
+// renderGlider performs the actual sailplane-logbook rendering. Extracted from
+// generateGliderPDF so tests can exercise it without a handler/context.
+func renderGlider(flights []*models.Flight, g pageGeometry, userName string) *fpdf.Fpdf {
+	pdf := newPDF(g)
+	tr := pdf.UnicodeTranslatorFromDescriptor("")
+
+	colW := scaleWidths(gliderBaseW, g.usableWidth())
+	rpp := g.rowsPerPage()
+	pageNum := 0
+
+	for startIdx := 0; startIdx < len(flights); startIdx += rpp {
+		endIdx := startIdx + rpp
+		if endIdx > len(flights) {
+			endIdx = len(flights)
+		}
+		pageNum++
+
+		pdf.AddPage()
+		drawTitle(pdf, g, tr, fmt.Sprintf("Sailplane Logbook (EASA SPL) %s Page %d", emdash(), pageNum))
+		drawHeaderRow(pdf, g, colW, nil, gliderHeaders)
+
+		var pTotal, pLaunches int
+
+		pdf.SetFont("Helvetica", "", g.fontBody)
+		for i, f := range flights[startIdx:endIdx] {
+			launches := f.Launches
+			if launches < 1 {
+				launches = 1
+			}
+			remarks := flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview)
+			if len([]rune(remarks)) > 40 {
+				remarks = string([]rune(remarks)[:37]) + "..."
+			}
+			cells := []string{
+				f.Date.Format("02.01.06"),
+				f.AircraftType, f.AircraftReg,
+				launchAbbrev(f.LaunchMethod),
+				fmt.Sprintf("%d", launches),
+				fmtReleaseAltitude(f.ReleaseAltitude, f.ReleaseAltitudeRef),
+				safeStr(f.DepartureICAO), safeStr(f.ArrivalICAO),
+				fmtTime(f.DepartureTime), fmtTime(f.ArrivalTime),
+				fmtDec(f.TotalTime),
+				flightrules.DisplayPICName(f, userName),
+				remarks,
+			}
+			drawDataRow(pdf, g, colW, cells, gliderAlign, i, tr)
+
+			pTotal += f.TotalTime
+			pLaunches += launches
+		}
+
+		drawTotalsRow(pdf, g, colW, []string{
+			"", "", "", "TOTAL",
+			fmt.Sprintf("%d", pLaunches),
+			"", "", "", "", "",
+			fmtDec(pTotal),
+			"", "",
+		}, gliderAlign, tr)
+	}
+
 	addGrandSummaryPage(pdf, flights, g, tr)
 	return pdf
 }

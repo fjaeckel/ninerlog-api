@@ -84,13 +84,8 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	// single page of flights and report a wrong total.
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)
-		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
-		if err == nil && len(classRatings) > 0 {
-			// Build set of allowed class types
-			allowedClasses := make(map[string]bool)
-			for _, cr := range classRatings {
-				allowedClasses[string(cr.ClassType)] = true
-			}
+		allowedClasses, err := h.resolveLogbookAllowedClasses(c.Request.Context(), userID, licenseID)
+		if err == nil {
 			// Collect registrations of aircraft whose class is allowed
 			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 			regs := make([]string, 0, len(aircraftList))
@@ -264,6 +259,28 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 			lm := string(*req.LaunchMethod)
 			flight.LaunchMethod = &lm
 		}
+	}
+	// SPL/Glider: launches and release altitude
+	if req.Launches != nil {
+		flight.Launches = *req.Launches
+	}
+	if req.ReleaseAltitude != nil {
+		flight.ReleaseAltitude = req.ReleaseAltitude
+	}
+	if req.ReleaseAltitudeRef != nil && string(*req.ReleaseAltitudeRef) != "null" {
+		ref := string(*req.ReleaseAltitudeRef)
+		flight.ReleaseAltitudeRef = &ref
+	}
+	// A glider flight always has at least one launch.
+	if flight.LaunchMethod != nil && flight.Launches == 0 {
+		flight.Launches = 1
+	}
+	// Without a launch method, launch data does not apply (matches the
+	// release-altitude-requires-launch DB constraint).
+	if flight.LaunchMethod == nil {
+		flight.Launches = 0
+		flight.ReleaseAltitude = nil
+		flight.ReleaseAltitudeRef = nil
 	}
 
 	// Phase 6c: PIC Name, Multi-Pilot Time, FSTD Type, Approaches, Endorsements
@@ -485,6 +502,30 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 			flight.LaunchMethod = nil
 		}
 	}
+	// SPL/Glider: launches and release altitude
+	if req.Launches != nil {
+		flight.Launches = *req.Launches
+	}
+	if req.ReleaseAltitude != nil {
+		flight.ReleaseAltitude = req.ReleaseAltitude
+	}
+	if req.ReleaseAltitudeRef != nil {
+		if string(*req.ReleaseAltitudeRef) != "null" {
+			ref := string(*req.ReleaseAltitudeRef)
+			flight.ReleaseAltitudeRef = &ref
+		} else {
+			flight.ReleaseAltitudeRef = nil
+		}
+	}
+	// Keep launch data consistent with the launch method (matches the
+	// release-altitude-requires-launch DB constraint).
+	if flight.LaunchMethod == nil {
+		flight.Launches = 0
+		flight.ReleaseAltitude = nil
+		flight.ReleaseAltitudeRef = nil
+	} else if flight.Launches == 0 {
+		flight.Launches = 1
+	}
 	// Phase 6c fields
 	if req.PicName != nil {
 		flight.PICName = req.PicName
@@ -670,6 +711,12 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	if f.LaunchMethod != nil {
 		lm := generated.FlightLaunchMethod(*f.LaunchMethod)
 		flight.LaunchMethod = &lm
+	}
+	flight.Launches = ptrInt(f.Launches)
+	flight.ReleaseAltitude = f.ReleaseAltitude
+	if f.ReleaseAltitudeRef != nil {
+		ref := generated.FlightReleaseAltitudeRef(*f.ReleaseAltitudeRef)
+		flight.ReleaseAltitudeRef = &ref
 	}
 
 	// Phase 6c regulatory compliance fields

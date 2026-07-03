@@ -72,6 +72,56 @@ func TestReports(t *testing.T) {
 	t.Run("trends with months", func(t *testing.T) { requireStatus(t, c.GET("/reports/trends?months=6"), http.StatusOK) })
 	t.Run("stats by class", func(t *testing.T) { requireStatus(t, c.GET("/reports/stats-by-class"), http.StatusOK) })
 
+	t.Run("stats by authority does not duplicate glider time across PPL and SPL", func(t *testing.T) {
+		requireStatus(t, c.POST("/licenses", map[string]interface{}{
+			"regulatoryAuthority": "EASA", "licenseType": "PPL", "licenseNumber": "REP-PPL-1",
+			"issueDate": "2023-01-01", "issuingAuthority": "LBA",
+		}), http.StatusCreated)
+		requireStatus(t, c.POST("/licenses", map[string]interface{}{
+			"regulatoryAuthority": "EASA", "licenseType": "SPL", "licenseNumber": "REP-SPL-1",
+			"issueDate": "2023-01-01", "issuingAuthority": "LBA", "requiresSeparateLogbook": true,
+		}), http.StatusCreated)
+
+		requireStatus(t, c.POST("/aircraft", map[string]interface{}{
+			"registration": "D-RSPL", "type": "ASK21", "make": "Schleicher", "model": "ASK 21",
+			"aircraftClass": "OTHER",
+		}), http.StatusCreated)
+
+		requireStatus(t, c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftReg": "D-RSPL", "aircraftType": "ASK21",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"offBlockTime": "10:00", "onBlockTime": "15:00", "landings": 1,
+		}), http.StatusCreated)
+
+		resp := c.GET("/reports/stats-by-class")
+		requireStatus(t, resp, http.StatusOK)
+		var body map[string]interface{}
+		resp.JSON(&body)
+
+		arr, ok := body["byAuthority"].([]interface{})
+		if !ok {
+			t.Fatalf("byAuthority missing or wrong type: %T", body["byAuthority"])
+		}
+
+		minutesByLicense := map[string]int{}
+		for _, entry := range arr {
+			m, ok := entry.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			licType, _ := m["licenseType"].(string)
+			mins, _ := m["minutes"].(float64)
+			minutesByLicense[licType] = int(mins)
+		}
+
+		if minutesByLicense["SPL"] != 300 {
+			t.Errorf("SPL minutes = %d, want 300", minutesByLicense["SPL"])
+		}
+		if minutesByLicense["PPL"] != 0 {
+			t.Errorf("PPL minutes = %d, want 0 (glider OTHER time should be SPL-only)", minutesByLicense["PPL"])
+		}
+	})
+
 	t.Run("no auth returns 401", func(t *testing.T) {
 		c.ClearToken()
 		assertStatus(t, c.GET("/reports/routes"), http.StatusUnauthorized)
