@@ -49,7 +49,7 @@ func TestAdminUserSchema_PrivacyPreserving(t *testing.T) {
 	// Allowed fields — only account metadata and aggregate counts
 	allowedFields := map[string]bool{
 		"Id": true, "Email": true, "Name": true, "CreatedAt": true,
-		"LastLoginAt": true, "TwoFactorEnabled": true, "Disabled": true,
+		"LastLoginAt": true, "EmailVerified": true, "TwoFactorEnabled": true, "Disabled": true,
 		"Locked": true, "LockedUntil": true,
 		"FlightCount": true, "AircraftCount": true, // aggregate counts only
 	}
