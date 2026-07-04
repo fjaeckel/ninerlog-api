@@ -1083,6 +1083,9 @@ type AdminUser struct {
 	Disabled bool                `json:"disabled"`
 	Email    openapi_types.Email `json:"email"`
 
+	// EmailVerified Whether the user has verified their email address and completed sign-up
+	EmailVerified bool `json:"emailVerified"`
+
 	// FlightCount Total number of flights logged
 	FlightCount int                `json:"flightCount"`
 	Id          openapi_types.UUID `json:"id"`
