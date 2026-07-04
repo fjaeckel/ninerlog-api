@@ -285,29 +285,26 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 	user, err := s.userRepo.GetByEmail(ctx, input.Email)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
+			// Burn a comparable amount of CPU so the response timing of an
+			// unknown account matches that of a wrong password. Combined with
+			// the identical error below, this prevents user enumeration.
+			hash.DummyCompare()
 			return nil, nil, ErrInvalidCredentials
 		}
 		return nil, nil, err
 	}
 
-	// Check if account is disabled
-	if user.Disabled {
-		return nil, nil, ErrAccountDisabled
-	}
-
-	// Block login until the user has confirmed their email address. The
-	// check sits before password verification so we don't leak whether
-	// the password is correct for an unverified account.
-	if !user.EmailVerified {
-		return nil, nil, ErrEmailNotVerified
-	}
-
-	// Check if account is locked
+	// Enforce account lockout before checking the password so a locked account
+	// cannot be probed further.
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
 		return nil, nil, ErrAccountLocked
 	}
 
-	// Verify password
+	// Verify the password BEFORE surfacing any account-state details. Returning
+	// "disabled" / "email not verified" prior to authentication would let an
+	// unauthenticated attacker enumerate which addresses are registered and in
+	// what state (CWE-204). A wrong password always yields the same generic
+	// ErrInvalidCredentials regardless of whether the account exists.
 	if err := hash.ComparePassword(user.PasswordHash, input.Password); err != nil {
 		// Increment failed attempts
 		_ = s.userRepo.IncrementFailedLoginAttempts(ctx, user.ID)
@@ -318,6 +315,15 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 		}
 
 		return nil, nil, ErrInvalidCredentials
+	}
+
+	// Password is correct — from here on it is safe to reveal account state,
+	// since only the legitimate owner reaches this point.
+	if user.Disabled {
+		return nil, nil, ErrAccountDisabled
+	}
+	if !user.EmailVerified {
+		return nil, nil, ErrEmailNotVerified
 	}
 
 	// Successful login — reset failed attempts

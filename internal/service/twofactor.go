@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/hash"
@@ -193,7 +194,13 @@ func (s *TwoFactorService) Disable(ctx context.Context, userID uuid.UUID, passwo
 	return s.userRepo.Update(ctx, user)
 }
 
-// ValidateTOTP validates a TOTP code or recovery code for a user
+// ValidateTOTP validates a TOTP code or recovery code for a user.
+//
+// The 2FA step is brute-force protected with the same per-account lockout used
+// by password login: a locked account is rejected with ErrAccountLocked, each
+// failed code counts toward the lockout, and a successful validation resets the
+// counter. This prevents an attacker who has the password from grinding TOTP
+// codes via repeated /auth/2fa/login calls.
 func (s *TwoFactorService) ValidateTOTP(ctx context.Context, userID uuid.UUID, code string) (bool, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -209,7 +216,13 @@ func (s *TwoFactorService) ValidateTOTP(ctx context.Context, userID uuid.UUID, c
 	if err != nil {
 		return false, err
 	}
+  // Reject further attempts while the account is locked.
+	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
+		return false, ErrAccountLocked
+	}
+  
 	if totp.Validate(code, secret) {
+    s.resetFailedAttempts(ctx, user)
 		return true, nil
 	}
 
@@ -221,11 +234,34 @@ func (s *TwoFactorService) ValidateTOTP(ctx context.Context, userID uuid.UUID, c
 			user.RecoveryCodes = append(user.RecoveryCodes[:i], user.RecoveryCodes[i+1:]...)
 			user.UpdatedAt = time.Now()
 			_ = s.userRepo.Update(ctx, user)
+			s.resetFailedAttempts(ctx, user)
 			return true, nil
 		}
 	}
 
+	// Neither the TOTP nor a recovery code matched — count the failure toward
+	// the account lockout.
+	s.recordFailedAttempt(ctx, userID)
 	return false, nil
+}
+
+// recordFailedAttempt increments the shared failed-attempt counter and locks the
+// account once it reaches the threshold. It re-reads the authoritative count
+// after incrementing so the threshold is correct regardless of repository
+// implementation.
+func (s *TwoFactorService) recordFailedAttempt(ctx context.Context, userID uuid.UUID) {
+	_ = s.userRepo.IncrementFailedLoginAttempts(ctx, userID)
+	if u, err := s.userRepo.GetByID(ctx, userID); err == nil && u.FailedLoginAttempts >= maxFailedLoginAttempts {
+		_ = s.userRepo.LockAccount(ctx, userID, time.Now().Add(accountLockDuration))
+	}
+}
+
+// resetFailedAttempts clears the failed-attempt counter after a successful 2FA
+// validation.
+func (s *TwoFactorService) resetFailedAttempts(ctx context.Context, user *models.User) {
+	if user.FailedLoginAttempts > 0 {
+		_ = s.userRepo.ResetFailedLoginAttempts(ctx, user.ID)
+	}
 }
 
 // IsEnabled checks if 2FA is enabled for a user

@@ -110,7 +110,17 @@ func (h *APIHandler) Login2FA(c *gin.Context) {
 
 	// Validate the TOTP code
 	valid, err := h.twoFactorService.ValidateTOTP(c.Request.Context(), claims.UserID, req.Code)
-	if err != nil || !valid {
+	if err != nil {
+		if errors.Is(err, service.ErrAccountLocked) {
+			Auth2FAAttemptsTotal.WithLabelValues("account_locked").Inc()
+			h.sendError(c, http.StatusTooManyRequests, "Account temporarily locked due to too many failed attempts. Please try again later.")
+			return
+		}
+		Auth2FAAttemptsTotal.WithLabelValues("invalid_code").Inc()
+		h.sendError(c, http.StatusUnauthorized, "Invalid 2FA code")
+		return
+	}
+	if !valid {
 		Auth2FAAttemptsTotal.WithLabelValues("invalid_code").Inc()
 		h.sendError(c, http.StatusUnauthorized, "Invalid 2FA code")
 		return

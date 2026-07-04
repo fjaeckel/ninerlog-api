@@ -62,14 +62,25 @@ func (m *mock2FAUserRepo) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (m *mock2FAUserRepo) IncrementFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	if u, ok := m.users[id]; ok {
+		u.FailedLoginAttempts++
+	}
 	return nil
 }
 
 func (m *mock2FAUserRepo) ResetFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	if u, ok := m.users[id]; ok {
+		u.FailedLoginAttempts = 0
+		u.LockedUntil = nil
+	}
 	return nil
 }
 
 func (m *mock2FAUserRepo) LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error {
+	if u, ok := m.users[id]; ok {
+		t := until
+		u.LockedUntil = &t
+	}
 	return nil
 }
 

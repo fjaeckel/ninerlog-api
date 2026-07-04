@@ -48,7 +48,7 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 	countQuery := "SELECT COUNT(*) FROM users"
 	dataQuery := `
 		SELECT u.id, u.email, u.name, u.created_at, u.last_login_at,
-		       u.two_factor_enabled, u.disabled, u.failed_login_attempts,
+		       u.email_verified, u.two_factor_enabled, u.disabled, u.failed_login_attempts,
 		       u.locked_until,
 		       (SELECT COUNT(*) FROM flights WHERE user_id = u.id) as flight_count,
 		       (SELECT COUNT(*) FROM aircraft WHERE user_id = u.id) as aircraft_count
@@ -91,13 +91,13 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 		var email, name string
 		var createdAt time.Time
 		var lastLoginAt *time.Time
-		var twoFactorEnabled, disabled bool
+		var emailVerified, twoFactorEnabled, disabled bool
 		var failedAttempts int
 		var lockedUntil *time.Time
 		var flightCount, aircraftCount int
 
 		if err := rows.Scan(&id, &email, &name, &createdAt, &lastLoginAt,
-			&twoFactorEnabled, &disabled, &failedAttempts, &lockedUntil,
+			&emailVerified, &twoFactorEnabled, &disabled, &failedAttempts, &lockedUntil,
 			&flightCount, &aircraftCount); err != nil {
 			continue
 		}
@@ -108,6 +108,7 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 			Email:            openapi_types.Email(email),
 			Name:             name,
 			CreatedAt:        createdAt,
+			EmailVerified:    emailVerified,
 			TwoFactorEnabled: twoFactorEnabled,
 			Disabled:         disabled,
 			Locked:           &isLocked,
