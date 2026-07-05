@@ -432,3 +432,34 @@ func TestInit_FailsGracefully(t *testing.T) {
 		t.Errorf("Init() on failure should have 0 airports, got %d", len(db))
 	}
 }
+
+func TestNearest(t *testing.T) {
+	SetTestDB(map[string]AirportInfo{
+		"EDDF": {ICAO: "EDDF", Name: "Frankfurt", Latitude: 50.0333, Longitude: 8.5706},
+		"EDFE": {ICAO: "EDFE", Name: "Egelsbach", Latitude: 49.9600, Longitude: 8.6458},
+		"KJFK": {ICAO: "KJFK", Name: "JFK", Latitude: 40.6398, Longitude: -73.7789},
+	})
+	defer SetTestDB(nil)
+
+	// A fix on the Frankfurt ramp resolves to EDDF, not nearby Egelsbach
+	if got := Nearest(50.03, 8.57); got == nil || got.ICAO != "EDDF" {
+		t.Errorf("Nearest(Frankfurt ramp) = %v, want EDDF", got)
+	}
+
+	// Egelsbach coordinates resolve to Egelsbach
+	if got := Nearest(49.96, 8.64); got == nil || got.ICAO != "EDFE" {
+		t.Errorf("Nearest(Egelsbach) = %v, want EDFE", got)
+	}
+
+	// Mid-Atlantic fix is further than 30 NM from every airport
+	if got := Nearest(45.0, -30.0); got != nil {
+		t.Errorf("Nearest(mid-Atlantic) = %v, want nil", got)
+	}
+}
+
+func TestNearestNilDB(t *testing.T) {
+	SetTestDB(nil)
+	if got := Nearest(50.0, 8.5); got != nil {
+		t.Errorf("Nearest with nil db = %v, want nil", got)
+	}
+}

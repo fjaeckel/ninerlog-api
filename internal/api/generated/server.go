@@ -209,6 +209,15 @@ type ServerInterface interface {
 	// Export flights as PDF logbook
 	// (GET /exports/pdf)
 	ExportFlightsPDF(c *gin.Context, params ExportFlightsPDFParams)
+	// Discard current flight session
+	// (DELETE /flight-sessions/current)
+	DiscardCurrentFlightSession(c *gin.Context)
+	// Get current flight session
+	// (GET /flight-sessions/current)
+	GetCurrentFlightSession(c *gin.Context)
+	// Record a flight session event
+	// (POST /flight-sessions/current/events)
+	RecordFlightSessionEvent(c *gin.Context)
 	// List flights
 	// (GET /flights)
 	ListFlights(c *gin.Context, params ListFlightsParams)
@@ -1741,6 +1750,51 @@ func (siw *ServerInterfaceWrapper) ExportFlightsPDF(c *gin.Context) {
 	siw.Handler.ExportFlightsPDF(c, params)
 }
 
+// DiscardCurrentFlightSession operation middleware
+func (siw *ServerInterfaceWrapper) DiscardCurrentFlightSession(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DiscardCurrentFlightSession(c)
+}
+
+// GetCurrentFlightSession operation middleware
+func (siw *ServerInterfaceWrapper) GetCurrentFlightSession(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCurrentFlightSession(c)
+}
+
+// RecordFlightSessionEvent operation middleware
+func (siw *ServerInterfaceWrapper) RecordFlightSessionEvent(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RecordFlightSessionEvent(c)
+}
+
 // ListFlights operation middleware
 func (siw *ServerInterfaceWrapper) ListFlights(c *gin.Context) {
 
@@ -2815,6 +2869,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/exports/csv", wrapper.ExportFlightsCSV)
 	router.GET(options.BaseURL+"/exports/json", wrapper.ExportDataJSON)
 	router.GET(options.BaseURL+"/exports/pdf", wrapper.ExportFlightsPDF)
+	router.DELETE(options.BaseURL+"/flight-sessions/current", wrapper.DiscardCurrentFlightSession)
+	router.GET(options.BaseURL+"/flight-sessions/current", wrapper.GetCurrentFlightSession)
+	router.POST(options.BaseURL+"/flight-sessions/current/events", wrapper.RecordFlightSessionEvent)
 	router.GET(options.BaseURL+"/flights", wrapper.ListFlights)
 	router.POST(options.BaseURL+"/flights", wrapper.CreateFlight)
 	router.DELETE(options.BaseURL+"/flights/delete-all", wrapper.DeleteAllFlights)

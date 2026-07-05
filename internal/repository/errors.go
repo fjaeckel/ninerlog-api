@@ -11,4 +11,8 @@ var (
 
 	// ErrDuplicateRegistration is returned when a user already has an aircraft with the same registration
 	ErrDuplicateRegistration = errors.New("aircraft registration already exists")
+
+	// ErrDuplicate is returned when a uniqueness constraint is violated,
+	// e.g. creating a second open flight session for the same user
+	ErrDuplicate = errors.New("duplicate resource")
 )

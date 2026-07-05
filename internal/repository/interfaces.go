@@ -131,6 +131,21 @@ type FlightQueryOptions struct {
 	AircraftRegistrations []string
 }
 
+// FlightSessionRepository defines the interface for in-progress flight
+// session (tap-to-log quick log) data access.
+type FlightSessionRepository interface {
+	// Create creates a new flight session. Returns ErrDuplicate when the
+	// user already has an open session (enforced by a partial unique index).
+	Create(ctx context.Context, session *models.FlightSession) error
+
+	// GetOpenByUserID returns the user's open session, or ErrNotFound.
+	GetOpenByUserID(ctx context.Context, userID uuid.UUID) (*models.FlightSession, error)
+
+	// Update persists mutable session fields (timestamps, aircraft, route,
+	// status, flight_id). Returns ErrNotFound when the session does not exist.
+	Update(ctx context.Context, session *models.FlightSession) error
+}
+
 // PasswordResetTokenRepository defines the interface for password reset token data access
 type PasswordResetTokenRepository interface {
 	// Create creates a new password reset token

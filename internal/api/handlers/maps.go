@@ -8,6 +8,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/gin-gonic/gin"
@@ -215,6 +216,11 @@ func (h *APIHandler) SetCORSOrigins(origins []string) {
 // BACKUP_CREDENTIALS_KEY is configured at startup).
 func (h *APIHandler) SetBackupService(s *cloudbackup.Service) {
 	h.backupService = s
+}
+
+// SetFlightSessionService stores the tap-to-log flight session service
+func (h *APIHandler) SetFlightSessionService(s *service.FlightSessionService) {
+	h.flightSessionService = s
 }
 
 func toGeneratedAirport(a *airports.AirportInfo) generated.Airport {

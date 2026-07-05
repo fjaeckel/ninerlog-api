@@ -406,6 +406,51 @@ func (e FlightReviewStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for FlightSessionStatus.
+const (
+	FlightSessionStatusCompleted FlightSessionStatus = "completed"
+	FlightSessionStatusDiscarded FlightSessionStatus = "discarded"
+	FlightSessionStatusOpen      FlightSessionStatus = "open"
+)
+
+// Valid indicates whether the value is a known member of the FlightSessionStatus enum.
+func (e FlightSessionStatus) Valid() bool {
+	switch e {
+	case FlightSessionStatusCompleted:
+		return true
+	case FlightSessionStatusDiscarded:
+		return true
+	case FlightSessionStatusOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FlightSessionEventType.
+const (
+	Landing  FlightSessionEventType = "landing"
+	Offblock FlightSessionEventType = "offblock"
+	Onblock  FlightSessionEventType = "onblock"
+	Takeoff  FlightSessionEventType = "takeoff"
+)
+
+// Valid indicates whether the value is a known member of the FlightSessionEventType enum.
+func (e FlightSessionEventType) Valid() bool {
+	switch e {
+	case Landing:
+		return true
+	case Offblock:
+		return true
+	case Onblock:
+		return true
+	case Takeoff:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FlightUpdateLaunchMethod.
 const (
 	Aerotow    FlightUpdateLaunchMethod = "aerotow"
@@ -588,19 +633,19 @@ func (e ImportPreviewFlightStatus) Valid() bool {
 
 // Defines values for ImportStatus.
 const (
-	Completed ImportStatus = "completed"
-	Failed    ImportStatus = "failed"
-	Partial   ImportStatus = "partial"
+	ImportStatusCompleted ImportStatus = "completed"
+	ImportStatusFailed    ImportStatus = "failed"
+	ImportStatusPartial   ImportStatus = "partial"
 )
 
 // Valid indicates whether the value is a known member of the ImportStatus enum.
 func (e ImportStatus) Valid() bool {
 	switch e {
-	case Completed:
+	case ImportStatusCompleted:
 		return true
-	case Failed:
+	case ImportStatusFailed:
 		return true
-	case Partial:
+	case ImportStatusPartial:
 		return true
 	default:
 		return false
@@ -2144,6 +2189,67 @@ type FlightRoutesResponse struct {
 	Routes   []FlightRoute `json:"routes"`
 }
 
+// FlightSession defines model for FlightSession.
+type FlightSession struct {
+	// AircraftReg Aircraft registration; required by the time the session goes on blocks
+	AircraftReg *string `json:"aircraftReg,omitempty"`
+
+	// ArrivalIcao Arrival airport, provided explicitly or resolved from GPS coordinates
+	ArrivalIcao *string   `json:"arrivalIcao,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+
+	// DepartureIcao Departure airport, provided explicitly or resolved from GPS coordinates
+	DepartureIcao *string `json:"departureIcao,omitempty"`
+
+	// FlightId ID of the flight log entry created when the session was completed
+	FlightId *openapi_types.UUID `json:"flightId,omitempty"`
+	Id       openapi_types.UUID  `json:"id"`
+
+	// LandingAt Landing instant in UTC
+	LandingAt *time.Time `json:"landingAt,omitempty"`
+
+	// OffBlockAt Off-block instant (chocks off / engine start) in UTC
+	OffBlockAt *time.Time `json:"offBlockAt,omitempty"`
+
+	// OnBlockAt On-block instant (chocks on / engine shutdown) in UTC
+	OnBlockAt *time.Time `json:"onBlockAt,omitempty"`
+
+	// Status Session lifecycle state. `onblock` events complete the session.
+	Status FlightSessionStatus `json:"status"`
+
+	// TakeoffAt Takeoff instant in UTC
+	TakeoffAt *time.Time         `json:"takeoffAt,omitempty"`
+	UpdatedAt time.Time          `json:"updatedAt"`
+	UserId    openapi_types.UUID `json:"userId"`
+}
+
+// FlightSessionStatus Session lifecycle state. `onblock` events complete the session.
+type FlightSessionStatus string
+
+// FlightSessionEvent defines model for FlightSessionEvent.
+type FlightSessionEvent struct {
+	// AircraftReg Aircraft registration. Can be sent with any event; required by the time the session goes on blocks.
+	AircraftReg *string `json:"aircraftReg,omitempty"`
+
+	// Icao Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock). Takes precedence over lat/lon.
+	Icao *string `json:"icao,omitempty"`
+
+	// Lat GPS latitude used to resolve the nearest airport
+	Lat *float64 `json:"lat,omitempty"`
+
+	// Lon GPS longitude used to resolve the nearest airport
+	Lon *float64 `json:"lon,omitempty"`
+
+	// OccurredAt When the event actually happened (UTC). Defaults to the server clock; send this when the tap was queued offline.
+	OccurredAt *time.Time `json:"occurredAt,omitempty"`
+
+	// Type Which block/flight time instant this event records
+	Type FlightSessionEventType `json:"type"`
+}
+
+// FlightSessionEventType Which block/flight time instant this event records
+type FlightSessionEventType string
+
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
 	ActualInstrumentTime *int                  `json:"actualInstrumentTime,omitempty"`
@@ -3306,6 +3412,9 @@ type CreateCredentialJSONRequestBody = CredentialCreate
 
 // UpdateCredentialJSONRequestBody defines body for UpdateCredential for application/json ContentType.
 type UpdateCredentialJSONRequestBody = CredentialUpdate
+
+// RecordFlightSessionEventJSONRequestBody defines body for RecordFlightSessionEvent for application/json ContentType.
+type RecordFlightSessionEventJSONRequestBody = FlightSessionEvent
 
 // CreateFlightJSONRequestBody defines body for CreateFlight for application/json ContentType.
 type CreateFlightJSONRequestBody = FlightCreate

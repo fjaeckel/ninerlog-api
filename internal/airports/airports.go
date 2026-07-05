@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -84,6 +85,47 @@ func Search(prefix string, limit int) []AirportInfo {
 		}
 	}
 	return results
+}
+
+// maxNearestDistanceNM bounds Nearest lookups: a fix further than this from
+// every known airport (mid-ocean coordinates, bogus GPS data) returns nil
+// rather than a misleading "nearest" hundreds of miles away.
+const maxNearestDistanceNM = 30.0
+
+// Nearest returns the airport closest to the given coordinates, or nil when
+// the database is unavailable or no airport lies within 30 NM. Used to
+// resolve a phone's GPS fix to a departure/arrival airport for tap-to-log.
+func Nearest(lat, lon float64) *AirportInfo {
+	if db == nil {
+		return nil
+	}
+	var best *AirportInfo
+	bestDist := maxNearestDistanceNM
+	for code := range db {
+		a := db[code]
+		d := haversineNM(lat, lon, a.Latitude, a.Longitude)
+		if d <= bestDist {
+			bestDist = d
+			best = &a
+		}
+	}
+	return best
+}
+
+// haversineNM returns the great-circle distance between two points in
+// nautical miles.
+func haversineNM(lat1, lon1, lat2, lon2 float64) float64 {
+	const earthRadiusNM = 3440.065
+	dLat := degToRad(lat2 - lat1)
+	dLon := degToRad(lon2 - lon1)
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(degToRad(lat1))*math.Cos(degToRad(lat2))*
+			math.Sin(dLon/2)*math.Sin(dLon/2)
+	return earthRadiusNM * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+}
+
+func degToRad(d float64) float64 {
+	return d * math.Pi / 180
 }
 
 // fetchAirports downloads the OurAirports CSV and parses it into a map.
