@@ -1,6 +1,6 @@
 services:
   postgres-test:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: ninerlog-test-db
     environment:
       POSTGRES_USER: testuser
