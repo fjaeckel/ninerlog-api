@@ -139,7 +139,21 @@ func main() {
 	notifRepo := postgres.NewNotificationRepository(db)
 	smtpConfig := email.LoadSMTPConfig()
 	emailSender := email.NewSender(smtpConfig)
-	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager)
+
+	// TOTP secrets are encrypted at rest when TOTP_ENCRYPTION_KEY (base64,
+	// 32 bytes) is set. Without it, secrets are stored as plaintext; warn so
+	// operators enable encryption in production.
+	var totpAEAD *cryptoutil.AEAD
+	if totpKey := os.Getenv("TOTP_ENCRYPTION_KEY"); totpKey != "" {
+		totpAEAD, err = cryptoutil.NewFromBase64(totpKey)
+		if err != nil {
+			log.Fatalf("Invalid TOTP_ENCRYPTION_KEY: %v", err)
+		}
+		log.Println("✅ TOTP secrets encrypted at rest")
+	} else {
+		log.Println("⚠️  TOTP_ENCRYPTION_KEY not set — 2FA secrets are stored unencrypted")
+	}
+	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager, totpAEAD)
 	contactRepo := postgres.NewContactRepository(db)
 	contactService := service.NewContactService(contactRepo)
 	classRatingRepo := postgres.NewClassRatingRepository(db)
