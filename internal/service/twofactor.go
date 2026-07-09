@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/hash"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/google/uuid"
@@ -25,16 +27,67 @@ var (
 	ErrInvalid2FAToken         = errors.New("invalid two-factor token")
 )
 
+// encSecretPrefix marks a TOTP secret that is stored encrypted (AES-256-GCM).
+// Secrets without this prefix are legacy plaintext and are read as-is, so an
+// existing database keeps working after the encryption key is introduced.
+const encSecretPrefix = "enc:v1:"
+
 type TwoFactorService struct {
 	userRepo   repository.UserRepository
 	jwtManager *jwt.Manager
+	// aead encrypts TOTP secrets at rest. When nil, secrets are stored as
+	// plaintext (legacy behavior) — the deployment should set an encryption key.
+	aead *cryptoutil.AEAD
 }
 
-func NewTwoFactorService(userRepo repository.UserRepository, jwtManager *jwt.Manager) *TwoFactorService {
+// NewTwoFactorService constructs the service. aead may be nil, in which case
+// TOTP secrets are stored unencrypted (backward-compatible). Provide an AEAD
+// (see cryptoutil) to encrypt secrets at rest.
+func NewTwoFactorService(userRepo repository.UserRepository, jwtManager *jwt.Manager, aead *cryptoutil.AEAD) *TwoFactorService {
 	return &TwoFactorService{
 		userRepo:   userRepo,
 		jwtManager: jwtManager,
+		aead:       aead,
 	}
+}
+
+// encodeSecret returns the value to persist for a TOTP secret: an encrypted,
+// prefixed blob when an AEAD is configured, otherwise the plaintext (legacy).
+func (s *TwoFactorService) encodeSecret(plaintext string) (string, error) {
+	if s.aead == nil {
+		return plaintext, nil
+	}
+	ciphertext, nonce, err := s.aead.Encrypt([]byte(plaintext))
+	if err != nil {
+		return "", fmt.Errorf("encrypt 2FA secret: %w", err)
+	}
+	blob := append(append([]byte{}, nonce...), ciphertext...)
+	return encSecretPrefix + base64.StdEncoding.EncodeToString(blob), nil
+}
+
+// decodeSecret returns the plaintext TOTP secret from a stored value. Values
+// without encSecretPrefix are treated as legacy plaintext.
+func (s *TwoFactorService) decodeSecret(stored string) (string, error) {
+	if !strings.HasPrefix(stored, encSecretPrefix) {
+		return stored, nil // legacy plaintext secret
+	}
+	if s.aead == nil {
+		return "", errors.New("2FA secret is encrypted but no encryption key is configured")
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(stored, encSecretPrefix))
+	if err != nil {
+		return "", fmt.Errorf("decode 2FA secret: %w", err)
+	}
+	if len(raw) < cryptoutil.NonceSize {
+		return "", errors.New("malformed encrypted 2FA secret")
+	}
+	nonce := raw[:cryptoutil.NonceSize]
+	ciphertext := raw[cryptoutil.NonceSize:]
+	plaintext, err := s.aead.Decrypt(ciphertext, nonce)
+	if err != nil {
+		return "", fmt.Errorf("decrypt 2FA secret: %w", err)
+	}
+	return string(plaintext), nil
 }
 
 // SetupTOTP generates a new TOTP secret for a user (does not enable 2FA yet)
@@ -59,14 +112,19 @@ func (s *TwoFactorService) SetupTOTP(ctx context.Context, userID uuid.UUID) (str
 		return "", "", fmt.Errorf("failed to generate TOTP key: %w", err)
 	}
 
-	// Store the secret (not yet enabled)
+	// Store the secret (not yet enabled), encrypted at rest when a key is set.
 	secret := key.Secret()
-	user.TwoFactorSecret = &secret
+	stored, err := s.encodeSecret(secret)
+	if err != nil {
+		return "", "", err
+	}
+	user.TwoFactorSecret = &stored
 	user.UpdatedAt = time.Now()
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return "", "", err
 	}
 
+	// Return the plaintext secret + otpauth URL to the caller for QR display.
 	return secret, key.URL(), nil
 }
 
@@ -85,8 +143,12 @@ func (s *TwoFactorService) VerifyAndEnable(ctx context.Context, userID uuid.UUID
 		return nil, errors.New("2FA setup not started — call setup first")
 	}
 
-	// Verify the code against the stored secret
-	valid := totp.Validate(code, *user.TwoFactorSecret)
+	// Verify the code against the stored secret (decrypting it first if needed).
+	secret, err := s.decodeSecret(*user.TwoFactorSecret)
+	if err != nil {
+		return nil, err
+	}
+	valid := totp.Validate(code, secret)
 	if !valid {
 		return nil, ErrInvalidTOTPCode
 	}
@@ -149,14 +211,18 @@ func (s *TwoFactorService) ValidateTOTP(ctx context.Context, userID uuid.UUID, c
 		return false, ErrTwoFactorNotEnabled
 	}
 
-	// Reject further attempts while the account is locked.
+	// Try TOTP code first (decrypting the stored secret if needed).
+	secret, err := s.decodeSecret(*user.TwoFactorSecret)
+	if err != nil {
+		return false, err
+	}
+  // Reject further attempts while the account is locked.
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
 		return false, ErrAccountLocked
 	}
-
-	// Try TOTP code first
-	if totp.Validate(code, *user.TwoFactorSecret) {
-		s.resetFailedAttempts(ctx, user)
+  
+	if totp.Validate(code, secret) {
+    s.resetFailedAttempts(ctx, user)
 		return true, nil
 	}
 

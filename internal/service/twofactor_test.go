@@ -91,7 +91,7 @@ func (m *mock2FAUserRepo) MarkEmailVerified(ctx context.Context, id uuid.UUID) e
 func setup2FAService() (*service.TwoFactorService, *mock2FAUserRepo) {
 	repo := newMock2FAUserRepo()
 	jwtMgr := jwt.NewManager("test-access-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
-	svc := service.NewTwoFactorService(repo, jwtMgr)
+	svc := service.NewTwoFactorService(repo, jwtMgr, nil)
 	return svc, repo
 }
 
