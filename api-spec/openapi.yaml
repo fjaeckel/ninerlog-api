@@ -39,6 +39,8 @@ tags:
     description: Aircraft database management
   - name: Flights
     description: Flight log entries
+  - name: Flight Sessions
+    description: Live tap-to-log capture of block/flight times from mobile devices
   - name: Statistics
     description: Hour totals and analytics
   - name: Currency
@@ -2540,6 +2542,100 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /flight-sessions/current:
+    get:
+      tags:
+        - Flight Sessions
+      summary: Get current flight session
+      description: Returns the authenticated user's open (in-progress) flight session, if any.
+      operationId: getCurrentFlightSession
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The open flight session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Flight Sessions
+      summary: Discard current flight session
+      description: Discards the open flight session (e.g. after an accidental off-block tap). No flight log entry is created.
+      operationId: discardCurrentFlightSession
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Session discarded
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /flight-sessions/current/events:
+    post:
+      tags:
+        - Flight Sessions
+      summary: Record a flight session event
+      description: |
+        Tap-to-log endpoint for recording block/flight time events live from a mobile device.
+
+        - `offblock` opens a new session (or returns the existing open one — double-taps are harmless).
+        - `takeoff` and `landing` stamp the airborne times on the open session.
+        - `onblock` stamps the on-block time, closes the session, and converts it into a
+          regular flight log entry (returned via `flightId`). The created flight is prefilled
+          with block/flight times, block-time-derived total time, and auto-calculated fields;
+          the pilot completes the remaining details later in the normal flight edit flow.
+
+        Each event type is recorded at most once per session: repeating an event returns the
+        session unchanged, which makes offline retries safe.
+
+        The event timestamp defaults to the server clock; clients that queued the tap offline
+        should send `occurredAt` with the instant the tap actually happened.
+
+        When `lat`/`lon` are provided, the nearest airport (within 30 NM) is resolved and used
+        as the departure airport (for `offblock`/`takeoff`) or arrival airport
+        (for `landing`/`onblock`).
+      operationId: recordFlightSessionEvent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightSessionEvent'
+      responses:
+        '200':
+          description: Event applied to the existing session (or ignored as a duplicate)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSession'
+        '201':
+          description: New session opened (offblock)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No open session for takeoff/landing/onblock events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /admin/audit-log:
     get:
       tags:
@@ -4889,6 +4985,100 @@ components:
               type: integer
               example: 2
               description: Total number of pages
+
+    FlightSession:
+      type: object
+      required:
+        - id
+        - userId
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [open, completed, discarded]
+          description: Session lifecycle state. `onblock` events complete the session.
+        aircraftReg:
+          type: [string, 'null']
+          example: D-EFGH
+          description: Aircraft registration; required by the time the session goes on blocks
+        departureIcao:
+          type: [string, 'null']
+          example: EDDF
+          description: Departure airport, provided explicitly or resolved from GPS coordinates
+        arrivalIcao:
+          type: [string, 'null']
+          example: EDDH
+          description: Arrival airport, provided explicitly or resolved from GPS coordinates
+        offBlockAt:
+          type: [string, 'null']
+          format: date-time
+          description: Off-block instant (chocks off / engine start) in UTC
+        takeoffAt:
+          type: [string, 'null']
+          format: date-time
+          description: Takeoff instant in UTC
+        landingAt:
+          type: [string, 'null']
+          format: date-time
+          description: Landing instant in UTC
+        onBlockAt:
+          type: [string, 'null']
+          format: date-time
+          description: On-block instant (chocks on / engine shutdown) in UTC
+        flightId:
+          type: [string, 'null']
+          format: uuid
+          description: ID of the flight log entry created when the session was completed
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FlightSessionEvent:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [offblock, takeoff, landing, onblock]
+          description: Which block/flight time instant this event records
+        occurredAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the event actually happened (UTC). Defaults to the server clock; send this when the tap was queued offline.
+        aircraftReg:
+          type: [string, 'null']
+          example: D-EFGH
+          description: Aircraft registration. Can be sent with any event; required by the time the session goes on blocks.
+        icao:
+          type: [string, 'null']
+          minLength: 4
+          maxLength: 4
+          example: EDDF
+          description: Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock). Takes precedence over lat/lon.
+        lat:
+          type: [number, 'null']
+          format: double
+          minimum: -90
+          maximum: 90
+          description: GPS latitude used to resolve the nearest airport
+        lon:
+          type: [number, 'null']
+          format: double
+          minimum: -180
+          maximum: 180
+          description: GPS longitude used to resolve the nearest airport
 
     Airport:
       type: object

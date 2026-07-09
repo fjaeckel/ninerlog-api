@@ -20,25 +20,26 @@ import (
 
 // APIHandler implements the generated.ServerInterface from OpenAPI spec
 type APIHandler struct {
-	authService         *service.AuthService
-	licenseService      *service.LicenseService
-	flightService       *service.FlightService
-	credentialService   *service.CredentialService
-	aircraftService     *service.AircraftService
-	notificationService *service.NotificationService
-	twoFactorService    *service.TwoFactorService
-	contactService      *service.ContactService
-	classRatingService  *service.ClassRatingService
-	currencyService     *currency.Service
-	webauthnService     *service.WebAuthnService
-	jwtManager          *jwt.Manager
-	db                  *sql.DB
-	flightCrewRepo      repository.FlightCrewRepository
-	adminEmail          string
-	emailSender         *email.Sender
-	startedAt           time.Time
-	corsOrigins         []string
-	backupService       *cloudbackup.Service
+	authService          *service.AuthService
+	licenseService       *service.LicenseService
+	flightService        *service.FlightService
+	flightSessionService *service.FlightSessionService
+	credentialService    *service.CredentialService
+	aircraftService      *service.AircraftService
+	notificationService  *service.NotificationService
+	twoFactorService     *service.TwoFactorService
+	contactService       *service.ContactService
+	classRatingService   *service.ClassRatingService
+	currencyService      *currency.Service
+	webauthnService      *service.WebAuthnService
+	jwtManager           *jwt.Manager
+	db                   *sql.DB
+	flightCrewRepo       repository.FlightCrewRepository
+	adminEmail           string
+	emailSender          *email.Sender
+	startedAt            time.Time
+	corsOrigins          []string
+	backupService        *cloudbackup.Service
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface
