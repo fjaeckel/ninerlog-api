@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*.*.*']
   pull_request:
     branches: [main]
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -72,7 +74,7 @@ jobs:
   publish:
     name: Publish Docker Image
     needs: [unit-tests, integration-tests]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -101,6 +103,8 @@ jobs:
           tags: |
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push
         uses: docker/build-push-action@v7
