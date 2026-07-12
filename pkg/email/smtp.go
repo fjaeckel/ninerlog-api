@@ -27,7 +27,7 @@ func LoadSMTPConfig() *SMTPConfig {
 		Port:     getEnv("SMTP_PORT", "587"),
 		Username: getEnv("SMTP_USERNAME", ""),
 		Password: getEnv("SMTP_PASSWORD", ""),
-		From:     getEnv("SMTP_FROM", "noreply@ninerlog.app"),
+		From:     getEnv("SMTP_FROM", "noreply@ninerlog.com"),
 	}
 }
 
@@ -85,7 +85,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 		// Fall back to the default sender if the configured From is empty
 		// or invalid; this keeps the dry-run path usable when SMTP is not
 		// configured at all (e.g. in tests).
-		fromAddr = &mail.Address{Address: "noreply@ninerlog.app"}
+		fromAddr = &mail.Address{Address: "noreply@ninerlog.com"}
 	}
 	fromAddr.Name = "NinerLog"
 
