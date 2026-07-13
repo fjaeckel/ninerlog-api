@@ -16,7 +16,7 @@ require (
 	github.com/minio/minio-go/v7 v7.2.1
 	github.com/mstephenholl/go-solar v1.0.1
 	github.com/oapi-codegen/runtime v1.5.0
-	github.com/pkg/sftp v1.13.10
+	github.com/pkg/sftp v1.13.11
 	github.com/pquerna/otp v1.5.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
