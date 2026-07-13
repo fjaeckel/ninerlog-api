@@ -27,8 +27,16 @@ func AuthMiddleware(jwtManager *jwt.Manager, publicPaths []string) gin.HandlerFu
 			path = path[idx+len("/api/v1"):]
 		}
 
-		// Check if the path is public
-		if public[path] {
+		// Check if the path is public. publicPaths may contain either literal
+		// paths (e.g. "/auth/login") or gin route patterns for parameterized
+		// routes (e.g. "/sign/:token"); c.FullPath() returns the resolved
+		// pattern for the matched route, so pattern-shaped entries need to be
+		// checked against it rather than against the literal request path.
+		fullPath := c.FullPath()
+		if idx := strings.Index(fullPath, "/api/v1"); idx >= 0 {
+			fullPath = fullPath[idx+len("/api/v1"):]
+		}
+		if public[path] || (fullPath != "" && public[fullPath]) {
 			c.Next()
 			return
 		}

@@ -79,4 +79,26 @@ var deTemplates = templateSet{
 <p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Link))
 		return subject, body
 	},
+
+	SignatureRequest: func(p SignatureRequestParams) (string, string) {
+		subject := fmt.Sprintf("NinerLog: %s bittet Sie, einen Logbucheintrag zu unterschreiben", p.OwnerName)
+		body := fmt.Sprintf(`<h2>Logbuch-Unterschriftsanfrage</h2>
+<p>%s bittet Sie, einen Logbucheintrag zu prüfen und zu unterschreiben:</p>
+<p><strong>%s</strong></p>
+<p><a href="%s">Prüfen und unterschreiben</a></p>
+<p>Dieser Link läuft am %s ab. Falls Sie dies nicht erwartet haben, können Sie diese E-Mail ignorieren.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.OwnerName), html.EscapeString(p.FlightSummary), html.EscapeString(p.Link), html.EscapeString(p.ExpiresAt))
+		return subject, body
+	},
+
+	SignatureCompleted: func(p SignatureCompletedParams) (string, string) {
+		subject := "NinerLog: Ihr Logbucheintrag wurde unterschrieben"
+		body := fmt.Sprintf(`<h2>Unterschrift erfasst</h2>
+<p>Hallo %s,</p>
+<p><strong>%s</strong> hat Ihren Logbucheintrag unterschrieben:</p>
+<p><strong>%s</strong></p>
+<p>Dieser Eintrag ist nun gesperrt. Sie können die Unterschrift auf der Detailseite des Flugs widerrufen, falls Änderungen nötig sind (danach ist eine neue Unterschrift erforderlich).</p>
+<p>— NinerLog</p>`, html.EscapeString(p.OwnerName), html.EscapeString(p.SignerName), html.EscapeString(p.FlightSummary))
+		return subject, body
+	},
 }

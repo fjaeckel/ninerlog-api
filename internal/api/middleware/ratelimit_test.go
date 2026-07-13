@@ -129,6 +129,67 @@ func TestRateLimitByPath_AppliesOnlyToMatchingPaths(t *testing.T) {
 	}
 }
 
+func TestRateLimitByPathPrefix_AppliesToOpaqueTokenSuffix(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	rl := NewRateLimitMiddleware(1, time.Minute)
+	router.Use(RateLimitByPathPrefix(rl, "/sign/"))
+	router.GET("/sign/:token", func(c *gin.Context) {
+		c.String(http.StatusOK, "sign")
+	})
+	router.GET("/flights", func(c *gin.Context) {
+		c.String(http.StatusOK, "flights")
+	})
+
+	// Two different opaque tokens still share the prefix and thus the limit.
+	req := httptest.NewRequest("GET", "/sign/token-one", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("First /sign/ request returned %d, want 200", w.Code)
+	}
+
+	req = httptest.NewRequest("GET", "/sign/completely-different-token", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Second /sign/ request (different token, same IP) returned %d, want 429", w.Code)
+	}
+
+	// /flights from the same IP is unaffected (different prefix).
+	req = httptest.NewRequest("GET", "/flights", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Non-matching prefix returned %d, want 200", w.Code)
+	}
+}
+
+func TestRateLimitByPathPrefix_NoMatchPassesThrough(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	rl := NewRateLimitMiddleware(1, time.Minute)
+	router.Use(RateLimitByPathPrefix(rl, "/sign/"))
+	router.GET("/other", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest("GET", "/other", nil)
+		req.RemoteAddr = "10.0.0.1:12345"
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d to non-matching prefix returned %d, want 200", i+1, w.Code)
+		}
+	}
+}
+
 func TestRateLimitByPath_NoMatchPassesThrough(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

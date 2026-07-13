@@ -75,4 +75,26 @@ var enTemplates = templateSet{
 <p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Link))
 		return subject, body
 	},
+
+	SignatureRequest: func(p SignatureRequestParams) (string, string) {
+		subject := fmt.Sprintf("NinerLog: %s asked you to sign a logbook entry", p.OwnerName)
+		body := fmt.Sprintf(`<h2>Logbook Signature Request</h2>
+<p>%s has asked you to review and sign a logbook entry:</p>
+<p><strong>%s</strong></p>
+<p><a href="%s">Review and sign</a></p>
+<p>This link expires on %s. If you weren't expecting this, you can ignore this email.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.OwnerName), html.EscapeString(p.FlightSummary), html.EscapeString(p.Link), html.EscapeString(p.ExpiresAt))
+		return subject, body
+	},
+
+	SignatureCompleted: func(p SignatureCompletedParams) (string, string) {
+		subject := "NinerLog: Your logbook entry has been signed"
+		body := fmt.Sprintf(`<h2>Signature Recorded</h2>
+<p>Hi %s,</p>
+<p><strong>%s</strong> has signed your logbook entry:</p>
+<p><strong>%s</strong></p>
+<p>This entry is now locked. You can void the signature from the flight's detail page if you need to make changes (a new signature will then be required).</p>
+<p>— NinerLog</p>`, html.EscapeString(p.OwnerName), html.EscapeString(p.SignerName), html.EscapeString(p.FlightSummary))
+		return subject, body
+	},
 }

@@ -144,6 +144,46 @@ func TestAuthMiddleware_Rejects2FAChallengeToken(t *testing.T) {
 	}
 }
 
+// TestAuthMiddleware_PublicPath_WithPathParam is the regression test for a
+// bug where publicPaths entries shaped as a gin route pattern (e.g.
+// "/sign/:token") never matched because the middleware only compared against
+// the literal incoming request path. Real requests like "/sign/abc123" would
+// silently 401 despite being listed as public. AuthMiddleware must also
+// check c.FullPath() (the resolved route pattern) for this to work.
+func TestAuthMiddleware_PublicPath_WithPathParam(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	jwtMgr := newTestJWTManager()
+
+	router := gin.New()
+	api := router.Group("/api/v1")
+	api.Use(AuthMiddleware(jwtMgr, []string{"/sign/:token"}))
+	api.GET("/sign/:token", func(c *gin.Context) {
+		c.String(http.StatusOK, "sign:"+c.Param("token"))
+	})
+	api.GET("/flights/:flightId", func(c *gin.Context) {
+		c.String(http.StatusOK, "flight")
+	})
+
+	req := httptest.NewRequest("GET", "/api/v1/sign/abc123", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Parameterized public path returned %d, want 200", w.Code)
+	}
+
+	// A different parameterized route that is NOT in publicPaths must still
+	// require auth — the pattern-matching fix must not make every
+	// parameterized route public.
+	req2 := httptest.NewRequest("GET", "/api/v1/flights/some-id", nil)
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusUnauthorized {
+		t.Errorf("Non-public parameterized route returned %d, want 401", w2.Code)
+	}
+}
+
 func TestAuthMiddleware_ExpiredToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	// Create manager with 0 expiry so tokens are instantly expired

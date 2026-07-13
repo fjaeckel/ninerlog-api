@@ -210,6 +210,9 @@ func main() {
 	apiHandler.SetEmailSender(emailSender)
 	flightSessionService := service.NewFlightSessionService(flightSessionRepo, aircraftRepo, flightService)
 	apiHandler.SetFlightSessionService(flightSessionService)
+	flightSignatureRepo := postgres.NewFlightSignatureRepository(db)
+	flightSignatureService := service.NewFlightSignatureService(flightSignatureRepo, flightRepo, userRepo)
+	apiHandler.SetFlightSignatureService(flightSignatureService)
 	startedAt := time.Now()
 	apiHandler.SetStartedAt(startedAt)
 	apiHandler.SetCORSOrigins(corsOrigins)
@@ -360,7 +363,12 @@ func main() {
 		"/auth/webauthn/login/options",
 		"/auth/webauthn/login/verify",
 		"/airports/search",
-		"/airports/:icaoCode",
+		// Instructor signing links: unauthenticated by design (the signer
+		// has no NinerLog account). "/airports/:icaoCode" is deliberately
+		// NOT listed here — the OpenAPI spec requires bearerAuth for it, and
+		// unlike this literal-path allowlist, "/sign/:token" is a gin route
+		// *pattern* that AuthMiddleware matches via c.FullPath().
+		"/sign/:token",
 	}))
 
 	if os.Getenv("DISABLE_RATE_LIMIT") != "true" {
@@ -394,6 +402,20 @@ func main() {
 			"/enable",
 			"/unlock",
 			"/reset-2fa",
+		))
+
+		// Public signing links are unauthenticated and token-guessing-prone
+		// by nature (though the 256-bit token itself makes brute force
+		// infeasible); rate-limit by path prefix since the trailing token
+		// segment defeats RateLimitByPath's suffix matching.
+		signRateLimit := middleware.NewRateLimitMiddleware(20, 1*time.Minute)
+		api.Use(middleware.RateLimitByPathPrefix(signRateLimit, "/sign/"))
+
+		// Authenticated signature actions that trigger outbound email.
+		signatureEmailRateLimit := middleware.NewRateLimitMiddleware(10, 1*time.Minute)
+		api.Use(middleware.RateLimitByPath(signatureEmailRateLimit,
+			"/signatures",
+			"/resend",
 		))
 	} // end DISABLE_RATE_LIMIT check
 

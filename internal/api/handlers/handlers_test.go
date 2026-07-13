@@ -310,6 +310,14 @@ func (m *mockFlightRepo) Delete(_ context.Context, id uuid.UUID) error {
 	delete(m.flights, id)
 	return nil
 }
+func (m *mockFlightRepo) SetSignatureLock(_ context.Context, flightID uuid.UUID, signatureID *uuid.UUID) error {
+	f, exists := m.flights[flightID]
+	if !exists {
+		return repository.ErrNotFound
+	}
+	f.SignatureID = signatureID
+	return nil
+}
 func (m *mockFlightRepo) DeleteAllByUserID(_ context.Context, userID uuid.UUID) (int64, error) {
 	var count int64
 	for id, f := range m.flights {

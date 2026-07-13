@@ -55,6 +55,10 @@ tags:
     description: Flight statistics, trends, and breakdowns
   - name: Contacts
     description: Reusable crew and contact management
+  - name: Signatures
+    description: Instructor sign-off on flight log entries (live, deferred email, or shareable link/QR), plus voiding for revalidation
+  - name: Public Signing
+    description: Unauthenticated token-based endpoints used by an instructor to review and sign a flight via an emailed or shared link
   - name: Admin
     description: Admin-only platform management (requires ADMIN_EMAIL env var match)
   - name: Backups
@@ -1707,6 +1711,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Flight is locked by a completed instructor signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
     delete:
       tags:
@@ -1725,6 +1735,360 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Flight is locked by a completed instructor signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /flights/{flightId}/signatures:
+    get:
+      tags:
+        - Signatures
+      summary: List signature history for a flight
+      description: Returns every signature attempt for the flight (pending, completed, revoked, voided, expired), newest first.
+      operationId: listFlightSignatures
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+      responses:
+        '200':
+          description: Signature history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FlightSignature'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Signatures
+      summary: Create a deferred signature request
+      description: |
+        Starts a token-based signature request for the flight. If
+        `instructorEmail` is supplied, the request email is sent immediately;
+        if omitted, the request is created pending-and-unsent so the owner can
+        send it later (once they have an address) or share the returned
+        `signUrl` directly (e.g. as a QR code, over WhatsApp). Only one
+        pending request may exist per flight at a time.
+      operationId: createSignatureRequest
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSignatureRequestRequest'
+      responses:
+        '201':
+          description: Signature request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureRequestCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Flight is already locked, or a pending signature request already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /flights/{flightId}/signatures/live:
+    post:
+      tags:
+        - Signatures
+      summary: Record a live (in-person) signature
+      description: |
+        Records a signature captured on the flight owner's own device while
+        the instructor is physically present. Completes synchronously; no
+        token or email is involved.
+      operationId: signFlightLive
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLiveSignatureRequest'
+      responses:
+        '201':
+          description: Signature recorded, flight is now locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSignature'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Flight is already locked by a completed signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /flights/{flightId}/signatures/{signatureId}:
+    get:
+      tags:
+        - Signatures
+      summary: Get a single signature
+      operationId: getFlightSignature
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+        - $ref: '#/components/parameters/SignatureId'
+      responses:
+        '200':
+          description: Signature details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSignature'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /flights/{flightId}/signatures/{signatureId}/image:
+    get:
+      tags:
+        - Signatures
+      summary: Get the signature image
+      description: Returns the signer's drawn signature as a PNG image.
+      operationId: getFlightSignatureImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+        - $ref: '#/components/parameters/SignatureId'
+      responses:
+        '200':
+          description: Signature image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /flights/{flightId}/signatures/{signatureId}/resend:
+    post:
+      tags:
+        - Signatures
+      summary: Resend or regenerate a pending signature request
+      description: |
+        Rotates the request's token (invalidating any previously shared
+        link/QR) and, if `instructorEmail` is supplied, updates the delivery
+        address and (re)sends the request email. Calling this with no body
+        just regenerates the link/QR without emailing anyone. Only valid
+        while the request is still pending.
+      operationId: resendSignatureRequest
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+        - $ref: '#/components/parameters/SignatureId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendSignatureRequestRequest'
+      responses:
+        '200':
+          description: Request updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureRequestCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Signature request is not pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /flights/{flightId}/signatures/{signatureId}/revoke:
+    post:
+      tags:
+        - Signatures
+      summary: Revoke a pending signature request
+      description: Cancels a still-pending request before anyone has signed it. No reason required.
+      operationId: revokeSignatureRequest
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+        - $ref: '#/components/parameters/SignatureId'
+      responses:
+        '200':
+          description: Request revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSignature'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Signature request is not pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /flights/{flightId}/signatures/{signatureId}/void:
+    post:
+      tags:
+        - Signatures
+      summary: Void a completed signature
+      description: |
+        Invalidates an already-completed signature (a reason is required for
+        the audit trail) and unlocks the flight for editing again. Editing
+        and re-signing after a void is the expected "revalidation" workflow.
+      operationId: voidFlightSignature
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+        - $ref: '#/components/parameters/SignatureId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoidSignatureRequest'
+      responses:
+        '200':
+          description: Signature voided, flight unlocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSignature'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Signature is not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sign/{token}:
+    get:
+      tags:
+        - Public Signing
+      summary: Get public signing info for a token
+      description: |
+        Unauthenticated endpoint used by the recipient of a signing link
+        (email or shared URL/QR) to review the flight before signing. Never
+        returns 401/403: an invalid, already-used, or revoked/voided token is
+        reported as 404, and an expired token as 410, both with the same
+        generic message so a caller cannot enumerate token state.
+      operationId: getPublicSignatureInfo
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SignatureToken'
+      responses:
+        '200':
+          description: Flight summary and request status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSignatureInfo'
+        '404':
+          description: This signing link is invalid or has already been used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: This signing link has expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Public Signing
+      summary: Complete a signature via a public link
+      description: |
+        Records the instructor's signature against a valid pending token.
+        Deliberately returns a minimal body — no flight or owner details are
+        echoed back to an unauthenticated caller.
+      operationId: completePublicSignature
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SignatureToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteSignatureRequest'
+      responses:
+        '200':
+          description: Signature recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                    example: Signature recorded. Thank you!
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: This signing link is invalid or has already been used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: This signing link has expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /airports/{icaoCode}:
     get:
@@ -3407,6 +3771,25 @@ components:
         format: uuid
         example: 660e8400-e29b-41d4-a716-446655440001
 
+    SignatureId:
+      name: signatureId
+      in: path
+      required: true
+      description: Flight signature UUID
+      schema:
+        type: string
+        format: uuid
+        example: 880e8400-e29b-41d4-a716-446655440003
+
+    SignatureToken:
+      name: token
+      in: path
+      required: true
+      description: Opaque single-use signing token from an emailed or shared link
+      schema:
+        type: string
+        example: 3q2-7w15QSf9jZ0mF8x1uQhz6cQd8k2r9m5b0nJH8k4
+
     CredentialId:
       name: credentialId
       in: path
@@ -4121,6 +4504,14 @@ components:
           type: string
           format: date-time
           example: '2026-01-30T16:00:00Z'
+        signatureId:
+          type: [string, 'null']
+          format: uuid
+          description: |
+            Present iff the flight is locked by a completed, non-voided
+            instructor signature. Void the signature (see
+            /flights/{flightId}/signatures/{signatureId}/void) to unlock it
+            for editing.
 
     FlightCreate:
       type: object
@@ -6723,6 +7114,181 @@ components:
               type: integer
             totalPages:
               type: integer
+
+    FlightSignature:
+      type: object
+      required:
+        - id
+        - flightId
+        - method
+        - status
+        - emailSendCount
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        flightId:
+          type: string
+          format: uuid
+        method:
+          type: string
+          enum: [live, deferred]
+          description: live = captured in person with no token; deferred = token-based, delivered by email and/or a shareable link/QR
+        status:
+          type: string
+          enum: [pending, completed, revoked, voided, expired]
+        instructorName:
+          type: [string, 'null']
+        instructorCredentialNumber:
+          type: [string, 'null']
+        instructorEmail:
+          type: [string, 'null']
+          format: email
+        emailSentAt:
+          type: [string, 'null']
+          format: date-time
+        emailSendCount:
+          type: integer
+          minimum: 0
+        tokenExpiresAt:
+          type: [string, 'null']
+          format: date-time
+        signedAt:
+          type: [string, 'null']
+          format: date-time
+        voidedAt:
+          type: [string, 'null']
+          format: date-time
+        voidedReason:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SignatureRequestCreated:
+      description: A FlightSignature plus the one-time signing URL. The URL is only ever returned from the create/resend calls that generated it — it is not retrievable again afterwards, so the owner must copy/share it (or its QR code) immediately, or resend to get a fresh one.
+      allOf:
+        - $ref: '#/components/schemas/FlightSignature'
+        - type: object
+          required:
+            - signUrl
+          properties:
+            signUrl:
+              type: string
+              format: uri
+              example: https://app.ninerlog.com/sign?token=3q2-7w15QSf9jZ0mF8x1uQhz6cQd8k2r9m5b0nJH8k4
+
+    CreateLiveSignatureRequest:
+      type: object
+      required:
+        - signerName
+        - signatureImage
+      properties:
+        signerName:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Jane Instructor
+        credentialNumber:
+          type: [string, 'null']
+          maxLength: 100
+          description: e.g. CFI certificate number
+        signatureImage:
+          type: string
+          format: byte
+          description: PNG-encoded signature image, base64. Max 500KB decoded.
+
+    CreateSignatureRequestRequest:
+      type: object
+      properties:
+        instructorEmail:
+          type: [string, 'null']
+          format: email
+          description: If supplied, the request email is sent immediately. Omit to create a pending-and-unsent request.
+        expiresInHours:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 720
+          default: 168
+          description: Clamped server-side to [1, 720] hours (30 days max). Defaults to 168 (7 days).
+
+    ResendSignatureRequestRequest:
+      type: object
+      properties:
+        instructorEmail:
+          type: [string, 'null']
+          format: email
+          description: If supplied, updates the delivery address and sends the request email. Omit to just rotate the token/link without emailing anyone.
+
+    VoidSignatureRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: Entered wrong dual time, correcting before re-signing
+
+    PublicSignatureInfo:
+      type: object
+      required:
+        - status
+        - flightDate
+        - aircraftReg
+        - aircraftType
+        - totalTime
+        - expiresAt
+      description: Deliberately minimal — no owner PII beyond the flight's own logged details.
+      properties:
+        status:
+          type: string
+          enum: [pending]
+          description: Always "pending" on a 200 response; any other state is reported via 404/410 instead.
+        flightDate:
+          type: string
+          format: date
+        aircraftReg:
+          type: string
+        aircraftType:
+          type: string
+        route:
+          type: [string, 'null']
+        totalTime:
+          type: integer
+          description: Total block time in minutes
+        dualTime:
+          type: integer
+        instructorName:
+          type: [string, 'null']
+          description: Prefill, if the owner supplied one when creating the request.
+        expiresAt:
+          type: string
+          format: date-time
+
+    CompleteSignatureRequest:
+      type: object
+      required:
+        - signerName
+        - signatureImage
+      properties:
+        signerName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        credentialNumber:
+          type: [string, 'null']
+          maxLength: 100
+        signatureImage:
+          type: string
+          format: byte
+          description: PNG-encoded signature image, base64. Max 500KB decoded.
 
     Error:
       type: object

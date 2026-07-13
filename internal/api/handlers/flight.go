@@ -564,6 +564,14 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	}
 
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
+		if errors.Is(err, service.ErrFlightLocked) {
+			h.sendError(c, http.StatusConflict, "This flight is locked by a completed signature. Void the signature to make changes.")
+			return
+		}
+		if errors.Is(err, service.ErrFlightNotFound) || errors.Is(err, service.ErrUnauthorizedFlight) {
+			h.sendError(c, http.StatusNotFound, "Flight not found")
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update flight")
 		return
 	}
@@ -588,6 +596,10 @@ func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId) {
 	}
 
 	if err := h.flightService.DeleteFlight(c.Request.Context(), uuid.UUID(flightId), userID); err != nil {
+		if errors.Is(err, service.ErrFlightLocked) {
+			h.sendError(c, http.StatusConflict, "This flight is locked by a completed signature. Void the signature to make changes.")
+			return
+		}
 		if errors.Is(err, service.ErrFlightNotFound) || errors.Is(err, service.ErrUnauthorizedFlight) {
 			h.sendError(c, http.StatusNotFound, "Flight not found")
 			return
@@ -651,6 +663,10 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	}
 	if f.Remarks != nil {
 		flight.Remarks = f.Remarks
+	}
+	if f.SignatureID != nil {
+		sigID := openapi_types.UUID(*f.SignatureID)
+		flight.SignatureId = &sigID
 	}
 
 	// New fields

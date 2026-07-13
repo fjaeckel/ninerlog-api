@@ -74,3 +74,19 @@ func RateLimitByPath(rl gin.HandlerFunc, paths ...string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RateLimitByPathPrefix applies a rate-limit middleware only to requests
+// whose path starts with one of the given prefixes. Unlike RateLimitByPath's
+// suffix matching, this is needed for routes ending in an opaque token
+// (e.g. "/sign/{token}"), which never share a fixed suffix.
+func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		for _, p := range prefixes {
+			if strings.HasPrefix(c.Request.URL.Path, p) {
+				rl(c)
+				return
+			}
+		}
+		c.Next()
+	}
+}

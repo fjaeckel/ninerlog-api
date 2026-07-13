@@ -64,6 +64,15 @@ func (m *mockFlightRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *mockFlightRepo) SetSignatureLock(ctx context.Context, flightID uuid.UUID, signatureID *uuid.UUID) error {
+	flight, exists := m.flights[flightID]
+	if !exists {
+		return repository.ErrNotFound
+	}
+	flight.SignatureID = signatureID
+	return nil
+}
+
 func (m *mockFlightRepo) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	var count int64
 	for id, f := range m.flights {
@@ -206,6 +215,63 @@ func TestUpdateFlight(t *testing.T) {
 	updated, _ := service.GetFlight(ctx, flight.ID, userID)
 	if updated.TotalTime != 180 {
 		t.Errorf("Expected total time 180, got %d", updated.TotalTime)
+	}
+}
+
+func TestUpdateFlight_Locked_ReturnsErrFlightLocked(t *testing.T) {
+	flightRepo := newMockFlightRepo()
+	svc := NewFlightService(flightRepo, nil)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	flight := &models.Flight{
+		UserID:       userID,
+		Date:         time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC),
+		AircraftReg:  "D-EFGH",
+		AircraftType: "C172",
+		TotalTime:    150,
+		IsPIC:        true,
+		PICTime:      150,
+		LandingsDay:  3,
+	}
+	_ = svc.CreateFlight(ctx, flight)
+
+	sigID := uuid.New()
+	if err := flightRepo.SetSignatureLock(ctx, flight.ID, &sigID); err != nil {
+		t.Fatalf("SetSignatureLock() error = %v", err)
+	}
+
+	flight.TotalTime = 180
+	if err := svc.UpdateFlight(ctx, flight, userID); err != ErrFlightLocked {
+		t.Errorf("UpdateFlight() on locked flight error = %v, want ErrFlightLocked", err)
+	}
+}
+
+func TestDeleteFlight_Locked_ReturnsErrFlightLocked(t *testing.T) {
+	flightRepo := newMockFlightRepo()
+	svc := NewFlightService(flightRepo, nil)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	flight := &models.Flight{
+		UserID:       userID,
+		Date:         time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC),
+		AircraftReg:  "D-EFGH",
+		AircraftType: "C172",
+		TotalTime:    150,
+		IsPIC:        true,
+		PICTime:      150,
+		LandingsDay:  3,
+	}
+	_ = svc.CreateFlight(ctx, flight)
+
+	sigID := uuid.New()
+	if err := flightRepo.SetSignatureLock(ctx, flight.ID, &sigID); err != nil {
+		t.Fatalf("SetSignatureLock() error = %v", err)
+	}
+
+	if err := svc.DeleteFlight(ctx, flight.ID, userID); err != ErrFlightLocked {
+		t.Errorf("DeleteFlight() on locked flight error = %v, want ErrFlightLocked", err)
 	}
 }
 
