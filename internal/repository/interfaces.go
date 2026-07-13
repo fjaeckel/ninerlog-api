@@ -105,6 +105,10 @@ type FlightRepository interface {
 
 	// GetCurrencyData returns landing counts and flight count for a user within a date range
 	GetCurrencyData(ctx context.Context, userID uuid.UUID, since time.Time) (*models.CurrencyData, error)
+
+	// SetSignatureLock sets (or, passing nil, clears) the flight's signature
+	// lock pointer. Locked iff signatureID is non-nil.
+	SetSignatureLock(ctx context.Context, flightID uuid.UUID, signatureID *uuid.UUID) error
 }
 
 // FlightQueryOptions represents query parameters for filtering flights
@@ -144,6 +148,42 @@ type FlightSessionRepository interface {
 	// Update persists mutable session fields (timestamps, aircraft, route,
 	// status, flight_id). Returns ErrNotFound when the session does not exist.
 	Update(ctx context.Context, session *models.FlightSession) error
+}
+
+// FlightSignatureRepository defines the interface for instructor sign-off
+// request/record data access. See models.FlightSignature for the field
+// rationale; rows are append-only history, with flights.signature_id (via
+// FlightRepository.SetSignatureLock) as the denormalized "is locked" pointer.
+type FlightSignatureRepository interface {
+	// Create creates a new flight signature row (live 'completed' or
+	// deferred 'pending'). Returns ErrDuplicate if a pending row already
+	// exists for the flight (enforced by a partial unique index).
+	Create(ctx context.Context, sig *models.FlightSignature) error
+
+	// GetByID retrieves a signature by ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*models.FlightSignature, error)
+
+	// GetByTokenHash retrieves a signature by its hashed token, for the
+	// public /sign/{token} flow. Returns ErrNotFound if no row has this hash
+	// (regardless of status) so callers can't distinguish "never existed"
+	// from "already used" via this lookup alone.
+	GetByTokenHash(ctx context.Context, tokenHash string) (*models.FlightSignature, error)
+
+	// GetPendingByFlightID returns the flight's current pending request, or
+	// ErrNotFound if none.
+	GetPendingByFlightID(ctx context.Context, flightID uuid.UUID) (*models.FlightSignature, error)
+
+	// ListByFlightID returns the full signature history for a flight, newest
+	// first.
+	ListByFlightID(ctx context.Context, flightID uuid.UUID) ([]*models.FlightSignature, error)
+
+	// Update persists all mutable fields of a signature row.
+	Update(ctx context.Context, sig *models.FlightSignature) error
+
+	// ExpirePendingPastDue flips any 'pending' row whose token_expires_at
+	// has passed to 'expired' (soft, keeps audit trail) and returns the
+	// number of rows affected. Used by the admin cleanup-tokens sweep.
+	ExpirePendingPastDue(ctx context.Context) (int64, error)
 }
 
 // PasswordResetTokenRepository defines the interface for password reset token data access

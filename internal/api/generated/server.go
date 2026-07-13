@@ -239,6 +239,30 @@ type ServerInterface interface {
 	// Update flight
 	// (PUT /flights/{flightId})
 	UpdateFlight(c *gin.Context, flightId FlightId)
+	// List signature history for a flight
+	// (GET /flights/{flightId}/signatures)
+	ListFlightSignatures(c *gin.Context, flightId FlightId)
+	// Create a deferred signature request
+	// (POST /flights/{flightId}/signatures)
+	CreateSignatureRequest(c *gin.Context, flightId FlightId)
+	// Record a live (in-person) signature
+	// (POST /flights/{flightId}/signatures/live)
+	SignFlightLive(c *gin.Context, flightId FlightId)
+	// Get a single signature
+	// (GET /flights/{flightId}/signatures/{signatureId})
+	GetFlightSignature(c *gin.Context, flightId FlightId, signatureId SignatureId)
+	// Get the signature image
+	// (GET /flights/{flightId}/signatures/{signatureId}/image)
+	GetFlightSignatureImage(c *gin.Context, flightId FlightId, signatureId SignatureId)
+	// Resend or regenerate a pending signature request
+	// (POST /flights/{flightId}/signatures/{signatureId}/resend)
+	ResendSignatureRequest(c *gin.Context, flightId FlightId, signatureId SignatureId)
+	// Revoke a pending signature request
+	// (POST /flights/{flightId}/signatures/{signatureId}/revoke)
+	RevokeSignatureRequest(c *gin.Context, flightId FlightId, signatureId SignatureId)
+	// Void a completed signature
+	// (POST /flights/{flightId}/signatures/{signatureId}/void)
+	VoidFlightSignature(c *gin.Context, flightId FlightId, signatureId SignatureId)
 	// List import history
 	// (GET /imports)
 	ListImports(c *gin.Context, params ListImportsParams)
@@ -302,6 +326,12 @@ type ServerInterface interface {
 	// Get monthly flight trends
 	// (GET /reports/trends)
 	GetFlightTrends(c *gin.Context, params GetFlightTrendsParams)
+	// Get public signing info for a token
+	// (GET /sign/{token})
+	GetPublicSignatureInfo(c *gin.Context, token SignatureToken)
+	// Complete a signature via a public link
+	// (POST /sign/{token})
+	CompletePublicSignature(c *gin.Context, token SignatureToken)
 	// Delete current user account
 	// (DELETE /users/me)
 	DeleteCurrentUser(c *gin.Context)
@@ -2046,6 +2076,267 @@ func (siw *ServerInterfaceWrapper) UpdateFlight(c *gin.Context) {
 	siw.Handler.UpdateFlight(c, flightId)
 }
 
+// ListFlightSignatures operation middleware
+func (siw *ServerInterfaceWrapper) ListFlightSignatures(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListFlightSignatures(c, flightId)
+}
+
+// CreateSignatureRequest operation middleware
+func (siw *ServerInterfaceWrapper) CreateSignatureRequest(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSignatureRequest(c, flightId)
+}
+
+// SignFlightLive operation middleware
+func (siw *ServerInterfaceWrapper) SignFlightLive(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SignFlightLive(c, flightId)
+}
+
+// GetFlightSignature operation middleware
+func (siw *ServerInterfaceWrapper) GetFlightSignature(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "signatureId" -------------
+	var signatureId SignatureId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "signatureId", c.Param("signatureId"), &signatureId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter signatureId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFlightSignature(c, flightId, signatureId)
+}
+
+// GetFlightSignatureImage operation middleware
+func (siw *ServerInterfaceWrapper) GetFlightSignatureImage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "signatureId" -------------
+	var signatureId SignatureId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "signatureId", c.Param("signatureId"), &signatureId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter signatureId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFlightSignatureImage(c, flightId, signatureId)
+}
+
+// ResendSignatureRequest operation middleware
+func (siw *ServerInterfaceWrapper) ResendSignatureRequest(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "signatureId" -------------
+	var signatureId SignatureId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "signatureId", c.Param("signatureId"), &signatureId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter signatureId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResendSignatureRequest(c, flightId, signatureId)
+}
+
+// RevokeSignatureRequest operation middleware
+func (siw *ServerInterfaceWrapper) RevokeSignatureRequest(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "signatureId" -------------
+	var signatureId SignatureId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "signatureId", c.Param("signatureId"), &signatureId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter signatureId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RevokeSignatureRequest(c, flightId, signatureId)
+}
+
+// VoidFlightSignature operation middleware
+func (siw *ServerInterfaceWrapper) VoidFlightSignature(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "signatureId" -------------
+	var signatureId SignatureId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "signatureId", c.Param("signatureId"), &signatureId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter signatureId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VoidFlightSignature(c, flightId, signatureId)
+}
+
 // ListImports operation middleware
 func (siw *ServerInterfaceWrapper) ListImports(c *gin.Context) {
 
@@ -2568,6 +2859,56 @@ func (siw *ServerInterfaceWrapper) GetFlightTrends(c *gin.Context) {
 	siw.Handler.GetFlightTrends(c, params)
 }
 
+// GetPublicSignatureInfo operation middleware
+func (siw *ServerInterfaceWrapper) GetPublicSignatureInfo(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token SignatureToken
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", c.Param("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter token: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPublicSignatureInfo(c, token)
+}
+
+// CompletePublicSignature operation middleware
+func (siw *ServerInterfaceWrapper) CompletePublicSignature(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token SignatureToken
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", c.Param("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter token: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CompletePublicSignature(c, token)
+}
+
 // DeleteCurrentUser operation middleware
 func (siw *ServerInterfaceWrapper) DeleteCurrentUser(c *gin.Context) {
 
@@ -2879,6 +3220,14 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)
 	router.GET(options.BaseURL+"/flights/:flightId", wrapper.GetFlight)
 	router.PUT(options.BaseURL+"/flights/:flightId", wrapper.UpdateFlight)
+	router.GET(options.BaseURL+"/flights/:flightId/signatures", wrapper.ListFlightSignatures)
+	router.POST(options.BaseURL+"/flights/:flightId/signatures", wrapper.CreateSignatureRequest)
+	router.POST(options.BaseURL+"/flights/:flightId/signatures/live", wrapper.SignFlightLive)
+	router.GET(options.BaseURL+"/flights/:flightId/signatures/:signatureId", wrapper.GetFlightSignature)
+	router.GET(options.BaseURL+"/flights/:flightId/signatures/:signatureId/image", wrapper.GetFlightSignatureImage)
+	router.POST(options.BaseURL+"/flights/:flightId/signatures/:signatureId/resend", wrapper.ResendSignatureRequest)
+	router.POST(options.BaseURL+"/flights/:flightId/signatures/:signatureId/revoke", wrapper.RevokeSignatureRequest)
+	router.POST(options.BaseURL+"/flights/:flightId/signatures/:signatureId/void", wrapper.VoidFlightSignature)
 	router.GET(options.BaseURL+"/imports", wrapper.ListImports)
 	router.POST(options.BaseURL+"/imports/confirm", wrapper.ConfirmImport)
 	router.POST(options.BaseURL+"/imports/json", wrapper.ImportDataJSON)
@@ -2900,6 +3249,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/reports/routes", wrapper.GetFlightRoutes)
 	router.GET(options.BaseURL+"/reports/stats-by-class", wrapper.GetStatsByClass)
 	router.GET(options.BaseURL+"/reports/trends", wrapper.GetFlightTrends)
+	router.GET(options.BaseURL+"/sign/:token", wrapper.GetPublicSignatureInfo)
+	router.POST(options.BaseURL+"/sign/:token", wrapper.CompletePublicSignature)
 	router.DELETE(options.BaseURL+"/users/me", wrapper.DeleteCurrentUser)
 	router.GET(options.BaseURL+"/users/me", wrapper.GetCurrentUser)
 	router.PATCH(options.BaseURL+"/users/me", wrapper.UpdateCurrentUser)

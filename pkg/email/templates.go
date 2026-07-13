@@ -11,10 +11,10 @@ type CredentialExpiryParams struct {
 }
 
 type RatingExpiryParams struct {
-	UserName    string
-	LicenseType string
-	ClassType   string
-	ExpiryDate  string
+	UserName      string
+	LicenseType   string
+	ClassType     string
+	ExpiryDate    string
 	DaysRemaining int
 }
 
@@ -26,17 +26,17 @@ type RevalidationParams struct {
 }
 
 type PassengerCurrencyParams struct {
-	UserName    string
-	ClassType   string
-	Landings    int
-	Required    int
-	Remaining   int
-	Period      string // "day" or "night"
+	UserName  string
+	ClassType string
+	Landings  int
+	Required  int
+	Remaining int
+	Period    string // "day" or "night"
 }
 
 type FlightReviewExpiryParams struct {
-	UserName   string
-	ExpiryDate string
+	UserName      string
+	ExpiryDate    string
 	DaysRemaining int
 }
 
@@ -48,6 +48,19 @@ type FlightReviewRequiredParams struct {
 type VerifyEmailParams struct {
 	UserName string
 	Link     string
+}
+
+type SignatureRequestParams struct {
+	OwnerName     string
+	FlightSummary string // e.g. "12 Jul 2026 — D-EFGH (C172), 1h24m"
+	Link          string
+	ExpiresAt     string
+}
+
+type SignatureCompletedParams struct {
+	OwnerName     string
+	FlightSummary string
+	SignerName    string
 }
 
 // Templates returns the email template functions for the given locale.
@@ -69,4 +82,6 @@ type templateSet struct {
 	FlightReviewExpiry   func(p FlightReviewExpiryParams) (subject, body string)
 	FlightReviewRequired func(p FlightReviewRequiredParams) (subject, body string)
 	VerifyEmail          func(p VerifyEmailParams) (subject, body string)
+	SignatureRequest     func(p SignatureRequestParams) (subject, body string)
+	SignatureCompleted   func(p SignatureCompletedParams) (subject, body string)
 }

@@ -223,6 +223,11 @@ func (h *APIHandler) SetFlightSessionService(s *service.FlightSessionService) {
 	h.flightSessionService = s
 }
 
+// SetFlightSignatureService stores the instructor sign-off service
+func (h *APIHandler) SetFlightSignatureService(s *service.FlightSignatureService) {
+	h.flightSignatureService = s
+}
+
 func toGeneratedAirport(a *airports.AirportInfo) generated.Airport {
 	ap := generated.Airport{
 		Icao:      a.ICAO,

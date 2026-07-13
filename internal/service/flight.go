@@ -14,6 +14,11 @@ var (
 	ErrFlightNotFound     = errors.New("flight not found")
 	ErrInvalidFlight      = errors.New("invalid flight data")
 	ErrUnauthorizedFlight = errors.New("unauthorized access to flight")
+	// ErrFlightLocked is returned when attempting to update or delete a
+	// flight that carries a completed, non-voided instructor signature. The
+	// signature must be voided (see FlightSignatureService.Void) before the
+	// flight can be edited or deleted again.
+	ErrFlightLocked = errors.New("flight is locked by a completed signature")
 )
 
 type FlightService struct {
@@ -86,6 +91,10 @@ func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight,
 		return ErrUnauthorizedFlight
 	}
 
+	if existing.SignatureID != nil {
+		return ErrFlightLocked
+	}
+
 	// Validate text field lengths
 	if err := models.ValidateFlightTextFields(flight); err != nil {
 		return err
@@ -122,6 +131,10 @@ func (s *FlightService) DeleteFlight(ctx context.Context, flightID, userID uuid.
 
 	if flight.UserID != userID {
 		return ErrUnauthorizedFlight
+	}
+
+	if flight.SignatureID != nil {
+		return ErrFlightLocked
 	}
 
 	return s.flightRepo.Delete(ctx, flightID)

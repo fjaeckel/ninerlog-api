@@ -151,7 +151,8 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		       sic_time, dual_given_time, simulated_flight_time, ground_training_time,
 		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 		       launch_method,
-		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements
+		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
+		       signature_id
 		FROM flights
 		WHERE id = $1
 	`
@@ -213,6 +214,7 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.FSTDType,
 		&approachesJSON,
 		&flight.Endorsements,
+		&flight.SignatureID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -529,7 +531,8 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		       sic_time, dual_given_time, simulated_flight_time, ground_training_time,
 		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 		       launch_method,
-		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements
+		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
+		       signature_id
 		FROM flights
 		WHERE ` + baseCondition
 
@@ -693,6 +696,7 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.FSTDType,
 			&approachesJSON,
 			&flight.Endorsements,
+			&flight.SignatureID,
 		)
 		if err != nil {
 			return nil, err
@@ -714,4 +718,22 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 	}
 
 	return flights, nil
+}
+
+func (r *flightRepository) SetSignatureLock(ctx context.Context, flightID uuid.UUID, signatureID *uuid.UUID) error {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE flights SET signature_id = $1, updated_at = now() WHERE id = $2`,
+		signatureID, flightID,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
 }

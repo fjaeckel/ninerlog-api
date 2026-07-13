@@ -109,6 +109,10 @@ type Flight struct {
 	// Additional information
 	Remarks *string `json:"remarks,omitempty"`
 
+	// Instructor sign-off lock. Non-nil iff the flight is locked by a
+	// completed, non-voided FlightSignature (see flight_signature.go).
+	SignatureID *uuid.UUID `json:"signatureId,omitempty"`
+
 	// Metadata
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`

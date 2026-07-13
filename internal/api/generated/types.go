@@ -451,6 +451,51 @@ func (e FlightSessionEventType) Valid() bool {
 	}
 }
 
+// Defines values for FlightSignatureMethod.
+const (
+	FlightSignatureMethodDeferred FlightSignatureMethod = "deferred"
+	FlightSignatureMethodLive     FlightSignatureMethod = "live"
+)
+
+// Valid indicates whether the value is a known member of the FlightSignatureMethod enum.
+func (e FlightSignatureMethod) Valid() bool {
+	switch e {
+	case FlightSignatureMethodDeferred:
+		return true
+	case FlightSignatureMethodLive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FlightSignatureStatus.
+const (
+	FlightSignatureStatusCompleted FlightSignatureStatus = "completed"
+	FlightSignatureStatusExpired   FlightSignatureStatus = "expired"
+	FlightSignatureStatusPending   FlightSignatureStatus = "pending"
+	FlightSignatureStatusRevoked   FlightSignatureStatus = "revoked"
+	FlightSignatureStatusVoided    FlightSignatureStatus = "voided"
+)
+
+// Valid indicates whether the value is a known member of the FlightSignatureStatus enum.
+func (e FlightSignatureStatus) Valid() bool {
+	switch e {
+	case FlightSignatureStatusCompleted:
+		return true
+	case FlightSignatureStatusExpired:
+		return true
+	case FlightSignatureStatusPending:
+		return true
+	case FlightSignatureStatusRevoked:
+		return true
+	case FlightSignatureStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FlightUpdateLaunchMethod.
 const (
 	Aerotow    FlightUpdateLaunchMethod = "aerotow"
@@ -720,22 +765,82 @@ func (e PassengerCurrencyDayStatus) Valid() bool {
 
 // Defines values for PassengerCurrencyNightStatus.
 const (
-	Current  PassengerCurrencyNightStatus = "current"
-	Expired  PassengerCurrencyNightStatus = "expired"
-	Expiring PassengerCurrencyNightStatus = "expiring"
-	Unknown  PassengerCurrencyNightStatus = "unknown"
+	PassengerCurrencyNightStatusCurrent  PassengerCurrencyNightStatus = "current"
+	PassengerCurrencyNightStatusExpired  PassengerCurrencyNightStatus = "expired"
+	PassengerCurrencyNightStatusExpiring PassengerCurrencyNightStatus = "expiring"
+	PassengerCurrencyNightStatusUnknown  PassengerCurrencyNightStatus = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the PassengerCurrencyNightStatus enum.
 func (e PassengerCurrencyNightStatus) Valid() bool {
 	switch e {
-	case Current:
+	case PassengerCurrencyNightStatusCurrent:
 		return true
-	case Expired:
+	case PassengerCurrencyNightStatusExpired:
 		return true
-	case Expiring:
+	case PassengerCurrencyNightStatusExpiring:
 		return true
-	case Unknown:
+	case PassengerCurrencyNightStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PublicSignatureInfoStatus.
+const (
+	PublicSignatureInfoStatusPending PublicSignatureInfoStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the PublicSignatureInfoStatus enum.
+func (e PublicSignatureInfoStatus) Valid() bool {
+	switch e {
+	case PublicSignatureInfoStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SignatureRequestCreatedMethod.
+const (
+	SignatureRequestCreatedMethodDeferred SignatureRequestCreatedMethod = "deferred"
+	SignatureRequestCreatedMethodLive     SignatureRequestCreatedMethod = "live"
+)
+
+// Valid indicates whether the value is a known member of the SignatureRequestCreatedMethod enum.
+func (e SignatureRequestCreatedMethod) Valid() bool {
+	switch e {
+	case SignatureRequestCreatedMethodDeferred:
+		return true
+	case SignatureRequestCreatedMethodLive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SignatureRequestCreatedStatus.
+const (
+	SignatureRequestCreatedStatusCompleted SignatureRequestCreatedStatus = "completed"
+	SignatureRequestCreatedStatusExpired   SignatureRequestCreatedStatus = "expired"
+	SignatureRequestCreatedStatusPending   SignatureRequestCreatedStatus = "pending"
+	SignatureRequestCreatedStatusRevoked   SignatureRequestCreatedStatus = "revoked"
+	SignatureRequestCreatedStatusVoided    SignatureRequestCreatedStatus = "voided"
+)
+
+// Valid indicates whether the value is a known member of the SignatureRequestCreatedStatus enum.
+func (e SignatureRequestCreatedStatus) Valid() bool {
+	switch e {
+	case SignatureRequestCreatedStatusCompleted:
+		return true
+	case SignatureRequestCreatedStatusExpired:
+		return true
+	case SignatureRequestCreatedStatusPending:
+		return true
+	case SignatureRequestCreatedStatusRevoked:
+		return true
+	case SignatureRequestCreatedStatusVoided:
 		return true
 	default:
 		return false
@@ -1617,6 +1722,15 @@ type ClassRatingUpdate struct {
 // - OTHER: Other rating type
 type ClassType string
 
+// CompleteSignatureRequest defines model for CompleteSignatureRequest.
+type CompleteSignatureRequest struct {
+	CredentialNumber *string `json:"credentialNumber,omitempty"`
+
+	// SignatureImage PNG-encoded signature image, base64. Max 500KB decoded.
+	SignatureImage []byte `json:"signatureImage"`
+	SignerName     string `json:"signerName"`
+}
+
 // Contact defines model for Contact.
 type Contact struct {
 	CreatedAt time.Time            `json:"createdAt"`
@@ -1635,6 +1749,25 @@ type ContactCreate struct {
 	Name  string               `json:"name"`
 	Notes *string              `json:"notes,omitempty"`
 	Phone *string              `json:"phone,omitempty"`
+}
+
+// CreateLiveSignatureRequest defines model for CreateLiveSignatureRequest.
+type CreateLiveSignatureRequest struct {
+	// CredentialNumber e.g. CFI certificate number
+	CredentialNumber *string `json:"credentialNumber,omitempty"`
+
+	// SignatureImage PNG-encoded signature image, base64. Max 500KB decoded.
+	SignatureImage []byte `json:"signatureImage"`
+	SignerName     string `json:"signerName"`
+}
+
+// CreateSignatureRequestRequest defines model for CreateSignatureRequestRequest.
+type CreateSignatureRequestRequest struct {
+	// ExpiresInHours Clamped server-side to [1, 720] hours (30 days max). Defaults to 168 (7 days).
+	ExpiresInHours *int `json:"expiresInHours,omitempty"`
+
+	// InstructorEmail If supplied, the request email is sent immediately. Omit to create a pending-and-unsent request.
+	InstructorEmail *openapi_types.Email `json:"instructorEmail,omitempty"`
 }
 
 // Credential defines model for Credential.
@@ -1948,6 +2081,12 @@ type Flight struct {
 	// SicTime Second-in-command time in minutes. Auto-calculated when SIC crew role assigned.
 	SicTime *int `json:"sicTime,omitempty"`
 
+	// SignatureId Present iff the flight is locked by a completed, non-voided
+	// instructor signature. Void the signature (see
+	// /flights/{flightId}/signatures/{signatureId}/void) to unlock it
+	// for editing.
+	SignatureId *openapi_types.UUID `json:"signatureId,omitempty"`
+
 	// SimulatedFlightTime Simulated flight time in minutes (FTD/FSTD)
 	SimulatedFlightTime *int `json:"simulatedFlightTime,omitempty"`
 
@@ -2249,6 +2388,33 @@ type FlightSessionEvent struct {
 
 // FlightSessionEventType Which block/flight time instant this event records
 type FlightSessionEventType string
+
+// FlightSignature defines model for FlightSignature.
+type FlightSignature struct {
+	CreatedAt                  time.Time            `json:"createdAt"`
+	EmailSendCount             int                  `json:"emailSendCount"`
+	EmailSentAt                *time.Time           `json:"emailSentAt,omitempty"`
+	FlightId                   openapi_types.UUID   `json:"flightId"`
+	Id                         openapi_types.UUID   `json:"id"`
+	InstructorCredentialNumber *string              `json:"instructorCredentialNumber,omitempty"`
+	InstructorEmail            *openapi_types.Email `json:"instructorEmail,omitempty"`
+	InstructorName             *string              `json:"instructorName,omitempty"`
+
+	// Method live = captured in person with no token; deferred = token-based, delivered by email and/or a shareable link/QR
+	Method         FlightSignatureMethod `json:"method"`
+	SignedAt       *time.Time            `json:"signedAt,omitempty"`
+	Status         FlightSignatureStatus `json:"status"`
+	TokenExpiresAt *time.Time            `json:"tokenExpiresAt,omitempty"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+	VoidedAt       *time.Time            `json:"voidedAt,omitempty"`
+	VoidedReason   *string               `json:"voidedReason,omitempty"`
+}
+
+// FlightSignatureMethod live = captured in person with no token; deferred = token-based, delivered by email and/or a shareable link/QR
+type FlightSignatureMethod string
+
+// FlightSignatureStatus defines model for FlightSignature.Status.
+type FlightSignatureStatus string
 
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
@@ -2808,6 +2974,28 @@ type PassengerCurrencyDayStatus string
 // PassengerCurrencyNightStatus Night passenger currency status
 type PassengerCurrencyNightStatus string
 
+// PublicSignatureInfo Deliberately minimal — no owner PII beyond the flight's own logged details.
+type PublicSignatureInfo struct {
+	AircraftReg  string             `json:"aircraftReg"`
+	AircraftType string             `json:"aircraftType"`
+	DualTime     *int               `json:"dualTime,omitempty"`
+	ExpiresAt    time.Time          `json:"expiresAt"`
+	FlightDate   openapi_types.Date `json:"flightDate"`
+
+	// InstructorName Prefill, if the owner supplied one when creating the request.
+	InstructorName *string `json:"instructorName,omitempty"`
+	Route          *string `json:"route,omitempty"`
+
+	// Status Always "pending" on a 200 response; any other state is reported via 404/410 instead.
+	Status PublicSignatureInfoStatus `json:"status"`
+
+	// TotalTime Total block time in minutes
+	TotalTime int `json:"totalTime"`
+}
+
+// PublicSignatureInfoStatus Always "pending" on a 200 response; any other state is reported via 404/410 instead.
+type PublicSignatureInfoStatus string
+
 // RegistrationResponse defines model for RegistrationResponse.
 type RegistrationResponse struct {
 	// Email Registered account email address
@@ -2817,6 +3005,40 @@ type RegistrationResponse struct {
 	// VerificationRequired True when SMTP is configured and the user must verify via email; false when the backend auto-verifies because SMTP is not configured.
 	VerificationRequired bool `json:"verificationRequired"`
 }
+
+// ResendSignatureRequestRequest defines model for ResendSignatureRequestRequest.
+type ResendSignatureRequestRequest struct {
+	// InstructorEmail If supplied, updates the delivery address and sends the request email. Omit to just rotate the token/link without emailing anyone.
+	InstructorEmail *openapi_types.Email `json:"instructorEmail,omitempty"`
+}
+
+// SignatureRequestCreated defines model for SignatureRequestCreated.
+type SignatureRequestCreated struct {
+	CreatedAt                  time.Time            `json:"createdAt"`
+	EmailSendCount             int                  `json:"emailSendCount"`
+	EmailSentAt                *time.Time           `json:"emailSentAt,omitempty"`
+	FlightId                   openapi_types.UUID   `json:"flightId"`
+	Id                         openapi_types.UUID   `json:"id"`
+	InstructorCredentialNumber *string              `json:"instructorCredentialNumber,omitempty"`
+	InstructorEmail            *openapi_types.Email `json:"instructorEmail,omitempty"`
+	InstructorName             *string              `json:"instructorName,omitempty"`
+
+	// Method live = captured in person with no token; deferred = token-based, delivered by email and/or a shareable link/QR
+	Method         SignatureRequestCreatedMethod `json:"method"`
+	SignUrl        string                        `json:"signUrl"`
+	SignedAt       *time.Time                    `json:"signedAt,omitempty"`
+	Status         SignatureRequestCreatedStatus `json:"status"`
+	TokenExpiresAt *time.Time                    `json:"tokenExpiresAt,omitempty"`
+	UpdatedAt      time.Time                     `json:"updatedAt"`
+	VoidedAt       *time.Time                    `json:"voidedAt,omitempty"`
+	VoidedReason   *string                       `json:"voidedReason,omitempty"`
+}
+
+// SignatureRequestCreatedMethod live = captured in person with no token; deferred = token-based, delivered by email and/or a shareable link/QR
+type SignatureRequestCreatedMethod string
+
+// SignatureRequestCreatedStatus defines model for SignatureRequestCreated.Status.
+type SignatureRequestCreatedStatus string
 
 // Statistics defines model for Statistics.
 type Statistics struct {
@@ -2932,6 +3154,11 @@ type UserPreferredLocale string
 // UserTimeDisplayFormat User's preferred time display format. "hm" for hours and minutes (1h 30m), "decimal" for decimal hours (1.5h).
 type UserTimeDisplayFormat string
 
+// VoidSignatureRequest defines model for VoidSignatureRequest.
+type VoidSignatureRequest struct {
+	Reason string `json:"reason"`
+}
+
 // WebAuthnCredential defines model for WebAuthnCredential.
 type WebAuthnCredential struct {
 	// Aaguid Authenticator AAGUID as a hex/UUID string
@@ -2982,6 +3209,12 @@ type ImportId = openapi_types.UUID
 
 // LicenseId defines model for LicenseId.
 type LicenseId = openapi_types.UUID
+
+// SignatureId defines model for SignatureId.
+type SignatureId = openapi_types.UUID
+
+// SignatureToken defines model for SignatureToken.
+type SignatureToken = string
 
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
@@ -3422,6 +3655,18 @@ type CreateFlightJSONRequestBody = FlightCreate
 // UpdateFlightJSONRequestBody defines body for UpdateFlight for application/json ContentType.
 type UpdateFlightJSONRequestBody = FlightUpdate
 
+// CreateSignatureRequestJSONRequestBody defines body for CreateSignatureRequest for application/json ContentType.
+type CreateSignatureRequestJSONRequestBody = CreateSignatureRequestRequest
+
+// SignFlightLiveJSONRequestBody defines body for SignFlightLive for application/json ContentType.
+type SignFlightLiveJSONRequestBody = CreateLiveSignatureRequest
+
+// ResendSignatureRequestJSONRequestBody defines body for ResendSignatureRequest for application/json ContentType.
+type ResendSignatureRequestJSONRequestBody = ResendSignatureRequestRequest
+
+// VoidFlightSignatureJSONRequestBody defines body for VoidFlightSignature for application/json ContentType.
+type VoidFlightSignatureJSONRequestBody = VoidSignatureRequest
+
 // ConfirmImportJSONRequestBody defines body for ConfirmImport for application/json ContentType.
 type ConfirmImportJSONRequestBody = ImportConfirmRequest
 
@@ -3445,6 +3690,9 @@ type CreateClassRatingJSONRequestBody = ClassRatingCreate
 
 // UpdateClassRatingJSONRequestBody defines body for UpdateClassRating for application/json ContentType.
 type UpdateClassRatingJSONRequestBody = ClassRatingUpdate
+
+// CompletePublicSignatureJSONRequestBody defines body for CompletePublicSignature for application/json ContentType.
+type CompletePublicSignatureJSONRequestBody = CompleteSignatureRequest
 
 // DeleteCurrentUserJSONRequestBody defines body for DeleteCurrentUser for application/json ContentType.
 type DeleteCurrentUserJSONRequestBody DeleteCurrentUserJSONBody

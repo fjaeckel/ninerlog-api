@@ -102,13 +102,21 @@ func (h *APIHandler) CleanupTokens(c *gin.Context) {
 		"DELETE FROM password_reset_tokens WHERE expires_at < $1 OR used = true", now)
 	resetDeleted, _ := result2.RowsAffected()
 
+	// Soft-expire past-due pending signature requests (not hard-deleted —
+	// flight_signatures is an append-only audit trail).
+	var signaturesExpired int64
+	if h.flightSignatureService != nil {
+		signaturesExpired, _ = h.flightSignatureService.ExpirePendingRequests(c.Request.Context())
+	}
+
 	h.logAdminAction(c, adminUserID, "cleanup_tokens", nil,
-		fmt.Sprintf(`{"refreshTokensDeleted":%d,"resetTokensDeleted":%d}`, refreshDeleted, resetDeleted))
+		fmt.Sprintf(`{"refreshTokensDeleted":%d,"resetTokensDeleted":%d,"signatureRequestsExpired":%d}`, refreshDeleted, resetDeleted, signaturesExpired))
 
 	c.JSON(http.StatusOK, gin.H{
-		"refreshTokensDeleted": refreshDeleted,
-		"resetTokensDeleted":   resetDeleted,
-		"message":              fmt.Sprintf("Cleaned up %d refresh tokens and %d reset tokens", refreshDeleted, resetDeleted),
+		"refreshTokensDeleted":     refreshDeleted,
+		"resetTokensDeleted":       resetDeleted,
+		"signatureRequestsExpired": signaturesExpired,
+		"message":                  fmt.Sprintf("Cleaned up %d refresh tokens, %d reset tokens, and expired %d signature requests", refreshDeleted, resetDeleted, signaturesExpired),
 	})
 }
 
