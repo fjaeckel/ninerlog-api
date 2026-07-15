@@ -14,11 +14,21 @@ import (
 // that case ALL Instructor crew members are treated as third parties
 // (matches the conservative behaviour of DetermineRole).
 func InstructorNameFromCrew(f *models.Flight, userName string) string {
+	return thirdPartyNameFromCrew(f, userName, models.CrewRoleInstructor)
+}
+
+// ExaminerNameFromCrew is the Examiner-role counterpart of
+// InstructorNameFromCrew: the first third-party Examiner in the crew, or "".
+func ExaminerNameFromCrew(f *models.Flight, userName string) string {
+	return thirdPartyNameFromCrew(f, userName, models.CrewRoleExaminer)
+}
+
+func thirdPartyNameFromCrew(f *models.Flight, userName string, role models.CrewRole) string {
 	if f == nil {
 		return ""
 	}
 	for _, m := range f.CrewMembers {
-		if m.Role != models.CrewRoleInstructor {
+		if m.Role != role {
 			continue
 		}
 		name := strings.TrimSpace(m.Name)
@@ -50,8 +60,10 @@ func isSelfPlaceholder(s string) bool {
 //  3. first non-self Instructor in flight.CrewMembers (modern data shape:
 //     the FE only writes the instructor into CrewMembers, leaving
 //     InstructorName nil — the instructor *is* PIC of record on a Dual)
-//  4. original PICName if present (e.g. "Self" with no instructor available)
-//  5. "SELF"
+//  4. first non-self Examiner in flight.CrewMembers (an exam flight is Dual
+//     and the examiner is PIC of record)
+//  5. original PICName if present (e.g. "Self" with no instructor available)
+//  6. "SELF"
 //
 // userName is the authenticated user's display name; pass "" if unknown.
 // All exporters (CSV, PDF, future formats) MUST use this helper instead of
@@ -60,15 +72,19 @@ func DisplayPICName(f *models.Flight, userName string) string {
 	if f == nil {
 		return "SELF"
 	}
-	// Resolve any known instructor first — used both as the primary
+	// Resolve any known instructor/examiner first — used both as the primary
 	// fallback when PICName is empty AND to override a stale "Self" value
-	// (the student is never PIC of record when an instructor is on board).
+	// (the candidate is never PIC of record when an instructor or examiner
+	// is on board).
 	var instructor string
 	if f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
 		instructor = strings.TrimSpace(*f.InstructorName)
 	}
 	if instructor == "" {
 		instructor = InstructorNameFromCrew(f, userName)
+	}
+	if instructor == "" {
+		instructor = ExaminerNameFromCrew(f, userName)
 	}
 
 	picSet := f.PICName != nil && strings.TrimSpace(*f.PICName) != ""
@@ -98,6 +114,8 @@ func DisplayPICName(f *models.Flight, userName string) string {
 //   - if the user is Dual and an InstructorName is set → that instructor,
 //   - if the user is Dual and a non-self Instructor exists in CrewMembers
 //     → that instructor's name (modern data shape),
+//   - if the user is Dual and a non-self Examiner exists in CrewMembers
+//     → that examiner's name (exam flight: the examiner is PIC of record),
 //   - otherwise nil (column stays empty; exporter will fall through to
 //     DisplayPICName's "SELF" default at render time).
 //
@@ -115,6 +133,8 @@ func ResolvePICNameForSave(f *models.Flight, userName string) *string {
 	if f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
 		instructor = f.InstructorName
 	} else if n := InstructorNameFromCrew(f, userName); n != "" {
+		instructor = &n
+	} else if n := ExaminerNameFromCrew(f, userName); n != "" {
 		instructor = &n
 	}
 	// Existing PICName wins — except a stale "Self" when an actual

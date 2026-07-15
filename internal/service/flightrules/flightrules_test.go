@@ -48,6 +48,9 @@ func TestDisplayPICName(t *testing.T) {
 	crewInstr := func(name string) []models.FlightCrewMember {
 		return []models.FlightCrewMember{{Name: name, Role: models.CrewRoleInstructor}}
 	}
+	crewExam := func(name string) []models.FlightCrewMember {
+		return []models.FlightCrewMember{{Name: name, Role: models.CrewRoleExaminer}}
+	}
 
 	cases := []struct {
 		name     string
@@ -75,6 +78,11 @@ func TestDisplayPICName(t *testing.T) {
 		{"dual + stale Self + no instructor → keep Self", &models.Flight{PICName: s("Self"), IsDual: true}, "Amelia Earhart", "Self"},
 		{"non-dual + Self + crew instructor → instructor (legacy flag mismatch)", &models.Flight{PICName: s("Self"), IsDual: false, CrewMembers: crewInstr("CFI Mueller")}, "Amelia Earhart", "CFI Mueller"},
 		{"non-dual + Self + no instructor stays Self", &models.Flight{PICName: s("Self"), IsDual: false}, "Amelia Earhart", "Self"},
+		// Exam flights: the examiner is PIC of record (GH #98).
+		{"crew examiner only", &models.Flight{CrewMembers: crewExam("DPE Prüfer")}, "Amelia Earhart", "DPE Prüfer"},
+		{"crew examiner is self → SELF", &models.Flight{CrewMembers: crewExam("Earhart, Amelia")}, "Amelia Earhart", "SELF"},
+		{"dual + stale Self + crew examiner → examiner", &models.Flight{PICName: s("Self"), IsDual: true, CrewMembers: crewExam("DPE Prüfer")}, "Amelia Earhart", "DPE Prüfer"},
+		{"instructor wins over examiner", &models.Flight{CrewMembers: append(crewExam("DPE Prüfer"), crewInstr("CFI Mueller")...)}, "Amelia Earhart", "CFI Mueller"},
 	}
 	for _, tc := range cases {
 		if got := DisplayPICName(tc.f, tc.userName); got != tc.want {
@@ -109,6 +117,9 @@ func TestResolvePICNameForSave_CrewFallback(t *testing.T) {
 		{"Dual + stale Self + no instructor → preserve Self", &models.Flight{PICName: s("Self"), IsDual: true}, "Amelia Earhart", s("Self")},
 		{"non-Dual + Self + crew instructor → instructor (legacy flag mismatch)", &models.Flight{PICName: s("Self"), IsDual: false, CrewMembers: crewInstr("CFI Mueller")}, "Amelia Earhart", s("CFI Mueller")},
 		{"non-Dual + Self + no instructor stays Self", &models.Flight{PICName: s("Self"), IsPIC: true}, "Amelia Earhart", s("Self")},
+		// Exam flights: the examiner is PIC of record (GH #98).
+		{"Dual + crew examiner (third party)", &models.Flight{IsDual: true, CrewMembers: []models.FlightCrewMember{{Name: "DPE Prüfer", Role: models.CrewRoleExaminer}}}, "Amelia Earhart", s("DPE Prüfer")},
+		{"Dual + stale Self + crew examiner → examiner", &models.Flight{PICName: s("Self"), IsDual: true, CrewMembers: []models.FlightCrewMember{{Name: "DPE Prüfer", Role: models.CrewRoleExaminer}}}, "Amelia Earhart", s("DPE Prüfer")},
 	}
 	for _, tc := range cases {
 		got := ResolvePICNameForSave(tc.f, tc.userName)
@@ -199,6 +210,35 @@ func TestDetermineRole(t *testing.T) {
 	}
 	if got := DetermineRole(f2, "Amelia Earhart"); got != RoleDualReceiving {
 		t.Errorf("third-party instructor = %v, want RoleDualReceiving", got)
+	}
+}
+
+// Regression: GH issue #98 — a check ride with a third-party Examiner on
+// board must be Dual received, not PIC (NfL 2021-2-602 §4.2.2 no. 4: the
+// examiner in a pilot seat is PIC of record, and there is only one PIC).
+func TestDetermineRole_Examiner(t *testing.T) {
+	f := &models.Flight{
+		CrewMembers: []models.FlightCrewMember{
+			{Name: "DPE Prüfer", Role: models.CrewRoleExaminer},
+		},
+	}
+	if got := DetermineRole(f, "Amelia Earhart"); got != RoleDualReceiving {
+		t.Errorf("third-party examiner = %v, want RoleDualReceiving", got)
+	}
+
+	// Empty userName: conservative fallback treats the examiner as third party.
+	if got := DetermineRole(f, ""); got != RoleDualReceiving {
+		t.Errorf("examiner with empty userName = %v, want RoleDualReceiving", got)
+	}
+
+	// The user acting as examiner logs PIC time themselves.
+	self := &models.Flight{
+		CrewMembers: []models.FlightCrewMember{
+			{Name: "Earhart, Amelia", Role: models.CrewRoleExaminer},
+		},
+	}
+	if got := DetermineRole(self, "Amelia Earhart"); got != RolePIC {
+		t.Errorf("self-examiner = %v, want RolePIC", got)
 	}
 }
 

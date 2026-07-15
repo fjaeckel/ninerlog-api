@@ -331,6 +331,54 @@ func TestDualGivenTime_ThirdPartyInstructorWithStudent_PrefersDualReceived(t *te
 	}
 }
 
+// Regression: GH issue #98 — a check ride with a third-party Examiner was
+// counted as PIC time. Per NfL 2021-2-602 §4.2.2 no. 4 the examiner in a
+// pilot seat is PIC of record and there is only one PIC, so the candidate
+// logs the flight as Dual.
+func TestExamFlight_ThirdPartyExaminer_IsDualReceived(t *testing.T) {
+	f := baseFlight()
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "DPE Prüfer", Role: models.CrewRoleExaminer},
+	}
+	ApplyAutoCalculations(f, "Test User")
+	if f.IsPIC {
+		t.Error("expected IsPIC=false with third-party examiner")
+	}
+	if !f.IsDual {
+		t.Error("expected IsDual=true with third-party examiner")
+	}
+	if f.PICTime != 0 {
+		t.Errorf("PICTime = %d, expected 0", f.PICTime)
+	}
+	if f.DualTime != f.TotalTime {
+		t.Errorf("DualTime = %d, expected %d", f.DualTime, f.TotalTime)
+	}
+	if f.SoloTime != 0 {
+		t.Errorf("SoloTime = %d, expected 0", f.SoloTime)
+	}
+	if f.DualGivenTime != 0 {
+		t.Errorf("DualGivenTime = %d, expected 0", f.DualGivenTime)
+	}
+}
+
+// The user acting as examiner on someone else's check ride logs PIC time.
+func TestExamFlight_SelfExaminer_IsPIC(t *testing.T) {
+	f := baseFlight()
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Test User", Role: models.CrewRoleExaminer},
+	}
+	ApplyAutoCalculations(f, "Test User")
+	if !f.IsPIC {
+		t.Error("expected IsPIC=true when user is the listed examiner")
+	}
+	if f.IsDual {
+		t.Error("expected IsDual=false when user is the listed examiner")
+	}
+	if f.PICTime != f.TotalTime {
+		t.Errorf("PICTime = %d, expected %d", f.PICTime, f.TotalTime)
+	}
+}
+
 func TestDualGivenTime_NoCrew(t *testing.T) {
 	f := baseFlight()
 	f.DualGivenTime = 0
