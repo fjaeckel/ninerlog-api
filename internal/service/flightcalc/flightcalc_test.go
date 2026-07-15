@@ -51,16 +51,31 @@ func TestSoloTime_Dual(t *testing.T) {
 	}
 }
 
-func TestSoloTime_NeitherPICNorDual(t *testing.T) {
+func TestSoloTime_WithPassenger_NotSolo(t *testing.T) {
 	f := baseFlight()
-	// With passenger, user is PIC, so solo time = total
+	// Solo means sole occupant (FCL.050): a passenger on board is still a
+	// PIC flight but NOT solo.
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Passenger", Role: models.CrewRolePassenger},
 	}
 	ApplyAutoCalculations(f, "")
-	// With passengers but no instructor, user is PIC, soloTime = totalTime
+	if !f.IsPIC {
+		t.Error("expected IsPIC=true with only a passenger on board")
+	}
+	if f.SoloTime != 0 {
+		t.Errorf("expected soloTime=0 with passenger, got %v", f.SoloTime)
+	}
+}
+
+func TestSoloTime_SelfListedOnly_StillSolo(t *testing.T) {
+	f := baseFlight()
+	// A crew entry that is the user themselves does not break sole occupancy.
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Test User", Role: models.CrewRolePIC},
+	}
+	ApplyAutoCalculations(f, "Test User")
 	if f.SoloTime != f.TotalTime {
-		t.Errorf("expected soloTime=%v with passenger, got %v", f.TotalTime, f.SoloTime)
+		t.Errorf("expected soloTime=%v when only self listed, got %v", f.TotalTime, f.SoloTime)
 	}
 }
 
@@ -221,27 +236,157 @@ func TestNormalizeICAO(t *testing.T) {
 	}
 }
 
-func TestSICTime_WithSICCrew(t *testing.T) {
+// Regression: entering someone else as PIC and yourself as SIC must log the
+// flight as co-pilot time, NOT PIC time (AMC1 FCL.050: only the designated
+// PIC logs PIC time; FOCA GM/INFO §2.3.3). Multi-pilot time is auto-filled
+// for both pilots of a multi-pilot operation.
+func TestSICTime_OtherPICSelfSIC_UserIsSIC(t *testing.T) {
+	f := baseFlight()
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Captain Smith", Role: models.CrewRolePIC},
+		{Name: "Test User", Role: models.CrewRoleSIC},
+	}
+	ApplyAutoCalculations(f, "Test User")
+	if f.IsPIC {
+		t.Error("expected IsPIC=false when someone else is PIC")
+	}
+	if f.IsDual {
+		t.Error("expected IsDual=false for a co-pilot flight")
+	}
+	if f.PICTime != 0 {
+		t.Errorf("PICTime = %d, want 0 (only the designated PIC logs PIC)", f.PICTime)
+	}
+	if f.SICTime != f.TotalTime {
+		t.Errorf("SICTime = %d, want %d", f.SICTime, f.TotalTime)
+	}
+	if f.SoloTime != 0 {
+		t.Errorf("SoloTime = %d, want 0", f.SoloTime)
+	}
+	if f.MultiPilotTime != f.TotalTime {
+		t.Errorf("MultiPilotTime = %d, want %d (multi-pilot operation)", f.MultiPilotTime, f.TotalTime)
+	}
+}
+
+// A third-party PIC alone (user not listed) also makes the user the
+// co-pilot — there is only one PIC per flight.
+func TestSICTime_OtherPICOnly_UserIsSIC(t *testing.T) {
+	f := baseFlight()
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Captain Smith", Role: models.CrewRolePIC},
+	}
+	ApplyAutoCalculations(f, "Test User")
+	if f.IsPIC || f.PICTime != 0 {
+		t.Errorf("IsPIC=%v PICTime=%d, want false/0 with third-party PIC", f.IsPIC, f.PICTime)
+	}
+	if f.SICTime != f.TotalTime {
+		t.Errorf("SICTime = %d, want %d", f.SICTime, f.TotalTime)
+	}
+	if f.MultiPilotTime != f.TotalTime {
+		t.Errorf("MultiPilotTime = %d, want %d", f.MultiPilotTime, f.TotalTime)
+	}
+}
+
+// Empty userName: a PIC crew member is conservatively treated as a third
+// party (consistent with Instructor/Examiner handling).
+func TestSICTime_OtherPIC_EmptyUserName_UserIsSIC(t *testing.T) {
 	f := baseFlight()
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Captain Smith", Role: models.CrewRolePIC},
 		{Name: "Test User", Role: models.CrewRoleSIC},
 	}
 	ApplyAutoCalculations(f, "")
-	// No instructor means PIC, SIC is zeroed when PIC
-	if f.SICTime != 0 {
-		t.Errorf("SICTime = %d, want 0 (user is PIC)", f.SICTime)
+	if f.PICTime != 0 || f.SICTime != f.TotalTime {
+		t.Errorf("PICTime=%d SICTime=%d, want 0/%d", f.PICTime, f.SICTime, f.TotalTime)
 	}
 }
 
-func TestSICTime_PICOverridesSIC(t *testing.T) {
+// A user who lists themselves with the PIC role stays PIC.
+func TestSICTime_SelfListedAsPIC_UserIsPIC(t *testing.T) {
 	f := baseFlight()
 	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Test User", Role: models.CrewRolePIC},
+	}
+	ApplyAutoCalculations(f, "Test User")
+	if !f.IsPIC || f.PICTime != f.TotalTime {
+		t.Errorf("IsPIC=%v PICTime=%d, want true/%d", f.IsPIC, f.PICTime, f.TotalTime)
+	}
+	if f.SICTime != 0 {
+		t.Errorf("SICTime = %d, want 0", f.SICTime)
+	}
+}
+
+// User is PIC with a third-party SIC co-pilot: keeps PIC time, no SIC time,
+// and multi-pilot time is auto-filled (both pilots log MP time).
+func TestMultiPilotTime_UserPICWithSICCrew(t *testing.T) {
+	f := baseFlight()
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "F/O Jones", Role: models.CrewRoleSIC},
+	}
+	ApplyAutoCalculations(f, "Test User")
+	if !f.IsPIC || f.PICTime != f.TotalTime {
+		t.Errorf("IsPIC=%v PICTime=%d, want true/%d", f.IsPIC, f.PICTime, f.TotalTime)
+	}
+	if f.SICTime != 0 {
+		t.Errorf("SICTime = %d, want 0 (user is the PIC)", f.SICTime)
+	}
+	if f.MultiPilotTime != f.TotalTime {
+		t.Errorf("MultiPilotTime = %d, want %d", f.MultiPilotTime, f.TotalTime)
+	}
+}
+
+// A manually entered multi-pilot value survives (e.g. augmented crew logs a
+// fraction of block time).
+func TestMultiPilotTime_ManualValuePreserved(t *testing.T) {
+	f := baseFlight()
+	f.MultiPilotTime = 60
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Captain Smith", Role: models.CrewRolePIC},
 		{Name: "Test User", Role: models.CrewRoleSIC},
 	}
-	ApplyAutoCalculations(f, "")
-	if f.SICTime != 0 {
-		t.Errorf("SICTime = %d, want 0 (PIC is set)", f.SICTime)
+	ApplyAutoCalculations(f, "Test User")
+	if f.MultiPilotTime != 60 {
+		t.Errorf("MultiPilotTime = %d, want 60 (manual value)", f.MultiPilotTime)
+	}
+}
+
+// Crew context without any multi-pilot indicator zeroes a stale value.
+func TestMultiPilotTime_StaleValueZeroedWithCrew(t *testing.T) {
+	f := baseFlight()
+	f.MultiPilotTime = 90
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Passenger", Role: models.CrewRolePassenger},
+	}
+	ApplyAutoCalculations(f, "Test User")
+	if f.MultiPilotTime != 0 {
+		t.Errorf("MultiPilotTime = %d, want 0 (no multi-pilot indicator)", f.MultiPilotTime)
+	}
+}
+
+// No crew at all: manual multi-pilot value is kept (user-declared MP
+// aircraft without crew entries).
+func TestMultiPilotTime_ManualValueKeptWithoutCrew(t *testing.T) {
+	f := baseFlight()
+	f.MultiPilotTime = 90
+	ApplyAutoCalculations(f, "Test User")
+	if f.MultiPilotTime != 90 {
+		t.Errorf("MultiPilotTime = %d, want 90 (no crew context)", f.MultiPilotTime)
+	}
+}
+
+// A third-party instructor outranks the SIC classification: the flight is
+// Dual received (e.g. MCC training with an instructor on board).
+func TestSICTime_InstructorOutranksSIC(t *testing.T) {
+	f := baseFlight()
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Jane Instructor", Role: models.CrewRoleInstructor},
+		{Name: "Test User", Role: models.CrewRoleSIC},
+	}
+	ApplyAutoCalculations(f, "Test User")
+	if !f.IsDual || f.DualTime != f.TotalTime {
+		t.Errorf("IsDual=%v DualTime=%d, want true/%d", f.IsDual, f.DualTime, f.TotalTime)
+	}
+	if f.PICTime != 0 {
+		t.Errorf("PICTime = %d, want 0", f.PICTime)
 	}
 }
 

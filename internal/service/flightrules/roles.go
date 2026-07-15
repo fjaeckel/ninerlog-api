@@ -27,6 +27,12 @@ const (
 	// is on board, or the user themselves is listed with the Instructor
 	// role (Dual given / FI).
 	RoleDualGiving
+	// RoleSIC: the user is co-pilot on a multi-pilot operation — another
+	// person is listed with the PIC role, or the user themselves is listed
+	// with the SIC role. Per AMC1 FCL.050 only the designated PIC logs PIC
+	// time; the co-pilot logs co-pilot (SIC) time, even if both pilots are
+	// qualified PICs (FOCA GM/INFO "Logging of Flight Time" §2.3.3).
+	RoleSIC
 )
 
 // DetermineRole inspects the crew list to classify the user's pilot role.
@@ -34,7 +40,8 @@ const (
 // Precedence: a third-party Instructor or Examiner (name ≠ user) makes the
 // user a Dual receiver, regardless of any Student also being present (e.g.
 // observed CFI check rides). A Student or self-listed Instructor makes the
-// user a Dual giver. Otherwise the user is PIC.
+// user a Dual giver. A third-party PIC or a self-listed SIC makes the user
+// the co-pilot (SIC) of a multi-pilot operation. Otherwise the user is PIC.
 //
 // A third-party Examiner counts as Dual received because there can only be
 // one PIC per flight and the examiner occupying a pilot seat is PIC of
@@ -42,14 +49,24 @@ const (
 // Examiner leaves the user as PIC — an examiner logs their exam flights as
 // PIC time.
 //
-// When userName is empty, any Instructor or Examiner crew member is
-// conservatively treated as a third party (Dual received), preserving prior
-// behaviour for callers that do not yet have user context.
+// A third-party PIC counts as SIC for the same "only one PIC per flight"
+// reason: if someone else was designated PIC, the user occupying the other
+// pilot seat logs co-pilot time (AMC1 FCL.050; FOCA GM/INFO §2.3.3), even
+// when both pilots hold PIC qualifications. A self-listed PIC crew entry
+// keeps the user as PIC and wins over a simultaneous third-party PIC entry
+// (conflicting data — trust the user's explicit self-declaration).
+//
+// When userName is empty, any Instructor, Examiner or PIC crew member is
+// conservatively treated as a third party, preserving prior behaviour for
+// callers that do not yet have user context.
 func DetermineRole(flight *models.Flight, userName string) Role {
 	hasOtherInstructor := false
 	hasSelfInstructor := false
 	hasOtherExaminer := false
 	hasStudent := false
+	hasOtherPIC := false
+	hasSelfPIC := false
+	hasSelfSIC := false
 	for _, m := range flight.CrewMembers {
 		switch m.Role {
 		case models.CrewRoleInstructor:
@@ -64,6 +81,16 @@ func DetermineRole(flight *models.Flight, userName string) Role {
 			}
 		case models.CrewRoleStudent:
 			hasStudent = true
+		case models.CrewRolePIC:
+			if userName != "" && MatchesUser(m.Name, userName) {
+				hasSelfPIC = true
+			} else {
+				hasOtherPIC = true
+			}
+		case models.CrewRoleSIC:
+			if userName != "" && MatchesUser(m.Name, userName) {
+				hasSelfSIC = true
+			}
 		}
 	}
 	if hasOtherInstructor || hasOtherExaminer {
@@ -72,5 +99,25 @@ func DetermineRole(flight *models.Flight, userName string) Role {
 	if hasSelfInstructor || hasStudent {
 		return RoleDualGiving
 	}
+	if (hasOtherPIC || hasSelfSIC) && !hasSelfPIC {
+		return RoleSIC
+	}
 	return RolePIC
+}
+
+// IsMultiPilotOperation reports whether the crew composition indicates an
+// operation flown with a two-pilot crew (multi-crew cooperation): the user
+// is the co-pilot (RoleSIC), or a crew member holds the SIC role (the user
+// is PIC with a co-pilot). Per AMC1 FCL.050 both pilots then log the full
+// flight time in the multi-pilot column.
+func IsMultiPilotOperation(flight *models.Flight, role Role) bool {
+	if role == RoleSIC {
+		return true
+	}
+	for _, m := range flight.CrewMembers {
+		if m.Role == models.CrewRoleSIC {
+			return true
+		}
+	}
+	return false
 }

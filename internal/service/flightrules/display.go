@@ -23,6 +23,13 @@ func ExaminerNameFromCrew(f *models.Flight, userName string) string {
 	return thirdPartyNameFromCrew(f, userName, models.CrewRoleExaminer)
 }
 
+// PICNameFromCrew is the PIC-role counterpart of InstructorNameFromCrew:
+// the first third-party PIC in the crew, or "". Used when the user flies as
+// co-pilot (SIC) — the other pilot is PIC of record.
+func PICNameFromCrew(f *models.Flight, userName string) string {
+	return thirdPartyNameFromCrew(f, userName, models.CrewRolePIC)
+}
+
 func thirdPartyNameFromCrew(f *models.Flight, userName string, role models.CrewRole) string {
 	if f == nil {
 		return ""
@@ -86,6 +93,11 @@ func DisplayPICName(f *models.Flight, userName string) string {
 	if instructor == "" {
 		instructor = ExaminerNameFromCrew(f, userName)
 	}
+	if instructor == "" {
+		// A third-party PIC crew member (user flying as co-pilot) is PIC
+		// of record.
+		instructor = PICNameFromCrew(f, userName)
+	}
 
 	picSet := f.PICName != nil && strings.TrimSpace(*f.PICName) != ""
 	// Stale "Self" is overridden whenever an actual instructor is known,
@@ -135,6 +147,9 @@ func ResolvePICNameForSave(f *models.Flight, userName string) *string {
 	} else if n := InstructorNameFromCrew(f, userName); n != "" {
 		instructor = &n
 	} else if n := ExaminerNameFromCrew(f, userName); n != "" {
+		instructor = &n
+	} else if n := PICNameFromCrew(f, userName); n != "" {
+		// User flying as co-pilot: the third-party PIC is PIC of record.
 		instructor = &n
 	}
 	// Existing PICName wins — except a stale "Self" when an actual

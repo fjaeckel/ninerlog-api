@@ -21,6 +21,7 @@ const (
 	rolePIC           = flightrules.RolePIC
 	roleDualReceiving = flightrules.RoleDualReceiving
 	roleDualGiving    = flightrules.RoleDualGiving
+	roleSIC           = flightrules.RoleSIC
 )
 
 // ApplyAutoCalculations computes all auto-calculated fields on a flight.
@@ -50,7 +51,7 @@ func ApplyAutoCalculations(flight *models.Flight, userName string) {
 	flight.AllLandings = flight.LandingsDay + flight.LandingsNight
 
 	// 3. Solo time
-	calculateSoloTime(flight)
+	calculateSoloTime(flight, userName)
 
 	// 4. Cross-country time
 	calculateCrossCountryTime(flight)
@@ -63,11 +64,15 @@ func ApplyAutoCalculations(flight *models.Flight, userName string) {
 		calculateTakeoffSplit(flight)
 	}
 
-	// 7. SIC time: auto-calculated when a crew member has SIC role
-	calculateSICTime(flight)
+	// 7. SIC time: auto-calculated when the user is the co-pilot
+	calculateSICTime(flight, role)
 
 	// 8. Dual given: only when the user is acting as instructor
 	calculateDualGivenTime(flight, role)
+
+	// 8b. Multi-pilot time: auto-filled when the crew indicates a
+	//     multi-pilot operation (user is SIC, or a SIC crew member exists)
+	calculateMultiPilotTime(flight, role)
 
 	// 9. IFR time: if user did not set it explicitly, derive from
 	//    Actual + Simulated instrument (capped at TotalTime).
@@ -81,7 +86,9 @@ func determineUserRole(flight *models.Flight, userName string) userPilotRole {
 }
 
 // calculatePICDual sets PIC/Dual flags and times based on the resolved user
-// role. A user giving instruction is also PIC of the flight.
+// role. A user giving instruction is also PIC of the flight. A user flying
+// as co-pilot (SIC) on a multi-pilot operation logs neither PIC nor Dual —
+// only the designated PIC logs PIC time (AMC1 FCL.050).
 func calculatePICDual(flight *models.Flight, role userPilotRole) {
 	switch role {
 	case roleDualReceiving:
@@ -89,6 +96,11 @@ func calculatePICDual(flight *models.Flight, role userPilotRole) {
 		flight.IsDual = true
 		flight.DualTime = flight.TotalTime
 		flight.PICTime = 0
+	case roleSIC:
+		flight.IsPIC = false
+		flight.IsDual = false
+		flight.PICTime = 0
+		flight.DualTime = 0
 	default:
 		// rolePIC and roleDualGiving — user is PIC.
 		flight.IsPIC = true
@@ -169,12 +181,23 @@ func calculateNightTime(flight *models.Flight) {
 	flight.NightTime = nightMinutes
 }
 
-func calculateSoloTime(flight *models.Flight) {
-	if flight.IsPIC && !flight.IsDual {
-		flight.SoloTime = flight.TotalTime
-	} else {
+// calculateSoloTime sets solo time when the user is PIC and the sole
+// occupant of the aircraft (FCL.050 / FOCA GM/INFO §1.6: solo flight time
+// means flight time during which the pilot is the sole occupant). Any crew
+// member other than the user themselves — passenger, co-pilot, safety
+// pilot — means the flight is not solo.
+func calculateSoloTime(flight *models.Flight, userName string) {
+	if !flight.IsPIC || flight.IsDual {
 		flight.SoloTime = 0
+		return
 	}
+	for _, m := range flight.CrewMembers {
+		if userName == "" || !flightrules.MatchesUser(m.Name, userName) {
+			flight.SoloTime = 0
+			return
+		}
+	}
+	flight.SoloTime = flight.TotalTime
 }
 
 func calculateCrossCountryTime(flight *models.Flight) {
@@ -319,20 +342,41 @@ func parseTimeOfDay(date time.Time, timeStr string) (time.Time, error) {
 	return time.Date(date.Year(), date.Month(), date.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.UTC), nil
 }
 
-// calculateSICTime sets SIC time when a crew member has the SIC role.
-// SIC is mutually exclusive with PIC — if isPIC is true, SIC time is 0.
-func calculateSICTime(flight *models.Flight) {
-	if flight.IsPIC {
+// calculateSICTime sets SIC (co-pilot) time when the user's resolved role is
+// SIC — someone else is the designated PIC and the user occupies the other
+// pilot seat (AMC1 FCL.050). In all other roles the time is zeroed when crew
+// context exists, so stale values do not survive a recalculation.
+func calculateSICTime(flight *models.Flight, role userPilotRole) {
+	if role == roleSIC {
+		flight.SICTime = flight.TotalTime
+		return
+	}
+	if len(flight.CrewMembers) > 0 {
 		flight.SICTime = 0
 		return
 	}
-	for _, m := range flight.CrewMembers {
-		if m.Role == models.CrewRoleSIC {
-			flight.SICTime = flight.TotalTime
-			return
-		}
-	}
 	// Don't zero out if no crew members — keep manually set value
+}
+
+// calculateMultiPilotTime fills the multi-pilot column (EASA AMC1 FCL.050
+// Col 10) when the crew composition indicates a multi-pilot operation: both
+// the designated PIC and the co-pilot log the full flight time there. A
+// manually entered non-zero value is preserved (e.g. augmented-crew ops
+// where each pilot logs a fraction of block time). When crew context exists
+// but does not indicate a multi-pilot operation, a stale value is zeroed;
+// without any crew the manual value is kept (user-declared MP aircraft).
+func calculateMultiPilotTime(flight *models.Flight, role userPilotRole) {
+	if flightrules.IsMultiPilotOperation(flight, role) {
+		if flight.MultiPilotTime == 0 {
+			flight.MultiPilotTime = flight.TotalTime
+		}
+		return
+	}
+	if len(flight.CrewMembers) > 0 {
+		flight.MultiPilotTime = 0
+		return
+	}
+	// No crew at all — leave any manually entered value untouched.
 }
 
 // calculateDualGivenTime sets dual given time when the user is acting as
