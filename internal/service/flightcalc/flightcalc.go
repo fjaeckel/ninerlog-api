@@ -28,10 +28,12 @@ const (
 //
 // userName is the authenticated user's display name. It is used to decide
 // whether an Instructor crew member refers to the user themselves (→ Dual
-// given) or to a third party (→ Dual received). When userName is empty, any
-// Instructor crew member is conservatively treated as a third party (Dual
-// received), preserving prior behaviour for callers that do not yet have the
-// user context (e.g. some legacy tests).
+// given) or to a third party (→ Dual received), and likewise whether an
+// Examiner is a third party (→ Dual received; the examiner is PIC of record
+// on a check ride) or the user themselves (→ PIC). When userName is empty,
+// any Instructor or Examiner crew member is conservatively treated as a
+// third party (Dual received), preserving prior behaviour for callers that
+// do not yet have the user context (e.g. some legacy tests).
 func ApplyAutoCalculations(flight *models.Flight, userName string) {
 	role := determineUserRole(flight, userName)
 
