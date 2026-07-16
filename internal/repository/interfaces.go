@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/flightsearch"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
 )
@@ -121,6 +122,9 @@ type FlightQueryOptions struct {
 	IsPIC         *bool
 	IsDual        *bool
 	Search        *string
+	// Query is a parsed advanced search query (see internal/flightsearch).
+	// It compiles to a SQL condition and is ANDed with the other filters.
+	Query *flightsearch.Query
 	Page          int
 	PageSize      int
 	SortBy        string // "date", "totalTime", "createdAt"
