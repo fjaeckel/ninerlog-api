@@ -52,6 +52,13 @@ func main() {
 		// Local development fallback for passwordless local Postgres; deployed environments should set DATABASE_URL with the required TLS settings.
 		dbURL = "postgresql://localhost:5432/ninerlog?sslmode=disable"
 	}
+	// Server-side backstop: kill any query that runs longer than this,
+	// regardless of client behavior, so it can't hold its pool connection
+	// indefinitely. Defense in depth alongside RequestTimeoutMiddleware.
+	// This DSN is also used below for running migrations, so any migration
+	// expected to run longer than this needs its own
+	// "SET LOCAL statement_timeout = 0;" to opt out for that transaction.
+	dbURL = withStatementTimeout(dbURL, 10*time.Second)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
@@ -349,6 +356,11 @@ func main() {
 	// Register OpenAPI-generated routes
 	// This automatically maps all routes to the correct handlers with proper parameter extraction
 	api := router.Group("/api/v1")
+
+	// Bound every request's context so a slow/unbounded query can't hold its
+	// DB connection forever; releases the connection even if the query
+	// itself has no deadline. Defense in depth alongside statement_timeout.
+	api.Use(middleware.RequestTimeoutMiddleware(15 * time.Second))
 
 	// Centralized auth middleware — all routes require auth except explicit public paths
 	api.Use(middleware.AuthMiddleware(jwtManager, []string{
