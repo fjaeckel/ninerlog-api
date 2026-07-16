@@ -303,6 +303,16 @@ func main() {
 	// Request body size limit for multipart uploads (10 MB)
 	router.MaxMultipartMemory = 10 << 20
 
+	// Cap non-multipart request bodies (JSON endpoints via ShouldBindJSON
+	// read the body in full before any application-level check runs).
+	// Multipart requests are exempt — they're already bounded by
+	// MaxMultipartMemory above plus the explicit CSV size check.
+	// POST /imports/json restores a full logbook backup and legitimately
+	// needs more room than a single-entity JSON body.
+	router.Use(middleware.MaxBodyBytesMiddleware(1<<20, map[string]int64{
+		"/imports/json": 50 << 20,
+	}))
+
 	// Health check with DB connectivity
 	router.GET("/health", func(c *gin.Context) {
 		if err := db.Ping(); err != nil {
