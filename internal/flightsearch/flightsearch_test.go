@@ -246,9 +246,61 @@ func TestParseErrors(t *testing.T) {
 }
 
 func TestTermLimit(t *testing.T) {
-	q := strings.TrimSpace(strings.Repeat("a ", maxQueryTerms+1))
+	// Tagged conditions, not bare free-text terms, so this exercises the
+	// general maxQueryTerms cap rather than the stricter free-text cap below.
+	q := strings.TrimSpace(strings.Repeat("isPic:true ", maxQueryTerms+1))
 	if _, err := Parse(q); err == nil {
 		t.Fatal("term limit should be enforced")
+	}
+}
+
+func TestTermLimit_TaggedConditionsAllowedUpToMax(t *testing.T) {
+	q := strings.TrimSpace(strings.Repeat("isPic:true ", maxQueryTerms))
+	if _, err := Parse(q); err != nil {
+		t.Fatalf("expected exactly maxQueryTerms tagged conditions to be allowed, got: %v", err)
+	}
+}
+
+func TestFreeTextTermLimit(t *testing.T) {
+	// Six bare terms exceeds maxFreeTextTerms even though it's well under
+	// the general maxQueryTerms cap.
+	if _, err := Parse("abc def ghi jkl mno pqr"); err == nil {
+		t.Fatal("free-text term limit should be enforced")
+	}
+}
+
+func TestFreeTextTermLimit_AllowedUpToMax(t *testing.T) {
+	if _, err := Parse("abc def ghi jkl mno"); err != nil {
+		t.Fatalf("expected exactly maxFreeTextTerms bare terms to be allowed, got: %v", err)
+	}
+}
+
+func TestFreeTextTermLimit_TaggedConditionsDontCount(t *testing.T) {
+	// Five bare terms plus tagged conditions: the tagged conditions must not
+	// count against the free-text cap.
+	if _, err := Parse("abc def ghi jkl mno isPic:true isDual:false"); err != nil {
+		t.Fatalf("tagged conditions should not count toward the free-text cap, got: %v", err)
+	}
+}
+
+func TestFreeTextTermMinLength(t *testing.T) {
+	cases := []string{"a", "ab"}
+	for _, term := range cases {
+		if _, err := Parse(term); err == nil {
+			t.Errorf("Parse(%q) should fail: free-text terms must be at least %d characters", term, minFreeTextTermLen)
+		}
+	}
+}
+
+func TestFreeTextTermMinLength_QuotedTermEnforced(t *testing.T) {
+	if _, err := Parse(`"ab"`); err == nil {
+		t.Fatal("quoted free-text terms shorter than the minimum should still be rejected")
+	}
+}
+
+func TestFreeTextTermMinLength_AtMinimumAllowed(t *testing.T) {
+	if _, err := Parse("EDD"); err != nil {
+		t.Fatalf("expected a %d-character free-text term to be allowed, got: %v", minFreeTextTermLen, err)
 	}
 }
 

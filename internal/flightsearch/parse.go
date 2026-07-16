@@ -29,6 +29,16 @@ type leafNode struct {
 const (
 	maxQueryLength = 1000
 	maxQueryTerms  = 50
+
+	// Bare free-text terms are far more expensive than tagged field
+	// conditions: each compiles to a leading-wildcard ILIKE across every
+	// column in freeTextColumns plus a correlated crew EXISTS subquery
+	// (fields.go), none of which a B-tree index can assist. maxFreeTextTerms
+	// keeps that amplification well under the general maxQueryTerms cap, and
+	// minFreeTextTermLength avoids the worst-selectivity single/double
+	// character wildcard scans (e.g. a bare "e" matching nearly every row).
+	maxFreeTextTerms   = 5
+	minFreeTextTermLen = 3
 )
 
 // Parse parses and validates a search query. The returned error message is
@@ -61,9 +71,10 @@ func rest(s string, pos int) string {
 }
 
 type parser struct {
-	input string
-	pos   int
-	terms int
+	input         string
+	pos           int
+	terms         int
+	freeTextTerms int
 }
 
 func (p *parser) skipSpace() {
@@ -197,7 +208,7 @@ func (p *parser) parseCondition() (node, error) {
 		if err != nil {
 			return nil, err
 		}
-		return newFreeTextLeaf(val)
+		return p.freeTextCondition(val, start)
 	}
 
 	word := p.readWord()
@@ -208,7 +219,7 @@ func (p *parser) parseCondition() (node, error) {
 	op := p.readOperator()
 	if op == "" {
 		// Bare free-text term
-		return newFreeTextLeaf(word)
+		return p.freeTextCondition(word, start)
 	}
 
 	field, ok := LookupField(word)
@@ -225,6 +236,21 @@ func (p *parser) parseCondition() (node, error) {
 	}
 
 	return newFieldLeaf(field, op, value)
+}
+
+// freeTextCondition validates and builds a bare (untagged) free-text term.
+// Bare terms are far more expensive than tagged conditions (see
+// maxFreeTextTerms), so they get their own, stricter cap and a minimum
+// length so a 1-2 character wildcard can't force a near-full-table scan.
+func (p *parser) freeTextCondition(term string, start int) (node, error) {
+	p.freeTextTerms++
+	if p.freeTextTerms > maxFreeTextTerms {
+		return nil, fmt.Errorf("query has too many free-text terms (max %d); use tagged fields (e.g. remarks:%s) for additional conditions", maxFreeTextTerms, term)
+	}
+	if len(term) < minFreeTextTermLen {
+		return nil, fmt.Errorf("free-text term %q at position %d is too short (min %d characters)", term, start+1, minFreeTextTermLen)
+	}
+	return newFreeTextLeaf(term)
 }
 
 // readWord reads characters up to whitespace, parentheses, or an operator.
