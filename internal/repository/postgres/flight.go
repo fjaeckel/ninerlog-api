@@ -430,6 +430,12 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 			args = append(args, searchPattern)
 			argNum++
 		}
+		if opts.Query != nil {
+			cond, condArgs := opts.Query.Compile(argNum)
+			query += " AND " + cond
+			args = append(args, condArgs...)
+			argNum += len(condArgs)
+		}
 	}
 
 	query, args, _ = appendRegistrationFilter(query, args, argNum, opts)
@@ -583,6 +589,12 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 			)
 			args = append(args, searchPattern)
 			argNum++
+		}
+		if opts.Query != nil {
+			cond, condArgs := opts.Query.Compile(argNum)
+			query += " AND " + cond
+			args = append(args, condArgs...)
+			argNum += len(condArgs)
 		}
 	}
 

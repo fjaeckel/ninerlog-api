@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/flightsearch"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
@@ -60,6 +61,14 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	}
 	if params.Search != nil {
 		opts.Search = params.Search
+	}
+	if params.Q != nil && strings.TrimSpace(*params.Q) != "" {
+		query, err := flightsearch.Parse(*params.Q)
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, "Invalid search query: "+err.Error())
+			return
+		}
+		opts.Query = query
 	}
 	if params.Page != nil && *params.Page > 0 {
 		opts.Page = *params.Page
