@@ -3452,7 +3452,9 @@ type ListFlightsParams struct {
 	//
 	// **Syntax**
 	// - Bare terms match across registration, type, ICAO codes, route,
-	//   remarks, instructor, PIC name, and crew names: `EDDF checkride`
+	//   remarks, instructor, PIC name, and crew names: `EDDF checkride`.
+	//   At most 5 bare terms per query, each at least 3 characters; use
+	//   tagged fields (below) for additional or shorter conditions.
 	// - Tags: `field:value` (contains for text, equals otherwise),
 	//   `field=value` (exact), `field!=value`, and `>`, `>=`, `<`, `<=`
 	//   for numeric, duration, date, and time-of-day fields.
