@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func TestNewRateLimitMiddleware_AllowsWithinLimit(t *testing.T) {
@@ -209,5 +210,117 @@ func TestRateLimitByPath_NoMatchPassesThrough(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("Request %d to non-matching path returned %d, want 200", i+1, w.Code)
 		}
+	}
+}
+
+func TestNewUserRateLimitMiddleware_KeysByUserIDNotIP(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	userID := uuid.New()
+	router := gin.New()
+	// Simulate AuthMiddleware having already set "userID" in context.
+	router.Use(func(c *gin.Context) {
+		c.Set("userID", userID)
+		c.Next()
+	})
+	router.Use(NewUserRateLimitMiddleware(1, time.Minute))
+	router.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	// First request from IP1 succeeds.
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "10.0.0.1:1"
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("First request returned %d, want 200", w.Code)
+	}
+
+	// Second request for the SAME user from a DIFFERENT IP is still blocked,
+	// because keying is by user ID, not IP.
+	req = httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "10.0.0.2:1"
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Second request (same user, different IP) returned %d, want 429", w.Code)
+	}
+}
+
+func TestNewUserRateLimitMiddleware_FallsBackToIPWhenUnauthenticated(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	// No "userID" set — simulates a public/unauthenticated route.
+	router.Use(NewUserRateLimitMiddleware(1, time.Minute))
+	router.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "10.0.0.1:1"
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("First request returned %d, want 200", w.Code)
+	}
+
+	// Second request from the same IP is blocked (IP fallback).
+	req = httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "10.0.0.1:1"
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Second request (same IP) returned %d, want 429", w.Code)
+	}
+
+	// A different IP gets its own bucket.
+	req = httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "10.0.0.2:1"
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Request from different IP returned %d, want 200", w.Code)
+	}
+}
+
+func TestRateLimitByPathWithQueryParam_OnlyLimitsWhenParamPresent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	rl := NewRateLimitMiddleware(1, time.Minute)
+	router.Use(RateLimitByPathWithQueryParam(rl, "/flights", "q"))
+	router.GET("/flights", func(c *gin.Context) {
+		c.String(http.StatusOK, "flights")
+	})
+
+	// Plain listing requests (no "q") are never limited by this middleware.
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest("GET", "/flights", nil)
+		req.RemoteAddr = "10.0.0.1:1"
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("Plain request %d returned %d, want 200", i+1, w.Code)
+		}
+	}
+
+	// First search request succeeds.
+	req := httptest.NewRequest("GET", "/flights?q=EDDF", nil)
+	req.RemoteAddr = "10.0.0.1:1"
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("First search request returned %d, want 200", w.Code)
+	}
+
+	// Second search request from the same IP is rate-limited.
+	req = httptest.NewRequest("GET", "/flights?q=EDDM", nil)
+	req.RemoteAddr = "10.0.0.1:1"
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Second search request returned %d, want 429", w.Code)
 	}
 }
