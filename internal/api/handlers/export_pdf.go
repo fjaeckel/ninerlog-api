@@ -9,12 +9,20 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 	"github.com/go-pdf/fpdf"
 	"github.com/google/uuid"
 )
+
+// maxPDFExportFlights caps how many flights a single PDF export will
+// render. Without a cap, a large logbook (or a bulk CSV import first)
+// forces an unpaginated query plus a heavy fpdf render on every request;
+// combined with no rate limit on this endpoint, a handful of concurrent
+// calls consume CPU/memory/DB-connection time disproportionately.
+const maxPDFExportFlights = 10000
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Page geometry
@@ -146,7 +154,22 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		return
 	}
 
-	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, nil)
+	count, err := h.flightService.CountFlights(c.Request.Context(), userID, nil)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
+		return
+	}
+	if count > maxPDFExportFlights {
+		h.sendError(c, http.StatusBadRequest, fmt.Sprintf(
+			"Too many flights to export as a single PDF (%d, max %d). Narrow the range with startDate/endDate.",
+			count, maxPDFExportFlights))
+		return
+	}
+
+	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, &repository.FlightQueryOptions{
+		Page:     1,
+		PageSize: maxPDFExportFlights,
+	})
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
