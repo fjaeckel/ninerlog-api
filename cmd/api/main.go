@@ -372,6 +372,26 @@ func main() {
 	}))
 
 	if os.Getenv("DISABLE_RATE_LIMIT") != "true" {
+		// Coarse global limiter on every authenticated route. Previously only
+		// /auth/* and /admin/* were rate-limited at all — /flights, search,
+		// /exports/pdf, /imports/*, etc. were open to unlimited repetition by
+		// an authenticated user (or a stolen token). Keyed by user ID so it
+		// can't be inflated by users sharing a NAT/office IP.
+		generalRateLimit := middleware.NewUserRateLimitMiddleware(120, 1*time.Minute)
+		api.Use(generalRateLimit)
+
+		// Tighter limits for specifically expensive endpoints, layered on top
+		// of the general limiter above.
+		expensiveRateLimit := middleware.NewUserRateLimitMiddleware(15, 1*time.Minute)
+		api.Use(middleware.RateLimitByPath(expensiveRateLimit,
+			"/exports/pdf",
+		))
+		api.Use(middleware.RateLimitByPathPrefix(expensiveRateLimit, "/imports"))
+		// Advanced search ("q") drives up to 50 leading-wildcard ILIKE scans
+		// plus a correlated crew subquery per request; plain /flights listing
+		// (no "q") stays under only the general limiter above.
+		api.Use(middleware.RateLimitByPathWithQueryParam(expensiveRateLimit, "/flights", "q"))
+
 		authRateLimit := middleware.NewRateLimitMiddleware(10, 1*time.Minute)
 
 		// Apply rate limiter to sensitive auth endpoints via path-matching middleware
