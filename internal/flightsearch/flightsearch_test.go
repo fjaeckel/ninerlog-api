@@ -83,6 +83,39 @@ func TestDurationFormats(t *testing.T) {
 	}
 }
 
+func TestDurationOverflowRejected(t *testing.T) {
+	cases := []string{
+		"totalTime>1e308h",          // huge float, would overflow int on conversion
+		"totalTime>999999999h",      // huge but finite decimal hours
+		"totalTime>NaNh",            // ParseFloat accepts "NaN"
+		"totalTime>Infh",            // ParseFloat accepts "Inf"
+		"totalTime>-Infh",           // ParseFloat accepts "-Inf"
+		"totalTime>999999999999",    // huge but finite plain minutes, within int64 but past the sane bound
+		"totalTime>999999999999:30", // huge hours component in H:MM form
+	}
+	for _, input := range cases {
+		if _, err := Parse(input); err == nil {
+			t.Errorf("Parse(%q) should be rejected as an out-of-range duration", input)
+		}
+	}
+}
+
+func TestDurationAtBoundaryAllowed(t *testing.T) {
+	// One year in minutes/hours — the documented sane upper bound — should
+	// still parse successfully.
+	cases := map[string]int{
+		"totalTime>8784h":   maxDurationMinutes,
+		"totalTime>527040":  maxDurationMinutes,
+		"totalTime>8784:00": maxDurationMinutes,
+	}
+	for input, want := range cases {
+		_, args := compile(t, input)
+		if len(args) != 1 || args[0] != want {
+			t.Errorf("%q: expected arg %d, got %v", input, want, args)
+		}
+	}
+}
+
 func TestIntAndNumberFields(t *testing.T) {
 	sql, args := compile(t, "landings>=3 distance>50.5")
 	if !strings.Contains(sql, "all_landings >= $1") || !strings.Contains(sql, "distance > $2") {
@@ -221,21 +254,21 @@ func TestLikeEscaping(t *testing.T) {
 
 func TestParseErrors(t *testing.T) {
 	cases := []string{
-		"",                    // empty
-		"   ",                 // whitespace only
-		"bogusField:x",        // unknown field
-		"date:notadate",       // bad date
-		"totalTime>abc",       // bad duration
-		"isPic:maybe",         // bad bool
-		"(departure:EDDF",     // unbalanced paren
-		"departure:EDDF OR",   // dangling OR
-		"NOT",                 // dangling NOT
-		"departure:",          // missing value
-		"totalTime>>5",        // bad operator use
-		`remarks:"unclosed`,   // unterminated quote
-		"departure>EDDF",      // range op on text
-		"landings:1.5",        // float for int
-		"offBlock:25:99",      // bad clock
+		"",                        // empty
+		"   ",                     // whitespace only
+		"bogusField:x",            // unknown field
+		"date:notadate",           // bad date
+		"totalTime>abc",           // bad duration
+		"isPic:maybe",             // bad bool
+		"(departure:EDDF",         // unbalanced paren
+		"departure:EDDF OR",       // dangling OR
+		"NOT",                     // dangling NOT
+		"departure:",              // missing value
+		"totalTime>>5",            // bad operator use
+		`remarks:"unclosed`,       // unterminated quote
+		"departure>EDDF",          // range op on text
+		"landings:1.5",            // float for int
+		"offBlock:25:99",          // bad clock
 		strings.Repeat("a", 1001), // too long
 	}
 	for _, input := range cases {

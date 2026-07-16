@@ -2,6 +2,7 @@ package flightsearch
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -233,27 +234,41 @@ func newSignedLeaf(op, value string) (node, error) {
 	return &leafNode{fn: func(b *sqlBuilder) string { return cond }}, nil
 }
 
+// maxDurationHours bounds any parsed duration to a generous year-long
+// ceiling — far beyond any real flight duration, but small enough that
+// hours*60 (and the float-to-int conversion in the decimal-hours branch
+// below) can never overflow int. Without this, a value like "999999999h"
+// or "1e308h" would overflow to a large negative int and still get bound
+// into the query, either producing a confusing 500 (INTEGER out of range)
+// or, if the wrapped value happened to fit, a garbage comparison silently
+// disguised as valid input.
+const (
+	maxDurationHours   = 366 * 24
+	maxDurationMinutes = maxDurationHours * 60
+)
+
 // parseDurationMinutes accepts minutes ("90"), H:MM ("1:30"), or decimal
 // hours with an h suffix ("1.5h", "2h") and returns whole minutes.
 func parseDurationMinutes(s string) (int, error) {
+	invalid := fmt.Errorf("%q is not a valid duration (use minutes, H:MM, or hours like 1.5h)", s)
 	if h, m, ok := strings.Cut(s, ":"); ok {
 		hours, err1 := strconv.Atoi(h)
 		mins, err2 := strconv.Atoi(m)
-		if err1 != nil || err2 != nil || hours < 0 || mins < 0 || mins > 59 || len(m) != 2 {
-			return 0, fmt.Errorf("%q is not a valid duration (use minutes, H:MM, or hours like 1.5h)", s)
+		if err1 != nil || err2 != nil || hours < 0 || hours > maxDurationHours || mins < 0 || mins > 59 || len(m) != 2 {
+			return 0, invalid
 		}
 		return hours*60 + mins, nil
 	}
 	if strings.HasSuffix(strings.ToLower(s), "h") {
 		hours, err := strconv.ParseFloat(s[:len(s)-1], 64)
-		if err != nil || hours < 0 {
-			return 0, fmt.Errorf("%q is not a valid duration (use minutes, H:MM, or hours like 1.5h)", s)
+		if err != nil || math.IsNaN(hours) || math.IsInf(hours, 0) || hours < 0 || hours > maxDurationHours {
+			return 0, invalid
 		}
 		return int(hours*60 + 0.5), nil
 	}
 	minutes, err := strconv.Atoi(s)
-	if err != nil || minutes < 0 {
-		return 0, fmt.Errorf("%q is not a valid duration (use minutes, H:MM, or hours like 1.5h)", s)
+	if err != nil || minutes < 0 || minutes > maxDurationMinutes {
+		return 0, invalid
 	}
 	return minutes, nil
 }
