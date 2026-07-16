@@ -90,6 +90,18 @@ func main() {
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
+
+	// Bound the connection pool. database/sql defaults to an unlimited
+	// MaxOpenConns, so without this a burst of slow requests (or a slow
+	// query with no statement timeout) can open connections until
+	// Postgres's own max_connections is exhausted, taking the database
+	// down for every tenant. Excess load queues (and eventually times out)
+	// instead.
+	db.SetMaxOpenConns(25) // tune to Postgres max_connections / replica count
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(1 * time.Minute)
+
 	log.Println("✅ Database connected")
 
 	// Run database migrations
