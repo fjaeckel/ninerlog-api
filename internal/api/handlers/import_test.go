@@ -802,3 +802,233 @@ func TestParseForeFlightApproach(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+// TestParseFlexibleDate is a regression test for the bug where re-importing
+// ninerlog's own exported CSV failed because the importer only accepted the
+// single hardcoded ISO "2006-01-02" layout, while ninerlog's default (and
+// user-selectable) export date format is "DD.MM.YYYY" (e.g. "07.04.2019").
+// The importer must accept a myriad of common date formats.
+func TestParseFlexibleDate(t *testing.T) {
+	tests := []struct {
+		name string
+		val  string
+		hint string
+		want string // expected result formatted as YYYY-MM-DD, or "" for expected error
+	}{
+		{"iso", "2019-07-26", "", "2019-07-26"},
+		{"ninerlog default DD.MM.YYYY", "07.04.2019", "", "2019-04-07"},
+		{"ninerlog default DD.MM.YYYY (2)", "20.04.2019", "", "2019-04-20"},
+		{"ninerlog default DD.MM.YYYY (3)", "09.05.2019", "", "2019-05-09"},
+		{"ninerlog MM/DD/YYYY export", "04/07/2019", "", "2019-04-07"},
+		{"unambiguous DD/MM/YYYY (day>12)", "25/04/2019", "", "2019-04-25"},
+		{"YYYY/MM/DD", "2019/04/07", "", "2019-04-07"},
+		{"DD-MM-YYYY unambiguous", "25-04-2019", "", "2019-04-25"},
+		{"D.M.YYYY no leading zeros", "7.4.2019", "", "2019-04-07"},
+		{"DD.MM.YY", "07.04.19", "", "2019-04-07"},
+		{"D-Mon-YYYY", "07-Apr-2019", "", "2019-04-07"},
+		{"D Mon YYYY", "7 Apr 2019", "", "2019-04-07"},
+		{"Mon D, YYYY", "Apr 7, 2019", "", "2019-04-07"},
+		{"ISO datetime with Z", "2019-04-07T10:00:00Z", "", "2019-04-07"},
+		{"ISO datetime with space", "2019-04-07 10:00:00", "", "2019-04-07"},
+		{"respects explicit hint over default guesses", "07-04-2019", "02-01-2006", "2019-04-07"},
+		{"falls back when hint does not match", "07.04.2019", "2006-01-02", "2019-04-07"},
+		{"garbage", "not-a-date", "", ""},
+		{"empty", "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseFlexibleDate(tt.val, tt.hint)
+			if tt.want == "" {
+				if err == nil {
+					t.Errorf("parseFlexibleDate(%q, %q) = %v, want error", tt.val, tt.hint, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseFlexibleDate(%q, %q) unexpected error: %v", tt.val, tt.hint, err)
+			}
+			if gotStr := got.Format("2006-01-02"); gotStr != tt.want {
+				t.Errorf("parseFlexibleDate(%q, %q) = %s, want %s", tt.val, tt.hint, gotStr, tt.want)
+			}
+		})
+	}
+}
+
+// TestMapRowToFlight_ReimportOwnExportDateFormat is an end-to-end regression
+// test for re-importing ninerlog's own "standard" CSV export, which is
+// detected as FOREFLIGHT_CSV (its headers overlap heavily with ForeFlight's)
+// and previously forced the ISO date layout via suggestForeFlight's
+// DateFormat hint, rejecting every row when the user's export date format
+// was the default "DD.MM.YYYY".
+func TestMapRowToFlight_ReimportOwnExportDateFormat(t *testing.T) {
+	row := map[string]string{
+		"Date":       "07.04.2019",
+		"AircraftID": "D-ERAE",
+		"From":       "EDAZ",
+		"To":         "EDAZ",
+		"TimeOut":    "08:11",
+		"TimeIn":     "10:55",
+		"TotalTime":  "2.7",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+	if got := flight.Date.String(); got != "2019-04-07" {
+		t.Errorf("Date = %s, want 2019-04-07", got)
+	}
+}
+
+func TestNormalizeDecimalSeparator(t *testing.T) {
+	tests := []struct {
+		input, want string
+	}{
+		{"1,5", "1.5"},
+		{"1.5", "1.5"},
+		{"83", "83"},
+		{"0,0", "0.0"},
+		{"1:23", "1:23"}, // colon durations untouched
+	}
+	for _, tt := range tests {
+		if got := normalizeDecimalSeparator(tt.input); got != tt.want {
+			t.Errorf("normalizeDecimalSeparator(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+// TestMapRowToFlight_CommaDecimalDurationFields is a regression test for
+// re-importing CSVs exported with a comma decimal separator (a supported
+// ninerlog export preference), which previously made every decimal-hour
+// duration field silently fail to parse and get dropped.
+func TestMapRowToFlight_CommaDecimalDurationFields(t *testing.T) {
+	row := map[string]string{
+		"Date":                "2022-06-10",
+		"AircraftID":          "D-EABC",
+		"From":                "EDOI",
+		"To":                  "EDOI",
+		"TotalTime":           "2,7",
+		"ActualInstrument":    "0,5",
+		"SimulatedInstrument": "0,3",
+		"DualGiven":           "1,5",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	flight, errs := mapRowToFlight(row, mappingLookup, nil)
+	if len(errs) > 0 {
+		t.Fatalf("mapRowToFlight() errors = %v", errs)
+	}
+	if flight.TotalTime == nil || *flight.TotalTime != 162 {
+		t.Errorf("TotalTime = %v, want 162", flight.TotalTime)
+	}
+	if flight.ActualInstrumentTime == nil || *flight.ActualInstrumentTime != 30 {
+		t.Errorf("ActualInstrumentTime = %v, want 30", flight.ActualInstrumentTime)
+	}
+	if flight.SimulatedInstrumentTime == nil || *flight.SimulatedInstrumentTime != 18 {
+		t.Errorf("SimulatedInstrumentTime = %v, want 18", flight.SimulatedInstrumentTime)
+	}
+	if flight.DualGivenTime == nil || *flight.DualGivenTime != 90 {
+		t.Errorf("DualGivenTime = %v, want 90", flight.DualGivenTime)
+	}
+}
+
+// TestMapRowToFlight_InvalidDurationSurfacesFieldError ensures malformed
+// (non-empty) duration values are reported to the user as a preview error
+// instead of being silently zeroed out.
+func TestMapRowToFlight_InvalidDurationSurfacesFieldError(t *testing.T) {
+	row := map[string]string{
+		"Date":       "2022-06-10",
+		"AircraftID": "D-EABC",
+		"From":       "EDOI",
+		"To":         "EDOI",
+		"TotalTime":  "not-a-duration",
+	}
+
+	mappingLookup := make(map[string]generated.ImportColumnMapping)
+	for _, m := range suggestForeFlight() {
+		mappingLookup[m.SourceColumn] = m
+	}
+
+	_, errs := mapRowToFlight(row, mappingLookup, nil)
+	found := false
+	for _, e := range errs {
+		if e.field == "totalTime" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected a totalTime field error, got %v", errs)
+	}
+}
+
+// TestSuggestGenericCSV_InstrumentTimeFields is a regression test for the
+// bug where "ActualInstrument"/"actual instrument" headers were mapped to
+// the combined "ifrTime" target instead of the dedicated
+// "actualInstrumentTime" field, and "SimulatedInstrument" wasn't recognised
+// at all.
+func TestSuggestGenericCSV_InstrumentTimeFields(t *testing.T) {
+	headers := []string{"ActualInstrument", "SimulatedInstrument"}
+	mappings := suggestGenericCSV(headers)
+	got := make(map[string]string)
+	for _, m := range mappings {
+		got[m.SourceColumn] = string(m.TargetField)
+	}
+	if got["ActualInstrument"] != "actualInstrumentTime" {
+		t.Errorf("ActualInstrument mapped to %q, want actualInstrumentTime", got["ActualInstrument"])
+	}
+	if got["SimulatedInstrument"] != "simulatedInstrumentTime" {
+		t.Errorf("SimulatedInstrument mapped to %q, want simulatedInstrumentTime", got["SimulatedInstrument"])
+	}
+}
+
+// TestSuggestGenericCSV_OwnEASAFAAExportAliases verifies that re-importing
+// ninerlog's own EASA and FAA CSV exports (which don't overlap enough with
+// ForeFlight's column set to be auto-detected as FOREFLIGHT_CSV) still gets
+// sensible generic-CSV column suggestions.
+func TestSuggestGenericCSV_OwnEASAFAAExportAliases(t *testing.T) {
+	headers := []string{
+		"Date", "Dep Place", "Dep Time", "Arr Place", "Arr Time",
+		"A/C Type", "A/C Reg", "A/C Ident", "Total Time", "Ldg Day", "Ldg Night",
+		"Dual Rcvd", "Instr Given", "Actual Inst", "Sim Inst", "Approaches", "Holds",
+		"Remarks/Endorsements",
+	}
+	mappings := suggestGenericCSV(headers)
+	got := make(map[string]string)
+	for _, m := range mappings {
+		got[m.SourceColumn] = string(m.TargetField)
+	}
+
+	want := map[string]string{
+		"Date":                 "date",
+		"Dep Place":            "departureIcao",
+		"Dep Time":             "offBlockTime",
+		"Arr Place":            "arrivalIcao",
+		"Arr Time":             "onBlockTime",
+		"A/C Type":             "aircraftType",
+		"A/C Reg":              "aircraftReg",
+		"Total Time":           "totalTime",
+		"Ldg Day":              "landingsDay",
+		"Ldg Night":            "landingsNight",
+		"Dual Rcvd":            "isDual",
+		"Instr Given":          "dualGivenTime",
+		"Actual Inst":          "actualInstrumentTime",
+		"Sim Inst":             "simulatedInstrumentTime",
+		"Approaches":           "approachesCount",
+		"Holds":                "holds",
+		"Remarks/Endorsements": "remarks",
+	}
+	for src, target := range want {
+		if got[src] != target {
+			t.Errorf("Column %q mapped to %q, want %q", src, got[src], target)
+		}
+	}
+}

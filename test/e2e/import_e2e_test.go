@@ -124,6 +124,73 @@ func TestImportCSV(t *testing.T) {
 	})
 }
 
+// TestImportCSV_ReimportsOwnExport is a regression test for a bug where
+// re-importing ninerlog's own exported CSV failed every row with
+// "Invalid date" errors: the default export date format is DD.MM.YYYY,
+// but the importer's suggested mapping hardcoded the ISO "2006-01-02"
+// layout and rejected anything else. This creates a flight, exports it
+// (default DD.MM.YYYY dates), re-uploads the exported CSV, and confirms
+// the preview reports no date errors for the row.
+func TestImportCSV_ReimportsOwnExport(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-reexport"), "SecurePass123!", "Reexport")
+
+	r := c.POST("/flights", map[string]interface{}{
+		"date": pastDate(30), "aircraftReg": "D-ERAE", "aircraftType": "C172",
+		"departureIcao": "EDAZ", "arrivalIcao": "EDAZ",
+		"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+	})
+	requireStatus(t, r, http.StatusCreated)
+
+	exportResp := c.GET("/exports/csv")
+	requireStatus(t, exportResp, http.StatusOK)
+	exportedCSV := string(exportResp.Body)
+	if !bytes.Contains(exportResp.Body, []byte("D-ERAE")) {
+		t.Fatalf("expected exported CSV to contain the flight, got: %s", exportedCSV)
+	}
+
+	var uploadToken string
+	var suggested []interface{}
+	t.Run("upload own export", func(t *testing.T) {
+		resp := uploadCSV(t, c, "ninerlog_export.csv", exportedCSV)
+		requireStatus(t, resp, http.StatusOK)
+		var result map[string]interface{}
+		resp.JSON(&result)
+		uploadToken = result["uploadToken"].(string)
+		suggested, _ = result["suggestedMappings"].([]interface{})
+		if len(suggested) == 0 {
+			t.Fatal("expected suggestedMappings for own export")
+		}
+	})
+
+	t.Run("preview reports no date errors", func(t *testing.T) {
+		resp := c.POST("/imports/preview", map[string]interface{}{
+			"uploadToken":    uploadToken,
+			"mappings":       suggested,
+			"skipDuplicates": false,
+		})
+		requireStatus(t, resp, http.StatusOK)
+		var result map[string]interface{}
+		resp.JSON(&result)
+
+		flights, _ := result["flights"].([]interface{})
+		if len(flights) == 0 {
+			t.Fatal("expected at least one previewed row")
+		}
+		for _, fi := range flights {
+			row := fi.(map[string]interface{})
+			if errs, ok := row["errors"].([]interface{}); ok {
+				for _, e := range errs {
+					em := e.(map[string]interface{})
+					if em["field"] == "date" {
+						t.Errorf("unexpected date error on row %v: %v", row["rowIndex"], em["message"])
+					}
+				}
+			}
+		}
+	})
+}
+
 func TestImportForeFlight(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("import-ff"), "SecurePass123!", "FFImport")

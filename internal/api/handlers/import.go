@@ -143,21 +143,28 @@ func suggestGenericCSV(headers []string) []generated.ImportColumnMapping {
 	guesses := map[string]generated.ImportField{
 		"date": "date", "flight date": "date", "datum": "date",
 		"aircraft": "aircraftReg", "registration": "aircraftReg", "reg": "aircraftReg", "aircraftid": "aircraftReg", "aircraft reg": "aircraftReg", "aircraftreg": "aircraftReg", "tail": "aircraftReg", "tail number": "aircraftReg",
-		"type": "aircraftType", "aircraft type": "aircraftType", "typecode": "aircraftType", "aircrafttype": "aircraftType",
-		"from": "departureIcao", "departure": "departureIcao", "dep": "departureIcao", "departure icao": "departureIcao", "departureicao": "departureIcao",
-		"to": "arrivalIcao", "arrival": "arrivalIcao", "arr": "arrivalIcao", "dest": "arrivalIcao", "arrival icao": "arrivalIcao", "arrivalicao": "arrivalIcao",
-		"off block": "offBlockTime", "offblock": "offBlockTime", "off-block": "offBlockTime", "out-block": "offBlockTime", "out block": "offBlockTime", "timeout": "offBlockTime", "chocks off": "offBlockTime", "offblocktime": "offBlockTime",
-		"on block": "onBlockTime", "onblock": "onBlockTime", "on-block": "onBlockTime", "in-block": "onBlockTime", "in block": "onBlockTime", "timein": "onBlockTime", "chocks on": "onBlockTime", "onblocktime": "onBlockTime",
+		"a/c reg": "aircraftReg", "a/c ident": "aircraftReg",
+		"type": "aircraftType", "aircraft type": "aircraftType", "typecode": "aircraftType", "aircrafttype": "aircraftType", "a/c type": "aircraftType",
+		"from": "departureIcao", "departure": "departureIcao", "dep": "departureIcao", "departure icao": "departureIcao", "departureicao": "departureIcao", "dep place": "departureIcao",
+		"to": "arrivalIcao", "arrival": "arrivalIcao", "arr": "arrivalIcao", "dest": "arrivalIcao", "arrival icao": "arrivalIcao", "arrivalicao": "arrivalIcao", "arr place": "arrivalIcao",
+		"off block": "offBlockTime", "offblock": "offBlockTime", "off-block": "offBlockTime", "out-block": "offBlockTime", "out block": "offBlockTime", "timeout": "offBlockTime", "chocks off": "offBlockTime", "offblocktime": "offBlockTime", "dep time": "offBlockTime",
+		"on block": "onBlockTime", "onblock": "onBlockTime", "on-block": "onBlockTime", "in-block": "onBlockTime", "in block": "onBlockTime", "timein": "onBlockTime", "chocks on": "onBlockTime", "onblocktime": "onBlockTime", "arr time": "onBlockTime",
 		"takeoff": "departureTime", "timeoff": "departureTime", "departure time": "departureTime", "departuretime": "departureTime",
 		"landing": "arrivalTime", "timeon": "arrivalTime", "arrival time": "arrivalTime", "arrivaltime": "arrivalTime",
 		"total": "totalTime", "total time": "totalTime", "totaltime": "totalTime", "block time": "totalTime", "flight time": "totalTime",
 		"pic": "isPic", "pic time": "isPic",
-		"dual": "isDual", "dual received": "isDual", "dualreceived": "isDual",
+		"dual": "isDual", "dual received": "isDual", "dualreceived": "isDual", "dual rcvd": "isDual",
 		"night": "nightTime", "night time": "nightTime", "nighttime": "nightTime",
-		"ifr": "ifrTime", "ifr time": "ifrTime", "ifrtime": "ifrTime", "instrument": "ifrTime", "actual instrument": "ifrTime", "actualinstrument": "ifrTime",
-		"day landings": "landingsDay", "daylandingsfullstop": "landingsDay", "day ldg": "landingsDay", "landingsday": "landingsDay",
-		"night landings": "landingsNight", "nightlandingsfullstop": "landingsNight", "night ldg": "landingsNight", "landingsnight": "landingsNight",
-		"remarks": "remarks", "comments": "remarks", "pilotcomments": "remarks", "notes": "remarks",
+		"ifr": "ifrTime", "ifr time": "ifrTime", "ifrtime": "ifrTime", "instrument": "ifrTime",
+		"actual instrument": "actualInstrumentTime", "actualinstrument": "actualInstrumentTime", "actual inst": "actualInstrumentTime",
+		"simulated instrument": "simulatedInstrumentTime", "simulatedinstrument": "simulatedInstrumentTime", "sim inst": "simulatedInstrumentTime",
+		"day landings": "landingsDay", "daylandingsfullstop": "landingsDay", "day ldg": "landingsDay", "landingsday": "landingsDay", "ldg day": "landingsDay",
+		"night landings": "landingsNight", "nightlandingsfullstop": "landingsNight", "night ldg": "landingsNight", "landingsnight": "landingsNight", "ldg night": "landingsNight",
+		"remarks": "remarks", "comments": "remarks", "pilotcomments": "remarks", "notes": "remarks", "remarks/endorsements": "remarks", "remarks & endorsements": "remarks",
+		"holds": "holds", "approaches": "approachesCount", "approachescount": "approachesCount",
+		"instructorname": "instructorName", "instructor name": "instructorName",
+		"instructorcomments": "instructorComments", "instructor comments": "instructorComments",
+		"dualgiven": "dualGivenTime", "dual given": "dualGivenTime", "instr given": "dualGivenTime",
 	}
 
 	var result []generated.ImportColumnMapping
@@ -879,11 +886,11 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 
 		switch mapping.TargetField {
 		case "date":
-			df := "2006-01-02"
+			var hint string
 			if mapping.DateFormat != nil {
-				df = *mapping.DateFormat
+				hint = *mapping.DateFormat
 			}
-			t, err := time.Parse(df, val)
+			t, err := parseFlexibleDate(val, hint)
 			if err != nil {
 				errs = append(errs, fieldError{"date", fmt.Sprintf("Invalid date '%s'", val)})
 			} else {
@@ -908,36 +915,50 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			s := normalizeTime(val)
 			flight.ArrivalTime = &s
 		case "totalTime":
-			if mins, err := duration.ParseDuration(val); err == nil {
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
 				flight.TotalTime = &mins
+			} else {
+				errs = append(errs, fieldError{"totalTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "isPic":
 			// Auto-calculated from crew; ignore imported value
 		case "isDual":
 			// Track DualReceived for crew role inference
-			if f, err := strconv.ParseFloat(val, 64); err == nil {
+			if f, err := strconv.ParseFloat(normalizeDecimalSeparator(val), 64); err == nil {
 				dualReceivedVal = f
 			}
 		case "nightTime":
 			// Auto-calculated from solar data; ignore imported value
 		case "ifrTime":
-			if mins, err := duration.ParseDuration(val); err == nil {
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
 				flight.IfrTime = &mins
+			} else {
+				errs = append(errs, fieldError{"ifrTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "actualInstrumentTime":
-			if mins, err := duration.ParseDuration(val); err == nil {
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
 				flight.ActualInstrumentTime = &mins
+			} else {
+				errs = append(errs, fieldError{"actualInstrumentTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "simulatedInstrumentTime":
-			if mins, err := duration.ParseDuration(val); err == nil {
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
 				flight.SimulatedInstrumentTime = &mins
+			} else {
+				errs = append(errs, fieldError{"simulatedInstrumentTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "holds":
-			n, _ := strconv.Atoi(val)
-			flight.Holds = &n
+			if n, err := strconv.Atoi(val); err == nil {
+				flight.Holds = &n
+			} else {
+				errs = append(errs, fieldError{"holds", fmt.Sprintf("Invalid number '%s'", val)})
+			}
 		case "approachesCount":
-			n, _ := strconv.Atoi(val)
-			flight.ApproachesCount = &n
+			if n, err := strconv.Atoi(val); err == nil {
+				flight.ApproachesCount = &n
+			} else {
+				errs = append(errs, fieldError{"approachesCount", fmt.Sprintf("Invalid number '%s'", val)})
+			}
 		case "isIpc":
 			b := parseBoolish(val, nil)
 			flight.IsIpc = &b
@@ -947,11 +968,17 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "route":
 			flight.Route = &val
 		case "landingsDay":
-			n, _ := strconv.Atoi(val)
-			flight.Landings += n
+			if n, err := strconv.Atoi(val); err == nil {
+				flight.Landings += n
+			} else {
+				errs = append(errs, fieldError{"landingsDay", fmt.Sprintf("Invalid number '%s'", val)})
+			}
 		case "landingsNight":
-			n, _ := strconv.Atoi(val)
-			flight.Landings += n
+			if n, err := strconv.Atoi(val); err == nil {
+				flight.Landings += n
+			} else {
+				errs = append(errs, fieldError{"landingsNight", fmt.Sprintf("Invalid number '%s'", val)})
+			}
 		case "remarks":
 			flight.Remarks = &val
 		case "instructorName":
@@ -960,10 +987,12 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "instructorComments":
 			flight.InstructorComments = &val
 		case "dualGivenTime":
-			if f, err := strconv.ParseFloat(val, 64); err == nil {
+			if f, err := strconv.ParseFloat(normalizeDecimalSeparator(val), 64); err == nil {
 				mins := duration.DecimalHoursToMinutes(f)
 				flight.DualGivenTime = &mins
 				dualGivenVal = f
+			} else {
+				errs = append(errs, fieldError{"dualGivenTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "person1":
 			personNames["person1"], personRoles["person1"] = foreFlightPersonNameRole(val)
@@ -1376,6 +1405,72 @@ func parseSectionCSV(csvData []byte) ([]string, []map[string]string, error) {
 	}
 
 	return headers, rows, nil
+}
+
+// dateLayouts is a prioritized list of date layouts tried when a mapped
+// column's DateFormat hint is absent or does not match. It covers every
+// format ninerlog's own CSV export can produce (exportPrefs.formatDate's
+// three options plus the fixed layouts used by the EASA/FAA exports) so
+// that re-importing our own exports always works, alongside common
+// third-party logbook date formats. For ambiguous numeric slash-separated
+// dates (e.g. "07/04/2019"), MM/DD/YYYY is tried before DD/MM/YYYY since
+// that matches ninerlog's own default/FAA export convention; unambiguous
+// values (day > 12) still resolve correctly via the DD/MM fallback.
+var dateLayouts = []string{
+	"2006-01-02",                // ISO / ForeFlight / ninerlog YYYY-MM-DD export
+	"02.01.2006",                // ninerlog default DD.MM.YYYY export
+	"01/02/2006",                // ninerlog MM/DD/YYYY export, FAA export
+	"2006-01-02T15:04:05Z07:00", // ISO datetime
+	"2006-01-02T15:04:05",
+	"2006-01-02 15:04:05",
+	"02/01/2006", // DD/MM/YYYY (common in EU spreadsheets)
+	"2006/01/02", // YYYY/MM/DD
+	"01-02-2006", // MM-DD-YYYY
+	"02-01-2006", // DD-MM-YYYY
+	"2.1.2006",   // D.M.YYYY (no leading zeros)
+	"1/2/2006",   // M/D/YYYY (no leading zeros)
+	"02.01.06",   // DD.MM.YY
+	"01/02/06",   // MM/DD/YY
+	"02-Jan-2006",
+	"2 Jan 2006",
+	"Jan 2, 2006",
+	"January 2, 2006",
+}
+
+// parseFlexibleDate parses val as a date, trying the mapping's DateFormat
+// hint first (when set) and then falling back through dateLayouts. This
+// lets the importer accept a myriad of date formats instead of requiring
+// an exact match against a single hardcoded/suggested layout.
+func parseFlexibleDate(val, hint string) (time.Time, error) {
+	val = strings.TrimSpace(val)
+	if hint != "" {
+		if t, err := time.Parse(hint, val); err == nil {
+			return t, nil
+		}
+	}
+	for _, layout := range dateLayouts {
+		if layout == hint {
+			continue
+		}
+		if t, err := time.Parse(layout, val); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid date %q", val)
+}
+
+// normalizeDecimalSeparator converts a European-style comma decimal
+// separator (e.g. "1,5") to the dot form ("1.5") expected by
+// duration.ParseDuration/strconv.ParseFloat. ninerlog's own CSV export
+// writes decimal-hour fields with a comma when the user's decimalSeparator
+// preference is "comma", so numeric columns must accept it back on import.
+// A value already containing a dot is left untouched to avoid mangling
+// unrelated formats.
+func normalizeDecimalSeparator(val string) string {
+	if strings.Contains(val, ",") && !strings.Contains(val, ".") {
+		return strings.Replace(val, ",", ".", 1)
+	}
+	return val
 }
 
 func normalizeTime(val string) string {
