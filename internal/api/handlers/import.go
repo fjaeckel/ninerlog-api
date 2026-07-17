@@ -924,8 +924,8 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			// Auto-calculated from crew; ignore imported value
 		case "isDual":
 			// Track DualReceived for crew role inference
-			if f, err := strconv.ParseFloat(normalizeDecimalSeparator(val), 64); err == nil {
-				dualReceivedVal = f
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+				dualReceivedVal = float64(mins)
 			}
 		case "nightTime":
 			// Auto-calculated from solar data; ignore imported value
@@ -987,10 +987,9 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "instructorComments":
 			flight.InstructorComments = &val
 		case "dualGivenTime":
-			if f, err := strconv.ParseFloat(normalizeDecimalSeparator(val), 64); err == nil {
-				mins := duration.DecimalHoursToMinutes(f)
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
 				flight.DualGivenTime = &mins
-				dualGivenVal = f
+				dualGivenVal = float64(mins)
 			} else {
 				errs = append(errs, fieldError{"dualGivenTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}

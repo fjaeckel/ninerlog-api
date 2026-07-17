@@ -129,6 +129,17 @@ func TestParseDuration(t *testing.T) {
 		{"2.5", 150, false},
 		{"0.0", 0, false},
 
+		// Decimal hours with "h" suffix (own CSV export format, FormatDecimal)
+		{"1.5h", 90, false},
+		{"2.1h", 126, false},
+		{"0.0h", 0, false},
+		{"1.4h", 84, false},
+
+		// Decimal comma variants (European locale exports)
+		{"1,5", 90, false},
+		{"2,1h", 126, false},
+		{"0,0h", 0, false},
+
 		// Bare minutes
 		{"83", 83, false},
 		{"0", 0, false},

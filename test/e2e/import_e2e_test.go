@@ -135,6 +135,11 @@ func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("import-reexport"), "SecurePass123!", "Reexport")
 
+	// Use the comma decimal preference so the export writes durations like
+	// "1,5h" — the format that previously failed duration parsing on re-import.
+	pr := c.PATCH("/users/me", map[string]interface{}{"decimalSeparator": "comma"})
+	requireStatus(t, pr, http.StatusOK)
+
 	r := c.POST("/flights", map[string]interface{}{
 		"date": pastDate(30), "aircraftReg": "D-ERAE", "aircraftType": "C172",
 		"departureIcao": "EDAZ", "arrivalIcao": "EDAZ",
@@ -163,7 +168,7 @@ func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 		}
 	})
 
-	t.Run("preview reports no date errors", func(t *testing.T) {
+	t.Run("preview reports no errors", func(t *testing.T) {
 		resp := c.POST("/imports/preview", map[string]interface{}{
 			"uploadToken":    uploadToken,
 			"mappings":       suggested,
@@ -177,14 +182,17 @@ func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 		if len(flights) == 0 {
 			t.Fatal("expected at least one previewed row")
 		}
+		// Re-importing our own export must round-trip cleanly: no field may
+		// fail to parse (dates in DD.MM.YYYY, durations as "1.5h"/"1,5h", ...).
 		for _, fi := range flights {
 			row := fi.(map[string]interface{})
+			if row["status"] == "error" {
+				t.Errorf("row %v has status 'error': %v", row["rowIndex"], row["errors"])
+			}
 			if errs, ok := row["errors"].([]interface{}); ok {
 				for _, e := range errs {
 					em := e.(map[string]interface{})
-					if em["field"] == "date" {
-						t.Errorf("unexpected date error on row %v: %v", row["rowIndex"], em["message"])
-					}
+					t.Errorf("unexpected %v error on row %v: %v", em["field"], row["rowIndex"], em["message"])
 				}
 			}
 		}

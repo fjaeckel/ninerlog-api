@@ -47,8 +47,10 @@ func FormatColonHM(minutes int) string {
 // colonRe matches "H:MM" or "HH:MM" or "HHH:MM" format.
 var colonRe = regexp.MustCompile(`^(\d+):(\d{1,2})$`)
 
-// hmRe matches "1h23m", "1h 23m", "1h", "23m" formats.
-var hmRe = regexp.MustCompile(`^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?$`)
+// hmRe matches "1h23m", "1h 23m", "1h", "23m", and decimal-hour "1.5h" formats.
+// The hours part may carry a decimal fraction because FormatDecimal writes
+// durations as "1.5h" on CSV export, and those values must round-trip on import.
+var hmRe = regexp.MustCompile(`^(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+)\s*m)?$`)
 
 // ParseDuration parses a flexible duration string into integer minutes.
 // Accepted formats:
@@ -58,10 +60,15 @@ var hmRe = regexp.MustCompile(`^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?$`)
 //   - "23m" → 23 minutes
 //   - "83" → 83 minutes (bare integer = minutes)
 //   - "1.38" or "1.5" → decimal hours converted to minutes (83 or 90)
+//   - "1.5h" or "1,5" → decimal-hour variants (h suffix, comma separator)
 func ParseDuration(input string) (int, error) {
 	s := strings.TrimSpace(input)
 	if s == "" {
 		return 0, fmt.Errorf("empty duration string")
+	}
+	// European-style decimal comma ("1,5" / "1,5h") → dot form.
+	if strings.Count(s, ",") == 1 && !strings.Contains(s, ".") {
+		s = strings.Replace(s, ",", ".", 1)
 	}
 
 	// Try colon format: "1:23"
@@ -78,15 +85,15 @@ func ParseDuration(input string) (int, error) {
 	if strings.ContainsAny(s, "hHmM") {
 		lower := strings.ToLower(s)
 		if m := hmRe.FindStringSubmatch(lower); m != nil && (m[1] != "" || m[2] != "") {
-			hours := 0
+			hours := 0.0
 			mins := 0
 			if m[1] != "" {
-				hours, _ = strconv.Atoi(m[1])
+				hours, _ = strconv.ParseFloat(m[1], 64)
 			}
 			if m[2] != "" {
 				mins, _ = strconv.Atoi(m[2])
 			}
-			return hours*60 + mins, nil
+			return DecimalHoursToMinutes(hours) + mins, nil
 		}
 		return 0, fmt.Errorf("invalid hm format: %q", input)
 	}
