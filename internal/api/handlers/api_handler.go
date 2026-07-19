@@ -165,18 +165,22 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 	locale := generated.UserPreferredLocale(user.PreferredLocale)
 	df := generated.UserDateFormat(user.DateFormat)
 	ds := generated.UserDecimalSeparator(user.DecimalSeparator)
+	recencyPerModel := user.RecencyPerModel
+	recencyPerRegistration := user.RecencyPerRegistration
 	return generated.User{
-		Id:                openapi_types.UUID(user.ID),
-		Email:             openapi_types.Email(user.Email),
-		Name:              user.Name,
-		EmailVerified:     &emailVerified,
-		TwoFactorEnabled:  &twoFA,
-		IsAdmin:           &isAdmin,
-		TimeDisplayFormat: &tdf,
-		DateFormat:        &df,
-		DecimalSeparator:  &ds,
-		PreferredLocale:   &locale,
-		CreatedAt:         user.CreatedAt,
-		UpdatedAt:         user.UpdatedAt,
+		Id:                     openapi_types.UUID(user.ID),
+		Email:                  openapi_types.Email(user.Email),
+		Name:                   user.Name,
+		EmailVerified:          &emailVerified,
+		TwoFactorEnabled:       &twoFA,
+		IsAdmin:                &isAdmin,
+		TimeDisplayFormat:      &tdf,
+		DateFormat:             &df,
+		DecimalSeparator:       &ds,
+		PreferredLocale:        &locale,
+		RecencyPerModel:        &recencyPerModel,
+		RecencyPerRegistration: &recencyPerRegistration,
+		CreatedAt:              user.CreatedAt,
+		UpdatedAt:              user.UpdatedAt,
 	}
 }

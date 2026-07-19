@@ -97,9 +97,21 @@ func (m *mockAircraftRepo) Update(_ context.Context, a *models.Aircraft) error {
 	m.aircraft[a.ID] = a
 	return nil
 }
+func (m *mockAircraftRepo) UpdateWithFlightRename(ctx context.Context, a *models.Aircraft, _ string) (int, error) {
+	return 0, m.Update(ctx, a)
+}
 func (m *mockAircraftRepo) Delete(_ context.Context, id uuid.UUID) error {
 	delete(m.aircraft, id)
 	return nil
+}
+func (m *mockAircraftRepo) GetStatsByUserID(_ context.Context, _ uuid.UUID) ([]*models.AircraftStats, error) {
+	return nil, nil
+}
+func (m *mockAircraftRepo) GetTypeStatsByUserID(_ context.Context, _ uuid.UUID) ([]*models.AircraftTypeStats, error) {
+	return nil, nil
+}
+func (m *mockAircraftRepo) GetRecencyRowsByUserID(_ context.Context, _ uuid.UUID) ([]*models.AircraftRecencyRow, error) {
+	return nil, nil
 }
 func (m *mockAircraftRepo) CountByUserID(_ context.Context, userID uuid.UUID) (int, error) {
 	count := 0

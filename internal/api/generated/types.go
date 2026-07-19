@@ -1255,9 +1255,15 @@ type AdminUser struct {
 // Aircraft defines model for Aircraft.
 type Aircraft struct {
 	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
-	AircraftClass *string            `json:"aircraftClass,omitempty"`
-	CreatedAt     time.Time          `json:"createdAt"`
-	Id            openapi_types.UUID `json:"id"`
+	AircraftClass *string   `json:"aircraftClass,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+
+	// DefaultArrivalIcao Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
+
+	// DefaultDepartureIcao Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+	DefaultDepartureIcao *string            `json:"defaultDepartureIcao,omitempty"`
+	Id                   openapi_types.UUID `json:"id"`
 
 	// IsActive Whether aircraft is still active in the user's fleet
 	IsActive *bool `json:"isActive,omitempty"`
@@ -1292,10 +1298,16 @@ type Aircraft struct {
 // AircraftCreate defines model for AircraftCreate.
 type AircraftCreate struct {
 	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
-	AircraftClass     *string `json:"aircraftClass,omitempty"`
-	IsComplex         *bool   `json:"isComplex,omitempty"`
-	IsHighPerformance *bool   `json:"isHighPerformance,omitempty"`
-	IsTailwheel       *bool   `json:"isTailwheel,omitempty"`
+	AircraftClass *string `json:"aircraftClass,omitempty"`
+
+	// DefaultArrivalIcao Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
+
+	// DefaultDepartureIcao Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+	DefaultDepartureIcao *string `json:"defaultDepartureIcao,omitempty"`
+	IsComplex            *bool   `json:"isComplex,omitempty"`
+	IsHighPerformance    *bool   `json:"isHighPerformance,omitempty"`
+	IsTailwheel          *bool   `json:"isTailwheel,omitempty"`
 
 	// Make Aircraft manufacturer
 	Make string `json:"make"`
@@ -1311,19 +1323,88 @@ type AircraftCreate struct {
 	Type string `json:"type"`
 }
 
+// AircraftStats defines model for AircraftStats.
+type AircraftStats struct {
+	// FirstFlightDate Date (YYYY-MM-DD) of the first logged flight with this registration
+	FirstFlightDate *string `json:"firstFlightDate,omitempty"`
+
+	// LandingsDay Total day landings with this registration
+	LandingsDay int `json:"landingsDay"`
+
+	// LandingsLast90Days Total landings with this registration in the preceding 90 days
+	LandingsLast90Days int `json:"landingsLast90Days"`
+
+	// LandingsNight Total night landings with this registration
+	LandingsNight int `json:"landingsNight"`
+
+	// LastFlightDate Date (YYYY-MM-DD) of the most recent logged flight with this registration
+	LastFlightDate *string `json:"lastFlightDate,omitempty"`
+
+	// RecencyLapsesOn Informational 90-day recency (styled after EASA FCL.060(b) day recency, 3 landings in 90 days): last date on which the 90-day landing count is still 3 or more. Only set while the count is currently 3 or more.
+	RecencyLapsesOn *string `json:"recencyLapsesOn,omitempty"`
+
+	// Registration Aircraft registration the statistics are aggregated for
+	Registration string `json:"registration"`
+
+	// TotalFlights Number of logged flights with this registration
+	TotalFlights int `json:"totalFlights"`
+
+	// TotalMinutes Total flight time in minutes with this registration
+	TotalMinutes int `json:"totalMinutes"`
+}
+
+// AircraftTypeStats defines model for AircraftTypeStats.
+type AircraftTypeStats struct {
+	// AircraftType Aircraft type/model designation the statistics are aggregated for
+	AircraftType string `json:"aircraftType"`
+
+	// FirstFlightDate Date (YYYY-MM-DD) of the first logged flight on this type
+	FirstFlightDate *string `json:"firstFlightDate,omitempty"`
+
+	// LandingsDay Total day landings on this type
+	LandingsDay int `json:"landingsDay"`
+
+	// LandingsLast90Days Total landings on this type in the preceding 90 days
+	LandingsLast90Days int `json:"landingsLast90Days"`
+
+	// LandingsNight Total night landings on this type
+	LandingsNight int `json:"landingsNight"`
+
+	// LastFlightDate Date (YYYY-MM-DD) of the most recent logged flight on this type
+	LastFlightDate *string `json:"lastFlightDate,omitempty"`
+
+	// RecencyLapsesOn Informational 90-day recency (styled after EASA FCL.060(b) day recency, 3 landings in 90 days): last date on which the 90-day landing count is still 3 or more. Only set while the count is currently 3 or more.
+	RecencyLapsesOn *string `json:"recencyLapsesOn,omitempty"`
+
+	// TotalFlights Number of logged flights on this type
+	TotalFlights int `json:"totalFlights"`
+
+	// TotalMinutes Total flight time in minutes on this type
+	TotalMinutes int `json:"totalMinutes"`
+}
+
 // AircraftUpdate defines model for AircraftUpdate.
 type AircraftUpdate struct {
 	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
-	AircraftClass     *string `json:"aircraftClass,omitempty"`
-	IsActive          *bool   `json:"isActive,omitempty"`
-	IsComplex         *bool   `json:"isComplex,omitempty"`
-	IsHighPerformance *bool   `json:"isHighPerformance,omitempty"`
-	IsTailwheel       *bool   `json:"isTailwheel,omitempty"`
-	Make              *string `json:"make,omitempty"`
-	Model             *string `json:"model,omitempty"`
-	Notes             *string `json:"notes,omitempty"`
-	Registration      *string `json:"registration,omitempty"`
-	Type              *string `json:"type,omitempty"`
+	AircraftClass *string `json:"aircraftClass,omitempty"`
+
+	// DefaultArrivalIcao Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
+
+	// DefaultDepartureIcao Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+	DefaultDepartureIcao *string `json:"defaultDepartureIcao,omitempty"`
+	IsActive             *bool   `json:"isActive,omitempty"`
+	IsComplex            *bool   `json:"isComplex,omitempty"`
+	IsHighPerformance    *bool   `json:"isHighPerformance,omitempty"`
+	IsTailwheel          *bool   `json:"isTailwheel,omitempty"`
+	Make                 *string `json:"make,omitempty"`
+	Model                *string `json:"model,omitempty"`
+	Notes                *string `json:"notes,omitempty"`
+	Registration         *string `json:"registration,omitempty"`
+
+	// RenameFlights When true and the registration is being changed, logged flights that reference the old registration are updated to the new one.
+	RenameFlights *bool   `json:"renameFlights,omitempty"`
+	Type          *string `json:"type,omitempty"`
 }
 
 // Airport defines model for Airport.
@@ -3134,6 +3215,12 @@ type User struct {
 	// PreferredLocale User's preferred language for the interface.
 	PreferredLocale *UserPreferredLocale `json:"preferredLocale,omitempty"`
 
+	// RecencyPerModel Show informational 90-day landing recency (styled after EASA FCL.060(b)) per aircraft model/type.
+	RecencyPerModel *bool `json:"recencyPerModel,omitempty"`
+
+	// RecencyPerRegistration Show informational 90-day landing recency per individual aircraft registration. Off by default — FCL.060(b) recency is defined per type/class, so per-registration tracking is purely a familiarity aid.
+	RecencyPerRegistration *bool `json:"recencyPerRegistration,omitempty"`
+
 	// TimeDisplayFormat User's preferred time display format. "hm" for hours and minutes (1h 30m), "decimal" for decimal hours (1.5h).
 	TimeDisplayFormat *UserTimeDisplayFormat `json:"timeDisplayFormat,omitempty"`
 
@@ -3584,6 +3671,12 @@ type UpdateCurrentUserJSONBody struct {
 
 	// PreferredLocale Preferred language for the interface
 	PreferredLocale *UpdateCurrentUserJSONBodyPreferredLocale `json:"preferredLocale,omitempty"`
+
+	// RecencyPerModel Show informational 90-day landing recency per aircraft model/type
+	RecencyPerModel *bool `json:"recencyPerModel,omitempty"`
+
+	// RecencyPerRegistration Show informational 90-day landing recency per individual aircraft registration
+	RecencyPerRegistration *bool `json:"recencyPerRegistration,omitempty"`
 
 	// TimeDisplayFormat Preferred time display format
 	TimeDisplayFormat *UpdateCurrentUserJSONBodyTimeDisplayFormat `json:"timeDisplayFormat,omitempty"`

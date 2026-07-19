@@ -751,6 +751,12 @@ paths:
                   type: string
                   enum: [en, de]
                   description: Preferred language for the interface
+                recencyPerModel:
+                  type: boolean
+                  description: Show informational 90-day landing recency per aircraft model/type
+                recencyPerRegistration:
+                  type: boolean
+                  description: Show informational 90-day landing recency per individual aircraft registration
       responses:
         '200':
           description: User updated successfully
@@ -1462,6 +1468,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /aircraft/stats:
+    get:
+      tags:
+        - Aircraft
+      summary: Get per-aircraft flight statistics
+      description: >-
+        Aggregated flight statistics per aircraft registration for the
+        authenticated user, computed from the logged flights.
+      operationId: getAircraftStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Per-registration and per-type flight statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - byType
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AircraftStats'
+                  byType:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AircraftTypeStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /aircraft/{aircraftId}:
     get:
@@ -3923,6 +3962,22 @@ components:
           default: en
           example: en
           description: User's preferred language for the interface.
+        recencyPerModel:
+          type: boolean
+          default: true
+          example: true
+          description: >-
+            Show informational 90-day landing recency (styled after EASA
+            FCL.060(b)) per aircraft model/type.
+        recencyPerRegistration:
+          type: boolean
+          default: false
+          example: false
+          description: >-
+            Show informational 90-day landing recency per individual aircraft
+            registration. Off by default — FCL.060(b) recency is defined per
+            type/class, so per-registration tracking is purely a familiarity
+            aid.
 
     TwoFactorSetup:
       type: object
@@ -4210,6 +4265,16 @@ components:
           default: true
           example: true
           description: Whether aircraft is still active in the user's fleet
+        defaultDepartureIcao:
+          type: [string, 'null']
+          maxLength: 4
+          example: LSZH
+          description: Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+        defaultArrivalIcao:
+          type: [string, 'null']
+          maxLength: 4
+          example: LSZH
+          description: Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
         createdAt:
           type: string
           format: date-time
@@ -4262,6 +4327,16 @@ components:
         notes:
           type: [string, 'null']
           example: Club aircraft, requires checkout
+        defaultDepartureIcao:
+          type: [string, 'null']
+          maxLength: 4
+          example: LSZH
+          description: Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+        defaultArrivalIcao:
+          type: [string, 'null']
+          maxLength: 4
+          example: LSZH
+          description: Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
 
     AircraftUpdate:
       type: object
@@ -4297,6 +4372,125 @@ components:
         isActive:
           type: boolean
           example: true
+        defaultDepartureIcao:
+          type: [string, 'null']
+          maxLength: 4
+          example: LSZH
+          description: Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+        defaultArrivalIcao:
+          type: [string, 'null']
+          maxLength: 4
+          example: LSZH
+          description: Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+        renameFlights:
+          type: boolean
+          default: false
+          example: false
+          description: >-
+            When true and the registration is being changed, logged flights
+            that reference the old registration are updated to the new one.
+
+    AircraftStats:
+      type: object
+      required:
+        - registration
+        - totalFlights
+        - totalMinutes
+        - landingsDay
+        - landingsNight
+        - landingsLast90Days
+      properties:
+        registration:
+          type: string
+          example: D-EFGH
+          description: Aircraft registration the statistics are aggregated for
+        totalFlights:
+          type: integer
+          example: 42
+          description: Number of logged flights with this registration
+        totalMinutes:
+          type: integer
+          example: 2530
+          description: Total flight time in minutes with this registration
+        landingsDay:
+          type: integer
+          example: 55
+          description: Total day landings with this registration
+        landingsNight:
+          type: integer
+          example: 4
+          description: Total night landings with this registration
+        firstFlightDate:
+          type: [string, 'null']
+          example: '2024-03-02'
+          description: Date (YYYY-MM-DD) of the first logged flight with this registration
+        lastFlightDate:
+          type: [string, 'null']
+          example: '2026-06-14'
+          description: Date (YYYY-MM-DD) of the most recent logged flight with this registration
+        landingsLast90Days:
+          type: integer
+          example: 5
+          description: Total landings with this registration in the preceding 90 days
+        recencyLapsesOn:
+          type: [string, 'null']
+          example: '2026-09-03'
+          description: >-
+            Informational 90-day recency (styled after EASA FCL.060(b) day
+            recency, 3 landings in 90 days): last date on which the 90-day
+            landing count is still 3 or more. Only set while the count is
+            currently 3 or more.
+
+    AircraftTypeStats:
+      type: object
+      required:
+        - aircraftType
+        - totalFlights
+        - totalMinutes
+        - landingsDay
+        - landingsNight
+        - landingsLast90Days
+      properties:
+        aircraftType:
+          type: string
+          example: C172
+          description: Aircraft type/model designation the statistics are aggregated for
+        totalFlights:
+          type: integer
+          example: 42
+          description: Number of logged flights on this type
+        totalMinutes:
+          type: integer
+          example: 2530
+          description: Total flight time in minutes on this type
+        landingsDay:
+          type: integer
+          example: 55
+          description: Total day landings on this type
+        landingsNight:
+          type: integer
+          example: 4
+          description: Total night landings on this type
+        firstFlightDate:
+          type: [string, 'null']
+          example: '2024-03-02'
+          description: Date (YYYY-MM-DD) of the first logged flight on this type
+        lastFlightDate:
+          type: [string, 'null']
+          example: '2026-06-14'
+          description: Date (YYYY-MM-DD) of the most recent logged flight on this type
+        landingsLast90Days:
+          type: integer
+          example: 5
+          description: Total landings on this type in the preceding 90 days
+        recencyLapsesOn:
+          type: [string, 'null']
+          example: '2026-09-03'
+          description: >-
+            Informational 90-day recency (styled after EASA FCL.060(b) day
+            recency, 3 landings in 90 days): last date on which the 90-day
+            landing count is still 3 or more. Only set while the count is
+            currently 3 or more.
 
     Flight:
       type: object
