@@ -69,6 +69,38 @@ func TestUserProfile(t *testing.T) {
 		}
 	})
 
+	t.Run("recency preferences default and update", func(t *testing.T) {
+		c2 := NewE2EClient(t)
+		registerAndLogin(t, c2, uniqueEmail("recency-pref"), "SecurePass123!", "Recency Pref")
+
+		// Defaults: per-model on, per-registration off
+		resp := c2.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["recencyPerModel"] != true {
+			t.Errorf("Expected default recencyPerModel true, got %v", u["recencyPerModel"])
+		}
+		if u["recencyPerRegistration"] != false {
+			t.Errorf("Expected default recencyPerRegistration false, got %v", u["recencyPerRegistration"])
+		}
+
+		// Flip both and verify persistence
+		resp = c2.PATCH("/users/me", map[string]interface{}{
+			"recencyPerModel": false, "recencyPerRegistration": true,
+		})
+		requireStatus(t, resp, http.StatusOK)
+		resp = c2.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		resp.JSON(&u)
+		if u["recencyPerModel"] != false {
+			t.Errorf("Expected recencyPerModel false after update, got %v", u["recencyPerModel"])
+		}
+		if u["recencyPerRegistration"] != true {
+			t.Errorf("Expected recencyPerRegistration true after update, got %v", u["recencyPerRegistration"])
+		}
+	})
+
 	t.Run("update timeDisplayFormat back to hm", func(t *testing.T) {
 		c2 := NewE2EClient(t)
 		registerAndLogin(t, c2, uniqueEmail("tdf-hm"), "SecurePass123!", "TDF HM")

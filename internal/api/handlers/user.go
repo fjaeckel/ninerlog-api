@@ -82,6 +82,12 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 			user.PreferredLocale = locale
 		}
 	}
+	if req.RecencyPerModel != nil {
+		user.RecencyPerModel = *req.RecencyPerModel
+	}
+	if req.RecencyPerRegistration != nil {
+		user.RecencyPerRegistration = *req.RecencyPerRegistration
+	}
 
 	// Update user
 	if err := h.authService.UpdateUser(c.Request.Context(), user); err != nil {

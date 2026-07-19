@@ -14,11 +14,14 @@ import (
 // Mock aircraft repository
 type mockAircraftRepo struct {
 	aircraft map[uuid.UUID]*models.Aircraft
+	// flightsByReg simulates logged flights per registration for rename tests
+	flightsByReg map[string]int
 }
 
 func newMockAircraftRepo() *mockAircraftRepo {
 	return &mockAircraftRepo{
-		aircraft: make(map[uuid.UUID]*models.Aircraft),
+		aircraft:     make(map[uuid.UUID]*models.Aircraft),
+		flightsByReg: make(map[string]int),
 	}
 }
 
@@ -32,7 +35,8 @@ func (m *mockAircraftRepo) Create(ctx context.Context, aircraft *models.Aircraft
 	aircraft.ID = uuid.New()
 	aircraft.CreatedAt = time.Now()
 	aircraft.UpdatedAt = time.Now()
-	m.aircraft[aircraft.ID] = aircraft
+	clone := *aircraft
+	m.aircraft[aircraft.ID] = &clone
 	return nil
 }
 
@@ -41,7 +45,10 @@ func (m *mockAircraftRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.A
 	if !exists {
 		return nil, repository.ErrNotFound
 	}
-	return a, nil
+	// Return a copy so callers mutating the result don't change stored state,
+	// matching the behavior of a real database-backed repository.
+	clone := *a
+	return &clone, nil
 }
 
 func (m *mockAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error) {
@@ -65,7 +72,8 @@ func (m *mockAircraftRepo) Update(ctx context.Context, aircraft *models.Aircraft
 		}
 	}
 	aircraft.UpdatedAt = time.Now()
-	m.aircraft[aircraft.ID] = aircraft
+	clone := *aircraft
+	m.aircraft[aircraft.ID] = &clone
 	return nil
 }
 
@@ -77,6 +85,13 @@ func (m *mockAircraftRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *mockAircraftRepo) UpdateWithFlightRename(ctx context.Context, aircraft *models.Aircraft, oldRegistration string) (int, error) {
+	if err := m.Update(ctx, aircraft); err != nil {
+		return 0, err
+	}
+	return m.flightsByReg[oldRegistration], nil
+}
+
 func (m *mockAircraftRepo) CountByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
 	count := 0
 	for _, a := range m.aircraft {
@@ -85,6 +100,18 @@ func (m *mockAircraftRepo) CountByUserID(ctx context.Context, userID uuid.UUID) 
 		}
 	}
 	return count, nil
+}
+
+func (m *mockAircraftRepo) GetStatsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftStats, error) {
+	return nil, nil
+}
+
+func (m *mockAircraftRepo) GetTypeStatsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftTypeStats, error) {
+	return nil, nil
+}
+
+func (m *mockAircraftRepo) GetRecencyRowsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftRecencyRow, error) {
+	return nil, nil
 }
 
 func setupAircraftService() *service.AircraftService {
@@ -333,7 +360,7 @@ func TestUpdateAircraft(t *testing.T) {
 
 	aircraft.Model = "172S Skyhawk SP"
 	aircraft.IsComplex = true
-	err := svc.UpdateAircraft(ctx, aircraft, userID)
+	_, err := svc.UpdateAircraft(ctx, aircraft, userID, false)
 	if err != nil {
 		t.Fatalf("UpdateAircraft failed: %v", err)
 	}
@@ -364,9 +391,46 @@ func TestUpdateAircraftUnauthorized(t *testing.T) {
 	_ = svc.CreateAircraft(ctx, aircraft)
 
 	aircraft.Model = "Hacked"
-	err := svc.UpdateAircraft(ctx, aircraft, otherID)
+	_, err := svc.UpdateAircraft(ctx, aircraft, otherID, false)
 	if err != service.ErrUnauthorizedAircraft {
 		t.Errorf("Expected ErrUnauthorizedAircraft, got %v", err)
+	}
+}
+
+func TestUpdateAircraftRenameFlights(t *testing.T) {
+	repo := newMockAircraftRepo()
+	svc := service.NewAircraftService(repo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	aircraft := &models.Aircraft{
+		UserID:       userID,
+		Registration: "D-EFGH",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172 Skyhawk",
+		IsActive:     true,
+	}
+	_ = svc.CreateAircraft(ctx, aircraft)
+	repo.flightsByReg["D-EFGH"] = 3
+
+	// Registration unchanged: rename flag is a no-op
+	updated, err := svc.UpdateAircraft(ctx, aircraft, userID, true)
+	if err != nil {
+		t.Fatalf("UpdateAircraft failed: %v", err)
+	}
+	if updated != 0 {
+		t.Errorf("Expected 0 flights updated when registration unchanged, got %d", updated)
+	}
+
+	// Registration changed with renameFlights: flights are repointed
+	aircraft.Registration = "D-XXXX"
+	updated, err = svc.UpdateAircraft(ctx, aircraft, userID, true)
+	if err != nil {
+		t.Fatalf("UpdateAircraft failed: %v", err)
+	}
+	if updated != 3 {
+		t.Errorf("Expected 3 flights updated on rename, got %d", updated)
 	}
 }
 

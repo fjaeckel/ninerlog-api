@@ -89,9 +89,21 @@ func (m *sessionAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID)
 }
 
 func (m *sessionAircraftRepo) Update(ctx context.Context, a *models.Aircraft) error { return nil }
-func (m *sessionAircraftRepo) Delete(ctx context.Context, id uuid.UUID) error       { return nil }
+func (m *sessionAircraftRepo) UpdateWithFlightRename(ctx context.Context, a *models.Aircraft, oldRegistration string) (int, error) {
+	return 0, nil
+}
+func (m *sessionAircraftRepo) Delete(ctx context.Context, id uuid.UUID) error { return nil }
 func (m *sessionAircraftRepo) CountByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
 	return len(m.aircraft), nil
+}
+func (m *sessionAircraftRepo) GetStatsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftStats, error) {
+	return nil, nil
+}
+func (m *sessionAircraftRepo) GetTypeStatsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftTypeStats, error) {
+	return nil, nil
+}
+func (m *sessionAircraftRepo) GetRecencyRowsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftRecencyRow, error) {
+	return nil, nil
 }
 
 func newTestFlightSessionService(t *testing.T) (*FlightSessionService, *mockFlightSessionRepo, *mockFlightRepo, *sessionAircraftRepo) {

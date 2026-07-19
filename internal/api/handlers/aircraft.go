@@ -3,6 +3,8 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -11,6 +13,18 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// normalizeICAO uppercases an optional airfield code, mapping empty to nil
+func normalizeICAO(code *string) *string {
+	if code == nil {
+		return nil
+	}
+	upper := strings.ToUpper(strings.TrimSpace(*code))
+	if upper == "" {
+		return nil
+	}
+	return &upper
+}
 
 // ListAircraft implements GET /aircraft
 // (GET /aircraft)
@@ -112,6 +126,8 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 		s := string(*req.AircraftClass)
 		aircraft.AircraftClass = &s
 	}
+	aircraft.DefaultDepartureICAO = normalizeICAO(req.DefaultDepartureIcao)
+	aircraft.DefaultArrivalICAO = normalizeICAO(req.DefaultArrivalIcao)
 
 	if err := h.aircraftService.CreateAircraft(c.Request.Context(), aircraft); err != nil {
 		if errors.Is(err, service.ErrDuplicateRegistration) {
@@ -203,8 +219,15 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 		s := string(*req.AircraftClass)
 		aircraft.AircraftClass = &s
 	}
+	if req.DefaultDepartureIcao != nil {
+		aircraft.DefaultDepartureICAO = normalizeICAO(req.DefaultDepartureIcao)
+	}
+	if req.DefaultArrivalIcao != nil {
+		aircraft.DefaultArrivalICAO = normalizeICAO(req.DefaultArrivalIcao)
+	}
 
-	if err := h.aircraftService.UpdateAircraft(c.Request.Context(), aircraft, userID); err != nil {
+	renameFlights := req.RenameFlights != nil && *req.RenameFlights
+	if _, err := h.aircraftService.UpdateAircraft(c.Request.Context(), aircraft, userID, renameFlights); err != nil {
 		if errors.Is(err, service.ErrDuplicateRegistration) {
 			h.sendError(c, http.StatusConflict, "Aircraft registration already exists")
 			return
@@ -214,6 +237,62 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 	}
 
 	c.JSON(http.StatusOK, convertToGeneratedAircraft(aircraft))
+}
+
+// GetAircraftStats implements GET /aircraft/stats
+// (GET /aircraft/stats)
+func (h *APIHandler) GetAircraftStats(c *gin.Context) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	stats, err := h.aircraftService.GetAircraftStats(c.Request.Context(), userID)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve aircraft statistics")
+		return
+	}
+
+	formatDate := func(t *time.Time) *string {
+		if t == nil {
+			return nil
+		}
+		d := t.Format("2006-01-02")
+		return &d
+	}
+
+	result := make([]generated.AircraftStats, 0, len(stats.ByRegistration))
+	for _, s := range stats.ByRegistration {
+		result = append(result, generated.AircraftStats{
+			Registration:       s.Registration,
+			TotalFlights:       s.TotalFlights,
+			TotalMinutes:       s.TotalMinutes,
+			LandingsDay:        s.LandingsDay,
+			LandingsNight:      s.LandingsNight,
+			FirstFlightDate:    formatDate(s.FirstFlightDate),
+			LastFlightDate:     formatDate(s.LastFlightDate),
+			LandingsLast90Days: s.LandingsLast90Days,
+			RecencyLapsesOn:    formatDate(s.RecencyLapsesOn),
+		})
+	}
+
+	byType := make([]generated.AircraftTypeStats, 0, len(stats.ByType))
+	for _, s := range stats.ByType {
+		byType = append(byType, generated.AircraftTypeStats{
+			AircraftType:       s.AircraftType,
+			TotalFlights:       s.TotalFlights,
+			TotalMinutes:       s.TotalMinutes,
+			LandingsDay:        s.LandingsDay,
+			LandingsNight:      s.LandingsNight,
+			FirstFlightDate:    formatDate(s.FirstFlightDate),
+			LastFlightDate:     formatDate(s.LastFlightDate),
+			LandingsLast90Days: s.LandingsLast90Days,
+			RecencyLapsesOn:    formatDate(s.RecencyLapsesOn),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result, "byType": byType})
 }
 
 // DeleteAircraft implements DELETE /aircraft/{aircraftId}
@@ -239,19 +318,21 @@ func (h *APIHandler) DeleteAircraft(c *gin.Context, aircraftId generated.Aircraf
 
 func convertToGeneratedAircraft(a *models.Aircraft) generated.Aircraft {
 	ac := generated.Aircraft{
-		Id:                openapi_types.UUID(a.ID),
-		UserId:            openapi_types.UUID(a.UserID),
-		Registration:      a.Registration,
-		Type:              a.Type,
-		Make:              a.Make,
-		Model:             a.Model,
-		IsComplex:         &a.IsComplex,
-		IsHighPerformance: &a.IsHighPerformance,
-		IsTailwheel:       &a.IsTailwheel,
-		Notes:             a.Notes,
-		IsActive:          &a.IsActive,
-		CreatedAt:         a.CreatedAt,
-		UpdatedAt:         a.UpdatedAt,
+		Id:                   openapi_types.UUID(a.ID),
+		UserId:               openapi_types.UUID(a.UserID),
+		Registration:         a.Registration,
+		Type:                 a.Type,
+		Make:                 a.Make,
+		Model:                a.Model,
+		IsComplex:            &a.IsComplex,
+		IsHighPerformance:    &a.IsHighPerformance,
+		IsTailwheel:          &a.IsTailwheel,
+		Notes:                a.Notes,
+		IsActive:             &a.IsActive,
+		DefaultDepartureIcao: a.DefaultDepartureICAO,
+		DefaultArrivalIcao:   a.DefaultArrivalICAO,
+		CreatedAt:            a.CreatedAt,
+		UpdatedAt:            a.UpdatedAt,
 	}
 	if a.AircraftClass != nil {
 		ac.AircraftClass = a.AircraftClass

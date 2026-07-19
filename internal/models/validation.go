@@ -67,6 +67,8 @@ func ValidateAircraftTextFields(a *Aircraft) error {
 		ValidateStringLength("model", a.Model, 50),
 		ValidateOptionalStringLength("notes", a.Notes, 1000),
 		ValidateOptionalStringLength("aircraftClass", a.AircraftClass, 30),
+		ValidateOptionalStringLength("defaultDepartureIcao", a.DefaultDepartureICAO, 4),
+		ValidateOptionalStringLength("defaultArrivalIcao", a.DefaultArrivalICAO, 4),
 	}
 	for _, err := range checks {
 		if err != nil {

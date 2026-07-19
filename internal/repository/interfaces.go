@@ -231,8 +231,20 @@ type AircraftRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Aircraft, error)
 	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error)
 	Update(ctx context.Context, aircraft *models.Aircraft) error
+	// UpdateWithFlightRename updates the aircraft and, in the same
+	// transaction, repoints flights (and open flight sessions) logged under
+	// oldRegistration to the aircraft's new registration. Returns the number
+	// of flights updated.
+	UpdateWithFlightRename(ctx context.Context, aircraft *models.Aircraft, oldRegistration string) (int, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	CountByUserID(ctx context.Context, userID uuid.UUID) (int, error)
+	// GetStatsByUserID aggregates flight statistics per aircraft registration
+	GetStatsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftStats, error)
+	// GetTypeStatsByUserID aggregates flight statistics per aircraft type
+	GetTypeStatsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftTypeStats, error)
+	// GetRecencyRowsByUserID returns per-day landing counts for flights in
+	// the preceding 90 days, newest first, for recency derivation
+	GetRecencyRowsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftRecencyRow, error)
 }
 
 // NotificationRepository defines the interface for notification data access

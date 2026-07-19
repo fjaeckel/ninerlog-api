@@ -25,6 +25,9 @@ type User struct {
 	DateFormat          string         `json:"dateFormat"`
 	DecimalSeparator    string         `json:"decimalSeparator"`
 	PreferredLocale     string         `json:"preferredLocale"`
+	// Informational 90-day recency indicator preferences (FCL.060(b)-style)
+	RecencyPerModel        bool `json:"recencyPerModel"`
+	RecencyPerRegistration bool `json:"recencyPerRegistration"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 }

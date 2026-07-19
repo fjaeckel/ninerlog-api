@@ -62,6 +62,9 @@ type ServerInterface interface {
 	// Add aircraft
 	// (POST /aircraft)
 	CreateAircraft(c *gin.Context)
+	// Get per-aircraft flight statistics
+	// (GET /aircraft/stats)
+	GetAircraftStats(c *gin.Context)
 	// Delete aircraft
 	// (DELETE /aircraft/{aircraftId})
 	DeleteAircraft(c *gin.Context, aircraftId AircraftId)
@@ -760,6 +763,21 @@ func (siw *ServerInterfaceWrapper) CreateAircraft(c *gin.Context) {
 	}
 
 	siw.Handler.CreateAircraft(c)
+}
+
+// GetAircraftStats operation middleware
+func (siw *ServerInterfaceWrapper) GetAircraftStats(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAircraftStats(c)
 }
 
 // DeleteAircraft operation middleware
@@ -3169,6 +3187,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/admin/users/:userId/unlock", wrapper.UnlockUser)
 	router.GET(options.BaseURL+"/aircraft", wrapper.ListAircraft)
 	router.POST(options.BaseURL+"/aircraft", wrapper.CreateAircraft)
+	router.GET(options.BaseURL+"/aircraft/stats", wrapper.GetAircraftStats)
 	router.DELETE(options.BaseURL+"/aircraft/:aircraftId", wrapper.DeleteAircraft)
 	router.GET(options.BaseURL+"/aircraft/:aircraftId", wrapper.GetAircraft)
 	router.PATCH(options.BaseURL+"/aircraft/:aircraftId", wrapper.UpdateAircraft)
