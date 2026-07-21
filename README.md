@@ -132,14 +132,14 @@ Full developer documentation lives in [`docs/`](docs/README.md). Start with the
 
 ## Running NinerLog
 
-To run your own NinerLog instance, see [ninerlog-dockerized](https://github.com/fjaeckel/ninerlog-dockerized) for a ready-to-use Docker Compose setup with pre-built images.
+To run your own NinerLog instance, see [ninerlog](https://github.com/fjaeckel/ninerlog) for a ready-to-use Docker Compose setup with pre-built images.
 
 ## Related Repositories
 
 | Repository | Description |
 |---|---|
 | [ninerlog-frontend](https://github.com/fjaeckel/ninerlog-frontend) | React/TypeScript PWA frontend |
-| [ninerlog-dockerized](https://github.com/fjaeckel/ninerlog-dockerized) | Self-hosted deployment (Docker Compose) |
+| [ninerlog](https://github.com/fjaeckel/ninerlog) | Self-hosted deployment (Docker Compose) |
 | [ninerlog-website](https://github.com/fjaeckel/ninerlog-website) | Marketing website |
 
 ## Contributing
