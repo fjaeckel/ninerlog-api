@@ -38,6 +38,7 @@ func RegisterCustomCurrencyRoutes(api *gin.RouterGroup, h *CustomCurrencyHandler
 	g.POST("/:id/share", h.EnableShare)
 	g.DELETE("/:id/share", h.DisableShare)
 	g.PUT("/:id/enabled", h.SetEnabled)
+	g.PUT("/:id/notify", h.SetNotify)
 }
 
 // customRuleRequest is the create/update payload.
@@ -256,6 +257,32 @@ func (h *CustomCurrencyHandler) SetEnabled(c *gin.Context) {
 		return
 	}
 	rule, err := h.service.SetEnabled(c.Request.Context(), userID, id, req.Enabled)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, rule)
+}
+
+// SetNotify handles PUT /custom-currency/:id/notify — opt a rule in/out of
+// expiry notifications.
+func (h *CustomCurrencyHandler) SetNotify(c *gin.Context) {
+	userID, ok := h.userID(c)
+	if !ok {
+		return
+	}
+	id, ok := h.parseID(c)
+	if !ok {
+		return
+	}
+	var req struct {
+		Notify bool `json:"notify"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	rule, err := h.service.SetNotify(c.Request.Context(), userID, id, req.Notify)
 	if err != nil {
 		h.respondError(c, err)
 		return

@@ -24,7 +24,9 @@ type CustomCurrencyRule struct {
 	Definition  CustomCurrencyRuleBody `json:"definition"`
 	// Enabled is false when the rule is paused: it is kept and listed but not
 	// evaluated or surfaced as active currency.
-	Enabled      bool       `json:"enabled"`
+	Enabled bool `json:"enabled"`
+	// Notify opts this rule into expiry/lapse email notifications (per-rule).
+	Notify       bool       `json:"notify"`
 	IsShared     bool       `json:"isShared"`
 	ShareToken   *string    `json:"shareToken,omitempty"`
 	ImportedFrom *uuid.UUID `json:"importedFrom,omitempty"`

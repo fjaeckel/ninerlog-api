@@ -1739,7 +1739,7 @@ func TestUpdateNotificationPreferences_InvalidCheckHour(t *testing.T) {
 func addNotificationService(h *APIHandler) {
 	notifRepo := &mockHandlerNotifRepo{prefs: make(map[uuid.UUID]*models.NotificationPreferences)}
 	h.notificationService = service.NewNotificationService(
-		notifRepo, nil, nil, nil, nil, nil, nil,
+		notifRepo, nil, nil, nil, nil, nil, nil, nil,
 	)
 }
 

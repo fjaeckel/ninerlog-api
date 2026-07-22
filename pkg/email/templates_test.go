@@ -308,4 +308,3 @@ func TestVerifyEmail_EscapesLinkAttribute(t *testing.T) {
 		}
 	}
 }
-

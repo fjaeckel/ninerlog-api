@@ -221,6 +221,23 @@ func (s *CustomService) SetEnabled(ctx context.Context, userID, id uuid.UUID, en
 	return &CustomRuleWithStatus{Rule: rule, Evaluation: eval}, nil
 }
 
+// SetNotify opts an owned rule in or out of expiry/lapse notifications.
+func (s *CustomService) SetNotify(ctx context.Context, userID, id uuid.UUID, notify bool) (*CustomRuleWithStatus, error) {
+	rule, err := s.ownedRule(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	rule.Notify = notify
+	if err := s.repo.Update(ctx, rule); err != nil {
+		return nil, err
+	}
+	eval, err := s.evaluateRule(ctx, userID, rule)
+	if err != nil {
+		return nil, err
+	}
+	return &CustomRuleWithStatus{Rule: rule, Evaluation: eval}, nil
+}
+
 // SetShared toggles sharing for an owned rule. Enabling generates a share token
 // if one does not already exist; disabling clears it.
 func (s *CustomService) SetShared(ctx context.Context, userID, id uuid.UUID, shared bool) (*models.CustomCurrencyRule, error) {

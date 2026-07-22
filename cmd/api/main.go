@@ -198,7 +198,7 @@ func main() {
 	customCurrencyHandler := handlers.NewCustomCurrencyHandler(customCurrencyService)
 
 	// Notification service depends on currency service for two-tier evaluation
-	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService)
+	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService, customCurrencyService)
 
 	// WebAuthn / passkey service (optional — disabled if WEBAUTHN_RP_ID is not set).
 	webauthnRPID := os.Getenv("WEBAUTHN_RP_ID")
