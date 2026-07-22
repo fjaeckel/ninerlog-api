@@ -1,6 +1,25 @@
 package models
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestContainsControlChar(t *testing.T) {
+	cases := map[string]bool{
+		"normal text":   false,
+		"emoji 🌙 ok":    false,
+		"with\nnewline": true,
+		"with\rcr":      true,
+		"with\x00null":  true,
+		"with\ttab":     true,
+	}
+	for s, want := range cases {
+		if got := ContainsControlChar(s); got != want {
+			t.Errorf("ContainsControlChar(%q) = %v, want %v", s, got, want)
+		}
+	}
+}
 
 func validBody() CustomCurrencyRuleBody {
 	return CustomCurrencyRuleBody{
@@ -49,6 +68,21 @@ func TestCustomCurrencyRuleBody_Validate_Errors(t *testing.T) {
 		}},
 		{"in without values", func(b *CustomCurrencyRuleBody) {
 			b.Filters = []CurrencyFilter{{Field: "aircraft_type", Op: "in"}}
+		}},
+		{"control char in eq filter value", func(b *CustomCurrencyRuleBody) {
+			b.Filters = []CurrencyFilter{{Field: "aircraft_type", Op: "eq", Value: "C172\r\nBcc: evil@x.com"}}
+		}},
+		{"control char in in-filter value", func(b *CustomCurrencyRuleBody) {
+			b.Filters = []CurrencyFilter{{Field: "aircraft_type", Op: "in", Values: []string{"C172", "PA28\x00"}}}
+		}},
+		{"over-long filter value", func(b *CustomCurrencyRuleBody) {
+			b.Filters = []CurrencyFilter{{Field: "aircraft_type", Op: "eq", Value: strings.Repeat("A", 101)}}
+		}},
+		{"control char in requirement label", func(b *CustomCurrencyRuleBody) {
+			b.Requirements[0].Label = "Landings\nInjected"
+		}},
+		{"over-long requirement label", func(b *CustomCurrencyRuleBody) {
+			b.Requirements[0].Label = strings.Repeat("L", 81)
 		}},
 	}
 	for _, tc := range cases {

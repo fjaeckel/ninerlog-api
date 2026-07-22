@@ -6,9 +6,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 )
+
+// ContainsControlChar reports whether s contains any control character (C0/C1,
+// including CR, LF, NUL and tab). User-facing rule text must not: rejecting it
+// at the input boundary stops email-header/log injection and stray control
+// bytes reaching any downstream sink, independent of per-sink escaping.
+func ContainsControlChar(s string) bool {
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return true
+		}
+	}
+	return false
+}
 
 // CustomCurrencyRule is a user-authored, modular currency definition. The rule
 // body (window + filters + requirements) lives in Definition and is evaluated
@@ -142,7 +156,22 @@ const (
 	maxCustomRuleFilters      = 20
 	maxCustomRuleRequirements = 20
 	maxCustomRuleFilterValues = 50
+	maxCustomFilterValueLen   = 100
+	maxCustomLabelLen         = 80
 )
+
+// validateFilterValue bounds a filter value's length and rejects control
+// characters. Values are always bound as SQL parameters, so this is purely
+// defense in depth and input hygiene, not the SQL-injection defense.
+func validateFilterValue(field, value string) error {
+	if len(value) > maxCustomFilterValueLen {
+		return fmt.Errorf("filter value for %q is too long", field)
+	}
+	if ContainsControlChar(value) {
+		return fmt.Errorf("filter value for %q contains invalid characters", field)
+	}
+	return nil
+}
 
 // Validate checks a rule body against the controlled vocabulary and structural
 // limits. It returns a descriptive error suitable for surfacing to the author.
@@ -181,6 +210,12 @@ func (b *CustomCurrencyRuleBody) Validate() error {
 				return fmt.Errorf("invalid unit %q for %q (expected hours or minutes)", r.Unit, r.Metric)
 			}
 		}
+		if len(r.Label) > maxCustomLabelLen {
+			return fmt.Errorf("requirement label is too long")
+		}
+		if ContainsControlChar(r.Label) {
+			return fmt.Errorf("requirement label contains invalid characters")
+		}
 	}
 
 	// Filters
@@ -201,6 +236,9 @@ func (b *CustomCurrencyRuleBody) Validate() error {
 			if f.Value == "" {
 				return fmt.Errorf("filter on %q needs a value", f.Field)
 			}
+			if err := validateFilterValue(f.Field, f.Value); err != nil {
+				return err
+			}
 		case "in":
 			if len(f.Values) == 0 {
 				return fmt.Errorf("filter on %q needs at least one value", f.Field)
@@ -211,6 +249,9 @@ func (b *CustomCurrencyRuleBody) Validate() error {
 			for _, v := range f.Values {
 				if v == "" {
 					return fmt.Errorf("filter on %q has an empty value", f.Field)
+				}
+				if err := validateFilterValue(f.Field, v); err != nil {
+					return err
 				}
 			}
 		case "is_true":

@@ -250,6 +250,60 @@ func TestService_MetadataLengthLimits(t *testing.T) {
 	}
 }
 
+func TestService_RejectsControlCharsInMetadata(t *testing.T) {
+	repo := newMockRepo()
+	svc := newServiceWithMock(repo)
+	ctx := context.Background()
+	owner := uuid.New()
+
+	// Name with a CRLF (email-header injection attempt) is rejected.
+	nameInjection := validInput()
+	nameInjection.Name = "Night landings\r\nBcc: victim@example.com"
+	if _, err := svc.Create(ctx, owner, nameInjection); !IsValidationError(err) {
+		t.Errorf("control chars in name should be rejected, got %v", err)
+	}
+
+	// Emoji with a control char is rejected.
+	badEmoji := "🌙\x00"
+	emojiInjection := validInput()
+	emojiInjection.Emoji = &badEmoji
+	if _, err := svc.Create(ctx, owner, emojiInjection); !IsValidationError(err) {
+		t.Errorf("control chars in emoji should be rejected, got %v", err)
+	}
+
+	// Description with a carriage return is rejected, but a plain newline is OK.
+	crDesc := "line1\rline2"
+	crInjection := validInput()
+	crInjection.Description = &crDesc
+	if _, err := svc.Create(ctx, owner, crInjection); !IsValidationError(err) {
+		t.Errorf("carriage return in description should be rejected, got %v", err)
+	}
+	// A plain newline in a description is allowed (validated directly, so the
+	// nil-DB evaluator is not reached).
+	nlDesc := "line1\nline2 is fine"
+	nlOK := validInput()
+	nlOK.Description = &nlDesc
+	if err := validateInput(&nlOK); err != nil {
+		t.Errorf("newline in description should be allowed, got %v", err)
+	}
+	_ = ctx
+}
+
+func TestService_ImportRevalidatesSharedRule(t *testing.T) {
+	repo := newMockRepo()
+	svc := newServiceWithMock(repo)
+	other := uuid.New()
+	// Seed a shared rule that carries a control character in its name (as if it
+	// predated validation or was crafted). Importing must reject it.
+	bad := seedRule(repo, other, true, "tok-xyz")
+	bad.Name = "Evil\r\nSubject: spoof"
+	repo.rules[bad.ID] = bad
+
+	if _, err := svc.Import(context.Background(), uuid.New(), "tok-xyz"); !IsValidationError(err) {
+		t.Errorf("importing a rule with an invalid name should be rejected, got %v", err)
+	}
+}
+
 func TestService_QuotaEnforced(t *testing.T) {
 	repo := newMockRepo()
 	svc := newServiceWithMock(repo)

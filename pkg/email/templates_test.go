@@ -308,3 +308,32 @@ func TestVerifyEmail_EscapesLinkAttribute(t *testing.T) {
 		}
 	}
 }
+
+// TestCustomCurrency_EscapesMaliciousRuleName ensures a rule name containing an
+// XSS/header-injection payload is neutralized: the HTML body escapes it and the
+// subject carries no raw CR/LF that could inject email headers. (The SMTP layer
+// additionally Q-encodes the subject; the notification service rejects control
+// characters at input.)
+func TestCustomCurrency_EscapesMaliciousRuleName(t *testing.T) {
+	payload := `<script>alert('x')</script>`
+	for _, locale := range []string{"en", "de"} {
+		ts := Templates(locale)
+		for _, expiring := range []bool{true, false} {
+			subject, body := ts.CustomCurrency(CustomCurrencyParams{
+				UserName:  "Pilot",
+				RuleName:  payload,
+				Expiring:  expiring,
+				ExpiresOn: "2026-07-30",
+			})
+			if strings.Contains(body, "<script>") {
+				t.Errorf("[%s expiring=%v] body must escape the raw script tag: %q", locale, expiring, body)
+			}
+			if !strings.Contains(body, "&lt;script&gt;") {
+				t.Errorf("[%s expiring=%v] body should contain the escaped payload", locale, expiring)
+			}
+			if strings.ContainsAny(subject, "\r\n") {
+				t.Errorf("[%s expiring=%v] subject must not contain CR/LF", locale, expiring)
+			}
+		}
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -83,16 +84,46 @@ func validateInput(in *CustomRuleInput) error {
 	if utf8.RuneCountInString(in.Name) > maxRuleNameLen {
 		return newValidationError("name is too long")
 	}
-	if in.Emoji != nil && utf8.RuneCountInString(*in.Emoji) > maxRuleEmojiLen {
-		return newValidationError("emoji is too long")
+	if models.ContainsControlChar(in.Name) {
+		return newValidationError("name contains invalid characters")
 	}
-	if in.Description != nil && utf8.RuneCountInString(*in.Description) > maxRuleDescLen {
-		return newValidationError("description is too long")
+	if in.Emoji != nil {
+		if utf8.RuneCountInString(*in.Emoji) > maxRuleEmojiLen {
+			return newValidationError("emoji is too long")
+		}
+		if models.ContainsControlChar(*in.Emoji) {
+			return newValidationError("emoji contains invalid characters")
+		}
+	}
+	if in.Description != nil {
+		if utf8.RuneCountInString(*in.Description) > maxRuleDescLen {
+			return newValidationError("description is too long")
+		}
+		// Newlines are allowed in descriptions, but other control characters
+		// (CR, NUL, C1, etc.) are not.
+		if containsForbiddenDescriptionChar(*in.Description) {
+			return newValidationError("description contains invalid characters")
+		}
 	}
 	if err := in.Definition.Validate(); err != nil {
 		return newValidationError(err.Error())
 	}
 	return nil
+}
+
+// containsForbiddenDescriptionChar rejects control characters in a description
+// except the plain newline (\n), which is legitimate multi-line text. Carriage
+// returns and every other control byte are rejected.
+func containsForbiddenDescriptionChar(s string) bool {
+	for _, r := range s {
+		if r == '\n' {
+			continue
+		}
+		if unicode.IsControl(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // List returns all of a user's rules with their evaluations.
@@ -292,12 +323,25 @@ func (s *CustomService) Import(ctx context.Context, userID uuid.UUID, token stri
 	if err := s.checkQuota(ctx, userID); err != nil {
 		return nil, err
 	}
+	// Re-validate the shared rule before copying it in. The source is another
+	// user's data; validating here keeps the importer's account free of content
+	// that would fail today's rules (control characters, over-length fields,
+	// unknown vocabulary), independent of when the source was created.
+	in := CustomRuleInput{
+		Name:        source.Name,
+		Description: source.Description,
+		Emoji:       source.Emoji,
+		Definition:  source.Definition,
+	}
+	if err := validateInput(&in); err != nil {
+		return nil, newValidationError("this shared rule can't be imported: " + err.Error())
+	}
 	copyRule := &models.CustomCurrencyRule{
 		UserID:       userID,
-		Name:         source.Name,
-		Description:  source.Description,
-		Emoji:        source.Emoji,
-		Definition:   source.Definition,
+		Name:         in.Name,
+		Description:  in.Description,
+		Emoji:        in.Emoji,
+		Definition:   in.Definition,
 		Enabled:      true,
 		ImportedFrom: &source.ID,
 	}
