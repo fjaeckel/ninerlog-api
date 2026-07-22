@@ -191,6 +191,12 @@ func main() {
 	currencyRegistry.RegisterMulti(ulEval, ulEval.Authorities()...)
 	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
 
+	// Custom (user-authored) currency rules
+	customCurrencyRepo := postgres.NewCustomCurrencyRuleRepository(db)
+	customCurrencyEvaluator := currency.NewCustomEvaluator(db)
+	customCurrencyService := currency.NewCustomService(customCurrencyRepo, customCurrencyEvaluator)
+	customCurrencyHandler := handlers.NewCustomCurrencyHandler(customCurrencyService)
+
 	// Notification service depends on currency service for two-tier evaluation
 	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService)
 
@@ -485,6 +491,9 @@ func main() {
 
 	// Register flight utility routes
 	handlers.RegisterFlightUtilRoutes(api, apiHandler)
+
+	// Register custom currency rule routes (not in OpenAPI spec)
+	handlers.RegisterCustomCurrencyRoutes(api, customCurrencyHandler)
 
 	log.Println("✅ Routes registered from OpenAPI specification")
 
