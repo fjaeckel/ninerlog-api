@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -85,6 +86,7 @@ func (h *CustomCurrencyHandler) respondError(c *gin.Context, err error) {
 	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 	default:
+		log.Printf("[custom-currency] internal error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process custom currency rule"})
 	}
 }

@@ -1,6 +1,8 @@
 package models
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -213,10 +215,24 @@ func (b *CustomCurrencyRuleBody) Validate() error {
 	return nil
 }
 
+// Compile-time guarantees that the body satisfies the database interfaces used
+// to persist and load it as JSONB. Value() in particular must return the named
+// driver.Value type — an (interface{}, error) signature silently fails to
+// implement driver.Valuer and the struct reaches the driver unconverted.
+var (
+	_ driver.Valuer = CustomCurrencyRuleBody{}
+	_ sql.Scanner   = (*CustomCurrencyRuleBody)(nil)
+)
+
 // Value implements driver.Valuer so the body can be stored directly in a JSONB
-// column.
-func (b CustomCurrencyRuleBody) Value() (interface{}, error) {
-	return json.Marshal(b)
+// column. It returns the JSON as a string (text) so lib/pq sends it in a form
+// Postgres accepts for jsonb.
+func (b CustomCurrencyRuleBody) Value() (driver.Value, error) {
+	data, err := json.Marshal(b)
+	if err != nil {
+		return nil, err
+	}
+	return string(data), nil
 }
 
 // Scan implements sql.Scanner so the body can be read from a JSONB column.

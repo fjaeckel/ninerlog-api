@@ -62,6 +62,31 @@ func TestCustomCurrencyRuleBody_Validate_Errors(t *testing.T) {
 	}
 }
 
+func TestCustomCurrencyRuleBody_ValueScanRoundTrip(t *testing.T) {
+	body := validBody()
+	body.Filters = []CurrencyFilter{{Field: "has_ifr", Op: "is_true"}}
+
+	// Value() must yield a driver-compatible type (string/[]byte), not a struct;
+	// a struct here means the type failed to implement driver.Valuer.
+	v, err := body.Value()
+	if err != nil {
+		t.Fatalf("Value: %v", err)
+	}
+	switch v.(type) {
+	case string, []byte:
+	default:
+		t.Fatalf("Value() returned %T, want a JSON string/bytes storable as jsonb", v)
+	}
+
+	var got CustomCurrencyRuleBody
+	if err := got.Scan(v); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if got.Window != body.Window || len(got.Requirements) != 1 || len(got.Filters) != 1 {
+		t.Errorf("round-trip mismatch: %+v", got)
+	}
+}
+
 func TestMetricClassification(t *testing.T) {
 	if !IsTimeMetric("pic_time") {
 		t.Error("pic_time should be a time metric")
