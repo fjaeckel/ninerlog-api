@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // #nosec G108 -- pprof is opt-in via PPROF_ENABLED and runs on a separate port
 	"os"
@@ -290,7 +291,13 @@ func main() {
 		router.Use(middleware.MetricsMiddleware())
 	}
 	router.Use(middleware.RecoveryWithMetrics())
-	router.Use(gin.Logger())
+
+	// Structured access log: one JSON line per request with request ID,
+	// method, path, status, latency, client IP, and (when authenticated) the
+	// user ID. Registered ahead of AuthMiddleware, but its post-handler
+	// section runs after auth has populated the user ID in the context.
+	accessLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	router.Use(middleware.LoggerMiddleware(accessLogger))
 
 	// Trust proxy headers (X-Real-IP, X-Forwarded-For) from nginx
 	// so that c.ClientIP() returns the real client IP, not the proxy's address.
