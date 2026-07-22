@@ -18,6 +18,15 @@ type RatingExpiryParams struct {
 	DaysRemaining int
 }
 
+type CustomCurrencyParams struct {
+	UserName string
+	RuleName string
+	// Expiring is true for a "will lapse soon" warning (ExpiresOn set), false
+	// for a "no longer current" notice.
+	Expiring  bool
+	ExpiresOn string
+}
+
 type RevalidationParams struct {
 	UserName    string
 	LicenseType string
@@ -78,6 +87,7 @@ type templateSet struct {
 	CredentialExpiry     func(p CredentialExpiryParams) (subject, body string)
 	RatingExpiry         func(p RatingExpiryParams) (subject, body string)
 	Revalidation         func(p RevalidationParams) (subject, body string)
+	CustomCurrency       func(p CustomCurrencyParams) (subject, body string)
 	PassengerCurrency    func(p PassengerCurrencyParams) (subject, body string)
 	FlightReviewExpiry   func(p FlightReviewExpiryParams) (subject, body string)
 	FlightReviewRequired func(p FlightReviewRequiredParams) (subject, body string)

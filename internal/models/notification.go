@@ -22,6 +22,10 @@ const (
 	NotifCategoryCurrencyInstrument   NotificationCategory = "currency_instrument"
 	NotifCategoryCurrencyFlightReview NotificationCategory = "currency_flight_review"
 	NotifCategoryCurrencyRevalidation NotificationCategory = "currency_revalidation"
+	// NotifCategoryCustomCurrency labels notifications for user-authored custom
+	// currency rules. It is used as the log/dedup type; opt-in is per-rule
+	// (custom_currency_rules.notify) rather than via enabled_categories.
+	NotifCategoryCustomCurrency NotificationCategory = "currency_custom"
 )
 
 // AllNotificationCategories is the default set of all categories (all enabled)

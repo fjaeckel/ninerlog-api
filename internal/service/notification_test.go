@@ -280,6 +280,7 @@ func newTestNotifService(notifRepo *mockNotificationRepo) *service.NotificationS
 		newMockNotifUserRepo(),
 		email.NewSender(&email.SMTPConfig{}),
 		nil, // currencyService — nil is OK for preference tests
+		nil, // customService
 	)
 }
 
@@ -473,6 +474,7 @@ func newTestNotifServiceWithUsers(notifRepo *mockNotificationRepo, userRepo *moc
 		userRepo,
 		email.NewSender(&email.SMTPConfig{}),
 		nil, // currencyService
+		nil, // customService
 	)
 }
 

@@ -35,6 +35,23 @@ var enTemplates = templateSet{
 		return subject, body
 	},
 
+	CustomCurrency: func(p CustomCurrencyParams) (string, string) {
+		if p.Expiring {
+			subject := fmt.Sprintf("NinerLog: %s — expiring soon", p.RuleName)
+			body := fmt.Sprintf(`<h2>Custom Currency Expiring</h2>
+<p>Hi %s,</p>
+<p>Your custom currency rule <strong>%s</strong> will lapse on <strong>%s</strong> unless you log qualifying flights.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.RuleName), html.EscapeString(p.ExpiresOn))
+			return subject, body
+		}
+		subject := fmt.Sprintf("NinerLog: %s — no longer current", p.RuleName)
+		body := fmt.Sprintf(`<h2>Custom Currency Lapsed</h2>
+<p>Hi %s,</p>
+<p>Your custom currency rule <strong>%s</strong> is no longer current.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.RuleName))
+		return subject, body
+	},
+
 	PassengerCurrency: func(p PassengerCurrencyParams) (string, string) {
 		subject := fmt.Sprintf("NinerLog: %s %s passenger currency — %d more landings needed", p.ClassType, p.Period, p.Remaining)
 		body := fmt.Sprintf(`<h2>Passenger Currency Warning</h2>

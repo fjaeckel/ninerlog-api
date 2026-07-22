@@ -15,6 +15,13 @@ import (
 	"github.com/google/uuid"
 )
 
+// customCurrencyLister lists a user's custom currency rules with their current
+// evaluation. Satisfied by *currency.CustomService; an interface here keeps the
+// notification checker unit-testable without a database.
+type customCurrencyLister interface {
+	List(ctx context.Context, userID uuid.UUID) ([]currency.CustomRuleWithStatus, error)
+}
+
 type NotificationService struct {
 	notifRepo       repository.NotificationRepository
 	credentialRepo  repository.CredentialRepository
@@ -23,6 +30,7 @@ type NotificationService struct {
 	userRepo        repository.UserRepository
 	emailSender     *email.Sender
 	currencyService *currency.Service
+	customService   customCurrencyLister
 }
 
 func NewNotificationService(
@@ -33,6 +41,7 @@ func NewNotificationService(
 	userRepo repository.UserRepository,
 	emailSender *email.Sender,
 	currencyService *currency.Service,
+	customService customCurrencyLister,
 ) *NotificationService {
 	return &NotificationService{
 		notifRepo:       notifRepo,
@@ -42,6 +51,7 @@ func NewNotificationService(
 		userRepo:        userRepo,
 		emailSender:     emailSender,
 		currencyService: currencyService,
+		customService:   customService,
 	}
 }
 
@@ -84,6 +94,7 @@ func (s *NotificationService) TriggerCheck(ctx context.Context) {
 
 		s.checkCredentialExpiry(ctx, prefs, user.Email, user.Name)
 		s.checkCurrencyNotifications(ctx, prefs, user.Email, user.Name)
+		s.checkCustomCurrencyNotifications(ctx, prefs, user.Email, user.Name)
 	}
 }
 
@@ -156,6 +167,9 @@ func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 
 		// Check currency/rating warnings using the two-tier currency system
 		s.checkCurrencyNotifications(ctx, prefs, user.Email, user.Name)
+
+		// Check user-authored custom currency rules (per-rule opt-in)
+		s.checkCustomCurrencyNotifications(ctx, prefs, user.Email, user.Name)
 	}
 
 	NotificationLastSuccessTimestampSeconds.SetToCurrentTime()
@@ -458,6 +472,89 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 		DaysBeforeExpiry: &zero,
 		Subject:          &subject,
 	})
+}
+
+// checkCustomCurrencyNotifications emails for user-authored rules the user has
+// opted into (rule.Notify), when a rule is expiring (lead-time warnings) or has
+// lapsed. Paused rules are skipped (they carry an unknown status and are not
+// evaluated). Opt-in is per rule; the only global gate is EmailEnabled.
+func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Context, prefs *models.NotificationPreferences, userEmail, userName string) {
+	if s.customService == nil {
+		return
+	}
+	rules, err := s.customService.List(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	// Nothing opted in — avoid the extra user lookup.
+	anyNotify := false
+	for _, item := range rules {
+		if item.Rule.Enabled && item.Rule.Notify {
+			anyNotify = true
+			break
+		}
+	}
+	if !anyNotify {
+		return
+	}
+
+	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	tmpl := email.Templates(user.PreferredLocale)
+
+	for _, item := range rules {
+		rule := item.Rule
+		if !rule.Enabled || !rule.Notify {
+			continue
+		}
+		switch item.Evaluation.Status {
+		case currency.StatusExpiring:
+			if item.Evaluation.ExpiresOn == nil {
+				continue
+			}
+			expiry, err := time.Parse("2006-01-02", *item.Evaluation.ExpiresOn)
+			if err != nil {
+				continue
+			}
+			daysUntilExpiry := int(time.Until(expiry).Hours() / 24)
+			subject, body := tmpl.CustomCurrency(email.CustomCurrencyParams{
+				UserName:  userName,
+				RuleName:  rule.Name,
+				Expiring:  true,
+				ExpiresOn: formatDateForUser(expiry, user.DateFormat),
+			})
+			s.sendWarningForDays(ctx, prefs, models.NotifCategoryCustomCurrency, rule.ID,
+				"custom_currency_rule", daysUntilExpiry, &expiry, subject, body, userEmail)
+
+		case currency.StatusExpired:
+			// One notice per rule while lapsed (no expiry cycle key to reset on).
+			sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCustomCurrency), rule.ID, 0, nil)
+			if err != nil || sent {
+				continue
+			}
+			subject, body := tmpl.CustomCurrency(email.CustomCurrencyParams{
+				UserName: userName,
+				RuleName: rule.Name,
+				Expiring: false,
+			})
+			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
+				log.Printf("🔔 Failed to send custom currency lapse email: %v", err)
+				continue
+			}
+			NotificationsSentTotal.WithLabelValues(string(models.NotifCategoryCustomCurrency)).Inc()
+			zero := 0
+			_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
+				UserID:           prefs.UserID,
+				NotificationType: string(models.NotifCategoryCustomCurrency),
+				ReferenceID:      &rule.ID,
+				ReferenceType:    strPtr("custom_currency_rule"),
+				DaysBeforeExpiry: &zero,
+				Subject:          &subject,
+			})
+		}
+	}
 }
 
 // sendWarningForDays checks warning day thresholds and sends the first matching notification
