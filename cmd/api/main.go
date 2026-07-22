@@ -425,6 +425,10 @@ func main() {
 		expensiveRateLimit := middleware.NewUserRateLimitMiddleware(15, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(expensiveRateLimit,
 			"/exports/pdf",
+			// Custom-currency preview evaluates an arbitrary user-supplied rule
+			// (aggregate + per-flight lapse queries) without persisting it, so
+			// it is the most repeatable heavy path in this feature.
+			"/custom-currency/preview",
 		))
 		api.Use(middleware.RateLimitByPathPrefix(expensiveRateLimit, "/imports"))
 		// Advanced search ("q") drives up to 50 leading-wildcard ILIKE scans

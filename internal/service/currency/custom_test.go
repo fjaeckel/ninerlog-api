@@ -37,6 +37,10 @@ func TestEvaluate_CountRequirementMet(t *testing.T) {
 	mock.ExpectQuery("FROM flights f").
 		WithArgs(userID, sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(5)))
+	// A met rule triggers the per-flight lapse query. Recent flight => far-off
+	// lapse => stays current, not expiring.
+	mock.ExpectQuery("ORDER BY f.date ASC").
+		WillReturnRows(sqlmock.NewRows([]string{"date", "m0"}).AddRow(fixedNow(), int64(5)))
 
 	res, err := e.Evaluate(context.Background(), userID, body)
 	if err != nil {
@@ -99,6 +103,8 @@ func TestEvaluate_TimeMetricConvertsToHours(t *testing.T) {
 	mock.ExpectQuery("FROM flights f").
 		WithArgs(userID, sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(720)))
+	mock.ExpectQuery("ORDER BY f.date ASC").
+		WillReturnRows(sqlmock.NewRows([]string{"date", "m0"}).AddRow(fixedNow(), int64(720)))
 
 	res, err := e.Evaluate(context.Background(), userID, body)
 	if err != nil {
@@ -131,6 +137,10 @@ func TestEvaluate_FilterValuesAreBound(t *testing.T) {
 	mock.ExpectQuery("FROM flights f").
 		WithArgs(userID, sqlmock.AnyArg(), "SEP_LAND", "C172", "PA28").
 		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(1)))
+	// The per-flight query binds the same parameters in the same order.
+	mock.ExpectQuery("ORDER BY f.date ASC").
+		WithArgs(userID, sqlmock.AnyArg(), "SEP_LAND", "C172", "PA28").
+		WillReturnRows(sqlmock.NewRows([]string{"date", "m0"}).AddRow(fixedNow(), int64(1)))
 
 	if _, err := e.Evaluate(context.Background(), userID, body); err != nil {
 		t.Fatalf("Evaluate: %v", err)
@@ -231,6 +241,96 @@ func TestWindowSinceAndLabel(t *testing.T) {
 	}
 	if lbl := windowLabel(models.CurrencyWindow{Amount: 1, Unit: "years"}); lbl != "last 1 year" {
 		t.Errorf("singular label = %q", lbl)
+	}
+}
+
+func TestEvaluate_ExpiringSoon(t *testing.T) {
+	e, mock, done := newTestEvaluator(t)
+	defer done()
+
+	userID := uuid.New()
+	body := &models.CustomCurrencyRuleBody{
+		Window:       models.CurrencyWindow{Amount: 30, Unit: "days"},
+		Requirements: []models.CurrencyRequirement{{Metric: "landings", Min: 3}},
+	}
+
+	// Met exactly (3). The only contributing flight was 25 days ago, so it ages
+	// out of the 30-day window in 5 days -> within the ~15-day threshold.
+	flightDate := fixedNow().AddDate(0, 0, -25)
+	mock.ExpectQuery("FROM flights f").
+		WithArgs(userID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(3)))
+	mock.ExpectQuery("ORDER BY f.date ASC").
+		WillReturnRows(sqlmock.NewRows([]string{"date", "m0"}).AddRow(flightDate, int64(3)))
+
+	res, err := e.Evaluate(context.Background(), userID, body)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if res.Status != StatusExpiring {
+		t.Errorf("status = %v, want expiring", res.Status)
+	}
+	wantExpiry := flightDate.AddDate(0, 0, 30).Format("2006-01-02")
+	if res.ExpiresOn == nil || *res.ExpiresOn != wantExpiry {
+		t.Errorf("expiresOn = %v, want %s", res.ExpiresOn, wantExpiry)
+	}
+}
+
+func TestEvaluate_EarliestRequirementDrivesExpiry(t *testing.T) {
+	e, mock, done := newTestEvaluator(t)
+	defer done()
+
+	userID := uuid.New()
+	body := &models.CustomCurrencyRuleBody{
+		Window: models.CurrencyWindow{Amount: 90, Unit: "days"},
+		Requirements: []models.CurrencyRequirement{
+			{Metric: "landings", Min: 1},
+			{Metric: "approaches", Min: 1},
+		},
+	}
+
+	// landings: sole flight 80 days ago -> lapses in 10 days.
+	// approaches: sole flight 10 days ago -> lapses in 80 days.
+	// Earliest (10 days) should drive the rule expiry.
+	landingDate := fixedNow().AddDate(0, 0, -80)
+	approachDate := fixedNow().AddDate(0, 0, -10)
+	mock.ExpectQuery("FROM flights f").
+		WithArgs(userID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"m0", "m1"}).AddRow(int64(1), int64(1)))
+	mock.ExpectQuery("ORDER BY f.date ASC").
+		WillReturnRows(sqlmock.NewRows([]string{"date", "m0", "m1"}).
+			AddRow(landingDate, int64(1), int64(0)).
+			AddRow(approachDate, int64(0), int64(1)))
+
+	res, err := e.Evaluate(context.Background(), userID, body)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	wantExpiry := landingDate.AddDate(0, 0, 90).Format("2006-01-02")
+	if res.ExpiresOn == nil || *res.ExpiresOn != wantExpiry {
+		t.Errorf("expiresOn = %v, want %s (earliest requirement)", res.ExpiresOn, wantExpiry)
+	}
+}
+
+func TestWindowEndAndThreshold(t *testing.T) {
+	d := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	if got := windowEnd(d, models.CurrencyWindow{Amount: 90, Unit: "days"}); !got.Equal(d.AddDate(0, 0, 90)) {
+		t.Errorf("windowEnd days = %v", got)
+	}
+	if rawThreshold(models.CurrencyRequirement{Metric: "pic_time", Min: 2}) != 120 {
+		t.Errorf("hours threshold should convert to minutes")
+	}
+	if rawThreshold(models.CurrencyRequirement{Metric: "pic_time", Min: 90, Unit: "minutes"}) != 90 {
+		t.Errorf("minutes threshold should stay as-is")
+	}
+	if rawThreshold(models.CurrencyRequirement{Metric: "landings", Min: 3}) != 3 {
+		t.Errorf("count threshold should stay as-is")
+	}
+	if expiringThresholdDays(models.CurrencyWindow{Amount: 7, Unit: "days"}) != 3 {
+		t.Errorf("short window threshold should be half the window")
+	}
+	if expiringThresholdDays(models.CurrencyWindow{Amount: 1, Unit: "years"}) != 30 {
+		t.Errorf("long window threshold should cap at 30")
 	}
 }
 

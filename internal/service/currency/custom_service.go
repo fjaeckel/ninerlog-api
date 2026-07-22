@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -58,16 +59,35 @@ type SharedRuleView struct {
 	ShareToken  string                        `json:"shareToken"`
 }
 
-const maxRuleNameLen = 120
+const (
+	// maxRuleNameLen matches the custom_currency_rules.name column (VARCHAR 120),
+	// counted in runes so multi-byte names can't overflow the column.
+	maxRuleNameLen = 120
+	// maxRuleEmojiLen matches the emoji column (VARCHAR 16).
+	maxRuleEmojiLen = 16
+	// maxRuleDescLen bounds the free-text description (stored as TEXT).
+	maxRuleDescLen = 2000
+	// maxRulesPerUser caps how many rules one account can hold. Each rule is
+	// evaluated (1–2 queries) on every list, so this bounds that fan-out.
+	maxRulesPerUser = 200
+)
 
-// validateInput normalizes and validates rule metadata and definition.
+// validateInput normalizes and validates rule metadata and definition. Length
+// limits are enforced here (in runes) so the database never rejects a value
+// with an opaque 500; the controlled vocabulary is validated by the model.
 func validateInput(in *CustomRuleInput) error {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
 		return newValidationError("a rule needs a name")
 	}
-	if len(in.Name) > maxRuleNameLen {
+	if utf8.RuneCountInString(in.Name) > maxRuleNameLen {
 		return newValidationError("name is too long")
+	}
+	if in.Emoji != nil && utf8.RuneCountInString(*in.Emoji) > maxRuleEmojiLen {
+		return newValidationError("emoji is too long")
+	}
+	if in.Description != nil && utf8.RuneCountInString(*in.Description) > maxRuleDescLen {
+		return newValidationError("description is too long")
 	}
 	if err := in.Definition.Validate(); err != nil {
 		return newValidationError(err.Error())
@@ -108,6 +128,9 @@ func (s *CustomService) Get(ctx context.Context, userID, id uuid.UUID) (*CustomR
 // Create validates and persists a new rule, returning it with its evaluation.
 func (s *CustomService) Create(ctx context.Context, userID uuid.UUID, in CustomRuleInput) (*CustomRuleWithStatus, error) {
 	if err := validateInput(&in); err != nil {
+		return nil, err
+	}
+	if err := s.checkQuota(ctx, userID); err != nil {
 		return nil, err
 	}
 	rule := &models.CustomCurrencyRule{
@@ -218,6 +241,9 @@ func (s *CustomService) Import(ctx context.Context, userID uuid.UUID, token stri
 	if source.UserID == userID {
 		return nil, newValidationError("you already own this rule")
 	}
+	if err := s.checkQuota(ctx, userID); err != nil {
+		return nil, err
+	}
 	copyRule := &models.CustomCurrencyRule{
 		UserID:       userID,
 		Name:         source.Name,
@@ -234,6 +260,18 @@ func (s *CustomService) Import(ctx context.Context, userID uuid.UUID, token stri
 		return nil, err
 	}
 	return &CustomRuleWithStatus{Rule: copyRule, Evaluation: eval}, nil
+}
+
+// checkQuota rejects creation once a user reaches the per-account rule cap.
+func (s *CustomService) checkQuota(ctx context.Context, userID uuid.UUID) error {
+	existing, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if len(existing) >= maxRulesPerUser {
+		return newValidationError("you have reached the maximum number of custom rules")
+	}
+	return nil
 }
 
 // ownedRule fetches a rule and enforces ownership. To avoid leaking the
