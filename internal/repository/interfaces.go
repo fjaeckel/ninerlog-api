@@ -124,11 +124,11 @@ type FlightQueryOptions struct {
 	Search        *string
 	// Query is a parsed advanced search query (see internal/flightsearch).
 	// It compiles to a SQL condition and is ANDed with the other filters.
-	Query *flightsearch.Query
-	Page          int
-	PageSize      int
-	SortBy        string // "date", "totalTime", "createdAt"
-	SortOrder     string // "asc", "desc"
+	Query     *flightsearch.Query
+	Page      int
+	PageSize  int
+	SortBy    string // "date", "totalTime", "createdAt"
+	SortOrder string // "asc", "desc"
 
 	// Logbook filtering: when FilterByRegistrations is true, only flights whose
 	// aircraft_reg matches one of AircraftRegistrations (case-insensitive) are
@@ -215,6 +215,16 @@ type EmailVerificationTokenRepository interface {
 	MarkAsUsed(ctx context.Context, tokenHash string) error
 	DeleteForUser(ctx context.Context, userID uuid.UUID) error
 	DeleteExpired(ctx context.Context) error
+}
+
+// CustomCurrencyRuleRepository defines data access for user-authored currency rules.
+type CustomCurrencyRuleRepository interface {
+	Create(ctx context.Context, rule *models.CustomCurrencyRule) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.CustomCurrencyRule, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.CustomCurrencyRule, error)
+	GetByShareToken(ctx context.Context, token string) (*models.CustomCurrencyRule, error)
+	Update(ctx context.Context, rule *models.CustomCurrencyRule) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // CredentialRepository defines the interface for credential data access

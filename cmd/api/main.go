@@ -191,8 +191,14 @@ func main() {
 	currencyRegistry.RegisterMulti(ulEval, ulEval.Authorities()...)
 	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
 
+	// Custom (user-authored) currency rules
+	customCurrencyRepo := postgres.NewCustomCurrencyRuleRepository(db)
+	customCurrencyEvaluator := currency.NewCustomEvaluator(db)
+	customCurrencyService := currency.NewCustomService(customCurrencyRepo, customCurrencyEvaluator)
+	customCurrencyHandler := handlers.NewCustomCurrencyHandler(customCurrencyService)
+
 	// Notification service depends on currency service for two-tier evaluation
-	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService)
+	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService, customCurrencyService)
 
 	// WebAuthn / passkey service (optional — disabled if WEBAUTHN_RP_ID is not set).
 	webauthnRPID := os.Getenv("WEBAUTHN_RP_ID")
@@ -419,6 +425,10 @@ func main() {
 		expensiveRateLimit := middleware.NewUserRateLimitMiddleware(15, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(expensiveRateLimit,
 			"/exports/pdf",
+			// Custom-currency preview evaluates an arbitrary user-supplied rule
+			// (aggregate + per-flight lapse queries) without persisting it, so
+			// it is the most repeatable heavy path in this feature.
+			"/custom-currency/preview",
 		))
 		api.Use(middleware.RateLimitByPathPrefix(expensiveRateLimit, "/imports"))
 		// Advanced search ("q") drives up to 50 leading-wildcard ILIKE scans
@@ -485,6 +495,9 @@ func main() {
 
 	// Register flight utility routes
 	handlers.RegisterFlightUtilRoutes(api, apiHandler)
+
+	// Register custom currency rule routes (not in OpenAPI spec)
+	handlers.RegisterCustomCurrencyRoutes(api, customCurrencyHandler)
 
 	log.Println("✅ Routes registered from OpenAPI specification")
 

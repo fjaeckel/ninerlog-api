@@ -35,6 +35,23 @@ var deTemplates = templateSet{
 		return subject, body
 	},
 
+	CustomCurrency: func(p CustomCurrencyParams) (string, string) {
+		if p.Expiring {
+			subject := fmt.Sprintf("NinerLog: %s — läuft bald ab", p.RuleName)
+			body := fmt.Sprintf(`<h2>Eigene Aktualität läuft ab</h2>
+<p>Hallo %s,</p>
+<p>Deine eigene Aktualitätsregel <strong>%s</strong> verfällt am <strong>%s</strong>, sofern du keine anrechenbaren Flüge einträgst.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.RuleName), html.EscapeString(p.ExpiresOn))
+			return subject, body
+		}
+		subject := fmt.Sprintf("NinerLog: %s — nicht mehr aktuell", p.RuleName)
+		body := fmt.Sprintf(`<h2>Eigene Aktualität abgelaufen</h2>
+<p>Hallo %s,</p>
+<p>Deine eigene Aktualitätsregel <strong>%s</strong> ist nicht mehr aktuell.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.RuleName))
+		return subject, body
+	},
+
 	PassengerCurrency: func(p PassengerCurrencyParams) (string, string) {
 		periodDE := "Tag"
 		if p.Period == "night" {
