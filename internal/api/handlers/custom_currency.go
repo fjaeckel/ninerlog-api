@@ -37,6 +37,7 @@ func RegisterCustomCurrencyRoutes(api *gin.RouterGroup, h *CustomCurrencyHandler
 	g.DELETE("/:id", h.Delete)
 	g.POST("/:id/share", h.EnableShare)
 	g.DELETE("/:id/share", h.DisableShare)
+	g.PUT("/:id/enabled", h.SetEnabled)
 }
 
 // customRuleRequest is the create/update payload.
@@ -230,6 +231,31 @@ func (h *CustomCurrencyHandler) setShare(c *gin.Context, shared bool) {
 		return
 	}
 	rule, err := h.service.SetShared(c.Request.Context(), userID, id, shared)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, rule)
+}
+
+// SetEnabled handles PUT /custom-currency/:id/enabled — pause or resume a rule.
+func (h *CustomCurrencyHandler) SetEnabled(c *gin.Context) {
+	userID, ok := h.userID(c)
+	if !ok {
+		return
+	}
+	id, ok := h.parseID(c)
+	if !ok {
+		return
+	}
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	rule, err := h.service.SetEnabled(c.Request.Context(), userID, id, req.Enabled)
 	if err != nil {
 		h.respondError(c, err)
 		return

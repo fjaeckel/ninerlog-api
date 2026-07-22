@@ -16,17 +16,20 @@ import (
 // default; enabling sharing exposes a read-only copy via ShareToken that other
 // users can import.
 type CustomCurrencyRule struct {
-	ID           uuid.UUID              `json:"id"`
-	UserID       uuid.UUID              `json:"userId"`
-	Name         string                 `json:"name"`
-	Description  *string                `json:"description,omitempty"`
-	Emoji        *string                `json:"emoji,omitempty"`
-	Definition   CustomCurrencyRuleBody `json:"definition"`
-	IsShared     bool                   `json:"isShared"`
-	ShareToken   *string                `json:"shareToken,omitempty"`
-	ImportedFrom *uuid.UUID             `json:"importedFrom,omitempty"`
-	CreatedAt    time.Time              `json:"createdAt"`
-	UpdatedAt    time.Time              `json:"updatedAt"`
+	ID          uuid.UUID              `json:"id"`
+	UserID      uuid.UUID              `json:"userId"`
+	Name        string                 `json:"name"`
+	Description *string                `json:"description,omitempty"`
+	Emoji       *string                `json:"emoji,omitempty"`
+	Definition  CustomCurrencyRuleBody `json:"definition"`
+	// Enabled is false when the rule is paused: it is kept and listed but not
+	// evaluated or surfaced as active currency.
+	Enabled      bool       `json:"enabled"`
+	IsShared     bool       `json:"isShared"`
+	ShareToken   *string    `json:"shareToken,omitempty"`
+	ImportedFrom *uuid.UUID `json:"importedFrom,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
 // CustomCurrencyRuleBody is the declarative rule document. It mirrors the shape

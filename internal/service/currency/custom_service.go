@@ -103,7 +103,7 @@ func (s *CustomService) List(ctx context.Context, userID uuid.UUID) ([]CustomRul
 	}
 	out := make([]CustomRuleWithStatus, 0, len(rules))
 	for _, rule := range rules {
-		eval, err := s.eval.Evaluate(ctx, userID, &rule.Definition)
+		eval, err := s.evaluateRule(ctx, userID, rule)
 		if err != nil {
 			return nil, err
 		}
@@ -112,13 +112,26 @@ func (s *CustomService) List(ctx context.Context, userID uuid.UUID) ([]CustomRul
 	return out, nil
 }
 
+// evaluateRule evaluates an enabled rule against the user's flights. A disabled
+// (paused) rule is not evaluated — it returns an unknown status carrying only
+// its window label, so the UI can render it as paused without running queries.
+func (s *CustomService) evaluateRule(ctx context.Context, userID uuid.UUID, rule *models.CustomCurrencyRule) (CustomCurrencyResult, error) {
+	if !rule.Enabled {
+		return CustomCurrencyResult{
+			Status:      StatusUnknown,
+			WindowLabel: windowLabel(rule.Definition.Window),
+		}, nil
+	}
+	return s.eval.Evaluate(ctx, userID, &rule.Definition)
+}
+
 // Get returns one rule owned by the user, or repository.ErrNotFound.
 func (s *CustomService) Get(ctx context.Context, userID, id uuid.UUID) (*CustomRuleWithStatus, error) {
 	rule, err := s.ownedRule(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}
-	eval, err := s.eval.Evaluate(ctx, userID, &rule.Definition)
+	eval, err := s.evaluateRule(ctx, userID, rule)
 	if err != nil {
 		return nil, err
 	}
@@ -139,11 +152,12 @@ func (s *CustomService) Create(ctx context.Context, userID uuid.UUID, in CustomR
 		Description: in.Description,
 		Emoji:       in.Emoji,
 		Definition:  in.Definition,
+		Enabled:     true,
 	}
 	if err := s.repo.Create(ctx, rule); err != nil {
 		return nil, err
 	}
-	eval, err := s.eval.Evaluate(ctx, userID, &rule.Definition)
+	eval, err := s.evaluateRule(ctx, userID, rule)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +180,7 @@ func (s *CustomService) Update(ctx context.Context, userID, id uuid.UUID, in Cus
 	if err := s.repo.Update(ctx, rule); err != nil {
 		return nil, err
 	}
-	eval, err := s.eval.Evaluate(ctx, userID, &rule.Definition)
+	eval, err := s.evaluateRule(ctx, userID, rule)
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +202,23 @@ func (s *CustomService) Preview(ctx context.Context, userID uuid.UUID, body mode
 		return CustomCurrencyResult{}, newValidationError(err.Error())
 	}
 	return s.eval.Evaluate(ctx, userID, &body)
+}
+
+// SetEnabled pauses or resumes an owned rule.
+func (s *CustomService) SetEnabled(ctx context.Context, userID, id uuid.UUID, enabled bool) (*CustomRuleWithStatus, error) {
+	rule, err := s.ownedRule(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	rule.Enabled = enabled
+	if err := s.repo.Update(ctx, rule); err != nil {
+		return nil, err
+	}
+	eval, err := s.evaluateRule(ctx, userID, rule)
+	if err != nil {
+		return nil, err
+	}
+	return &CustomRuleWithStatus{Rule: rule, Evaluation: eval}, nil
 }
 
 // SetShared toggles sharing for an owned rule. Enabling generates a share token
@@ -250,12 +281,13 @@ func (s *CustomService) Import(ctx context.Context, userID uuid.UUID, token stri
 		Description:  source.Description,
 		Emoji:        source.Emoji,
 		Definition:   source.Definition,
+		Enabled:      true,
 		ImportedFrom: &source.ID,
 	}
 	if err := s.repo.Create(ctx, copyRule); err != nil {
 		return nil, err
 	}
-	eval, err := s.eval.Evaluate(ctx, userID, &copyRule.Definition)
+	eval, err := s.evaluateRule(ctx, userID, copyRule)
 	if err != nil {
 		return nil, err
 	}

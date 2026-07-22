@@ -170,6 +170,54 @@ func TestService_ShareTokenLifecycle(t *testing.T) {
 	}
 }
 
+func TestService_SetEnabledTogglesAndSkipsEvaluation(t *testing.T) {
+	repo := newMockRepo()
+	// Evaluator with a nil DB: if a disabled rule were evaluated it would panic,
+	// proving disabled rules are not evaluated.
+	svc := newServiceWithMock(repo)
+	owner := uuid.New()
+	rule := seedRule(repo, owner, false, "")
+	rule.Enabled = true
+	repo.rules[rule.ID] = rule
+	ctx := context.Background()
+
+	res, err := svc.SetEnabled(ctx, owner, rule.ID, false)
+	if err != nil {
+		t.Fatalf("SetEnabled: %v", err)
+	}
+	if res.Rule.Enabled {
+		t.Error("rule should be disabled")
+	}
+	if res.Evaluation.Status != StatusUnknown {
+		t.Errorf("disabled rule status = %v, want unknown", res.Evaluation.Status)
+	}
+	if len(res.Evaluation.Requirements) != 0 {
+		t.Error("disabled rule should not carry requirement progress")
+	}
+	if res.Evaluation.WindowLabel == "" {
+		t.Error("disabled rule should still carry its window label")
+	}
+
+	// List must also skip evaluation for the now-disabled rule (nil DB, no panic).
+	list, err := svc.List(ctx, owner)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(list) != 1 || list[0].Evaluation.Status != StatusUnknown {
+		t.Errorf("List did not treat disabled rule as paused: %+v", list)
+	}
+}
+
+func TestService_SetEnabledNonOwnerDenied(t *testing.T) {
+	repo := newMockRepo()
+	svc := newServiceWithMock(repo)
+	owner, attacker := uuid.New(), uuid.New()
+	rule := seedRule(repo, owner, false, "")
+	if _, err := svc.SetEnabled(context.Background(), attacker, rule.ID, false); !errors.Is(err, repository.ErrNotFound) {
+		t.Errorf("non-owner SetEnabled: got %v, want ErrNotFound", err)
+	}
+}
+
 func TestService_CannotImportOwnRule(t *testing.T) {
 	repo := newMockRepo()
 	svc := newServiceWithMock(repo)
