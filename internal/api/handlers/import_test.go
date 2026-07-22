@@ -267,6 +267,30 @@ func TestNormalizeTime(t *testing.T) {
 	}
 }
 
+func TestNormalizeLocation(t *testing.T) {
+	tests := []struct {
+		input, want string
+	}{
+		// ICAO / short local codes are upper-cased and trimmed
+		{"eddf", "EDDF"},
+		{"EDDF", "EDDF"},
+		{" lszh ", "LSZH"},
+		{"x3", "X3"},
+		{"12a", "12A"},
+		// Free-text off-airport sites keep their casing
+		{"Meadow strip", "Meadow strip"},
+		{"north pasture", "north pasture"},
+		{"Grandpa's field", "Grandpa's field"},
+		{"  Meadow strip  ", "Meadow strip"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := normalizeLocation(tt.input); got != tt.want {
+			t.Errorf("normalizeLocation(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestParseBoolish(t *testing.T) {
 	tests := []struct {
 		input string
