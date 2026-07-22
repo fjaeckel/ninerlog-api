@@ -29,8 +29,8 @@ func ValidateFlightTextFields(f *Flight) error {
 	checks := []error{
 		ValidateStringLength("aircraftReg", f.AircraftReg, 20),
 		ValidateStringLength("aircraftType", f.AircraftType, 20),
-		ValidateOptionalStringLength("departureICAO", f.DepartureICAO, 4),
-		ValidateOptionalStringLength("arrivalICAO", f.ArrivalICAO, 4),
+		ValidateOptionalStringLength("departureICAO", f.DepartureICAO, 100),
+		ValidateOptionalStringLength("arrivalICAO", f.ArrivalICAO, 100),
 		ValidateOptionalStringLength("offBlockTime", f.OffBlockTime, 8),
 		ValidateOptionalStringLength("onBlockTime", f.OnBlockTime, 8),
 		ValidateOptionalStringLength("departureTime", f.DepartureTime, 8),
@@ -67,8 +67,8 @@ func ValidateAircraftTextFields(a *Aircraft) error {
 		ValidateStringLength("model", a.Model, 50),
 		ValidateOptionalStringLength("notes", a.Notes, 1000),
 		ValidateOptionalStringLength("aircraftClass", a.AircraftClass, 30),
-		ValidateOptionalStringLength("defaultDepartureIcao", a.DefaultDepartureICAO, 4),
-		ValidateOptionalStringLength("defaultArrivalIcao", a.DefaultArrivalICAO, 4),
+		ValidateOptionalStringLength("defaultDepartureIcao", a.DefaultDepartureICAO, 100),
+		ValidateOptionalStringLength("defaultArrivalIcao", a.DefaultArrivalICAO, 100),
 	}
 	for _, err := range checks {
 		if err != nil {

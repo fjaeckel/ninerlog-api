@@ -1602,16 +1602,16 @@ paths:
             type: string
         - name: departureIcao
           in: query
-          description: Filter by departure airport ICAO code
+          description: Filter by departure location (ICAO code or free-text place name)
           schema:
             type: string
-            maxLength: 4
+            maxLength: 100
         - name: arrivalIcao
           in: query
-          description: Filter by arrival airport ICAO code
+          description: Filter by arrival location (ICAO code or free-text place name)
           schema:
             type: string
-            maxLength: 4
+            maxLength: 100
         - name: isPic
           in: query
           description: Filter by PIC flights only
@@ -4267,14 +4267,14 @@ components:
           description: Whether aircraft is still active in the user's fleet
         defaultDepartureIcao:
           type: [string, 'null']
-          maxLength: 4
+          maxLength: 100
           example: LSZH
-          description: Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+          description: Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
         defaultArrivalIcao:
           type: [string, 'null']
-          maxLength: 4
+          maxLength: 100
           example: LSZH
-          description: Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+          description: Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
         createdAt:
           type: string
           format: date-time
@@ -4329,14 +4329,14 @@ components:
           example: Club aircraft, requires checkout
         defaultDepartureIcao:
           type: [string, 'null']
-          maxLength: 4
+          maxLength: 100
           example: LSZH
-          description: Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+          description: Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
         defaultArrivalIcao:
           type: [string, 'null']
-          maxLength: 4
+          maxLength: 100
           example: LSZH
-          description: Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+          description: Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 
     AircraftUpdate:
       type: object
@@ -4374,14 +4374,14 @@ components:
           example: true
         defaultDepartureIcao:
           type: [string, 'null']
-          maxLength: 4
+          maxLength: 100
           example: LSZH
-          description: Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+          description: Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
         defaultArrivalIcao:
           type: [string, 'null']
-          maxLength: 4
+          maxLength: 100
           example: LSZH
-          description: Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+          description: Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
         renameFlights:
           type: boolean
           default: false
@@ -4540,12 +4540,14 @@ components:
           description: Aircraft type
         departureIcao:
           type: [string, 'null']
+          maxLength: 100
           example: EDDF
-          description: ICAO code of departure airport
+          description: Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
         arrivalIcao:
           type: [string, 'null']
+          maxLength: 100
           example: EDDH
-          description: ICAO code of arrival airport
+          description: Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
         offBlockTime:
           type: [string, 'null']
           format: time
@@ -4779,12 +4781,14 @@ components:
           example: C172
         departureIcao:
           type: string
+          maxLength: 100
           example: EDDF
-          description: Departure airport ICAO code
+          description: Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
         arrivalIcao:
           type: string
+          maxLength: 100
           example: EDDH
-          description: Arrival airport ICAO code
+          description: Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
         offBlockTime:
           type: string
           format: time

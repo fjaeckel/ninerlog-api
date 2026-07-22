@@ -66,6 +66,23 @@ func TestValidateFlightTextFields(t *testing.T) {
 	if err := ValidateFlightTextFields(f); err == nil {
 		t.Error("aircraftReg over 20 chars should fail")
 	}
+
+	// Free-text departure/arrival location (off-airport glider/helicopter site)
+	// is accepted up to 100 chars, well beyond a 4-char ICAO code.
+	f.AircraftReg = "D-EABC"
+	freeText := "North meadow, 2km NE of Springfield"
+	f.DepartureICAO = &freeText
+	f.ArrivalICAO = &freeText
+	if err := ValidateFlightTextFields(f); err != nil {
+		t.Errorf("free-text departure/arrival location should pass: %v", err)
+	}
+
+	// Departure location over 100 chars should fail
+	longLocation := strings.Repeat("x", 101)
+	f.DepartureICAO = &longLocation
+	if err := ValidateFlightTextFields(f); err == nil {
+		t.Error("departure location over 100 chars should fail")
+	}
 }
 
 func TestValidateAircraftTextFields(t *testing.T) {
