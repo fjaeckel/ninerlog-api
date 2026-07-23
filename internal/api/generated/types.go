@@ -1276,12 +1276,12 @@ type Aircraft struct {
 	// CreatedAt Example: 2026-01-15T10:00:00Z
 	CreatedAt time.Time `json:"createdAt"`
 
-	// DefaultArrivalIcao Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+	// DefaultArrivalIcao Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 	//
 	// Example: LSZH
 	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
 
-	// DefaultDepartureIcao Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+	// DefaultDepartureIcao Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 	//
 	// Example: LSZH
 	DefaultDepartureIcao *string `json:"defaultDepartureIcao,omitempty"`
@@ -1348,12 +1348,12 @@ type AircraftCreate struct {
 	// Example: SEP_LAND
 	AircraftClass *string `json:"aircraftClass,omitempty"`
 
-	// DefaultArrivalIcao Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+	// DefaultArrivalIcao Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 	//
 	// Example: LSZH
 	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
 
-	// DefaultDepartureIcao Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+	// DefaultDepartureIcao Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 	//
 	// Example: LSZH
 	DefaultDepartureIcao *string `json:"defaultDepartureIcao,omitempty"`
@@ -1494,12 +1494,12 @@ type AircraftUpdate struct {
 	// Example: SEP_LAND
 	AircraftClass *string `json:"aircraftClass,omitempty"`
 
-	// DefaultArrivalIcao Default arrival airfield (ICAO) prefilled when logging a flight with this aircraft
+	// DefaultArrivalIcao Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 	//
 	// Example: LSZH
 	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
 
-	// DefaultDepartureIcao Default departure airfield (ICAO) prefilled when logging a flight with this aircraft
+	// DefaultDepartureIcao Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 	//
 	// Example: LSZH
 	DefaultDepartureIcao *string `json:"defaultDepartureIcao,omitempty"`
@@ -2286,7 +2286,7 @@ type Flight struct {
 	// Example: 2
 	ApproachesCount *int `json:"approachesCount,omitempty"`
 
-	// ArrivalIcao ICAO code of arrival airport
+	// ArrivalIcao Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
 	//
 	// Example: EDDH
 	ArrivalIcao *string `json:"arrivalIcao,omitempty"`
@@ -2310,7 +2310,7 @@ type Flight struct {
 	// Date Example: 2026-01-30
 	Date openapi_types.Date `json:"date"`
 
-	// DepartureIcao ICAO code of departure airport
+	// DepartureIcao Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
 	//
 	// Example: EDDF
 	DepartureIcao *string `json:"departureIcao,omitempty"`
@@ -2579,7 +2579,7 @@ type FlightCreate struct {
 	Approaches      *[]ApproachEntryInput `json:"approaches,omitempty"`
 	ApproachesCount *int                  `json:"approachesCount,omitempty"`
 
-	// ArrivalIcao Arrival airport ICAO code
+	// ArrivalIcao Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
 	//
 	// Example: EDDH
 	ArrivalIcao string `json:"arrivalIcao"`
@@ -2598,7 +2598,7 @@ type FlightCreate struct {
 	// Date Example: 2026-01-30
 	Date openapi_types.Date `json:"date"`
 
-	// DepartureIcao Departure airport ICAO code
+	// DepartureIcao Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
 	//
 	// Example: EDDF
 	DepartureIcao string `json:"departureIcao"`
@@ -4121,10 +4121,10 @@ type ListFlightsParams struct {
 	// AircraftReg Filter by aircraft registration
 	AircraftReg *string `form:"aircraftReg,omitempty" json:"aircraftReg,omitempty"`
 
-	// DepartureIcao Filter by departure airport ICAO code
+	// DepartureIcao Filter by departure location (ICAO code or free-text place name)
 	DepartureIcao *string `form:"departureIcao,omitempty" json:"departureIcao,omitempty"`
 
-	// ArrivalIcao Filter by arrival airport ICAO code
+	// ArrivalIcao Filter by arrival location (ICAO code or free-text place name)
 	ArrivalIcao *string `form:"arrivalIcao,omitempty" json:"arrivalIcao,omitempty"`
 
 	// IsPic Filter by PIC flights only

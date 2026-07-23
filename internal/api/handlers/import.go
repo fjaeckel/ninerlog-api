@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -901,9 +902,9 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "aircraftType":
 			flight.AircraftType = strings.ToUpper(val)
 		case "departureIcao":
-			flight.DepartureIcao = strings.ToUpper(val)
+			flight.DepartureIcao = normalizeLocation(val)
 		case "arrivalIcao":
-			flight.ArrivalIcao = strings.ToUpper(val)
+			flight.ArrivalIcao = normalizeLocation(val)
 		case "offBlockTime":
 			flight.OffBlockTime = normalizeTime(val)
 		case "onBlockTime":
@@ -1470,6 +1471,22 @@ func normalizeDecimalSeparator(val string) string {
 		return strings.Replace(val, ",", ".", 1)
 	}
 	return val
+}
+
+// icaoLikePattern matches values that look like an ICAO/local airport code:
+// up to four alphanumeric characters.
+var icaoLikePattern = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
+
+// normalizeLocation cleans a departure/arrival location from an import row.
+// Values that look like an airport code (<=4 alphanumeric chars) are
+// upper-cased so ICAO codes stay canonical; longer free-text place names for
+// off-airport glider/helicopter sites keep their original casing.
+func normalizeLocation(val string) string {
+	trimmed := strings.TrimSpace(val)
+	if icaoLikePattern.MatchString(trimmed) {
+		return strings.ToUpper(trimmed)
+	}
+	return trimmed
 }
 
 func normalizeTime(val string) string {
