@@ -1,4 +1,4 @@
-.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
+.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
 
 # Default target
 .DEFAULT_GOAL := help
@@ -99,6 +99,9 @@ profile-pprof: ## Collect pprof profiles under load
 profile-explain: ## Run EXPLAIN ANALYZE queries
 	@echo "🔬 Running EXPLAIN ANALYZE..."
 	@./scripts/run-profiling.sh explain
+
+migrate-check: ## Verify migrations have no duplicate versions or missing up/down pairs
+	@./scripts/check-migrations.sh db/migrations
 
 migrate-up: ## Apply database migrations
 	@echo "⬆️  Running database migrations..."
