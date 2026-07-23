@@ -1,6 +1,6 @@
 // Package generated contains auto-generated code from the OpenAPI specification.
 //
-// ⚠️ DO NOT EDIT THESE FILES MANUALLY
+// # DO NOT EDIT THESE FILES MANUALLY
 //
 // This package is automatically generated from the OpenAPI spec.
 // To regenerate after spec changes, run:
