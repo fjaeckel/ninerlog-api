@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // #nosec G108 -- pprof is opt-in via PPROF_ENABLED and runs on a separate port
@@ -18,6 +17,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/api/handlers"
 	"github.com/fjaeckel/ninerlog-api/internal/api/middleware"
+	"github.com/fjaeckel/ninerlog-api/internal/logging"
 	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
@@ -39,13 +39,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// sanitizeLogValue strips newlines and control characters to prevent log injection.
-func sanitizeLogValue(s string) string {
-	return strings.NewReplacer("\n", "", "\r", "", "\t", " ").Replace(s)
+// fatal logs a structured error and exits. Structured attributes (e.g. an
+// "error" key) may be passed after the message, matching slog's variadic API.
+// Used for unrecoverable startup failures where the process must fail closed.
+func fatal(msg string, args ...any) {
+	slog.Error(msg, args...)
+	os.Exit(1)
 }
 
 func main() {
-	log.Println("🚀 Starting NinerLog API...")
+	logging.Setup()
+	slog.Info("🚀 Starting NinerLog API...")
 
 	// Load environment variables
 	dbURL := os.Getenv("DATABASE_URL")
@@ -70,7 +74,7 @@ func main() {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	refreshSecret := os.Getenv("REFRESH_SECRET")
 	if err := validateJWTSecrets(jwtSecret, refreshSecret); err != nil {
-		log.Fatalf("Invalid JWT configuration: %v", err)
+		fatal("invalid JWT configuration", "error", err)
 	}
 	corsOrigin := os.Getenv("CORS_ORIGIN")
 	if corsOrigin == "" {
@@ -84,19 +88,19 @@ func main() {
 	// Admin email (optional — designates admin user)
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail != "" {
-		log.Printf("🔑 Admin email configured: %s", sanitizeLogValue(adminEmail)) // #nosec G706 -- sanitized
+		slog.Info("🔑 Admin email configured", "email", adminEmail)
 	}
 
 	// Connect to database
-	log.Println("📦 Connecting to database...")
+	slog.Info("📦 Connecting to database...")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		fatal("failed to connect to database", "error", err)
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		fatal("failed to ping database", "error", err)
 	}
 
 	// Bound the connection pool. database/sql defaults to an unlimited
@@ -110,28 +114,28 @@ func main() {
 	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetConnMaxIdleTime(1 * time.Minute)
 
-	log.Println("✅ Database connected")
+	slog.Info("✅ Database connected")
 
 	// Run database migrations
 	migrationsPath := os.Getenv("MIGRATIONS_PATH")
 	if migrationsPath == "" {
 		migrationsPath = "db/migrations"
 	}
-	log.Printf("📦 Running database migrations from %s...", sanitizeLogValue(migrationsPath)) // #nosec G706 -- sanitized
+	slog.Info("📦 Running database migrations", "path", migrationsPath)
 	driver, err := migratepg.WithInstance(db, &migratepg.Config{})
 	if err != nil {
-		log.Fatalf("Failed to create migration driver: %v", err)
+		fatal("failed to create migration driver", "error", err)
 	}
 	m, err := migrate.NewWithDatabaseInstance(
 		fmt.Sprintf("file://%s", migrationsPath),
 		"postgres", driver)
 	if err != nil {
-		log.Fatalf("Failed to initialize migrations: %v", err)
+		fatal("failed to initialize migrations", "error", err)
 	}
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		log.Fatalf("Failed to run migrations: %v", err)
+		fatal("failed to run migrations", "error", err)
 	}
-	log.Println("✅ Database migrations applied")
+	slog.Info("✅ Database migrations applied")
 
 	// Load airport database from OurAirports (async-safe, cached)
 	airports.Init()
@@ -167,11 +171,11 @@ func main() {
 	if totpKey := os.Getenv("TOTP_ENCRYPTION_KEY"); totpKey != "" {
 		totpAEAD, err = cryptoutil.NewFromBase64(totpKey)
 		if err != nil {
-			log.Fatalf("Invalid TOTP_ENCRYPTION_KEY: %v", err)
+			fatal("invalid TOTP_ENCRYPTION_KEY", "error", err)
 		}
-		log.Println("✅ TOTP secrets encrypted at rest")
+		slog.Info("✅ TOTP secrets encrypted at rest")
 	} else {
-		log.Println("⚠️  TOTP_ENCRYPTION_KEY not set — 2FA secrets are stored unencrypted")
+		slog.Warn("⚠️  TOTP_ENCRYPTION_KEY not set — 2FA secrets are stored unencrypted")
 	}
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager, totpAEAD)
 	contactRepo := postgres.NewContactRepository(db)
@@ -219,13 +223,13 @@ func main() {
 	if webauthnRPID != "" {
 		webauthnService, err = service.NewWebAuthnService(webauthnRPID, webauthnRPName, webauthnOrigins, webauthnCredRepo, webauthnSessionRepo, userRepo, authService)
 		if err != nil {
-			log.Printf("⚠️  WebAuthn disabled: %v", err)
+			slog.Warn("⚠️  WebAuthn disabled", "error", err)
 			webauthnService = nil
 		} else {
-			log.Printf("✅ WebAuthn enabled (RP ID: %s)", sanitizeLogValue(webauthnRPID)) // #nosec G706 -- sanitized
+			slog.Info("✅ WebAuthn enabled", "rp_id", webauthnRPID)
 		}
 	} else {
-		log.Println("ℹ️  WebAuthn disabled (set WEBAUTHN_RP_ID to enable)")
+		slog.Info("ℹ️  WebAuthn disabled (set WEBAUTHN_RP_ID to enable)")
 		_ = webauthnCredRepo
 		_ = webauthnSessionRepo
 	}
@@ -248,7 +252,7 @@ func main() {
 	if backupKey := os.Getenv("BACKUP_CREDENTIALS_KEY"); backupKey != "" {
 		aead, err := cryptoutil.NewFromBase64(backupKey)
 		if err != nil {
-			log.Fatalf("Invalid BACKUP_CREDENTIALS_KEY: %v", err)
+			fatal("invalid BACKUP_CREDENTIALS_KEY", "error", err)
 		}
 		backupDestRepo := postgres.NewBackupDestinationRepository(db)
 		backupRunRepo := postgres.NewBackupRunRepository(db)
@@ -272,13 +276,13 @@ func main() {
 			Builder:         builder,
 		})
 		if err != nil {
-			log.Fatalf("Failed to initialize cloud backup service: %v", err)
+			fatal("failed to initialize cloud backup service", "error", err)
 		}
 		apiHandler.SetBackupService(backupSvc)
 		backupScheduler = cloudbackup.NewScheduler(backupSvc, 0, nil)
-		log.Println("✅ Cloud backups enabled (S3, SFTP, WebDAV providers)")
+		slog.Info("✅ Cloud backups enabled (S3, SFTP, WebDAV providers)")
 	} else {
-		log.Println("ℹ️  Cloud backups disabled (set BACKUP_CREDENTIALS_KEY to enable)")
+		slog.Info("ℹ️  Cloud backups disabled (set BACKUP_CREDENTIALS_KEY to enable)")
 	}
 
 	// Setup router
@@ -296,13 +300,13 @@ func main() {
 	// method, path, status, latency, client IP, and (when authenticated) the
 	// user ID. Registered ahead of AuthMiddleware, but its post-handler
 	// section runs after auth has populated the user ID in the context.
-	accessLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	router.Use(middleware.LoggerMiddleware(accessLogger))
+	// nil → the JSON default logger configured by logging.Setup above.
+	router.Use(middleware.LoggerMiddleware(nil))
 
 	// Trust proxy headers (X-Real-IP, X-Forwarded-For) from nginx
 	// so that c.ClientIP() returns the real client IP, not the proxy's address.
 	if err := router.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}); err != nil {
-		log.Fatalf("Failed to set trusted proxies: %v", err)
+		fatal("failed to set trusted proxies", "error", err)
 	}
 	router.ForwardedByClientIP = true
 	router.RemoteIPHeaders = []string{"X-Real-IP", "X-Forwarded-For"}
@@ -361,7 +365,7 @@ func main() {
 		prometheus.MustRegister(middleware.NewDBStatsCollector(db))
 
 		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
-		log.Println("✅ Prometheus metrics enabled at /metrics")
+		slog.Info("✅ Prometheus metrics enabled at /metrics")
 	}
 
 	// pprof debug server (separate port, opt-in via PPROF_ENABLED=true)
@@ -371,7 +375,7 @@ func main() {
 			pprofPort = "6060"
 		}
 		go func() {
-			log.Printf("🔍 pprof debug server listening on :%s/debug/pprof/", sanitizeLogValue(pprofPort)) // #nosec G706 -- sanitized
+			slog.Info("🔍 pprof debug server listening", "addr", ":"+pprofPort+"/debug/pprof/")
 			pprofSrv := &http.Server{
 				Addr:              ":" + pprofPort,
 				ReadTimeout:       30 * time.Second,
@@ -380,7 +384,7 @@ func main() {
 				IdleTimeout:       120 * time.Second,
 			}
 			if err := pprofSrv.ListenAndServe(); err != nil {
-				log.Printf("pprof server error: %v", err)
+				slog.Error("pprof server error", "error", err)
 			}
 		}()
 	}
@@ -506,7 +510,7 @@ func main() {
 	// Register custom currency rule routes (not in OpenAPI spec)
 	handlers.RegisterCustomCurrencyRoutes(api, customCurrencyHandler)
 
-	log.Println("✅ Routes registered from OpenAPI specification")
+	slog.Info("✅ Routes registered from OpenAPI specification")
 
 	// Start background notification checker (configurable via NOTIFICATION_CHECK_INTERVAL, defaults to 1h)
 	notifCtx, notifCancel := context.WithCancel(context.Background())
@@ -516,7 +520,7 @@ func main() {
 	// Start cloud-backup scheduler if configured
 	if backupScheduler != nil {
 		backupScheduler.Start(notifCtx)
-		log.Println("✅ Cloud backup scheduler started")
+		slog.Info("✅ Cloud backup scheduler started")
 	}
 
 	// Start server with timeouts to prevent slow-loris and resource exhaustion
@@ -531,9 +535,9 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("✅ Server starting on :%s", sanitizeLogValue(port)) // #nosec G706 -- sanitized
+		slog.Info("✅ Server starting", "addr", ":"+port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			fatal("failed to start server", "error", err)
 		}
 	}()
 
@@ -542,7 +546,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("🛑 Shutting down...")
+	slog.Info("🛑 Shutting down...")
 	if backupScheduler != nil {
 		backupScheduler.Stop()
 	}
@@ -550,8 +554,8 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		fatal("server forced to shutdown", "error", err)
 	}
 
-	log.Println("✅ Server exited")
+	slog.Info("✅ Server exited")
 }

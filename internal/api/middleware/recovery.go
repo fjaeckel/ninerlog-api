@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -14,7 +14,11 @@ func RecoveryWithMetrics() gin.HandlerFunc {
 		defer func() {
 			if r := recover(); r != nil {
 				APIPanicsRecoveredTotal.Inc()
-				log.Printf("⚠️ Panic recovered: %v", r)
+				attrs := []any{slog.Any("panic", r)}
+				if id, ok := c.Get(RequestIDKey); ok {
+					attrs = append(attrs, slog.Any("request_id", id))
+				}
+				slog.Error("panic recovered", attrs...)
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error": "Internal server error",
 				})

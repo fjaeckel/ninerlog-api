@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"time"
@@ -73,11 +73,11 @@ func (s *NotificationService) GetNotificationHistory(ctx context.Context, userID
 // TriggerCheck runs the notification check immediately for all users,
 // bypassing the check-hour gating. Used by admin maintenance endpoint and E2E tests.
 func (s *NotificationService) TriggerCheck(ctx context.Context) {
-	log.Println("🔔 Triggered notification check (bypassing check-hour)...")
+	slog.Info("🔔 Triggered notification check (bypassing check-hour)...")
 
 	allPrefs, err := s.notifRepo.GetAllUsersWithPreferences(ctx)
 	if err != nil {
-		log.Printf("🔔 Error loading preferences: %v", err)
+		slog.Error("🔔 Error loading preferences", "error", err)
 		NotificationCheckErrorsTotal.Inc()
 		return
 	}
@@ -111,7 +111,7 @@ func GetCheckInterval() time.Duration {
 // StartBackgroundChecker starts a goroutine that checks for notifications periodically
 func (s *NotificationService) StartBackgroundChecker(ctx context.Context, interval time.Duration) {
 	go func() {
-		log.Printf("🔔 Notification checker started (interval: %s)", interval)
+		slog.Info("🔔 Notification checker started", "interval", interval.String())
 		// Run immediately on start
 		s.checkAndSendNotifications(ctx)
 
@@ -121,7 +121,7 @@ func (s *NotificationService) StartBackgroundChecker(ctx context.Context, interv
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("🔔 Notification checker stopped")
+				slog.Info("🔔 Notification checker stopped")
 				return
 			case <-ticker.C:
 				s.checkAndSendNotifications(ctx)
@@ -131,7 +131,7 @@ func (s *NotificationService) StartBackgroundChecker(ctx context.Context, interv
 }
 
 func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
-	log.Println("🔔 Checking for notification triggers...")
+	slog.Info("🔔 Checking for notification triggers...")
 	start := time.Now()
 	NotificationCheckRunsTotal.Inc()
 	defer func() {
@@ -142,7 +142,7 @@ func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 
 	allPrefs, err := s.notifRepo.GetAllUsersWithPreferences(ctx)
 	if err != nil {
-		log.Printf("🔔 Error loading preferences: %v", err)
+		slog.Error("🔔 Error loading preferences", "error", err)
 		NotificationCheckErrorsTotal.Inc()
 		return
 	}
@@ -219,7 +219,7 @@ func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *
 				})
 
 				if err := s.emailSender.Send(userEmail, subject, body); err != nil {
-					log.Printf("🔔 Failed to send credential warning email: %v", err)
+					slog.Error("🔔 Failed to send credential warning email", "error", err)
 					continue
 				}
 				NotificationsSentTotal.WithLabelValues("credential_expiry").Inc()
@@ -247,7 +247,7 @@ func (s *NotificationService) checkCurrencyNotifications(ctx context.Context, pr
 	// Use the two-tier currency service to get current status
 	currencyStatus, err := s.currencyService.EvaluateAll(ctx, prefs.UserID)
 	if err != nil {
-		log.Printf("🔔 Error evaluating currency for user %s: %v", prefs.UserID, err)
+		slog.Error("🔔 Error evaluating currency for user", "user_id", prefs.UserID, "error", err)
 		return
 	}
 
@@ -314,7 +314,7 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 		})
 
 		if err := s.emailSender.Send(userEmail, subject, body); err != nil {
-			log.Printf("🔔 Failed to send revalidation warning email: %v", err)
+			slog.Error("🔔 Failed to send revalidation warning email", "error", err)
 			return
 		}
 		NotificationsSentTotal.WithLabelValues("revalidation").Inc()
@@ -359,7 +359,7 @@ func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs 
 			})
 
 			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
-				log.Printf("🔔 Failed to send passenger currency email: %v", err)
+				slog.Error("🔔 Failed to send passenger currency email", "error", err)
 			} else {
 				NotificationsSentTotal.WithLabelValues("passenger_currency").Inc()
 				zero := 0
@@ -395,7 +395,7 @@ checkNight:
 		})
 
 		if err := s.emailSender.Send(userEmail, subject, body); err != nil {
-			log.Printf("🔔 Failed to send night currency email: %v", err)
+			slog.Error("🔔 Failed to send night currency email", "error", err)
 			return
 		}
 		NotificationsSentTotal.WithLabelValues("night_currency").Inc()
@@ -458,7 +458,7 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 	})
 
 	if err := s.emailSender.Send(userEmail, subject, body); err != nil {
-		log.Printf("🔔 Failed to send flight review email: %v", err)
+		slog.Error("🔔 Failed to send flight review email", "error", err)
 		return
 	}
 	NotificationsSentTotal.WithLabelValues("flight_review").Inc()
@@ -540,7 +540,7 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 				Expiring: false,
 			})
 			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
-				log.Printf("🔔 Failed to send custom currency lapse email: %v", err)
+				slog.Error("🔔 Failed to send custom currency lapse email", "error", err)
 				continue
 			}
 			NotificationsSentTotal.WithLabelValues(string(models.NotifCategoryCustomCurrency)).Inc()
@@ -568,7 +568,7 @@ func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *mod
 			}
 
 			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
-				log.Printf("🔔 Failed to send %s warning email: %v", category, err)
+				slog.Error("🔔 Failed to send warning email", "category", category, "error", err)
 				continue
 			}
 			NotificationsSentTotal.WithLabelValues(string(category)).Inc()
