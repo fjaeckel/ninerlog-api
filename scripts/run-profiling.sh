@@ -25,14 +25,14 @@ mkdir -p "$RESULTS_DIR"
 MODE="${1:-all}"
 
 run_pprof() {
-    echo "🔍 Collecting pprof profiles..."
+    echo "Collecting pprof profiles..."
     echo "   API: $API_URL"
     echo "   pprof: $PPROF_URL"
     echo ""
 
     # Verify pprof is available
     if ! curl -sf "$PPROF_URL/debug/pprof/" > /dev/null 2>&1; then
-        echo "❌ pprof not available at $PPROF_URL/debug/pprof/"
+        echo "pprof not available at $PPROF_URL/debug/pprof/"
         echo "   Make sure PPROF_ENABLED=true in docker-compose.perf.yaml"
         exit 1
     fi
@@ -43,10 +43,10 @@ run_pprof() {
         -d '{"email":"perfuser-0000@ninerlog-perf.com","password":"PerfTest123!Secure"}' \
         | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])")
 
-    echo "1️⃣  Heap profile (before load)..."
+    echo "1⃣  Heap profile (before load)..."
     curl -sf "$PPROF_URL/debug/pprof/heap" > "$RESULTS_DIR/heap-before.prof"
 
-    echo "2️⃣  Generating load (flight list + dashboard + exports)..."
+    echo "2⃣  Generating load (flight list + dashboard + exports)..."
     for i in $(seq 1 50); do
         curl -sf "$API_URL/api/v1/flights?page=1&pageSize=25" \
             -H "Authorization: Bearer $TOKEN" > /dev/null &
@@ -57,7 +57,7 @@ run_pprof() {
     done
     wait
 
-    echo "3️⃣  30-second CPU profile (during load)..."
+    echo "3⃣  30-second CPU profile (during load)..."
     # Start load in background during CPU profiling
     for j in $(seq 1 3); do
         (
@@ -72,17 +72,17 @@ run_pprof() {
     curl -sf "$PPROF_URL/debug/pprof/profile?seconds=30" > "$RESULTS_DIR/cpu.prof"
     wait
 
-    echo "4️⃣  Heap profile (after load)..."
+    echo "4⃣  Heap profile (after load)..."
     curl -sf "$PPROF_URL/debug/pprof/heap" > "$RESULTS_DIR/heap-after.prof"
 
-    echo "5️⃣  Allocs profile..."
+    echo "5⃣  Allocs profile..."
     curl -sf "$PPROF_URL/debug/pprof/allocs" > "$RESULTS_DIR/allocs.prof"
 
-    echo "6️⃣  Goroutine profile..."
+    echo "6⃣  Goroutine profile..."
     curl -sf "$PPROF_URL/debug/pprof/goroutine" > "$RESULTS_DIR/goroutine.prof"
 
     echo ""
-    echo "📊 Profile files saved to $RESULTS_DIR/"
+    echo "Profile files saved to $RESULTS_DIR/"
     echo ""
     echo "Analyze with:"
     echo "  go tool pprof -http=:8080 $RESULTS_DIR/cpu.prof"
@@ -91,13 +91,13 @@ run_pprof() {
     echo ""
 
     # Print top allocators from heap
-    echo "📋 Top 10 heap allocators (after load):"
+    echo "Top 10 heap allocators (after load):"
     go tool pprof -top -nodecount=10 "$RESULTS_DIR/heap-after.prof" 2>/dev/null || echo "  (install Go to view profiles)"
     echo ""
 }
 
 run_explain() {
-    echo "🔍 Running EXPLAIN ANALYZE queries..."
+    echo "Running EXPLAIN ANALYZE queries..."
     echo "   DB: $DB_HOST:$DB_PORT/$DB_NAME"
     echo ""
 
@@ -107,7 +107,7 @@ run_explain() {
         2>&1 | tee "$RESULTS_DIR/explain_analyze.txt"
 
     echo ""
-    echo "📊 EXPLAIN ANALYZE results saved to $RESULTS_DIR/explain_analyze.txt"
+    echo "EXPLAIN ANALYZE results saved to $RESULTS_DIR/explain_analyze.txt"
 }
 
 case "$MODE" in

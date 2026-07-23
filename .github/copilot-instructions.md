@@ -403,16 +403,18 @@ func TestE2E_CompleteFlightFlow(t *testing.T) {
 3. **Never after** - no untested code should be merged
 
 ### What to Test
-- ✅ Business logic (validation, calculations, currency)
-- ✅ Error handling (invalid input, missing data, database errors)
-- ✅ Authentication and authorization
-- ✅ Database operations (CRUD, transactions, concurrent access)
-- ✅ Edge cases (boundary values, null/empty, special characters)
-- ✅ Regulatory compliance (EASA/FAA rules)
-- ✅ Concurrent operations (race conditions)
-- ✅ API contract (matches OpenAPI spec)
-- ❌ Third-party library internals (Gin, pgx, etc.)
-- ❌ Generated code (OpenAPI client, sqlc output)
+- Business logic (validation, calculations, currency)
+- Error handling (invalid input, missing data, database errors)
+- Authentication and authorization
+- Database operations (CRUD, transactions, concurrent access)
+- Edge cases (boundary values, null/empty, special characters)
+- Regulatory compliance (EASA/FAA rules)
+- Concurrent operations (race conditions)
+- API contract (matches OpenAPI spec)
+
+### What NOT to Test
+- Third-party library internals (Gin, pgx, etc.)
+- Generated code (OpenAPI client, sqlc output)
 
 ### Running Tests
 ```bash

@@ -156,5 +156,5 @@ export default function () {
     if (i % 20 === 0) sleep(0.1);
   }
 
-  console.log(`✅ Seeded user ${userIdx}: ${email} with ${FLIGHTS_PER_USER} flights`);
+  console.log(`Seeded user ${userIdx}: ${email} with ${FLIGHTS_PER_USER} flights`);
 }

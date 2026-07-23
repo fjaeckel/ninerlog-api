@@ -95,12 +95,12 @@ Benchmarked on Apple M2, Go 1.25, `go test -bench=. -benchmem`
 
 | Scenario | VUs | Duration | Iterations | Requests | Error Rate | p95 | Status |
 |----------|-----|----------|------------|----------|------------|-----|--------|
-| Auth Flow | 100 | 2m | 1,239 | 4,956 | 0.00% | 4.87s (login) | ⚠️ Thresholds crossed (local Docker bcrypt overhead) |
-| Flight CRUD | 50 | 3m | 6,251 | 31,305 | 0.00% | 23ms (create), 25ms (list) | ✅ All passed |
-| Search & Filter | 50 | 2m | 2,950 | 23,650 | 0.00% | 32ms (search), 29ms (filter) | ✅ All passed |
-| Dashboard | 100 | 2m | 8,939 | 62,673 | 0.00% | 28ms (currency), 16ms (stats) | ✅ All passed |
-| Exports | 10 | 2m | 400 | 1,210 | 0.00% | 58ms (PDF), 23ms (CSV), 38ms (JSON) | ✅ All passed |
-| Spike (200 VUs) | 200 | 2m | 18,081 | 18,181 | 0.00% | 11ms | ✅ All passed |
+| Auth Flow | 100 | 2m | 1,239 | 4,956 | 0.00% | 4.87s (login) | Thresholds crossed (local Docker bcrypt overhead) |
+| Flight CRUD | 50 | 3m | 6,251 | 31,305 | 0.00% | 23ms (create), 25ms (list) | All passed |
+| Search & Filter | 50 | 2m | 2,950 | 23,650 | 0.00% | 32ms (search), 29ms (filter) | All passed |
+| Dashboard | 100 | 2m | 8,939 | 62,673 | 0.00% | 28ms (currency), 16ms (stats) | All passed |
+| Exports | 10 | 2m | 400 | 1,210 | 0.00% | 58ms (PDF), 23ms (CSV), 38ms (JSON) | All passed |
+| Spike (200 VUs) | 200 | 2m | 18,081 | 18,181 | 0.00% | 11ms | All passed |
 
 > **Note:** Auth scenario thresholds are crossed due to bcrypt's intentional CPU cost on local Docker.
 > In production (with dedicated CPU), expect login p95 < 300ms.
@@ -219,16 +219,16 @@ npm run lighthouse
 
 | # | Query | Exec Time | Scan Type | Buffers | Status |
 |---|-------|-----------|-----------|---------|--------|
-| 1 | Flight list (unfiltered, page 1) | 0.040ms | Index Scan (`idx_flights_user_date`) | shared hit=13 | ✅ Optimal |
-| 2 | Flight list (date range filter) | 0.021ms | Index Scan (`idx_flights_user_date`) | shared hit=13 | ✅ Optimal |
-| 3 | Text search (worst case, 5 cols) | 0.180ms | Bitmap Heap Scan + Filter | shared hit=28 | ⚠️ Degrades at scale |
-| 4 | Flight count (pagination total) | 0.028ms | Index Only Scan | shared hit=4 | ✅ Optimal |
-| 5 | Statistics aggregation | 0.074ms | Bitmap Heap Scan | shared hit=25 | ✅ Good |
-| 6 | Monthly trends (12 months) | 0.289ms | GroupAggregate + Sort | shared hit=8 | ✅ Good |
-| 7 | Route statistics (top routes) | 0.066ms | HashAggregate | shared hit=28 | ✅ Good |
-| 8 | Currency progress (JOIN) | 0.024ms | Nested Loop + Index Scan | shared hit=2 | ✅ Optimal |
-| 9 | Stats by aircraft class | 0.095ms | Hash Left Join | shared hit=31 | ✅ Good |
-| 10 | Last flight review | 0.030ms | Bitmap Heap Scan + Filter | shared hit=25 | ✅ Good |
+| 1 | Flight list (unfiltered, page 1) | 0.040ms | Index Scan (`idx_flights_user_date`) | shared hit=13 | Optimal |
+| 2 | Flight list (date range filter) | 0.021ms | Index Scan (`idx_flights_user_date`) | shared hit=13 | Optimal |
+| 3 | Text search (worst case, 5 cols) | 0.180ms | Bitmap Heap Scan + Filter | shared hit=28 | Degrades at scale |
+| 4 | Flight count (pagination total) | 0.028ms | Index Only Scan | shared hit=4 | Optimal |
+| 5 | Statistics aggregation | 0.074ms | Bitmap Heap Scan | shared hit=25 | Good |
+| 6 | Monthly trends (12 months) | 0.289ms | GroupAggregate + Sort | shared hit=8 | Good |
+| 7 | Route statistics (top routes) | 0.066ms | HashAggregate | shared hit=28 | Good |
+| 8 | Currency progress (JOIN) | 0.024ms | Nested Loop + Index Scan | shared hit=2 | Optimal |
+| 9 | Stats by aircraft class | 0.095ms | Hash Left Join | shared hit=31 | Good |
+| 10 | Last flight review | 0.030ms | Bitmap Heap Scan + Filter | shared hit=25 | Good |
 
 **Key finding:** All queries under 0.3ms. The `idx_flights_user_date(user_id, date)` composite index handles all primary access patterns. Text search (query #3) is the only query that will degrade at scale due to leading-wildcard LIKE filters across 5 columns.
 
@@ -325,7 +325,7 @@ k6 prints a summary with key metrics:
 - **iterations**: total completed test iterations
 - **vus**: concurrent virtual users
 
-**Threshold failures** are printed as `✗` in the output. Any threshold failure means the scenario failed.
+**Threshold failures** are printed as `` in the output. Any threshold failure means the scenario failed.
 
 ### Go Benchmarks
 

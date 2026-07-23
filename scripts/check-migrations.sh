@@ -40,7 +40,7 @@ for path in "$MIGRATIONS_DIR"/*.sql; do
     fi
 
     if [[ ! "$file" =~ $name_re ]]; then
-        echo "✖ malformed migration filename: $file" >&2
+        echo "malformed migration filename: $file" >&2
         echo "    expected NNNNNN_name.(up|down).sql (6-digit version, lowercase snake_case name)" >&2
         fail=1
         continue
@@ -72,7 +72,7 @@ dupes="$(
 if [[ -n "$dupes" ]]; then
     while IFS= read -r line; do
         version="${line%% *}"
-        echo "✖ duplicate migration version $version used by multiple migrations:" >&2
+        echo "duplicate migration version $version used by multiple migrations:" >&2
         for n in ${line#* }; do
             echo "      $n" >&2
         done
@@ -95,7 +95,7 @@ unpaired="$(
 if [[ -n "$unpaired" ]]; then
     while IFS=$'\t' read -r version name problem; do
         [[ -z "$version" ]] && continue
-        echo "✖ migration $version ($name) is $problem" >&2
+        echo "migration $version ($name) is $problem" >&2
     done <<< "$unpaired"
     fail=1
 fi
@@ -107,4 +107,4 @@ if [[ "$fail" -ne 0 ]]; then
 fi
 
 total="$(printf '%s' "$records" | awk -F'\t' 'NF>=1 {print $1}' | sort -u | grep -c .)"
-echo "✓ migrations OK — $total versions, no duplicates, all up/down pairs present."
+echo "migrations OK — $total versions, no duplicates, all up/down pairs present."
