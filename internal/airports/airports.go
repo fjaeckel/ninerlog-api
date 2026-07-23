@@ -37,15 +37,15 @@ var (
 func Init() {
 	once.Do(func() {
 		start := time.Now()
-		slog.Info("✈ Loading airport database from OurAirports...")
+		slog.Info("Loading airport database from OurAirports...")
 		loaded, err := fetchAirports()
 		if err != nil {
-			slog.Warn("⚠ Failed to load OurAirports data; airport lookup will be unavailable", "error", err)
+			slog.Warn("Failed to load OurAirports data; airport lookup will be unavailable", "error", err)
 			db = make(map[string]AirportInfo)
 			return
 		}
 		db = loaded
-		slog.Info("✅ Loaded airport database", "count", len(db), "duration", time.Since(start).Round(time.Millisecond).String())
+		slog.Info("Loaded airport database", "count", len(db), "duration", time.Since(start).Round(time.Millisecond).String())
 	})
 }
 
