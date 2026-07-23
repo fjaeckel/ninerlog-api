@@ -76,15 +76,15 @@ test/e2e/           → End-to-end tests
 ### Error Handling
 
 ```go
-// ✅ Wrap errors with context
+// Wrap errors with context
 if err != nil {
     return fmt.Errorf("failed to create flight: %w", err)
 }
 
-// ✅ Use sentinel errors for known conditions
+// Use sentinel errors for known conditions
 var ErrNotFound = errors.New("not found")
 
-// ❌ Never return raw err.Error() to API clients
+// Never return raw err.Error() to API clients
 // Use sendError() with a static, user-friendly message
 ```
 

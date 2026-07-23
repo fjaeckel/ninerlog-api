@@ -127,9 +127,9 @@ for scenario in "${SCENARIOS[@]}"; do
   if PERF_API_URL="$PERF_API_URL" k6 run \
     --out "json=$RESULT_FILE" \
     "$SCENARIO_FILE" 2>&1; then
-    success "✅ $scenario passed"
+    success "$scenario passed"
   else
-    error "❌ $scenario failed thresholds"
+    error "$scenario failed thresholds"
     FAILED=$((FAILED + 1))
   fi
 
@@ -141,7 +141,7 @@ done
 echo ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [[ $FAILED -eq 0 ]]; then
-  success "All performance scenarios passed! 🎉"
+  success "All performance scenarios passed! "
   log "Results saved to: $RESULTS_DIR/"
 else
   error "$FAILED scenario(s) failed performance thresholds"
