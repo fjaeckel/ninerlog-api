@@ -17,6 +17,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  migrations:
+    name: Migration Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check for duplicate / malformed migrations
+        run: ./scripts/check-migrations.sh db/migrations
+
   unit-tests:
     name: Unit Tests
     runs-on: self-hosted
@@ -73,7 +85,7 @@ jobs:
 
   publish:
     name: Publish Docker Image
-    needs: [unit-tests, integration-tests]
+    needs: [migrations, unit-tests, integration-tests]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
