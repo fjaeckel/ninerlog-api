@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -37,15 +37,15 @@ var (
 func Init() {
 	once.Do(func() {
 		start := time.Now()
-		log.Println("✈ Loading airport database from OurAirports...")
+		slog.Info("Loading airport database from OurAirports...")
 		loaded, err := fetchAirports()
 		if err != nil {
-			log.Printf("⚠ Failed to load OurAirports data: %v (airport lookup will be unavailable)", err)
+			slog.Warn("Failed to load OurAirports data; airport lookup will be unavailable", "error", err)
 			db = make(map[string]AirportInfo)
 			return
 		}
 		db = loaded
-		log.Printf("✅ Loaded %d airports in %v", len(db), time.Since(start).Round(time.Millisecond))
+		slog.Info("Loaded airport database", "count", len(db), "duration", time.Since(start).Round(time.Millisecond).String())
 	})
 }
 

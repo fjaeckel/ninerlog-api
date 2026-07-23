@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -229,7 +229,7 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_%s_%s_%s.pdf",
 		format, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02")))
 	if err := pdf.Output(c.Writer); err != nil {
-		log.Printf("pdf export output error: %v", err)
+		slog.Error("pdf export output error", "error", err)
 	}
 }
 

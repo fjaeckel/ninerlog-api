@@ -3,7 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"runtime"
 	"time"
@@ -16,7 +16,7 @@ import (
 // scanCount scans a single count value from a query row, defaulting to 0 on error.
 func scanCount(row *sql.Row, dest *int) {
 	if err := row.Scan(dest); err != nil {
-		log.Printf("admin stats: count query failed: %v", err)
+		slog.Error("admin stats: count query failed", "error", err)
 		*dest = 0
 	}
 }
@@ -65,14 +65,14 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	rows, err := h.db.QueryContext(c.Request.Context(),
 		"SELECT provider, COUNT(*) FROM backup_destinations GROUP BY provider")
 	if err != nil {
-		log.Printf("admin stats: backup_destinations query failed: %v", err)
+		slog.Error("admin stats: backup_destinations query failed", "error", err)
 	} else {
 		defer rows.Close()
 		for rows.Next() {
 			var provider string
 			var count int
 			if err := rows.Scan(&provider, &count); err != nil {
-				log.Printf("admin stats: backup_destinations scan failed: %v", err)
+				slog.Error("admin stats: backup_destinations scan failed", "error", err)
 				continue
 			}
 			stats.CloudBackupDestinations.ByProvider[provider] = count

@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -52,7 +52,7 @@ func sortFlightsChronological(flights []*models.Flight) {
 // csv.Writer buffers errors internally, so writes after a failure are no-ops.
 func csvWrite(w *csv.Writer, record []string) {
 	if err := w.Write(record); err != nil {
-		log.Printf("csv write error: %v", err)
+		slog.Error("csv write error", "error", err)
 	}
 }
 
@@ -428,6 +428,6 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 	encoder := json.NewEncoder(c.Writer)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(backup); err != nil {
-		log.Printf("json export encode error: %v", err)
+		slog.Error("json export encode error", "error", err)
 	}
 }
