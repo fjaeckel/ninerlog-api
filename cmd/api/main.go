@@ -49,7 +49,7 @@ func fatal(msg string, args ...any) {
 
 func main() {
 	logging.Setup()
-	slog.Info("🚀 Starting NinerLog API...")
+	slog.Info("Starting NinerLog API...")
 
 	// Load environment variables
 	dbURL := os.Getenv("DATABASE_URL")
@@ -88,11 +88,11 @@ func main() {
 	// Admin email (optional — designates admin user)
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail != "" {
-		slog.Info("🔑 Admin email configured", "email", adminEmail)
+		slog.Info("Admin email configured", "email", adminEmail)
 	}
 
 	// Connect to database
-	slog.Info("📦 Connecting to database...")
+	slog.Info("Connecting to database...")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		fatal("failed to connect to database", "error", err)
@@ -114,14 +114,14 @@ func main() {
 	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetConnMaxIdleTime(1 * time.Minute)
 
-	slog.Info("✅ Database connected")
+	slog.Info("Database connected")
 
 	// Run database migrations
 	migrationsPath := os.Getenv("MIGRATIONS_PATH")
 	if migrationsPath == "" {
 		migrationsPath = "db/migrations"
 	}
-	slog.Info("📦 Running database migrations", "path", migrationsPath)
+	slog.Info("Running database migrations", "path", migrationsPath)
 	driver, err := migratepg.WithInstance(db, &migratepg.Config{})
 	if err != nil {
 		fatal("failed to create migration driver", "error", err)
@@ -135,7 +135,7 @@ func main() {
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		fatal("failed to run migrations", "error", err)
 	}
-	slog.Info("✅ Database migrations applied")
+	slog.Info("Database migrations applied")
 
 	// Load airport database from OurAirports (async-safe, cached)
 	airports.Init()
@@ -173,9 +173,9 @@ func main() {
 		if err != nil {
 			fatal("invalid TOTP_ENCRYPTION_KEY", "error", err)
 		}
-		slog.Info("✅ TOTP secrets encrypted at rest")
+		slog.Info("TOTP secrets encrypted at rest")
 	} else {
-		slog.Warn("⚠️  TOTP_ENCRYPTION_KEY not set — 2FA secrets are stored unencrypted")
+		slog.Warn("TOTP_ENCRYPTION_KEY not set — 2FA secrets are stored unencrypted")
 	}
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager, totpAEAD)
 	contactRepo := postgres.NewContactRepository(db)
@@ -223,13 +223,13 @@ func main() {
 	if webauthnRPID != "" {
 		webauthnService, err = service.NewWebAuthnService(webauthnRPID, webauthnRPName, webauthnOrigins, webauthnCredRepo, webauthnSessionRepo, userRepo, authService)
 		if err != nil {
-			slog.Warn("⚠️  WebAuthn disabled", "error", err)
+			slog.Warn("WebAuthn disabled", "error", err)
 			webauthnService = nil
 		} else {
-			slog.Info("✅ WebAuthn enabled", "rp_id", webauthnRPID)
+			slog.Info("WebAuthn enabled", "rp_id", webauthnRPID)
 		}
 	} else {
-		slog.Info("ℹ️  WebAuthn disabled (set WEBAUTHN_RP_ID to enable)")
+		slog.Info("WebAuthn disabled (set WEBAUTHN_RP_ID to enable)")
 		_ = webauthnCredRepo
 		_ = webauthnSessionRepo
 	}
@@ -280,9 +280,9 @@ func main() {
 		}
 		apiHandler.SetBackupService(backupSvc)
 		backupScheduler = cloudbackup.NewScheduler(backupSvc, 0, nil)
-		slog.Info("✅ Cloud backups enabled (S3, SFTP, WebDAV providers)")
+		slog.Info("Cloud backups enabled (S3, SFTP, WebDAV providers)")
 	} else {
-		slog.Info("ℹ️  Cloud backups disabled (set BACKUP_CREDENTIALS_KEY to enable)")
+		slog.Info("Cloud backups disabled (set BACKUP_CREDENTIALS_KEY to enable)")
 	}
 
 	// Setup router
@@ -365,7 +365,7 @@ func main() {
 		prometheus.MustRegister(middleware.NewDBStatsCollector(db))
 
 		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
-		slog.Info("✅ Prometheus metrics enabled at /metrics")
+		slog.Info("Prometheus metrics enabled at /metrics")
 	}
 
 	// pprof debug server (separate port, opt-in via PPROF_ENABLED=true)
@@ -375,7 +375,7 @@ func main() {
 			pprofPort = "6060"
 		}
 		go func() {
-			slog.Info("🔍 pprof debug server listening", "addr", ":"+pprofPort+"/debug/pprof/")
+			slog.Info("pprof debug server listening", "addr", ":"+pprofPort+"/debug/pprof/")
 			pprofSrv := &http.Server{
 				Addr:              ":" + pprofPort,
 				ReadTimeout:       30 * time.Second,
@@ -510,7 +510,7 @@ func main() {
 	// Register custom currency rule routes (not in OpenAPI spec)
 	handlers.RegisterCustomCurrencyRoutes(api, customCurrencyHandler)
 
-	slog.Info("✅ Routes registered from OpenAPI specification")
+	slog.Info("Routes registered from OpenAPI specification")
 
 	// Start background notification checker (configurable via NOTIFICATION_CHECK_INTERVAL, defaults to 1h)
 	notifCtx, notifCancel := context.WithCancel(context.Background())
@@ -520,7 +520,7 @@ func main() {
 	// Start cloud-backup scheduler if configured
 	if backupScheduler != nil {
 		backupScheduler.Start(notifCtx)
-		slog.Info("✅ Cloud backup scheduler started")
+		slog.Info("Cloud backup scheduler started")
 	}
 
 	// Start server with timeouts to prevent slow-loris and resource exhaustion
@@ -535,7 +535,7 @@ func main() {
 	}
 
 	go func() {
-		slog.Info("✅ Server starting", "addr", ":"+port)
+		slog.Info("Server starting", "addr", ":"+port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fatal("failed to start server", "error", err)
 		}
@@ -546,7 +546,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	slog.Info("🛑 Shutting down...")
+	slog.Info("Shutting down...")
 	if backupScheduler != nil {
 		backupScheduler.Stop()
 	}
@@ -557,5 +557,5 @@ func main() {
 		fatal("server forced to shutdown", "error", err)
 	}
 
-	slog.Info("✅ Server exited")
+	slog.Info("Server exited")
 }

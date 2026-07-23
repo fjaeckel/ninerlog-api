@@ -94,7 +94,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	encodedSubject := mime.QEncoding.Encode("utf-8", subject)
 
 	if !s.config.IsConfigured() {
-		slog.Info("📧 [DRY-RUN] Email not sent (SMTP not configured)", "to", toAddr.Address, "subject", subject)
+		slog.Info("[DRY-RUN] Email not sent (SMTP not configured)", "to", toAddr.Address, "subject", subject)
 		EmailSendTotal.WithLabelValues("dry_run").Inc()
 		return nil
 	}
@@ -135,7 +135,7 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	}
 	EmailSendTotal.WithLabelValues("success").Inc()
 
-	slog.Info("📧 Email sent", "to", toAddr.Address, "subject", subject)
+	slog.Info("Email sent", "to", toAddr.Address, "subject", subject)
 	return nil
 }
 
