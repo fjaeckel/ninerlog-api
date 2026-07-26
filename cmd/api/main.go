@@ -333,7 +333,10 @@ func main() {
 	// MaxMultipartMemory above plus the explicit CSV size check.
 	// POST /imports/json restores a full logbook backup and legitimately
 	// needs more room than a single-entity JSON body.
-	router.Use(middleware.MaxBodyBytesMiddleware(1<<20, map[string]int64{
+	// The multipart cap sits just above MaxMultipartMemory (10 MB) so a
+	// legitimate max-size CSV plus its multipart framing fits, while an
+	// oversized upload is refused before its bytes are written to disk.
+	router.Use(middleware.MaxBodyBytesMiddleware(1<<20, 12<<20, map[string]int64{
 		"/imports/json": 50 << 20,
 	}))
 
