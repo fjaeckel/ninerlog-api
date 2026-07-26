@@ -3,6 +3,9 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
@@ -11,7 +14,27 @@ import (
 // AuthMiddleware enforces JWT authentication on all routes except explicitly
 // allowed public paths. It extracts the user ID from the token and sets it
 // in the Gin context as "userID".
+// UserSessionState reports whether a user still exists, is enabled, and the
+// instant before which their access tokens are no longer valid. Implemented by
+// the auth service; nil disables the check (used by tests).
+type UserSessionState func(userID uuid.UUID) (disabled bool, tokensValidAfter *time.Time, err error)
+
+// AuthMiddleware enforces JWT authentication. See AuthMiddlewareWithState for
+// the session-revocation variant.
 func AuthMiddleware(jwtManager *jwt.Manager, publicPaths []string) gin.HandlerFunc {
+	return AuthMiddlewareWithState(jwtManager, publicPaths, nil)
+}
+
+// AuthMiddlewareWithState additionally rejects tokens belonging to a disabled
+// or deleted user, and tokens issued before the user's session epoch.
+//
+// Access tokens are stateless 15-minute JWTs, so without this a token stayed
+// usable for its full lifetime no matter what happened to the account:
+// disabling a user or changing a password only deleted REFRESH tokens, which
+// merely stops the session being extended. Both were confirmed against a
+// running instance -- a disabled user's token still read and created flights,
+// and an old token still worked after a password change.
+func AuthMiddlewareWithState(jwtManager *jwt.Manager, publicPaths []string, state UserSessionState) gin.HandlerFunc {
 	// Build a set for O(1) lookup
 	public := make(map[string]bool, len(publicPaths))
 	for _, p := range publicPaths {
@@ -55,6 +78,30 @@ func AuthMiddleware(jwtManager *jwt.Manager, publicPaths []string) gin.HandlerFu
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
 			return
+		}
+
+		if state != nil {
+			disabled, validAfter, err := state(claims.UserID)
+			if err != nil {
+				// Unknown or deleted user.
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+				c.Abort()
+				return
+			}
+			if disabled {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Account disabled"})
+				c.Abort()
+				return
+			}
+			// Reject tokens minted before the last invalidation event. IssuedAt
+			// has second resolution, so a token issued in the same second as the
+			// event is also rejected (Before would let it through).
+			if validAfter != nil && claims.IssuedAt != nil &&
+				!claims.IssuedAt.Time.After(*validAfter) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired, please sign in again"})
+				c.Abort()
+				return
+			}
 		}
 
 		// Set user ID in context for handlers to use

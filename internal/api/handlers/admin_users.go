@@ -165,9 +165,15 @@ func (h *APIHandler) DisableUser(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
-	// Revoke all tokens
+	// Revoke all tokens. Deleting refresh tokens only prevents the session
+	// being extended -- bump the session epoch too so the target's outstanding
+	// access token stops working immediately rather than up to 15 minutes
+	// later, which is exactly the window that matters when disabling an
+	// abusive or compromised account.
 	_, _ = h.db.ExecContext(c.Request.Context(),
 		"DELETE FROM refresh_tokens WHERE user_id = $1", targetID)
+	_, _ = h.db.ExecContext(c.Request.Context(),
+		"UPDATE users SET tokens_valid_after = NOW() WHERE id = $1", targetID)
 
 	h.logAdminAction(c, adminUserID, "disable_user", &targetID,
 		fmt.Sprintf(`{"email":"%s"}`, strings.ReplaceAll(user.Email, `"`, `\"`)))
@@ -255,6 +261,14 @@ func (h *APIHandler) ResetUser2fa(c *gin.Context, userId openapi_types.UUID) {
 		h.sendError(c, http.StatusInternalServerError, "Failed to reset 2FA")
 		return
 	}
+
+	// Removing the second factor is a security event: end existing sessions so
+	// the reset cannot be used to keep a session that was established with the
+	// factor now being cleared.
+	_, _ = h.db.ExecContext(c.Request.Context(),
+		"DELETE FROM refresh_tokens WHERE user_id = $1", targetID)
+	_, _ = h.db.ExecContext(c.Request.Context(),
+		"UPDATE users SET tokens_valid_after = NOW() WHERE id = $1", targetID)
 
 	h.logAdminAction(c, adminUserID, "reset_2fa", &targetID,
 		fmt.Sprintf(`{"email":"%s"}`, strings.ReplaceAll(user.Email, `"`, `\"`)))

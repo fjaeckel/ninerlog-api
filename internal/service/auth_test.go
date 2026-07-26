@@ -1029,3 +1029,13 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 		t.Errorf("Expected ErrPasswordTooShort, got %v", err)
 	}
 }
+
+func (m *mockUserRepo) InvalidateTokensBefore(_ context.Context, id uuid.UUID, at time.Time) error {
+	for _, u := range m.users {
+		if u.ID == id {
+			t := at
+			u.TokensValidAfter = &t
+		}
+	}
+	return nil
+}

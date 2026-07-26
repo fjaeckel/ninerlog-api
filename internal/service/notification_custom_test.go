@@ -121,3 +121,7 @@ func TestCustomCurrencyNotifications_RespectsEmailDisabled(t *testing.T) {
 		t.Errorf("email disabled: expected no notifications, got %d", len(notifRepo.logs))
 	}
 }
+
+func (m *mockNotifUserRepo) InvalidateTokensBefore(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	return nil
+}

@@ -1775,3 +1775,11 @@ func (m *mockHandlerNotifRepo) GetAllUsersWithPreferences(_ context.Context) ([]
 func (m *mockHandlerNotifRepo) GetNotificationHistory(_ context.Context, _ uuid.UUID, _, _ int) ([]*models.NotificationLog, int, error) {
 	return []*models.NotificationLog{}, 0, nil
 }
+
+func (m *mockUserRepo) InvalidateTokensBefore(_ context.Context, id uuid.UUID, at time.Time) error {
+	if u, ok := m.users[id]; ok {
+		t := at
+		u.TokensValidAfter = &t
+	}
+	return nil
+}

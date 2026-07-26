@@ -547,3 +547,11 @@ func TestCompleteFromToken_UsesDBSourcedOwnerEmail(t *testing.T) {
 		t.Error("CompleteFromToken() did not lock the flight")
 	}
 }
+
+func (m *mockUserRepoForSignature) InvalidateTokensBefore(_ context.Context, id uuid.UUID, at time.Time) error {
+	if u, ok := m.users[id]; ok {
+		t := at
+		u.TokensValidAfter = &t
+	}
+	return nil
+}
