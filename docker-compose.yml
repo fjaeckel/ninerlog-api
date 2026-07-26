@@ -46,11 +46,22 @@ services:
       
       # CORS
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:80}
+
+      # Hosts whose X-Real-IP / X-Forwarded-For headers are trusted. Must name
+      # the ingress only. On the default bridge network the nginx container is
+      # in 172.16.0.0/12; narrow this further if you can pin its address.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.16.0.0/12}
       
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
-      - "${API_PORT:-3000}:3000"
+      # Bound to loopback: the API is reached through the nginx ingress, which
+      # shares the ninerlog-network. Publishing it on all interfaces exposed
+      # /metrics unauthenticated and let clients reach the API without nginx --
+      # which also meant their packets arrived from the Docker bridge, inside
+      # the trusted-proxy range, so X-Real-IP could be forged to defeat every
+      # IP-based rate limit. Override API_BIND to 0.0.0.0 only if you know why.
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-3000}:3000"
     networks:
       - ninerlog-network
     volumes:
