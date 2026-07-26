@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/csv"
@@ -38,10 +39,52 @@ type uploadSession struct {
 	createdAt time.Time
 }
 
+// Bounds on the in-memory upload-session store.
+//
+// A parsed session holds every row as a map[string]string, which costs roughly
+// an order of magnitude more than the raw bytes. Without caps, repeatedly
+// uploading a max-size CSV and never completing the import pinned that memory
+// for the full session TTL: measured growth was ~85 MB of RSS per 8 MB upload,
+// reaching 1.7 GB after 20 uploads and never released. Any single authenticated
+// user could OOM the shared API.
+const (
+	// maxImportRows caps rows parsed from one file.
+	maxImportRows = 20000
+	// maxSessionsPerUser caps concurrent pending imports for one user.
+	maxSessionsPerUser = 3
+	// maxTotalSessions caps pending imports process-wide.
+	maxTotalSessions = 100
+	// sessionTTL is how long an unconfirmed upload is retained.
+	sessionTTL = 15 * time.Minute
+)
+
 var (
 	uploadSessions = make(map[string]*uploadSession)
 	sessionMu      sync.Mutex
 )
+
+// errTooManySessions is returned when a user (or the process) already holds the
+// maximum number of pending uploads.
+var errTooManySessions = fmt.Errorf("too many pending imports")
+
+// storeSession registers a parsed upload, enforcing the per-user and global
+// caps. Callers must not hold sessionMu.
+func storeSession(token string, sess *uploadSession) error {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+
+	perUser := 0
+	for _, s := range uploadSessions {
+		if s.userID == sess.userID {
+			perUser++
+		}
+	}
+	if perUser >= maxSessionsPerUser || len(uploadSessions) >= maxTotalSessions {
+		return errTooManySessions
+	}
+	uploadSessions[token] = sess
+	return nil
+}
 
 func newUploadToken() string {
 	b := make([]byte, 32)
@@ -49,10 +92,31 @@ func newUploadToken() string {
 	return hex.EncodeToString(b)
 }
 
+// StartImportSessionReaper evicts expired upload sessions on a timer. Cleanup
+// previously ran only at the start of the next upload, so an attacker who
+// stopped uploading left everything resident until someone else uploaded.
+func StartImportSessionReaper(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cleanupOldSessions()
+			}
+		}
+	}()
+}
+
 func cleanupOldSessions() {
 	sessionMu.Lock()
 	defer sessionMu.Unlock()
-	cutoff := time.Now().Add(-1 * time.Hour)
+	cutoff := time.Now().Add(-sessionTTL)
 	for token, s := range uploadSessions {
 		if s.createdAt.Before(cutoff) {
 			delete(uploadSessions, token)
@@ -238,8 +302,7 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 	}
 
 	token := newUploadToken()
-	sessionMu.Lock()
-	uploadSessions[token] = &uploadSession{
+	if err := storeSession(token, &uploadSession{
 		userID:    userID,
 		fileName:  fileName,
 		format:    format,
@@ -247,8 +310,11 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 		rows:      rows,
 		aircraft:  aircraftData,
 		createdAt: time.Now(),
+	}); err != nil {
+		h.sendError(c, http.StatusTooManyRequests,
+			"Too many pending imports. Complete or discard an existing upload before starting another.")
+		return
 	}
-	sessionMu.Unlock()
 
 	// Build preview rows (first 5)
 	previewRows := rows
@@ -1398,6 +1464,9 @@ func parseSectionCSV(csvData []byte) ([]string, []map[string]string, error) {
 			}
 		}
 		rows = append(rows, row)
+		if len(rows) > maxImportRows {
+			return nil, nil, fmt.Errorf("file has too many rows (max %d)", maxImportRows)
+		}
 	}
 
 	if len(rows) == 0 {
