@@ -20,7 +20,7 @@ func (h *APIHandler) requireAdmin(c *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
-	if err != nil || !h.isAdminUser(user.Email) {
+	if err != nil || !h.isAdminUser(user) {
 		h.sendError(c, http.StatusForbidden, "Admin access required")
 		return uuid.Nil, false
 	}

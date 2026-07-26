@@ -120,7 +120,7 @@ func TestUserUpdate(t *testing.T) {
 	}
 
 	mock.ExpectExec("UPDATE users").
-		WithArgs(user.Email, user.PasswordHash, user.Name, user.TwoFactorEnabled, user.TwoFactorSecret, user.RecoveryCodes, user.Disabled, user.LastLoginAt, user.TimeDisplayFormat, user.DateFormat, user.DecimalSeparator, user.PreferredLocale, user.RecencyPerModel, user.RecencyPerRegistration, user.UpdatedAt, user.ID).
+		WithArgs(user.Email, user.PasswordHash, user.Name, user.TwoFactorEnabled, user.TwoFactorSecret, user.RecoveryCodes, user.Disabled, user.LastLoginAt, user.TimeDisplayFormat, user.DateFormat, user.DecimalSeparator, user.PreferredLocale, user.RecencyPerModel, user.RecencyPerRegistration, user.EmailVerified, user.UpdatedAt, user.ID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = repo.Update(ctx, user)

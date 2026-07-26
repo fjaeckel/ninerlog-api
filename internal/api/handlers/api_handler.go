@@ -151,16 +151,27 @@ func (h *APIHandler) sendError(c *gin.Context, statusCode int, message string, d
 // Verify that APIHandler implements the generated.ServerInterface
 var _ generated.ServerInterface = (*APIHandler)(nil)
 
-// isAdminUser checks if the given email matches the configured admin email
-func (h *APIHandler) isAdminUser(email string) bool {
-	return h.adminEmail != "" && strings.EqualFold(email, h.adminEmail)
+// isAdminUser reports whether the user holds the configured admin address.
+//
+// The email must be VERIFIED. Admin status is derived from a user-settable
+// field, so without the verification requirement any authenticated user could
+// PATCH /users/me to the configured ADMIN_EMAIL and inherit full admin rights
+// whenever no account currently holds that address (fresh deployment, rotated
+// admin address, deleted admin account). Requiring email_verified means the
+// caller must additionally prove control of the mailbox — and UpdateCurrentUser
+// clears email_verified on every address change (see updateUserEmail).
+func (h *APIHandler) isAdminUser(user *models.User) bool {
+	if user == nil || h.adminEmail == "" {
+		return false
+	}
+	return user.EmailVerified && strings.EqualFold(user.Email, h.adminEmail)
 }
 
 // buildUserResponse creates a generated.User from a models.User, including isAdmin
 func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 	twoFA := user.TwoFactorEnabled
 	emailVerified := user.EmailVerified
-	isAdmin := h.isAdminUser(user.Email)
+	isAdmin := h.isAdminUser(user)
 	tdf := generated.UserTimeDisplayFormat(user.TimeDisplayFormat)
 	locale := generated.UserPreferredLocale(user.PreferredLocale)
 	df := generated.UserDateFormat(user.DateFormat)

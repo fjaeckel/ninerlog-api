@@ -20,7 +20,7 @@ func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdmi
 
 	// Verify admin access
 	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
-	if err != nil || !h.isAdminUser(user.Email) {
+	if err != nil || !h.isAdminUser(user) {
 		h.sendError(c, http.StatusForbidden, "Admin access required")
 		return
 	}

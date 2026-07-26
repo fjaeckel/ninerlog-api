@@ -10,11 +10,14 @@ import (
 
 func createTestUser(email, name string) *models.User {
 	return &models.User{
-		ID:        uuid.New(),
-		Email:     email,
-		Name:      name,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:    uuid.New(),
+		Email: email,
+		Name:  name,
+		// Admin status requires a verified address (see isAdminUser); real
+		// accounts that reach admin checks have completed verification.
+		EmailVerified: true,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 }
 
@@ -60,7 +63,8 @@ func TestIsAdminUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &APIHandler{adminEmail: tt.adminEmail}
-			if got := h.isAdminUser(tt.userEmail); got != tt.want {
+			user := &models.User{Email: tt.userEmail, EmailVerified: true}
+			if got := h.isAdminUser(user); got != tt.want {
 				t.Errorf("isAdminUser(%q) = %v, want %v", tt.userEmail, got, tt.want)
 			}
 		})

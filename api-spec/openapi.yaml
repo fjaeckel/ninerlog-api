@@ -735,6 +735,12 @@ paths:
                 email:
                   type: string
                   format: email
+                currentPassword:
+                  type: string
+                  description: >-
+                    Current password. Required when changing the email address.
+                    The new address is marked unverified and a verification link
+                    is sent to it before it is trusted again.
                 timeDisplayFormat:
                   type: string
                   enum: [hm, decimal]

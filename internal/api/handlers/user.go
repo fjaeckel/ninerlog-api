@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -55,8 +56,37 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 	if req.Name != nil {
 		user.Name = strings.TrimSpace(*req.Name)
 	}
+
+	// Changing the email address is a security-sensitive operation: the address
+	// is the account's recovery channel and (via ADMIN_EMAIL) the basis for
+	// admin authorization. It therefore requires the current password, and the
+	// new address must be re-verified before it is trusted again.
+	emailChanged := false
 	if req.Email != nil {
-		user.Email = strings.ToLower(strings.TrimSpace(string(*req.Email)))
+		newEmail := strings.ToLower(strings.TrimSpace(string(*req.Email)))
+		if !strings.EqualFold(newEmail, user.Email) {
+			// Re-validate the normalized address. mail.ParseAddress accepts
+			// quoted local-parts that it then re-emits unquoted (e.g.
+			// "back\\slash"@x -> back\slash@x); such a value round-trips back
+			// through openapi_types.Email as invalid and breaks every response
+			// that serializes this user (including the admin user list).
+			if _, err := mail.ParseAddress(newEmail); err != nil {
+				h.sendError(c, http.StatusBadRequest, "Invalid email address")
+				return
+			}
+			if req.CurrentPassword == nil || *req.CurrentPassword == "" {
+				h.sendError(c, http.StatusBadRequest, "currentPassword is required to change the email address")
+				return
+			}
+			if err := h.authService.VerifyPassword(c.Request.Context(), userID, *req.CurrentPassword); err != nil {
+				h.sendError(c, http.StatusUnauthorized, "Password is incorrect")
+				return
+			}
+			user.Email = newEmail
+			// The new address is unproven until its verification link is used.
+			user.EmailVerified = false
+			emailChanged = true
+		}
 	}
 	if req.TimeDisplayFormat != nil {
 		format := string(*req.TimeDisplayFormat)
@@ -97,6 +127,15 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to update user")
 		return
+	}
+
+	// Send a verification link to the NEW address so the user can prove control
+	// of it. Failures are non-fatal — the address is already marked unverified,
+	// and the user can request a fresh link via /auth/verify-email/resend.
+	if emailChanged {
+		if token, err := h.authService.CreateEmailVerificationToken(c.Request.Context(), userID); err == nil {
+			h.sendVerificationEmail(user.Email, user.Name, user.PreferredLocale, token)
+		}
 	}
 
 	c.JSON(http.StatusOK, h.buildUserResponse(user))
