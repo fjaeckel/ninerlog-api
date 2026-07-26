@@ -9,6 +9,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
+	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -105,4 +106,8 @@ func TestEncrypted2FA_ReadsLegacyPlaintextSecret(t *testing.T) {
 	if !valid {
 		t.Error("legacy plaintext secret should still validate")
 	}
+}
+
+func (m *mock2FAUserRepo) ConsumeRecoveryCode(_ context.Context, _ uuid.UUID, _ string) (bool, error) {
+	return true, nil
 }
