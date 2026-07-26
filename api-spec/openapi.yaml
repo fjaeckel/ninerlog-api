@@ -243,6 +243,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Log out
+      description: >-
+        Revokes the supplied refresh token so the session cannot be resumed.
+        Always returns 204: revocation is idempotent and the endpoint must not
+        reveal whether a given token existed.
+      operationId: logoutUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '204':
+          description: Session revoked
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
   /auth/refresh:
     post:
       tags:
