@@ -44,6 +44,14 @@ var (
 	ErrSignatureImageRequired  = errors.New("a signature image is required")
 	ErrSignerNameRequired      = errors.New("signer name is required")
 	ErrSignatureReasonRequired = errors.New("a reason is required to void a signature")
+
+	// ErrSignatureEmailQuota is returned once a user has triggered too many
+	// signature-request emails in a day. Each request sends NinerLog-branded
+	// mail, from NinerLog's domain, to an arbitrary address chosen by the
+	// sender, and the landing page then collects the recipient's name,
+	// credential number and handwritten signature. Without a ceiling that is a
+	// ready-made bulk phishing and harvesting channel.
+	ErrSignatureEmailQuota = errors.New("daily limit for signature request emails reached")
 )
 
 // FlightSignatureService implements the instructor sign-off workflow: live
@@ -84,6 +92,24 @@ func generateRawToken() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(buf), nil
+}
+
+// maxSignatureEmailsPerDay caps outbound signature-request mail per account.
+// Generous for real use (an instructor-heavy week is a handful of requests)
+// while making bulk abuse impractical.
+const maxSignatureEmailsPerDay = 20
+
+// checkEmailQuota enforces maxSignatureEmailsPerDay. A counting failure is not
+// treated as a quota breach: the feature stays usable if the query errors.
+func (s *FlightSignatureService) checkEmailQuota(ctx context.Context, userID uuid.UUID) error {
+	n, err := s.sigRepo.CountEmailsSentSince(ctx, userID, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		return nil
+	}
+	if n >= maxSignatureEmailsPerDay {
+		return ErrSignatureEmailQuota
+	}
+	return nil
 }
 
 func clampExpiryHours(requested *int) int {
@@ -161,6 +187,12 @@ func (s *FlightSignatureService) CreateRequest(ctx context.Context, flightID, us
 		return nil, "", err
 	}
 
+	if instructorEmail != nil {
+		if err := s.checkEmailQuota(ctx, userID); err != nil {
+			return nil, "", err
+		}
+	}
+
 	rawToken, err = generateRawToken()
 	if err != nil {
 		return nil, "", err
@@ -194,6 +226,12 @@ func (s *FlightSignatureService) Resend(ctx context.Context, flightID, userID, s
 	sig, err = s.getOwnedPendingSignature(ctx, flightID, userID, signatureID)
 	if err != nil {
 		return nil, "", err
+	}
+
+	if instructorEmail != nil {
+		if err := s.checkEmailQuota(ctx, userID); err != nil {
+			return nil, "", err
+		}
 	}
 
 	rawToken, err = generateRawToken()

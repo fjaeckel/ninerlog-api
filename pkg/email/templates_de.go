@@ -100,11 +100,15 @@ var deTemplates = templateSet{
 	SignatureRequest: func(p SignatureRequestParams) (string, string) {
 		subject := fmt.Sprintf("NinerLog: %s bittet Sie, einen Logbucheintrag zu unterschreiben", p.OwnerName)
 		body := fmt.Sprintf(`<h2>Logbuch-Unterschriftsanfrage</h2>
-<p>%s bittet Sie, einen Logbucheintrag zu prüfen und zu unterschreiben:</p>
+<p>%s (NinerLog-Konto: %s) bittet Sie, einen Logbucheintrag zu prüfen und zu unterschreiben:</p>
 <p><strong>%s</strong></p>
 <p><a href="%s">Prüfen und unterschreiben</a></p>
 <p>Dieser Link läuft am %s ab. Falls Sie dies nicht erwartet haben, können Sie diese E-Mail ignorieren.</p>
-<p>— NinerLog</p>`, html.EscapeString(p.OwnerName), html.EscapeString(p.FlightSummary), html.EscapeString(p.Link), html.EscapeString(p.ExpiresAt))
+<p style="color:#666;font-size:12px">Diese Anfrage wurde von einem NinerLog-Nutzer gesendet, nicht von NinerLog. Der
+angezeigte Name wird von diesem Nutzer selbst gewählt und ist nicht verifiziert.
+Unterschreiben Sie nur, wenn Sie die Konto-Adresse kennen und diese Anfrage
+erwartet haben. NinerLog fragt Sie niemals nach einem Passwort.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.OwnerName), html.EscapeString(p.OwnerEmail), html.EscapeString(p.FlightSummary), html.EscapeString(p.Link), html.EscapeString(p.ExpiresAt))
 		return subject, body
 	},
 

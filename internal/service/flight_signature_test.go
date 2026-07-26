@@ -14,8 +14,9 @@ import (
 // ---- mocks ----
 
 type mockFlightSignatureRepo struct {
-	byID    map[uuid.UUID]*models.FlightSignature
-	byToken map[string]uuid.UUID
+	emailsSent int // signature-request emails counted by CountEmailsSentSince
+	byID       map[uuid.UUID]*models.FlightSignature
+	byToken    map[string]uuid.UUID
 }
 
 func newMockFlightSignatureRepo() *mockFlightSignatureRepo {
@@ -545,5 +546,42 @@ func TestCompleteFromToken_UsesDBSourcedOwnerEmail(t *testing.T) {
 	updated, _ := flightRepo.GetByID(context.Background(), flight.ID)
 	if updated.SignatureID == nil {
 		t.Error("CompleteFromToken() did not lock the flight")
+	}
+}
+
+func (m *mockFlightSignatureRepo) CountEmailsSentSince(_ context.Context, _ uuid.UUID, _ time.Time) (int, error) {
+	return m.emailsSent, nil
+}
+
+// Each signature request emails an arbitrary recipient from the platform's own
+// domain, and the landing page then collects the recipient's name, credential
+// number and handwritten signature. Without a per-account ceiling that is a
+// ready-made bulk phishing and harvesting channel.
+func TestCreateRequest_EnforcesDailyEmailQuota(t *testing.T) {
+	svc, sigRepo, flightRepo, _ := newSignatureTestService()
+	userID := uuid.New()
+	f := seedFlight(t, flightRepo, userID)
+
+	sigRepo.emailsSent = maxSignatureEmailsPerDay
+	email := "instructor@example.com"
+	if _, _, err := svc.CreateRequest(context.Background(), f.ID, userID, &email, nil); !errors.Is(err, ErrSignatureEmailQuota) {
+		t.Errorf("over quota: err = %v, want ErrSignatureEmailQuota", err)
+	}
+
+	// A link-only request sends nothing, so the email quota must not block it.
+	if _, _, err := svc.CreateRequest(context.Background(), f.ID, userID, nil, nil); err != nil {
+		t.Errorf("link-only request blocked by the email quota: %v", err)
+	}
+}
+
+func TestCreateRequest_UnderQuotaSucceeds(t *testing.T) {
+	svc, sigRepo, flightRepo, _ := newSignatureTestService()
+	userID := uuid.New()
+	f := seedFlight(t, flightRepo, userID)
+
+	sigRepo.emailsSent = maxSignatureEmailsPerDay - 1
+	email := "instructor@example.com"
+	if _, _, err := svc.CreateRequest(context.Background(), f.ID, userID, &email, nil); err != nil {
+		t.Errorf("under quota: err = %v, want success", err)
 	}
 }

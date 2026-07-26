@@ -60,7 +60,13 @@ type VerifyEmailParams struct {
 }
 
 type SignatureRequestParams struct {
-	OwnerName     string
+	OwnerName string
+	// OwnerEmail is the requester's VERIFIED account address. OwnerName is a
+	// free-form display name the sender chooses, so on its own it lets anyone
+	// address a stranger as e.g. "Lufthansa Flight Operations" from the
+	// platform's own domain. Showing the account address alongside it gives the
+	// recipient something the sender could not invent.
+	OwnerEmail    string
 	FlightSummary string // e.g. "12 Jul 2026 — D-EFGH (C172), 1h24m"
 	Link          string
 	ExpiresAt     string

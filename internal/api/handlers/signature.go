@@ -88,6 +88,9 @@ func (h *APIHandler) sendSignatureServiceError(c *gin.Context, err error) {
 		h.sendError(c, http.StatusConflict, "Signature is not completed")
 	case errors.Is(err, service.ErrSignerNameRequired), errors.Is(err, service.ErrSignatureImageRequired), errors.Is(err, service.ErrSignatureReasonRequired):
 		h.sendError(c, http.StatusBadRequest, err.Error())
+	case errors.Is(err, service.ErrSignatureEmailQuota):
+		h.sendError(c, http.StatusTooManyRequests,
+			"Daily limit for signature request emails reached. Share the signing link directly instead.")
 	case errors.Is(err, service.ErrSignatureImageTooLarge):
 		h.sendError(c, http.StatusBadRequest, err.Error())
 	default:
@@ -299,6 +302,7 @@ func (h *APIHandler) sendSignatureRequestEmailAndMark(c *gin.Context, userID uui
 	tmpl := emailpkg.Templates(owner.PreferredLocale)
 	subject, body := tmpl.SignatureRequest(emailpkg.SignatureRequestParams{
 		OwnerName:     owner.Name,
+		OwnerEmail:    owner.Email,
 		FlightSummary: flightSummary(flight),
 		Link:          signURL,
 		ExpiresAt:     expiresAt,
