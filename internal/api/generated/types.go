@@ -3988,6 +3988,11 @@ type LoginUserJSONBody struct {
 	Password string `json:"password"`
 }
 
+// LogoutUserJSONBody defines parameters for LogoutUser.
+type LogoutUserJSONBody struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
 // ResetPasswordJSONBody defines parameters for ResetPassword.
 type ResetPasswordJSONBody struct {
 	// NewPassword The new password (minimum 12 characters)
@@ -4340,6 +4345,9 @@ type ChangePasswordJSONRequestBody ChangePasswordJSONBody
 
 // LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
 type LoginUserJSONRequestBody LoginUserJSONBody
+
+// LogoutUserJSONRequestBody defines body for LogoutUser for application/json ContentType.
+type LogoutUserJSONRequestBody LogoutUserJSONBody
 
 // ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
 type ResetPasswordJSONRequestBody ResetPasswordJSONBody

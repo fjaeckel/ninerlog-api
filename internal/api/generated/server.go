@@ -101,6 +101,9 @@ type ServerInterface interface {
 	// LoginUser Login
 	// (POST /auth/login)
 	LoginUser(c *gin.Context)
+	// LogoutUser Log out
+	// (POST /auth/logout)
+	LogoutUser(c *gin.Context)
 	// ResetPassword Reset password with token
 	// (POST /auth/password-reset)
 	ResetPassword(c *gin.Context)
@@ -970,6 +973,19 @@ func (siw *ServerInterfaceWrapper) LoginUser(c *gin.Context) {
 	}
 
 	siw.Handler.LoginUser(c)
+}
+
+// LogoutUser operation middleware
+func (siw *ServerInterfaceWrapper) LogoutUser(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LogoutUser(c)
 }
 
 // ResetPassword operation middleware
@@ -2983,6 +2999,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.VerifyEmail)
 	router.POST(options.BaseURL+"/auth/verify-email/resend", wrapper.ResendVerificationEmail)
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.LogoutUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/password-reset-request", wrapper.RequestPasswordReset)
