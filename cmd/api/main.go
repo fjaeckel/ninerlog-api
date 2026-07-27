@@ -522,6 +522,10 @@ func main() {
 	defer notifCancel()
 	notificationService.StartBackgroundChecker(notifCtx, service.GetCheckInterval())
 
+	// Evict expired CSV upload sessions on a timer. Without this, parsed rows
+	// stay resident until the next upload happens to trigger cleanup.
+	handlers.StartImportSessionReaper(notifCtx, time.Minute)
+
 	// Start cloud-backup scheduler if configured
 	if backupScheduler != nil {
 		backupScheduler.Start(notifCtx)
