@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/mail"
 	"os"
@@ -251,6 +252,32 @@ func (h *APIHandler) RefreshToken(c *gin.Context) {
 		"refreshToken": tokens.RefreshToken,
 		"expiresIn":    900,
 	})
+}
+
+// LogoutUser implements POST /auth/logout
+//
+// Revokes the presented refresh token server-side. Previously no such endpoint
+// existed: AuthService.Logout was implemented but never wired to a route, and
+// the frontend only cleared localStorage. A refresh token therefore stayed
+// valid in the database for its full 7-day lifetime after the user had "logged
+// out", so anyone holding a copy could mint a fresh session at will.
+//
+// Always answers 204. Revocation is idempotent, and reporting whether a given
+// token existed would leak information to an unauthenticated caller.
+func (h *APIHandler) LogoutUser(c *gin.Context) {
+	var req generated.LogoutUserJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.RefreshToken != "" {
+		if err := h.authService.Logout(c.Request.Context(), req.RefreshToken); err != nil {
+			// Deliberately not surfaced: an unknown or already-revoked token is
+			// indistinguishable from a successful revocation to the caller.
+			slog.Warn("logout revocation failed", "error", err)
+		}
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // ChangePassword implements POST /auth/change-password
