@@ -15,7 +15,7 @@ import (
 func TestMaxBodyBytesMiddleware_AllowsUnderLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(MaxBodyBytesMiddleware(10, nil))
+	router.Use(MaxBodyBytesMiddleware(10, 1<<20, nil))
 	router.POST("/test", func(c *gin.Context) {
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
@@ -38,7 +38,7 @@ func TestMaxBodyBytesMiddleware_AllowsUnderLimit(t *testing.T) {
 func TestMaxBodyBytesMiddleware_RejectsOverLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(MaxBodyBytesMiddleware(10, nil))
+	router.Use(MaxBodyBytesMiddleware(10, 1<<20, nil))
 	router.POST("/test", func(c *gin.Context) {
 		if _, err := io.ReadAll(c.Request.Body); err != nil {
 			c.String(http.StatusRequestEntityTooLarge, "too large")
@@ -60,7 +60,7 @@ func TestMaxBodyBytesMiddleware_RejectsOverLimit(t *testing.T) {
 func TestMaxBodyBytesMiddleware_PathOverrideAllowsLargerBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(MaxBodyBytesMiddleware(10, map[string]int64{"/imports/json": 1000}))
+	router.Use(MaxBodyBytesMiddleware(10, 1<<20, map[string]int64{"/imports/json": 1000}))
 	router.POST("/imports/json", func(c *gin.Context) {
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
@@ -83,7 +83,7 @@ func TestMaxBodyBytesMiddleware_PathOverrideAllowsLargerBody(t *testing.T) {
 func TestMaxBodyBytesMiddleware_PathOverrideStillEnforced(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(MaxBodyBytesMiddleware(10, map[string]int64{"/imports/json": 100}))
+	router.Use(MaxBodyBytesMiddleware(10, 1<<20, map[string]int64{"/imports/json": 100}))
 	router.POST("/imports/json", func(c *gin.Context) {
 		if _, err := io.ReadAll(c.Request.Body); err != nil {
 			c.String(http.StatusRequestEntityTooLarge, "too large")
@@ -102,10 +102,12 @@ func TestMaxBodyBytesMiddleware_PathOverrideStillEnforced(t *testing.T) {
 	}
 }
 
-func TestMaxBodyBytesMiddleware_ExemptsMultipart(t *testing.T) {
+// Multipart is no longer subject to the small JSON default limit; it gets its
+// own (larger) cap instead. See TestMaxBodyBytes_MultipartIsCapped.
+func TestMaxBodyBytesMiddleware_MultipartUsesOwnLimitNotJSONDefault(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(MaxBodyBytesMiddleware(10, nil))
+	router.Use(MaxBodyBytesMiddleware(10, 1<<20, nil))
 	router.POST("/upload", func(c *gin.Context) {
 		file, _, err := c.Request.FormFile("file")
 		if err != nil {
@@ -142,5 +144,63 @@ func TestMaxBodyBytesMiddleware_ExemptsMultipart(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected multipart upload to be exempt from the default limit, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// Multipart requests used to be exempt from any cap. router.MaxMultipartMemory
+// only decides how much buffers in RAM before Go spills to disk, and the CSV
+// handler's own 10 MB check runs after the body is fully consumed — so an
+// oversized upload was received and written to disk before being rejected.
+func TestMaxBodyBytes_MultipartIsCapped(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(MaxBodyBytesMiddleware(10, 64, nil))
+	router.POST("/imports/upload", func(c *gin.Context) {
+		if _, err := io.ReadAll(c.Request.Body); err != nil {
+			c.Status(http.StatusRequestEntityTooLarge)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+
+	// Declared Content-Length over the cap is refused up front.
+	req := httptest.NewRequest("POST", "/imports/upload", bytes.NewReader(make([]byte, 512)))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=xyz")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversized multipart: status = %d, want 413", w.Code)
+	}
+
+	// A body within the cap still passes through.
+	req = httptest.NewRequest("POST", "/imports/upload", bytes.NewReader(make([]byte, 16)))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=xyz")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("small multipart: status = %d, want 200", w.Code)
+	}
+}
+
+// Under-declared / chunked bodies must still be stopped by MaxBytesReader.
+func TestMaxBodyBytes_MultipartUnderdeclaredIsCapped(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(MaxBodyBytesMiddleware(10, 64, nil))
+	router.POST("/imports/upload", func(c *gin.Context) {
+		if _, err := io.ReadAll(c.Request.Body); err != nil {
+			c.Status(http.StatusRequestEntityTooLarge)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest("POST", "/imports/upload", bytes.NewReader(make([]byte, 512)))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=xyz")
+	req.ContentLength = -1 // unknown length, as with chunked encoding
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("under-declared multipart: status = %d, want 413", w.Code)
 	}
 }
