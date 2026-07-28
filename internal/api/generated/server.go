@@ -323,6 +323,9 @@ type ServerInterface interface {
 	// GetAirportStats Get airport statistics
 	// (GET /reports/airport-stats)
 	GetAirportStats(c *gin.Context)
+	// GetFlightAnalytics Get full logbook analytics
+	// (GET /reports/analytics)
+	GetFlightAnalytics(c *gin.Context, params GetFlightAnalyticsParams)
 	// GetFlightRoutes Get flight routes for map
 	// (GET /reports/routes)
 	GetFlightRoutes(c *gin.Context)
@@ -2664,6 +2667,41 @@ func (siw *ServerInterfaceWrapper) GetAirportStats(c *gin.Context) {
 	siw.Handler.GetAirportStats(c)
 }
 
+// GetFlightAnalytics operation middleware
+func (siw *ServerInterfaceWrapper) GetFlightAnalytics(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFlightAnalyticsParams
+
+	// ------------- Optional query parameter "months" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "months", c.Request.URL.Query(), &params.Months, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter months: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFlightAnalytics(c, params)
+}
+
 // GetFlightRoutes operation middleware
 func (siw *ServerInterfaceWrapper) GetFlightRoutes(c *gin.Context) {
 
@@ -3077,6 +3115,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/exports/pdf", wrapper.ExportFlightsPDF)
 	router.GET(options.BaseURL+"/reports/trends", wrapper.GetFlightTrends)
 	router.GET(options.BaseURL+"/reports/stats-by-class", wrapper.GetStatsByClass)
+	router.GET(options.BaseURL+"/reports/analytics", wrapper.GetFlightAnalytics)
 	router.GET(options.BaseURL+"/contacts", wrapper.ListContacts)
 	router.POST(options.BaseURL+"/contacts", wrapper.CreateContact)
 	router.GET(options.BaseURL+"/contacts/search", wrapper.SearchContacts)

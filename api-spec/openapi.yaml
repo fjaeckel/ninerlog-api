@@ -2766,6 +2766,55 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /reports/analytics:
+    get:
+      tags:
+        - Reports
+      summary: Get full logbook analytics
+      description: >-
+        Returns the complete analytics payload backing the Reports page in a
+        single round trip: experience totals, monthly and yearly series,
+        breakdowns by aircraft type/registration/class/category, airports,
+        countries and routes, instructor and crew time, instrument approach
+        types, flying-pattern distributions (day of week, hour of day, month of
+        year, flight duration), and personal records.
+
+        All time values are in minutes and all distances in nautical miles.
+        Every section is scoped to the requested timeframe except
+        `records.allTime`, which is deliberately computed over the whole
+        logbook so records stay stable as the timeframe changes.
+      operationId: getFlightAnalytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: months
+          in: query
+          description: Number of months to include, counted from the start of the month `months` months ago. 0 means all time.
+          schema:
+            type: integer
+            default: 12
+            minimum: 0
+            maximum: 600
+        - name: limit
+          in: query
+          description: Maximum number of rows returned per ranked breakdown (aircraft, airports, routes, instructors, crew).
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Full analytics payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightAnalytics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ── Contacts ──
 
   /contacts:
@@ -7571,6 +7620,607 @@ components:
           type: string
           format: byte
           description: PNG-encoded signature image, base64. Max 500KB decoded.
+
+    # ── Reports / analytics ──────────────────────────────────────────────
+    #
+    # The Reports page is served by a single endpoint (GET /reports/analytics)
+    # so the whole page renders from one round trip. Times are minutes,
+    # distances nautical miles, dates YYYY-MM-DD.
+
+    FlightAnalytics:
+      type: object
+      required:
+        - range
+        - totals
+        - monthly
+        - yearly
+        - byAircraftType
+        - byRegistration
+        - byClass
+        - byCategory
+        - byAirport
+        - byCountry
+        - byRoute
+        - byInstructor
+        - byCrew
+        - approachTypes
+        - dayOfWeek
+        - hourOfDay
+        - monthOfYear
+        - durationBuckets
+        - records
+      properties:
+        range:
+          $ref: '#/components/schemas/AnalyticsRange'
+        totals:
+          $ref: '#/components/schemas/AnalyticsTotals'
+        monthly:
+          type: array
+          description: One entry per calendar month in the timeframe that has at least one flight, oldest first.
+          items:
+            $ref: '#/components/schemas/AnalyticsMonthPoint'
+        yearly:
+          type: array
+          description: One entry per calendar year in the timeframe that has at least one flight, oldest first.
+          items:
+            $ref: '#/components/schemas/AnalyticsYearPoint'
+        byAircraftType:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsAircraftRow'
+        byRegistration:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsAircraftRow'
+        byClass:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsGroupRow'
+        byCategory:
+          type: array
+          description: Aircraft categories (tailwheel, complex, high performance). A flight can appear in more than one category.
+          items:
+            $ref: '#/components/schemas/AnalyticsGroupRow'
+        byAirport:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsAirportRow'
+        byCountry:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsCountryRow'
+        byRoute:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsRouteRow'
+        byInstructor:
+          type: array
+          description: Dual received, grouped by the instructor named on the flight.
+          items:
+            $ref: '#/components/schemas/AnalyticsPersonRow'
+        byCrew:
+          type: array
+          description: Time flown alongside each logged crew member.
+          items:
+            $ref: '#/components/schemas/AnalyticsPersonRow'
+        approachTypes:
+          type: array
+          description: Instrument approaches flown, grouped by approach type.
+          items:
+            $ref: '#/components/schemas/AnalyticsApproachTypeRow'
+        dayOfWeek:
+          type: array
+          description: Always seven entries, Monday (1) through Sunday (7), including days with no flights.
+          items:
+            $ref: '#/components/schemas/AnalyticsBucketRow'
+        hourOfDay:
+          type: array
+          description: >-
+            Always 24 entries, 00–23 UTC, keyed by off-block time (falling back
+            to take-off time). Flights with neither time recorded are omitted.
+          items:
+            $ref: '#/components/schemas/AnalyticsBucketRow'
+        monthOfYear:
+          type: array
+          description: Always twelve entries, January (1) through December (12), including months with no flights.
+          items:
+            $ref: '#/components/schemas/AnalyticsBucketRow'
+        durationBuckets:
+          type: array
+          description: Flight-length histogram. Buckets are fixed - under 30m, 30–60m, 1–2h, 2–3h, 3–5h, over 5h.
+          items:
+            $ref: '#/components/schemas/AnalyticsBucketRow'
+        records:
+          $ref: '#/components/schemas/AnalyticsRecords'
+
+    AnalyticsRange:
+      type: object
+      required:
+        - months
+        - allTime
+      properties:
+        months:
+          type: integer
+          example: 12
+          description: Requested timeframe in months. 0 means all time.
+        allTime:
+          type: boolean
+          description: True when the payload covers the entire logbook.
+        from:
+          type: [string, 'null']
+          example: '2025-08-01'
+          description: First date included in the timeframe. Null when allTime is true.
+        to:
+          type: [string, 'null']
+          example: '2026-07-27'
+          description: Last date included in the timeframe (the current date).
+
+    AnalyticsTotals:
+      type: object
+      required:
+        - totalFlights
+        - totalMinutes
+        - picMinutes
+        - sicMinutes
+        - dualMinutes
+        - dualGivenMinutes
+        - soloMinutes
+        - nightMinutes
+        - ifrMinutes
+        - actualInstrumentMinutes
+        - simulatedInstrumentMinutes
+        - crossCountryMinutes
+        - multiPilotMinutes
+        - simulatedFlightMinutes
+        - groundTrainingMinutes
+        - landingsDay
+        - landingsNight
+        - takeoffsDay
+        - takeoffsNight
+        - approaches
+        - holds
+        - distanceNm
+        - distinctRegistrations
+        - distinctTypes
+        - distinctAirports
+        - distinctCountries
+      properties:
+        totalFlights:
+          type: integer
+          example: 214
+        totalMinutes:
+          type: integer
+          example: 23480
+          description: Total block time.
+        picMinutes:
+          type: integer
+        sicMinutes:
+          type: integer
+        dualMinutes:
+          type: integer
+          description: Dual instruction received.
+        dualGivenMinutes:
+          type: integer
+          description: Instruction given as an instructor.
+        soloMinutes:
+          type: integer
+        nightMinutes:
+          type: integer
+        ifrMinutes:
+          type: integer
+        actualInstrumentMinutes:
+          type: integer
+        simulatedInstrumentMinutes:
+          type: integer
+          description: Hood/simulated instrument time in an aircraft.
+        crossCountryMinutes:
+          type: integer
+        multiPilotMinutes:
+          type: integer
+          description: EASA AMC1 FCL.050 column 10.
+        simulatedFlightMinutes:
+          type: integer
+          description: FSTD/simulator time. Not included in totalMinutes.
+        groundTrainingMinutes:
+          type: integer
+          description: Ground instruction. Not included in totalMinutes.
+        landingsDay:
+          type: integer
+        landingsNight:
+          type: integer
+        takeoffsDay:
+          type: integer
+        takeoffsNight:
+          type: integer
+        approaches:
+          type: integer
+        holds:
+          type: integer
+        distanceNm:
+          type: number
+          format: double
+          example: 18422.5
+          description: Great-circle distance summed over all flights with known departure and arrival airports.
+        distinctRegistrations:
+          type: integer
+        distinctTypes:
+          type: integer
+        distinctAirports:
+          type: integer
+          description: Unique airports visited as either departure or arrival.
+        distinctCountries:
+          type: integer
+          description: Unique countries of the visited airports that resolve against the airport database.
+        firstFlightDate:
+          type: [string, 'null']
+          example: '2024-03-02'
+        lastFlightDate:
+          type: [string, 'null']
+          example: '2026-07-14'
+
+    AnalyticsMonthPoint:
+      type: object
+      required:
+        - month
+        - flights
+        - totalMinutes
+        - picMinutes
+        - sicMinutes
+        - dualMinutes
+        - dualGivenMinutes
+        - soloMinutes
+        - nightMinutes
+        - ifrMinutes
+        - landingsDay
+        - landingsNight
+        - distanceNm
+        - cumulativeMinutes
+      properties:
+        month:
+          type: string
+          example: '2026-07'
+          description: Calendar month, YYYY-MM.
+        flights:
+          type: integer
+        totalMinutes:
+          type: integer
+        picMinutes:
+          type: integer
+        sicMinutes:
+          type: integer
+        dualMinutes:
+          type: integer
+        dualGivenMinutes:
+          type: integer
+        soloMinutes:
+          type: integer
+        nightMinutes:
+          type: integer
+        ifrMinutes:
+          type: integer
+        landingsDay:
+          type: integer
+        landingsNight:
+          type: integer
+        distanceNm:
+          type: number
+          format: double
+        cumulativeMinutes:
+          type: integer
+          description: >-
+            Running total of block time from the very first logged flight up to
+            and including this month, so the curve reflects true career hours
+            even when the timeframe starts later.
+
+    AnalyticsYearPoint:
+      type: object
+      required:
+        - year
+        - flights
+        - totalMinutes
+        - picMinutes
+        - dualMinutes
+        - nightMinutes
+        - ifrMinutes
+        - landings
+        - distanceNm
+      properties:
+        year:
+          type: integer
+          example: 2026
+        flights:
+          type: integer
+        totalMinutes:
+          type: integer
+        picMinutes:
+          type: integer
+        dualMinutes:
+          type: integer
+        nightMinutes:
+          type: integer
+        ifrMinutes:
+          type: integer
+        landings:
+          type: integer
+        distanceNm:
+          type: number
+          format: double
+
+    AnalyticsAircraftRow:
+      type: object
+      required:
+        - label
+        - flights
+        - totalMinutes
+        - picMinutes
+        - dualMinutes
+        - nightMinutes
+        - ifrMinutes
+        - landings
+        - distanceNm
+      properties:
+        label:
+          type: string
+          example: C172
+          description: Aircraft type designation, or registration for byRegistration rows.
+        subLabel:
+          type: [string, 'null']
+          example: Cessna 172S
+          description: Aircraft type for byRegistration rows, or make/model where known.
+        flights:
+          type: integer
+        totalMinutes:
+          type: integer
+        picMinutes:
+          type: integer
+        dualMinutes:
+          type: integer
+        nightMinutes:
+          type: integer
+        ifrMinutes:
+          type: integer
+        landings:
+          type: integer
+        distanceNm:
+          type: number
+          format: double
+        firstFlightDate:
+          type: [string, 'null']
+        lastFlightDate:
+          type: [string, 'null']
+
+    AnalyticsGroupRow:
+      type: object
+      required:
+        - label
+        - flights
+        - totalMinutes
+        - picMinutes
+        - dualMinutes
+        - landings
+      properties:
+        label:
+          type: string
+          example: SEP_LAND
+        flights:
+          type: integer
+        totalMinutes:
+          type: integer
+        picMinutes:
+          type: integer
+        dualMinutes:
+          type: integer
+        landings:
+          type: integer
+
+    AnalyticsAirportRow:
+      type: object
+      required:
+        - icao
+        - departures
+        - arrivals
+        - flights
+      properties:
+        icao:
+          type: string
+          example: EDNY
+        name:
+          type: [string, 'null']
+          example: Friedrichshafen Airport
+          description: Null when the code does not resolve against the airport database.
+        country:
+          type: [string, 'null']
+          example: DE
+        latitude:
+          type: [number, 'null']
+          format: double
+        longitude:
+          type: [number, 'null']
+          format: double
+        departures:
+          type: integer
+        arrivals:
+          type: integer
+        flights:
+          type: integer
+          description: Flights touching this airport. A local flight departing and arriving here counts once.
+
+    AnalyticsCountryRow:
+      type: object
+      required:
+        - country
+        - airports
+        - flights
+      properties:
+        country:
+          type: string
+          example: DE
+          description: ISO 3166-1 alpha-2 country code from the airport database.
+        airports:
+          type: integer
+          description: Distinct airports visited in this country.
+        flights:
+          type: integer
+
+    AnalyticsRouteRow:
+      type: object
+      required:
+        - departureIcao
+        - arrivalIcao
+        - flights
+        - totalMinutes
+        - distanceNm
+      properties:
+        departureIcao:
+          type: string
+          example: EDNY
+        arrivalIcao:
+          type: string
+          example: LSZH
+        flights:
+          type: integer
+        totalMinutes:
+          type: integer
+        distanceNm:
+          type: number
+          format: double
+          description: Great-circle distance of a single leg on this route.
+
+    AnalyticsPersonRow:
+      type: object
+      required:
+        - name
+        - flights
+        - totalMinutes
+      properties:
+        name:
+          type: string
+          example: J. Smith
+        role:
+          type: [string, 'null']
+          example: PIC
+          description: Crew role, for byCrew rows only.
+        flights:
+          type: integer
+        totalMinutes:
+          type: integer
+        lastFlightDate:
+          type: [string, 'null']
+
+    AnalyticsApproachTypeRow:
+      type: object
+      required:
+        - type
+        - count
+      properties:
+        type:
+          type: string
+          example: ILS
+        count:
+          type: integer
+
+    AnalyticsBucketRow:
+      type: object
+      required:
+        - key
+        - label
+        - flights
+        - totalMinutes
+      properties:
+        key:
+          type: integer
+          example: 1
+          description: >-
+            Bucket index. Day of week 1–7 (Monday first), hour of day 0–23 UTC,
+            month of year 1–12, duration bucket 0–5.
+        label:
+          type: string
+          example: '<30m'
+          description: Stable machine label for the bucket. Clients localize by key.
+        flights:
+          type: integer
+        totalMinutes:
+          type: integer
+
+    AnalyticsRecords:
+      type: object
+      required:
+        - longestStreakMonths
+        - currentStreakMonths
+        - activeMonths
+        - busiestDayFlights
+      properties:
+        longestFlight:
+          $ref: '#/components/schemas/AnalyticsFlightRef'
+        longestDistanceFlight:
+          $ref: '#/components/schemas/AnalyticsFlightRef'
+        busiestDay:
+          type: [string, 'null']
+          example: '2026-05-17'
+          description: Date with the most flights logged.
+        busiestDayFlights:
+          type: integer
+        busiestMonth:
+          type: [string, 'null']
+          example: '2026-05'
+          description: Calendar month with the most block time.
+        busiestMonthMinutes:
+          type: integer
+        busiestYear:
+          type: [integer, 'null']
+          example: 2026
+        busiestYearMinutes:
+          type: integer
+        longestStreakMonths:
+          type: integer
+          description: Longest run of consecutive calendar months with at least one flight, within the timeframe.
+        currentStreakMonths:
+          type: integer
+          description: Consecutive months with at least one flight ending at the current month.
+        activeMonths:
+          type: integer
+          description: Number of calendar months in the timeframe with at least one flight.
+        daysSinceLastFlight:
+          type: [integer, 'null']
+          description: Null when the logbook is empty.
+        farthestAirport:
+          $ref: '#/components/schemas/AnalyticsAirportRow'
+        farthestAirportNm:
+          type: number
+          format: double
+          description: Great-circle distance from the home base to the farthest visited airport.
+        homeBase:
+          type: [string, 'null']
+          example: EDNY
+          description: Most-visited airport, used as the reference point for farthestAirport.
+
+    AnalyticsFlightRef:
+      type: object
+      required:
+        - id
+        - date
+        - totalMinutes
+        - distanceNm
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          example: '2026-05-17'
+        aircraftReg:
+          type: [string, 'null']
+        aircraftType:
+          type: [string, 'null']
+        departureIcao:
+          type: [string, 'null']
+        arrivalIcao:
+          type: [string, 'null']
+        totalMinutes:
+          type: integer
+        distanceNm:
+          type: number
+          format: double
 
     Error:
       type: object
