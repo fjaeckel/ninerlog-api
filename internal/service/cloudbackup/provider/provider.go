@@ -24,6 +24,9 @@ const (
 	FieldTypePassword FieldType = "password"
 	FieldTypeRegion   FieldType = "region"
 	FieldTypeURL      FieldType = "url"
+	// FieldTypeBool is rendered as a checkbox/toggle. Used for the transport
+	// escape hatches, which MUST be declared so the UI can warn about them.
+	FieldTypeBool FieldType = "bool"
 )
 
 // Field describes one field of a provider's config or credentials schema.

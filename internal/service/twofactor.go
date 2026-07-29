@@ -216,27 +216,40 @@ func (s *TwoFactorService) ValidateTOTP(ctx context.Context, userID uuid.UUID, c
 	if err != nil {
 		return false, err
 	}
-  // Reject further attempts while the account is locked.
+	// Reject further attempts while the account is locked.
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
 		return false, ErrAccountLocked
 	}
-  
+
 	if totp.Validate(code, secret) {
-    s.resetFailedAttempts(ctx, user)
+		s.resetFailedAttempts(ctx, user)
 		return true, nil
 	}
 
-	// Try recovery codes
+	// Try recovery codes.
+	//
+	// Matching is a bcrypt compare per stored hash, so the candidate must be
+	// identified first; consumption is then delegated to an atomic conditional
+	// UPDATE. Removing the entry in memory and writing the whole row back (the
+	// previous approach) let concurrent submissions of the SAME code all see it
+	// as present and all succeed -- ten parallel requests authenticated ten
+	// times off one single-use code.
 	code = strings.TrimSpace(strings.ToLower(code))
-	for i, hashedCode := range user.RecoveryCodes {
-		if hash.ComparePassword(hashedCode, code) == nil {
-			// Remove used recovery code
-			user.RecoveryCodes = append(user.RecoveryCodes[:i], user.RecoveryCodes[i+1:]...)
-			user.UpdatedAt = time.Now()
-			_ = s.userRepo.Update(ctx, user)
-			s.resetFailedAttempts(ctx, user)
-			return true, nil
+	for _, hashedCode := range user.RecoveryCodes {
+		if hash.ComparePassword(hashedCode, code) != nil {
+			continue
 		}
+		consumed, err := s.userRepo.ConsumeRecoveryCode(ctx, user.ID, hashedCode)
+		if err != nil {
+			return false, err
+		}
+		if !consumed {
+			// Another request consumed this code first. Treat it as invalid so
+			// a single-use code authenticates exactly once.
+			break
+		}
+		s.resetFailedAttempts(ctx, user)
+		return true, nil
 	}
 
 	// Neither the TOTP nor a recovery code matched — count the failure toward

@@ -89,6 +89,12 @@ func (*Provider) ConfigSchema() []provider.Field {
 			Help:        "Full WebDAV URL for your account. For Nextcloud this looks like https://HOST/remote.php/dav/files/USERNAME/.",
 		},
 		{
+			Name: "allow_insecure", Label: "Allow plain http:// (INSECURE)",
+			Type: provider.FieldTypeBool, Required: false,
+			Help: "INSECURE — permits an http:// base URL, sending your WebDAV password and the full " +
+				"logbook export in cleartext. Intended only for tests and trusted private networks.",
+		},
+		{
 			Name: "path", Label: "Sub-folder", Type: provider.FieldTypeString, Required: false,
 			Placeholder: "ninerlog-backups/",
 			Help:        "Optional sub-folder under the server URL. A trailing '/' is added automatically. Defaults to 'ninerlog-backups/'.",

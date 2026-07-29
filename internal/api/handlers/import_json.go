@@ -30,6 +30,14 @@ type importLicenseBundle struct {
 	ClassRatings []models.ClassRating `json:"classRatings"`
 }
 
+// Caps on a single restore. A logbook far beyond these sizes is not a realistic
+// backup, and the request/statement timeouts would abort such a restore partway
+// regardless -- better to refuse it up front than to half-apply it.
+const (
+	maxRestoreFlights  = 20000
+	maxRestoreEntities = 2000
+)
+
 type importJSONSummary struct {
 	AircraftImported     int `json:"aircraftImported"`
 	AircraftSkipped      int `json:"aircraftSkipped"`
@@ -64,6 +72,33 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 
 	if body.Format != "NinerLog JSON Backup" {
 		h.sendError(c, http.StatusBadRequest, "Unsupported backup format (expected 'NinerLog JSON Backup')")
+		return
+	}
+
+	// Bound the restore. Without a cap the only limit was the 50 MB body size,
+	// so one request could drive an unbounded number of inserts -- and because
+	// the loops below are not transactional, a failure partway (a bad row, or
+	// the request/statement timeout firing on a large restore) left a
+	// partially-imported account with no rollback while the summary reported
+	// only what happened to land first.
+	if n := len(body.Flights); n > maxRestoreFlights {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many flights (%d, max %d)", n, maxRestoreFlights))
+		return
+	}
+	if n := len(body.Aircraft); n > maxRestoreEntities {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many aircraft (%d, max %d)", n, maxRestoreEntities))
+		return
+	}
+	if n := len(body.Licenses); n > maxRestoreEntities {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many licenses (%d, max %d)", n, maxRestoreEntities))
+		return
+	}
+	if n := len(body.Credentials); n > maxRestoreEntities {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many credentials (%d, max %d)", n, maxRestoreEntities))
 		return
 	}
 

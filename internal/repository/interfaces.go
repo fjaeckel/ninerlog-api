@@ -36,6 +36,10 @@ type UserRepository interface {
 	LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error
 
 	// MarkEmailVerified flips the email_verified flag to true.
+	// ConsumeRecoveryCode atomically removes a recovery code hash, returning
+	// true only for the caller that actually removed it. Prevents the same
+	// single-use code authenticating more than once under concurrency.
+	ConsumeRecoveryCode(ctx context.Context, id uuid.UUID, codeHash string) (bool, error)
 	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
 }
 

@@ -243,6 +243,32 @@ func (r *UserRepository) LockAccount(ctx context.Context, id uuid.UUID, until ti
 	return err
 }
 
+// ConsumeRecoveryCode atomically removes one recovery code hash from the user's
+// list, returning true only if this call was the one that removed it.
+//
+// The previous read-modify-write (load user, drop the matching entry in Go,
+// write the whole row back) had no lock or version check, so concurrent
+// submissions of the SAME code all observed it as present, all matched, and all
+// authenticated. Confirmed: ten parallel /auth/2fa/login requests with one code
+// returned 200 ten times. array_remove inside a single conditional UPDATE makes
+// consumption atomic -- the WHERE clause fails for every caller after the first,
+// and 0 rows affected means "already used".
+func (r *UserRepository) ConsumeRecoveryCode(ctx context.Context, id uuid.UUID, codeHash string) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users
+		 SET recovery_codes = array_remove(recovery_codes, $1), updated_at = NOW()
+		 WHERE id = $2 AND $1 = ANY(recovery_codes)`,
+		codeHash, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 func (r *UserRepository) MarkEmailVerified(ctx context.Context, id uuid.UUID) error {
 	query := `
 		UPDATE users

@@ -110,7 +110,9 @@ func (h *APIHandler) CleanupTokens(c *gin.Context) {
 	}
 
 	h.logAdminAction(c, adminUserID, "cleanup_tokens", nil,
-		fmt.Sprintf(`{"refreshTokensDeleted":%d,"resetTokensDeleted":%d,"signatureRequestsExpired":%d}`, refreshDeleted, resetDeleted, signaturesExpired))
+		map[string]any{
+			"refreshTokensDeleted": refreshDeleted, "resetTokensDeleted": resetDeleted,
+			"signatureRequestsExpired": signaturesExpired})
 
 	c.JSON(http.StatusOK, gin.H{
 		"refreshTokensDeleted":     refreshDeleted,
@@ -151,7 +153,7 @@ func (h *APIHandler) SmtpTest(c *gin.Context) {
 	}
 
 	h.logAdminAction(c, adminUserID, "smtp_test", nil,
-		fmt.Sprintf(`{"sentTo":"%s"}`, user.Email))
+		map[string]any{"sentTo": user.Email})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Test email sent to %s", user.Email),
@@ -167,7 +169,7 @@ func (h *APIHandler) TriggerNotifications(c *gin.Context) {
 
 	h.notificationService.TriggerCheck(c.Request.Context())
 
-	h.logAdminAction(c, adminUserID, "trigger_notifications", nil, `{}`)
+	h.logAdminAction(c, adminUserID, "trigger_notifications", nil, nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Notification check triggered for all users",
