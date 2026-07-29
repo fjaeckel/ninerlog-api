@@ -112,6 +112,13 @@ func (*Provider) ConfigSchema() []provider.Field {
 			Placeholder: "SHA256:abcdef…",
 			Help:        "SHA256 fingerprint of the server's host key (OpenSSH format). Obtain via `ssh-keyscan -t ed25519 HOST | ssh-keygen -lf -`. Required unless 'Accept any host key' is enabled.",
 		},
+		{
+			Name: "accept_any_host_key", Label: "Accept any host key (INSECURE)",
+			Type: provider.FieldTypeBool, Required: false,
+			Help: "INSECURE — disables SSH host-key verification entirely, so the connection can be intercepted. " +
+				"Your SFTP password and the full logbook export travel over that connection. " +
+				"Intended only for tests and trusted private networks; prefer a host key fingerprint.",
+		},
 	}
 }
 
