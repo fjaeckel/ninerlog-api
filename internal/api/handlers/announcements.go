@@ -149,7 +149,7 @@ func (h *APIHandler) CreateAnnouncement(c *gin.Context) {
 		return
 	}
 
-	h.logAdminAction(c, adminUserID, "create_announcement", nil, req.Message)
+	h.logAdminAction(c, adminUserID, "create_announcement", nil, map[string]any{"message": req.Message, "severity": req.Severity})
 
 	announcement := generated.Announcement{
 		Id:        id.String(),
@@ -185,6 +185,6 @@ func (h *APIHandler) DeleteAnnouncement(c *gin.Context, announcementId openapi_t
 		return
 	}
 
-	h.logAdminAction(c, adminUserID, "delete_announcement", nil, targetID.String())
+	h.logAdminAction(c, adminUserID, "delete_announcement", nil, map[string]any{"announcementId": targetID.String()})
 	c.Status(http.StatusNoContent)
 }

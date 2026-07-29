@@ -81,6 +81,9 @@ func (*Provider) ConfigSchema() []provider.Field {
 		{Name: "region", Label: "Region", Type: provider.FieldTypeRegion, Required: true, Placeholder: "us-east-1", Help: "AWS region the bucket lives in, or 'us-east-1' for most S3-compatible stores."},
 		{Name: "prefix", Label: "Key prefix", Type: provider.FieldTypeString, Required: false, Placeholder: "ninerlog-backups/", Help: "Optional key prefix. A trailing '/' is added automatically. Defaults to 'ninerlog-backups/'."},
 		{Name: "endpoint", Label: "Endpoint URL", Type: provider.FieldTypeURL, Required: false, Placeholder: "https://s3.example.com", Help: "Leave empty for Amazon S3. Required for S3-compatible providers."},
+		{Name: "use_ssl", Label: "Use TLS for the custom endpoint", Type: provider.FieldTypeBool, Required: false,
+			Help: "Defaults to on. Turning it OFF is INSECURE — the access key, secret key and full logbook " +
+				"export are sent in cleartext. Only consulted when a custom endpoint is set."},
 	}
 }
 

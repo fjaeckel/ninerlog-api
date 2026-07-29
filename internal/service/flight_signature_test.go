@@ -585,3 +585,20 @@ func TestCreateRequest_UnderQuotaSucceeds(t *testing.T) {
 		t.Errorf("under quota: err = %v, want success", err)
 	}
 }
+
+// ConsumeRecoveryCode mirrors the atomic DB behaviour: it removes the hash and
+// reports whether THIS call was the one that removed it.
+func (m *mockUserRepoForSignature) ConsumeRecoveryCode(_ context.Context, id uuid.UUID, codeHash string) (bool, error) {
+	for _, u := range m.users {
+		if u.ID != id {
+			continue
+		}
+		for i, h := range u.RecoveryCodes {
+			if h == codeHash {
+				u.RecoveryCodes = append(u.RecoveryCodes[:i], u.RecoveryCodes[i+1:]...)
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}

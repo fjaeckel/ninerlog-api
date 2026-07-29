@@ -121,3 +121,7 @@ func TestCustomCurrencyNotifications_RespectsEmailDisabled(t *testing.T) {
 		t.Errorf("email disabled: expected no notifications, got %d", len(notifRepo.logs))
 	}
 }
+
+func (m *mockNotifUserRepo) ConsumeRecoveryCode(_ context.Context, _ uuid.UUID, _ string) (bool, error) {
+	return true, nil
+}
