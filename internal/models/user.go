@@ -19,17 +19,22 @@ type User struct {
 	RecoveryCodes       pq.StringArray `json:"-"` // never exposed in JSON
 	FailedLoginAttempts int            `json:"-"`
 	LockedUntil         *time.Time     `json:"-"`
-	Disabled            bool           `json:"disabled"`
-	LastLoginAt         *time.Time     `json:"lastLoginAt,omitempty"`
-	TimeDisplayFormat   string         `json:"timeDisplayFormat"`
-	DateFormat          string         `json:"dateFormat"`
-	DecimalSeparator    string         `json:"decimalSeparator"`
-	PreferredLocale     string         `json:"preferredLocale"`
+	// TokensValidAfter invalidates access tokens issued before this instant.
+	// Bumped on password change, account disable and admin 2FA reset so an
+	// outstanding 15-minute access token cannot outlive the event. Nil means
+	// no invalidation event has occurred.
+	TokensValidAfter  *time.Time `json:"-"`
+	Disabled          bool       `json:"disabled"`
+	LastLoginAt       *time.Time `json:"lastLoginAt,omitempty"`
+	TimeDisplayFormat string     `json:"timeDisplayFormat"`
+	DateFormat        string     `json:"dateFormat"`
+	DecimalSeparator  string     `json:"decimalSeparator"`
+	PreferredLocale   string     `json:"preferredLocale"`
 	// Informational 90-day recency indicator preferences (FCL.060(b)-style)
-	RecencyPerModel        bool `json:"recencyPerModel"`
-	RecencyPerRegistration bool `json:"recencyPerRegistration"`
-	CreatedAt           time.Time      `json:"created_at"`
-	UpdatedAt           time.Time      `json:"updated_at"`
+	RecencyPerModel        bool      `json:"recencyPerModel"`
+	RecencyPerRegistration bool      `json:"recencyPerRegistration"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
 }
 
 // RefreshToken represents a refresh token in the system

@@ -36,6 +36,10 @@ type UserRepository interface {
 	LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error
 
 	// MarkEmailVerified flips the email_verified flag to true.
+	// InvalidateTokensBefore bumps the user's session epoch so access tokens
+	// issued before the given instant are rejected.
+	InvalidateTokensBefore(ctx context.Context, id uuid.UUID, at time.Time) error
+
 	// ConsumeRecoveryCode atomically removes a recovery code hash, returning
 	// true only for the caller that actually removed it. Prevents the same
 	// single-use code authenticating more than once under concurrency.

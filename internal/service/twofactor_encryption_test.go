@@ -108,6 +108,10 @@ func TestEncrypted2FA_ReadsLegacyPlaintextSecret(t *testing.T) {
 	}
 }
 
+func (m *mock2FAUserRepo) InvalidateTokensBefore(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	return nil
+}
+
 func (m *mock2FAUserRepo) ConsumeRecoveryCode(_ context.Context, _ uuid.UUID, _ string) (bool, error) {
 	return true, nil
 }

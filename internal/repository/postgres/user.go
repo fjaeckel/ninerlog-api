@@ -60,7 +60,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, tokens_valid_after, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -85,6 +85,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.PreferredLocale,
 		&user.RecencyPerModel,
 		&user.RecencyPerRegistration,
+		&user.TokensValidAfter,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -102,7 +103,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, tokens_valid_after, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -127,6 +128,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.PreferredLocale,
 		&user.RecencyPerModel,
 		&user.RecencyPerRegistration,
+		&user.TokensValidAfter,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -236,6 +238,16 @@ func (r *UserRepository) LockAccount(ctx context.Context, id uuid.UUID, until ti
 		WHERE id = $3
 	`
 	_, err := r.db.ExecContext(ctx, query, until, time.Now(), id)
+	return err
+}
+
+// InvalidateTokensBefore bumps the session epoch so every access token issued
+// before now is rejected by AuthMiddleware. Called on password change, account
+// disable and admin 2FA reset -- events after which an outstanding 15-minute
+// access token must not keep working.
+func (r *UserRepository) InvalidateTokensBefore(ctx context.Context, id uuid.UUID, at time.Time) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET tokens_valid_after = $1, updated_at = $1 WHERE id = $2`, at, id)
 	return err
 }
 

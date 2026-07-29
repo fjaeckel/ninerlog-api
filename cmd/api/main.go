@@ -405,7 +405,7 @@ func main() {
 	api.Use(middleware.RequestTimeoutMiddleware(15 * time.Second))
 
 	// Centralized auth middleware — all routes require auth except explicit public paths
-	api.Use(middleware.AuthMiddleware(jwtManager, []string{
+	api.Use(middleware.AuthMiddlewareWithState(jwtManager, []string{
 		"/auth/register",
 		"/auth/login",
 		"/auth/refresh",
@@ -424,7 +424,7 @@ func main() {
 		// unlike this literal-path allowlist, "/sign/:token" is a gin route
 		// *pattern* that AuthMiddleware matches via c.FullPath().
 		"/sign/:token",
-	}))
+	}, authService.SessionState))
 
 	if os.Getenv("DISABLE_RATE_LIMIT") != "true" {
 		// Coarse global limiter on every authenticated route. Previously only

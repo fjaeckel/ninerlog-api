@@ -1030,6 +1030,16 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 	}
 }
 
+func (m *mockUserRepo) InvalidateTokensBefore(_ context.Context, id uuid.UUID, at time.Time) error {
+	for _, u := range m.users {
+		if u.ID == id {
+			t := at
+			u.TokensValidAfter = &t
+		}
+	}
+	return nil
+}
+
 // ConsumeRecoveryCode mirrors the atomic DB behaviour: it removes the hash and
 // reports whether THIS call was the one that removed it.
 func (m *mockUserRepo) ConsumeRecoveryCode(_ context.Context, id uuid.UUID, codeHash string) (bool, error) {

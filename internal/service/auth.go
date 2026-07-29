@@ -535,6 +535,17 @@ func (s *AuthService) generateTokenPair(ctx context.Context, userID uuid.UUID) (
 	}, nil
 }
 
+// SessionState reports whether a user is disabled and the instant before which
+// their access tokens are invalid. Wired into AuthMiddleware so revocation
+// events take effect immediately rather than after the token expires.
+func (s *AuthService) SessionState(userID uuid.UUID) (bool, *time.Time, error) {
+	user, err := s.userRepo.GetByID(context.Background(), userID)
+	if err != nil {
+		return false, nil, err
+	}
+	return user.Disabled, user.TokensValidAfter, nil
+}
+
 // GetUserByID retrieves a user by ID
 func (s *AuthService) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	return s.userRepo.GetByID(ctx, userID)
@@ -586,6 +597,14 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	user.PasswordHash = hashedPassword
 	user.UpdatedAt = time.Now()
 	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	// Revoking refresh tokens alone only stops the session being EXTENDED; the
+	// outstanding access token stays valid for up to 15 more minutes. Bump the
+	// session epoch so it is rejected immediately -- a user who changes their
+	// password because they suspect compromise expects the other session gone.
+	if err := s.userRepo.InvalidateTokensBefore(ctx, userID, time.Now()); err != nil {
 		return err
 	}
 

@@ -122,6 +122,10 @@ func TestCustomCurrencyNotifications_RespectsEmailDisabled(t *testing.T) {
 	}
 }
 
+func (m *mockNotifUserRepo) InvalidateTokensBefore(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	return nil
+}
+
 func (m *mockNotifUserRepo) ConsumeRecoveryCode(_ context.Context, _ uuid.UUID, _ string) (bool, error) {
 	return true, nil
 }
