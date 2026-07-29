@@ -4622,6 +4622,9 @@ type DeleteCurrentUserJSONBody struct {
 
 // UpdateCurrentUserJSONBody defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBody struct {
+	// CurrentPassword Current password. Required when changing the email address. The new address is marked unverified and a verification link is sent to it before it is trusted again.
+	CurrentPassword *string `json:"currentPassword,omitempty"`
+
 	// DateFormat Preferred date display format
 	DateFormat *UpdateCurrentUserJSONBodyDateFormat `json:"dateFormat,omitempty"`
 

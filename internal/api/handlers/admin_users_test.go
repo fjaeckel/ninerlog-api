@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"reflect"
 	"testing"
 
@@ -9,14 +10,14 @@ import (
 
 func TestRequireAdmin_BlocksNonAdmin(t *testing.T) {
 	h := &APIHandler{adminEmail: "admin@example.com"}
-	if h.isAdminUser("user@example.com") {
+	if h.isAdminUser(&models.User{Email: "user@example.com", EmailVerified: true}) {
 		t.Error("Expected non-admin user to be rejected")
 	}
 }
 
 func TestRequireAdmin_AllowsAdmin(t *testing.T) {
 	h := &APIHandler{adminEmail: "admin@example.com"}
-	if !h.isAdminUser("admin@example.com") {
+	if !h.isAdminUser(&models.User{Email: "admin@example.com", EmailVerified: true}) {
 		t.Error("Expected admin user to be allowed")
 	}
 }

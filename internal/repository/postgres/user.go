@@ -147,8 +147,8 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		SET email = $1, password_hash = $2, name = $3, two_factor_enabled = $4,
 		    two_factor_secret = $5, recovery_codes = $6, disabled = $7,
 		    last_login_at = $8, time_display_format = $9, date_format = $10, decimal_separator = $11, preferred_locale = $12,
-		    recency_per_model = $13, recency_per_registration = $14, updated_at = $15
-		WHERE id = $16
+		    recency_per_model = $13, recency_per_registration = $14, email_verified = $15, updated_at = $16
+		WHERE id = $17
 	`
 
 	result, err := r.db.ExecContext(ctx, query,
@@ -166,6 +166,10 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.PreferredLocale,
 		user.RecencyPerModel,
 		user.RecencyPerRegistration,
+		// email_verified is written here so a verified address cannot silently
+		// survive an address change (see UpdateCurrentUser). Every other caller
+		// loads the user first, so writing the unchanged value back is a no-op.
+		user.EmailVerified,
 		user.UpdatedAt,
 		user.ID,
 	)

@@ -560,6 +560,27 @@ func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
 	return nil
 }
 
+// VerifyPassword checks a plaintext password against the stored hash for the
+// given user. Used to re-authenticate before security-sensitive profile
+// changes (e.g. changing the email address, which is both the account recovery
+// channel and the basis for admin authorization).
+func (s *AuthService) VerifyPassword(ctx context.Context, userID uuid.UUID, password string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if err := hash.ComparePassword(user.PasswordHash, password); err != nil {
+		return ErrInvalidCredentials
+	}
+	return nil
+}
+
+// CreateEmailVerificationToken mints a fresh verification token for a user
+// whose address has just changed, so the new address can be proven.
+func (s *AuthService) CreateEmailVerificationToken(ctx context.Context, userID uuid.UUID) (string, error) {
+	return s.createEmailVerificationToken(ctx, userID)
+}
+
 // ChangePassword changes the user's password after verifying the current password
 func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error {
 	user, err := s.userRepo.GetByID(ctx, userID)
