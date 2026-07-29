@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -58,8 +59,30 @@ func (h *APIHandler) DeleteAllUserData(c *gin.Context) {
 		`DELETE FROM notification_log WHERE user_id = $1`,
 	}
 
+	// One transaction, and errors are surfaced. Previously each statement ran
+	// standalone with its error discarded, so a mid-sequence failure left the
+	// account half-deleted -- flights gone, licenses still present -- while the
+	// caller was told the wipe had succeeded. For a destructive, irreversible
+	// operation that is the worst possible failure mode.
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to delete user data")
+		return
+	}
+	defer func() { _ = tx.Rollback() }() // no-op once committed
+
 	for _, q := range queries {
-		_, _ = h.db.ExecContext(c.Request.Context(), q, userID)
+		if _, err := tx.ExecContext(c.Request.Context(), q, userID); err != nil {
+			slog.Error("bulk delete failed, rolling back", "user_id", userID, "error", err)
+			h.sendError(c, http.StatusInternalServerError, "Failed to delete user data")
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.Error("bulk delete commit failed", "user_id", userID, "error", err)
+		h.sendError(c, http.StatusInternalServerError, "Failed to delete user data")
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "All user data deleted successfully"})

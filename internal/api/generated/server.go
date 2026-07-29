@@ -101,6 +101,9 @@ type ServerInterface interface {
 	// LoginUser Login
 	// (POST /auth/login)
 	LoginUser(c *gin.Context)
+	// LogoutUser Log out
+	// (POST /auth/logout)
+	LogoutUser(c *gin.Context)
 	// ResetPassword Reset password with token
 	// (POST /auth/password-reset)
 	ResetPassword(c *gin.Context)
@@ -320,6 +323,9 @@ type ServerInterface interface {
 	// GetAirportStats Get airport statistics
 	// (GET /reports/airport-stats)
 	GetAirportStats(c *gin.Context)
+	// GetFlightAnalytics Get full logbook analytics
+	// (GET /reports/analytics)
+	GetFlightAnalytics(c *gin.Context, params GetFlightAnalyticsParams)
 	// GetFlightRoutes Get flight routes for map
 	// (GET /reports/routes)
 	GetFlightRoutes(c *gin.Context)
@@ -970,6 +976,19 @@ func (siw *ServerInterfaceWrapper) LoginUser(c *gin.Context) {
 	}
 
 	siw.Handler.LoginUser(c)
+}
+
+// LogoutUser operation middleware
+func (siw *ServerInterfaceWrapper) LogoutUser(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LogoutUser(c)
 }
 
 // ResetPassword operation middleware
@@ -2648,6 +2667,41 @@ func (siw *ServerInterfaceWrapper) GetAirportStats(c *gin.Context) {
 	siw.Handler.GetAirportStats(c)
 }
 
+// GetFlightAnalytics operation middleware
+func (siw *ServerInterfaceWrapper) GetFlightAnalytics(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFlightAnalyticsParams
+
+	// ------------- Optional query parameter "months" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "months", c.Request.URL.Query(), &params.Months, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter months: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFlightAnalytics(c, params)
+}
+
 // GetFlightRoutes operation middleware
 func (siw *ServerInterfaceWrapper) GetFlightRoutes(c *gin.Context) {
 
@@ -2983,6 +3037,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.VerifyEmail)
 	router.POST(options.BaseURL+"/auth/verify-email/resend", wrapper.ResendVerificationEmail)
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.LogoutUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/password-reset-request", wrapper.RequestPasswordReset)
@@ -3060,6 +3115,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/exports/pdf", wrapper.ExportFlightsPDF)
 	router.GET(options.BaseURL+"/reports/trends", wrapper.GetFlightTrends)
 	router.GET(options.BaseURL+"/reports/stats-by-class", wrapper.GetStatsByClass)
+	router.GET(options.BaseURL+"/reports/analytics", wrapper.GetFlightAnalytics)
 	router.GET(options.BaseURL+"/contacts", wrapper.ListContacts)
 	router.POST(options.BaseURL+"/contacts", wrapper.CreateContact)
 	router.GET(options.BaseURL+"/contacts/search", wrapper.SearchContacts)

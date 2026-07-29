@@ -66,6 +66,15 @@ func (s *Service) CreateDestination(ctx context.Context, in CreateDestinationInp
 	if err := requireFields(p.ConfigSchema(), in.Config); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
+	// Reject keys the provider does not declare. Config was previously copied
+	// through verbatim, so a caller could set keys that exist in the provider
+	// code but not in its schema -- accept_any_host_key, allow_insecure,
+	// use_ssl -- silently disabling SSH host-key verification or TLS. Those are
+	// now declared (so the UI can warn about them); anything still unknown is
+	// a mistake and fails closed.
+	if err := rejectUnknownFields(p.ConfigSchema(), in.Config); err != nil {
+		return nil, fmt.Errorf("config: %w", err)
+	}
 	if err := requireFields(p.CredentialSchema(), in.Credentials); err != nil {
 		return nil, fmt.Errorf("credentials: %w", err)
 	}
@@ -233,6 +242,20 @@ func (s *Service) decryptCredentials(d *models.BackupDestination) (provider.Cred
 
 // requireFields verifies the required fields named in `schema` are present
 // and non-empty in `data`.
+// rejectUnknownFields fails when data carries a key the schema does not declare.
+func rejectUnknownFields(schema []provider.Field, data map[string]any) error {
+	known := make(map[string]struct{}, len(schema))
+	for _, f := range schema {
+		known[f.Name] = struct{}{}
+	}
+	for k := range data {
+		if _, ok := known[k]; !ok {
+			return fmt.Errorf("unknown field %q", k)
+		}
+	}
+	return nil
+}
+
 func requireFields(schema []provider.Field, data map[string]any) error {
 	for _, f := range schema {
 		if !f.Required {

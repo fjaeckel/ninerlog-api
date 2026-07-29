@@ -555,3 +555,20 @@ func (m *mockUserRepoForSignature) InvalidateTokensBefore(_ context.Context, id 
 	}
 	return nil
 }
+
+// ConsumeRecoveryCode mirrors the atomic DB behaviour: it removes the hash and
+// reports whether THIS call was the one that removed it.
+func (m *mockUserRepoForSignature) ConsumeRecoveryCode(_ context.Context, id uuid.UUID, codeHash string) (bool, error) {
+	for _, u := range m.users {
+		if u.ID != id {
+			continue
+		}
+		for i, h := range u.RecoveryCodes {
+			if h == codeHash {
+				u.RecoveryCodes = append(u.RecoveryCodes[:i], u.RecoveryCodes[i+1:]...)
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}

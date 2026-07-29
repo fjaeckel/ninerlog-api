@@ -82,13 +82,29 @@ func NewUserRateLimitMiddleware(rate int64, period time.Duration) gin.HandlerFun
 	})
 }
 
+// apiGroupPrefix is the router group every versioned route is mounted under.
+// Path predicates below are written relative to that group (e.g. "/imports"),
+// while c.Request.URL.Path is absolute (e.g. "/api/v1/imports/upload"), so the
+// prefix has to be stripped before matching.
+const apiGroupPrefix = "/api/v1"
+
+// groupRelativePath returns the request path relative to the API router group.
+// Falls back to the full path when the prefix is absent (e.g. /health).
+func groupRelativePath(c *gin.Context) string {
+	path := c.Request.URL.Path
+	if idx := strings.Index(path, apiGroupPrefix); idx >= 0 {
+		return path[idx+len(apiGroupPrefix):]
+	}
+	return path
+}
+
 // RateLimitByPath applies a rate-limit middleware only to requests whose path
 // (relative to the router group) matches one of the given suffixes.
 func RateLimitByPath(rl gin.HandlerFunc, paths ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// c.Request.URL.Path is the full path; check if it ends with any of the target paths
+		rel := groupRelativePath(c)
 		for _, p := range paths {
-			if strings.HasSuffix(c.Request.URL.Path, p) {
+			if strings.HasSuffix(rel, p) {
 				rl(c)
 				return
 			}
@@ -103,8 +119,13 @@ func RateLimitByPath(rl gin.HandlerFunc, paths ...string) gin.HandlerFunc {
 // (e.g. "/sign/{token}"), which never share a fixed suffix.
 func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Must match against the GROUP-RELATIVE path. Comparing the absolute
+		// path ("/api/v1/imports/upload") against a group-relative prefix
+		// ("/imports") is never true, which silently disabled both the
+		// /imports and /sign/ limiters entirely.
+		rel := groupRelativePath(c)
 		for _, p := range prefixes {
-			if strings.HasPrefix(c.Request.URL.Path, p) {
+			if strings.HasPrefix(rel, p) {
 				rl(c)
 				return
 			}
@@ -121,7 +142,7 @@ func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFu
 // plain, cheap requests to the same path.
 func RateLimitByPathWithQueryParam(rl gin.HandlerFunc, path, queryParam string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if strings.HasSuffix(c.Request.URL.Path, path) && c.Query(queryParam) != "" {
+		if strings.HasSuffix(groupRelativePath(c), path) && c.Query(queryParam) != "" {
 			rl(c)
 			return
 		}

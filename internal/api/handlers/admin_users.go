@@ -3,7 +3,6 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
@@ -175,8 +174,7 @@ func (h *APIHandler) DisableUser(c *gin.Context, userId openapi_types.UUID) {
 	_, _ = h.db.ExecContext(c.Request.Context(),
 		"UPDATE users SET tokens_valid_after = NOW() WHERE id = $1", targetID)
 
-	h.logAdminAction(c, adminUserID, "disable_user", &targetID,
-		fmt.Sprintf(`{"email":"%s"}`, strings.ReplaceAll(user.Email, `"`, `\"`)))
+	h.logAdminAction(c, adminUserID, "disable_user", &targetID, map[string]any{"email": user.Email})
 
 	c.JSON(http.StatusOK, gin.H{"message": "User disabled"})
 }
@@ -202,8 +200,7 @@ func (h *APIHandler) EnableUser(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
-	h.logAdminAction(c, adminUserID, "enable_user", &targetID,
-		fmt.Sprintf(`{"email":"%s"}`, strings.ReplaceAll(user.Email, `"`, `\"`)))
+	h.logAdminAction(c, adminUserID, "enable_user", &targetID, map[string]any{"email": user.Email})
 
 	c.JSON(http.StatusOK, gin.H{"message": "User enabled"})
 }
@@ -227,8 +224,7 @@ func (h *APIHandler) UnlockUser(c *gin.Context, userId openapi_types.UUID) {
 		"UPDATE users SET failed_login_attempts = 0, locked_until = NULL, updated_at = $1 WHERE id = $2",
 		time.Now(), targetID)
 
-	h.logAdminAction(c, adminUserID, "unlock_user", &targetID,
-		fmt.Sprintf(`{"email":"%s"}`, strings.ReplaceAll(user.Email, `"`, `\"`)))
+	h.logAdminAction(c, adminUserID, "unlock_user", &targetID, map[string]any{"email": user.Email})
 
 	c.JSON(http.StatusOK, gin.H{"message": "User unlocked"})
 }
@@ -270,8 +266,7 @@ func (h *APIHandler) ResetUser2fa(c *gin.Context, userId openapi_types.UUID) {
 	_, _ = h.db.ExecContext(c.Request.Context(),
 		"UPDATE users SET tokens_valid_after = NOW() WHERE id = $1", targetID)
 
-	h.logAdminAction(c, adminUserID, "reset_2fa", &targetID,
-		fmt.Sprintf(`{"email":"%s"}`, strings.ReplaceAll(user.Email, `"`, `\"`)))
+	h.logAdminAction(c, adminUserID, "reset_2fa", &targetID, map[string]any{"email": user.Email})
 
 	c.JSON(http.StatusOK, gin.H{"message": "2FA reset for user"})
 }
@@ -300,9 +295,7 @@ func (h *APIHandler) DeleteUser(c *gin.Context, userId openapi_types.UUID) {
 	// metadata. The audit row's target_user_id will be set to NULL by the FK
 	// cascade, which is the intended retention behaviour.
 	h.logAdminAction(c, adminUserID, "delete_user", &targetID,
-		fmt.Sprintf(`{"email":"%s","name":"%s"}`,
-			strings.ReplaceAll(user.Email, `"`, `\"`),
-			strings.ReplaceAll(user.Name, `"`, `\"`)))
+		map[string]any{"email": user.Email, "name": user.Name})
 
 	// Cascading FKs handle removal of flights, aircraft, licenses, contacts,
 	// credentials, refresh tokens, backups, notifications, etc.

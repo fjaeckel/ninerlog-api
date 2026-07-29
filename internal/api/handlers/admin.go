@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -126,9 +128,36 @@ func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdmi
 }
 
 // logAdminAction records an admin action to the audit log
-func (h *APIHandler) logAdminAction(c *gin.Context, adminUserID uuid.UUID, action string, targetUserID *uuid.UUID, details string) {
-	_, _ = h.db.ExecContext(c.Request.Context(), `
+// logAdminAction records an admin action to the audit log.
+//
+// details is marshalled with encoding/json rather than assembled by hand. The
+// column is JSONB, so a payload that is not valid JSON is rejected by Postgres
+// and the row is lost. Two ways that happened before:
+//
+//   - User-management actions built `{"email":"%s"}` with only quotes escaped.
+//     Go's mail.ParseAddress accepts a quoted local-part and re-emits it
+//     unquoted ("back\\slash"@x -> back\slash@x), and a raw backslash is not
+//     a valid JSON escape, so the insert failed. An attacker choosing their own
+//     address could make admin actions against them leave no audit trail.
+//   - Announcement create/delete passed a bare message string and a bare UUID,
+//     neither of which is valid JSON, so those actions were NEVER logged at all
+//     -- no attacker required.
+//
+// The insert error is logged rather than discarded: a silent audit-log failure
+// is exactly what this function exists to prevent.
+func (h *APIHandler) logAdminAction(c *gin.Context, adminUserID uuid.UUID, action string, targetUserID *uuid.UUID, details map[string]any) {
+	if details == nil {
+		details = map[string]any{}
+	}
+	payload, err := json.Marshal(details)
+	if err != nil {
+		slog.Error("audit log: marshal details", "action", action, "error", err)
+		payload = []byte(`{}`)
+	}
+	if _, err := h.db.ExecContext(c.Request.Context(), `
 		INSERT INTO admin_audit_log (id, admin_user_id, action, target_user_id, details, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-	`, uuid.New(), adminUserID, action, targetUserID, details, time.Now())
+	`, uuid.New(), adminUserID, action, targetUserID, string(payload), time.Now()); err != nil {
+		slog.Error("audit log: insert failed", "action", action, "admin_user_id", adminUserID, "error", err)
+	}
 }

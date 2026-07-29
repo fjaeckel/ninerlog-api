@@ -39,6 +39,11 @@ type UserRepository interface {
 	// InvalidateTokensBefore bumps the user's session epoch so access tokens
 	// issued before the given instant are rejected.
 	InvalidateTokensBefore(ctx context.Context, id uuid.UUID, at time.Time) error
+
+	// ConsumeRecoveryCode atomically removes a recovery code hash, returning
+	// true only for the caller that actually removed it. Prevents the same
+	// single-use code authenticating more than once under concurrency.
+	ConsumeRecoveryCode(ctx context.Context, id uuid.UUID, codeHash string) (bool, error)
 	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
 }
 

@@ -1590,6 +1590,306 @@ type AirportStats struct {
 	TotalFlights int `json:"totalFlights"`
 }
 
+// AnalyticsAircraftRow defines model for AnalyticsAircraftRow.
+type AnalyticsAircraftRow struct {
+	DistanceNm      float64 `json:"distanceNm"`
+	DualMinutes     int     `json:"dualMinutes"`
+	FirstFlightDate *string `json:"firstFlightDate,omitempty"`
+	Flights         int     `json:"flights"`
+	IfrMinutes      int     `json:"ifrMinutes"`
+
+	// Label Aircraft type designation, or registration for byRegistration rows.
+	//
+	// Example: C172
+	Label          string  `json:"label"`
+	Landings       int     `json:"landings"`
+	LastFlightDate *string `json:"lastFlightDate,omitempty"`
+	NightMinutes   int     `json:"nightMinutes"`
+	PicMinutes     int     `json:"picMinutes"`
+
+	// SubLabel Aircraft type for byRegistration rows, or make/model where known.
+	//
+	// Example: Cessna 172S
+	SubLabel     *string `json:"subLabel,omitempty"`
+	TotalMinutes int     `json:"totalMinutes"`
+}
+
+// AnalyticsAirportRow defines model for AnalyticsAirportRow.
+type AnalyticsAirportRow struct {
+	Arrivals int `json:"arrivals"`
+
+	// Country Example: DE
+	Country    *string `json:"country,omitempty"`
+	Departures int     `json:"departures"`
+
+	// Flights Flights touching this airport. A local flight departing and arriving here counts once.
+	Flights int `json:"flights"`
+
+	// Icao Example: EDNY
+	Icao      string   `json:"icao"`
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
+
+	// Name Null when the code does not resolve against the airport database.
+	//
+	// Example: Friedrichshafen Airport
+	Name *string `json:"name,omitempty"`
+}
+
+// AnalyticsApproachTypeRow defines model for AnalyticsApproachTypeRow.
+type AnalyticsApproachTypeRow struct {
+	Count int `json:"count"`
+
+	// Type Example: ILS
+	Type string `json:"type"`
+}
+
+// AnalyticsBucketRow defines model for AnalyticsBucketRow.
+type AnalyticsBucketRow struct {
+	Flights int `json:"flights"`
+
+	// Key Bucket index. Day of week 1–7 (Monday first), hour of day 0–23 UTC, month of year 1–12, duration bucket 0–5.
+	//
+	// Example: 1
+	Key int `json:"key"`
+
+	// Label Stable machine label for the bucket. Clients localize by key.
+	//
+	// Example: <30m
+	Label        string `json:"label"`
+	TotalMinutes int    `json:"totalMinutes"`
+}
+
+// AnalyticsCountryRow defines model for AnalyticsCountryRow.
+type AnalyticsCountryRow struct {
+	// Airports Distinct airports visited in this country.
+	Airports int `json:"airports"`
+
+	// Country ISO 3166-1 alpha-2 country code from the airport database.
+	//
+	// Example: DE
+	Country string `json:"country"`
+	Flights int    `json:"flights"`
+}
+
+// AnalyticsFlightRef defines model for AnalyticsFlightRef.
+type AnalyticsFlightRef struct {
+	AircraftReg  *string `json:"aircraftReg,omitempty"`
+	AircraftType *string `json:"aircraftType,omitempty"`
+	ArrivalIcao  *string `json:"arrivalIcao,omitempty"`
+
+	// Date Example: 2026-05-17
+	Date          string             `json:"date"`
+	DepartureIcao *string            `json:"departureIcao,omitempty"`
+	DistanceNm    float64            `json:"distanceNm"`
+	Id            openapi_types.UUID `json:"id"`
+	TotalMinutes  int                `json:"totalMinutes"`
+}
+
+// AnalyticsGroupRow defines model for AnalyticsGroupRow.
+type AnalyticsGroupRow struct {
+	DualMinutes int `json:"dualMinutes"`
+	Flights     int `json:"flights"`
+
+	// Label Example: SEP_LAND
+	Label        string `json:"label"`
+	Landings     int    `json:"landings"`
+	PicMinutes   int    `json:"picMinutes"`
+	TotalMinutes int    `json:"totalMinutes"`
+}
+
+// AnalyticsMonthPoint defines model for AnalyticsMonthPoint.
+type AnalyticsMonthPoint struct {
+	// CumulativeMinutes Running total of block time from the very first logged flight up to and including this month, so the curve reflects true career hours even when the timeframe starts later.
+	CumulativeMinutes int     `json:"cumulativeMinutes"`
+	DistanceNm        float64 `json:"distanceNm"`
+	DualGivenMinutes  int     `json:"dualGivenMinutes"`
+	DualMinutes       int     `json:"dualMinutes"`
+	Flights           int     `json:"flights"`
+	IfrMinutes        int     `json:"ifrMinutes"`
+	LandingsDay       int     `json:"landingsDay"`
+	LandingsNight     int     `json:"landingsNight"`
+
+	// Month Calendar month, YYYY-MM.
+	//
+	// Example: 2026-07
+	Month        string `json:"month"`
+	NightMinutes int    `json:"nightMinutes"`
+	PicMinutes   int    `json:"picMinutes"`
+	SicMinutes   int    `json:"sicMinutes"`
+	SoloMinutes  int    `json:"soloMinutes"`
+	TotalMinutes int    `json:"totalMinutes"`
+}
+
+// AnalyticsPersonRow defines model for AnalyticsPersonRow.
+type AnalyticsPersonRow struct {
+	Flights        int     `json:"flights"`
+	LastFlightDate *string `json:"lastFlightDate,omitempty"`
+
+	// Name Example: J. Smith
+	Name string `json:"name"`
+
+	// Role Crew role, for byCrew rows only.
+	//
+	// Example: PIC
+	Role         *string `json:"role,omitempty"`
+	TotalMinutes int     `json:"totalMinutes"`
+}
+
+// AnalyticsRange defines model for AnalyticsRange.
+type AnalyticsRange struct {
+	// AllTime True when the payload covers the entire logbook.
+	AllTime bool `json:"allTime"`
+
+	// From First date included in the timeframe. Null when allTime is true.
+	//
+	// Example: 2025-08-01
+	From *string `json:"from,omitempty"`
+
+	// Months Requested timeframe in months. 0 means all time.
+	//
+	// Example: 12
+	Months int `json:"months"`
+
+	// To Last date included in the timeframe (the current date).
+	//
+	// Example: 2026-07-27
+	To *string `json:"to,omitempty"`
+}
+
+// AnalyticsRecords defines model for AnalyticsRecords.
+type AnalyticsRecords struct {
+	// ActiveMonths Number of calendar months in the timeframe with at least one flight.
+	ActiveMonths int `json:"activeMonths"`
+
+	// BusiestDay Date with the most flights logged.
+	//
+	// Example: 2026-05-17
+	BusiestDay        *string `json:"busiestDay,omitempty"`
+	BusiestDayFlights int     `json:"busiestDayFlights"`
+
+	// BusiestMonth Calendar month with the most block time.
+	//
+	// Example: 2026-05
+	BusiestMonth        *string `json:"busiestMonth,omitempty"`
+	BusiestMonthMinutes *int    `json:"busiestMonthMinutes,omitempty"`
+
+	// BusiestYear Example: 2026
+	BusiestYear        *int `json:"busiestYear,omitempty"`
+	BusiestYearMinutes *int `json:"busiestYearMinutes,omitempty"`
+
+	// CurrentStreakMonths Consecutive months with at least one flight ending at the current month.
+	CurrentStreakMonths int `json:"currentStreakMonths"`
+
+	// DaysSinceLastFlight Null when the logbook is empty.
+	DaysSinceLastFlight *int                 `json:"daysSinceLastFlight,omitempty"`
+	FarthestAirport     *AnalyticsAirportRow `json:"farthestAirport,omitempty"`
+
+	// FarthestAirportNm Great-circle distance from the home base to the farthest visited airport.
+	FarthestAirportNm *float64 `json:"farthestAirportNm,omitempty"`
+
+	// HomeBase Most-visited airport, used as the reference point for farthestAirport.
+	//
+	// Example: EDNY
+	HomeBase              *string             `json:"homeBase,omitempty"`
+	LongestDistanceFlight *AnalyticsFlightRef `json:"longestDistanceFlight,omitempty"`
+	LongestFlight         *AnalyticsFlightRef `json:"longestFlight,omitempty"`
+
+	// LongestStreakMonths Longest run of consecutive calendar months with at least one flight, within the timeframe.
+	LongestStreakMonths int `json:"longestStreakMonths"`
+}
+
+// AnalyticsRouteRow defines model for AnalyticsRouteRow.
+type AnalyticsRouteRow struct {
+	// ArrivalIcao Example: LSZH
+	ArrivalIcao string `json:"arrivalIcao"`
+
+	// DepartureIcao Example: EDNY
+	DepartureIcao string `json:"departureIcao"`
+
+	// DistanceNm Great-circle distance of a single leg on this route.
+	DistanceNm   float64 `json:"distanceNm"`
+	Flights      int     `json:"flights"`
+	TotalMinutes int     `json:"totalMinutes"`
+}
+
+// AnalyticsTotals defines model for AnalyticsTotals.
+type AnalyticsTotals struct {
+	ActualInstrumentMinutes int `json:"actualInstrumentMinutes"`
+	Approaches              int `json:"approaches"`
+	CrossCountryMinutes     int `json:"crossCountryMinutes"`
+
+	// DistanceNm Great-circle distance summed over all flights with known departure and arrival airports.
+	//
+	// Example: 18422.5
+	DistanceNm float64 `json:"distanceNm"`
+
+	// DistinctAirports Unique airports visited as either departure or arrival.
+	DistinctAirports int `json:"distinctAirports"`
+
+	// DistinctCountries Unique countries of the visited airports that resolve against the airport database.
+	DistinctCountries     int `json:"distinctCountries"`
+	DistinctRegistrations int `json:"distinctRegistrations"`
+	DistinctTypes         int `json:"distinctTypes"`
+
+	// DualGivenMinutes Instruction given as an instructor.
+	DualGivenMinutes int `json:"dualGivenMinutes"`
+
+	// DualMinutes Dual instruction received.
+	DualMinutes int `json:"dualMinutes"`
+
+	// FirstFlightDate Example: 2024-03-02
+	FirstFlightDate *string `json:"firstFlightDate,omitempty"`
+
+	// GroundTrainingMinutes Ground instruction. Not included in totalMinutes.
+	GroundTrainingMinutes int `json:"groundTrainingMinutes"`
+	Holds                 int `json:"holds"`
+	IfrMinutes            int `json:"ifrMinutes"`
+	LandingsDay           int `json:"landingsDay"`
+	LandingsNight         int `json:"landingsNight"`
+
+	// LastFlightDate Example: 2026-07-14
+	LastFlightDate *string `json:"lastFlightDate,omitempty"`
+
+	// MultiPilotMinutes EASA AMC1 FCL.050 column 10.
+	MultiPilotMinutes int `json:"multiPilotMinutes"`
+	NightMinutes      int `json:"nightMinutes"`
+	PicMinutes        int `json:"picMinutes"`
+	SicMinutes        int `json:"sicMinutes"`
+
+	// SimulatedFlightMinutes FSTD/simulator time. Not included in totalMinutes.
+	SimulatedFlightMinutes int `json:"simulatedFlightMinutes"`
+
+	// SimulatedInstrumentMinutes Hood/simulated instrument time in an aircraft.
+	SimulatedInstrumentMinutes int `json:"simulatedInstrumentMinutes"`
+	SoloMinutes                int `json:"soloMinutes"`
+	TakeoffsDay                int `json:"takeoffsDay"`
+	TakeoffsNight              int `json:"takeoffsNight"`
+
+	// TotalFlights Example: 214
+	TotalFlights int `json:"totalFlights"`
+
+	// TotalMinutes Total block time.
+	//
+	// Example: 23480
+	TotalMinutes int `json:"totalMinutes"`
+}
+
+// AnalyticsYearPoint defines model for AnalyticsYearPoint.
+type AnalyticsYearPoint struct {
+	DistanceNm   float64 `json:"distanceNm"`
+	DualMinutes  int     `json:"dualMinutes"`
+	Flights      int     `json:"flights"`
+	IfrMinutes   int     `json:"ifrMinutes"`
+	Landings     int     `json:"landings"`
+	NightMinutes int     `json:"nightMinutes"`
+	PicMinutes   int     `json:"picMinutes"`
+	TotalMinutes int     `json:"totalMinutes"`
+
+	// Year Example: 2026
+	Year int `json:"year"`
+}
+
 // Announcement defines model for Announcement.
 type Announcement struct {
 	CreatedAt *time.Time `json:"createdAt,omitempty"`
@@ -2501,6 +2801,48 @@ type Flight struct {
 //
 // Example: winch
 type FlightLaunchMethod string
+
+// FlightAnalytics defines model for FlightAnalytics.
+type FlightAnalytics struct {
+	// ApproachTypes Instrument approaches flown, grouped by approach type.
+	ApproachTypes  []AnalyticsApproachTypeRow `json:"approachTypes"`
+	ByAircraftType []AnalyticsAircraftRow     `json:"byAircraftType"`
+	ByAirport      []AnalyticsAirportRow      `json:"byAirport"`
+
+	// ByCategory Aircraft categories (tailwheel, complex, high performance). A flight can appear in more than one category.
+	ByCategory []AnalyticsGroupRow   `json:"byCategory"`
+	ByClass    []AnalyticsGroupRow   `json:"byClass"`
+	ByCountry  []AnalyticsCountryRow `json:"byCountry"`
+
+	// ByCrew Time flown alongside each logged crew member.
+	ByCrew []AnalyticsPersonRow `json:"byCrew"`
+
+	// ByInstructor Dual received, grouped by the instructor named on the flight.
+	ByInstructor   []AnalyticsPersonRow   `json:"byInstructor"`
+	ByRegistration []AnalyticsAircraftRow `json:"byRegistration"`
+	ByRoute        []AnalyticsRouteRow    `json:"byRoute"`
+
+	// DayOfWeek Always seven entries, Monday (1) through Sunday (7), including days with no flights.
+	DayOfWeek []AnalyticsBucketRow `json:"dayOfWeek"`
+
+	// DurationBuckets Flight-length histogram. Buckets are fixed - under 30m, 30–60m, 1–2h, 2–3h, 3–5h, over 5h.
+	DurationBuckets []AnalyticsBucketRow `json:"durationBuckets"`
+
+	// HourOfDay Always 24 entries, 00–23 UTC, keyed by off-block time (falling back to take-off time). Flights with neither time recorded are omitted.
+	HourOfDay []AnalyticsBucketRow `json:"hourOfDay"`
+
+	// MonthOfYear Always twelve entries, January (1) through December (12), including months with no flights.
+	MonthOfYear []AnalyticsBucketRow `json:"monthOfYear"`
+
+	// Monthly One entry per calendar month in the timeframe that has at least one flight, oldest first.
+	Monthly []AnalyticsMonthPoint `json:"monthly"`
+	Range   AnalyticsRange        `json:"range"`
+	Records AnalyticsRecords      `json:"records"`
+	Totals  AnalyticsTotals       `json:"totals"`
+
+	// Yearly One entry per calendar year in the timeframe that has at least one flight, oldest first.
+	Yearly []AnalyticsYearPoint `json:"yearly"`
+}
 
 // FlightBaseline defines model for FlightBaseline.
 type FlightBaseline struct {
@@ -3988,6 +4330,11 @@ type LoginUserJSONBody struct {
 	Password string `json:"password"`
 }
 
+// LogoutUserJSONBody defines parameters for LogoutUser.
+type LogoutUserJSONBody struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
 // ResetPasswordJSONBody defines parameters for ResetPassword.
 type ResetPasswordJSONBody struct {
 	// NewPassword The new password (minimum 12 characters)
@@ -4246,6 +4593,15 @@ type GetLicenseStatisticsParams struct {
 	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
 }
 
+// GetFlightAnalyticsParams defines parameters for GetFlightAnalytics.
+type GetFlightAnalyticsParams struct {
+	// Months Number of months to include, counted from the start of the month `months` months ago. 0 means all time.
+	Months *int `form:"months,omitempty" json:"months,omitempty"`
+
+	// Limit Maximum number of rows returned per ranked breakdown (aircraft, airports, routes, instructors, crew).
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetStatsByClassParams defines parameters for GetStatsByClass.
 type GetStatsByClassParams struct {
 	// Months Number of months to include (default 12, 0 = all time)
@@ -4340,6 +4696,9 @@ type ChangePasswordJSONRequestBody ChangePasswordJSONBody
 
 // LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
 type LoginUserJSONRequestBody LoginUserJSONBody
+
+// LogoutUserJSONRequestBody defines body for LogoutUser for application/json ContentType.
+type LogoutUserJSONRequestBody LogoutUserJSONBody
 
 // ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
 type ResetPasswordJSONRequestBody ResetPasswordJSONBody

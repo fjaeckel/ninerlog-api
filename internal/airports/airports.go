@@ -112,6 +112,12 @@ func Nearest(lat, lon float64) *AirportInfo {
 	return best
 }
 
+// DistanceNM returns the great-circle distance between two points in nautical
+// miles.
+func DistanceNM(lat1, lon1, lat2, lon2 float64) float64 {
+	return haversineNM(lat1, lon1, lat2, lon2)
+}
+
 // haversineNM returns the great-circle distance between two points in
 // nautical miles.
 func haversineNM(lat1, lon1, lat2, lon2 float64) float64 {

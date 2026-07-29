@@ -48,10 +48,41 @@ func sortFlightsChronological(flights []*models.Flight) {
 	})
 }
 
+// csvFormulaLeaders are the characters that make Excel, LibreOffice Calc and
+// Google Sheets treat a cell as a formula rather than text. A tab or carriage
+// return can also lead into one once the sheet re-parses the cell.
+const csvFormulaLeaders = "=+-@\t\r"
+
+// neutralizeCSVCell defuses spreadsheet formula injection (CWE-1236).
+//
+// Logbook text is user-controlled (remarks, endorsements, PIC and instructor
+// names, registrations) and can also arrive from a third party via CSV import.
+// EASA/FAA exports exist specifically to be handed to an examiner or authority,
+// so a cell like `=HYPERLINK("http://evil.test")` or `@SUM(...)` would execute
+// on the recipient's machine when they open the file.
+//
+// Prefixing with an apostrophe is the conventional defence: spreadsheet
+// applications treat the value as literal text and do not display the
+// apostrophe itself.
+func neutralizeCSVCell(s string) string {
+	if s == "" || !strings.ContainsRune(csvFormulaLeaders, rune(s[0])) {
+		return s
+	}
+	return "'" + s
+}
+
 // csvWrite writes a record to the CSV writer, logging errors.
 // csv.Writer buffers errors internally, so writes after a failure are no-ops.
+//
+// Every cell is passed through neutralizeCSVCell here rather than at the call
+// sites, so all export formats (standard, EASA, FAA) are covered by
+// construction and a new column cannot reintroduce the injection.
 func csvWrite(w *csv.Writer, record []string) {
-	if err := w.Write(record); err != nil {
+	safe := make([]string, len(record))
+	for i, field := range record {
+		safe[i] = neutralizeCSVCell(field)
+	}
+	if err := w.Write(safe); err != nil {
 		slog.Error("csv write error", "error", err)
 	}
 }
