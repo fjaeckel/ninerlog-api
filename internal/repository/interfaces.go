@@ -183,6 +183,9 @@ type FlightSignatureRepository interface {
 
 	// ListByFlightID returns the full signature history for a flight, newest
 	// first.
+	// CountEmailsSentSince returns how many signature-request emails the user
+	// has triggered since the given instant, for per-account rate limiting.
+	CountEmailsSentSince(ctx context.Context, userID uuid.UUID, since time.Time) (int, error)
 	ListByFlightID(ctx context.Context, flightID uuid.UUID) ([]*models.FlightSignature, error)
 
 	// Update persists all mutable fields of a signature row.

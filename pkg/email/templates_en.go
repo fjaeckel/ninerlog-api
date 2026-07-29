@@ -96,11 +96,15 @@ var enTemplates = templateSet{
 	SignatureRequest: func(p SignatureRequestParams) (string, string) {
 		subject := fmt.Sprintf("NinerLog: %s asked you to sign a logbook entry", p.OwnerName)
 		body := fmt.Sprintf(`<h2>Logbook Signature Request</h2>
-<p>%s has asked you to review and sign a logbook entry:</p>
+<p>%s (NinerLog account: %s) has asked you to review and sign a logbook entry:</p>
 <p><strong>%s</strong></p>
 <p><a href="%s">Review and sign</a></p>
 <p>This link expires on %s. If you weren't expecting this, you can ignore this email.</p>
-<p>— NinerLog</p>`, html.EscapeString(p.OwnerName), html.EscapeString(p.FlightSummary), html.EscapeString(p.Link), html.EscapeString(p.ExpiresAt))
+<p style="color:#666;font-size:12px">This request was sent by a NinerLog user, not by NinerLog. The
+display name above is chosen by that user and is not verified. Only sign if you
+recognise the account address and expected this request. NinerLog will never ask
+you for a password.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.OwnerName), html.EscapeString(p.OwnerEmail), html.EscapeString(p.FlightSummary), html.EscapeString(p.Link), html.EscapeString(p.ExpiresAt))
 		return subject, body
 	},
 

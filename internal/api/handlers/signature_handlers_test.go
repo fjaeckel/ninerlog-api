@@ -21,8 +21,9 @@ import (
 // ---- minimal in-memory FlightSignatureRepository for handler-level tests ----
 
 type mockFlightSignatureRepoH struct {
-	byID    map[uuid.UUID]*models.FlightSignature
-	byToken map[string]uuid.UUID
+	emailsSent int // signature-request emails counted by CountEmailsSentSince
+	byID       map[uuid.UUID]*models.FlightSignature
+	byToken    map[string]uuid.UUID
 }
 
 func newMockFlightSignatureRepoH() *mockFlightSignatureRepoH {
@@ -369,4 +370,8 @@ func extractTokenFromSignURL(t *testing.T, signURL string) string {
 		t.Fatalf("signUrl %q has no token= param", signURL)
 	}
 	return signURL[idx+len(marker):]
+}
+
+func (m *mockFlightSignatureRepoH) CountEmailsSentSince(_ context.Context, _ uuid.UUID, _ time.Time) (int, error) {
+	return m.emailsSent, nil
 }
