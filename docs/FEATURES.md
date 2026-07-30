@@ -84,8 +84,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Reports** — trends over time and stats-by-class. Some report routes are registered
   manually via `RegisterReportsRoutes` (not generated from the spec).
 - **Maps** — airport lookup/search backed by the in-memory airport database
-  (`internal/airports`, loaded at startup from OurAirports data), plus route and
-  airport-activity statistics (`maps.go`).
+  (`internal/airports`), plus route and airport-activity statistics (`maps.go`).
+  The database merges two upstream datasets — OurAirports (CSV) and mwgg/Airports
+  (JSON) — record by record, keeping the more complete entry for each ICAO code and
+  filling its gaps from the other. It is loaded at startup and refetched every
+  `AIRPORT_REFRESH_INTERVAL` (default 24h); a failed refresh keeps the data already in
+  memory. See [METRICS.md](./METRICS.md) for the fetch/load/lookup metrics it exposes.
 
 ## Import & export
 
