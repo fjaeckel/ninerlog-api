@@ -64,3 +64,20 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
    registry, service-layer ownership checks, sentinel errors) — see
    `.claude/skills/aviation-domain/SKILL.md`.
 5. Conventional Commits (`feat(flights): …`); branch from `main`.
+
+## Delegation
+
+Definitions in `.claude/agents/`. Keep design decisions and the final review in the main session;
+delegate execution once the shape of the change is settled.
+
+| Agent | Use for |
+| --- | --- |
+| `endpoint-implementer` | A decided API change, spec → handler → service → repo → tests → docs |
+| `migration-author` | A decided schema change, migration pair + model/repository follow-up |
+| `test-writer` | Backfilling tests for existing code; never edits production code |
+| `docs-syncer` | Bringing `docs/` back in line with an implemented change |
+| `code-locator` | "Where does X live?" — returns a `file:line` inventory, read-only |
+| `gate-runner` | `fmt`/`lint`/`test`/`migrate-check` — reports failures verbatim, fixes nothing |
+
+Give implementers the full contract (fields, status codes, ownership rules) up front — they are
+told not to invent missing decisions.
