@@ -1,0 +1,66 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Go/Gin/PostgreSQL backend for NinerLog, an EASA/FAA compliant digital pilot logbook.
+Sibling repos: `ninerlog-frontend` (React PWA, generates its API client from the same
+OpenAPI spec), `ninerlog` (self-hosted Docker Compose), `ninerlog-website`.
+
+Developer documentation in `docs/` is part of the codebase and must stay accurate —
+start at `docs/DEVELOPER_GUIDE.md`.
+
+> `.github/copilot-instructions.md` is stale (TypeScript/Prisma/sqlc examples that do not
+> reflect this codebase). Prefer `docs/` and the skills below.
+
+## Commands
+
+```bash
+make run                 # migrations auto-apply at startup, then serve (PORT, default 3000)
+make build               # → bin/ninerlog-api
+make generate            # regenerate internal/api/generated/ from api-spec/openapi.yaml
+make fmt && make lint    # go fmt ./... ; golangci-lint run
+make test                # unit tests (-short)
+make test-integration    # repository tests against Docker Postgres on :5433
+make test-e2e            # test DB + go test -tags=e2e ./test/e2e/...
+make test-e2e-full       # full Docker stack e2e (scripts/run-e2e-tests.sh)
+make migrate-create NAME=add_foo
+make migrate-check       # duplicate versions / missing up-down pairs
+```
+
+Details on tiers, build tags, and running a single test: `.claude/skills/testing/SKILL.md`.
+
+## Architecture
+
+Strict layering: **handler → service → repository → models**.
+
+- `cmd/api/main.go` — all composition/DI: config, DB + auto-migration, airport DB, repositories,
+  services, currency evaluator registry, optional subsystems, router, background workers.
+- `internal/api/handlers` — one method per OpenAPI operation on the aggregate `APIHandler`,
+  which implements the generated `ServerInterface`. Thin: read `userID` from the Gin context,
+  bind/validate, call a service, map sentinel errors to status codes. Never touches SQL.
+- `internal/service` — all business logic, ownership checks, validation. Never imports Gin
+  (services are reused by background jobs). Sub-engines: `currency/`, `flightcalc/`,
+  `flightrules/`, `cloudbackup/`, `customfield/`.
+- `internal/repository` (interfaces) + `internal/repository/postgres` (hand-written
+  parameterized SQL, `lib/pq`). No sqlc/pgx despite older docs; `make sqlc-generate` is inactive.
+- `pkg/` — `jwt`, `hash`, `duration`, `cryptoutil`, `email`, `solar`.
+
+`/api/v1` sits behind `AuthMiddleware` (JWT, public-path allow-list) and `RateLimitByPath`.
+Most routes come from `generated.RegisterHandlersWithOptions`; reports and flight utilities are
+registered manually in `main.go` and are **not** in the OpenAPI spec.
+Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
+
+## Rules that always apply
+
+1. **OpenAPI-first** — `api-spec/openapi.yaml` is the single source of truth; never hand-edit
+   `internal/api/generated/`. See `.claude/skills/api-change/SKILL.md`.
+2. **Docs in the same PR** as the behaviour change. See `.claude/skills/docs-sync/SKILL.md`.
+3. **Tests must be green before committing** (`make fmt`, `make lint`, `make test`,
+   `bash scripts/run-e2e-tests.sh`). Never weaken or skip a test to hide a regression — file a
+   GitHub issue instead.
+4. **Domain invariants** (durations in integer minutes, `*Override` flags, currency evaluator
+   registry, service-layer ownership checks, sentinel errors) — see
+   `.claude/skills/aviation-domain/SKILL.md`.
+5. Conventional Commits (`feat(flights): …`); branch from `main`.
