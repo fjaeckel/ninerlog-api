@@ -2586,6 +2586,11 @@ type Flight struct {
 	// Example: 2
 	ApproachesCount *int `json:"approachesCount,omitempty"`
 
+	// ArrivalAirportName Airport name resolved live from the airport database for display. Not stored with the flight. Null when arrivalIcao does not resolve against the airport database (e.g. a free-text off-airport site).
+	//
+	// Example: Hamburg Airport
+	ArrivalAirportName *string `json:"arrivalAirportName,omitempty"`
+
 	// ArrivalIcao Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
 	//
 	// Example: EDDH
@@ -2609,6 +2614,11 @@ type Flight struct {
 
 	// Date Example: 2026-01-30
 	Date openapi_types.Date `json:"date"`
+
+	// DepartureAirportName Airport name resolved live from the airport database for display. Not stored with the flight. Null when departureIcao does not resolve against the airport database (e.g. a free-text off-airport site).
+	//
+	// Example: Frankfurt am Main Airport
+	DepartureAirportName *string `json:"departureAirportName,omitempty"`
 
 	// DepartureIcao Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
 	//
