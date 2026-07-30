@@ -3,6 +3,7 @@ package handlers
 import (
 	"testing"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 )
 
@@ -268,6 +269,12 @@ func TestNormalizeTime(t *testing.T) {
 }
 
 func TestNormalizeLocation(t *testing.T) {
+	airports.SetTestDB(map[string]airports.AirportInfo{
+		"EDDF": {ICAO: "EDDF", Name: "Frankfurt Airport", Latitude: 50.0333, Longitude: 8.5706},
+		"EDXR": {ICAO: "EDXR", Name: "Rendsburg-Schachtholm", Latitude: 54.3, Longitude: 9.5},
+	})
+	defer airports.SetTestDB(nil)
+
 	tests := []struct {
 		input, want string
 	}{
@@ -283,6 +290,13 @@ func TestNormalizeLocation(t *testing.T) {
 		{"Grandpa's field", "Grandpa's field"},
 		{"  Meadow strip  ", "Meadow strip"},
 		{"", ""},
+		// Combined "name (ICAO)" / "ICAO name" values resolve to the
+		// embedded code when it matches a known airport
+		{"Frankfurt (EDDF)", "EDDF"},
+		{"EDDF Frankfurt", "EDDF"},
+		{"Rendsburg-Schachtholm EDXR", "EDXR"},
+		// Embedded token that isn't a known airport: free text is preserved
+		{"Somewhere (ZZZZ)", "Somewhere (ZZZZ)"},
 	}
 	for _, tt := range tests {
 		if got := normalizeLocation(tt.input); got != tt.want {
