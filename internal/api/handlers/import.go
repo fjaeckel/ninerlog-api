@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
@@ -1546,14 +1547,28 @@ func normalizeDecimalSeparator(val string) string {
 // up to four alphanumeric characters.
 var icaoLikePattern = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
 
+// icaoTokenPattern extracts a standalone 4-character alphanumeric token from
+// free-text location values, e.g. "EDDF" out of "Frankfurt (EDDF)".
+var icaoTokenPattern = regexp.MustCompile(`\b[A-Za-z0-9]{4}\b`)
+
 // normalizeLocation cleans a departure/arrival location from an import row.
 // Values that look like an airport code (<=4 alphanumeric chars) are
-// upper-cased so ICAO codes stay canonical; longer free-text place names for
-// off-airport glider/helicopter sites keep their original casing.
+// upper-cased so ICAO codes stay canonical. Longer free-text values (e.g. a
+// source column combining airport name and code) are scanned for an
+// embedded 4-char token that resolves to a known airport, since the
+// night/landing/distance auto-calculations need an exact ICAO match; values
+// with no recognizable ICAO substring (genuine off-airport strips) keep
+// their original casing.
 func normalizeLocation(val string) string {
 	trimmed := strings.TrimSpace(val)
 	if icaoLikePattern.MatchString(trimmed) {
 		return strings.ToUpper(trimmed)
+	}
+	for _, tok := range icaoTokenPattern.FindAllString(trimmed, -1) {
+		code := strings.ToUpper(tok)
+		if airports.Lookup(code) != nil {
+			return code
+		}
 	}
 	return trimmed
 }
