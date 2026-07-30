@@ -64,6 +64,11 @@ rules.
   respecting manual `*Override` flags.
 - Rich data: structured approaches, crew members, endorsements, FSTD, launch method for
   gliders.
+- Airport names: flight responses carry read-only `departureAirportName` /
+  `arrivalAirportName`, resolved per request from the in-memory airport database
+  (`internal/airports`) for display. Only the location itself is stored; the names are
+  `null` when it does not resolve — off-airport glider and helicopter sites are stored as
+  free text — and clients then show the raw stored value.
 
 ## Currency
 

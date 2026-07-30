@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/flightsearch"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -623,6 +624,21 @@ func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId) {
 
 // Helper functions
 
+// lookupAirportName resolves a stored departure/arrival location to an airport
+// name for display. The name is never persisted with the flight — only the
+// location itself is — so it is resolved fresh on every response.
+//
+// Locations are not guaranteed to be ICAO codes: off-airport glider and
+// helicopter sites are stored as free text. An unresolved location yields nil,
+// and the client falls back to rendering the raw stored value.
+func lookupAirportName(location string) *string {
+	ap := airports.Lookup(strings.TrimSpace(location))
+	if ap == nil {
+		return nil
+	}
+	return strPtr(ap.Name)
+}
+
 func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	flight := generated.Flight{
 		Id:               openapi_types.UUID(f.ID),
@@ -651,9 +667,11 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 
 	if f.DepartureICAO != nil {
 		flight.DepartureIcao = f.DepartureICAO
+		flight.DepartureAirportName = lookupAirportName(*f.DepartureICAO)
 	}
 	if f.ArrivalICAO != nil {
 		flight.ArrivalIcao = f.ArrivalICAO
+		flight.ArrivalAirportName = lookupAirportName(*f.ArrivalICAO)
 	}
 	if f.OffBlockTime != nil {
 		flight.OffBlockTime = f.OffBlockTime

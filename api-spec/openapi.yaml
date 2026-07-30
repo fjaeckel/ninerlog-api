@@ -4631,6 +4631,16 @@ components:
           maxLength: 100
           example: EDDH
           description: Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
+        departureAirportName:
+          type: [string, 'null']
+          readOnly: true
+          example: Frankfurt am Main Airport
+          description: Airport name resolved live from the airport database for display. Not stored with the flight. Null when departureIcao does not resolve against the airport database (e.g. a free-text off-airport site).
+        arrivalAirportName:
+          type: [string, 'null']
+          readOnly: true
+          example: Hamburg Airport
+          description: Airport name resolved live from the airport database for display. Not stored with the flight. Null when arrivalIcao does not resolve against the airport database (e.g. a free-text off-airport site).
         offBlockTime:
           type: [string, 'null']
           format: time

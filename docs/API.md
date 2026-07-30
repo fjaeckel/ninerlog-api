@@ -115,7 +115,11 @@ CRUD on `/aircraft`.
 
 ### Flights
 CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
-(re-run auto-calculations respecting overrides).
+(re-run auto-calculations respecting overrides). Flight responses include the read-only
+`departureAirportName` / `arrivalAirportName`, resolved per request from the airport
+database and `null` when the stored location does not resolve; they are response-only and
+are not accepted on create or update. See
+[FEATURES.md](./FEATURES.md#flight-logging).
 
 ### Credentials
 CRUD on `/credentials` (medicals, language proficiency, clearances).
