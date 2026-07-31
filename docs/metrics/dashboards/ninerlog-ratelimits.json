@@ -57,6 +57,26 @@
         "current": {},
         "hide": 0,
         "label": "Data source"
+      },
+      {
+        "name": "job",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(app_info, job)",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "ninerlog-api",
+          "value": "ninerlog-api",
+          "selected": false
+        },
+        "hide": 0,
+        "label": "Job"
       }
     ]
   },
@@ -136,7 +156,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(rate_limit_hits_total{job=\"ninerlog-api\", limiter=\"search\"}[15m])) / clamp_min(sum(rate(rate_limit_requests_total{job=\"ninerlog-api\", limiter=\"search\"}[15m])), 0.0001)",
+          "expr": "sum(rate(rate_limit_hits_total{job=\"$job\", limiter=\"search\"}[15m])) / clamp_min(sum(rate(rate_limit_requests_total{job=\"$job\", limiter=\"search\"}[15m])), 0.0001)",
           "legendFormat": "search rejected"
         }
       ]
@@ -194,7 +214,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(increase(rate_limit_hits_total{job=\"ninerlog-api\", limiter=\"search\"}[1h]))",
+          "expr": "sum(increase(rate_limit_hits_total{job=\"$job\", limiter=\"search\"}[1h]))",
           "legendFormat": "rejected"
         }
       ]
@@ -235,7 +255,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(rate_limit_requests_total{job=\"ninerlog-api\", limiter=\"search\"}[15m]))",
+          "expr": "sum(rate(rate_limit_requests_total{job=\"$job\", limiter=\"search\"}[15m]))",
           "legendFormat": "searches/s"
         }
       ]
@@ -293,7 +313,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(rate_limit_hits_total{job=\"ninerlog-api\"}[15m])) / clamp_min(sum(rate(rate_limit_requests_total{job=\"ninerlog-api\"}[15m])), 0.0001)",
+          "expr": "sum(rate(rate_limit_hits_total{job=\"$job\"}[15m])) / clamp_min(sum(rate(rate_limit_requests_total{job=\"$job\"}[15m])), 0.0001)",
           "legendFormat": "rejected"
         }
       ]
@@ -334,7 +354,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(increase(rate_limit_hits_total{job=\"ninerlog-api\"}[1h]))",
+          "expr": "sum(increase(rate_limit_hits_total{job=\"$job\"}[1h]))",
           "legendFormat": "rejected"
         }
       ]
@@ -380,7 +400,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (limiter) (rate(rate_limit_hits_total{job=\"ninerlog-api\"}[5m])) / clamp_min(sum by (limiter) (rate(rate_limit_requests_total{job=\"ninerlog-api\"}[5m])), 0.0001)",
+          "expr": "sum by (limiter) (rate(rate_limit_hits_total{job=\"$job\"}[5m])) / clamp_min(sum by (limiter) (rate(rate_limit_requests_total{job=\"$job\"}[5m])), 0.0001)",
           "legendFormat": "{{limiter}}"
         }
       ]
@@ -429,7 +449,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (limiter) (rate(rate_limit_hits_total{job=\"ninerlog-api\"}[5m]))",
+          "expr": "sum by (limiter) (rate(rate_limit_hits_total{job=\"$job\"}[5m]))",
           "legendFormat": "{{limiter}}"
         }
       ]
@@ -487,7 +507,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(rate_limit_requests_total{job=\"ninerlog-api\", limiter=\"search\"}[5m])) - sum(rate(rate_limit_hits_total{job=\"ninerlog-api\", limiter=\"search\"}[5m]))",
+          "expr": "sum(rate(rate_limit_requests_total{job=\"$job\", limiter=\"search\"}[5m])) - sum(rate(rate_limit_hits_total{job=\"$job\", limiter=\"search\"}[5m]))",
           "legendFormat": "allowed"
         },
         {
@@ -495,7 +515,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(rate_limit_hits_total{job=\"ninerlog-api\", limiter=\"search\"}[5m]))",
+          "expr": "sum(rate(rate_limit_hits_total{job=\"$job\", limiter=\"search\"}[5m]))",
           "legendFormat": "rejected"
         }
       ]
@@ -561,7 +581,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"ninerlog-api\", path=\"/api/v1/flights\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"$job\", path=\"/api/v1/flights\"}[5m])) by (le))",
           "legendFormat": "p95 latency"
         },
         {
@@ -569,7 +589,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"ninerlog-api\", path=\"/api/v1/flights\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"$job\", path=\"/api/v1/flights\"}[5m])) by (le))",
           "legendFormat": "p99 latency"
         },
         {
@@ -577,7 +597,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(rate_limit_requests_total{job=\"ninerlog-api\", limiter=\"search\"}[5m]))",
+          "expr": "sum(rate(rate_limit_requests_total{job=\"$job\", limiter=\"search\"}[5m]))",
           "legendFormat": "search req/s"
         }
       ]
@@ -623,7 +643,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "topk(10, sum by (limiter, path) (rate(rate_limit_hits_total{job=\"ninerlog-api\"}[5m])))",
+          "expr": "topk(10, sum by (limiter, path) (rate(rate_limit_hits_total{job=\"$job\"}[5m])))",
           "legendFormat": "{{limiter}} \u00b7 {{path}}"
         }
       ]
@@ -669,7 +689,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (path) (rate(http_requests_total{job=\"ninerlog-api\", status=\"429\"}[5m]))",
+          "expr": "sum by (path) (rate(http_requests_total{job=\"$job\", status=\"429\"}[5m]))",
           "legendFormat": "{{path}}"
         },
         {
@@ -677,7 +697,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(rate_limit_hits_total{job=\"ninerlog-api\"}[5m]))",
+          "expr": "sum(rate(rate_limit_hits_total{job=\"$job\"}[5m]))",
           "legendFormat": "total (limiter counters)"
         }
       ]
@@ -723,7 +743,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (limiter) (rate(rate_limit_requests_total{job=\"ninerlog-api\"}[5m]))",
+          "expr": "sum by (limiter) (rate(rate_limit_requests_total{job=\"$job\"}[5m]))",
           "legendFormat": "{{limiter}}"
         }
       ]

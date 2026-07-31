@@ -57,6 +57,26 @@
         "current": {},
         "hide": 0,
         "label": "Data source"
+      },
+      {
+        "name": "job",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(app_info, job)",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "ninerlog-api",
+          "value": "ninerlog-api",
+          "selected": false
+        },
+        "hide": 0,
+        "label": "Job"
       }
     ]
   },
@@ -131,7 +151,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max(airport_db_airports{job=\"ninerlog-api\"})",
+          "expr": "max(airport_db_airports{job=\"$job\"})",
           "legendFormat": "airports"
         }
       ]
@@ -188,7 +208,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max(airport_db_age_seconds{job=\"ninerlog-api\"})",
+          "expr": "max(airport_db_age_seconds{job=\"$job\"})",
           "legendFormat": "age"
         }
       ]
@@ -242,7 +262,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(increase(airport_lookup_total{job=\"ninerlog-api\", result=\"unavailable\"}[1h]))",
+          "expr": "sum(increase(airport_lookup_total{job=\"$job\", result=\"unavailable\"}[1h]))",
           "legendFormat": "unavailable (1h)"
         }
       ]
@@ -283,7 +303,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(airport_lookup_total{job=\"ninerlog-api\", result=\"hit\"}[1h])) / clamp_min(sum(rate(airport_lookup_total{job=\"ninerlog-api\"}[1h])), 0.0001)",
+          "expr": "sum(rate(airport_lookup_total{job=\"$job\", result=\"hit\"}[1h])) / clamp_min(sum(rate(airport_lookup_total{job=\"$job\"}[1h])), 0.0001)",
           "legendFormat": "hit ratio"
         }
       ]
@@ -324,7 +344,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max(airport_db_dropped_records{job=\"ninerlog-api\"})",
+          "expr": "max(airport_db_dropped_records{job=\"$job\"})",
           "legendFormat": "dropped"
         }
       ]
@@ -433,7 +453,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (result) (increase(airport_db_reload_total{job=\"ninerlog-api\"}[1h]))",
+          "expr": "sum by (result) (increase(airport_db_reload_total{job=\"$job\"}[1h]))",
           "legendFormat": "{{result}}"
         }
       ]
@@ -478,7 +498,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (source, reason) (increase(airport_db_fetch_errors_total{job=\"ninerlog-api\"}[1h]))",
+          "expr": "sum by (source, reason) (increase(airport_db_fetch_errors_total{job=\"$job\"}[1h]))",
           "legendFormat": "{{source}} \u00b7 {{reason}}"
         }
       ]
@@ -515,7 +535,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum by (source, le) (rate(airport_db_fetch_duration_seconds_bucket{job=\"ninerlog-api\"}[1h])))",
+          "expr": "histogram_quantile(0.95, sum by (source, le) (rate(airport_db_fetch_duration_seconds_bucket{job=\"$job\"}[1h])))",
           "legendFormat": "{{source}}"
         }
       ]
@@ -553,7 +573,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(airport_db_load_duration_seconds_bucket{job=\"ninerlog-api\"}[1h])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(airport_db_load_duration_seconds_bucket{job=\"$job\"}[1h])))",
           "legendFormat": "full reload p95"
         },
         {
@@ -561,7 +581,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(airport_db_merge_duration_seconds_bucket{job=\"ninerlog-api\"}[1h])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(airport_db_merge_duration_seconds_bucket{job=\"$job\"}[1h])))",
           "legendFormat": "merge only p95"
         }
       ]
@@ -599,7 +619,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max by (source) (airport_db_fetch_bytes{job=\"ninerlog-api\"})",
+          "expr": "max by (source) (airport_db_fetch_bytes{job=\"$job\"})",
           "legendFormat": "{{source}}"
         }
       ]
@@ -647,7 +667,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max by (origin) (airport_db_records_by_origin{job=\"ninerlog-api\"})",
+          "expr": "max by (origin) (airport_db_records_by_origin{job=\"$job\"})",
           "legendFormat": "{{origin}}"
         }
       ]
@@ -688,7 +708,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max by (source) (airport_db_source_records{job=\"ninerlog-api\"})",
+          "expr": "max by (source) (airport_db_source_records{job=\"$job\"})",
           "legendFormat": "{{source}} parsed"
         },
         {
@@ -696,7 +716,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max by (source) (airport_db_merge_preferred{job=\"ninerlog-api\"})",
+          "expr": "max by (source) (airport_db_merge_preferred{job=\"$job\"})",
           "legendFormat": "{{source}} won merge"
         }
       ]
@@ -736,7 +756,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (source, result) (increase(airport_db_fetch_total{job=\"ninerlog-api\"}[1h]))",
+          "expr": "sum by (source, result) (increase(airport_db_fetch_total{job=\"$job\"}[1h]))",
           "legendFormat": "{{source}} \u00b7 {{result}}"
         }
       ]
@@ -798,7 +818,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (operation, result) (rate(airport_lookup_total{job=\"ninerlog-api\"}[5m]))",
+          "expr": "sum by (operation, result) (rate(airport_lookup_total{job=\"$job\"}[5m]))",
           "legendFormat": "{{operation}} \u00b7 {{result}}"
         }
       ]
@@ -836,7 +856,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum by (operation, le) (rate(airport_lookup_duration_seconds_bucket{job=\"ninerlog-api\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (operation, le) (rate(airport_lookup_duration_seconds_bucket{job=\"$job\"}[5m])))",
           "legendFormat": "{{operation}} p95"
         }
       ]

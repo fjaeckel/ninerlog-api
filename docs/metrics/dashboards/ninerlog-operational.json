@@ -57,6 +57,26 @@
         "current": {},
         "hide": 0,
         "label": "Data source"
+      },
+      {
+        "name": "job",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(app_info, job)",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "ninerlog-api",
+          "value": "ninerlog-api",
+          "selected": false
+        },
+        "hide": 0,
+        "label": "Job"
       }
     ]
   },
@@ -130,7 +150,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "min(health_check_status{job=\"ninerlog-api\"})",
+          "expr": "min(health_check_status{job=\"$job\"})",
           "legendFormat": "health"
         }
       ]
@@ -169,7 +189,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(up{job=\"ninerlog-api\"})",
+          "expr": "sum(up{job=\"$job\"})",
           "legendFormat": "up"
         }
       ]
@@ -208,7 +228,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max(app_uptime_seconds{job=\"ninerlog-api\"})",
+          "expr": "max(app_uptime_seconds{job=\"$job\"})",
           "legendFormat": "uptime"
         }
       ]
@@ -264,7 +284,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "time() - max(notification_last_success_timestamp_seconds{job=\"ninerlog-api\"})",
+          "expr": "time() - max(notification_last_success_timestamp_seconds{job=\"$job\"})",
           "legendFormat": "since last run"
         }
       ]
@@ -320,7 +340,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(email_send_total{job=\"ninerlog-api\", result=\"failure\"}[15m])) / clamp_min(sum(rate(email_send_total{job=\"ninerlog-api\", result=~\"success|failure\"}[15m])), 0.0001)",
+          "expr": "sum(rate(email_send_total{job=\"$job\", result=\"failure\"}[15m])) / clamp_min(sum(rate(email_send_total{job=\"$job\", result=~\"success|failure\"}[15m])), 0.0001)",
           "legendFormat": "failure ratio"
         }
       ]
@@ -350,7 +370,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "db_connections_in_use{job=\"ninerlog-api\"}",
+          "expr": "db_connections_in_use{job=\"$job\"}",
           "legendFormat": "in use"
         },
         {
@@ -358,7 +378,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "db_connections_idle{job=\"ninerlog-api\"}",
+          "expr": "db_connections_idle{job=\"$job\"}",
           "legendFormat": "idle"
         },
         {
@@ -366,7 +386,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "db_connections_open{job=\"ninerlog-api\"}",
+          "expr": "db_connections_open{job=\"$job\"}",
           "legendFormat": "open"
         },
         {
@@ -374,7 +394,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "db_connections_max_open{job=\"ninerlog-api\"}",
+          "expr": "db_connections_max_open{job=\"$job\"}",
           "legendFormat": "max open"
         }
       ]
@@ -404,7 +424,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(db_wait_count_total{job=\"ninerlog-api\"}[5m])",
+          "expr": "rate(db_wait_count_total{job=\"$job\"}[5m])",
           "legendFormat": "waits/s"
         },
         {
@@ -412,7 +432,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(db_wait_duration_seconds_total{job=\"ninerlog-api\"}[5m])",
+          "expr": "rate(db_wait_duration_seconds_total{job=\"$job\"}[5m])",
           "legendFormat": "wait seconds/s"
         }
       ]
@@ -442,7 +462,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(email_send_total{job=\"ninerlog-api\"}[5m])) by (result)",
+          "expr": "sum(rate(email_send_total{job=\"$job\"}[5m])) by (result)",
           "legendFormat": "{{result}}"
         }
       ]
@@ -472,7 +492,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(notifications_sent_total{job=\"ninerlog-api\"}[15m])) by (type)",
+          "expr": "sum(rate(notifications_sent_total{job=\"$job\"}[15m])) by (type)",
           "legendFormat": "{{type}}"
         }
       ]
@@ -502,7 +522,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(auth_login_attempts_total{job=\"ninerlog-api\"}[5m])) by (result)",
+          "expr": "sum(rate(auth_login_attempts_total{job=\"$job\"}[5m])) by (result)",
           "legendFormat": "{{result}}"
         }
       ]
@@ -549,7 +569,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "go_goroutines{job=\"ninerlog-api\"}",
+          "expr": "go_goroutines{job=\"$job\"}",
           "legendFormat": "goroutines"
         },
         {
@@ -557,7 +577,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "process_resident_memory_bytes{job=\"ninerlog-api\"}",
+          "expr": "process_resident_memory_bytes{job=\"$job\"}",
           "legendFormat": "RSS bytes"
         }
       ],
@@ -606,7 +626,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max by (version) (app_info{job=\"ninerlog-api\"})",
+          "expr": "max by (version) (app_info{job=\"$job\"})",
           "legendFormat": "{{version}}"
         }
       ]
@@ -664,7 +684,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(increase(rate_limit_hits_total{job=\"ninerlog-api\"}[1h]))",
+          "expr": "sum(increase(rate_limit_hits_total{job=\"$job\"}[1h]))",
           "legendFormat": "rejected"
         }
       ]
@@ -705,7 +725,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(increase(notification_check_runs_total{job=\"ninerlog-api\"}[24h]))",
+          "expr": "sum(increase(notification_check_runs_total{job=\"$job\"}[24h]))",
           "legendFormat": "runs"
         }
       ]
@@ -762,7 +782,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "max(airport_db_age_seconds{job=\"ninerlog-api\"})",
+          "expr": "max(airport_db_age_seconds{job=\"$job\"})",
           "legendFormat": "age"
         }
       ]
@@ -822,7 +842,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(db_connections_in_use{job=\"ninerlog-api\"}) / clamp_min(sum(db_connections_max_open{job=\"ninerlog-api\"}), 1) * 100",
+          "expr": "sum(db_connections_in_use{job=\"$job\"}) / clamp_min(sum(db_connections_max_open{job=\"$job\"}), 1) * 100",
           "legendFormat": "in use / max"
         }
       ]
@@ -868,7 +888,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (result) (rate(auth_token_refresh_total{job=\"ninerlog-api\"}[5m]))",
+          "expr": "sum by (result) (rate(auth_token_refresh_total{job=\"$job\"}[5m]))",
           "legendFormat": "refresh \u00b7 {{result}}"
         },
         {
@@ -876,7 +896,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (result) (rate(auth_2fa_attempts_total{job=\"ninerlog-api\"}[5m]))",
+          "expr": "sum by (result) (rate(auth_2fa_attempts_total{job=\"$job\"}[5m]))",
           "legendFormat": "2fa \u00b7 {{result}}"
         }
       ]
@@ -938,7 +958,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(notification_check_duration_seconds_bucket{job=\"ninerlog-api\"}[1h])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(notification_check_duration_seconds_bucket{job=\"$job\"}[1h])))",
           "legendFormat": "p95 duration"
         },
         {
@@ -946,7 +966,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(notification_check_errors_total{job=\"ninerlog-api\"}[1h])) * 3600",
+          "expr": "sum(rate(notification_check_errors_total{job=\"$job\"}[1h])) * 3600",
           "legendFormat": "errors/h"
         }
       ]
@@ -984,7 +1004,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(email_send_duration_seconds_bucket{job=\"ninerlog-api\"}[15m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(email_send_duration_seconds_bucket{job=\"$job\"}[15m])))",
           "legendFormat": "SMTP p95"
         },
         {
@@ -992,7 +1012,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "go_gc_duration_seconds{job=\"ninerlog-api\", quantile=\"0.75\"}",
+          "expr": "go_gc_duration_seconds{job=\"$job\", quantile=\"0.75\"}",
           "legendFormat": "GC pause p75"
         }
       ]

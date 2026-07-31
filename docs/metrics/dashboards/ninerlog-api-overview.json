@@ -57,6 +57,26 @@
         "current": {},
         "hide": 0,
         "label": "Data source"
+      },
+      {
+        "name": "job",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(app_info, job)",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "ninerlog-api",
+          "value": "ninerlog-api",
+          "selected": false
+        },
+        "hide": 0,
+        "label": "Job"
       }
     ]
   },
@@ -94,7 +114,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(http_requests_total{job=\"ninerlog-api\"}[5m])) by (path)",
+          "expr": "sum(rate(http_requests_total{job=\"$job\"}[5m])) by (path)",
           "legendFormat": "{{path}}"
         }
       ]
@@ -137,7 +157,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(http_requests_total{job=\"ninerlog-api\", status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"ninerlog-api\"}[5m])), 0.0001) * 100",
+          "expr": "sum(rate(http_requests_total{job=\"$job\", status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"$job\"}[5m])), 0.0001) * 100",
           "legendFormat": "5xx %"
         },
         {
@@ -145,7 +165,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(http_requests_total{job=\"ninerlog-api\", status=~\"4..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"ninerlog-api\"}[5m])), 0.0001) * 100",
+          "expr": "sum(rate(http_requests_total{job=\"$job\", status=~\"4..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"$job\"}[5m])), 0.0001) * 100",
           "legendFormat": "4xx %"
         }
       ]
@@ -175,7 +195,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"ninerlog-api\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"$job\"}[5m])) by (le))",
           "legendFormat": "p50"
         },
         {
@@ -183,7 +203,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"ninerlog-api\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"$job\"}[5m])) by (le))",
           "legendFormat": "p95"
         },
         {
@@ -191,7 +211,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"ninerlog-api\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"$job\"}[5m])) by (le))",
           "legendFormat": "p99"
         }
       ]
@@ -221,7 +241,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "http_requests_in_flight{job=\"ninerlog-api\"}",
+          "expr": "http_requests_in_flight{job=\"$job\"}",
           "legendFormat": "{{instance}}"
         }
       ]
@@ -251,7 +271,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(api_panics_recovered_total{job=\"ninerlog-api\"}[5m]))",
+          "expr": "sum(rate(api_panics_recovered_total{job=\"$job\"}[5m]))",
           "legendFormat": "panics/s"
         }
       ]
@@ -281,7 +301,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(http_requests_total{job=\"ninerlog-api\"}[5m])) by (status)",
+          "expr": "sum(rate(http_requests_total{job=\"$job\"}[5m])) by (status)",
           "legendFormat": "{{status}}"
         }
       ]
@@ -327,7 +347,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (limiter) (rate(rate_limit_hits_total{job=\"ninerlog-api\"}[5m]))",
+          "expr": "sum by (limiter) (rate(rate_limit_hits_total{job=\"$job\"}[5m]))",
           "legendFormat": "{{limiter}}"
         }
       ]
@@ -369,7 +389,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "topk(8, histogram_quantile(0.95, sum by (path, le) (rate(http_request_duration_seconds_bucket{job=\"ninerlog-api\"}[5m]))))",
+          "expr": "topk(8, histogram_quantile(0.95, sum by (path, le) (rate(http_request_duration_seconds_bucket{job=\"$job\"}[5m]))))",
           "legendFormat": "{{path}}"
         }
       ]
@@ -411,7 +431,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "topk(8, histogram_quantile(0.95, sum by (path, le) (rate(http_response_size_bytes_bucket{job=\"ninerlog-api\"}[5m]))))",
+          "expr": "topk(8, histogram_quantile(0.95, sum by (path, le) (rate(http_response_size_bytes_bucket{job=\"$job\"}[5m]))))",
           "legendFormat": "{{path}}"
         }
       ]
@@ -457,7 +477,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "topk(12, sum by (path, status) (rate(http_requests_total{job=\"ninerlog-api\", status=~\"4..\"}[5m])))",
+          "expr": "topk(12, sum by (path, status) (rate(http_requests_total{job=\"$job\", status=~\"4..\"}[5m])))",
           "legendFormat": "{{status}} \u00b7 {{path}}"
         }
       ]

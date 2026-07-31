@@ -156,6 +156,17 @@ In Grafana: **Dashboards → New → Import → Upload JSON file** and pick the 
 in [`dashboards/`](./dashboards/). Select your Prometheus data source when
 prompted (the panels reference a templated `${DS_PROMETHEUS}` data source).
 
+Each dashboard also has a **Job** dropdown at the top, populated from
+`label_values(app_info, job)`. It defaults to `ninerlog-api`, but if your
+`scrape_configs` entry uses a different `job_name` just pick yours from the
+dropdown — no editing of panel queries required.
+
+> The **alerting rules are not** parameterized this way: Prometheus evaluates
+> them server-side and has no access to a Grafana variable. If your scrape job
+> is not named `ninerlog-api`, search and replace `job="ninerlog-api"` in
+> [`alerts/prometheus-rules.yml`](./alerts/prometheus-rules.yml) before loading
+> it.
+
 ---
 
 ## Dashboards
