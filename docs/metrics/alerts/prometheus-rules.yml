@@ -162,6 +162,43 @@ groups:
           summary: "Notification check runs are erroring"
           description: "{{ $value }} notification check run(s) aborted with an error in the last hour."
 
+  - name: ninerlog-api.airports
+    rules:
+      # The airport database refreshes every 24h (AIRPORT_REFRESH_INTERVAL) and
+      # keeps serving the previous snapshot when a refresh fails, so a single
+      # failure is harmless — staleness is the real signal. Threshold = 2x the
+      # default interval + 1h headroom.
+      - alert: NinerlogApiAirportDbStale
+        expr: airport_db_age_seconds > (2 * 86400 + 3600)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Airport database is stale"
+          description: "The airport database was last loaded {{ $value | humanizeDuration }} ago (expected daily). Refreshes are failing or the refresher is stuck."
+
+      # No database at all: airport names, distances and night-time
+      # calculations silently degrade for every flight.
+      - alert: NinerlogApiAirportDbUnavailable
+        expr: airport_db_airports == 0 or absent(airport_db_airports)
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Airport database is empty"
+          description: "No airports are loaded on {{ $labels.instance }} — lookups, distances and night-time calculations are unavailable."
+
+      # One upstream failing is survivable (the other carries the merge), but
+      # it means the merged data is degrading.
+      - alert: NinerlogApiAirportSourceFailing
+        expr: increase(airport_db_fetch_errors_total[25h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Airport source {{ $labels.source }} is failing"
+          description: "{{ $value }} fetch failure(s) for source {{ $labels.source }} (reason: {{ $labels.reason }}) in the last 25h."
+
   - name: ninerlog-api.auth
     rules:
       # A surge in failed logins relative to successes suggests credential

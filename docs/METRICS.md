@@ -12,6 +12,7 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 |---------|---------|-------------|
 | `METRICS_ENABLED` | `true` | Set to `false` to disable metrics collection |
 | `APP_VERSION` | `dev` | Version string exposed in `app_info` gauge |
+| `AIRPORT_REFRESH_INTERVAL` | `24h` | How often the airport database is refetched. `off` or `0s` disables the refresher |
 
 ## Metric Reference
 
@@ -63,6 +64,48 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 | `notifications_sent_total` | Counter | `type` | Notifications sent. Types: `credential_expiry`, `revalidation`, `passenger_currency`, `night_currency`, `flight_review`, `rating_expiry`, `currency_revalidation`, `currency_flight_review` |
 | `notification_check_errors_total` | Counter | — | Check runs that aborted early due to an error (e.g. failing to load preferences) |
 | `notification_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last successfully completed check run. Use for staleness alerting |
+
+### Airport Database Metrics
+
+The in-memory airport database (`internal/airports`) merges two upstream datasets —
+`ourairports` (CSV) and `mwgg` (JSON) — at startup and on every refresh.
+
+**Fetch and load**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `airport_db_fetch_total` | Counter | `source`, `result` | Fetch attempts per source. Sources: `ourairports`, `mwgg`. Results: `success`, `error` |
+| `airport_db_fetch_errors_total` | Counter | `source`, `reason` | Fetch failures. Reasons: `request` (network/DNS), `status` (non-200), `decode` (schema drift or corrupt body), `empty` (0 records parsed) |
+| `airport_db_fetch_duration_seconds` | Histogram | `source` | Download + parse latency per source |
+| `airport_db_fetch_bytes` | Gauge | `source` | Size of the last successful download |
+| `airport_db_source_records` | Gauge | `source` | Records parsed by the last successful fetch, before merging |
+| `airport_db_load_duration_seconds` | Histogram | — | Duration of a full reload: both fetches, merge, and index build |
+| `airport_db_merge_duration_seconds` | Histogram | — | Merge + index build only, excluding network time |
+| `airport_db_reload_total` | Counter | `result` | Reload outcomes: `success` (both sources), `partial` (one source failed), `failed` (no source usable), `rejected` (result below 50% of the live snapshot, swap refused) |
+
+**Merged database**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `airport_db_airports` | Gauge | — | Airports in the active snapshot |
+| `airport_db_records_by_origin` | Gauge | `origin` | Where the snapshot's records came from: `ourairports` (only there), `mwgg` (only there), `both` (merged) |
+| `airport_db_merge_preferred` | Gauge | `source` | For airports in both datasets, which source supplied the winning base record |
+| `airport_db_dropped_records` | Gauge | — | Records discarded in the last merge for unusable coordinates |
+| `airport_db_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last snapshot swap |
+| `airport_db_age_seconds` | Gauge | — | Seconds since the active snapshot was loaded; `0` when none is loaded |
+
+**Lookups**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `airport_lookup_total` | Counter | `operation`, `result` | Read-path calls. Operations: `lookup` (exact ICAO), `search` (ICAO prefix), `nearest` (coordinates). Results: `hit`, `miss`, `unavailable` (no database loaded) |
+| `airport_lookup_duration_seconds` | Histogram | `operation` | Latency of the scanning operations (`search`, `nearest`) only — the exact-match path is a single map hit and is not timed |
+
+> **Why this matters:** a `result="unavailable"` rate above zero means flights are being
+> served without airport names, distances, or night-time calculations. Alert on
+> `airport_db_age_seconds` rather than on reload failures alone — a single failed refresh
+> is harmless because the previous snapshot keeps serving, but a database that stops
+> refreshing for days is drifting away from the upstream data.
 
 ### Email Delivery Metrics
 

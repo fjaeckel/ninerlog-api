@@ -44,7 +44,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | --- | --- |
 | `internal/models` | Domain structs + validation helpers (no I/O): `user.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `flight.go`, `flight_baseline.go`, `notification.go`, `backup.go`, `webauthn.go`, plus `validation.go` (text-length limits) and `errors.go` (shared error types). |
 | `internal/config` | Loads typed configuration from environment variables. |
-| `internal/airports` | In-memory airport database (OurAirports data), `Init()` at startup; used for coordinates/distance and airport lookup/search. |
+| `internal/airports` | In-memory airport database merged from OurAirports (CSV) and mwgg/Airports (JSON). `Init()` at startup, `StartRefresher()` refetches on a timer. Lock-free reads over an atomically swapped snapshot: ICAO map for exact lookups, sorted code list for prefix search, 1°×1° grid for `Nearest`. Used for coordinates/distance and airport lookup/search. |
 | `internal/testutil` | Shared test fixtures, database setup/teardown, and an API client for tests. |
 
 ## `pkg/`

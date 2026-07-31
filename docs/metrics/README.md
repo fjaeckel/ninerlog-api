@@ -67,6 +67,20 @@ The API exposes Prometheus metrics at `GET /metrics` (no auth). Disable with
 | `notification_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last successful check run (staleness signal) |
 | `notifications_sent_total` | Counter | `type` | Notifications sent, by category |
 
+### Airport database
+
+Full reference (including the fetch/merge internals): [`../METRICS.md`](../METRICS.md#airport-database-metrics).
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `airport_db_fetch_total` | Counter | `source`, `result` | Fetch attempts per upstream (`ourairports`, `mwgg`) |
+| `airport_db_fetch_errors_total` | Counter | `source`, `reason` | Fetch failures: `request`, `status`, `decode`, `empty` |
+| `airport_db_fetch_duration_seconds` | Histogram | `source` | Download + parse latency |
+| `airport_db_reload_total` | Counter | `result` | `success`, `partial`, `failed`, `rejected` |
+| `airport_db_airports` | Gauge | — | Airports in the active snapshot |
+| `airport_db_age_seconds` | Gauge | — | Age of the active snapshot (staleness signal) |
+| `airport_lookup_total` | Counter | `operation`, `result` | `lookup`/`search`/`nearest` × `hit`/`miss`/`unavailable` |
+
 ### Email delivery
 
 | Metric | Type | Labels | Description |
@@ -139,6 +153,7 @@ prompted (the panels reference a templated `${DS_PROMETHEUS}` data source).
 
 See [`alerts/prometheus-rules.yml`](./alerts/prometheus-rules.yml). Critical
 (paging) alerts include: target down, service unhealthy, high 5xx error rate,
-DB pool exhaustion, email delivery failing, and the notification background job
-going stale. Warning alerts cover elevated latency, recovered panics, a spike in
-login failures (possible brute force), and rate-limit saturation.
+DB pool exhaustion, email delivery failing, an empty airport database, and the
+notification background job going stale. Warning alerts cover elevated latency,
+recovered panics, a spike in login failures (possible brute force), rate-limit
+saturation, a stale airport database, and a failing airport source.

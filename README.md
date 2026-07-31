@@ -61,7 +61,7 @@ internal/
 │   ├── generated/           # OpenAPI codegen output (do not edit)
 │   ├── handlers/            # HTTP request handlers
 │   └── middleware/          # CORS, request logging
-├── airports/                # OurAirports database loader
+├── airports/                # In-memory airport DB (OurAirports + mwgg, merged)
 ├── config/                  # Environment configuration
 ├── models/                  # Domain models
 ├── repository/

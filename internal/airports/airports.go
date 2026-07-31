@@ -1,24 +1,27 @@
+// Package airports keeps an in-memory database of the world's airports,
+// merged from two upstream datasets and refreshed on a timer.
+//
+// The database is read on nearly every flight response, so reads are
+// lock-free: a reload builds a completely new indexed snapshot and swaps it in
+// with a single atomic store. Readers either see the old snapshot or the new
+// one, never a partial merge, and a failed refresh leaves the previous
+// snapshot serving traffic.
 package airports
 
 import (
-	"encoding/csv"
-	"fmt"
-	"io"
+	"context"
+	"errors"
 	"log/slog"
 	"math"
-	"net/http"
-	"strconv"
+	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-const ourAirportsURL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
-
-// airportsURL can be overridden in tests
-var airportsURL = ourAirportsURL
-
-// AirportInfo holds metadata about an airport
+// AirportInfo holds metadata about an airport, merged from all sources that
+// know about it.
 type AirportInfo struct {
 	ICAO      string
 	Name      string
@@ -26,63 +29,268 @@ type AirportInfo struct {
 	Longitude float64
 	Elevation int
 	Country   string
+	// IATA is the 3-letter code, empty for airports that have none.
+	IATA string
+	// City is the served municipality.
+	City string
+	// Timezone is the IANA zone name (e.g. "Europe/Berlin"), available for
+	// airports covered by the mwgg dataset.
+	Timezone string
+	// Source records which dataset(s) this record came from: "ourairports",
+	// "mwgg", or "merged" when both described the airport.
+	Source string
 }
 
 var (
-	db   map[string]AirportInfo
-	once sync.Once
+	// current holds the live snapshot; nil until the first successful load.
+	current atomic.Pointer[snapshot]
+	// once guards the one-shot startup load. It is a pointer so tests can
+	// swap in a fresh guard without copying a lock.
+	once = new(sync.Once)
+	// reloadMu serialises reloads so a manual reload and the refresher
+	// cannot fetch and swap concurrently.
+	reloadMu sync.Mutex
 )
 
-// Init downloads and caches OurAirports data. Called once on startup.
+// defaultRefreshInterval is how often the database is refetched when
+// AIRPORT_REFRESH_INTERVAL is unset. Both upstreams publish at most daily.
+const defaultRefreshInterval = 24 * time.Hour
+
+// minRetainFraction rejects a reload whose result is less than this fraction
+// of the airports currently loaded. A truncated download or an upstream that
+// starts serving a stub would otherwise silently shrink the database.
+const minRetainFraction = 0.5
+
+// ErrNoSources is returned by Reload when every upstream failed. The previous
+// snapshot, if any, stays live.
+var ErrNoSources = errors.New("airports: no source could be loaded")
+
+// ErrSuspectResult is returned when a reload produced far fewer airports than
+// the live snapshot, so the swap was rejected.
+var ErrSuspectResult = errors.New("airports: reload rejected, result too small")
+
+// Init loads the airport database once, synchronously, at startup. A failure
+// is logged and leaves the database empty rather than blocking boot: airport
+// lookups degrade to "unknown" instead of taking the API down.
 func Init() {
 	once.Do(func() {
-		start := time.Now()
-		slog.Info("Loading airport database from OurAirports...")
-		loaded, err := fetchAirports()
-		if err != nil {
-			slog.Warn("Failed to load OurAirports data; airport lookup will be unavailable", "error", err)
-			db = make(map[string]AirportInfo)
-			return
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		if err := Reload(ctx); err != nil {
+			slog.Warn("Failed to load airport database; airport lookup will be unavailable", "error", err)
 		}
-		db = loaded
-		slog.Info("Loaded airport database", "count", len(db), "duration", time.Since(start).Round(time.Millisecond).String())
 	})
 }
 
-// Lookup returns airport info by ICAO code, or nil if not found
-func Lookup(icao string) *AirportInfo {
-	if db == nil {
-		return nil
+// StartRefresher refetches the database every interval until ctx is done.
+// An interval of zero or less disables refreshing.
+func StartRefresher(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		slog.Info("Airport database refresher disabled")
+		return
 	}
-	code := strings.ToUpper(icao)
-	if a, ok := db[code]; ok {
-		return &a
+	go func() {
+		slog.Info("Airport database refresher started", "interval", interval.String())
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				slog.Info("Airport database refresher stopped")
+				return
+			case <-ticker.C:
+				// Bound each attempt so a hung upstream cannot stall the
+				// refresher past its next tick.
+				reloadCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				if err := Reload(reloadCtx); err != nil {
+					slog.Warn("Airport database refresh failed; keeping previous data", "error", err)
+				}
+				cancel()
+			}
+		}
+	}()
+}
+
+// RefreshInterval reads AIRPORT_REFRESH_INTERVAL, defaulting to 24h.
+// "0" or "off" disables the periodic refresh.
+func RefreshInterval() time.Duration {
+	val := strings.TrimSpace(os.Getenv("AIRPORT_REFRESH_INTERVAL"))
+	if val == "" {
+		return defaultRefreshInterval
 	}
+	if strings.EqualFold(val, "off") {
+		return 0
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		slog.Warn("Invalid AIRPORT_REFRESH_INTERVAL, using default",
+			"value", val, "default", defaultRefreshInterval.String())
+		return defaultRefreshInterval
+	}
+	return d
+}
+
+// Reload fetches both sources in parallel, merges them, and swaps the result
+// in. It returns an error without touching the live snapshot when no source
+// could be loaded or the result looks truncated; a single failing source is
+// not fatal — the other one is used on its own.
+func Reload(ctx context.Context) error {
+	reloadMu.Lock()
+	defer reloadMu.Unlock()
+
+	start := time.Now()
+	defer func() { LoadDurationSeconds.Observe(time.Since(start).Seconds()) }()
+
+	// fetchOne runs one source and records its outcome. A source failure is
+	// returned to the caller, which decides whether the reload as a whole
+	// still has enough data to be worth swapping in.
+	fetchOne := func(source string, fn func(context.Context) (map[string]AirportInfo, int64, error)) (map[string]AirportInfo, error) {
+		fetchStart := time.Now()
+		data, size, err := fn(ctx)
+		FetchDurationSeconds.WithLabelValues(source).Observe(time.Since(fetchStart).Seconds())
+		if err != nil {
+			FetchTotal.WithLabelValues(source, "error").Inc()
+			FetchErrorsTotal.WithLabelValues(source, reasonOf(err)).Inc()
+			slog.Warn("Airport source fetch failed", "source", source, "error", err)
+			return nil, err
+		}
+		FetchTotal.WithLabelValues(source, "success").Inc()
+		FetchBytes.WithLabelValues(source).Set(float64(size))
+		SourceRecords.WithLabelValues(source).Set(float64(len(data)))
+		slog.Info("Fetched airport source", "source", source,
+			"records", len(data), "bytes", size,
+			"duration", time.Since(fetchStart).Round(time.Millisecond).String())
+		return data, nil
+	}
+
+	var (
+		wg             sync.WaitGroup
+		oaData, mwData map[string]AirportInfo
+		oaErr, mwErr   error
+	)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		oaData, oaErr = fetchOne(sourceOurAirports, fetchOurAirports)
+	}()
+	go func() {
+		defer wg.Done()
+		mwData, mwErr = fetchOne(sourceMWGG, fetchMWGG)
+	}()
+	wg.Wait()
+
+	if oaErr != nil && mwErr != nil {
+		ReloadTotal.WithLabelValues("failed").Inc()
+		return errors.Join(ErrNoSources, oaErr, mwErr)
+	}
+
+	mergeStart := time.Now()
+	merged, stats := mergeSources(oaData, mwData)
+	next := newSnapshot(merged, time.Now())
+	MergeDurationSeconds.Observe(time.Since(mergeStart).Seconds())
+
+	if live := current.Load(); live != nil {
+		if float64(next.count()) < float64(live.count())*minRetainFraction {
+			ReloadTotal.WithLabelValues("rejected").Inc()
+			slog.Warn("Airport database reload rejected; keeping previous snapshot",
+				"new_count", next.count(), "current_count", live.count())
+			return ErrSuspectResult
+		}
+	}
+
+	current.Store(next)
+	publishSnapshotMetrics(next, stats)
+
+	result := "success"
+	if oaErr != nil || mwErr != nil {
+		result = "partial"
+	}
+	ReloadTotal.WithLabelValues(result).Inc()
+
+	slog.Info("Loaded airport database",
+		"count", next.count(),
+		"result", result,
+		"only_ourairports", stats.OnlyOurAirports,
+		"only_mwgg", stats.OnlyMWGG,
+		"both", stats.Both,
+		"preferred_ourairports", stats.PreferOurAirport,
+		"preferred_mwgg", stats.PreferMWGG,
+		"dropped", stats.Dropped,
+		"duration", time.Since(start).Round(time.Millisecond).String())
+
 	return nil
 }
 
-// Count returns the number of airports in the database
-func Count() int {
-	if db == nil {
-		return 0
-	}
-	return len(db)
+func publishSnapshotMetrics(s *snapshot, stats mergeStats) {
+	Airports.Set(float64(s.count()))
+	RecordsByOrigin.WithLabelValues(sourceOurAirports).Set(float64(stats.OnlyOurAirports))
+	RecordsByOrigin.WithLabelValues(sourceMWGG).Set(float64(stats.OnlyMWGG))
+	RecordsByOrigin.WithLabelValues("both").Set(float64(stats.Both))
+	MergePreferred.WithLabelValues(sourceOurAirports).Set(float64(stats.PreferOurAirport))
+	MergePreferred.WithLabelValues(sourceMWGG).Set(float64(stats.PreferMWGG))
+	DroppedRecords.Set(float64(stats.Dropped))
+	LastSuccessTimestampSeconds.Set(float64(s.loadedAt.Unix()))
 }
 
-// Search returns airports matching a prefix (case-insensitive)
-func Search(prefix string, limit int) []AirportInfo {
-	if db == nil || prefix == "" {
+// snapshotAgeSeconds backs the airport_db_age_seconds gauge.
+func snapshotAgeSeconds() float64 {
+	s := current.Load()
+	if s == nil {
+		return 0
+	}
+	return time.Since(s.loadedAt).Seconds()
+}
+
+// Lookup returns airport info by ICAO code, or nil if not found.
+func Lookup(icao string) *AirportInfo {
+	s := current.Load()
+	if s == nil {
+		lookupUnavailable.Inc()
 		return nil
 	}
-	var results []AirportInfo
-	upper := strings.ToUpper(prefix)
-	for code, a := range db {
-		if len(results) >= limit {
-			break
-		}
-		if strings.HasPrefix(code, upper) {
-			results = append(results, a)
-		}
+	a := s.lookup(strings.ToUpper(icao))
+	if a == nil {
+		lookupMiss.Inc()
+		return nil
+	}
+	lookupHit.Inc()
+	return a
+}
+
+// Count returns the number of airports in the database.
+func Count() int {
+	return current.Load().count()
+}
+
+// LoadedAt reports when the live snapshot was built; the zero time means no
+// database is loaded.
+func LoadedAt() time.Time {
+	s := current.Load()
+	if s == nil {
+		return time.Time{}
+	}
+	return s.loadedAt
+}
+
+// Search returns airports whose ICAO code starts with prefix
+// (case-insensitive), in ICAO order, up to limit results.
+func Search(prefix string, limit int) []AirportInfo {
+	if prefix == "" || limit <= 0 {
+		return nil
+	}
+	s := current.Load()
+	if s == nil {
+		searchUnavailable.Inc()
+		return nil
+	}
+	start := time.Now()
+	results := s.searchPrefix(strings.ToUpper(prefix), limit)
+	searchDuration.Observe(time.Since(start).Seconds())
+	if len(results) == 0 {
+		searchMiss.Inc()
+	} else {
+		searchHit.Inc()
 	}
 	return results
 }
@@ -96,20 +304,20 @@ const maxNearestDistanceNM = 30.0
 // the database is unavailable or no airport lies within 30 NM. Used to
 // resolve a phone's GPS fix to a departure/arrival airport for tap-to-log.
 func Nearest(lat, lon float64) *AirportInfo {
-	if db == nil {
+	s := current.Load()
+	if s == nil {
+		nearestUnavailable.Inc()
 		return nil
 	}
-	var best *AirportInfo
-	bestDist := maxNearestDistanceNM
-	for code := range db {
-		a := db[code]
-		d := haversineNM(lat, lon, a.Latitude, a.Longitude)
-		if d <= bestDist {
-			bestDist = d
-			best = &a
-		}
+	start := time.Now()
+	a := s.nearest(lat, lon, maxNearestDistanceNM)
+	nearestDuration.Observe(time.Since(start).Seconds())
+	if a == nil {
+		nearestMiss.Inc()
+		return nil
 	}
-	return best
+	nearestHit.Inc()
+	return a
 }
 
 // DistanceNM returns the great-circle distance between two points in nautical
@@ -132,100 +340,4 @@ func haversineNM(lat1, lon1, lat2, lon2 float64) float64 {
 
 func degToRad(d float64) float64 {
 	return d * math.Pi / 180
-}
-
-// fetchAirports downloads the OurAirports CSV and parses it into a map.
-// CSV columns: id, ident, type, name, latitude_deg, longitude_deg, elevation_ft,
-// continent, iso_country, iso_region, municipality, scheduled_service,
-// gps_code, iata_code, local_code, home_link, wikipedia_link, keywords
-func fetchAirports() (map[string]AirportInfo, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(airportsURL)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP GET failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
-	}
-
-	reader := csv.NewReader(resp.Body)
-	reader.LazyQuotes = true
-
-	// Read header to find column indices
-	header, err := reader.Read()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CSV header: %w", err)
-	}
-
-	colIdx := make(map[string]int)
-	for i, col := range header {
-		colIdx[col] = i
-	}
-
-	// Validate required columns exist
-	required := []string{"ident", "type", "name", "latitude_deg", "longitude_deg", "iso_country"}
-	for _, col := range required {
-		if _, ok := colIdx[col]; !ok {
-			return nil, fmt.Errorf("missing required column: %s", col)
-		}
-	}
-
-	result := make(map[string]AirportInfo, 30000)
-
-	for {
-		record, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			continue // skip malformed rows
-		}
-
-		ident := record[colIdx["ident"]]
-		apType := record[colIdx["type"]]
-		name := record[colIdx["name"]]
-		country := record[colIdx["iso_country"]]
-
-		// Only include airports with 4-char ICAO codes and meaningful types
-		if len(ident) != 4 {
-			continue
-		}
-		// Skip heliports and closed airports for cleaner data
-		if apType == "heliport" || apType == "closed" {
-			continue
-		}
-
-		lat, err := strconv.ParseFloat(record[colIdx["latitude_deg"]], 64)
-		if err != nil {
-			continue
-		}
-		lng, err := strconv.ParseFloat(record[colIdx["longitude_deg"]], 64)
-		if err != nil {
-			continue
-		}
-
-		var elev int
-		if idx, ok := colIdx["elevation_ft"]; ok && idx < len(record) && record[idx] != "" {
-			if e, err := strconv.Atoi(record[idx]); err == nil {
-				elev = e
-			}
-		}
-
-		result[ident] = AirportInfo{
-			ICAO:      ident,
-			Name:      name,
-			Latitude:  lat,
-			Longitude: lng,
-			Elevation: elev,
-			Country:   country,
-		}
-	}
-
-	if len(result) == 0 {
-		return nil, fmt.Errorf("parsed 0 airports from CSV")
-	}
-
-	return result, nil
 }

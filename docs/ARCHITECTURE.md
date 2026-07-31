@@ -65,7 +65,7 @@ flowchart TD
     MAIN["cmd/api/main.go<br/>constructs everything and wires it together"]
     MAIN --> PKG["pkg/* (jwt, hash, email, cryptoutil, …)"]
     MAIN --> CFG["internal/config (env → typed config)"]
-    MAIN --> AIR["internal/airports (in-memory airport DB, loaded at startup)"]
+    MAIN --> AIR["internal/airports (in-memory airport DB, OurAirports + mwgg,<br/>loaded at startup, refreshed daily)"]
     MAIN --> PG["internal/repository/postgres"]
     MAIN --> SVC["internal/service/* (depends on repository interfaces + pkg/*)"]
     MAIN --> HND["internal/api/handlers (APIHandler aggregates all services)"]
@@ -88,7 +88,10 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 1. **Load config** from environment (`internal/config`).
 2. **Open the database** and run migrations automatically via `golang-migrate`
    (`m.Up()`, ignoring `ErrNoChange`). Migration SQL lives in `db/migrations/`.
-3. **Initialise the airport database** (`airports.Init()`) into memory.
+3. **Initialise the airport database** (`airports.Init()`) into memory: the OurAirports
+   CSV and the mwgg/Airports JSON are fetched in parallel and merged into one indexed
+   snapshot. A failed load is logged, not fatal — lookups return `nil` until a later
+   refresh succeeds.
 4. **Construct repositories** (PostgreSQL implementations of the
    `internal/repository` interfaces).
 5. **Construct services**, injecting repositories and `pkg` utilities
@@ -106,8 +109,9 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
    `/metrics`.
 10. **Register routes**: the OpenAPI-generated routes under `/api/v1`, plus a few custom
     routes not in the spec (reports, flight utilities).
-11. **Start background workers**: the notification background checker and (optionally)
-    the backup scheduler, both bound to a cancellable context.
+11. **Start background workers**: the notification background checker, the airport
+    database refresher (`AIRPORT_REFRESH_INTERVAL`, default 24h), the import-session
+    reaper, and (optionally) the backup scheduler — all bound to a cancellable context.
 12. **Serve** with graceful shutdown that stops background workers.
 
 ### Optional / feature-flagged subsystems
@@ -118,6 +122,7 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 | WebAuthn / passkeys | `WEBAUTHN_RP_ID` set | Relying-party id/name/origins from env |
 | Cloud backups | backup credentials key set | Registers S3/SFTP/WebDAV providers + scheduler |
 | pprof profiling | `PPROF_ENABLED=true` | Debug profiling server |
+| Airport DB refresh | `AIRPORT_REFRESH_INTERVAL` ≠ `off`/`0` | Refetches and re-merges both airport datasets on a timer |
 
 ## Cross-cutting concerns
 

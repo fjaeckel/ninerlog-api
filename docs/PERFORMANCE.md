@@ -57,6 +57,23 @@ Benchmarked on Apple M2, Go 1.25, `go test -bench=. -benchmem`
 | ListFlights (500 flights) | ~5042 | 9280 | 7 |
 | GetFlight (by ID) | ~8 | 0 | 0 |
 
+### Airport Database (`internal/airports`)
+
+The merged in-memory database (OurAirports + mwgg/Airports) is read on nearly every
+flight response, so all three read paths are indexed rather than scanned.
+
+| Operation | Cost | Notes |
+|-----------|------|-------|
+| `Lookup` (exact ICAO) | ~100 ns/op | Single map hit into an atomically swapped snapshot |
+| `Nearest` (coordinates) | ~25 µs/op | 1°×1° grid index; a full haversine scan over ~35k airports would be ~100x slower |
+| `Search` (ICAO prefix) | O(log n) + matches | Binary search over the ICAO-sorted list |
+
+Full reload (both datasets fetched in parallel, merged and re-indexed): ~300 ms on a
+warm connection, ~35k airports, ~17 MB heap. Reloads never block readers — the new
+snapshot is built off to the side and swapped in with one atomic store.
+
+Run with `go test -bench . ./internal/airports/`.
+
 ---
 
 ## k6 Load Test Scenarios
@@ -265,7 +282,7 @@ docker exec -i ninerlog-perf-db psql -U perfuser -d ninerlog_perf < test/perform
 
 | Function | In-Use | % of Heap | Notes |
 |----------|--------|-----------|-------|
-| `airports.fetchAirports` | 12.8MB | 68.8% | Airport CSV database (startup) |
+| `airports` (merged database) | 12.8MB | 68.8% | In-memory airport database (startup) |
 | `csv.(*Reader).readRecord` | 6.7MB | 35.7% | Part of airport loading |
 | `runtime.allocm` | 2.6MB | 13.8% | Go runtime M allocation |
 
