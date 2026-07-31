@@ -3072,7 +3072,7 @@ type FlightCrewMemberInput struct {
 
 // FlightReviewStatus defines model for FlightReviewStatus.
 type FlightReviewStatus struct {
-	// ExpiresOn Date the flight review expires (24 calendar months after last completed)
+	// ExpiresOn Last date the flight review remains valid — the final day of the 24th calendar month after it was completed (inclusive)
 	ExpiresOn *openapi_types.Date `json:"expiresOn,omitempty"`
 
 	// LastCompleted Date of most recent flight review

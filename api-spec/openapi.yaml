@@ -6186,7 +6186,7 @@ components:
         expiresOn:
           type: [string, 'null']
           format: date
-          description: Date the flight review expires (24 calendar months after last completed)
+          description: Last date the flight review remains valid — the final day of the 24th calendar month after it was completed (inclusive)
         status:
           type: string
           enum: [current, expiring, expired, unknown]

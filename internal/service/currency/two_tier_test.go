@@ -536,8 +536,12 @@ func TestFAA_FlightReview_Current(t *testing.T) {
 func TestFAA_FlightReview_Expiring(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()
-	// Review done ~22 months ago — within 90 days of expiry
-	reviewDate := time.Now().AddDate(0, -22, 0)
+	// Pick a review date whose 24-calendar-month expiry falls at the end of the
+	// month containing now+45d, i.e. 45–76 days out — comfortably inside the
+	// 90-day window whatever today's date is. Anchoring on the 15th keeps
+	// AddDate from rolling into the next month on the 29th–31st.
+	target := time.Now().AddDate(0, 0, 45)
+	reviewDate := time.Date(target.Year(), target.Month(), 15, 0, 0, 0, 0, time.UTC).AddDate(0, -24, 0)
 	dp.lastFlightReview = &reviewDate
 
 	result := eval.EvaluateFlightReview(context.Background(), uuid.New(), dp)
@@ -556,6 +560,35 @@ func TestFAA_FlightReview_Expired(t *testing.T) {
 	result := eval.EvaluateFlightReview(context.Background(), uuid.New(), dp)
 	if result.Status != StatusExpired {
 		t.Errorf("Status = %s, want expired (30 months since review)", result.Status)
+	}
+}
+
+// A review completed 2024-09-15 is valid through the whole of 2026-09-30 —
+// the last day of the 24th calendar month — and only lapses on 2026-10-01.
+func TestFAA_FlightReview_ExpiryBoundary(t *testing.T) {
+	reviewDate := time.Date(2024, 9, 15, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name string
+		now  time.Time
+		want Status
+	}{
+		{"day before expiry", time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC), StatusExpiring},
+		{"last valid day, midday", time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC), StatusExpiring},
+		{"last valid day, last minute", time.Date(2026, 9, 30, 23, 59, 0, 0, time.UTC), StatusExpiring},
+		{"first lapsed day", time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), StatusExpired},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := faaFlightReviewStatus(tt.now, reviewDate)
+			if result.Status != tt.want {
+				t.Errorf("Status = %s, want %s", result.Status, tt.want)
+			}
+			if result.ExpiresOn == nil || *result.ExpiresOn != "2026-09-30" {
+				t.Errorf("ExpiresOn = %v, want 2026-09-30", result.ExpiresOn)
+			}
+		})
 	}
 }
 
