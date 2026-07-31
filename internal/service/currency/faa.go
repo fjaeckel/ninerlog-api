@@ -329,6 +329,12 @@ func (e *FAAEvaluator) EvaluateFlightReview(ctx context.Context, userID uuid.UUI
 		}
 	}
 
+	return faaFlightReviewStatus(time.Now(), *lastReview)
+}
+
+// faaFlightReviewStatus is the pure decision behind EvaluateFlightReview, split
+// out so the expiry boundary can be tested against a fixed clock.
+func faaFlightReviewStatus(now, lastReview time.Time) *FlightReviewStatus {
 	completedStr := lastReview.Format("2006-01-02")
 
 	// §61.56: "since the beginning of the 24th calendar month before the month
@@ -337,15 +343,17 @@ func (e *FAAEvaluator) EvaluateFlightReview(ctx context.Context, userID uuid.UUI
 	expiresOn := time.Date(lastReview.Year(), lastReview.Month()+25, 0, 0, 0, 0, 0, time.UTC) // last day of month + 24
 	expiresStr := expiresOn.Format("2006-01-02")
 
-	now := time.Now()
-	daysUntilExpiry := int(expiresOn.Sub(now).Hours() / 24)
+	// expiresOn is midnight at the *start* of the last valid day, so the review
+	// stays valid through that whole day, up to midnight the following day.
+	validUntil := expiresOn.AddDate(0, 0, 1)
+	daysUntilExpiry := int(validUntil.Sub(now).Hours() / 24)
 
 	result := &FlightReviewStatus{
 		LastCompleted: &completedStr,
 		ExpiresOn:     &expiresStr,
 	}
 
-	if now.After(expiresOn) {
+	if !now.Before(validUntil) {
 		result.Status = StatusExpired
 		result.Message = fmt.Sprintf("Flight review expired — last completed %s (14 CFR 61.56)", completedStr)
 	} else if daysUntilExpiry <= 90 {
