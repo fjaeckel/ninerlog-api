@@ -137,7 +137,8 @@ func main() {
 	}
 	slog.Info("Database migrations applied")
 
-	// Load airport database from OurAirports (async-safe, cached)
+	// Load the in-memory airport database (OurAirports + mwgg, merged).
+	// Refreshed periodically below; a failure here is non-fatal.
 	airports.Init()
 
 	// Initialize JWT manager
@@ -521,6 +522,10 @@ func main() {
 	notifCtx, notifCancel := context.WithCancel(context.Background())
 	defer notifCancel()
 	notificationService.StartBackgroundChecker(notifCtx, service.GetCheckInterval())
+
+	// Refetch the airport database on a timer (AIRPORT_REFRESH_INTERVAL,
+	// default 24h). A failed refresh keeps the snapshot already in memory.
+	airports.StartRefresher(notifCtx, airports.RefreshInterval())
 
 	// Evict expired CSV upload sessions on a timer. Without this, parsed rows
 	// stay resident until the next upload happens to trigger cleanup.

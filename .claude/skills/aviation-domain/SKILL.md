@@ -32,8 +32,8 @@ Every auto-calculated takeoff/landing field has a companion `*Override` boolean 
 manual entries.
 
 Day/night classification uses `flightrules.IsNightAt(t, lat, lon)`, backed by sunrise/sunset
-from `pkg/solar` and airport coordinates from the in-memory `internal/airports` database loaded
-once at startup. Departure/arrival may also be free-text off-airport locations, which have no
+from `pkg/solar` and airport coordinates from the in-memory `internal/airports` database (loaded
+at startup, refreshed on a timer). Departure/arrival may also be free-text off-airport locations, which have no
 coordinates — handle the missing-coordinate case rather than assuming a lookup succeeds.
 
 ## Currency engine

@@ -46,6 +46,8 @@ services:
       PPROF_PORT: "6060"
       APP_VERSION: "perf-test"
       NOTIFICATION_CHECK_INTERVAL: "24h"
+      # No periodic airport refetch in test containers
+      AIRPORT_REFRESH_INTERVAL: "off"
     ports:
       - "3334:3000"
       - "6060:6060"
