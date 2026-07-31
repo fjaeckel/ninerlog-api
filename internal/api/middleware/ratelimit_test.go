@@ -8,13 +8,26 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
+
+// hitsValue and requestsValue read a single labelled child of the rate-limit
+// counters. The counters are package-level and registered in init(), so their
+// values persist across tests in this package — every assertion below is on a
+// delta or on a limiter name used by exactly one test.
+func hitsValue(limiterName, path string) float64 {
+	return testutil.ToFloat64(RateLimitHitsTotal.WithLabelValues(limiterName, path))
+}
+
+func requestsValue(limiterName, path string) float64 {
+	return testutil.ToFloat64(RateLimitRequestsTotal.WithLabelValues(limiterName, path))
+}
 
 func TestNewRateLimitMiddleware_AllowsWithinLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	router.Use(NewRateLimitMiddleware(5, time.Minute))
+	router.Use(NewRateLimitMiddleware("test", 5, time.Minute))
 	router.GET("/test", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
@@ -34,7 +47,7 @@ func TestNewRateLimitMiddleware_BlocksOverLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	router.Use(NewRateLimitMiddleware(3, time.Minute))
+	router.Use(NewRateLimitMiddleware("test", 3, time.Minute))
 	router.GET("/test", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
@@ -65,7 +78,7 @@ func TestNewRateLimitMiddleware_DifferentIPsGetSeparateLimits(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	router.Use(NewRateLimitMiddleware(2, time.Minute))
+	router.Use(NewRateLimitMiddleware("test", 2, time.Minute))
 	router.GET("/test", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
@@ -93,7 +106,7 @@ func TestRateLimitByPath_AppliesOnlyToMatchingPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	rl := NewRateLimitMiddleware(1, time.Minute)
+	rl := NewRateLimitMiddleware("test", 1, time.Minute)
 	router.Use(RateLimitByPath(rl, "/auth/login", "/auth/register"))
 	router.POST("/auth/login", func(c *gin.Context) {
 		c.String(http.StatusOK, "login")
@@ -134,7 +147,7 @@ func TestRateLimitByPathPrefix_AppliesToOpaqueTokenSuffix(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	rl := NewRateLimitMiddleware(1, time.Minute)
+	rl := NewRateLimitMiddleware("test", 1, time.Minute)
 	router.Use(RateLimitByPathPrefix(rl, "/sign/"))
 	router.GET("/sign/:token", func(c *gin.Context) {
 		c.String(http.StatusOK, "sign")
@@ -174,7 +187,7 @@ func TestRateLimitByPathPrefix_NoMatchPassesThrough(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	rl := NewRateLimitMiddleware(1, time.Minute)
+	rl := NewRateLimitMiddleware("test", 1, time.Minute)
 	router.Use(RateLimitByPathPrefix(rl, "/sign/"))
 	router.GET("/other", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
@@ -195,7 +208,7 @@ func TestRateLimitByPath_NoMatchPassesThrough(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	rl := NewRateLimitMiddleware(1, time.Minute)
+	rl := NewRateLimitMiddleware("test", 1, time.Minute)
 	router.Use(RateLimitByPath(rl, "/auth/login"))
 	router.GET("/other", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
@@ -223,7 +236,7 @@ func TestNewUserRateLimitMiddleware_KeysByUserIDNotIP(t *testing.T) {
 		c.Set("userID", userID)
 		c.Next()
 	})
-	router.Use(NewUserRateLimitMiddleware(1, time.Minute))
+	router.Use(NewUserRateLimitMiddleware("test", 1, time.Minute))
 	router.GET("/test", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
@@ -253,7 +266,7 @@ func TestNewUserRateLimitMiddleware_FallsBackToIPWhenUnauthenticated(t *testing.
 
 	router := gin.New()
 	// No "userID" set — simulates a public/unauthenticated route.
-	router.Use(NewUserRateLimitMiddleware(1, time.Minute))
+	router.Use(NewUserRateLimitMiddleware("test", 1, time.Minute))
 	router.GET("/test", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
@@ -289,7 +302,7 @@ func TestRateLimitByPathWithQueryParam_OnlyLimitsWhenParamPresent(t *testing.T) 
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	rl := NewRateLimitMiddleware(1, time.Minute)
+	rl := NewRateLimitMiddleware("test", 1, time.Minute)
 	router.Use(RateLimitByPathWithQueryParam(rl, "/flights", "q"))
 	router.GET("/flights", func(c *gin.Context) {
 		c.String(http.StatusOK, "flights")
@@ -322,5 +335,101 @@ func TestRateLimitByPathWithQueryParam_OnlyLimitsWhenParamPresent(t *testing.T) 
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusTooManyRequests {
 		t.Errorf("Second search request returned %d, want 429", w.Code)
+	}
+}
+
+// A concrete URL like /api/v1/flights/<uuid> must be recorded under the Gin
+// route template, not the raw path. Labelling by the raw path made every
+// flight ID its own time series (unbounded cardinality) and left these
+// counters unjoinable with http_requests_total, which normalizes the same way.
+func TestRateLimitMetrics_LabelsByRouteTemplateNotRawPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.Use(NewRateLimitMiddleware("tmpl", 1, time.Minute))
+	router.GET("/api/v1/flights/:id", func(c *gin.Context) {
+		c.String(http.StatusOK, "flight")
+	})
+
+	// Two different flight IDs, same client: the second is rejected.
+	for _, id := range []string{"11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"} {
+		req := httptest.NewRequest("GET", "/api/v1/flights/"+id, nil)
+		req.RemoteAddr = "10.0.0.9:1"
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	if got := hitsValue("tmpl", "/api/v1/flights/:id"); got != 1 {
+		t.Errorf("hits for route template = %v, want 1", got)
+	}
+	// The raw path must not have produced its own series.
+	if got := hitsValue("tmpl", "/api/v1/flights/22222222-2222-2222-2222-222222222222"); got != 0 {
+		t.Errorf("hits recorded against raw URL path = %v, want 0 (cardinality leak)", got)
+	}
+	// Both requests were evaluated by the limiter, only one was rejected.
+	if got := requestsValue("tmpl", "/api/v1/flights/:id"); got != 2 {
+		t.Errorf("evaluated requests = %v, want 2", got)
+	}
+}
+
+// The denominator metric must count allowed requests too — a rejection rate is
+// uninterpretable without the traffic it is a fraction of.
+func TestRateLimitMetrics_RequestsCountsAllowedAndRejected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.Use(NewRateLimitMiddleware("denom", 2, time.Minute))
+	router.GET("/test", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.RemoteAddr = "10.0.0.10:1"
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	if got := requestsValue("denom", "/test"); got != 5 {
+		t.Errorf("evaluated requests = %v, want 5", got)
+	}
+	if got := hitsValue("denom", "/test"); got != 3 {
+		t.Errorf("rejections = %v, want 3 (5 requests, limit 2)", got)
+	}
+}
+
+// The reason this change exists: /flights carries both the coarse "general"
+// limiter and the search limiter. Since the path label drops the query string,
+// the limiter name is the only thing that separates a rejected search from a
+// rejected plain listing on the same route.
+func TestRateLimitMetrics_SearchIsDistinguishableFromPlainListing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.Use(RateLimitByPathWithQueryParam(
+		NewRateLimitMiddleware("search_only", 1, time.Minute), "/flights", "q"))
+	router.Use(NewRateLimitMiddleware("general_only", 3, time.Minute))
+	router.GET("/flights", func(c *gin.Context) { c.String(http.StatusOK, "flights") })
+
+	// Two searches: the second exhausts the search bucket.
+	for _, q := range []string{"EDDF", "EDDM"} {
+		req := httptest.NewRequest("GET", "/flights?q="+q, nil)
+		req.RemoteAddr = "10.0.0.11:1"
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+	// Four plain listings: the fourth exhausts the general bucket. (The first
+	// search also consumed a general slot, since it passed the search limiter
+	// and fell through to the chain.)
+	for i := 0; i < 4; i++ {
+		req := httptest.NewRequest("GET", "/flights", nil)
+		req.RemoteAddr = "10.0.0.11:1"
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	if got := hitsValue("search_only", "/flights"); got != 1 {
+		t.Errorf("search rejections = %v, want 1", got)
+	}
+	if got := hitsValue("general_only", "/flights"); got == 0 {
+		t.Error("general rejections = 0, want >0; the two limiters are not separable")
+	}
+	// The search limiter must not see the plain listings at all.
+	if got := requestsValue("search_only", "/flights"); got != 2 {
+		t.Errorf("requests evaluated by the search limiter = %v, want 2 (searches only)", got)
 	}
 }

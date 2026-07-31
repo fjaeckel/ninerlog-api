@@ -14,6 +14,14 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 | `APP_VERSION` | `dev` | Version string exposed in `app_info` gauge |
 | `AIRPORT_REFRESH_INTERVAL` | `24h` | How often the airport database is refetched. `off` or `0s` disables the refresher |
 
+Rate limiting is not a metrics setting, but it is what the rate-limit metrics
+below are for:
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `SEARCH_RATE_LIMIT_PER_MINUTE` | `60` | Requests per minute per user for flight search (`GET /flights?q=`). Values that are unparseable or `<= 0` are ignored with a warning and the default is kept — a limiter of zero would reject every search |
+| `DISABLE_RATE_LIMIT` | unset | `true` disables **all** rate limiting. Intended for tests and local development |
+
 ## Metric Reference
 
 ### HTTP Request Metrics
@@ -122,7 +130,27 @@ The in-memory airport database (`internal/airports`) merges two upstream dataset
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `rate_limit_hits_total` | Counter | `path` | Requests rejected by rate limiting |
+| `rate_limit_requests_total` | Counter | `limiter`, `path` | Requests **evaluated** by a limiter, allowed and rejected alike |
+| `rate_limit_hits_total` | Counter | `limiter`, `path` | Requests **rejected** by a limiter |
+
+`limiter` names the bucket that evaluated the request: `general`, `search`,
+`expensive`, `auth`, `admin`, `sign`, `signature_email`. See
+[API.md](./API.md#security-model) for each one's budget and scope.
+
+`path` is the Gin route template, the same normalization `http_requests_total`
+uses, so the two can be joined.
+
+> **Always read these as a ratio.** `rate_limit_hits_total` on its own cannot
+> tell you whether a limit is correctly sized — 2 rejections/s is a non-event
+> against 200 req/s of traffic and an outage against 3 req/s.
+> `rate_limit_requests_total` is the denominator that makes it interpretable.
+
+> **The `limiter` label is load-bearing, not decoration.** Limiters stack, and
+> the `path` label does not include the query string, so a 429 on
+> `/api/v1/flights` is ambiguous without it: the request could have exhausted
+> the coarse `general` budget or the `search` budget. Grouping rejections by
+> route alone cannot distinguish a throttled free-text search from a throttled
+> plain logbook listing.
 
 ### Go Runtime Metrics (built-in)
 
@@ -188,4 +216,19 @@ sum(rate(email_send_total{result="failure"}[15m]))
 
 # Background notification checker staleness (seconds since last success)
 time() - notification_last_success_timestamp_seconds
+
+# Rejection ratio per limiter — the number to tune a limit against
+sum by (limiter) (rate(rate_limit_hits_total[5m]))
+  / clamp_min(sum by (limiter) (rate(rate_limit_requests_total[5m])), 0.0001)
+
+# Are flight searches being throttled?
+sum(rate(rate_limit_hits_total{limiter="search"}[15m]))
+  / clamp_min(sum(rate(rate_limit_requests_total{limiter="search"}[15m])), 0.0001)
+
+# Search headroom: allowed searches per second
+sum(rate(rate_limit_requests_total{limiter="search"}[5m]))
+  - sum(rate(rate_limit_hits_total{limiter="search"}[5m]))
+
+# Cross-check the limiter counters against the 429s actually served
+sum(rate(http_requests_total{status="429"}[5m]))
 ```

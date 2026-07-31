@@ -25,10 +25,26 @@ The API exposes Prometheus metrics at `GET /metrics` (no auth). Disable with
 | `http_response_size_bytes` | Histogram | `method`, `path` | Response body size |
 | `http_requests_in_flight` | Gauge | — | Requests currently being processed |
 | `api_panics_recovered_total` | Counter | — | Panics recovered by the recovery middleware |
-| `rate_limit_hits_total` | Counter | `path` | Requests rejected by rate limiting |
 
 > `path` is the Gin route template (e.g. `/api/v1/flights/:id`) to avoid
 > high-cardinality label explosions; unmatched routes use `/*unmatched`.
+
+### Rate limiting
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `rate_limit_requests_total` | Counter | `limiter`, `path` | Requests evaluated by a limiter (allowed **and** rejected) |
+| `rate_limit_hits_total` | Counter | `limiter`, `path` | Requests rejected by a limiter |
+
+`limiter` is one of `general`, `search`, `expensive`, `auth`, `admin`, `sign`,
+`signature_email`. Both metrics use the same route-template `path` as
+`http_requests_total`.
+
+> Read them as a ratio, not in isolation: a rejection rate means nothing
+> without the traffic it is a fraction of. And because limiters stack while
+> `path` excludes the query string, the `limiter` label is the only way to tell
+> a throttled `GET /flights?q=…` search from a throttled plain listing — both
+> are `/api/v1/flights`.
 
 ### Authentication
 
@@ -144,10 +160,24 @@ prompted (the panels reference a templated `${DS_PROMETHEUS}` data source).
 
 ## Dashboards
 
+All four are tagged `ninerlog` and cross-link to each other through the
+dashboard dropdown in the top-right.
+
 | File | Focus |
 |------|-------|
-| [`dashboards/ninerlog-api-overview.json`](./dashboards/ninerlog-api-overview.json) | RED method: request rate, error rate, latency percentiles, in-flight, panics, rate-limit hits |
-| [`dashboards/ninerlog-operational.json`](./dashboards/ninerlog-operational.json) | Service health, DB connection pool, notification job freshness, email delivery, auth failures, Go runtime |
+| [`dashboards/ninerlog-api-overview.json`](./dashboards/ninerlog-api-overview.json) | RED method: request rate, error rate, latency percentiles (global and per-route), in-flight, panics, response sizes, 4xx breakdown, rate-limit hits by limiter |
+| [`dashboards/ninerlog-operational.json`](./dashboards/ninerlog-operational.json) | Service health and version, DB pool and utilization, notification job freshness and errors, email delivery and SMTP latency, login/refresh/2FA, Go runtime |
+| [`dashboards/ninerlog-ratelimits.json`](./dashboards/ninerlog-ratelimits.json) | **Start here to tune a limit.** Rejection ratio per limiter, search headroom and latency cost, rejections by route, and a cross-check against the 429s actually served |
+| [`dashboards/ninerlog-airports.json`](./dashboards/ninerlog-airports.json) | Airport database: snapshot age and size, reload outcomes, upstream fetch failures by source and reason, merge composition, lookup hit/miss/unavailable rates |
+
+### Keeping them honest
+
+Dashboards reference metric names as strings, so a rename in Go leaves a
+silently empty panel. `make dashboard-check` (or
+`python3 scripts/check-dashboards.py`) verifies that every metric referenced by
+a panel is actually declared in the Go source, that panels do not overlap or
+run past the 24-column grid, and warns about metrics that are emitted but
+charted nowhere. Run it after changing either a dashboard or a metric.
 
 ## Alerts
 
@@ -155,5 +185,12 @@ See [`alerts/prometheus-rules.yml`](./alerts/prometheus-rules.yml). Critical
 (paging) alerts include: target down, service unhealthy, high 5xx error rate,
 DB pool exhaustion, email delivery failing, an empty airport database, and the
 notification background job going stale. Warning alerts cover elevated latency,
-recovered panics, a spike in login failures (possible brute force), rate-limit
-saturation, a stale airport database, and a failing airport source.
+recovered panics, a spike in login failures (possible brute force), a limiter
+rejecting more than 5% of its own traffic, flight search being throttled at all
+(a tighter 1% threshold, because search is interactive), a stale airport
+database, and a failing airport source.
+
+The two rate-limit alerts fire on a **ratio**, not an absolute rejection rate:
+a flat threshold on rejections/s cannot distinguish a busy service shrugging
+off a scraper from a limiter turning away a third of a quiet service's real
+traffic.
