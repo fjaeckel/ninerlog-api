@@ -178,6 +178,13 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 	ds := generated.UserDecimalSeparator(user.DecimalSeparator)
 	recencyPerModel := user.RecencyPerModel
 	recencyPerRegistration := user.RecencyPerRegistration
+	columnMode := generated.UserFlightListColumnMode(models.NormalizeFlightListColumnMode(user.FlightListColumnMode))
+	// Always an array, never null: the client treats a missing list as "no
+	// optional columns", which is a different answer from "auto".
+	columns := make([]generated.FlightListColumn, 0, len(user.FlightListColumns))
+	for _, c := range user.FlightListColumns {
+		columns = append(columns, generated.FlightListColumn(c))
+	}
 	return generated.User{
 		Id:                     openapi_types.UUID(user.ID),
 		Email:                  openapi_types.Email(user.Email),
@@ -191,6 +198,8 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 		PreferredLocale:        &locale,
 		RecencyPerModel:        &recencyPerModel,
 		RecencyPerRegistration: &recencyPerRegistration,
+		FlightListColumnMode:   &columnMode,
+		FlightListColumns:      &columns,
 		CreatedAt:              user.CreatedAt,
 		UpdatedAt:              user.UpdatedAt,
 	}

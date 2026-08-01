@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -117,6 +118,21 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 	}
 	if req.RecencyPerRegistration != nil {
 		user.RecencyPerRegistration = *req.RecencyPerRegistration
+	}
+	if req.FlightListColumnMode != nil {
+		mode := string(*req.FlightListColumnMode)
+		if mode == models.FlightListColumnModeAuto || mode == models.FlightListColumnModeCustom {
+			user.FlightListColumnMode = mode
+		}
+	}
+	// An empty array is meaningful here — in custom mode it means "none of the
+	// optional columns" — so the list is replaced whenever the field is present.
+	if req.FlightListColumns != nil {
+		columns := make([]string, 0, len(*req.FlightListColumns))
+		for _, c := range *req.FlightListColumns {
+			columns = append(columns, string(c))
+		}
+		user.FlightListColumns = models.NormalizeFlightListColumns(columns)
 	}
 
 	// Update user

@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type UserRepository struct {
@@ -24,9 +25,11 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	if user.PreferredLocale == "" {
 		user.PreferredLocale = "en"
 	}
-	// Keep the in-memory struct consistent with the DB column default so a
-	// later Update from this struct doesn't silently flip the preference
+	// Keep the in-memory struct consistent with the DB column defaults so a
+	// later Update from this struct doesn't silently flip a preference
 	user.RecencyPerModel = true
+	user.FlightListColumnMode = models.FlightListColumnModeAuto
+	user.FlightListColumns = pq.StringArray{}
 
 	query := `
 		INSERT INTO users (id, email, password_hash, name, email_verified, preferred_locale, created_at, updated_at)
@@ -60,7 +63,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -85,6 +88,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.PreferredLocale,
 		&user.RecencyPerModel,
 		&user.RecencyPerRegistration,
+		&user.FlightListColumnMode,
+		&user.FlightListColumns,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -102,7 +107,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -127,6 +132,8 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.PreferredLocale,
 		&user.RecencyPerModel,
 		&user.RecencyPerRegistration,
+		&user.FlightListColumnMode,
+		&user.FlightListColumns,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -147,9 +154,22 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		SET email = $1, password_hash = $2, name = $3, two_factor_enabled = $4,
 		    two_factor_secret = $5, recovery_codes = $6, disabled = $7,
 		    last_login_at = $8, time_display_format = $9, date_format = $10, decimal_separator = $11, preferred_locale = $12,
-		    recency_per_model = $13, recency_per_registration = $14, email_verified = $15, updated_at = $16
-		WHERE id = $17
+		    recency_per_model = $13, recency_per_registration = $14, flight_list_column_mode = $15,
+		    flight_list_columns = $16, email_verified = $17, updated_at = $18
+		WHERE id = $19
 	`
+
+	// Both columns are NOT NULL. Callers that build a User without touching the
+	// flights-list preferences (or that were written before it existed) would
+	// otherwise write a NULL and fail the whole update.
+	columnMode := user.FlightListColumnMode
+	if columnMode == "" {
+		columnMode = models.FlightListColumnModeAuto
+	}
+	columns := user.FlightListColumns
+	if columns == nil {
+		columns = pq.StringArray{}
+	}
 
 	result, err := r.db.ExecContext(ctx, query,
 		user.Email,
@@ -166,6 +186,8 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.PreferredLocale,
 		user.RecencyPerModel,
 		user.RecencyPerRegistration,
+		columnMode,
+		columns,
 		// email_verified is written here so a verified address cannot silently
 		// survive an address change (see UpdateCurrentUser). Every other caller
 		// loads the user first, so writing the unchanged value back is a no-op.

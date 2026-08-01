@@ -378,6 +378,60 @@ func (e FlightCreateLaunchMethod) Valid() bool {
 	}
 }
 
+// Defines values for FlightListColumn.
+const (
+	FlightListColumnCrossCountryTime    FlightListColumn = "crossCountryTime"
+	FlightListColumnDualGivenTime       FlightListColumn = "dualGivenTime"
+	FlightListColumnDualTime            FlightListColumn = "dualTime"
+	FlightListColumnFunction            FlightListColumn = "function"
+	FlightListColumnIfrTime             FlightListColumn = "ifrTime"
+	FlightListColumnLandings            FlightListColumn = "landings"
+	FlightListColumnMultiPilotTime      FlightListColumn = "multiPilotTime"
+	FlightListColumnNightTime           FlightListColumn = "nightTime"
+	FlightListColumnOffOnBlock          FlightListColumn = "offOnBlock"
+	FlightListColumnPicTime             FlightListColumn = "picTime"
+	FlightListColumnRemarks             FlightListColumn = "remarks"
+	FlightListColumnSicTime             FlightListColumn = "sicTime"
+	FlightListColumnSimulatedFlightTime FlightListColumn = "simulatedFlightTime"
+	FlightListColumnSoloTime            FlightListColumn = "soloTime"
+)
+
+// Valid indicates whether the value is a known member of the FlightListColumn enum.
+func (e FlightListColumn) Valid() bool {
+	switch e {
+	case FlightListColumnCrossCountryTime:
+		return true
+	case FlightListColumnDualGivenTime:
+		return true
+	case FlightListColumnDualTime:
+		return true
+	case FlightListColumnFunction:
+		return true
+	case FlightListColumnIfrTime:
+		return true
+	case FlightListColumnLandings:
+		return true
+	case FlightListColumnMultiPilotTime:
+		return true
+	case FlightListColumnNightTime:
+		return true
+	case FlightListColumnOffOnBlock:
+		return true
+	case FlightListColumnPicTime:
+		return true
+	case FlightListColumnRemarks:
+		return true
+	case FlightListColumnSicTime:
+		return true
+	case FlightListColumnSimulatedFlightTime:
+		return true
+	case FlightListColumnSoloTime:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FlightReviewStatusStatus.
 const (
 	FlightReviewStatusStatusCurrent  FlightReviewStatusStatus = "current"
@@ -882,6 +936,24 @@ func (e UserDecimalSeparator) Valid() bool {
 	}
 }
 
+// Defines values for UserFlightListColumnMode.
+const (
+	UserFlightListColumnModeAuto   UserFlightListColumnMode = "auto"
+	UserFlightListColumnModeCustom UserFlightListColumnMode = "custom"
+)
+
+// Valid indicates whether the value is a known member of the UserFlightListColumnMode enum.
+func (e UserFlightListColumnMode) Valid() bool {
+	switch e {
+	case UserFlightListColumnModeAuto:
+		return true
+	case UserFlightListColumnModeCustom:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserPreferredLocale.
 const (
 	UserPreferredLocaleDe UserPreferredLocale = "de"
@@ -1095,6 +1167,24 @@ func (e UpdateCurrentUserJSONBodyDecimalSeparator) Valid() bool {
 	case UpdateCurrentUserJSONBodyDecimalSeparatorComma:
 		return true
 	case UpdateCurrentUserJSONBodyDecimalSeparatorDot:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateCurrentUserJSONBodyFlightListColumnMode.
+const (
+	UpdateCurrentUserJSONBodyFlightListColumnModeAuto   UpdateCurrentUserJSONBodyFlightListColumnMode = "auto"
+	UpdateCurrentUserJSONBodyFlightListColumnModeCustom UpdateCurrentUserJSONBodyFlightListColumnMode = "custom"
+)
+
+// Valid indicates whether the value is a known member of the UpdateCurrentUserJSONBodyFlightListColumnMode enum.
+func (e UpdateCurrentUserJSONBodyFlightListColumnMode) Valid() bool {
+	switch e {
+	case UpdateCurrentUserJSONBodyFlightListColumnModeAuto:
+		return true
+	case UpdateCurrentUserJSONBodyFlightListColumnModeCustom:
 		return true
 	default:
 		return false
@@ -3070,6 +3160,11 @@ type FlightCrewMemberInput struct {
 	Role CrewRole `json:"role"`
 }
 
+// FlightListColumn An optional column of the flights list. Date, route, aircraft and total time are the identity of a logbook row and are always shown, so they are not part of this enum. The order below is the display order, and for the time columns also the priority order in which they survive as the list gets narrower.
+//
+// Example: picTime
+type FlightListColumn string
+
 // FlightReviewStatus defines model for FlightReviewStatus.
 type FlightReviewStatus struct {
 	// ExpiresOn Last date the flight review remains valid — the final day of the 24th calendar month after it was completed (inclusive)
@@ -4121,6 +4216,16 @@ type User struct {
 	// Example: true
 	EmailVerified *bool `json:"emailVerified,omitempty"`
 
+	// FlightListColumnMode How the optional columns of the flights list are chosen. "auto" lets the client pick them from the flights on the page, so an unused column (IFR time for a VFR-only pilot) never takes up width. "custom" means flightListColumns is the user's own choice.
+	//
+	// Example: auto
+	FlightListColumnMode *UserFlightListColumnMode `json:"flightListColumnMode,omitempty"`
+
+	// FlightListColumns The optional flights-list columns the user picked. Only meaningful when flightListColumnMode is "custom", where an empty array means "none of the optional columns". Stored deduplicated and in the canonical display order; unknown values are dropped.
+	//
+	// Example: ["picTime","nightTime","landings"]
+	FlightListColumns *[]FlightListColumn `json:"flightListColumns,omitempty"`
+
 	// Id Example: 550e8400-e29b-41d4-a716-446655440000
 	Id openapi_types.UUID `json:"id"`
 
@@ -4170,6 +4275,11 @@ type UserDateFormat string
 //
 // Example: comma
 type UserDecimalSeparator string
+
+// UserFlightListColumnMode How the optional columns of the flights list are chosen. "auto" lets the client pick them from the flights on the page, so an unused column (IFR time for a VFR-only pilot) never takes up width. "custom" means flightListColumns is the user's own choice.
+//
+// Example: auto
+type UserFlightListColumnMode string
 
 // UserPreferredLocale User's preferred language for the interface.
 //
@@ -4641,7 +4751,13 @@ type UpdateCurrentUserJSONBody struct {
 	// DecimalSeparator Preferred decimal separator for number display
 	DecimalSeparator *UpdateCurrentUserJSONBodyDecimalSeparator `json:"decimalSeparator,omitempty"`
 	Email            *openapi_types.Email                       `json:"email,omitempty"`
-	Name             *string                                    `json:"name,omitempty"`
+
+	// FlightListColumnMode Whether the flights list picks its optional columns from the data ("auto") or uses flightListColumns ("custom")
+	FlightListColumnMode *UpdateCurrentUserJSONBodyFlightListColumnMode `json:"flightListColumnMode,omitempty"`
+
+	// FlightListColumns The optional flights-list columns to show in "custom" mode. Replaces the stored list; an empty array is valid and means no optional columns. Unknown values are ignored.
+	FlightListColumns *[]FlightListColumn `json:"flightListColumns,omitempty"`
+	Name              *string             `json:"name,omitempty"`
 
 	// PreferredLocale Preferred language for the interface
 	PreferredLocale *UpdateCurrentUserJSONBodyPreferredLocale `json:"preferredLocale,omitempty"`
@@ -4661,6 +4777,9 @@ type UpdateCurrentUserJSONBodyDateFormat string
 
 // UpdateCurrentUserJSONBodyDecimalSeparator defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyDecimalSeparator string
+
+// UpdateCurrentUserJSONBodyFlightListColumnMode defines parameters for UpdateCurrentUser.
+type UpdateCurrentUserJSONBodyFlightListColumnMode string
 
 // UpdateCurrentUserJSONBodyPreferredLocale defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyPreferredLocale string

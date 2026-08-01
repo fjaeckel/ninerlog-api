@@ -121,6 +121,10 @@ and delete credentials).
 ### Users
 `GET/PATCH/DELETE /users/me`, notification preferences and history, baseline
 (`GET/PUT/DELETE /users/me/baseline`), personal statistics, and account-data deletion.
+`PATCH /users/me` also carries the display preferences (`timeDisplayFormat`, `dateFormat`,
+`decimalSeparator`, `preferredLocale`, the recency toggles, and `flightListColumnMode` /
+`flightListColumns` for the flights-list columns). An unrecognised value for any of these
+is ignored rather than rejected, and the response always echoes what was stored.
 
 ### Licenses
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings

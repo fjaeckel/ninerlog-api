@@ -791,6 +791,20 @@ paths:
                 recencyPerRegistration:
                   type: boolean
                   description: Show informational 90-day landing recency per individual aircraft registration
+                flightListColumnMode:
+                  type: string
+                  enum: [auto, custom]
+                  description: >-
+                    Whether the flights list picks its optional columns from
+                    the data ("auto") or uses flightListColumns ("custom")
+                flightListColumns:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/FlightListColumn'
+                  description: >-
+                    The optional flights-list columns to show in "custom" mode.
+                    Replaces the stored list; an empty array is valid and means
+                    no optional columns. Unknown values are ignored.
       responses:
         '200':
           description: User updated successfully
@@ -4061,6 +4075,52 @@ components:
             registration. Off by default — FCL.060(b) recency is defined per
             type/class, so per-registration tracking is purely a familiarity
             aid.
+        flightListColumnMode:
+          type: string
+          enum: [auto, custom]
+          default: auto
+          example: auto
+          description: >-
+            How the optional columns of the flights list are chosen. "auto"
+            lets the client pick them from the flights on the page, so an
+            unused column (IFR time for a VFR-only pilot) never takes up width.
+            "custom" means flightListColumns is the user's own choice.
+        flightListColumns:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightListColumn'
+          default: []
+          example: [picTime, nightTime, landings]
+          description: >-
+            The optional flights-list columns the user picked. Only meaningful
+            when flightListColumnMode is "custom", where an empty array means
+            "none of the optional columns". Stored deduplicated and in the
+            canonical display order; unknown values are dropped.
+
+    FlightListColumn:
+      type: string
+      description: >-
+        An optional column of the flights list. Date, route, aircraft and total
+        time are the identity of a logbook row and are always shown, so they
+        are not part of this enum. The order below is the display order, and
+        for the time columns also the priority order in which they survive as
+        the list gets narrower.
+      enum:
+        - offOnBlock
+        - picTime
+        - nightTime
+        - dualTime
+        - ifrTime
+        - crossCountryTime
+        - sicTime
+        - dualGivenTime
+        - multiPilotTime
+        - soloTime
+        - simulatedFlightTime
+        - function
+        - landings
+        - remarks
+      example: picTime
 
     TwoFactorSetup:
       type: object

@@ -20,6 +20,12 @@ token/2FA/WebAuthn deep-dive.
   (single-use 1h token), `…/password-reset`.
 - **Brute-force protection** — failed logins increment `FailedLoginAttempts`; after the
   threshold the account is locked (`LockedUntil`).
+- **Display preferences** — `PATCH /users/me` stores how a client should present the
+  logbook: time format, date format, decimal separator, interface language, the
+  informational recency toggles, and which optional columns the flights list shows
+  (`flightListColumnMode` `auto`/`custom` plus `flightListColumns`). The API stores and
+  validates the choice; rendering it — including hiding columns again when the list is
+  too narrow — is the client's job. See [DATA_MODEL.md](./DATA_MODEL.md#core-entities).
 - **Code**: `internal/service/auth.go`, handlers in `internal/api/handlers/auth.go`,
   repositories for users / refresh / reset / verification tokens.
 
