@@ -22,11 +22,11 @@ type LegacyCrewMember struct {
 // inference does not overwrite the source-of-truth tag (e.g. a flight
 // where the instructor is Person2 and Person1 is the student).
 type LegacyCrewInput struct {
-	Person1, Person2, Person3, Person4, Person5, Person6                 string
+	Person1, Person2, Person3, Person4, Person5, Person6                         string
 	Person1Role, Person2Role, Person3Role, Person4Role, Person5Role, Person6Role string
-	InstructorName                                                       string
-	HasDualReceived                                                      bool // any positive DualReceived value
-	HasDualGiven                                                         bool // any positive DualGiven value
+	InstructorName                                                               string
+	HasDualReceived                                                              bool // any positive DualReceived value
+	HasDualGiven                                                                 bool // any positive DualGiven value
 }
 
 // NormalizeLegacyRole maps a free-form role string (case-insensitive) to

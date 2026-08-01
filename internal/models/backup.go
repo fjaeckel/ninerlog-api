@@ -67,28 +67,28 @@ const (
 // "s3") and carries provider-specific non-secret config in Config plus an
 // encrypted credential blob.
 type BackupDestination struct {
-	ID                 uuid.UUID
-	UserID             uuid.UUID
-	Provider           string
-	DisplayName        string
-	Config             map[string]any
-	CredentialHint     string
-	CredentialsEnc     []byte
-	CredentialsNonce   []byte
-	Schedule           BackupSchedule
-	ScheduleHourUTC    int
-	ScheduleDayOfWeek  *int
-	ScheduleDayOfMonth *int
-	RetentionCount     int
-	Status             BackupDestinationStatus
-	LastError          string
-	Enabled            bool
+	ID                  uuid.UUID
+	UserID              uuid.UUID
+	Provider            string
+	DisplayName         string
+	Config              map[string]any
+	CredentialHint      string
+	CredentialsEnc      []byte
+	CredentialsNonce    []byte
+	Schedule            BackupSchedule
+	ScheduleHourUTC     int
+	ScheduleDayOfWeek   *int
+	ScheduleDayOfMonth  *int
+	RetentionCount      int
+	Status              BackupDestinationStatus
+	LastError           string
+	Enabled             bool
 	ConsecutiveFailures int
-	LastRunAt          *time.Time
-	LastSuccessAt      *time.Time
-	LastSuccessSHA256  string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	LastRunAt           *time.Time
+	LastSuccessAt       *time.Time
+	LastSuccessSHA256   string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // BackupRun is the audit record of a single backup attempt.

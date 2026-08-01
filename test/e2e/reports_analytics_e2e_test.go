@@ -88,6 +88,7 @@ type analyticsResponse struct {
 	HourOfDay       []analyticsBucket `json:"hourOfDay"`
 	MonthOfYear     []analyticsBucket `json:"monthOfYear"`
 	DurationBuckets []analyticsBucket `json:"durationBuckets"`
+	Baseline        *analyticsBaseline `json:"baseline"`
 	Records         struct {
 		LongestFlight *struct {
 			Date         string `json:"date"`
@@ -111,6 +112,14 @@ type analyticsAircraftRow struct {
 	Flights      int     `json:"flights"`
 	TotalMinutes int     `json:"totalMinutes"`
 	Landings     int     `json:"landings"`
+}
+
+type analyticsBaseline struct {
+	BaselineDate string `json:"baselineDate"`
+	TotalFlights int    `json:"totalFlights"`
+	TotalMinutes int    `json:"totalMinutes"`
+	PICMinutes   int    `json:"picMinutes"`
+	LandingsDay  int    `json:"landingsDay"`
 }
 
 type analyticsBucket struct {
@@ -491,6 +500,103 @@ func TestReportsAnalyticsTimeframeScoping(t *testing.T) {
 	if recent.Records.DaysSinceLastFlight == nil || *recent.Records.DaysSinceLastFlight != 3 {
 		t.Errorf("Expected 3 days since last flight regardless of timeframe, got %v",
 			recent.Records.DaysSinceLastFlight)
+	}
+}
+
+// TestReportsAnalyticsBaseline covers the initial-hours snapshot: pre-existing
+// experience that was never entered as flights still has to show up in the
+// Reports totals, and it has to agree with GET /users/me/statistics — the two
+// pages used to disagree because only the statistics endpoint applied it.
+func TestReportsAnalyticsBaseline(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("analytics-baseline"), "SecurePass123!", "Analytics Baseline")
+
+	// 500h carried over from a paper logbook, cut off three years ago.
+	baselineDate := time.Now().AddDate(-3, 0, 0).Format("2006-01-02")
+	requireStatus(t, c.PUT("/users/me/baseline", map[string]interface{}{
+		"baselineDate": baselineDate,
+		"totalFlights": 400,
+		"totalMinutes": 30000,
+		"picMinutes":   24000,
+		"landingsDay":  600,
+	}), http.StatusOK)
+
+	// One logged flight on top: 60 min PIC, 1 day landing.
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": pastDate(3), "aircraftReg": "D-ENEW", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:00",
+		"totalTime": 60, "picTime": 60, "landings": 1,
+	}), http.StatusCreated)
+
+	all := getAnalytics(t, c, "?months=0")
+
+	if all.Baseline == nil {
+		t.Fatal("All time: expected the baseline contribution to be reported")
+	}
+	if all.Baseline.TotalMinutes != 30000 || all.Baseline.BaselineDate != baselineDate {
+		t.Errorf("All time: unexpected baseline block %+v", *all.Baseline)
+	}
+	if want := 30000 + 60; all.Totals.TotalMinutes != want {
+		t.Errorf("All time: expected %d total minutes including the baseline, got %d",
+			want, all.Totals.TotalMinutes)
+	}
+	if want := 400 + 1; all.Totals.TotalFlights != want {
+		t.Errorf("All time: expected %d flights including the baseline, got %d",
+			want, all.Totals.TotalFlights)
+	}
+	if want := 24000 + 60; all.Totals.PICMinutes != want {
+		t.Errorf("All time: expected %d PIC minutes including the baseline, got %d",
+			want, all.Totals.PICMinutes)
+	}
+	if want := 600 + 1; all.Totals.LandingsDay != want {
+		t.Errorf("All time: expected %d day landings including the baseline, got %d",
+			want, all.Totals.LandingsDay)
+	}
+
+	// The dashboard reads this endpoint; the two totals must match.
+	statsResp := c.GET("/users/me/statistics")
+	requireStatus(t, statsResp, http.StatusOK)
+	var stats struct {
+		TotalFlights int `json:"totalFlights"`
+		TotalMinutes int `json:"totalMinutes"`
+		PICMinutes   int `json:"picMinutes"`
+	}
+	if err := statsResp.JSON(&stats); err != nil {
+		t.Fatalf("Failed to decode statistics response: %v", err)
+	}
+	if stats.TotalMinutes != all.Totals.TotalMinutes || stats.TotalFlights != all.Totals.TotalFlights ||
+		stats.PICMinutes != all.Totals.PICMinutes {
+		t.Errorf("Reports totals (%d flights / %d min / %d PIC) disagree with dashboard statistics (%d / %d / %d)",
+			all.Totals.TotalFlights, all.Totals.TotalMinutes, all.Totals.PICMinutes,
+			stats.TotalFlights, stats.TotalMinutes, stats.PICMinutes)
+	}
+
+	// The cumulative curve starts from the carried-forward hours, so over all
+	// time it ends exactly at the totals.
+	if len(all.Monthly) == 0 {
+		t.Fatal("Expected at least one month in the all-time series")
+	}
+	if last := all.Monthly[len(all.Monthly)-1].CumulativeMinutes; last != all.Totals.TotalMinutes {
+		t.Errorf("Cumulative curve ends at %d, expected %d", last, all.Totals.TotalMinutes)
+	}
+
+	// A window that starts after the baseline cutoff reports logged time only —
+	// the same rule the statistics endpoint applies to startDate.
+	recent := getAnalytics(t, c, "?months=6")
+	if recent.Baseline != nil {
+		t.Errorf("6 months: expected no baseline contribution, got %+v", *recent.Baseline)
+	}
+	if recent.Totals.TotalMinutes != 60 || recent.Totals.TotalFlights != 1 {
+		t.Errorf("6 months: expected 1 flight / 60 min without the baseline, got %d / %d",
+			recent.Totals.TotalFlights, recent.Totals.TotalMinutes)
+	}
+	// It is still carried into the cumulative curve, which shows career hours.
+	if len(recent.Monthly) == 0 {
+		t.Fatal("Expected at least one month in the 6-month window")
+	}
+	if last := recent.Monthly[len(recent.Monthly)-1].CumulativeMinutes; last != 30060 {
+		t.Errorf("Expected the cumulative curve to reach 30060 career minutes, got %d", last)
 	}
 }
 

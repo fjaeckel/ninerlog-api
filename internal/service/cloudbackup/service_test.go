@@ -194,10 +194,10 @@ type fakeProvider struct {
 	listErr     error
 	deleteErr   error
 
-	objects        []provider.RemoteBackup
-	uploads        []provider.UploadInput
-	deletes        []string
-	validateCalls  int
+	objects       []provider.RemoteBackup
+	uploads       []provider.UploadInput
+	deletes       []string
+	validateCalls int
 }
 
 func (f *fakeProvider) Name() string        { return "fake" }

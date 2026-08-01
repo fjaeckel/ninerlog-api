@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -49,6 +52,17 @@ func newAnalyticsScope(userID uuid.UUID, months int) analyticsScope {
 }
 
 func (s analyticsScope) allTime() bool { return s.months <= 0 }
+
+// coversBaseline reports whether an initial-hours snapshot dated `baselineDate`
+// falls inside the timeframe. The snapshot stands for everything flown on or
+// before its cutoff, so it is excluded only when the window starts after it —
+// the same rule GET /users/me/statistics applies.
+func (s analyticsScope) coversBaseline(baselineDate time.Time, now time.Time) bool {
+	if s.allTime() {
+		return true
+	}
+	return !s.from(now).After(baselineDate)
+}
 
 // withLimit returns the scope args plus a row limit, and the placeholder that
 // refers to it.
@@ -154,10 +168,24 @@ func (h *APIHandler) GetFlightAnalytics(c *gin.Context, params generated.GetFlig
 	out.ByCountry = countriesFromAirports(out.ByAirport)
 	applyAirportRecords(&out)
 
+	// The initial-hours snapshot is pre-existing experience that was never
+	// entered as flights. It is carried into the totals whenever the timeframe
+	// reaches back to it, so this page agrees with the dashboard statistics.
+	// Only `totals` can take it — no month, aircraft or airport owns it.
+	baseline, err := h.analyticsBaseline(ctx, userID)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to load initial hours")
+		return
+	}
+	if baseline != nil && scope.coversBaseline(baseline.BaselineDate, now) {
+		addBaselineToTotals(&out.Totals, baseline)
+		out.Baseline = baselineContribution(baseline)
+	}
+
 	// Cumulative career hours: everything logged before the timeframe plus
 	// the user's initial-hours snapshot, so the curve is not truncated by the
 	// selected range.
-	carried, err := h.analyticsCarriedForwardMinutes(ctx, scope, now)
+	carried, err := h.analyticsCarriedForwardMinutes(ctx, scope, baseline)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to compute cumulative hours")
 		return
@@ -316,14 +344,10 @@ func (h *APIHandler) analyticsYearly(ctx context.Context, s analyticsScope) ([]g
 // analyticsCarriedForwardMinutes returns the block time accumulated before the
 // timeframe starts: the initial-hours snapshot plus every flight logged
 // earlier than the first month in range.
-func (h *APIHandler) analyticsCarriedForwardMinutes(ctx context.Context, s analyticsScope, now time.Time) (int, error) {
-	var baseline int
-	err := h.db.QueryRowContext(ctx,
-		`SELECT COALESCE(total_minutes, 0) FROM flight_baselines WHERE user_id = $1`,
-		s.userID,
-	).Scan(&baseline)
-	if err != nil && err != sql.ErrNoRows {
-		return 0, err
+func (h *APIHandler) analyticsCarriedForwardMinutes(ctx context.Context, s analyticsScope, b *models.FlightBaseline) (int, error) {
+	baseline := 0
+	if b != nil {
+		baseline = b.TotalMinutes
 	}
 	if s.allTime() {
 		return baseline, nil
@@ -340,6 +364,44 @@ func (h *APIHandler) analyticsCarriedForwardMinutes(ctx context.Context, s analy
 		return 0, err
 	}
 	return baseline + earlier, nil
+}
+
+// ── Initial hours ────────────────────────────────────────────────────────
+
+// analyticsBaseline loads the user's initial-hours snapshot, or nil when they
+// have none.
+func (h *APIHandler) analyticsBaseline(ctx context.Context, userID uuid.UUID) (*models.FlightBaseline, error) {
+	if h.flightService == nil {
+		return nil, nil
+	}
+	b, err := h.flightService.GetBaseline(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return b, nil
+}
+
+// addBaselineToTotals folds the snapshot into the aggregate totals. Only the
+// columns a baseline records are touched — approaches, distance, takeoffs and
+// the distinct-aircraft counts are not part of the snapshot, and the
+// first-flight date deliberately keeps pointing at the first *logged* flight.
+func addBaselineToTotals(t *generated.AnalyticsTotals, b *models.FlightBaseline) {
+	t.TotalFlights += b.TotalFlights
+	t.TotalMinutes += b.TotalMinutes
+	t.PicMinutes += b.PICMinutes
+	t.SicMinutes += b.SICMinutes
+	t.DualMinutes += b.DualMinutes
+	t.DualGivenMinutes += b.DualGivenMinutes
+	t.MultiPilotMinutes += b.MultiPilotMinutes
+	t.SoloMinutes += b.SoloMinutes
+	t.NightMinutes += b.NightMinutes
+	t.IfrMinutes += b.IFRMinutes
+	t.CrossCountryMinutes += b.CrossCountryMinutes
+	t.LandingsDay += b.LandingsDay
+	t.LandingsNight += b.LandingsNight
 }
 
 // ── Aircraft ─────────────────────────────────────────────────────────────

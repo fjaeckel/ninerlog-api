@@ -38,11 +38,11 @@ func BenchmarkEASAEvaluator(b *testing.B) {
 
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalMinutes: 6000,
-		PICMinutes:   5000,
-		Flights:      60,
-		Landings:     80,
-		DayLandings:  70,
+		TotalMinutes:  6000,
+		PICMinutes:    5000,
+		Flights:       60,
+		Landings:      80,
+		DayLandings:   70,
 		NightLandings: 10,
 	}
 
@@ -95,11 +95,11 @@ func BenchmarkEvaluateAll(b *testing.B) {
 	// Mock flight data provider
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalMinutes: 6000,
-		PICMinutes:   5000,
-		Flights:      60,
-		Landings:     80,
-		DayLandings:  70,
+		TotalMinutes:  6000,
+		PICMinutes:    5000,
+		Flights:       60,
+		Landings:      80,
+		DayLandings:   70,
 		NightLandings: 10,
 	}
 	dp.progressAll = &Progress{

@@ -22,13 +22,13 @@ import (
 //   - Per-user concurrency cap: at most one run per user can be in flight
 //     across all of their destinations.
 type Scheduler struct {
-	svc        *Service
-	tick       time.Duration
-	jitter     time.Duration
-	stop       chan struct{}
-	wg         sync.WaitGroup
-	logger     *log.Logger
-	userLocks  *userLockSet
+	svc       *Service
+	tick      time.Duration
+	jitter    time.Duration
+	stop      chan struct{}
+	wg        sync.WaitGroup
+	logger    *log.Logger
+	userLocks *userLockSet
 	// runHook is called for each dispatched run; tests use it to observe
 	// without spinning the goroutine.
 	runHook func(req RunRequest)

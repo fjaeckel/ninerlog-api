@@ -1903,7 +1903,9 @@ type AnalyticsRouteRow struct {
 	TotalMinutes int     `json:"totalMinutes"`
 }
 
-// AnalyticsTotals defines model for AnalyticsTotals.
+// AnalyticsTotals Aggregated totals for the timeframe. When the user has an initial-hours
+// snapshot that the timeframe reaches back to, its carried-forward totals
+// are included here and reported separately in `FlightAnalytics.baseline`.
 type AnalyticsTotals struct {
 	ActualInstrumentMinutes int `json:"actualInstrumentMinutes"`
 	Approaches              int `json:"approaches"`
@@ -2905,9 +2907,16 @@ type FlightLaunchMethod string
 // FlightAnalytics defines model for FlightAnalytics.
 type FlightAnalytics struct {
 	// ApproachTypes Instrument approaches flown, grouped by approach type.
-	ApproachTypes  []AnalyticsApproachTypeRow `json:"approachTypes"`
-	ByAircraftType []AnalyticsAircraftRow     `json:"byAircraftType"`
-	ByAirport      []AnalyticsAirportRow      `json:"byAirport"`
+	ApproachTypes []AnalyticsApproachTypeRow `json:"approachTypes"`
+
+	// Baseline Present when the user's initial-hours snapshot was added to `totals`.
+	// The snapshot is applied whenever the timeframe reaches back to the
+	// baseline date (always for all time), so the Reports totals match the
+	// dashboard statistics. It contributes to `totals` only — per-month,
+	// per-aircraft and per-airport breakdowns cannot attribute it.
+	Baseline       *StatisticsBaselineContribution `json:"baseline,omitempty"`
+	ByAircraftType []AnalyticsAircraftRow          `json:"byAircraftType"`
+	ByAirport      []AnalyticsAirportRow           `json:"byAirport"`
 
 	// ByCategory Aircraft categories (tailwheel, complex, high performance). A flight can appear in more than one category.
 	ByCategory []AnalyticsGroupRow   `json:"byCategory"`
@@ -2938,7 +2947,11 @@ type FlightAnalytics struct {
 	Monthly []AnalyticsMonthPoint `json:"monthly"`
 	Range   AnalyticsRange        `json:"range"`
 	Records AnalyticsRecords      `json:"records"`
-	Totals  AnalyticsTotals       `json:"totals"`
+
+	// Totals Aggregated totals for the timeframe. When the user has an initial-hours
+	// snapshot that the timeframe reaches back to, its carried-forward totals
+	// are included here and reported separately in `FlightAnalytics.baseline`.
+	Totals AnalyticsTotals `json:"totals"`
 
 	// Yearly One entry per calendar year in the timeframe that has at least one flight, oldest first.
 	Yearly []AnalyticsYearPoint `json:"yearly"`

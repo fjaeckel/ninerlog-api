@@ -17,13 +17,13 @@ const (
 
 // ClassRatingCurrency holds the currency evaluation result for one class rating
 type ClassRatingCurrency struct {
-	ClassRatingID        uuid.UUID              `json:"classRatingId"`
-	ClassType            models.ClassType       `json:"classType"`
-	LicenseID            uuid.UUID              `json:"licenseId"`
-	RegulatoryAuthority  string                 `json:"regulatoryAuthority"`
-	LicenseType          string                 `json:"licenseType"`
-	Status               Status                 `json:"status"`
-	ExpiryDate           *string                `json:"expiryDate,omitempty"`
+	ClassRatingID       uuid.UUID        `json:"classRatingId"`
+	ClassType           models.ClassType `json:"classType"`
+	LicenseID           uuid.UUID        `json:"licenseId"`
+	RegulatoryAuthority string           `json:"regulatoryAuthority"`
+	LicenseType         string           `json:"licenseType"`
+	Status              Status           `json:"status"`
+	ExpiryDate          *string          `json:"expiryDate,omitempty"`
 	// WindowOpensAt is set for expiry-anchored revalidation rules
 	// (EASA FCL.740.A SEP/TMG/MEP/SET, FCL.625.A IR). It is the date on which
 	// the 12-month experience-counting window opens (expiry − 12 months).
