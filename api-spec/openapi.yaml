@@ -930,8 +930,9 @@ paths:
       description: |
         Returns the user's optional initial-hours snapshot. The snapshot represents
         flying experience accumulated up to a chosen cutoff date and is added to
-        aggregated user-level statistics (`/users/me/statistics`) when the
-        requested date range covers the cutoff. Returns 404 when no snapshot exists.
+        aggregated user-level statistics (`/users/me/statistics`) and to the
+        Reports totals (`/reports/analytics`) when the requested date range covers
+        the cutoff. Returns 404 when no snapshot exists.
       operationId: getMyBaseline
       security:
         - bearerAuth: []
@@ -2803,6 +2804,11 @@ paths:
         Every section is scoped to the requested timeframe except
         `records.allTime`, which is deliberately computed over the whole
         logbook so records stay stable as the timeframe changes.
+
+        `totals` also includes the user's initial-hours snapshot whenever the
+        timeframe reaches back to its cutoff date, so it matches
+        `GET /users/me/statistics`; the contribution is reported separately in
+        `baseline`.
       operationId: getFlightAnalytics
       security:
         - bearerAuth: []
@@ -7808,6 +7814,15 @@ components:
             $ref: '#/components/schemas/AnalyticsBucketRow'
         records:
           $ref: '#/components/schemas/AnalyticsRecords'
+        baseline:
+          allOf:
+            - $ref: '#/components/schemas/StatisticsBaselineContribution'
+          description: |
+            Present when the user's initial-hours snapshot was added to `totals`.
+            The snapshot is applied whenever the timeframe reaches back to the
+            baseline date (always for all time), so the Reports totals match the
+            dashboard statistics. It contributes to `totals` only — per-month,
+            per-aircraft and per-airport breakdowns cannot attribute it.
 
     AnalyticsRange:
       type: object
@@ -7833,6 +7848,10 @@ components:
 
     AnalyticsTotals:
       type: object
+      description: |
+        Aggregated totals for the timeframe. When the user has an initial-hours
+        snapshot that the timeframe reaches back to, its carried-forward totals
+        are included here and reported separately in `FlightAnalytics.baseline`.
       required:
         - totalFlights
         - totalMinutes

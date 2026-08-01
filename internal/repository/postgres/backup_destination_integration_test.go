@@ -33,18 +33,18 @@ func TestBackupDestinationRepositoryIntegration(t *testing.T) {
 
 	t.Run("create and retrieve", func(t *testing.T) {
 		d := &models.BackupDestination{
-			UserID:          user.ID,
-			Provider:        "s3",
-			DisplayName:     "primary",
-			Config:          map[string]any{"bucket": "test-bucket", "region": "us-east-1"},
-			CredentialHint:  "•••1234",
-			CredentialsEnc:  []byte{0x01, 0x02},
+			UserID:           user.ID,
+			Provider:         "s3",
+			DisplayName:      "primary",
+			Config:           map[string]any{"bucket": "test-bucket", "region": "us-east-1"},
+			CredentialHint:   "•••1234",
+			CredentialsEnc:   []byte{0x01, 0x02},
 			CredentialsNonce: []byte{0x03, 0x04},
-			Schedule:        models.BackupScheduleDaily,
-			ScheduleHourUTC: 3,
-			RetentionCount:  30,
-			Status:          models.BackupStatusActive,
-			Enabled:         true,
+			Schedule:         models.BackupScheduleDaily,
+			ScheduleHourUTC:  3,
+			RetentionCount:   30,
+			Status:           models.BackupStatusActive,
+			Enabled:          true,
 		}
 		if err := repo.Create(ctx, d); err != nil {
 			t.Fatalf("Create: %v", err)
@@ -71,7 +71,7 @@ func TestBackupDestinationRepositoryIntegration(t *testing.T) {
 	t.Run("update", func(t *testing.T) {
 		d := &models.BackupDestination{
 			UserID: user.ID, Provider: "s3", DisplayName: "updatable",
-			Config: map[string]any{"bucket": "b", "region": "us-east-1"},
+			Config:         map[string]any{"bucket": "b", "region": "us-east-1"},
 			CredentialsEnc: []byte{1}, CredentialsNonce: []byte{2},
 			Schedule: models.BackupScheduleManual, ScheduleHourUTC: 0,
 			Status: models.BackupStatusActive, Enabled: true, RetentionCount: 5,
@@ -93,7 +93,7 @@ func TestBackupDestinationRepositoryIntegration(t *testing.T) {
 	t.Run("delete", func(t *testing.T) {
 		d := &models.BackupDestination{
 			UserID: user.ID, Provider: "s3", DisplayName: "todelete",
-			Config: map[string]any{"bucket": "b", "region": "us-east-1"},
+			Config:         map[string]any{"bucket": "b", "region": "us-east-1"},
 			CredentialsEnc: []byte{1}, CredentialsNonce: []byte{2},
 			Schedule: models.BackupScheduleManual, ScheduleHourUTC: 0,
 			Status: models.BackupStatusActive, Enabled: true,
@@ -124,7 +124,7 @@ func TestBackupDestinationRepositoryIntegration(t *testing.T) {
 		now := time.Now().UTC()
 		d := &models.BackupDestination{
 			UserID: user.ID, Provider: "s3", DisplayName: "due-daily",
-			Config: map[string]any{"bucket": "b", "region": "us-east-1"},
+			Config:         map[string]any{"bucket": "b", "region": "us-east-1"},
 			CredentialsEnc: []byte{1}, CredentialsNonce: []byte{2},
 			Schedule: models.BackupScheduleDaily, ScheduleHourUTC: now.Hour(),
 			Status: models.BackupStatusActive, Enabled: true,
@@ -152,7 +152,7 @@ func TestBackupDestinationRepositoryIntegration(t *testing.T) {
 		now := time.Now().UTC()
 		d := &models.BackupDestination{
 			UserID: user.ID, Provider: "s3", DisplayName: "paused",
-			Config: map[string]any{"bucket": "b", "region": "us-east-1"},
+			Config:         map[string]any{"bucket": "b", "region": "us-east-1"},
 			CredentialsEnc: []byte{1}, CredentialsNonce: []byte{2},
 			Schedule: models.BackupScheduleDaily, ScheduleHourUTC: now.Hour(),
 			Status: models.BackupStatusPaused, Enabled: true,

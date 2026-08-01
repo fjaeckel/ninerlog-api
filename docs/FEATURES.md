@@ -87,8 +87,13 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 
 - **Statistics** — hour totals and breakdowns per user/license (`reports.go`,
   `admin_dashboard.go`, service aggregation).
-- **Reports** — trends over time and stats-by-class. Some report routes are registered
-  manually via `RegisterReportsRoutes` (not generated from the spec).
+- **Reports** — `GET /reports/analytics` backs the whole Reports page from one request
+  (`reports_analytics.go`); trends and stats-by-class live in `reports.go`. Some report
+  routes are registered manually via `RegisterReportsRoutes` (not generated from the spec).
+- **Initial hours** — a per-user snapshot of pre-existing experience (`FlightBaseline`).
+  It is added to the totals of both the statistics endpoint and the Reports analytics
+  totals whenever the requested range reaches back to its cutoff date, so the dashboard
+  and the Reports page show the same career totals.
 - **Maps** — airport lookup/search backed by the in-memory airport database
   (`internal/airports`), plus route and airport-activity statistics (`maps.go`).
   The database merges two upstream datasets — OurAirports (CSV) and mwgg/Airports

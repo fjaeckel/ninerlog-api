@@ -148,7 +148,13 @@ CRUD on `/credentials` (medicals, language proficiency, clearances).
 `GET /currency` (all ratings) and `GET /licenses/{id}/currency`.
 
 ### Maps & Reports
-Airport lookup/search, route and airport statistics, trends, and stats-by-class.
+Airport lookup/search, route and airport statistics, trends, and stats-by-class, plus
+`GET /reports/analytics` — the whole Reports page in one round trip (totals, monthly and
+yearly series, breakdowns, patterns, records), scoped by `months` (0 = all time). Its
+`totals` include the user's initial-hours snapshot whenever the timeframe reaches back to
+the snapshot's cutoff date, so they agree with `GET /users/me/statistics`; the contribution
+is reported separately as `baseline`. Per-month, per-aircraft and per-airport breakdowns
+cover logged flights only — there is nothing to attribute a snapshot to.
 
 ### Contacts
 CRUD and search on `/contacts` (reusable crew/instructor records).

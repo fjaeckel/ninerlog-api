@@ -348,17 +348,17 @@ func fieldsToAPI(in []provider.Field) []generated.BackupField {
 
 func destinationToAPI(d *models.BackupDestination) generated.BackupDestination {
 	out := generated.BackupDestination{
-		Id:              openapi_types.UUID(d.ID),
-		UserId:          openapi_types.UUID(d.UserID),
-		Provider:        d.Provider,
-		DisplayName:     d.DisplayName,
-		Config:          d.Config,
-		Schedule:        generated.BackupSchedule(string(d.Schedule)),
-		RetentionCount:  d.RetentionCount,
-		Status:          generated.BackupStatus(string(d.Status)),
-		Enabled:         d.Enabled,
-		CreatedAt:       d.CreatedAt,
-		UpdatedAt:       d.UpdatedAt,
+		Id:             openapi_types.UUID(d.ID),
+		UserId:         openapi_types.UUID(d.UserID),
+		Provider:       d.Provider,
+		DisplayName:    d.DisplayName,
+		Config:         d.Config,
+		Schedule:       generated.BackupSchedule(string(d.Schedule)),
+		RetentionCount: d.RetentionCount,
+		Status:         generated.BackupStatus(string(d.Status)),
+		Enabled:        d.Enabled,
+		CreatedAt:      d.CreatedAt,
+		UpdatedAt:      d.UpdatedAt,
 	}
 	hour := d.ScheduleHourUTC
 	out.ScheduleHourUtc = &hour

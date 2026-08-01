@@ -579,11 +579,11 @@ func TestDualGivenTime_SelfInstructor_NameVariants(t *testing.T) {
 		{"leading space", " Amelia Earhart", true},
 		{"lowercase", "amelia earhart", true},
 		{"uppercase", "AMELIA EARHART", true},
-		{"double space", "Amelia  Earhart", true},             // flightrules.NormalizeName collapses interior whitespace
-		{"reversed Last, First", "Earhart, Amelia", true},     // contact-picker style — handled by MatchesUser
-		{"with middle initial", "Amelia M. Earhart", false},   // still treated as third-party (different identity)
-		{"non-breaking space", "Amelia\u00a0Earhart", true},   // U+00A0 folded to ASCII space by NormalizeName
-		{"trailing tab+newline", "Amelia Earhart\t\n", true},  // tabs/newlines normalised
+		{"double space", "Amelia  Earhart", true},            // flightrules.NormalizeName collapses interior whitespace
+		{"reversed Last, First", "Earhart, Amelia", true},    // contact-picker style — handled by MatchesUser
+		{"with middle initial", "Amelia M. Earhart", false},  // still treated as third-party (different identity)
+		{"non-breaking space", "Amelia\u00a0Earhart", true},  // U+00A0 folded to ASCII space by NormalizeName
+		{"trailing tab+newline", "Amelia Earhart\t\n", true}, // tabs/newlines normalised
 	}
 
 	for _, tc := range cases {

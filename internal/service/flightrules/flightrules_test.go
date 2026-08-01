@@ -11,7 +11,7 @@ func TestNormalizeName(t *testing.T) {
 		{"", ""},
 		{"Amelia Earhart", "amelia earhart"},
 		{"  Amelia Earhart  ", "amelia earhart"},
-		{"Amelia  Earhart", "amelia earhart"},      // collapse internal whitespace
+		{"Amelia  Earhart", "amelia earhart"},     // collapse internal whitespace
 		{"Amelia\u00a0Earhart", "amelia earhart"}, // U+00A0 nbsp
 		{"AMELIA\tEARHART\n", "amelia earhart"},
 	}

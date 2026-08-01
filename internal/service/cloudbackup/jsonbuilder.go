@@ -62,13 +62,13 @@ type licenseWithRatings struct {
 // payload is the wire layout of one backup. Field order matches the legacy
 // ExportDataJSON output.
 type payload struct {
-	ExportedAt  string                `json:"exportedAt"`
-	Version     string                `json:"version"`
-	Format      string                `json:"format"`
-	Flights     []*models.Flight      `json:"flights"`
-	Aircraft    []*models.Aircraft    `json:"aircraft"`
-	Licenses    []licenseWithRatings  `json:"licenses"`
-	Credentials []*models.Credential  `json:"credentials"`
+	ExportedAt  string               `json:"exportedAt"`
+	Version     string               `json:"version"`
+	Format      string               `json:"format"`
+	Flights     []*models.Flight     `json:"flights"`
+	Aircraft    []*models.Aircraft   `json:"aircraft"`
+	Licenses    []licenseWithRatings `json:"licenses"`
+	Credentials []*models.Credential `json:"credentials"`
 }
 
 // BuildJSON gathers the user's data, serialises it to gzipped JSON, and

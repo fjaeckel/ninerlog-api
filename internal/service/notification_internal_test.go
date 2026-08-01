@@ -15,7 +15,7 @@ func TestFormatDateForUser(t *testing.T) {
 		{"DD.MM.YYYY", "15.03.2026"},
 		{"MM/DD/YYYY", "03/15/2026"},
 		{"YYYY-MM-DD", "2026-03-15"},
-		{"", "15.03.2026"},       // default
+		{"", "15.03.2026"},        // default
 		{"unknown", "15.03.2026"}, // fallback
 	}
 

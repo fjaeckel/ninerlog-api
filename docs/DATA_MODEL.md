@@ -148,6 +148,8 @@ Associates contacts/named people with a flight in a specific role.
 
 Pre-existing totals carried over from a paper logbook or another system, so statistics
 and totals reflect a pilot's full history without entering every historical flight.
+Applied by `GET /users/me/statistics` and by the `totals` of `GET /reports/analytics`
+whenever the requested range reaches back to the snapshot's cutoff date.
 
 ## Auth, session, and notification tables
 
