@@ -45,7 +45,7 @@ flowchart TD
 
 ## Core entities
 
-### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40)
+### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50)
 
 The account holder. Notable fields:
 
@@ -54,6 +54,19 @@ The account holder. Notable fields:
   `RecoveryCodes`, `FailedLoginAttempts`, `LockedUntil`, `Disabled`, `LastLoginAt`.
 - Display preferences: `TimeDisplayFormat` (`HH:MM` vs decimal hours), `DateFormat`,
   `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`).
+- Recency indicators: `RecencyPerModel`, `RecencyPerRegistration` — which informational
+  90-day landing recency views the client shows.
+- Flights-list columns: `FlightListColumnMode` (`auto` | `custom`) and
+  `FlightListColumns`. In `auto` — the default, and what every existing account keeps —
+  the client picks the optional columns from the flights on the page, so an unused column
+  (IFR time for a VFR-only pilot) never takes up width. In `custom` the list is the
+  user's own choice, and an empty list legitimately means "none of the optional columns",
+  which is why the mode is a separate field rather than encoded as an empty list.
+  `models.FlightListColumns` is the allowed vocabulary and the canonical display order;
+  `NormalizeFlightListColumns` (applied in `AuthService.UpdateUser`) deduplicates,
+  reorders and drops unknown keys, so the column never stores something the clients
+  cannot render. The always-present columns — date, route, aircraft, total time — are
+  deliberately not part of the vocabulary.
 
 Sensitive fields (`PasswordHash`, `TwoFactorSecret`, `RecoveryCodes`,
 `FailedLoginAttempts`, `LockedUntil`) are tagged `json:"-"` so they never leak through the

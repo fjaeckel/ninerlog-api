@@ -4,6 +4,7 @@ package e2e_test
 
 import (
 	"net/http"
+	"reflect"
 	"testing"
 )
 
@@ -124,6 +125,119 @@ func TestUserProfile(t *testing.T) {
 		// Should remain 'hm' (default), invalid value ignored
 		if u["timeDisplayFormat"] != "hm" {
 			t.Errorf("Expected timeDisplayFormat 'hm' after invalid update, got %v", u["timeDisplayFormat"])
+		}
+	})
+}
+
+func TestUserFlightListColumnPreferences(t *testing.T) {
+	columnsOf := func(t *testing.T, u map[string]interface{}) []string {
+		t.Helper()
+		raw, ok := u["flightListColumns"]
+		if !ok || raw == nil {
+			t.Fatalf("flightListColumns missing from the user payload: %v", u)
+		}
+		list, ok := raw.([]interface{})
+		if !ok {
+			t.Fatalf("flightListColumns = %v, want an array", raw)
+		}
+		out := make([]string, 0, len(list))
+		for _, v := range list {
+			out = append(out, v.(string))
+		}
+		return out
+	}
+
+	t.Run("defaults to auto with an empty column list", func(t *testing.T) {
+		c := NewE2EClient(t)
+		registerAndLogin(t, c, uniqueEmail("flc-default"), "SecurePass123!", "Columns Default")
+		resp := c.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["flightListColumnMode"] != "auto" {
+			t.Errorf("Expected default flightListColumnMode 'auto', got %v", u["flightListColumnMode"])
+		}
+		if got := columnsOf(t, u); len(got) != 0 {
+			t.Errorf("Expected no columns by default, got %v", got)
+		}
+	})
+
+	t.Run("custom selection round-trips in canonical order", func(t *testing.T) {
+		c := NewE2EClient(t)
+		registerAndLogin(t, c, uniqueEmail("flc-custom"), "SecurePass123!", "Columns Custom")
+		resp := c.PATCH("/users/me", map[string]interface{}{
+			"flightListColumnMode": "custom",
+			// Deliberately out of order, with a duplicate and an unknown key.
+			"flightListColumns": []string{"remarks", "picTime", "picTime", "offOnBlock", "notAColumn"},
+		})
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["flightListColumnMode"] != "custom" {
+			t.Errorf("Expected flightListColumnMode 'custom', got %v", u["flightListColumnMode"])
+		}
+		want := []string{"offOnBlock", "picTime", "remarks"}
+		if got := columnsOf(t, u); !reflect.DeepEqual(got, want) {
+			t.Errorf("flightListColumns = %v, want %v", got, want)
+		}
+
+		// And it survives a reload.
+		resp = c.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		resp.JSON(&u)
+		if got := columnsOf(t, u); !reflect.DeepEqual(got, want) {
+			t.Errorf("Persisted flightListColumns = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("an empty custom selection is honoured, not treated as auto", func(t *testing.T) {
+		c := NewE2EClient(t)
+		registerAndLogin(t, c, uniqueEmail("flc-none"), "SecurePass123!", "Columns None")
+		c.PATCH("/users/me", map[string]interface{}{
+			"flightListColumnMode": "custom",
+			"flightListColumns":    []string{"ifrTime"},
+		})
+		resp := c.PATCH("/users/me", map[string]interface{}{"flightListColumns": []string{}})
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["flightListColumnMode"] != "custom" {
+			t.Errorf("Expected flightListColumnMode to stay 'custom', got %v", u["flightListColumnMode"])
+		}
+		if got := columnsOf(t, u); len(got) != 0 {
+			t.Errorf("Expected the column list to be cleared, got %v", got)
+		}
+	})
+
+	t.Run("switching back to auto keeps the saved selection", func(t *testing.T) {
+		c := NewE2EClient(t)
+		registerAndLogin(t, c, uniqueEmail("flc-back"), "SecurePass123!", "Columns Back")
+		c.PATCH("/users/me", map[string]interface{}{
+			"flightListColumnMode": "custom",
+			"flightListColumns":    []string{"nightTime", "landings"},
+		})
+		resp := c.PATCH("/users/me", map[string]interface{}{"flightListColumnMode": "auto"})
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["flightListColumnMode"] != "auto" {
+			t.Errorf("Expected flightListColumnMode 'auto', got %v", u["flightListColumnMode"])
+		}
+		want := []string{"nightTime", "landings"}
+		if got := columnsOf(t, u); !reflect.DeepEqual(got, want) {
+			t.Errorf("flightListColumns = %v, want the selection to be kept (%v)", got, want)
+		}
+	})
+
+	t.Run("an unknown mode is ignored", func(t *testing.T) {
+		c := NewE2EClient(t)
+		registerAndLogin(t, c, uniqueEmail("flc-mode"), "SecurePass123!", "Columns Mode")
+		resp := c.PATCH("/users/me", map[string]interface{}{"flightListColumnMode": "whatever"})
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["flightListColumnMode"] != "auto" {
+			t.Errorf("Expected flightListColumnMode to stay 'auto', got %v", u["flightListColumnMode"])
 		}
 	})
 }

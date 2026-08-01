@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 func TestUserCreate(t *testing.T) {
@@ -54,8 +55,8 @@ func TestUserGetByEmail(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := context.Background()
 
-	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "email_verified", "two_factor_enabled", "two_factor_secret", "recovery_codes", "failed_login_attempts", "locked_until", "disabled", "last_login_at", "time_display_format", "date_format", "decimal_separator", "preferred_locale", "recency_per_model", "recency_per_registration", "created_at", "updated_at"}).
-		AddRow(uuid.New(), "test@example.com", "hashed_password", "Test User", true, false, nil, nil, 0, nil, false, nil, "hm", "DD.MM.YYYY", "comma", "en", true, false, time.Now(), time.Now())
+	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "email_verified", "two_factor_enabled", "two_factor_secret", "recovery_codes", "failed_login_attempts", "locked_until", "disabled", "last_login_at", "time_display_format", "date_format", "decimal_separator", "preferred_locale", "recency_per_model", "recency_per_registration", "flight_list_column_mode", "flight_list_columns", "created_at", "updated_at"}).
+		AddRow(uuid.New(), "test@example.com", "hashed_password", "Test User", true, false, nil, nil, 0, nil, false, nil, "hm", "DD.MM.YYYY", "comma", "en", true, false, "auto", pq.StringArray{}, time.Now(), time.Now())
 
 	mock.ExpectQuery("SELECT (.+) FROM users WHERE email").
 		WithArgs("test@example.com").
@@ -120,7 +121,7 @@ func TestUserUpdate(t *testing.T) {
 	}
 
 	mock.ExpectExec("UPDATE users").
-		WithArgs(user.Email, user.PasswordHash, user.Name, user.TwoFactorEnabled, user.TwoFactorSecret, user.RecoveryCodes, user.Disabled, user.LastLoginAt, user.TimeDisplayFormat, user.DateFormat, user.DecimalSeparator, user.PreferredLocale, user.RecencyPerModel, user.RecencyPerRegistration, user.EmailVerified, user.UpdatedAt, user.ID).
+		WithArgs(user.Email, user.PasswordHash, user.Name, user.TwoFactorEnabled, user.TwoFactorSecret, user.RecoveryCodes, user.Disabled, user.LastLoginAt, user.TimeDisplayFormat, user.DateFormat, user.DecimalSeparator, user.PreferredLocale, user.RecencyPerModel, user.RecencyPerRegistration, models.FlightListColumnModeAuto, pq.StringArray{}, user.EmailVerified, user.UpdatedAt, user.ID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = repo.Update(ctx, user)

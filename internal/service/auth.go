@@ -550,6 +550,11 @@ func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
 	// Normalize email
 	user.Email = strings.ToLower(strings.TrimSpace(user.Email))
 
+	// Keep the stored flights-list preference canonical: a known mode, and a
+	// deduplicated column list in display order with unknown keys dropped.
+	user.FlightListColumnMode = models.NormalizeFlightListColumnMode(user.FlightListColumnMode)
+	user.FlightListColumns = models.NormalizeFlightListColumns(user.FlightListColumns)
+
 	user.UpdatedAt = time.Now()
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		if errors.Is(err, repository.ErrDuplicateEmail) {
