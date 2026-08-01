@@ -54,6 +54,9 @@ Routes are wired in `cmd/api/main.go`:
 ```go
 api := router.Group("/api/v1")
 api.Use(middleware.AuthMiddleware(jwtManager, /* public path allow-list */))
+api.Use(generalRateLimit)                                                     // every route
+api.Use(middleware.RateLimitByPath(expensiveRateLimit, /* exports, previews */))
+api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q"))
 api.Use(middleware.RateLimitByPath(authRateLimit, /* /auth paths */))
 api.Use(middleware.RateLimitByPath(adminRateLimit, /* /admin paths */))
 generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{...})
@@ -81,8 +84,21 @@ rather than through the generated code; they are still served under `/api/v1`.
 - **Public allow-list** — auth endpoints (register, login, refresh, password reset, email
   verification) and a few read-only lookups (airport search/lookup, public announcements)
   are exempt from auth via the allow-list passed to the middleware.
-- **Rate limiting** — `/auth/*` and `/admin/*` get stricter per-path limits via
-  `middleware.RateLimitByPath`.
+- **Rate limiting** — layered, and all of it skipped when `DISABLE_RATE_LIMIT=true`:
+  | Limiter | Budget | Applies to | Keyed by |
+  |---|---|---|---|
+  | `general` | 120/min | every `/api/v1` route | user ID (IP when unauthenticated) |
+  | `search` | `SEARCH_RATE_LIMIT_PER_MINUTE`, default 60/min | `GET /flights` **with** a `q` parameter | user ID |
+  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*` | user ID |
+  | `auth` | 10/min | login, register, refresh, password reset, 2FA, WebAuthn | client IP |
+  | `admin` | 30/min | `/admin/*` and user state changes | client IP |
+  | `sign` | 20/min | `/sign/*` public signing links | client IP |
+  | `signature_email` | 10/min | `/signatures`, `/resend` | client IP |
+
+  Limiters stack: a request can be rejected by any that covers it, so plain
+  `GET /flights` carries only `general` while `GET /flights?q=…` carries both
+  `general` and `search`. Rejections are reported per limiter — see
+  [METRICS.md](./METRICS.md#rate-limiting-metrics).
 - **Admin authorization** — admin endpoints additionally require the caller to be an
   admin (configured via `ADMIN_EMAIL`).
 - **Trusted proxies & forwarded IPs** are configured so client IPs are read correctly
