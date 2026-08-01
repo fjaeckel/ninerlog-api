@@ -9,6 +9,7 @@ import (
 	_ "net/http/pprof" // #nosec G108 -- pprof is opt-in via PPROF_ENABLED and runs on a separate port
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -45,6 +46,25 @@ import (
 func fatal(msg string, args ...any) {
 	slog.Error(msg, args...)
 	os.Exit(1)
+}
+
+// envInt reads a positive integer from the environment, falling back to def
+// when the variable is unset, unparseable, or non-positive. Tuning knobs must
+// never be able to silently configure a limit of zero — that would reject
+// every request — so a bad value logs and keeps the default rather than
+// failing closed on traffic.
+func envInt(key string, def int64) int64 {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || v <= 0 {
+		slog.Warn("Ignoring invalid environment value, using default",
+			"key", key, "value", raw, "default", def)
+		return def
+	}
+	return v
 }
 
 func main() {
@@ -433,12 +453,12 @@ func main() {
 		// /exports/pdf, /imports/*, etc. were open to unlimited repetition by
 		// an authenticated user (or a stolen token). Keyed by user ID so it
 		// can't be inflated by users sharing a NAT/office IP.
-		generalRateLimit := middleware.NewUserRateLimitMiddleware(120, 1*time.Minute)
+		generalRateLimit := middleware.NewUserRateLimitMiddleware("general", 120, 1*time.Minute)
 		api.Use(generalRateLimit)
 
 		// Tighter limits for specifically expensive endpoints, layered on top
 		// of the general limiter above.
-		expensiveRateLimit := middleware.NewUserRateLimitMiddleware(15, 1*time.Minute)
+		expensiveRateLimit := middleware.NewUserRateLimitMiddleware("expensive", 15, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(expensiveRateLimit,
 			"/exports/pdf",
 			// Custom-currency preview evaluates an arbitrary user-supplied rule
@@ -447,12 +467,30 @@ func main() {
 			"/custom-currency/preview",
 		))
 		api.Use(middleware.RateLimitByPathPrefix(expensiveRateLimit, "/imports"))
+
 		// Advanced search ("q") drives up to 50 leading-wildcard ILIKE scans
 		// plus a correlated crew subquery per request; plain /flights listing
 		// (no "q") stays under only the general limiter above.
-		api.Use(middleware.RateLimitByPathWithQueryParam(expensiveRateLimit, "/flights", "q"))
+		//
+		// Search used to share the "expensive" bucket, which is sized for
+		// one-shot operations a user triggers deliberately — a PDF export, a
+		// logbook import. Search is nothing like those: it is *interactive*.
+		// The flights page debounces typing at 300ms and re-issues the query
+		// on every filter, sort, and page change, so a single user refining
+		// one search burns through 15/min without doing anything abusive.
+		// The query itself stays cheap — it is bounded to 50 terms and always
+		// filtered by user_id — so the coarse 120/min limiter remains the real
+		// backstop against a stolen token, and this bucket only needs to stop
+		// a pathological loop.
+		//
+		// Tunable via SEARCH_RATE_LIMIT_PER_MINUTE so the value can be trimmed
+		// against the search panels in the rate-limit dashboard without a
+		// rebuild; see docs/metrics/dashboards/ninerlog-ratelimits.json.
+		searchRateLimit := middleware.NewUserRateLimitMiddleware(
+			"search", envInt("SEARCH_RATE_LIMIT_PER_MINUTE", 60), 1*time.Minute)
+		api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q"))
 
-		authRateLimit := middleware.NewRateLimitMiddleware(10, 1*time.Minute)
+		authRateLimit := middleware.NewRateLimitMiddleware("auth", 10, 1*time.Minute)
 
 		// Apply rate limiter to sensitive auth endpoints via path-matching middleware
 		api.Use(middleware.RateLimitByPath(authRateLimit,
@@ -470,7 +508,7 @@ func main() {
 		))
 
 		// Stricter rate limiting for admin endpoints: 30 requests per minute per IP
-		adminRateLimit := middleware.NewRateLimitMiddleware(30, 1*time.Minute)
+		adminRateLimit := middleware.NewRateLimitMiddleware("admin", 30, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(adminRateLimit,
 			"/admin/stats",
 			"/admin/users",
@@ -489,11 +527,11 @@ func main() {
 		// by nature (though the 256-bit token itself makes brute force
 		// infeasible); rate-limit by path prefix since the trailing token
 		// segment defeats RateLimitByPath's suffix matching.
-		signRateLimit := middleware.NewRateLimitMiddleware(20, 1*time.Minute)
+		signRateLimit := middleware.NewRateLimitMiddleware("sign", 20, 1*time.Minute)
 		api.Use(middleware.RateLimitByPathPrefix(signRateLimit, "/sign/"))
 
 		// Authenticated signature actions that trigger outbound email.
-		signatureEmailRateLimit := middleware.NewRateLimitMiddleware(10, 1*time.Minute)
+		signatureEmailRateLimit := middleware.NewRateLimitMiddleware("signature_email", 10, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(signatureEmailRateLimit,
 			"/signatures",
 			"/resend",

@@ -14,23 +14,44 @@ import (
 )
 
 var (
-	// RateLimitHitsTotal counts requests that were rate-limited.
+	// RateLimitHitsTotal counts requests that were rejected by a rate limiter.
+	//
+	// The "limiter" label names the bucket that did the rejecting (see the
+	// names passed in cmd/api/main.go). Without it every limiter reports into
+	// one undifferentiated series, and a 429 on a route covered by two
+	// limiters — e.g. /flights, which carries both the coarse "general"
+	// limiter and the "search" limiter — cannot be attributed to either.
 	RateLimitHitsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "rate_limit_hits_total",
-			Help: "Total number of requests that were rate-limited.",
+			Help: "Total number of requests rejected by a rate limiter, by limiter and route.",
 		},
-		[]string{"path"},
+		[]string{"limiter", "path"},
+	)
+
+	// RateLimitRequestsTotal counts every request that passed *through* a rate
+	// limiter, whether it was allowed or rejected. It is the denominator for
+	// RateLimitHitsTotal: on its own a rejection rate says nothing about
+	// whether a limit is correctly sized, because 2 rejections/s is a
+	// non-event against 200 req/s of traffic and an outage against 3 req/s.
+	RateLimitRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "rate_limit_requests_total",
+			Help: "Total number of requests evaluated by a rate limiter (allowed and rejected), by limiter and route.",
+		},
+		[]string{"limiter", "path"},
 	)
 )
 
 func init() {
-	prometheus.MustRegister(RateLimitHitsTotal)
+	prometheus.MustRegister(RateLimitHitsTotal, RateLimitRequestsTotal)
 }
 
 // newRateLimitMiddleware builds a Gin rate-limit middleware keyed by keyGetter.
 // rate is the number of requests allowed per period (e.g., 10 requests per 1 minute).
-func newRateLimitMiddleware(rate int64, period time.Duration, keyGetter mgin.KeyGetter) gin.HandlerFunc {
+// name identifies this limiter in the rate-limit metrics and must be a small
+// constant (it is a Prometheus label value).
+func newRateLimitMiddleware(name string, rate int64, period time.Duration, keyGetter mgin.KeyGetter) gin.HandlerFunc {
 	r := limiter.Rate{
 		Period: period,
 		Limit:  rate,
@@ -39,27 +60,34 @@ func newRateLimitMiddleware(rate int64, period time.Duration, keyGetter mgin.Key
 	store := memory.NewStore()
 	instance := limiter.New(store, r)
 
-	return mgin.NewMiddleware(instance,
+	// Label by the Gin route template, not c.Request.URL.Path. The raw URL
+	// path turns every /api/v1/flights/{uuid} into its own series — an
+	// unbounded cardinality leak — and makes these counters impossible to
+	// join against http_requests_total, which normalizes the same way.
+	reject := func(c *gin.Context) {
+		RateLimitHitsTotal.WithLabelValues(name, normalizeRoutePath(c)).Inc()
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests, please try again later"})
+		c.Abort()
+	}
+
+	limited := mgin.NewMiddleware(instance,
 		mgin.WithKeyGetter(keyGetter),
-		mgin.WithErrorHandler(func(c *gin.Context, err error) {
-			RateLimitHitsTotal.WithLabelValues(c.Request.URL.Path).Inc()
-			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests, please try again later"})
-			c.Abort()
-		}),
-		mgin.WithLimitReachedHandler(func(c *gin.Context) {
-			RateLimitHitsTotal.WithLabelValues(c.Request.URL.Path).Inc()
-			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests, please try again later"})
-			c.Abort()
-		}),
+		mgin.WithErrorHandler(func(c *gin.Context, _ error) { reject(c) }),
+		mgin.WithLimitReachedHandler(reject),
 	)
+
+	return func(c *gin.Context) {
+		RateLimitRequestsTotal.WithLabelValues(name, normalizeRoutePath(c)).Inc()
+		limited(c)
+	}
 }
 
 // NewRateLimitMiddleware creates a Gin middleware that rate-limits requests.
 // rate is the number of requests allowed per period (e.g., 10 requests per 1 minute).
 // It uses Gin's c.ClientIP() to key rate limits by the real client IP (respecting
 // X-Real-IP / X-Forwarded-For headers set by nginx) instead of the proxy's address.
-func NewRateLimitMiddleware(rate int64, period time.Duration) gin.HandlerFunc {
-	return newRateLimitMiddleware(rate, period, func(c *gin.Context) string {
+func NewRateLimitMiddleware(name string, rate int64, period time.Duration) gin.HandlerFunc {
+	return newRateLimitMiddleware(name, rate, period, func(c *gin.Context) string {
 		// Use Gin's ClientIP which reads X-Real-IP / X-Forwarded-For from trusted proxies
 		return c.ClientIP()
 	})
@@ -71,8 +99,8 @@ func NewRateLimitMiddleware(rate int64, period time.Duration) gin.HandlerFunc {
 // AuthMiddleware's authenticated branch). Per-user keying is more precise
 // for logged-in traffic than per-IP: it isn't inflated by users sharing a
 // NAT/office IP, and isn't defeated by one user rotating source IPs.
-func NewUserRateLimitMiddleware(rate int64, period time.Duration) gin.HandlerFunc {
-	return newRateLimitMiddleware(rate, period, func(c *gin.Context) string {
+func NewUserRateLimitMiddleware(name string, rate int64, period time.Duration) gin.HandlerFunc {
+	return newRateLimitMiddleware(name, rate, period, func(c *gin.Context) string {
 		if userID, exists := c.Get("userID"); exists {
 			if id, ok := userID.(uuid.UUID); ok {
 				return "user:" + id.String()

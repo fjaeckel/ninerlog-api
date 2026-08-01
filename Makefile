@@ -1,4 +1,4 @@
-.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
+.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
 
 # Default target
 .DEFAULT_GOAL := help
@@ -102,6 +102,9 @@ profile-explain: ## Run EXPLAIN ANALYZE queries
 
 migrate-check: ## Verify migrations have no duplicate versions or missing up/down pairs
 	@./scripts/check-migrations.sh db/migrations
+
+dashboard-check: ## Verify Grafana dashboards reference metrics that actually exist
+	@python3 scripts/check-dashboards.py
 
 migrate-up: ## Apply database migrations
 	@echo "Running database migrations..."

@@ -85,14 +85,39 @@ groups:
           summary: "Recovered panics in the API"
           description: "{{ $value }} panic(s) were recovered in the last 5m on {{ $labels.instance }}. Check logs."
 
+      # Rejection *ratio*, per limiter, rather than an absolute rate. A flat
+      # threshold on rejections/s cannot distinguish a busy service shrugging
+      # off a scraper from a limiter that is turning away a third of a quiet
+      # service's legitimate traffic. The limiter label says which budget to
+      # look at; rate_limit_requests_total supplies the denominator.
       - alert: NinerlogApiRateLimitSaturation
-        expr: sum(rate(rate_limit_hits_total{job="ninerlog-api"}[5m])) > 1
-        for: 10m
+        expr: |
+          sum by (limiter) (rate(rate_limit_hits_total{job="ninerlog-api"}[10m]))
+            /
+          clamp_min(sum by (limiter) (rate(rate_limit_requests_total{job="ninerlog-api"}[10m])), 0.0001)
+            > 0.05
+        for: 15m
         labels:
           severity: warning
         annotations:
-          summary: "Sustained rate-limit rejections"
-          description: "Requests are being rate-limited at {{ $value | humanize }}/s for 10m. Possible abuse or an under-provisioned limit."
+          summary: "Rate limiter '{{ $labels.limiter }}' is rejecting >5% of its traffic"
+          description: "{{ $value | humanizePercentage }} of requests evaluated by the '{{ $labels.limiter }}' limiter were rejected over the last 10m (sustained 15m). Either the limit is under-provisioned for real usage or something is hammering it — check the Rate Limits dashboard."
+
+      # Interactive paths deserve a tighter threshold than bulk ones: a user
+      # typing in the flights search gets a visibly broken UI the moment this
+      # fires, whereas a refused PDF export is a retry.
+      - alert: NinerlogApiSearchRateLimited
+        expr: |
+          sum(rate(rate_limit_hits_total{job="ninerlog-api", limiter="search"}[10m]))
+            /
+          clamp_min(sum(rate(rate_limit_requests_total{job="ninerlog-api", limiter="search"}[10m])), 0.0001)
+            > 0.01
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Flight search is being rate-limited"
+          description: "{{ $value | humanizePercentage }} of flight searches were rejected over the last 10m (sustained 15m). Search is interactive — users see an empty result mid-typing. Consider raising SEARCH_RATE_LIMIT_PER_MINUTE (default 60) after checking p95 latency on /api/v1/flights and the DB pool."
 
   - name: ninerlog-api.database
     rules:

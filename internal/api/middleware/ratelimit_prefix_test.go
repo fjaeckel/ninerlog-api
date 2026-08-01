@@ -43,7 +43,7 @@ func countStatuses(t *testing.T, r *gin.Engine, method, path string, n int) map[
 func TestRateLimitByPathPrefix_FiresOnGroupedRoute(t *testing.T) {
 	limit := int64(3)
 	r := newLimitedRouter(t, func(api *gin.RouterGroup) {
-		api.Use(RateLimitByPathPrefix(NewRateLimitMiddleware(limit, time.Minute), "/imports"))
+		api.Use(RateLimitByPathPrefix(NewRateLimitMiddleware("test", limit, time.Minute), "/imports"))
 	})
 
 	got := countStatuses(t, r, "POST", "/api/v1/imports/upload", 8)
@@ -57,7 +57,7 @@ func TestRateLimitByPathPrefix_FiresOnGroupedRoute(t *testing.T) {
 
 func TestRateLimitByPathPrefix_FiresOnPublicSignRoute(t *testing.T) {
 	r := newLimitedRouter(t, func(api *gin.RouterGroup) {
-		api.Use(RateLimitByPathPrefix(NewRateLimitMiddleware(2, time.Minute), "/sign/"))
+		api.Use(RateLimitByPathPrefix(NewRateLimitMiddleware("test", 2, time.Minute), "/sign/"))
 	})
 
 	got := countStatuses(t, r, "GET", "/api/v1/sign/sometoken", 6)
@@ -68,7 +68,7 @@ func TestRateLimitByPathPrefix_FiresOnPublicSignRoute(t *testing.T) {
 
 func TestRateLimitByPathPrefix_LeavesOtherRoutesAlone(t *testing.T) {
 	r := newLimitedRouter(t, func(api *gin.RouterGroup) {
-		api.Use(RateLimitByPathPrefix(NewRateLimitMiddleware(2, time.Minute), "/imports"))
+		api.Use(RateLimitByPathPrefix(NewRateLimitMiddleware("test", 2, time.Minute), "/imports"))
 	})
 
 	got := countStatuses(t, r, "GET", "/api/v1/flights", 6)
@@ -81,7 +81,7 @@ func TestRateLimitByPathPrefix_LeavesOtherRoutesAlone(t *testing.T) {
 // group-relative path.
 func TestRateLimitByPath_StillFiresOnGroupedRoute(t *testing.T) {
 	r := newLimitedRouter(t, func(api *gin.RouterGroup) {
-		api.Use(RateLimitByPath(NewRateLimitMiddleware(2, time.Minute), "/imports/upload"))
+		api.Use(RateLimitByPath(NewRateLimitMiddleware("test", 2, time.Minute), "/imports/upload"))
 	})
 
 	got := countStatuses(t, r, "POST", "/api/v1/imports/upload", 6)
@@ -93,7 +93,7 @@ func TestRateLimitByPath_StillFiresOnGroupedRoute(t *testing.T) {
 func TestRateLimitByPathWithQueryParam_FiresOnlyWithParam(t *testing.T) {
 	build := func() *gin.Engine {
 		return newLimitedRouter(t, func(api *gin.RouterGroup) {
-			api.Use(RateLimitByPathWithQueryParam(NewRateLimitMiddleware(2, time.Minute), "/flights", "q"))
+			api.Use(RateLimitByPathWithQueryParam(NewRateLimitMiddleware("test", 2, time.Minute), "/flights", "q"))
 		})
 	}
 

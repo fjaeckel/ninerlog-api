@@ -43,7 +43,7 @@ flowchart TD
     C[Client] -->|HTTP request| GR
     GR["Gin router (cmd/api/main.go)<br/>global middleware chain:<br/>Metrics → Recovery(+metrics) → gin.Logger → CORS → SecurityHeaders"]
     GR --> G
-    G["/api/v1 group<br/>AuthMiddleware (validates JWT, sets userID; allow-list for public paths)<br/>RateLimitByPath (stricter limits on /auth and /admin)"]
+    G["/api/v1 group<br/>AuthMiddleware (validates JWT, sets userID; allow-list for public paths)<br/>Rate limiters: coarse per-user limit on every route,<br/>tighter budgets on /auth, /admin, exports, imports, flight search"]
     G --> D["Generated route dispatch<br/>(internal/api/generated, registered against APIHandler)"]
     D --> HM["Handler method (internal/api/handlers/flight.go)<br/>getUserIDFromContext · bind & validate body · call service"]
     HM --> SV["Service (internal/service/flight.go)<br/>ownership & business-rule validation<br/>auto-calculations (flightrules / flightcalc) · call repository"]
@@ -129,8 +129,13 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 - **Authentication & authorization** — JWT validated in `middleware.AuthMiddleware`; the
   authenticated `userID` is stored on the Gin context and read by handlers. Admin-only
   routes additionally check the admin middleware. See [AUTHENTICATION.md](./AUTHENTICATION.md).
-- **Rate limiting** — `middleware.RateLimitByPath` applies stricter limits to `/auth` and
-  `/admin` paths (backed by `ulule/limiter`).
+- **Rate limiting** — layered and backed by `ulule/limiter`. A coarse per-user limiter
+  covers every `/api/v1` route; `RateLimitByPath`, `RateLimitByPathPrefix`, and
+  `RateLimitByPathWithQueryParam` layer tighter budgets onto specific paths — `/auth`,
+  `/admin`, exports and imports, and free-text flight search (`GET /flights?q=`, which is
+  limited separately from the plain listing on the same route). Each limiter is named and
+  reports its own rejection and evaluation counters. Budgets are tabulated in
+  [API.md](./API.md#security-model); `DISABLE_RATE_LIMIT=true` turns the whole layer off.
 - **Observability** — `middleware.MetricsMiddleware` records request metrics;
   `RecoveryWithMetrics` recovers panics and counts them. See [METRICS.md](./METRICS.md).
 - **Security headers** — `middleware.SecurityHeadersMiddleware` sets HSTS, X-Frame-Options,
