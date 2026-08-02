@@ -133,6 +133,38 @@ go test -v ./internal/repository/postgres/...
 docker compose -f docker-compose.test.yaml down
 ```
 
+> `db/migrations/test_init.sql` is a hand-maintained combined schema and has drifted
+> from `db/migrations/` (for example the `users` table is missing columns the current
+> repositories select). Applying the numbered migrations in order gives an accurate
+> schema and is what the multi-replica check below does:
+>
+> ```bash
+> for f in $(ls db/migrations/*.up.sql | sort); do
+>   psql -h 127.0.0.1 -p 5433 -U testuser -d ninerlog_test -v ON_ERROR_STOP=1 -f "$f"
+> done
+> ```
+
+## Multi-Replica WebAuthn Check
+
+Passkey ceremonies span two requests (`options` then `verify`). Ceremony state lives
+in Postgres so those requests may land on different instances — this check proves it,
+and is the acceptance test for that design.
+
+```bash
+make verify-multi-replica     # needs a Postgres reachable on :5433
+```
+
+It starts two API instances against one database and asserts that a ceremony begun on
+one is consumable on the other, that consumption is single-use *across* instances, that
+a ceremony survives the death of the process that started it, that an expired handle is
+refused while its row still exists, that a handle cannot be redeemed by another account,
+and that no raw handle reaches the logs.
+
+Ceremonies are finished with a deliberately invalid credential payload — verifying a real
+attestation needs a real authenticator — so the signal is *which* error comes back:
+`Invalid ... response` means the session was found and consumed, `session expired` means
+it was refused. See [AUTHENTICATION.md](./AUTHENTICATION.md#passkeys-webauthn).
+
 ## End-to-End Tests
 
 E2E tests validate complete API flows (register, login, CRUD operations, etc.).

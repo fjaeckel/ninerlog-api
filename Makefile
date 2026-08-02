@@ -1,4 +1,4 @@
-.PHONY: help generate test test-short test-integration test-e2e coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
+.PHONY: help generate test test-short test-integration test-e2e verify-multi-replica coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
 
 # Default target
 .DEFAULT_GOAL := help
@@ -44,6 +44,9 @@ test-e2e: ## Run end-to-end tests (requires test DB)
 	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=ninerlog_test && \
 		go test -v -tags=e2e ./test/e2e/...
 	@docker compose -f docker-compose.test.yaml down
+
+verify-multi-replica: build ## Verify WebAuthn ceremonies across two API instances (needs a Postgres on :5433)
+	@./scripts/verify-multi-replica-webauthn.sh
 
 test-e2e-full: ## Run full e2e tests against real API (docker-compose)
 	@echo "Running full e2e test suite..."

@@ -141,3 +141,41 @@ CREATE TRIGGER update_flights_updated_at
     BEFORE UPDATE ON flights
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+-- Create webauthn_credentials table (mirrors migration 000037)
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    credential_id   BYTEA NOT NULL UNIQUE,
+    public_key      BYTEA NOT NULL,
+    attestation_type TEXT NOT NULL DEFAULT '',
+    aaguid          BYTEA,
+    sign_count      BIGINT NOT NULL DEFAULT 0,
+    transports      TEXT[] NOT NULL DEFAULT '{}',
+    label           TEXT,
+    user_present    BOOLEAN NOT NULL DEFAULT TRUE,
+    user_verified   BOOLEAN NOT NULL DEFAULT FALSE,
+    backup_eligible BOOLEAN NOT NULL DEFAULT FALSE,
+    backup_state    BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at    TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user_id ON webauthn_credentials(user_id);
+
+-- Create webauthn_sessions table (mirrors migration 000051): ceremony state
+-- keyed by sha256 of the handle, consumed exactly once.
+CREATE TABLE IF NOT EXISTS webauthn_sessions (
+    id_hash     BYTEA PRIMARY KEY,
+    user_id     UUID NULL REFERENCES users(id) ON DELETE CASCADE,
+    ceremony    TEXT NOT NULL CHECK (ceremony IN ('registration', 'login')),
+    data        JSONB NOT NULL,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_webauthn_sessions_expires_at
+    ON webauthn_sessions (expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_webauthn_sessions_user_created
+    ON webauthn_sessions (user_id, created_at DESC)
+    WHERE user_id IS NOT NULL;

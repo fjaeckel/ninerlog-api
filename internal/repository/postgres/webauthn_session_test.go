@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -66,7 +67,12 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 		if got.Ceremony != models.WebAuthnCeremonyRegistration {
 			t.Errorf("expected registration ceremony, got %q", got.Ceremony)
 		}
-		if string(got.Data) != `{"challenge":"abc"}` {
+		// Compare semantically: JSONB reserialises with its own whitespace.
+		var decoded map[string]string
+		if err := json.Unmarshal(got.Data, &decoded); err != nil {
+			t.Fatalf("decode data: %v", err)
+		}
+		if decoded["challenge"] != "abc" {
 			t.Errorf("unexpected data payload: %s", got.Data)
 		}
 
