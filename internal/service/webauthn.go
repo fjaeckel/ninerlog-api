@@ -3,9 +3,13 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/mail"
 	"strings"
 	"time"
@@ -19,31 +23,50 @@ import (
 )
 
 var (
-	ErrWebAuthnNotConfigured     = errors.New("webauthn is not configured")
+	ErrWebAuthnNotConfigured = errors.New("webauthn is not configured")
+	// ErrWebAuthnSessionNotFound is returned for every unusable ceremony
+	// handle — expired, already consumed, wrong ceremony, scoped to another
+	// user, or never issued. Keeping these indistinguishable denies an
+	// attacker any signal about which handles once existed.
 	ErrWebAuthnSessionNotFound   = errors.New("webauthn session not found or expired")
-	ErrWebAuthnSessionExpired    = errors.New("webauthn session expired")
 	ErrWebAuthnInvalidResponse   = errors.New("invalid webauthn response")
 	ErrWebAuthnUnknownCredential = errors.New("unknown webauthn credential")
 	ErrWebAuthnVerification      = errors.New("webauthn verification failed")
 )
 
 const (
-	webauthnSessionPurposeRegistration = "registration"
-	webauthnSessionPurposeLogin        = "login"
-	webauthnSessionTTL                 = 5 * time.Minute
+	// DefaultWebAuthnSessionTTL is used when WEBAUTHN_SESSION_TTL is unset.
+	DefaultWebAuthnSessionTTL = 5 * time.Minute
+	// DefaultWebAuthnMaxOpenCeremonies is used when
+	// WEBAUTHN_MAX_OPEN_CEREMONIES is unset. Generous for legitimate use
+	// (phone, laptop, tablet, plus retries) while bounding a compromised
+	// account to a trivial footprint.
+	DefaultWebAuthnMaxOpenCeremonies = 10
+
+	// webauthnHandleBytes is the entropy of the opaque handle that binds the
+	// begin and finish halves of a ceremony. For discoverable login the handle
+	// is the only thing linking the two requests, so it must be unguessable.
+	webauthnHandleBytes = 16
 )
 
 // WebAuthnService implements passkey registration & login flows.
 type WebAuthnService struct {
-	wa          *webauthn.WebAuthn
-	credRepo    repository.WebAuthnCredentialRepository
-	sessionRepo repository.WebAuthnSessionRepository
-	userRepo    repository.UserRepository
-	authService *AuthService
+	wa                *webauthn.WebAuthn
+	credRepo          repository.WebAuthnCredentialRepository
+	sessionRepo       repository.WebAuthnSessionRepository
+	userRepo          repository.UserRepository
+	authService       *AuthService
+	sessionTTL        time.Duration
+	maxOpenCeremonies int
 }
 
 // NewWebAuthnService creates a new WebAuthnService. Returns nil and an error if the
 // webauthn library cannot be initialized with the given config (e.g. invalid origins).
+//
+// sessionTTL bounds how long ceremony state stays usable; non-positive values
+// fall back to DefaultWebAuthnSessionTTL. maxOpenCeremonies caps how many
+// ceremonies one user may hold open at once; non-positive values fall back to
+// DefaultWebAuthnMaxOpenCeremonies.
 func NewWebAuthnService(
 	rpID, rpName string,
 	rpOrigins []string,
@@ -51,24 +74,48 @@ func NewWebAuthnService(
 	sessionRepo repository.WebAuthnSessionRepository,
 	userRepo repository.UserRepository,
 	authService *AuthService,
+	sessionTTL time.Duration,
+	maxOpenCeremonies int,
 ) (*WebAuthnService, error) {
 	if rpID == "" || rpName == "" || len(rpOrigins) == 0 {
 		return nil, ErrWebAuthnNotConfigured
+	}
+	if sessionTTL <= 0 {
+		sessionTTL = DefaultWebAuthnSessionTTL
+	}
+	if maxOpenCeremonies <= 0 {
+		maxOpenCeremonies = DefaultWebAuthnMaxOpenCeremonies
+	}
+	// Drive the client-side ceremony timeout from the same value as the row
+	// TTL. This keeps the stored challenge from outliving the browser ceremony
+	// no matter how the TTL is configured — a challenge that is still valid
+	// after the browser has given up is pure attack surface. Enforce also has
+	// the library re-check expiry server-side during verification.
+	timeouts := webauthn.TimeoutConfig{
+		Enforce:    true,
+		Timeout:    sessionTTL,
+		TimeoutUVD: sessionTTL,
 	}
 	wa, err := webauthn.New(&webauthn.Config{
 		RPID:          rpID,
 		RPDisplayName: rpName,
 		RPOrigins:     rpOrigins,
+		Timeouts: webauthn.TimeoutsConfig{
+			Login:        timeouts,
+			Registration: timeouts,
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init webauthn: %w", err)
 	}
 	return &WebAuthnService{
-		wa:          wa,
-		credRepo:    credRepo,
-		sessionRepo: sessionRepo,
-		userRepo:    userRepo,
-		authService: authService,
+		wa:                wa,
+		credRepo:          credRepo,
+		sessionRepo:       sessionRepo,
+		userRepo:          userRepo,
+		authService:       authService,
+		sessionTTL:        sessionTTL,
+		maxOpenCeremonies: maxOpenCeremonies,
 	}, nil
 }
 
@@ -121,55 +168,128 @@ func modelToWebAuthnCredential(c *models.WebAuthnCredential) webauthn.Credential
 	}
 }
 
-func (s *WebAuthnService) saveSession(ctx context.Context, userID *uuid.UUID, purpose string, sd *webauthn.SessionData) (string, map[string]interface{}, error) {
-	raw, err := json.Marshal(sd)
-	if err != nil {
-		return "", nil, err
+// newWebAuthnHandle returns an opaque, unguessable ceremony handle. The raw
+// value is returned to the client exactly once and never stored.
+func newWebAuthnHandle() (string, error) {
+	b := make([]byte, webauthnHandleBytes)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate webauthn handle: %w", err)
 	}
-	session := &models.WebAuthnSession{
-		ID:          uuid.New(),
-		UserID:      userID,
-		Challenge:   sd.Challenge,
-		SessionData: raw,
-		Purpose:     purpose,
-		ExpiresAt:   time.Now().Add(webauthnSessionTTL).UTC(),
-	}
-	if err := s.sessionRepo.Create(ctx, session); err != nil {
-		return "", nil, err
-	}
-	return session.ID.String(), nil, nil
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func (s *WebAuthnService) consumeSession(ctx context.Context, sessionID, purpose string) (*webauthn.SessionData, *models.WebAuthnSession, error) {
-	id, err := uuid.Parse(sessionID)
+// hashWebAuthnHandle derives the storage key for a handle. Only the hash is
+// persisted, so a database dump or read-only SQL injection yields no usable
+// ceremony state.
+func hashWebAuthnHandle(handle string) []byte {
+	sum := sha256.Sum256([]byte(handle))
+	return sum[:]
+}
+
+func (s *WebAuthnService) saveSession(ctx context.Context, userID *uuid.UUID, ceremony string, sd *webauthn.SessionData) (string, error) {
+	raw, err := json.Marshal(sd)
 	if err != nil {
+		return "", err
+	}
+	handle, err := newWebAuthnHandle()
+	if err != nil {
+		return "", err
+	}
+	session := &models.WebAuthnSession{
+		IDHash:    hashWebAuthnHandle(handle),
+		UserID:    userID,
+		Ceremony:  ceremony,
+		Data:      raw,
+		ExpiresAt: time.Now().Add(s.sessionTTL).UTC(),
+	}
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		return "", err
+	}
+	WebAuthnSessionsCreatedTotal.WithLabelValues(ceremony).Inc()
+
+	// Bound how many ceremonies a user can hold open, evicting oldest-first so
+	// the attempt they just started always survives. Deliberately outside the
+	// insert's transaction: a race between two concurrent begin calls leaves
+	// briefly N+1 rows, which is harmless. A failure here must not fail the
+	// ceremony the user is actually starting.
+	if userID != nil {
+		evicted, err := s.sessionRepo.DeleteOldestForUser(ctx, *userID, s.maxOpenCeremonies)
+		if err != nil {
+			slog.Warn("failed to evict old webauthn sessions", "user_id", *userID, "error", err)
+		} else if evicted > 0 {
+			WebAuthnSessionsEvictedTotal.Add(float64(evicted))
+		}
+	}
+	return handle, nil
+}
+
+// StartSessionReaper deletes expired ceremony rows on a timer until ctx is
+// cancelled.
+//
+// This is hygiene, not a control. Correctness is enforced by the
+// `expires_at > NOW()` predicate in Consume, so a stopped or lagging reaper
+// can never make a stale challenge usable — it only lets dead rows accumulate.
+func (s *WebAuthnService) StartSessionReaper(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+	go func() {
+		slog.Info("WebAuthn session reaper started", "interval", interval.String())
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				slog.Info("WebAuthn session reaper stopped")
+				return
+			case <-ticker.C:
+				n, err := s.sessionRepo.DeleteExpired(ctx)
+				if err != nil {
+					slog.Warn("WebAuthn session cleanup failed", "error", err)
+					continue
+				}
+				if n > 0 {
+					WebAuthnSessionsExpiredTotal.Add(float64(n))
+					slog.Debug("Expired WebAuthn sessions removed", "count", n)
+				}
+			}
+		}
+	}()
+}
+
+// consumeSession atomically claims a ceremony session. Every failure mode
+// collapses to ErrWebAuthnSessionNotFound so callers cannot distinguish an
+// expired handle from a consumed, mismatched or forged one.
+func (s *WebAuthnService) consumeSession(ctx context.Context, handle, ceremony string) (*webauthn.SessionData, *models.WebAuthnSession, error) {
+	if handle == "" {
+		WebAuthnSessionsConsumedTotal.WithLabelValues(ceremony, "rejected").Inc()
 		return nil, nil, ErrWebAuthnSessionNotFound
 	}
-	row, err := s.sessionRepo.Get(ctx, id)
+	row, err := s.sessionRepo.Consume(ctx, hashWebAuthnHandle(handle), ceremony)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
+			WebAuthnSessionsConsumedTotal.WithLabelValues(ceremony, "rejected").Inc()
 			return nil, nil, ErrWebAuthnSessionNotFound
 		}
 		return nil, nil, err
 	}
-	// Always delete after a single use.
-	defer func() { _ = s.sessionRepo.Delete(ctx, id) }()
-
-	if row.Purpose != purpose {
+	sd := &webauthn.SessionData{}
+	if err := json.Unmarshal(row.Data, sd); err != nil {
+		// A row whose payload will not decode is corrupt, not a transient
+		// fault. It has already been consumed by the DELETE, so reject it the
+		// same way as any other unusable handle rather than surfacing a 500.
+		slog.Warn("discarding corrupt webauthn session", "ceremony", ceremony, "error", err)
+		WebAuthnSessionsConsumedTotal.WithLabelValues(ceremony, "rejected").Inc()
 		return nil, nil, ErrWebAuthnSessionNotFound
 	}
-	if time.Now().After(row.ExpiresAt) {
-		return nil, nil, ErrWebAuthnSessionExpired
-	}
-	sd := &webauthn.SessionData{}
-	if err := json.Unmarshal(row.SessionData, sd); err != nil {
-		return nil, nil, err
-	}
+	WebAuthnSessionsConsumedTotal.WithLabelValues(ceremony, "ok").Inc()
 	return sd, row, nil
 }
 
-// BeginRegistration starts a passkey registration ceremony for an authenticated user.
-func (s *WebAuthnService) BeginRegistration(ctx context.Context, userID uuid.UUID) (sessionID string, options *protocol.CredentialCreation, err error) {
+// BeginRegistration starts a passkey registration ceremony for an authenticated
+// user. The returned handle must be presented to FinishRegistration.
+func (s *WebAuthnService) BeginRegistration(ctx context.Context, userID uuid.UUID) (handle string, options *protocol.CredentialCreation, err error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return "", nil, err
@@ -194,18 +314,28 @@ func (s *WebAuthnService) BeginRegistration(ctx context.Context, userID uuid.UUI
 		return "", nil, fmt.Errorf("begin registration: %w", err)
 	}
 	uid := userID
-	sessionID, _, err = s.saveSession(ctx, &uid, webauthnSessionPurposeRegistration, sd)
+	handle, err = s.saveSession(ctx, &uid, models.WebAuthnCeremonyRegistration, sd)
 	if err != nil {
 		return "", nil, err
 	}
-	return sessionID, creation, nil
+	return handle, creation, nil
 }
 
 // FinishRegistration verifies an attestation and stores the new credential.
-func (s *WebAuthnService) FinishRegistration(ctx context.Context, userID uuid.UUID, sessionID string, label *string, responseJSON []byte) (*models.WebAuthnCredential, error) {
-	sd, _, err := s.consumeSession(ctx, sessionID, webauthnSessionPurposeRegistration)
+func (s *WebAuthnService) FinishRegistration(ctx context.Context, userID uuid.UUID, handle string, label *string, responseJSON []byte) (*models.WebAuthnCredential, error) {
+	sd, row, err := s.consumeSession(ctx, handle, models.WebAuthnCeremonyRegistration)
 	if err != nil {
 		return nil, err
+	}
+
+	// A registration session is scoped to the user who opened it. Without this
+	// check a stolen handle would let its holder attach a credential to their
+	// own account using someone else's challenge. Rejected uniformly so the
+	// mismatch is not distinguishable from an unknown handle.
+	if row.UserID == nil || *row.UserID != userID {
+		slog.Warn("rejected webauthn registration session scoped to a different user",
+			"authenticated_user_id", userID)
+		return nil, ErrWebAuthnSessionNotFound
 	}
 
 	parsed, err := protocol.ParseCredentialCreationResponseBytes(responseJSON)
@@ -256,7 +386,7 @@ func (s *WebAuthnService) FinishRegistration(ctx context.Context, userID uuid.UU
 
 // BeginLogin starts a passkey login ceremony. If email is non-empty, the user's existing
 // credentials are advertised; otherwise a discoverable-credential challenge is issued.
-func (s *WebAuthnService) BeginLogin(ctx context.Context, email string) (sessionID string, options *protocol.CredentialAssertion, err error) {
+func (s *WebAuthnService) BeginLogin(ctx context.Context, email string) (handle string, options *protocol.CredentialAssertion, err error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 
 	if email == "" {
@@ -264,11 +394,11 @@ func (s *WebAuthnService) BeginLogin(ctx context.Context, email string) (session
 		if err != nil {
 			return "", nil, fmt.Errorf("begin discoverable login: %w", err)
 		}
-		sessionID, _, err = s.saveSession(ctx, nil, webauthnSessionPurposeLogin, sd)
+		handle, err = s.saveSession(ctx, nil, models.WebAuthnCeremonyLogin, sd)
 		if err != nil {
 			return "", nil, err
 		}
-		return sessionID, assertion, nil
+		return handle, assertion, nil
 	}
 
 	if _, err := mail.ParseAddress(email); err != nil {
@@ -282,11 +412,11 @@ func (s *WebAuthnService) BeginLogin(ctx context.Context, email string) (session
 		if beginErr != nil {
 			return "", nil, fmt.Errorf("begin discoverable login: %w", beginErr)
 		}
-		sessionID, _, beginErr = s.saveSession(ctx, nil, webauthnSessionPurposeLogin, sd)
+		handle, beginErr = s.saveSession(ctx, nil, models.WebAuthnCeremonyLogin, sd)
 		if beginErr != nil {
 			return "", nil, beginErr
 		}
-		return sessionID, assertion, nil
+		return handle, assertion, nil
 	}
 
 	wu, err := s.loadUserWithCredentials(ctx, user)
@@ -301,23 +431,23 @@ func (s *WebAuthnService) BeginLogin(ctx context.Context, email string) (session
 		if err != nil {
 			return "", nil, fmt.Errorf("begin login: %w", err)
 		}
-		sessionID, _, err = s.saveSession(ctx, nil, webauthnSessionPurposeLogin, sd)
+		handle, err = s.saveSession(ctx, nil, models.WebAuthnCeremonyLogin, sd)
 		if err != nil {
 			return "", nil, err
 		}
-		return sessionID, assertion, nil
+		return handle, assertion, nil
 	}
 	uid := user.ID
-	sessionID, _, err = s.saveSession(ctx, &uid, webauthnSessionPurposeLogin, sd)
+	handle, err = s.saveSession(ctx, &uid, models.WebAuthnCeremonyLogin, sd)
 	if err != nil {
 		return "", nil, err
 	}
-	return sessionID, assertion, nil
+	return handle, assertion, nil
 }
 
 // FinishLogin verifies an assertion and returns the authenticated user with a new TokenPair.
-func (s *WebAuthnService) FinishLogin(ctx context.Context, sessionID string, responseJSON []byte) (*models.User, *TokenPair, error) {
-	sd, _, err := s.consumeSession(ctx, sessionID, webauthnSessionPurposeLogin)
+func (s *WebAuthnService) FinishLogin(ctx context.Context, handle string, responseJSON []byte) (*models.User, *TokenPair, error) {
+	sd, _, err := s.consumeSession(ctx, handle, models.WebAuthnCeremonyLogin)
 	if err != nil {
 		return nil, nil, err
 	}

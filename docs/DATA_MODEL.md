@@ -159,7 +159,7 @@ whenever the requested range reaches back to the snapshot's cutoff date.
 | PasswordResetToken | — | 3 | Single-use password reset (1h) |
 | EmailVerificationToken | — | 40 | Single-use email verification (24h) |
 | WebAuthnCredential | `webauthn.go` | 37 | Registered passkeys (public key, sign count, transports) |
-| WebAuthnSession | `webauthn.go` | 37 | Transient registration/login ceremony state |
+| WebAuthnSession | `webauthn.go` | 37, 51 | Transient ceremony state, keyed by `sha256(handle)`; consumed exactly once via `DELETE … RETURNING` |
 | NotificationPreference | `notification.go` | 10, 33 | Per-category opt-in + warning windows |
 | NotificationLog | `notification.go` | 10, 33 | Sent-notification history (dedup) |
 

@@ -73,6 +73,22 @@ below are for:
 | `notification_check_errors_total` | Counter | — | Check runs that aborted early due to an error (e.g. failing to load preferences) |
 | `notification_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last successfully completed check run. Use for staleness alerting |
 
+### WebAuthn Ceremony Metrics
+
+Emitted only when passkeys are enabled (`WEBAUTHN_RP_ID` set). See
+[AUTHENTICATION.md](./AUTHENTICATION.md) for the ceremony design.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `webauthn_sessions_created_total` | Counter | `ceremony` | Ceremony sessions opened. `ceremony`: `registration`, `login` |
+| `webauthn_sessions_consumed_total` | Counter | `ceremony`, `result` | Finish attempts. `result`: `ok`, `rejected`. A rejection covers every unusable handle — expired, replayed, wrong ceremony, or forged |
+| `webauthn_sessions_evicted_total` | Counter | — | Sessions dropped by the per-user open-ceremony cap. Sustained growth means users are abandoning ceremonies |
+| `webauthn_sessions_expired_total` | Counter | — | Expired rows removed by the cleanup tick. Sustained growth on the discoverable-login path is the signal worth alerting on, since those writes are unauthenticated |
+
+A sustained rise in `rejected` relative to `ok` is worth attention: it indicates
+either replay attempts or clients that are losing the handle between the two
+requests.
+
 ### Airport Database Metrics
 
 The in-memory airport database (`internal/airports`) merges two upstream datasets —

@@ -4330,7 +4330,7 @@ type WebAuthnLoginOptions struct {
 	// PublicKey WebAuthn `PublicKeyCredentialRequestOptions` (passed verbatim to `navigator.credentials.get`)
 	PublicKey map[string]interface{} `json:"publicKey"`
 
-	// SessionId Opaque session id to send back with the verify request
+	// SessionId Opaque single-use ceremony handle to send back with the verify request. Hold it in memory for the duration of the ceremony; it must not be persisted.
 	SessionId string `json:"sessionId"`
 }
 
@@ -4339,7 +4339,7 @@ type WebAuthnRegistrationOptions struct {
 	// PublicKey WebAuthn `PublicKeyCredentialCreationOptions` (passed verbatim to `navigator.credentials.create`)
 	PublicKey map[string]interface{} `json:"publicKey"`
 
-	// SessionId Opaque session id to send back with the verify request
+	// SessionId Opaque single-use ceremony handle to send back with the verify request. Hold it in memory for the duration of the ceremony; it must not be persisted.
 	SessionId string `json:"sessionId"`
 }
 
@@ -4532,8 +4532,10 @@ type WebauthnLoginOptionsJSONBody struct {
 // WebauthnLoginVerifyJSONBody defines parameters for WebauthnLoginVerify.
 type WebauthnLoginVerifyJSONBody struct {
 	// Response Raw `PublicKeyCredential` returned from `navigator.credentials.get`
-	Response  map[string]interface{} `json:"response"`
-	SessionId string                 `json:"sessionId"`
+	Response map[string]interface{} `json:"response"`
+
+	// SessionId Single-use ceremony handle returned from `/auth/webauthn/login/options`. Rejected if it has expired or has already been used.
+	SessionId string `json:"sessionId"`
 }
 
 // WebauthnRegisterVerifyJSONBody defines parameters for WebauthnRegisterVerify.
@@ -4544,7 +4546,7 @@ type WebauthnRegisterVerifyJSONBody struct {
 	// Response Raw `PublicKeyCredential` returned from `navigator.credentials.create`
 	Response map[string]interface{} `json:"response"`
 
-	// SessionId Session id returned from `/auth/webauthn/register/options`
+	// SessionId Single-use ceremony handle returned from `/auth/webauthn/register/options`. Rejected if it has expired, has already been used, or was issued for a different user.
 	SessionId string `json:"sessionId"`
 }
 

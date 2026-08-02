@@ -83,7 +83,7 @@ func (h *APIHandler) WebauthnRegisterVerify(c *gin.Context) {
 	cred, err := h.webauthnService.FinishRegistration(c.Request.Context(), userID, req.SessionId, req.Label, responseJSON)
 	if err != nil {
 		switch {
-		case errors.Is(err, service.ErrWebAuthnSessionNotFound), errors.Is(err, service.ErrWebAuthnSessionExpired):
+		case errors.Is(err, service.ErrWebAuthnSessionNotFound):
 			h.sendError(c, http.StatusBadRequest, "Registration session expired — please try again")
 		case errors.Is(err, service.ErrWebAuthnInvalidResponse):
 			h.sendError(c, http.StatusBadRequest, "Invalid registration response")
@@ -150,7 +150,7 @@ func (h *APIHandler) WebauthnLoginVerify(c *gin.Context) {
 	user, tokens, err := h.webauthnService.FinishLogin(c.Request.Context(), req.SessionId, responseJSON)
 	if err != nil {
 		switch {
-		case errors.Is(err, service.ErrWebAuthnSessionNotFound), errors.Is(err, service.ErrWebAuthnSessionExpired):
+		case errors.Is(err, service.ErrWebAuthnSessionNotFound):
 			h.sendError(c, http.StatusBadRequest, "Login session expired — please try again")
 		case errors.Is(err, service.ErrWebAuthnInvalidResponse):
 			h.sendError(c, http.StatusBadRequest, "Invalid login response")

@@ -261,6 +261,94 @@ Requires authentication.
 
 ---
 
+## Passkeys (WebAuthn)
+
+Disabled unless `WEBAUTHN_RP_ID` is set; every endpoint returns **503** otherwise.
+A successful passkey login counts as two-factor and skips the 2FA challenge.
+
+Each ceremony is two requests — `options` (begin) then `verify` (finish) — bound
+together by a **single-use ceremony handle** returned as `sessionId`.
+
+### Ceremony state
+
+Ceremony state lives in the `webauthn_sessions` table, not in process memory, so
+`options` and `verify` may be served by different instances and a ceremony
+survives a restart of the process that started it.
+
+```
+options:  handle  = 16 bytes from crypto/rand, base64url (no padding)
+          id_hash = sha256(handle)
+          INSERT (id_hash, user_id, ceremony, data, expires_at = now() + TTL)
+          → handle returned to the client as sessionId
+
+verify:   DELETE FROM webauthn_sessions
+           WHERE id_hash = sha256(sessionId)
+             AND ceremony = $ceremony
+             AND expires_at > now()
+          RETURNING user_id, data
+          0 rows → reject   1 row → verify the attestation/assertion
+```
+
+Properties this buys:
+
+- **Exactly-once.** `DELETE ... RETURNING` consumes the row in one statement, so
+  two racing `verify` calls cannot both proceed — there is no read-then-delete
+  window, across replicas or within one process.
+- **Unusable when expired.** The `expires_at > now()` predicate is checked on
+  every read, so a stalled cleanup job can never make a stale challenge usable.
+- **Nothing usable at rest.** Only `sha256(handle)` is stored; a database dump or
+  read-only SQL injection yields no ceremony state. The raw handle is never logged.
+- **Ceremony-bound.** A registration handle presented to `login/verify` is
+  rejected, and vice versa.
+- **User-scoped registration.** `register/verify` additionally requires the
+  session's `user_id` to match the authenticated caller, so a stolen registration
+  handle cannot attach a credential to a different account.
+
+Expired, already-consumed, wrong-ceremony, wrong-user and never-issued handles all
+return the **same** 400 — the failure modes are deliberately indistinguishable.
+
+### Concurrent ceremonies
+
+Sessions are keyed by handle rather than by user, so one user may hold several
+ceremonies open at once (a registration on a laptop and a login on a phone) and
+complete them in any order.
+
+Open ceremonies per user are capped at `WEBAUTHN_MAX_OPEN_CEREMONIES`. Exceeding
+the cap evicts the **oldest**, never rejects the newest, so a user who abandoned
+earlier attempts is never locked out of the one they are making now. Discoverable
+(usernameless) login has no user at `options` time, so its rows are not covered by
+the cap — they are bounded by the `auth` rate limit, the TTL, and the cleanup tick.
+
+### Endpoints
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| `POST /api/v1/auth/webauthn/register/options` | Bearer | Returns `sessionId` + `publicKey` |
+| `POST /api/v1/auth/webauthn/register/verify` | Bearer | Takes `sessionId`, `response`, optional `label` |
+| `POST /api/v1/auth/webauthn/login/options` | Public | Omit `email` for discoverable login |
+| `POST /api/v1/auth/webauthn/login/verify` | Public | Takes `sessionId`, `response` → token pair |
+| `GET /api/v1/auth/webauthn/credentials` | Bearer | List registered passkeys |
+| `DELETE /api/v1/auth/webauthn/credentials/{id}` | Bearer | Revoke a passkey |
+
+Clients must hold `sessionId` in memory for the duration of the ceremony and send
+it back with `verify`. It is single-use and short-lived, so it must **not** be put
+in `localStorage` or `sessionStorage`.
+
+### Configuration
+
+| Variable | Default | Notes |
+|---|---|---|
+| `WEBAUTHN_RP_ID` | — | Relying Party ID; unset disables passkeys entirely |
+| `WEBAUTHN_RP_NAME` | `NinerLog` | Display name shown by the authenticator |
+| `WEBAUTHN_RP_ORIGINS` | `CORS_ORIGIN` | Comma-separated allowed origins |
+| `WEBAUTHN_SESSION_TTL` | `5m` | Ceremony lifetime; also used as the client-side timeout, so a stored challenge never outlives the browser prompt |
+| `WEBAUTHN_MAX_OPEN_CEREMONIES` | `10` | Per-user cap, oldest evicted |
+
+A background tick deletes expired rows every 5 minutes. That is hygiene only —
+correctness rests on the `expires_at` predicate above, not on the sweep running.
+
+---
+
 ## Protected Routes
 
 All endpoints except the following require a valid access token in the `Authorization` header:

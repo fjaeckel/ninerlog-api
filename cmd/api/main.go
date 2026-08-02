@@ -240,14 +240,34 @@ func main() {
 	for i := range webauthnOrigins {
 		webauthnOrigins[i] = strings.TrimSpace(webauthnOrigins[i])
 	}
+	// How long ceremony state stays usable. Also drives the client-side
+	// WebAuthn timeout, so a stored challenge never outlives the browser
+	// ceremony that produced it.
+	webauthnSessionTTL := service.DefaultWebAuthnSessionTTL
+	if raw := os.Getenv("WEBAUTHN_SESSION_TTL"); raw != "" {
+		parsed, parseErr := time.ParseDuration(raw)
+		if parseErr != nil || parsed <= 0 {
+			slog.Warn("Ignoring invalid WEBAUTHN_SESSION_TTL, using default",
+				"value", raw, "default", webauthnSessionTTL.String())
+		} else {
+			webauthnSessionTTL = parsed
+		}
+	}
+	webauthnMaxOpenCeremonies := int(envInt("WEBAUTHN_MAX_OPEN_CEREMONIES",
+		int64(service.DefaultWebAuthnMaxOpenCeremonies)))
+
 	var webauthnService *service.WebAuthnService
 	if webauthnRPID != "" {
-		webauthnService, err = service.NewWebAuthnService(webauthnRPID, webauthnRPName, webauthnOrigins, webauthnCredRepo, webauthnSessionRepo, userRepo, authService)
+		webauthnService, err = service.NewWebAuthnService(webauthnRPID, webauthnRPName, webauthnOrigins,
+			webauthnCredRepo, webauthnSessionRepo, userRepo, authService,
+			webauthnSessionTTL, webauthnMaxOpenCeremonies)
 		if err != nil {
 			slog.Warn("WebAuthn disabled", "error", err)
 			webauthnService = nil
 		} else {
-			slog.Info("WebAuthn enabled", "rp_id", webauthnRPID)
+			slog.Info("WebAuthn enabled", "rp_id", webauthnRPID,
+				"session_ttl", webauthnSessionTTL.String(),
+				"max_open_ceremonies", webauthnMaxOpenCeremonies)
 		}
 	} else {
 		slog.Info("WebAuthn disabled (set WEBAUTHN_RP_ID to enable)")
@@ -568,6 +588,13 @@ func main() {
 	// Evict expired CSV upload sessions on a timer. Without this, parsed rows
 	// stay resident until the next upload happens to trigger cleanup.
 	handlers.StartImportSessionReaper(notifCtx, time.Minute)
+
+	// Sweep expired WebAuthn ceremony rows. Purely hygiene — Consume already
+	// refuses to return an expired session, so a stalled reaper cannot make a
+	// stale challenge usable.
+	if webauthnService != nil {
+		webauthnService.StartSessionReaper(notifCtx, 5*time.Minute)
+	}
 
 	// Start cloud-backup scheduler if configured
 	if backupScheduler != nil {

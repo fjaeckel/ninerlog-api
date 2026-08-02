@@ -17,7 +17,7 @@ func TestNewWebAuthnService_RequiresConfig(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			svc, err := NewWebAuthnService(tc.rpID, tc.rpName, tc.origins, nil, nil, nil, nil)
+			svc, err := NewWebAuthnService(tc.rpID, tc.rpName, tc.origins, nil, nil, nil, nil, 0, 0)
 			if err == nil || svc != nil {
 				t.Fatalf("expected error and nil service, got %v / %v", err, svc)
 			}
@@ -30,7 +30,7 @@ func TestNewWebAuthnService_Valid(t *testing.T) {
 		"localhost",
 		"NinerLog",
 		[]string{"http://localhost:5173"},
-		nil, nil, nil, nil,
+		nil, nil, nil, nil, 0, 0,
 	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
