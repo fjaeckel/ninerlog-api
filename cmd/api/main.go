@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	_ "net/http/pprof" // #nosec G108 -- pprof is opt-in via PPROF_ENABLED and runs on a separate port
 	"os"
@@ -253,8 +254,17 @@ func main() {
 			webauthnSessionTTL = parsed
 		}
 	}
-	webauthnMaxOpenCeremonies := int(envInt("WEBAUTHN_MAX_OPEN_CEREMONIES",
-		int64(service.DefaultWebAuthnMaxOpenCeremonies)))
+	// envInt already rejects non-positive values. Clamp the upper end as well
+	// so the int64 -> int conversion is provably in range on a 32-bit build
+	// rather than silently truncating to a small or negative cap.
+	maxOpenCeremonies := envInt("WEBAUTHN_MAX_OPEN_CEREMONIES",
+		int64(service.DefaultWebAuthnMaxOpenCeremonies))
+	if maxOpenCeremonies > math.MaxInt32 {
+		slog.Warn("Clamping WEBAUTHN_MAX_OPEN_CEREMONIES",
+			"value", maxOpenCeremonies, "clamped_to", math.MaxInt32)
+		maxOpenCeremonies = math.MaxInt32
+	}
+	webauthnMaxOpenCeremonies := int(maxOpenCeremonies)
 
 	var webauthnService *service.WebAuthnService
 	if webauthnRPID != "" {
