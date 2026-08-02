@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"math"
 	"net/http"
 	_ "net/http/pprof" // #nosec G108 -- pprof is opt-in via PPROF_ENABLED and runs on a separate port
 	"os"
@@ -66,6 +65,24 @@ func envInt(key string, def int64) int64 {
 		return def
 	}
 	return v
+}
+
+// envIntNarrow is envInt for knobs consumed as a plain int. Parsing at a
+// 32-bit width keeps the result in range on every platform, so the conversion
+// cannot truncate a large configured value into a small — or negative — one.
+// Out-of-range, unparseable, and non-positive values all keep the default.
+func envIntNarrow(key string, def int) int {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil || v <= 0 {
+		slog.Warn("Ignoring invalid environment value, using default",
+			"key", key, "value", raw, "default", def)
+		return def
+	}
+	return int(v)
 }
 
 func main() {
@@ -254,17 +271,8 @@ func main() {
 			webauthnSessionTTL = parsed
 		}
 	}
-	// envInt already rejects non-positive values. Clamp the upper end as well
-	// so the int64 -> int conversion is provably in range on a 32-bit build
-	// rather than silently truncating to a small or negative cap.
-	maxOpenCeremonies := envInt("WEBAUTHN_MAX_OPEN_CEREMONIES",
-		int64(service.DefaultWebAuthnMaxOpenCeremonies))
-	if maxOpenCeremonies > math.MaxInt32 {
-		slog.Warn("Clamping WEBAUTHN_MAX_OPEN_CEREMONIES",
-			"value", maxOpenCeremonies, "clamped_to", math.MaxInt32)
-		maxOpenCeremonies = math.MaxInt32
-	}
-	webauthnMaxOpenCeremonies := int(maxOpenCeremonies)
+	webauthnMaxOpenCeremonies := envIntNarrow("WEBAUTHN_MAX_OPEN_CEREMONIES",
+		service.DefaultWebAuthnMaxOpenCeremonies)
 
 	var webauthnService *service.WebAuthnService
 	if webauthnRPID != "" {
