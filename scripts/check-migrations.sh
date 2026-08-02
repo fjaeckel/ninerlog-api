@@ -34,11 +34,6 @@ shopt -s nullglob
 for path in "$MIGRATIONS_DIR"/*.sql; do
     file="$(basename "$path")"
 
-    # test_init.sql (and any other non-migration helper) is intentionally exempt.
-    if [[ "$file" == "test_init.sql" ]]; then
-        continue
-    fi
-
     if [[ ! "$file" =~ $name_re ]]; then
         echo "malformed migration filename: $file" >&2
         echo "    expected NNNNNN_name.(up|down).sql (6-digit version, lowercase snake_case name)" >&2

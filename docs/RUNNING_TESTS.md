@@ -118,31 +118,38 @@ If you prefer to manage the test database yourself:
 # Start the test database
 docker compose -f docker-compose.test.yaml up -d
 
-# Wait for it to be ready, then run migrations
+# Wait for it to be ready, then seed the schema
 sleep 3
-docker compose -f docker-compose.test.yaml exec -T postgres-test \
-  psql -U testuser -d ninerlog_test < db/migrations/test_init.sql
+./scripts/seed-test-db.sh
 
 # Run integration tests with env vars
 export TEST_DB_HOST=localhost TEST_DB_PORT=5433 \
        TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass \
        TEST_DB_NAME=ninerlog_test
-go test -v ./internal/repository/postgres/...
+go test -v -tags=integration ./internal/repository/postgres/...
 
 # Clean up
 docker compose -f docker-compose.test.yaml down
 ```
 
-> `db/migrations/test_init.sql` is a hand-maintained combined schema and has drifted
-> from `db/migrations/` (for example the `users` table is missing columns the current
-> repositories select). Applying the numbered migrations in order gives an accurate
-> schema and is what the multi-replica check below does:
->
-> ```bash
-> for f in $(ls db/migrations/*.up.sql | sort); do
->   psql -h 127.0.0.1 -p 5433 -U testuser -d ninerlog_test -v ON_ERROR_STOP=1 -f "$f"
-> done
-> ```
+### How the schema is seeded
+
+`scripts/seed-test-db.sh` applies `db/migrations/*.up.sql` in order and then records the
+resulting version in golang-migrate's `schema_migrations` table, so an API process pointed
+at the same database starts cleanly instead of trying to replay migration 1.
+
+It replaces the hand-maintained `db/migrations/test_init.sql`, which had to be updated by
+hand for every migration and had fallen behind the real schema. Adding a migration now
+requires no test-harness change.
+
+To seed a database outside Docker, override the psql invocation:
+
+```bash
+PSQL_CMD="psql -h 127.0.0.1 -p 5433 -U testuser -d ninerlog_test" ./scripts/seed-test-db.sh
+```
+
+> Integration tests carry a `//go:build integration` tag, so `-tags=integration` is
+> required — without it the tier compiles and runs nothing.
 
 ## Multi-Replica WebAuthn Check
 
@@ -247,8 +254,9 @@ Integration and E2E tests use these variables (set automatically by Makefile tar
 - Wait a few seconds after starting the container
 
 **Migration errors:**
-- Verify `db/migrations/test_init.sql` exists
 - Check that `psql` client is available in the Docker container
+- `scripts/seed-test-db.sh` stops on the first failing migration and names the file
+- Seeding an already-seeded database will fail on duplicate objects; drop and recreate it first
 
 **Test timeouts:**
 - Integration tests: ~10–15 seconds

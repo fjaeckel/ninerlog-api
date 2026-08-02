@@ -31,16 +31,16 @@ test-integration: ## Run integration tests (requires test DB)
 	@echo "Running integration tests..."
 	@docker compose -f docker-compose.test.yaml up -d
 	@sleep 3
-	@docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d ninerlog_test < db/migrations/test_init.sql 2>/dev/null || true
+	@./scripts/seed-test-db.sh
 	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=ninerlog_test && \
-		go test -v ./internal/repository/postgres/... | grep -v "no test files"
+		go test -v -tags=integration ./internal/repository/postgres/... | grep -v "no test files"
 	@docker compose -f docker-compose.test.yaml down
 
 test-e2e: ## Run end-to-end tests (requires test DB)
 	@echo "Running e2e tests..."
 	@docker compose -f docker-compose.test.yaml up -d
 	@sleep 3
-	@docker compose -f docker-compose.test.yaml exec -T postgres-test psql -U testuser -d ninerlog_test < db/migrations/test_init.sql 2>/dev/null || true
+	@./scripts/seed-test-db.sh
 	@export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass TEST_DB_NAME=ninerlog_test && \
 		go test -v -tags=e2e ./test/e2e/...
 	@docker compose -f docker-compose.test.yaml down

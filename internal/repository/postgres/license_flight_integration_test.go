@@ -37,12 +37,12 @@ func TestLicenseRepositoryIntegration(t *testing.T) {
 	t.Run("Create and retrieve license", func(t *testing.T) {
 		issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
 		license := &models.License{
-			UserID:           user.ID,
-			LicenseType:      models.LicenseTypeEASAPPL,
-			LicenseNumber:    "PPL-123456",
-			IssueDate:        issueDate,
-			IssuingAuthority: "EASA",
-			IsActive:         true,
+			UserID:              user.ID,
+			RegulatoryAuthority: "EASA",
+			LicenseType:         "PPL",
+			LicenseNumber:       "PPL-123456",
+			IssueDate:           issueDate,
+			IssuingAuthority:    "EASA",
 		}
 
 		err := licenseRepo.Create(ctx, license)
@@ -85,21 +85,20 @@ func TestLicenseRepositoryIntegration(t *testing.T) {
 
 	t.Run("Update license", func(t *testing.T) {
 		issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
-		expiryDate := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 
 		license := &models.License{
-			UserID:           user.ID,
-			LicenseType:      models.LicenseTypeEASASPL,
-			LicenseNumber:    "SPL-789012",
-			IssueDate:        issueDate,
-			IssuingAuthority: "EASA",
-			IsActive:         true,
+			UserID:              user.ID,
+			RegulatoryAuthority: "EASA",
+			LicenseType:         "SPL",
+			LicenseNumber:       "SPL-789012",
+			IssueDate:           issueDate,
+			IssuingAuthority:    "EASA",
 		}
 
 		_ = licenseRepo.Create(ctx, license)
 
-		license.ExpiryDate = &expiryDate
-		license.IsActive = false
+		license.LicenseNumber = "SPL-789012-R2"
+		license.RequiresSeparateLogbook = true
 
 		err := licenseRepo.Update(ctx, license)
 		if err != nil {
@@ -108,23 +107,23 @@ func TestLicenseRepositoryIntegration(t *testing.T) {
 
 		// Verify update
 		updated, _ := licenseRepo.GetByID(ctx, license.ID)
-		if updated.IsActive {
-			t.Error("Expected license to be inactive")
+		if updated.LicenseNumber != "SPL-789012-R2" {
+			t.Errorf("Expected license number to be updated, got %q", updated.LicenseNumber)
 		}
-		if updated.ExpiryDate == nil || !updated.ExpiryDate.Equal(expiryDate) {
-			t.Error("Expected expiry date to be updated")
+		if !updated.RequiresSeparateLogbook {
+			t.Error("Expected requiresSeparateLogbook to be updated")
 		}
 	})
 
 	t.Run("Delete license", func(t *testing.T) {
 		issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
 		license := &models.License{
-			UserID:           user.ID,
-			LicenseType:      models.LicenseTypeEASAIR,
-			LicenseNumber:    "IR-345678",
-			IssueDate:        issueDate,
-			IssuingAuthority: "EASA",
-			IsActive:         true,
+			UserID:              user.ID,
+			RegulatoryAuthority: "EASA",
+			LicenseType:         "IR",
+			LicenseNumber:       "IR-345678",
+			IssueDate:           issueDate,
+			IssuingAuthority:    "EASA",
 		}
 
 		_ = licenseRepo.Create(ctx, license)
@@ -164,12 +163,12 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 	}
 	issueDate := time.Date(2020, 1, 15, 0, 0, 0, 0, time.UTC)
 	license := &models.License{
-		UserID:           user.ID,
-		LicenseType:      models.LicenseTypeEASAPPL,
-		LicenseNumber:    "PPL-123456",
-		IssueDate:        issueDate,
-		IssuingAuthority: "EASA",
-		IsActive:         true,
+		UserID:              user.ID,
+		RegulatoryAuthority: "EASA",
+		LicenseType:         "PPL",
+		LicenseNumber:       "PPL-123456",
+		IssueDate:           issueDate,
+		IssuingAuthority:    "EASA",
 	}
 	_ = licenseRepo.Create(ctx, license)
 
@@ -177,12 +176,11 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 		flightDate := time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC)
 		flight := &models.Flight{
 			UserID:       user.ID,
-			LicenseID:    license.ID,
 			Date:         flightDate,
 			AircraftReg:  "D-EFGH",
 			AircraftType: "C172",
-			TotalTime:    2.5,
-			PICTime:      2.5,
+			TotalTime:    150,
+			PICTime:      150,
 			LandingsDay:  3,
 		}
 
@@ -204,8 +202,8 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 		if retrieved.AircraftReg != "D-EFGH" {
 			t.Errorf("Expected aircraft reg D-EFGH, got %s", retrieved.AircraftReg)
 		}
-		if retrieved.TotalTime != 2.5 {
-			t.Errorf("Expected total time 2.5, got %f", retrieved.TotalTime)
+		if retrieved.TotalTime != 150 {
+			t.Errorf("Expected total time 150, got %d", retrieved.TotalTime)
 		}
 	})
 
@@ -233,12 +231,11 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 			flightDate := time.Date(2026, 1, 30+i, 0, 0, 0, 0, time.UTC)
 			flight := &models.Flight{
 				UserID:       user.ID,
-				LicenseID:    license.ID,
 				Date:         flightDate,
 				AircraftReg:  "D-TEST",
 				AircraftType: "C172",
-				TotalTime:    1.0,
-				PICTime:      1.0,
+				TotalTime:    60,
+				PICTime:      60,
 				LandingsDay:  1,
 			}
 			_ = flightRepo.Create(ctx, flight)
@@ -263,20 +260,19 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 		flightDate := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 		flight := &models.Flight{
 			UserID:       user.ID,
-			LicenseID:    license.ID,
 			Date:         flightDate,
 			AircraftReg:  "D-UPDATE",
 			AircraftType: "C172",
-			TotalTime:    2.0,
-			PICTime:      2.0,
+			TotalTime:    120,
+			PICTime:      120,
 			LandingsDay:  2,
 		}
 
 		_ = flightRepo.Create(ctx, flight)
 
-		flight.TotalTime = 3.0
-		flight.PICTime = 3.0
-		flight.NightTime = 0.5
+		flight.TotalTime = 180
+		flight.PICTime = 180
+		flight.NightTime = 30
 
 		err := flightRepo.Update(ctx, flight)
 		if err != nil {
@@ -285,11 +281,11 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 
 		// Verify update
 		updated, _ := flightRepo.GetByID(ctx, flight.ID)
-		if updated.TotalTime != 3.0 {
-			t.Errorf("Expected total time 3.0, got %f", updated.TotalTime)
+		if updated.TotalTime != 180 {
+			t.Errorf("Expected total time 180, got %d", updated.TotalTime)
 		}
-		if updated.NightTime != 0.5 {
-			t.Errorf("Expected night time 0.5, got %f", updated.NightTime)
+		if updated.NightTime != 30 {
+			t.Errorf("Expected night time 30, got %d", updated.NightTime)
 		}
 	})
 
@@ -297,12 +293,11 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 		flightDate := time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC)
 		flight := &models.Flight{
 			UserID:       user.ID,
-			LicenseID:    license.ID,
 			Date:         flightDate,
 			AircraftReg:  "D-DELETE",
 			AircraftType: "C172",
-			TotalTime:    1.0,
-			PICTime:      1.0,
+			TotalTime:    60,
+			PICTime:      60,
 			LandingsDay:  1,
 		}
 

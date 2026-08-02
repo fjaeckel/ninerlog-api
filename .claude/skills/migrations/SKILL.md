@@ -43,6 +43,8 @@ Never edit a migration that has already been merged — add a new one.
   `internal/models/validation.go`.
 - Update the affected repository SQL in `internal/repository/postgres/` (column lists are
   explicit — a new column must be added to every relevant `SELECT`/`INSERT`/`UPDATE`).
-- `db/migrations/test_init.sql` is a hand-maintained combined schema for the integration test
-  database; it is exempt from the numbering checks but must be kept usable for those tests.
+- The integration test database is seeded by `scripts/seed-test-db.sh`, which applies the
+  numbered migrations in order and records the resulting version in `schema_migrations`.
+  There is no hand-maintained combined schema to keep in sync — a new migration is picked
+  up automatically.
 - Update `docs/DATA_MODEL.md` in the same PR.
