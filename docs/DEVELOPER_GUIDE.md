@@ -60,6 +60,8 @@ Topic-specific deep dives already in this repo:
 
 - **[AUTHENTICATION.md](./AUTHENTICATION.md)** — token architecture, 2FA, WebAuthn,
   lockout, rate limiting.
+- **[OIDC.md](./OIDC.md)** — optional single sign-on: configuration, provider recipes,
+  account provisioning, and what switching it on disables.
 - **[METRICS.md](./METRICS.md)** — Prometheus metrics and observability.
 - **[PERFORMANCE.md](./PERFORMANCE.md)** — performance budgets, benchmarks, profiling.
 - **[RUNNING_TESTS.md](./RUNNING_TESTS.md)** — how to run unit/integration/e2e tests.

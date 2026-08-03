@@ -17,6 +17,11 @@ import (
 // requireWebAuthn returns true and writes an error response when the WebAuthn
 // service has not been configured (RP ID/origins missing).
 func (h *APIHandler) requireWebAuthn(c *gin.Context) bool {
+	// In OIDC mode passkeys are off by policy rather than by omission, and the
+	// caller deserves to be told which of the two it is.
+	if !h.requireLocalAuth(c) {
+		return false
+	}
 	if h.webauthnService == nil {
 		h.sendError(c, http.StatusServiceUnavailable, "WebAuthn is not configured on this server")
 		return false

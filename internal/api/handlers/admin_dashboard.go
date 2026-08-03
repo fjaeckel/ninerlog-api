@@ -211,7 +211,19 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		}
 	}
 
+	// Authentication mode. The issuer is a public URL and safe to show an
+	// admin; the client secret deliberately has no representation here.
+	authMode := generated.AdminConfigAuthModeLocal
+	var oidcIssuer *string
+	if h.oidcService != nil {
+		authMode = generated.AdminConfigAuthModeOidc
+		issuer := h.oidcService.Config().Issuer
+		oidcIssuer = &issuer
+	}
+
 	config := generated.AdminConfig{
+		AuthMode:               &authMode,
+		OidcIssuer:             oidcIssuer,
 		GoVersion:              runtime.Version(),
 		ServerUptime:           uptimeStr,
 		MigrationVersion:       migrationVersion,

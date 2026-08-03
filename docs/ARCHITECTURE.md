@@ -100,7 +100,9 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
    (`EASA`, `FAA`, `Other`, and German UL via `RegisterMulti`), then wrap in
    `currency.NewService`.
 7. **Construct optional subsystems** when their configuration is present:
-   - **WebAuthn** service when `WEBAUTHN_RP_ID` is set.
+   - **OIDC** service when `OIDC_ISSUER` is set — which also suppresses every local
+     credential subsystem below it (see the table).
+   - **WebAuthn** service when `WEBAUTHN_RP_ID` is set *and* OIDC is not.
    - **Cloud backup** scheduler when backup credentials key is configured; backup
      providers (`s3`, `sftp`, `webdav`) are registered into a provider registry.
 8. **Aggregate services** into `handlers.APIHandler`.
@@ -108,7 +110,8 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
    proxies and forwarded-IP headers, set CORS, expose `/health` and (optionally)
    `/metrics`.
 10. **Register routes**: the OpenAPI-generated routes under `/api/v1`, plus a few custom
-    routes not in the spec (reports, flight utilities).
+    routes not in the spec (reports, flight utilities, and the OIDC browser redirects,
+    which are navigations rather than JSON operations).
 11. **Start background workers**: the notification background checker, the airport
     database refresher (`AIRPORT_REFRESH_INTERVAL`, default 24h), the import-session
     reaper, and (optionally) the backup scheduler — all bound to a cancellable context.
@@ -119,7 +122,8 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 | Subsystem | Enabled when | Notes |
 | --- | --- | --- |
 | Metrics (`/metrics`) | `METRICS_ENABLED` not disabled | Prometheus handler + DB-stats collector |
-| WebAuthn / passkeys | `WEBAUTHN_RP_ID` set | Relying-party id/name/origins from env; ceremony state in Postgres (`WEBAUTHN_SESSION_TTL`, `WEBAUTHN_MAX_OPEN_CEREMONIES`) plus an expired-session reaper |
+| OIDC single sign-on | `OIDC_ISSUER` set | Mode switch: the provider owns all accounts, and password login, registration, email verification, password reset, TOTP and passkeys are disabled. Discovery is lazy and retried, so the provider may boot after the API. Login state and handoff codes live in Postgres with an expired-state reaper. See [OIDC.md](./OIDC.md) |
+| WebAuthn / passkeys | `WEBAUTHN_RP_ID` set and OIDC off | Relying-party id/name/origins from env; ceremony state in Postgres (`WEBAUTHN_SESSION_TTL`, `WEBAUTHN_MAX_OPEN_CEREMONIES`) plus an expired-session reaper |
 | Cloud backups | backup credentials key set | Registers S3/SFTP/WebDAV providers + scheduler |
 | pprof profiling | `PPROF_ENABLED=true` | Debug profiling server |
 | Airport DB refresh | `AIRPORT_REFRESH_INTERVAL` ≠ `off`/`0` | Refetches and re-merges both airport datasets on a timer |

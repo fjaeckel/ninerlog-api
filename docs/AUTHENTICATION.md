@@ -2,6 +2,27 @@
 
 NinerLog API uses JWT-based authentication with optional TOTP two-factor authentication, account lockout protection, and per-IP rate limiting.
 
+## Authentication modes
+
+A deployment runs in exactly one of two modes. Everything else in this document
+describes **local** mode, which is the default and what `ninerlog.com` runs.
+
+| Mode | Enabled by | Credentials owned by |
+|---|---|---|
+| **local** | the default | NinerLog — passwords, optional TOTP, optional passkeys |
+| **oidc** | `OIDC_ISSUER` is set | An external OpenID Connect provider, entirely |
+
+Setting `OIDC_ISSUER` is a mode switch, not an additional sign-in method: it
+disables password login, registration, email verification, password reset, TOTP
+and passkeys, all of which then answer **503**. Leaving any of them reachable
+would be a way around the provider's own MFA, lockout and offboarding policy.
+
+Clients discover the mode from the public `GET /api/v1/auth/providers`. Token
+architecture, refresh and logout below are identical in both modes — OIDC only
+replaces how the first token pair is obtained.
+
+Full setup, provider recipes and migration guidance: **[OIDC.md](./OIDC.md)**.
+
 ## Token Architecture
 
 | Token | Lifetime | Purpose |
@@ -359,6 +380,10 @@ All endpoints except the following require a valid access token in the `Authoriz
 | `POST /api/v1/auth/login` | Login |
 | `POST /api/v1/auth/refresh` | Token refresh |
 | `POST /api/v1/auth/2fa/login` | 2FA login |
+| `GET /api/v1/auth/providers` | Which sign-in methods this server offers |
+| `GET /api/v1/auth/oidc/authorize` | Start an OIDC login (503 in local mode) |
+| `GET /api/v1/auth/oidc/callback` | OIDC provider redirect target (503 in local mode) |
+| `POST /api/v1/auth/oidc/exchange` | Redeem the OIDC handoff code (503 in local mode) |
 | `GET /api/v1/airports/search` | Airport search |
 | `GET /api/v1/airports/:icaoCode` | Airport lookup |
 
@@ -380,7 +405,12 @@ In-memory per-IP rate limiting (respects `X-Real-IP` / `X-Forwarded-For` from tr
 | Endpoint Group | Limit |
 |---|---|
 | Auth endpoints (`/auth/*`) | 10 requests / minute |
+| OIDC login + `/auth/providers` | 60 requests / minute |
 | Admin endpoints (`/admin/*`) | 30 requests / minute |
+
+OIDC gets its own budget because one sign-in costs three requests (authorize,
+callback, exchange), which would exhaust the 10/min auth bucket after three
+logins from a single NAT address.
 
 **429 Too Many Requests:**
 ```json

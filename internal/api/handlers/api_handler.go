@@ -33,14 +33,18 @@ type APIHandler struct {
 	classRatingService     *service.ClassRatingService
 	currencyService        *currency.Service
 	webauthnService        *service.WebAuthnService
-	jwtManager             *jwt.Manager
-	db                     *sql.DB
-	flightCrewRepo         repository.FlightCrewRepository
-	adminEmail             string
-	emailSender            *email.Sender
-	startedAt              time.Time
-	corsOrigins            []string
-	backupService          *cloudbackup.Service
+	// oidcService is nil unless OIDC_ISSUER is configured. Non-nil means the
+	// server runs in OIDC mode, which also switches every local credential
+	// path off — see requireLocalAuth.
+	oidcService    *service.OIDCService
+	jwtManager     *jwt.Manager
+	db             *sql.DB
+	flightCrewRepo repository.FlightCrewRepository
+	adminEmail     string
+	emailSender    *email.Sender
+	startedAt      time.Time
+	corsOrigins    []string
+	backupService  *cloudbackup.Service
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

@@ -244,6 +244,40 @@ func main() {
 	// Notification service depends on currency service for two-tier evaluation
 	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService, customCurrencyService)
 
+	// OIDC single sign-on (optional — enabled by setting OIDC_ISSUER).
+	//
+	// This is a mode switch, not an additional login method: when an identity
+	// provider is configured it owns accounts outright, and every local
+	// credential path (passwords, registration, email verification, TOTP,
+	// passkeys) is switched off. Leaving one of them reachable would be a way
+	// around the provider's own policy — its MFA requirements, its account
+	// lifecycle, its lockouts.
+	//
+	// A malformed configuration is fatal. A half-configured provider would
+	// leave a deployment that can neither sign in locally nor via OIDC, and
+	// failing at startup surfaces that immediately rather than at the first
+	// login attempt.
+	oidcConfig, err := service.LoadOIDCConfig()
+	if err != nil {
+		fatal("invalid OIDC configuration", "error", err)
+	}
+	var oidcService *service.OIDCService
+	if oidcConfig.Enabled() {
+		oidcIdentityRepo := postgres.NewOIDCIdentityRepository(db)
+		oidcService, err = service.NewOIDCService(oidcConfig, userRepo, oidcIdentityRepo, authService)
+		if err != nil {
+			fatal("failed to initialize OIDC", "error", err)
+		}
+		slog.Info("OIDC mode enabled — local passwords, registration, 2FA and passkeys are disabled",
+			"issuer", oidcConfig.Issuer,
+			"provider_name", oidcConfig.ProviderName,
+			"scopes", strings.Join(oidcConfig.Scopes, " "),
+			"link_by_verified_email", oidcConfig.LinkByVerifiedEmail,
+			"trust_email_verified", oidcConfig.TrustEmailVerified)
+	} else {
+		slog.Info("Local authentication mode (set OIDC_ISSUER to use single sign-on)")
+	}
+
 	// WebAuthn / passkey service (optional — disabled if WEBAUTHN_RP_ID is not set).
 	webauthnRPID := os.Getenv("WEBAUTHN_RP_ID")
 	webauthnRPName := os.Getenv("WEBAUTHN_RP_NAME")
@@ -275,7 +309,13 @@ func main() {
 		service.DefaultWebAuthnMaxOpenCeremonies)
 
 	var webauthnService *service.WebAuthnService
-	if webauthnRPID != "" {
+	switch {
+	case oidcConfig.Enabled():
+		// Passkeys are a local credential: leaving them registerable would let
+		// a user keep a way into NinerLog that the identity provider cannot
+		// revoke.
+		slog.Info("WebAuthn disabled (OIDC mode owns authentication)")
+	case webauthnRPID != "":
 		webauthnService, err = service.NewWebAuthnService(webauthnRPID, webauthnRPName, webauthnOrigins,
 			webauthnCredRepo, webauthnSessionRepo, userRepo, authService,
 			webauthnSessionTTL, webauthnMaxOpenCeremonies)
@@ -287,7 +327,7 @@ func main() {
 				"session_ttl", webauthnSessionTTL.String(),
 				"max_open_ceremonies", webauthnMaxOpenCeremonies)
 		}
-	} else {
+	default:
 		slog.Info("WebAuthn disabled (set WEBAUTHN_RP_ID to enable)")
 		_ = webauthnCredRepo
 		_ = webauthnSessionRepo
@@ -295,6 +335,7 @@ func main() {
 
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
+	apiHandler.SetOIDCService(oidcService)
 	apiHandler.SetDB(db)
 	apiHandler.SetEmailSender(emailSender)
 	flightSessionService := service.NewFlightSessionService(flightSessionRepo, aircraftRepo, flightService)
@@ -467,6 +508,15 @@ func main() {
 	api.Use(middleware.AuthMiddleware(jwtManager, []string{
 		"/auth/register",
 		"/auth/login",
+		// Capability probe: the client must be able to ask which sign-in
+		// methods exist before anyone can be authenticated.
+		"/auth/providers",
+		// OIDC login flow. The browser reaches authorize/callback with no
+		// token by definition, and exchange trades the single-use handoff
+		// code minted by the callback for the token pair.
+		"/auth/oidc/authorize",
+		"/auth/oidc/callback",
+		"/auth/oidc/exchange",
 		"/auth/refresh",
 		"/auth/logout",
 		"/auth/2fa/login",
@@ -545,6 +595,20 @@ func main() {
 			"/auth/webauthn/login/verify",
 		))
 
+		// OIDC login and the capability probe get their own budget rather than
+		// sharing the 10/min auth bucket: one sign-in costs three requests
+		// (authorize → callback → exchange), so a household or office behind a
+		// single NAT address would otherwise exhaust the auth bucket after
+		// three logins a minute. The work per request is a redirect or one
+		// single-use row lookup, so a larger budget is still cheap.
+		oidcRateLimit := middleware.NewRateLimitMiddleware("oidc", 60, 1*time.Minute)
+		api.Use(middleware.RateLimitByPath(oidcRateLimit,
+			"/auth/providers",
+			"/auth/oidc/authorize",
+			"/auth/oidc/callback",
+			"/auth/oidc/exchange",
+		))
+
 		// Stricter rate limiting for admin endpoints: 30 requests per minute per IP
 		adminRateLimit := middleware.NewRateLimitMiddleware("admin", 30, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(adminRateLimit,
@@ -592,6 +656,14 @@ func main() {
 	// Register custom currency rule routes (not in OpenAPI spec)
 	handlers.RegisterCustomCurrencyRoutes(api, customCurrencyHandler)
 
+	// OIDC authorize/callback are browser redirects rather than JSON
+	// operations, so they are registered manually; the JSON half of the flow
+	// (/auth/providers, /auth/oidc/exchange) comes from the spec above.
+	// Registered unconditionally so the endpoints answer 503 rather than 404
+	// when OIDC is off — a 404 reads as "wrong URL" to someone setting the
+	// provider up.
+	handlers.RegisterOIDCRoutes(api, apiHandler)
+
 	slog.Info("Routes registered from OpenAPI specification")
 
 	// Start background notification checker (configurable via NOTIFICATION_CHECK_INTERVAL, defaults to 1h)
@@ -612,6 +684,11 @@ func main() {
 	// stale challenge usable.
 	if webauthnService != nil {
 		webauthnService.StartSessionReaper(notifCtx, 5*time.Minute)
+	}
+
+	// Same hygiene for pending OIDC logins and unredeemed handoff codes.
+	if oidcService != nil {
+		oidcService.StartStateReaper(notifCtx, 5*time.Minute)
 	}
 
 	// Start cloud-backup scheduler if configured

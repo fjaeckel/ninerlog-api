@@ -62,10 +62,16 @@ api.Use(middleware.RateLimitByPath(adminRateLimit, /* /admin paths */))
 generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{...})
 handlers.RegisterReportsRoutes(api, apiHandler, db)   // custom, not in OpenAPI spec
 handlers.RegisterFlightUtilRoutes(api, apiHandler)    // custom, not in OpenAPI spec
+handlers.RegisterOIDCRoutes(api, apiHandler)          // browser redirects, not in the spec
 ```
 
 A small number of routes (some reports and flight utilities) are registered manually
 rather than through the generated code; they are still served under `/api/v1`.
+
+The two browser-facing OIDC endpoints are manual for a different reason: they are
+302 redirects driven by top-level navigation, not JSON operations a generated client
+would ever call. The JSON half of that flow (`GET /auth/providers`,
+`POST /auth/oidc/exchange`) is in the spec and generated normally.
 
 ## Base path, versioning, and non-API routes
 
@@ -118,9 +124,18 @@ Registration, email verification (+ resend), login, token refresh, change/reset 
 TOTP 2FA (setup/verify/disable/login), and WebAuthn (register/login options + verify, list
 and delete credentials).
 
+`GET /auth/providers` is a public capability probe reporting which authentication mode
+the server runs in. On a deployment with `OIDC_ISSUER` set, every local-credential
+operation in this group answers **503** and the OIDC endpoints take over —
+`GET /auth/oidc/authorize`, `GET /auth/oidc/callback` (both redirects, not in the spec)
+and `POST /auth/oidc/exchange`. `POST /auth/refresh` and `POST /auth/logout` behave the
+same in both modes. See [OIDC.md](./OIDC.md).
+
 ### Users
 `GET/PATCH/DELETE /users/me`, notification preferences and history, baseline
 (`GET/PUT/DELETE /users/me/baseline`), personal statistics, and account-data deletion.
+In OIDC mode `PATCH /users/me` refuses `name` and `email` with 403 (the provider owns
+them) and `DELETE /users/me` confirms with `confirmEmail` instead of `password`.
 `PATCH /users/me` also carries the display preferences (`timeDisplayFormat`, `dateFormat`,
 `decimalSeparator`, `preferredLocale`, the recency toggles, and `flightListColumnMode` /
 `flightListColumns` for the flights-list columns). An unrecognised value for any of these

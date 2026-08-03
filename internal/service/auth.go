@@ -33,6 +33,10 @@ var (
 	ErrNameRequired       = errors.New("name is required")
 	ErrInvalidEmail       = errors.New("invalid email format")
 	ErrEmailTooLong       = errors.New("email must not exceed 255 characters")
+	// ErrPasswordNotSet marks an account that has no local password — an OIDC
+	// account. Password-based operations are refused outright rather than
+	// compared against an empty hash.
+	ErrPasswordNotSet = errors.New("account has no local password")
 )
 
 const (
@@ -298,6 +302,16 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 	// cannot be probed further.
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
 		return nil, nil, ErrAccountLocked
+	}
+
+	// Accounts provisioned through OIDC have no local password. The password
+	// endpoints are already disabled while OIDC mode is on, so this is defence
+	// in depth for a deployment that switched modes with such accounts in the
+	// database. It burns the same CPU as a real comparison so the absence of a
+	// password is not detectable by response timing.
+	if !user.HasPassword() {
+		hash.DummyCompare()
+		return nil, nil, ErrInvalidCredentials
 	}
 
 	// Verify the password BEFORE surfacing any account-state details. Returning
@@ -594,6 +608,9 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	}
 
 	// Verify current password
+	if !user.HasPassword() {
+		return ErrPasswordNotSet
+	}
 	if err := hash.ComparePassword(user.PasswordHash, currentPassword); err != nil {
 		return ErrInvalidCredentials
 	}
@@ -627,10 +644,31 @@ func (s *AuthService) DeleteUser(ctx context.Context, userID uuid.UUID, password
 	}
 
 	// Verify password
+	if !user.HasPassword() {
+		return ErrPasswordNotSet
+	}
 	if err := hash.ComparePassword(user.PasswordHash, password); err != nil {
 		return ErrInvalidCredentials
 	}
 
+	return s.deleteUserAndTokens(ctx, userID)
+}
+
+// DeleteUserConfirmed permanently deletes an account whose identity has been
+// confirmed by means other than a password.
+//
+// In OIDC mode there is no password to re-enter, so the handler confirms the
+// destructive action by requiring the caller to type their own email address
+// instead. The confirmation itself happens in the handler; this method is the
+// deletion once that check has passed.
+func (s *AuthService) DeleteUserConfirmed(ctx context.Context, userID uuid.UUID) error {
+	if _, err := s.userRepo.GetByID(ctx, userID); err != nil {
+		return err
+	}
+	return s.deleteUserAndTokens(ctx, userID)
+}
+
+func (s *AuthService) deleteUserAndTokens(ctx context.Context, userID uuid.UUID) error {
 	// Clean up tokens
 	_ = s.refreshTokenRepo.DeleteForUser(ctx, userID)
 	_ = s.passwordResetRepo.DeleteForUser(ctx, userID)

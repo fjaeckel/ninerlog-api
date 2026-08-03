@@ -11,6 +11,9 @@ import (
 
 // Setup2FA implements POST /auth/2fa/setup
 func (h *APIHandler) Setup2FA(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
@@ -35,6 +38,9 @@ func (h *APIHandler) Setup2FA(c *gin.Context) {
 
 // Verify2FA implements POST /auth/2fa/verify
 func (h *APIHandler) Verify2FA(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
@@ -68,6 +74,9 @@ func (h *APIHandler) Verify2FA(c *gin.Context) {
 
 // Disable2FA implements POST /auth/2fa/disable
 func (h *APIHandler) Disable2FA(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
@@ -94,6 +103,9 @@ func (h *APIHandler) Disable2FA(c *gin.Context) {
 
 // Login2FA implements POST /auth/2fa/login
 func (h *APIHandler) Login2FA(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
 	var req generated.Login2FAJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Invalid request body")

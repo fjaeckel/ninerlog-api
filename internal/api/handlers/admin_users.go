@@ -229,6 +229,11 @@ func (h *APIHandler) ResetUser2fa(c *gin.Context, userId openapi_types.UUID) {
 	if !ok {
 		return
 	}
+	// TOTP does not exist in OIDC mode — second factors are the provider's
+	// responsibility there — so there is nothing for an admin to reset.
+	if !h.requireLocalAuth(c) {
+		return
+	}
 
 	targetID := uuid.UUID(userId)
 	user, err := h.authService.GetUserByID(c.Request.Context(), targetID)

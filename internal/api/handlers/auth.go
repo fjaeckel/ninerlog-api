@@ -20,6 +20,10 @@ import (
 // RegisterUser implements POST /auth/register
 // (POST /auth/register)
 func (h *APIHandler) RegisterUser(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
+
 	var req generated.RegisterUserJSONRequestBody
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -86,6 +90,10 @@ func preferredLocaleString(locale *generated.RegisterUserJSONBodyPreferredLocale
 // VerifyEmail implements POST /auth/verify-email
 // (POST /auth/verify-email)
 func (h *APIHandler) VerifyEmail(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
+
 	var req generated.VerifyEmailJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Invalid request body")
@@ -108,6 +116,10 @@ func (h *APIHandler) VerifyEmail(c *gin.Context) {
 // ResendVerificationEmail implements POST /auth/verify-email/resend
 // (POST /auth/verify-email/resend)
 func (h *APIHandler) ResendVerificationEmail(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
+
 	var req generated.ResendVerificationEmailJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Invalid request body")
@@ -165,6 +177,10 @@ func (h *APIHandler) sendVerificationEmail(toEmail, userName, locale, token stri
 // LoginUser implements POST /auth/login
 // (POST /auth/login)
 func (h *APIHandler) LoginUser(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
+
 	var req generated.LoginUserJSONRequestBody
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -283,6 +299,9 @@ func (h *APIHandler) LogoutUser(c *gin.Context) {
 // ChangePassword implements POST /auth/change-password
 // (POST /auth/change-password)
 func (h *APIHandler) ChangePassword(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
@@ -326,8 +345,37 @@ func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.DeleteUser(c.Request.Context(), userID, req.Password); err != nil {
-		if errors.Is(err, service.ErrInvalidCredentials) {
+	// Deleting a logbook is irreversible, so it always requires re-confirming
+	// identity. Which proof is acceptable depends on the authentication mode:
+	// a password where one exists, and otherwise the account's own address
+	// typed out, which is the standard "type the name to confirm" guard for a
+	// destructive action.
+	if h.OIDCEnabled() {
+		user, err := h.authService.GetUserByID(c.Request.Context(), userID)
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to delete account")
+			return
+		}
+		if req.ConfirmEmail == nil || !strings.EqualFold(strings.TrimSpace(string(*req.ConfirmEmail)), user.Email) {
+			h.sendError(c, http.StatusBadRequest,
+				"Type your account email address to confirm deletion")
+			return
+		}
+		if err := h.authService.DeleteUserConfirmed(c.Request.Context(), userID); err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to delete account")
+			return
+		}
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	if req.Password == nil || *req.Password == "" {
+		h.sendError(c, http.StatusBadRequest, "Password is required to confirm deletion")
+		return
+	}
+
+	if err := h.authService.DeleteUser(c.Request.Context(), userID, *req.Password); err != nil {
+		if errors.Is(err, service.ErrInvalidCredentials) || errors.Is(err, service.ErrPasswordNotSet) {
 			h.sendError(c, http.StatusUnauthorized, "Password is incorrect")
 			return
 		}
@@ -341,6 +389,10 @@ func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
 // RequestPasswordReset implements POST /auth/password-reset-request
 // (POST /auth/password-reset-request)
 func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
+
 	var req generated.RequestPasswordResetJSONRequestBody
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -398,6 +450,10 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 // ResetPassword implements POST /auth/password-reset
 // (POST /auth/password-reset)
 func (h *APIHandler) ResetPassword(c *gin.Context) {
+	if !h.requireLocalAuth(c) {
+		return
+	}
+
 	var req generated.ResetPasswordJSONRequestBody
 
 	if err := c.ShouldBindJSON(&req); err != nil {

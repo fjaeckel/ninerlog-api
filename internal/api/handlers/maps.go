@@ -218,6 +218,13 @@ func (h *APIHandler) SetBackupService(s *cloudbackup.Service) {
 	h.backupService = s
 }
 
+// SetOIDCService stores the OIDC service (optional — only set when
+// OIDC_ISSUER is configured). A non-nil service also disables every local
+// credential endpoint; see requireLocalAuth.
+func (h *APIHandler) SetOIDCService(s *service.OIDCService) {
+	h.oidcService = s
+}
+
 // SetFlightSessionService stores the tap-to-log flight session service
 func (h *APIHandler) SetFlightSessionService(s *service.FlightSessionService) {
 	h.flightSessionService = s
