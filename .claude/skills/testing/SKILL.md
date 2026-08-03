@@ -36,7 +36,7 @@ go test -tags=integration ./internal/repository/postgres/...
 ```bash
 go test -short -run TestFlightService_Create ./internal/service/
 go test -tags=e2e -run TestE2E_Flights ./test/e2e/...
-bash scripts/run-e2e-tests.sh -t TestE2E_Flights   # full stack, single test
+bash scripts/run-e2e-tests.sh TestE2E_Flights      # full stack, single test
 ```
 
 `make test-e2e-full` / `scripts/run-e2e-tests.sh` brings up `docker-compose.e2e.yaml`
@@ -62,3 +62,6 @@ bash scripts/run-e2e-tests.sh
 
 All must be green. If you find a regression, **do not** work around it in the test — fix it, or
 file a GitHub issue documenting it. Never mark work complete without a green run.
+
+When a behaviour change makes an e2e test wrong, or a red test might be stale rather than a
+regression, see `.claude/skills/e2e-sync/SKILL.md`.

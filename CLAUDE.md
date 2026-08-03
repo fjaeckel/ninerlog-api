@@ -59,7 +59,8 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
 2. **Docs in the same PR** as the behaviour change. See `.claude/skills/docs-sync/SKILL.md`.
 3. **Tests must be green before committing** (`make fmt`, `make lint`, `make test`,
    `bash scripts/run-e2e-tests.sh`). Never weaken or skip a test to hide a regression — file a
-   GitHub issue instead.
+   GitHub issue instead. A behaviour change updates its e2e tests in the same PR; see
+   `.claude/skills/e2e-sync/SKILL.md`, which also covers telling a stale test from a regression.
 4. **Domain invariants** (durations in integer minutes, `*Override` flags, currency evaluator
    registry, service-layer ownership checks, sentinel errors) — see
    `.claude/skills/aviation-domain/SKILL.md`.
