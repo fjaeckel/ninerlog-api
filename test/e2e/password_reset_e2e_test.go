@@ -179,7 +179,32 @@ func TestPasswordReset(t *testing.T) {
 		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	t.Run("reset disables 2FA", func(t *testing.T) {
+	t.Run("reset sends a password-changed notice", func(t *testing.T) {
+		email := uniqueEmail("pwreset-notice")
+		newPw := "NewPassword456!"
+
+		registerUser(t, c, email, "SecurePass123!", "Notice User")
+		c.ClearToken()
+
+		token := requestResetToken(t, email)
+		resp := c.POST("/auth/password-reset", map[string]string{
+			"token":       token,
+			"newPassword": newPw,
+		})
+		requireStatus(t, resp, http.StatusNoContent)
+
+		time.Sleep(500 * time.Millisecond)
+
+		msg := mailpitRequireEmail(t, email, "Your password was changed")
+		if msg.HTML == "" {
+			t.Error("Expected HTML body in the password-changed notice")
+		}
+	})
+
+	// A reset must NOT be a way around 2FA. Control of the mailbox gets an
+	// attacker the reset link; if that link also stripped the second factor,
+	// the mailbox alone would be enough for a full account takeover.
+	t.Run("reset requires 2FA and keeps it enabled", func(t *testing.T) {
 		email := uniqueEmail("pwreset-2fa")
 		pw := "SecurePass123!"
 		newPw := "NewPassword456!"
@@ -213,24 +238,115 @@ func TestPasswordReset(t *testing.T) {
 			t.Fatal("Expected 2FA to be required before reset")
 		}
 
-		// Do password reset
 		token := requestResetToken(t, email)
+
+		// Without a code the reset is refused, and the token is not consumed.
 		resp = c.POST("/auth/password-reset", map[string]string{
 			"token":       token,
 			"newPassword": newPw,
 		})
+		assertStatus(t, resp, http.StatusUnauthorized)
+		var errBody struct {
+			Code string `json:"code"`
+		}
+		resp.JSON(&errBody)
+		if errBody.Code != "two_factor_required" {
+			t.Errorf("Expected code two_factor_required, got %q", errBody.Code)
+		}
+
+		// A wrong code is refused too.
+		resp = c.POST("/auth/password-reset", map[string]string{
+			"token":         token,
+			"newPassword":   newPw,
+			"twoFactorCode": "000000",
+		})
+		assertStatus(t, resp, http.StatusUnauthorized)
+		resp.JSON(&errBody)
+		if errBody.Code != "invalid_two_factor_code" {
+			t.Errorf("Expected code invalid_two_factor_code, got %q", errBody.Code)
+		}
+
+		// The old password must still work at this point.
+		resp = c.POST("/auth/login", map[string]string{"email": email, "password": pw})
+		requireStatus(t, resp, http.StatusOK)
+
+		// With a valid TOTP code the reset goes through.
+		resetCode, err := totp.GenerateCode(secret, time.Now())
+		if err != nil {
+			t.Fatalf("Failed to generate TOTP: %v", err)
+		}
+		resp = c.POST("/auth/password-reset", map[string]string{
+			"token":         token,
+			"newPassword":   newPw,
+			"twoFactorCode": resetCode,
+		})
 		requireStatus(t, resp, http.StatusNoContent)
 
-		// Login should now succeed WITHOUT 2FA
+		// The new password works — and 2FA is still in force.
 		resp = c.POST("/auth/login", map[string]string{"email": email, "password": newPw})
 		requireStatus(t, resp, http.StatusOK)
 		var afterReset AuthResponseBody
 		resp.JSON(&afterReset)
-		if afterReset.RequiresTwoFactor {
-			t.Error("Expected 2FA to be disabled after password reset")
+		if !afterReset.RequiresTwoFactor {
+			t.Error("Expected 2FA to still be required after the password reset")
 		}
-		if afterReset.AccessToken == "" {
-			t.Error("Expected accessToken after login without 2FA")
+		if afterReset.AccessToken != "" {
+			t.Error("Expected no accessToken before the 2FA challenge is answered")
 		}
+	})
+
+	// The self-service escape hatch when the authenticator is gone: a recovery
+	// code stands in for the TOTP code, so no admin has to intervene.
+	t.Run("reset accepts a recovery code", func(t *testing.T) {
+		email := uniqueEmail("pwreset-recovery")
+		pw := "SecurePass123!"
+		newPw := "NewPassword456!"
+
+		auth := registerUser(t, c, email, pw, "Recovery Reset")
+		c.SetToken(auth.AccessToken)
+
+		resp := c.POST("/auth/2fa/setup", nil)
+		requireStatus(t, resp, http.StatusOK)
+		var setup map[string]interface{}
+		resp.JSON(&setup)
+		secret := setup["secret"].(string)
+
+		code, err := totp.GenerateCode(secret, time.Now())
+		if err != nil {
+			t.Fatalf("Failed to generate TOTP: %v", err)
+		}
+		resp = c.POST("/auth/2fa/verify", map[string]string{"code": code})
+		requireStatus(t, resp, http.StatusOK)
+		var verify struct {
+			RecoveryCodes []string `json:"recoveryCodes"`
+		}
+		resp.JSON(&verify)
+		if len(verify.RecoveryCodes) == 0 {
+			t.Fatal("Expected recovery codes after enabling 2FA")
+		}
+		c.ClearToken()
+
+		token := requestResetToken(t, email)
+		resp = c.POST("/auth/password-reset", map[string]string{
+			"token":         token,
+			"newPassword":   newPw,
+			"twoFactorCode": verify.RecoveryCodes[0],
+		})
+		requireStatus(t, resp, http.StatusNoContent)
+
+		// 2FA survives, and the used recovery code is spent.
+		resp = c.POST("/auth/login", map[string]string{"email": email, "password": newPw})
+		requireStatus(t, resp, http.StatusOK)
+		var afterReset AuthResponseBody
+		resp.JSON(&afterReset)
+		if !afterReset.RequiresTwoFactor {
+			t.Error("Expected 2FA to still be required after a recovery-code reset")
+		}
+
+		resp = c.POST("/auth/2fa/login", map[string]string{
+			"twoFactorToken": afterReset.TwoFactorToken,
+			"code":           verify.RecoveryCodes[0],
+		})
+		assertStatus(t, resp, http.StatusUnauthorized)
 	})
 }

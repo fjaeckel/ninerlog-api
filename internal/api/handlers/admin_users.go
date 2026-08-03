@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -253,6 +254,15 @@ func (h *APIHandler) ResetUser2fa(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	h.logAdminAction(c, adminUserID, "reset_2fa", &targetID, map[string]any{"email": user.Email})
+
+	// Tell the account owner their second factor is gone. Without this the
+	// removal is invisible to them until the next sign-in silently skips the
+	// 2FA challenge.
+	if h.emailSender != nil && user.Email != "" {
+		tmpl := email.Templates(user.PreferredLocale)
+		subject, body := tmpl.TwoFactorReset(email.TwoFactorResetParams{UserName: user.Name})
+		_ = h.emailSender.Send(user.Email, subject, body)
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "2FA reset for user"})
 }

@@ -272,7 +272,8 @@ func setupAuthService() *service.AuthService {
 	passwordResetRepo := newMockPasswordResetRepo()
 	emailVerifyRepo := newMockEmailVerificationRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
-	return service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerifyRepo, jwtManager)
+	return service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerifyRepo, jwtManager,
+		service.NewTwoFactorService(userRepo, jwtManager, nil))
 }
 
 func TestRegister(t *testing.T) {
@@ -583,16 +584,22 @@ func TestRequestPasswordReset(t *testing.T) {
 		t.Fatalf("Registration failed: %v", err)
 	}
 
-	resetToken, userEmail, err := authService.RequestPasswordReset(ctx, "test@example.com")
+	reset, err := authService.RequestPasswordReset(ctx, "test@example.com")
 	if err != nil {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
 
-	if resetToken == "" {
+	if reset.Token == "" {
 		t.Error("Expected reset token")
 	}
-	if userEmail != "test@example.com" {
-		t.Errorf("Expected userEmail = test@example.com, got %q", userEmail)
+	if reset.Email != "test@example.com" {
+		t.Errorf("Expected Email = test@example.com, got %q", reset.Email)
+	}
+	if reset.Name != "Test User" {
+		t.Errorf("Expected Name = Test User, got %q", reset.Name)
+	}
+	if reset.TwoFactorEnabled {
+		t.Error("Expected TwoFactorEnabled = false for an account without 2FA")
 	}
 }
 
@@ -600,16 +607,16 @@ func TestRequestPasswordResetNonExistentUser(t *testing.T) {
 	authService := setupAuthService()
 	ctx := context.Background()
 
-	resetToken, userEmail, err := authService.RequestPasswordReset(ctx, "nonexistent@example.com")
+	reset, err := authService.RequestPasswordReset(ctx, "nonexistent@example.com")
 	if err != nil {
 		t.Errorf("RequestPasswordReset should not error for non-existent user: %v", err)
 	}
 
-	if resetToken != "" {
+	if reset.Token != "" {
 		t.Error("Should not return token for non-existent user")
 	}
-	if userEmail != "" {
-		t.Errorf("Should not return email for non-existent user, got %q", userEmail)
+	if reset.Email != "" {
+		t.Errorf("Should not return email for non-existent user, got %q", reset.Email)
 	}
 }
 
@@ -628,13 +635,12 @@ func TestResetPassword(t *testing.T) {
 		t.Fatalf("Registration failed: %v", err)
 	}
 
-	resetToken, _, err := authService.RequestPasswordReset(ctx, "test@example.com")
+	reset, err := authService.RequestPasswordReset(ctx, "test@example.com")
 	if err != nil {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
 
-	err = authService.ResetPassword(ctx, resetToken, "newpassword456")
-	if err != nil {
+	if _, err := authService.ResetPassword(ctx, reset.Token, "newpassword456", ""); err != nil {
 		t.Fatalf("ResetPassword failed: %v", err)
 	}
 
@@ -653,7 +659,7 @@ func TestResetPasswordInvalidToken(t *testing.T) {
 	authService := setupAuthService()
 	ctx := context.Background()
 
-	err := authService.ResetPassword(ctx, "invalid-token", "newpassword")
+	_, err := authService.ResetPassword(ctx, "invalid-token", "newpassword", "")
 	if err != service.ErrInvalidToken {
 		t.Errorf("Expected ErrInvalidToken, got %v", err)
 	}
@@ -674,17 +680,16 @@ func TestResetPasswordUsedToken(t *testing.T) {
 		t.Fatalf("Registration failed: %v", err)
 	}
 
-	resetToken, _, err := authService.RequestPasswordReset(ctx, "test@example.com")
+	reset, err := authService.RequestPasswordReset(ctx, "test@example.com")
 	if err != nil {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
 
-	err = authService.ResetPassword(ctx, resetToken, "newpassword456")
-	if err != nil {
+	if _, err := authService.ResetPassword(ctx, reset.Token, "newpassword456", ""); err != nil {
 		t.Fatalf("ResetPassword failed: %v", err)
 	}
 
-	err = authService.ResetPassword(ctx, resetToken, "anotherpassword")
+	_, err = authService.ResetPassword(ctx, reset.Token, "anotherpassword", "")
 	if err != service.ErrTokenUsed {
 		t.Errorf("Expected ErrTokenUsed, got %v", err)
 	}
@@ -696,7 +701,8 @@ func TestChangePassword(t *testing.T) {
 	passwordResetRepo := newMockPasswordResetRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
+		service.NewTwoFactorService(userRepo, jwtManager, nil))
 	ctx := context.Background()
 
 	// Register a user
@@ -744,7 +750,8 @@ func TestDeleteUser(t *testing.T) {
 	passwordResetRepo := newMockPasswordResetRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
+		service.NewTwoFactorService(userRepo, jwtManager, nil))
 	ctx := context.Background()
 
 	// Register a user
@@ -904,7 +911,8 @@ func TestUpdateUser(t *testing.T) {
 	refreshTokenRepo := newMockRefreshTokenRepo()
 	passwordResetRepo := newMockPasswordResetRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
+		service.NewTwoFactorService(userRepo, jwtManager, nil))
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -1022,9 +1030,9 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 	}
 	_, _, _ = authService.Register(ctx, input)
 
-	resetToken, _, _ := authService.RequestPasswordReset(ctx, "test@example.com")
+	reset, _ := authService.RequestPasswordReset(ctx, "test@example.com")
 
-	err := authService.ResetPassword(ctx, resetToken, "short")
+	_, err := authService.ResetPassword(ctx, reset.Token, "short", "")
 	if err != service.ErrPasswordTooShort {
 		t.Errorf("Expected ErrPasswordTooShort, got %v", err)
 	}
