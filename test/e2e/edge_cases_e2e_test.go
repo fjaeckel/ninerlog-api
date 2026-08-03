@@ -163,12 +163,18 @@ func TestEmailUpdateDuplicate(t *testing.T) {
 	registerAndLogin(t, c1, email1, "SecurePass123!", "User1")
 	registerAndLogin(t, c2, email2, "SecurePass123!", "User2")
 
-	// Fixed: Email update to existing email now returns 409
+	// Email update to an address another account already holds returns 409.
+	// Changing the address at all requires the current password.
 	t.Run("update email to another user email fails", func(t *testing.T) {
-		r := c1.PATCH("/users/me", map[string]string{"email": email2})
+		r := c1.PATCH("/users/me", map[string]string{
+			"email":           email2,
+			"currentPassword": "SecurePass123!",
+		})
 		assertStatus(t, r, http.StatusConflict)
 	})
 
+	// Re-submitting the address the account already has is not a change, so it
+	// needs no password.
 	t.Run("update email to same email is no-op", func(t *testing.T) {
 		r := c1.PATCH("/users/me", map[string]string{"email": email1})
 		requireStatus(t, r, 200)
