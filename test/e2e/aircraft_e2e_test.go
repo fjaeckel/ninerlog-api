@@ -5,6 +5,7 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -110,9 +111,21 @@ func TestAircraftLoggingDefaults(t *testing.T) {
 		assertStr(t, "defaultArrivalIcao", updated["defaultArrivalIcao"], "LSZH")
 	})
 
+	// The field holds an ICAO code or a free-text place name for off-airport
+	// sites (#116), so it is bounded at 100 characters rather than 4.
+	t.Run("free-text default longer than an ICAO code is accepted", func(t *testing.T) {
+		resp := c.PATCH(fmt.Sprintf("/aircraft/%s", acID), map[string]interface{}{
+			"defaultDepartureIcao": "Hausen am Albis",
+		})
+		requireStatus(t, resp, http.StatusOK)
+		var updated map[string]interface{}
+		resp.JSON(&updated)
+		assertStr(t, "defaultDepartureIcao", updated["defaultDepartureIcao"], "HAUSEN AM ALBIS")
+	})
+
 	t.Run("too long default is rejected", func(t *testing.T) {
 		assertStatus(t, c.PATCH(fmt.Sprintf("/aircraft/%s", acID), map[string]interface{}{
-			"defaultDepartureIcao": "TOOLONG",
+			"defaultDepartureIcao": strings.Repeat("A", 101),
 		}), http.StatusBadRequest)
 	})
 }
