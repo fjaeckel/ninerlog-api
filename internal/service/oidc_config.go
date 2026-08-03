@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 )
@@ -68,6 +69,35 @@ type OIDCConfig struct {
 
 // Enabled reports whether OIDC mode is switched on.
 func (c OIDCConfig) Enabled() bool { return c.Issuer != "" }
+
+// CookiePath scopes the login-state cookie to the OIDC endpoints.
+//
+// It is derived from the configured callback rather than hard-coded, because
+// the browser matches the cookie against the path *it* requested. A deployment
+// that mounts the API under a prefix (a reverse proxy serving NinerLog at
+// /backend, say) would otherwise store the cookie at a path the callback never
+// matches, and every login would fail with an unexplained invalid state.
+func (c OIDCConfig) CookiePath() string {
+	u, err := url.Parse(c.RedirectURL)
+	if err != nil || u.Path == "" {
+		return "/"
+	}
+	dir := path.Dir(u.Path)
+	if dir == "." || dir == "" {
+		return "/"
+	}
+	return dir
+}
+
+// CookieSecure reports whether the login-state cookie must carry the Secure
+// attribute. Derived from the configured callback URL, not from the inbound
+// request: behind a TLS-terminating proxy the request reaching Go is plain
+// http, but the browser is on https and would silently drop a non-Secure
+// cookie set from a Secure context in modern browsers. Local http development
+// must conversely not set Secure, or the cookie is dropped there instead.
+func (c OIDCConfig) CookieSecure() bool {
+	return strings.HasPrefix(strings.ToLower(c.RedirectURL), "https://")
+}
 
 // ErrOIDCNotConfigured is returned by every OIDC operation on a deployment
 // that has not set OIDC_ISSUER.

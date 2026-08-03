@@ -166,3 +166,29 @@ func TestLoadOIDCConfigCustomTTLs(t *testing.T) {
 		t.Errorf("HandoffTTL = %v, want 20s", cfg.HandoffTTL)
 	}
 }
+
+func TestOIDCCookieScoping(t *testing.T) {
+	// The cookie must be scoped to the callback's own directory, whatever
+	// prefix a reverse proxy mounts the API under, and Secure must follow the
+	// browser-visible scheme rather than the (possibly proxied) request.
+	for _, tc := range []struct {
+		redirect   string
+		wantPath   string
+		wantSecure bool
+	}{
+		{"https://api.example.com/api/v1/auth/oidc/callback", "/api/v1/auth/oidc", true},
+		{"https://example.com/backend/api/v1/auth/oidc/callback", "/backend/api/v1/auth/oidc", true},
+		{"http://localhost:3000/api/v1/auth/oidc/callback", "/api/v1/auth/oidc", false},
+		{"https://example.com/callback", "/", true},
+	} {
+		t.Run(tc.redirect, func(t *testing.T) {
+			cfg := service.OIDCConfig{RedirectURL: tc.redirect}
+			if got := cfg.CookiePath(); got != tc.wantPath {
+				t.Errorf("CookiePath() = %q, want %q", got, tc.wantPath)
+			}
+			if got := cfg.CookieSecure(); got != tc.wantSecure {
+				t.Errorf("CookieSecure() = %v, want %v", got, tc.wantSecure)
+			}
+		})
+	}
+}

@@ -297,7 +297,9 @@ independent 256-bit random values:
 - **state** — proves the callback belongs to a login this server started, and is
   consumed with `DELETE … RETURNING` so a replayed callback URL fails.
 - **browser cookie** — `ninerlog_oidc_state`, `HttpOnly`, `SameSite=Lax`, scoped
-  to `/api/v1/auth/oidc`. Binds the login to the browser that began it, so an
+  to the callback's own path (derived from `OIDC_REDIRECT_URL`, so a proxy that
+  mounts the API under a prefix still works) and marked `Secure` whenever that
+  URL is https. Binds the login to the browser that began it, so an
   attacker cannot complete their own authorization inside a victim's browser and
   silently sign them into the attacker's account (login CSRF).
 - **nonce** — embedded in the ID token, proves it was minted for *this* login.

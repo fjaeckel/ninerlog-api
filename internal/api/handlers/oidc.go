@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
@@ -17,9 +16,6 @@ import (
 // provider's top-level redirect back to the callback, and scoped to the OIDC
 // paths so it is never attached to ordinary API calls.
 const oidcStateCookie = "ninerlog_oidc_state"
-
-// oidcCookiePath scopes the cookie to the only two endpoints that read it.
-const oidcCookiePath = "/api/v1/auth/oidc"
 
 // OIDCEnabled reports whether the server runs in OIDC mode.
 func (h *APIHandler) OIDCEnabled() bool { return h.oidcService != nil }
@@ -250,19 +246,14 @@ func (h *APIHandler) setOIDCStateCookie(c *gin.Context, value string, maxAge int
 	if maxAge <= 0 {
 		maxAge = int(service.DefaultOIDCLoginStateTTL.Seconds())
 	}
+	cfg := h.oidcService.Config()
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(oidcStateCookie, value, maxAge, oidcCookiePath, "",
-		h.oidcCookieSecure(), true)
+	c.SetCookie(oidcStateCookie, value, maxAge, cfg.CookiePath(), "",
+		cfg.CookieSecure(), true)
 }
 
 func (h *APIHandler) clearOIDCStateCookie(c *gin.Context) {
+	cfg := h.oidcService.Config()
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(oidcStateCookie, "", -1, oidcCookiePath, "", h.oidcCookieSecure(), true)
-}
-
-func (h *APIHandler) oidcCookieSecure() bool {
-	if h.oidcService == nil {
-		return true
-	}
-	return strings.HasPrefix(strings.ToLower(h.oidcService.Config().RedirectURL), "https://")
+	c.SetCookie(oidcStateCookie, "", -1, cfg.CookiePath(), "", cfg.CookieSecure(), true)
 }
