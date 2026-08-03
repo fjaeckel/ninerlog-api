@@ -41,6 +41,13 @@ Optional (enabled when `WEBAUTHN_RP_ID` is set). Registration and login each use
 repositories (`internal/repository/postgres/webauthn.go`). Transient ceremony state lives
 in `WebAuthnSession`; persisted passkeys in `WebAuthnCredential`.
 
+The two halves of a ceremony are bound by a single-use handle returned as `sessionId`,
+stored only as its SHA-256 and consumed with a single `DELETE … RETURNING`. Because the
+state is in Postgres rather than process memory, `options` and `verify` may be served by
+different instances and a ceremony survives a restart. A user may hold several ceremonies
+open at once, bounded per user by `WEBAUTHN_MAX_OPEN_CEREMONIES` (oldest evicted).
+See [AUTHENTICATION.md](./AUTHENTICATION.md#passkeys-webauthn).
+
 ## Pilot data management
 
 - **Licenses** (`internal/service/license.go`) — CRUD plus per-license statistics. A user

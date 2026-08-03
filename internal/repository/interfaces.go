@@ -307,10 +307,22 @@ type WebAuthnCredentialRepository interface {
 // WebAuthnSessionRepository defines the interface for transient WebAuthn
 // ceremony session storage.
 type WebAuthnSessionRepository interface {
+	// Create stores ceremony state keyed by the SHA-256 of the handle.
 	Create(ctx context.Context, session *models.WebAuthnSession) error
-	Get(ctx context.Context, id uuid.UUID) (*models.WebAuthnSession, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-	DeleteExpired(ctx context.Context) error
+
+	// Consume atomically deletes and returns the session if it exists, matches
+	// the ceremony, and has not expired. Returns ErrNotFound otherwise, so that
+	// expired, already-consumed, wrong-ceremony and forged handles are
+	// indistinguishable to the caller.
+	Consume(ctx context.Context, idHash []byte, ceremony string) (*models.WebAuthnSession, error)
+
+	// DeleteOldestForUser keeps the newest `keep` sessions belonging to userID
+	// and deletes the rest, bounding how many ceremonies a user can hold open.
+	// Returns the number deleted.
+	DeleteOldestForUser(ctx context.Context, userID uuid.UUID, keep int) (int64, error)
+
+	// DeleteExpired removes expired rows. Returns the number deleted.
+	DeleteExpired(ctx context.Context) (int64, error)
 }
 
 // BackupDestinationRepository persists per-user cloud backup destination

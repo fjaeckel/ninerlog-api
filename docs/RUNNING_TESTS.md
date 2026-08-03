@@ -118,20 +118,59 @@ If you prefer to manage the test database yourself:
 # Start the test database
 docker compose -f docker-compose.test.yaml up -d
 
-# Wait for it to be ready, then run migrations
+# Wait for it to be ready, then seed the schema
 sleep 3
-docker compose -f docker-compose.test.yaml exec -T postgres-test \
-  psql -U testuser -d ninerlog_test < db/migrations/test_init.sql
+./scripts/seed-test-db.sh
 
 # Run integration tests with env vars
 export TEST_DB_HOST=localhost TEST_DB_PORT=5433 \
        TEST_DB_USER=testuser TEST_DB_PASSWORD=testpass \
        TEST_DB_NAME=ninerlog_test
-go test -v ./internal/repository/postgres/...
+go test -v -tags=integration ./internal/repository/postgres/...
 
 # Clean up
 docker compose -f docker-compose.test.yaml down
 ```
+
+### How the schema is seeded
+
+`scripts/seed-test-db.sh` applies `db/migrations/*.up.sql` in order and then records the
+resulting version in golang-migrate's `schema_migrations` table, so an API process pointed
+at the same database starts cleanly instead of trying to replay migration 1.
+
+It replaces the hand-maintained `db/migrations/test_init.sql`, which had to be updated by
+hand for every migration and had fallen behind the real schema. Adding a migration now
+requires no test-harness change.
+
+To seed a database outside Docker, override the psql invocation:
+
+```bash
+PSQL_CMD="psql -h 127.0.0.1 -p 5433 -U testuser -d ninerlog_test" ./scripts/seed-test-db.sh
+```
+
+> Integration tests carry a `//go:build integration` tag, so `-tags=integration` is
+> required — without it the tier compiles and runs nothing.
+
+## Multi-Replica WebAuthn Check
+
+Passkey ceremonies span two requests (`options` then `verify`). Ceremony state lives
+in Postgres so those requests may land on different instances — this check proves it,
+and is the acceptance test for that design.
+
+```bash
+make verify-multi-replica     # needs a Postgres reachable on :5433
+```
+
+It starts two API instances against one database and asserts that a ceremony begun on
+one is consumable on the other, that consumption is single-use *across* instances, that
+a ceremony survives the death of the process that started it, that an expired handle is
+refused while its row still exists, that a handle cannot be redeemed by another account,
+and that no raw handle reaches the logs.
+
+Ceremonies are finished with a deliberately invalid credential payload — verifying a real
+attestation needs a real authenticator — so the signal is *which* error comes back:
+`Invalid ... response` means the session was found and consumed, `session expired` means
+it was refused. See [AUTHENTICATION.md](./AUTHENTICATION.md#passkeys-webauthn).
 
 ## End-to-End Tests
 
@@ -215,8 +254,9 @@ Integration and E2E tests use these variables (set automatically by Makefile tar
 - Wait a few seconds after starting the container
 
 **Migration errors:**
-- Verify `db/migrations/test_init.sql` exists
 - Check that `psql` client is available in the Docker container
+- `scripts/seed-test-db.sh` stops on the first failing migration and names the file
+- Seeding an already-seeded database will fail on duplicate objects; drop and recreate it first
 
 **Test timeouts:**
 - Integration tests: ~10–15 seconds

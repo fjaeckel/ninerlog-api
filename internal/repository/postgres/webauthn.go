@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -151,40 +152,68 @@ func NewWebAuthnSessionRepository(db *sql.DB) repository.WebAuthnSessionReposito
 }
 
 func (r *webauthnSessionRepository) Create(ctx context.Context, s *models.WebAuthnSession) error {
-	if s.ID == uuid.Nil {
-		s.ID = uuid.New()
+	if len(s.IDHash) == 0 {
+		return errors.New("webauthn session: empty id hash")
 	}
 	if s.CreatedAt.IsZero() {
 		s.CreatedAt = time.Now().UTC()
 	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO webauthn_sessions (id, user_id, challenge, session_data, purpose, expires_at, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)
-	`, s.ID, s.UserID, s.Challenge, s.SessionData, s.Purpose, s.ExpiresAt, s.CreatedAt)
+		INSERT INTO webauthn_sessions (id_hash, user_id, ceremony, data, expires_at, created_at)
+		VALUES ($1,$2,$3,$4,$5,$6)
+	`, s.IDHash, s.UserID, s.Ceremony, s.Data, s.ExpiresAt, s.CreatedAt)
 	return err
 }
 
-func (r *webauthnSessionRepository) Get(ctx context.Context, id uuid.UUID) (*models.WebAuthnSession, error) {
+// consumeQuery deletes and returns a session in a single statement, which makes
+// consumption exactly-once across concurrent requests and replicas with no
+// read-modify-write window.
+//
+// The `expires_at > NOW()` predicate is a correctness requirement, not an
+// optimisation: a lagging or stopped cleanup job must never make a stale
+// challenge usable.
+const consumeQuery = `
+	DELETE FROM webauthn_sessions
+	 WHERE id_hash = $1 AND ceremony = $2 AND expires_at > NOW()
+	RETURNING id_hash, user_id, ceremony, data, expires_at, created_at`
+
+func (r *webauthnSessionRepository) Consume(ctx context.Context, idHash []byte, ceremony string) (*models.WebAuthnSession, error) {
 	s := &models.WebAuthnSession{}
-	err := r.db.QueryRowContext(ctx, `
-		SELECT id, user_id, challenge, session_data, purpose, expires_at, created_at
-		FROM webauthn_sessions WHERE id = $1
-	`, id).Scan(&s.ID, &s.UserID, &s.Challenge, &s.SessionData, &s.Purpose, &s.ExpiresAt, &s.CreatedAt)
+	err := r.db.QueryRowContext(ctx, consumeQuery, idHash, ceremony).
+		Scan(&s.IDHash, &s.UserID, &s.Ceremony, &s.Data, &s.ExpiresAt, &s.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("consume webauthn session: %w", err)
 	}
 	return s, nil
 }
 
-func (r *webauthnSessionRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM webauthn_sessions WHERE id = $1`, id)
-	return err
+func (r *webauthnSessionRepository) DeleteOldestForUser(ctx context.Context, userID uuid.UUID, keep int) (int64, error) {
+	if keep < 0 {
+		keep = 0
+	}
+	res, err := r.db.ExecContext(ctx, `
+		DELETE FROM webauthn_sessions
+		 WHERE id_hash IN (
+			 SELECT id_hash
+			   FROM webauthn_sessions
+			  WHERE user_id = $1
+			  ORDER BY created_at DESC
+			 OFFSET $2
+		 )
+	`, userID, keep)
+	if err != nil {
+		return 0, fmt.Errorf("evict webauthn sessions: %w", err)
+	}
+	return res.RowsAffected()
 }
 
-func (r *webauthnSessionRepository) DeleteExpired(ctx context.Context) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM webauthn_sessions WHERE expires_at < NOW()`)
-	return err
+func (r *webauthnSessionRepository) DeleteExpired(ctx context.Context) (int64, error) {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM webauthn_sessions WHERE expires_at < NOW()`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }

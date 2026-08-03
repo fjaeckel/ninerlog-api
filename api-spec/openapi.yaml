@@ -453,7 +453,7 @@ paths:
               properties:
                 sessionId:
                   type: string
-                  description: Session id returned from `/auth/webauthn/register/options`
+                  description: Single-use ceremony handle returned from `/auth/webauthn/register/options`. Rejected if it has expired, has already been used, or was issued for a different user.
                 label:
                   type: string
                   description: Optional human-readable label for the passkey
@@ -528,6 +528,7 @@ paths:
               properties:
                 sessionId:
                   type: string
+                  description: Single-use ceremony handle returned from `/auth/webauthn/login/options`. Rejected if it has expired or has already been used.
                 response:
                   type: object
                   description: Raw `PublicKeyCredential` returned from `navigator.credentials.get`
@@ -4151,7 +4152,7 @@ components:
       properties:
         sessionId:
           type: string
-          description: Opaque session id to send back with the verify request
+          description: Opaque single-use ceremony handle to send back with the verify request. Hold it in memory for the duration of the ceremony; it must not be persisted.
         publicKey:
           type: object
           description: WebAuthn `PublicKeyCredentialCreationOptions` (passed verbatim to `navigator.credentials.create`)
@@ -4165,7 +4166,7 @@ components:
       properties:
         sessionId:
           type: string
-          description: Opaque session id to send back with the verify request
+          description: Opaque single-use ceremony handle to send back with the verify request. Hold it in memory for the duration of the ceremony; it must not be persisted.
         publicKey:
           type: object
           description: WebAuthn `PublicKeyCredentialRequestOptions` (passed verbatim to `navigator.credentials.get`)

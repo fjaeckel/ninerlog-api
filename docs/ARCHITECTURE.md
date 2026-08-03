@@ -119,7 +119,7 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 | Subsystem | Enabled when | Notes |
 | --- | --- | --- |
 | Metrics (`/metrics`) | `METRICS_ENABLED` not disabled | Prometheus handler + DB-stats collector |
-| WebAuthn / passkeys | `WEBAUTHN_RP_ID` set | Relying-party id/name/origins from env |
+| WebAuthn / passkeys | `WEBAUTHN_RP_ID` set | Relying-party id/name/origins from env; ceremony state in Postgres (`WEBAUTHN_SESSION_TTL`, `WEBAUTHN_MAX_OPEN_CEREMONIES`) plus an expired-session reaper |
 | Cloud backups | backup credentials key set | Registers S3/SFTP/WebDAV providers + scheduler |
 | pprof profiling | `PPROF_ENABLED=true` | Debug profiling server |
 | Airport DB refresh | `AIRPORT_REFRESH_INTERVAL` ≠ `off`/`0` | Refetches and re-merges both airport datasets on a timer |
