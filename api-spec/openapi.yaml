@@ -289,7 +289,15 @@ paths:
       tags:
         - Authentication
       summary: Login
-      description: Authenticate with email and password to receive JWT tokens
+      description: |
+        Authenticate with email and password.
+
+        The 200 response has two shapes. An account without two-factor
+        authentication receives the tokens directly (`AuthResponse`). An account
+        with two-factor authentication receives a challenge
+        (`TwoFactorLoginRequired`) instead, and must exchange the
+        `twoFactorToken` for tokens at `/auth/2fa/login`. Clients decide which
+        one they got from the presence of `requiresTwoFactor`.
       operationId: loginUser
       security: []
       requestBody:
@@ -312,11 +320,17 @@ paths:
                   example: SecurePass123!
       responses:
         '200':
-          description: Login successful
+          description: |
+            Either a completed login, or — when the account has two-factor
+            authentication enabled — a challenge to be completed at
+            `/auth/2fa/login`. The two shapes are mutually exclusive: exactly one
+            branch validates any given body.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/AuthResponse'
+                  - $ref: '#/components/schemas/TwoFactorLoginRequired'
         '401':
           description: Invalid credentials
           content:
@@ -327,6 +341,13 @@ paths:
           description: |
             Account cannot be used. The error `code` distinguishes the reason:
             `email_not_verified` (email confirmation pending) or `account_disabled`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: |
+            Too many failed login attempts — the account is temporarily locked.
           content:
             application/json:
               schema:
@@ -475,7 +496,17 @@ paths:
       tags:
         - Authentication
       summary: Reset password with token
-      description: Reset the user's password using a token received via email.
+      description: |
+        Reset the user's password using a token received via email.
+
+        **Two-factor accounts:** a password reset does NOT bypass or disable 2FA. When the
+        account has TOTP enabled, `twoFactorCode` is required and must be a valid TOTP code
+        or one of the account's unused recovery codes; 2FA stays enabled afterwards. Clients
+        should submit the token and new password first, then re-submit with the code after
+        receiving `401` with `code: two_factor_required`.
+
+        On success all refresh tokens are revoked and a confirmation email is sent to the
+        account address.
       operationId: resetPassword
       security: []
       requestBody:
@@ -496,11 +527,32 @@ paths:
                   format: password
                   minLength: 12
                   description: The new password (minimum 12 characters)
+                twoFactorCode:
+                  type: string
+                  description: |
+                    TOTP code or recovery code. Required when the account has 2FA enabled,
+                    ignored otherwise.
+                  example: '123456'
       responses:
         '204':
           description: Password reset successfully
         '400':
           description: Invalid request, expired token, or already used token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: |
+            The account has 2FA enabled and no code was supplied (`code: two_factor_required`)
+            or the supplied code was wrong (`code: invalid_two_factor_code`). The reset token
+            is not consumed, so the request can be retried with a valid code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many failed two-factor attempts — the account is temporarily locked
           content:
             application/json:
               schema:
@@ -4345,12 +4397,19 @@ components:
 
     TwoFactorLoginRequired:
       type: object
+      description: |
+        Returned by `/auth/login` with status 200 when the account has two-factor
+        authentication enabled. No session exists yet: the credentials were
+        accepted, but the second factor is still outstanding.
       required:
         - requiresTwoFactor
         - twoFactorToken
       properties:
         requiresTwoFactor:
           type: boolean
+          description: |
+            Always `true`. Present only on this shape, so clients can use it to
+            tell a challenge from a completed `AuthResponse`.
           example: true
         twoFactorToken:
           type: string

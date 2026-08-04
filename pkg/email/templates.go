@@ -59,6 +59,29 @@ type VerifyEmailParams struct {
 	Link     string
 }
 
+type PasswordResetParams struct {
+	UserName string
+	Link     string
+	// TwoFactorEnabled warns the user up front that finishing the reset also
+	// requires their authenticator code or a recovery code.
+	TwoFactorEnabled bool
+}
+
+// PasswordChangedParams drives the security notice sent after a password reset
+// completes. It is what tells the account owner that the reset happened at all.
+type PasswordChangedParams struct {
+	UserName string
+	// TwoFactorEnabled reports whether 2FA is still active on the account, so
+	// the notice can state plainly that the second factor was not removed.
+	TwoFactorEnabled bool
+}
+
+// TwoFactorResetParams drives the notice sent when an administrator clears a
+// user's 2FA enrolment.
+type TwoFactorResetParams struct {
+	UserName string
+}
+
 type SignatureRequestParams struct {
 	OwnerName string
 	// OwnerEmail is the requester's VERIFIED account address. OwnerName is a
@@ -98,6 +121,9 @@ type templateSet struct {
 	FlightReviewExpiry   func(p FlightReviewExpiryParams) (subject, body string)
 	FlightReviewRequired func(p FlightReviewRequiredParams) (subject, body string)
 	VerifyEmail          func(p VerifyEmailParams) (subject, body string)
+	PasswordReset        func(p PasswordResetParams) (subject, body string)
+	PasswordChanged      func(p PasswordChangedParams) (subject, body string)
+	TwoFactorReset       func(p TwoFactorResetParams) (subject, body string)
 	SignatureRequest     func(p SignatureRequestParams) (subject, body string)
 	SignatureCompleted   func(p SignatureCompletedParams) (subject, body string)
 }

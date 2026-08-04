@@ -122,6 +122,11 @@ POST /api/v1/auth/login
 }
 ```
 
+In the OpenAPI spec the 200 is a `oneOf` over `AuthResponse` and
+`TwoFactorLoginRequired`. The two are mutually exclusive — `requiresTwoFactor`
+appears only on the challenge, and the token fields only on a completed login —
+so a generated client can switch on it without probing.
+
 **Errors:** `401` invalid credentials, `403` account disabled, `429` account locked (too many failed attempts).
 
 Login deletes all prior refresh tokens for the user, enforcing a **single active session**.
@@ -174,6 +179,57 @@ Requires authentication.
 **204 No Content** on success. All refresh tokens are revoked, forcing re-login on all devices.
 
 **Errors:** `401` wrong current password, `400` new password doesn't meet requirements.
+
+---
+
+### Password Reset
+
+```
+POST /api/v1/auth/password-reset-request
+POST /api/v1/auth/password-reset
+```
+Public. The request endpoint mails a single-use token, valid **1 hour**, to the address on
+file, and always answers `204` so it cannot be used to probe which addresses exist.
+
+**Reset request:**
+```json
+{
+  "token": "token-from-the-email",
+  "newPassword": "newsecurepassword",
+  "twoFactorCode": "123456"
+}
+```
+
+**204 No Content** on success. The password is replaced, all refresh tokens are revoked, and
+a **"Your password was changed"** notice is mailed to the account address — the signal that
+makes an unauthorised reset visible to the owner.
+
+**A reset does not disable 2FA.** It used to, which made control of the mailbox sufficient
+for a full account takeover: the same inbox that receives the reset link also received the
+only thing standing between an attacker and the account. Instead, an account with 2FA
+enabled must prove the second factor here as well:
+
+- `twoFactorCode` accepts a **TOTP code or an unused recovery code**. Recovery codes are the
+  self-service path when the authenticator is lost, so no administrator is needed in the
+  normal case.
+- The reset token is consumed **only on success**, so a missing or wrong code can be retried
+  with the same link.
+- Wrong codes count toward the shared [account lockout](#account-lockout), which bounds
+  guessing.
+- Only a user who has lost the authenticator *and* every recovery code needs an admin to
+  clear the enrolment via `POST /admin/users/{userId}/reset-2fa`.
+
+Clients should submit token and password first and prompt for the code after a
+`two_factor_required` response.
+
+**Errors:**
+
+| Status | `code` | Meaning |
+|---|---|---|
+| `400` | — | Invalid, expired, or already-used token; password fails the length rules |
+| `401` | `two_factor_required` | Account has 2FA enabled and no code was supplied |
+| `401` | `invalid_two_factor_code` | The TOTP or recovery code was wrong |
+| `429` | — | Too many failed attempts — the account is temporarily locked |
 
 ---
 
@@ -429,6 +485,10 @@ Protection against brute-force login attacks:
 - **Lock duration:** 15 minutes
 - **Reset:** successful login resets the counter to 0
 
+The counter is shared across every place a credential is checked — password login, the 2FA
+challenge, and the two-factor step of a [password reset](#password-reset) — so an attacker
+cannot get extra guesses by switching endpoints.
+
 Locked accounts receive `429` with `"Account temporarily locked..."`. An admin can unlock accounts via `POST /api/v1/admin/users/{userId}/unlock`.
 
 ---
@@ -446,7 +506,7 @@ Admin endpoints require both a valid access token and admin status. Non-admin us
 | `POST` | `/admin/users/{userId}/disable` | Disable account |
 | `POST` | `/admin/users/{userId}/enable` | Enable account |
 | `POST` | `/admin/users/{userId}/unlock` | Unlock locked account |
-| `POST` | `/admin/users/{userId}/reset-2fa` | Force-reset 2FA |
+| `POST` | `/admin/users/{userId}/reset-2fa` | Force-reset 2FA (last resort — authenticator *and* all recovery codes lost). Clears the secret and recovery codes, and mails the user a notice that their second factor was removed |
 | `GET` | `/admin/audit-log` | View audit log |
 | `GET` | `/admin/config` | View runtime config |
 | `POST` | `/admin/maintenance/cleanup-tokens` | Purge expired tokens |

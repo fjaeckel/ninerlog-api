@@ -93,6 +93,53 @@ var enTemplates = templateSet{
 		return subject, body
 	},
 
+	PasswordReset: func(p PasswordResetParams) (string, string) {
+		subject := "NinerLog: Password Reset"
+		twoFactorNote := ""
+		if p.TwoFactorEnabled {
+			twoFactorNote = `<p>Your account uses two-factor authentication. You will also need a code from
+your authenticator app — or one of your recovery codes — to complete the reset.
+Resetting your password does not switch two-factor authentication off.</p>`
+		}
+		body := fmt.Sprintf(`<h2>Password Reset</h2>
+<p>Hi %s,</p>
+<p>You requested a password reset for your NinerLog account.</p>
+<p><a href="%s">Click here to reset your password</a></p>
+%s<p>This link expires in 1 hour. If you did not request this, you can ignore this email —
+your password stays unchanged.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Link), twoFactorNote)
+		return subject, body
+	},
+
+	PasswordChanged: func(p PasswordChangedParams) (string, string) {
+		subject := "NinerLog: Your password was changed"
+		twoFactorNote := "<p>Two-factor authentication is not enabled on your account. Enabling it in your security settings protects you if your password is ever exposed.</p>"
+		if p.TwoFactorEnabled {
+			twoFactorNote = "<p>Two-factor authentication is still enabled on your account and was not changed.</p>"
+		}
+		body := fmt.Sprintf(`<h2>Password Changed</h2>
+<p>Hi %s,</p>
+<p>The password for your NinerLog account was just reset using a password reset link.
+You have been signed out on all devices.</p>
+%s<p><strong>If this wasn't you</strong>, reset your password again immediately from the
+sign-in page and contact your NinerLog administrator.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), twoFactorNote)
+		return subject, body
+	},
+
+	TwoFactorReset: func(p TwoFactorResetParams) (string, string) {
+		subject := "NinerLog: Two-factor authentication was reset"
+		body := fmt.Sprintf(`<h2>Two-Factor Authentication Reset</h2>
+<p>Hi %s,</p>
+<p>An administrator has removed two-factor authentication from your NinerLog account.
+Your password still works, but signing in no longer asks for an authenticator code,
+and your previous recovery codes are no longer valid.</p>
+<p>Set two-factor authentication up again in your security settings to restore protection.</p>
+<p><strong>If you did not ask for this</strong>, contact your NinerLog administrator.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName))
+		return subject, body
+	},
+
 	SignatureRequest: func(p SignatureRequestParams) (string, string) {
 		subject := fmt.Sprintf("NinerLog: %s asked you to sign a logbook entry", p.OwnerName)
 		body := fmt.Sprintf(`<h2>Logbook Signature Request</h2>

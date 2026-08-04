@@ -190,19 +190,6 @@ func main() {
 	licenseRepo := postgres.NewLicenseRepository(db)
 	flightRepo := postgres.NewFlightRepository(db)
 	flightBaselineRepo := postgres.NewFlightBaselineRepository(db)
-	// Initialize services
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerificationRepo, jwtManager)
-	licenseService := service.NewLicenseService(licenseRepo)
-	flightService := service.NewFlightService(flightRepo, flightBaselineRepo)
-	flightSessionRepo := postgres.NewFlightSessionRepository(db)
-	credentialRepo := postgres.NewCredentialRepository(db)
-	credentialService := service.NewCredentialService(credentialRepo)
-	aircraftRepo := postgres.NewAircraftRepository(db)
-	aircraftService := service.NewAircraftService(aircraftRepo)
-	notifRepo := postgres.NewNotificationRepository(db)
-	smtpConfig := email.LoadSMTPConfig()
-	emailSender := email.NewSender(smtpConfig)
-
 	// TOTP secrets are encrypted at rest when TOTP_ENCRYPTION_KEY (base64,
 	// 32 bytes) is set. Without it, secrets are stored as plaintext; warn so
 	// operators enable encryption in production.
@@ -216,7 +203,22 @@ func main() {
 	} else {
 		slog.Warn("TOTP_ENCRYPTION_KEY not set — 2FA secrets are stored unencrypted")
 	}
+
+	// Initialize services. The two-factor service is built first: the auth
+	// service needs it to verify the second factor during a password reset.
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager, totpAEAD)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerificationRepo, jwtManager, twoFactorService)
+	licenseService := service.NewLicenseService(licenseRepo)
+	flightService := service.NewFlightService(flightRepo, flightBaselineRepo)
+	flightSessionRepo := postgres.NewFlightSessionRepository(db)
+	credentialRepo := postgres.NewCredentialRepository(db)
+	credentialService := service.NewCredentialService(credentialRepo)
+	aircraftRepo := postgres.NewAircraftRepository(db)
+	aircraftService := service.NewAircraftService(aircraftRepo)
+	notifRepo := postgres.NewNotificationRepository(db)
+	smtpConfig := email.LoadSMTPConfig()
+	emailSender := email.NewSender(smtpConfig)
+
 	contactRepo := postgres.NewContactRepository(db)
 	contactService := service.NewContactService(contactRepo)
 	classRatingRepo := postgres.NewClassRatingRepository(db)

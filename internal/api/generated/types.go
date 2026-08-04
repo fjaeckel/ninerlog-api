@@ -4,8 +4,10 @@
 package generated
 
 import (
+	"encoding/json"
 	"time"
 
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -4273,6 +4275,21 @@ type TwoFactorEnabled struct {
 	RecoveryCodes []string `json:"recoveryCodes"`
 }
 
+// TwoFactorLoginRequired Returned by `/auth/login` with status 200 when the account has two-factor
+// authentication enabled. No session exists yet: the credentials were
+// accepted, but the second factor is still outstanding.
+type TwoFactorLoginRequired struct {
+	// RequiresTwoFactor Always `true`. Present only on this shape, so clients can use it to
+	// tell a challenge from a completed `AuthResponse`.
+	//
+	//
+	// Example: true
+	RequiresTwoFactor bool `json:"requiresTwoFactor"`
+
+	// TwoFactorToken Temporary token to use with /auth/2fa/login
+	TwoFactorToken string `json:"twoFactorToken"`
+}
+
 // TwoFactorSetup defines model for TwoFactorSetup.
 type TwoFactorSetup struct {
 	// QrUri otpauth:// URI for QR code generation
@@ -4546,6 +4563,11 @@ type LoginUserJSONBody struct {
 	Password string `json:"password"`
 }
 
+// LoginUser200JSONResponseBody defines parameters for LoginUser.
+type LoginUser200JSONResponseBody struct {
+	union json.RawMessage
+}
+
 // LogoutUserJSONBody defines parameters for LogoutUser.
 type LogoutUserJSONBody struct {
 	RefreshToken string `json:"refreshToken"`
@@ -4564,6 +4586,13 @@ type ResetPasswordJSONBody struct {
 
 	// Token Password reset token from email
 	Token string `json:"token"`
+
+	// TwoFactorCode TOTP code or recovery code. Required when the account has 2FA enabled,
+	// ignored otherwise.
+	//
+	//
+	// Example: 123456
+	TwoFactorCode *string `json:"twoFactorCode,omitempty"`
 }
 
 // RequestPasswordResetJSONBody defines parameters for RequestPasswordReset.
@@ -5046,3 +5075,65 @@ type PutMyBaselineJSONRequestBody = FlightBaselineInput
 
 // UpdateNotificationPreferencesJSONRequestBody defines body for UpdateNotificationPreferences for application/json ContentType.
 type UpdateNotificationPreferencesJSONRequestBody = NotificationPreferencesUpdate
+
+// AsAuthResponse returns the union data inside the LoginUser200JSONResponseBody as a AuthResponse
+func (t LoginUser200JSONResponseBody) AsAuthResponse() (AuthResponse, error) {
+	var body AuthResponse
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuthResponse overwrites any union data inside the LoginUser200JSONResponseBody as the provided AuthResponse
+func (t *LoginUser200JSONResponseBody) FromAuthResponse(v AuthResponse) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuthResponse performs a merge with any union data inside the LoginUser200JSONResponseBody, using the provided AuthResponse
+func (t *LoginUser200JSONResponseBody) MergeAuthResponse(v AuthResponse) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTwoFactorLoginRequired returns the union data inside the LoginUser200JSONResponseBody as a TwoFactorLoginRequired
+func (t LoginUser200JSONResponseBody) AsTwoFactorLoginRequired() (TwoFactorLoginRequired, error) {
+	var body TwoFactorLoginRequired
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTwoFactorLoginRequired overwrites any union data inside the LoginUser200JSONResponseBody as the provided TwoFactorLoginRequired
+func (t *LoginUser200JSONResponseBody) FromTwoFactorLoginRequired(v TwoFactorLoginRequired) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTwoFactorLoginRequired performs a merge with any union data inside the LoginUser200JSONResponseBody, using the provided TwoFactorLoginRequired
+func (t *LoginUser200JSONResponseBody) MergeTwoFactorLoginRequired(v TwoFactorLoginRequired) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t LoginUser200JSONResponseBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *LoginUser200JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}

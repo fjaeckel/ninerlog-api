@@ -97,6 +97,54 @@ var deTemplates = templateSet{
 		return subject, body
 	},
 
+	PasswordReset: func(p PasswordResetParams) (string, string) {
+		subject := "NinerLog: Passwort zurücksetzen"
+		twoFactorNote := ""
+		if p.TwoFactorEnabled {
+			twoFactorNote = `<p>Ihr Konto verwendet Zwei-Faktor-Authentifizierung. Zum Abschluss benötigen Sie
+zusätzlich einen Code aus Ihrer Authenticator-App oder einen Ihrer Wiederherstellungscodes.
+Das Zurücksetzen des Passworts schaltet die Zwei-Faktor-Authentifizierung nicht ab.</p>`
+		}
+		body := fmt.Sprintf(`<h2>Passwort zurücksetzen</h2>
+<p>Hallo %s,</p>
+<p>Sie haben das Zurücksetzen des Passworts für Ihr NinerLog-Konto angefordert.</p>
+<p><a href="%s">Hier klicken, um das Passwort zurückzusetzen</a></p>
+%s<p>Der Link ist 1 Stunde gültig. Falls Sie dies nicht angefordert haben, können Sie diese
+E-Mail ignorieren — Ihr Passwort bleibt unverändert.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Link), twoFactorNote)
+		return subject, body
+	},
+
+	PasswordChanged: func(p PasswordChangedParams) (string, string) {
+		subject := "NinerLog: Ihr Passwort wurde geändert"
+		twoFactorNote := "<p>Für Ihr Konto ist keine Zwei-Faktor-Authentifizierung aktiviert. Aktivieren Sie sie in den Sicherheitseinstellungen, um Ihr Konto auch bei einem offengelegten Passwort zu schützen.</p>"
+		if p.TwoFactorEnabled {
+			twoFactorNote = "<p>Die Zwei-Faktor-Authentifizierung ist weiterhin für Ihr Konto aktiviert und wurde nicht verändert.</p>"
+		}
+		body := fmt.Sprintf(`<h2>Passwort geändert</h2>
+<p>Hallo %s,</p>
+<p>Das Passwort Ihres NinerLog-Kontos wurde soeben über einen Link zum Zurücksetzen geändert.
+Sie wurden auf allen Geräten abgemeldet.</p>
+%s<p><strong>Falls Sie das nicht waren</strong>, setzen Sie Ihr Passwort umgehend erneut über die
+Anmeldeseite zurück und wenden Sie sich an Ihren NinerLog-Administrator.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), twoFactorNote)
+		return subject, body
+	},
+
+	TwoFactorReset: func(p TwoFactorResetParams) (string, string) {
+		subject := "NinerLog: Zwei-Faktor-Authentifizierung zurückgesetzt"
+		body := fmt.Sprintf(`<h2>Zwei-Faktor-Authentifizierung zurückgesetzt</h2>
+<p>Hallo %s,</p>
+<p>Ein Administrator hat die Zwei-Faktor-Authentifizierung für Ihr NinerLog-Konto entfernt.
+Ihr Passwort gilt weiterhin, bei der Anmeldung wird jedoch kein Authenticator-Code mehr
+abgefragt, und Ihre bisherigen Wiederherstellungscodes sind ungültig.</p>
+<p>Richten Sie die Zwei-Faktor-Authentifizierung in den Sicherheitseinstellungen erneut ein,
+um den Schutz wiederherzustellen.</p>
+<p><strong>Falls Sie das nicht veranlasst haben</strong>, wenden Sie sich an Ihren NinerLog-Administrator.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName))
+		return subject, body
+	},
+
 	SignatureRequest: func(p SignatureRequestParams) (string, string) {
 		subject := fmt.Sprintf("NinerLog: %s bittet Sie, einen Logbucheintrag zu unterschreiben", p.OwnerName)
 		body := fmt.Sprintf(`<h2>Logbuch-Unterschriftsanfrage</h2>

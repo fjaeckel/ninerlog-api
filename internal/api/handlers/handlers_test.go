@@ -366,7 +366,8 @@ func setupTestHandler() (*APIHandler, *mockUserRepo) {
 	passwordRepo := &mockPasswordResetRepo{}
 	jwtMgr := jwt.NewManager("test-access", "test-refresh", 15*time.Minute, 7*24*time.Hour)
 
-	authSvc := service.NewAuthService(userRepo, refreshRepo, passwordRepo, &mockEmailVerificationRepo{}, jwtMgr)
+	authSvc := service.NewAuthService(userRepo, refreshRepo, passwordRepo, &mockEmailVerificationRepo{}, jwtMgr,
+		service.NewTwoFactorService(userRepo, jwtMgr, nil))
 	credSvc := service.NewCredentialService(newMockCredentialRepo())
 	aircraftSvc := service.NewAircraftService(newMockAircraftRepo())
 	contactSvc := service.NewContactService(newMockContactRepo())

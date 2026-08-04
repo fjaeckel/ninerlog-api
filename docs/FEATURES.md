@@ -17,7 +17,10 @@ token/2FA/WebAuthn deep-dive.
   token; `POST /auth/refresh` exchanges a valid refresh token for new tokens. JWTs are
   minted/validated by `pkg/jwt`.
 - **Password management** — `POST /auth/change-password`, `…/password-reset-request`
-  (single-use 1h token), `…/password-reset`.
+  (single-use 1h token), `…/password-reset`. A reset never bypasses 2FA: an account with
+  TOTP enabled must also supply a TOTP or recovery code, the enrolment survives the reset,
+  and the owner is mailed a "your password was changed" notice either way. See
+  [AUTHENTICATION.md](./AUTHENTICATION.md#password-reset).
 - **Brute-force protection** — failed logins increment `FailedLoginAttempts`; after the
   threshold the account is locked (`LockedUntil`).
 - **Display preferences** — `PATCH /users/me` stores how a client should present the
@@ -32,7 +35,9 @@ token/2FA/WebAuthn deep-dive.
 ### Two-factor authentication (TOTP)
 `POST /auth/2fa/setup` provisions a TOTP secret + recovery codes; `…/verify` enables it;
 `…/login` completes a 2FA-gated login; `…/disable` turns it off. Implemented in
-`internal/service/twofactor.go` (TOTP via `pquerna/otp`).
+`internal/service/twofactor.go` (TOTP via `pquerna/otp`). Recovery codes are the
+self-service route back in when the authenticator is lost — they satisfy the 2FA step of a
+password reset as well as a login — so the admin force-reset is a last resort.
 
 ### WebAuthn / passkeys
 Optional (enabled when `WEBAUTHN_RP_ID` is set). Registration and login each use an
@@ -151,6 +156,10 @@ currency lapses.
 - **Delivery** — emails are sent via `pkg/email` (SMTP) using localized templates
   (`templates_en.go` / `templates_de.go`) chosen by the user's `PreferredLocale`. Email
   metrics are recorded (see [METRICS.md](./METRICS.md)).
+- **Security notices** — the same template set also carries the account-security mails that
+  are not currency notifications and are never opt-out: `VerifyEmail`, `PasswordReset`,
+  `PasswordChanged` (sent after every completed reset) and `TwoFactorReset` (sent when an
+  admin clears a user's 2FA).
 - **Code**: `internal/service/notification.go`, handlers in
   `internal/api/handlers/notification.go`.
 
@@ -176,7 +185,7 @@ back up their data to their own storage on a schedule.
 
 Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin middleware):
 
-- **Users** — list, disable/enable, unlock, reset 2FA, delete
+- **Users** — list, disable/enable, unlock, reset 2FA (mails the user a notice), delete
   (`admin_users.go`).
 - **Platform** — stats/dashboard (`admin_dashboard.go`), audit log (`AdminAuditLog`,
   migration 27), config view.
