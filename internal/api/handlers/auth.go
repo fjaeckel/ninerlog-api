@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
-	"os"
-	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -141,18 +139,7 @@ func (h *APIHandler) sendVerificationEmail(toEmail, userName, locale, token stri
 	if h.emailSender == nil || toEmail == "" || token == "" {
 		return
 	}
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		frontendURL = os.Getenv("CORS_ORIGIN")
-	}
-	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
-	}
-	if idx := strings.Index(frontendURL, ","); idx > 0 {
-		frontendURL = frontendURL[:idx]
-	}
-	frontendURL = strings.TrimSpace(frontendURL)
-	link := fmt.Sprintf("%s/verify-email?token=%s", frontendURL, token)
+	link := fmt.Sprintf("%s/verify-email?token=%s", frontendBaseURL(), token)
 
 	tmpl := emailpkg.Templates(locale)
 	subject, body := tmpl.VerifyEmail(emailpkg.VerifyEmailParams{
@@ -355,7 +342,7 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	token, userEmail, err := h.authService.RequestPasswordReset(c.Request.Context(), parsedEmail.Address)
+	reset, err := h.authService.RequestPasswordReset(c.Request.Context(), parsedEmail.Address)
 	if err != nil {
 		// Don't reveal internal errors to the client
 		c.Status(http.StatusNoContent)
@@ -366,29 +353,15 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 	// is the canonical address loaded from the database, NOT the HTTP
 	// request body — this keeps untrusted input out of the SMTP message
 	// and resolves CodeQL go/email-injection (CWE-640).
-	if token != "" && userEmail != "" && h.emailSender != nil {
-		frontendURL := os.Getenv("FRONTEND_URL")
-		if frontendURL == "" {
-			// Fall back to CORS_ORIGIN (the canonical frontend URL in production)
-			frontendURL = os.Getenv("CORS_ORIGIN")
-		}
-		if frontendURL == "" {
-			frontendURL = "http://localhost:5173"
-		}
-		// CORS_ORIGIN may contain multiple comma-separated origins; use the first one
-		if idx := strings.Index(frontendURL, ","); idx > 0 {
-			frontendURL = frontendURL[:idx]
-		}
-		frontendURL = strings.TrimSpace(frontendURL)
-		resetLink := fmt.Sprintf("%s/new-password?token=%s", frontendURL, token)
-		subject := "NinerLog: Password Reset"
-		body := fmt.Sprintf(`<h2>Password Reset</h2>
-<p>You requested a password reset for your NinerLog account.</p>
-<p><a href="%s">Click here to reset your password</a></p>
-<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
-<p>— NinerLog</p>`, resetLink)
-
-		_ = h.emailSender.Send(userEmail, subject, body)
+	if reset.Token != "" && reset.Email != "" && h.emailSender != nil {
+		resetLink := fmt.Sprintf("%s/new-password?token=%s", frontendBaseURL(), reset.Token)
+		tmpl := emailpkg.Templates(reset.Locale)
+		subject, body := tmpl.PasswordReset(emailpkg.PasswordResetParams{
+			UserName:         reset.Name,
+			Link:             resetLink,
+			TwoFactorEnabled: reset.TwoFactorEnabled,
+		})
+		_ = h.emailSender.Send(reset.Email, subject, body)
 	}
 
 	// Always return 204 to prevent user enumeration
@@ -397,6 +370,11 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 
 // ResetPassword implements POST /auth/password-reset
 // (POST /auth/password-reset)
+//
+// A reset does not disable 2FA. An account with 2FA enabled must supply a TOTP
+// or recovery code alongside the reset token, so control of the mailbox alone
+// is not enough to take the account over. Either way the owner is told by mail
+// that their password changed.
 func (h *APIHandler) ResetPassword(c *gin.Context) {
 	var req generated.ResetPasswordJSONRequestBody
 
@@ -405,7 +383,13 @@ func (h *APIHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.ResetPassword(c.Request.Context(), req.Token, req.NewPassword); err != nil {
+	twoFactorCode := ""
+	if req.TwoFactorCode != nil {
+		twoFactorCode = *req.TwoFactorCode
+	}
+
+	result, err := h.authService.ResetPassword(c.Request.Context(), req.Token, req.NewPassword, twoFactorCode)
+	if err != nil {
 		if errors.Is(err, service.ErrInvalidToken) || errors.Is(err, service.ErrTokenUsed) || errors.Is(err, service.ErrTokenExpired) {
 			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
@@ -414,11 +398,49 @@ func (h *APIHandler) ResetPassword(c *gin.Context) {
 			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}
+		if errors.Is(err, service.ErrTwoFactorRequired) {
+			code := "two_factor_required"
+			c.JSON(http.StatusUnauthorized, generated.Error{
+				Error: "This account uses two-factor authentication. Enter a code from your authenticator app or one of your recovery codes to reset the password.",
+				Code:  &code,
+			})
+			return
+		}
+		if errors.Is(err, service.ErrInvalidTOTPCode) {
+			code := "invalid_two_factor_code"
+			c.JSON(http.StatusUnauthorized, generated.Error{
+				Error: "Invalid two-factor code",
+				Code:  &code,
+			})
+			return
+		}
+		if errors.Is(err, service.ErrAccountLocked) {
+			h.sendError(c, http.StatusTooManyRequests, "Account temporarily locked due to too many failed attempts. Please try again later.")
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Password reset failed")
 		return
 	}
 
+	h.sendPasswordChangedEmail(result)
+
 	c.Status(http.StatusNoContent)
+}
+
+// sendPasswordChangedEmail tells the account owner that their password was
+// reset — the signal that makes an unauthorised reset visible to them. Errors
+// are swallowed: the reset itself already succeeded and must not be reported as
+// failed because SMTP is down.
+func (h *APIHandler) sendPasswordChangedEmail(result *service.PasswordResetResult) {
+	if h.emailSender == nil || result == nil || result.Email == "" {
+		return
+	}
+	tmpl := emailpkg.Templates(result.Locale)
+	subject, body := tmpl.PasswordChanged(emailpkg.PasswordChangedParams{
+		UserName:         result.Name,
+		TwoFactorEnabled: result.TwoFactorEnabled,
+	})
+	_ = h.emailSender.Send(result.Email, subject, body)
 }
 
 func (h *APIHandler) convertAuthResponse(user *models.User, tokens *service.TokenPair) generated.AuthResponse {

@@ -33,6 +33,15 @@ var (
 	ErrNameRequired       = errors.New("name is required")
 	ErrInvalidEmail       = errors.New("invalid email format")
 	ErrEmailTooLong       = errors.New("email must not exceed 255 characters")
+
+	// ErrTwoFactorRequired is returned by ResetPassword when the account has 2FA
+	// enabled and the caller supplied no code. The reset token is left unused so
+	// the caller can retry with a code.
+	ErrTwoFactorRequired = errors.New("two-factor authentication code required")
+	// ErrTwoFactorUnavailable is returned when a 2FA-protected reset is attempted
+	// but no validator is wired. It fails the reset closed rather than falling
+	// back to bypassing the second factor.
+	ErrTwoFactorUnavailable = errors.New("two-factor verification is unavailable")
 )
 
 const (
@@ -41,20 +50,35 @@ const (
 	emailVerificationTokenLifetime = 24 * time.Hour
 )
 
+// TwoFactorValidator is the part of TwoFactorService that the password-reset
+// flow depends on. It is an interface so AuthService does not have to own the
+// TOTP/recovery-code implementation, and so tests can substitute a stub.
+type TwoFactorValidator interface {
+	// ValidateTOTP reports whether code is a valid TOTP code or an unused
+	// recovery code for the user. Recovery codes are consumed on success, and
+	// failures count toward the account lockout.
+	ValidateTOTP(ctx context.Context, userID uuid.UUID, code string) (bool, error)
+}
+
 type AuthService struct {
 	userRepo              repository.UserRepository
 	refreshTokenRepo      repository.RefreshTokenRepository
 	passwordResetRepo     repository.PasswordResetTokenRepository
 	emailVerificationRepo repository.EmailVerificationTokenRepository
 	jwtManager            *jwt.Manager
+	twoFactor             TwoFactorValidator
 }
 
+// NewAuthService constructs the service. twoFactor may be nil, in which case a
+// password reset for an account with 2FA enabled fails with
+// ErrTwoFactorUnavailable — the second factor is never silently skipped.
 func NewAuthService(
 	userRepo repository.UserRepository,
 	refreshTokenRepo repository.RefreshTokenRepository,
 	passwordResetRepo repository.PasswordResetTokenRepository,
 	emailVerificationRepo repository.EmailVerificationTokenRepository,
 	jwtManager *jwt.Manager,
+	twoFactor TwoFactorValidator,
 ) *AuthService {
 	return &AuthService{
 		userRepo:              userRepo,
@@ -62,6 +86,7 @@ func NewAuthService(
 		passwordResetRepo:     passwordResetRepo,
 		emailVerificationRepo: emailVerificationRepo,
 		jwtManager:            jwtManager,
+		twoFactor:             twoFactor,
 	}
 }
 
@@ -396,13 +421,29 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 	return s.refreshTokenRepo.RevokeByTokenHash(ctx, tokenHash)
 }
 
+// PasswordResetRequest describes the recipient of a password-reset mail. All
+// fields are loaded from the database, never from the HTTP request.
+type PasswordResetRequest struct {
+	// Token is the plaintext reset token to embed in the mail. Empty when no
+	// account matched — callers must stay silent in that case so the response
+	// does not reveal whether the address exists.
+	Token string
+	Email string
+	Name  string
+	// Locale is the account's preferred locale, for template selection.
+	Locale string
+	// TwoFactorEnabled tells the mail to warn the user up front that they will
+	// also need their authenticator (or a recovery code) to finish the reset.
+	TwoFactorEnabled bool
+}
+
 // RequestPasswordReset creates a password reset token.
 //
-// On success it returns both the reset token and the recipient email
-// address loaded from the database. The handler uses the database-sourced
-// email (rather than the HTTP request) when sending the reset mail, which
-// keeps untrusted input out of the SMTP message (CWE-640).
-func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (token, userEmail string, err error) {
+// On success it returns the reset token together with the recipient details
+// loaded from the database. The handler uses the database-sourced email
+// (rather than the HTTP request) when sending the reset mail, which keeps
+// untrusted input out of the SMTP message (CWE-640).
+func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (*PasswordResetRequest, error) {
 	// Normalize email
 	email = strings.ToLower(strings.TrimSpace(email))
 
@@ -411,22 +452,22 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (t
 	if err != nil {
 		// Don't reveal if user exists
 		if errors.Is(err, repository.ErrNotFound) {
-			return "", "", nil
+			return &PasswordResetRequest{}, nil
 		}
-		return "", "", err
+		return nil, err
 	}
 
 	// Delete any existing reset tokens for this user
 	if err := s.passwordResetRepo.DeleteForUser(ctx, user.ID); err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	// Generate reset token
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
-		return "", "", err
+		return nil, err
 	}
-	token = base64.URLEncoding.EncodeToString(tokenBytes)
+	token := base64.URLEncoding.EncodeToString(tokenBytes)
 
 	// Store token
 	resetToken := &models.PasswordResetToken{
@@ -437,69 +478,132 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (t
 	}
 
 	if err := s.passwordResetRepo.Create(ctx, resetToken); err != nil {
-		return "", "", err
+		return nil, err
 	}
 
-	return token, user.Email, nil
+	return &PasswordResetRequest{
+		Token:            token,
+		Email:            user.Email,
+		Name:             user.Name,
+		Locale:           user.PreferredLocale,
+		TwoFactorEnabled: user.TwoFactorEnabled,
+	}, nil
 }
 
-// ResetPassword resets a user's password using a reset token
-func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+// PasswordResetResult describes a completed password reset, so the handler can
+// send the confirmation mail without loading the user again.
+type PasswordResetResult struct {
+	UserID uuid.UUID
+	Email  string
+	Name   string
+	Locale string
+	// TwoFactorEnabled reports whether the account still has 2FA active. A
+	// reset never turns it off, so this is simply the account's current state.
+	TwoFactorEnabled bool
+}
+
+// ResetPassword resets a user's password using a reset token.
+//
+// A reset does NOT disable two-factor authentication. It used to: control of
+// the mailbox alone was enough to strip the second factor and take the account
+// over, and the owner was never told. Instead, an account with 2FA enabled must
+// prove the second factor here too — twoFactorCode is a TOTP code or one of the
+// account's recovery codes, which is the self-service path for a lost
+// authenticator. Only a user who has lost the authenticator AND every recovery
+// code needs an admin (POST /admin/users/{userId}/reset-2fa).
+//
+// The reset token is consumed only on success, so a wrong or missing code can
+// be retried with the same link. Code guessing is bounded by the shared account
+// lockout applied inside the validator.
+func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword, twoFactorCode string) (*PasswordResetResult, error) {
 	// Get token
 	tokenHash := hash.HashToken(token)
 	resetToken, err := s.passwordResetRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return ErrInvalidToken
+			return nil, ErrInvalidToken
 		}
-		return err
+		return nil, err
 	}
 
 	// Check if token is valid
 	if resetToken.Used {
-		return ErrTokenUsed
+		return nil, ErrTokenUsed
 	}
 
 	if resetToken.ExpiresAt.Before(time.Now()) {
-		return ErrTokenExpired
+		return nil, ErrTokenExpired
 	}
 
 	// Get user
 	user, err := s.userRepo.GetByID(ctx, resetToken.UserID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Validate new password
 	if len(newPassword) < 12 {
-		return ErrPasswordTooShort
+		return nil, ErrPasswordTooShort
 	}
 	if len(newPassword) > 72 {
-		return ErrPasswordTooLong
+		return nil, ErrPasswordTooLong
+	}
+
+	if user.TwoFactorEnabled {
+		if strings.TrimSpace(twoFactorCode) == "" {
+			return nil, ErrTwoFactorRequired
+		}
+		if s.twoFactor == nil {
+			// No validator wired — refuse rather than reset without the factor.
+			return nil, ErrTwoFactorUnavailable
+		}
+		valid, err := s.twoFactor.ValidateTOTP(ctx, user.ID, twoFactorCode)
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
+			return nil, ErrInvalidTOTPCode
+		}
+
+		// Re-read the user: validating may have consumed a recovery code and
+		// cleared the failed-attempt counter. Writing the copy loaded above back
+		// would restore the consumed code and make it usable a second time.
+		user, err = s.userRepo.GetByID(ctx, resetToken.UserID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Hash new password
 	hashedPassword, err := hash.HashPassword(newPassword)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Update user password and disable 2FA (user lost access to authenticator)
+	// Update the password only. 2FA enrolment is deliberately left untouched.
 	user.PasswordHash = hashedPassword
-	user.TwoFactorEnabled = false
-	user.TwoFactorSecret = nil
 	user.UpdatedAt = time.Now()
 	if err := s.userRepo.Update(ctx, user); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Mark token as used
 	if err := s.passwordResetRepo.MarkAsUsed(ctx, tokenHash); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Revoke all refresh tokens for this user
-	return s.refreshTokenRepo.RevokeAllForUser(ctx, user.ID)
+	if err := s.refreshTokenRepo.RevokeAllForUser(ctx, user.ID); err != nil {
+		return nil, err
+	}
+
+	return &PasswordResetResult{
+		UserID:           user.ID,
+		Email:            user.Email,
+		Name:             user.Name,
+		Locale:           user.PreferredLocale,
+		TwoFactorEnabled: user.TwoFactorEnabled,
+	}, nil
 }
 
 // generateTokenPair creates both access and refresh tokens

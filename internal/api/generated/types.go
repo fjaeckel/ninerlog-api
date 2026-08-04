@@ -4475,6 +4475,13 @@ type ResetPasswordJSONBody struct {
 
 	// Token Password reset token from email
 	Token string `json:"token"`
+
+	// TwoFactorCode TOTP code or recovery code. Required when the account has 2FA enabled,
+	// ignored otherwise.
+	//
+	//
+	// Example: 123456
+	TwoFactorCode *string `json:"twoFactorCode,omitempty"`
 }
 
 // RequestPasswordResetJSONBody defines parameters for RequestPasswordReset.
