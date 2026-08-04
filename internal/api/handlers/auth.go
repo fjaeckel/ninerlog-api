@@ -204,9 +204,11 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"requiresTwoFactor": true,
-			"twoFactorToken":    twoFactorToken,
+		// One of the two shapes the spec's 200 allows. Using the generated type
+		// rather than a gin.H keeps the body and the spec from drifting apart.
+		c.JSON(http.StatusOK, generated.TwoFactorLoginRequired{
+			RequiresTwoFactor: true,
+			TwoFactorToken:    twoFactorToken,
 		})
 		return
 	}

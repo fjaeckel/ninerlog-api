@@ -200,7 +200,15 @@ paths:
       tags:
         - Authentication
       summary: Login
-      description: Authenticate with email and password to receive JWT tokens
+      description: |
+        Authenticate with email and password.
+
+        The 200 response has two shapes. An account without two-factor
+        authentication receives the tokens directly (`AuthResponse`). An account
+        with two-factor authentication receives a challenge
+        (`TwoFactorLoginRequired`) instead, and must exchange the
+        `twoFactorToken` for tokens at `/auth/2fa/login`. Clients decide which
+        one they got from the presence of `requiresTwoFactor`.
       operationId: loginUser
       security: []
       requestBody:
@@ -223,11 +231,17 @@ paths:
                   example: SecurePass123!
       responses:
         '200':
-          description: Login successful
+          description: |
+            Either a completed login, or — when the account has two-factor
+            authentication enabled — a challenge to be completed at
+            `/auth/2fa/login`. The two shapes are mutually exclusive: exactly one
+            branch validates any given body.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/AuthResponse'
+                  - $ref: '#/components/schemas/TwoFactorLoginRequired'
         '401':
           description: Invalid credentials
           content:
@@ -238,6 +252,13 @@ paths:
           description: |
             Account cannot be used. The error `code` distinguishes the reason:
             `email_not_verified` (email confirmation pending) or `account_disabled`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: |
+            Too many failed login attempts — the account is temporarily locked.
           content:
             application/json:
               schema:
@@ -4246,12 +4267,19 @@ components:
 
     TwoFactorLoginRequired:
       type: object
+      description: |
+        Returned by `/auth/login` with status 200 when the account has two-factor
+        authentication enabled. No session exists yet: the credentials were
+        accepted, but the second factor is still outstanding.
       required:
         - requiresTwoFactor
         - twoFactorToken
       properties:
         requiresTwoFactor:
           type: boolean
+          description: |
+            Always `true`. Present only on this shape, so clients can use it to
+            tell a challenge from a completed `AuthResponse`.
           example: true
         twoFactorToken:
           type: string
