@@ -101,6 +101,11 @@ POST /api/v1/auth/login
 }
 ```
 
+In the OpenAPI spec the 200 is a `oneOf` over `AuthResponse` and
+`TwoFactorLoginRequired`. The two are mutually exclusive — `requiresTwoFactor`
+appears only on the challenge, and the token fields only on a completed login —
+so a generated client can switch on it without probing.
+
 **Errors:** `401` invalid credentials, `403` account disabled, `429` account locked (too many failed attempts).
 
 Login deletes all prior refresh tokens for the user, enforcing a **single active session**.
