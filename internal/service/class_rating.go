@@ -65,6 +65,24 @@ func (s *ClassRatingService) ListClassRatings(ctx context.Context, licenseID, us
 	return s.classRatingRepo.GetByLicenseID(ctx, licenseID)
 }
 
+func (s *ClassRatingService) GetClassRating(ctx context.Context, ratingID, userID uuid.UUID) (*models.ClassRating, error) {
+	cr, err := s.classRatingRepo.GetByID(ctx, ratingID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrClassRatingNotFound
+		}
+		return nil, err
+	}
+	license, err := s.licenseRepo.GetByID(ctx, cr.LicenseID)
+	if err != nil {
+		return nil, err
+	}
+	if license.UserID != userID {
+		return nil, ErrUnauthorizedClassRating
+	}
+	return cr, nil
+}
+
 func (s *ClassRatingService) UpdateClassRating(ctx context.Context, cr *models.ClassRating, userID uuid.UUID) error {
 	existing, err := s.classRatingRepo.GetByID(ctx, cr.ID)
 	if err != nil {

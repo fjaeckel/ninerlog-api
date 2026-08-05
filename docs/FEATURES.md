@@ -203,6 +203,12 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   covered too, and are kept for 90 days by default; a client whose watermark is older than
   that is told to fall back to a full reconciliation. See
   [API.md](./API.md#deletions-get-syncdeletions).
+- **Partial updates via JSON Merge Patch** — on the flight, aircraft, credential and class
+  rating update endpoints, an explicit `null` in the request body clears a nullable field
+  (e.g. `remarks`, `launchMethod`, `expiryDate`) while an omitted field is left unchanged —
+  previously `null` was indistinguishable from omitted, so nullable fields (including dates)
+  could not be cleared through the API at all. See
+  [API.md](./API.md#partial-updates-json-merge-patch).
 
 > When you add a feature, document it here and update the related deep-dive document
 > (DATA_MODEL / DOMAIN / API) in the same PR.

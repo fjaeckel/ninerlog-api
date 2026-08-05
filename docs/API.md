@@ -168,6 +168,38 @@ Details worth knowing:
 Outcomes are counted in `idempotency_requests_total` — see
 [METRICS.md](./METRICS.md#idempotency-metrics).
 
+## Partial updates (JSON Merge Patch)
+
+`PUT`/`PATCH` request bodies whose schema has nullable properties follow
+[RFC 7386](https://www.rfc-editor.org/rfc/rfc7386) semantics field-by-field:
+
+| Field in the request body | Effect |
+|---|---|
+| Omitted | Left unchanged |
+| `null` | Cleared (set to database `NULL`) |
+| A value | Set to that value |
+
+This applies to `PUT /flights/{flightId}`, `PATCH /aircraft/{aircraftId}`,
+`PATCH /credentials/{credentialId}` and `PATCH /licenses/{licenseId}/class-ratings/{ratingId}` —
+the update endpoints whose spec schema has properties typed `[T, 'null']`. Fields that are
+required or non-nullable in the spec (e.g. `aircraftReg`, `issueDate`) are ordinary optional
+partial-update fields: omitted leaves them unchanged, and they cannot be nulled because the
+domain doesn't allow it.
+
+Server-side, a nullable field is generated as `nullable.Nullable[T]`
+(`github.com/oapi-codegen/nullable`) instead of `*T`, via `x-go-type`/`x-go-type-import` on the
+property in `api-spec/openapi.yaml`. This is what lets the handler distinguish "absent" from
+"present and null" — a plain `*T` cannot represent that distinction, since both unmarshal to
+`nil`. `internal/api/handlers/nullable.go` has the shared `applyNullable` helper handlers use to
+apply this to a model field.
+
+Before this, `null` in a request body was silently treated as "omitted" (`*T` can't tell them
+apart), so nullable fields could not be cleared through the API at all, and two per-field
+workarounds existed instead: sending `""` to a text field, and the literal string `"null"` for
+`Flight.launchMethod`. Both are retired now that real `null` works; `launchMethod` accepts only
+`winch`, `aerotow` or `self-launch` in the spec's `enum`, and `null` clears it like any other
+nullable field.
+
 ## Delta sync (`updatedSince`)
 
 `listFlights`, `listAircraft`, `listContacts`, `listCredentials` and `listLicenses` accept
