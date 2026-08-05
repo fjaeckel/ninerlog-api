@@ -4710,9 +4710,17 @@ components:
           type: [string, 'null']
           example: SEP_LAND
           description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         notes:
           type: [string, 'null']
           example: Club aircraft, requires checkout
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         isActive:
           type: boolean
           example: true
@@ -4721,11 +4729,19 @@ components:
           maxLength: 100
           example: LSZH
           description: Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         defaultArrivalIcao:
           type: [string, 'null']
           maxLength: 100
           example: LSZH
           description: Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         renameFlights:
           type: boolean
           default: false
@@ -5306,24 +5322,48 @@ components:
           type: string
         departureIcao:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         arrivalIcao:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         offBlockTime:
           type: [string, 'null']
           format: time
           description: Off-block time (chocks off / engine start) in UTC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         onBlockTime:
           type: [string, 'null']
           format: time
           description: On-block time (chocks on / engine shutdown) in UTC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         departureTime:
           type: [string, 'null']
           format: time
           description: Takeoff time in UTC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         arrivalTime:
           type: [string, 'null']
           format: time
           description: Landing time in UTC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         totalTime:
           type: integer
           minimum: 1
@@ -5346,14 +5386,30 @@ components:
           type: [string, 'null']
           maxLength: 500
           description: Route waypoints as comma-separated ICAO codes
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         remarks:
           type: [string, 'null']
           maxLength: 2000
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         instructorName:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         instructorComments:
           type: [string, 'null']
           maxLength: 1000
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         sicTime:
           type: integer
           minimum: 0
@@ -5386,10 +5442,18 @@ components:
           type: boolean
         launchMethod:
           type: [string, 'null']
-          enum: [winch, aerotow, self-launch, 'null']
+          enum: [winch, aerotow, self-launch]
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         picName:
           type: [string, 'null']
           description: Name of the PIC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         multiPilotTime:
           type: integer
           minimum: 0
@@ -5397,6 +5461,10 @@ components:
         fstdType:
           type: [string, 'null']
           description: FSTD type designation
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         approaches:
           type: array
           items:
@@ -5405,6 +5473,10 @@ components:
           type: [string, 'null']
           maxLength: 2000
           description: Instructor endorsements, skill test references
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         crewMembers:
           type: array
           items:
@@ -5903,6 +5975,10 @@ components:
           $ref: '#/components/schemas/CredentialType'
         credentialNumber:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         issueDate:
           type: string
           format: date
@@ -5910,10 +5986,18 @@ components:
           type: [string, 'null']
           format: date
           description: Must be after issueDate when provided
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         issuingAuthority:
           type: string
         notes:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
 
     PaginatedFlights:
       type: object
@@ -6780,8 +6864,16 @@ components:
         expiryDate:
           type: [string, 'null']
           format: date
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         notes:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
 
     # ── Import schemas ──────────────────────────────────────────────────
 

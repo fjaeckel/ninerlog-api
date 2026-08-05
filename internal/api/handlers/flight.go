@@ -418,30 +418,14 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.Landings != nil {
 		flight.AllLandings = *req.Landings
 	}
-	if req.DepartureIcao != nil {
-		flight.DepartureICAO = req.DepartureIcao
-	}
-	if req.ArrivalIcao != nil {
-		flight.ArrivalICAO = req.ArrivalIcao
-	}
-	if req.OffBlockTime != nil {
-		flight.OffBlockTime = req.OffBlockTime
-	}
-	if req.OnBlockTime != nil {
-		flight.OnBlockTime = req.OnBlockTime
-	}
-	if req.DepartureTime != nil {
-		flight.DepartureTime = req.DepartureTime
-	}
-	if req.ArrivalTime != nil {
-		flight.ArrivalTime = req.ArrivalTime
-	}
-	if req.Remarks != nil {
-		flight.Remarks = req.Remarks
-	}
-	if req.Route != nil {
-		flight.Route = req.Route
-	}
+	applyNullable(&flight.DepartureICAO, req.DepartureIcao)
+	applyNullable(&flight.ArrivalICAO, req.ArrivalIcao)
+	applyNullable(&flight.OffBlockTime, req.OffBlockTime)
+	applyNullable(&flight.OnBlockTime, req.OnBlockTime)
+	applyNullable(&flight.DepartureTime, req.DepartureTime)
+	applyNullable(&flight.ArrivalTime, req.ArrivalTime)
+	applyNullable(&flight.Remarks, req.Remarks)
+	applyNullable(&flight.Route, req.Route)
 	if req.TakeoffsDay != nil {
 		flight.TakeoffsDay = *req.TakeoffsDay
 		flight.TakeoffsDayOverride = true
@@ -452,12 +436,8 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	}
 
 	// New fields
-	if req.InstructorName != nil {
-		flight.InstructorName = req.InstructorName
-	}
-	if req.InstructorComments != nil {
-		flight.InstructorComments = req.InstructorComments
-	}
+	applyNullable(&flight.InstructorName, req.InstructorName)
+	applyNullable(&flight.InstructorComments, req.InstructorComments)
 	if req.SicTime != nil {
 		flight.SICTime = *req.SicTime
 	}
@@ -491,27 +471,14 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.IsProficiencyCheck != nil {
 		flight.IsProficiencyCheck = *req.IsProficiencyCheck
 	}
-	if req.LaunchMethod != nil {
-		if *req.LaunchMethod != "null" {
-			lm := string(*req.LaunchMethod)
-			flight.LaunchMethod = &lm
-		} else {
-			flight.LaunchMethod = nil
-		}
-	}
+	applyNullable(&flight.LaunchMethod, req.LaunchMethod)
 	// Phase 6c fields
-	if req.PicName != nil {
-		flight.PICName = req.PicName
-	}
+	applyNullable(&flight.PICName, req.PicName)
 	if req.MultiPilotTime != nil {
 		flight.MultiPilotTime = *req.MultiPilotTime
 	}
-	if req.FstdType != nil {
-		flight.FSTDType = req.FstdType
-	}
-	if req.Endorsements != nil {
-		flight.Endorsements = req.Endorsements
-	}
+	applyNullable(&flight.FSTDType, req.FstdType)
+	applyNullable(&flight.Endorsements, req.Endorsements)
 	if req.Approaches != nil {
 		flight.Approaches = nil
 		for _, a := range *req.Approaches {
@@ -542,7 +509,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	}
 
 	// Recalculate totalTime from block times if either was updated
-	if req.OffBlockTime != nil || req.OnBlockTime != nil {
+	if req.OffBlockTime.IsSpecified() || req.OnBlockTime.IsSpecified() {
 		offBlock := ""
 		onBlock := ""
 		if flight.OffBlockTime != nil {
@@ -573,7 +540,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	// and auto-calc so IsPIC/IsDual + CrewMembers are populated.
 	// Note: this also canonicalises stale "Self" values on Dual flights
 	// (legacy data where the instructor should be PIC of record).
-	if req.PicName == nil {
+	if !req.PicName.IsSpecified() {
 		flight.PICName = flightrules.ResolvePICNameForSave(flight, userName)
 	}
 

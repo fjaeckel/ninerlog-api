@@ -142,9 +142,7 @@ func (h *APIHandler) UpdateCredential(c *gin.Context, credentialId generated.Cre
 	if req.CredentialType != nil {
 		credential.CredentialType = models.CredentialType(*req.CredentialType)
 	}
-	if req.CredentialNumber != nil {
-		credential.CredentialNumber = req.CredentialNumber
-	}
+	applyNullable(&credential.CredentialNumber, req.CredentialNumber)
 	if req.IssueDate != nil {
 		issueDate, err := time.Parse("2006-01-02", req.IssueDate.String())
 		if err != nil {
@@ -153,20 +151,19 @@ func (h *APIHandler) UpdateCredential(c *gin.Context, credentialId generated.Cre
 		}
 		credential.IssueDate = issueDate
 	}
-	if req.ExpiryDate != nil {
-		expiry, err := time.Parse("2006-01-02", req.ExpiryDate.String())
-		if err != nil {
-			h.sendError(c, http.StatusBadRequest, "Invalid expiry date")
-			return
+	if req.ExpiryDate.IsSpecified() {
+		if req.ExpiryDate.IsNull() {
+			credential.ExpiryDate = nil
+		} else {
+			expiryDate, _ := req.ExpiryDate.Get()
+			expiry := expiryDate.Time
+			credential.ExpiryDate = &expiry
 		}
-		credential.ExpiryDate = &expiry
 	}
 	if req.IssuingAuthority != nil {
 		credential.IssuingAuthority = *req.IssuingAuthority
 	}
-	if req.Notes != nil {
-		credential.Notes = req.Notes
-	}
+	applyNullable(&credential.Notes, req.Notes)
 
 	if err := h.credentialService.UpdateCredential(c.Request.Context(), credential, userID); err != nil {
 		if errors.Is(err, service.ErrExpiryBeforeIssue) {

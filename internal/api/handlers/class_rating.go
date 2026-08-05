@@ -105,38 +105,40 @@ func (h *APIHandler) UpdateClassRating(c *gin.Context, licenseId generated.Licen
 
 	ratingID := uuid.UUID(ratingId)
 
-	var req struct {
-		IssueDate  *string `json:"issueDate"`
-		ExpiryDate *string `json:"expiryDate"`
-		Notes      *string `json:"notes"`
-	}
+	var req generated.UpdateClassRatingJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	cr := &models.ClassRating{ID: ratingID}
+	cr, err := h.classRatingService.GetClassRating(c.Request.Context(), ratingID, userID)
+	if err != nil {
+		if errors.Is(err, service.ErrClassRatingNotFound) || errors.Is(err, service.ErrUnauthorizedClassRating) {
+			h.sendError(c, http.StatusNotFound, "Class rating not found")
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve class rating")
+		return
+	}
+
 	if req.IssueDate != nil {
-		d, err := time.Parse("2006-01-02", *req.IssueDate)
+		d, err := time.Parse("2006-01-02", req.IssueDate.String())
 		if err != nil {
 			h.sendError(c, http.StatusBadRequest, "Invalid issue date")
 			return
 		}
 		cr.IssueDate = d
 	}
-	if req.ExpiryDate != nil {
-		if *req.ExpiryDate == "" {
+	if req.ExpiryDate.IsSpecified() {
+		if req.ExpiryDate.IsNull() {
 			cr.ExpiryDate = nil
 		} else {
-			d, err := time.Parse("2006-01-02", *req.ExpiryDate)
-			if err != nil {
-				h.sendError(c, http.StatusBadRequest, "Invalid expiry date")
-				return
-			}
-			cr.ExpiryDate = &d
+			expiryDate, _ := req.ExpiryDate.Get()
+			expiry := expiryDate.Time
+			cr.ExpiryDate = &expiry
 		}
 	}
-	cr.Notes = req.Notes
+	applyNullable(&cr.Notes, req.Notes)
 
 	if err := h.classRatingService.UpdateClassRating(c.Request.Context(), cr, userID); err != nil {
 		if errors.Is(err, service.ErrClassRatingNotFound) || errors.Is(err, service.ErrUnauthorizedClassRating) {

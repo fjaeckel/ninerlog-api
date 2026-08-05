@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/oapi-codegen/nullable"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -569,27 +570,6 @@ func (e FlightSignatureStatus) Valid() bool {
 	case FlightSignatureStatusRevoked:
 		return true
 	case FlightSignatureStatusVoided:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for FlightUpdateLaunchMethod.
-const (
-	FlightUpdateLaunchMethodAerotow    FlightUpdateLaunchMethod = "aerotow"
-	FlightUpdateLaunchMethodSelfLaunch FlightUpdateLaunchMethod = "self-launch"
-	FlightUpdateLaunchMethodWinch      FlightUpdateLaunchMethod = "winch"
-)
-
-// Valid indicates whether the value is a known member of the FlightUpdateLaunchMethod enum.
-func (e FlightUpdateLaunchMethod) Valid() bool {
-	switch e {
-	case FlightUpdateLaunchMethodAerotow:
-		return true
-	case FlightUpdateLaunchMethodSelfLaunch:
-		return true
-	case FlightUpdateLaunchMethodWinch:
 		return true
 	default:
 		return false
@@ -1638,17 +1618,17 @@ type AircraftUpdate struct {
 	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
 	//
 	// Example: SEP_LAND
-	AircraftClass *string `json:"aircraftClass,omitempty"`
+	AircraftClass nullable.Nullable[string] `json:"aircraftClass,omitempty"`
 
 	// DefaultArrivalIcao Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 	//
 	// Example: LSZH
-	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
+	DefaultArrivalIcao nullable.Nullable[string] `json:"defaultArrivalIcao,omitempty"`
 
 	// DefaultDepartureIcao Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
 	//
 	// Example: LSZH
-	DefaultDepartureIcao *string `json:"defaultDepartureIcao,omitempty"`
+	DefaultDepartureIcao nullable.Nullable[string] `json:"defaultDepartureIcao,omitempty"`
 
 	// IsActive Example: true
 	IsActive *bool `json:"isActive,omitempty"`
@@ -1669,7 +1649,7 @@ type AircraftUpdate struct {
 	Model *string `json:"model,omitempty"`
 
 	// Notes Example: Club aircraft, requires checkout
-	Notes *string `json:"notes,omitempty"`
+	Notes nullable.Nullable[string] `json:"notes,omitempty"`
 
 	// Registration Example: D-EFGH
 	Registration *string `json:"registration,omitempty"`
@@ -2407,9 +2387,9 @@ type ClassRatingCurrencyStatus string
 
 // ClassRatingUpdate defines model for ClassRatingUpdate.
 type ClassRatingUpdate struct {
-	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
-	IssueDate  *openapi_types.Date `json:"issueDate,omitempty"`
-	Notes      *string             `json:"notes,omitempty"`
+	ExpiryDate nullable.Nullable[openapi_types.Date] `json:"expiryDate,omitempty"`
+	IssueDate  *openapi_types.Date                   `json:"issueDate,omitempty"`
+	Notes      nullable.Nullable[string]             `json:"notes,omitempty"`
 }
 
 // ClassType Aircraft class rating type:
@@ -2562,7 +2542,7 @@ type CredentialType string
 
 // CredentialUpdate defines model for CredentialUpdate.
 type CredentialUpdate struct {
-	CredentialNumber *string `json:"credentialNumber,omitempty"`
+	CredentialNumber nullable.Nullable[string] `json:"credentialNumber,omitempty"`
 
 	// CredentialType Credential type:
 	// - EASA_CLASS1_MEDICAL: EASA Class 1 Medical Certificate
@@ -2580,10 +2560,10 @@ type CredentialUpdate struct {
 	CredentialType *CredentialType `json:"credentialType,omitempty"`
 
 	// ExpiryDate Must be after issueDate when provided
-	ExpiryDate       *openapi_types.Date `json:"expiryDate,omitempty"`
-	IssueDate        *openapi_types.Date `json:"issueDate,omitempty"`
-	IssuingAuthority *string             `json:"issuingAuthority,omitempty"`
-	Notes            *string             `json:"notes,omitempty"`
+	ExpiryDate       nullable.Nullable[openapi_types.Date] `json:"expiryDate,omitempty"`
+	IssueDate        *openapi_types.Date                   `json:"issueDate,omitempty"`
+	IssuingAuthority *string                               `json:"issuingAuthority,omitempty"`
+	Notes            nullable.Nullable[string]             `json:"notes,omitempty"`
 }
 
 // CrewRole Role of a person on board a flight
@@ -3441,61 +3421,61 @@ type FlightSignatureStatus string
 
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
-	ActualInstrumentTime *int                  `json:"actualInstrumentTime,omitempty"`
-	AircraftReg          *string               `json:"aircraftReg,omitempty"`
-	AircraftType         *string               `json:"aircraftType,omitempty"`
-	Approaches           *[]ApproachEntryInput `json:"approaches,omitempty"`
-	ApproachesCount      *int                  `json:"approachesCount,omitempty"`
-	ArrivalIcao          *string               `json:"arrivalIcao,omitempty"`
+	ActualInstrumentTime *int                      `json:"actualInstrumentTime,omitempty"`
+	AircraftReg          *string                   `json:"aircraftReg,omitempty"`
+	AircraftType         *string                   `json:"aircraftType,omitempty"`
+	Approaches           *[]ApproachEntryInput     `json:"approaches,omitempty"`
+	ApproachesCount      *int                      `json:"approachesCount,omitempty"`
+	ArrivalIcao          nullable.Nullable[string] `json:"arrivalIcao,omitempty"`
 
 	// ArrivalTime Landing time in UTC
-	ArrivalTime *string `json:"arrivalTime,omitempty"`
+	ArrivalTime nullable.Nullable[string] `json:"arrivalTime,omitempty"`
 
 	// CrewMembers People on board this flight
-	CrewMembers   *[]FlightCrewMemberInput `json:"crewMembers,omitempty"`
-	Date          *openapi_types.Date      `json:"date,omitempty"`
-	DepartureIcao *string                  `json:"departureIcao,omitempty"`
+	CrewMembers   *[]FlightCrewMemberInput  `json:"crewMembers,omitempty"`
+	Date          *openapi_types.Date       `json:"date,omitempty"`
+	DepartureIcao nullable.Nullable[string] `json:"departureIcao,omitempty"`
 
 	// DepartureTime Takeoff time in UTC
-	DepartureTime *string `json:"departureTime,omitempty"`
-	DualGivenTime *int    `json:"dualGivenTime,omitempty"`
+	DepartureTime nullable.Nullable[string] `json:"departureTime,omitempty"`
+	DualGivenTime *int                      `json:"dualGivenTime,omitempty"`
 
 	// Endorsements Instructor endorsements, skill test references
-	Endorsements *string `json:"endorsements,omitempty"`
+	Endorsements nullable.Nullable[string] `json:"endorsements,omitempty"`
 
 	// FstdType FSTD type designation
-	FstdType           *string `json:"fstdType,omitempty"`
-	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
-	Holds              *int    `json:"holds,omitempty"`
-	IfrTime            *int    `json:"ifrTime,omitempty"`
-	InstructorComments *string `json:"instructorComments,omitempty"`
-	InstructorName     *string `json:"instructorName,omitempty"`
-	IsFlightReview     *bool   `json:"isFlightReview,omitempty"`
-	IsIpc              *bool   `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool   `json:"isProficiencyCheck,omitempty"`
+	FstdType           nullable.Nullable[string] `json:"fstdType,omitempty"`
+	GroundTrainingTime *int                      `json:"groundTrainingTime,omitempty"`
+	Holds              *int                      `json:"holds,omitempty"`
+	IfrTime            *int                      `json:"ifrTime,omitempty"`
+	InstructorComments nullable.Nullable[string] `json:"instructorComments,omitempty"`
+	InstructorName     nullable.Nullable[string] `json:"instructorName,omitempty"`
+	IsFlightReview     *bool                     `json:"isFlightReview,omitempty"`
+	IsIpc              *bool                     `json:"isIpc,omitempty"`
+	IsProficiencyCheck *bool                     `json:"isProficiencyCheck,omitempty"`
 
 	// Landings Total number of landings
 	Landings     *int                      `json:"landings,omitempty"`
-	LaunchMethod *FlightUpdateLaunchMethod `json:"launchMethod,omitempty"`
+	LaunchMethod nullable.Nullable[string] `json:"launchMethod,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes
 	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC
-	OffBlockTime *string `json:"offBlockTime,omitempty"`
+	OffBlockTime nullable.Nullable[string] `json:"offBlockTime,omitempty"`
 
 	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
-	OnBlockTime *string `json:"onBlockTime,omitempty"`
+	OnBlockTime nullable.Nullable[string] `json:"onBlockTime,omitempty"`
 
 	// PicName Name of the PIC
-	PicName *string `json:"picName,omitempty"`
-	Remarks *string `json:"remarks,omitempty"`
+	PicName nullable.Nullable[string] `json:"picName,omitempty"`
+	Remarks nullable.Nullable[string] `json:"remarks,omitempty"`
 
 	// Route Route waypoints as comma-separated ICAO codes
-	Route                   *string `json:"route,omitempty"`
-	SicTime                 *int    `json:"sicTime,omitempty"`
-	SimulatedFlightTime     *int    `json:"simulatedFlightTime,omitempty"`
-	SimulatedInstrumentTime *int    `json:"simulatedInstrumentTime,omitempty"`
+	Route                   nullable.Nullable[string] `json:"route,omitempty"`
+	SicTime                 *int                      `json:"sicTime,omitempty"`
+	SimulatedFlightTime     *int                      `json:"simulatedFlightTime,omitempty"`
+	SimulatedInstrumentTime *int                      `json:"simulatedInstrumentTime,omitempty"`
 
 	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
 	TakeoffsDay *int `json:"takeoffsDay,omitempty"`
@@ -3504,9 +3484,6 @@ type FlightUpdate struct {
 	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
 	TotalTime     *int `json:"totalTime,omitempty"`
 }
-
-// FlightUpdateLaunchMethod defines model for FlightUpdate.LaunchMethod.
-type FlightUpdateLaunchMethod string
 
 // ImportColumnMapping defines model for ImportColumnMapping.
 type ImportColumnMapping struct {
