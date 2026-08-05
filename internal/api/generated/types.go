@@ -338,6 +338,33 @@ func (e CrewRole) Valid() bool {
 	}
 }
 
+// Defines values for DeletionEntity.
+const (
+	DeletionEntityAircraft   DeletionEntity = "aircraft"
+	DeletionEntityContact    DeletionEntity = "contact"
+	DeletionEntityCredential DeletionEntity = "credential"
+	DeletionEntityFlight     DeletionEntity = "flight"
+	DeletionEntityLicense    DeletionEntity = "license"
+)
+
+// Valid indicates whether the value is a known member of the DeletionEntity enum.
+func (e DeletionEntity) Valid() bool {
+	switch e {
+	case DeletionEntityAircraft:
+		return true
+	case DeletionEntityContact:
+		return true
+	case DeletionEntityCredential:
+		return true
+	case DeletionEntityFlight:
+		return true
+	case DeletionEntityLicense:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FlightLaunchMethod.
 const (
 	FlightLaunchMethodAerotow    FlightLaunchMethod = "aerotow"
@@ -1130,6 +1157,33 @@ func (e ListFlightsParamsSortOrder) Valid() bool {
 	case Asc:
 		return true
 	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListDeletionsParamsEntity.
+const (
+	ListDeletionsParamsEntityAircraft   ListDeletionsParamsEntity = "aircraft"
+	ListDeletionsParamsEntityContact    ListDeletionsParamsEntity = "contact"
+	ListDeletionsParamsEntityCredential ListDeletionsParamsEntity = "credential"
+	ListDeletionsParamsEntityFlight     ListDeletionsParamsEntity = "flight"
+	ListDeletionsParamsEntityLicense    ListDeletionsParamsEntity = "license"
+)
+
+// Valid indicates whether the value is a known member of the ListDeletionsParamsEntity enum.
+func (e ListDeletionsParamsEntity) Valid() bool {
+	switch e {
+	case ListDeletionsParamsEntityAircraft:
+		return true
+	case ListDeletionsParamsEntityContact:
+		return true
+	case ListDeletionsParamsEntityCredential:
+		return true
+	case ListDeletionsParamsEntityFlight:
+		return true
+	case ListDeletionsParamsEntityLicense:
 		return true
 	default:
 		return false
@@ -2623,6 +2677,66 @@ type CurrencyStatusResponse struct {
 
 	// Ratings Tier 1: Rating/license currency — determines whether the pilot can fly at all in each class
 	Ratings []ClassRatingCurrency `json:"ratings"`
+}
+
+// Deletion defines model for Deletion.
+type Deletion struct {
+	// DeletedAt When the record was deleted
+	//
+	// Example: 2026-08-05T11:12:13.456789Z
+	DeletedAt time.Time `json:"deletedAt"`
+
+	// Entity Which collection the deleted record belonged to
+	//
+	// Example: flight
+	Entity DeletionEntity `json:"entity"`
+
+	// Id Id of the deleted record, as it was reported by the list endpoints
+	//
+	// Example: 660e8400-e29b-41d4-a716-446655440001
+	Id openapi_types.UUID `json:"id"`
+}
+
+// DeletionEntity Which collection the deleted record belonged to
+//
+// Example: flight
+type DeletionEntity string
+
+// DeletionFeed defines model for DeletionFeed.
+type DeletionFeed struct {
+	// Data Deletions after the watermark, oldest first
+	Data       []Deletion `json:"data"`
+	Pagination struct {
+		// Page Current page (1-indexed)
+		//
+		// Example: 1
+		Page int `json:"page"`
+
+		// PageSize Items per page
+		//
+		// Example: 100
+		PageSize int `json:"pageSize"`
+
+		// Total Total number of deletions after the watermark
+		//
+		// Example: 3
+		Total int `json:"total"`
+
+		// TotalPages Total number of pages
+		//
+		// Example: 1
+		TotalPages int `json:"totalPages"`
+	} `json:"pagination"`
+
+	// RetentionDays How long a tombstone is kept before it is swept
+	//
+	// Example: 90
+	RetentionDays int `json:"retentionDays"`
+
+	// WatermarkExpired True when `since` predates the retention horizon. Tombstones older than that may already have been swept, so this page is not a complete account of what was deleted and the client must fall back to a full ID-set reconciliation.
+	//
+	// Example: false
+	WatermarkExpired bool `json:"watermarkExpired"`
 }
 
 // Error defines model for Error.
@@ -4814,6 +4928,24 @@ type GetFlightTrendsParams struct {
 	// Months Number of months to include (default 12, max 60)
 	Months *int `form:"months,omitempty" json:"months,omitempty"`
 }
+
+// ListDeletionsParams defines parameters for ListDeletions.
+type ListDeletionsParams struct {
+	// Since Return deletions that happened strictly after this instant (RFC 3339 date-time). Use the same watermark passed to `updatedSince`.
+	Since time.Time `form:"since" json:"since"`
+
+	// Entity Restrict the feed to a single entity type.
+	Entity *ListDeletionsParamsEntity `form:"entity,omitempty" json:"entity,omitempty"`
+
+	// Page Page number (1-indexed)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Items per page
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListDeletionsParamsEntity defines parameters for ListDeletions.
+type ListDeletionsParamsEntity string
 
 // DeleteCurrentUserJSONBody defines parameters for DeleteCurrentUser.
 type DeleteCurrentUserJSONBody struct {

@@ -410,3 +410,20 @@ type IdempotencyRepository interface {
 	// Returns the number deleted.
 	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
 }
+
+// DeletionRepository reads the tombstones that make deletions visible to a
+// delta-syncing client. Rows are written by database triggers, never from Go,
+// so that a delete reaching the database by any route — repository, raw SQL, or
+// ON DELETE CASCADE — is recorded. There is deliberately no Create method.
+type DeletionRepository interface {
+	// ListSince returns the user's deletions strictly after `since`, oldest
+	// first, optionally narrowed to one entity type.
+	ListSince(ctx context.Context, userID uuid.UUID, since time.Time, entity *models.DeletionEntityType, limit, offset int) ([]*models.Deletion, error)
+
+	// CountSince counts the set ListSince pages over.
+	CountSince(ctx context.Context, userID uuid.UUID, since time.Time, entity *models.DeletionEntityType) (int, error)
+
+	// DeleteExpired sweeps tombstones older than `before`, bounding retention.
+	// Returns the number deleted.
+	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
+}

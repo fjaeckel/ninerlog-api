@@ -86,6 +86,8 @@ tags:
     description: Admin-only platform management (requires ADMIN_EMAIL env var match)
   - name: Backups
     description: Cloud backup destinations and scheduled runs (S3 and S3-compatible storage)
+  - name: Sync
+    description: Incremental synchronisation for offline-capable clients
 
 paths:
   /auth/register:
@@ -4005,6 +4007,78 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ── Sync ──
+
+  /sync/deletions:
+    get:
+      tags:
+        - Sync
+      summary: List deletions since a watermark
+      description: >-
+        Deletions are invisible to `updatedSince`: a removed record simply stops
+        appearing, so a client that mirrors the logbook would keep it forever.
+        This endpoint reports what was deleted, against the same watermark the
+        list endpoints take, so a sync pass is "pull changes, then pull
+        deletions".
+
+
+        Covers flights, aircraft, contacts, credentials and licenses. Entries
+        are ordered oldest-first so a client can page forward and advance its
+        watermark as it goes.
+
+
+        Retention is bounded (90 days by default). When `since` predates the
+        retention horizon, older tombstones may already have been swept, so the
+        response sets `watermarkExpired` and the client must fall back to a full
+        ID-set reconciliation instead of trusting the list to be complete.
+      operationId: listDeletions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: true
+          description: >-
+            Return deletions that happened strictly after this instant (RFC 3339
+            date-time). Use the same watermark passed to `updatedSince`.
+          schema:
+            type: string
+            format: date-time
+            example: '2026-08-05T10:08:45.123456Z'
+        - name: entity
+          in: query
+          required: false
+          description: Restrict the feed to a single entity type.
+          schema:
+            type: string
+            enum: [flight, aircraft, contact, credential, license]
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Deletions recorded since the watermark
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionFeed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -5910,6 +5984,79 @@ components:
               type: integer
               example: 2
               description: Total number of pages
+
+    Deletion:
+      type: object
+      required:
+        - entity
+        - id
+        - deletedAt
+      properties:
+        entity:
+          type: string
+          enum: [flight, aircraft, contact, credential, license]
+          description: Which collection the deleted record belonged to
+          example: flight
+        id:
+          type: string
+          format: uuid
+          description: Id of the deleted record, as it was reported by the list endpoints
+          example: 660e8400-e29b-41d4-a716-446655440001
+        deletedAt:
+          type: string
+          format: date-time
+          description: When the record was deleted
+          example: '2026-08-05T11:12:13.456789Z'
+
+    DeletionFeed:
+      type: object
+      required:
+        - data
+        - pagination
+        - retentionDays
+        - watermarkExpired
+      properties:
+        data:
+          type: array
+          description: Deletions after the watermark, oldest first
+          items:
+            $ref: '#/components/schemas/Deletion'
+        pagination:
+          type: object
+          required:
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            page:
+              type: integer
+              example: 1
+              description: Current page (1-indexed)
+            pageSize:
+              type: integer
+              example: 100
+              description: Items per page
+            total:
+              type: integer
+              example: 3
+              description: Total number of deletions after the watermark
+            totalPages:
+              type: integer
+              example: 1
+              description: Total number of pages
+        retentionDays:
+          type: integer
+          description: How long a tombstone is kept before it is swept
+          example: 90
+        watermarkExpired:
+          type: boolean
+          description: >-
+            True when `since` predates the retention horizon. Tombstones older
+            than that may already have been swept, so this page is not a
+            complete account of what was deleted and the client must fall back
+            to a full ID-set reconciliation.
+          example: false
 
     FlightSession:
       type: object

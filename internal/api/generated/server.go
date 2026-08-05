@@ -341,6 +341,9 @@ type ServerInterface interface {
 	// CompletePublicSignature Complete a signature via a public link
 	// (POST /sign/{token})
 	CompletePublicSignature(c *gin.Context, token SignatureToken)
+	// ListDeletions List deletions since a watermark
+	// (GET /sync/deletions)
+	ListDeletions(c *gin.Context, params ListDeletionsParams)
 	// DeleteCurrentUser Delete current user account
 	// (DELETE /users/me)
 	DeleteCurrentUser(c *gin.Context)
@@ -2877,6 +2880,57 @@ func (siw *ServerInterfaceWrapper) CompletePublicSignature(c *gin.Context) {
 	siw.Handler.CompletePublicSignature(c, token)
 }
 
+// ListDeletions operation middleware
+func (siw *ServerInterfaceWrapper) ListDeletions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDeletionsParams
+
+	// ------------- Required query parameter "since" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "since", c.Request.URL.Query(), &params.Since, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter since: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "entity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "entity", c.Request.URL.Query(), &params.Entity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListDeletions(c, params)
+}
+
 // DeleteCurrentUser operation middleware
 func (siw *ServerInterfaceWrapper) DeleteCurrentUser(c *gin.Context) {
 
@@ -3211,4 +3265,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/backups/destinations/:destinationId/run", wrapper.RunBackupNow)
 	router.GET(options.BaseURL+"/backups/destinations/:destinationId/runs", wrapper.ListBackupRuns)
 	router.GET(options.BaseURL+"/backups/runs/:runId", wrapper.GetBackupRun)
+	router.GET(options.BaseURL+"/sync/deletions", wrapper.ListDeletions)
 }

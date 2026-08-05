@@ -612,6 +612,14 @@ func main() {
 	)
 	api.Use(middleware.IdempotencyMiddleware(idempotencyService))
 
+	// Deletion tombstones. The rows themselves are written by database
+	// triggers (migration 000054), so this only serves and sweeps them.
+	deletionService := service.NewDeletionService(
+		postgres.NewDeletionRepository(db),
+		envDuration("TOMBSTONE_RETENTION", service.DefaultTombstoneRetention),
+	)
+	apiHandler.SetDeletionService(deletionService)
+
 	generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{
 		ErrorHandler: func(c *gin.Context, err error, statusCode int) {
 			// Sanitize generated wrapper errors — never expose raw error messages
@@ -646,6 +654,11 @@ func main() {
 	// Sweep expired idempotency records. Purely hygiene — a claim past its
 	// expiry is taken over on the next request regardless of the reaper.
 	idempotencyService.StartReaper(notifCtx, time.Hour)
+
+	// Sweep deletion tombstones past the retention horizon. Not hygiene: the
+	// horizon is part of the sync contract, and GET /sync/deletions tells a
+	// client its watermark expired using the same bound this enforces.
+	deletionService.StartReaper(notifCtx, time.Hour)
 
 	// Sweep expired WebAuthn ceremony rows. Purely hygiene — Consume already
 	// refuses to return an expired session, so a stalled reaper cannot make a

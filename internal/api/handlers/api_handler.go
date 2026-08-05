@@ -41,6 +41,7 @@ type APIHandler struct {
 	startedAt              time.Time
 	corsOrigins            []string
 	backupService          *cloudbackup.Service
+	deletionService        *service.DeletionService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

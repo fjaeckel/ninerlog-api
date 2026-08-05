@@ -191,9 +191,8 @@ GET /api/v1/flights?updatedSince=2026-08-05T10:08:45.123456Z&page=1&pageSize=100
   `?updatedSince=…&aircraftReg=D-EABC` is "changes to that aircraft's flights".
 - **Pages as usual**, and on the paginated endpoints (`/flights`, `/aircraft`) the
   `pagination.total` counts the delta, not the whole collection.
-- **Deletions are not visible.** A record removed since the watermark simply stops
-  appearing; there are no tombstones yet, so a client reconciling deletes still needs a
-  periodic full pull.
+- **Deletions are reported separately.** A removed record simply stops appearing here;
+  `GET /sync/deletions` (below) is what tells a client the id is gone.
 - **Accepted spellings.** An RFC 3339 date-time, with or without sub-second precision and
   in any offset (`…Z`, `…+02:00`); or a bare `YYYY-MM-DD`, read as midnight UTC on that
   date. An empty `?updatedSince=` is treated as if the parameter were omitted. Anything
@@ -202,6 +201,51 @@ GET /api/v1/flights?updatedSince=2026-08-05T10:08:45.123456Z&page=1&pageSize=100
 
 Queries are served by the `(user_id, updated_at DESC)` indexes added in migration
 `000053` (see [DATA_MODEL.md](./DATA_MODEL.md)).
+
+## Deletions (`GET /sync/deletions`)
+
+`updatedSince` can only ever report records that still exist, so a deleted flight just
+stops appearing and a client mirroring the logbook keeps it forever. This endpoint closes
+that gap: it reports what was deleted, against the same watermark.
+
+A full sync pass is therefore two calls per collection plus one:
+
+```
+GET /api/v1/flights?updatedSince=<watermark>      → upserts
+GET /api/v1/sync/deletions?since=<watermark>      → removals
+```
+
+```json
+{
+  "data": [
+    { "entity": "flight", "id": "660e8400-…", "deletedAt": "2026-08-05T11:12:13.456789Z" }
+  ],
+  "pagination": { "page": 1, "pageSize": 100, "total": 1, "totalPages": 1 },
+  "retentionDays": 90,
+  "watermarkExpired": false
+}
+```
+
+- **Covers** flights, aircraft, contacts, credentials and licenses — everything a sync
+  client mirrors. Narrow with `entity=flight`; an unrecognised value is a `400`, because
+  an empty feed would read as "nothing was deleted".
+- **Oldest first**, so a client can page forward and advance its watermark as it goes.
+  `since` is strictly-after, matching `updatedSince`, so replaying the last `deletedAt`
+  returns nothing. It is **required**: a deletions feed with no watermark is unbounded.
+- **Paged** — `DELETE /flights/delete-all` writes one tombstone per flight. Default page
+  size 100, maximum 500; the response echoes the size actually applied.
+- **Retention is bounded** (`TOMBSTONE_RETENTION`, default 90 days). When `since` predates
+  the horizon, swept tombstones may be missing, so the response sets
+  `watermarkExpired: true` and the client must fall back to a full ID-set reconciliation.
+  That flag is the whole reason bounded retention is safe — without it a client offline
+  past the horizon would resync incrementally and silently keep deleted records.
+
+Tombstones are written by `AFTER DELETE` triggers on the five tables (migration `000054`),
+not by the Go repositories. That is deliberate: deletions reach the database by routes
+that never touch a repository — the raw SQL in `DeleteAllUserData`, the admin user delete,
+and `ON DELETE CASCADE` — and a trigger cannot be forgotten by a future caller, nor can it
+fail after a delete the client was told succeeded. Deleting a whole **account** records
+nothing: there is no client left to inform. See [DATA_MODEL.md](./DATA_MODEL.md).
 
 ## Endpoint catalogue
 
@@ -270,6 +314,10 @@ announcements.
 List providers, manage destinations (CRUD), test/run a destination, and inspect run
 history. See [FEATURES.md](./FEATURES.md#cloud-backups).
 
+### Sync
+`GET /sync/deletions` — deletions since a watermark, for offline-capable clients. See
+[Deletions](#deletions-get-syncdeletions).
+
 ### Public
 `GET /announcements`.
 
@@ -281,7 +329,8 @@ history. See [FEATURES.md](./FEATURES.md#cloud-backups).
 - Pagination is used on list endpoints that can grow large (e.g. flights); see the spec
   for parameter names.
 - The list endpoints for flights, aircraft, contacts, credentials and licenses accept
-  `updatedSince` for incremental sync — see [Delta sync](#delta-sync-updatedsince).
+  `updatedSince` for incremental sync — see [Delta sync](#delta-sync-updatedsince) — and
+  their deletions are reported by [`GET /sync/deletions`](#deletions-get-syncdeletions).
 
 > When you add or change an endpoint, update `api-spec/openapi.yaml` first, regenerate,
 > implement the handler/service, add tests, and update this document and
