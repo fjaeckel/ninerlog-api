@@ -15,7 +15,30 @@ info:
     ## Authentication
     All endpoints except `/auth/register` and `/auth/login` require JWT authentication.
     Include the token in the Authorization header: `Bearer <token>`
-    
+
+    ## Idempotent writes
+
+    Any authenticated `POST`, `PUT`, `PATCH` or `DELETE` accepts an optional
+    `Idempotency-Key` request header, so a client that queues writes while offline
+    can replay its queue without risking a duplicate logbook entry.
+
+    - Omit the header and the endpoint behaves exactly as documented below — this is
+      opt-in per request, never automatic.
+    - Keys are scoped to the authenticated user, are at most 255 printable ASCII
+      characters (a UUID or ULID is ideal), and stay replayable for 24 hours.
+    - The first request with a key executes normally. A later request with the same key
+      and the same payload returns the original status and body verbatim, with
+      `Idempotency-Replayed: true` set on the response.
+    - `409 Conflict` — an earlier request with this key is still running, or completed
+      with a response too large to store. Retry once it settles.
+    - `422 Unprocessable Entity` — the key was already used for a *different* request.
+    - `503 Service Unavailable` — the replay store is unreachable, so the requested
+      guarantee cannot be honoured. The request was not executed.
+
+    Because it applies uniformly to every mutating operation, the header is handled in
+    middleware and is not repeated as a parameter on each operation below. Server errors
+    (`5xx`) release the key, so a genuine failure stays retryable.
+
   contact:
     name: Frederic Jaeckel
     email: frederic@ninerlog.app

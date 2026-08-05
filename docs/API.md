@@ -108,6 +108,66 @@ rather than through the generated code; they are still served under `/api/v1`.
 Errors are returned as JSON with an appropriate status code; internal error details are
 never leaked to clients.
 
+## Idempotent writes
+
+Every authenticated `POST`, `PUT`, `PATCH` and `DELETE` accepts an optional
+`Idempotency-Key` request header. It exists for clients that queue writes while offline:
+when a `POST /flights` commits and the response is lost, the client cannot distinguish
+"not applied" from "applied but unacknowledged", and retrying blindly produces a
+duplicate logbook entry.
+
+It is **opt-in per request**. Without the header a request takes exactly the path it took
+before the feature existed, which is why the current frontend is unaffected.
+
+`middleware.IdempotencyMiddleware` implements it, backed by `service.IdempotencyService`
+and the `idempotency_keys` table (see [DATA_MODEL.md](./DATA_MODEL.md)). It is registered
+after `AuthMiddleware` (records are keyed per user) and after the rate limiters (a
+throttled request must not consume a key). Like auth and rate limiting, it is a
+cross-cutting transport concern, so it is described in the spec's `info.description`
+rather than repeated as a parameter on all ~60 mutating operations — which would change
+every generated handler signature, and every generated client method, for a header the
+handlers never read.
+
+| Situation | Response |
+|---|---|
+| No header | Unchanged behaviour; nothing is stored |
+| First request with a key | Executes normally; status + body are stored for 24 h |
+| Retry, same key and payload | Original status and body verbatim, plus `Idempotency-Replayed: true` |
+| Retry while the first is still running | `409` with `Retry-After: 1` |
+| Same key, different payload | `422` |
+| Retry of a request whose response was too large to store | `409` |
+| Malformed key (empty, >255 chars, non-printable-ASCII) | `400` |
+| Replay store unreachable | `503`, request not executed |
+
+Details worth knowing:
+
+- **Scope.** Keys are per user, so two pilots can pick the same client-side key.
+  Unauthenticated endpoints (login, registration, password reset) ignore the header:
+  there is no user to key a record by, and repeating them is not a logbook-integrity
+  problem. A client may therefore set the header unconditionally.
+- **Fingerprinting.** The stored record carries a SHA-256 of the method, path+query and
+  request body, which is what makes the `422` above possible. Bulk payloads — multipart
+  uploads, `POST /imports/json`, anything sent chunked — are fingerprinted by method and
+  path only; the replay guarantee is unaffected, only the mismatch diagnostic weakens.
+- **4xx responses are stored** and replayed: a validation failure is a deterministic
+  verdict on the request. **5xx responses and panics release the key**, because a server
+  error says nothing about whether the write landed and the client must stay free to
+  retry.
+- **Failure mode is closed.** If the store is unreachable the request is refused rather
+  than executed without the guarantee the client asked for.
+- **Retention and recovery.** Records expire after `IDEMPOTENCY_TTL` (24 h) and are swept
+  hourly. A claim whose request died without finalizing becomes claimable again after
+  `IDEMPOTENCY_LEASE` (60 s), so a crashed process cannot wedge a key for a whole day.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `IDEMPOTENCY_TTL` | `24h` | How long a key stays replayable |
+| `IDEMPOTENCY_LEASE` | `60s` | How long an in-progress claim is honoured before takeover (must exceed the 15 s request timeout) |
+| `IDEMPOTENCY_MAX_RESPONSE_BYTES` | `262144` | Largest response body stored for replay |
+
+Outcomes are counted in `idempotency_requests_total` — see
+[METRICS.md](./METRICS.md#idempotency-metrics).
+
 ## Endpoint catalogue
 
 The spec defines the operations below, grouped by tag. This is a high-level map — consult

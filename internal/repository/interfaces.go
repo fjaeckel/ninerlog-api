@@ -364,3 +364,38 @@ type FlightBaselineRepository interface {
 	// no baseline existed.
 	Delete(ctx context.Context, userID uuid.UUID) error
 }
+
+// IdempotencyRepository stores the server-side replay records that make
+// mutating requests safe to retry (see db/migrations/000052).
+//
+// Every method is scoped by user ID: one user's key can never read, claim or
+// overwrite another's.
+type IdempotencyRepository interface {
+	// Claim atomically takes ownership of (rec.UserID, rec.Key) for the
+	// current request.
+	//
+	// It returns (nil, nil) when the claim succeeded, meaning the caller must
+	// run the request and then either Complete or Release the record. It
+	// returns the live record when the key is already held — either still
+	// in progress, or completed and awaiting replay — and the caller must not
+	// execute the request.
+	//
+	// A record that has expired, or whose in-progress claim was taken before
+	// staleBefore (its owner died without finalizing), is taken over rather
+	// than reported as a conflict.
+	Claim(ctx context.Context, rec *models.IdempotencyRecord, staleBefore time.Time) (*models.IdempotencyRecord, error)
+
+	// Complete finalizes a claimed record with the captured response. It is a
+	// no-op when the claim identified by rec.CreatedAt is no longer held, so a
+	// straggler cannot overwrite a record another request has since taken over.
+	Complete(ctx context.Context, rec *models.IdempotencyRecord) error
+
+	// Release drops a claim so the key can be used again, for requests that
+	// must stay retryable (server errors). Like Complete it only acts on a
+	// claim still owned by claimedAt.
+	Release(ctx context.Context, userID uuid.UUID, key string, claimedAt time.Time) error
+
+	// DeleteExpired removes records that expired at or before `before`.
+	// Returns the number deleted.
+	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
+}

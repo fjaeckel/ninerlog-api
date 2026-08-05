@@ -187,6 +187,11 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   [PERFORMANCE.md](./PERFORMANCE.md).
 - **Structured logging, panic recovery, security headers, CORS, rate limiting** — see the
   middleware chain in [ARCHITECTURE.md](./ARCHITECTURE.md).
+- **Idempotent writes** — any authenticated `POST`/`PUT`/`PATCH`/`DELETE` accepts an
+  optional `Idempotency-Key` header; a retry with the same key replays the original
+  response instead of re-executing, so a client that queues writes while offline cannot
+  create duplicate logbook entries. Opt-in per request — omitting the header keeps the
+  previous behaviour exactly. See [API.md](./API.md#idempotent-writes).
 
 > When you add a feature, document it here and update the related deep-dive document
 > (DATA_MODEL / DOMAIN / API) in the same PR.

@@ -85,6 +85,24 @@ func envIntNarrow(key string, def int) int {
 	return int(v)
 }
 
+// envDuration reads a Go duration (e.g. "24h", "60s") from the environment,
+// keeping the default when the variable is unset, unparseable, or non-positive.
+// Same fail-safe reasoning as envInt: a misconfigured retention window must not
+// silently become zero.
+func envDuration(key string, def time.Duration) time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def
+	}
+	v, err := time.ParseDuration(raw)
+	if err != nil || v <= 0 {
+		slog.Warn("Ignoring invalid environment value, using default",
+			"key", key, "value", raw, "default", def.String())
+		return def
+	}
+	return v
+}
+
 func main() {
 	logging.Setup()
 	slog.Info("Starting NinerLog API...")
@@ -374,10 +392,14 @@ func main() {
 
 	// CORS
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     corsOrigins,
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowOrigins: corsOrigins,
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		// Idempotency-Key is opt-in per request, but a browser client cannot
+		// send it at all unless it is allow-listed here; Idempotency-Replayed
+		// has to be exposed for the same reason on the way back, so a client
+		// can tell a fresh write from a replayed one.
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", middleware.HeaderIdempotencyKey},
+		ExposeHeaders:    []string{"Content-Length", middleware.HeaderIdempotencyReplayed, "Retry-After"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
@@ -578,6 +600,18 @@ func main() {
 		))
 	} // end DISABLE_RATE_LIMIT check
 
+	// Idempotent writes. Registered after auth (the records are keyed per
+	// user) and after the rate limiters (a throttled request must not burn a
+	// key), and it is a no-op for any request that does not carry an
+	// Idempotency-Key header — which is every request from today's clients.
+	idempotencyService := service.NewIdempotencyService(
+		postgres.NewIdempotencyRepository(db),
+		envDuration("IDEMPOTENCY_TTL", service.DefaultIdempotencyTTL),
+		envDuration("IDEMPOTENCY_LEASE", service.DefaultIdempotencyLease),
+		envIntNarrow("IDEMPOTENCY_MAX_RESPONSE_BYTES", service.DefaultIdempotencyMaxResponseBytes),
+	)
+	api.Use(middleware.IdempotencyMiddleware(idempotencyService))
+
 	generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{
 		ErrorHandler: func(c *gin.Context, err error, statusCode int) {
 			// Sanitize generated wrapper errors — never expose raw error messages
@@ -608,6 +642,10 @@ func main() {
 	// Evict expired CSV upload sessions on a timer. Without this, parsed rows
 	// stay resident until the next upload happens to trigger cleanup.
 	handlers.StartImportSessionReaper(notifCtx, time.Minute)
+
+	// Sweep expired idempotency records. Purely hygiene — a claim past its
+	// expiry is taken over on the next request regardless of the reaper.
+	idempotencyService.StartReaper(notifCtx, time.Hour)
 
 	// Sweep expired WebAuthn ceremony rows. Purely hygiene — Consume already
 	// refuses to return an expired session, so a stalled reaper cannot make a
