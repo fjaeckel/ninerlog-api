@@ -180,6 +180,19 @@ See [FEATURES.md](./FEATURES.md#cloud-backups).
 | --- | --- | --- |
 | AdminAuditLog | 27 | Records admin actions for accountability |
 | SystemAnnouncement | 29 | Platform-wide banners shown to users |
+| IdempotencyRecord (`idempotency.go`) | 52 | Replay records for mutating requests carrying an `Idempotency-Key`; see below |
+
+`idempotency_keys` is keyed by `(user_id, idempotency_key)` and is deliberately
+disposable — no UUID primary key, no `updated_at`, cascade-deleted with the user, and
+swept once everything older than `IDEMPOTENCY_TTL` (24 h) has expired. A row is claimed
+before its request runs (`state = 'in_progress'`) and finalized with the captured
+response afterwards (`state = 'completed'`); `created_at` doubles as a fencing token, so
+only the request that took a claim may finalize or release it. `request_hash` is a
+SHA-256 over method, path+query and body, which is what lets one key reused for a
+different payload be refused rather than silently answered. A completed row with a NULL
+`response_status` means the response was too large to store — the write happened, so the
+retry is refused rather than re-executed. See
+[API.md](./API.md#idempotent-writes).
 
 ## Schema & migration strategy
 

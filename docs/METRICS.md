@@ -168,6 +168,34 @@ uses, so the two can be joined.
 > route alone cannot distinguish a throttled free-text search from a throttled
 > plain logbook listing.
 
+### Idempotency Metrics
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `idempotency_requests_total` | Counter | `outcome` | Requests carrying an `Idempotency-Key` header |
+
+Only requests that opt in are counted, so this doubles as adoption tracking:
+today's frontend sends no key and contributes nothing.
+
+| `outcome` | Meaning |
+|---|---|
+| `executed` | Key claimed, request ran, response stored for replay |
+| `replayed` | Stored response returned; the handler did not run |
+| `released` | 5xx or panic — the key was freed so the client can retry |
+| `in_progress` | 409: an earlier request with this key is still running |
+| `mismatch` | 422: the key was already used for a different payload |
+| `not_replayable` | 409: the original response was too large to store |
+| `invalid_key` | 400: malformed key |
+| `body_error` | 413: the request body could not be read |
+| `unavailable` | 503: the replay store was unreachable, so the request was refused |
+
+Sustained `mismatch` points at a client deriving keys from too little of the
+payload — it is a client bug, not load. Any `unavailable` at all means writes
+were refused, and should be read alongside the DB pool metrics above.
+
+See [API.md](./API.md#idempotent-writes) for the full contract and the
+`IDEMPOTENCY_*` settings.
+
 ### Go Runtime Metrics (built-in)
 
 The default Prometheus Go collector provides:
