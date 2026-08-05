@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -58,7 +59,13 @@ func (s *LicenseService) GetLicense(ctx context.Context, licenseID, userID uuid.
 
 // ListLicenses retrieves all licenses for a user
 func (s *LicenseService) ListLicenses(ctx context.Context, userID uuid.UUID) ([]*models.License, error) {
-	return s.licenseRepo.GetByUserID(ctx, userID)
+	return s.licenseRepo.GetByUserID(ctx, userID, nil)
+}
+
+// ListLicensesUpdatedSince retrieves the user's licenses that changed strictly
+// after the given instant, for delta-syncing clients.
+func (s *LicenseService) ListLicensesUpdatedSince(ctx context.Context, userID uuid.UUID, updatedSince time.Time) ([]*models.License, error) {
+	return s.licenseRepo.GetByUserID(ctx, userID, &updatedSince)
 }
 
 // UpdateLicense updates a license and verifies user ownership

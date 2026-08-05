@@ -78,7 +78,7 @@ func (m *sessionAircraftRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 	return nil, repository.ErrNotFound
 }
 
-func (m *sessionAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error) {
+func (m *sessionAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID, _ *time.Time) ([]*models.Aircraft, error) {
 	var result []*models.Aircraft
 	for _, a := range m.aircraft {
 		if a.UserID == userID {

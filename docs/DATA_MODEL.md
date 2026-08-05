@@ -194,6 +194,20 @@ different payload be refused rather than silently answered. A completed row with
 retry is refused rather than re-executed. See
 [API.md](./API.md#idempotent-writes).
 
+## Delta-sync indexes
+
+Migration 53 adds `(user_id, updated_at DESC)` to `flights`, `aircraft`, `contacts`,
+`credentials` and `licenses`. These back the `updatedSince` query parameter on the
+corresponding list endpoints, which compiles to `AND updated_at > $n` alongside the
+existing `user_id = $1` predicate — without the composite index every incremental pull
+would scan the user's whole logbook, which is the cost the parameter exists to remove.
+The leading `user_id` keeps the indexes usable for the plain user-scoped listing as well.
+See [API.md](./API.md#delta-sync-updatedsince).
+
+`updated_at` is maintained on all five tables: by the shared `update_updated_at_column()`
+trigger on `flights`, `aircraft`, `credentials` and `licenses`, and by an explicit
+assignment in the repository for `contacts`.
+
 ## Schema & migration strategy
 
 - Migrations are **ordered, paired** files (`NNNNNN_name.up.sql` / `.down.sql`) in

@@ -85,7 +85,7 @@ func (m *mockCRLicenseRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.
 	return l, nil
 }
 
-func (m *mockCRLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error) {
+func (m *mockCRLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.License, error) {
 	return nil, nil
 }
 

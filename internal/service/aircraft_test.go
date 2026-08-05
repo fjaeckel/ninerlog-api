@@ -51,10 +51,10 @@ func (m *mockAircraftRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.A
 	return &clone, nil
 }
 
-func (m *mockAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error) {
+func (m *mockAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error) {
 	var result []*models.Aircraft
 	for _, a := range m.aircraft {
-		if a.UserID == userID {
+		if a.UserID == userID && (updatedSince == nil || a.UpdatedAt.After(*updatedSince)) {
 			result = append(result, a)
 		}
 	}

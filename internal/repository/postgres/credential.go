@@ -53,14 +53,17 @@ func (r *credentialRepository) GetByID(ctx context.Context, id uuid.UUID) (*mode
 	return c, err
 }
 
-func (r *credentialRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Credential, error) {
+func (r *credentialRepository) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Credential, error) {
 	query := `
 		SELECT id, user_id, credential_type, credential_number, issue_date, expiry_date,
 		       issuing_authority, notes, created_at, updated_at
-		FROM credentials WHERE user_id = $1
-		ORDER BY expiry_date ASC NULLS LAST, created_at DESC
-	`
-	rows, err := r.db.QueryContext(ctx, query, userID)
+		FROM credentials WHERE user_id = $1`
+	args := []any{userID}
+	clause, clauseArgs := updatedSinceClause(updatedSince, 2)
+	query += clause + " ORDER BY expiry_date ASC NULLS LAST, created_at DESC"
+	args = append(args, clauseArgs...)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

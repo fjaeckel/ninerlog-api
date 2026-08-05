@@ -168,6 +168,41 @@ Details worth knowing:
 Outcomes are counted in `idempotency_requests_total` — see
 [METRICS.md](./METRICS.md#idempotency-metrics).
 
+## Delta sync (`updatedSince`)
+
+`listFlights`, `listAircraft`, `listContacts`, `listCredentials` and `listLicenses` accept
+an optional `updatedSince` query parameter — an RFC 3339 date-time. It returns only the
+records whose `updatedAt` is **strictly after** that instant, so a client that has already
+pulled a logbook can ask "what changed since?" instead of paging the whole thing again.
+
+Like `Idempotency-Key`, it is opt-in: omit it and the endpoint behaves exactly as before.
+
+```
+GET /api/v1/flights?updatedSince=2026-08-05T10:08:45.123456Z&page=1&pageSize=100
+```
+
+- **Strictly after, full precision.** A client stores the highest `updatedAt` it has seen
+  and replays it as the next watermark; because the comparison excludes equality, that
+  record is not returned a second time. The comparison uses the full timestamp, unlike the
+  `q=updatedAt>YYYY-MM-DD` grammar, which is day-granular and only exists on `listFlights`.
+- **Take the watermark from the records you received**, not from a local clock — a client
+  clock ahead of the server's would skip changes permanently.
+- **Composes with the other filters**, which are ANDed as usual:
+  `?updatedSince=…&aircraftReg=D-EABC` is "changes to that aircraft's flights".
+- **Pages as usual**, and on the paginated endpoints (`/flights`, `/aircraft`) the
+  `pagination.total` counts the delta, not the whole collection.
+- **Deletions are not visible.** A record removed since the watermark simply stops
+  appearing; there are no tombstones yet, so a client reconciling deletes still needs a
+  periodic full pull.
+- **Accepted spellings.** An RFC 3339 date-time, with or without sub-second precision and
+  in any offset (`…Z`, `…+02:00`); or a bare `YYYY-MM-DD`, read as midnight UTC on that
+  date. An empty `?updatedSince=` is treated as if the parameter were omitted. Anything
+  else is rejected with `400` rather than ignored — silently returning the full list would
+  look to a sync client exactly like "everything changed".
+
+Queries are served by the `(user_id, updated_at DESC)` indexes added in migration
+`000053` (see [DATA_MODEL.md](./DATA_MODEL.md)).
+
 ## Endpoint catalogue
 
 The spec defines the operations below, grouped by tag. This is a high-level map — consult
@@ -188,21 +223,23 @@ is ignored rather than rejected, and the response always echoes what was stored.
 
 ### Licenses
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings
-(`/licenses/{id}/ratings`).
+(`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
 
 ### Aircraft
-CRUD on `/aircraft`.
+CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`.
 
 ### Flights
 CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
 (re-run auto-calculations respecting overrides). Flight responses include the read-only
 `departureAirportName` / `arrivalAirportName`, resolved per request from the airport
 database and `null` when the stored location does not resolve; they are response-only and
-are not accepted on create or update. See
+are not accepted on create or update. `GET /flights` carries the filter, search, sort and
+pagination parameters, plus `updatedSince` for delta sync. See
 [FEATURES.md](./FEATURES.md#flight-logging).
 
 ### Credentials
-CRUD on `/credentials` (medicals, language proficiency, clearances).
+CRUD on `/credentials` (medicals, language proficiency, clearances). `GET /credentials`
+accepts `updatedSince`.
 
 ### Currency
 `GET /currency` (all ratings) and `GET /licenses/{id}/currency`.
@@ -217,7 +254,8 @@ is reported separately as `baseline`. Per-month, per-aircraft and per-airport br
 cover logged flights only — there is nothing to attribute a snapshot to.
 
 ### Contacts
-CRUD and search on `/contacts` (reusable crew/instructor records).
+CRUD and search on `/contacts` (reusable crew/instructor records). `GET /contacts`
+accepts `updatedSince`.
 
 ### Import / Export
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
@@ -242,6 +280,8 @@ history. See [FEATURES.md](./FEATURES.md#cloud-backups).
   violations return 403.
 - Pagination is used on list endpoints that can grow large (e.g. flights); see the spec
   for parameter names.
+- The list endpoints for flights, aircraft, contacts, credentials and licenses accept
+  `updatedSince` for incremental sync — see [Delta sync](#delta-sync-updatedsince).
 
 > When you add or change an endpoint, update `api-spec/openapi.yaml` first, regenerate,
 > implement the handler/service, add tests, and update this document and

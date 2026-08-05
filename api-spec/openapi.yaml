@@ -1108,6 +1108,8 @@ paths:
       operationId: listLicenses
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: List of licenses
@@ -1117,6 +1119,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/License'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1421,6 +1425,8 @@ paths:
       operationId: listCredentials
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: List of credentials
@@ -1430,6 +1436,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Credential'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1552,6 +1560,7 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: List of aircraft
@@ -1559,6 +1568,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedAircraft'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1833,6 +1844,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: Paginated list of flights
@@ -2928,6 +2940,8 @@ paths:
       operationId: listContacts
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: List of contacts
@@ -2937,6 +2951,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Contact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
     post:
@@ -4075,6 +4091,28 @@ components:
         type: string
         format: uuid
         example: 990e8400-e29b-41d4-a716-446655440004
+
+    UpdatedSince:
+      name: updatedSince
+      in: query
+      required: false
+      description: >-
+        Delta sync: return only records whose `updatedAt` is **strictly after**
+        this instant. The value is an RFC 3339 date-time and is compared with
+        full timestamp precision, so a client can pass back the highest
+        `updatedAt` it has seen and receive exactly what changed since. Combines
+        with the endpoint's other filters (ANDed) and pages as usual; on
+        paginated endpoints `pagination.total` counts the delta.
+
+        A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that
+        date. An empty value is treated as if the parameter were omitted.
+        Anything else returns 400.
+
+        Deletions are not reported: a removed record simply stops appearing.
+      schema:
+        type: string
+        format: date-time
+        example: '2026-08-05T10:08:45.123456Z'
 
   schemas:
     User:

@@ -52,9 +52,14 @@ func (r *ContactRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 	return c, nil
 }
 
-func (r *ContactRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error) {
-	query := `SELECT id, user_id, name, email, phone, notes, created_at, updated_at FROM contacts WHERE user_id = $1 ORDER BY name`
-	rows, err := r.db.QueryContext(ctx, query, userID)
+func (r *ContactRepository) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Contact, error) {
+	query := `SELECT id, user_id, name, email, phone, notes, created_at, updated_at FROM contacts WHERE user_id = $1`
+	args := []any{userID}
+	clause, clauseArgs := updatedSinceClause(updatedSince, 2)
+	query += clause + " ORDER BY name"
+	args = append(args, clauseArgs...)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

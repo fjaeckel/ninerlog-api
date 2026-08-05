@@ -53,7 +53,13 @@ func (s *AircraftService) GetAircraft(ctx context.Context, id, userID uuid.UUID)
 }
 
 func (s *AircraftService) ListAircraft(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error) {
-	return s.aircraftRepo.GetByUserID(ctx, userID)
+	return s.aircraftRepo.GetByUserID(ctx, userID, nil)
+}
+
+// ListAircraftUpdatedSince returns the user's aircraft that changed strictly
+// after the given instant, for delta-syncing clients.
+func (s *AircraftService) ListAircraftUpdatedSince(ctx context.Context, userID uuid.UUID, updatedSince time.Time) ([]*models.Aircraft, error) {
+	return s.aircraftRepo.GetByUserID(ctx, userID, &updatedSince)
 }
 
 // UpdateAircraft updates an aircraft. When renameFlights is true and the

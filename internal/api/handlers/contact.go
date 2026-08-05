@@ -13,13 +13,18 @@ import (
 )
 
 // ListContacts handles GET /contacts
-func (h *APIHandler) ListContacts(c *gin.Context) {
+func (h *APIHandler) ListContacts(c *gin.Context, params generated.ListContactsParams) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	contacts, err := h.contactService.ListContacts(c.Request.Context(), userID)
+	var contacts []*models.Contact
+	if since := deltaWatermark(params.UpdatedSince); since != nil {
+		contacts, err = h.contactService.ListContactsUpdatedSince(c.Request.Context(), userID, *since)
+	} else {
+		contacts, err = h.contactService.ListContacts(c.Request.Context(), userID)
+	}
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve contacts")
 		return

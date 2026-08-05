@@ -72,16 +72,18 @@ func (r *licenseRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 	return license, nil
 }
 
-func (r *licenseRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error) {
+func (r *licenseRepository) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.License, error) {
 	query := `
 		SELECT id, user_id, regulatory_authority, license_type, license_number,
 		       issue_date, issuing_authority, requires_separate_logbook, created_at, updated_at
 		FROM licenses
-		WHERE user_id = $1
-		ORDER BY created_at DESC
-	`
+		WHERE user_id = $1`
+	args := []any{userID}
+	clause, clauseArgs := updatedSinceClause(updatedSince, 2)
+	query += clause + " ORDER BY created_at DESC"
+	args = append(args, clauseArgs...)
 
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

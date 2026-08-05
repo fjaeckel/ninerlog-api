@@ -192,6 +192,12 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   response instead of re-executing, so a client that queues writes while offline cannot
   create duplicate logbook entries. Opt-in per request — omitting the header keeps the
   previous behaviour exactly. See [API.md](./API.md#idempotent-writes).
+- **Delta sync** — the list endpoints for flights, aircraft, contacts, credentials and
+  licenses accept an `updatedSince` date-time and return only records changed strictly
+  after it, so a client that has already pulled a logbook can fetch just what changed
+  rather than paging the whole thing. Opt-in per request; deletions are not yet reported,
+  so reconciling removals still needs a periodic full pull. See
+  [API.md](./API.md#delta-sync-updatedsince).
 
 > When you add a feature, document it here and update the related deep-dive document
 > (DATA_MODEL / DOMAIN / API) in the same PR.

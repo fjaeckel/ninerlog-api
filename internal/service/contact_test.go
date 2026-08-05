@@ -36,10 +36,10 @@ func (m *mockContactRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Co
 	return c, nil
 }
 
-func (m *mockContactRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error) {
+func (m *mockContactRepo) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Contact, error) {
 	var result []*models.Contact
 	for _, c := range m.contacts {
-		if c.UserID == userID {
+		if c.UserID == userID && (updatedSince == nil || c.UpdatedAt.After(*updatedSince)) {
 			result = append(result, c)
 		}
 	}

@@ -35,7 +35,12 @@ func (h *APIHandler) ListAircraft(c *gin.Context, params generated.ListAircraftP
 		return
 	}
 
-	aircraft, err := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+	var aircraft []*models.Aircraft
+	if since := deltaWatermark(params.UpdatedSince); since != nil {
+		aircraft, err = h.aircraftService.ListAircraftUpdatedSince(c.Request.Context(), userID, *since)
+	} else {
+		aircraft, err = h.aircraftService.ListAircraft(c.Request.Context(), userID)
+	}
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve aircraft")
 		return

@@ -4384,6 +4384,9 @@ type SignatureId = openapi_types.UUID
 // SignatureToken Example: 3q2-7w15QSf9jZ0mF8x1uQhz6cQd8k2r9m5b0nJH8k4
 type SignatureToken = string
 
+// UpdatedSince Example: 2026-08-05T10:08:45.123456Z
+type UpdatedSince = time.Time
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
@@ -4433,6 +4436,11 @@ type ListAircraftParams struct {
 
 	// PageSize Items per page
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
 // SearchAirportsParams defines parameters for SearchAirports.
@@ -4585,6 +4593,14 @@ type ListBackupRunsParams struct {
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
+// ListContactsParams defines parameters for ListContacts.
+type ListContactsParams struct {
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
+}
+
 // SearchContactsParams defines parameters for SearchContacts.
 type SearchContactsParams struct {
 	// Q Search query string
@@ -4592,6 +4608,14 @@ type SearchContactsParams struct {
 
 	// Limit Maximum results (default 10)
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListCredentialsParams defines parameters for ListCredentials.
+type ListCredentialsParams struct {
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
 // ExportFlightsCSVParams defines parameters for ExportFlightsCSV.
@@ -4703,6 +4727,11 @@ type ListFlightsParams struct {
 
 	// LogbookLicenseId Filter flights for a separate-logbook license. Only returns flights on aircraft whose class matches the license's class ratings.
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
+
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
 // ListFlightsParamsSortBy defines parameters for ListFlights.
@@ -4737,6 +4766,14 @@ type ImportDataJSONJSONBody struct {
 type UploadImportFileMultipartBody struct {
 	// File CSV or XLS/XLSX file to import
 	File openapi_types.File `json:"file"`
+}
+
+// ListLicensesParams defines parameters for ListLicenses.
+type ListLicensesParams struct {
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
 // UpdateLicenseJSONBody defines parameters for UpdateLicense.

@@ -72,8 +72,9 @@ type LicenseRepository interface {
 	// GetByID retrieves a license by its ID
 	GetByID(ctx context.Context, id uuid.UUID) (*models.License, error)
 
-	// GetByUserID retrieves all licenses for a user
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error)
+	// GetByUserID retrieves all licenses for a user. A non-nil updatedSince
+	// narrows the result to licences changed strictly after that instant.
+	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.License, error)
 
 	// Update updates a license
 	Update(ctx context.Context, license *models.License) error
@@ -126,6 +127,10 @@ type FlightQueryOptions struct {
 	IsPIC         *bool
 	IsDual        *bool
 	Search        *string
+	// UpdatedSince restricts the result to flights whose updated_at is
+	// strictly after the given instant (delta sync). Compared at full
+	// timestamp precision, unlike the day-granular date filters above.
+	UpdatedSince *time.Time
 	// Query is a parsed advanced search query (see internal/flightsearch).
 	// It compiles to a SQL condition and is ANDed with the other filters.
 	Query     *flightsearch.Query
@@ -238,7 +243,9 @@ type CustomCurrencyRuleRepository interface {
 type CredentialRepository interface {
 	Create(ctx context.Context, credential *models.Credential) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Credential, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Credential, error)
+	// GetByUserID retrieves all credentials for a user. A non-nil updatedSince
+	// narrows the result to credentials changed strictly after that instant.
+	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Credential, error)
 	Update(ctx context.Context, credential *models.Credential) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -246,7 +253,9 @@ type CredentialRepository interface {
 type AircraftRepository interface {
 	Create(ctx context.Context, aircraft *models.Aircraft) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Aircraft, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error)
+	// GetByUserID retrieves all aircraft for a user. A non-nil updatedSince
+	// narrows the result to aircraft changed strictly after that instant.
+	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error)
 	Update(ctx context.Context, aircraft *models.Aircraft) error
 	// UpdateWithFlightRename updates the aircraft and, in the same
 	// transaction, repoints flights (and open flight sessions) logged under
@@ -278,7 +287,9 @@ type NotificationRepository interface {
 type ContactRepository interface {
 	Create(ctx context.Context, contact *models.Contact) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Contact, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error)
+	// GetByUserID retrieves all contacts for a user. A non-nil updatedSince
+	// narrows the result to contacts changed strictly after that instant.
+	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Contact, error)
 	GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error)
 	Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error)
 	Update(ctx context.Context, contact *models.Contact) error
