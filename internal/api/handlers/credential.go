@@ -14,14 +14,19 @@ import (
 )
 
 // ListCredentials implements GET /credentials
-func (h *APIHandler) ListCredentials(c *gin.Context) {
+func (h *APIHandler) ListCredentials(c *gin.Context, params generated.ListCredentialsParams) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	credentials, err := h.credentialService.ListCredentials(c.Request.Context(), userID)
+	var credentials []*models.Credential
+	if since := deltaWatermark(params.UpdatedSince); since != nil {
+		credentials, err = h.credentialService.ListCredentialsUpdatedSince(c.Request.Context(), userID, *since)
+	} else {
+		credentials, err = h.credentialService.ListCredentials(c.Request.Context(), userID)
+	}
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve credentials")
 		return

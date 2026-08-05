@@ -192,6 +192,17 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   response instead of re-executing, so a client that queues writes while offline cannot
   create duplicate logbook entries. Opt-in per request — omitting the header keeps the
   previous behaviour exactly. See [API.md](./API.md#idempotent-writes).
+- **Delta sync** — the list endpoints for flights, aircraft, contacts, credentials and
+  licenses accept an `updatedSince` date-time and return only records changed strictly
+  after it, so a client that has already pulled a logbook can fetch just what changed
+  rather than paging the whole thing. Opt-in per request. See
+  [API.md](./API.md#delta-sync-updatedsince).
+- **Deletion feed** — `GET /sync/deletions?since=` reports what was deleted across those
+  same five collections, which `updatedSince` cannot express: a removed record just stops
+  appearing. Tombstones are recorded by database triggers, so bulk and cascaded deletes are
+  covered too, and are kept for 90 days by default; a client whose watermark is older than
+  that is told to fall back to a full reconciliation. See
+  [API.md](./API.md#deletions-get-syncdeletions).
 
 > When you add a feature, document it here and update the related deep-dive document
 > (DATA_MODEL / DOMAIN / API) in the same PR.

@@ -79,7 +79,7 @@ func (m *mockLicenseRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Lice
 	return l, nil
 }
 
-func (m *mockLicenseRepo) GetByUserID(_ context.Context, userID uuid.UUID) ([]*models.License, error) {
+func (m *mockLicenseRepo) GetByUserID(_ context.Context, userID uuid.UUID, _ *time.Time) ([]*models.License, error) {
 	var result []*models.License
 	for _, l := range m.licenses {
 		if l.UserID == userID {

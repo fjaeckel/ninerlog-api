@@ -45,7 +45,7 @@ func NewService(
 //   - Tier 2 (PassengerCurrency): Passenger currency — can you carry passengers?
 func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyStatusResponse, error) {
 	// Get all user licenses
-	licenses, err := s.licenseRepo.GetByUserID(ctx, userID)
+	licenses, err := s.licenseRepo.GetByUserID(ctx, userID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get licenses: %w", err)
 	}

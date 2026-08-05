@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -70,7 +71,13 @@ func (s *ContactService) GetContact(ctx context.Context, id, userID uuid.UUID) (
 }
 
 func (s *ContactService) ListContacts(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error) {
-	return s.contactRepo.GetByUserID(ctx, userID)
+	return s.contactRepo.GetByUserID(ctx, userID, nil)
+}
+
+// ListContactsUpdatedSince returns the user's contacts that changed strictly
+// after the given instant, for delta-syncing clients.
+func (s *ContactService) ListContactsUpdatedSince(ctx context.Context, userID uuid.UUID, updatedSince time.Time) ([]*models.Contact, error) {
+	return s.contactRepo.GetByUserID(ctx, userID, &updatedSince)
 }
 
 func (s *ContactService) SearchContacts(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error) {

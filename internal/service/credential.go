@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -48,7 +49,13 @@ func (s *CredentialService) GetCredential(ctx context.Context, id, userID uuid.U
 }
 
 func (s *CredentialService) ListCredentials(ctx context.Context, userID uuid.UUID) ([]*models.Credential, error) {
-	return s.credentialRepo.GetByUserID(ctx, userID)
+	return s.credentialRepo.GetByUserID(ctx, userID, nil)
+}
+
+// ListCredentialsUpdatedSince returns the user's credentials that changed
+// strictly after the given instant, for delta-syncing clients.
+func (s *CredentialService) ListCredentialsUpdatedSince(ctx context.Context, userID uuid.UUID, updatedSince time.Time) ([]*models.Credential, error) {
+	return s.credentialRepo.GetByUserID(ctx, userID, &updatedSince)
 }
 
 func (s *CredentialService) UpdateCredential(ctx context.Context, credential *models.Credential, userID uuid.UUID) error {

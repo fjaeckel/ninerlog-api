@@ -396,6 +396,11 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 			args = append(args, *opts.EndDate)
 			argNum++
 		}
+		if opts.UpdatedSince != nil {
+			query += fmt.Sprintf(" AND updated_at > $%d", argNum)
+			args = append(args, *opts.UpdatedSince)
+			argNum++
+		}
 		if opts.AircraftReg != nil {
 			query += fmt.Sprintf(" AND UPPER(aircraft_reg) = UPPER($%d)", argNum)
 			args = append(args, *opts.AircraftReg)
@@ -554,6 +559,11 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		if opts.EndDate != nil {
 			query += fmt.Sprintf(" AND date <= $%d", argNum)
 			args = append(args, *opts.EndDate)
+			argNum++
+		}
+		if opts.UpdatedSince != nil {
+			query += fmt.Sprintf(" AND updated_at > $%d", argNum)
+			args = append(args, *opts.UpdatedSince)
 			argNum++
 		}
 		if opts.AircraftReg != nil {

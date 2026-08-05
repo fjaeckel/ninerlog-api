@@ -111,8 +111,8 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
     routes not in the spec (reports, flight utilities).
 11. **Start background workers**: the notification background checker, the airport
     database refresher (`AIRPORT_REFRESH_INTERVAL`, default 24h), the import-session
-    reaper, the idempotency-record reaper, and (optionally) the backup scheduler — all
-    bound to a cancellable context.
+    reaper, the idempotency-record reaper, the deletion-tombstone reaper, and
+    (optionally) the backup scheduler — all bound to a cancellable context.
 12. **Serve** with graceful shutdown that stops background workers.
 
 ### Optional / feature-flagged subsystems

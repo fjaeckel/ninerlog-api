@@ -338,6 +338,33 @@ func (e CrewRole) Valid() bool {
 	}
 }
 
+// Defines values for DeletionEntity.
+const (
+	DeletionEntityAircraft   DeletionEntity = "aircraft"
+	DeletionEntityContact    DeletionEntity = "contact"
+	DeletionEntityCredential DeletionEntity = "credential"
+	DeletionEntityFlight     DeletionEntity = "flight"
+	DeletionEntityLicense    DeletionEntity = "license"
+)
+
+// Valid indicates whether the value is a known member of the DeletionEntity enum.
+func (e DeletionEntity) Valid() bool {
+	switch e {
+	case DeletionEntityAircraft:
+		return true
+	case DeletionEntityContact:
+		return true
+	case DeletionEntityCredential:
+		return true
+	case DeletionEntityFlight:
+		return true
+	case DeletionEntityLicense:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FlightLaunchMethod.
 const (
 	FlightLaunchMethodAerotow    FlightLaunchMethod = "aerotow"
@@ -1130,6 +1157,33 @@ func (e ListFlightsParamsSortOrder) Valid() bool {
 	case Asc:
 		return true
 	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListDeletionsParamsEntity.
+const (
+	ListDeletionsParamsEntityAircraft   ListDeletionsParamsEntity = "aircraft"
+	ListDeletionsParamsEntityContact    ListDeletionsParamsEntity = "contact"
+	ListDeletionsParamsEntityCredential ListDeletionsParamsEntity = "credential"
+	ListDeletionsParamsEntityFlight     ListDeletionsParamsEntity = "flight"
+	ListDeletionsParamsEntityLicense    ListDeletionsParamsEntity = "license"
+)
+
+// Valid indicates whether the value is a known member of the ListDeletionsParamsEntity enum.
+func (e ListDeletionsParamsEntity) Valid() bool {
+	switch e {
+	case ListDeletionsParamsEntityAircraft:
+		return true
+	case ListDeletionsParamsEntityContact:
+		return true
+	case ListDeletionsParamsEntityCredential:
+		return true
+	case ListDeletionsParamsEntityFlight:
+		return true
+	case ListDeletionsParamsEntityLicense:
 		return true
 	default:
 		return false
@@ -2623,6 +2677,66 @@ type CurrencyStatusResponse struct {
 
 	// Ratings Tier 1: Rating/license currency — determines whether the pilot can fly at all in each class
 	Ratings []ClassRatingCurrency `json:"ratings"`
+}
+
+// Deletion defines model for Deletion.
+type Deletion struct {
+	// DeletedAt When the record was deleted
+	//
+	// Example: 2026-08-05T11:12:13.456789Z
+	DeletedAt time.Time `json:"deletedAt"`
+
+	// Entity Which collection the deleted record belonged to
+	//
+	// Example: flight
+	Entity DeletionEntity `json:"entity"`
+
+	// Id Id of the deleted record, as it was reported by the list endpoints
+	//
+	// Example: 660e8400-e29b-41d4-a716-446655440001
+	Id openapi_types.UUID `json:"id"`
+}
+
+// DeletionEntity Which collection the deleted record belonged to
+//
+// Example: flight
+type DeletionEntity string
+
+// DeletionFeed defines model for DeletionFeed.
+type DeletionFeed struct {
+	// Data Deletions after the watermark, oldest first
+	Data       []Deletion `json:"data"`
+	Pagination struct {
+		// Page Current page (1-indexed)
+		//
+		// Example: 1
+		Page int `json:"page"`
+
+		// PageSize Items per page
+		//
+		// Example: 100
+		PageSize int `json:"pageSize"`
+
+		// Total Total number of deletions after the watermark
+		//
+		// Example: 3
+		Total int `json:"total"`
+
+		// TotalPages Total number of pages
+		//
+		// Example: 1
+		TotalPages int `json:"totalPages"`
+	} `json:"pagination"`
+
+	// RetentionDays How long a tombstone is kept before it is swept
+	//
+	// Example: 90
+	RetentionDays int `json:"retentionDays"`
+
+	// WatermarkExpired True when `since` predates the retention horizon. Tombstones older than that may already have been swept, so this page is not a complete account of what was deleted and the client must fall back to a full ID-set reconciliation.
+	//
+	// Example: false
+	WatermarkExpired bool `json:"watermarkExpired"`
 }
 
 // Error defines model for Error.
@@ -4384,6 +4498,9 @@ type SignatureId = openapi_types.UUID
 // SignatureToken Example: 3q2-7w15QSf9jZ0mF8x1uQhz6cQd8k2r9m5b0nJH8k4
 type SignatureToken = string
 
+// UpdatedSince Example: 2026-08-05T10:08:45.123456Z
+type UpdatedSince = time.Time
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
@@ -4433,6 +4550,11 @@ type ListAircraftParams struct {
 
 	// PageSize Items per page
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
 // SearchAirportsParams defines parameters for SearchAirports.
@@ -4585,6 +4707,14 @@ type ListBackupRunsParams struct {
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
+// ListContactsParams defines parameters for ListContacts.
+type ListContactsParams struct {
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
+}
+
 // SearchContactsParams defines parameters for SearchContacts.
 type SearchContactsParams struct {
 	// Q Search query string
@@ -4592,6 +4722,14 @@ type SearchContactsParams struct {
 
 	// Limit Maximum results (default 10)
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListCredentialsParams defines parameters for ListCredentials.
+type ListCredentialsParams struct {
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
 // ExportFlightsCSVParams defines parameters for ExportFlightsCSV.
@@ -4703,6 +4841,11 @@ type ListFlightsParams struct {
 
 	// LogbookLicenseId Filter flights for a separate-logbook license. Only returns flights on aircraft whose class matches the license's class ratings.
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
+
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
 // ListFlightsParamsSortBy defines parameters for ListFlights.
@@ -4737,6 +4880,14 @@ type ImportDataJSONJSONBody struct {
 type UploadImportFileMultipartBody struct {
 	// File CSV or XLS/XLSX file to import
 	File openapi_types.File `json:"file"`
+}
+
+// ListLicensesParams defines parameters for ListLicenses.
+type ListLicensesParams struct {
+	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
+	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
+	// Deletions are not reported: a removed record simply stops appearing.
+	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
 // UpdateLicenseJSONBody defines parameters for UpdateLicense.
@@ -4777,6 +4928,24 @@ type GetFlightTrendsParams struct {
 	// Months Number of months to include (default 12, max 60)
 	Months *int `form:"months,omitempty" json:"months,omitempty"`
 }
+
+// ListDeletionsParams defines parameters for ListDeletions.
+type ListDeletionsParams struct {
+	// Since Return deletions that happened strictly after this instant (RFC 3339 date-time). Use the same watermark passed to `updatedSince`.
+	Since time.Time `form:"since" json:"since"`
+
+	// Entity Restrict the feed to a single entity type.
+	Entity *ListDeletionsParamsEntity `form:"entity,omitempty" json:"entity,omitempty"`
+
+	// Page Page number (1-indexed)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Items per page
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListDeletionsParamsEntity defines parameters for ListDeletions.
+type ListDeletionsParamsEntity string
 
 // DeleteCurrentUserJSONBody defines parameters for DeleteCurrentUser.
 type DeleteCurrentUserJSONBody struct {

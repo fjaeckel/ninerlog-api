@@ -63,6 +63,10 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	if params.Search != nil {
 		opts.Search = params.Search
 	}
+	if since := deltaWatermark(params.UpdatedSince); since != nil {
+		t := *since
+		opts.UpdatedSince = &t
+	}
 	if params.Q != nil && strings.TrimSpace(*params.Q) != "" {
 		query, err := flightsearch.Parse(*params.Q)
 		if err != nil {

@@ -172,7 +172,7 @@ type ServerInterface interface {
 	GetBackupRun(c *gin.Context, runId openapi_types.UUID)
 	// ListContacts List all contacts
 	// (GET /contacts)
-	ListContacts(c *gin.Context)
+	ListContacts(c *gin.Context, params ListContactsParams)
 	// CreateContact Create a contact
 	// (POST /contacts)
 	CreateContact(c *gin.Context)
@@ -190,7 +190,7 @@ type ServerInterface interface {
 	UpdateContact(c *gin.Context, contactId openapi_types.UUID)
 	// ListCredentials List credentials
 	// (GET /credentials)
-	ListCredentials(c *gin.Context)
+	ListCredentials(c *gin.Context, params ListCredentialsParams)
 	// CreateCredential Add credential
 	// (POST /credentials)
 	CreateCredential(c *gin.Context)
@@ -289,7 +289,7 @@ type ServerInterface interface {
 	GetImport(c *gin.Context, importId ImportId)
 	// ListLicenses List user's licenses
 	// (GET /licenses)
-	ListLicenses(c *gin.Context)
+	ListLicenses(c *gin.Context, params ListLicensesParams)
 	// CreateLicense Create a new license
 	// (POST /licenses)
 	CreateLicense(c *gin.Context)
@@ -341,6 +341,9 @@ type ServerInterface interface {
 	// CompletePublicSignature Complete a signature via a public link
 	// (POST /sign/{token})
 	CompletePublicSignature(c *gin.Context, token SignatureToken)
+	// ListDeletions List deletions since a watermark
+	// (GET /sync/deletions)
+	ListDeletions(c *gin.Context, params ListDeletionsParams)
 	// DeleteCurrentUser Delete current user account
 	// (DELETE /users/me)
 	DeleteCurrentUser(c *gin.Context)
@@ -713,6 +716,14 @@ func (siw *ServerInterfaceWrapper) ListAircraft(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "updatedSince" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "updatedSince", c.Request.URL.Query(), &params.UpdatedSince, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter updatedSince: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -1395,6 +1406,20 @@ func (siw *ServerInterfaceWrapper) GetBackupRun(c *gin.Context) {
 // ListContacts operation middleware
 func (siw *ServerInterfaceWrapper) ListContacts(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListContactsParams
+
+	// ------------- Optional query parameter "updatedSince" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "updatedSince", c.Request.URL.Query(), &params.UpdatedSince, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter updatedSince: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1402,7 +1427,7 @@ func (siw *ServerInterfaceWrapper) ListContacts(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ListContacts(c)
+	siw.Handler.ListContacts(c, params)
 }
 
 // CreateContact operation middleware
@@ -1531,6 +1556,20 @@ func (siw *ServerInterfaceWrapper) UpdateContact(c *gin.Context) {
 // ListCredentials operation middleware
 func (siw *ServerInterfaceWrapper) ListCredentials(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCredentialsParams
+
+	// ------------- Optional query parameter "updatedSince" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "updatedSince", c.Request.URL.Query(), &params.UpdatedSince, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter updatedSince: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1538,7 +1577,7 @@ func (siw *ServerInterfaceWrapper) ListCredentials(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ListCredentials(c)
+	siw.Handler.ListCredentials(c, params)
 }
 
 // CreateCredential operation middleware
@@ -1882,6 +1921,14 @@ func (siw *ServerInterfaceWrapper) ListFlights(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "logbookLicenseId", c.Request.URL.Query(), &params.LogbookLicenseId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter logbookLicenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "updatedSince" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "updatedSince", c.Request.URL.Query(), &params.UpdatedSince, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter updatedSince: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2369,6 +2416,20 @@ func (siw *ServerInterfaceWrapper) GetImport(c *gin.Context) {
 // ListLicenses operation middleware
 func (siw *ServerInterfaceWrapper) ListLicenses(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListLicensesParams
+
+	// ------------- Optional query parameter "updatedSince" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "updatedSince", c.Request.URL.Query(), &params.UpdatedSince, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter updatedSince: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2376,7 +2437,7 @@ func (siw *ServerInterfaceWrapper) ListLicenses(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ListLicenses(c)
+	siw.Handler.ListLicenses(c, params)
 }
 
 // CreateLicense operation middleware
@@ -2819,6 +2880,57 @@ func (siw *ServerInterfaceWrapper) CompletePublicSignature(c *gin.Context) {
 	siw.Handler.CompletePublicSignature(c, token)
 }
 
+// ListDeletions operation middleware
+func (siw *ServerInterfaceWrapper) ListDeletions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDeletionsParams
+
+	// ------------- Required query parameter "since" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "since", c.Request.URL.Query(), &params.Since, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter since: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "entity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "entity", c.Request.URL.Query(), &params.Entity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListDeletions(c, params)
+}
+
 // DeleteCurrentUser operation middleware
 func (siw *ServerInterfaceWrapper) DeleteCurrentUser(c *gin.Context) {
 
@@ -3153,4 +3265,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/backups/destinations/:destinationId/run", wrapper.RunBackupNow)
 	router.GET(options.BaseURL+"/backups/destinations/:destinationId/runs", wrapper.ListBackupRuns)
 	router.GET(options.BaseURL+"/backups/runs/:runId", wrapper.GetBackupRun)
+	router.GET(options.BaseURL+"/sync/deletions", wrapper.ListDeletions)
 }

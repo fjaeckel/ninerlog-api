@@ -37,10 +37,10 @@ func (m *mockLicenseRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Li
 	return license, nil
 }
 
-func (m *mockLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error) {
+func (m *mockLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.License, error) {
 	var result []*models.License
 	for _, license := range m.licenses {
-		if license.UserID == userID {
+		if license.UserID == userID && (updatedSince == nil || license.UpdatedAt.After(*updatedSince)) {
 			result = append(result, license)
 		}
 	}

@@ -73,7 +73,7 @@ func TestLicenseRepositoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Get licenses by user ID", func(t *testing.T) {
-		licenses, err := licenseRepo.GetByUserID(ctx, user.ID)
+		licenses, err := licenseRepo.GetByUserID(ctx, user.ID, nil)
 		if err != nil {
 			t.Fatalf("Failed to get licenses: %v", err)
 		}

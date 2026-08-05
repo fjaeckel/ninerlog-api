@@ -44,10 +44,10 @@ func (m *mockCredentialRepo) GetByID(_ context.Context, id uuid.UUID) (*models.C
 	}
 	return c, nil
 }
-func (m *mockCredentialRepo) GetByUserID(_ context.Context, userID uuid.UUID) ([]*models.Credential, error) {
+func (m *mockCredentialRepo) GetByUserID(_ context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Credential, error) {
 	var out []*models.Credential
 	for _, c := range m.credentials {
-		if c.UserID == userID {
+		if c.UserID == userID && (updatedSince == nil || c.UpdatedAt.After(*updatedSince)) {
 			out = append(out, c)
 		}
 	}
@@ -84,10 +84,10 @@ func (m *mockAircraftRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Air
 	}
 	return a, nil
 }
-func (m *mockAircraftRepo) GetByUserID(_ context.Context, userID uuid.UUID) ([]*models.Aircraft, error) {
+func (m *mockAircraftRepo) GetByUserID(_ context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error) {
 	var out []*models.Aircraft
 	for _, a := range m.aircraft {
-		if a.UserID == userID {
+		if a.UserID == userID && (updatedSince == nil || a.UpdatedAt.After(*updatedSince)) {
 			out = append(out, a)
 		}
 	}
@@ -145,10 +145,10 @@ func (m *mockContactRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Cont
 	}
 	return c, nil
 }
-func (m *mockContactRepo) GetByUserID(_ context.Context, userID uuid.UUID) ([]*models.Contact, error) {
+func (m *mockContactRepo) GetByUserID(_ context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Contact, error) {
 	var out []*models.Contact
 	for _, c := range m.contacts {
-		if c.UserID == userID {
+		if c.UserID == userID && (updatedSince == nil || c.UpdatedAt.After(*updatedSince)) {
 			out = append(out, c)
 		}
 	}
@@ -282,6 +282,9 @@ func (m *mockEmailVerificationRepo) DeleteExpired(_ context.Context) error      
 
 type mockFlightRepo struct {
 	flights map[uuid.UUID]*models.Flight
+	// lastOpts records the options the handler built, so tests can assert
+	// that a query parameter actually reached the repository layer.
+	lastOpts *repository.FlightQueryOptions
 }
 
 func newMockFlightRepo() *mockFlightRepo {
@@ -302,14 +305,23 @@ func (m *mockFlightRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Fligh
 	}
 	return f, nil
 }
-func (m *mockFlightRepo) GetByUserID(_ context.Context, userID uuid.UUID, _ *repository.FlightQueryOptions) ([]*models.Flight, error) {
+func (m *mockFlightRepo) GetByUserID(_ context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) ([]*models.Flight, error) {
+	m.lastOpts = opts
 	var out []*models.Flight
 	for _, f := range m.flights {
-		if f.UserID == userID {
+		if f.UserID == userID && matchesUpdatedSince(f, opts) {
 			out = append(out, f)
 		}
 	}
 	return out, nil
+}
+
+// matchesUpdatedSince mirrors the repository's strictly-after delta filter.
+func matchesUpdatedSince(f *models.Flight, opts *repository.FlightQueryOptions) bool {
+	if opts == nil || opts.UpdatedSince == nil {
+		return true
+	}
+	return f.UpdatedAt.After(*opts.UpdatedSince)
 }
 func (m *mockFlightRepo) Update(_ context.Context, f *models.Flight) error {
 	if _, ok := m.flights[f.ID]; !ok {
@@ -340,10 +352,10 @@ func (m *mockFlightRepo) DeleteAllByUserID(_ context.Context, userID uuid.UUID) 
 	}
 	return count, nil
 }
-func (m *mockFlightRepo) CountByUserID(_ context.Context, userID uuid.UUID, _ *repository.FlightQueryOptions) (int, error) {
+func (m *mockFlightRepo) CountByUserID(_ context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	count := 0
 	for _, f := range m.flights {
-		if f.UserID == userID {
+		if f.UserID == userID && matchesUpdatedSince(f, opts) {
 			count++
 		}
 	}
@@ -693,7 +705,7 @@ func TestListCredentials_Unauthorized(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/credentials", nil)
 
-	h.ListCredentials(c)
+	h.ListCredentials(c, generated.ListCredentialsParams{})
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Unauthorized ListCredentials() status = %d, want 401", w.Code)
@@ -708,7 +720,7 @@ func TestListCredentials_Success(t *testing.T) {
 	c := authenticatedContext(w, userID)
 	c.Request = httptest.NewRequest("GET", "/credentials", nil)
 
-	h.ListCredentials(c)
+	h.ListCredentials(c, generated.ListCredentialsParams{})
 
 	if w.Code != http.StatusOK {
 		t.Errorf("ListCredentials() status = %d, want 200", w.Code)
@@ -802,7 +814,7 @@ func TestListContacts_Unauthorized(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/contacts", nil)
 
-	h.ListContacts(c)
+	h.ListContacts(c, generated.ListContactsParams{})
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Unauthorized ListContacts() status = %d, want 401", w.Code)
@@ -817,7 +829,7 @@ func TestListContacts_Success(t *testing.T) {
 	c := authenticatedContext(w, userID)
 	c.Request = httptest.NewRequest("GET", "/contacts", nil)
 
-	h.ListContacts(c)
+	h.ListContacts(c, generated.ListContactsParams{})
 
 	if w.Code != http.StatusOK {
 		t.Errorf("ListContacts() status = %d, want 200", w.Code)
