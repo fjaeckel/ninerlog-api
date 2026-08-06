@@ -90,6 +90,89 @@ tags:
     description: Incremental synchronisation for offline-capable clients
 
 paths:
+  /auth/providers:
+    get:
+      tags:
+        - Authentication
+      summary: Which sign-in methods this server offers
+      description: |
+        Unauthenticated capability probe. A NinerLog server runs in exactly one
+        authentication mode, and the client uses this to decide which sign-in
+        UI to render before anyone has logged in.
+
+        * `local` — email/password, optional TOTP and passkeys, self-service
+          registration (the default).
+        * `oidc` — a single external identity provider owns all accounts.
+          Password, registration, password-reset, TOTP and passkey endpoints
+          all answer `503` in this mode.
+
+        In `oidc` mode the client sends the browser to `authorizeUrl`, which is
+        a redirect endpoint rather than a JSON API.
+      operationId: getAuthProviders
+      security: []
+      responses:
+        '200':
+          description: Enabled authentication methods
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthProviders'
+
+  /auth/oidc/exchange:
+    post:
+      tags:
+        - Authentication
+      summary: Exchange an OIDC handoff code for tokens
+      description: |
+        Final step of the OIDC login. After the provider redirects the browser
+        back to `/auth/oidc/callback`, the API sends it on to the frontend with
+        a single-use `oidc_code` query parameter. The client posts that code
+        here to receive the normal access/refresh token pair.
+
+        The code is redeemable exactly once and expires within a minute, which
+        is why the tokens themselves never appear in a URL.
+      operationId: exchangeOidcCode
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  description: The single-use code from the `oidc_code` query parameter
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: The code is unknown, expired, or has already been redeemed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: The account has been disabled by an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: OIDC is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /auth/register:
     post:
       tags:
@@ -153,6 +236,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/verify-email:
     post:
@@ -190,6 +275,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/verify-email/resend:
     post:
@@ -219,6 +306,8 @@ paths:
           description: Verification email sent (if account exists and is not yet verified)
         '400':
           $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/login:
     post:
@@ -288,6 +377,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/logout:
     post:
@@ -391,6 +482,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/password-reset-request:
     post:
@@ -420,6 +513,8 @@ paths:
           description: Password reset email sent (if account exists)
         '400':
           $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/password-reset:
     post:
@@ -487,6 +582,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/webauthn/register/options:
     post:
@@ -507,7 +604,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '503':
-          description: WebAuthn is not configured on this server
+          description: >-
+            Passkeys are unavailable: either WEBAUTHN_RP_ID is unset, or the
+            server runs in OIDC mode, where all local credential methods are
+            switched off.
 
   /auth/webauthn/register/verify:
     post:
@@ -554,7 +654,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '503':
-          description: WebAuthn is not configured on this server
+          description: >-
+            Passkeys are unavailable: either WEBAUTHN_RP_ID is unset, or the
+            server runs in OIDC mode, where all local credential methods are
+            switched off.
 
   /auth/webauthn/login/options:
     post:
@@ -583,7 +686,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/WebAuthnLoginOptions'
         '503':
-          description: WebAuthn is not configured on this server
+          description: >-
+            Passkeys are unavailable: either WEBAUTHN_RP_ID is unset, or the
+            server runs in OIDC mode, where all local credential methods are
+            switched off.
 
   /auth/webauthn/login/verify:
     post:
@@ -630,7 +736,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '503':
-          description: WebAuthn is not configured on this server
+          description: >-
+            Passkeys are unavailable: either WEBAUTHN_RP_ID is unset, or the
+            server runs in OIDC mode, where all local credential methods are
+            switched off.
 
   /auth/webauthn/credentials:
     get:
@@ -703,6 +812,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/2fa/verify:
     post:
@@ -738,6 +849,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/2fa/disable:
     post:
@@ -765,6 +878,8 @@ paths:
           description: 2FA disabled
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /auth/2fa/login:
     post:
@@ -799,6 +914,8 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/LocalAuthDisabled'
 
   /users/me:
     get:
@@ -899,7 +1016,14 @@ paths:
       tags:
         - Users
       summary: Delete current user account
-      description: Permanently delete the authenticated user's account and all associated data (licenses, flights, tokens). This action cannot be undone.
+      description: |
+        Permanently delete the authenticated user's account and all associated
+        data (licenses, flights, tokens). This action cannot be undone.
+
+        Confirmation depends on the server's authentication mode:
+        * **local mode** — send `password`.
+        * **OIDC mode** — there is no local password, so send `confirmEmail`
+          holding the account's own email address instead.
       operationId: deleteCurrentUser
       security:
         - bearerAuth: []
@@ -909,16 +1033,22 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - password
               properties:
                 password:
                   type: string
                   format: password
-                  description: Current password for confirmation
+                  description: Current password for confirmation (local mode)
+                confirmEmail:
+                  type: string
+                  format: email
+                  description: >-
+                    The account's own email address, typed as confirmation.
+                    Required in OIDC mode, where no local password exists.
       responses:
         '204':
           description: Account deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -4443,6 +4573,55 @@ components:
         user:
           $ref: '#/components/schemas/User'
 
+    AuthProviders:
+      type: object
+      description: >-
+        The sign-in methods this server offers. Exactly one authentication mode
+        is active; the flags below are all derived from it and from what the
+        operator has configured.
+      required:
+        - mode
+        - passwordLoginEnabled
+        - registrationEnabled
+        - twoFactorEnabled
+        - webauthnEnabled
+        - oidc
+      properties:
+        mode:
+          type: string
+          enum: [local, oidc]
+          description: The active authentication mode
+        passwordLoginEnabled:
+          type: boolean
+          description: Whether email/password sign-in is accepted
+        registrationEnabled:
+          type: boolean
+          description: Whether self-service registration is accepted
+        twoFactorEnabled:
+          type: boolean
+          description: Whether users can set up TOTP two-factor authentication
+        webauthnEnabled:
+          type: boolean
+          description: Whether passkey registration and login are available
+        oidc:
+          type: object
+          required:
+            - enabled
+          properties:
+            enabled:
+              type: boolean
+              description: Whether OIDC single sign-on is configured
+            name:
+              type: string
+              description: Display name for the sign-in button, from OIDC_PROVIDER_NAME
+              example: Authentik
+            authorizeUrl:
+              type: string
+              description: >-
+                Where to send the browser to start the login. A redirect
+                endpoint, not a JSON API — navigate to it, do not fetch it.
+              example: /api/v1/auth/oidc/authorize
+
     RegistrationResponse:
       type: object
       required:
@@ -7505,6 +7684,15 @@ components:
         cloudBackupsConfigured:
           type: boolean
           description: Whether cloud backups are enabled (BACKUP_CREDENTIALS_KEY is set)
+        authMode:
+          type: string
+          enum: [local, oidc]
+          description: Active authentication mode (oidc when OIDC_ISSUER is set)
+        oidcIssuer:
+          type: string
+          description: >-
+            Configured OIDC issuer URL. Present only in oidc mode; the client
+            ID and secret are never exposed.
         cloudBackupProviders:
           type: array
           items:
@@ -8747,3 +8935,17 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: Resource not found
+
+    LocalAuthDisabled:
+      description: >-
+        The server runs in OIDC mode, where the identity provider owns all
+        accounts and credentials. Every local-credential endpoint — passwords,
+        registration, email verification, TOTP and passkeys — is switched off.
+        Clients should call GET /auth/providers and render the OIDC sign-in
+        path instead.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Local authentication is disabled on this server (OIDC mode)

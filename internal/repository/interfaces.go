@@ -376,6 +376,48 @@ type FlightBaselineRepository interface {
 	Delete(ctx context.Context, userID uuid.UUID) error
 }
 
+// OIDCIdentityRepository persists the mapping between external OpenID Connect
+// identities and local users, plus the two kinds of short-lived, single-use
+// state a login round trip needs (authorization state and browser handoff
+// codes). Only used when OIDC_ISSUER is configured; the tables stay empty
+// otherwise.
+type OIDCIdentityRepository interface {
+	// GetBySubject returns the identity for an (issuer, subject) pair, or
+	// ErrNotFound. This is the only supported way to resolve an incoming
+	// login to an existing account.
+	GetBySubject(ctx context.Context, issuer, subject string) (*models.OIDCIdentity, error)
+
+	// GetByUserID returns the identity linked to a local user, or ErrNotFound.
+	GetByUserID(ctx context.Context, userID uuid.UUID) (*models.OIDCIdentity, error)
+
+	// Create links an external identity to an existing user.
+	Create(ctx context.Context, identity *models.OIDCIdentity) error
+
+	// TouchLogin records a successful login and refreshes the cached email.
+	TouchLogin(ctx context.Context, id uuid.UUID, email string, at time.Time) error
+
+	// CreateLoginState stores the nonce and PKCE verifier for one pending
+	// authorization request, keyed by the SHA-256 of the state parameter.
+	CreateLoginState(ctx context.Context, state *models.OIDCLoginState) error
+
+	// ConsumeLoginState atomically deletes and returns an unexpired login
+	// state. Returns ErrNotFound for expired, already-consumed and forged
+	// state values alike, so they stay indistinguishable to the caller.
+	ConsumeLoginState(ctx context.Context, stateHash []byte) (*models.OIDCLoginState, error)
+
+	// CreateHandoffCode stores a single-use code the SPA can exchange for a
+	// token pair, keyed by the SHA-256 of the code.
+	CreateHandoffCode(ctx context.Context, code *models.OIDCHandoffCode) error
+
+	// ConsumeHandoffCode atomically deletes and returns an unexpired handoff
+	// code, or ErrNotFound.
+	ConsumeHandoffCode(ctx context.Context, codeHash []byte) (*models.OIDCHandoffCode, error)
+
+	// DeleteExpired removes expired login states and handoff codes. Returns
+	// the number of rows deleted across both tables.
+	DeleteExpired(ctx context.Context) (int64, error)
+}
+
 // IdempotencyRepository stores the server-side replay records that make
 // mutating requests safe to retry (see db/migrations/000052).
 //

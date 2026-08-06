@@ -53,6 +53,17 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 		return
 	}
 
+	// In OIDC mode the provider owns the identity fields: both are re-applied
+	// from the ID token on every login, so accepting a local edit here would
+	// silently revert at the next sign-in. Refusing is the honest answer, and
+	// it keeps the email — which ADMIN_EMAIL is matched against — under the
+	// provider's control rather than the user's.
+	if h.OIDCEnabled() && (req.Name != nil || req.Email != nil) {
+		h.sendError(c, http.StatusForbidden,
+			"Name and email are managed by the identity provider and cannot be changed here")
+		return
+	}
+
 	// Apply updates
 	if req.Name != nil {
 		user.Name = strings.TrimSpace(*req.Name)

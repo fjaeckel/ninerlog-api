@@ -160,10 +160,19 @@ whenever the requested range reaches back to the snapshot's cutoff date.
 | EmailVerificationToken | — | 40 | Single-use email verification (24h) |
 | WebAuthnCredential | `webauthn.go` | 37 | Registered passkeys (public key, sign count, transports) |
 | WebAuthnSession | `webauthn.go` | 37, 51 | Transient ceremony state, keyed by `sha256(handle)`; consumed exactly once via `DELETE … RETURNING` |
+| OIDCIdentity | `oidc.go` | 52 | Links an external `(issuer, subject)` to a local user; only present in OIDC mode |
+| OIDCLoginState | `oidc.go` | 52 | Pending authorization request — nonce and PKCE verifier, keyed by `sha256(state)` and bound to the originating browser by `sha256(cookie)` |
+| OIDCHandoffCode | `oidc.go` | 52 | Single-use code bridging the provider redirect to the SPA's token request, keyed by `sha256(code)` |
 | NotificationPreference | `notification.go` | 10, 33 | Per-category opt-in + warning windows |
 | NotificationLog | `notification.go` | 10, 33 | Sent-notification history (dedup) |
 
-Token-style tables store hashes, never raw secrets. See [AUTHENTICATION.md](./AUTHENTICATION.md).
+Token-style tables store hashes, never raw secrets. See [AUTHENTICATION.md](./AUTHENTICATION.md)
+and, for the OIDC tables, [OIDC.md](./OIDC.md).
+
+The three OIDC tables exist on every deployment but stay empty unless
+`OIDC_ISSUER` is set. Accounts provisioned through OIDC are ordinary `users`
+rows with an **empty** `password_hash`, which bcrypt can never match; every
+foreign key elsewhere in the schema still points at `users(id)`.
 
 ## Cloud backup tables
 

@@ -73,6 +73,21 @@ below are for:
 | `notification_check_errors_total` | Counter | — | Check runs that aborted early due to an error (e.g. failing to load preferences) |
 | `notification_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last successfully completed check run. Use for staleness alerting |
 
+### OIDC Login Metrics
+
+Emitted only in OIDC mode (`OIDC_ISSUER` set). Browser-facing errors are coarse by
+design, so this metric is where the actual failure reason surfaces. See
+[OIDC.md](./OIDC.md).
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `auth_oidc_login_attempts_total` | Counter | `result` | Steps of the OIDC login flow. `result`: `authorize`, `callback_success`, `success`, `authorize_failed`, `provider_error`, `provider_unavailable`, `invalid_state`, `email_missing`, `email_conflict`, `account_disabled`, `handoff_invalid`, `error` |
+
+A gap between `authorize` and `callback_success` means users are dropping out at the
+provider. `invalid_state` rising means expired logins, replayed callbacks, or a proxy
+eating the binding cookie; `email_conflict` means addresses collide with pre-existing
+local accounts (see the migration guidance in OIDC.md).
+
 ### WebAuthn Ceremony Metrics
 
 Emitted only when passkeys are enabled (`WEBAUTHN_RP_ID` set). See

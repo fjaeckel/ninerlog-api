@@ -53,6 +53,22 @@ different instances and a ceremony survives a restart. A user may hold several c
 open at once, bounded per user by `WEBAUTHN_MAX_OPEN_CEREMONIES` (oldest evicted).
 See [AUTHENTICATION.md](./AUTHENTICATION.md#passkeys-webauthn).
 
+### OIDC single sign-on
+Optional and off by default; enabled by `OIDC_ISSUER`. It is a **mode switch**, not an
+extra login button: with a provider configured, the identity provider owns every account
+and NinerLog's own credential paths (password login, registration, email verification,
+password reset, TOTP, passkeys) all answer 503.
+
+Authorization-code flow with PKCE, implemented in `internal/service/oidc.go` using
+`coreos/go-oidc`. `GET /auth/oidc/authorize` starts the login, the provider returns the
+browser to `GET /auth/oidc/callback`, and the SPA redeems a single-use handoff code at
+`POST /auth/oidc/exchange` so tokens never travel in a URL. Accounts are provisioned on
+first login and keyed by `(issuer, sub)`; email, name and verification status are
+re-applied from the ID token on every sign-in.
+
+Clients discover the mode from the public `GET /auth/providers`. Setup, provider recipes,
+migration and troubleshooting: [OIDC.md](./OIDC.md).
+
 ## Pilot data management
 
 - **Licenses** (`internal/service/license.go`) — CRUD plus per-license statistics. A user

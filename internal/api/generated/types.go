@@ -12,6 +12,24 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AdminConfigAuthMode.
+const (
+	AdminConfigAuthModeLocal AdminConfigAuthMode = "local"
+	AdminConfigAuthModeOidc  AdminConfigAuthMode = "oidc"
+)
+
+// Valid indicates whether the value is a known member of the AdminConfigAuthMode enum.
+func (e AdminConfigAuthMode) Valid() bool {
+	switch e {
+	case AdminConfigAuthModeLocal:
+		return true
+	case AdminConfigAuthModeOidc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnnouncementSeverity.
 const (
 	AnnouncementSeverityCritical AnnouncementSeverity = "critical"
@@ -81,6 +99,24 @@ func (e ApproachType) Valid() bool {
 	case ApproachTypeVOR:
 		return true
 	case ApproachTypeVisual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuthProvidersMode.
+const (
+	AuthProvidersModeLocal AuthProvidersMode = "local"
+	AuthProvidersModeOidc  AuthProvidersMode = "oidc"
+)
+
+// Valid indicates whether the value is a known member of the AuthProvidersMode enum.
+func (e AuthProvidersMode) Valid() bool {
+	switch e {
+	case AuthProvidersModeLocal:
+		return true
+	case AuthProvidersModeOidc:
 		return true
 	default:
 		return false
@@ -1302,6 +1338,9 @@ type AdminConfig struct {
 	// Example: 29331
 	AirportDatabaseSize int `json:"airportDatabaseSize"`
 
+	// AuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
+	AuthMode *AdminConfigAuthMode `json:"authMode,omitempty"`
+
 	// CloudBackupProviders Names of registered cloud backup providers (e.g. s3, sftp, webdav). Empty when cloud backups are disabled.
 	//
 	// Example: ["s3","sftp","webdav"]
@@ -1321,6 +1360,9 @@ type AdminConfig struct {
 	// Example: 28
 	MigrationVersion int `json:"migrationVersion"`
 
+	// OidcIssuer Configured OIDC issuer URL. Present only in oidc mode; the client ID and secret are never exposed.
+	OidcIssuer *string `json:"oidcIssuer,omitempty"`
+
 	// RateLimitAdmin Admin endpoint rate limit
 	//
 	// Example: 30 req/min
@@ -1339,6 +1381,9 @@ type AdminConfig struct {
 	// SmtpConfigured Whether SMTP is configured
 	SmtpConfigured bool `json:"smtpConfigured"`
 }
+
+// AdminConfigAuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
+type AdminConfigAuthMode string
 
 // AdminStats defines model for AdminStats.
 type AdminStats struct {
@@ -2076,6 +2121,41 @@ type ApproachEntryInput struct {
 
 // ApproachType Type of instrument approach procedure
 type ApproachType string
+
+// AuthProviders The sign-in methods this server offers. Exactly one authentication mode is active; the flags below are all derived from it and from what the operator has configured.
+type AuthProviders struct {
+	// Mode The active authentication mode
+	Mode AuthProvidersMode `json:"mode"`
+	Oidc struct {
+		// AuthorizeUrl Where to send the browser to start the login. A redirect endpoint, not a JSON API — navigate to it, do not fetch it.
+		//
+		// Example: /api/v1/auth/oidc/authorize
+		AuthorizeUrl *string `json:"authorizeUrl,omitempty"`
+
+		// Enabled Whether OIDC single sign-on is configured
+		Enabled bool `json:"enabled"`
+
+		// Name Display name for the sign-in button, from OIDC_PROVIDER_NAME
+		//
+		// Example: Authentik
+		Name *string `json:"name,omitempty"`
+	} `json:"oidc"`
+
+	// PasswordLoginEnabled Whether email/password sign-in is accepted
+	PasswordLoginEnabled bool `json:"passwordLoginEnabled"`
+
+	// RegistrationEnabled Whether self-service registration is accepted
+	RegistrationEnabled bool `json:"registrationEnabled"`
+
+	// TwoFactorEnabled Whether users can set up TOTP two-factor authentication
+	TwoFactorEnabled bool `json:"twoFactorEnabled"`
+
+	// WebauthnEnabled Whether passkey registration and login are available
+	WebauthnEnabled bool `json:"webauthnEnabled"`
+}
+
+// AuthProvidersMode The active authentication mode
+type AuthProvidersMode string
 
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
@@ -4484,6 +4564,9 @@ type BadRequest = Error
 // Forbidden defines model for Forbidden.
 type Forbidden = Error
 
+// LocalAuthDisabled defines model for LocalAuthDisabled.
+type LocalAuthDisabled = Error
+
 // NotFound defines model for NotFound.
 type NotFound = Error
 
@@ -4587,6 +4670,12 @@ type LoginUser200JSONResponseBody struct {
 // LogoutUserJSONBody defines parameters for LogoutUser.
 type LogoutUserJSONBody struct {
 	RefreshToken string `json:"refreshToken"`
+}
+
+// ExchangeOidcCodeJSONBody defines parameters for ExchangeOidcCode.
+type ExchangeOidcCodeJSONBody struct {
+	// Code The single-use code from the `oidc_code` query parameter
+	Code string `json:"code"`
 }
 
 // ResetPasswordJSONBody defines parameters for ResetPassword.
@@ -4926,8 +5015,11 @@ type ListDeletionsParamsEntity string
 
 // DeleteCurrentUserJSONBody defines parameters for DeleteCurrentUser.
 type DeleteCurrentUserJSONBody struct {
-	// Password Current password for confirmation
-	Password string `json:"password"`
+	// ConfirmEmail The account's own email address, typed as confirmation. Required in OIDC mode, where no local password exists.
+	ConfirmEmail *openapi_types.Email `json:"confirmEmail,omitempty"`
+
+	// Password Current password for confirmation (local mode)
+	Password *string `json:"password,omitempty"`
 }
 
 // UpdateCurrentUserJSONBody defines parameters for UpdateCurrentUser.
@@ -5021,6 +5113,9 @@ type LoginUserJSONRequestBody LoginUserJSONBody
 
 // LogoutUserJSONRequestBody defines body for LogoutUser for application/json ContentType.
 type LogoutUserJSONRequestBody LogoutUserJSONBody
+
+// ExchangeOidcCodeJSONRequestBody defines body for ExchangeOidcCode for application/json ContentType.
+type ExchangeOidcCodeJSONRequestBody ExchangeOidcCodeJSONBody
 
 // ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
 type ResetPasswordJSONRequestBody ResetPasswordJSONBody

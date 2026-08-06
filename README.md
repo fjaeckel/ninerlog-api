@@ -103,6 +103,11 @@ test/e2e/                    # End-to-end tests
 
 See `.env.example` for a complete list of configuration options including database connection, JWT secrets, CORS settings, SMTP configuration, and TLS settings.
 
+**Single sign-on (optional).** Setting `OIDC_ISSUER` switches the deployment to OIDC
+mode, where an external identity provider owns all accounts and NinerLog's own password,
+registration, 2FA and passkey endpoints are disabled. It is off by default. See
+[docs/OIDC.md](docs/OIDC.md) for configuration, provider recipes and migration.
+
 ## Docker
 
 ```bash
@@ -127,6 +132,7 @@ Full developer documentation lives in [`docs/`](docs/README.md). Start with the
 - [Package Reference](docs/PACKAGES.md) — `internal/` and `pkg/` packages
 - [Development Guide](docs/DEVELOPMENT.md) — setup, build, test, conventions
 - [Authentication](docs/AUTHENTICATION.md) — tokens, 2FA, WebAuthn
+- [OIDC Single Sign-On](docs/OIDC.md) — optional external identity provider
 - [Metrics](docs/METRICS.md) · [Performance](docs/PERFORMANCE.md) · [Running Tests](docs/RUNNING_TESTS.md)
 - [API Specification](api-spec/openapi.yaml) — OpenAPI 3.1 spec (source of truth)
 

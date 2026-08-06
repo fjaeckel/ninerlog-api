@@ -104,12 +104,18 @@ type ServerInterface interface {
 	// LogoutUser Log out
 	// (POST /auth/logout)
 	LogoutUser(c *gin.Context)
+	// ExchangeOidcCode Exchange an OIDC handoff code for tokens
+	// (POST /auth/oidc/exchange)
+	ExchangeOidcCode(c *gin.Context)
 	// ResetPassword Reset password with token
 	// (POST /auth/password-reset)
 	ResetPassword(c *gin.Context)
 	// RequestPasswordReset Request password reset
 	// (POST /auth/password-reset-request)
 	RequestPasswordReset(c *gin.Context)
+	// GetAuthProviders Which sign-in methods this server offers
+	// (GET /auth/providers)
+	GetAuthProviders(c *gin.Context)
 	// RefreshToken Refresh access token
 	// (POST /auth/refresh)
 	RefreshToken(c *gin.Context)
@@ -1002,6 +1008,19 @@ func (siw *ServerInterfaceWrapper) LogoutUser(c *gin.Context) {
 	siw.Handler.LogoutUser(c)
 }
 
+// ExchangeOidcCode operation middleware
+func (siw *ServerInterfaceWrapper) ExchangeOidcCode(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExchangeOidcCode(c)
+}
+
 // ResetPassword operation middleware
 func (siw *ServerInterfaceWrapper) ResetPassword(c *gin.Context) {
 
@@ -1026,6 +1045,19 @@ func (siw *ServerInterfaceWrapper) RequestPasswordReset(c *gin.Context) {
 	}
 
 	siw.Handler.RequestPasswordReset(c)
+}
+
+// GetAuthProviders operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthProviders(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAuthProviders(c)
 }
 
 // RefreshToken operation middleware
@@ -3145,6 +3177,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.GET(options.BaseURL+"/auth/providers", wrapper.GetAuthProviders)
+	router.POST(options.BaseURL+"/auth/oidc/exchange", wrapper.ExchangeOidcCode)
 	router.POST(options.BaseURL+"/auth/register", wrapper.RegisterUser)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.VerifyEmail)
 	router.POST(options.BaseURL+"/auth/verify-email/resend", wrapper.ResendVerificationEmail)

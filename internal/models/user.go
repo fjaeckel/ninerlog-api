@@ -38,6 +38,14 @@ type User struct {
 	UpdatedAt            time.Time      `json:"updated_at"`
 }
 
+// HasPassword reports whether the account has a usable local password.
+//
+// Accounts provisioned through OIDC carry an empty hash: there is no password
+// to verify, and no endpoint that could set one while OIDC mode is active.
+// Callers must treat a passwordless account as "cannot authenticate locally"
+// rather than "any password matches".
+func (u *User) HasPassword() bool { return u.PasswordHash != "" }
+
 // Flight list column modes.
 const (
 	FlightListColumnModeAuto   = "auto"

@@ -21,6 +21,7 @@ Developer documentation for the NinerLog API backend. Start with the
 | Document | Covers |
 | --- | --- |
 | [AUTHENTICATION.md](./AUTHENTICATION.md) | Tokens, 2FA, WebAuthn, lockout, rate limiting |
+| [OIDC.md](./OIDC.md) | Optional single sign-on: configuration, provider recipes, provisioning, migration |
 | [METRICS.md](./METRICS.md) | Prometheus metrics and observability |
 | [PERFORMANCE.md](./PERFORMANCE.md) | Performance budgets, benchmarks, profiling |
 | [RUNNING_TESTS.md](./RUNNING_TESTS.md) | Running unit/integration/e2e tests |
