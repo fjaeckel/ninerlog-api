@@ -114,6 +114,177 @@ would ever call. The JSON half of that flow (`GET /auth/providers`,
 Errors are returned as JSON with an appropriate status code; internal error details are
 never leaked to clients.
 
+## Idempotent writes
+
+Every authenticated `POST`, `PUT`, `PATCH` and `DELETE` accepts an optional
+`Idempotency-Key` request header. It exists for clients that queue writes while offline:
+when a `POST /flights` commits and the response is lost, the client cannot distinguish
+"not applied" from "applied but unacknowledged", and retrying blindly produces a
+duplicate logbook entry.
+
+It is **opt-in per request**. Without the header a request takes exactly the path it took
+before the feature existed, which is why the current frontend is unaffected.
+
+`middleware.IdempotencyMiddleware` implements it, backed by `service.IdempotencyService`
+and the `idempotency_keys` table (see [DATA_MODEL.md](./DATA_MODEL.md)). It is registered
+after `AuthMiddleware` (records are keyed per user) and after the rate limiters (a
+throttled request must not consume a key). Like auth and rate limiting, it is a
+cross-cutting transport concern, so it is described in the spec's `info.description`
+rather than repeated as a parameter on all ~60 mutating operations — which would change
+every generated handler signature, and every generated client method, for a header the
+handlers never read.
+
+| Situation | Response |
+|---|---|
+| No header | Unchanged behaviour; nothing is stored |
+| First request with a key | Executes normally; status + body are stored for 24 h |
+| Retry, same key and payload | Original status and body verbatim, plus `Idempotency-Replayed: true` |
+| Retry while the first is still running | `409` with `Retry-After: 1` |
+| Same key, different payload | `422` |
+| Retry of a request whose response was too large to store | `409` |
+| Malformed key (empty, >255 chars, non-printable-ASCII) | `400` |
+| Replay store unreachable | `503`, request not executed |
+
+Details worth knowing:
+
+- **Scope.** Keys are per user, so two pilots can pick the same client-side key.
+  Unauthenticated endpoints (login, registration, password reset) ignore the header:
+  there is no user to key a record by, and repeating them is not a logbook-integrity
+  problem. A client may therefore set the header unconditionally.
+- **Fingerprinting.** The stored record carries a SHA-256 of the method, path+query and
+  request body, which is what makes the `422` above possible. Bulk payloads — multipart
+  uploads, `POST /imports/json`, anything sent chunked — are fingerprinted by method and
+  path only; the replay guarantee is unaffected, only the mismatch diagnostic weakens.
+- **4xx responses are stored** and replayed: a validation failure is a deterministic
+  verdict on the request. **5xx responses and panics release the key**, because a server
+  error says nothing about whether the write landed and the client must stay free to
+  retry.
+- **Failure mode is closed.** If the store is unreachable the request is refused rather
+  than executed without the guarantee the client asked for.
+- **Retention and recovery.** Records expire after `IDEMPOTENCY_TTL` (24 h) and are swept
+  hourly. A claim whose request died without finalizing becomes claimable again after
+  `IDEMPOTENCY_LEASE` (60 s), so a crashed process cannot wedge a key for a whole day.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `IDEMPOTENCY_TTL` | `24h` | How long a key stays replayable |
+| `IDEMPOTENCY_LEASE` | `60s` | How long an in-progress claim is honoured before takeover (must exceed the 15 s request timeout) |
+| `IDEMPOTENCY_MAX_RESPONSE_BYTES` | `262144` | Largest response body stored for replay |
+
+Outcomes are counted in `idempotency_requests_total` — see
+[METRICS.md](./METRICS.md#idempotency-metrics).
+
+## Partial updates (JSON Merge Patch)
+
+`PUT`/`PATCH` request bodies whose schema has nullable properties follow
+[RFC 7386](https://www.rfc-editor.org/rfc/rfc7386) semantics field-by-field:
+
+| Field in the request body | Effect |
+|---|---|
+| Omitted | Left unchanged |
+| `null` | Cleared (set to database `NULL`) |
+| A value | Set to that value |
+
+This applies to `PUT /flights/{flightId}`, `PATCH /aircraft/{aircraftId}`,
+`PATCH /credentials/{credentialId}` and `PATCH /licenses/{licenseId}/class-ratings/{ratingId}` —
+the update endpoints whose spec schema has properties typed `[T, 'null']`. Fields that are
+required or non-nullable in the spec (e.g. `aircraftReg`, `issueDate`) are ordinary optional
+partial-update fields: omitted leaves them unchanged, and they cannot be nulled because the
+domain doesn't allow it.
+
+Server-side, a nullable field is generated as `nullable.Nullable[T]`
+(`github.com/oapi-codegen/nullable`) instead of `*T`, via `x-go-type`/`x-go-type-import` on the
+property in `api-spec/openapi.yaml`. This is what lets the handler distinguish "absent" from
+"present and null" — a plain `*T` cannot represent that distinction, since both unmarshal to
+`nil`. `internal/api/handlers/nullable.go` has the shared `applyNullable` helper handlers use to
+apply this to a model field.
+
+Before this, `null` in a request body was silently treated as "omitted" (`*T` can't tell them
+apart), so nullable fields could not be cleared through the API at all, and two per-field
+workarounds existed instead: sending `""` to a text field, and the literal string `"null"` for
+`Flight.launchMethod`. Both are retired now that real `null` works; `launchMethod` accepts only
+`winch`, `aerotow` or `self-launch` in the spec's `enum`, and `null` clears it like any other
+nullable field.
+
+## Delta sync (`updatedSince`)
+
+`listFlights`, `listAircraft`, `listContacts`, `listCredentials` and `listLicenses` accept
+an optional `updatedSince` query parameter — an RFC 3339 date-time. It returns only the
+records whose `updatedAt` is **strictly after** that instant, so a client that has already
+pulled a logbook can ask "what changed since?" instead of paging the whole thing again.
+
+Like `Idempotency-Key`, it is opt-in: omit it and the endpoint behaves exactly as before.
+
+```
+GET /api/v1/flights?updatedSince=2026-08-05T10:08:45.123456Z&page=1&pageSize=100
+```
+
+- **Strictly after, full precision.** A client stores the highest `updatedAt` it has seen
+  and replays it as the next watermark; because the comparison excludes equality, that
+  record is not returned a second time. The comparison uses the full timestamp, unlike the
+  `q=updatedAt>YYYY-MM-DD` grammar, which is day-granular and only exists on `listFlights`.
+- **Take the watermark from the records you received**, not from a local clock — a client
+  clock ahead of the server's would skip changes permanently.
+- **Composes with the other filters**, which are ANDed as usual:
+  `?updatedSince=…&aircraftReg=D-EABC` is "changes to that aircraft's flights".
+- **Pages as usual**, and on the paginated endpoints (`/flights`, `/aircraft`) the
+  `pagination.total` counts the delta, not the whole collection.
+- **Deletions are reported separately.** A removed record simply stops appearing here;
+  `GET /sync/deletions` (below) is what tells a client the id is gone.
+- **Accepted spellings.** An RFC 3339 date-time, with or without sub-second precision and
+  in any offset (`…Z`, `…+02:00`); or a bare `YYYY-MM-DD`, read as midnight UTC on that
+  date. An empty `?updatedSince=` is treated as if the parameter were omitted. Anything
+  else is rejected with `400` rather than ignored — silently returning the full list would
+  look to a sync client exactly like "everything changed".
+
+Queries are served by the `(user_id, updated_at DESC)` indexes added in migration
+`000053` (see [DATA_MODEL.md](./DATA_MODEL.md)).
+
+## Deletions (`GET /sync/deletions`)
+
+`updatedSince` can only ever report records that still exist, so a deleted flight just
+stops appearing and a client mirroring the logbook keeps it forever. This endpoint closes
+that gap: it reports what was deleted, against the same watermark.
+
+A full sync pass is therefore two calls per collection plus one:
+
+```
+GET /api/v1/flights?updatedSince=<watermark>      → upserts
+GET /api/v1/sync/deletions?since=<watermark>      → removals
+```
+
+```json
+{
+  "data": [
+    { "entity": "flight", "id": "660e8400-…", "deletedAt": "2026-08-05T11:12:13.456789Z" }
+  ],
+  "pagination": { "page": 1, "pageSize": 100, "total": 1, "totalPages": 1 },
+  "retentionDays": 90,
+  "watermarkExpired": false
+}
+```
+
+- **Covers** flights, aircraft, contacts, credentials and licenses — everything a sync
+  client mirrors. Narrow with `entity=flight`; an unrecognised value is a `400`, because
+  an empty feed would read as "nothing was deleted".
+- **Oldest first**, so a client can page forward and advance its watermark as it goes.
+  `since` is strictly-after, matching `updatedSince`, so replaying the last `deletedAt`
+  returns nothing. It is **required**: a deletions feed with no watermark is unbounded.
+- **Paged** — `DELETE /flights/delete-all` writes one tombstone per flight. Default page
+  size 100, maximum 500; the response echoes the size actually applied.
+- **Retention is bounded** (`TOMBSTONE_RETENTION`, default 90 days). When `since` predates
+  the horizon, swept tombstones may be missing, so the response sets
+  `watermarkExpired: true` and the client must fall back to a full ID-set reconciliation.
+  That flag is the whole reason bounded retention is safe — without it a client offline
+  past the horizon would resync incrementally and silently keep deleted records.
+
+Tombstones are written by `AFTER DELETE` triggers on the five tables (migration `000054`),
+not by the Go repositories. That is deliberate: deletions reach the database by routes
+that never touch a repository — the raw SQL in `DeleteAllUserData`, the admin user delete,
+and `ON DELETE CASCADE` — and a trigger cannot be forgotten by a future caller, nor can it
+fail after a delete the client was told succeeded. Deleting a whole **account** records
+nothing: there is no client left to inform. See [DATA_MODEL.md](./DATA_MODEL.md).
+
 ## Endpoint catalogue
 
 The spec defines the operations below, grouped by tag. This is a high-level map — consult
@@ -143,21 +314,23 @@ is ignored rather than rejected, and the response always echoes what was stored.
 
 ### Licenses
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings
-(`/licenses/{id}/ratings`).
+(`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
 
 ### Aircraft
-CRUD on `/aircraft`.
+CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`.
 
 ### Flights
 CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
 (re-run auto-calculations respecting overrides). Flight responses include the read-only
 `departureAirportName` / `arrivalAirportName`, resolved per request from the airport
 database and `null` when the stored location does not resolve; they are response-only and
-are not accepted on create or update. See
+are not accepted on create or update. `GET /flights` carries the filter, search, sort and
+pagination parameters, plus `updatedSince` for delta sync. See
 [FEATURES.md](./FEATURES.md#flight-logging).
 
 ### Credentials
-CRUD on `/credentials` (medicals, language proficiency, clearances).
+CRUD on `/credentials` (medicals, language proficiency, clearances). `GET /credentials`
+accepts `updatedSince`.
 
 ### Currency
 `GET /currency` (all ratings) and `GET /licenses/{id}/currency`.
@@ -172,7 +345,8 @@ is reported separately as `baseline`. Per-month, per-aircraft and per-airport br
 cover logged flights only — there is nothing to attribute a snapshot to.
 
 ### Contacts
-CRUD and search on `/contacts` (reusable crew/instructor records).
+CRUD and search on `/contacts` (reusable crew/instructor records). `GET /contacts`
+accepts `updatedSince`.
 
 ### Import / Export
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
@@ -187,6 +361,10 @@ announcements.
 List providers, manage destinations (CRUD), test/run a destination, and inspect run
 history. See [FEATURES.md](./FEATURES.md#cloud-backups).
 
+### Sync
+`GET /sync/deletions` — deletions since a watermark, for offline-capable clients. See
+[Deletions](#deletions-get-syncdeletions).
+
 ### Public
 `GET /announcements`.
 
@@ -197,6 +375,9 @@ history. See [FEATURES.md](./FEATURES.md#cloud-backups).
   violations return 403.
 - Pagination is used on list endpoints that can grow large (e.g. flights); see the spec
   for parameter names.
+- The list endpoints for flights, aircraft, contacts, credentials and licenses accept
+  `updatedSince` for incremental sync — see [Delta sync](#delta-sync-updatedsince) — and
+  their deletions are reported by [`GET /sync/deletions`](#deletions-get-syncdeletions).
 
 > When you add or change an endpoint, update `api-spec/openapi.yaml` first, regenerate,
 > implement the handler/service, add tests, and update this document and

@@ -35,10 +35,10 @@ func (m *mockCredentialRepo) GetByID(ctx context.Context, id uuid.UUID) (*models
 	return c, nil
 }
 
-func (m *mockCredentialRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Credential, error) {
+func (m *mockCredentialRepo) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Credential, error) {
 	var result []*models.Credential
 	for _, c := range m.credentials {
-		if c.UserID == userID {
+		if c.UserID == userID && (updatedSince == nil || c.UpdatedAt.After(*updatedSince)) {
 			result = append(result, c)
 		}
 	}

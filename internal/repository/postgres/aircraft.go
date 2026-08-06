@@ -76,16 +76,19 @@ func (r *aircraftRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 	return a, nil
 }
 
-func (r *aircraftRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error) {
+func (r *aircraftRepository) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error) {
 	query := `
 		SELECT id, user_id, registration, type, make, model,
 		       is_complex, is_high_performance, is_tailwheel, notes, is_active,
 		       aircraft_class, default_departure_icao, default_arrival_icao,
 		       created_at, updated_at
-		FROM aircraft WHERE user_id = $1
-		ORDER BY registration ASC
-	`
-	rows, err := r.db.QueryContext(ctx, query, userID)
+		FROM aircraft WHERE user_id = $1`
+	args := []any{userID}
+	clause, clauseArgs := updatedSinceClause(updatedSince, 2)
+	query += clause + " ORDER BY registration ASC"
+	args = append(args, clauseArgs...)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

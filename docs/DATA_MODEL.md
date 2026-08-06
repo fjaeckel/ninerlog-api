@@ -189,6 +189,64 @@ See [FEATURES.md](./FEATURES.md#cloud-backups).
 | --- | --- | --- |
 | AdminAuditLog | 27 | Records admin actions for accountability |
 | SystemAnnouncement | 29 | Platform-wide banners shown to users |
+| IdempotencyRecord (`idempotency.go`) | 52 | Replay records for mutating requests carrying an `Idempotency-Key`; see below |
+
+`idempotency_keys` is keyed by `(user_id, idempotency_key)` and is deliberately
+disposable — no UUID primary key, no `updated_at`, cascade-deleted with the user, and
+swept once everything older than `IDEMPOTENCY_TTL` (24 h) has expired. A row is claimed
+before its request runs (`state = 'in_progress'`) and finalized with the captured
+response afterwards (`state = 'completed'`); `created_at` doubles as a fencing token, so
+only the request that took a claim may finalize or release it. `request_hash` is a
+SHA-256 over method, path+query and body, which is what lets one key reused for a
+different payload be refused rather than silently answered. A completed row with a NULL
+`response_status` means the response was too large to store — the write happened, so the
+retry is refused rather than re-executed. See
+[API.md](./API.md#idempotent-writes).
+
+## Delta-sync indexes
+
+Migration 53 adds `(user_id, updated_at DESC)` to `flights`, `aircraft`, `contacts`,
+`credentials` and `licenses`. These back the `updatedSince` query parameter on the
+corresponding list endpoints, which compiles to `AND updated_at > $n` alongside the
+existing `user_id = $1` predicate — without the composite index every incremental pull
+would scan the user's whole logbook, which is the cost the parameter exists to remove.
+The leading `user_id` keeps the indexes usable for the plain user-scoped listing as well.
+See [API.md](./API.md#delta-sync-updatedsince).
+
+`updated_at` is maintained on all five tables: by the shared `update_updated_at_column()`
+trigger on `flights`, `aircraft`, `credentials` and `licenses`, and by an explicit
+assignment in the repository for `contacts`.
+
+## Deletion tombstones
+
+Migration 54 adds `deletion_tombstones` — `(user_id, entity_type, entity_id, deleted_at)`
+— which is what `GET /sync/deletions` serves. `updatedSince` can only report records that
+still exist, so without this a deleted flight is indistinguishable from one that never
+changed.
+
+Rows are written by an `AFTER DELETE` trigger (`record_deletion_tombstone()`) on
+`flights`, `aircraft`, `contacts`, `credentials` and `licenses`, not by the repositories.
+Deletions reach the database by several routes that never touch a repository — the raw SQL
+in `DeleteAllUserData`, the admin user delete, and `ON DELETE CASCADE` — so a Go-side
+implementation would have to be remembered at every one of them, now and in future. The
+trigger also runs inside the deleting transaction, so a tombstone cannot go missing after a
+delete the client was told succeeded.
+
+The trigger deliberately skips rows whose owning user no longer exists. `DELETE FROM users`
+removes the parent row before its cascade fires, so every cascaded child delete sees no
+user — which is exactly when a tombstone is pointless (the account is gone; no client will
+sync it again) and would otherwise strand rows referencing a deleted user.
+
+A unique index on `(user_id, entity_type, entity_id)` keeps one tombstone per record; the
+insert is an upsert, so deleting an id that was somehow recreated refreshes the stamp
+rather than duplicating the entry. Reads are served by `(user_id, deleted_at, id)` — the
+trailing `id` is what makes paging deterministic when a bulk delete stamps thousands of
+rows with a single transaction timestamp.
+
+Retention is bounded by `TOMBSTONE_RETENTION` (default 90 days) and swept hourly by
+`DeletionService.StartReaper`. A client whose watermark predates the horizon is told so via
+`watermarkExpired` rather than silently missing a delete. See
+[API.md](./API.md#deletions-get-syncdeletions).
 
 ## Schema & migration strategy
 

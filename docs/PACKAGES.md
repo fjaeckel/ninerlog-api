@@ -17,14 +17,14 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | Package | Responsibility |
 | --- | --- |
 | `internal/api/handlers` | Gin handlers. `APIHandler` aggregates all services and implements the generated `ServerInterface`; one file per domain (`auth.go`, `flight.go`, `license.go`, `aircraft.go`, `credential.go`, `currency.go`, `contact.go`, `notification.go`, `backup.go`, `admin*.go`, `import*.go`, `export*.go`, `maps.go`, `reports.go`, `baseline.go`, `bulk_delete.go`, `twofactor.go`, `webauthn.go`, `oidc.go`, `announcements.go`, `flight_util.go`). |
-| `internal/api/middleware` | Cross-cutting HTTP concerns: `auth.go` (JWT), `admin.go` (admin gate), `ratelimit.go`, `metrics.go` + `app_metrics.go`, `recovery.go`, `logger.go`, `security_headers.go`. |
+| `internal/api/middleware` | Cross-cutting HTTP concerns: `auth.go` (JWT), `admin.go` (admin gate), `ratelimit.go`, `idempotency.go` (replay of `Idempotency-Key` writes), `metrics.go` + `app_metrics.go`, `recovery.go`, `logger.go`, `security_headers.go`. |
 | `internal/api/generated` | **Auto-generated** from `api-spec/openapi.yaml` via `oapi-codegen` (`types.go`, `server.go`, `spec.go`, `generate.go`). Do not hand-edit. See [API.md](./API.md). |
 
 ### Business logic
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/service` | Domain services: `auth.go`, `flight.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `notification.go` (+ `notification_metrics.go`), `twofactor.go`, `webauthn.go`, `oidc.go` (+ `oidc_config.go`). Each takes repository interfaces + `pkg` utilities. |
+| `internal/service` | Domain services: `auth.go`, `flight.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `notification.go` (+ `notification_metrics.go`), `twofactor.go`, `webauthn.go`, `oidc.go` (+ `oidc_config.go`), `idempotency.go`, `deletion.go` (tombstone feed + reaper). Each takes repository interfaces + `pkg` utilities. |
 | `internal/service/currency` | The currency engine: `Evaluator`/`Registry`/`FlightDataProvider` (`evaluator.go`), `Service` (`service.go`), authority evaluators (`easa.go`, `faa.go`, `german_ul.go`, `other.go`), shared logic (`engine.go`, `types.go`), and PostgreSQL aggregation (`flight_data.go`). See [DOMAIN.md](./DOMAIN.md#currency-engine). |
 | `internal/service/flightcalc` | `ApplyAutoCalculations(flight, userName)` — the single entry point that derives flight fields. |
 | `internal/service/flightrules` | Composable flight rules used by `flightcalc`: `night.go` (day/night via solar), `crew.go`, `roles.go`, `names.go`, `ifr.go`, `fstd.go`, `remarks.go`, `display.go`. |
@@ -35,14 +35,14 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/repository` | Repository **interfaces** (`interfaces.go`) — e.g. `UserRepository`, `FlightRepository`, `LicenseRepository`, `ClassRating`, `Credential`, `Aircraft`, `Contact`, `FlightCrew`, `Notification`, `RefreshToken`, `PasswordResetToken`, `EmailVerificationToken`, `WebAuthnCredential`/`WebAuthnSession`, `BackupDestination`/`BackupRun`, `FlightBaseline`. |
+| `internal/repository` | Repository **interfaces** (`interfaces.go`) — e.g. `UserRepository`, `FlightRepository`, `LicenseRepository`, `ClassRating`, `Credential`, `Aircraft`, `Contact`, `FlightCrew`, `Notification`, `RefreshToken`, `PasswordResetToken`, `EmailVerificationToken`, `WebAuthnCredential`/`WebAuthnSession`, `BackupDestination`/`BackupRun`, `FlightBaseline`, `Idempotency`, `Deletion` (read-and-sweep over trigger-written tombstones). |
 | `internal/repository/postgres` | PostgreSQL implementations of those interfaces (one file per entity). Parameterized SQL only; returns domain models. |
 
 ### Supporting
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/models` | Domain structs + validation helpers (no I/O): `user.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `flight.go`, `flight_baseline.go`, `notification.go`, `backup.go`, `webauthn.go`, `oidc.go`, plus `validation.go` (text-length limits) and `errors.go` (shared error types). |
+| `internal/models` | Domain structs + validation helpers (no I/O): `user.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `flight.go`, `flight_baseline.go`, `notification.go`, `backup.go`, `webauthn.go`, `oidc.go`, `idempotency.go`, `deletion.go`, plus `validation.go` (text-length limits) and `errors.go` (shared error types). |
 | `internal/config` | Loads typed configuration from environment variables. |
 | `internal/airports` | In-memory airport database merged from OurAirports (CSV) and mwgg/Airports (JSON). `Init()` at startup, `StartRefresher()` refetches on a timer. Lock-free reads over an atomically swapped snapshot: ICAO map for exact lookups, sorted code list for prefix search, 1°×1° grid for `Nearest`. Used for coordinates/distance and airport lookup/search. |
 | `internal/testutil` | Shared test fixtures, database setup/teardown, and an API client for tests. |

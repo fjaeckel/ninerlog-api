@@ -281,7 +281,7 @@ func (s *FlightSessionService) buildFlight(ctx context.Context, session *models.
 // list by registration. Falls back to "UNKNOWN" so the quick-logged flight
 // can still be created; the pilot corrects it during review.
 func (s *FlightSessionService) lookupAircraftType(ctx context.Context, userID uuid.UUID, reg string) string {
-	aircraft, err := s.aircraftRepo.GetByUserID(ctx, userID)
+	aircraft, err := s.aircraftRepo.GetByUserID(ctx, userID, nil)
 	if err == nil {
 		for _, a := range aircraft {
 			if strings.EqualFold(a.Registration, reg) {

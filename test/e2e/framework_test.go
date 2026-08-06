@@ -58,6 +58,13 @@ func (r *Response) JSON(target interface{}) error {
 
 func (c *E2EClient) Do(method, path string, body interface{}) *Response {
 	c.t.Helper()
+	return c.DoWithHeaders(method, path, body, nil)
+}
+
+// DoWithHeaders is Do with extra request headers, for transport-level features
+// that are not part of any request body (e.g. Idempotency-Key).
+func (c *E2EClient) DoWithHeaders(method, path string, body interface{}, headers map[string]string) *Response {
+	c.t.Helper()
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -76,6 +83,9 @@ func (c *E2EClient) Do(method, path string, body interface{}) *Response {
 	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {

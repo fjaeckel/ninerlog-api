@@ -172,10 +172,10 @@ func (m *mockNotifCredentialRepo) GetByID(ctx context.Context, id uuid.UUID) (*m
 	return c, nil
 }
 
-func (m *mockNotifCredentialRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Credential, error) {
+func (m *mockNotifCredentialRepo) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Credential, error) {
 	var result []*models.Credential
 	for _, c := range m.creds {
-		if c.UserID == userID {
+		if c.UserID == userID && (updatedSince == nil || c.UpdatedAt.After(*updatedSince)) {
 			result = append(result, c)
 		}
 	}
@@ -251,10 +251,10 @@ func (m *mockNotifLicenseRepo) GetByID(ctx context.Context, id uuid.UUID) (*mode
 	return l, nil
 }
 
-func (m *mockNotifLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error) {
+func (m *mockNotifLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.License, error) {
 	var result []*models.License
 	for _, l := range m.licenses {
-		if l.UserID == userID {
+		if l.UserID == userID && (updatedSince == nil || l.UpdatedAt.After(*updatedSince)) {
 			result = append(result, l)
 		}
 	}

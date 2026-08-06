@@ -15,7 +15,30 @@ info:
     ## Authentication
     All endpoints except `/auth/register` and `/auth/login` require JWT authentication.
     Include the token in the Authorization header: `Bearer <token>`
-    
+
+    ## Idempotent writes
+
+    Any authenticated `POST`, `PUT`, `PATCH` or `DELETE` accepts an optional
+    `Idempotency-Key` request header, so a client that queues writes while offline
+    can replay its queue without risking a duplicate logbook entry.
+
+    - Omit the header and the endpoint behaves exactly as documented below — this is
+      opt-in per request, never automatic.
+    - Keys are scoped to the authenticated user, are at most 255 printable ASCII
+      characters (a UUID or ULID is ideal), and stay replayable for 24 hours.
+    - The first request with a key executes normally. A later request with the same key
+      and the same payload returns the original status and body verbatim, with
+      `Idempotency-Replayed: true` set on the response.
+    - `409 Conflict` — an earlier request with this key is still running, or completed
+      with a response too large to store. Retry once it settles.
+    - `422 Unprocessable Entity` — the key was already used for a *different* request.
+    - `503 Service Unavailable` — the replay store is unreachable, so the requested
+      guarantee cannot be honoured. The request was not executed.
+
+    Because it applies uniformly to every mutating operation, the header is handled in
+    middleware and is not repeated as a parameter on each operation below. Server errors
+    (`5xx`) release the key, so a genuine failure stays retryable.
+
   contact:
     name: Frederic Jaeckel
     email: frederic@ninerlog.app
@@ -63,6 +86,8 @@ tags:
     description: Admin-only platform management (requires ADMIN_EMAIL env var match)
   - name: Backups
     description: Cloud backup destinations and scheduled runs (S3 and S3-compatible storage)
+  - name: Sync
+    description: Incremental synchronisation for offline-capable clients
 
 paths:
   /auth/providers:
@@ -1215,6 +1240,8 @@ paths:
       operationId: listLicenses
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: List of licenses
@@ -1224,6 +1251,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/License'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1528,6 +1557,8 @@ paths:
       operationId: listCredentials
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: List of credentials
@@ -1537,6 +1568,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Credential'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1659,6 +1692,7 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: List of aircraft
@@ -1666,6 +1700,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedAircraft'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1940,6 +1976,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: Paginated list of flights
@@ -3035,6 +3072,8 @@ paths:
       operationId: listContacts
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UpdatedSince'
       responses:
         '200':
           description: List of contacts
@@ -3044,6 +3083,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Contact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
     post:
@@ -4096,6 +4137,78 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ── Sync ──
+
+  /sync/deletions:
+    get:
+      tags:
+        - Sync
+      summary: List deletions since a watermark
+      description: >-
+        Deletions are invisible to `updatedSince`: a removed record simply stops
+        appearing, so a client that mirrors the logbook would keep it forever.
+        This endpoint reports what was deleted, against the same watermark the
+        list endpoints take, so a sync pass is "pull changes, then pull
+        deletions".
+
+
+        Covers flights, aircraft, contacts, credentials and licenses. Entries
+        are ordered oldest-first so a client can page forward and advance its
+        watermark as it goes.
+
+
+        Retention is bounded (90 days by default). When `since` predates the
+        retention horizon, older tombstones may already have been swept, so the
+        response sets `watermarkExpired` and the client must fall back to a full
+        ID-set reconciliation instead of trusting the list to be complete.
+      operationId: listDeletions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: true
+          description: >-
+            Return deletions that happened strictly after this instant (RFC 3339
+            date-time). Use the same watermark passed to `updatedSince`.
+          schema:
+            type: string
+            format: date-time
+            example: '2026-08-05T10:08:45.123456Z'
+        - name: entity
+          in: query
+          required: false
+          description: Restrict the feed to a single entity type.
+          schema:
+            type: string
+            enum: [flight, aircraft, contact, credential, license]
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Deletions recorded since the watermark
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionFeed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4182,6 +4295,28 @@ components:
         type: string
         format: uuid
         example: 990e8400-e29b-41d4-a716-446655440004
+
+    UpdatedSince:
+      name: updatedSince
+      in: query
+      required: false
+      description: >-
+        Delta sync: return only records whose `updatedAt` is **strictly after**
+        this instant. The value is an RFC 3339 date-time and is compared with
+        full timestamp precision, so a client can pass back the highest
+        `updatedAt` it has seen and receive exactly what changed since. Combines
+        with the endpoint's other filters (ANDed) and pages as usual; on
+        paginated endpoints `pagination.total` counts the delta.
+
+        A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that
+        date. An empty value is treated as if the parameter were omitted.
+        Anything else returns 400.
+
+        Deletions are not reported: a removed record simply stops appearing.
+      schema:
+        type: string
+        format: date-time
+        example: '2026-08-05T10:08:45.123456Z'
 
   schemas:
     User:
@@ -4754,9 +4889,17 @@ components:
           type: [string, 'null']
           example: SEP_LAND
           description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         notes:
           type: [string, 'null']
           example: Club aircraft, requires checkout
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         isActive:
           type: boolean
           example: true
@@ -4765,11 +4908,19 @@ components:
           maxLength: 100
           example: LSZH
           description: Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         defaultArrivalIcao:
           type: [string, 'null']
           maxLength: 100
           example: LSZH
           description: Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         renameFlights:
           type: boolean
           default: false
@@ -5350,24 +5501,48 @@ components:
           type: string
         departureIcao:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         arrivalIcao:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         offBlockTime:
           type: [string, 'null']
           format: time
           description: Off-block time (chocks off / engine start) in UTC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         onBlockTime:
           type: [string, 'null']
           format: time
           description: On-block time (chocks on / engine shutdown) in UTC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         departureTime:
           type: [string, 'null']
           format: time
           description: Takeoff time in UTC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         arrivalTime:
           type: [string, 'null']
           format: time
           description: Landing time in UTC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         totalTime:
           type: integer
           minimum: 1
@@ -5390,14 +5565,30 @@ components:
           type: [string, 'null']
           maxLength: 500
           description: Route waypoints as comma-separated ICAO codes
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         remarks:
           type: [string, 'null']
           maxLength: 2000
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         instructorName:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         instructorComments:
           type: [string, 'null']
           maxLength: 1000
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         sicTime:
           type: integer
           minimum: 0
@@ -5430,10 +5621,18 @@ components:
           type: boolean
         launchMethod:
           type: [string, 'null']
-          enum: [winch, aerotow, self-launch, 'null']
+          enum: [winch, aerotow, self-launch]
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         picName:
           type: [string, 'null']
           description: Name of the PIC
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         multiPilotTime:
           type: integer
           minimum: 0
@@ -5441,6 +5640,10 @@ components:
         fstdType:
           type: [string, 'null']
           description: FSTD type designation
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         approaches:
           type: array
           items:
@@ -5449,6 +5652,10 @@ components:
           type: [string, 'null']
           maxLength: 2000
           description: Instructor endorsements, skill test references
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         crewMembers:
           type: array
           items:
@@ -5947,6 +6154,10 @@ components:
           $ref: '#/components/schemas/CredentialType'
         credentialNumber:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         issueDate:
           type: string
           format: date
@@ -5954,10 +6165,18 @@ components:
           type: [string, 'null']
           format: date
           description: Must be after issueDate when provided
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         issuingAuthority:
           type: string
         notes:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
 
     PaginatedFlights:
       type: object
@@ -6028,6 +6247,79 @@ components:
               type: integer
               example: 2
               description: Total number of pages
+
+    Deletion:
+      type: object
+      required:
+        - entity
+        - id
+        - deletedAt
+      properties:
+        entity:
+          type: string
+          enum: [flight, aircraft, contact, credential, license]
+          description: Which collection the deleted record belonged to
+          example: flight
+        id:
+          type: string
+          format: uuid
+          description: Id of the deleted record, as it was reported by the list endpoints
+          example: 660e8400-e29b-41d4-a716-446655440001
+        deletedAt:
+          type: string
+          format: date-time
+          description: When the record was deleted
+          example: '2026-08-05T11:12:13.456789Z'
+
+    DeletionFeed:
+      type: object
+      required:
+        - data
+        - pagination
+        - retentionDays
+        - watermarkExpired
+      properties:
+        data:
+          type: array
+          description: Deletions after the watermark, oldest first
+          items:
+            $ref: '#/components/schemas/Deletion'
+        pagination:
+          type: object
+          required:
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            page:
+              type: integer
+              example: 1
+              description: Current page (1-indexed)
+            pageSize:
+              type: integer
+              example: 100
+              description: Items per page
+            total:
+              type: integer
+              example: 3
+              description: Total number of deletions after the watermark
+            totalPages:
+              type: integer
+              example: 1
+              description: Total number of pages
+        retentionDays:
+          type: integer
+          description: How long a tombstone is kept before it is swept
+          example: 90
+        watermarkExpired:
+          type: boolean
+          description: >-
+            True when `since` predates the retention horizon. Tombstones older
+            than that may already have been swept, so this page is not a
+            complete account of what was deleted and the client must fall back
+            to a full ID-set reconciliation.
+          example: false
 
     FlightSession:
       type: object
@@ -6751,8 +7043,16 @@ components:
         expiryDate:
           type: [string, 'null']
           format: date
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         notes:
           type: [string, 'null']
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
 
     # ── Import schemas ──────────────────────────────────────────────────
 

@@ -114,7 +114,8 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
     which are navigations rather than JSON operations).
 11. **Start background workers**: the notification background checker, the airport
     database refresher (`AIRPORT_REFRESH_INTERVAL`, default 24h), the import-session
-    reaper, and (optionally) the backup scheduler — all bound to a cancellable context.
+    reaper, the idempotency-record reaper, the deletion-tombstone reaper, and
+    (optionally) the backup scheduler — all bound to a cancellable context.
 12. **Serve** with graceful shutdown that stops background workers.
 
 ### Optional / feature-flagged subsystems
@@ -140,6 +141,12 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
   limited separately from the plain listing on the same route). Each limiter is named and
   reports its own rejection and evaluation counters. Budgets are tabulated in
   [API.md](./API.md#security-model); `DISABLE_RATE_LIMIT=true` turns the whole layer off.
+- **Idempotent writes** — `middleware.IdempotencyMiddleware` sits after auth and the rate
+  limiters. When a mutating request carries an `Idempotency-Key`, it claims a per-user
+  record, captures the response, and replays it verbatim on retry so an offline client can
+  drain its write queue without creating duplicate logbook entries. Without the header it
+  is a pass-through, so existing clients are unaffected. Contract and settings in
+  [API.md](./API.md#idempotent-writes).
 - **Observability** — `middleware.MetricsMiddleware` records request metrics;
   `RecoveryWithMetrics` recovers panics and counts them. See [METRICS.md](./METRICS.md).
 - **Security headers** — `middleware.SecurityHeadersMiddleware` sets HSTS, X-Frame-Options,

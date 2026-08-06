@@ -471,7 +471,7 @@ What the implementation guarantees, and where to verify each claim:
 | Nonce compared in constant time; a token minted for another login is rejected | `CompleteCallback` |
 | `state` consumed exactly once (`DELETE … RETURNING`), expiry enforced on read | `internal/repository/postgres/oidc.go` |
 | State bound to the originating browser by an HttpOnly, SameSite=Lax cookie (login CSRF) | `internal/api/handlers/oidc.go` |
-| Only SHA-256 hashes of state, browser token and handoff code are stored — a database dump yields nothing replayable | migration `000052` |
+| Only SHA-256 hashes of state, browser token and handoff code are stored — a database dump yields nothing replayable | migration `000055` |
 | Tokens never travel in a URL; the redirect carries a single-use 60-second code | `OIDCCallback` → `ExchangeOidcCode` |
 | Redirect target comes from configuration, never from the request — no open redirect | `redirectOIDC` |
 | Identity matched on `(issuer, sub)`, never on email | `provisionUser` |

@@ -176,7 +176,7 @@ func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 }
 
 func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *models.NotificationPreferences, userEmail, userName string) {
-	credentials, err := s.credentialRepo.GetByUserID(ctx, prefs.UserID)
+	credentials, err := s.credentialRepo.GetByUserID(ctx, prefs.UserID, nil)
 	if err != nil {
 		return
 	}

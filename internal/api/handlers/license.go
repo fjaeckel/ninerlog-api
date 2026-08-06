@@ -15,14 +15,19 @@ import (
 
 // ListLicenses implements GET /licenses
 // (GET /licenses)
-func (h *APIHandler) ListLicenses(c *gin.Context) {
+func (h *APIHandler) ListLicenses(c *gin.Context, params generated.ListLicensesParams) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	licenses, err := h.licenseService.ListLicenses(c.Request.Context(), userID)
+	var licenses []*models.License
+	if since := deltaWatermark(params.UpdatedSince); since != nil {
+		licenses, err = h.licenseService.ListLicensesUpdatedSince(c.Request.Context(), userID, *since)
+	} else {
+		licenses, err = h.licenseService.ListLicenses(c.Request.Context(), userID)
+	}
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve licenses")
 		return

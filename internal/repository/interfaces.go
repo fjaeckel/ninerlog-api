@@ -72,8 +72,9 @@ type LicenseRepository interface {
 	// GetByID retrieves a license by its ID
 	GetByID(ctx context.Context, id uuid.UUID) (*models.License, error)
 
-	// GetByUserID retrieves all licenses for a user
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.License, error)
+	// GetByUserID retrieves all licenses for a user. A non-nil updatedSince
+	// narrows the result to licences changed strictly after that instant.
+	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.License, error)
 
 	// Update updates a license
 	Update(ctx context.Context, license *models.License) error
@@ -126,6 +127,10 @@ type FlightQueryOptions struct {
 	IsPIC         *bool
 	IsDual        *bool
 	Search        *string
+	// UpdatedSince restricts the result to flights whose updated_at is
+	// strictly after the given instant (delta sync). Compared at full
+	// timestamp precision, unlike the day-granular date filters above.
+	UpdatedSince *time.Time
 	// Query is a parsed advanced search query (see internal/flightsearch).
 	// It compiles to a SQL condition and is ANDed with the other filters.
 	Query     *flightsearch.Query
@@ -238,7 +243,9 @@ type CustomCurrencyRuleRepository interface {
 type CredentialRepository interface {
 	Create(ctx context.Context, credential *models.Credential) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Credential, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Credential, error)
+	// GetByUserID retrieves all credentials for a user. A non-nil updatedSince
+	// narrows the result to credentials changed strictly after that instant.
+	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Credential, error)
 	Update(ctx context.Context, credential *models.Credential) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -246,7 +253,9 @@ type CredentialRepository interface {
 type AircraftRepository interface {
 	Create(ctx context.Context, aircraft *models.Aircraft) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Aircraft, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Aircraft, error)
+	// GetByUserID retrieves all aircraft for a user. A non-nil updatedSince
+	// narrows the result to aircraft changed strictly after that instant.
+	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error)
 	Update(ctx context.Context, aircraft *models.Aircraft) error
 	// UpdateWithFlightRename updates the aircraft and, in the same
 	// transaction, repoints flights (and open flight sessions) logged under
@@ -278,7 +287,9 @@ type NotificationRepository interface {
 type ContactRepository interface {
 	Create(ctx context.Context, contact *models.Contact) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Contact, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error)
+	// GetByUserID retrieves all contacts for a user. A non-nil updatedSince
+	// narrows the result to contacts changed strictly after that instant.
+	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Contact, error)
 	GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error)
 	Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error)
 	Update(ctx context.Context, contact *models.Contact) error
@@ -405,4 +416,56 @@ type OIDCIdentityRepository interface {
 	// DeleteExpired removes expired login states and handoff codes. Returns
 	// the number of rows deleted across both tables.
 	DeleteExpired(ctx context.Context) (int64, error)
+}
+
+// IdempotencyRepository stores the server-side replay records that make
+// mutating requests safe to retry (see db/migrations/000052).
+//
+// Every method is scoped by user ID: one user's key can never read, claim or
+// overwrite another's.
+type IdempotencyRepository interface {
+	// Claim atomically takes ownership of (rec.UserID, rec.Key) for the
+	// current request.
+	//
+	// It returns (nil, nil) when the claim succeeded, meaning the caller must
+	// run the request and then either Complete or Release the record. It
+	// returns the live record when the key is already held — either still
+	// in progress, or completed and awaiting replay — and the caller must not
+	// execute the request.
+	//
+	// A record that has expired, or whose in-progress claim was taken before
+	// staleBefore (its owner died without finalizing), is taken over rather
+	// than reported as a conflict.
+	Claim(ctx context.Context, rec *models.IdempotencyRecord, staleBefore time.Time) (*models.IdempotencyRecord, error)
+
+	// Complete finalizes a claimed record with the captured response. It is a
+	// no-op when the claim identified by rec.CreatedAt is no longer held, so a
+	// straggler cannot overwrite a record another request has since taken over.
+	Complete(ctx context.Context, rec *models.IdempotencyRecord) error
+
+	// Release drops a claim so the key can be used again, for requests that
+	// must stay retryable (server errors). Like Complete it only acts on a
+	// claim still owned by claimedAt.
+	Release(ctx context.Context, userID uuid.UUID, key string, claimedAt time.Time) error
+
+	// DeleteExpired removes records that expired at or before `before`.
+	// Returns the number deleted.
+	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
+}
+
+// DeletionRepository reads the tombstones that make deletions visible to a
+// delta-syncing client. Rows are written by database triggers, never from Go,
+// so that a delete reaching the database by any route — repository, raw SQL, or
+// ON DELETE CASCADE — is recorded. There is deliberately no Create method.
+type DeletionRepository interface {
+	// ListSince returns the user's deletions strictly after `since`, oldest
+	// first, optionally narrowed to one entity type.
+	ListSince(ctx context.Context, userID uuid.UUID, since time.Time, entity *models.DeletionEntityType, limit, offset int) ([]*models.Deletion, error)
+
+	// CountSince counts the set ListSince pages over.
+	CountSince(ctx context.Context, userID uuid.UUID, since time.Time, entity *models.DeletionEntityType) (int, error)
+
+	// DeleteExpired sweeps tombstones older than `before`, bounding retention.
+	// Returns the number deleted.
+	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
 }

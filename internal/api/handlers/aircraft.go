@@ -35,7 +35,12 @@ func (h *APIHandler) ListAircraft(c *gin.Context, params generated.ListAircraftP
 		return
 	}
 
-	aircraft, err := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+	var aircraft []*models.Aircraft
+	if since := deltaWatermark(params.UpdatedSince); since != nil {
+		aircraft, err = h.aircraftService.ListAircraftUpdatedSince(c.Request.Context(), userID, *since)
+	} else {
+		aircraft, err = h.aircraftService.ListAircraft(c.Request.Context(), userID)
+	}
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve aircraft")
 		return
@@ -209,21 +214,26 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 	if req.IsTailwheel != nil {
 		aircraft.IsTailwheel = *req.IsTailwheel
 	}
-	if req.Notes != nil {
-		aircraft.Notes = req.Notes
-	}
+	applyNullable(&aircraft.Notes, req.Notes)
 	if req.IsActive != nil {
 		aircraft.IsActive = *req.IsActive
 	}
-	if req.AircraftClass != nil {
-		s := string(*req.AircraftClass)
-		aircraft.AircraftClass = &s
+	applyNullable(&aircraft.AircraftClass, req.AircraftClass)
+	if req.DefaultDepartureIcao.IsSpecified() {
+		if req.DefaultDepartureIcao.IsNull() {
+			aircraft.DefaultDepartureICAO = nil
+		} else {
+			v, _ := req.DefaultDepartureIcao.Get()
+			aircraft.DefaultDepartureICAO = normalizeICAO(&v)
+		}
 	}
-	if req.DefaultDepartureIcao != nil {
-		aircraft.DefaultDepartureICAO = normalizeICAO(req.DefaultDepartureIcao)
-	}
-	if req.DefaultArrivalIcao != nil {
-		aircraft.DefaultArrivalICAO = normalizeICAO(req.DefaultArrivalIcao)
+	if req.DefaultArrivalIcao.IsSpecified() {
+		if req.DefaultArrivalIcao.IsNull() {
+			aircraft.DefaultArrivalICAO = nil
+		} else {
+			v, _ := req.DefaultArrivalIcao.Get()
+			aircraft.DefaultArrivalICAO = normalizeICAO(&v)
+		}
 	}
 
 	renameFlights := req.RenameFlights != nil && *req.RenameFlights
