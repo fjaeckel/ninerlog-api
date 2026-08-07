@@ -492,6 +492,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			selectedSet[idx] = true
 		}
 	}
+	isSelected := func(rowIdx int) bool { return importAll || selectedSet[rowIdx] }
 	includeDups := req.IncludeDuplicates != nil && *req.IncludeDuplicates
 
 	// Resolve user display name once for flight auto-calculations (used to
@@ -521,6 +522,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			mappingLookup[m.SourceColumn] = m
 		}
 	}
+
+	aircraftCreated := 0
 
 	// Auto-create aircraft from ForeFlight Aircraft Table if present
 	if len(session.aircraft) > 0 {
@@ -574,7 +577,9 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 				IsActive:      true,
 				AircraftClass: aircraftClass,
 			}
-			_ = h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft)
+			if err := h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft); err == nil {
+				aircraftCreated++
+			}
 			existingRegs[reg] = true
 		}
 	}
@@ -602,9 +607,48 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 	}
 
+	// Auto-create fleet entries for registrations that appear in the file but
+	// are not in the user's fleet yet. Only ForeFlight exports carry a dedicated
+	// Aircraft Table (handled above); every other CSV names its aircraft solely
+	// in the flight rows, so imports of those used to create flights while
+	// leaving the fleet empty — no aircraft page entries, no per-aircraft
+	// statistics or recency.
+	//
+	// Rows that will be skipped as duplicates still count here: re-importing a
+	// file whose flights already exist is exactly how a user backfills a fleet
+	// that an earlier import left empty. Rows the user deselected do not.
+	for reg, typeCode := range collectAircraftFromRows(session.rows, mappingLookup, isSelected) {
+		if _, exists := aircraftTypes[reg]; exists {
+			continue
+		}
+		if typeCode == "" {
+			// Same last-resort fallback mapRowToFlight applies to the flight's
+			// aircraftType, so the fleet entry agrees with the imported flights.
+			typeCode = reg
+		}
+		// Make/Model are required by Aircraft.Validate but a flight row carries
+		// neither; seed them from the type code, as the ForeFlight path does.
+		newAircraft := &models.Aircraft{
+			UserID:       userID,
+			Registration: reg,
+			Type:         typeCode,
+			Make:         typeCode,
+			Model:        typeCode,
+			IsActive:     true,
+		}
+		if err := h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft); err != nil {
+			// A registration or type too long for the column, or a race with a
+			// concurrent create: import the flights anyway rather than failing
+			// the whole run over a fleet entry.
+			continue
+		}
+		aircraftCreated++
+		aircraftTypes[reg] = typeCode
+	}
+
 	for i, row := range session.rows {
 		rowIdx := i + 1
-		if !importAll && !selectedSet[rowIdx] {
+		if !isSelected(rowIdx) {
 			skipped++
 			continue
 		}
@@ -822,6 +866,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		ErrorCount:        errored,
 		DuplicateCount:    dups,
 		ContactsCreated:   &contactsCreated,
+		AircraftCreated:   &aircraftCreated,
 		ImportedFlightIds: idsPtr,
 		Errors:            errorsPtr,
 		CreatedAt:         time.Now(),
@@ -1205,6 +1250,53 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	}
 
 	return flight, errs
+}
+
+// collectAircraftFromRows extracts the distinct aircraft the import file
+// references, as an uppercase registration → type-code map. The type is empty
+// when the file has no aircraft-type column (or leaves the cell blank for every
+// row of that registration); a registration seen with a type anywhere in the
+// file keeps that type.
+//
+// isSelected receives 1-based row indices and may be nil to consider every row.
+func collectAircraftFromRows(rows []map[string]string, mappings map[string]generated.ImportColumnMapping, isSelected func(rowIdx int) bool) map[string]string {
+	var regCols, typeCols []string
+	for col, m := range mappings {
+		switch m.TargetField {
+		case "aircraftReg":
+			regCols = append(regCols, col)
+		case "aircraftType":
+			typeCols = append(typeCols, col)
+		}
+	}
+	if len(regCols) == 0 {
+		return nil
+	}
+
+	firstValue := func(row map[string]string, cols []string) string {
+		for _, col := range cols {
+			if v := strings.ToUpper(strings.TrimSpace(row[col])); v != "" {
+				return v
+			}
+		}
+		return ""
+	}
+
+	found := make(map[string]string)
+	for i, row := range rows {
+		if isSelected != nil && !isSelected(i+1) {
+			continue
+		}
+		reg := firstValue(row, regCols)
+		if reg == "" {
+			continue
+		}
+		typeCode := firstValue(row, typeCols)
+		if existing, seen := found[reg]; !seen || (existing == "" && typeCode != "") {
+			found[reg] = typeCode
+		}
+	}
+	return found
 }
 
 // parseForeFlightApproach parses a single ForeFlight Approach cell into an

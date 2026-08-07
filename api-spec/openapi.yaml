@@ -7375,6 +7375,13 @@ components:
           type: integer
           description: Number of new contacts auto-created from person data during import
           example: 2
+        aircraftCreated:
+          type: integer
+          description: >-
+            Number of aircraft auto-created from the imported rows. Any registration that
+            appears in the file but not yet in the user's fleet is added, so imported flights
+            are backed by a fleet entry.
+          example: 4
         importedFlightIds:
           type: array
           items:

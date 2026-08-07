@@ -1070,3 +1070,84 @@ func TestSuggestGenericCSV_OwnEASAFAAExportAliases(t *testing.T) {
 		}
 	}
 }
+
+// collectAircraftFromRows backs the fleet auto-creation on confirm. Only
+// ForeFlight exports carry an Aircraft Table; every other CSV names its
+// aircraft solely in the flight rows, and importing one used to create the
+// flights while leaving the fleet empty.
+func TestCollectAircraftFromRows(t *testing.T) {
+	mappings := map[string]generated.ImportColumnMapping{
+		"Reg":  {SourceColumn: "Reg", TargetField: "aircraftReg"},
+		"Type": {SourceColumn: "Type", TargetField: "aircraftType"},
+		"Date": {SourceColumn: "Date", TargetField: "date"},
+	}
+	rows := []map[string]string{
+		{"Reg": "d-eabc", "Type": "c172", "Date": "2026-01-01"},
+		{"Reg": "D-EABC", "Type": "C172", "Date": "2026-01-02"},
+		{"Reg": " D-EXYZ ", "Type": "", "Date": "2026-01-03"},
+		{"Reg": "D-EXYZ", "Type": "DA40", "Date": "2026-01-04"},
+		{"Reg": "", "Type": "PA28", "Date": "2026-01-05"},
+	}
+
+	got := collectAircraftFromRows(rows, mappings, nil)
+	want := map[string]string{"D-EABC": "C172", "D-EXYZ": "DA40"}
+	if len(got) != len(want) {
+		t.Fatalf("collected %v, want %v", got, want)
+	}
+	for reg, typeCode := range want {
+		if got[reg] != typeCode {
+			t.Errorf("%s type = %q, want %q", reg, got[reg], typeCode)
+		}
+	}
+}
+
+// A registration is only ever seen in a column mapped to aircraftReg, so an
+// import with no such mapping must not invent fleet entries.
+func TestCollectAircraftFromRows_NoRegistrationMapping(t *testing.T) {
+	mappings := map[string]generated.ImportColumnMapping{
+		"Type": {SourceColumn: "Type", TargetField: "aircraftType"},
+	}
+	rows := []map[string]string{{"Reg": "D-EABC", "Type": "C172"}}
+
+	if got := collectAircraftFromRows(rows, mappings, nil); len(got) != 0 {
+		t.Errorf("collected %v, want nothing without an aircraftReg mapping", got)
+	}
+}
+
+// Rows the user deselected in the preview are not imported, so their aircraft
+// must not be created either.
+func TestCollectAircraftFromRows_HonoursRowSelection(t *testing.T) {
+	mappings := map[string]generated.ImportColumnMapping{
+		"Reg": {SourceColumn: "Reg", TargetField: "aircraftReg"},
+	}
+	rows := []map[string]string{
+		{"Reg": "D-EABC"},
+		{"Reg": "D-EXYZ"},
+		{"Reg": "D-EDEF"},
+	}
+	selected := map[int]bool{2: true}
+
+	got := collectAircraftFromRows(rows, mappings, func(rowIdx int) bool { return selected[rowIdx] })
+	if len(got) != 1 {
+		t.Fatalf("collected %v, want only the selected row's aircraft", got)
+	}
+	if _, ok := got["D-EXYZ"]; !ok {
+		t.Errorf("collected %v, want D-EXYZ (row 2)", got)
+	}
+}
+
+// A type column that is blank for every row of a registration leaves the type
+// empty; the caller falls back to the registration, matching what
+// mapRowToFlight writes into the flight's aircraftType.
+func TestCollectAircraftFromRows_TypeMissingEverywhere(t *testing.T) {
+	mappings := map[string]generated.ImportColumnMapping{
+		"Reg":  {SourceColumn: "Reg", TargetField: "aircraftReg"},
+		"Type": {SourceColumn: "Type", TargetField: "aircraftType"},
+	}
+	rows := []map[string]string{{"Reg": "D-EABC", "Type": ""}}
+
+	got := collectAircraftFromRows(rows, mappings, nil)
+	if typeCode, ok := got["D-EABC"]; !ok || typeCode != "" {
+		t.Errorf("got %v, want D-EABC with an empty type", got)
+	}
+}

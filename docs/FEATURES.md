@@ -135,6 +135,13 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Import** (`internal/api/handlers/import.go`, `import_json.go`) — upload a file
   (CSV/XLSX, including ForeFlight exports) → preview → confirm, or import JSON directly.
   Import sessions are tracked (history endpoints).
+  Confirming an import also fills in the entities the flights reference: contacts for
+  crew names, and fleet entries for every registration in the file that the user does
+  not own yet (from a ForeFlight export's Aircraft Table when present, otherwise from
+  the flight rows' registration/type columns). Rows skipped as duplicates still
+  contribute their aircraft, so re-importing a file backfills a fleet an earlier import
+  left empty. The confirm response reports both counts as `contactsCreated` and
+  `aircraftCreated`.
 - **Export** (`export.go`, `export_pdf.go`, `export_crew.go`) — CSV, JSON, and PDF
   (rendered with `go-pdf/fpdf`).
 
