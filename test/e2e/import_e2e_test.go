@@ -199,6 +199,171 @@ func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 	})
 }
 
+// TestImportCSV_CreatesAircraft is a regression test for an import that logged
+// the flights but left the fleet empty. Aircraft were only auto-created from a
+// ForeFlight export's Aircraft Table; a plain CSV names its aircraft solely in
+// the flight rows, and those registrations were never turned into fleet
+// entries. Uses a semicolon-delimited file with the registration and type in
+// the flight rows, as European logbook exports do.
+func TestImportCSV_CreatesAircraft(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-fleet"), "SecurePass123!", "FleetImport")
+
+	csv := "Datum;Kennzeichen;Muster;Von;Nach;Off-Block;On-Block;Landungen\n" +
+		fmt.Sprintf("%s;D-EFLT;C172;EDNY;EDDS;08:00;09:30;1\n", today()) +
+		fmt.Sprintf("%s;D-EFLT;C172;EDDS;EDNY;10:00;11:00;1\n", pastDate(1)) +
+		fmt.Sprintf("%s;D-EFLU;DA40;EDDS;EDDS;12:00;13:00;2\n", pastDate(2))
+
+	mappings := []map[string]interface{}{
+		{"sourceColumn": "Datum", "targetField": "date"},
+		{"sourceColumn": "Kennzeichen", "targetField": "aircraftReg"},
+		{"sourceColumn": "Muster", "targetField": "aircraftType"},
+		{"sourceColumn": "Von", "targetField": "departureIcao"},
+		{"sourceColumn": "Nach", "targetField": "arrivalIcao"},
+		{"sourceColumn": "Off-Block", "targetField": "offBlockTime"},
+		{"sourceColumn": "On-Block", "targetField": "onBlockTime"},
+		{"sourceColumn": "Landungen", "targetField": "landings"},
+	}
+
+	var uploadToken string
+	t.Run("upload and preview", func(t *testing.T) {
+		resp := uploadCSV(t, c, "logbuch.csv", csv)
+		requireStatus(t, resp, http.StatusOK)
+		var result map[string]interface{}
+		resp.JSON(&result)
+		uploadToken, _ = result["uploadToken"].(string)
+		if uploadToken == "" {
+			t.Fatalf("expected an uploadToken, got: %s", string(resp.Body))
+		}
+
+		pr := c.POST("/imports/preview", map[string]interface{}{
+			"uploadToken": uploadToken,
+			"mappings":    mappings,
+		})
+		requireStatus(t, pr, http.StatusOK)
+	})
+
+	t.Run("confirm reports the created aircraft", func(t *testing.T) {
+		resp := c.POST("/imports/confirm", map[string]interface{}{"uploadToken": uploadToken})
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			t.Fatalf("Expected 200 or 201, got %d: %s", resp.StatusCode, string(resp.Body))
+		}
+		var result map[string]interface{}
+		resp.JSON(&result)
+		if got, _ := result["importedCount"].(float64); got != 3 {
+			t.Fatalf("importedCount = %v, want 3: %s", result["importedCount"], string(resp.Body))
+		}
+		if got, _ := result["aircraftCreated"].(float64); got != 2 {
+			t.Errorf("aircraftCreated = %v, want 2: %s", result["aircraftCreated"], string(resp.Body))
+		}
+	})
+
+	t.Run("fleet contains the imported registrations", func(t *testing.T) {
+		resp := c.GET("/aircraft")
+		requireStatus(t, resp, http.StatusOK)
+		var r map[string]interface{}
+		resp.JSON(&r)
+
+		types := make(map[string]string)
+		for _, item := range r["data"].([]interface{}) {
+			ac := item.(map[string]interface{})
+			reg, _ := ac["registration"].(string)
+			typeCode, _ := ac["type"].(string)
+			types[reg] = typeCode
+		}
+		for reg, want := range map[string]string{"D-EFLT": "C172", "D-EFLU": "DA40"} {
+			got, ok := types[reg]
+			if !ok {
+				t.Fatalf("aircraft %s was not created by the import: %s", reg, string(resp.Body))
+			}
+			if got != want {
+				t.Errorf("aircraft %s type = %q, want %q", reg, got, want)
+			}
+		}
+		if len(types) != 2 {
+			t.Errorf("fleet has %d aircraft, want exactly the 2 from the file: %s", len(types), string(resp.Body))
+		}
+	})
+}
+
+// Re-importing a file whose flights already exist is how a user backfills a
+// fleet that an earlier import left empty, so rows skipped as duplicates must
+// still create their aircraft — and a second run must not duplicate the fleet
+// entries the first one made.
+func TestImportCSV_DuplicateRowsStillCreateAircraft(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-fleet-again"), "SecurePass123!", "FleetReimport")
+
+	// The flight already exists; the fleet does not (logging a flight never
+	// creates an aircraft), which is the state an import before this fix left.
+	flightDate := pastDate(3)
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": flightDate, "aircraftReg": "D-EDUP", "aircraftType": "PA28",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+	}), http.StatusCreated)
+
+	csv := "Date;Reg;Type;From;To;OffBlock;OnBlock;Total;Landings\n" +
+		fmt.Sprintf("%s;D-EDUP;PA28;EDNY;EDDS;08:00;09:30;1:30;1\n", flightDate)
+	mappings := []map[string]interface{}{
+		{"sourceColumn": "Date", "targetField": "date"},
+		{"sourceColumn": "Reg", "targetField": "aircraftReg"},
+		{"sourceColumn": "Type", "targetField": "aircraftType"},
+		{"sourceColumn": "From", "targetField": "departureIcao"},
+		{"sourceColumn": "To", "targetField": "arrivalIcao"},
+		{"sourceColumn": "OffBlock", "targetField": "offBlockTime"},
+		{"sourceColumn": "OnBlock", "targetField": "onBlockTime"},
+		{"sourceColumn": "Total", "targetField": "totalTime"},
+		{"sourceColumn": "Landings", "targetField": "landings"},
+	}
+
+	runImport := func(t *testing.T) map[string]interface{} {
+		t.Helper()
+		resp := uploadCSV(t, c, "logbook.csv", csv)
+		requireStatus(t, resp, http.StatusOK)
+		var upload map[string]interface{}
+		resp.JSON(&upload)
+		token := upload["uploadToken"].(string)
+
+		requireStatus(t, c.POST("/imports/preview", map[string]interface{}{
+			"uploadToken": token, "mappings": mappings,
+		}), http.StatusOK)
+
+		cr := c.POST("/imports/confirm", map[string]interface{}{"uploadToken": token})
+		if cr.StatusCode != http.StatusOK && cr.StatusCode != http.StatusCreated {
+			t.Fatalf("Expected 200 or 201, got %d: %s", cr.StatusCode, string(cr.Body))
+		}
+		var result map[string]interface{}
+		cr.JSON(&result)
+		return result
+	}
+
+	first := runImport(t)
+	if got, _ := first["duplicateCount"].(float64); got != 1 {
+		t.Fatalf("duplicateCount = %v, want 1 (the flight already exists): %v", first["duplicateCount"], first)
+	}
+	if got, _ := first["aircraftCreated"].(float64); got != 1 {
+		t.Errorf("aircraftCreated = %v, want 1 — a duplicate flight must still backfill its aircraft", first["aircraftCreated"])
+	}
+
+	second := runImport(t)
+	if got, _ := second["aircraftCreated"].(float64); got != 0 {
+		t.Errorf("second import aircraftCreated = %v, want 0 (D-EDUP is already in the fleet)", second["aircraftCreated"])
+	}
+
+	resp := c.GET("/aircraft")
+	requireStatus(t, resp, http.StatusOK)
+	var r map[string]interface{}
+	resp.JSON(&r)
+	fleet := r["data"].([]interface{})
+	if len(fleet) != 1 {
+		t.Fatalf("fleet has %d aircraft after two imports of the same file, want 1: %s", len(fleet), string(resp.Body))
+	}
+	if reg, _ := fleet[0].(map[string]interface{})["registration"].(string); reg != "D-EDUP" {
+		t.Errorf("fleet aircraft registration = %q, want D-EDUP", reg)
+	}
+}
+
 func TestImportForeFlight(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("import-ff"), "SecurePass123!", "FFImport")

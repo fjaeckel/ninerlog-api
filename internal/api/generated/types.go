@@ -3744,6 +3744,11 @@ type ImportPreviewResponse struct {
 
 // ImportResult defines model for ImportResult.
 type ImportResult struct {
+	// AircraftCreated Number of aircraft auto-created from the imported rows. Any registration that appears in the file but not yet in the user's fleet is added, so imported flights are backed by a fleet entry.
+	//
+	// Example: 4
+	AircraftCreated *int `json:"aircraftCreated,omitempty"`
+
 	// ContactsCreated Number of new contacts auto-created from person data during import
 	//
 	// Example: 2
