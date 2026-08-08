@@ -78,7 +78,28 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
 - **Aircraft** (`internal/service/aircraft.go`) — the pilot's aircraft; the aircraft class
   links flights to the correct currency bucket.
 - **Credentials** (`internal/service/credential.go`) — medicals, language proficiency,
-  security clearances; expiry feeds notifications.
+  security clearances, German radio certificates (BZF II / BZF I / AZF); expiry feeds
+  notifications.
+- **Document images** (`internal/service/document_image.go`) — up to 5 reference
+  photos/scans per licence or credential, 5 MB each, JPEG or PNG. Every request is
+  authenticated, downloads included: there is no public image URL, so a client fetches the
+  bytes with its bearer token and renders the blob. The format is decided by parsing the
+  file's header rather than trusting its declared type, and the dimensions that header
+  declares are capped so a small file cannot claim a huge canvas.
+
+  Validation deliberately stops at the header: proving every byte means a full decode,
+  which has to allocate the whole pixel buffer — the very cost the dimension cap exists to
+  avoid. So a valid header followed by arbitrary trailing bytes is stored as-is. What makes
+  that safe is how the bytes are served: always with the sniffed content type, always
+  behind `X-Content-Type-Options: nosniff`, and only to a bearer token, so a browser can
+  neither navigate to them nor treat them as anything but an image.
+
+  Uploading and serving user-supplied blobs is an abuse surface an operator may not want
+  open at all, so the feature has an off switch: `DOCUMENT_IMAGES_ENABLED=false` makes
+  every `/images` endpoint answer `403` — reads included, since serving the bytes is the
+  bandwidth half of the problem. Stored images are retained and reappear if it is switched
+  back on. `GET /features` reports the current state and limits so clients hide the UI
+  instead of discovering the `403`.
 - **Contacts** (`internal/service/contact.go`) — reusable people (crew/instructors) with
   search, so names aren't retyped per flight.
 - **Baseline** (`internal/service/flight.go` + `FlightBaseline`) — carried-over totals from

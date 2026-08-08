@@ -128,6 +128,7 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 | Cloud backups | backup credentials key set | Registers S3/SFTP/WebDAV providers + scheduler |
 | pprof profiling | `PPROF_ENABLED=true` | Debug profiling server |
 | Airport DB refresh | `AIRPORT_REFRESH_INTERVAL` ≠ `off`/`0` | Refetches and re-merges both airport datasets on a timer |
+| Licence/credential images | `DOCUMENT_IMAGES_ENABLED` not `false` | Reference photos on licences and credentials. Off closes every `/images` endpoint (reads included) with 403 and is reported by `GET /features`; stored rows are untouched |
 
 ## Cross-cutting concerns
 
@@ -136,8 +137,8 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
   routes additionally check the admin middleware. See [AUTHENTICATION.md](./AUTHENTICATION.md).
 - **Rate limiting** — layered and backed by `ulule/limiter`. A coarse per-user limiter
   covers every `/api/v1` route; `RateLimitByPath`, `RateLimitByPathPrefix`, and
-  `RateLimitByPathWithQueryParam` layer tighter budgets onto specific paths — `/auth`,
-  `/admin`, exports and imports, and free-text flight search (`GET /flights?q=`, which is
+  `RateLimitByPathSegment` and `RateLimitByPathWithQueryParam` layer tighter budgets onto specific paths — `/auth`,
+  `/admin`, exports and imports, licence/credential images, and free-text flight search (`GET /flights?q=`, which is
   limited separately from the plain listing on the same route). Each limiter is named and
   reports its own rejection and evaluation counters. Budgets are tabulated in
   [API.md](./API.md#security-model); `DISABLE_RATE_LIMIT=true` turns the whole layer off.

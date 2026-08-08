@@ -162,6 +162,28 @@ func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFu
 	}
 }
 
+// RateLimitByPathSegment applies a rate-limit middleware to every request
+// whose path contains one of the given segments, wherever it appears.
+//
+// Neither suffix nor prefix matching covers a sub-collection that sits in the
+// middle of a path and also has per-item routes under it:
+// "/licenses/{id}/images" has no fixed prefix and "/licenses/{id}/images/{imageId}"
+// has no fixed suffix, so matching on the "images" segment is the only way to
+// cover the collection and its items with one predicate.
+func RateLimitByPathSegment(rl gin.HandlerFunc, segments ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rel := groupRelativePath(c)
+		for _, s := range segments {
+			seg := "/" + strings.Trim(s, "/")
+			if strings.HasSuffix(rel, seg) || strings.Contains(rel, seg+"/") {
+				rl(c)
+				return
+			}
+		}
+		c.Next()
+	}
+}
+
 // RateLimitByPathWithQueryParam applies a rate-limit middleware only to
 // requests whose path (relative to the router group) ends with the given
 // suffix AND which carry a non-empty queryParam. This targets expensive
