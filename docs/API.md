@@ -95,7 +95,8 @@ would ever call. The JSON half of that flow (`GET /auth/providers`,
   |---|---|---|---|
   | `general` | 120/min | every `/api/v1` route | user ID (IP when unauthenticated) |
   | `search` | `SEARCH_RATE_LIMIT_PER_MINUTE`, default 60/min | `GET /flights` **with** a `q` parameter | user ID |
-  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*`, `/…/images*` | user ID |
+  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*`, and **writes** to `/…/images*` | user ID |
+  | `image_read` | `IMAGE_READ_RATE_LIMIT_PER_MINUTE`, default 90/min | **reads** of `/…/images*` | user ID |
   | `auth` | 10/min | login, register, refresh, password reset, 2FA, WebAuthn | client IP |
   | `admin` | 30/min | `/admin/*` and user state changes | client IP |
   | `sign` | 20/min | `/sign/*` public signing links | client IP |

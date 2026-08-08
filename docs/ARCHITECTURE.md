@@ -138,7 +138,8 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 - **Rate limiting** — layered and backed by `ulule/limiter`. A coarse per-user limiter
   covers every `/api/v1` route; `RateLimitByPath`, `RateLimitByPathPrefix`, and
   `RateLimitByPathSegment` and `RateLimitByPathWithQueryParam` layer tighter budgets onto specific paths — `/auth`,
-  `/admin`, exports and imports, licence/credential images, and free-text flight search (`GET /flights?q=`, which is
+  `/admin`, exports and imports, licence/credential image writes (with reads on their own
+  larger budget), and free-text flight search (`GET /flights?q=`, which is
   limited separately from the plain listing on the same route). Each limiter is named and
   reports its own rejection and evaluation counters. Budgets are tabulated in
   [API.md](./API.md#security-model); `DISABLE_RATE_LIMIT=true` turns the whole layer off.

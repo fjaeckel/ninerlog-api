@@ -674,13 +674,27 @@ func main() {
 		signRateLimit := middleware.NewRateLimitMiddleware("sign", 20, 1*time.Minute)
 		api.Use(middleware.RateLimitByPathPrefix(signRateLimit, "/sign/"))
 
-		// Licence/credential images are the heaviest bytes in the API in both
-		// directions — up to 5 MB spooled, decoded and stored per upload, and
-		// the same again per download — so the whole sub-collection gets the
-		// tight "expensive" budget rather than the general 120/min. Segment
-		// matching so the per-image download and delete routes are covered
-		// too, not just the collection.
-		api.Use(middleware.RateLimitByPathSegment(expensiveRateLimit, "/images"))
+		// Licence/credential images: separate budgets for writing and reading.
+		//
+		// Uploading is heavy and deliberate — up to 5 MB spooled, decoded and
+		// written per request — so it keeps the tight "expensive" budget.
+		//
+		// Reading is not the same shape at all. The clients render a thumbnail
+		// strip on every licence and credential card, so opening one list page
+		// legitimately costs one listing plus a few image fetches *per card*,
+		// and again whenever the page is revisited. Charging that against
+		// 15/min made the feature unusable: a pilot with eight documents got
+		// 429 on essentially every image request. Reads get their own, larger
+		// bucket instead — still well under the general 120/min ceiling, and
+		// still per-user, so a stolen token cannot mine the store for bandwidth.
+		//
+		// Tunable without a rebuild, like the search bucket.
+		imageReadRateLimit := middleware.NewUserRateLimitMiddleware(
+			"image_read", envInt("IMAGE_READ_RATE_LIMIT_PER_MINUTE", 90), 1*time.Minute)
+		api.Use(middleware.RateLimitByPathSegmentForMethods(
+			imageReadRateLimit, []string{http.MethodGet}, "/images"))
+		api.Use(middleware.RateLimitByPathSegmentForMethods(
+			expensiveRateLimit, []string{http.MethodPost, http.MethodDelete}, "/images"))
 
 		// Authenticated signature actions that trigger outbound email.
 		signatureEmailRateLimit := middleware.NewRateLimitMiddleware("signature_email", 10, 1*time.Minute)
