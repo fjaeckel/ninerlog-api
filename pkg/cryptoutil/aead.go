@@ -1,5 +1,6 @@
 // Package cryptoutil provides symmetric encryption primitives used to protect
-// per-user secrets (currently: cloud backup credentials) at rest.
+// stored data at rest: cloud backup credentials, TOTP secrets, and the
+// licence/credential files pilots upload.
 //
 // Design goals:
 //   - One key, one algorithm — AES-256-GCM with a 96-bit random nonce.
@@ -10,6 +11,8 @@
 //     variable at startup; KeyFromBase64 enforces a 32-byte key length and
 //     refuses obviously-empty values to fail closed on a misconfigured
 //     deployment.
+//   - Domain separation: one operator secret can stand behind several
+//     independent uses without any two sharing key bytes — see DeriveKey.
 package cryptoutil
 
 import (
@@ -115,20 +118,44 @@ func GenerateKeyBase64() (string, error) {
 // nonce, error). The 16-byte authentication tag is appended to the ciphertext
 // by the underlying GCM implementation.
 func (a *AEAD) Encrypt(plaintext []byte) (ciphertext, nonce []byte, err error) {
-	nonce = make([]byte, NonceSize)
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, nil, err
-	}
-	ciphertext = a.gcm.Seal(nil, nonce, plaintext, nil)
-	return ciphertext, nonce, nil
+	return a.EncryptWithAAD(plaintext, nil)
 }
 
 // Decrypt authenticates and decrypts ciphertext produced by Encrypt.
 func (a *AEAD) Decrypt(ciphertext, nonce []byte) ([]byte, error) {
+	return a.DecryptWithAAD(ciphertext, nonce, nil)
+}
+
+// EncryptWithAAD seals plaintext and additionally authenticates aad, which is
+// covered by the authentication tag but is NOT stored in the ciphertext — the
+// decrypting side has to reproduce it byte for byte or the open fails.
+//
+// That is the useful property when ciphertext lives in a database column: bind
+// each value to the row it belongs to (its id, its owner) and the ciphertext
+// stops being portable. Someone who can write to the table can still destroy a
+// value, but copying one row's blob over another's no longer yields something
+// that decrypts, so a stored file cannot be silently moved between records or
+// between users.
+//
+// aad may be nil, which is ordinary AEAD with no bound context.
+func (a *AEAD) EncryptWithAAD(plaintext, aad []byte) (ciphertext, nonce []byte, err error) {
+	nonce = make([]byte, NonceSize)
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, err
+	}
+	ciphertext = a.gcm.Seal(nil, nonce, plaintext, aad)
+	return ciphertext, nonce, nil
+}
+
+// DecryptWithAAD authenticates and decrypts a value produced by
+// EncryptWithAAD. aad must be exactly what was supplied at seal time;
+// otherwise this fails with ErrInvalidCiphertext, indistinguishably from a
+// corrupted or tampered ciphertext.
+func (a *AEAD) DecryptWithAAD(ciphertext, nonce, aad []byte) ([]byte, error) {
 	if len(nonce) != NonceSize {
 		return nil, ErrInvalidCiphertext
 	}
-	plaintext, err := a.gcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := a.gcm.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
 		return nil, ErrInvalidCiphertext
 	}

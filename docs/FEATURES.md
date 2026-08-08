@@ -109,6 +109,18 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   bandwidth half of the problem. Stored files are retained and reappear if it is switched
   back on. `GET /features` reports the current state and limits so clients hide the UI
   instead of discovering the `403`.
+
+  Stored bytes are **AES-256-GCM encrypted at rest** under a subkey of `ENCRYPTION_KEY`
+  (`pkg/cryptoutil.PurposeDocumentFile`), so a database dump, a volume snapshot or a
+  stolen backup does not hand over a pilot's licence. The authentication tag covers the
+  row's id, owner and content type, none of which are stored in the ciphertext, so a blob
+  cannot be moved to another row or relabelled by anyone with write access to the table.
+  This does **not** defend against a compromised API process, which necessarily holds the
+  key.
+
+  There is no unencrypted mode. `data_nonce` is `NOT NULL`, so "stored in the clear" is
+  not a state the schema can represent, and a row whose bytes will not decrypt answers
+  `500` rather than being served as if it were the file.
 - **Contacts** (`internal/service/contact.go`) — reusable people (crew/instructors) with
   search, so names aren't retyped per flight.
 - **Baseline** (`internal/service/flight.go` + `FlightBaseline`) — carried-over totals from
@@ -202,15 +214,16 @@ currency lapses.
 
 ## Cloud backups
 
-Optional (enabled when the backup credentials encryption key is configured). Pilots can
-back up their data to their own storage on a schedule.
+Optional (`CLOUD_BACKUPS_ENABLED=true`). Pilots can back up their data to their own
+storage on a schedule.
 
 - **Providers** (`internal/service/cloudbackup/provider`) — pluggable `Provider` interface
   with `s3`, `sftp`, and `webdav` implementations registered into a provider registry in
   `main.go`. S3 uses `minio-go`, SFTP uses `pkg/sftp`, WebDAV uses `gowebdav`.
 - **Destinations** (`destinations.go`) — CRUD; provider config plus schedule and retention
-  count. Credentials are **AES-256-GCM encrypted** at rest (`pkg/cryptoutil`); the key
-  comes from the environment, never the database.
+  count. Credentials are **AES-256-GCM encrypted** at rest under a subkey of
+  `ENCRYPTION_KEY` (`pkg/cryptoutil`); the key comes from the environment, never the
+  database.
 - **Runs** (`runner.go`, `BackupRun`) — execute a backup, record outcome, enforce
   retention; `jsonbuilder.go` serializes the user's data set.
 - **Scheduler** (`scheduler.go`) — a goroutine that triggers due backups; manual runs via

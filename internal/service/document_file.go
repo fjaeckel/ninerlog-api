@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	_ "image/jpeg" // registers the JPEG decoder used by image.DecodeConfig
 	_ "image/png"  // registers the PNG decoder used by image.DecodeConfig
@@ -14,6 +15,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/google/uuid"
 )
 
@@ -41,40 +43,63 @@ var (
 	ErrDocumentFileCorrupt      = errors.New("image could not be decoded")
 	ErrDocumentFileTooManyPixel = errors.New("image resolution is too large")
 	ErrDocumentFileLimitReached = errors.New("maximum number of images for this document reached")
+
+	// ErrDocumentFileUnreadable means the stored bytes did not decrypt: the
+	// server is running with a different key than the one that sealed them, or
+	// the row was tampered with. Deliberately distinct from "not found" — the
+	// file is there and it is the caller's, and telling them it does not exist
+	// would send a pilot looking for a scan they never lost.
+	ErrDocumentFileUnreadable = errors.New("stored file could not be decrypted")
 )
 
 // DocumentFileService owns reference photos attached to licences and
-// credentials: the feature switch, upload validation, ownership checks and the
-// per-document cap.
+// credentials: the feature switch, upload validation, ownership checks, the
+// per-document cap, and encryption of the stored bytes.
 //
 // Every method resolves the subject through the licence/credential repository
 // first. That both proves ownership and means an image can never be addressed
 // except through the document it belongs to.
+//
+// Encryption sits here rather than in the repository so that everything above
+// this layer — handlers, tests, background jobs — deals in the actual file.
+// The repository stores whatever bytes it is handed and knows nothing about
+// what they mean, which is the same division the rest of the codebase keeps.
 type DocumentFileService struct {
 	imageRepo      repository.DocumentFileRepository
 	licenseRepo    repository.LicenseRepository
 	credentialRepo repository.CredentialRepository
 	enabled        bool
+	aead           *cryptoutil.AEAD
 }
 
+// NewDocumentFileService wires the subsystem. aead is the purpose-derived key
+// for document files; passing nil leaves the feature off no matter what
+// enabled says, because storing a pilot's identity documents in the clear is
+// not a mode this service offers.
 func NewDocumentFileService(
 	imageRepo repository.DocumentFileRepository,
 	licenseRepo repository.LicenseRepository,
 	credentialRepo repository.CredentialRepository,
 	enabled bool,
+	aead *cryptoutil.AEAD,
 ) *DocumentFileService {
 	return &DocumentFileService{
 		imageRepo:      imageRepo,
 		licenseRepo:    licenseRepo,
 		credentialRepo: credentialRepo,
 		enabled:        enabled,
+		aead:           aead,
 	}
 }
 
 // Enabled reports whether the feature is switched on. Handlers use it to
 // answer GET /features so a client can hide the UI instead of discovering the
 // 403 by uploading.
-func (s *DocumentFileService) Enabled() bool { return s.enabled }
+//
+// A missing key counts as switched off. main refuses to start when the feature
+// is explicitly enabled without one, so this is the belt to that braces: no
+// arrangement of configuration reaches the storage path without a key.
+func (s *DocumentFileService) Enabled() bool { return s.enabled && s.aead != nil }
 
 // UploadInput is one candidate image as it arrives from the handler. Data is
 // the raw file; ContentType is *derived* from it, never taken from the
@@ -121,7 +146,7 @@ func (s *DocumentFileService) verifySubject(ctx context.Context, userID uuid.UUI
 
 // Upload validates and stores one image against a licence or credential.
 func (s *DocumentFileService) Upload(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID, in UploadInput) (*models.DocumentFile, error) {
-	if !s.enabled {
+	if !s.Enabled() {
 		return nil, ErrDocumentFilesDisabled
 	}
 	if err := s.verifySubject(ctx, userID, subject, subjectID); err != nil {
@@ -135,13 +160,21 @@ func (s *DocumentFileService) Upload(ctx context.Context, userID uuid.UUID, subj
 
 	// Width and height are nil for formats without intrinsic pixel dimensions
 	// (PDF), and are passed through as such rather than stored as zeroes.
+	//
+	// ByteSize is the size of the file the pilot uploaded, not of what lands in
+	// the column: the client shows it, the cap is expressed in it, and the
+	// ciphertext's extra authentication tag is an implementation detail of
+	// storage that nothing above should have to subtract.
+	//
+	// The id is minted here rather than by the database, because the bytes are
+	// sealed against it and so it has to exist before they are.
 	img := &models.DocumentFile{
+		ID:          uuid.New(),
 		UserID:      userID,
 		ContentType: contentType,
 		ByteSize:    len(in.Data),
 		Width:       width,
 		Height:      height,
-		Data:        in.Data,
 	}
 	if name := sanitizeFilename(in.Filename); name != "" {
 		img.Filename = &name
@@ -158,6 +191,13 @@ func (s *DocumentFileService) Upload(ctx context.Context, userID uuid.UUID, subj
 		img.CredentialID = &id
 	}
 
+	ciphertext, nonce, err := s.aead.EncryptWithAAD(in.Data, documentFileAAD(img))
+	if err != nil {
+		return nil, fmt.Errorf("encrypt document file: %w", err)
+	}
+	img.Data = ciphertext
+	img.DataNonce = nonce
+
 	if err := s.imageRepo.Create(ctx, img, models.MaxDocumentFilesPerSubject); err != nil {
 		if errors.Is(err, repository.ErrDocumentFileLimit) {
 			return nil, ErrDocumentFileLimitReached
@@ -168,12 +208,13 @@ func (s *DocumentFileService) Upload(ctx context.Context, userID uuid.UUID, subj
 	// The stored payload is not part of the create response; drop it so a
 	// caller cannot accidentally serialize megabytes back out.
 	img.Data = nil
+	img.DataNonce = nil
 	return img, nil
 }
 
 // List returns the metadata for a document's images, oldest first.
 func (s *DocumentFileService) List(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentFile, error) {
-	if !s.enabled {
+	if !s.Enabled() {
 		return nil, ErrDocumentFilesDisabled
 	}
 	if err := s.verifySubject(ctx, userID, subject, subjectID); err != nil {
@@ -185,7 +226,7 @@ func (s *DocumentFileService) List(ctx context.Context, userID uuid.UUID, subjec
 // Get returns a single image including its bytes, for the authenticated
 // download endpoint.
 func (s *DocumentFileService) Get(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentFile, error) {
-	if !s.enabled {
+	if !s.Enabled() {
 		return nil, ErrDocumentFilesDisabled
 	}
 	if err := s.verifySubject(ctx, userID, subject, subjectID); err != nil {
@@ -198,12 +239,54 @@ func (s *DocumentFileService) Get(ctx context.Context, userID uuid.UUID, subject
 		}
 		return nil, err
 	}
+	if err := s.open(img); err != nil {
+		return nil, err
+	}
 	return img, nil
+}
+
+// open replaces a row's stored bytes with the file itself, in place.
+//
+// Every stored file is encrypted — the column holding the nonce is NOT NULL, so
+// a row without one cannot exist — which means there is no "maybe it is
+// plaintext" branch to get wrong. A missing nonce is a corrupt row, not an old
+// one, and is treated as unreadable rather than served as if it were the file.
+func (s *DocumentFileService) open(img *models.DocumentFile) error {
+	if s.aead == nil || len(img.DataNonce) == 0 {
+		return ErrDocumentFileUnreadable
+	}
+	plaintext, err := s.aead.DecryptWithAAD(img.Data, img.DataNonce, documentFileAAD(img))
+	if err != nil {
+		return ErrDocumentFileUnreadable
+	}
+	img.Data = plaintext
+	img.DataNonce = nil
+	return nil
+}
+
+// documentFileAAD is the context a file's ciphertext is bound to: its own id,
+// its owner, and the content type the server will hand back to a browser.
+//
+// None of this is stored in the ciphertext — the decrypting side rebuilds it
+// from the row — so it costs nothing and makes the stored blob non-portable.
+// Moving a blob to another row, another user, or relabelling a PDF as a JPEG
+// all break authentication and surface as ErrDocumentFileUnreadable instead of
+// as a file served under someone else's name.
+//
+// The two UUIDs are fixed-width in their string form, so concatenating with a
+// separator cannot be made ambiguous by a crafted content type.
+func documentFileAAD(img *models.DocumentFile) []byte {
+	return []byte(strings.Join([]string{
+		"ninerlog/document-file/v1",
+		img.ID.String(),
+		img.UserID.String(),
+		img.ContentType,
+	}, "|"))
 }
 
 // Delete removes one image from a document.
 func (s *DocumentFileService) Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error {
-	if !s.enabled {
+	if !s.Enabled() {
 		return ErrDocumentFilesDisabled
 	}
 	if err := s.verifySubject(ctx, userID, subject, subjectID); err != nil {

@@ -25,24 +25,34 @@ var (
 	ErrTwoFactorNotEnabled     = errors.New("two-factor authentication is not enabled")
 	ErrInvalidTOTPCode         = errors.New("invalid TOTP code")
 	ErrInvalid2FAToken         = errors.New("invalid two-factor token")
+
+	// ErrTwoFactorKeyMissing means the service was built without an encryption
+	// key. A running server cannot reach this — ENCRYPTION_KEY is required at
+	// startup — so it exists to make the failure explicit in tests and in any
+	// future wiring that forgets to pass one, instead of silently degrading to
+	// plaintext seeds.
+	ErrTwoFactorKeyMissing = errors.New("two-factor authentication is unavailable: no encryption key is configured")
 )
 
 // encSecretPrefix marks a TOTP secret that is stored encrypted (AES-256-GCM).
-// Secrets without this prefix are legacy plaintext and are read as-is, so an
-// existing database keeps working after the encryption key is introduced.
+// Every stored secret carries it: migration 61 cleared the enrolments that
+// predate mandatory encryption, so an unprefixed value is a corrupt row rather
+// than an old one.
 const encSecretPrefix = "enc:v1:"
 
 type TwoFactorService struct {
 	userRepo   repository.UserRepository
 	jwtManager *jwt.Manager
-	// aead encrypts TOTP secrets at rest. When nil, secrets are stored as
-	// plaintext (legacy behavior) — the deployment should set an encryption key.
+	// aead encrypts TOTP secrets at rest, derived from ENCRYPTION_KEY. It is
+	// never nil in a running server — the key is required at startup — and a
+	// nil one fails enrolment and verification closed rather than falling back
+	// to storing seeds in the clear.
 	aead *cryptoutil.AEAD
 }
 
-// NewTwoFactorService constructs the service. aead may be nil, in which case
-// TOTP secrets are stored unencrypted (backward-compatible). Provide an AEAD
-// (see cryptoutil) to encrypt secrets at rest.
+// NewTwoFactorService constructs the service. aead comes from
+// cryptoutil.DeriveAEAD(masterKey, PurposeTOTPSecrets); without it, 2FA cannot
+// be set up or verified.
 func NewTwoFactorService(userRepo repository.UserRepository, jwtManager *jwt.Manager, aead *cryptoutil.AEAD) *TwoFactorService {
 	return &TwoFactorService{
 		userRepo:   userRepo,
@@ -52,10 +62,12 @@ func NewTwoFactorService(userRepo repository.UserRepository, jwtManager *jwt.Man
 }
 
 // encodeSecret returns the value to persist for a TOTP secret: an encrypted,
-// prefixed blob when an AEAD is configured, otherwise the plaintext (legacy).
+// prefixed blob. There is no unencrypted form — a seed is a bearer credential
+// for someone's second factor, and storing one in the clear because a key was
+// missing was never a mode worth having.
 func (s *TwoFactorService) encodeSecret(plaintext string) (string, error) {
 	if s.aead == nil {
-		return plaintext, nil
+		return "", ErrTwoFactorKeyMissing
 	}
 	ciphertext, nonce, err := s.aead.Encrypt([]byte(plaintext))
 	if err != nil {
@@ -65,14 +77,19 @@ func (s *TwoFactorService) encodeSecret(plaintext string) (string, error) {
 	return encSecretPrefix + base64.StdEncoding.EncodeToString(blob), nil
 }
 
-// decodeSecret returns the plaintext TOTP secret from a stored value. Values
-// without encSecretPrefix are treated as legacy plaintext.
+// decodeSecret returns the plaintext TOTP secret from a stored value.
+//
+// An unprefixed value is refused rather than read as a legacy plaintext seed.
+// Nothing writes one any more and migration 61 cleared the ones that existed,
+// so a value arriving here without the marker is a corrupt or hand-edited row —
+// and accepting it would mean an attacker who can write to the column could
+// choose a victim's TOTP seed by storing it unencrypted.
 func (s *TwoFactorService) decodeSecret(stored string) (string, error) {
-	if !strings.HasPrefix(stored, encSecretPrefix) {
-		return stored, nil // legacy plaintext secret
-	}
 	if s.aead == nil {
-		return "", errors.New("2FA secret is encrypted but no encryption key is configured")
+		return "", ErrTwoFactorKeyMissing
+	}
+	if !strings.HasPrefix(stored, encSecretPrefix) {
+		return "", errors.New("2FA secret is not in the encrypted format")
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(stored, encSecretPrefix))
 	if err != nil {

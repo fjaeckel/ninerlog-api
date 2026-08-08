@@ -25,6 +25,7 @@ Developer documentation for the NinerLog API backend. Start with the
 | [METRICS.md](./METRICS.md) | Prometheus metrics and observability |
 | [PERFORMANCE.md](./PERFORMANCE.md) | Performance budgets, benchmarks, profiling |
 | [RUNNING_TESTS.md](./RUNNING_TESTS.md) | Running unit/integration/e2e tests |
+| [UPGRADING.md](./UPGRADING.md) | Breaking changes and what an operator has to do about them |
 
 ## Keeping docs accurate
 

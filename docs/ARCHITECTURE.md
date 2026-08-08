@@ -125,10 +125,10 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 | Metrics (`/metrics`) | `METRICS_ENABLED` not disabled | Prometheus handler + DB-stats collector |
 | OIDC single sign-on | `OIDC_ISSUER` set | Mode switch: the provider owns all accounts, and password login, registration, email verification, password reset, TOTP and passkeys are disabled. Discovery is lazy and retried, so the provider may boot after the API. Login state and handoff codes live in Postgres with an expired-state reaper. See [OIDC.md](./OIDC.md) |
 | WebAuthn / passkeys | `WEBAUTHN_RP_ID` set and OIDC off | Relying-party id/name/origins from env; ceremony state in Postgres (`WEBAUTHN_SESSION_TTL`, `WEBAUTHN_MAX_OPEN_CEREMONIES`) plus an expired-session reaper |
-| Cloud backups | backup credentials key set | Registers S3/SFTP/WebDAV providers + scheduler |
+| Cloud backups | `CLOUD_BACKUPS_ENABLED=true` | Registers S3/SFTP/WebDAV providers + scheduler; destination credentials encrypted under a subkey of `ENCRYPTION_KEY` |
 | pprof profiling | `PPROF_ENABLED=true` | Debug profiling server |
 | Airport DB refresh | `AIRPORT_REFRESH_INTERVAL` ≠ `off`/`0` | Refetches and re-merges both airport datasets on a timer |
-| Licence/credential files | `DOCUMENT_FILES_ENABLED` not `false` (legacy `DOCUMENT_IMAGES_ENABLED` still honoured) | Reference photos, scans and PDFs on licences and credentials. Off closes every `/files` endpoint (reads included) with 403 and is reported by `GET /features`; stored rows are untouched |
+| Licence/credential files | `DOCUMENT_FILES_ENABLED` not `false` (legacy `DOCUMENT_IMAGES_ENABLED` still honoured) | Reference photos, scans and PDFs on licences and credentials, stored AES-256-GCM encrypted under a subkey of `ENCRYPTION_KEY`. Off closes every `/files` endpoint (reads included) with 403 and is reported by `GET /features`; stored rows are untouched |
 
 ## Cross-cutting concerns
 

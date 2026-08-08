@@ -63,7 +63,7 @@ func newResetFixture(t *testing.T) *resetFixture {
 	userRepo := newMockUserRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	repo := &copyingUserRepo{mockUserRepo: userRepo}
-	twoFactor := service.NewTwoFactorService(repo, jwtManager, nil)
+	twoFactor := service.NewTwoFactorService(repo, jwtManager, testTOTPAEAD(t))
 	auth := service.NewAuthService(repo, newMockRefreshTokenRepo(), newMockPasswordResetRepo(),
 		newMockEmailVerificationRepo(), jwtManager, twoFactor)
 

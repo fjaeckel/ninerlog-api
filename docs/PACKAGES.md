@@ -55,7 +55,7 @@ Reusable utilities with minimal dependencies, safe to use from any layer.
 | --- | --- |
 | `pkg/jwt` | `Manager` — minting and validating JWT access/refresh tokens. |
 | `pkg/hash` | bcrypt password hashing/verification and SHA-256 token hashing. |
-| `pkg/cryptoutil` | AES-256-GCM (`AEAD`) for encrypting stored backup credentials; key helpers (`New`, `NewFromBase64`, `GenerateKey`, `GenerateKeyBase64`). |
+| `pkg/cryptoutil` | AES-256-GCM (`AEAD`) for data encrypted at rest — backup credentials, TOTP secrets, licence/credential files. `Encrypt`/`Decrypt`, and `EncryptWithAAD`/`DecryptWithAAD` to bind a ciphertext to the row it belongs to. `DeriveKey`/`DeriveAEAD` cut a per-purpose subkey out of `ENCRYPTION_KEY` with HKDF-SHA256, so one operator secret serves several uses without any two sharing key bytes. Key helpers: `New`, `NewFromBase64`, `DecodeKey`, `GenerateKey`, `GenerateKeyBase64`. |
 | `pkg/duration` | Convert/format flight durations: minutes ↔ decimal hours, `HH:MM`, parsing. See [DOMAIN.md](./DOMAIN.md#time-and-duration-handling). |
 | `pkg/email` | SMTP sender (`smtp.go`) with localized templates (`templates_en.go`, `templates_de.go`) and email metrics (`metrics.go`). Recipients go through the SMTP envelope, not message headers (anti-injection). The send path runs the SMTP conversation command by command so a refusal can be attributed to the recipient or to our own setup; `delivery.go` defines those outcomes and the `DeliveryRecorder` interface that lets `internal/service` persist them without `pkg/email` depending on a database. |
 | `pkg/solar` | Sunrise/sunset/twilight (`Calculate`, `CivilTwilight`, `IsNight`) wrapping `go-solar`; powers the day/night flight split. |

@@ -71,6 +71,9 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d postgres -q \
 export DATABASE_URL="postgresql://$PGUSER@$PGHOST:$PGPORT/$PGDATABASE?sslmode=disable"
 export JWT_SECRET="multi-replica-verification-jwt-secret-not-for-production-01"
 export REFRESH_SECRET="multi-replica-verification-refresh-secret-not-for-prod-02"
+# Required at startup. Both replicas must share it, or they would derive
+# different subkeys and disagree about every encrypted value they read.
+export ENCRYPTION_KEY="bXVsdGktcmVwbGljYS12ZXJpZnkta2V5LTMyYnl0ZXM="
 export WEBAUTHN_RP_ID="localhost"
 export WEBAUTHN_RP_ORIGINS="http://localhost:5173"
 export MIGRATIONS_PATH="${MIGRATIONS_PATH:-db/migrations}"

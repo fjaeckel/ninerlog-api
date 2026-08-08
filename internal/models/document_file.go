@@ -90,6 +90,12 @@ func ContentTypeIsInlineSafe(ct string) bool {
 // credential. Data carries the raw bytes and is only populated on the
 // single-image download path — list and create responses leave it nil so a
 // listing never drags megabytes through the service layer.
+//
+// Data is plaintext everywhere above the repository: the service seals it on
+// the way in and opens it on the way out, so handlers and every other reader
+// see the file itself. DataNonce is the storage layer's business — it carries
+// the AES-GCM nonce for the stored ciphertext, and is nil for a row written
+// before at-rest encryption was introduced.
 type DocumentFile struct {
 	ID     uuid.UUID `json:"id"`
 	UserID uuid.UUID `json:"userId"`
@@ -105,7 +111,8 @@ type DocumentFile struct {
 	Filename    *string `json:"filename,omitempty"`
 	Caption     *string `json:"caption,omitempty"`
 
-	Data []byte `json:"-"`
+	Data      []byte `json:"-"`
+	DataNonce []byte `json:"-"`
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`

@@ -103,6 +103,17 @@ test/e2e/                    # End-to-end tests
 
 See `.env.example` for a complete list of configuration options including database connection, JWT secrets, CORS settings, SMTP configuration, and TLS settings.
 
+**Encryption at rest.** `ENCRYPTION_KEY` (32 bytes, base64 — `openssl rand -base64 32`)
+is **required**: the API will not start without it. It protects everything the database
+stores on the application's behalf — licence and credential files, 2FA secrets, cloud
+backup credentials — with each use deriving its own subkey, so one secret covers all of
+them without any two sharing key bytes. Keep a copy alongside the database password:
+sealed data cannot be recovered without it, and there is no reset. Upgrading from a
+release with `TOTP_ENCRYPTION_KEY` or `BACKUP_CREDENTIALS_KEY`? Read
+[docs/UPGRADING.md](docs/UPGRADING.md) first — those are removed, the server refuses to
+start while they are still set, and a migration clears every 2FA enrolment, session and
+backup destination, because none of them can be decrypted any more.
+
 **Single sign-on (optional).** Setting `OIDC_ISSUER` switches the deployment to OIDC
 mode, where an external identity provider owns all accounts and NinerLog's own password,
 registration, 2FA and passkey endpoints are disabled. It is off by default. See

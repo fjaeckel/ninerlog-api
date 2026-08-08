@@ -27,7 +27,7 @@ import (
 // every endpoint under test refuses before any network call.
 func oidcTestHandler(t *testing.T) (*APIHandler, *mockUserRepo) {
 	t.Helper()
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
 	svc, err := service.NewOIDCService(service.OIDCConfig{
 		Issuer:            "https://idp.example.com",
@@ -135,7 +135,7 @@ func TestOIDCMode_LocalCredentialEndpointsAreClosed(t *testing.T) {
 
 func TestOIDCMode_LocalCredentialEndpointsStayOpenInLocalMode(t *testing.T) {
 	// The mirror image: the gate must not fire on a normal deployment.
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = jsonRequest("POST", "/api/v1/auth/register",
@@ -222,7 +222,7 @@ func TestOIDCMode_AccountDeletionConfirmsWithEmail(t *testing.T) {
 }
 
 func TestAuthProviders_ReportsLocalModeByDefault(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/api/v1/auth/providers", nil)
@@ -292,7 +292,7 @@ func TestAuthProviders_ReportsOIDCMode(t *testing.T) {
 }
 
 func TestOIDCEndpointsReport503WhenNotConfigured(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	for _, tc := range []struct {
 		name   string
 		invoke func(*gin.Context)

@@ -31,7 +31,7 @@ func TestIsAdminUser_RequiresVerifiedEmail(t *testing.T) {
 }
 
 func TestUpdateCurrentUser_EmailChangeRequiresPassword(t *testing.T) {
-	h, userRepo := setupTestHandler() // adminEmail = "admin@test.com"
+	h, userRepo := setupTestHandler(t) // adminEmail = "admin@test.com"
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -63,7 +63,7 @@ func TestUpdateCurrentUser_EmailChangeRequiresPassword(t *testing.T) {
 }
 
 func TestUpdateCurrentUser_EmailChangeClearsVerifiedAndDeniesAdmin(t *testing.T) {
-	h, userRepo := setupTestHandler() // adminEmail = "admin@test.com"
+	h, userRepo := setupTestHandler(t) // adminEmail = "admin@test.com"
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -112,7 +112,7 @@ func TestUpdateCurrentUser_EmailChangeClearsVerifiedAndDeniesAdmin(t *testing.T)
 // openapi_types.Email and would break every response serializing this user —
 // including the admin user list.
 func TestUpdateCurrentUser_RejectsNonRoundTrippableEmail(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

@@ -95,6 +95,9 @@ Before reviewing, list the feature's actual surface — do not guess from the na
 
 - Randomness for anything security-bearing: `crypto/rand`, **and check the error return**.
 - Encryption at rest: `pkg/cryptoutil` (AES-256-GCM, fresh nonce per encrypt). Do not hand-roll.
+  A new use derives its own subkey from `ENCRYPTION_KEY` (`DeriveKey`, HKDF) rather than
+  reusing another purpose's key or adding a third secret. Ciphertext in a table column binds
+  to its row with `EncryptWithAAD` so a blob cannot be moved between rows or owners.
 - Tokens are stored as SHA-256 hashes, are single-use, and expire. Passwords use `pkg/hash`
   (bcrypt cost 12).
 - New config secret? Validate it at startup and **fail closed** (`cmd/api/secrets.go` is the

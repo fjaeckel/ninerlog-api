@@ -51,6 +51,11 @@ func TestDocumentFileRepositoryIntegration(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 
+	// Every row carries a nonce — the column is NOT NULL — so these fixtures
+	// supply one. The repository stores whatever bytes it is handed and does
+	// not care whether they are really ciphertext; that is the service's job.
+	nonce := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+
 	newImage := func(data []byte) *models.DocumentFile {
 		licenseID := license.ID
 		w, h := 4, 4
@@ -64,6 +69,7 @@ func TestDocumentFileRepositoryIntegration(t *testing.T) {
 			Height:      &h,
 			Filename:    &name,
 			Data:        data,
+			DataNonce:   nonce,
 		}
 	}
 
@@ -251,6 +257,92 @@ func TestDocumentFileRepositoryIntegration(t *testing.T) {
 		}
 		if count != 0 {
 			t.Errorf("%d images survived the licence delete", count)
+		}
+	})
+}
+
+// The storage half of at-rest encryption: the nonce column round-trips with the
+// payload, and the schema refuses the shapes the read path would have to
+// second-guess — a wrong-length nonce, or none at all.
+func TestDocumentFileRepositoryEncryptionIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	db := testutil.SetupTestDB(t)
+	defer testutil.TeardownTestDB(t, db)
+
+	ctx := context.Background()
+	userRepo := postgres.NewUserRepository(db)
+	licenseRepo := postgres.NewLicenseRepository(db)
+	fileRepo := postgres.NewDocumentFileRepository(db)
+
+	user := testutil.CreateTestUser("docfile-crypto@example.com", "Crypto User", "hashedpass")
+	if err := userRepo.Create(ctx, user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	license := &models.License{
+		UserID: user.ID, RegulatoryAuthority: "EASA", LicenseType: "PPL",
+		LicenseNumber: "PPL-CRYPTO-1", IssueDate: time.Now(), IssuingAuthority: "LBA",
+	}
+	if err := licenseRepo.Create(ctx, license); err != nil {
+		t.Fatalf("create license: %v", err)
+	}
+
+	newFile := func(data, nonce []byte) *models.DocumentFile {
+		licenseID := license.ID
+		return &models.DocumentFile{
+			UserID:      user.ID,
+			LicenseID:   &licenseID,
+			ContentType: "image/png",
+			ByteSize:    len(data),
+			Data:        data,
+			DataNonce:   nonce,
+		}
+	}
+
+	ciphertext := []byte{0x9a, 0x11, 0x00, 0xff, 0x42}
+	nonce := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+
+	t.Run("the nonce round-trips with the payload", func(t *testing.T) {
+		// A caller-supplied id must survive: the service seals the bytes
+		// against it, so a database-generated substitute would make the file
+		// unreadable.
+		file := newFile(ciphertext, nonce)
+		file.ID = uuid.New()
+		wanted := file.ID
+		if err := fileRepo.Create(ctx, file, models.MaxDocumentFilesPerSubject); err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		if file.ID != wanted {
+			t.Fatalf("id = %v, want the one supplied (%v)", file.ID, wanted)
+		}
+
+		fetched, err := fileRepo.GetWithData(ctx, user.ID, models.DocumentSubjectLicense, license.ID, file.ID)
+		if err != nil {
+			t.Fatalf("get: %v", err)
+		}
+		if !bytes.Equal(fetched.Data, ciphertext) {
+			t.Error("stored bytes differ from what was written")
+		}
+		if !bytes.Equal(fetched.DataNonce, nonce) {
+			t.Errorf("nonce = %v, want %v", fetched.DataNonce, nonce)
+		}
+	})
+
+	t.Run("a wrong-length nonce is refused by the database", func(t *testing.T) {
+		file := newFile(ciphertext, []byte{1, 2, 3})
+		if err := fileRepo.Create(ctx, file, models.MaxDocumentFilesPerSubject); err == nil {
+			t.Fatal("a 3-byte nonce was accepted")
+		}
+	})
+
+	t.Run("a row with no nonce is refused by the database", func(t *testing.T) {
+		// The column is NOT NULL precisely so that "stored in the clear" is not
+		// a state the schema can represent.
+		file := newFile(ciphertext, nil)
+		if err := fileRepo.Create(ctx, file, models.MaxDocumentFilesPerSubject); err == nil {
+			t.Fatal("a row without a nonce was accepted")
 		}
 	})
 }

@@ -206,7 +206,7 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	// Admin email configured?
 	adminEmailConfigured := h.adminEmail != ""
 
-	// Cloud backups configured? (set when BACKUP_CREDENTIALS_KEY is provided)
+	// Cloud backups configured? (set when CLOUD_BACKUPS_ENABLED=true)
 	cloudBackupsConfigured := h.backupService != nil
 	cloudBackupProviders := []string{}
 	if cloudBackupsConfigured {

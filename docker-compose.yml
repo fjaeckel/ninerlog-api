@@ -44,6 +44,13 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       REFRESH_EXPIRES_IN: ${REFRESH_EXPIRES_IN:-7d}
       
+      # Encryption at rest — REQUIRED, the API will not start without it.
+      # Every subkey derives from this one secret: licence/credential files,
+      # 2FA secrets, backup credentials. Generate with
+      # `openssl rand -base64 32` and keep a copy somewhere safe — data sealed
+      # with it cannot be recovered without it, and there is no reset.
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:?required; generate one with openssl rand -base64 32}"
+
       # CORS
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:80}
       

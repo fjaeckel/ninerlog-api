@@ -37,6 +37,8 @@ services:
       PORT: "3000"
       JWT_SECRET: "perf-test-jwt-secret-key-minimum-32-chars"
       REFRESH_SECRET: "perf-test-refresh-secret-key-minimum-32"
+      # Required at startup; deterministic here because this stack is disposable.
+      ENCRYPTION_KEY: "cGVyZi1vbmx5LWVuY3J5cHRpb24ta2V5LTMyYnl0ZXM="
       CORS_ORIGIN: "*"
       ADMIN_EMAIL: "admin@ninerlog-perf.com"
       DISABLE_RATE_LIMIT: "true"

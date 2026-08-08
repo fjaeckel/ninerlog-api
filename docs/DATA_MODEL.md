@@ -50,8 +50,10 @@ flowchart TD
 The account holder. Notable fields:
 
 - Identity: `Email`, `PasswordHash` (bcrypt; never serialized), `Name`.
-- Verification & security: `EmailVerified`, `TwoFactorEnabled`, `TwoFactorSecret`,
-  `RecoveryCodes`, `FailedLoginAttempts`, `LockedUntil`, `Disabled`, `LastLoginAt`.
+- Verification & security: `EmailVerified`, `TwoFactorEnabled`, `TwoFactorSecret`
+  (AES-256-GCM under a subkey of `ENCRYPTION_KEY`, `enc:v1:`-marked; migration 61 cleared
+  every enrolment written before that was mandatory), `RecoveryCodes`,
+  `FailedLoginAttempts`, `LockedUntil`, `Disabled`, `LastLoginAt`.
   `LastLoginAt` is written by every path that issues a session — password login,
   the 2FA second factor, passkeys, OIDC, and the sign-up verification link — but
   not by a token refresh. See
@@ -112,7 +114,7 @@ the German radio certificates (`RADIO_BZF2`, `RADIO_BZF1`, `RADIO_AZF` — three
 certificates, not levels of one, and none of them expires), and `OTHER`. These feed expiry
 notifications.
 
-### DocumentFile (`internal/models/document_file.go`, migrations 57, 59)
+### DocumentFile (`internal/models/document_file.go`, migrations 57, 59, 60)
 
 Reference photos and scans attached to a licence **or** a credential — never both, never
 neither (`document_files_one_subject`). Two nullable FKs rather than a polymorphic
@@ -120,9 +122,9 @@ neither (`document_files_one_subject`). Two nullable FKs rather than a polymorph
 away for real. Migration 59 renamed the table from `document_images` when PDFs were
 added; the data, indexes and foreign keys carried over unchanged.
 
-- `data BYTEA` holds the raw bytes. Postgres TOASTs the payload out of line, and every
-  query except the single-file download uses an explicit column list that omits it, so a
-  listing never reads it.
+- `data BYTEA` holds the encrypted bytes. Postgres TOASTs the payload out of line, and
+  every query except the single-file download uses an explicit column list that omits it,
+  so a listing never reads it.
 - Bounded by design: at most 5 MB (`byte_size` CHECK) and 5 files per document. The
   per-document cap is enforced by counting and inserting inside one transaction that first
   takes `SELECT … FOR UPDATE` on the owning licence/credential row, so concurrent uploads
@@ -148,6 +150,14 @@ is never rendered inside the application's own origin. See
 
 The whole feature is switchable: `DOCUMENT_FILES_ENABLED=false` makes every file endpoint
 answer 403 without touching the stored rows.
+
+`data` holds AES-256-GCM ciphertext, with the nonce in `data_nonce` (migration 60). That
+column is `NOT NULL`: every row is encrypted, so the read path has no "maybe this one is
+plaintext" branch to get wrong. `byte_size`, `width` and `height` describe the plaintext
+file — the client shows them and the 5 MB cap is expressed in them — so they are not
+inflated by the authentication tag. The key is a subkey of `ENCRYPTION_KEY`, which the
+server requires at startup. Migration 60 deletes rows written before it; see
+[UPGRADING.md](./UPGRADING.md).
 
 ### Contact (`internal/models/contact.go`, migration 15)
 

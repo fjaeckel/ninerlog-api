@@ -16,7 +16,7 @@ import (
 // owned by that user.
 func seedPDFExportHandler(t *testing.T, n int) (*APIHandler, uuid.UUID) {
 	t.Helper()
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
 	userID := uuid.New()
 	userRepo.users[userID] = &models.User{ID: userID, Email: "pdf-export-test@example.com"}

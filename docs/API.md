@@ -367,6 +367,10 @@ Reference photos, scans and PDFs attached to a licence or a credential:
   the blobs is the bandwidth half of the abuse surface the switch exists to close. Stored
   rows are retained and become reachable again if it is switched back on.
   (`DOCUMENT_IMAGES_ENABLED`, the name this shipped under before PDFs, is still honoured.)
+- **Stored bytes are encrypted at rest** under a subkey of `ENCRYPTION_KEY`, which the
+  server requires at startup. A file it cannot decrypt — a key changed underneath stored
+  data — answers `500`, not `404`: it is there and it is yours, and pretending otherwise
+  would send a pilot looking for a scan they never lost.
 - Listings return metadata only (`contentType`, `byteSize`, `width`, `height`, `filename`,
   `caption`); `width`/`height` are null for formats without intrinsic dimensions such as
   PDF. The payload only ever comes back from a single file's own URL.

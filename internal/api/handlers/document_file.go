@@ -210,6 +210,13 @@ func (h *APIHandler) sendDocumentFileError(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrDocumentFileLimitReached):
 		h.sendError(c, http.StatusConflict,
 			fmt.Sprintf("This document already has the maximum of %d images", models.MaxDocumentFilesPerSubject))
+	case errors.Is(err, service.ErrDocumentFileUnreadable):
+		// The row exists and belongs to the caller; the server just cannot open
+		// it, which means a key problem on this side. A 500 is the honest
+		// answer — nothing the client sends will change it — and the message
+		// says so rather than implying the upload was somehow at fault.
+		h.sendError(c, http.StatusInternalServerError,
+			"This file cannot be read with the server's current encryption key")
 	case errors.Is(err, service.ErrDocumentFileEmpty),
 		errors.Is(err, service.ErrDocumentFileUnsupported),
 		errors.Is(err, service.ErrDocumentFileCorrupt),

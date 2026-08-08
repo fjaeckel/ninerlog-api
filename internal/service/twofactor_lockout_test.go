@@ -13,7 +13,7 @@ import (
 // After enough wrong codes the account locks, and subsequent attempts are
 // rejected with ErrAccountLocked even when the code is correct.
 func TestValidateTOTP_LocksAfterRepeatedFailures(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	ctx := context.Background()
 	user := createTestUserFor2FA(repo)
 
@@ -57,7 +57,7 @@ func TestValidateTOTP_LocksAfterRepeatedFailures(t *testing.T) {
 // A successful validation before the threshold clears the failure counter, so
 // intermittent typos don't accumulate into a lockout.
 func TestValidateTOTP_SuccessResetsFailureCounter(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	ctx := context.Background()
 	user := createTestUserFor2FA(repo)
 

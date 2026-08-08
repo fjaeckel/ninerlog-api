@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -17,15 +18,23 @@ func setup2FAServiceEncrypted(t *testing.T) (*service.TwoFactorService, *mock2FA
 	t.Helper()
 	repo := newMock2FAUserRepo()
 	jwtMgr := jwt.NewManager("test-access-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
-	key, err := cryptoutil.GenerateKey()
+	return service.NewTwoFactorService(repo, jwtMgr, testTOTPAEAD(t)), repo
+}
+
+// testTOTPAEAD builds the 2FA cipher the way main does — a subkey derived from
+// a master key — so the tests exercise the real key path rather than a raw key
+// the production code never constructs.
+func testTOTPAEAD(t *testing.T) *cryptoutil.AEAD {
+	t.Helper()
+	master, err := cryptoutil.GenerateKey()
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	aead, err := cryptoutil.New(key)
+	aead, err := cryptoutil.DeriveAEAD(master, cryptoutil.PurposeTOTPSecrets)
 	if err != nil {
-		t.Fatalf("new aead: %v", err)
+		t.Fatalf("derive key: %v", err)
 	}
-	return service.NewTwoFactorService(repo, jwtMgr, aead), repo
+	return aead
 }
 
 // The stored TOTP secret must be ciphertext, not the plaintext base32 secret.
@@ -82,9 +91,14 @@ func TestEncrypted2FA_VerifyAndValidateRoundTrip(t *testing.T) {
 	}
 }
 
-// Backward compatibility: an encryption-enabled service must still validate a
-// legacy plaintext secret written before encryption was introduced.
-func TestEncrypted2FA_ReadsLegacyPlaintextSecret(t *testing.T) {
+// An unprefixed secret is refused, not read as a legacy plaintext seed.
+//
+// Migration 61 cleared every enrolment that predates mandatory encryption, so
+// nothing legitimate writes one. Accepting it would mean anyone who can write to
+// the column — a restored dump, a stray admin query, SQL injection — could
+// choose a victim's TOTP seed simply by storing it unencrypted, which is a far
+// worse outcome than a failed login.
+func TestEncrypted2FA_RefusesAnUnprefixedSecret(t *testing.T) {
 	svc, repo := setup2FAServiceEncrypted(t)
 	ctx := context.Background()
 	user := createTestUserFor2FA(repo)
@@ -95,16 +109,33 @@ func TestEncrypted2FA_ReadsLegacyPlaintextSecret(t *testing.T) {
 	}
 	plain := key.Secret()
 	user.TwoFactorEnabled = true
-	user.TwoFactorSecret = &plain // stored WITHOUT the enc: prefix (legacy)
+	user.TwoFactorSecret = &plain // stored WITHOUT the enc: prefix
 	repo.users[user.ID] = user
 
 	code, _ := totp.GenerateCode(plain, time.Now())
 	valid, err := svc.ValidateTOTP(ctx, user.ID, code)
-	if err != nil {
-		t.Fatalf("ValidateTOTP legacy plaintext: %v", err)
+	if err == nil {
+		t.Fatal("an unencrypted secret was accepted")
 	}
-	if !valid {
-		t.Error("legacy plaintext secret should still validate")
+	if valid {
+		t.Error("ValidateTOTP reported success for an unencrypted secret")
+	}
+}
+
+// Without a key, 2FA is unavailable rather than unencrypted. A running server
+// cannot reach this — ENCRYPTION_KEY is required at startup — but the service
+// must not have a mode that writes seeds in the clear.
+func TestTwoFactor_WithoutAKeyRefusesRatherThanStoringPlaintext(t *testing.T) {
+	repo := newMock2FAUserRepo()
+	jwtMgr := jwt.NewManager("test-access-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
+	svc := service.NewTwoFactorService(repo, jwtMgr, nil)
+	user := createTestUserFor2FA(repo)
+
+	if _, _, err := svc.SetupTOTP(context.Background(), user.ID); !errors.Is(err, service.ErrTwoFactorKeyMissing) {
+		t.Fatalf("SetupTOTP: err = %v, want ErrTwoFactorKeyMissing", err)
+	}
+	if repo.users[user.ID].TwoFactorSecret != nil {
+		t.Error("a secret was stored despite the failure")
 	}
 }
 

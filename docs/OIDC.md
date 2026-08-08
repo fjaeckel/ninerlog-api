@@ -172,11 +172,16 @@ unparseable or non-positive value is a startup error, not a silent fallback.
 ### Variables that keep working
 
 `ADMIN_EMAIL`, `CORS_ORIGIN`, `FRONTEND_URL`, SMTP settings (still used for
-notifications and instructor signing emails), `BACKUP_CREDENTIALS_KEY`,
-`METRICS_ENABLED`, and the rate-limit knobs are all unaffected.
+notifications and instructor signing emails), `CLOUD_BACKUPS_ENABLED`,
+`ENCRYPTION_KEY`, `METRICS_ENABLED`, and the rate-limit knobs are all
+unaffected. `ENCRYPTION_KEY` is required in OIDC mode too: it protects
+licence/credential files and backup credentials, which are logbook features
+rather than authentication ones.
 
-`WEBAUTHN_RP_ID`, `WEBAUTHN_*` and `TOTP_ENCRYPTION_KEY` are ignored in OIDC
-mode; the subsystems they configure are not started.
+`WEBAUTHN_RP_ID` and `WEBAUTHN_*` are ignored in OIDC mode; the subsystems
+they configure are not started. The same goes for the TOTP subkey derived from
+`ENCRYPTION_KEY` — the provider owns second factors — but the key itself is
+still required for everything else that uses it.
 
 ---
 
