@@ -347,9 +347,15 @@ Reference photos/scans attached to a licence or a credential:
   unauthenticated image URL, so the bytes cannot be loaded straight into an `<img src>`;
   fetch with the `Authorization` header and render the blob.
 - **JPEG and PNG only, at most 5 MB and 5 images per document.** The format is decided by
-  decoding the bytes — the declared part `Content-Type` is ignored, and a file that does
-  not parse as the format it claims is rejected with `400`. Oversized files get `413`; a
-  document already at its cap gets `409`.
+  parsing the file's header — the declared part `Content-Type` is ignored, and a file whose
+  header does not parse as the format it claims is rejected with `400`. Oversized files get
+  `413`; a document already at its cap gets `409`.
+  - Validation stops at the header (PNG `IHDR`, JPEG `SOF`), because proving every byte
+    means a full decode and a full pixel allocation — the cost the dimension cap exists to
+    avoid. A valid header followed by arbitrary trailing bytes is therefore stored as-is.
+    Serving is what contains that: the response carries the sniffed content type and the
+    global `X-Content-Type-Options: nosniff`, and needs a bearer token, so the bytes can
+    never be navigated to or reinterpreted as a scriptable type.
 - **The whole feature can be switched off** with `DOCUMENT_IMAGES_ENABLED=false`, in which
   case every one of these endpoints answers `403` — reads as well as writes, since serving
   the blobs is the bandwidth half of the abuse surface the switch exists to close. Stored

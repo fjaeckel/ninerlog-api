@@ -222,10 +222,24 @@ func (s *DocumentImageService) Delete(ctx context.Context, userID uuid.UUID, sub
 // The declared Content-Type of the multipart part is ignored entirely: it is
 // attacker-controlled, and the only thing that matters is what the bytes
 // actually are — because those same bytes get served back from our own origin
-// later. Sniffing pins the format, and DecodeConfig proves the file really
-// parses as that format (a "PNG" that is actually an HTML document with a PNG
-// magic prefix fails here) while reading only the header, so a decompression
-// bomb is rejected on its declared dimensions rather than by allocating it.
+// later. Sniffing pins the format, DecodeConfig requires the header to parse
+// as that same format, and the header's declared dimensions are capped, so a
+// decompression bomb is refused without ever allocating its pixels.
+//
+// This validates the HEADER, not the whole file. DecodeConfig stops at the
+// PNG IHDR / JPEG SOF, so a valid header followed by arbitrary bytes — or by
+// nothing at all — is accepted and stored verbatim. That is a deliberate
+// trade: a full image.Decode is the only thing that proves every byte, and it
+// must allocate the entire pixel buffer, which is exactly the cost the
+// dimension cap above exists to avoid.
+//
+// Serving is what makes that acceptable. The response Content-Type is the
+// sniffed value, never the uploader's, X-Content-Type-Options: nosniff is set
+// on every response, and the download requires a bearer token — so a browser
+// can neither navigate to these bytes nor reinterpret them as anything but an
+// image. The residual is storage: a caller can park arbitrary bytes behind a
+// valid header, bounded by the 5 MB × 5-per-document caps and attributable to
+// their account. See TestDocumentImageUpload_ValidatesTheHeaderNotTheWholeFile.
 func inspectImage(data []byte) (contentType string, width, height int, err error) {
 	if len(data) == 0 {
 		return "", 0, 0, ErrDocumentImageEmpty

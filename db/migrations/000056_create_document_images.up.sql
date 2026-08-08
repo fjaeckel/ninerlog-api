@@ -27,9 +27,9 @@ CREATE TABLE document_images (
     license_id    UUID REFERENCES licenses(id) ON DELETE CASCADE,
     credential_id UUID REFERENCES credentials(id) ON DELETE CASCADE,
 
-    -- Only formats the API can decode and re-verify server-side. Anything
-    -- else (SVG above all, which is a script-execution vector when served
-    -- inline) is rejected at the handler before it reaches this table.
+    -- Only formats whose header the API can parse and re-verify server-side.
+    -- Anything else (SVG above all, which is a script-execution vector when
+    -- served inline) is rejected at the handler before it reaches this table.
     content_type  TEXT NOT NULL CHECK (content_type IN ('image/jpeg', 'image/png')),
 
     -- Denormalized from data so listings never have to read the payload.

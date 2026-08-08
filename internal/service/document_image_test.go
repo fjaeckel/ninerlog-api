@@ -279,6 +279,51 @@ func TestDocumentImageUpload_RejectsNonImageContent(t *testing.T) {
 	}
 }
 
+// Characterization test: validation stops at the header, so a valid header
+// followed by arbitrary bytes IS accepted. This is deliberate — proving every
+// byte means a full image.Decode, which allocates the whole pixel buffer and
+// reintroduces the decompression-bomb cost the dimension cap exists to avoid.
+//
+// It is contained by how the bytes are served, not by the validator: the
+// response Content-Type is the sniffed value, X-Content-Type-Options: nosniff
+// is global, and the download needs a bearer token, so a browser can never
+// navigate to these bytes or treat them as a scriptable type. The residual is
+// storage abuse, bounded by the size and per-document caps.
+//
+// If validation is ever tightened to full decode or a structural walk, this
+// test SHOULD fail — update it together with the claims in
+// api-spec/openapi.yaml, docs/API.md and docs/FEATURES.md.
+func TestDocumentImageUpload_ValidatesTheHeaderNotTheWholeFile(t *testing.T) {
+	html := []byte("<html><script>alert(1)</script></html>")
+	valid := pngBytes(t, 8, 8)
+
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{"trailing payload after a complete PNG", append(append([]byte{}, valid...), html...)},
+		{"PNG header with a payload where the pixel data belongs", append(append([]byte{}, valid[:33]...), html...)},
+		{"PNG header and nothing else", valid[:33]},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newDocImageFixture(t, true)
+			img, err := f.upload(t, tt.data)
+			if err != nil {
+				t.Fatalf("expected the header-only check to accept this, got %v", err)
+			}
+			// Whatever rode along, the stored type is the sniffed one — which is
+			// what the download responds with, under nosniff.
+			if img.ContentType != "image/png" {
+				t.Errorf("contentType = %q, want image/png", img.ContentType)
+			}
+			if img.ByteSize != len(tt.data) {
+				t.Errorf("byteSize = %d, want %d — the payload is stored verbatim", img.ByteSize, len(tt.data))
+			}
+		})
+	}
+}
+
 func TestDocumentImageUpload_RejectsOversizedFile(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	oversized := make([]byte, models.MaxDocumentImageBytes+1)
