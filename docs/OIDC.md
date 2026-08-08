@@ -65,6 +65,19 @@ deployment that leaves `OIDC_ISSUER` unset.
 | `POST /api/v1/auth/2fa/*` | second factors are the provider's job |
 | `POST /api/v1/auth/webauthn/*` | passkeys are a local credential |
 | `POST /api/v1/admin/users/{id}/reset-2fa` | nothing to reset |
+| `POST /api/v1/admin/maintenance/cleanup-unverified` | see below |
+
+**Unverified-account reaping is refused outright.** In local mode, an account
+left with `email_verified = false` is an abandoned signup, and the background
+worker reminds it and then deletes it after a retention window (see
+[AUTHENTICATION.md](./AUTHENTICATION.md#unverified-account-lifecycle)).
+
+Under OIDC the same flag means something entirely different: the provider did
+not assert `email_verified` for an account whose owner may be signing in every
+day. Deleting on that basis would destroy live accounts, so the worker is never
+started and the admin endpoint answers `503`. `UNVERIFIED_CLEANUP_ENABLED=true`
+does not override this — the mode wins. `GET /api/v1/admin/config` reports
+`unverifiedCleanupDisabledReason: "oidc_mode"`.
 
 **Switched on.**
 

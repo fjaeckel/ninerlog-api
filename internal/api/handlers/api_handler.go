@@ -50,6 +50,11 @@ type APIHandler struct {
 	// the operator-facing off switch lives inside the service itself so that
 	// GET /features can still report it accurately.
 	documentImageService *service.DocumentImageService
+	// emailDeliveryService and unverifiedAccountService are nil until wired in
+	// cmd/api/main.go; the admin endpoints that use them answer 503 rather than
+	// panicking when a deployment runs without them.
+	emailDeliveryService     *service.EmailDeliveryService
+	unverifiedAccountService *service.UnverifiedAccountService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

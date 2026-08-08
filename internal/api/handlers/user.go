@@ -161,7 +161,7 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 	// and the user can request a fresh link via /auth/verify-email/resend.
 	if emailChanged {
 		if token, err := h.authService.CreateEmailVerificationToken(c.Request.Context(), userID); err == nil {
-			h.sendVerificationEmail(user.Email, user.Name, user.PreferredLocale, token)
+			h.sendVerificationEmail(c.Request.Context(), user.Email, user.Name, user.PreferredLocale, token)
 		}
 	}
 

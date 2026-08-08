@@ -90,6 +90,125 @@ POST /api/v1/auth/register
 
 ---
 
+### Unverified account lifecycle
+
+When SMTP is configured, registration creates the account with
+`email_verified = false` and it cannot log in until the address is confirmed.
+Without SMTP, registration marks the account verified immediately — there is no
+way to ask for confirmation, so nothing below applies.
+
+> **Never runs in OIDC mode.** With an identity provider in charge, local
+> registration and email verification are switched off entirely, so
+> `email_verified = false` no longer means "an abandoned signup". It means the
+> provider did not assert `email_verified` for an account somebody may be using
+> daily. Reaping on that signal would delete live accounts, so the service is
+> not constructed at all when `OIDC_ISSUER` is set — no worker, no admin
+> endpoint, and `UNVERIFIED_CLEANUP_ENABLED=true` cannot override it.
+
+An account that never confirms is a dead account: it holds nothing and cannot be
+used. Rather than accumulating forever, it is reminded once and then reaped.
+
+```
+signup ──24h──> reminder email ──30d──> account deleted
+                (starts the clock)      (irreversible, cascades)
+```
+
+1. **Reminder.** A sweep (hourly by default) finds accounts unverified longer
+   than `UNVERIFIED_REMINDER_AFTER`, mints a fresh verification token, and sends
+   a reminder that states the deletion deadline outright.
+2. **Retention.** The reminder timestamp — not the signup date — starts the
+   clock. `UNVERIFIED_ACCOUNT_RETENTION` after it, the account is deleted along
+   with everything it owns via `ON DELETE CASCADE`.
+3. **Confirming at any point** during the window flips `email_verified` and
+   removes the account from scope permanently.
+
+**Accounts that are never reaped.** The per-account guards below are enforced in
+SQL at both the listing and the deletion so neither can drift from the other.
+They are a second line of defence behind the OIDC-mode refusal above: a
+deployment that ran OIDC and later switched back to local auth still holds
+provider-provisioned accounts, and those must not become reapable just because
+the mode changed.
+
+| Excluded | Why |
+| --- | --- |
+| `email_verified = true` | Nothing to chase |
+| `last_login_at IS NOT NULL` | The account is in use, whatever the flag says |
+| Linked to an OIDC identity | Authenticates through its provider; our verification link is irrelevant to it |
+
+
+**Send failures.** The stamp only goes on when the outcome is final:
+
+- **Delivered** → clock starts.
+- **Permanently undeliverable** (mailbox does not exist, or the address is
+  already suppressed) → clock starts anyway. No later attempt would do better,
+  and without the stamp the account would never be reaped at all. The full
+  retention window still applies — a hard bounce does not shorten it.
+- **Transient failure** (our SMTP server is down, greylisting) → nothing is
+  stamped, and the account is retried on the next sweep. An outage must never
+  start deletion clocks.
+
+**Configuration** (all optional):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `UNVERIFIED_CLEANUP_ENABLED` | `true` | Set to `false` to keep dead rows rather than risk deleting one. Cannot switch the feature **on** — SMTP and non-OIDC mode are both prerequisites |
+| `UNVERIFIED_REMINDER_AFTER` | `24h` | Delay from signup to the reminder |
+| `UNVERIFIED_ACCOUNT_RETENTION` | `720h` (30d) | Grace period from the reminder to deletion |
+| `UNVERIFIED_CLEANUP_INTERVAL` | `1h` | How often the sweep runs |
+
+An unparseable or non-positive value falls back to the default rather than
+disabling a step — a typo must not quietly reap accounts on a schedule nobody
+chose.
+
+`GET /api/v1/admin/config` reports `unverifiedCleanupEnabled` and, when it is
+off, `unverifiedCleanupDisabledReason` (`oidc_mode`, `smtp_not_configured`, or
+`disabled_by_configuration`), so a disabled reaper is explained rather than
+merely absent.
+
+`POST /api/v1/admin/maintenance/cleanup-unverified` runs a sweep on demand, and
+answers `503` on a deployment where the reaper does not run.
+`GET /api/v1/admin/users` reports `verificationReminderSentAt`,
+`scheduledDeletionAt`, and `emailSuppressed` for accounts still in the window.
+
+### Email deliverability
+
+An SMTP client learns about delivery only during the SMTP conversation, so that
+is what is recorded. Every send writes a row to `email_delivery_events` with the
+outcome and the server's reply code, and a permanent recipient-level refusal
+adds the address to `email_suppressions`, after which nothing is sent to it.
+
+The classification depends on **which command** was refused, so the send path
+runs the conversation step by step instead of calling `smtp.SendMail`:
+
+| Outcome | Cause | Suppresses the address? |
+| --- | --- | --- |
+| `delivered` | Message accepted | — |
+| `hard_bounce` | 5xx to `RCPT TO` | **Yes** |
+| `soft_bounce` | 4xx to `RCPT TO`, or 4xx after the body | No |
+| `rejected` | 5xx after the message body — size, content, reputation | No |
+| `server_error` | Dial, TLS, `AUTH`, or `MAIL FROM` failure | No |
+| `invalid_address` | Failed to parse; never dialled | Yes |
+| `suppressed` | Refused before dialling | Yes (already) |
+| `dry_run` | SMTP not configured | — |
+
+A 5xx from `AUTH` and a 5xx from `RCPT TO` are both permanent replies. Treating
+them alike would mean one stale SMTP password suppressed every address the
+system mails, which is why authentication and envelope failures can never be
+bounces.
+
+**Not covered:** asynchronous bounces. Most servers accept a message and bounce
+it later via a DSN to the `Return-Path` address. Catching those needs a mailbox
+polled over IMAP (with VERP addressing) or an ESP with webhooks; neither exists
+here, so `delivered` means "the receiving server accepted it", not "it reached
+an inbox".
+
+Administrators can inspect the log at `GET /api/v1/admin/email/deliveries`, list
+suppressions at `GET /api/v1/admin/email/suppressions`, and lift one with
+`DELETE /api/v1/admin/email/suppressions/{email}` when a mailbox is known to
+work again.
+
+---
+
 ### Login
 
 ```

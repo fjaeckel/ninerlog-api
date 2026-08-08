@@ -323,3 +323,86 @@ func (r *UserRepository) MarkEmailVerified(ctx context.Context, id uuid.UUID) er
 	}
 	return nil
 }
+
+// unverifiedAccountGuards restricts every reaper query to accounts that are
+// genuinely dead signups.
+//
+// Two exclusions matter beyond "not verified yet":
+//
+//   - last_login_at IS NULL — an account that has logged in is in use, whatever
+//     its verified flag says. OIDC provisioning can leave a working account
+//     unverified when the provider reports email_verified=false.
+//   - no OIDC identity — such an account authenticates through its provider and
+//     is never going to consume a link from our verification email.
+const unverifiedAccountGuards = `
+	email_verified = FALSE
+	AND last_login_at IS NULL
+	AND NOT EXISTS (SELECT 1 FROM oidc_identities oi WHERE oi.user_id = users.id)
+`
+
+func (r *UserRepository) ListUnverifiedForReminder(ctx context.Context, createdBefore time.Time, limit int) ([]*models.User, error) {
+	query := `
+		SELECT id, email, name, preferred_locale, created_at
+		FROM users
+		WHERE ` + unverifiedAccountGuards + `
+		  AND verification_reminder_sent_at IS NULL
+		  AND created_at < $1
+		ORDER BY created_at
+		LIMIT $2
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, createdBefore, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	// Only the fields the reminder email needs are selected; the rest of the
+	// user record is irrelevant to sending it.
+	users := []*models.User{}
+	for rows.Next() {
+		u := &models.User{}
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.PreferredLocale, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+func (r *UserRepository) MarkVerificationReminderSent(ctx context.Context, id uuid.UUID, at time.Time) error {
+	// Guarded on the column still being NULL so two overlapping sweeps cannot
+	// move the deletion clock forward on an account that was already reminded.
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE users
+		SET verification_reminder_sent_at = $1
+		WHERE id = $2 AND verification_reminder_sent_at IS NULL
+	`, at, id)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+
+func (r *UserRepository) DeleteUnverifiedRemindedBefore(ctx context.Context, remindedBefore time.Time) (int64, error) {
+	// The guards are repeated here rather than trusted from the listing query:
+	// this is the statement that destroys data, and it must stand on its own.
+	// Every dependent row goes with it through ON DELETE CASCADE.
+	result, err := r.db.ExecContext(ctx, `
+		DELETE FROM users
+		WHERE `+unverifiedAccountGuards+`
+		  AND verification_reminder_sent_at IS NOT NULL
+		  AND verification_reminder_sent_at < $1
+	`, remindedBefore)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

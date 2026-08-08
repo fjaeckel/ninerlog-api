@@ -30,6 +30,27 @@ func (e AdminConfigAuthMode) Valid() bool {
 	}
 }
 
+// Defines values for AdminConfigUnverifiedCleanupDisabledReason.
+const (
+	DisabledByConfiguration AdminConfigUnverifiedCleanupDisabledReason = "disabled_by_configuration"
+	OidcMode                AdminConfigUnverifiedCleanupDisabledReason = "oidc_mode"
+	SmtpNotConfigured       AdminConfigUnverifiedCleanupDisabledReason = "smtp_not_configured"
+)
+
+// Valid indicates whether the value is a known member of the AdminConfigUnverifiedCleanupDisabledReason enum.
+func (e AdminConfigUnverifiedCleanupDisabledReason) Valid() bool {
+	switch e {
+	case DisabledByConfiguration:
+		return true
+	case OidcMode:
+		return true
+	case SmtpNotConfigured:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnnouncementSeverity.
 const (
 	AnnouncementSeverityCritical AnnouncementSeverity = "critical"
@@ -423,6 +444,42 @@ func (e DocumentImageContentType) Valid() bool {
 	case Imagejpeg:
 		return true
 	case Imagepng:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EmailDeliveryEventStatus.
+const (
+	Delivered      EmailDeliveryEventStatus = "delivered"
+	DryRun         EmailDeliveryEventStatus = "dry_run"
+	HardBounce     EmailDeliveryEventStatus = "hard_bounce"
+	InvalidAddress EmailDeliveryEventStatus = "invalid_address"
+	Rejected       EmailDeliveryEventStatus = "rejected"
+	ServerError    EmailDeliveryEventStatus = "server_error"
+	SoftBounce     EmailDeliveryEventStatus = "soft_bounce"
+	Suppressed     EmailDeliveryEventStatus = "suppressed"
+)
+
+// Valid indicates whether the value is a known member of the EmailDeliveryEventStatus enum.
+func (e EmailDeliveryEventStatus) Valid() bool {
+	switch e {
+	case Delivered:
+		return true
+	case DryRun:
+		return true
+	case HardBounce:
+		return true
+	case InvalidAddress:
+		return true
+	case Rejected:
+		return true
+	case ServerError:
+		return true
+	case SoftBounce:
+		return true
+	case Suppressed:
 		return true
 	default:
 		return false
@@ -1382,6 +1439,9 @@ type AdminConfig struct {
 	// DocumentImagesEnabled Whether licence/credential reference images are enabled (DOCUMENT_IMAGES_ENABLED is not "false")
 	DocumentImagesEnabled *bool `json:"documentImagesEnabled,omitempty"`
 
+	// EmailSuppressedCount Addresses currently suppressed after a permanent delivery failure.
+	EmailSuppressedCount *int `json:"emailSuppressedCount,omitempty"`
+
 	// GoVersion Example: go1.23.0
 	GoVersion string `json:"goVersion"`
 
@@ -1410,10 +1470,40 @@ type AdminConfig struct {
 
 	// SmtpConfigured Whether SMTP is configured
 	SmtpConfigured bool `json:"smtpConfigured"`
+
+	// UnverifiedCleanupDisabledReason Why the cleanup is not running, absent when it is. `oidc_mode` is not
+	// configurable: with an identity provider in charge, an unverified
+	// account is one the provider did not assert `email_verified` for — not
+	// an abandoned signup — so reaping is refused outright.
+	UnverifiedCleanupDisabledReason *AdminConfigUnverifiedCleanupDisabledReason `json:"unverifiedCleanupDisabledReason,omitempty"`
+
+	// UnverifiedCleanupEnabled Whether unverified accounts are reminded and then deleted. Requires
+	// SMTP to be configured; without it, registration marks accounts
+	// verified immediately and nothing is reaped. Always false in OIDC
+	// mode.
+	UnverifiedCleanupEnabled *bool `json:"unverifiedCleanupEnabled,omitempty"`
+
+	// UnverifiedReminderAfter How long after signup the verification reminder is sent.
+	//
+	// Example: 24h0m0s
+	UnverifiedReminderAfter *string `json:"unverifiedReminderAfter,omitempty"`
+
+	// UnverifiedRetention How long an account survives, unverified, after that reminder before
+	// it is deleted.
+	//
+	//
+	// Example: 720h0m0s
+	UnverifiedRetention *string `json:"unverifiedRetention,omitempty"`
 }
 
 // AdminConfigAuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
 type AdminConfigAuthMode string
+
+// AdminConfigUnverifiedCleanupDisabledReason Why the cleanup is not running, absent when it is. `oidc_mode` is not
+// configurable: with an identity provider in charge, an unverified
+// account is one the provider did not assert `email_verified` for — not
+// an abandoned signup — so reaping is refused outright.
+type AdminConfigUnverifiedCleanupDisabledReason string
 
 // AdminStats defines model for AdminStats.
 type AdminStats struct {
@@ -1448,6 +1538,11 @@ type AdminUser struct {
 	Disabled bool                `json:"disabled"`
 	Email    openapi_types.Email `json:"email"`
 
+	// EmailSuppressed Whether this address is on the suppression list after a permanent
+	// delivery failure. A suppressed address receives no further mail, so
+	// an unverified account with this flag set will never verify.
+	EmailSuppressed *bool `json:"emailSuppressed,omitempty"`
+
 	// EmailVerified Whether the user has verified their email address and completed sign-up
 	EmailVerified bool `json:"emailVerified"`
 
@@ -1462,9 +1557,20 @@ type AdminUser struct {
 	Locked *bool `json:"locked,omitempty"`
 
 	// LockedUntil When the brute-force lock expires
-	LockedUntil      *time.Time `json:"lockedUntil,omitempty"`
-	Name             string     `json:"name"`
-	TwoFactorEnabled bool       `json:"twoFactorEnabled"`
+	LockedUntil *time.Time `json:"lockedUntil,omitempty"`
+	Name        string     `json:"name"`
+
+	// ScheduledDeletionAt When this unverified account will be deleted if the address is still
+	// not confirmed. Absent for verified accounts and for accounts that
+	// have not been reminded yet.
+	ScheduledDeletionAt *time.Time `json:"scheduledDeletionAt,omitempty"`
+	TwoFactorEnabled    bool       `json:"twoFactorEnabled"`
+
+	// VerificationReminderSentAt When the follow-up email-verification reminder was sent. Absent when
+	// the account is verified, or when the reminder is not due yet. This
+	// timestamp starts the retention clock: an account still unverified
+	// once the retention window has elapsed from here is deleted.
+	VerificationReminderSentAt *time.Time `json:"verificationReminderSentAt,omitempty"`
 }
 
 // Aircraft defines model for Aircraft.
@@ -2887,6 +2993,54 @@ type DocumentImageUpload struct {
 
 	// File JPEG or PNG image, at most 5 MB
 	File openapi_types.File `json:"file"`
+}
+
+// EmailDeliveryEvent defines model for EmailDeliveryEvent.
+type EmailDeliveryEvent struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Detail Server reply text or internal reason, for operators.
+	Detail *string `json:"detail,omitempty"`
+
+	// EmailType What the message was for, e.g. verify_email, verification_reminder.
+	EmailType string              `json:"emailType"`
+	Id        openapi_types.UUID  `json:"id"`
+	Recipient openapi_types.Email `json:"recipient"`
+
+	// SmtpCode SMTP reply code, absent when there was no conversation.
+	SmtpCode *int `json:"smtpCode,omitempty"`
+
+	// Status What the SMTP conversation said. `delivered` means the receiving
+	// server accepted the message — not that it reached an inbox, which an
+	// SMTP client cannot observe. `hard_bounce` is a permanent refusal of
+	// the recipient itself and is the only status that suppresses an
+	// address; `rejected` and `server_error` blame the message or our own
+	// mail setup and never do.
+	Status EmailDeliveryEventStatus `json:"status"`
+
+	// UserId Account the address belonged to when sent, if any.
+	UserId *openapi_types.UUID `json:"userId,omitempty"`
+}
+
+// EmailDeliveryEventStatus What the SMTP conversation said. `delivered` means the receiving
+// server accepted the message — not that it reached an inbox, which an
+// SMTP client cannot observe. `hard_bounce` is a permanent refusal of
+// the recipient itself and is the only status that suppresses an
+// address; `rejected` and `server_error` blame the message or our own
+// mail setup and never do.
+type EmailDeliveryEventStatus string
+
+// EmailSuppression defines model for EmailSuppression.
+type EmailSuppression struct {
+	BounceCount    int                 `json:"bounceCount"`
+	Detail         *string             `json:"detail,omitempty"`
+	Email          openapi_types.Email `json:"email"`
+	FirstBouncedAt time.Time           `json:"firstBouncedAt"`
+	LastBouncedAt  time.Time           `json:"lastBouncedAt"`
+
+	// Reason Delivery status that caused the suppression.
+	Reason   string `json:"reason"`
+	SmtpCode *int   `json:"smtpCode,omitempty"`
 }
 
 // Error defines model for Error.
@@ -4721,6 +4875,20 @@ type CreateAnnouncementJSONBodySeverity string
 type ListAdminAuditLogParams struct {
 	Page     *int `form:"page,omitempty" json:"page,omitempty"`
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListEmailDeliveriesParams defines parameters for ListEmailDeliveries.
+type ListEmailDeliveriesParams struct {
+	// Recipient Narrow the log to one address.
+	Recipient *openapi_types.Email `form:"recipient,omitempty" json:"recipient,omitempty"`
+
+	// Limit Maximum events to return.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListEmailSuppressionsParams defines parameters for ListEmailSuppressions.
+type ListEmailSuppressionsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListAdminUsersParams defines parameters for ListAdminUsers.

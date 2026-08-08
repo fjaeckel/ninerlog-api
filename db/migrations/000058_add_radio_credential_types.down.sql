@@ -1,4 +1,4 @@
--- Postgres cannot drop a value from an enum, so reversing migration 57 means
+-- Postgres cannot drop a value from an enum, so reversing migration 58 means
 -- rebuilding the type without the radio certificates and re-pointing the
 -- column at it.
 --

@@ -26,9 +26,21 @@ type ServerInterface interface {
 	// GetAdminConfig Runtime configuration (non-secret)
 	// (GET /admin/config)
 	GetAdminConfig(c *gin.Context)
+	// ListEmailDeliveries Recent email delivery events
+	// (GET /admin/email/deliveries)
+	ListEmailDeliveries(c *gin.Context, params ListEmailDeliveriesParams)
+	// ListEmailSuppressions List suppressed email addresses
+	// (GET /admin/email/suppressions)
+	ListEmailSuppressions(c *gin.Context, params ListEmailSuppressionsParams)
+	// DeleteEmailSuppression Lift an email suppression
+	// (DELETE /admin/email/suppressions/{email})
+	DeleteEmailSuppression(c *gin.Context, email openapi_types.Email)
 	// CleanupTokens Clean up expired tokens
 	// (POST /admin/maintenance/cleanup-tokens)
 	CleanupTokens(c *gin.Context)
+	// CleanupUnverifiedAccounts Sweep unverified accounts now
+	// (POST /admin/maintenance/cleanup-unverified)
+	CleanupUnverifiedAccounts(c *gin.Context)
 	// SmtpTest Send SMTP test email
 	// (POST /admin/maintenance/smtp-test)
 	SmtpTest(c *gin.Context)
@@ -507,6 +519,93 @@ func (siw *ServerInterfaceWrapper) GetAdminConfig(c *gin.Context) {
 	siw.Handler.GetAdminConfig(c)
 }
 
+// ListEmailDeliveries operation middleware
+func (siw *ServerInterfaceWrapper) ListEmailDeliveries(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListEmailDeliveriesParams
+
+	// ------------- Optional query parameter "recipient" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "recipient", c.Request.URL.Query(), &params.Recipient, runtime.BindQueryParameterOptions{Type: "string", Format: "email"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter recipient: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListEmailDeliveries(c, params)
+}
+
+// ListEmailSuppressions operation middleware
+func (siw *ServerInterfaceWrapper) ListEmailSuppressions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListEmailSuppressionsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListEmailSuppressions(c, params)
+}
+
+// DeleteEmailSuppression operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEmailSuppression(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "email" -------------
+	var email openapi_types.Email
+
+	err = runtime.BindStyledParameterWithOptions("simple", "email", c.Param("email"), &email, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "email", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter email: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteEmailSuppression(c, email)
+}
+
 // CleanupTokens operation middleware
 func (siw *ServerInterfaceWrapper) CleanupTokens(c *gin.Context) {
 
@@ -518,6 +617,19 @@ func (siw *ServerInterfaceWrapper) CleanupTokens(c *gin.Context) {
 	}
 
 	siw.Handler.CleanupTokens(c)
+}
+
+// CleanupUnverifiedAccounts operation middleware
+func (siw *ServerInterfaceWrapper) CleanupUnverifiedAccounts(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CleanupUnverifiedAccounts(c)
 }
 
 // SmtpTest operation middleware
@@ -3570,6 +3682,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/admin/maintenance/cleanup-tokens", wrapper.CleanupTokens)
 	router.POST(options.BaseURL+"/admin/maintenance/smtp-test", wrapper.SmtpTest)
 	router.POST(options.BaseURL+"/admin/maintenance/trigger-notifications", wrapper.TriggerNotifications)
+	router.POST(options.BaseURL+"/admin/maintenance/cleanup-unverified", wrapper.CleanupUnverifiedAccounts)
+	router.GET(options.BaseURL+"/admin/email/deliveries", wrapper.ListEmailDeliveries)
+	router.GET(options.BaseURL+"/admin/email/suppressions", wrapper.ListEmailSuppressions)
+	router.DELETE(options.BaseURL+"/admin/email/suppressions/:email", wrapper.DeleteEmailSuppression)
 	router.GET(options.BaseURL+"/admin/config", wrapper.GetAdminConfig)
 	router.GET(options.BaseURL+"/announcements", wrapper.GetAnnouncements)
 	router.POST(options.BaseURL+"/admin/announcements", wrapper.CreateAnnouncement)

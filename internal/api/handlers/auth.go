@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -59,7 +60,7 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 	if verificationRequired {
 		// Deliver the verification email. Failures here are logged but do not
 		// fail the request — the user can request a fresh email via /auth/verify-email/resend.
-		h.sendVerificationEmail(user.Email, user.Name, user.PreferredLocale, verificationToken)
+		h.sendVerificationEmail(c.Request.Context(), user.Email, user.Name, user.PreferredLocale, verificationToken)
 	} else {
 		if err := h.authService.MarkEmailVerified(c.Request.Context(), user.ID); err != nil {
 			h.sendError(c, http.StatusInternalServerError, "Registration failed")
@@ -140,7 +141,7 @@ func (h *APIHandler) ResendVerificationEmail(c *gin.Context) {
 	}
 
 	if token != "" && userEmail != "" {
-		h.sendVerificationEmail(userEmail, userName, locale, token)
+		h.sendVerificationEmail(c.Request.Context(), userEmail, userName, locale, token)
 	}
 
 	c.Status(http.StatusNoContent)
@@ -148,7 +149,7 @@ func (h *APIHandler) ResendVerificationEmail(c *gin.Context) {
 
 // sendVerificationEmail delivers the email-verification message. Errors are
 // swallowed: the operator can inspect SMTP logs and the user can resend.
-func (h *APIHandler) sendVerificationEmail(toEmail, userName, locale, token string) {
+func (h *APIHandler) sendVerificationEmail(ctx context.Context, toEmail, userName, locale, token string) {
 	if h.emailSender == nil || toEmail == "" || token == "" {
 		return
 	}
@@ -159,7 +160,9 @@ func (h *APIHandler) sendVerificationEmail(toEmail, userName, locale, token stri
 		UserName: userName,
 		Link:     link,
 	})
-	_ = h.emailSender.Send(toEmail, subject, body)
+	_ = h.emailSender.SendMessage(ctx, emailpkg.Message{
+		To: toEmail, Subject: subject, HTMLBody: body, Type: emailpkg.TypeVerifyEmail,
+	})
 }
 
 // LoginUser implements POST /auth/login
@@ -416,7 +419,9 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 			Link:             resetLink,
 			TwoFactorEnabled: reset.TwoFactorEnabled,
 		})
-		_ = h.emailSender.Send(reset.Email, subject, body)
+		_ = h.emailSender.SendMessage(c.Request.Context(), emailpkg.Message{
+			To: reset.Email, Subject: subject, HTMLBody: body, Type: emailpkg.TypePasswordReset,
+		})
 	}
 
 	// Always return 204 to prevent user enumeration
@@ -481,7 +486,7 @@ func (h *APIHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	h.sendPasswordChangedEmail(result)
+	h.sendPasswordChangedEmail(c.Request.Context(), result)
 
 	c.Status(http.StatusNoContent)
 }
@@ -490,7 +495,7 @@ func (h *APIHandler) ResetPassword(c *gin.Context) {
 // reset — the signal that makes an unauthorised reset visible to them. Errors
 // are swallowed: the reset itself already succeeded and must not be reported as
 // failed because SMTP is down.
-func (h *APIHandler) sendPasswordChangedEmail(result *service.PasswordResetResult) {
+func (h *APIHandler) sendPasswordChangedEmail(ctx context.Context, result *service.PasswordResetResult) {
 	if h.emailSender == nil || result == nil || result.Email == "" {
 		return
 	}
@@ -499,7 +504,9 @@ func (h *APIHandler) sendPasswordChangedEmail(result *service.PasswordResetResul
 		UserName:         result.Name,
 		TwoFactorEnabled: result.TwoFactorEnabled,
 	})
-	_ = h.emailSender.Send(result.Email, subject, body)
+	_ = h.emailSender.SendMessage(ctx, emailpkg.Message{
+		To: result.Email, Subject: subject, HTMLBody: body, Type: emailpkg.TypePasswordChanged,
+	})
 }
 
 func (h *APIHandler) convertAuthResponse(user *models.User, tokens *service.TokenPair) generated.AuthResponse {

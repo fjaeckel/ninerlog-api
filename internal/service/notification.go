@@ -218,7 +218,9 @@ func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *
 					DaysRemaining:  daysUntilExpiry,
 				})
 
-				if err := s.emailSender.Send(userEmail, subject, body); err != nil {
+				if err := s.emailSender.SendMessage(ctx, email.Message{
+					To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
+				}); err != nil {
 					slog.Error("Failed to send credential warning email", "error", err)
 					continue
 				}
@@ -313,7 +315,9 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 			Message:     rating.Message,
 		})
 
-		if err := s.emailSender.Send(userEmail, subject, body); err != nil {
+		if err := s.emailSender.SendMessage(ctx, email.Message{
+			To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
+		}); err != nil {
 			slog.Error("Failed to send revalidation warning email", "error", err)
 			return
 		}
@@ -358,7 +362,9 @@ func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs 
 				Period:    "day",
 			})
 
-			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
+			if err := s.emailSender.SendMessage(ctx, email.Message{
+				To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
+			}); err != nil {
 				slog.Error("Failed to send passenger currency email", "error", err)
 			} else {
 				NotificationsSentTotal.WithLabelValues("passenger_currency").Inc()
@@ -394,7 +400,9 @@ checkNight:
 			Period:    "night",
 		})
 
-		if err := s.emailSender.Send(userEmail, subject, body); err != nil {
+		if err := s.emailSender.SendMessage(ctx, email.Message{
+			To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
+		}); err != nil {
 			slog.Error("Failed to send night currency email", "error", err)
 			return
 		}
@@ -457,7 +465,9 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 		Message:  fr.Message,
 	})
 
-	if err := s.emailSender.Send(userEmail, subject, body); err != nil {
+	if err := s.emailSender.SendMessage(ctx, email.Message{
+		To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
+	}); err != nil {
 		slog.Error("Failed to send flight review email", "error", err)
 		return
 	}
@@ -539,7 +549,9 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 				RuleName: rule.Name,
 				Expiring: false,
 			})
-			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
+			if err := s.emailSender.SendMessage(ctx, email.Message{
+				To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
+			}); err != nil {
 				slog.Error("Failed to send custom currency lapse email", "error", err)
 				continue
 			}
@@ -567,7 +579,9 @@ func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *mod
 				continue
 			}
 
-			if err := s.emailSender.Send(userEmail, subject, body); err != nil {
+			if err := s.emailSender.SendMessage(ctx, email.Message{
+				To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
+			}); err != nil {
 				slog.Error("Failed to send warning email", "category", category, "error", err)
 				continue
 			}
