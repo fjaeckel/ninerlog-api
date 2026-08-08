@@ -363,6 +363,16 @@ func main() {
 	flightSignatureRepo := postgres.NewFlightSignatureRepository(db)
 	flightSignatureService := service.NewFlightSignatureService(flightSignatureRepo, flightRepo, userRepo)
 	apiHandler.SetFlightSignatureService(flightSignatureService)
+	// Licence/credential reference images. Uploading and serving user-supplied
+	// blobs is an abuse surface an operator may not want open at all (storage
+	// growth, bandwidth amplification), so DOCUMENT_IMAGES_ENABLED=false turns
+	// the whole feature off — every /images endpoint then answers 403 and
+	// GET /features reports it, while stored rows are left untouched.
+	documentImagesEnabled := os.Getenv("DOCUMENT_IMAGES_ENABLED") != "false" // default: true
+	documentImageService := service.NewDocumentImageService(
+		postgres.NewDocumentImageRepository(db), licenseRepo, credentialRepo, documentImagesEnabled)
+	apiHandler.SetDocumentImageService(documentImageService)
+
 	startedAt := time.Now()
 	apiHandler.SetStartedAt(startedAt)
 	apiHandler.SetCORSOrigins(corsOrigins)
@@ -655,6 +665,14 @@ func main() {
 		// segment defeats RateLimitByPath's suffix matching.
 		signRateLimit := middleware.NewRateLimitMiddleware("sign", 20, 1*time.Minute)
 		api.Use(middleware.RateLimitByPathPrefix(signRateLimit, "/sign/"))
+
+		// Licence/credential images are the heaviest bytes in the API in both
+		// directions — up to 5 MB spooled, decoded and stored per upload, and
+		// the same again per download — so the whole sub-collection gets the
+		// tight "expensive" budget rather than the general 120/min. Segment
+		// matching so the per-image download and delete routes are covered
+		// too, not just the collection.
+		api.Use(middleware.RateLimitByPathSegment(expensiveRateLimit, "/images"))
 
 		// Authenticated signature actions that trigger outbound email.
 		signatureEmailRateLimit := middleware.NewRateLimitMiddleware("signature_email", 10, 1*time.Minute)

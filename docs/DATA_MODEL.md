@@ -104,7 +104,31 @@ complex/high-performance/tailwheel characteristics.
 Non-license documents with expiry dates. `CredentialType` enum includes medicals
 (`EASA_CLASS1_MEDICAL`, `FAA_CLASS3_MEDICAL`, `EASA_LAPL_MEDICAL`, …), language proficiency
 (`LANG_ICAO_LEVEL4/5/6`), security clearances (`SEC_CLEARANCE_ZUP`, `SEC_CLEARANCE_ZUBB`),
-and `OTHER`. These feed expiry notifications.
+the German radio certificates (`RADIO_BZF2`, `RADIO_BZF1`, `RADIO_AZF` — three separate
+certificates, not levels of one, and none of them expires), and `OTHER`. These feed expiry
+notifications.
+
+### DocumentImage (`internal/models/document_image.go`, migration 56)
+
+Reference photos/scans attached to a licence **or** a credential — never both, never
+neither (`document_images_one_subject`). Two nullable FKs rather than a polymorphic
+`(subject_type, subject_id)` pair, so deleting the parent document cascades its images
+away for real.
+
+- `data BYTEA` holds the raw bytes. Postgres TOASTs the payload out of line, and every
+  query except the single-image download uses an explicit column list that omits it, so a
+  listing never reads it.
+- Bounded by design: at most 5 MB (`byte_size` CHECK) and 5 images per document (enforced
+  by a guarded `INSERT … SELECT … WHERE (SELECT COUNT(*) …) < $n`, so concurrent uploads
+  cannot both take the last slot).
+- `content_type` is restricted to `image/jpeg`/`image/png` and is derived from the stored
+  bytes, not from what the uploader declared.
+- Kept in Postgres rather than an object store because the self-hosted deployment has one
+  database and no guaranteed blob backend; these inherit its backup/restore and cascade
+  behaviour instead of needing a second story for identity-document scans.
+
+The whole feature is switchable: `DOCUMENT_IMAGES_ENABLED=false` makes every image
+endpoint answer 403 without touching the stored rows.
 
 ### Contact (`internal/models/contact.go`, migration 15)
 

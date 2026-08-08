@@ -46,6 +46,10 @@ type APIHandler struct {
 	corsOrigins     []string
 	backupService   *cloudbackup.Service
 	deletionService *service.DeletionService
+	// documentImageService is nil only if the subsystem was never wired up;
+	// the operator-facing off switch lives inside the service itself so that
+	// GET /features can still report it accurately.
+	documentImageService *service.DocumentImageService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

@@ -306,6 +306,9 @@ const (
 	CredentialTypeLANGICAOLEVEL5    CredentialType = "LANG_ICAO_LEVEL5"
 	CredentialTypeLANGICAOLEVEL6    CredentialType = "LANG_ICAO_LEVEL6"
 	CredentialTypeOTHER             CredentialType = "OTHER"
+	CredentialTypeRADIOAZF          CredentialType = "RADIO_AZF"
+	CredentialTypeRADIOBZF1         CredentialType = "RADIO_BZF1"
+	CredentialTypeRADIOBZF2         CredentialType = "RADIO_BZF2"
 	CredentialTypeSECCLEARANCEZUBB  CredentialType = "SEC_CLEARANCE_ZUBB"
 	CredentialTypeSECCLEARANCEZUP   CredentialType = "SEC_CLEARANCE_ZUP"
 )
@@ -332,6 +335,12 @@ func (e CredentialType) Valid() bool {
 	case CredentialTypeLANGICAOLEVEL6:
 		return true
 	case CredentialTypeOTHER:
+		return true
+	case CredentialTypeRADIOAZF:
+		return true
+	case CredentialTypeRADIOBZF1:
+		return true
+	case CredentialTypeRADIOBZF2:
 		return true
 	case CredentialTypeSECCLEARANCEZUBB:
 		return true
@@ -396,6 +405,24 @@ func (e DeletionEntity) Valid() bool {
 	case DeletionEntityFlight:
 		return true
 	case DeletionEntityLicense:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DocumentImageContentType.
+const (
+	Imagejpeg DocumentImageContentType = "image/jpeg"
+	Imagepng  DocumentImageContentType = "image/png"
+)
+
+// Valid indicates whether the value is a known member of the DocumentImageContentType enum.
+func (e DocumentImageContentType) Valid() bool {
+	switch e {
+	case Imagejpeg:
+		return true
+	case Imagepng:
 		return true
 	default:
 		return false
@@ -1351,6 +1378,9 @@ type AdminConfig struct {
 
 	// CorsOrigins Configured CORS allowed origins
 	CorsOrigins []string `json:"corsOrigins"`
+
+	// DocumentImagesEnabled Whether licence/credential reference images are enabled (DOCUMENT_IMAGES_ENABLED is not "false")
+	DocumentImagesEnabled *bool `json:"documentImagesEnabled,omitempty"`
 
 	// GoVersion Example: go1.23.0
 	GoVersion string `json:"goVersion"`
@@ -2556,6 +2586,9 @@ type Credential struct {
 	// - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
 	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
 	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+	// - RADIO_BZF2: Beschränktes Sprechfunkzeugnis II (Germany, VFR, German only)
+	// - RADIO_BZF1: Beschränktes Sprechfunkzeugnis I (Germany, VFR, German and English)
+	// - RADIO_AZF: Allgemeines Sprechfunkzeugnis (Germany, VFR and IFR)
 	// - OTHER: Other credential
 	CredentialType CredentialType `json:"credentialType"`
 
@@ -2595,6 +2628,9 @@ type CredentialCreate struct {
 	// - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
 	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
 	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+	// - RADIO_BZF2: Beschränktes Sprechfunkzeugnis II (Germany, VFR, German only)
+	// - RADIO_BZF1: Beschränktes Sprechfunkzeugnis I (Germany, VFR, German and English)
+	// - RADIO_AZF: Allgemeines Sprechfunkzeugnis (Germany, VFR and IFR)
 	// - OTHER: Other credential
 	CredentialType CredentialType `json:"credentialType"`
 
@@ -2617,6 +2653,9 @@ type CredentialCreate struct {
 // - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
 // - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
 // - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+// - RADIO_BZF2: Beschränktes Sprechfunkzeugnis II (Germany, VFR, German only)
+// - RADIO_BZF1: Beschränktes Sprechfunkzeugnis I (Germany, VFR, German and English)
+// - RADIO_AZF: Allgemeines Sprechfunkzeugnis (Germany, VFR and IFR)
 // - OTHER: Other credential
 type CredentialType string
 
@@ -2636,6 +2675,9 @@ type CredentialUpdate struct {
 	// - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
 	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
 	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+	// - RADIO_BZF2: Beschränktes Sprechfunkzeugnis II (Germany, VFR, German only)
+	// - RADIO_BZF1: Beschränktes Sprechfunkzeugnis I (Germany, VFR, German and English)
+	// - RADIO_AZF: Allgemeines Sprechfunkzeugnis (Germany, VFR and IFR)
 	// - OTHER: Other credential
 	CredentialType *CredentialType `json:"credentialType,omitempty"`
 
@@ -2799,6 +2841,54 @@ type DeletionFeed struct {
 	WatermarkExpired bool `json:"watermarkExpired"`
 }
 
+// DocumentImage Metadata for one reference photo attached to a licence or credential.
+// The bytes themselves are never inlined — fetch them from the image's
+// own authenticated URL.
+type DocumentImage struct {
+	// ByteSize Size of the stored image in bytes
+	//
+	// Example: 1843200
+	ByteSize int `json:"byteSize"`
+
+	// Caption Example: Front page
+	Caption *string `json:"caption,omitempty"`
+
+	// ContentType Determined from the stored bytes, not from what the uploader declared
+	ContentType DocumentImageContentType `json:"contentType"`
+	CreatedAt   time.Time                `json:"createdAt"`
+
+	// CredentialId Set when the image belongs to a credential; null otherwise
+	CredentialId *openapi_types.UUID `json:"credentialId,omitempty"`
+
+	// Filename Original filename, sanitized to a basename. Display only.
+	//
+	// Example: licence-front.jpg
+	Filename *string `json:"filename,omitempty"`
+
+	// Height Example: 1536
+	Height *int               `json:"height,omitempty"`
+	Id     openapi_types.UUID `json:"id"`
+
+	// LicenseId Set when the image belongs to a licence; null otherwise
+	LicenseId *openapi_types.UUID `json:"licenseId,omitempty"`
+	UpdatedAt time.Time           `json:"updatedAt"`
+
+	// Width Example: 2048
+	Width *int `json:"width,omitempty"`
+}
+
+// DocumentImageContentType Determined from the stored bytes, not from what the uploader declared
+type DocumentImageContentType string
+
+// DocumentImageUpload defines model for DocumentImageUpload.
+type DocumentImageUpload struct {
+	// Caption Optional short label shown with the image
+	Caption *string `json:"caption,omitempty"`
+
+	// File JPEG or PNG image, at most 5 MB
+	File openapi_types.File `json:"file"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Optional machine-readable error code, used by clients to distinguish
@@ -2822,6 +2912,28 @@ type Error struct {
 	//
 	// Example: Validation failed
 	Error string `json:"error"`
+}
+
+// Features Optional features an operator can switch off at deploy time, with the
+// limits a client needs in order to validate before uploading.
+type Features struct {
+	DocumentImages struct {
+		// AllowedContentTypes Example: ["image/jpeg","image/png"]
+		AllowedContentTypes []string `json:"allowedContentTypes"`
+
+		// Enabled When false, every /images endpoint answers 403 — uploads and downloads alike
+		Enabled bool `json:"enabled"`
+
+		// MaxBytes Maximum size of a single image in bytes
+		//
+		// Example: 5242880
+		MaxBytes int `json:"maxBytes"`
+
+		// MaxPerDocument Maximum number of images per licence or credential
+		//
+		// Example: 5
+		MaxPerDocument int `json:"maxPerDocument"`
+	} `json:"documentImages"`
 }
 
 // Flight defines model for Flight.
@@ -4545,6 +4657,9 @@ type BackupDestinationId = openapi_types.UUID
 // CredentialId Example: 880e8400-e29b-41d4-a716-446655440003
 type CredentialId = openapi_types.UUID
 
+// DocumentImageId Example: aa0e8400-e29b-41d4-a716-446655440009
+type DocumentImageId = openapi_types.UUID
+
 // FlightId Example: 660e8400-e29b-41d4-a716-446655440001
 type FlightId = openapi_types.UUID
 
@@ -4566,6 +4681,12 @@ type UpdatedSince = time.Time
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
+// DocumentImageLimitReached defines model for DocumentImageLimitReached.
+type DocumentImageLimitReached = Error
+
+// DocumentImagesDisabled defines model for DocumentImagesDisabled.
+type DocumentImagesDisabled = Error
+
 // Forbidden defines model for Forbidden.
 type Forbidden = Error
 
@@ -4574,6 +4695,9 @@ type LocalAuthDisabled = Error
 
 // NotFound defines model for NotFound.
 type NotFound = Error
+
+// PayloadTooLarge defines model for PayloadTooLarge.
+type PayloadTooLarge = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
@@ -5167,6 +5291,9 @@ type CreateCredentialJSONRequestBody = CredentialCreate
 // UpdateCredentialJSONRequestBody defines body for UpdateCredential for application/json ContentType.
 type UpdateCredentialJSONRequestBody = CredentialUpdate
 
+// UploadCredentialImageMultipartRequestBody defines body for UploadCredentialImage for multipart/form-data ContentType.
+type UploadCredentialImageMultipartRequestBody = DocumentImageUpload
+
 // RecordFlightSessionEventJSONRequestBody defines body for RecordFlightSessionEvent for application/json ContentType.
 type RecordFlightSessionEventJSONRequestBody = FlightSessionEvent
 
@@ -5205,6 +5332,9 @@ type CreateLicenseJSONRequestBody = LicenseCreate
 
 // UpdateLicenseJSONRequestBody defines body for UpdateLicense for application/json ContentType.
 type UpdateLicenseJSONRequestBody UpdateLicenseJSONBody
+
+// UploadLicenseImageMultipartRequestBody defines body for UploadLicenseImage for multipart/form-data ContentType.
+type UploadLicenseImageMultipartRequestBody = DocumentImageUpload
 
 // CreateClassRatingJSONRequestBody defines body for CreateClassRating for application/json ContentType.
 type CreateClassRatingJSONRequestBody = ClassRatingCreate

@@ -250,6 +250,32 @@ type CredentialRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
+// DocumentImageRepository stores reference photos attached to a licence or a
+// credential. Every method is scoped by the owning user: an image is only ever
+// reachable through the subject it hangs off, and both are checked.
+type DocumentImageRepository interface {
+	// Create inserts the image only if the subject is still below maxPerSubject
+	// images, and returns repository.ErrDocumentImageLimit otherwise. The check
+	// and the insert are one statement so two concurrent uploads cannot both
+	// see room for the last slot.
+	Create(ctx context.Context, image *models.DocumentImage, maxPerSubject int) error
+
+	// ListBySubject returns the images attached to one licence or credential,
+	// oldest first, without their payload (DocumentImage.Data is nil).
+	ListBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentImage, error)
+
+	// GetWithData returns a single image including its bytes. subjectID scopes
+	// the lookup so an id belonging to another document cannot be read through
+	// the wrong parent's URL.
+	GetWithData(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentImage, error)
+
+	// Delete removes one image, scoped the same way as GetWithData.
+	Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error
+
+	// CountBySubject reports how many images the subject already carries.
+	CountBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) (int, error)
+}
+
 type AircraftRepository interface {
 	Create(ctx context.Context, aircraft *models.Aircraft) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Aircraft, error)

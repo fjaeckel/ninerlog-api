@@ -88,6 +88,8 @@ tags:
     description: Cloud backup destinations and scheduled runs (S3 and S3-compatible storage)
   - name: Sync
     description: Incremental synchronisation for offline-capable clients
+  - name: Documents
+    description: Reference photos/scans attached to a licence or credential (optional feature; see GET /features)
 
 paths:
   /auth/providers:
@@ -1364,6 +1366,135 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /licenses/{licenseId}/images:
+    get:
+      tags:
+        - Documents
+      summary: List a licence's reference images
+      description: |
+        Returns metadata only — the bytes are fetched one image at a time from
+        `/licenses/{licenseId}/images/{imageId}`.
+      operationId: listLicenseImages
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      responses:
+        '200':
+          description: The licence's images, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentImage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/DocumentImagesDisabled'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Documents
+      summary: Upload a reference image for a licence
+      description: |
+        Attaches a photo or scan of the licence document. At most
+        **5 images per licence**, each at most **5 MB**.
+
+        Only JPEG and PNG are accepted, and the format is determined from the
+        file's own bytes — the declared part `Content-Type` is ignored, and a
+        file whose contents do not decode as the format they claim is rejected.
+      operationId: uploadLicenseImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentImageUpload'
+            encoding:
+              file:
+                contentType: image/jpeg, image/png
+      responses:
+        '201':
+          description: Image stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentImage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/DocumentImagesDisabled'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/DocumentImageLimitReached'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+
+  /licenses/{licenseId}/images/{imageId}:
+    get:
+      tags:
+        - Documents
+      summary: Download a licence reference image
+      description: |
+        Returns the raw image bytes. This is an authenticated request like any
+        other — the image is never reachable from an unauthenticated URL, so it
+        cannot be loaded straight into an `<img src>`; fetch it with the
+        `Authorization` header and render the resulting blob.
+      operationId: getLicenseImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+        - $ref: '#/components/parameters/DocumentImageId'
+      responses:
+        '200':
+          description: Image bytes
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/DocumentImagesDisabled'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Documents
+      summary: Delete a licence reference image
+      operationId: deleteLicenseImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+        - $ref: '#/components/parameters/DocumentImageId'
+      responses:
+        '204':
+          description: Image deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/DocumentImagesDisabled'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /licenses/{licenseId}/statistics:
     get:
       tags:
@@ -1666,6 +1797,158 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /credentials/{credentialId}/images:
+    get:
+      tags:
+        - Documents
+      summary: List a credential's reference images
+      description: |
+        Returns metadata only — the bytes are fetched one image at a time from
+        `/credentials/{credentialId}/images/{imageId}`.
+      operationId: listCredentialImages
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+      responses:
+        '200':
+          description: The credential's images, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentImage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/DocumentImagesDisabled'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Documents
+      summary: Upload a reference image for a credential
+      description: |
+        Attaches a photo or scan of the credential (medical certificate,
+        language proficiency endorsement, radio licence, …). At most
+        **5 images per credential**, each at most **5 MB**.
+
+        Only JPEG and PNG are accepted, and the format is determined from the
+        file's own bytes — the declared part `Content-Type` is ignored, and a
+        file whose contents do not decode as the format they claim is rejected.
+      operationId: uploadCredentialImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentImageUpload'
+            encoding:
+              file:
+                contentType: image/jpeg, image/png
+      responses:
+        '201':
+          description: Image stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentImage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/DocumentImagesDisabled'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/DocumentImageLimitReached'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+
+  /credentials/{credentialId}/images/{imageId}:
+    get:
+      tags:
+        - Documents
+      summary: Download a credential reference image
+      description: |
+        Returns the raw image bytes. This is an authenticated request like any
+        other — the image is never reachable from an unauthenticated URL, so it
+        cannot be loaded straight into an `<img src>`; fetch it with the
+        `Authorization` header and render the resulting blob.
+      operationId: getCredentialImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+        - $ref: '#/components/parameters/DocumentImageId'
+      responses:
+        '200':
+          description: Image bytes
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/DocumentImagesDisabled'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Documents
+      summary: Delete a credential reference image
+      operationId: deleteCredentialImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+        - $ref: '#/components/parameters/DocumentImageId'
+      responses:
+        '204':
+          description: Image deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/DocumentImagesDisabled'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /features:
+    get:
+      tags:
+        - Users
+      summary: Which optional features this server has switched on
+      description: |
+        Capability probe for features an operator can disable at deploy time.
+        A client should call this once after sign-in and hide the affected UI
+        rather than discovering the `403` by trying.
+      operationId: getFeatures
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Enabled features and their limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Features'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /aircraft:
     get:
@@ -4286,6 +4569,16 @@ components:
         format: uuid
         example: 880e8400-e29b-41d4-a716-446655440003
 
+    DocumentImageId:
+      name: imageId
+      in: path
+      required: true
+      description: Document image UUID
+      schema:
+        type: string
+        format: uuid
+        example: aa0e8400-e29b-41d4-a716-446655440009
+
     ImportId:
       name: importId
       in: path
@@ -6048,6 +6341,105 @@ components:
           type: integer
           description: Total number of notification history entries
 
+    DocumentImage:
+      type: object
+      description: |
+        Metadata for one reference photo attached to a licence or credential.
+        The bytes themselves are never inlined — fetch them from the image's
+        own authenticated URL.
+      required:
+        - id
+        - contentType
+        - byteSize
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        licenseId:
+          type: [string, 'null']
+          format: uuid
+          description: Set when the image belongs to a licence; null otherwise
+        credentialId:
+          type: [string, 'null']
+          format: uuid
+          description: Set when the image belongs to a credential; null otherwise
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png]
+          description: Determined from the stored bytes, not from what the uploader declared
+        byteSize:
+          type: integer
+          description: Size of the stored image in bytes
+          example: 1843200
+        width:
+          type: [integer, 'null']
+          example: 2048
+        height:
+          type: [integer, 'null']
+          example: 1536
+        filename:
+          type: [string, 'null']
+          description: Original filename, sanitized to a basename. Display only.
+          example: licence-front.jpg
+        caption:
+          type: [string, 'null']
+          example: Front page
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DocumentImageUpload:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: JPEG or PNG image, at most 5 MB
+        caption:
+          type: string
+          maxLength: 200
+          description: Optional short label shown with the image
+
+    Features:
+      type: object
+      description: |
+        Optional features an operator can switch off at deploy time, with the
+        limits a client needs in order to validate before uploading.
+      required:
+        - documentImages
+      properties:
+        documentImages:
+          type: object
+          required:
+            - enabled
+            - maxBytes
+            - maxPerDocument
+            - allowedContentTypes
+          properties:
+            enabled:
+              type: boolean
+              description: When false, every /images endpoint answers 403 — uploads and downloads alike
+            maxBytes:
+              type: integer
+              description: Maximum size of a single image in bytes
+              example: 5242880
+            maxPerDocument:
+              type: integer
+              description: Maximum number of images per licence or credential
+              example: 5
+            allowedContentTypes:
+              type: array
+              items:
+                type: string
+              example: [image/jpeg, image/png]
+
     CredentialType:
       type: string
       enum:
@@ -6062,6 +6454,9 @@ components:
         - LANG_ICAO_LEVEL6
         - SEC_CLEARANCE_ZUP
         - SEC_CLEARANCE_ZUBB
+        - RADIO_BZF2
+        - RADIO_BZF1
+        - RADIO_AZF
         - OTHER
       description: |
         Credential type:
@@ -6076,6 +6471,9 @@ components:
         - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
         - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
         - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+        - RADIO_BZF2: Beschränktes Sprechfunkzeugnis II (Germany, VFR, German only)
+        - RADIO_BZF1: Beschränktes Sprechfunkzeugnis I (Germany, VFR, German and English)
+        - RADIO_AZF: Allgemeines Sprechfunkzeugnis (Germany, VFR and IFR)
         - OTHER: Other credential
 
     Credential:
@@ -7691,6 +8089,9 @@ components:
         cloudBackupsConfigured:
           type: boolean
           description: Whether cloud backups are enabled (BACKUP_CREDENTIALS_KEY is set)
+        documentImagesEnabled:
+          type: boolean
+          description: Whether licence/credential reference images are enabled (DOCUMENT_IMAGES_ENABLED is not "false")
         authMode:
           type: string
           enum: [local, oidc]
@@ -8942,6 +9343,39 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: Resource not found
+
+    DocumentImagesDisabled:
+      description: >-
+        Document images are switched off on this server
+        (DOCUMENT_IMAGES_ENABLED=false). Applies to reading as well as
+        uploading: serving stored images is the bandwidth half of the abuse
+        surface the switch exists to close. Already-stored images are retained
+        and become reachable again if the operator re-enables the feature.
+        Clients should consult GET /features and hide the UI.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Document image uploads are disabled on this server
+
+    DocumentImageLimitReached:
+      description: The licence or credential already holds the maximum number of images
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Maximum number of images for this document reached
+
+    PayloadTooLarge:
+      description: The uploaded file exceeds the maximum allowed size
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Image exceeds the maximum size of 5 MB
 
     LocalAuthDisabled:
       description: >-

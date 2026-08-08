@@ -221,6 +221,8 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		oidcIssuer = &issuer
 	}
 
+	documentImagesEnabled := h.documentImageService != nil && h.documentImageService.Enabled()
+
 	config := generated.AdminConfig{
 		AuthMode:               &authMode,
 		OidcIssuer:             oidcIssuer,
@@ -235,6 +237,7 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		AdminEmailConfigured:   adminEmailConfigured,
 		CloudBackupsConfigured: cloudBackupsConfigured,
 		CloudBackupProviders:   cloudBackupProviders,
+		DocumentImagesEnabled:  &documentImagesEnabled,
 	}
 
 	c.JSON(http.StatusOK, config)

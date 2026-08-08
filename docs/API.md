@@ -95,7 +95,7 @@ would ever call. The JSON half of that flow (`GET /auth/providers`,
   |---|---|---|---|
   | `general` | 120/min | every `/api/v1` route | user ID (IP when unauthenticated) |
   | `search` | `SEARCH_RATE_LIMIT_PER_MINUTE`, default 60/min | `GET /flights` **with** a `q` parameter | user ID |
-  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*` | user ID |
+  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*`, `/…/images*` | user ID |
   | `auth` | 10/min | login, register, refresh, password reset, 2FA, WebAuthn | client IP |
   | `admin` | 30/min | `/admin/*` and user state changes | client IP |
   | `sign` | 20/min | `/sign/*` public signing links | client IP |
@@ -329,8 +329,39 @@ pagination parameters, plus `updatedSince` for delta sync. See
 [FEATURES.md](./FEATURES.md#flight-logging).
 
 ### Credentials
-CRUD on `/credentials` (medicals, language proficiency, clearances). `GET /credentials`
-accepts `updatedSince`.
+CRUD on `/credentials` (medicals, language proficiency, clearances, and the German radio
+certificates `RADIO_BZF2`/`RADIO_BZF1`/`RADIO_AZF`). `GET /credentials` accepts
+`updatedSince`.
+
+### Document images
+Reference photos/scans attached to a licence or a credential:
+
+| Method | Path |
+| --- | --- |
+| `GET` | `/licenses/{licenseId}/images`, `/credentials/{credentialId}/images` |
+| `POST` | same paths — `multipart/form-data` with a `file` part and an optional `caption` field |
+| `GET` | `/licenses/{licenseId}/images/{imageId}`, `/credentials/{credentialId}/images/{imageId}` — raw bytes |
+| `DELETE` | same per-image paths |
+
+- **Authenticated like every other endpoint**, downloads included. There is no
+  unauthenticated image URL, so the bytes cannot be loaded straight into an `<img src>`;
+  fetch with the `Authorization` header and render the blob.
+- **JPEG and PNG only, at most 5 MB and 5 images per document.** The format is decided by
+  decoding the bytes — the declared part `Content-Type` is ignored, and a file that does
+  not parse as the format it claims is rejected with `400`. Oversized files get `413`; a
+  document already at its cap gets `409`.
+- **The whole feature can be switched off** with `DOCUMENT_IMAGES_ENABLED=false`, in which
+  case every one of these endpoints answers `403` — reads as well as writes, since serving
+  the blobs is the bandwidth half of the abuse surface the switch exists to close. Stored
+  rows are retained and become reachable again if it is switched back on.
+- Listings return metadata only (`contentType`, `byteSize`, `width`, `height`, `filename`,
+  `caption`); the payload only ever comes back from a single image's own URL.
+
+### Features
+`GET /features` — capability probe for optional features an operator can disable, with the
+limits a client needs before uploading (`documentImages.enabled`, `maxBytes`,
+`maxPerDocument`, `allowedContentTypes`). Clients should call this once after sign-in and
+hide the affected UI rather than discovering the `403` by trying.
 
 ### Currency
 `GET /currency` (all ratings) and `GET /licenses/{id}/currency`.
