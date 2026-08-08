@@ -278,7 +278,8 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 	t.Run("unverified sweep is callable and reports counts", func(t *testing.T) {
 		resp := ac.POST("/admin/maintenance/cleanup-unverified", nil)
 		// 503 is the honest answer on a deployment that runs without the
-		// reaper; anything else must be a well-formed result.
+		// reaper — no SMTP, OIDC mode, or switched off. Anything else must be
+		// a well-formed result.
 		if resp.StatusCode == http.StatusServiceUnavailable {
 			t.Skip("Unverified account cleanup is disabled on this deployment")
 		}
@@ -315,6 +316,42 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 		})
 		if dup.StatusCode == http.StatusCreated {
 			t.Error("Account was reaped by an immediate sweep — the reminder delay is not being honoured")
+		}
+	})
+
+	t.Run("config explains a disabled sweep instead of just omitting it", func(t *testing.T) {
+		resp := ac.GET("/admin/config")
+		requireStatus(t, resp, http.StatusOK)
+
+		var cfg struct {
+			SmtpConfigured                  bool    `json:"smtpConfigured"`
+			AuthMode                        string  `json:"authMode"`
+			UnverifiedCleanupEnabled        *bool   `json:"unverifiedCleanupEnabled"`
+			UnverifiedCleanupDisabledReason *string `json:"unverifiedCleanupDisabledReason"`
+		}
+		resp.JSON(&cfg)
+
+		if cfg.UnverifiedCleanupEnabled == nil {
+			t.Fatal("Expected unverifiedCleanupEnabled to be reported")
+		}
+		if *cfg.UnverifiedCleanupEnabled {
+			if cfg.UnverifiedCleanupDisabledReason != nil {
+				t.Errorf("Enabled cleanup should carry no disabled reason, got %q", *cfg.UnverifiedCleanupDisabledReason)
+			}
+			// Reaping must never be on under an identity provider.
+			if cfg.AuthMode == "oidc" {
+				t.Error("Unverified-account cleanup must never be enabled in OIDC mode")
+			}
+			return
+		}
+
+		if cfg.UnverifiedCleanupDisabledReason == nil {
+			t.Fatal("A disabled cleanup must say why")
+		}
+		switch *cfg.UnverifiedCleanupDisabledReason {
+		case "oidc_mode", "smtp_not_configured", "disabled_by_configuration":
+		default:
+			t.Errorf("Unexpected disabled reason %q", *cfg.UnverifiedCleanupDisabledReason)
 		}
 	})
 

@@ -30,6 +30,27 @@ func (e AdminConfigAuthMode) Valid() bool {
 	}
 }
 
+// Defines values for AdminConfigUnverifiedCleanupDisabledReason.
+const (
+	DisabledByConfiguration AdminConfigUnverifiedCleanupDisabledReason = "disabled_by_configuration"
+	OidcMode                AdminConfigUnverifiedCleanupDisabledReason = "oidc_mode"
+	SmtpNotConfigured       AdminConfigUnverifiedCleanupDisabledReason = "smtp_not_configured"
+)
+
+// Valid indicates whether the value is a known member of the AdminConfigUnverifiedCleanupDisabledReason enum.
+func (e AdminConfigUnverifiedCleanupDisabledReason) Valid() bool {
+	switch e {
+	case DisabledByConfiguration:
+		return true
+	case OidcMode:
+		return true
+	case SmtpNotConfigured:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnnouncementSeverity.
 const (
 	AnnouncementSeverityCritical AnnouncementSeverity = "critical"
@@ -1420,9 +1441,16 @@ type AdminConfig struct {
 	// SmtpConfigured Whether SMTP is configured
 	SmtpConfigured bool `json:"smtpConfigured"`
 
+	// UnverifiedCleanupDisabledReason Why the cleanup is not running, absent when it is. `oidc_mode` is not
+	// configurable: with an identity provider in charge, an unverified
+	// account is one the provider did not assert `email_verified` for — not
+	// an abandoned signup — so reaping is refused outright.
+	UnverifiedCleanupDisabledReason *AdminConfigUnverifiedCleanupDisabledReason `json:"unverifiedCleanupDisabledReason,omitempty"`
+
 	// UnverifiedCleanupEnabled Whether unverified accounts are reminded and then deleted. Requires
 	// SMTP to be configured; without it, registration marks accounts
-	// verified immediately and nothing is reaped.
+	// verified immediately and nothing is reaped. Always false in OIDC
+	// mode.
 	UnverifiedCleanupEnabled *bool `json:"unverifiedCleanupEnabled,omitempty"`
 
 	// UnverifiedReminderAfter How long after signup the verification reminder is sent.
@@ -1440,6 +1468,12 @@ type AdminConfig struct {
 
 // AdminConfigAuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
 type AdminConfigAuthMode string
+
+// AdminConfigUnverifiedCleanupDisabledReason Why the cleanup is not running, absent when it is. `oidc_mode` is not
+// configurable: with an identity provider in charge, an unverified
+// account is one the provider did not assert `email_verified` for — not
+// an abandoned signup — so reaping is refused outright.
+type AdminConfigUnverifiedCleanupDisabledReason string
 
 // AdminStats defines model for AdminStats.
 type AdminStats struct {

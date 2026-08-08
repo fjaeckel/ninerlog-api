@@ -275,12 +275,39 @@ func LoadUnverifiedAccountConfig() UnverifiedAccountConfig {
 	}
 }
 
-// UnverifiedCleanupEnabled reports whether the reaper should run at all.
-// Deleting accounts is irreversible, so an operator can switch it off with
-// UNVERIFIED_CLEANUP_ENABLED=false and keep only the reminder behaviour that
-// the rest of the system provides.
-func UnverifiedCleanupEnabled() bool {
-	return os.Getenv("UNVERIFIED_CLEANUP_ENABLED") != "false"
+// Reasons the reaper is not running, reported to administrators so a disabled
+// reaper is explained rather than merely absent.
+const (
+	// CleanupDisabledByOIDC is the one that is not configurable. In OIDC mode
+	// the identity provider owns the account lifecycle: local registration and
+	// email verification are switched off entirely, so "unverified" no longer
+	// means "an abandoned signup". It means the provider did not assert
+	// email_verified — for an account its owner may be using daily. Reaping on
+	// that signal would delete live accounts, so the feature is refused in OIDC
+	// mode outright rather than left to configuration.
+	CleanupDisabledByOIDC = "oidc_mode"
+	// CleanupDisabledNoSMTP: without SMTP, registration marks accounts verified
+	// on the spot. There is nothing unverified to chase, and anything that is
+	// unverified was never asked to confirm.
+	CleanupDisabledNoSMTP = "smtp_not_configured"
+	// CleanupDisabledByConfig: UNVERIFIED_CLEANUP_ENABLED=false.
+	CleanupDisabledByConfig = "disabled_by_configuration"
+)
+
+// UnverifiedCleanupDisabledReason reports why the reaper must not run, or "" if
+// it may. Deleting accounts is irreversible, so every condition that forbids it
+// is decided in one place rather than spread across the composition root.
+func UnverifiedCleanupDisabledReason(smtpConfigured, oidcEnabled bool) string {
+	switch {
+	case oidcEnabled:
+		return CleanupDisabledByOIDC
+	case !smtpConfigured:
+		return CleanupDisabledNoSMTP
+	case os.Getenv("UNVERIFIED_CLEANUP_ENABLED") == "false":
+		return CleanupDisabledByConfig
+	default:
+		return ""
+	}
 }
 
 func durationFromEnv(key string, fallback time.Duration) time.Duration {

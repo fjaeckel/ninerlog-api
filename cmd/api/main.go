@@ -693,14 +693,14 @@ func main() {
 	apiHandler.SetDeletionService(deletionService)
 	apiHandler.SetEmailDeliveryService(emailDeliveryService)
 
-	// Unverified-account lifecycle. Only meaningful when email verification is
-	// actually enforced: with SMTP unconfigured, registration marks accounts
-	// verified immediately, so there is no unverified account to chase — and
-	// reaping on that basis would delete accounts that were never asked to
-	// confirm anything. UNVERIFIED_CLEANUP_ENABLED=false switches the deletion
-	// half off for operators who would rather keep dead rows than lose one.
+	// Unverified-account lifecycle. Every condition that forbids reaping is
+	// decided in UnverifiedCleanupDisabledReason; a non-empty reason means the
+	// service is never constructed, so neither the worker nor the admin
+	// endpoint exists. Note in particular that OIDC mode refuses it outright:
+	// there, "unverified" is the provider's claim about a live account, not an
+	// abandoned signup.
 	var unverifiedAccountService *service.UnverifiedAccountService
-	if emailSender.IsConfigured() && service.UnverifiedCleanupEnabled() {
+	if reason := service.UnverifiedCleanupDisabledReason(emailSender.IsConfigured(), oidcService != nil); reason == "" {
 		unverifiedAccountService = service.NewUnverifiedAccountService(
 			userRepo,
 			authService,
@@ -710,9 +710,7 @@ func main() {
 		)
 		apiHandler.SetUnverifiedAccountService(unverifiedAccountService)
 	} else {
-		slog.Info("Unverified account cleanup disabled",
-			"smtpConfigured", emailSender.IsConfigured(),
-			"enabled", service.UnverifiedCleanupEnabled())
+		slog.Info("Unverified account cleanup disabled", "reason", reason)
 	}
 
 	generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{

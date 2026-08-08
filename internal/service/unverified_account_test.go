@@ -371,12 +371,62 @@ func TestLoadUnverifiedAccountConfig_InvalidValuesFallBackToDefaults(t *testing.
 	}
 }
 
-func TestUnverifiedCleanupEnabled_OffOnlyWhenExplicitlyDisabled(t *testing.T) {
-	if !service.UnverifiedCleanupEnabled() {
-		t.Error("cleanup should default to on")
+func TestUnverifiedCleanupDisabledReason(t *testing.T) {
+	tests := []struct {
+		name           string
+		smtpConfigured bool
+		oidcEnabled    bool
+		disableEnv     string
+		want           string
+	}{
+		{
+			name:           "runs with SMTP, local auth, and no override",
+			smtpConfigured: true,
+			want:           "",
+		},
+		{
+			// The condition that is not negotiable. In OIDC mode the provider
+			// owns the account lifecycle and local registration and email
+			// verification are switched off, so an unverified account is one
+			// the provider did not assert email_verified for — quite possibly
+			// one its owner uses daily. Reaping on that signal deletes live
+			// accounts.
+			name:           "refused in OIDC mode even with SMTP configured",
+			smtpConfigured: true,
+			oidcEnabled:    true,
+			want:           service.CleanupDisabledByOIDC,
+		},
+		{
+			// OIDC outranks configuration: switching the flag on must not be
+			// able to turn reaping back on for a provider-backed deployment.
+			name:           "OIDC outranks an explicit enable",
+			smtpConfigured: true,
+			oidcEnabled:    true,
+			disableEnv:     "true",
+			want:           service.CleanupDisabledByOIDC,
+		},
+		{
+			name: "refused without SMTP, because nothing was ever asked to verify",
+			want: service.CleanupDisabledNoSMTP,
+		},
+		{
+			name:           "operator can switch it off",
+			smtpConfigured: true,
+			disableEnv:     "false",
+			want:           service.CleanupDisabledByConfig,
+		},
 	}
-	t.Setenv("UNVERIFIED_CLEANUP_ENABLED", "false")
-	if service.UnverifiedCleanupEnabled() {
-		t.Error("UNVERIFIED_CLEANUP_ENABLED=false must switch reaping off")
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.disableEnv != "" {
+				t.Setenv("UNVERIFIED_CLEANUP_ENABLED", tc.disableEnv)
+			}
+			got := service.UnverifiedCleanupDisabledReason(tc.smtpConfigured, tc.oidcEnabled)
+			if got != tc.want {
+				t.Errorf("UnverifiedCleanupDisabledReason(smtp=%v, oidc=%v) = %q, want %q",
+					tc.smtpConfigured, tc.oidcEnabled, got, tc.want)
+			}
+		})
 	}
 }
