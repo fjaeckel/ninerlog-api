@@ -43,6 +43,24 @@ import (
 // fatal logs a structured error and exits. Structured attributes (e.g. an
 // "error" key) may be passed after the message, matching slog's variadic API.
 // Used for unrecoverable startup failures where the process must fail closed.
+// defaultTrustedProxies is deliberately narrow: only the loopback interface.
+// Anything wider lets a client that can reach the API from inside that range
+// forge X-Real-IP / X-Forwarded-For and bypass every IP-keyed rate limit.
+// Deployments behind a reverse proxy must name it via TRUSTED_PROXIES.
+var defaultTrustedProxies = []string{"127.0.0.1", "::1"}
+
+// splitAndTrim splits a comma-separated env value into non-empty trimmed items.
+func splitAndTrim(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func fatal(msg string, args ...any) {
 	slog.Error(msg, args...)
 	os.Exit(1)
@@ -423,9 +441,32 @@ func main() {
 	// nil → the JSON default logger configured by logging.Setup above.
 	router.Use(middleware.LoggerMiddleware(nil))
 
-	// Trust proxy headers (X-Real-IP, X-Forwarded-For) from nginx
-	// so that c.ClientIP() returns the real client IP, not the proxy's address.
-	if err := router.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}); err != nil {
+	// Trust proxy headers (X-Real-IP, X-Forwarded-For) ONLY from the ingress.
+	//
+	// c.ClientIP() is the key for every IP-based rate limit and the client_ip
+	// recorded in the access log. When the connecting peer is trusted, Gin takes
+	// that value from a client-supplied header — so trusting a broad range lets
+	// anyone whose packets arrive from inside it forge their own source IP,
+	// defeating the auth/admin/sign limiters and poisoning the logs.
+	//
+	// The previous default trusted all of RFC-1918. In the shipped compose
+	// topology the API port is published, so traffic reaching it directly
+	// arrives from the Docker bridge (172.16.0.0/12) — inside that range — and
+	// the header was honoured verbatim.
+	//
+	// TRUSTED_PROXIES should be set to the ingress address (the nginx container
+	// or load balancer) in any deployment where the API is not exclusively
+	// reached through that ingress.
+	trustedProxies := defaultTrustedProxies
+	if raw := os.Getenv("TRUSTED_PROXIES"); raw != "" {
+		trustedProxies = splitAndTrim(raw)
+		slog.Info("Trusted proxies configured", "proxies", trustedProxies)
+	} else {
+		slog.Warn("TRUSTED_PROXIES not set — falling back to loopback only; " +
+			"set it to your ingress address (e.g. the nginx container IP/CIDR) " +
+			"so forwarded client IPs are trusted from that host only")
+	}
+	if err := router.SetTrustedProxies(trustedProxies); err != nil {
 		fatal("failed to set trusted proxies", "error", err)
 	}
 	router.ForwardedByClientIP = true
