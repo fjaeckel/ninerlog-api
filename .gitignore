@@ -2,3 +2,7 @@
 /bin/
 .env
 test/performance/results/
+
+# Security audit output — findings must never be committed (see .claude/skills/security-audit)
+security-audits/
+SECURITY_AUDIT*.md
