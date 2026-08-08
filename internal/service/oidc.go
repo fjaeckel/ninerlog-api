@@ -331,12 +331,7 @@ func (s *OIDCService) ExchangeHandoff(ctx context.Context, handoff string) (*mod
 		return nil, nil, err
 	}
 
-	now := time.Now()
-	user.LastLoginAt = &now
-	user.UpdatedAt = now
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		slog.Warn("failed to record OIDC last login", "error", err)
-	}
+	s.authService.RecordLogin(ctx, user)
 	return user, tokens, nil
 }
 

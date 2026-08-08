@@ -153,5 +153,9 @@ func (h *APIHandler) Login2FA(c *gin.Context) {
 		return
 	}
 
+	// The login completes here, not at the password step: LoginUser only issued
+	// a challenge for this account.
+	h.authService.RecordLogin(c.Request.Context(), user)
+
 	c.JSON(http.StatusOK, h.convertAuthResponse(user, tokens))
 }

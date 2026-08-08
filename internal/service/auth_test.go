@@ -88,6 +88,18 @@ func (m *mockUserRepo) LockAccount(ctx context.Context, id uuid.UUID, until time
 	return nil
 }
 
+func (m *mockUserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error {
+	for _, u := range m.users {
+		if u.ID == id {
+			stamp := at
+			u.LastLoginAt = &stamp
+			u.UpdatedAt = at
+			return nil
+		}
+	}
+	return repository.ErrNotFound
+}
+
 func (m *mockUserRepo) MarkEmailVerified(ctx context.Context, id uuid.UUID) error {
 	for _, u := range m.users {
 		if u.ID == id {
@@ -1035,6 +1047,106 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 	_, err := authService.ResetPassword(ctx, reset.Token, "short", "")
 	if err != service.ErrPasswordTooShort {
 		t.Errorf("Expected ErrPasswordTooShort, got %v", err)
+	}
+}
+
+// Following the verification link signs the new account in, so it counts as a
+// login — otherwise a user who registered and never signed in again shows no
+// last-login date at all in the admin user list.
+func TestVerifyEmailRecordsLastLogin(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	user, verificationToken, err := authService.Register(ctx, service.RegisterInput{
+		Email:    "verify-login@example.com",
+		Password: "password1234",
+		Name:     "Verify Login",
+	})
+	if err != nil {
+		t.Fatalf("Registration failed: %v", err)
+	}
+	user.EmailVerified = false
+	user.LastLoginAt = nil
+
+	verified, tokens, err := authService.VerifyEmail(ctx, verificationToken)
+	if err != nil {
+		t.Fatalf("VerifyEmail failed: %v", err)
+	}
+	if tokens.AccessToken == "" {
+		t.Fatal("VerifyEmail did not issue a session")
+	}
+	if verified.LastLoginAt == nil {
+		t.Error("VerifyEmail did not record a last login on the returned user")
+	}
+
+	stored, err := authService.GetUserByID(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed: %v", err)
+	}
+	if stored.LastLoginAt == nil {
+		t.Error("VerifyEmail did not persist the last login")
+	}
+}
+
+func TestLoginRecordsLastLogin(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	if _, _, err := authService.Register(ctx, service.RegisterInput{
+		Email:    "login-stamp@example.com",
+		Password: "password1234",
+		Name:     "Login Stamp",
+	}); err != nil {
+		t.Fatalf("Registration failed: %v", err)
+	}
+
+	user, _, err := authService.Login(ctx, service.LoginInput{
+		Email:    "login-stamp@example.com",
+		Password: "password1234",
+	})
+	if err != nil {
+		t.Fatalf("Login failed: %v", err)
+	}
+	if user.LastLoginAt == nil {
+		t.Fatal("Login did not record a last login")
+	}
+
+	stored, err := authService.GetUserByID(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed: %v", err)
+	}
+	if stored.LastLoginAt == nil {
+		t.Error("Login did not persist the last login")
+	}
+}
+
+// The password is only the first factor for a 2FA account: the handler answers
+// with a challenge rather than a session, so the login is not complete yet.
+func TestLoginWithTwoFactorDefersLastLogin(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	user, _, err := authService.Register(ctx, service.RegisterInput{
+		Email:    "2fa-stamp@example.com",
+		Password: "password1234",
+		Name:     "TwoFactor Stamp",
+	})
+	if err != nil {
+		t.Fatalf("Registration failed: %v", err)
+	}
+	secret := "SECRET"
+	user.TwoFactorEnabled = true
+	user.TwoFactorSecret = &secret
+
+	loggedIn, _, err := authService.Login(ctx, service.LoginInput{
+		Email:    "2fa-stamp@example.com",
+		Password: "password1234",
+	})
+	if err != nil {
+		t.Fatalf("Login failed: %v", err)
+	}
+	if loggedIn.LastLoginAt != nil {
+		t.Error("Login recorded a last login before the second factor was verified")
 	}
 }
 

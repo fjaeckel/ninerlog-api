@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net/mail"
 	"strings"
 	"time"
@@ -261,6 +262,10 @@ func (s *AuthService) VerifyEmail(ctx context.Context, token string) (*models.Us
 		return nil, nil, err
 	}
 
+	// Following the link signs the account in — that is a login, and it is the
+	// first one a freshly registered user ever has.
+	s.RecordLogin(ctx, user)
+
 	return user, tokens, nil
 }
 
@@ -370,11 +375,12 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 		_ = s.userRepo.ResetFailedLoginAttempts(ctx, user.ID)
 	}
 
-	// Update last login timestamp
-	now := time.Now()
-	user.LastLoginAt = &now
-	user.UpdatedAt = now
-	_ = s.userRepo.Update(ctx, user)
+	// Record the sign-in. For a 2FA account the password is only the first
+	// factor — the handler answers with a challenge instead of a session, and
+	// Login2FA stamps the login once the second factor passes.
+	if !user.TwoFactorEnabled {
+		s.RecordLogin(ctx, user)
+	}
 
 	// Delete all existing refresh tokens for this user to avoid constraint violations
 	// This ensures only one active session per user
@@ -656,6 +662,29 @@ func (s *AuthService) generateTokenPair(ctx context.Context, userID uuid.UUID) (
 // GetUserByID retrieves a user by ID
 func (s *AuthService) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	return s.userRepo.GetByID(ctx, userID)
+}
+
+// RecordLogin stamps a successful sign-in on the account and mirrors the value
+// onto the in-memory user so the caller's response carries it.
+//
+// Every path that hands a session to a user calls this: password login, the 2FA
+// second factor, passkeys, OIDC, and the sign-up verification link — following
+// that link signs the new account in on the spot, so it is a login like any
+// other and the admin list should show its date.
+//
+// A refresh is deliberately not a login: it renews a session that an earlier
+// login already established.
+//
+// Failure is logged and swallowed. The user is authenticated either way, and an
+// administrative timestamp is not worth failing a login over.
+func (s *AuthService) RecordLogin(ctx context.Context, user *models.User) {
+	now := time.Now()
+	if err := s.userRepo.UpdateLastLogin(ctx, user.ID, now); err != nil {
+		slog.Warn("failed to record last login", "user_id", user.ID, "error", err)
+		return
+	}
+	user.LastLoginAt = &now
+	user.UpdatedAt = now
 }
 
 // GenerateTokensForUser generates access and refresh tokens for a user (used after 2FA verification)

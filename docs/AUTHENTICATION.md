@@ -131,6 +131,15 @@ so a generated client can switch on it without probing.
 
 Login deletes all prior refresh tokens for the user, enforcing a **single active session**.
 
+**Last login** (`users.last_login_at`, exposed as `lastLoginAt` in the admin user
+list) is stamped by every path that actually hands an account a session:
+password login, the 2FA second factor, a passkey assertion, the OIDC handoff
+exchange, and the sign-up verification link — following that link signs the new
+account in, so it is that account's first login and shows up as such. For a 2FA
+account the password step alone does not stamp it; `POST /auth/2fa/login` does,
+once the second factor passes. A token refresh never stamps it: it renews a
+session an earlier login established.
+
 ---
 
 ### Token Refresh
