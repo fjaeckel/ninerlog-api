@@ -602,3 +602,17 @@ func (m *mockUserRepoForSignature) ConsumeRecoveryCode(_ context.Context, id uui
 	}
 	return false, nil
 }
+
+// Unverified-account reaping is exercised in the reaper's own tests; this mock
+// only needs the interface satisfied.
+func (m *mockUserRepoForSignature) ListUnverifiedForReminder(_ context.Context, _ time.Time, _ int) ([]*models.User, error) {
+	return nil, nil
+}
+
+func (m *mockUserRepoForSignature) MarkVerificationReminderSent(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	return nil
+}
+
+func (m *mockUserRepoForSignature) DeleteUnverifiedRemindedBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}

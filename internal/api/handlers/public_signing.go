@@ -113,5 +113,7 @@ func (h *APIHandler) sendSignatureCompletedEmail(c *gin.Context, sig *models.Fli
 		FlightSummary: flightSummary(flight),
 		SignerName:    signerName,
 	})
-	_ = h.emailSender.Send(ownerEmail, subject, body)
+	_ = h.emailSender.SendMessage(c.Request.Context(), emailpkg.Message{
+		To: ownerEmail, Subject: subject, HTMLBody: body, Type: emailpkg.TypeSignatureCompleted,
+	})
 }

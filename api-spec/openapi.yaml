@@ -3766,6 +3766,163 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /admin/maintenance/cleanup-unverified:
+    post:
+      tags:
+        - Admin
+      summary: Sweep unverified accounts now
+      description: |
+        Immediately run the unverified-account sweep instead of waiting for the
+        next scheduled pass: send any due verification reminders, then delete
+        accounts that were reminded longer ago than the retention window and are
+        still unverified.
+
+        The sweep is a no-op when SMTP is not configured, because registration
+        marks accounts verified on the spot in that mode and there is nothing to
+        chase. Deletion is irreversible. Requires admin privileges.
+      operationId: cleanupUnverifiedAccounts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sweep results
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - remindersSent
+                  - accountsDeleted
+                properties:
+                  remindersSent:
+                    type: integer
+                  accountsDeleted:
+                    type: integer
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: Unverified-account cleanup is disabled on this deployment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/email/deliveries:
+    get:
+      tags:
+        - Admin
+      summary: Recent email delivery events
+      description: |
+        Returns what SMTP said about recent send attempts, newest first.
+        Requires admin privileges.
+      operationId: listEmailDeliveries
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: recipient
+          in: query
+          description: Narrow the log to one address.
+          schema:
+            type: string
+            format: email
+        - name: limit
+          in: query
+          description: Maximum events to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Delivery events
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmailDeliveryEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/email/suppressions:
+    get:
+      tags:
+        - Admin
+      summary: List suppressed email addresses
+      description: |
+        Addresses that refused mail permanently and are no longer being written
+        to. Requires admin privileges.
+      operationId: listEmailSuppressions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Suppressed addresses
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmailSuppression'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/email/suppressions/{email}:
+    delete:
+      tags:
+        - Admin
+      summary: Lift an email suppression
+      description: |
+        Removes the address from the suppression list so mail to it is attempted
+        again. Use when the mailbox is known to work again — a domain that was
+        misconfigured, a mailbox that was over quota. Requires admin privileges.
+      operationId: deleteEmailSuppression
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '204':
+          description: Suppression lifted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /admin/config:
     get:
       tags:
@@ -7691,6 +7848,25 @@ components:
         cloudBackupsConfigured:
           type: boolean
           description: Whether cloud backups are enabled (BACKUP_CREDENTIALS_KEY is set)
+        unverifiedCleanupEnabled:
+          type: boolean
+          description: |
+            Whether unverified accounts are reminded and then deleted. Requires
+            SMTP to be configured; without it, registration marks accounts
+            verified immediately and nothing is reaped.
+        unverifiedReminderAfter:
+          type: string
+          description: How long after signup the verification reminder is sent.
+          example: 24h0m0s
+        unverifiedRetention:
+          type: string
+          description: |
+            How long an account survives, unverified, after that reminder before
+            it is deleted.
+          example: 720h0m0s
+        emailSuppressedCount:
+          type: integer
+          description: Addresses currently suppressed after a permanent delivery failure.
         authMode:
           type: string
           enum: [local, oidc]
@@ -7756,6 +7932,105 @@ components:
         aircraftCount:
           type: integer
           description: Number of aircraft in database
+        verificationReminderSentAt:
+          type: string
+          format: date-time
+          description: |
+            When the follow-up email-verification reminder was sent. Absent when
+            the account is verified, or when the reminder is not due yet. This
+            timestamp starts the retention clock: an account still unverified
+            once the retention window has elapsed from here is deleted.
+        scheduledDeletionAt:
+          type: string
+          format: date-time
+          description: |
+            When this unverified account will be deleted if the address is still
+            not confirmed. Absent for verified accounts and for accounts that
+            have not been reminded yet.
+        emailSuppressed:
+          type: boolean
+          description: |
+            Whether this address is on the suppression list after a permanent
+            delivery failure. A suppressed address receives no further mail, so
+            an unverified account with this flag set will never verify.
+
+    EmailDeliveryEvent:
+      type: object
+      required:
+        - id
+        - recipient
+        - emailType
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+          description: Account the address belonged to when sent, if any.
+        recipient:
+          type: string
+          format: email
+        emailType:
+          type: string
+          description: What the message was for, e.g. verify_email, verification_reminder.
+        status:
+          type: string
+          enum:
+            - delivered
+            - hard_bounce
+            - soft_bounce
+            - rejected
+            - invalid_address
+            - suppressed
+            - server_error
+            - dry_run
+          description: |
+            What the SMTP conversation said. `delivered` means the receiving
+            server accepted the message — not that it reached an inbox, which an
+            SMTP client cannot observe. `hard_bounce` is a permanent refusal of
+            the recipient itself and is the only status that suppresses an
+            address; `rejected` and `server_error` blame the message or our own
+            mail setup and never do.
+        smtpCode:
+          type: integer
+          description: SMTP reply code, absent when there was no conversation.
+        detail:
+          type: string
+          description: Server reply text or internal reason, for operators.
+        createdAt:
+          type: string
+          format: date-time
+
+    EmailSuppression:
+      type: object
+      required:
+        - email
+        - reason
+        - firstBouncedAt
+        - lastBouncedAt
+        - bounceCount
+      properties:
+        email:
+          type: string
+          format: email
+        reason:
+          type: string
+          description: Delivery status that caused the suppression.
+        smtpCode:
+          type: integer
+        detail:
+          type: string
+        firstBouncedAt:
+          type: string
+          format: date-time
+        lastBouncedAt:
+          type: string
+          format: date-time
+        bounceCount:
+          type: integer
 
     PaginatedAdminUsers:
       type: object

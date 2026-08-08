@@ -46,6 +46,11 @@ type APIHandler struct {
 	corsOrigins     []string
 	backupService   *cloudbackup.Service
 	deletionService *service.DeletionService
+	// emailDeliveryService and unverifiedAccountService are nil until wired in
+	// cmd/api/main.go; the admin endpoints that use them answer 503 rather than
+	// panicking when a deployment runs without them.
+	emailDeliveryService     *service.EmailDeliveryService
+	unverifiedAccountService *service.UnverifiedAccountService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

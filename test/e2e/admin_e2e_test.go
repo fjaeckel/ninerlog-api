@@ -199,3 +199,138 @@ func TestAnnouncements(t *testing.T) {
 		assertStatus(t, ac.DELETE(fmt.Sprintf("/admin/announcements/%s", aid)), http.StatusNoContent)
 	})
 }
+
+// TestEmailDeliveryAdminEndpoints covers the deliverability surface: the send
+// log, the suppression list, and the on-demand unverified-account sweep.
+func TestEmailDeliveryAdminEndpoints(t *testing.T) {
+	ac := getAdminClient(t)
+
+	t.Run("delivery log lists recent sends", func(t *testing.T) {
+		// Registering sends a verification email, which must appear in the log.
+		uc := NewE2EClient(t)
+		email := uniqueEmail("delivery-log")
+		resp := uc.POST("/auth/register", map[string]string{
+			"email": email, "password": "UserPass123!", "name": "Delivery Target",
+		})
+		requireStatus(t, resp, http.StatusCreated)
+
+		logResp := ac.GET(fmt.Sprintf("/admin/email/deliveries?recipient=%s", email))
+		requireStatus(t, logResp, http.StatusOK)
+
+		var body struct {
+			Data []struct {
+				Recipient string `json:"recipient"`
+				EmailType string `json:"emailType"`
+				Status    string `json:"status"`
+			} `json:"data"`
+		}
+		logResp.JSON(&body)
+
+		if len(body.Data) == 0 {
+			t.Fatalf("Expected a delivery event for %s", email)
+		}
+		found := false
+		for _, e := range body.Data {
+			if e.Recipient != email {
+				t.Errorf("Recipient filter leaked %q into results for %q", e.Recipient, email)
+			}
+			if e.EmailType == "verify_email" {
+				found = true
+			}
+			if e.Status == "" {
+				t.Error("Expected a delivery status on every event")
+			}
+		}
+		if !found {
+			t.Errorf("Expected a verify_email event for %s, got %+v", email, body.Data)
+		}
+	})
+
+	t.Run("delivery log honours the limit", func(t *testing.T) {
+		resp := ac.GET("/admin/email/deliveries?limit=1")
+		requireStatus(t, resp, http.StatusOK)
+		var body struct {
+			Data []map[string]interface{} `json:"data"`
+		}
+		resp.JSON(&body)
+		if len(body.Data) > 1 {
+			t.Errorf("Expected at most 1 event, got %d", len(body.Data))
+		}
+	})
+
+	t.Run("suppression list is readable", func(t *testing.T) {
+		resp := ac.GET("/admin/email/suppressions")
+		requireStatus(t, resp, http.StatusOK)
+		var body struct {
+			Data []map[string]interface{} `json:"data"`
+		}
+		resp.JSON(&body)
+		if body.Data == nil {
+			t.Error("Expected a data array, even when empty")
+		}
+	})
+
+	t.Run("lifting a suppression that does not exist returns 404", func(t *testing.T) {
+		resp := ac.DELETE("/admin/email/suppressions/never-bounced@example.test")
+		requireStatus(t, resp, http.StatusNotFound)
+	})
+
+	t.Run("unverified sweep is callable and reports counts", func(t *testing.T) {
+		resp := ac.POST("/admin/maintenance/cleanup-unverified", nil)
+		// 503 is the honest answer on a deployment that runs without the
+		// reaper; anything else must be a well-formed result.
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			t.Skip("Unverified account cleanup is disabled on this deployment")
+		}
+		requireStatus(t, resp, http.StatusOK)
+
+		var body struct {
+			RemindersSent   int `json:"remindersSent"`
+			AccountsDeleted int `json:"accountsDeleted"`
+		}
+		resp.JSON(&body)
+		if body.RemindersSent < 0 || body.AccountsDeleted < 0 {
+			t.Errorf("Nonsensical sweep result: %+v", body)
+		}
+	})
+
+	t.Run("a freshly registered account is never swept away", func(t *testing.T) {
+		// The reminder is only due a day after signup and deletion 30 days
+		// after that, so a sweep immediately after registration must leave the
+		// account able to verify and log in.
+		uc := NewE2EClient(t)
+		email := uniqueEmail("sweep-survivor")
+		requireStatus(t, uc.POST("/auth/register", map[string]string{
+			"email": email, "password": "UserPass123!", "name": "Survivor",
+		}), http.StatusCreated)
+
+		if resp := ac.POST("/admin/maintenance/cleanup-unverified", nil); resp.StatusCode == http.StatusServiceUnavailable {
+			t.Skip("Unverified account cleanup is disabled on this deployment")
+		}
+
+		// Still registered: a duplicate signup is refused because the account
+		// survived the sweep.
+		dup := uc.POST("/auth/register", map[string]string{
+			"email": email, "password": "UserPass123!", "name": "Survivor",
+		})
+		if dup.StatusCode == http.StatusCreated {
+			t.Error("Account was reaped by an immediate sweep — the reminder delay is not being honoured")
+		}
+	})
+
+	t.Run("admin email endpoints reject non-admins", func(t *testing.T) {
+		uc := NewE2EClient(t)
+		registerAndLogin(t, uc, uniqueEmail("email-nonadmin"), "UserPass123!", "Not Admin")
+
+		for _, path := range []string{"/admin/email/deliveries", "/admin/email/suppressions"} {
+			resp := uc.GET(path)
+			if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusUnauthorized {
+				t.Errorf("GET %s as non-admin: expected 401/403, got %d", path, resp.StatusCode)
+			}
+		}
+		resp := uc.POST("/admin/maintenance/cleanup-unverified", nil)
+		if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Sweep as non-admin: expected 401/403, got %d", resp.StatusCode)
+		}
+	})
+}

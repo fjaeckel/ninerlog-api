@@ -53,6 +53,13 @@ func TestAdminUserSchema_PrivacyPreserving(t *testing.T) {
 		"LastLoginAt": true, "EmailVerified": true, "TwoFactorEnabled": true, "Disabled": true,
 		"Locked": true, "LockedUntil": true,
 		"FlightCount": true, "AircraftCount": true, // aggregate counts only
+		// Account lifecycle, not logbook content: when the verification
+		// reminder went out, when the account is due to be reaped for never
+		// confirming, and whether its address has stopped accepting mail. An
+		// administrator needs all three to answer "why is this account still
+		// unverified" without opening anything the user logged.
+		"VerificationReminderSentAt": true, "ScheduledDeletionAt": true,
+		"EmailSuppressed": true,
 	}
 
 	// Forbidden field patterns — these would leak private data

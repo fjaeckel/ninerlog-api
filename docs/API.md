@@ -354,8 +354,14 @@ history) and export to CSV, JSON, and PDF.
 
 ### Admin
 User management (list, disable/enable, unlock, reset 2FA, delete), platform stats,
-audit log, config, maintenance (token cleanup, SMTP test, trigger notifications), and
-announcements.
+audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,
+unverified-account sweep), email deliverability, and announcements.
+
+Email deliverability: `GET /admin/email/deliveries` is the per-send log of what SMTP
+said, `GET /admin/email/suppressions` lists addresses that refused mail permanently,
+and `DELETE /admin/email/suppressions/{email}` lifts one. See
+[AUTHENTICATION.md](./AUTHENTICATION.md#email-deliverability) for what each delivery
+status means and what it does not claim.
 
 ### Backups
 List providers, manage destinations (CRUD), test/run a destination, and inspect run

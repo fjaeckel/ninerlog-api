@@ -41,6 +41,56 @@ type UserRepository interface {
 	// single-use code authenticating more than once under concurrency.
 	ConsumeRecoveryCode(ctx context.Context, id uuid.UUID, codeHash string) (bool, error)
 	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
+
+	// ListUnverifiedForReminder returns accounts that are still unverified,
+	// were created before `createdBefore`, and have not yet been sent the
+	// follow-up verification reminder.
+	//
+	// Accounts that have ever logged in and accounts linked to an OIDC identity
+	// are excluded by the implementation: neither is a dead signup, and neither
+	// is reachable by our verification email.
+	ListUnverifiedForReminder(ctx context.Context, createdBefore time.Time, limit int) ([]*models.User, error)
+
+	// MarkVerificationReminderSent stamps the reminder time, which is what
+	// starts the deletion clock.
+	MarkVerificationReminderSent(ctx context.Context, id uuid.UUID, at time.Time) error
+
+	// DeleteUnverifiedRemindedBefore deletes still-unverified accounts whose
+	// reminder was sent before the given instant, and reports how many went.
+	// It applies the same never-logged-in and non-OIDC guards as the listing.
+	DeleteUnverifiedRemindedBefore(ctx context.Context, remindedBefore time.Time) (int64, error)
+}
+
+// EmailDeliveryRepository stores what SMTP said about each send, and the set of
+// addresses that have been given up on.
+type EmailDeliveryRepository interface {
+	// RecordEvent appends one attempt to the delivery log.
+	RecordEvent(ctx context.Context, event *models.EmailDeliveryEvent) error
+
+	// ListEvents returns the most recent events, newest first, optionally
+	// narrowed to one recipient address.
+	ListEvents(ctx context.Context, recipient string, limit int) ([]*models.EmailDeliveryEvent, error)
+
+	// IsSuppressed reports whether the address is on the suppression list.
+	IsSuppressed(ctx context.Context, email string) (bool, error)
+
+	// Suppress adds or updates a suppression, bumping the bounce count when the
+	// address is already listed.
+	Suppress(ctx context.Context, email, reason string, smtpCode *int, detail string) error
+
+	// Unsuppress removes an address from the suppression list, so mail to it is
+	// attempted again. Returns ErrNotFound when the address was not listed.
+	Unsuppress(ctx context.Context, email string) error
+
+	// ListSuppressions returns suppressed addresses, most recently bounced first.
+	ListSuppressions(ctx context.Context, limit int) ([]*models.EmailSuppression, error)
+
+	// CountSuppressions reports the size of the suppression list, for metrics.
+	CountSuppressions(ctx context.Context) (int, error)
+
+	// UserIDForEmail resolves an address to an account so a delivery event can
+	// be attributed. Returns ErrNotFound when no account has that address.
+	UserIDForEmail(ctx context.Context, email string) (uuid.UUID, error)
 }
 
 // RefreshTokenRepository defines the interface for refresh token data access

@@ -16,12 +16,75 @@ import (
 // Mock repositories for testing
 type mockUserRepo struct {
 	users map[string]*models.User
+	// reminders records when each account was sent its verification reminder.
+	// Held beside the user rather than on it, mirroring the real schema, where
+	// the column is written and read only by the reaper's own queries.
+	reminders map[uuid.UUID]time.Time
+	// oidcLinked marks accounts that authenticate through a provider. The
+	// production queries exclude them in SQL; the mock excludes them here.
+	oidcLinked map[uuid.UUID]bool
 }
 
 func newMockUserRepo() *mockUserRepo {
 	return &mockUserRepo{
-		users: make(map[string]*models.User),
+		users:      make(map[string]*models.User),
+		reminders:  make(map[uuid.UUID]time.Time),
+		oidcLinked: make(map[uuid.UUID]bool),
 	}
+}
+
+// reapable mirrors the guards in postgres.unverifiedAccountGuards: an account
+// only counts as a dead signup if it is unverified, has never logged in, and is
+// not linked to an identity provider.
+func (m *mockUserRepo) reapable(u *models.User) bool {
+	return !u.EmailVerified && u.LastLoginAt == nil && !m.oidcLinked[u.ID]
+}
+
+func (m *mockUserRepo) ListUnverifiedForReminder(_ context.Context, createdBefore time.Time, limit int) ([]*models.User, error) {
+	var out []*models.User
+	for _, u := range m.users {
+		if _, reminded := m.reminders[u.ID]; reminded {
+			continue
+		}
+		if m.reapable(u) && u.CreatedAt.Before(createdBefore) {
+			out = append(out, u)
+		}
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *mockUserRepo) MarkVerificationReminderSent(_ context.Context, id uuid.UUID, at time.Time) error {
+	for _, u := range m.users {
+		if u.ID == id {
+			if _, already := m.reminders[id]; already {
+				// Matches the guarded UPDATE: a second stamp affects no rows.
+				return repository.ErrNotFound
+			}
+			m.reminders[id] = at
+			return nil
+		}
+	}
+	return repository.ErrNotFound
+}
+
+func (m *mockUserRepo) DeleteUnverifiedRemindedBefore(_ context.Context, remindedBefore time.Time) (int64, error) {
+	var deleted int64
+	for email, u := range m.users {
+		remindedAt, reminded := m.reminders[u.ID]
+		if !reminded || !remindedAt.Before(remindedBefore) {
+			continue
+		}
+		if !m.reapable(u) {
+			continue
+		}
+		delete(m.users, email)
+		delete(m.reminders, u.ID)
+		deleted++
+	}
+	return deleted, nil
 }
 
 func (m *mockUserRepo) Create(ctx context.Context, user *models.User) error {

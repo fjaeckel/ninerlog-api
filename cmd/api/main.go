@@ -237,6 +237,14 @@ func main() {
 	smtpConfig := email.LoadSMTPConfig()
 	emailSender := email.NewSender(smtpConfig)
 
+	// Give the sender somewhere to record what SMTP said about each message.
+	// Attached after construction because the recorder needs the database and
+	// the sender does not; without it, sending still works and simply keeps no
+	// history.
+	emailDeliveryService := service.NewEmailDeliveryService(postgres.NewEmailDeliveryRepository(db))
+	emailSender.SetDeliveryRecorder(emailDeliveryService)
+	emailDeliveryService.RefreshSuppressionGauge(context.Background())
+
 	contactRepo := postgres.NewContactRepository(db)
 	contactService := service.NewContactService(contactRepo)
 	classRatingRepo := postgres.NewClassRatingRepository(db)
@@ -683,6 +691,29 @@ func main() {
 		envDuration("TOMBSTONE_RETENTION", service.DefaultTombstoneRetention),
 	)
 	apiHandler.SetDeletionService(deletionService)
+	apiHandler.SetEmailDeliveryService(emailDeliveryService)
+
+	// Unverified-account lifecycle. Only meaningful when email verification is
+	// actually enforced: with SMTP unconfigured, registration marks accounts
+	// verified immediately, so there is no unverified account to chase — and
+	// reaping on that basis would delete accounts that were never asked to
+	// confirm anything. UNVERIFIED_CLEANUP_ENABLED=false switches the deletion
+	// half off for operators who would rather keep dead rows than lose one.
+	var unverifiedAccountService *service.UnverifiedAccountService
+	if emailSender.IsConfigured() && service.UnverifiedCleanupEnabled() {
+		unverifiedAccountService = service.NewUnverifiedAccountService(
+			userRepo,
+			authService,
+			emailSender,
+			handlers.FrontendBaseURL,
+			service.LoadUnverifiedAccountConfig(),
+		)
+		apiHandler.SetUnverifiedAccountService(unverifiedAccountService)
+	} else {
+		slog.Info("Unverified account cleanup disabled",
+			"smtpConfigured", emailSender.IsConfigured(),
+			"enabled", service.UnverifiedCleanupEnabled())
+	}
 
 	generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{
 		ErrorHandler: func(c *gin.Context, err error, statusCode int) {
@@ -742,6 +773,13 @@ func main() {
 	// Same hygiene for pending OIDC logins and unredeemed handoff codes.
 	if oidcService != nil {
 		oidcService.StartStateReaper(notifCtx, 5*time.Minute)
+	}
+
+	// Remind, then reap, accounts that never confirmed their address. Not
+	// hygiene: this deletes user accounts, which is why it runs only when
+	// verification is enforced and can be switched off outright.
+	if unverifiedAccountService != nil {
+		unverifiedAccountService.Start(notifCtx)
 	}
 
 	// Start cloud-backup scheduler if configured

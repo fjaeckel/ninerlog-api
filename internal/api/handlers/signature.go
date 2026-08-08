@@ -307,7 +307,9 @@ func (h *APIHandler) sendSignatureRequestEmailAndMark(c *gin.Context, userID uui
 		Link:          signURL,
 		ExpiresAt:     expiresAt,
 	})
-	if err := h.emailSender.Send(*sig.InstructorEmail, subject, body); err == nil {
+	if err := h.emailSender.SendMessage(c.Request.Context(), emailpkg.Message{
+		To: *sig.InstructorEmail, Subject: subject, HTMLBody: body, Type: emailpkg.TypeSignatureRequest,
+	}); err == nil {
 		_ = h.flightSignatureService.MarkEmailSent(c.Request.Context(), sig)
 	}
 }

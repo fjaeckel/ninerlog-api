@@ -355,3 +355,17 @@ func TestIsEnabled_UserNotFound(t *testing.T) {
 		t.Error("Expected error for non-existent user")
 	}
 }
+
+// Unverified-account reaping is exercised in the reaper's own tests; this mock
+// only needs the interface satisfied.
+func (m *mock2FAUserRepo) ListUnverifiedForReminder(_ context.Context, _ time.Time, _ int) ([]*models.User, error) {
+	return nil, nil
+}
+
+func (m *mock2FAUserRepo) MarkVerificationReminderSent(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	return nil
+}
+
+func (m *mock2FAUserRepo) DeleteUnverifiedRemindedBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}

@@ -97,6 +97,22 @@ var deTemplates = templateSet{
 		return subject, body
 	},
 
+	VerificationReminder: func(p VerificationReminderParams) (string, string) {
+		subject := "NinerLog: Bitte bestätigen Sie Ihre E-Mail-Adresse"
+		body := fmt.Sprintf(`<h2>Ihr NinerLog-Konto ist noch nicht aktiv</h2>
+<p>Hallo %s,</p>
+<p>Ihre E-Mail-Adresse wurde noch nicht bestätigt, daher können Sie sich noch nicht anmelden.
+Hier ist ein neuer Link:</p>
+<p><a href="%s">E-Mail-Adresse bestätigen</a></p>
+<p>Der Link ist %d Stunden gültig.</p>
+<p><strong>Wird die Adresse nicht innerhalb von %d Tagen bestätigt, wird das Konto gelöscht.</strong>
+Es bleibt nichts erhalten, und Sie können sich jederzeit erneut registrieren.</p>
+<p>Wenn Sie kein NinerLog-Konto erstellt haben, brauchen Sie nichts zu tun — es wird von selbst entfernt.</p>
+<p>— NinerLog</p>`,
+			html.EscapeString(p.UserName), html.EscapeString(p.Link), p.LinkValidDays*24, p.DeletionDays)
+		return subject, body
+	},
+
 	PasswordReset: func(p PasswordResetParams) (string, string) {
 		subject := "NinerLog: Passwort zurücksetzen"
 		twoFactorNote := ""
