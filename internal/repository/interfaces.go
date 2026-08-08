@@ -35,6 +35,12 @@ type UserRepository interface {
 	// LockAccount locks the account until the given time
 	LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error
 
+	// UpdateLastLogin stamps the last successful login. Narrow on purpose: every
+	// authentication path (password, 2FA, passkey, OIDC, sign-up verification)
+	// records the login, and a full-row Update would write back whatever else the
+	// caller happened to be holding.
+	UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error
+
 	// MarkEmailVerified flips the email_verified flag to true.
 	// ConsumeRecoveryCode atomically removes a recovery code hash, returning
 	// true only for the caller that actually removed it. Prevents the same

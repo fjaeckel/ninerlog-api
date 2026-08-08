@@ -166,6 +166,9 @@ func (m *mockUserRepoForSignature) LockAccount(ctx context.Context, id uuid.UUID
 func (m *mockUserRepoForSignature) MarkEmailVerified(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
+func (m *mockUserRepoForSignature) UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error {
+	return nil
+}
 
 // ---- test setup helper ----
 

@@ -1455,7 +1455,7 @@ type AdminUser struct {
 	FlightCount int                `json:"flightCount"`
 	Id          openapi_types.UUID `json:"id"`
 
-	// LastLoginAt Last successful login timestamp
+	// LastLoginAt Last successful sign-in. Recorded for every path that issues a session: password login, the second factor, a passkey, OIDC, and the sign-up verification link (following it signs the new account in). Not updated by a token refresh.
 	LastLoginAt *time.Time `json:"lastLoginAt,omitempty"`
 
 	// Locked Whether the account is locked due to brute-force protection
