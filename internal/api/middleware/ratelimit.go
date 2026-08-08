@@ -171,7 +171,32 @@ func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFu
 // has no fixed suffix, so matching on the "images" segment is the only way to
 // cover the collection and its items with one predicate.
 func RateLimitByPathSegment(rl gin.HandlerFunc, segments ...string) gin.HandlerFunc {
+	return rateLimitByPathSegment(rl, nil, segments)
+}
+
+// RateLimitByPathSegmentForMethods is RateLimitByPathSegment narrowed to a set
+// of HTTP methods, so one sub-collection can carry different budgets for reads
+// and writes.
+//
+// A single budget across both is wrong whenever a resource is written rarely
+// but read repeatedly: uploading an image is heavy and deliberate, while
+// listing and displaying images happens once per card on a list page and again
+// on every revisit. Sharing one tight bucket makes the read path fail long
+// before the write path is anywhere near abusive.
+func RateLimitByPathSegmentForMethods(rl gin.HandlerFunc, methods []string, segments ...string) gin.HandlerFunc {
+	set := make(map[string]bool, len(methods))
+	for _, m := range methods {
+		set[strings.ToUpper(m)] = true
+	}
+	return rateLimitByPathSegment(rl, set, segments)
+}
+
+func rateLimitByPathSegment(rl gin.HandlerFunc, methods map[string]bool, segments []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if methods != nil && !methods[c.Request.Method] {
+			c.Next()
+			return
+		}
 		rel := groupRelativePath(c)
 		for _, s := range segments {
 			seg := "/" + strings.Trim(s, "/")
