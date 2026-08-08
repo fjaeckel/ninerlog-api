@@ -482,7 +482,15 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// Prometheus metrics endpoint (no auth required, alongside /health)
+	// Prometheus metrics endpoint.
+	//
+	// Previously unauthenticated. It exposes Go runtime stats, DB pool stats,
+	// per-path request counters and auth attempt/failure counters -- useful
+	// reconnaissance and a slow user-count oracle for anyone who can reach the
+	// port. Now gated on a bearer token when METRICS_TOKEN is set; when it is
+	// not set the endpoint stays open, which is correct for the intended
+	// topology (scraped over the internal Docker network, API port not
+	// published) but is warned about at startup so it is a deliberate choice.
 	if metricsEnabled {
 		appVersion := os.Getenv("APP_VERSION")
 		if appVersion == "" {
@@ -491,7 +499,15 @@ func main() {
 		middleware.RegisterAppMetrics(appVersion, startedAt)
 		prometheus.MustRegister(middleware.NewDBStatsCollector(db))
 
-		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+		metricsToken := os.Getenv("METRICS_TOKEN")
+		if metricsToken == "" {
+			slog.Warn("METRICS_TOKEN not set — /metrics is unauthenticated; " +
+				"set it, or ensure the API port is not reachable outside the scrape network")
+			router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+		} else {
+			router.GET("/metrics", middleware.MetricsAuthMiddleware(metricsToken), gin.WrapH(promhttp.Handler()))
+			slog.Info("Prometheus metrics require a bearer token")
+		}
 		slog.Info("Prometheus metrics enabled at /metrics")
 	}
 
