@@ -225,7 +225,7 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		oidcIssuer = &issuer
 	}
 
-	documentImagesEnabled := h.documentImageService != nil && h.documentImageService.Enabled()
+	documentFilesEnabled := h.documentFileService != nil && h.documentFileService.Enabled()
 
 	config := generated.AdminConfig{
 		AuthMode:               &authMode,
@@ -241,7 +241,7 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		AdminEmailConfigured:   adminEmailConfigured,
 		CloudBackupsConfigured: cloudBackupsConfigured,
 		CloudBackupProviders:   cloudBackupProviders,
-		DocumentImagesEnabled:  &documentImagesEnabled,
+		DocumentFilesEnabled:   &documentFilesEnabled,
 	}
 
 	// The unverified-account lifecycle is only reported when it is actually

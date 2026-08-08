@@ -432,15 +432,18 @@ func (e DeletionEntity) Valid() bool {
 	}
 }
 
-// Defines values for DocumentImageContentType.
+// Defines values for DocumentFileContentType.
 const (
-	Imagejpeg DocumentImageContentType = "image/jpeg"
-	Imagepng  DocumentImageContentType = "image/png"
+	Applicationpdf DocumentFileContentType = "application/pdf"
+	Imagejpeg      DocumentFileContentType = "image/jpeg"
+	Imagepng       DocumentFileContentType = "image/png"
 )
 
-// Valid indicates whether the value is a known member of the DocumentImageContentType enum.
-func (e DocumentImageContentType) Valid() bool {
+// Valid indicates whether the value is a known member of the DocumentFileContentType enum.
+func (e DocumentFileContentType) Valid() bool {
 	switch e {
+	case Applicationpdf:
+		return true
 	case Imagejpeg:
 		return true
 	case Imagepng:
@@ -1436,8 +1439,8 @@ type AdminConfig struct {
 	// CorsOrigins Configured CORS allowed origins
 	CorsOrigins []string `json:"corsOrigins"`
 
-	// DocumentImagesEnabled Whether licence/credential reference images are enabled (DOCUMENT_IMAGES_ENABLED is not "false")
-	DocumentImagesEnabled *bool `json:"documentImagesEnabled,omitempty"`
+	// DocumentFilesEnabled Whether licence/credential reference files are enabled (DOCUMENT_FILES_ENABLED is not "false")
+	DocumentFilesEnabled *bool `json:"documentFilesEnabled,omitempty"`
 
 	// EmailSuppressedCount Addresses currently suppressed after a permanent delivery failure.
 	EmailSuppressedCount *int `json:"emailSuppressedCount,omitempty"`
@@ -2947,10 +2950,10 @@ type DeletionFeed struct {
 	WatermarkExpired bool `json:"watermarkExpired"`
 }
 
-// DocumentImage Metadata for one reference photo attached to a licence or credential.
+// DocumentFile Metadata for one reference photo attached to a licence or credential.
 // The bytes themselves are never inlined — fetch them from the image's
 // own authenticated URL.
-type DocumentImage struct {
+type DocumentFile struct {
 	// ByteSize Size of the stored image in bytes
 	//
 	// Example: 1843200
@@ -2960,8 +2963,8 @@ type DocumentImage struct {
 	Caption *string `json:"caption,omitempty"`
 
 	// ContentType Determined from the stored bytes, not from what the uploader declared
-	ContentType DocumentImageContentType `json:"contentType"`
-	CreatedAt   time.Time                `json:"createdAt"`
+	ContentType DocumentFileContentType `json:"contentType"`
+	CreatedAt   time.Time               `json:"createdAt"`
 
 	// CredentialId Set when the image belongs to a credential; null otherwise
 	CredentialId *openapi_types.UUID `json:"credentialId,omitempty"`
@@ -2971,7 +2974,9 @@ type DocumentImage struct {
 	// Example: licence-front.jpg
 	Filename *string `json:"filename,omitempty"`
 
-	// Height Example: 1536
+	// Height Pixel height; null for formats without intrinsic dimensions, such as PDF
+	//
+	// Example: 1536
 	Height *int               `json:"height,omitempty"`
 	Id     openapi_types.UUID `json:"id"`
 
@@ -2979,19 +2984,21 @@ type DocumentImage struct {
 	LicenseId *openapi_types.UUID `json:"licenseId,omitempty"`
 	UpdatedAt time.Time           `json:"updatedAt"`
 
-	// Width Example: 2048
+	// Width Pixel width; null for formats without intrinsic dimensions, such as PDF
+	//
+	// Example: 2048
 	Width *int `json:"width,omitempty"`
 }
 
-// DocumentImageContentType Determined from the stored bytes, not from what the uploader declared
-type DocumentImageContentType string
+// DocumentFileContentType Determined from the stored bytes, not from what the uploader declared
+type DocumentFileContentType string
 
-// DocumentImageUpload defines model for DocumentImageUpload.
-type DocumentImageUpload struct {
+// DocumentFileUpload defines model for DocumentFileUpload.
+type DocumentFileUpload struct {
 	// Caption Optional short label shown with the image
 	Caption *string `json:"caption,omitempty"`
 
-	// File JPEG or PNG image, at most 5 MB
+	// File JPEG, PNG or PDF, at most 5 MB
 	File openapi_types.File `json:"file"`
 }
 
@@ -3071,11 +3078,11 @@ type Error struct {
 // Features Optional features an operator can switch off at deploy time, with the
 // limits a client needs in order to validate before uploading.
 type Features struct {
-	DocumentImages struct {
-		// AllowedContentTypes Example: ["image/jpeg","image/png"]
+	DocumentFiles struct {
+		// AllowedContentTypes Example: ["image/jpeg","image/png","application/pdf"]
 		AllowedContentTypes []string `json:"allowedContentTypes"`
 
-		// Enabled When false, every /images endpoint answers 403 — uploads and downloads alike
+		// Enabled When false, every /files endpoint answers 403 — uploads and downloads alike
 		Enabled bool `json:"enabled"`
 
 		// MaxBytes Maximum size of a single image in bytes
@@ -3083,11 +3090,11 @@ type Features struct {
 		// Example: 5242880
 		MaxBytes int `json:"maxBytes"`
 
-		// MaxPerDocument Maximum number of images per licence or credential
+		// MaxPerDocument Maximum number of files per licence or credential
 		//
 		// Example: 5
 		MaxPerDocument int `json:"maxPerDocument"`
-	} `json:"documentImages"`
+	} `json:"documentFiles"`
 }
 
 // Flight defines model for Flight.
@@ -4811,8 +4818,8 @@ type BackupDestinationId = openapi_types.UUID
 // CredentialId Example: 880e8400-e29b-41d4-a716-446655440003
 type CredentialId = openapi_types.UUID
 
-// DocumentImageId Example: aa0e8400-e29b-41d4-a716-446655440009
-type DocumentImageId = openapi_types.UUID
+// DocumentFileId Example: aa0e8400-e29b-41d4-a716-446655440009
+type DocumentFileId = openapi_types.UUID
 
 // FlightId Example: 660e8400-e29b-41d4-a716-446655440001
 type FlightId = openapi_types.UUID
@@ -4835,11 +4842,11 @@ type UpdatedSince = time.Time
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
-// DocumentImageLimitReached defines model for DocumentImageLimitReached.
-type DocumentImageLimitReached = Error
+// DocumentFileLimitReached defines model for DocumentFileLimitReached.
+type DocumentFileLimitReached = Error
 
-// DocumentImagesDisabled defines model for DocumentImagesDisabled.
-type DocumentImagesDisabled = Error
+// DocumentFilesDisabled defines model for DocumentFilesDisabled.
+type DocumentFilesDisabled = Error
 
 // Forbidden defines model for Forbidden.
 type Forbidden = Error
@@ -5459,8 +5466,8 @@ type CreateCredentialJSONRequestBody = CredentialCreate
 // UpdateCredentialJSONRequestBody defines body for UpdateCredential for application/json ContentType.
 type UpdateCredentialJSONRequestBody = CredentialUpdate
 
-// UploadCredentialImageMultipartRequestBody defines body for UploadCredentialImage for multipart/form-data ContentType.
-type UploadCredentialImageMultipartRequestBody = DocumentImageUpload
+// UploadCredentialFileMultipartRequestBody defines body for UploadCredentialFile for multipart/form-data ContentType.
+type UploadCredentialFileMultipartRequestBody = DocumentFileUpload
 
 // RecordFlightSessionEventJSONRequestBody defines body for RecordFlightSessionEvent for application/json ContentType.
 type RecordFlightSessionEventJSONRequestBody = FlightSessionEvent
@@ -5501,8 +5508,8 @@ type CreateLicenseJSONRequestBody = LicenseCreate
 // UpdateLicenseJSONRequestBody defines body for UpdateLicense for application/json ContentType.
 type UpdateLicenseJSONRequestBody UpdateLicenseJSONBody
 
-// UploadLicenseImageMultipartRequestBody defines body for UploadLicenseImage for multipart/form-data ContentType.
-type UploadLicenseImageMultipartRequestBody = DocumentImageUpload
+// UploadLicenseFileMultipartRequestBody defines body for UploadLicenseFile for multipart/form-data ContentType.
+type UploadLicenseFileMultipartRequestBody = DocumentFileUpload
 
 // CreateClassRatingJSONRequestBody defines body for CreateClassRating for application/json ContentType.
 type CreateClassRatingJSONRequestBody = ClassRatingCreate

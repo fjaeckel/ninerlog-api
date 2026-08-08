@@ -221,18 +221,18 @@ type ServerInterface interface {
 	// UpdateCredential Update credential
 	// (PATCH /credentials/{credentialId})
 	UpdateCredential(c *gin.Context, credentialId CredentialId)
-	// ListCredentialImages List a credential's reference images
-	// (GET /credentials/{credentialId}/images)
-	ListCredentialImages(c *gin.Context, credentialId CredentialId)
-	// UploadCredentialImage Upload a reference image for a credential
-	// (POST /credentials/{credentialId}/images)
-	UploadCredentialImage(c *gin.Context, credentialId CredentialId)
-	// DeleteCredentialImage Delete a credential reference image
-	// (DELETE /credentials/{credentialId}/images/{imageId})
-	DeleteCredentialImage(c *gin.Context, credentialId CredentialId, imageId DocumentImageId)
-	// GetCredentialImage Download a credential reference image
-	// (GET /credentials/{credentialId}/images/{imageId})
-	GetCredentialImage(c *gin.Context, credentialId CredentialId, imageId DocumentImageId)
+	// ListCredentialFiles List a credential's reference files
+	// (GET /credentials/{credentialId}/files)
+	ListCredentialFiles(c *gin.Context, credentialId CredentialId)
+	// UploadCredentialFile Upload a reference file for a credential
+	// (POST /credentials/{credentialId}/files)
+	UploadCredentialFile(c *gin.Context, credentialId CredentialId)
+	// DeleteCredentialFile Delete a credential reference image
+	// (DELETE /credentials/{credentialId}/files/{fileId})
+	DeleteCredentialFile(c *gin.Context, credentialId CredentialId, fileId DocumentFileId)
+	// GetCredentialFile Download a credential reference image
+	// (GET /credentials/{credentialId}/files/{fileId})
+	GetCredentialFile(c *gin.Context, credentialId CredentialId, fileId DocumentFileId)
 	// GetAllCurrencyStatus Get currency status for all class ratings
 	// (GET /currency)
 	GetAllCurrencyStatus(c *gin.Context)
@@ -338,18 +338,18 @@ type ServerInterface interface {
 	// GetLicenseCurrency Check currency status
 	// (GET /licenses/{licenseId}/currency)
 	GetLicenseCurrency(c *gin.Context, licenseId LicenseId)
-	// ListLicenseImages List a licence's reference images
-	// (GET /licenses/{licenseId}/images)
-	ListLicenseImages(c *gin.Context, licenseId LicenseId)
-	// UploadLicenseImage Upload a reference image for a licence
-	// (POST /licenses/{licenseId}/images)
-	UploadLicenseImage(c *gin.Context, licenseId LicenseId)
-	// DeleteLicenseImage Delete a licence reference image
-	// (DELETE /licenses/{licenseId}/images/{imageId})
-	DeleteLicenseImage(c *gin.Context, licenseId LicenseId, imageId DocumentImageId)
-	// GetLicenseImage Download a licence reference image
-	// (GET /licenses/{licenseId}/images/{imageId})
-	GetLicenseImage(c *gin.Context, licenseId LicenseId, imageId DocumentImageId)
+	// ListLicenseFiles List a licence's reference files
+	// (GET /licenses/{licenseId}/files)
+	ListLicenseFiles(c *gin.Context, licenseId LicenseId)
+	// UploadLicenseFile Upload a reference file for a licence
+	// (POST /licenses/{licenseId}/files)
+	UploadLicenseFile(c *gin.Context, licenseId LicenseId)
+	// DeleteLicenseFile Delete a licence reference image
+	// (DELETE /licenses/{licenseId}/files/{fileId})
+	DeleteLicenseFile(c *gin.Context, licenseId LicenseId, fileId DocumentFileId)
+	// GetLicenseFile Download a licence reference image
+	// (GET /licenses/{licenseId}/files/{fileId})
+	GetLicenseFile(c *gin.Context, licenseId LicenseId, fileId DocumentFileId)
 	// ListClassRatings List class ratings for a license
 	// (GET /licenses/{licenseId}/ratings)
 	ListClassRatings(c *gin.Context, licenseId LicenseId)
@@ -1839,8 +1839,8 @@ func (siw *ServerInterfaceWrapper) UpdateCredential(c *gin.Context) {
 	siw.Handler.UpdateCredential(c, credentialId)
 }
 
-// ListCredentialImages operation middleware
-func (siw *ServerInterfaceWrapper) ListCredentialImages(c *gin.Context) {
+// ListCredentialFiles operation middleware
+func (siw *ServerInterfaceWrapper) ListCredentialFiles(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -1861,11 +1861,11 @@ func (siw *ServerInterfaceWrapper) ListCredentialImages(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ListCredentialImages(c, credentialId)
+	siw.Handler.ListCredentialFiles(c, credentialId)
 }
 
-// UploadCredentialImage operation middleware
-func (siw *ServerInterfaceWrapper) UploadCredentialImage(c *gin.Context) {
+// UploadCredentialFile operation middleware
+func (siw *ServerInterfaceWrapper) UploadCredentialFile(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -1886,11 +1886,11 @@ func (siw *ServerInterfaceWrapper) UploadCredentialImage(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.UploadCredentialImage(c, credentialId)
+	siw.Handler.UploadCredentialFile(c, credentialId)
 }
 
-// DeleteCredentialImage operation middleware
-func (siw *ServerInterfaceWrapper) DeleteCredentialImage(c *gin.Context) {
+// DeleteCredentialFile operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCredentialFile(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -1904,12 +1904,12 @@ func (siw *ServerInterfaceWrapper) DeleteCredentialImage(c *gin.Context) {
 		return
 	}
 
-	// ------------- Path parameter "imageId" -------------
-	var imageId DocumentImageId
+	// ------------- Path parameter "fileId" -------------
+	var fileId DocumentFileId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "imageId", c.Param("imageId"), &imageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "fileId", c.Param("fileId"), &fileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter imageId: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter fileId: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -1920,11 +1920,11 @@ func (siw *ServerInterfaceWrapper) DeleteCredentialImage(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.DeleteCredentialImage(c, credentialId, imageId)
+	siw.Handler.DeleteCredentialFile(c, credentialId, fileId)
 }
 
-// GetCredentialImage operation middleware
-func (siw *ServerInterfaceWrapper) GetCredentialImage(c *gin.Context) {
+// GetCredentialFile operation middleware
+func (siw *ServerInterfaceWrapper) GetCredentialFile(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -1938,12 +1938,12 @@ func (siw *ServerInterfaceWrapper) GetCredentialImage(c *gin.Context) {
 		return
 	}
 
-	// ------------- Path parameter "imageId" -------------
-	var imageId DocumentImageId
+	// ------------- Path parameter "fileId" -------------
+	var fileId DocumentFileId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "imageId", c.Param("imageId"), &imageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "fileId", c.Param("fileId"), &fileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter imageId: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter fileId: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -1954,7 +1954,7 @@ func (siw *ServerInterfaceWrapper) GetCredentialImage(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetCredentialImage(c, credentialId, imageId)
+	siw.Handler.GetCredentialFile(c, credentialId, fileId)
 }
 
 // GetAllCurrencyStatus operation middleware
@@ -2855,8 +2855,8 @@ func (siw *ServerInterfaceWrapper) GetLicenseCurrency(c *gin.Context) {
 	siw.Handler.GetLicenseCurrency(c, licenseId)
 }
 
-// ListLicenseImages operation middleware
-func (siw *ServerInterfaceWrapper) ListLicenseImages(c *gin.Context) {
+// ListLicenseFiles operation middleware
+func (siw *ServerInterfaceWrapper) ListLicenseFiles(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2877,11 +2877,11 @@ func (siw *ServerInterfaceWrapper) ListLicenseImages(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ListLicenseImages(c, licenseId)
+	siw.Handler.ListLicenseFiles(c, licenseId)
 }
 
-// UploadLicenseImage operation middleware
-func (siw *ServerInterfaceWrapper) UploadLicenseImage(c *gin.Context) {
+// UploadLicenseFile operation middleware
+func (siw *ServerInterfaceWrapper) UploadLicenseFile(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2902,11 +2902,11 @@ func (siw *ServerInterfaceWrapper) UploadLicenseImage(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.UploadLicenseImage(c, licenseId)
+	siw.Handler.UploadLicenseFile(c, licenseId)
 }
 
-// DeleteLicenseImage operation middleware
-func (siw *ServerInterfaceWrapper) DeleteLicenseImage(c *gin.Context) {
+// DeleteLicenseFile operation middleware
+func (siw *ServerInterfaceWrapper) DeleteLicenseFile(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2920,12 +2920,12 @@ func (siw *ServerInterfaceWrapper) DeleteLicenseImage(c *gin.Context) {
 		return
 	}
 
-	// ------------- Path parameter "imageId" -------------
-	var imageId DocumentImageId
+	// ------------- Path parameter "fileId" -------------
+	var fileId DocumentFileId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "imageId", c.Param("imageId"), &imageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "fileId", c.Param("fileId"), &fileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter imageId: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter fileId: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2936,11 +2936,11 @@ func (siw *ServerInterfaceWrapper) DeleteLicenseImage(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.DeleteLicenseImage(c, licenseId, imageId)
+	siw.Handler.DeleteLicenseFile(c, licenseId, fileId)
 }
 
-// GetLicenseImage operation middleware
-func (siw *ServerInterfaceWrapper) GetLicenseImage(c *gin.Context) {
+// GetLicenseFile operation middleware
+func (siw *ServerInterfaceWrapper) GetLicenseFile(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2954,12 +2954,12 @@ func (siw *ServerInterfaceWrapper) GetLicenseImage(c *gin.Context) {
 		return
 	}
 
-	// ------------- Path parameter "imageId" -------------
-	var imageId DocumentImageId
+	// ------------- Path parameter "fileId" -------------
+	var fileId DocumentFileId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "imageId", c.Param("imageId"), &imageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "fileId", c.Param("fileId"), &fileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter imageId: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter fileId: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2970,7 +2970,7 @@ func (siw *ServerInterfaceWrapper) GetLicenseImage(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetLicenseImage(c, licenseId, imageId)
+	siw.Handler.GetLicenseFile(c, licenseId, fileId)
 }
 
 // ListClassRatings operation middleware
@@ -3601,10 +3601,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/licenses/:licenseId", wrapper.DeleteLicense)
 	router.GET(options.BaseURL+"/licenses/:licenseId", wrapper.GetLicense)
 	router.PATCH(options.BaseURL+"/licenses/:licenseId", wrapper.UpdateLicense)
-	router.GET(options.BaseURL+"/licenses/:licenseId/images", wrapper.ListLicenseImages)
-	router.POST(options.BaseURL+"/licenses/:licenseId/images", wrapper.UploadLicenseImage)
-	router.DELETE(options.BaseURL+"/licenses/:licenseId/images/:imageId", wrapper.DeleteLicenseImage)
-	router.GET(options.BaseURL+"/licenses/:licenseId/images/:imageId", wrapper.GetLicenseImage)
+	router.GET(options.BaseURL+"/licenses/:licenseId/files", wrapper.ListLicenseFiles)
+	router.POST(options.BaseURL+"/licenses/:licenseId/files", wrapper.UploadLicenseFile)
+	router.DELETE(options.BaseURL+"/licenses/:licenseId/files/:fileId", wrapper.DeleteLicenseFile)
+	router.GET(options.BaseURL+"/licenses/:licenseId/files/:fileId", wrapper.GetLicenseFile)
 	router.GET(options.BaseURL+"/licenses/:licenseId/statistics", wrapper.GetLicenseStatistics)
 	router.GET(options.BaseURL+"/licenses/:licenseId/currency", wrapper.GetLicenseCurrency)
 	router.GET(options.BaseURL+"/currency", wrapper.GetAllCurrencyStatus)
@@ -3617,10 +3617,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/credentials/:credentialId", wrapper.DeleteCredential)
 	router.GET(options.BaseURL+"/credentials/:credentialId", wrapper.GetCredential)
 	router.PATCH(options.BaseURL+"/credentials/:credentialId", wrapper.UpdateCredential)
-	router.GET(options.BaseURL+"/credentials/:credentialId/images", wrapper.ListCredentialImages)
-	router.POST(options.BaseURL+"/credentials/:credentialId/images", wrapper.UploadCredentialImage)
-	router.DELETE(options.BaseURL+"/credentials/:credentialId/images/:imageId", wrapper.DeleteCredentialImage)
-	router.GET(options.BaseURL+"/credentials/:credentialId/images/:imageId", wrapper.GetCredentialImage)
+	router.GET(options.BaseURL+"/credentials/:credentialId/files", wrapper.ListCredentialFiles)
+	router.POST(options.BaseURL+"/credentials/:credentialId/files", wrapper.UploadCredentialFile)
+	router.DELETE(options.BaseURL+"/credentials/:credentialId/files/:fileId", wrapper.DeleteCredentialFile)
+	router.GET(options.BaseURL+"/credentials/:credentialId/files/:fileId", wrapper.GetCredentialFile)
 	router.GET(options.BaseURL+"/features", wrapper.GetFeatures)
 	router.GET(options.BaseURL+"/aircraft", wrapper.ListAircraft)
 	router.POST(options.BaseURL+"/aircraft", wrapper.CreateAircraft)

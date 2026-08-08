@@ -1366,51 +1366,59 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /licenses/{licenseId}/images:
+  /licenses/{licenseId}/files:
     get:
       tags:
         - Documents
-      summary: List a licence's reference images
+      summary: List a licence's reference files
       description: |
         Returns metadata only — the bytes are fetched one image at a time from
-        `/licenses/{licenseId}/images/{imageId}`.
-      operationId: listLicenseImages
+        `/licenses/{licenseId}/files/{fileId}`.
+      operationId: listLicenseFiles
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/LicenseId'
       responses:
         '200':
-          description: The licence's images, oldest first
+          description: The licence's files, oldest first
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DocumentImage'
+                  $ref: '#/components/schemas/DocumentFile'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/DocumentImagesDisabled'
+          $ref: '#/components/responses/DocumentFilesDisabled'
         '404':
           $ref: '#/components/responses/NotFound'
 
     post:
       tags:
         - Documents
-      summary: Upload a reference image for a licence
+      summary: Upload a reference file for a licence
       description: |
         Attaches a photo or scan of the licence document. At most
-        **5 images per licence**, each at most **5 MB**.
+        **5 files per licence**, each at most **5 MB**.
 
-        Only JPEG and PNG are accepted, and the format is determined from the
-        file's own bytes — the declared part `Content-Type` is ignored, and a
-        file whose *header* does not parse as the format it claims is rejected.
-        Validation stops at the header, so trailing bytes after a valid one are
-        stored as-is rather than refused; the response always serves the sniffed
-        type with `X-Content-Type-Options: nosniff`, so such bytes can never be
-        reinterpreted as anything but an image.
-      operationId: uploadLicenseImage
+        **JPEG, PNG and PDF** are accepted, and the format is determined from
+        the file's own bytes — the declared part `Content-Type` is ignored.
+
+        * Images must have a header that parses as the format they claim.
+          Validation stops at the header, so trailing bytes after a valid one
+          are stored as-is rather than refused.
+        * PDFs cannot be validated the same way: there is no header to decode
+          and no dimensions to bound, so the check is the `%PDF-` signature plus
+          a `%%EOF` trailer, and the size cap does the rest.
+
+        Every response serves the sniffed type behind
+        `X-Content-Type-Options: nosniff`. PDFs are additionally served with
+        `Content-Disposition: attachment`, because unlike an image a PDF is an
+        active format — it can carry scripts and embedded files — and is
+        therefore never rendered inside the application's own origin.
+      operationId: uploadLicenseFile
       security:
         - bearerAuth: []
       parameters:
@@ -1420,31 +1428,31 @@ paths:
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/DocumentImageUpload'
+              $ref: '#/components/schemas/DocumentFileUpload'
             encoding:
               file:
-                contentType: image/jpeg, image/png
+                contentType: image/jpeg, image/png, application/pdf
       responses:
         '201':
           description: Image stored
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DocumentImage'
+                $ref: '#/components/schemas/DocumentFile'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/DocumentImagesDisabled'
+          $ref: '#/components/responses/DocumentFilesDisabled'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/DocumentImageLimitReached'
+          $ref: '#/components/responses/DocumentFileLimitReached'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
 
-  /licenses/{licenseId}/images/{imageId}:
+  /licenses/{licenseId}/files/{fileId}:
     get:
       tags:
         - Documents
@@ -1454,15 +1462,17 @@ paths:
         other — the image is never reachable from an unauthenticated URL, so it
         cannot be loaded straight into an `<img src>`; fetch it with the
         `Authorization` header and render the resulting blob.
-      operationId: getLicenseImage
+      operationId: getLicenseFile
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/LicenseId'
-        - $ref: '#/components/parameters/DocumentImageId'
+        - $ref: '#/components/parameters/DocumentFileId'
       responses:
         '200':
-          description: Image bytes
+          description: |
+            File bytes, served with the stored content type. PDFs additionally
+            carry `Content-Disposition: attachment`.
           content:
             image/jpeg:
               schema:
@@ -1472,10 +1482,14 @@ paths:
               schema:
                 type: string
                 format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/DocumentImagesDisabled'
+          $ref: '#/components/responses/DocumentFilesDisabled'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1483,19 +1497,19 @@ paths:
       tags:
         - Documents
       summary: Delete a licence reference image
-      operationId: deleteLicenseImage
+      operationId: deleteLicenseFile
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/LicenseId'
-        - $ref: '#/components/parameters/DocumentImageId'
+        - $ref: '#/components/parameters/DocumentFileId'
       responses:
         '204':
           description: Image deleted
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/DocumentImagesDisabled'
+          $ref: '#/components/responses/DocumentFilesDisabled'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1802,52 +1816,60 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /credentials/{credentialId}/images:
+  /credentials/{credentialId}/files:
     get:
       tags:
         - Documents
-      summary: List a credential's reference images
+      summary: List a credential's reference files
       description: |
         Returns metadata only — the bytes are fetched one image at a time from
-        `/credentials/{credentialId}/images/{imageId}`.
-      operationId: listCredentialImages
+        `/credentials/{credentialId}/files/{fileId}`.
+      operationId: listCredentialFiles
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CredentialId'
       responses:
         '200':
-          description: The credential's images, oldest first
+          description: The credential's files, oldest first
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DocumentImage'
+                  $ref: '#/components/schemas/DocumentFile'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/DocumentImagesDisabled'
+          $ref: '#/components/responses/DocumentFilesDisabled'
         '404':
           $ref: '#/components/responses/NotFound'
 
     post:
       tags:
         - Documents
-      summary: Upload a reference image for a credential
+      summary: Upload a reference file for a credential
       description: |
         Attaches a photo or scan of the credential (medical certificate,
         language proficiency endorsement, radio licence, …). At most
-        **5 images per credential**, each at most **5 MB**.
+        **5 files per credential**, each at most **5 MB**.
 
-        Only JPEG and PNG are accepted, and the format is determined from the
-        file's own bytes — the declared part `Content-Type` is ignored, and a
-        file whose *header* does not parse as the format it claims is rejected.
-        Validation stops at the header, so trailing bytes after a valid one are
-        stored as-is rather than refused; the response always serves the sniffed
-        type with `X-Content-Type-Options: nosniff`, so such bytes can never be
-        reinterpreted as anything but an image.
-      operationId: uploadCredentialImage
+        **JPEG, PNG and PDF** are accepted, and the format is determined from
+        the file's own bytes — the declared part `Content-Type` is ignored.
+
+        * Images must have a header that parses as the format they claim.
+          Validation stops at the header, so trailing bytes after a valid one
+          are stored as-is rather than refused.
+        * PDFs cannot be validated the same way: there is no header to decode
+          and no dimensions to bound, so the check is the `%PDF-` signature plus
+          a `%%EOF` trailer, and the size cap does the rest.
+
+        Every response serves the sniffed type behind
+        `X-Content-Type-Options: nosniff`. PDFs are additionally served with
+        `Content-Disposition: attachment`, because unlike an image a PDF is an
+        active format — it can carry scripts and embedded files — and is
+        therefore never rendered inside the application's own origin.
+      operationId: uploadCredentialFile
       security:
         - bearerAuth: []
       parameters:
@@ -1857,31 +1879,31 @@ paths:
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/DocumentImageUpload'
+              $ref: '#/components/schemas/DocumentFileUpload'
             encoding:
               file:
-                contentType: image/jpeg, image/png
+                contentType: image/jpeg, image/png, application/pdf
       responses:
         '201':
           description: Image stored
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DocumentImage'
+                $ref: '#/components/schemas/DocumentFile'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/DocumentImagesDisabled'
+          $ref: '#/components/responses/DocumentFilesDisabled'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/DocumentImageLimitReached'
+          $ref: '#/components/responses/DocumentFileLimitReached'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
 
-  /credentials/{credentialId}/images/{imageId}:
+  /credentials/{credentialId}/files/{fileId}:
     get:
       tags:
         - Documents
@@ -1891,15 +1913,17 @@ paths:
         other — the image is never reachable from an unauthenticated URL, so it
         cannot be loaded straight into an `<img src>`; fetch it with the
         `Authorization` header and render the resulting blob.
-      operationId: getCredentialImage
+      operationId: getCredentialFile
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CredentialId'
-        - $ref: '#/components/parameters/DocumentImageId'
+        - $ref: '#/components/parameters/DocumentFileId'
       responses:
         '200':
-          description: Image bytes
+          description: |
+            File bytes, served with the stored content type. PDFs additionally
+            carry `Content-Disposition: attachment`.
           content:
             image/jpeg:
               schema:
@@ -1909,10 +1933,14 @@ paths:
               schema:
                 type: string
                 format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/DocumentImagesDisabled'
+          $ref: '#/components/responses/DocumentFilesDisabled'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1920,19 +1948,19 @@ paths:
       tags:
         - Documents
       summary: Delete a credential reference image
-      operationId: deleteCredentialImage
+      operationId: deleteCredentialFile
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CredentialId'
-        - $ref: '#/components/parameters/DocumentImageId'
+        - $ref: '#/components/parameters/DocumentFileId'
       responses:
         '204':
           description: Image deleted
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/DocumentImagesDisabled'
+          $ref: '#/components/responses/DocumentFilesDisabled'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -4734,11 +4762,11 @@ components:
         format: uuid
         example: 880e8400-e29b-41d4-a716-446655440003
 
-    DocumentImageId:
-      name: imageId
+    DocumentFileId:
+      name: fileId
       in: path
       required: true
-      description: Document image UUID
+      description: Document file UUID
       schema:
         type: string
         format: uuid
@@ -6506,7 +6534,7 @@ components:
           type: integer
           description: Total number of notification history entries
 
-    DocumentImage:
+    DocumentFile:
       type: object
       description: |
         Metadata for one reference photo attached to a licence or credential.
@@ -6532,7 +6560,7 @@ components:
           description: Set when the image belongs to a credential; null otherwise
         contentType:
           type: string
-          enum: [image/jpeg, image/png]
+          enum: [image/jpeg, image/png, application/pdf]
           description: Determined from the stored bytes, not from what the uploader declared
         byteSize:
           type: integer
@@ -6540,9 +6568,11 @@ components:
           example: 1843200
         width:
           type: [integer, 'null']
+          description: Pixel width; null for formats without intrinsic dimensions, such as PDF
           example: 2048
         height:
           type: [integer, 'null']
+          description: Pixel height; null for formats without intrinsic dimensions, such as PDF
           example: 1536
         filename:
           type: [string, 'null']
@@ -6558,7 +6588,7 @@ components:
           type: string
           format: date-time
 
-    DocumentImageUpload:
+    DocumentFileUpload:
       type: object
       required:
         - file
@@ -6566,7 +6596,7 @@ components:
         file:
           type: string
           format: binary
-          description: JPEG or PNG image, at most 5 MB
+          description: JPEG, PNG or PDF, at most 5 MB
         caption:
           type: string
           maxLength: 200
@@ -6578,9 +6608,9 @@ components:
         Optional features an operator can switch off at deploy time, with the
         limits a client needs in order to validate before uploading.
       required:
-        - documentImages
+        - documentFiles
       properties:
-        documentImages:
+        documentFiles:
           type: object
           required:
             - enabled
@@ -6590,20 +6620,20 @@ components:
           properties:
             enabled:
               type: boolean
-              description: When false, every /images endpoint answers 403 — uploads and downloads alike
+              description: When false, every /files endpoint answers 403 — uploads and downloads alike
             maxBytes:
               type: integer
               description: Maximum size of a single image in bytes
               example: 5242880
             maxPerDocument:
               type: integer
-              description: Maximum number of images per licence or credential
+              description: Maximum number of files per licence or credential
               example: 5
             allowedContentTypes:
               type: array
               items:
                 type: string
-              example: [image/jpeg, image/png]
+              example: [image/jpeg, image/png, application/pdf]
 
     CredentialType:
       type: string
@@ -8254,9 +8284,9 @@ components:
         cloudBackupsConfigured:
           type: boolean
           description: Whether cloud backups are enabled (BACKUP_CREDENTIALS_KEY is set)
-        documentImagesEnabled:
+        documentFilesEnabled:
           type: boolean
-          description: Whether licence/credential reference images are enabled (DOCUMENT_IMAGES_ENABLED is not "false")
+          description: Whether licence/credential reference files are enabled (DOCUMENT_FILES_ENABLED is not "false")
         unverifiedCleanupEnabled:
           type: boolean
           description: |
@@ -9643,12 +9673,12 @@ components:
           example:
             error: Resource not found
 
-    DocumentImagesDisabled:
+    DocumentFilesDisabled:
       description: >-
-        Document images are switched off on this server
-        (DOCUMENT_IMAGES_ENABLED=false). Applies to reading as well as
-        uploading: serving stored images is the bandwidth half of the abuse
-        surface the switch exists to close. Already-stored images are retained
+        Document files are switched off on this server
+        (DOCUMENT_FILES_ENABLED=false). Applies to reading as well as
+        uploading: serving stored files is the bandwidth half of the abuse
+        surface the switch exists to close. Already-stored files are retained
         and become reachable again if the operator re-enables the feature.
         Clients should consult GET /features and hide the UI.
       content:
@@ -9656,16 +9686,16 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
-            error: Document image uploads are disabled on this server
+            error: Document file uploads are disabled on this server
 
-    DocumentImageLimitReached:
-      description: The licence or credential already holds the maximum number of images
+    DocumentFileLimitReached:
+      description: The licence or credential already holds the maximum number of files
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
           example:
-            error: Maximum number of images for this document reached
+            error: Maximum number of files for this document reached
 
     PayloadTooLarge:
       description: The uploaded file exceeds the maximum allowed size

@@ -95,8 +95,8 @@ would ever call. The JSON half of that flow (`GET /auth/providers`,
   |---|---|---|---|
   | `general` | 120/min | every `/api/v1` route | user ID (IP when unauthenticated) |
   | `search` | `SEARCH_RATE_LIMIT_PER_MINUTE`, default 60/min | `GET /flights` **with** a `q` parameter | user ID |
-  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*`, and **writes** to `/…/images*` | user ID |
-  | `image_read` | `IMAGE_READ_RATE_LIMIT_PER_MINUTE`, default 90/min | **reads** of `/…/images*` | user ID |
+  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*`, and **writes** to `/…/files*` | user ID |
+  | `file_read` | `FILE_READ_RATE_LIMIT_PER_MINUTE`, default 90/min | **reads** of `/…/files*` | user ID |
   | `auth` | 10/min | login, register, refresh, password reset, 2FA, WebAuthn | client IP |
   | `admin` | 30/min | `/admin/*` and user state changes | client IP |
   | `sign` | 20/min | `/sign/*` public signing links | client IP |
@@ -334,39 +334,46 @@ CRUD on `/credentials` (medicals, language proficiency, clearances, and the Germ
 certificates `RADIO_BZF2`/`RADIO_BZF1`/`RADIO_AZF`). `GET /credentials` accepts
 `updatedSince`.
 
-### Document images
-Reference photos/scans attached to a licence or a credential:
+### Document files
+Reference photos, scans and PDFs attached to a licence or a credential:
 
 | Method | Path |
 | --- | --- |
-| `GET` | `/licenses/{licenseId}/images`, `/credentials/{credentialId}/images` |
+| `GET` | `/licenses/{licenseId}/files`, `/credentials/{credentialId}/files` |
 | `POST` | same paths — `multipart/form-data` with a `file` part and an optional `caption` field |
-| `GET` | `/licenses/{licenseId}/images/{imageId}`, `/credentials/{credentialId}/images/{imageId}` — raw bytes |
-| `DELETE` | same per-image paths |
+| `GET` | `/licenses/{licenseId}/files/{fileId}`, `/credentials/{credentialId}/files/{fileId}` — raw bytes |
+| `DELETE` | same per-file paths |
 
 - **Authenticated like every other endpoint**, downloads included. There is no
-  unauthenticated image URL, so the bytes cannot be loaded straight into an `<img src>`;
-  fetch with the `Authorization` header and render the blob.
-- **JPEG and PNG only, at most 5 MB and 5 images per document.** The format is decided by
-  parsing the file's header — the declared part `Content-Type` is ignored, and a file whose
-  header does not parse as the format it claims is rejected with `400`. Oversized files get
-  `413`; a document already at its cap gets `409`.
-  - Validation stops at the header (PNG `IHDR`, JPEG `SOF`), because proving every byte
+  unauthenticated URL, so the bytes cannot be loaded straight into an `<img src>`; fetch
+  with the `Authorization` header and render or download the blob.
+- **JPEG, PNG and PDF, at most 5 MB and 5 files per document.** The format is decided from
+  the file's own bytes — the declared part `Content-Type` is ignored. Oversized files get
+  `413`; a document already at its cap gets `409`; anything unrecognised gets `400`.
+  - **Images** must have a header that parses as the format they claim, and its declared
+    dimensions are capped. Validation stops at the header, because proving every byte
     means a full decode and a full pixel allocation — the cost the dimension cap exists to
-    avoid. A valid header followed by arbitrary trailing bytes is therefore stored as-is.
-    Serving is what contains that: the response carries the sniffed content type and the
-    global `X-Content-Type-Options: nosniff`, and needs a bearer token, so the bytes can
-    never be navigated to or reinterpreted as a scriptable type.
-- **The whole feature can be switched off** with `DOCUMENT_IMAGES_ENABLED=false`, in which
+    avoid — so a valid header followed by trailing bytes is stored as-is.
+  - **PDFs** are checked for the `%PDF-` signature and a `%%EOF` trailer, and nothing more:
+    no standard-library parser exists, and adding one for untrusted input would add attack
+    surface. That catches truncated downloads and renamed archives, not malicious content.
+- **PDFs are always served with `Content-Disposition: attachment`**, images with `inline`.
+  A PDF is an active format — scripts, embedded files — and nothing on the server has
+  parsed it, so it is never rendered inside the application's own origin. The decision is
+  the server's; a client cannot ask for inline. Every response also carries the sniffed
+  content type behind the global `X-Content-Type-Options: nosniff`.
+- **The whole feature can be switched off** with `DOCUMENT_FILES_ENABLED=false`, in which
   case every one of these endpoints answers `403` — reads as well as writes, since serving
   the blobs is the bandwidth half of the abuse surface the switch exists to close. Stored
   rows are retained and become reachable again if it is switched back on.
+  (`DOCUMENT_IMAGES_ENABLED`, the name this shipped under before PDFs, is still honoured.)
 - Listings return metadata only (`contentType`, `byteSize`, `width`, `height`, `filename`,
-  `caption`); the payload only ever comes back from a single image's own URL.
+  `caption`); `width`/`height` are null for formats without intrinsic dimensions such as
+  PDF. The payload only ever comes back from a single file's own URL.
 
 ### Features
 `GET /features` — capability probe for optional features an operator can disable, with the
-limits a client needs before uploading (`documentImages.enabled`, `maxBytes`,
+limits a client needs before uploading (`documentFiles.enabled`, `maxBytes`,
 `maxPerDocument`, `allowedContentTypes`). Clients should call this once after sign-in and
 hide the affected UI rather than discovering the `403` by trying.
 
