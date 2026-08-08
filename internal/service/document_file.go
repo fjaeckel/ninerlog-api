@@ -18,52 +18,52 @@ import (
 )
 
 var (
-	// ErrDocumentImagesDisabled is returned from every image endpoint when the
-	// feature is switched off (DOCUMENT_IMAGES_ENABLED=false). It covers reads
+	// ErrDocumentFilesDisabled is returned from every image endpoint when the
+	// feature is switched off (DOCUMENT_FILES_ENABLED=false). It covers reads
 	// as well as writes: serving multi-megabyte blobs is itself the bandwidth
 	// half of the abuse surface an operator turns this off to close. Stored
 	// rows are left untouched and become reachable again when it is turned
 	// back on.
-	ErrDocumentImagesDisabled = errors.New("document image uploads are disabled on this server")
+	ErrDocumentFilesDisabled = errors.New("document image uploads are disabled on this server")
 
-	// ErrDocumentImageNotFound covers both "no such image" and "that image
+	// ErrDocumentFileNotFound covers both "no such image" and "that image
 	// belongs to a different document or user" — the caller cannot tell them
 	// apart, so an id cannot be probed through someone else's URL.
-	ErrDocumentImageNotFound = errors.New("document image not found")
+	ErrDocumentFileNotFound = errors.New("document image not found")
 
 	// ErrDocumentSubjectNotFound means the licence or credential the image
 	// would hang off does not exist or is not the caller's.
 	ErrDocumentSubjectNotFound = errors.New("document not found")
 
-	ErrDocumentImageEmpty        = errors.New("image file is empty")
-	ErrDocumentImageTooLarge     = errors.New("image exceeds the maximum size")
-	ErrDocumentImageUnsupported  = errors.New("unsupported image format")
-	ErrDocumentImageCorrupt      = errors.New("image could not be decoded")
-	ErrDocumentImageTooManyPixel = errors.New("image resolution is too large")
-	ErrDocumentImageLimitReached = errors.New("maximum number of images for this document reached")
+	ErrDocumentFileEmpty        = errors.New("image file is empty")
+	ErrDocumentFileTooLarge     = errors.New("image exceeds the maximum size")
+	ErrDocumentFileUnsupported  = errors.New("unsupported image format")
+	ErrDocumentFileCorrupt      = errors.New("image could not be decoded")
+	ErrDocumentFileTooManyPixel = errors.New("image resolution is too large")
+	ErrDocumentFileLimitReached = errors.New("maximum number of images for this document reached")
 )
 
-// DocumentImageService owns reference photos attached to licences and
+// DocumentFileService owns reference photos attached to licences and
 // credentials: the feature switch, upload validation, ownership checks and the
 // per-document cap.
 //
 // Every method resolves the subject through the licence/credential repository
 // first. That both proves ownership and means an image can never be addressed
 // except through the document it belongs to.
-type DocumentImageService struct {
-	imageRepo      repository.DocumentImageRepository
+type DocumentFileService struct {
+	imageRepo      repository.DocumentFileRepository
 	licenseRepo    repository.LicenseRepository
 	credentialRepo repository.CredentialRepository
 	enabled        bool
 }
 
-func NewDocumentImageService(
-	imageRepo repository.DocumentImageRepository,
+func NewDocumentFileService(
+	imageRepo repository.DocumentFileRepository,
 	licenseRepo repository.LicenseRepository,
 	credentialRepo repository.CredentialRepository,
 	enabled bool,
-) *DocumentImageService {
-	return &DocumentImageService{
+) *DocumentFileService {
+	return &DocumentFileService{
 		imageRepo:      imageRepo,
 		licenseRepo:    licenseRepo,
 		credentialRepo: credentialRepo,
@@ -74,7 +74,7 @@ func NewDocumentImageService(
 // Enabled reports whether the feature is switched on. Handlers use it to
 // answer GET /features so a client can hide the UI instead of discovering the
 // 403 by uploading.
-func (s *DocumentImageService) Enabled() bool { return s.enabled }
+func (s *DocumentFileService) Enabled() bool { return s.enabled }
 
 // UploadInput is one candidate image as it arrives from the handler. Data is
 // the raw file; ContentType is *derived* from it, never taken from the
@@ -88,7 +88,7 @@ type UploadInput struct {
 // verifySubject proves the caller owns the licence/credential the request
 // addresses. Both misses collapse to ErrDocumentSubjectNotFound so a
 // non-owner learns nothing beyond "not yours".
-func (s *DocumentImageService) verifySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) error {
+func (s *DocumentFileService) verifySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) error {
 	switch subject {
 	case models.DocumentSubjectLicense:
 		license, err := s.licenseRepo.GetByID(ctx, subjectID)
@@ -120,31 +120,33 @@ func (s *DocumentImageService) verifySubject(ctx context.Context, userID uuid.UU
 }
 
 // Upload validates and stores one image against a licence or credential.
-func (s *DocumentImageService) Upload(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID, in UploadInput) (*models.DocumentImage, error) {
+func (s *DocumentFileService) Upload(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID, in UploadInput) (*models.DocumentFile, error) {
 	if !s.enabled {
-		return nil, ErrDocumentImagesDisabled
+		return nil, ErrDocumentFilesDisabled
 	}
 	if err := s.verifySubject(ctx, userID, subject, subjectID); err != nil {
 		return nil, err
 	}
 
-	contentType, width, height, err := inspectImage(in.Data)
+	contentType, width, height, err := inspectFile(in.Data)
 	if err != nil {
 		return nil, err
 	}
 
-	img := &models.DocumentImage{
+	// Width and height are nil for formats without intrinsic pixel dimensions
+	// (PDF), and are passed through as such rather than stored as zeroes.
+	img := &models.DocumentFile{
 		UserID:      userID,
 		ContentType: contentType,
 		ByteSize:    len(in.Data),
-		Width:       &width,
-		Height:      &height,
+		Width:       width,
+		Height:      height,
 		Data:        in.Data,
 	}
 	if name := sanitizeFilename(in.Filename); name != "" {
 		img.Filename = &name
 	}
-	if caption := truncateRunes(strings.TrimSpace(in.Caption), models.MaxDocumentImageCaptionLen); caption != "" {
+	if caption := truncateRunes(strings.TrimSpace(in.Caption), models.MaxDocumentFileCaptionLen); caption != "" {
 		img.Caption = &caption
 	}
 	switch subject {
@@ -156,9 +158,9 @@ func (s *DocumentImageService) Upload(ctx context.Context, userID uuid.UUID, sub
 		img.CredentialID = &id
 	}
 
-	if err := s.imageRepo.Create(ctx, img, models.MaxDocumentImagesPerSubject); err != nil {
-		if errors.Is(err, repository.ErrDocumentImageLimit) {
-			return nil, ErrDocumentImageLimitReached
+	if err := s.imageRepo.Create(ctx, img, models.MaxDocumentFilesPerSubject); err != nil {
+		if errors.Is(err, repository.ErrDocumentFileLimit) {
+			return nil, ErrDocumentFileLimitReached
 		}
 		return nil, err
 	}
@@ -170,9 +172,9 @@ func (s *DocumentImageService) Upload(ctx context.Context, userID uuid.UUID, sub
 }
 
 // List returns the metadata for a document's images, oldest first.
-func (s *DocumentImageService) List(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentImage, error) {
+func (s *DocumentFileService) List(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentFile, error) {
 	if !s.enabled {
-		return nil, ErrDocumentImagesDisabled
+		return nil, ErrDocumentFilesDisabled
 	}
 	if err := s.verifySubject(ctx, userID, subject, subjectID); err != nil {
 		return nil, err
@@ -182,9 +184,9 @@ func (s *DocumentImageService) List(ctx context.Context, userID uuid.UUID, subje
 
 // Get returns a single image including its bytes, for the authenticated
 // download endpoint.
-func (s *DocumentImageService) Get(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentImage, error) {
+func (s *DocumentFileService) Get(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentFile, error) {
 	if !s.enabled {
-		return nil, ErrDocumentImagesDisabled
+		return nil, ErrDocumentFilesDisabled
 	}
 	if err := s.verifySubject(ctx, userID, subject, subjectID); err != nil {
 		return nil, err
@@ -192,7 +194,7 @@ func (s *DocumentImageService) Get(ctx context.Context, userID uuid.UUID, subjec
 	img, err := s.imageRepo.GetWithData(ctx, userID, subject, subjectID, imageID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrDocumentImageNotFound
+			return nil, ErrDocumentFileNotFound
 		}
 		return nil, err
 	}
@@ -200,38 +202,71 @@ func (s *DocumentImageService) Get(ctx context.Context, userID uuid.UUID, subjec
 }
 
 // Delete removes one image from a document.
-func (s *DocumentImageService) Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error {
+func (s *DocumentFileService) Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error {
 	if !s.enabled {
-		return ErrDocumentImagesDisabled
+		return ErrDocumentFilesDisabled
 	}
 	if err := s.verifySubject(ctx, userID, subject, subjectID); err != nil {
 		return err
 	}
 	if err := s.imageRepo.Delete(ctx, userID, subject, subjectID, imageID); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return ErrDocumentImageNotFound
+			return ErrDocumentFileNotFound
 		}
 		return err
 	}
 	return nil
 }
 
-// inspectImage decides whether a byte slice is an image we are willing to
-// store, and returns its true content type and dimensions.
+// inspectFile decides whether a byte slice is something we are willing to
+// store, and returns its true content type and (for images) its dimensions.
 //
 // The declared Content-Type of the multipart part is ignored entirely: it is
 // attacker-controlled, and the only thing that matters is what the bytes
-// actually are — because those same bytes get served back from our own origin
-// later. Sniffing pins the format, DecodeConfig requires the header to parse
-// as that same format, and the header's declared dimensions are capped, so a
-// decompression bomb is refused without ever allocating its pixels.
+// actually are — because those same bytes get served back to a browser later.
+// Sniffing pins the format; what happens next depends on which format it is,
+// because the two families offer very different guarantees.
+func inspectFile(data []byte) (contentType string, width, height *int, err error) {
+	if len(data) == 0 {
+		return "", nil, nil, ErrDocumentFileEmpty
+	}
+	if len(data) > models.MaxDocumentFileBytes {
+		return "", nil, nil, ErrDocumentFileTooLarge
+	}
+
+	sniffed := http.DetectContentType(data)
+	switch {
+	case models.ContentTypeIsImage(sniffed):
+		w, h, err := inspectImage(data, sniffed)
+		if err != nil {
+			return "", nil, nil, err
+		}
+		return sniffed, &w, &h, nil
+	case sniffed == models.ContentTypePDF:
+		if err := inspectPDF(data); err != nil {
+			return "", nil, nil, err
+		}
+		// A PDF has no single intrinsic pixel size — pages carry their own
+		// dimensions in points — so width/height stay null rather than being
+		// invented.
+		return sniffed, nil, nil, nil
+	default:
+		return "", nil, nil, ErrDocumentFileUnsupported
+	}
+}
+
+// inspectImage verifies a raster image and returns its declared dimensions.
+//
+// DecodeConfig requires the header to parse as the sniffed format, and the
+// header's declared dimensions are capped, so a decompression bomb is refused
+// without ever allocating its pixels.
 //
 // This validates the HEADER, not the whole file. DecodeConfig stops at the
 // PNG IHDR / JPEG SOF, so a valid header followed by arbitrary bytes — or by
 // nothing at all — is accepted and stored verbatim. That is a deliberate
 // trade: a full image.Decode is the only thing that proves every byte, and it
 // must allocate the entire pixel buffer, which is exactly the cost the
-// dimension cap above exists to avoid.
+// dimension cap exists to avoid.
 //
 // Serving is what makes that acceptable. The response Content-Type is the
 // sniffed value, never the uploader's, X-Content-Type-Options: nosniff is set
@@ -239,39 +274,63 @@ func (s *DocumentImageService) Delete(ctx context.Context, userID uuid.UUID, sub
 // can neither navigate to these bytes nor reinterpret them as anything but an
 // image. The residual is storage: a caller can park arbitrary bytes behind a
 // valid header, bounded by the 5 MB × 5-per-document caps and attributable to
-// their account. See TestDocumentImageUpload_ValidatesTheHeaderNotTheWholeFile.
-func inspectImage(data []byte) (contentType string, width, height int, err error) {
-	if len(data) == 0 {
-		return "", 0, 0, ErrDocumentImageEmpty
-	}
-	if len(data) > models.MaxDocumentImageBytes {
-		return "", 0, 0, ErrDocumentImageTooLarge
-	}
-
-	sniffed := http.DetectContentType(data)
-	if !models.IsAllowedDocumentImageContentType(sniffed) {
-		return "", 0, 0, ErrDocumentImageUnsupported
-	}
-
+// their account. See TestDocumentFileUpload_ValidatesTheHeaderNotTheWholeFile.
+func inspectImage(data []byte, sniffed string) (width, height int, err error) {
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		return "", 0, 0, ErrDocumentImageCorrupt
+		return 0, 0, ErrDocumentFileCorrupt
 	}
 	// The decoder that claimed the file must be the one the sniffed type
 	// implies — otherwise the bytes are a polyglot and the two consumers
 	// (browser and server) would disagree about what they hold.
 	if "image/"+format != sniffed {
-		return "", 0, 0, ErrDocumentImageUnsupported
+		return 0, 0, ErrDocumentFileUnsupported
 	}
 	if cfg.Width <= 0 || cfg.Height <= 0 {
-		return "", 0, 0, ErrDocumentImageCorrupt
+		return 0, 0, ErrDocumentFileCorrupt
 	}
-	if int64(cfg.Width)*int64(cfg.Height) > models.MaxDocumentImagePixels {
-		return "", 0, 0, ErrDocumentImageTooManyPixel
+	if int64(cfg.Width)*int64(cfg.Height) > models.MaxDocumentFilePixels {
+		return 0, 0, ErrDocumentFileTooManyPixel
 	}
-
-	return sniffed, cfg.Width, cfg.Height, nil
+	return cfg.Width, cfg.Height, nil
 }
+
+// inspectPDF applies the only structural check a PDF affords us without a
+// parser: the %PDF- signature at the front and a %%EOF trailer at the end.
+//
+// This is deliberately weaker than the image path and it is worth being blunt
+// about why. Nothing in the standard library parses PDF, and pulling in a
+// third-party parser to inspect untrusted input would add attack surface
+// rather than remove it. So this rejects the honest mistakes — a truncated
+// download, a renamed archive, a text file with the wrong extension — and
+// nothing more. A structurally valid PDF carrying JavaScript or an embedded
+// payload is stored.
+//
+// What contains that is the serving path, not this function: PDFs go out with
+// Content-Disposition: attachment (see models.ContentTypeIsInlineSafe), behind
+// nosniff and a bearer token, so nothing renders them inside our origin.
+//
+// The trailer is looked for in the last few KB rather than at the very end,
+// because a linearized or incrementally-updated PDF legitimately carries bytes
+// after its final %%EOF.
+func inspectPDF(data []byte) error {
+	if !bytes.HasPrefix(data, models.PDFMagic) {
+		return ErrDocumentFileUnsupported
+	}
+	tail := data
+	if len(tail) > pdfTrailerSearchWindow {
+		tail = tail[len(tail)-pdfTrailerSearchWindow:]
+	}
+	if !bytes.Contains(tail, models.PDFTrailer) {
+		return ErrDocumentFileCorrupt
+	}
+	return nil
+}
+
+// pdfTrailerSearchWindow is how far back from the end of the file to look for
+// %%EOF. Generous enough for the trailing bytes a linearized or incrementally
+// updated PDF appends, small enough that the scan is trivial.
+const pdfTrailerSearchWindow = 4096
 
 // sanitizeFilename reduces a client-supplied filename to a display-safe
 // basename. It is never used to build a path — it exists so the UI can show
@@ -299,7 +358,7 @@ func sanitizeFilename(name string) string {
 	if name == "." || name == ".." {
 		return ""
 	}
-	return truncateRunes(name, models.MaxDocumentImageFilenameLen)
+	return truncateRunes(name, models.MaxDocumentFileFilenameLen)
 }
 
 // truncateRunes caps a string at max runes (not bytes), so a cut never lands

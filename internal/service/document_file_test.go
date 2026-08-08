@@ -20,26 +20,26 @@ import (
 
 // ── Test doubles ──────────────────────────────────────────────────────────
 
-type mockDocumentImageRepo struct {
-	images    map[uuid.UUID]*models.DocumentImage
+type mockDocumentFileRepo struct {
+	images    map[uuid.UUID]*models.DocumentFile
 	createErr error
 }
 
-func newMockDocumentImageRepo() *mockDocumentImageRepo {
-	return &mockDocumentImageRepo{images: make(map[uuid.UUID]*models.DocumentImage)}
+func newMockDocumentFileRepo() *mockDocumentFileRepo {
+	return &mockDocumentFileRepo{images: make(map[uuid.UUID]*models.DocumentFile)}
 }
 
-func (m *mockDocumentImageRepo) matches(img *models.DocumentImage, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) bool {
+func (m *mockDocumentFileRepo) matches(img *models.DocumentFile, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) bool {
 	return img.UserID == userID && img.SubjectType() == subject && img.SubjectID() == subjectID
 }
 
-func (m *mockDocumentImageRepo) Create(ctx context.Context, img *models.DocumentImage, maxPerSubject int) error {
+func (m *mockDocumentFileRepo) Create(ctx context.Context, img *models.DocumentFile, maxPerSubject int) error {
 	if m.createErr != nil {
 		return m.createErr
 	}
 	count, _ := m.CountBySubject(ctx, img.UserID, img.SubjectType(), img.SubjectID())
 	if count >= maxPerSubject {
-		return repository.ErrDocumentImageLimit
+		return repository.ErrDocumentFileLimit
 	}
 	img.ID = uuid.New()
 	img.CreatedAt = time.Now()
@@ -49,8 +49,8 @@ func (m *mockDocumentImageRepo) Create(ctx context.Context, img *models.Document
 	return nil
 }
 
-func (m *mockDocumentImageRepo) ListBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentImage, error) {
-	out := make([]*models.DocumentImage, 0)
+func (m *mockDocumentFileRepo) ListBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentFile, error) {
+	out := make([]*models.DocumentFile, 0)
 	for _, img := range m.images {
 		if m.matches(img, userID, subject, subjectID) {
 			copied := *img
@@ -61,7 +61,7 @@ func (m *mockDocumentImageRepo) ListBySubject(ctx context.Context, userID uuid.U
 	return out, nil
 }
 
-func (m *mockDocumentImageRepo) GetWithData(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentImage, error) {
+func (m *mockDocumentFileRepo) GetWithData(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentFile, error) {
 	img, ok := m.images[imageID]
 	if !ok || !m.matches(img, userID, subject, subjectID) {
 		return nil, repository.ErrNotFound
@@ -69,7 +69,7 @@ func (m *mockDocumentImageRepo) GetWithData(ctx context.Context, userID uuid.UUI
 	return img, nil
 }
 
-func (m *mockDocumentImageRepo) Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error {
+func (m *mockDocumentFileRepo) Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error {
 	img, ok := m.images[imageID]
 	if !ok || !m.matches(img, userID, subject, subjectID) {
 		return repository.ErrNotFound
@@ -78,7 +78,7 @@ func (m *mockDocumentImageRepo) Delete(ctx context.Context, userID uuid.UUID, su
 	return nil
 }
 
-func (m *mockDocumentImageRepo) CountBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) (int, error) {
+func (m *mockDocumentFileRepo) CountBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) (int, error) {
 	count := 0
 	for _, img := range m.images {
 		if m.matches(img, userID, subject, subjectID) {
@@ -160,9 +160,19 @@ func jpegBytes(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
+// pdfBytes builds a minimal but structurally real PDF: %PDF- signature,
+// a couple of objects, and the %%EOF trailer the validator looks for.
+func pdfBytes() []byte {
+	return []byte("%PDF-1.4\n" +
+		"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+		"2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n" +
+		"trailer<</Root 1 0 R>>\n" +
+		"%%EOF\n")
+}
+
 type docImageFixture struct {
-	svc        *service.DocumentImageService
-	imageRepo  *mockDocumentImageRepo
+	svc        *service.DocumentFileService
+	imageRepo  *mockDocumentFileRepo
 	userID     uuid.UUID
 	otherUser  uuid.UUID
 	licenseID  uuid.UUID
@@ -173,7 +183,7 @@ func newDocImageFixture(t *testing.T, enabled bool) *docImageFixture {
 	t.Helper()
 	licenseRepo := &docMockLicenseRepo{licenses: make(map[uuid.UUID]*models.License)}
 	credentialRepo := newMockCredentialRepo()
-	imageRepo := newMockDocumentImageRepo()
+	imageRepo := newMockDocumentFileRepo()
 
 	userID := uuid.New()
 	license := &models.License{
@@ -192,7 +202,7 @@ func newDocImageFixture(t *testing.T, enabled bool) *docImageFixture {
 	}
 
 	return &docImageFixture{
-		svc:        service.NewDocumentImageService(imageRepo, licenseRepo, credentialRepo, enabled),
+		svc:        service.NewDocumentFileService(imageRepo, licenseRepo, credentialRepo, enabled),
 		imageRepo:  imageRepo,
 		userID:     userID,
 		otherUser:  uuid.New(),
@@ -201,7 +211,7 @@ func newDocImageFixture(t *testing.T, enabled bool) *docImageFixture {
 	}
 }
 
-func (f *docImageFixture) upload(t *testing.T, data []byte) (*models.DocumentImage, error) {
+func (f *docImageFixture) upload(t *testing.T, data []byte) (*models.DocumentFile, error) {
 	t.Helper()
 	return f.svc.Upload(context.Background(), f.userID, models.DocumentSubjectLicense, f.licenseID,
 		service.UploadInput{Data: data, Filename: "front.png"})
@@ -209,7 +219,7 @@ func (f *docImageFixture) upload(t *testing.T, data []byte) (*models.DocumentIma
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 
-func TestDocumentImageUpload_StoresMetadataFromTheBytes(t *testing.T) {
+func TestDocumentFileUpload_StoresMetadataFromTheBytes(t *testing.T) {
 	f := newDocImageFixture(t, true)
 
 	data := pngBytes(t, 120, 80)
@@ -239,7 +249,7 @@ func TestDocumentImageUpload_StoresMetadataFromTheBytes(t *testing.T) {
 	}
 }
 
-func TestDocumentImageUpload_AcceptsJPEG(t *testing.T) {
+func TestDocumentFileUpload_AcceptsJPEG(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	img, err := f.upload(t, jpegBytes(t, 32, 32))
 	if err != nil {
@@ -253,17 +263,17 @@ func TestDocumentImageUpload_AcceptsJPEG(t *testing.T) {
 // The declared type is never trusted, so the checks that matter are on the
 // bytes: a script/document masquerading as an image must not be storable, or
 // it comes back out of our own origin later.
-func TestDocumentImageUpload_RejectsNonImageContent(t *testing.T) {
+func TestDocumentFileUpload_RejectsNonImageContent(t *testing.T) {
 	tests := []struct {
 		name string
 		data []byte
 		want error
 	}{
-		{"empty", nil, service.ErrDocumentImageEmpty},
-		{"svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`), service.ErrDocumentImageUnsupported},
-		{"html", []byte("<!doctype html><html><body>hi</body></html>"), service.ErrDocumentImageUnsupported},
-		{"gif", append([]byte("GIF89a"), bytes.Repeat([]byte{0}, 32)...), service.ErrDocumentImageUnsupported},
-		{"png magic with garbage body", append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0x41}, 64)...), service.ErrDocumentImageCorrupt},
+		{"empty", nil, service.ErrDocumentFileEmpty},
+		{"svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`), service.ErrDocumentFileUnsupported},
+		{"html", []byte("<!doctype html><html><body>hi</body></html>"), service.ErrDocumentFileUnsupported},
+		{"gif", append([]byte("GIF89a"), bytes.Repeat([]byte{0}, 32)...), service.ErrDocumentFileUnsupported},
+		{"png magic with garbage body", append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0x41}, 64)...), service.ErrDocumentFileCorrupt},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -293,7 +303,7 @@ func TestDocumentImageUpload_RejectsNonImageContent(t *testing.T) {
 // If validation is ever tightened to full decode or a structural walk, this
 // test SHOULD fail — update it together with the claims in
 // api-spec/openapi.yaml, docs/API.md and docs/FEATURES.md.
-func TestDocumentImageUpload_ValidatesTheHeaderNotTheWholeFile(t *testing.T) {
+func TestDocumentFileUpload_ValidatesTheHeaderNotTheWholeFile(t *testing.T) {
 	html := []byte("<html><script>alert(1)</script></html>")
 	valid := pngBytes(t, 8, 8)
 
@@ -324,19 +334,100 @@ func TestDocumentImageUpload_ValidatesTheHeaderNotTheWholeFile(t *testing.T) {
 	}
 }
 
-func TestDocumentImageUpload_RejectsOversizedFile(t *testing.T) {
+// PDFs are what authorities actually issue, so they are accepted — but they
+// cannot be verified by decoding, and they are an active format. The contract
+// is: structural markers only, no dimensions, and never served inline.
+func TestDocumentFileUpload_AcceptsPDF(t *testing.T) {
 	f := newDocImageFixture(t, true)
-	oversized := make([]byte, models.MaxDocumentImageBytes+1)
+
+	file, err := f.upload(t, pdfBytes())
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if file.ContentType != models.ContentTypePDF {
+		t.Errorf("contentType = %q, want %q", file.ContentType, models.ContentTypePDF)
+	}
+	// No intrinsic pixel size — the columns stay null rather than storing a
+	// made-up zero.
+	if file.Width != nil || file.Height != nil {
+		t.Errorf("dimensions = %v×%v, want null×null for a PDF", file.Width, file.Height)
+	}
+	if models.ContentTypeIsInlineSafe(file.ContentType) {
+		t.Error("a PDF must never be classified as safe to serve inline")
+	}
+}
+
+func TestDocumentFileUpload_RejectsBrokenPDFs(t *testing.T) {
+	valid := pdfBytes()
+
+	tests := []struct {
+		name string
+		data []byte
+		want error
+	}{
+		// A renamed archive or text file: no %PDF- signature, so it does not
+		// even sniff as a PDF.
+		{"no signature", []byte("PK\x03\x04 this is really a zip"), service.ErrDocumentFileUnsupported},
+		// Truncated download: signature present, trailer gone.
+		{"no trailer", valid[:len(valid)-8], service.ErrDocumentFileCorrupt},
+		{"signature only", []byte("%PDF-1.7\n"), service.ErrDocumentFileCorrupt},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newDocImageFixture(t, true)
+			if _, err := f.upload(t, tt.data); !errors.Is(err, tt.want) {
+				t.Errorf("err = %v, want %v", err, tt.want)
+			}
+			if len(f.imageRepo.images) != 0 {
+				t.Error("rejected upload was still stored")
+			}
+		})
+	}
+}
+
+// The trailer is looked for in a window at the end, not at the exact end,
+// because a linearized or incrementally-updated PDF appends bytes after it.
+func TestDocumentFileUpload_AcceptsTrailerBeforeTrailingBytes(t *testing.T) {
+	f := newDocImageFixture(t, true)
+	data := append(pdfBytes(), bytes.Repeat([]byte(" "), 512)...)
+
+	if _, err := f.upload(t, data); err != nil {
+		t.Errorf("a PDF with bytes after %%%%EOF should be accepted: %v", err)
+	}
+}
+
+func TestDocumentFileUpload_PDFStillBoundBySizeAndCount(t *testing.T) {
+	f := newDocImageFixture(t, true)
+
+	oversized := make([]byte, models.MaxDocumentFileBytes+1)
+	copy(oversized, pdfBytes())
+	if _, err := f.upload(t, oversized); !errors.Is(err, service.ErrDocumentFileTooLarge) {
+		t.Errorf("err = %v, want ErrDocumentFileTooLarge", err)
+	}
+
+	for i := 0; i < models.MaxDocumentFilesPerSubject; i++ {
+		if _, err := f.upload(t, pdfBytes()); err != nil {
+			t.Fatalf("upload %d: %v", i, err)
+		}
+	}
+	if _, err := f.upload(t, pdfBytes()); !errors.Is(err, service.ErrDocumentFileLimitReached) {
+		t.Errorf("err = %v, want ErrDocumentFileLimitReached", err)
+	}
+}
+
+func TestDocumentFileUpload_RejectsOversizedFile(t *testing.T) {
+	f := newDocImageFixture(t, true)
+	oversized := make([]byte, models.MaxDocumentFileBytes+1)
 	copy(oversized, pngBytes(t, 4, 4))
 
-	if _, err := f.upload(t, oversized); !errors.Is(err, service.ErrDocumentImageTooLarge) {
-		t.Errorf("err = %v, want ErrDocumentImageTooLarge", err)
+	if _, err := f.upload(t, oversized); !errors.Is(err, service.ErrDocumentFileTooLarge) {
+		t.Errorf("err = %v, want ErrDocumentFileTooLarge", err)
 	}
 }
 
 // A small PNG can declare an enormous canvas. The byte cap does not catch it;
 // the pixel cap must, and without allocating the pixels to find out.
-func TestDocumentImageUpload_RejectsDecompressionBomb(t *testing.T) {
+func TestDocumentFileUpload_RejectsDecompressionBomb(t *testing.T) {
 	f := newDocImageFixture(t, true)
 
 	// A valid PNG header claiming 40000×40000 (1.6e9 px) in ~70 bytes.
@@ -353,21 +444,21 @@ func TestDocumentImageUpload_RejectsDecompressionBomb(t *testing.T) {
 		service.UploadInput{Data: bombed})
 	// The CRC over the doctored IHDR no longer matches, so a strict decoder
 	// reports corruption; either verdict is a rejection, which is the point.
-	if !errors.Is(err, service.ErrDocumentImageTooManyPixel) && !errors.Is(err, service.ErrDocumentImageCorrupt) {
+	if !errors.Is(err, service.ErrDocumentFileTooManyPixel) && !errors.Is(err, service.ErrDocumentFileCorrupt) {
 		t.Errorf("err = %v, want a pixel-cap or corruption rejection", err)
 	}
 }
 
-func TestDocumentImageUpload_EnforcesPerDocumentLimit(t *testing.T) {
+func TestDocumentFileUpload_EnforcesPerDocumentLimit(t *testing.T) {
 	f := newDocImageFixture(t, true)
 
-	for i := 0; i < models.MaxDocumentImagesPerSubject; i++ {
+	for i := 0; i < models.MaxDocumentFilesPerSubject; i++ {
 		if _, err := f.upload(t, pngBytes(t, 8, 8)); err != nil {
 			t.Fatalf("upload %d: %v", i, err)
 		}
 	}
-	if _, err := f.upload(t, pngBytes(t, 8, 8)); !errors.Is(err, service.ErrDocumentImageLimitReached) {
-		t.Errorf("err = %v, want ErrDocumentImageLimitReached", err)
+	if _, err := f.upload(t, pngBytes(t, 8, 8)); !errors.Is(err, service.ErrDocumentFileLimitReached) {
+		t.Errorf("err = %v, want ErrDocumentFileLimitReached", err)
 	}
 
 	// The cap is per document, not per user: the credential still has room.
@@ -377,14 +468,14 @@ func TestDocumentImageUpload_EnforcesPerDocumentLimit(t *testing.T) {
 	}
 }
 
-func TestDocumentImageUpload_SanitizesFilenameAndCaption(t *testing.T) {
+func TestDocumentFileUpload_SanitizesFilenameAndCaption(t *testing.T) {
 	f := newDocImageFixture(t, true)
 
 	img, err := f.svc.Upload(context.Background(), f.userID, models.DocumentSubjectLicense, f.licenseID,
 		service.UploadInput{
 			Data:     pngBytes(t, 8, 8),
 			Filename: `../../etc/passwd`,
-			Caption:  "  " + strings.Repeat("x", models.MaxDocumentImageCaptionLen+50) + "  ",
+			Caption:  "  " + strings.Repeat("x", models.MaxDocumentFileCaptionLen+50) + "  ",
 		})
 	if err != nil {
 		t.Fatalf("upload: %v", err)
@@ -392,12 +483,12 @@ func TestDocumentImageUpload_SanitizesFilenameAndCaption(t *testing.T) {
 	if img.Filename == nil || *img.Filename != "passwd" {
 		t.Errorf("filename = %v, want %q", img.Filename, "passwd")
 	}
-	if img.Caption == nil || len([]rune(*img.Caption)) != models.MaxDocumentImageCaptionLen {
-		t.Errorf("caption was not truncated to %d runes", models.MaxDocumentImageCaptionLen)
+	if img.Caption == nil || len([]rune(*img.Caption)) != models.MaxDocumentFileCaptionLen {
+		t.Errorf("caption was not truncated to %d runes", models.MaxDocumentFileCaptionLen)
 	}
 }
 
-func TestDocumentImage_OwnershipIsEnforced(t *testing.T) {
+func TestDocumentFile_OwnershipIsEnforced(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	img, err := f.upload(t, pngBytes(t, 8, 8))
 	if err != nil {
@@ -424,19 +515,19 @@ func TestDocumentImage_OwnershipIsEnforced(t *testing.T) {
 
 // An image id is only valid under the document it belongs to — presenting it
 // under a different (also owned) document must not resolve.
-func TestDocumentImage_NotReachableThroughTheWrongParent(t *testing.T) {
+func TestDocumentFile_NotReachableThroughTheWrongParent(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	img, err := f.upload(t, pngBytes(t, 8, 8))
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
 	_, err = f.svc.Get(context.Background(), f.userID, models.DocumentSubjectCredential, f.credential, img.ID)
-	if !errors.Is(err, service.ErrDocumentImageNotFound) {
-		t.Errorf("err = %v, want ErrDocumentImageNotFound", err)
+	if !errors.Is(err, service.ErrDocumentFileNotFound) {
+		t.Errorf("err = %v, want ErrDocumentFileNotFound", err)
 	}
 }
 
-func TestDocumentImage_GetReturnsPayload(t *testing.T) {
+func TestDocumentFile_GetReturnsPayload(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	data := pngBytes(t, 16, 16)
 	img, err := f.upload(t, data)
@@ -453,7 +544,7 @@ func TestDocumentImage_GetReturnsPayload(t *testing.T) {
 	}
 }
 
-func TestDocumentImage_ListOmitsPayload(t *testing.T) {
+func TestDocumentFile_ListOmitsPayload(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	if _, err := f.upload(t, pngBytes(t, 16, 16)); err != nil {
 		t.Fatalf("upload: %v", err)
@@ -470,7 +561,7 @@ func TestDocumentImage_ListOmitsPayload(t *testing.T) {
 	}
 }
 
-func TestDocumentImage_Delete(t *testing.T) {
+func TestDocumentFile_Delete(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	img, err := f.upload(t, pngBytes(t, 8, 8))
 	if err != nil {
@@ -480,14 +571,14 @@ func TestDocumentImage_Delete(t *testing.T) {
 	if err := f.svc.Delete(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, img.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if err := f.svc.Delete(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, img.ID); !errors.Is(err, service.ErrDocumentImageNotFound) {
-		t.Errorf("second delete: err = %v, want ErrDocumentImageNotFound", err)
+	if err := f.svc.Delete(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, img.ID); !errors.Is(err, service.ErrDocumentFileNotFound) {
+		t.Errorf("second delete: err = %v, want ErrDocumentFileNotFound", err)
 	}
 }
 
 // The switch is a kill switch for the whole feature, reads included — serving
 // stored blobs is the bandwidth half of what an operator turns it off to stop.
-func TestDocumentImage_DisabledBlocksEveryOperation(t *testing.T) {
+func TestDocumentFile_DisabledBlocksEveryOperation(t *testing.T) {
 	f := newDocImageFixture(t, false)
 	ctx := context.Background()
 
@@ -496,21 +587,21 @@ func TestDocumentImage_DisabledBlocksEveryOperation(t *testing.T) {
 	}
 
 	_, err := f.svc.Upload(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, service.UploadInput{Data: pngBytes(t, 8, 8)})
-	if !errors.Is(err, service.ErrDocumentImagesDisabled) {
-		t.Errorf("upload: err = %v, want ErrDocumentImagesDisabled", err)
+	if !errors.Is(err, service.ErrDocumentFilesDisabled) {
+		t.Errorf("upload: err = %v, want ErrDocumentFilesDisabled", err)
 	}
-	if _, err := f.svc.List(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID); !errors.Is(err, service.ErrDocumentImagesDisabled) {
-		t.Errorf("list: err = %v, want ErrDocumentImagesDisabled", err)
+	if _, err := f.svc.List(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID); !errors.Is(err, service.ErrDocumentFilesDisabled) {
+		t.Errorf("list: err = %v, want ErrDocumentFilesDisabled", err)
 	}
-	if _, err := f.svc.Get(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, uuid.New()); !errors.Is(err, service.ErrDocumentImagesDisabled) {
-		t.Errorf("get: err = %v, want ErrDocumentImagesDisabled", err)
+	if _, err := f.svc.Get(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, uuid.New()); !errors.Is(err, service.ErrDocumentFilesDisabled) {
+		t.Errorf("get: err = %v, want ErrDocumentFilesDisabled", err)
 	}
-	if err := f.svc.Delete(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, uuid.New()); !errors.Is(err, service.ErrDocumentImagesDisabled) {
-		t.Errorf("delete: err = %v, want ErrDocumentImagesDisabled", err)
+	if err := f.svc.Delete(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, uuid.New()); !errors.Is(err, service.ErrDocumentFilesDisabled) {
+		t.Errorf("delete: err = %v, want ErrDocumentFilesDisabled", err)
 	}
 }
 
-func TestDocumentImage_SubjectMustExist(t *testing.T) {
+func TestDocumentFile_SubjectMustExist(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	_, err := f.svc.Upload(context.Background(), f.userID, models.DocumentSubjectLicense, uuid.New(),
 		service.UploadInput{Data: pngBytes(t, 8, 8)})

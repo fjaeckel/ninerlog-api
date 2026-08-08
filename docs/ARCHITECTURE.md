@@ -128,7 +128,7 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 | Cloud backups | backup credentials key set | Registers S3/SFTP/WebDAV providers + scheduler |
 | pprof profiling | `PPROF_ENABLED=true` | Debug profiling server |
 | Airport DB refresh | `AIRPORT_REFRESH_INTERVAL` ≠ `off`/`0` | Refetches and re-merges both airport datasets on a timer |
-| Licence/credential images | `DOCUMENT_IMAGES_ENABLED` not `false` | Reference photos on licences and credentials. Off closes every `/images` endpoint (reads included) with 403 and is reported by `GET /features`; stored rows are untouched |
+| Licence/credential files | `DOCUMENT_FILES_ENABLED` not `false` (legacy `DOCUMENT_IMAGES_ENABLED` still honoured) | Reference photos, scans and PDFs on licences and credentials. Off closes every `/files` endpoint (reads included) with 403 and is reported by `GET /features`; stored rows are untouched |
 
 ## Cross-cutting concerns
 
@@ -138,7 +138,7 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 - **Rate limiting** — layered and backed by `ulule/limiter`. A coarse per-user limiter
   covers every `/api/v1` route; `RateLimitByPath`, `RateLimitByPathPrefix`, and
   `RateLimitByPathSegment` and `RateLimitByPathWithQueryParam` layer tighter budgets onto specific paths — `/auth`,
-  `/admin`, exports and imports, licence/credential image writes (with reads on their own
+  `/admin`, exports and imports, licence/credential file writes (with reads on their own
   larger budget), and free-text flight search (`GET /flights?q=`, which is
   limited separately from the plain listing on the same route). Each limiter is named and
   reports its own rejection and evaluation counters. Budgets are tabulated in

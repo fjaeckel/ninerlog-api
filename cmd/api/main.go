@@ -89,6 +89,23 @@ func envIntNarrow(key string, def int) int {
 // keeping the default when the variable is unset, unparseable, or non-positive.
 // Same fail-safe reasoning as envInt: a misconfigured retention window must not
 // silently become zero.
+// envBoolWithLegacy reads a boolean feature switch, honouring a previous name
+// for the same knob. Only the exact string "false" disables — an unset or
+// unparseable value leaves the default in place, so a typo never silently
+// turns a feature off. The current name wins when both are set.
+func envBoolWithLegacy(key, legacyKey string, def bool) bool {
+	for _, k := range []string{key, legacyKey} {
+		if v, ok := os.LookupEnv(k); ok && v != "" {
+			if k == legacyKey {
+				slog.Warn("environment variable is deprecated, use the current name",
+					"deprecated", legacyKey, "use", key)
+			}
+			return v != "false"
+		}
+	}
+	return def
+}
+
 func envDuration(key string, def time.Duration) time.Duration {
 	raw := os.Getenv(key)
 	if raw == "" {
@@ -371,15 +388,21 @@ func main() {
 	flightSignatureRepo := postgres.NewFlightSignatureRepository(db)
 	flightSignatureService := service.NewFlightSignatureService(flightSignatureRepo, flightRepo, userRepo)
 	apiHandler.SetFlightSignatureService(flightSignatureService)
-	// Licence/credential reference images. Uploading and serving user-supplied
-	// blobs is an abuse surface an operator may not want open at all (storage
-	// growth, bandwidth amplification), so DOCUMENT_IMAGES_ENABLED=false turns
-	// the whole feature off — every /images endpoint then answers 403 and
-	// GET /features reports it, while stored rows are left untouched.
-	documentImagesEnabled := os.Getenv("DOCUMENT_IMAGES_ENABLED") != "false" // default: true
-	documentImageService := service.NewDocumentImageService(
-		postgres.NewDocumentImageRepository(db), licenseRepo, credentialRepo, documentImagesEnabled)
-	apiHandler.SetDocumentImageService(documentImageService)
+	// Licence/credential reference files (JPEG, PNG, PDF). Uploading and
+	// serving user-supplied blobs is an abuse surface an operator may not want
+	// open at all (storage growth, bandwidth amplification), so
+	// DOCUMENT_FILES_ENABLED=false turns the whole feature off — every /files
+	// endpoint then answers 403 and GET /features reports it, while stored
+	// rows are left untouched.
+	//
+	// DOCUMENT_IMAGES_ENABLED is the name this knob shipped under before the
+	// feature grew beyond images. It is still honoured so an operator who
+	// already switched the feature off does not silently get it switched back
+	// on by an upgrade; the new name wins when both are set.
+	documentFilesEnabled := envBoolWithLegacy("DOCUMENT_FILES_ENABLED", "DOCUMENT_IMAGES_ENABLED", true)
+	documentFileService := service.NewDocumentFileService(
+		postgres.NewDocumentFileRepository(db), licenseRepo, credentialRepo, documentFilesEnabled)
+	apiHandler.SetDocumentFileService(documentFileService)
 
 	startedAt := time.Now()
 	apiHandler.SetStartedAt(startedAt)
@@ -674,7 +697,7 @@ func main() {
 		signRateLimit := middleware.NewRateLimitMiddleware("sign", 20, 1*time.Minute)
 		api.Use(middleware.RateLimitByPathPrefix(signRateLimit, "/sign/"))
 
-		// Licence/credential images: separate budgets for writing and reading.
+		// Licence/credential files: separate budgets for writing and reading.
 		//
 		// Uploading is heavy and deliberate — up to 5 MB spooled, decoded and
 		// written per request — so it keeps the tight "expensive" budget.
@@ -689,12 +712,12 @@ func main() {
 		// still per-user, so a stolen token cannot mine the store for bandwidth.
 		//
 		// Tunable without a rebuild, like the search bucket.
-		imageReadRateLimit := middleware.NewUserRateLimitMiddleware(
-			"image_read", envInt("IMAGE_READ_RATE_LIMIT_PER_MINUTE", 90), 1*time.Minute)
+		fileReadRateLimit := middleware.NewUserRateLimitMiddleware(
+			"file_read", envInt("FILE_READ_RATE_LIMIT_PER_MINUTE", 90), 1*time.Minute)
 		api.Use(middleware.RateLimitByPathSegmentForMethods(
-			imageReadRateLimit, []string{http.MethodGet}, "/images"))
+			fileReadRateLimit, []string{http.MethodGet}, "/files"))
 		api.Use(middleware.RateLimitByPathSegmentForMethods(
-			expensiveRateLimit, []string{http.MethodPost, http.MethodDelete}, "/images"))
+			expensiveRateLimit, []string{http.MethodPost, http.MethodDelete}, "/files"))
 
 		// Authenticated signature actions that trigger outbound email.
 		signatureEmailRateLimit := middleware.NewRateLimitMiddleware("signature_email", 10, 1*time.Minute)

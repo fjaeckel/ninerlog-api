@@ -112,30 +112,42 @@ the German radio certificates (`RADIO_BZF2`, `RADIO_BZF1`, `RADIO_AZF` — three
 certificates, not levels of one, and none of them expires), and `OTHER`. These feed expiry
 notifications.
 
-### DocumentImage (`internal/models/document_image.go`, migration 57)
+### DocumentFile (`internal/models/document_file.go`, migrations 57, 59)
 
-Reference photos/scans attached to a licence **or** a credential — never both, never
-neither (`document_images_one_subject`). Two nullable FKs rather than a polymorphic
-`(subject_type, subject_id)` pair, so deleting the parent document cascades its images
-away for real.
+Reference photos and scans attached to a licence **or** a credential — never both, never
+neither (`document_files_one_subject`). Two nullable FKs rather than a polymorphic
+`(subject_type, subject_id)` pair, so deleting the parent document cascades its files
+away for real. Migration 59 renamed the table from `document_images` when PDFs were
+added; the data, indexes and foreign keys carried over unchanged.
 
 - `data BYTEA` holds the raw bytes. Postgres TOASTs the payload out of line, and every
-  query except the single-image download uses an explicit column list that omits it, so a
+  query except the single-file download uses an explicit column list that omits it, so a
   listing never reads it.
-- Bounded by design: at most 5 MB (`byte_size` CHECK) and 5 images per document. The
+- Bounded by design: at most 5 MB (`byte_size` CHECK) and 5 files per document. The
   per-document cap is enforced by counting and inserting inside one transaction that first
   takes `SELECT … FOR UPDATE` on the owning licence/credential row, so concurrent uploads
   to the same document serialize on that row and cannot both take the last slot. Putting
   the count in the `INSERT`'s `WHERE` clause is *not* sufficient on its own: under READ
   COMMITTED the subquery reads the statement snapshot and takes no lock.
-- `content_type` is restricted to `image/jpeg`/`image/png` and is derived from the stored
-  bytes, not from what the uploader declared.
+- `content_type` is restricted to `image/jpeg`, `image/png` and `application/pdf`, and is
+  derived from the stored bytes rather than from what the uploader declared.
+- `width`/`height` are the image's pixel dimensions and are **null** for formats without
+  intrinsic dimensions — a PDF's pages carry their own size in points, so no single number
+  describes the file.
 - Kept in Postgres rather than an object store because the self-hosted deployment has one
   database and no guaranteed blob backend; these inherit its backup/restore and cascade
   behaviour instead of needing a second story for identity-document scans.
 
-The whole feature is switchable: `DOCUMENT_IMAGES_ENABLED=false` makes every image
-endpoint answer 403 without touching the stored rows.
+The two families are **not** verified alike, and that difference decides how they are
+served. An image's header is decoded and its declared dimensions capped. A PDF cannot be:
+nothing in the standard library parses one, so the check is the `%PDF-` signature plus a
+`%%EOF` trailer, and the size cap does the rest. Because a PDF is also an active format —
+scripts, embedded files — it is always served with `Content-Disposition: attachment` and
+is never rendered inside the application's own origin. See
+`models.ContentTypeIsInlineSafe`.
+
+The whole feature is switchable: `DOCUMENT_FILES_ENABLED=false` makes every file endpoint
+answer 403 without touching the stored rows.
 
 ### Contact (`internal/models/contact.go`, migration 15)
 

@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestDocumentImageRepositoryIntegration(t *testing.T) {
+func TestDocumentFileRepositoryIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -29,7 +29,7 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 	userRepo := postgres.NewUserRepository(db)
 	licenseRepo := postgres.NewLicenseRepository(db)
 	credentialRepo := postgres.NewCredentialRepository(db)
-	imageRepo := postgres.NewDocumentImageRepository(db)
+	imageRepo := postgres.NewDocumentFileRepository(db)
 
 	user := testutil.CreateTestUser("docimage-test@example.com", "Doc Image User", "hashedpass")
 	if err := userRepo.Create(ctx, user); err != nil {
@@ -51,11 +51,11 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 		t.Fatalf("create credential: %v", err)
 	}
 
-	newImage := func(data []byte) *models.DocumentImage {
+	newImage := func(data []byte) *models.DocumentFile {
 		licenseID := license.ID
 		w, h := 4, 4
 		name := "front.png"
-		return &models.DocumentImage{
+		return &models.DocumentFile{
 			UserID:      user.ID,
 			LicenseID:   &licenseID,
 			ContentType: "image/png",
@@ -71,7 +71,7 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 
 	t.Run("create and read back the payload", func(t *testing.T) {
 		img := newImage(payload)
-		if err := imageRepo.Create(ctx, img, models.MaxDocumentImagesPerSubject); err != nil {
+		if err := imageRepo.Create(ctx, img, models.MaxDocumentFilesPerSubject); err != nil {
 			t.Fatalf("create: %v", err)
 		}
 		if img.ID == uuid.Nil {
@@ -116,7 +116,7 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 		img := newImage(payload)
 		img.LicenseID = nil
 		img.CredentialID = &credentialID
-		if err := imageRepo.Create(ctx, img, models.MaxDocumentImagesPerSubject); err != nil {
+		if err := imageRepo.Create(ctx, img, models.MaxDocumentFilesPerSubject); err != nil {
 			t.Fatalf("create: %v", err)
 		}
 
@@ -175,7 +175,7 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 				img := newImage(payload)
 				img.LicenseID = &licenseID
 				<-start
-				results[i] = imageRepo.Create(ctx, img, models.MaxDocumentImagesPerSubject)
+				results[i] = imageRepo.Create(ctx, img, models.MaxDocumentFilesPerSubject)
 			}(i)
 		}
 		close(start)
@@ -186,21 +186,21 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 			switch {
 			case err == nil:
 				succeeded++
-			case errors.Is(err, repository.ErrDocumentImageLimit):
+			case errors.Is(err, repository.ErrDocumentFileLimit):
 			default:
 				t.Errorf("attempt %d: unexpected error %v", i, err)
 			}
 		}
-		if succeeded > models.MaxDocumentImagesPerSubject {
-			t.Errorf("%d uploads succeeded, cap is %d", succeeded, models.MaxDocumentImagesPerSubject)
+		if succeeded > models.MaxDocumentFilesPerSubject {
+			t.Errorf("%d uploads succeeded, cap is %d", succeeded, models.MaxDocumentFilesPerSubject)
 		}
 
 		count, err := imageRepo.CountBySubject(ctx, user.ID, models.DocumentSubjectLicense, raceLicense.ID)
 		if err != nil {
 			t.Fatalf("count: %v", err)
 		}
-		if count > models.MaxDocumentImagesPerSubject {
-			t.Errorf("stored %d images, cap is %d", count, models.MaxDocumentImagesPerSubject)
+		if count > models.MaxDocumentFilesPerSubject {
+			t.Errorf("stored %d images, cap is %d", count, models.MaxDocumentFilesPerSubject)
 		}
 	})
 
@@ -214,7 +214,7 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 			t.Fatalf("create license: %v", err)
 		}
 		img.LicenseID = &delLicense.ID
-		if err := imageRepo.Create(ctx, img, models.MaxDocumentImagesPerSubject); err != nil {
+		if err := imageRepo.Create(ctx, img, models.MaxDocumentFilesPerSubject); err != nil {
 			t.Fatalf("create: %v", err)
 		}
 
@@ -238,7 +238,7 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 		}
 		img := newImage(payload)
 		img.LicenseID = &cascadeLicense.ID
-		if err := imageRepo.Create(ctx, img, models.MaxDocumentImagesPerSubject); err != nil {
+		if err := imageRepo.Create(ctx, img, models.MaxDocumentFilesPerSubject); err != nil {
 			t.Fatalf("create: %v", err)
 		}
 

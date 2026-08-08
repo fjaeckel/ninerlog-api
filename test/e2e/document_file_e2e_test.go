@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"io"
 	"mime/multipart"
+	"strings"
 	"net/http"
 	"testing"
 )
@@ -38,10 +39,10 @@ func e2eJPEG(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-// uploadDocumentImage posts one multipart image to a document's image
+// uploadDocumentFile posts one multipart image to a document's image
 // collection. The declared part Content-Type is settable so a test can prove
 // the server does not trust it.
-func uploadDocumentImage(t *testing.T, c *E2EClient, path, filename, partContentType, caption string, data []byte) *Response {
+func uploadDocumentFile(t *testing.T, c *E2EClient, path, filename, partContentType, caption string, data []byte) *Response {
 	t.Helper()
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
@@ -81,7 +82,7 @@ func uploadDocumentImage(t *testing.T, c *E2EClient, path, filename, partContent
 	return &Response{StatusCode: resp.StatusCode, Body: body, Headers: resp.Header}
 }
 
-func createImageTestLicense(t *testing.T, c *E2EClient, number string) string {
+func createFileTestLicense(t *testing.T, c *E2EClient, number string) string {
 	t.Helper()
 	resp := c.POST("/licenses", map[string]interface{}{
 		"regulatoryAuthority": "EASA", "licenseType": "PPL", "licenseNumber": number,
@@ -93,11 +94,11 @@ func createImageTestLicense(t *testing.T, c *E2EClient, number string) string {
 	return lic["id"].(string)
 }
 
-func TestLicenseImages(t *testing.T) {
+func TestLicenseFiles(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("licimg"), "SecurePass123!", "Licence Image User")
-	licID := createImageTestLicense(t, c, "DE-IMG-001")
-	base := fmt.Sprintf("/licenses/%s/images", licID)
+	licID := createFileTestLicense(t, c, "DE-IMG-001")
+	base := fmt.Sprintf("/licenses/%s/files", licID)
 
 	var imageID string
 	pngData := e2ePNG(t, 240, 160)
@@ -107,9 +108,9 @@ func TestLicenseImages(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 		var features map[string]interface{}
 		resp.JSON(&features)
-		docs, ok := features["documentImages"].(map[string]interface{})
+		docs, ok := features["documentFiles"].(map[string]interface{})
 		if !ok {
-			t.Fatalf("expected documentImages in %v", features)
+			t.Fatalf("expected documentFiles in %v", features)
 		}
 		if docs["maxBytes"].(float64) != 5*1024*1024 {
 			t.Errorf("maxBytes = %v, want 5242880", docs["maxBytes"])
@@ -130,7 +131,7 @@ func TestLicenseImages(t *testing.T) {
 	})
 
 	t.Run("upload png", func(t *testing.T) {
-		resp := uploadDocumentImage(t, c, base, "licence-front.png", "image/png", "Front page", pngData)
+		resp := uploadDocumentFile(t, c, base, "licence-front.png", "image/png", "Front page", pngData)
 		requireStatus(t, resp, http.StatusCreated)
 
 		var img map[string]interface{}
@@ -154,7 +155,7 @@ func TestLicenseImages(t *testing.T) {
 	})
 
 	t.Run("upload jpeg", func(t *testing.T) {
-		resp := uploadDocumentImage(t, c, base, "licence-back.jpg", "image/jpeg", "", e2eJPEG(t, 64, 64))
+		resp := uploadDocumentFile(t, c, base, "licence-back.jpg", "image/jpeg", "", e2eJPEG(t, 64, 64))
 		requireStatus(t, resp, http.StatusCreated)
 		var img map[string]interface{}
 		resp.JSON(&img)
@@ -201,7 +202,7 @@ func TestLicenseImages(t *testing.T) {
 
 	t.Run("declared content type is not trusted", func(t *testing.T) {
 		// A real PNG announced as JPEG is stored as what it actually is …
-		resp := uploadDocumentImage(t, c, base, "mislabelled.jpg", "image/jpeg", "", e2ePNG(t, 32, 32))
+		resp := uploadDocumentFile(t, c, base, "mislabelled.jpg", "image/jpeg", "", e2ePNG(t, 32, 32))
 		requireStatus(t, resp, http.StatusCreated)
 		var img map[string]interface{}
 		resp.JSON(&img)
@@ -212,22 +213,22 @@ func TestLicenseImages(t *testing.T) {
 
 		// … and a script announced as PNG is refused outright.
 		svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`)
-		resp = uploadDocumentImage(t, c, base, "evil.png", "image/png", "", svg)
+		resp = uploadDocumentFile(t, c, base, "evil.png", "image/png", "", svg)
 		requireStatus(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("rejects a non-image file", func(t *testing.T) {
-		resp := uploadDocumentImage(t, c, base, "notes.txt", "text/plain", "", []byte("just some text"))
+		resp := uploadDocumentFile(t, c, base, "notes.txt", "text/plain", "", []byte("just some text"))
 		requireStatus(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("enforces the per-document limit", func(t *testing.T) {
 		// Two are already attached; fill the remaining slots, then overflow.
 		for i := 0; i < 3; i++ {
-			resp := uploadDocumentImage(t, c, base, fmt.Sprintf("extra-%d.png", i), "image/png", "", e2ePNG(t, 16, 16))
+			resp := uploadDocumentFile(t, c, base, fmt.Sprintf("extra-%d.png", i), "image/png", "", e2ePNG(t, 16, 16))
 			requireStatus(t, resp, http.StatusCreated)
 		}
-		resp := uploadDocumentImage(t, c, base, "one-too-many.png", "image/png", "", e2ePNG(t, 16, 16))
+		resp := uploadDocumentFile(t, c, base, "one-too-many.png", "image/png", "", e2ePNG(t, 16, 16))
 		requireStatus(t, resp, http.StatusConflict)
 	})
 
@@ -246,10 +247,10 @@ func TestLicenseImages(t *testing.T) {
 		requireStatus(t, c.DELETE(base+"/"+imageID), http.StatusNotFound)
 	})
 
-	t.Run("deleting the licence removes its images", func(t *testing.T) {
-		doomed := createImageTestLicense(t, c, "DE-IMG-DOOM")
-		doomedBase := fmt.Sprintf("/licenses/%s/images", doomed)
-		resp := uploadDocumentImage(t, c, doomedBase, "front.png", "image/png", "", e2ePNG(t, 16, 16))
+	t.Run("deleting the licence removes its files", func(t *testing.T) {
+		doomed := createFileTestLicense(t, c, "DE-IMG-DOOM")
+		doomedBase := fmt.Sprintf("/licenses/%s/files", doomed)
+		resp := uploadDocumentFile(t, c, doomedBase, "front.png", "image/png", "", e2ePNG(t, 16, 16))
 		requireStatus(t, resp, http.StatusCreated)
 
 		requireStatus(t, c.DELETE("/licenses/"+doomed), http.StatusNoContent)
@@ -257,7 +258,7 @@ func TestLicenseImages(t *testing.T) {
 	})
 }
 
-func TestCredentialImages(t *testing.T) {
+func TestCredentialFiles(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("credimg"), "SecurePass123!", "Credential Image User")
 
@@ -270,13 +271,13 @@ func TestCredentialImages(t *testing.T) {
 	var cred map[string]interface{}
 	resp.JSON(&cred)
 	credID := cred["id"].(string)
-	base := fmt.Sprintf("/credentials/%s/images", credID)
+	base := fmt.Sprintf("/credentials/%s/files", credID)
 
 	var imageID string
 	data := e2eJPEG(t, 200, 120)
 
 	t.Run("upload", func(t *testing.T) {
-		resp := uploadDocumentImage(t, c, base, "azf.jpg", "image/jpeg", "Scan", data)
+		resp := uploadDocumentFile(t, c, base, "azf.jpg", "image/jpeg", "Scan", data)
 		requireStatus(t, resp, http.StatusCreated)
 		var img map[string]interface{}
 		resp.JSON(&img)
@@ -300,15 +301,15 @@ func TestCredentialImages(t *testing.T) {
 	// An image id is only meaningful under the document it hangs off; the same
 	// id addressed through a licence must not resolve.
 	t.Run("not reachable through a licence URL", func(t *testing.T) {
-		licID := createImageTestLicense(t, c, "DE-IMG-CROSS")
-		requireStatus(t, c.GET(fmt.Sprintf("/licenses/%s/images/%s", licID, imageID)), http.StatusNotFound)
+		licID := createFileTestLicense(t, c, "DE-IMG-CROSS")
+		requireStatus(t, c.GET(fmt.Sprintf("/licenses/%s/files/%s", licID, imageID)), http.StatusNotFound)
 	})
 
 	t.Run("unknown credential", func(t *testing.T) {
-		requireStatus(t, c.GET("/credentials/00000000-0000-0000-0000-000000000000/images"), http.StatusNotFound)
+		requireStatus(t, c.GET("/credentials/00000000-0000-0000-0000-000000000000/files"), http.StatusNotFound)
 	})
 
-	t.Run("deleting the credential removes its images", func(t *testing.T) {
+	t.Run("deleting the credential removes its files", func(t *testing.T) {
 		requireStatus(t, c.DELETE("/credentials/"+credID), http.StatusNoContent)
 		requireStatus(t, c.GET(base), http.StatusNotFound)
 	})
@@ -338,4 +339,75 @@ func TestGermanRadioCredentialTypes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// e2ePDF is a minimal but structurally real PDF — signature and %%EOF trailer,
+// which is exactly what the API checks for.
+func e2ePDF() []byte {
+	return []byte("%PDF-1.4\n" +
+		"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+		"2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n" +
+		"trailer<</Root 1 0 R>>\n" +
+		"%%EOF\n")
+}
+
+// A PDF is the format an authority actually issues, so it must round-trip —
+// and it must come back as an attachment, never inline, because nothing on the
+// server parsed it and it can carry active content.
+func TestDocumentFilePDF(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("pdf"), "SecurePass123!", "PDF User")
+	licID := createFileTestLicense(t, c, "DE-PDF-001")
+	base := fmt.Sprintf("/licenses/%s/files", licID)
+	data := e2ePDF()
+
+	var fileID string
+
+	t.Run("upload", func(t *testing.T) {
+		resp := uploadDocumentFile(t, c, base, "licence.pdf", "application/pdf", "Official scan", data)
+		requireStatus(t, resp, http.StatusCreated)
+		var f map[string]interface{}
+		resp.JSON(&f)
+		fileID = f["id"].(string)
+		if f["contentType"] != "application/pdf" {
+			t.Errorf("contentType = %v, want application/pdf", f["contentType"])
+		}
+		// No intrinsic pixel size, so the API must report null rather than 0.
+		if f["width"] != nil || f["height"] != nil {
+			t.Errorf("dimensions = %v×%v, want null for a PDF", f["width"], f["height"])
+		}
+	})
+
+	t.Run("served as an attachment, never inline", func(t *testing.T) {
+		resp := c.GET(base + "/" + fileID)
+		requireStatus(t, resp, http.StatusOK)
+		if ct := resp.Headers.Get("Content-Type"); ct != "application/pdf" {
+			t.Errorf("Content-Type = %q, want application/pdf", ct)
+		}
+		cd := resp.Headers.Get("Content-Disposition")
+		if !strings.HasPrefix(cd, "attachment") {
+			t.Errorf("Content-Disposition = %q, want it to start with attachment", cd)
+		}
+		if !bytes.Equal(resp.Body, data) {
+			t.Error("downloaded bytes differ from the uploaded PDF")
+		}
+	})
+
+	t.Run("an image is still served inline", func(t *testing.T) {
+		resp := uploadDocumentFile(t, c, base, "front.png", "image/png", "", e2ePNG(t, 32, 32))
+		requireStatus(t, resp, http.StatusCreated)
+		var f map[string]interface{}
+		resp.JSON(&f)
+
+		got := c.GET(base + "/" + f["id"].(string))
+		requireStatus(t, got, http.StatusOK)
+		if cd := got.Headers.Get("Content-Disposition"); !strings.HasPrefix(cd, "inline") {
+			t.Errorf("Content-Disposition = %q, want it to start with inline", cd)
+		}
+	})
+
+	t.Run("a truncated PDF is refused", func(t *testing.T) {
+		resp := uploadDocumentFile(t, c, base, "broken.pdf", "application/pdf", "", data[:len(data)-8])
+		requireStatus(t, resp, http.StatusBadRequest)
+	})
 }

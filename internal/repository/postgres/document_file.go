@@ -10,12 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
-type documentImageRepository struct {
+type documentFileRepository struct {
 	db *sql.DB
 }
 
-func NewDocumentImageRepository(db *sql.DB) repository.DocumentImageRepository {
-	return &documentImageRepository{db: db}
+func NewDocumentFileRepository(db *sql.DB) repository.DocumentFileRepository {
+	return &documentFileRepository{db: db}
 }
 
 // subjectColumn maps a subject type to the FK column that carries it. Callers
@@ -46,13 +46,13 @@ func subjectTable(subject models.DocumentSubjectType) (string, error) {
 	}
 }
 
-// documentImageColumns is the metadata projection — deliberately without
+// documentFileColumns is the metadata projection — deliberately without
 // `data`, so listings never pull the payload out of TOAST storage.
-const documentImageColumns = `id, user_id, license_id, credential_id, content_type,
+const documentFileColumns = `id, user_id, license_id, credential_id, content_type,
 		byte_size, width, height, filename, caption, created_at, updated_at`
 
-func scanDocumentImage(scan func(dest ...any) error, withData bool) (*models.DocumentImage, error) {
-	img := &models.DocumentImage{}
+func scanDocumentFile(scan func(dest ...any) error, withData bool) (*models.DocumentFile, error) {
+	img := &models.DocumentFile{}
 	dest := []any{
 		&img.ID, &img.UserID, &img.LicenseID, &img.CredentialID, &img.ContentType,
 		&img.ByteSize, &img.Width, &img.Height, &img.Filename, &img.Caption,
@@ -67,7 +67,7 @@ func scanDocumentImage(scan func(dest ...any) error, withData bool) (*models.Doc
 	return img, nil
 }
 
-func (r *documentImageRepository) Create(ctx context.Context, image *models.DocumentImage, maxPerSubject int) error {
+func (r *documentFileRepository) Create(ctx context.Context, image *models.DocumentFile, maxPerSubject int) error {
 	col, err := subjectColumn(image.SubjectType())
 	if err != nil {
 		return err
@@ -115,16 +115,16 @@ func (r *documentImageRepository) Create(ctx context.Context, image *models.Docu
 	}
 
 	var count int
-	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM document_images WHERE %s = $1`, col)
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM document_files WHERE %s = $1`, col)
 	if err := tx.QueryRowContext(ctx, countQuery, subjectID).Scan(&count); err != nil {
 		return err
 	}
 	if count >= maxPerSubject {
-		return repository.ErrDocumentImageLimit
+		return repository.ErrDocumentFileLimit
 	}
 
 	insertQuery := fmt.Sprintf(`
-		INSERT INTO document_images (user_id, %s, content_type, byte_size, width, height, filename, caption, data)
+		INSERT INTO document_files (user_id, %s, content_type, byte_size, width, height, filename, caption, data)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at
 	`, col)
@@ -145,16 +145,16 @@ func (r *documentImageRepository) Create(ctx context.Context, image *models.Docu
 	return tx.Commit()
 }
 
-func (r *documentImageRepository) ListBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentImage, error) {
+func (r *documentFileRepository) ListBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentFile, error) {
 	col, err := subjectColumn(subject)
 	if err != nil {
 		return nil, err
 	}
 	query := fmt.Sprintf(`
-		SELECT %s FROM document_images
+		SELECT %s FROM document_files
 		WHERE user_id = $1 AND %s = $2
 		ORDER BY created_at ASC, id ASC
-	`, documentImageColumns, col)
+	`, documentFileColumns, col)
 
 	rows, err := r.db.QueryContext(ctx, query, userID, subjectID)
 	if err != nil {
@@ -162,9 +162,9 @@ func (r *documentImageRepository) ListBySubject(ctx context.Context, userID uuid
 	}
 	defer rows.Close()
 
-	images := make([]*models.DocumentImage, 0)
+	images := make([]*models.DocumentFile, 0)
 	for rows.Next() {
-		img, err := scanDocumentImage(rows.Scan, false)
+		img, err := scanDocumentFile(rows.Scan, false)
 		if err != nil {
 			return nil, err
 		}
@@ -173,17 +173,17 @@ func (r *documentImageRepository) ListBySubject(ctx context.Context, userID uuid
 	return images, rows.Err()
 }
 
-func (r *documentImageRepository) GetWithData(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentImage, error) {
+func (r *documentFileRepository) GetWithData(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentFile, error) {
 	col, err := subjectColumn(subject)
 	if err != nil {
 		return nil, err
 	}
 	query := fmt.Sprintf(`
-		SELECT %s, data FROM document_images
+		SELECT %s, data FROM document_files
 		WHERE id = $1 AND user_id = $2 AND %s = $3
-	`, documentImageColumns, col)
+	`, documentFileColumns, col)
 
-	img, err := scanDocumentImage(r.db.QueryRowContext(ctx, query, imageID, userID, subjectID).Scan, true)
+	img, err := scanDocumentFile(r.db.QueryRowContext(ctx, query, imageID, userID, subjectID).Scan, true)
 	if err == sql.ErrNoRows {
 		return nil, repository.ErrNotFound
 	}
@@ -193,12 +193,12 @@ func (r *documentImageRepository) GetWithData(ctx context.Context, userID uuid.U
 	return img, nil
 }
 
-func (r *documentImageRepository) Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error {
+func (r *documentFileRepository) Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error {
 	col, err := subjectColumn(subject)
 	if err != nil {
 		return err
 	}
-	query := fmt.Sprintf(`DELETE FROM document_images WHERE id = $1 AND user_id = $2 AND %s = $3`, col)
+	query := fmt.Sprintf(`DELETE FROM document_files WHERE id = $1 AND user_id = $2 AND %s = $3`, col)
 
 	result, err := r.db.ExecContext(ctx, query, imageID, userID, subjectID)
 	if err != nil {
@@ -214,12 +214,12 @@ func (r *documentImageRepository) Delete(ctx context.Context, userID uuid.UUID, 
 	return nil
 }
 
-func (r *documentImageRepository) CountBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) (int, error) {
+func (r *documentFileRepository) CountBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) (int, error) {
 	col, err := subjectColumn(subject)
 	if err != nil {
 		return 0, err
 	}
-	query := fmt.Sprintf(`SELECT COUNT(*) FROM document_images WHERE user_id = $1 AND %s = $2`, col)
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM document_files WHERE user_id = $1 AND %s = $2`, col)
 
 	var count int
 	if err := r.db.QueryRowContext(ctx, query, userID, subjectID).Scan(&count); err != nil {

@@ -167,7 +167,7 @@ func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFu
 //
 // Neither suffix nor prefix matching covers a sub-collection that sits in the
 // middle of a path and also has per-item routes under it:
-// "/licenses/{id}/images" has no fixed prefix and "/licenses/{id}/images/{imageId}"
+// "/licenses/{id}/files" has no fixed prefix and "/licenses/{id}/files/{fileId}"
 // has no fixed suffix, so matching on the "images" segment is the only way to
 // cover the collection and its items with one predicate.
 func RateLimitByPathSegment(rl gin.HandlerFunc, segments ...string) gin.HandlerFunc {

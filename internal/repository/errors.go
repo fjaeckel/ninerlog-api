@@ -16,9 +16,9 @@ var (
 	// e.g. creating a second open flight session for the same user
 	ErrDuplicate = errors.New("duplicate resource")
 
-	// ErrDocumentImageLimit is returned when an image would push a licence or
+	// ErrDocumentFileLimit is returned when an image would push a licence or
 	// credential past its per-document image cap. The count is taken while
 	// holding a row lock on the owning document, so this is authoritative even
 	// when two uploads race for the last slot.
-	ErrDocumentImageLimit = errors.New("document image limit reached")
+	ErrDocumentFileLimit = errors.New("document image limit reached")
 )
