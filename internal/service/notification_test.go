@@ -757,3 +757,17 @@ func TestTriggerCheck_SendsGermanCredentialExpiryWarning(t *testing.T) {
 		t.Error("Expected non-empty Subject")
 	}
 }
+
+// Unverified-account reaping is exercised in the reaper's own tests; this mock
+// only needs the interface satisfied.
+func (m *mockNotifUserRepo) ListUnverifiedForReminder(_ context.Context, _ time.Time, _ int) ([]*models.User, error) {
+	return nil, nil
+}
+
+func (m *mockNotifUserRepo) MarkVerificationReminderSent(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	return nil
+}
+
+func (m *mockNotifUserRepo) DeleteUnverifiedRemindedBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}

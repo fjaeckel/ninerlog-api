@@ -152,10 +152,22 @@ The in-memory airport database (`internal/airports`) merges two upstream dataset
 |--------|------|--------|-------------|
 | `email_send_total` | Counter | `result` | Email send attempts. Results: `success`, `failure`, `dry_run`, `invalid_address` |
 | `email_send_duration_seconds` | Histogram | — | Latency of the SMTP send call (both successful and failed attempts) |
+| `email_delivery_total` | Counter | `type`, `status` | Send attempts by message type and SMTP outcome. Statuses: `delivered`, `hard_bounce`, `soft_bounce`, `rejected`, `invalid_address`, `suppressed`, `server_error`, `dry_run` |
+| `email_suppressed_addresses` | Gauge | — | Addresses currently refused after a permanent delivery failure |
+| `unverified_account_reminders_total` | Counter | `result` | Follow-up verification reminders. Results: `sent`, `undeliverable`, `deferred`, `error` |
+| `unverified_accounts_deleted_total` | Counter | — | Accounts reaped for never confirming their address |
 
 > **Why this matters:** every user-facing notification is delivered over SMTP.
 > `notifications_sent_total` only increments on success, so SMTP outages are
 > invisible without `email_send_total{result="failure"}`.
+>
+> `email_send_total` stays deliberately coarse for existing dashboards.
+> `email_delivery_total` is the one that separates a dead address
+> (`hard_bounce`) from a broken mail setup (`server_error`) — the two look
+> identical in the coarse counter, and only the first should ever stop mail to a
+> user. A rising `email_suppressed_addresses` means real users are losing mail;
+> a jump in `unverified_accounts_deleted_total` is worth alerting on, because
+> account deletion is irreversible.
 
 ### Rate Limiting Metrics
 

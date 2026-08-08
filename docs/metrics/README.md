@@ -103,6 +103,10 @@ Full reference (including the fetch/merge internals): [`../METRICS.md`](../METRI
 |--------|------|--------|-------------|
 | `email_send_total` | Counter | `result` | `success`, `failure`, `dry_run`, `invalid_address` |
 | `email_send_duration_seconds` | Histogram | — | Latency of the SMTP send call (successful and failed attempts) |
+| `email_delivery_total` | Counter | `type`, `status` | `delivered`, `hard_bounce`, `soft_bounce`, `rejected`, `invalid_address`, `suppressed`, `server_error`, `dry_run` |
+| `email_suppressed_addresses` | Gauge | — | Addresses refused after a permanent delivery failure |
+| `unverified_account_reminders_total` | Counter | `result` | `sent`, `undeliverable`, `deferred`, `error` |
+| `unverified_accounts_deleted_total` | Counter | — | Accounts reaped for never confirming their address |
 
 ### Go runtime (built-in collectors)
 

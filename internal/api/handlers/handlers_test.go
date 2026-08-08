@@ -1857,3 +1857,17 @@ func (m *mockUserRepo) ConsumeRecoveryCode(_ context.Context, id uuid.UUID, code
 	}
 	return false, nil
 }
+
+// The unverified-account reaper is exercised in internal/service; these handler
+// tests only need the repository interface satisfied.
+func (m *mockUserRepo) ListUnverifiedForReminder(_ context.Context, _ time.Time, _ int) ([]*models.User, error) {
+	return nil, nil
+}
+
+func (m *mockUserRepo) MarkVerificationReminderSent(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	return nil
+}
+
+func (m *mockUserRepo) DeleteUnverifiedRemindedBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}

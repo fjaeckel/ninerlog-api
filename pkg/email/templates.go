@@ -59,6 +59,19 @@ type VerifyEmailParams struct {
 	Link     string
 }
 
+// VerificationReminderParams drives the follow-up sent when an account is still
+// unverified a day after signup. It states the deletion deadline outright: the
+// account will be removed if the address is never confirmed, and someone who
+// never sees that stated has no way to act on it.
+type VerificationReminderParams struct {
+	UserName string
+	Link     string
+	// DeletionDays is how long the account survives from this reminder.
+	DeletionDays int
+	// LinkValidDays is how long the enclosed link works, which is shorter.
+	LinkValidDays int
+}
+
 type PasswordResetParams struct {
 	UserName string
 	Link     string
@@ -121,6 +134,7 @@ type templateSet struct {
 	FlightReviewExpiry   func(p FlightReviewExpiryParams) (subject, body string)
 	FlightReviewRequired func(p FlightReviewRequiredParams) (subject, body string)
 	VerifyEmail          func(p VerifyEmailParams) (subject, body string)
+	VerificationReminder func(p VerificationReminderParams) (subject, body string)
 	PasswordReset        func(p PasswordResetParams) (subject, body string)
 	PasswordChanged      func(p PasswordChangedParams) (subject, body string)
 	TwoFactorReset       func(p TwoFactorResetParams) (subject, body string)

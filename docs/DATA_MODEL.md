@@ -167,11 +167,21 @@ whenever the requested range reaches back to the snapshot's cutoff date.
 | OIDCIdentity | `oidc.go` | 52 | Links an external `(issuer, subject)` to a local user; only present in OIDC mode |
 | OIDCLoginState | `oidc.go` | 52 | Pending authorization request — nonce and PKCE verifier, keyed by `sha256(state)` and bound to the originating browser by `sha256(cookie)` |
 | OIDCHandoffCode | `oidc.go` | 52 | Single-use code bridging the provider redirect to the SPA's token request, keyed by `sha256(code)` |
+| EmailDeliveryEvent | `email_delivery.go` | 56 | Append-only log of send attempts: recipient, message type, SMTP outcome and reply code. `user_id` is `ON DELETE SET NULL` so a bounce history outlives the account it belonged to |
+| EmailSuppression | `email_delivery.go` | 56 | Addresses that refused mail permanently; keyed by lower-cased address. Consulted before every send |
 | NotificationPreference | `notification.go` | 10, 33 | Per-category opt-in + warning windows |
 | NotificationLog | `notification.go` | 10, 33 | Sent-notification history (dedup) |
 
 Token-style tables store hashes, never raw secrets. See [AUTHENTICATION.md](./AUTHENTICATION.md)
 and, for the OIDC tables, [OIDC.md](./OIDC.md).
+
+`users.verification_reminder_sent_at` (migration 56) records when the follow-up
+verification email went out. It is the clock the unverified-account reaper counts
+from — not `created_at` — and is written and read only by the reaper's own
+queries, which is why it has no field on `models.User`. A partial index
+(`WHERE email_verified = FALSE`) keeps each sweep proportional to the number of
+accounts stuck unverified rather than to the size of the users table. See the
+lifecycle in [AUTHENTICATION.md](./AUTHENTICATION.md).
 
 The three OIDC tables exist on every deployment but stay empty unless
 `OIDC_ISSUER` is set. Accounts provisioned through OIDC are ordinary `users`

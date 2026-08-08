@@ -49,7 +49,8 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 	dataQuery := `
 		SELECT u.id, u.email, u.name, u.created_at, u.last_login_at,
 		       u.email_verified, u.two_factor_enabled, u.disabled, u.failed_login_attempts,
-		       u.locked_until,
+		       u.locked_until, u.verification_reminder_sent_at,
+		       EXISTS (SELECT 1 FROM email_suppressions es WHERE es.email = u.email) as email_suppressed,
 		       (SELECT COUNT(*) FROM flights WHERE user_id = u.id) as flight_count,
 		       (SELECT COUNT(*) FROM aircraft WHERE user_id = u.id) as aircraft_count
 		FROM users u
@@ -91,13 +92,14 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 		var email, name string
 		var createdAt time.Time
 		var lastLoginAt *time.Time
-		var emailVerified, twoFactorEnabled, disabled bool
+		var emailVerified, twoFactorEnabled, disabled, emailSuppressed bool
 		var failedAttempts int
-		var lockedUntil *time.Time
+		var lockedUntil, reminderSentAt *time.Time
 		var flightCount, aircraftCount int
 
 		if err := rows.Scan(&id, &email, &name, &createdAt, &lastLoginAt,
 			&emailVerified, &twoFactorEnabled, &disabled, &failedAttempts, &lockedUntil,
+			&reminderSentAt, &emailSuppressed,
 			&flightCount, &aircraftCount); err != nil {
 			continue
 		}
@@ -112,11 +114,23 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 			TwoFactorEnabled: twoFactorEnabled,
 			Disabled:         disabled,
 			Locked:           &isLocked,
+			EmailSuppressed:  &emailSuppressed,
 			FlightCount:      flightCount,
 			AircraftCount:    aircraftCount,
 		}
 		if lastLoginAt != nil {
 			adminUser.LastLoginAt = lastLoginAt
+		}
+		// The reminder timestamp is what the retention clock counts from, so
+		// the deletion date is derived rather than stored. Both are reported
+		// only while the account is still unverified: on a verified account the
+		// stamp is a historical footnote, not a pending deletion.
+		if !emailVerified && reminderSentAt != nil {
+			adminUser.VerificationReminderSentAt = reminderSentAt
+			if h.unverifiedAccountService != nil {
+				scheduled := reminderSentAt.Add(h.unverifiedAccountService.Config().Retention)
+				adminUser.ScheduledDeletionAt = &scheduled
+			}
 		}
 		if lockedUntil != nil && lockedUntil.After(time.Now()) {
 			adminUser.LockedUntil = lockedUntil

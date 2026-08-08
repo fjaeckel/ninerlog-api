@@ -10,6 +10,8 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
+	emailpkg "github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/gin-gonic/gin"
 )
 
@@ -147,7 +149,9 @@ func (h *APIHandler) SmtpTest(c *gin.Context) {
 <p>If you received this email, your SMTP configuration is working correctly.</p>`,
 		time.Now().Format(time.RFC3339))
 
-	if err := h.emailSender.Send(user.Email, subject, body); err != nil {
+	if err := h.emailSender.SendMessage(c.Request.Context(), emailpkg.Message{
+		To: user.Email, Subject: subject, HTMLBody: body, Type: emailpkg.TypeAdminTest,
+	}); err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to send test email")
 		return
 	}
@@ -235,6 +239,31 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		AdminEmailConfigured:   adminEmailConfigured,
 		CloudBackupsConfigured: cloudBackupsConfigured,
 		CloudBackupProviders:   cloudBackupProviders,
+	}
+
+	// The unverified-account lifecycle is only reported when it is actually
+	// running. Showing "30 days" on a deployment where nothing reaps would be
+	// worse than showing nothing — so when it is off, the reason is reported
+	// instead, and the timing is not.
+	enabled := h.unverifiedAccountService != nil
+	config.UnverifiedCleanupEnabled = &enabled
+	if enabled {
+		reaperCfg := h.unverifiedAccountService.Config()
+		reminderAfter := reaperCfg.ReminderAfter.String()
+		retention := reaperCfg.Retention.String()
+		config.UnverifiedReminderAfter = &reminderAfter
+		config.UnverifiedRetention = &retention
+	} else if reason := service.UnverifiedCleanupDisabledReason(
+		h.emailSender.IsConfigured(), h.oidcService != nil,
+	); reason != "" {
+		disabledReason := generated.AdminConfigUnverifiedCleanupDisabledReason(reason)
+		config.UnverifiedCleanupDisabledReason = &disabledReason
+	}
+
+	if h.emailDeliveryService != nil {
+		if count, err := h.emailDeliveryService.CountSuppressions(c.Request.Context()); err == nil {
+			config.EmailSuppressedCount = &count
+		}
 	}
 
 	c.JSON(http.StatusOK, config)
