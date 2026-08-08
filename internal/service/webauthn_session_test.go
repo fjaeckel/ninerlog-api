@@ -102,6 +102,9 @@ func (f *fakeUserRepoWA) ConsumeRecoveryCode(context.Context, uuid.UUID, string)
 	return false, nil
 }
 func (f *fakeUserRepoWA) MarkEmailVerified(context.Context, uuid.UUID) error { return nil }
+func (f *fakeUserRepoWA) UpdateLastLogin(context.Context, uuid.UUID, time.Time) error {
+	return nil
+}
 
 type fakeCredRepo struct{}
 

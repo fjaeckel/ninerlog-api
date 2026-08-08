@@ -149,6 +149,10 @@ func (m *mockNotifUserRepo) MarkEmailVerified(ctx context.Context, id uuid.UUID)
 	return nil
 }
 
+func (m *mockNotifUserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error {
+	return nil
+}
+
 // mockNotifCredentialRepo for notification tests
 type mockNotifCredentialRepo struct {
 	creds map[uuid.UUID]*models.Credential

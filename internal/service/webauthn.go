@@ -511,9 +511,7 @@ func (s *WebAuthnService) FinishLogin(ctx context.Context, handle string, respon
 		return nil, nil, err
 	}
 
-	now := time.Now()
-	user.LastLoginAt = &now
-	_ = s.userRepo.Update(ctx, user)
+	s.authService.RecordLogin(ctx, user)
 
 	return user, tokens, nil
 }

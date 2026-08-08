@@ -18,6 +18,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 )
 
 // ---- Mock repositories ----
@@ -216,6 +217,15 @@ func (m *mockUserRepo) ResetFailedLoginAttempts(_ context.Context, _ uuid.UUID) 
 func (m *mockUserRepo) LockAccount(_ context.Context, _ uuid.UUID, _ time.Time) error {
 	return nil
 }
+func (m *mockUserRepo) UpdateLastLogin(_ context.Context, id uuid.UUID, at time.Time) error {
+	if u, ok := m.users[id]; ok {
+		stamp := at
+		u.LastLoginAt = &stamp
+		u.UpdatedAt = at
+		return nil
+	}
+	return repository.ErrNotFound
+}
 func (m *mockUserRepo) MarkEmailVerified(_ context.Context, id uuid.UUID) error {
 	if u, ok := m.users[id]; ok {
 		u.EmailVerified = true
@@ -378,8 +388,9 @@ func setupTestHandler() (*APIHandler, *mockUserRepo) {
 	passwordRepo := &mockPasswordResetRepo{}
 	jwtMgr := jwt.NewManager("test-access", "test-refresh", 15*time.Minute, 7*24*time.Hour)
 
+	twoFactorSvc := service.NewTwoFactorService(userRepo, jwtMgr, nil)
 	authSvc := service.NewAuthService(userRepo, refreshRepo, passwordRepo, &mockEmailVerificationRepo{}, jwtMgr,
-		service.NewTwoFactorService(userRepo, jwtMgr, nil))
+		twoFactorSvc)
 	credSvc := service.NewCredentialService(newMockCredentialRepo())
 	aircraftSvc := service.NewAircraftService(newMockAircraftRepo())
 	contactSvc := service.NewContactService(newMockContactRepo())
@@ -391,6 +402,7 @@ func setupTestHandler() (*APIHandler, *mockUserRepo) {
 		aircraftService:   aircraftSvc,
 		contactService:    contactSvc,
 		flightService:     flightSvc,
+		twoFactorService:  twoFactorSvc,
 		jwtManager:        jwtMgr,
 		adminEmail:        "admin@test.com",
 	}
@@ -1396,6 +1408,46 @@ func TestLogin2FA_InvalidBody(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Login2FA(badBody) status = %d, want 400", w.Code)
+	}
+}
+
+// A 2FA account only gets its session here — LoginUser answered the password
+// with a challenge — so this is where the login is recorded.
+func TestLogin2FA_RecordsLastLogin(t *testing.T) {
+	h, userRepo := setupTestHandler()
+
+	key, err := totp.Generate(totp.GenerateOpts{Issuer: "NinerLog", AccountName: "2fa@example.com"})
+	if err != nil {
+		t.Fatalf("totp.Generate() error = %v", err)
+	}
+	secret := key.Secret()
+	user := &models.User{Email: "2fa@example.com", Name: "Two Factor", TwoFactorEnabled: true, TwoFactorSecret: &secret}
+	if err := userRepo.Create(context.Background(), user); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	twoFactorToken, err := h.jwtManager.Generate2FAToken(user.ID)
+	if err != nil {
+		t.Fatalf("Generate2FAToken() error = %v", err)
+	}
+	code, err := totp.GenerateCode(secret, time.Now())
+	if err != nil {
+		t.Fatalf("GenerateCode() error = %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]string{"twoFactorToken": twoFactorToken, "code": code})
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/auth/2fa/login", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.Login2FA(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Login2FA() status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	if userRepo.users[user.ID].LastLoginAt == nil {
+		t.Error("Login2FA() did not record a last login")
 	}
 }
 

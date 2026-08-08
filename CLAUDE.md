@@ -65,6 +65,10 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
    registry, service-layer ownership checks, sentinel errors) — see
    `.claude/skills/aviation-domain/SKILL.md`.
 5. Conventional Commits (`feat(flights): …`); branch from `main`.
+6. **Security findings are never committed or pushed** — no audit reports, vulnerability
+   write-ups, exploit fixtures, or commit/PR text describing an unfixed weakness. Write them to
+   the gitignored `security-audits/` and report privately (`SECURITY.md`, or a GitHub Security
+   Advisory). Fixes get pushed; findings do not. See `.claude/skills/security-audit/SKILL.md`.
 
 ## Delegation
 

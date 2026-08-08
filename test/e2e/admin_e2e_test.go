@@ -109,6 +109,44 @@ func TestAdminEndpoints(t *testing.T) {
 		}
 	})
 
+	// Following the verification link signs the new account in, so the admin
+	// list must show a last-login date even for a user who never went through
+	// the login form afterwards.
+	t.Run("sign-up verification shows as last login", func(t *testing.T) {
+		vc := NewE2EClient(t)
+		ve := uniqueEmail("admin-verify-login")
+		requireStatus(t, vc.POST("/auth/register", map[string]string{
+			"email": ve, "password": "UserPass123!", "name": "Verify Only",
+		}), http.StatusCreated)
+
+		token := extractVerificationToken(t, ve)
+		requireStatus(t, vc.POST("/auth/verify-email", map[string]string{"token": token}), http.StatusOK)
+
+		listResp := ac.GET(fmt.Sprintf("/admin/users?search=%s", ve))
+		requireStatus(t, listResp, http.StatusOK)
+		var list struct {
+			Data []struct {
+				Email       string  `json:"email"`
+				LastLoginAt *string `json:"lastLoginAt"`
+			} `json:"data"`
+		}
+		listResp.JSON(&list)
+
+		found := false
+		for _, u := range list.Data {
+			if u.Email != ve {
+				continue
+			}
+			found = true
+			if u.LastLoginAt == nil || *u.LastLoginAt == "" {
+				t.Error("Expected lastLoginAt to be set after sign-up verification")
+			}
+		}
+		if !found {
+			t.Fatalf("User %s not found in admin list", ve)
+		}
+	})
+
 	t.Run("admin audit log", func(t *testing.T) {
 		requireStatus(t, ac.GET("/admin/audit-log"), http.StatusOK)
 	})
