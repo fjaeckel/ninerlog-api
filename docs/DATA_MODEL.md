@@ -52,6 +52,10 @@ The account holder. Notable fields:
 - Identity: `Email`, `PasswordHash` (bcrypt; never serialized), `Name`.
 - Verification & security: `EmailVerified`, `TwoFactorEnabled`, `TwoFactorSecret`,
   `RecoveryCodes`, `FailedLoginAttempts`, `LockedUntil`, `Disabled`, `LastLoginAt`.
+  `LastLoginAt` is written by every path that issues a session — password login,
+  the 2FA second factor, passkeys, OIDC, and the sign-up verification link — but
+  not by a token refresh. See
+  [AUTHENTICATION.md](AUTHENTICATION.md#login).
 - Display preferences: `TimeDisplayFormat` (`HH:MM` vs decimal hours), `DateFormat`,
   `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`).
 - Recency indicators: `RecencyPerModel`, `RecencyPerRegistration` — which informational

@@ -255,6 +255,19 @@ func (r *UserRepository) ResetFailedLoginAttempts(ctx context.Context, id uuid.U
 	return err
 }
 
+// UpdateLastLogin stamps the moment a session was handed out. Missing rows are
+// not an error: the caller has already authenticated, and failing the login
+// because the stamp could not be written would be worse than a stale timestamp.
+func (r *UserRepository) UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error {
+	query := `
+		UPDATE users
+		SET last_login_at = $1, updated_at = $1
+		WHERE id = $2
+	`
+	_, err := r.db.ExecContext(ctx, query, at, id)
+	return err
+}
+
 func (r *UserRepository) LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error {
 	query := `
 		UPDATE users
