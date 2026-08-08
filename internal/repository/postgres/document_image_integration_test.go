@@ -159,8 +159,13 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 			t.Fatalf("create license: %v", err)
 		}
 
+		// A start barrier, so every goroutine issues its INSERT in the same
+		// instant rather than trickling in. Without it this test passes against
+		// a count-then-insert that has no lock, purely on timing — which is
+		// exactly how the unlocked version survived its first run.
 		const attempts = 12
 		var wg sync.WaitGroup
+		start := make(chan struct{})
 		results := make([]error, attempts)
 		for i := 0; i < attempts; i++ {
 			wg.Add(1)
@@ -169,9 +174,11 @@ func TestDocumentImageRepositoryIntegration(t *testing.T) {
 				licenseID := raceLicense.ID
 				img := newImage(payload)
 				img.LicenseID = &licenseID
+				<-start
 				results[i] = imageRepo.Create(ctx, img, models.MaxDocumentImagesPerSubject)
 			}(i)
 		}
+		close(start)
 		wg.Wait()
 
 		succeeded := 0

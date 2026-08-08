@@ -122,9 +122,12 @@ away for real.
 - `data BYTEA` holds the raw bytes. Postgres TOASTs the payload out of line, and every
   query except the single-image download uses an explicit column list that omits it, so a
   listing never reads it.
-- Bounded by design: at most 5 MB (`byte_size` CHECK) and 5 images per document (enforced
-  by a guarded `INSERT … SELECT … WHERE (SELECT COUNT(*) …) < $n`, so concurrent uploads
-  cannot both take the last slot).
+- Bounded by design: at most 5 MB (`byte_size` CHECK) and 5 images per document. The
+  per-document cap is enforced by counting and inserting inside one transaction that first
+  takes `SELECT … FOR UPDATE` on the owning licence/credential row, so concurrent uploads
+  to the same document serialize on that row and cannot both take the last slot. Putting
+  the count in the `INSERT`'s `WHERE` clause is *not* sufficient on its own: under READ
+  COMMITTED the subquery reads the statement snapshot and takes no lock.
 - `content_type` is restricted to `image/jpeg`/`image/png` and is derived from the stored
   bytes, not from what the uploader declared.
 - Kept in Postgres rather than an object store because the self-hosted deployment has one

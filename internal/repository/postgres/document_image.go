@@ -33,6 +33,19 @@ func subjectColumn(subject models.DocumentSubjectType) (string, error) {
 	}
 }
 
+// subjectTable names the parent table a subject lives in. Only used to take a
+// row lock on the owning document while its image count is being enforced.
+func subjectTable(subject models.DocumentSubjectType) (string, error) {
+	switch subject {
+	case models.DocumentSubjectLicense:
+		return "licenses", nil
+	case models.DocumentSubjectCredential:
+		return "credentials", nil
+	default:
+		return "", fmt.Errorf("unknown document subject type %q", subject)
+	}
+}
+
 // documentImageColumns is the metadata projection — deliberately without
 // `data`, so listings never pull the payload out of TOAST storage.
 const documentImageColumns = `id, user_id, license_id, credential_id, content_type,
@@ -64,18 +77,58 @@ func (r *documentImageRepository) Create(ctx context.Context, image *models.Docu
 		return fmt.Errorf("document image has no subject")
 	}
 
-	// INSERT ... SELECT with the count in the WHERE clause: the cap is
-	// evaluated in the same statement that writes the row, so two uploads
-	// arriving together cannot both read "4 images" and both insert a fifth.
-	// No rows inserted means the cap was already reached.
-	query := fmt.Sprintf(`
-		INSERT INTO document_images (user_id, %[1]s, content_type, byte_size, width, height, filename, caption, data)
-		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9
-		WHERE (SELECT COUNT(*) FROM document_images WHERE %[1]s = $2) < $10
+	table, err := subjectTable(image.SubjectType())
+	if err != nil {
+		return err
+	}
+
+	// Enforcing the cap needs a lock, not just a single statement.
+	//
+	// Putting the count in the INSERT's WHERE clause is NOT enough on its own:
+	// under READ COMMITTED the subquery reads the statement's snapshot and
+	// takes no lock, so two uploads arriving together both see "4 images" and
+	// both write a fifth. That is a genuine race, and it reproduces under the
+	// concurrent-upload integration test.
+	//
+	// So the count and the insert run inside one transaction that first takes
+	// a row lock on the owning document. Competing uploads for the same
+	// licence/credential serialize on that row, which makes the count stable
+	// for the rest of the transaction. Uploads to *different* documents never
+	// contend. The lock is taken on the parent before touching the child, the
+	// same order a cascading DELETE of the parent takes, so the two cannot
+	// deadlock against each other.
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // no-op once committed
+
+	var lockedID uuid.UUID
+	lockQuery := fmt.Sprintf(`SELECT id FROM %s WHERE id = $1 FOR UPDATE`, table)
+	if err := tx.QueryRowContext(ctx, lockQuery, subjectID).Scan(&lockedID); err != nil {
+		if err == sql.ErrNoRows {
+			// The document was deleted between the service's ownership check
+			// and this write.
+			return repository.ErrNotFound
+		}
+		return err
+	}
+
+	var count int
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM document_images WHERE %s = $1`, col)
+	if err := tx.QueryRowContext(ctx, countQuery, subjectID).Scan(&count); err != nil {
+		return err
+	}
+	if count >= maxPerSubject {
+		return repository.ErrDocumentImageLimit
+	}
+
+	insertQuery := fmt.Sprintf(`
+		INSERT INTO document_images (user_id, %s, content_type, byte_size, width, height, filename, caption, data)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at
 	`, col)
-
-	err = r.db.QueryRowContext(ctx, query,
+	if err := tx.QueryRowContext(ctx, insertQuery,
 		image.UserID,
 		subjectID,
 		image.ContentType,
@@ -85,12 +138,11 @@ func (r *documentImageRepository) Create(ctx context.Context, image *models.Docu
 		image.Filename,
 		image.Caption,
 		image.Data,
-		maxPerSubject,
-	).Scan(&image.ID, &image.CreatedAt, &image.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return repository.ErrDocumentImageLimit
+	).Scan(&image.ID, &image.CreatedAt, &image.UpdatedAt); err != nil {
+		return err
 	}
-	return err
+
+	return tx.Commit()
 }
 
 func (r *documentImageRepository) ListBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentImage, error) {

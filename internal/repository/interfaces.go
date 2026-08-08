@@ -311,9 +311,10 @@ type CredentialRepository interface {
 // reachable through the subject it hangs off, and both are checked.
 type DocumentImageRepository interface {
 	// Create inserts the image only if the subject is still below maxPerSubject
-	// images, and returns repository.ErrDocumentImageLimit otherwise. The check
-	// and the insert are one statement so two concurrent uploads cannot both
-	// see room for the last slot.
+	// images, and returns repository.ErrDocumentImageLimit otherwise. The count
+	// and the insert share a transaction that holds a row lock on the owning
+	// document, so two concurrent uploads cannot both see room for the last
+	// slot. Returns ErrNotFound if the document was deleted in the meantime.
 	Create(ctx context.Context, image *models.DocumentImage, maxPerSubject int) error
 
 	// ListBySubject returns the images attached to one licence or credential,
