@@ -85,10 +85,6 @@ func envIntNarrow(key string, def int) int {
 	return int(v)
 }
 
-// envDuration reads a Go duration (e.g. "24h", "60s") from the environment,
-// keeping the default when the variable is unset, unparseable, or non-positive.
-// Same fail-safe reasoning as envInt: a misconfigured retention window must not
-// silently become zero.
 // envBoolWithLegacy reads a boolean feature switch, honouring a previous name
 // for the same knob. Only the exact string "false" disables — an unset or
 // unparseable value leaves the default in place, so a typo never silently
@@ -106,6 +102,32 @@ func envBoolWithLegacy(key, legacyKey string, def bool) bool {
 	return def
 }
 
+// envBool reads a boolean switch, keeping the default when the variable is
+// unset or unparseable.
+//
+// Unlike envBoolWithLegacy — which exists for opt-out knobs, where only the
+// exact string "false" disables — this parses properly, because it is used for
+// opt-in switches. "0", "no" and a typo must not all read as "on"; a subsystem
+// that starts making outbound connections should do so because someone wrote
+// "true", not because they wrote something that merely was not "false".
+func envBool(key string, def bool) bool {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		slog.Warn("Ignoring invalid environment value, using default",
+			"key", key, "value", raw, "default", def)
+		return def
+	}
+	return v
+}
+
+// envDuration reads a Go duration (e.g. "24h", "60s") from the environment,
+// keeping the default when the variable is unset, unparseable, or non-positive.
+// Same fail-safe reasoning as envInt: a misconfigured retention window must not
+// silently become zero.
 func envDuration(key string, def time.Duration) time.Duration {
 	raw := os.Getenv(key)
 	if raw == "" {
@@ -225,18 +247,48 @@ func main() {
 	licenseRepo := postgres.NewLicenseRepository(db)
 	flightRepo := postgres.NewFlightRepository(db)
 	flightBaselineRepo := postgres.NewFlightBaselineRepository(db)
-	// TOTP secrets are encrypted at rest when TOTP_ENCRYPTION_KEY (base64,
-	// 32 bytes) is set. Without it, secrets are stored as plaintext; warn so
-	// operators enable encryption in production.
-	var totpAEAD *cryptoutil.AEAD
-	if totpKey := os.Getenv("TOTP_ENCRYPTION_KEY"); totpKey != "" {
-		totpAEAD, err = cryptoutil.NewFromBase64(totpKey)
-		if err != nil {
-			fatal("invalid TOTP_ENCRYPTION_KEY", "error", err)
+	// ENCRYPTION_KEY is the single operator-facing secret behind every piece of
+	// data this server encrypts at rest. Each use derives its own subkey from
+	// it (HKDF, see cryptoutil.DeriveKey), so one key in the environment
+	// protects several independent things without any two of them sharing key
+	// bytes — recovering the subkey that reads licence scans reveals nothing
+	// about the one that reads 2FA secrets, and neither reveals the master.
+	//
+	// It is required, not optional. Every previous arrangement here had a
+	// degraded mode where a missing key meant "store it in the clear anyway",
+	// and a warning nobody reads is not a security control. One key, mandatory,
+	// no plaintext path.
+	//
+	// It is never generated or defaulted: a key the server invents is a key it
+	// cannot remember across a restart, and losing the key loses everything
+	// sealed under it. Generate one with `openssl rand -base64 32` and keep it
+	// wherever the database password lives — to anyone holding a stolen backup
+	// the two are worth exactly the same.
+	masterKey, err := cryptoutil.DecodeKey(os.Getenv("ENCRYPTION_KEY"))
+	if err != nil {
+		fatal("ENCRYPTION_KEY is required and must be 32 random bytes, base64-encoded",
+			"error", err, "hint", "generate one with `openssl rand -base64 32`")
+	}
+
+	// The per-purpose key variables this replaced are refused rather than
+	// ignored. Silently disregarding one would leave an operator believing
+	// their 2FA secrets or backup credentials are still readable when the
+	// server can no longer decrypt them, and they would find out from a locked
+	// out pilot. Failing at startup puts the problem where it can be fixed.
+	for _, removed := range []struct{ name, effect string }{
+		{"TOTP_ENCRYPTION_KEY", "2FA secrets sealed with it cannot be read; affected users must re-enrol"},
+		{"BACKUP_CREDENTIALS_KEY", "backup destination credentials sealed with it cannot be read; those destinations must be re-created"},
+	} {
+		if os.Getenv(removed.name) != "" {
+			fatal(removed.name+" is no longer supported — all keys now derive from ENCRYPTION_KEY",
+				"effect", removed.effect,
+				"hint", "unset "+removed.name+" once the affected data has been dealt with; see docs/UPGRADING.md")
 		}
-		slog.Info("TOTP secrets encrypted at rest")
-	} else {
-		slog.Warn("TOTP_ENCRYPTION_KEY not set — 2FA secrets are stored unencrypted")
+	}
+
+	totpAEAD, err := cryptoutil.DeriveAEAD(masterKey, cryptoutil.PurposeTOTPSecrets)
+	if err != nil {
+		fatal("could not derive the TOTP encryption key", "error", err)
 	}
 
 	// Initialize services. The two-factor service is built first: the auth
@@ -399,21 +451,36 @@ func main() {
 	// feature grew beyond images. It is still honoured so an operator who
 	// already switched the feature off does not silently get it switched back
 	// on by an upgrade; the new name wins when both are set.
+	//
+	// Stored files are encrypted at rest under a subkey of ENCRYPTION_KEY.
+	// There is no unencrypted mode: these are scans of identity documents, and
+	// a database dump that hands them over in the clear is exactly what the
+	// encryption exists to prevent.
 	documentFilesEnabled := envBoolWithLegacy("DOCUMENT_FILES_ENABLED", "DOCUMENT_IMAGES_ENABLED", true)
+	documentFileAEAD, err := cryptoutil.DeriveAEAD(masterKey, cryptoutil.PurposeDocumentFile)
+	if err != nil {
+		fatal("could not derive the document file encryption key", "error", err)
+	}
 	documentFileService := service.NewDocumentFileService(
-		postgres.NewDocumentFileRepository(db), licenseRepo, credentialRepo, documentFilesEnabled)
+		postgres.NewDocumentFileRepository(db), licenseRepo, credentialRepo, documentFilesEnabled, documentFileAEAD)
 	apiHandler.SetDocumentFileService(documentFileService)
 
 	startedAt := time.Now()
 	apiHandler.SetStartedAt(startedAt)
 	apiHandler.SetCORSOrigins(corsOrigins)
 
-	// Cloud backup service (optional — enabled only when BACKUP_CREDENTIALS_KEY is set).
+	// Cloud backup service (optional — CLOUD_BACKUPS_ENABLED=true).
+	//
+	// This used to be switched on by the presence of its own key. With every
+	// key now derived from ENCRYPTION_KEY that would mean setting one secret
+	// silently started a scheduler and a set of outbound-connecting providers,
+	// so the subsystem gets an explicit switch instead. It stays off by
+	// default, which is what "no backup key configured" meant before.
 	var backupScheduler *cloudbackup.Scheduler
-	if backupKey := os.Getenv("BACKUP_CREDENTIALS_KEY"); backupKey != "" {
-		aead, err := cryptoutil.NewFromBase64(backupKey)
+	if envBool("CLOUD_BACKUPS_ENABLED", false) {
+		aead, err := cryptoutil.DeriveAEAD(masterKey, cryptoutil.PurposeBackupCredentials)
 		if err != nil {
-			fatal("invalid BACKUP_CREDENTIALS_KEY", "error", err)
+			fatal("could not derive the backup credentials encryption key", "error", err)
 		}
 		backupDestRepo := postgres.NewBackupDestinationRepository(db)
 		backupRunRepo := postgres.NewBackupRunRepository(db)
@@ -443,7 +510,7 @@ func main() {
 		backupScheduler = cloudbackup.NewScheduler(backupSvc, 0, nil)
 		slog.Info("Cloud backups enabled (S3, SFTP, WebDAV providers)")
 	} else {
-		slog.Info("Cloud backups disabled (set BACKUP_CREDENTIALS_KEY to enable)")
+		slog.Info("Cloud backups disabled (set CLOUD_BACKUPS_ENABLED=true to enable)")
 	}
 
 	// Setup router

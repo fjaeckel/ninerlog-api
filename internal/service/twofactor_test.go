@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,10 +97,11 @@ func (m *mock2FAUserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID, at 
 	return nil
 }
 
-func setup2FAService() (*service.TwoFactorService, *mock2FAUserRepo) {
+func setup2FAService(t *testing.T) (*service.TwoFactorService, *mock2FAUserRepo) {
+	t.Helper()
 	repo := newMock2FAUserRepo()
 	jwtMgr := jwt.NewManager("test-access-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
-	svc := service.NewTwoFactorService(repo, jwtMgr, nil)
+	svc := service.NewTwoFactorService(repo, jwtMgr, testTOTPAEAD(t))
 	return svc, repo
 }
 
@@ -118,7 +120,7 @@ func createTestUserFor2FA(repo *mock2FAUserRepo) *models.User {
 }
 
 func TestSetupTOTP(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -138,13 +140,18 @@ func TestSetupTOTP(t *testing.T) {
 	if updated.TwoFactorSecret == nil {
 		t.Error("TwoFactorSecret should be set after setup")
 	}
-	if *updated.TwoFactorSecret != secret {
-		t.Errorf("Stored secret = %s, want %s", *updated.TwoFactorSecret, secret)
+	// The secret handed to the user is the base32 seed; what is persisted is
+	// its encrypted form. See twofactor_encryption_test.go for the round trip.
+	if *updated.TwoFactorSecret == secret {
+		t.Error("the base32 seed was stored verbatim instead of encrypted")
+	}
+	if !strings.HasPrefix(*updated.TwoFactorSecret, "enc:v1:") {
+		t.Errorf("stored secret is not in the encrypted format: %q", *updated.TwoFactorSecret)
 	}
 }
 
 func TestSetupTOTP_AlreadyEnabled(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	user.TwoFactorEnabled = true
 	ctx := context.Background()
@@ -156,7 +163,7 @@ func TestSetupTOTP_AlreadyEnabled(t *testing.T) {
 }
 
 func TestSetupTOTP_UserNotFound(t *testing.T) {
-	svc, _ := setup2FAService()
+	svc, _ := setup2FAService(t)
 	ctx := context.Background()
 
 	_, _, err := svc.SetupTOTP(ctx, uuid.New())
@@ -166,7 +173,7 @@ func TestSetupTOTP_UserNotFound(t *testing.T) {
 }
 
 func TestVerifyAndEnable(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -200,7 +207,7 @@ func TestVerifyAndEnable(t *testing.T) {
 }
 
 func TestVerifyAndEnable_InvalidCode(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -213,7 +220,7 @@ func TestVerifyAndEnable_InvalidCode(t *testing.T) {
 }
 
 func TestVerifyAndEnable_AlreadyEnabled(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	user.TwoFactorEnabled = true
 	ctx := context.Background()
@@ -225,7 +232,7 @@ func TestVerifyAndEnable_AlreadyEnabled(t *testing.T) {
 }
 
 func TestDisable2FA(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -250,7 +257,7 @@ func TestDisable2FA(t *testing.T) {
 }
 
 func TestDisable2FA_WrongPassword(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -265,7 +272,7 @@ func TestDisable2FA_WrongPassword(t *testing.T) {
 }
 
 func TestDisable2FA_NotEnabled(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -277,7 +284,7 @@ func TestDisable2FA_NotEnabled(t *testing.T) {
 }
 
 func TestValidateTOTP(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -297,7 +304,7 @@ func TestValidateTOTP(t *testing.T) {
 }
 
 func TestValidateTOTP_InvalidCode(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -315,7 +322,7 @@ func TestValidateTOTP_InvalidCode(t *testing.T) {
 }
 
 func TestValidateTOTP_NotEnabled(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -327,7 +334,7 @@ func TestValidateTOTP_NotEnabled(t *testing.T) {
 }
 
 func TestIsEnabled(t *testing.T) {
-	svc, repo := setup2FAService()
+	svc, repo := setup2FAService(t)
 	user := createTestUserFor2FA(repo)
 	ctx := context.Background()
 
@@ -355,7 +362,7 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func TestIsEnabled_UserNotFound(t *testing.T) {
-	svc, _ := setup2FAService()
+	svc, _ := setup2FAService(t)
 	ctx := context.Background()
 
 	_, err := svc.IsEnabled(ctx, uuid.New())

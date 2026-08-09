@@ -18,7 +18,7 @@ import (
 // rollback while the summary reported only what landed first. Refusing an
 // oversized backup up front avoids half-applying it.
 func TestImportDataJSON_RejectsOversizedBackup(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -56,7 +56,7 @@ func TestImportDataJSON_RejectsOversizedBackup(t *testing.T) {
 }
 
 func TestImportDataJSON_AcceptsBackupWithinCaps(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -81,7 +81,7 @@ func TestImportDataJSON_AcceptsBackupWithinCaps(t *testing.T) {
 // Each entity list has its own ceiling, so a backup can't smuggle a huge
 // aircraft or credential list past the flight cap.
 func TestImportDataJSON_CapsEachEntityList(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register",

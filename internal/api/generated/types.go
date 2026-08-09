@@ -1433,13 +1433,13 @@ type AdminConfig struct {
 	// Example: ["s3","sftp","webdav"]
 	CloudBackupProviders []string `json:"cloudBackupProviders"`
 
-	// CloudBackupsConfigured Whether cloud backups are enabled (BACKUP_CREDENTIALS_KEY is set)
+	// CloudBackupsConfigured Whether cloud backups are enabled (CLOUD_BACKUPS_ENABLED=true)
 	CloudBackupsConfigured bool `json:"cloudBackupsConfigured"`
 
 	// CorsOrigins Configured CORS allowed origins
 	CorsOrigins []string `json:"corsOrigins"`
 
-	// DocumentFilesEnabled Whether licence/credential reference files are enabled (DOCUMENT_FILES_ENABLED is not "false")
+	// DocumentFilesEnabled Whether licence/credential reference files are enabled (DOCUMENT_FILES_ENABLED is not "false" and ENCRYPTION_KEY is set — stored files are encrypted at rest and the feature does not run without a key)
 	DocumentFilesEnabled *bool `json:"documentFilesEnabled,omitempty"`
 
 	// EmailSuppressedCount Addresses currently suppressed after a permanent delivery failure.
@@ -3082,10 +3082,10 @@ type Features struct {
 		// AllowedContentTypes Example: ["image/jpeg","image/png","application/pdf"]
 		AllowedContentTypes []string `json:"allowedContentTypes"`
 
-		// Enabled When false, every /files endpoint answers 403 — uploads and downloads alike
+		// Enabled When false, every /files endpoint answers 403 — uploads and downloads alike. False when the operator switched the feature off, and also when no encryption key is configured: stored files are encrypted at rest and the feature does not run without one.
 		Enabled bool `json:"enabled"`
 
-		// MaxBytes Maximum size of a single image in bytes
+		// MaxBytes Maximum size of a single file in bytes, measured before encryption
 		//
 		// Example: 5242880
 		MaxBytes int `json:"maxBytes"`

@@ -15,6 +15,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/google/uuid"
 )
 
@@ -41,7 +42,12 @@ func (m *mockDocumentFileRepo) Create(ctx context.Context, img *models.DocumentF
 	if count >= maxPerSubject {
 		return repository.ErrDocumentFileLimit
 	}
-	img.ID = uuid.New()
+	// The real repository only mints an id when the caller left it unset; the
+	// service supplies one so the payload can be sealed against it, and
+	// overwriting it here would break that binding.
+	if img.ID == uuid.Nil {
+		img.ID = uuid.New()
+	}
 	img.CreatedAt = time.Now()
 	img.UpdatedAt = time.Now()
 	stored := *img
@@ -66,7 +72,11 @@ func (m *mockDocumentFileRepo) GetWithData(ctx context.Context, userID uuid.UUID
 	if !ok || !m.matches(img, userID, subject, subjectID) {
 		return nil, repository.ErrNotFound
 	}
-	return img, nil
+	// A copy, like a real query: the service decrypts into the struct it is
+	// handed, and handing out the stored one would let a single read replace
+	// the "database" contents with plaintext.
+	copied := *img
+	return &copied, nil
 }
 
 func (m *mockDocumentFileRepo) Delete(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) error {
@@ -171,12 +181,30 @@ func pdfBytes() []byte {
 }
 
 type docImageFixture struct {
-	svc        *service.DocumentFileService
-	imageRepo  *mockDocumentFileRepo
-	userID     uuid.UUID
-	otherUser  uuid.UUID
-	licenseID  uuid.UUID
-	credential uuid.UUID
+	svc            *service.DocumentFileService
+	imageRepo      *mockDocumentFileRepo
+	licenseRepo    *docMockLicenseRepo
+	credentialRepo *mockCredentialRepo
+	userID         uuid.UUID
+	otherUser      uuid.UUID
+	licenseID      uuid.UUID
+	credential     uuid.UUID
+}
+
+// newTestAEAD builds the cipher the service seals stored files with, derived
+// the same way main does so the tests exercise the real key path rather than a
+// raw key the production code never sees.
+func newTestAEAD(t *testing.T) *cryptoutil.AEAD {
+	t.Helper()
+	master, err := cryptoutil.GenerateKey()
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	aead, err := cryptoutil.DeriveAEAD(master, cryptoutil.PurposeDocumentFile)
+	if err != nil {
+		t.Fatalf("derive key: %v", err)
+	}
+	return aead
 }
 
 func newDocImageFixture(t *testing.T, enabled bool) *docImageFixture {
@@ -202,13 +230,34 @@ func newDocImageFixture(t *testing.T, enabled bool) *docImageFixture {
 	}
 
 	return &docImageFixture{
-		svc:        service.NewDocumentFileService(imageRepo, licenseRepo, credentialRepo, enabled),
-		imageRepo:  imageRepo,
-		userID:     userID,
-		otherUser:  uuid.New(),
-		licenseID:  license.ID,
-		credential: credential.ID,
+		svc:            service.NewDocumentFileService(imageRepo, licenseRepo, credentialRepo, enabled, newTestAEAD(t)),
+		imageRepo:      imageRepo,
+		licenseRepo:    licenseRepo,
+		credentialRepo: credentialRepo,
+		userID:         userID,
+		otherUser:      uuid.New(),
+		licenseID:      license.ID,
+		credential:     credential.ID,
 	}
+}
+
+// seedWithoutNonce writes a row whose bytes carry no nonce. The database will
+// not accept one (data_nonce is NOT NULL), so this exists only to prove the
+// read path refuses such a row rather than serving the bytes as a file.
+func (f *docImageFixture) seedWithoutNonce(t *testing.T, data []byte) *models.DocumentFile {
+	t.Helper()
+	licenseID := f.licenseID
+	img := &models.DocumentFile{
+		UserID:      f.userID,
+		LicenseID:   &licenseID,
+		ContentType: models.ContentTypePNG,
+		ByteSize:    len(data),
+		Data:        data,
+	}
+	if err := f.imageRepo.Create(context.Background(), img, models.MaxDocumentFilesPerSubject); err != nil {
+		t.Fatalf("seed row: %v", err)
+	}
+	return img
 }
 
 func (f *docImageFixture) upload(t *testing.T, data []byte) (*models.DocumentFile, error) {
@@ -607,5 +656,145 @@ func TestDocumentFile_SubjectMustExist(t *testing.T) {
 		service.UploadInput{Data: pngBytes(t, 8, 8)})
 	if !errors.Is(err, service.ErrDocumentSubjectNotFound) {
 		t.Errorf("err = %v, want ErrDocumentSubjectNotFound", err)
+	}
+}
+
+// ── Encryption at rest ────────────────────────────────────────────────────
+
+// The claim the whole feature rests on: what lands in the database is not the
+// pilot's licence. Asserted against the stored row rather than through the
+// service, because a round trip that decrypts would pass just as well if
+// nothing were ever encrypted.
+func TestDocumentFile_StoresCiphertextNotTheFile(t *testing.T) {
+	f := newDocImageFixture(t, true)
+
+	plaintext := pngBytes(t, 40, 30)
+	img, err := f.upload(t, plaintext)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+
+	stored := f.imageRepo.images[img.ID]
+	if stored.DataNonce == nil {
+		t.Fatal("stored row has no nonce — the bytes were not encrypted")
+	}
+	if bytes.Equal(stored.Data, plaintext) {
+		t.Fatal("stored bytes are the file itself")
+	}
+	if bytes.Contains(stored.Data, plaintext[:8]) {
+		t.Fatal("stored bytes still contain the file's header")
+	}
+
+	// The reported size is the file's, not the ciphertext's — the client shows
+	// it and the 5 MB cap is expressed in it.
+	if img.ByteSize != len(plaintext) {
+		t.Errorf("ByteSize = %d, want %d (the plaintext length)", img.ByteSize, len(plaintext))
+	}
+
+	// And the create response carries neither the payload nor the nonce.
+	if img.Data != nil || img.DataNonce != nil {
+		t.Error("create response leaked stored bytes")
+	}
+}
+
+func TestDocumentFile_GetReturnsTheOriginalBytes(t *testing.T) {
+	f := newDocImageFixture(t, true)
+
+	plaintext := pngBytes(t, 40, 30)
+	img, err := f.upload(t, plaintext)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+
+	got, err := f.svc.Get(context.Background(), f.userID, models.DocumentSubjectLicense, f.licenseID, img.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !bytes.Equal(got.Data, plaintext) {
+		t.Fatal("round trip did not return the uploaded bytes")
+	}
+	if got.DataNonce != nil {
+		t.Error("decrypted file still carries a nonce")
+	}
+}
+
+// A server holding a different key must say so rather than serving whatever
+// the decryption produced.
+func TestDocumentFile_WrongKeyIsReportedNotServed(t *testing.T) {
+	f := newDocImageFixture(t, true)
+
+	img, err := f.upload(t, pngBytes(t, 40, 30))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+
+	rekeyed := service.NewDocumentFileService(f.imageRepo, f.licenseRepo, f.credentialRepo, true, newTestAEAD(t))
+	_, err = rekeyed.Get(context.Background(), f.userID, models.DocumentSubjectLicense, f.licenseID, img.ID)
+	if !errors.Is(err, service.ErrDocumentFileUnreadable) {
+		t.Fatalf("err = %v, want ErrDocumentFileUnreadable", err)
+	}
+}
+
+// The binding: a stored blob belongs to its row. Moving one onto another row —
+// the shape a database-level attacker would use to plant a file under someone
+// else's licence — must not produce a readable file.
+func TestDocumentFile_CiphertextIsBoundToItsRow(t *testing.T) {
+	f := newDocImageFixture(t, true)
+	ctx := context.Background()
+
+	first, err := f.upload(t, pngBytes(t, 40, 30))
+	if err != nil {
+		t.Fatalf("upload first: %v", err)
+	}
+	second, err := f.upload(t, pngBytes(t, 20, 10))
+	if err != nil {
+		t.Fatalf("upload second: %v", err)
+	}
+
+	// Overwrite the second row's payload with the first's, exactly as a
+	// straight column copy would.
+	f.imageRepo.images[second.ID].Data = f.imageRepo.images[first.ID].Data
+	f.imageRepo.images[second.ID].DataNonce = f.imageRepo.images[first.ID].DataNonce
+
+	if _, err := f.svc.Get(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, second.ID); !errors.Is(err, service.ErrDocumentFileUnreadable) {
+		t.Fatalf("moved ciphertext: err = %v, want ErrDocumentFileUnreadable", err)
+	}
+
+	// Relabelling the format is bound too: the content type is what the server
+	// hands a browser, so it must not be changeable underneath the bytes.
+	f.imageRepo.images[first.ID].ContentType = models.ContentTypePDF
+	if _, err := f.svc.Get(ctx, f.userID, models.DocumentSubjectLicense, f.licenseID, first.ID); !errors.Is(err, service.ErrDocumentFileUnreadable) {
+		t.Fatalf("relabelled content type: err = %v, want ErrDocumentFileUnreadable", err)
+	}
+}
+
+// There is no "maybe this row is plaintext" branch. A row without a nonce is
+// corrupt, not old, and must not be handed to a browser as though the stored
+// bytes were the file.
+func TestDocumentFile_ARowWithoutANonceIsRefused(t *testing.T) {
+	f := newDocImageFixture(t, true)
+
+	plaintext := pngBytes(t, 24, 24)
+	orphan := f.seedWithoutNonce(t, plaintext)
+
+	_, err := f.svc.Get(context.Background(), f.userID, models.DocumentSubjectLicense, f.licenseID, orphan.ID)
+	if !errors.Is(err, service.ErrDocumentFileUnreadable) {
+		t.Fatalf("err = %v, want ErrDocumentFileUnreadable", err)
+	}
+}
+
+// Without a key there is no plaintext fallback: the feature is simply off, so
+// no arrangement of configuration can store a licence scan in the clear.
+func TestDocumentFile_NoKeyMeansDisabled(t *testing.T) {
+	f := newDocImageFixture(t, true)
+	keyless := service.NewDocumentFileService(f.imageRepo, f.licenseRepo, f.credentialRepo, true, nil)
+
+	if keyless.Enabled() {
+		t.Error("Enabled() = true without an encryption key")
+	}
+	_, err := keyless.Upload(context.Background(), f.userID, models.DocumentSubjectLicense, f.licenseID,
+		service.UploadInput{Data: pngBytes(t, 8, 8)})
+	if !errors.Is(err, service.ErrDocumentFilesDisabled) {
+		t.Errorf("upload: err = %v, want ErrDocumentFilesDisabled", err)
 	}
 }

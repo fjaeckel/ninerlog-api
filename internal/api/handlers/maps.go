@@ -213,7 +213,7 @@ func (h *APIHandler) SetCORSOrigins(origins []string) {
 }
 
 // SetBackupService stores the cloud backup service (optional — only set when
-// BACKUP_CREDENTIALS_KEY is configured at startup).
+// CLOUD_BACKUPS_ENABLED=true at startup).
 func (h *APIHandler) SetBackupService(s *cloudbackup.Service) {
 	h.backupService = s
 }

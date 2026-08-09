@@ -59,7 +59,10 @@ func scanDocumentFile(scan func(dest ...any) error, withData bool) (*models.Docu
 		&img.CreatedAt, &img.UpdatedAt,
 	}
 	if withData {
-		dest = append(dest, &img.Data)
+		// The nonce travels with the payload and only with the payload: a
+		// metadata listing has no use for it, and reading it there would be a
+		// second reason to touch the row's TOASTed columns.
+		dest = append(dest, &img.Data, &img.DataNonce)
 	}
 	if err := scan(dest...); err != nil {
 		return nil, err
@@ -123,12 +126,21 @@ func (r *documentFileRepository) Create(ctx context.Context, image *models.Docum
 		return repository.ErrDocumentFileLimit
 	}
 
+	// The id is supplied by the caller rather than defaulted by the database.
+	// It has to be: the stored bytes are sealed against it, so it must exist
+	// before the payload does. A caller that leaves it unset gets one here so
+	// this stays usable without the encryption path.
+	if image.ID == uuid.Nil {
+		image.ID = uuid.New()
+	}
+
 	insertQuery := fmt.Sprintf(`
-		INSERT INTO document_files (user_id, %s, content_type, byte_size, width, height, filename, caption, data)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, created_at, updated_at
+		INSERT INTO document_files (id, user_id, %s, content_type, byte_size, width, height, filename, caption, data, data_nonce)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING created_at, updated_at
 	`, col)
 	if err := tx.QueryRowContext(ctx, insertQuery,
+		image.ID,
 		image.UserID,
 		subjectID,
 		image.ContentType,
@@ -138,7 +150,8 @@ func (r *documentFileRepository) Create(ctx context.Context, image *models.Docum
 		image.Filename,
 		image.Caption,
 		image.Data,
-	).Scan(&image.ID, &image.CreatedAt, &image.UpdatedAt); err != nil {
+		image.DataNonce,
+	).Scan(&image.CreatedAt, &image.UpdatedAt); err != nil {
 		return err
 	}
 
@@ -179,7 +192,7 @@ func (r *documentFileRepository) GetWithData(ctx context.Context, userID uuid.UU
 		return nil, err
 	}
 	query := fmt.Sprintf(`
-		SELECT %s, data FROM document_files
+		SELECT %s, data, data_nonce FROM document_files
 		WHERE id = $1 AND user_id = $2 AND %s = $3
 	`, documentFileColumns, col)
 

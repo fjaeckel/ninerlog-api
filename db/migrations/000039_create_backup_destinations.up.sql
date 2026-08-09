@@ -1,7 +1,8 @@
 -- Cloud backup destinations: per-user S3-compatible (and future provider) targets.
 -- The pilot owns the destination; we store only the minimum credential needed
 -- to upload a single file under a single prefix, encrypted at rest with a
--- server-held AES-256-GCM key (BACKUP_CREDENTIALS_KEY env var).
+-- server-held AES-256-GCM key (derived from the ENCRYPTION_KEY env var; see
+-- migration 60, which introduced the shared derivation).
 CREATE TABLE backup_destinations (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id               UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

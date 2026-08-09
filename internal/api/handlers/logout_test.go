@@ -15,7 +15,7 @@ import (
 // stayed valid in the database for its full lifetime, so a retained copy could
 // resurrect the session after the user believed it had ended.
 func TestLogout_RevokesRefreshToken(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -80,7 +80,7 @@ func TestLogout_RevokesRefreshToken(t *testing.T) {
 
 // Revocation is idempotent and must not reveal whether a token existed.
 func TestLogout_UnknownTokenStillReturns204(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

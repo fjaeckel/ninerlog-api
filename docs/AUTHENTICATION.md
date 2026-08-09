@@ -381,6 +381,13 @@ Requires authentication.
 
 ## Two-Factor Authentication (TOTP)
 
+TOTP seeds are **AES-256-GCM encrypted at rest** under a subkey of `ENCRYPTION_KEY`
+(`cryptoutil.PurposeTOTPSecrets`), stored with an `enc:v1:` marker. There is no
+unencrypted form: a seed is a bearer credential for someone's second factor, so a value
+arriving without the marker is refused rather than read as a legacy plaintext secret.
+Migration 61 cleared the enrolments written before this was mandatory — see
+[UPGRADING.md](./UPGRADING.md).
+
 ### Setup
 
 ```

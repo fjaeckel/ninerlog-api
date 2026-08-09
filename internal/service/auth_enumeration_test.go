@@ -11,14 +11,15 @@ import (
 
 // setupAuthServiceWithRepo builds an AuthService and returns the underlying
 // user repo so tests can flip account-state flags after registration.
-func setupAuthServiceWithRepo() (*service.AuthService, *mockUserRepo) {
+func setupAuthServiceWithRepo(t *testing.T) (*service.AuthService, *mockUserRepo) {
+	t.Helper()
 	userRepo := newMockUserRepo()
 	refreshTokenRepo := newMockRefreshTokenRepo()
 	passwordResetRepo := newMockPasswordResetRepo()
 	emailVerifyRepo := newMockEmailVerificationRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	return service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerifyRepo, jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil)), userRepo
+		service.NewTwoFactorService(userRepo, jwtManager, testTOTPAEAD(t))), userRepo
 }
 
 const enumPassword = "correct-horse-battery"
@@ -38,7 +39,7 @@ func registerEnumUser(t *testing.T, svc *service.AuthService, email string) {
 // the password is wrong: the pre-auth response must be the generic
 // ErrInvalidCredentials, not ErrAccountDisabled.
 func TestLogin_DisabledAccount_WrongPassword_IsGeneric(t *testing.T) {
-	svc, repo := setupAuthServiceWithRepo()
+	svc, repo := setupAuthServiceWithRepo(t)
 	ctx := context.Background()
 	registerEnumUser(t, svc, "disabled@example.com")
 
@@ -54,7 +55,7 @@ func TestLogin_DisabledAccount_WrongPassword_IsGeneric(t *testing.T) {
 
 // The legitimate owner (correct password) still learns the account is disabled.
 func TestLogin_DisabledAccount_CorrectPassword_RevealsDisabled(t *testing.T) {
-	svc, repo := setupAuthServiceWithRepo()
+	svc, repo := setupAuthServiceWithRepo(t)
 	ctx := context.Background()
 	registerEnumUser(t, svc, "disabled2@example.com")
 
@@ -70,7 +71,7 @@ func TestLogin_DisabledAccount_CorrectPassword_RevealsDisabled(t *testing.T) {
 
 // An unverified account must not be distinguishable when the password is wrong.
 func TestLogin_UnverifiedAccount_WrongPassword_IsGeneric(t *testing.T) {
-	svc, repo := setupAuthServiceWithRepo()
+	svc, repo := setupAuthServiceWithRepo(t)
 	ctx := context.Background()
 	registerEnumUser(t, svc, "unverified@example.com")
 
@@ -86,7 +87,7 @@ func TestLogin_UnverifiedAccount_WrongPassword_IsGeneric(t *testing.T) {
 
 // The legitimate owner (correct password) still learns the email is unverified.
 func TestLogin_UnverifiedAccount_CorrectPassword_RevealsUnverified(t *testing.T) {
-	svc, repo := setupAuthServiceWithRepo()
+	svc, repo := setupAuthServiceWithRepo(t)
 	ctx := context.Background()
 	registerEnumUser(t, svc, "unverified2@example.com")
 
@@ -103,7 +104,7 @@ func TestLogin_UnverifiedAccount_CorrectPassword_RevealsUnverified(t *testing.T)
 // The core enumeration guarantee: a wrong password against an existing account
 // and a login for a non-existent account return the exact same error.
 func TestLogin_UnknownVsWrongPassword_SameError(t *testing.T) {
-	svc, _ := setupAuthServiceWithRepo()
+	svc, _ := setupAuthServiceWithRepo(t)
 	ctx := context.Background()
 	registerEnumUser(t, svc, "known@example.com")
 

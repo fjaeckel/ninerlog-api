@@ -6620,10 +6620,15 @@ components:
           properties:
             enabled:
               type: boolean
-              description: When false, every /files endpoint answers 403 — uploads and downloads alike
+              description: >-
+                When false, every /files endpoint answers 403 — uploads and
+                downloads alike. False when the operator switched the feature
+                off, and also when no encryption key is configured: stored
+                files are encrypted at rest and the feature does not run
+                without one.
             maxBytes:
               type: integer
-              description: Maximum size of a single image in bytes
+              description: Maximum size of a single file in bytes, measured before encryption
               example: 5242880
             maxPerDocument:
               type: integer
@@ -8283,10 +8288,14 @@ components:
           description: Whether ADMIN_EMAIL is set
         cloudBackupsConfigured:
           type: boolean
-          description: Whether cloud backups are enabled (BACKUP_CREDENTIALS_KEY is set)
+          description: Whether cloud backups are enabled (CLOUD_BACKUPS_ENABLED=true)
         documentFilesEnabled:
           type: boolean
-          description: Whether licence/credential reference files are enabled (DOCUMENT_FILES_ENABLED is not "false")
+          description: >-
+            Whether licence/credential reference files are enabled
+            (DOCUMENT_FILES_ENABLED is not "false" and ENCRYPTION_KEY is set —
+            stored files are encrypted at rest and the feature does not run
+            without a key)
         unverifiedCleanupEnabled:
           type: boolean
           description: |
@@ -9676,7 +9685,9 @@ components:
     DocumentFilesDisabled:
       description: >-
         Document files are switched off on this server
-        (DOCUMENT_FILES_ENABLED=false). Applies to reading as well as
+        (DOCUMENT_FILES_ENABLED=false, or no ENCRYPTION_KEY is configured —
+        stored files are encrypted at rest and the feature does not run
+        without a key). Applies to reading as well as
         uploading: serving stored files is the bandwidth half of the abuse
         surface the switch exists to close. Already-stored files are retained
         and become reachable again if the operator re-enables the feature.

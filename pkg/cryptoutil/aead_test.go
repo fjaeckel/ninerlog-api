@@ -164,3 +164,62 @@ func TestGenerateKeyBase64IsDecodable(t *testing.T) {
 		t.Fatalf("could not consume our own generated key: %v", err)
 	}
 }
+
+func TestEncryptWithAADRoundTrip(t *testing.T) {
+	a := mustNewAEAD(t)
+	aad := []byte("row-id|user-id|image/jpeg")
+
+	ciphertext, nonce, err := a.EncryptWithAAD([]byte("scan bytes"), aad)
+	if err != nil {
+		t.Fatalf("EncryptWithAAD: %v", err)
+	}
+
+	plaintext, err := a.DecryptWithAAD(ciphertext, nonce, aad)
+	if err != nil {
+		t.Fatalf("DecryptWithAAD: %v", err)
+	}
+	if string(plaintext) != "scan bytes" {
+		t.Fatalf("round trip = %q", plaintext)
+	}
+}
+
+// The binding property: a ciphertext sealed against one row's context must not
+// open against another's, so a stored blob cannot be moved between rows or
+// between users by anyone with write access to the table.
+func TestDecryptWithAADRejectsDifferentContext(t *testing.T) {
+	a := mustNewAEAD(t)
+
+	ciphertext, nonce, err := a.EncryptWithAAD([]byte("scan bytes"), []byte("row-a|user-1"))
+	if err != nil {
+		t.Fatalf("EncryptWithAAD: %v", err)
+	}
+
+	for name, aad := range map[string][]byte{
+		"different row":  []byte("row-b|user-1"),
+		"different user": []byte("row-a|user-2"),
+		"absent":         nil,
+	} {
+		if _, err := a.DecryptWithAAD(ciphertext, nonce, aad); err != ErrInvalidCiphertext {
+			t.Errorf("%s: err = %v, want ErrInvalidCiphertext", name, err)
+		}
+	}
+}
+
+// Encrypt and Decrypt are the nil-AAD case of the same primitive, so values
+// written before AAD existed still round-trip through the new methods.
+func TestEncryptAndDecryptWithAADAgreeOnNilAAD(t *testing.T) {
+	a := mustNewAEAD(t)
+
+	ciphertext, nonce, err := a.Encrypt([]byte("legacy value"))
+	if err != nil {
+		t.Fatalf("Encrypt: %v", err)
+	}
+
+	plaintext, err := a.DecryptWithAAD(ciphertext, nonce, nil)
+	if err != nil {
+		t.Fatalf("DecryptWithAAD: %v", err)
+	}
+	if string(plaintext) != "legacy value" {
+		t.Fatalf("round trip = %q", plaintext)
+	}
+}

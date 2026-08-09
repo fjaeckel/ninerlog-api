@@ -14,6 +14,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
@@ -380,7 +381,24 @@ func (m *mockFlightRepo) GetCurrencyData(_ context.Context, _ uuid.UUID, _ time.
 
 // ---- Test setup helpers ----
 
-func setupTestHandler() (*APIHandler, *mockUserRepo) {
+// handlerTestTOTPAEAD builds the 2FA cipher the way main does. 2FA has no
+// unencrypted mode any more, so a handler test that wires the service without a
+// key would fail at enrolment rather than exercising the handler.
+func handlerTestTOTPAEAD(t *testing.T) *cryptoutil.AEAD {
+	t.Helper()
+	master, err := cryptoutil.GenerateKey()
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	aead, err := cryptoutil.DeriveAEAD(master, cryptoutil.PurposeTOTPSecrets)
+	if err != nil {
+		t.Fatalf("derive key: %v", err)
+	}
+	return aead
+}
+
+func setupTestHandler(t *testing.T) (*APIHandler, *mockUserRepo) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 
 	userRepo := newHandlerMockUserRepo()
@@ -388,7 +406,7 @@ func setupTestHandler() (*APIHandler, *mockUserRepo) {
 	passwordRepo := &mockPasswordResetRepo{}
 	jwtMgr := jwt.NewManager("test-access", "test-refresh", 15*time.Minute, 7*24*time.Hour)
 
-	twoFactorSvc := service.NewTwoFactorService(userRepo, jwtMgr, nil)
+	twoFactorSvc := service.NewTwoFactorService(userRepo, jwtMgr, handlerTestTOTPAEAD(t))
 	authSvc := service.NewAuthService(userRepo, refreshRepo, passwordRepo, &mockEmailVerificationRepo{}, jwtMgr,
 		twoFactorSvc)
 	credSvc := service.NewCredentialService(newMockCredentialRepo())
@@ -419,7 +437,7 @@ func authenticatedContext(w *httptest.ResponseRecorder, userID uuid.UUID) *gin.C
 // ---- Auth handler tests ----
 
 func TestRegisterUser_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	body := `{"email":"test@example.com","password":"password1234","name":"Test User"}`
 	w := httptest.NewRecorder()
@@ -444,7 +462,7 @@ func TestRegisterUser_Success(t *testing.T) {
 }
 
 func TestRegisterUser_Success_WithSMTPConfigured(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	h.SetEmailSender(email.NewSender(&email.SMTPConfig{
 		Host: "127.0.0.1",
 		Port: "1",
@@ -471,7 +489,7 @@ func TestRegisterUser_Success_WithSMTPConfigured(t *testing.T) {
 }
 
 func TestRegisterUser_DuplicateEmail(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	body := `{"email":"test@example.com","password":"password1234","name":"Test User"}`
 
@@ -495,7 +513,7 @@ func TestRegisterUser_DuplicateEmail(t *testing.T) {
 }
 
 func TestRegisterUser_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -510,7 +528,7 @@ func TestRegisterUser_InvalidBody(t *testing.T) {
 }
 
 func TestRegisterUser_ShortPassword(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	body := `{"email":"test@example.com","password":"short","name":"Test User"}`
 	w := httptest.NewRecorder()
@@ -526,7 +544,7 @@ func TestRegisterUser_ShortPassword(t *testing.T) {
 }
 
 func TestLoginUser_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	// Register first
 	regBody := `{"email":"login@example.com","password":"password1234","name":"Login User"}`
@@ -550,7 +568,7 @@ func TestLoginUser_Success(t *testing.T) {
 }
 
 func TestLoginUser_InvalidCredentials(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	body := `{"email":"nobody@example.com","password":"password1234"}`
 	w := httptest.NewRecorder()
@@ -566,7 +584,7 @@ func TestLoginUser_InvalidCredentials(t *testing.T) {
 }
 
 func TestLoginUser_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -581,7 +599,7 @@ func TestLoginUser_InvalidBody(t *testing.T) {
 }
 
 func TestRefreshToken_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -596,7 +614,7 @@ func TestRefreshToken_InvalidBody(t *testing.T) {
 }
 
 func TestRefreshToken_InvalidToken(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	body := `{"refreshToken":"invalid-token"}`
 	w := httptest.NewRecorder()
@@ -614,7 +632,7 @@ func TestRefreshToken_InvalidToken(t *testing.T) {
 // ---- User handler tests ----
 
 func TestGetCurrentUser_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -629,7 +647,7 @@ func TestGetCurrentUser_Unauthorized(t *testing.T) {
 }
 
 func TestGetCurrentUser_NotFound(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c := authenticatedContext(w, uuid.New())
@@ -643,7 +661,7 @@ func TestGetCurrentUser_NotFound(t *testing.T) {
 }
 
 func TestGetCurrentUser_Success(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
 	userID := uuid.New()
 	userRepo.users[userID] = &models.User{
@@ -664,7 +682,7 @@ func TestGetCurrentUser_Success(t *testing.T) {
 }
 
 func TestUpdateCurrentUser_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -679,7 +697,7 @@ func TestUpdateCurrentUser_Unauthorized(t *testing.T) {
 }
 
 func TestChangePassword_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -694,7 +712,7 @@ func TestChangePassword_Unauthorized(t *testing.T) {
 }
 
 func TestDeleteCurrentUser_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -711,7 +729,7 @@ func TestDeleteCurrentUser_Unauthorized(t *testing.T) {
 // ---- Credential handler tests ----
 
 func TestListCredentials_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -725,7 +743,7 @@ func TestListCredentials_Unauthorized(t *testing.T) {
 }
 
 func TestListCredentials_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -740,7 +758,7 @@ func TestListCredentials_Success(t *testing.T) {
 }
 
 func TestCreateCredential_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -758,7 +776,7 @@ func TestCreateCredential_InvalidBody(t *testing.T) {
 // ---- Aircraft handler tests ----
 
 func TestListAircraft_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -772,7 +790,7 @@ func TestListAircraft_Unauthorized(t *testing.T) {
 }
 
 func TestListAircraft_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -787,7 +805,7 @@ func TestListAircraft_Success(t *testing.T) {
 }
 
 func TestCreateAircraft_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -803,7 +821,7 @@ func TestCreateAircraft_InvalidBody(t *testing.T) {
 }
 
 func TestCreateAircraft_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -820,7 +838,7 @@ func TestCreateAircraft_Unauthorized(t *testing.T) {
 // ---- Contact handler tests ----
 
 func TestListContacts_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -834,7 +852,7 @@ func TestListContacts_Unauthorized(t *testing.T) {
 }
 
 func TestListContacts_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -849,7 +867,7 @@ func TestListContacts_Success(t *testing.T) {
 }
 
 func TestCreateContact_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -867,7 +885,7 @@ func TestCreateContact_InvalidBody(t *testing.T) {
 // ---- Airport handler tests ----
 
 func TestGetAirport_NotFound(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	// Set empty airport DB
 	airports.SetTestDB(map[string]airports.AirportInfo{})
 	defer airports.SetTestDB(nil)
@@ -884,7 +902,7 @@ func TestGetAirport_NotFound(t *testing.T) {
 }
 
 func TestGetAirport_Found(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	airports.SetTestDB(map[string]airports.AirportInfo{
 		"EDDF": {ICAO: "EDDF", Name: "Frankfurt Airport", Latitude: 50.0333, Longitude: 8.5706},
 	})
@@ -908,7 +926,7 @@ func TestGetAirport_Found(t *testing.T) {
 }
 
 func TestGetAirport_CaseInsensitive(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	airports.SetTestDB(map[string]airports.AirportInfo{
 		"EDDF": {ICAO: "EDDF", Name: "Frankfurt Airport", Latitude: 50.0333, Longitude: 8.5706},
 	})
@@ -928,7 +946,7 @@ func TestGetAirport_CaseInsensitive(t *testing.T) {
 // ---- sendError tests ----
 
 func TestSendError_BasicMessage(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -947,7 +965,7 @@ func TestSendError_BasicMessage(t *testing.T) {
 }
 
 func TestSendError_WithDetails(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -965,7 +983,7 @@ func TestSendError_WithDetails(t *testing.T) {
 // ---- getUserIDFromContext tests ----
 
 func TestGetUserIDFromContext_FromMiddleware(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -981,7 +999,7 @@ func TestGetUserIDFromContext_FromMiddleware(t *testing.T) {
 }
 
 func TestGetUserIDFromContext_NoAuth(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -994,7 +1012,7 @@ func TestGetUserIDFromContext_NoAuth(t *testing.T) {
 }
 
 func TestGetUserIDFromContext_FromBearerToken(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	token, _ := h.jwtManager.GenerateAccessToken(userID)
@@ -1016,7 +1034,7 @@ func TestGetUserIDFromContext_FromBearerToken(t *testing.T) {
 // ---- Contact CRUD handler tests ----
 
 func TestCreateContact_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	userID := uuid.New()
 
 	body := `{"name":"John Doe","email":"john@example.com"}`
@@ -1033,7 +1051,7 @@ func TestCreateContact_Success(t *testing.T) {
 }
 
 func TestGetContact_NotFound(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	userID := uuid.New()
 
 	w := httptest.NewRecorder()
@@ -1048,7 +1066,7 @@ func TestGetContact_NotFound(t *testing.T) {
 }
 
 func TestDeleteContact_NotFound(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	userID := uuid.New()
 
 	w := httptest.NewRecorder()
@@ -1063,7 +1081,7 @@ func TestDeleteContact_NotFound(t *testing.T) {
 }
 
 func TestUpdateContact_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	userID := uuid.New()
 
 	w := httptest.NewRecorder()
@@ -1079,7 +1097,7 @@ func TestUpdateContact_InvalidBody(t *testing.T) {
 }
 
 func TestSearchContacts_EmptyQuery(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	userID := uuid.New()
 
 	w := httptest.NewRecorder()
@@ -1094,7 +1112,7 @@ func TestSearchContacts_EmptyQuery(t *testing.T) {
 }
 
 func TestSearchContacts_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1108,7 +1126,7 @@ func TestSearchContacts_Unauthorized(t *testing.T) {
 }
 
 func TestGetContact_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1122,7 +1140,7 @@ func TestGetContact_Unauthorized(t *testing.T) {
 }
 
 func TestUpdateContact_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1137,7 +1155,7 @@ func TestUpdateContact_Unauthorized(t *testing.T) {
 }
 
 func TestDeleteContact_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1151,7 +1169,7 @@ func TestDeleteContact_Unauthorized(t *testing.T) {
 }
 
 func TestCreateContact_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1168,7 +1186,7 @@ func TestCreateContact_Unauthorized(t *testing.T) {
 // ---- Credential CRUD handler tests ----
 
 func TestGetCredential_NotFound(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	userID := uuid.New()
 
 	w := httptest.NewRecorder()
@@ -1183,7 +1201,7 @@ func TestGetCredential_NotFound(t *testing.T) {
 }
 
 func TestGetCredential_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1197,7 +1215,7 @@ func TestGetCredential_Unauthorized(t *testing.T) {
 }
 
 func TestDeleteCredential_NotFound(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	userID := uuid.New()
 
 	w := httptest.NewRecorder()
@@ -1212,7 +1230,7 @@ func TestDeleteCredential_NotFound(t *testing.T) {
 }
 
 func TestDeleteCredential_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1226,7 +1244,7 @@ func TestDeleteCredential_Unauthorized(t *testing.T) {
 }
 
 func TestUpdateCredential_InvalidBody2(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	userID := uuid.New()
 
 	w := httptest.NewRecorder()
@@ -1242,7 +1260,7 @@ func TestUpdateCredential_InvalidBody2(t *testing.T) {
 }
 
 func TestUpdateCredential_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1259,7 +1277,7 @@ func TestUpdateCredential_Unauthorized(t *testing.T) {
 // ---- Notification handler tests ----
 
 func TestGetNotificationPreferences_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1273,7 +1291,7 @@ func TestGetNotificationPreferences_Unauthorized(t *testing.T) {
 }
 
 func TestUpdateNotificationPreferences_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1288,7 +1306,7 @@ func TestUpdateNotificationPreferences_Unauthorized(t *testing.T) {
 }
 
 func TestUpdateNotificationPreferences_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	addNotificationService(h)
 
 	userID := uuid.New()
@@ -1305,7 +1323,7 @@ func TestUpdateNotificationPreferences_InvalidBody(t *testing.T) {
 }
 
 func TestGetNotificationHistory_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1319,7 +1337,7 @@ func TestGetNotificationHistory_Unauthorized(t *testing.T) {
 }
 
 func TestGetNotificationPreferences_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	addNotificationService(h)
 
 	userID := uuid.New()
@@ -1335,7 +1353,7 @@ func TestGetNotificationPreferences_Success(t *testing.T) {
 }
 
 func TestGetNotificationHistory_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	addNotificationService(h)
 
 	userID := uuid.New()
@@ -1353,7 +1371,7 @@ func TestGetNotificationHistory_Success(t *testing.T) {
 // ---- 2FA handler tests ----
 
 func TestSetup2FA_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1367,7 +1385,7 @@ func TestSetup2FA_Unauthorized(t *testing.T) {
 }
 
 func TestVerify2FA_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1382,7 +1400,7 @@ func TestVerify2FA_Unauthorized(t *testing.T) {
 }
 
 func TestDisable2FA_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1397,7 +1415,7 @@ func TestDisable2FA_Unauthorized(t *testing.T) {
 }
 
 func TestLogin2FA_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1414,16 +1432,25 @@ func TestLogin2FA_InvalidBody(t *testing.T) {
 // A 2FA account only gets its session here — LoginUser answered the password
 // with a challenge — so this is where the login is recorded.
 func TestLogin2FA_RecordsLastLogin(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
-	key, err := totp.Generate(totp.GenerateOpts{Issuer: "NinerLog", AccountName: "2fa@example.com"})
-	if err != nil {
-		t.Fatalf("totp.Generate() error = %v", err)
-	}
-	secret := key.Secret()
-	user := &models.User{Email: "2fa@example.com", Name: "Two Factor", TwoFactorEnabled: true, TwoFactorSecret: &secret}
+	// Enrol through the service rather than writing a seed into the repo by
+	// hand: stored secrets are encrypted, and a hand-planted plaintext one is
+	// refused on read.
+	user := &models.User{Email: "2fa@example.com", Name: "Two Factor"}
 	if err := userRepo.Create(context.Background(), user); err != nil {
 		t.Fatalf("Create() error = %v", err)
+	}
+	secret, _, err := h.twoFactorService.SetupTOTP(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("SetupTOTP() error = %v", err)
+	}
+	enrolCode, err := totp.GenerateCode(secret, time.Now())
+	if err != nil {
+		t.Fatalf("GenerateCode() error = %v", err)
+	}
+	if _, err := h.twoFactorService.VerifyAndEnable(context.Background(), user.ID, enrolCode); err != nil {
+		t.Fatalf("VerifyAndEnable() error = %v", err)
 	}
 
 	twoFactorToken, err := h.jwtManager.Generate2FAToken(user.ID)
@@ -1454,7 +1481,7 @@ func TestLogin2FA_RecordsLastLogin(t *testing.T) {
 // ---- User statistics handler tests ----
 
 func TestGetMyStatistics_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1470,7 +1497,7 @@ func TestGetMyStatistics_Unauthorized(t *testing.T) {
 // ---- Bulk delete handler tests ----
 
 func TestDeleteAllFlights_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1484,7 +1511,7 @@ func TestDeleteAllFlights_Unauthorized(t *testing.T) {
 }
 
 func TestDeleteAllUserData_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1500,7 +1527,7 @@ func TestDeleteAllUserData_Unauthorized(t *testing.T) {
 // ---- Currency handler tests ----
 
 func TestGetAllCurrencyStatus_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1516,7 +1543,7 @@ func TestGetAllCurrencyStatus_Unauthorized(t *testing.T) {
 // ---- RecalculateFlights handler tests ----
 
 func TestRecalculateFlights_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1530,7 +1557,7 @@ func TestRecalculateFlights_Unauthorized(t *testing.T) {
 }
 
 func TestRecalculateFlights_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -1553,7 +1580,7 @@ func TestRecalculateFlights_Success(t *testing.T) {
 // ---- UpdateCurrentUser handler tests ----
 
 func TestUpdateCurrentUser_Success(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
 	userID := uuid.New()
 	userRepo.users[userID] = &models.User{
@@ -1576,7 +1603,7 @@ func TestUpdateCurrentUser_Success(t *testing.T) {
 }
 
 func TestUpdateCurrentUser_InvalidBody(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, userRepo := setupTestHandler(t)
 
 	userID := uuid.New()
 	userRepo.users[userID] = &models.User{ID: userID, Email: "test@test.com", Name: "Test"}
@@ -1596,7 +1623,7 @@ func TestUpdateCurrentUser_InvalidBody(t *testing.T) {
 // ---- GetMyStatistics success test ----
 
 func TestGetMyStatistics_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -1613,7 +1640,7 @@ func TestGetMyStatistics_Success(t *testing.T) {
 // ---- Flight handler tests ----
 
 func TestCreateFlight_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1628,7 +1655,7 @@ func TestCreateFlight_Unauthorized(t *testing.T) {
 }
 
 func TestCreateFlight_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -1644,7 +1671,7 @@ func TestCreateFlight_InvalidBody(t *testing.T) {
 }
 
 func TestGetFlight_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1658,7 +1685,7 @@ func TestGetFlight_Unauthorized(t *testing.T) {
 }
 
 func TestGetFlight_NotFound(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -1673,7 +1700,7 @@ func TestGetFlight_NotFound(t *testing.T) {
 }
 
 func TestDeleteFlight_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1687,7 +1714,7 @@ func TestDeleteFlight_Unauthorized(t *testing.T) {
 }
 
 func TestDeleteFlight_NotFound(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -1702,7 +1729,7 @@ func TestDeleteFlight_NotFound(t *testing.T) {
 }
 
 func TestUpdateFlight_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1717,7 +1744,7 @@ func TestUpdateFlight_Unauthorized(t *testing.T) {
 }
 
 func TestUpdateFlight_InvalidBody(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -1733,7 +1760,7 @@ func TestUpdateFlight_InvalidBody(t *testing.T) {
 }
 
 func TestListFlights_Unauthorized(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -1747,7 +1774,7 @@ func TestListFlights_Unauthorized(t *testing.T) {
 }
 
 func TestListFlights_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 
 	userID := uuid.New()
 	w := httptest.NewRecorder()
@@ -1764,7 +1791,7 @@ func TestListFlights_Success(t *testing.T) {
 // ---- UpdateNotificationPreferences success test ----
 
 func TestUpdateNotificationPreferences_Success(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	addNotificationService(h)
 
 	userID := uuid.New()
@@ -1782,7 +1809,7 @@ func TestUpdateNotificationPreferences_Success(t *testing.T) {
 }
 
 func TestUpdateNotificationPreferences_InvalidCheckHour(t *testing.T) {
-	h, _ := setupTestHandler()
+	h, _ := setupTestHandler(t)
 	addNotificationService(h)
 
 	userID := uuid.New()

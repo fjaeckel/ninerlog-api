@@ -341,18 +341,19 @@ func (m *mockPasswordResetRepo) DeleteForUser(ctx context.Context, userID uuid.U
 }
 
 // Test functions
-func setupAuthService() *service.AuthService {
+func setupAuthService(t *testing.T) *service.AuthService {
+	t.Helper()
 	userRepo := newMockUserRepo()
 	refreshTokenRepo := newMockRefreshTokenRepo()
 	passwordResetRepo := newMockPasswordResetRepo()
 	emailVerifyRepo := newMockEmailVerificationRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	return service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerifyRepo, jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil))
+		service.NewTwoFactorService(userRepo, jwtManager, testTOTPAEAD(t)))
 }
 
 func TestRegister(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -392,7 +393,7 @@ func TestRegisterPreferredLocale(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			authService := setupAuthService()
+			authService := setupAuthService(t)
 			user, _, err := authService.Register(ctx, service.RegisterInput{
 				Email:           "test@example.com",
 				Password:        "password1234",
@@ -410,7 +411,7 @@ func TestRegisterPreferredLocale(t *testing.T) {
 }
 
 func TestRegisterDuplicateEmail(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -433,7 +434,7 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 }
 
 func TestMarkEmailVerified(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	user, _, err := authService.Register(ctx, service.RegisterInput{
@@ -463,7 +464,7 @@ func TestMarkEmailVerified(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	registerInput := service.RegisterInput{
@@ -499,7 +500,7 @@ func TestLogin(t *testing.T) {
 }
 
 func TestLoginInvalidPassword(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	registerInput := service.RegisterInput{
@@ -549,7 +550,7 @@ func TestPasswordHashing(t *testing.T) {
 }
 
 func TestRefreshToken(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	registerInput := service.RegisterInput{
@@ -579,7 +580,7 @@ func TestRefreshToken(t *testing.T) {
 }
 
 func TestRefreshTokenInvalid(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	_, err := authService.RefreshToken(ctx, "invalid-token")
@@ -589,7 +590,7 @@ func TestRefreshTokenInvalid(t *testing.T) {
 }
 
 func TestRefreshTokenRevoked(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	registerInput := service.RegisterInput{
@@ -619,7 +620,7 @@ func TestRefreshTokenRevoked(t *testing.T) {
 }
 
 func TestLogout(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	registerInput := service.RegisterInput{
@@ -645,7 +646,7 @@ func TestLogout(t *testing.T) {
 }
 
 func TestRequestPasswordReset(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	registerInput := service.RegisterInput{
@@ -679,7 +680,7 @@ func TestRequestPasswordReset(t *testing.T) {
 }
 
 func TestRequestPasswordResetNonExistentUser(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	reset, err := authService.RequestPasswordReset(ctx, "nonexistent@example.com")
@@ -696,7 +697,7 @@ func TestRequestPasswordResetNonExistentUser(t *testing.T) {
 }
 
 func TestResetPassword(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	registerInput := service.RegisterInput{
@@ -731,7 +732,7 @@ func TestResetPassword(t *testing.T) {
 }
 
 func TestResetPasswordInvalidToken(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	_, err := authService.ResetPassword(ctx, "invalid-token", "newpassword", "")
@@ -741,7 +742,7 @@ func TestResetPasswordInvalidToken(t *testing.T) {
 }
 
 func TestResetPasswordUsedToken(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	registerInput := service.RegisterInput{
@@ -777,7 +778,7 @@ func TestChangePassword(t *testing.T) {
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil))
+		service.NewTwoFactorService(userRepo, jwtManager, testTOTPAEAD(t)))
 	ctx := context.Background()
 
 	// Register a user
@@ -826,7 +827,7 @@ func TestDeleteUser(t *testing.T) {
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil))
+		service.NewTwoFactorService(userRepo, jwtManager, testTOTPAEAD(t)))
 	ctx := context.Background()
 
 	// Register a user
@@ -863,7 +864,7 @@ func TestDeleteUser(t *testing.T) {
 }
 
 func TestRegister_EmptyEmail(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -878,7 +879,7 @@ func TestRegister_EmptyEmail(t *testing.T) {
 }
 
 func TestRegister_EmptyPassword(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -893,7 +894,7 @@ func TestRegister_EmptyPassword(t *testing.T) {
 }
 
 func TestRegister_EmptyName(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -908,7 +909,7 @@ func TestRegister_EmptyName(t *testing.T) {
 }
 
 func TestRegister_ShortPassword(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -923,7 +924,7 @@ func TestRegister_ShortPassword(t *testing.T) {
 }
 
 func TestRegister_InvalidEmail(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -938,7 +939,7 @@ func TestRegister_InvalidEmail(t *testing.T) {
 }
 
 func TestLogin_NonexistentUser(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	loginInput := service.LoginInput{
@@ -952,7 +953,7 @@ func TestLogin_NonexistentUser(t *testing.T) {
 }
 
 func TestGetUserByID(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -972,7 +973,7 @@ func TestGetUserByID(t *testing.T) {
 }
 
 func TestGetUserByID_NotFound(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	_, err := authService.GetUserByID(ctx, uuid.New())
@@ -987,7 +988,7 @@ func TestUpdateUser(t *testing.T) {
 	passwordResetRepo := newMockPasswordResetRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil))
+		service.NewTwoFactorService(userRepo, jwtManager, testTOTPAEAD(t)))
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -1010,7 +1011,7 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestGenerateTokensForUser(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -1033,7 +1034,7 @@ func TestGenerateTokensForUser(t *testing.T) {
 }
 
 func TestRegister_LongPassword(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	longPassword := make([]byte, 73)
@@ -1052,7 +1053,7 @@ func TestRegister_LongPassword(t *testing.T) {
 }
 
 func TestRegister_EmailNormalization(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -1070,7 +1071,7 @@ func TestRegister_EmailNormalization(t *testing.T) {
 }
 
 func TestLogin_EmailNormalization(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -1095,7 +1096,7 @@ func TestLogin_EmailNormalization(t *testing.T) {
 }
 
 func TestResetPassword_ShortPassword(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	input := service.RegisterInput{
@@ -1117,7 +1118,7 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 // login — otherwise a user who registered and never signed in again shows no
 // last-login date at all in the admin user list.
 func TestVerifyEmailRecordsLastLogin(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	user, verificationToken, err := authService.Register(ctx, service.RegisterInput{
@@ -1152,7 +1153,7 @@ func TestVerifyEmailRecordsLastLogin(t *testing.T) {
 }
 
 func TestLoginRecordsLastLogin(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	if _, _, err := authService.Register(ctx, service.RegisterInput{
@@ -1186,7 +1187,7 @@ func TestLoginRecordsLastLogin(t *testing.T) {
 // The password is only the first factor for a 2FA account: the handler answers
 // with a challenge rather than a session, so the login is not complete yet.
 func TestLoginWithTwoFactorDefersLastLogin(t *testing.T) {
-	authService := setupAuthService()
+	authService := setupAuthService(t)
 	ctx := context.Background()
 
 	user, _, err := authService.Register(ctx, service.RegisterInput{
