@@ -84,6 +84,11 @@ affected beyond having to do it again once, since their session was ended.
 **Passwords, flights, licences, aircraft and every other record** are likewise
 unaffected.
 
+Migration 62 widens `users.two_factor_secret` from `VARCHAR(64)` to `TEXT`. The
+column was sized for a 32-character plaintext seed; an encrypted one is 87
+characters, and Postgres rejects rather than truncates. Nothing to do — it is
+listed here because it is the reason 2FA enrolment works after the upgrade.
+
 ### Rolling back
 
 Migration 61 has no meaningful down step: the cleared values are gone from the

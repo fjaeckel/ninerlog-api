@@ -142,3 +142,33 @@ func TestTwoFactor_WithoutAKeyRefusesRatherThanStoringPlaintext(t *testing.T) {
 func (m *mock2FAUserRepo) ConsumeRecoveryCode(_ context.Context, _ uuid.UUID, _ string) (bool, error) {
 	return true, nil
 }
+
+// The stored form is much longer than the seed it protects, and the column has
+// to be able to hold it. VARCHAR(64) — sized for a 32-character plaintext seed
+// — rejected the 87-character encrypted value outright, and nothing above the
+// database noticed until an enrolment hit real Postgres, because the repository
+// used here is a map with no column widths.
+//
+// This pins the size so a change to the stored format shows up as a failing
+// test with a pointer to the schema, rather than as a 500 on enrolment.
+func TestEncodedSecretFitsTheColumn(t *testing.T) {
+	svc, repo := setup2FAServiceEncrypted(t)
+	user := createTestUserFor2FA(repo)
+
+	if _, _, err := svc.SetupTOTP(context.Background(), user.ID); err != nil {
+		t.Fatalf("SetupTOTP: %v", err)
+	}
+	stored := repo.users[user.ID].TwoFactorSecret
+	if stored == nil {
+		t.Fatal("no secret stored")
+	}
+
+	// users.two_factor_secret is TEXT (migration 62). If this grows past what a
+	// sized column could hold, the migration is the thing to revisit.
+	const observed = 87
+	if len(*stored) != observed {
+		t.Errorf("stored secret is %d chars, expected %d — the stored format changed, "+
+			"check that users.two_factor_secret can still hold it (db/migrations/000062)",
+			len(*stored), observed)
+	}
+}
