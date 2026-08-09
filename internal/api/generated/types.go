@@ -146,6 +146,7 @@ func (e AuthProvidersMode) Valid() bool {
 
 // Defines values for BackupFieldType.
 const (
+	Bool     BackupFieldType = "bool"
 	Password BackupFieldType = "password"
 	Region   BackupFieldType = "region"
 	String   BackupFieldType = "string"
@@ -155,6 +156,8 @@ const (
 // Valid indicates whether the value is a known member of the BackupFieldType enum.
 func (e BackupFieldType) Valid() bool {
 	switch e {
+	case Bool:
+		return true
 	case Password:
 		return true
 	case Region:

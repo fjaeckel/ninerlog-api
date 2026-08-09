@@ -8540,7 +8540,7 @@ components:
 
     BackupFieldType:
       type: string
-      enum: [string, password, region, url]
+      enum: [string, password, region, url, bool]
       description: Hint for rendering provider config/credential form fields.
 
     BackupField:
