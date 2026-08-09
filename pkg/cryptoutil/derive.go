@@ -12,9 +12,13 @@ import (
 // existing one. The trailing version lets a purpose be re-keyed deliberately —
 // bump it and the old data becomes undecryptable, which is a migration, not a
 // rename.
+// These are labels, not key material. They are public by design — the same
+// three strings ship in every build — and knowing one buys nothing without the
+// master key it is combined with. gosec's G101 flags them anyway, on the name
+// alone.
 const (
-	PurposeTOTPSecrets       = "ninerlog/totp-secrets/v1"
-	PurposeBackupCredentials = "ninerlog/backup-credentials/v1"
+	PurposeTOTPSecrets       = "ninerlog/totp-secrets/v1"       // #nosec G101 -- an HKDF label naming what a subkey is for, not a secret
+	PurposeBackupCredentials = "ninerlog/backup-credentials/v1" // #nosec G101 -- as above
 	PurposeDocumentFile      = "ninerlog/document-files/v1"
 )
 
