@@ -64,8 +64,14 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
 4. **Domain invariants** (durations in integer minutes, `*Override` flags, currency evaluator
    registry, service-layer ownership checks, sentinel errors) — see
    `.claude/skills/aviation-domain/SKILL.md`.
-5. Conventional Commits (`feat(flights): …`); branch from `main`.
-6. **Security findings are never committed or pushed** — no audit reports, vulnerability
+5. **A feature ships with its operator surfaces.** Anything with counts, an env-var toggle,
+   an optional subsystem or an admin action must show up under `/admin/*` — see
+   `.claude/skills/admin-surface/SKILL.md`. Anything with a background job, external
+   dependency, cache or limiter must ship its metric, `docs/METRICS.md` row, Grafana panel
+   and (where a human should act) an alert rule — see
+   `.claude/skills/metrics-dashboards/SKILL.md`.
+6. Conventional Commits (`feat(flights): …`); branch from `main`.
+7. **Security findings are never committed or pushed** — no audit reports, vulnerability
    write-ups, exploit fixtures, or commit/PR text describing an unfixed weakness. Write them to
    the gitignored `security-audits/` and report privately (`SECURITY.md`, or a GitHub Security
    Advisory). Fixes get pushed; findings do not. See `.claude/skills/security-audit/SKILL.md`.
