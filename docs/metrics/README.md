@@ -175,7 +175,7 @@ dropdown — no editing of panel queries required.
 
 ## Dashboards
 
-All four are tagged `ninerlog` and cross-link to each other through the
+All five are tagged `ninerlog` and cross-link to each other through the
 dashboard dropdown in the top-right.
 
 | File | Focus |
@@ -184,6 +184,11 @@ dashboard dropdown in the top-right.
 | [`dashboards/ninerlog-operational.json`](./dashboards/ninerlog-operational.json) | Service health and version, DB pool and utilization, notification job freshness and errors, email delivery and SMTP latency, login/refresh/2FA, Go runtime |
 | [`dashboards/ninerlog-ratelimits.json`](./dashboards/ninerlog-ratelimits.json) | **Start here to tune a limit.** Rejection ratio per limiter, search headroom and latency cost, rejections by route, and a cross-check against the 429s actually served |
 | [`dashboards/ninerlog-airports.json`](./dashboards/ninerlog-airports.json) | Airport database: snapshot age and size, reload outcomes, upstream fetch failures by source and reason, merge composition, lookup hit/miss/unavailable rates |
+| [`dashboards/ninerlog-accounts.json`](./dashboards/ninerlog-accounts.json) | Sign-in and account lifecycle: OIDC login flow by result, WebAuthn ceremonies started vs completed vs expired, verification reminders and unverified-account deletions |
+
+`ninerlog-operational.json` carries both email views: `email_send_total` for the
+SMTP transport and `email_delivery_total` broken down by status, which is the
+one that separates a dead mailbox from a broken mail setup.
 
 ### Keeping them honest
 
@@ -192,7 +197,9 @@ silently empty panel. `make dashboard-check` (or
 `python3 scripts/check-dashboards.py`) verifies that every metric referenced by
 a panel is actually declared in the Go source, that panels do not overlap or
 run past the 24-column grid, and warns about metrics that are emitted but
-charted nowhere. Run it after changing either a dashboard or a metric.
+charted nowhere. Run it after changing either a dashboard or a metric — CI runs
+it too, so an uncharted or misspelled metric fails the build rather than
+quietly producing an empty panel.
 
 ## Alerts
 
@@ -203,7 +210,14 @@ notification background job going stale. Warning alerts cover elevated latency,
 recovered panics, a spike in login failures (possible brute force), a limiter
 rejecting more than 5% of its own traffic, flight search being throttled at all
 (a tighter 1% threshold, because search is interactive), a stale airport
-database, and a failing airport source.
+database, a failing airport source, a growing email suppression list, and the
+unverified-account reaper deleting in bulk or sending its final warning into a
+void.
+
+The two account alerts exist because deletion is irreversible and the affected
+user is by definition not around to complain: a spike in
+`unverified_accounts_deleted_total` is far more often broken verification mail
+than a wave of abandoned signups.
 
 The two rate-limit alerts fire on a **ratio**, not an absolute rejection rate:
 a flat threshold on rejections/s cannot distinguish a busy service shrugging

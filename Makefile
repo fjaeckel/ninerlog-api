@@ -106,7 +106,7 @@ profile-explain: ## Run EXPLAIN ANALYZE queries
 migrate-check: ## Verify migrations have no duplicate versions or missing up/down pairs
 	@./scripts/check-migrations.sh db/migrations
 
-dashboard-check: ## Verify Grafana dashboards reference metrics that actually exist
+dashboard-check: ## Verify Grafana dashboards and declared metrics match in both directions
 	@python3 scripts/check-dashboards.py
 
 migrate-up: ## Apply database migrations

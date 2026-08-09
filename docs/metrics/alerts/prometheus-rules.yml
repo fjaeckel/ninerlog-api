@@ -164,6 +164,21 @@ groups:
           summary: "Email delivery is failing"
           description: "{{ $value | humanizePercentage }} of SMTP sends failed over the last 15m. Notifications are not reaching users."
 
+      # A suppressed address stops receiving mail permanently until an admin
+      # lifts it, so the gauge only climbs on its own. Steady growth means real
+      # users are silently losing notifications — and a broken mail setup
+      # (server_error misclassified as a hard bounce) burns addresses far
+      # faster than genuine dead mailboxes do. delta(), not increase(): this is
+      # a gauge, and admins lifting suppressions make it fall.
+      - alert: NinerlogApiEmailSuppressionGrowing
+        expr: delta(email_suppressed_addresses{job="ninerlog-api"}[6h]) > 5
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Email suppression list is growing"
+          description: "{{ $value }} addresses were suppressed in the last 6h. Check email_delivery_total by status — a jump in server_error means the mail setup is at fault, not the recipients."
+
   - name: ninerlog-api.notifications
     rules:
       # Staleness: the background checker writes a fresh timestamp every run.
@@ -243,3 +258,38 @@ groups:
         annotations:
           summary: "Spike in failed logins"
           description: "Invalid-credential logins are {{ $value | humanize }}/s and are the majority of attempts — possible brute-force / credential stuffing."
+
+  - name: ninerlog-api.accounts
+    rules:
+      # Reaping an unverified account deletes it outright — there is no undo,
+      # and the user is not around to complain. The usual cause of a spike is
+      # not a wave of abandoned signups but verification mail that stopped
+      # arriving, which turns the reaper into an account shredder. Fires on
+      # volume alone rather than a ratio: any large batch deserves a look
+      # regardless of signup rate.
+      - alert: NinerlogApiUnverifiedDeletionSpike
+        expr: increase(unverified_accounts_deleted_total{job="ninerlog-api"}[1h]) > 20
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unverified accounts are being deleted in bulk"
+          description: "{{ $value }} unverified accounts were deleted in the last hour. Confirm verification mail is being delivered before treating this as normal churn."
+
+      # The reminder is the last chance a user gets before deletion. If sending
+      # it fails, the reaper still runs on schedule.
+      - alert: NinerlogApiUnverifiedRemindersFailing
+        expr: |
+          sum(rate(unverified_account_reminders_total{job="ninerlog-api",result=~"undeliverable|error"}[1h])) > 0
+          and
+          (
+            sum(rate(unverified_account_reminders_total{job="ninerlog-api",result=~"undeliverable|error"}[1h]))
+            /
+            clamp_min(sum(rate(unverified_account_reminders_total{job="ninerlog-api"}[1h])), 0.001)
+          ) > 0.5
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Verification reminders are not being delivered"
+          description: "{{ $value | humanizePercentage }} of verification reminders failed over the last hour. Accounts will still be deleted on schedule without their final warning."
