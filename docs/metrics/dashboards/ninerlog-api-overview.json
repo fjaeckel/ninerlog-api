@@ -481,6 +481,36 @@
           "legendFormat": "{{status}} \u00b7 {{path}}"
         }
       ]
+    },
+    {
+      "title": "Idempotent Writes (by outcome)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (outcome) (rate(idempotency_requests_total{job=\"$job\"}[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
     }
   ]
 }

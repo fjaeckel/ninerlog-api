@@ -12,8 +12,11 @@ Checks:
   2. Panels do not overlap and stay inside the 24-column grid.
   3. Every metric referenced in a PromQL expression is declared in the Go
      source (or is a known Prometheus/Go-collector built-in).
-  4. Every metric declared in Go appears on at least one dashboard — reported
-     as a warning, not a failure, since not everything deserves a panel.
+  4. Every metric declared in Go appears on at least one dashboard. This was a
+     warning while a backlog of uncharted metrics existed; the backlog is gone,
+     so it is now a failure. Not everything deserves a panel — when that is the
+     case, say so explicitly by adding the name to UNCHARTED_OK below with a
+     reason, rather than leaving a warning nobody reads.
 
 Usage: python3 scripts/check-dashboards.py   (exit 1 on failure)
 """
@@ -200,11 +203,10 @@ def main():
 
         print(f"  {name}: {len(dash.get('panels', []))} panels")
 
-    uncharted = sorted(declared - charted - UNCHARTED_OK)
-    if uncharted:
-        print("\nwarning: declared but on no dashboard:")
-        for metric in uncharted:
-            print(f"  - {metric}")
+    for metric in sorted(declared - charted - UNCHARTED_OK):
+        errors.append(
+            f"{metric}: declared in Go but on no dashboard — add a panel, or "
+            f"add it to UNCHARTED_OK with a reason")
 
     if errors:
         print(f"\n{len(errors)} problem(s):", file=sys.stderr)

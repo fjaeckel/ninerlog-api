@@ -29,6 +29,20 @@ jobs:
       - name: Check for duplicate / malformed migrations
         run: ./scripts/check-migrations.sh db/migrations
 
+  dashboards:
+    name: Dashboard Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Dashboards reference metric names as strings; nothing links them to the
+      # Go declarations, so a rename leaves a silently empty panel.
+      - name: Check Grafana dashboards against declared metrics
+        run: python3 scripts/check-dashboards.py
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
