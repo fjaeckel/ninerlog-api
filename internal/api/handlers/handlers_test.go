@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,7 +157,22 @@ func (m *mockContactRepo) GetByUserID(_ context.Context, userID uuid.UUID, updat
 	return out, nil
 }
 func (m *mockContactRepo) GetByExactName(_ context.Context, userID uuid.UUID, name string) (*models.Contact, error) {
+	for _, c := range m.contacts {
+		if c.UserID == userID && strings.EqualFold(c.Name, name) {
+			return c, nil
+		}
+	}
 	return nil, repository.ErrNotFound
+}
+func (m *mockContactRepo) FindOrCreateByName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error) {
+	if existing, err := m.GetByExactName(ctx, userID, name); err == nil {
+		return existing, false, nil
+	}
+	c := &models.Contact{UserID: userID, Name: name}
+	if err := m.Create(ctx, c); err != nil {
+		return nil, false, err
+	}
+	return c, true, nil
 }
 func (m *mockContactRepo) Search(_ context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error) {
 	return nil, nil
@@ -164,6 +180,12 @@ func (m *mockContactRepo) Search(_ context.Context, userID uuid.UUID, query stri
 func (m *mockContactRepo) Update(_ context.Context, c *models.Contact) error {
 	m.contacts[c.ID] = c
 	return nil
+}
+func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact) (int, error) {
+	return 0, m.Update(ctx, c)
+}
+func (m *mockContactRepo) RolesByContact(_ context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error) {
+	return nil, nil
 }
 func (m *mockContactRepo) Delete(_ context.Context, id uuid.UUID) error {
 	delete(m.contacts, id)

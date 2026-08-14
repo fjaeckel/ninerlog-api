@@ -14,18 +14,62 @@ import (
 
 type mockContactRepo struct {
 	contacts map[uuid.UUID]*models.Contact
+	// roles is returned verbatim by RolesByContact.
+	roles map[uuid.UUID][]string
+	// crewRenames is what UpdateWithCrewRename reports; the mock has no
+	// flights to rewrite, so the count is supplied by the test.
+	crewRenames int
+	// lookups counts GetByExactName calls, so a test can show that the crew
+	// linker's cache is actually saving round-trips.
+	lookups int
 }
 
 func newMockContactRepo() *mockContactRepo {
 	return &mockContactRepo{contacts: make(map[uuid.UUID]*models.Contact)}
 }
 
+// nameTaken mirrors idx_contacts_user_lower_name: one contact per user per
+// case-insensitive name, ignoring the row being updated.
+func (m *mockContactRepo) nameTaken(userID uuid.UUID, name string, excluding uuid.UUID) bool {
+	for _, c := range m.contacts {
+		if c.ID != excluding && c.UserID == userID && strings.EqualFold(c.Name, name) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *mockContactRepo) Create(ctx context.Context, c *models.Contact) error {
+	if m.nameTaken(c.UserID, c.Name, uuid.Nil) {
+		return repository.ErrDuplicate
+	}
 	c.ID = uuid.New()
 	c.CreatedAt = time.Now()
 	c.UpdatedAt = time.Now()
 	m.contacts[c.ID] = c
 	return nil
+}
+
+func (m *mockContactRepo) FindOrCreateByName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error) {
+	if existing, err := m.GetByExactName(ctx, userID, name); err == nil {
+		return existing, false, nil
+	}
+	c := &models.Contact{UserID: userID, Name: name}
+	if err := m.Create(ctx, c); err != nil {
+		return nil, false, err
+	}
+	return c, true, nil
+}
+
+func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact) (int, error) {
+	if err := m.Update(ctx, c); err != nil {
+		return 0, err
+	}
+	return m.crewRenames, nil
+}
+
+func (m *mockContactRepo) RolesByContact(ctx context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error) {
+	return m.roles, nil
 }
 
 func (m *mockContactRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Contact, error) {
@@ -60,8 +104,12 @@ func (m *mockContactRepo) Search(ctx context.Context, userID uuid.UUID, query st
 }
 
 func (m *mockContactRepo) Update(ctx context.Context, c *models.Contact) error {
-	if _, ok := m.contacts[c.ID]; !ok {
+	existing, ok := m.contacts[c.ID]
+	if !ok {
 		return repository.ErrNotFound
+	}
+	if m.nameTaken(existing.UserID, c.Name, c.ID) {
+		return repository.ErrDuplicate
 	}
 	c.UpdatedAt = time.Now()
 	m.contacts[c.ID] = c
@@ -69,6 +117,7 @@ func (m *mockContactRepo) Update(ctx context.Context, c *models.Contact) error {
 }
 
 func (m *mockContactRepo) GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error) {
+	m.lookups++
 	for _, c := range m.contacts {
 		if c.UserID == userID && strings.EqualFold(c.Name, name) {
 			return c, nil
@@ -198,7 +247,7 @@ func TestUpdateContact(t *testing.T) {
 	_ = svc.CreateContact(ctx, contact)
 
 	contact.Name = "New Name"
-	err := svc.UpdateContact(ctx, contact, userID)
+	_, err := svc.UpdateContact(ctx, contact, userID)
 	if err != nil {
 		t.Fatalf("UpdateContact() error = %v", err)
 	}
@@ -213,7 +262,7 @@ func TestUpdateContactUnauthorized(t *testing.T) {
 	_ = svc.CreateContact(ctx, contact)
 
 	contact.Name = "Updated"
-	err := svc.UpdateContact(ctx, contact, uuid.New())
+	_, err := svc.UpdateContact(ctx, contact, uuid.New())
 	if err != service.ErrUnauthorizedContact {
 		t.Errorf("Expected ErrUnauthorizedContact, got %v", err)
 	}
@@ -338,7 +387,7 @@ func TestUpdateContact_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	contact := &models.Contact{ID: uuid.New(), Name: "Updated"}
-	err := svc.UpdateContact(ctx, contact, uuid.New())
+	_, err := svc.UpdateContact(ctx, contact, uuid.New())
 	if err != service.ErrContactNotFound {
 		t.Errorf("Expected ErrContactNotFound, got %v", err)
 	}
@@ -356,7 +405,7 @@ func TestUpdateContact_EmptyName(t *testing.T) {
 	_ = svc.CreateContact(ctx, contact)
 
 	contact.Name = ""
-	err := svc.UpdateContact(ctx, contact, userID)
+	_, err := svc.UpdateContact(ctx, contact, userID)
 	if err == nil {
 		t.Error("Expected error for empty name update")
 	}

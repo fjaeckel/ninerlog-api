@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -56,6 +57,10 @@ func (h *APIHandler) CreateContact(c *gin.Context) {
 		UserID: userID, Name: req.Name, Email: req.Email, Phone: req.Phone, Notes: req.Notes,
 	}
 	if err := h.contactService.CreateContact(c.Request.Context(), contact); err != nil {
+		if errors.Is(err, service.ErrContactNameExists) {
+			h.sendError(c, http.StatusConflict, "A contact with this name already exists")
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to create contact")
 		return
 	}
@@ -101,14 +106,22 @@ func (h *APIHandler) UpdateContact(c *gin.Context, contactId openapi_types.UUID)
 	contact := &models.Contact{
 		ID: uuid.UUID(contactId), Name: req.Name, Email: req.Email, Phone: req.Phone, Notes: req.Notes,
 	}
-	if err := h.contactService.UpdateContact(c.Request.Context(), contact, userID); err != nil {
+	renamed, err := h.contactService.UpdateContact(c.Request.Context(), contact, userID)
+	if err != nil {
 		if errors.Is(err, service.ErrContactNotFound) || errors.Is(err, service.ErrUnauthorizedContact) {
 			h.sendError(c, http.StatusNotFound, "Contact not found")
+			return
+		}
+		if errors.Is(err, service.ErrContactNameExists) {
+			h.sendError(c, http.StatusConflict, "A contact with this name already exists")
 			return
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update contact")
 		return
 	}
+	// A rename rewrites the crew entries of unsigned flights, so a client
+	// holding cached flights knows whether it needs to refetch them.
+	c.Header("X-Crew-Entries-Renamed", strconv.Itoa(renamed))
 	c.JSON(http.StatusOK, contact)
 }
 

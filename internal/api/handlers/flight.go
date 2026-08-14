@@ -301,11 +301,15 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.ApproachesCount = len(flight.Approaches)
 	}
 
-	// Parse crew members
+	// Parse crew members. Names are trimmed here rather than in
+	// persistCrewMembers below, because ApplyAutoCalculations and
+	// ResolvePICNameForSave read them in between — trimming later would let a
+	// padded name resolve PIC-of-record differently from the name that ends up
+	// stored.
 	if req.CrewMembers != nil {
 		for _, cm := range *req.CrewMembers {
 			member := models.FlightCrewMember{
-				Name: cm.Name,
+				Name: strings.TrimSpace(cm.Name),
 				Role: models.CrewRole(cm.Role),
 			}
 			if cm.ContactId != nil {
@@ -331,12 +335,9 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
 	}
-	// Persist crew members
-	if len(flight.CrewMembers) > 0 && h.flightCrewRepo != nil {
-		if err := h.flightCrewRepo.SetCrewMembers(c.Request.Context(), flight.ID, flight.CrewMembers); err != nil {
-			// Flight created but crew failed - log but don't fail the request
-			fmt.Printf("Warning: failed to save crew members for flight %s: %v\n", flight.ID, err)
-		}
+	// Persist crew members. A new flight with no crew has nothing to clear.
+	if len(flight.CrewMembers) > 0 {
+		h.persistCrewMembers(c, userID, &flight)
 	}
 	c.JSON(http.StatusCreated, convertToGeneratedFlight(&flight))
 }
@@ -497,7 +498,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.CrewMembers = nil
 		for _, cm := range *req.CrewMembers {
 			member := models.FlightCrewMember{
-				Name: cm.Name,
+				Name: strings.TrimSpace(cm.Name),
 				Role: models.CrewRole(cm.Role),
 			}
 			if cm.ContactId != nil {
@@ -557,11 +558,10 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		return
 	}
 
-	// Persist crew members if they were updated
-	if req.CrewMembers != nil && h.flightCrewRepo != nil {
-		if err := h.flightCrewRepo.SetCrewMembers(c.Request.Context(), flight.ID, flight.CrewMembers); err != nil {
-			fmt.Printf("Warning: failed to save crew members for flight %s: %v\n", flight.ID, err)
-		}
+	// Persist crew members if they were updated. An update that did not carry
+	// a crewMembers key leaves the existing rows alone.
+	if req.CrewMembers != nil {
+		h.persistCrewMembers(c, userID, flight)
 	}
 
 	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))

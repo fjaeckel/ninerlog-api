@@ -3080,6 +3080,33 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /exports/vcard:
+    get:
+      tags: [Export]
+      summary: Export contacts as vCard
+      description: |
+        Export the authenticated user's contacts as a single vCard 3.0 (.vcf)
+        stream, for import into a phone or mail client's address book.
+
+        Each card carries the contact's name, email, phone and notes. Contacts
+        the pilot has flown with also carry their logged crew roles as
+        `CATEGORIES` (most-flown role first), and every card carries a stable
+        `UID`, so re-importing a later export updates the existing cards instead
+        of duplicating them.
+      operationId: exportContactsVCard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: vCard file download
+          content:
+            text/vcard:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /exports/json:
     get:
       tags: [Export]
@@ -3444,7 +3471,17 @@ paths:
       tags:
         - Contacts
       summary: Create a contact
-      description: Creates a new reusable contact for the authenticated user.
+      description: |
+        Creates a new reusable contact for the authenticated user.
+
+        A contact is identified by its name: names are unique per user,
+        case-insensitively and ignoring surrounding whitespace. Creating one
+        that already exists returns 409 rather than a second row — use
+        `GET /contacts/search` to find the existing contact.
+
+        Contacts are also created automatically for crew names on flight
+        create/update, spreadsheet import and backup restore, so a contact
+        normally exists before anyone posts one.
       operationId: createContact
       security:
         - bearerAuth: []
@@ -3465,6 +3502,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /contacts/search:
     get:
@@ -3531,7 +3570,18 @@ paths:
       tags:
         - Contacts
       summary: Update a contact
-      description: Updates an existing contact.
+      description: |
+        Updates an existing contact.
+
+        Renaming propagates: the crew entries of the user's flights that are
+        linked to this contact are rewritten to the new name, so correcting a
+        misspelling also corrects the logbook. Flights carrying a completed
+        instructor signature are excluded — their crew names are attested
+        content and stay as signed. The response header `X-Crew-Entries-Renamed`
+        reports how many crew entries were rewritten.
+
+        Renaming onto a name another contact already holds returns 409;
+        contacts are not merged implicitly.
       operationId: updateContact
       security:
         - bearerAuth: []
@@ -3551,6 +3601,11 @@ paths:
       responses:
         '200':
           description: Contact updated
+          headers:
+            X-Crew-Entries-Renamed:
+              description: Number of flight crew entries rewritten to the new name
+              schema:
+                type: integer
           content:
             application/json:
               schema:
@@ -3561,11 +3616,19 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
     delete:
       tags:
         - Contacts
       summary: Delete a contact
-      description: Deletes a contact by ID.
+      description: |
+        Deletes a contact by ID.
+
+        This removes the address-book entry only. Flights the contact appears on
+        keep the crew entry and the name it was logged with; the entry's
+        `contactId` becomes null. No logbook content is lost, so deleting is
+        allowed even for a contact referenced by signed flights.
       operationId: deleteContact
       security:
         - bearerAuth: []
@@ -8055,6 +8118,7 @@ components:
         - credentialsImported
         - flightsImported
         - crewMembersImported
+        - contactsCreated
       properties:
         aircraftImported:
           type: integer
@@ -8079,6 +8143,14 @@ components:
         crewMembersImported:
           type: integer
           example: 11
+        contactsCreated:
+          type: integer
+          description: >-
+            Contacts created because a crew name in the backup matched none of
+            this account's contacts. Contacts are not carried in the backup
+            format, so a restore into an empty account creates one per distinct
+            crew name.
+          example: 5
 
     PaginatedImports:
       type: object
@@ -8191,6 +8263,7 @@ components:
         - totalUsers
         - totalFlights
         - totalAircraft
+        - totalContacts
         - totalCredentials
         - totalImports
         - flightsThisMonth
@@ -8205,6 +8278,11 @@ components:
           type: integer
         totalAircraft:
           type: integer
+        totalContacts:
+          type: integer
+          description: >-
+            Contacts across all users. Grows on its own as flights are logged,
+            since crew names are turned into contacts automatically.
         totalCredentials:
           type: integer
         totalImports:
@@ -9706,6 +9784,18 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: Resource not found
+
+    Conflict:
+      description: >-
+        The request collides with a resource that already exists — for contacts,
+        another contact of this user already has that name (matched
+        case-insensitively, ignoring surrounding whitespace).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: A contact with this name already exists
 
     DocumentFilesDisabled:
       description: >-

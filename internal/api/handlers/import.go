@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -592,9 +593,9 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		RowIndex int     `json:"rowIndex"`
 	}
 	imported, skipped, errored, dups := 0, 0, 0, 0
-	contactsCreated := 0
-	// Cache for contact lookups to avoid repeated DB queries
-	contactCache := make(map[string]*models.Contact) // lowercase name → contact
+	// One linker for the whole import: it caches name lookups across flights,
+	// which matters because a logbook is mostly the same handful of people.
+	crewLinker := h.contactService.NewCrewLinker(userID)
 
 	// Build a registration → type lookup from the user's (now-augmented) fleet so
 	// the importer can resolve aircraft types when the source row does not
@@ -759,7 +760,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		if flight.CrewMembers != nil {
 			for _, cm := range *flight.CrewMembers {
 				member := models.FlightCrewMember{
-					Name: cm.Name,
+					Name: strings.TrimSpace(cm.Name),
 					Role: models.CrewRole(cm.Role),
 				}
 				newFlight.CrewMembers = append(newFlight.CrewMembers, member)
@@ -780,28 +781,13 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			continue
 		}
 
-		// Find or create contacts and persist crew members
+		// Link crew to contacts and persist the crew rows. Same pathway as
+		// flight create/update, so an imported logbook and a hand-logged one
+		// produce the same address book.
 		if len(newFlight.CrewMembers) > 0 && h.flightCrewRepo != nil {
-			for i := range newFlight.CrewMembers {
-				name := strings.TrimSpace(newFlight.CrewMembers[i].Name)
-				if name == "" {
-					continue
-				}
-				cacheKey := strings.ToLower(name)
-				contact, ok := contactCache[cacheKey]
-				if !ok {
-					var created bool
-					contact, created, _ = h.contactService.FindOrCreateContact(c.Request.Context(), userID, name)
-					if contact != nil {
-						contactCache[cacheKey] = contact
-						if created {
-							contactsCreated++
-						}
-					}
-				}
-				if contact != nil {
-					newFlight.CrewMembers[i].ContactID = &contact.ID
-				}
+			if err := crewLinker.Link(c.Request.Context(), newFlight.CrewMembers); err != nil {
+				slog.Warn("import: failed to link crew members to contacts",
+					"flightId", newFlight.ID, "error", err)
 			}
 			_ = h.flightCrewRepo.SetCrewMembers(c.Request.Context(), newFlight.ID, newFlight.CrewMembers)
 		}
@@ -853,6 +839,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	if len(importedIDs) > 0 {
 		idsPtr = &importedIDs
 	}
+
+	contactsCreated := crewLinker.Created()
 
 	c.JSON(http.StatusCreated, generated.ImportResult{
 		Id:                openapi_types.UUID(importID),

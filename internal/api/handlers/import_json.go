@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -46,6 +47,12 @@ type importJSONSummary struct {
 	CredentialsImported  int `json:"credentialsImported"`
 	FlightsImported      int `json:"flightsImported"`
 	CrewMembersImported  int `json:"crewMembersImported"`
+	// ContactsCreated counts the address-book entries the restore had to
+	// create because a crew name in the backup matched none of the
+	// destination account's contacts. Contacts are not carried in the backup
+	// format, so restoring into an empty account creates one per distinct
+	// crew name.
+	ContactsCreated int `json:"contactsCreated"`
 }
 
 // ImportDataJSON implements POST /imports/json. It restores a NinerLog JSON
@@ -104,6 +111,9 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	summary := importJSONSummary{}
+	// One linker for the whole restore so a crew name is looked up once, not
+	// once per flight it appears on.
+	crewLinker := h.contactService.NewCrewLinker(userID)
 
 	// --- Aircraft ---
 	// Build registration → existing ID map so duplicates are skipped and
@@ -204,12 +214,18 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 				// ID + FlightID are assigned by SetCrewMembers.
 				Name: m.Name,
 				Role: m.Role,
-				// ContactID intentionally nil: contacts are NOT part of the
-				// backup format, so we cannot re-link to a contact row in
-				// the destination installation. The crew member's name is
-				// still preserved, which is what exports/PIC-resolution use.
+				// ContactID starts nil: contacts are not part of the backup
+				// format, so the id from the source installation means nothing
+				// here. crewLinker re-establishes the link by name against the
+				// destination account's contacts, creating them as needed —
+				// which is why a restore rebuilds the address book rather than
+				// leaving it empty.
 				ContactID: nil,
 			})
+		}
+		if err := crewLinker.Link(ctx, members); err != nil {
+			slog.Warn("restore: failed to link crew members to contacts",
+				"flightId", newF.ID, "error", err)
 		}
 		if err := h.flightCrewRepo.SetCrewMembers(ctx, newF.ID, members); err != nil {
 			h.sendError(c, http.StatusInternalServerError, fmt.Sprintf("Failed to import crew for flight on %s: %v", f.Date.Format("2006-01-02"), err))
@@ -217,6 +233,8 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 		}
 		summary.CrewMembersImported += len(members)
 	}
+
+	summary.ContactsCreated = crewLinker.Created()
 
 	c.JSON(http.StatusOK, summary)
 }

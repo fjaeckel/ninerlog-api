@@ -49,6 +49,11 @@ func TestAdminEndpoints(t *testing.T) {
 		if s["totalUsers"] == nil {
 			t.Error("Expected totalUsers")
 		}
+		// Contacts accumulate on their own — every crew name logged on a
+		// flight becomes one — so the operator needs the count.
+		if s["totalContacts"] == nil {
+			t.Error("Expected totalContacts")
+		}
 		cbd, ok := s["cloudBackupDestinations"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("Expected cloudBackupDestinations object, got %T", s["cloudBackupDestinations"])

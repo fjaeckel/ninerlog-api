@@ -35,6 +35,7 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM users"), &stats.TotalUsers)
 	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flights"), &stats.TotalFlights)
 	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM aircraft"), &stats.TotalAircraft)
+	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM contacts"), &stats.TotalContacts)
 	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM credentials"), &stats.TotalCredentials)
 	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flight_imports"), &stats.TotalImports)
 

@@ -2,10 +2,43 @@ package handlers
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// persistCrewMembers links a flight's crew to the user's contacts — creating
+// contacts for names that are new — and writes the crew rows.
+//
+// Every handler that stores crew goes through here so that logging a flight is
+// what fills the address book, regardless of entry point. See
+// ContactService.LinkCrewMembers for the linking rules.
+//
+// Failures are logged and swallowed rather than failing the request: the flight
+// itself is already written at this point, and reporting an error for a saved
+// flight would push clients into retrying a create that already succeeded.
+func (h *APIHandler) persistCrewMembers(c *gin.Context, userID uuid.UUID, flight *models.Flight) {
+	if h.flightCrewRepo == nil {
+		return
+	}
+	ctx := c.Request.Context()
+
+	if len(flight.CrewMembers) > 0 && h.contactService != nil {
+		if _, err := h.contactService.LinkCrewMembers(ctx, userID, flight.CrewMembers); err != nil {
+			// Non-fatal: the crew rows are still worth writing with the names
+			// they were given, just without the contact links.
+			slog.Warn("failed to link crew members to contacts",
+				"flightId", flight.ID, "error", err)
+		}
+	}
+
+	// An empty list is written too — that is how a client clears the crew.
+	if err := h.flightCrewRepo.SetCrewMembers(ctx, flight.ID, flight.CrewMembers); err != nil {
+		slog.Warn("failed to save crew members", "flightId", flight.ID, "error", err)
+	}
+}
 
 // attachCrewMembers populates flight.CrewMembers for each flight in `flights`
 // from the flight_crew_members table. It is a no-op when the handler does not
