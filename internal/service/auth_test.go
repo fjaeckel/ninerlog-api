@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -357,7 +358,7 @@ func TestRegister(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -395,7 +396,7 @@ func TestRegisterPreferredLocale(t *testing.T) {
 			authService := setupAuthService()
 			user, _, err := authService.Register(ctx, service.RegisterInput{
 				Email:           "test@example.com",
-				Password:        "password1234",
+				Password:        "Password1234!",
 				Name:            "Test User",
 				PreferredLocale: tt.input,
 			})
@@ -415,7 +416,7 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -438,7 +439,7 @@ func TestMarkEmailVerified(t *testing.T) {
 
 	user, _, err := authService.Register(ctx, service.RegisterInput{
 		Email:    "mark-verified@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Mark Verified",
 	})
 	if err != nil {
@@ -468,7 +469,7 @@ func TestLogin(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -481,7 +482,7 @@ func TestLogin(t *testing.T) {
 	// Test login
 	loginInput := service.LoginInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 	}
 
 	user, tokens, err := authService.Login(ctx, loginInput)
@@ -504,7 +505,7 @@ func TestLoginInvalidPassword(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -517,7 +518,7 @@ func TestLoginInvalidPassword(t *testing.T) {
 	// Test login with wrong password
 	loginInput := service.LoginInput{
 		Email:    "test@example.com",
-		Password: "wrongpassword1",
+		Password: "WrongPassword1!",
 	}
 
 	_, _, err = authService.Login(ctx, loginInput)
@@ -542,7 +543,7 @@ func TestPasswordHashing(t *testing.T) {
 	}
 
 	// Verify incorrect password
-	err = hash.ComparePassword(hashed, "wrongpassword1")
+	err = hash.ComparePassword(hashed, "WrongPassword1!")
 	if err == nil {
 		t.Error("Should have failed to verify incorrect password")
 	}
@@ -554,7 +555,7 @@ func TestRefreshToken(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -594,7 +595,7 @@ func TestRefreshTokenRevoked(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -624,7 +625,7 @@ func TestLogout(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -650,7 +651,7 @@ func TestRequestPasswordReset(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -701,7 +702,7 @@ func TestResetPassword(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -715,13 +716,13 @@ func TestResetPassword(t *testing.T) {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
 
-	if _, err := authService.ResetPassword(ctx, reset.Token, "newpassword456", ""); err != nil {
+	if _, err := authService.ResetPassword(ctx, reset.Token, "NewPassword456!", ""); err != nil {
 		t.Fatalf("ResetPassword failed: %v", err)
 	}
 
 	loginInput := service.LoginInput{
 		Email:    "test@example.com",
-		Password: "newpassword456",
+		Password: "NewPassword456!",
 	}
 
 	_, _, err = authService.Login(ctx, loginInput)
@@ -746,7 +747,7 @@ func TestResetPasswordUsedToken(t *testing.T) {
 
 	registerInput := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 
@@ -760,7 +761,7 @@ func TestResetPasswordUsedToken(t *testing.T) {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
 
-	if _, err := authService.ResetPassword(ctx, reset.Token, "newpassword456", ""); err != nil {
+	if _, err := authService.ResetPassword(ctx, reset.Token, "NewPassword456!", ""); err != nil {
 		t.Fatalf("ResetPassword failed: %v", err)
 	}
 
@@ -783,7 +784,7 @@ func TestChangePassword(t *testing.T) {
 	// Register a user
 	registerInput := service.RegisterInput{
 		Email:    "change@example.com",
-		Password: "oldpassword123",
+		Password: "OldPassword123!",
 		Name:     "Change Test",
 	}
 	_, _, err := authService.Register(ctx, registerInput)
@@ -795,25 +796,25 @@ func TestChangePassword(t *testing.T) {
 	user, _ := userRepo.GetByEmail(ctx, "change@example.com")
 
 	// Change password with correct current password
-	err = authService.ChangePassword(ctx, user.ID, "oldpassword123", "newpassword456")
+	err = authService.ChangePassword(ctx, user.ID, "OldPassword123!", "NewPassword456!")
 	if err != nil {
 		t.Fatalf("ChangePassword failed: %v", err)
 	}
 
 	// Verify new password works
-	err = hash.ComparePassword(user.PasswordHash, "newpassword456")
+	err = hash.ComparePassword(user.PasswordHash, "NewPassword456!")
 	if err != nil {
 		t.Error("New password doesn't match after change")
 	}
 
 	// Change password with wrong current password should fail
-	err = authService.ChangePassword(ctx, user.ID, "wrongpassword1", "another123")
+	err = authService.ChangePassword(ctx, user.ID, "WrongPassword1!", "another123")
 	if err != service.ErrInvalidCredentials {
 		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
 	}
 
 	// Change to short password should fail
-	err = authService.ChangePassword(ctx, user.ID, "newpassword456", "short")
+	err = authService.ChangePassword(ctx, user.ID, "NewPassword456!", "short")
 	if err == nil {
 		t.Error("Expected error for short password, got nil")
 	}
@@ -832,7 +833,7 @@ func TestDeleteUser(t *testing.T) {
 	// Register a user
 	registerInput := service.RegisterInput{
 		Email:    "delete@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Delete Test",
 	}
 	_, _, err := authService.Register(ctx, registerInput)
@@ -844,13 +845,13 @@ func TestDeleteUser(t *testing.T) {
 	userID := user.ID
 
 	// Delete with wrong password should fail
-	err = authService.DeleteUser(ctx, userID, "wrongpassword1")
+	err = authService.DeleteUser(ctx, userID, "WrongPassword1!")
 	if err != service.ErrInvalidCredentials {
 		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
 	}
 
 	// Delete with correct password should succeed
-	err = authService.DeleteUser(ctx, userID, "password1234")
+	err = authService.DeleteUser(ctx, userID, "Password1234!")
 	if err != nil {
 		t.Fatalf("DeleteUser failed: %v", err)
 	}
@@ -868,7 +869,7 @@ func TestRegister_EmptyEmail(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 	_, _, err := authService.Register(ctx, input)
@@ -898,7 +899,7 @@ func TestRegister_EmptyName(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "",
 	}
 	_, _, err := authService.Register(ctx, input)
@@ -922,13 +923,40 @@ func TestRegister_ShortPassword(t *testing.T) {
 	}
 }
 
+// Registration runs the full password policy, not just the length check — a
+// long password missing a character class is rejected too.
+func TestRegister_WeakPassword(t *testing.T) {
+	cases := map[string]string{
+		"no lowercase": "ABCDEFGHIJ1!",
+		"no uppercase": "abcdefghij1!",
+		"no digit":     "Abcdefghijk!",
+		"no special":   "Abcdefghij12",
+	}
+
+	for name, password := range cases {
+		t.Run(name, func(t *testing.T) {
+			authService := setupAuthService()
+			ctx := context.Background()
+
+			_, _, err := authService.Register(ctx, service.RegisterInput{
+				Email:    "test@example.com",
+				Password: password,
+				Name:     "Test User",
+			})
+			if err != service.ErrPasswordTooWeak {
+				t.Errorf("Register(%q) = %v, want ErrPasswordTooWeak", password, err)
+			}
+		})
+	}
+}
+
 func TestRegister_InvalidEmail(t *testing.T) {
 	authService := setupAuthService()
 	ctx := context.Background()
 
 	input := service.RegisterInput{
 		Email:    "not-an-email",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 	_, _, err := authService.Register(ctx, input)
@@ -943,7 +971,7 @@ func TestLogin_NonexistentUser(t *testing.T) {
 
 	loginInput := service.LoginInput{
 		Email:    "nobody@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 	}
 	_, _, err := authService.Login(ctx, loginInput)
 	if err != service.ErrInvalidCredentials {
@@ -957,7 +985,7 @@ func TestGetUserByID(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 	user, _, _ := authService.Register(ctx, input)
@@ -992,7 +1020,7 @@ func TestUpdateUser(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 	user, _, _ := authService.Register(ctx, input)
@@ -1015,7 +1043,7 @@ func TestGenerateTokensForUser(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 	user, _, _ := authService.Register(ctx, input)
@@ -1057,7 +1085,7 @@ func TestRegister_EmailNormalization(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "  Test@Example.COM  ",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 	user, _, err := authService.Register(ctx, input)
@@ -1075,7 +1103,7 @@ func TestLogin_EmailNormalization(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 	_, _, _ = authService.Register(ctx, input)
@@ -1083,7 +1111,7 @@ func TestLogin_EmailNormalization(t *testing.T) {
 	// Login with different casing should work
 	loginInput := service.LoginInput{
 		Email:    "  TEST@EXAMPLE.COM  ",
-		Password: "password1234",
+		Password: "Password1234!",
 	}
 	user, _, err := authService.Login(ctx, loginInput)
 	if err != nil {
@@ -1100,7 +1128,7 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 
 	input := service.RegisterInput{
 		Email:    "test@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Test User",
 	}
 	_, _, _ = authService.Register(ctx, input)
@@ -1113,6 +1141,50 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 	}
 }
 
+// A reset cannot be used to slip a policy-violating password past the rules
+// that registration enforces.
+func TestResetPassword_WeakPassword(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	_, _, _ = authService.Register(ctx, service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "Password1234!",
+		Name:     "Test User",
+	})
+	reset, _ := authService.RequestPasswordReset(ctx, "test@example.com")
+
+	// Long enough, but no special character.
+	_, err := authService.ResetPassword(ctx, reset.Token, "Abcdefghij12", "")
+	if err != service.ErrPasswordTooWeak {
+		t.Errorf("ResetPassword with weak password = %v, want ErrPasswordTooWeak", err)
+	}
+}
+
+// Neither can a change-password call.
+func TestChangePassword_WeakPassword(t *testing.T) {
+	authService := setupAuthService()
+	ctx := context.Background()
+
+	user, _, _ := authService.Register(ctx, service.RegisterInput{
+		Email:    "test@example.com",
+		Password: "Password1234!",
+		Name:     "Test User",
+	})
+
+	err := authService.ChangePassword(ctx, user.ID, "Password1234!", "Abcdefghij12")
+	if err != service.ErrPasswordTooWeak {
+		t.Errorf("ChangePassword with weak password = %v, want ErrPasswordTooWeak", err)
+	}
+
+	// ChangePassword previously had no upper bound, so bcrypt would silently
+	// truncate. Guard that it is enforced now.
+	long := strings.Repeat("aB1!", 18) + "x"
+	if err := authService.ChangePassword(ctx, user.ID, "Password1234!", long); err != service.ErrPasswordTooLong {
+		t.Errorf("ChangePassword with %d-byte password = %v, want ErrPasswordTooLong", len(long), err)
+	}
+}
+
 // Following the verification link signs the new account in, so it counts as a
 // login — otherwise a user who registered and never signed in again shows no
 // last-login date at all in the admin user list.
@@ -1122,7 +1194,7 @@ func TestVerifyEmailRecordsLastLogin(t *testing.T) {
 
 	user, verificationToken, err := authService.Register(ctx, service.RegisterInput{
 		Email:    "verify-login@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Verify Login",
 	})
 	if err != nil {
@@ -1157,7 +1229,7 @@ func TestLoginRecordsLastLogin(t *testing.T) {
 
 	if _, _, err := authService.Register(ctx, service.RegisterInput{
 		Email:    "login-stamp@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "Login Stamp",
 	}); err != nil {
 		t.Fatalf("Registration failed: %v", err)
@@ -1165,7 +1237,7 @@ func TestLoginRecordsLastLogin(t *testing.T) {
 
 	user, _, err := authService.Login(ctx, service.LoginInput{
 		Email:    "login-stamp@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 	})
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
@@ -1191,7 +1263,7 @@ func TestLoginWithTwoFactorDefersLastLogin(t *testing.T) {
 
 	user, _, err := authService.Register(ctx, service.RegisterInput{
 		Email:    "2fa-stamp@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 		Name:     "TwoFactor Stamp",
 	})
 	if err != nil {
@@ -1203,7 +1275,7 @@ func TestLoginWithTwoFactorDefersLastLogin(t *testing.T) {
 
 	loggedIn, _, err := authService.Login(ctx, service.LoginInput{
 		Email:    "2fa-stamp@example.com",
-		Password: "password1234",
+		Password: "Password1234!",
 	})
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)

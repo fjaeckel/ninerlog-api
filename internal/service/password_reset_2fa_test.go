@@ -72,7 +72,7 @@ func newResetFixture(t *testing.T) *resetFixture {
 		twoFactor: twoFactor,
 		users:     userRepo,
 		email:     "pilot@example.com",
-		password:  "originalpassword1234",
+		password:  "originalPassword1234!",
 	}
 
 	if _, _, err := auth.Register(context.Background(), service.RegisterInput{
@@ -133,7 +133,7 @@ func TestResetPasswordWithoutTwoFactorCodeIsRejected(t *testing.T) {
 	f.enable2FA(t)
 	token := f.requestToken(t)
 
-	_, err := f.auth.ResetPassword(context.Background(), token, "brandnewpassword1234", "")
+	_, err := f.auth.ResetPassword(context.Background(), token, "brandnewPassword1234!", "")
 	if err != service.ErrTwoFactorRequired {
 		t.Fatalf("Expected ErrTwoFactorRequired, got %v", err)
 	}
@@ -155,7 +155,7 @@ func TestResetPasswordWithWrongTwoFactorCodeIsRejected(t *testing.T) {
 	secret, _ := f.enable2FA(t)
 	token := f.requestToken(t)
 
-	_, err := f.auth.ResetPassword(context.Background(), token, "brandnewpassword1234", "000000")
+	_, err := f.auth.ResetPassword(context.Background(), token, "brandnewPassword1234!", "000000")
 	if err != service.ErrInvalidTOTPCode {
 		t.Fatalf("Expected ErrInvalidTOTPCode, got %v", err)
 	}
@@ -166,7 +166,7 @@ func TestResetPasswordWithWrongTwoFactorCodeIsRejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateCode failed: %v", err)
 	}
-	if _, err := f.auth.ResetPassword(context.Background(), token, "brandnewpassword1234", code); err != nil {
+	if _, err := f.auth.ResetPassword(context.Background(), token, "brandnewPassword1234!", code); err != nil {
 		t.Fatalf("Retry with a valid code should succeed, got %v", err)
 	}
 }
@@ -181,7 +181,7 @@ func TestResetPasswordWithValidTOTPKeepsTwoFactorEnabled(t *testing.T) {
 		t.Fatalf("GenerateCode failed: %v", err)
 	}
 
-	newPassword := "brandnewpassword1234"
+	newPassword := "brandnewPassword1234!"
 	result, err := f.auth.ResetPassword(context.Background(), token, newPassword, code)
 	if err != nil {
 		t.Fatalf("ResetPassword failed: %v", err)
@@ -218,7 +218,7 @@ func TestResetPasswordAcceptsRecoveryCodeAndConsumesIt(t *testing.T) {
 	before := len(f.user(t).RecoveryCodes)
 
 	token := f.requestToken(t)
-	if _, err := f.auth.ResetPassword(context.Background(), token, "brandnewpassword1234", recoveryCodes[0]); err != nil {
+	if _, err := f.auth.ResetPassword(context.Background(), token, "brandnewPassword1234!", recoveryCodes[0]); err != nil {
 		t.Fatalf("ResetPassword with a recovery code failed: %v", err)
 	}
 
@@ -247,7 +247,7 @@ func TestResetPasswordWithoutValidatorFailsClosed(t *testing.T) {
 	ctx := context.Background()
 	if _, _, err := auth.Register(ctx, service.RegisterInput{
 		Email:    "pilot@example.com",
-		Password: "originalpassword1234",
+		Password: "originalPassword1234!",
 		Name:     "Test Pilot",
 	}); err != nil {
 		t.Fatalf("Register failed: %v", err)
@@ -266,7 +266,7 @@ func TestResetPasswordWithoutValidatorFailsClosed(t *testing.T) {
 		t.Fatalf("RequestPasswordReset failed: %v", err)
 	}
 
-	_, err = auth.ResetPassword(ctx, reset.Token, "brandnewpassword1234", "123456")
+	_, err = auth.ResetPassword(ctx, reset.Token, "brandnewPassword1234!", "123456")
 	if err != service.ErrTwoFactorUnavailable {
 		t.Fatalf("Expected ErrTwoFactorUnavailable, got %v", err)
 	}
@@ -276,7 +276,7 @@ func TestResetPasswordWithoutTwoFactorNeedsNoCode(t *testing.T) {
 	f := newResetFixture(t)
 	token := f.requestToken(t)
 
-	result, err := f.auth.ResetPassword(context.Background(), token, "brandnewpassword1234", "")
+	result, err := f.auth.ResetPassword(context.Background(), token, "brandnewPassword1234!", "")
 	if err != nil {
 		t.Fatalf("ResetPassword failed: %v", err)
 	}

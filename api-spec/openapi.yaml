@@ -211,8 +211,11 @@ paths:
                   type: string
                   format: password
                   minLength: 12
+                  maxLength: 72
                   example: SecurePass123!
-                  description: Must be at least 12 characters
+                  description: >-
+                    12–72 characters, containing at least one lowercase letter,
+                    one uppercase letter, one digit and one special character.
                 name:
                   type: string
                   minLength: 1
@@ -476,7 +479,11 @@ paths:
                   type: string
                   format: password
                   minLength: 12
-                  description: The new password (minimum 12 characters)
+                  maxLength: 72
+                  description: >-
+                    The new password. 12–72 characters, containing at least one
+                    lowercase letter, one uppercase letter, one digit and one
+                    special character.
       responses:
         '204':
           description: Password changed successfully
@@ -553,7 +560,11 @@ paths:
                   type: string
                   format: password
                   minLength: 12
-                  description: The new password (minimum 12 characters)
+                  maxLength: 72
+                  description: >-
+                    The new password. 12–72 characters, containing at least one
+                    lowercase letter, one uppercase letter, one digit and one
+                    special character.
                 twoFactorCode:
                   type: string
                   description: |

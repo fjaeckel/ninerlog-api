@@ -23,7 +23,7 @@ func TestImportDataJSON_RejectsOversizedBackup(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"restore@example.com","password":"password1234","name":"R"}`))
+		bytes.NewBufferString(`{"email":"restore@example.com","password":"Password1234!","name":"R"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.RegisterUser(c)
 	u, err := userRepo.GetByEmail(c.Request.Context(), "restore@example.com")
@@ -61,7 +61,7 @@ func TestImportDataJSON_AcceptsBackupWithinCaps(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"restore2@example.com","password":"password1234","name":"R"}`))
+		bytes.NewBufferString(`{"email":"restore2@example.com","password":"Password1234!","name":"R"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.RegisterUser(c)
 	u, _ := userRepo.GetByEmail(c.Request.Context(), "restore2@example.com")
@@ -85,7 +85,7 @@ func TestImportDataJSON_CapsEachEntityList(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"restore3@example.com","password":"password1234","name":"R"}`))
+		bytes.NewBufferString(`{"email":"restore3@example.com","password":"Password1234!","name":"R"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.RegisterUser(c)
 	u, _ := userRepo.GetByEmail(c.Request.Context(), "restore3@example.com")

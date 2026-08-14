@@ -48,6 +48,33 @@ All tokens are signed with **HS256**. Access and 2FA tokens use `JWT_SECRET`; re
 
 ---
 
+## Password policy
+
+Every flow that sets a local password — registration, password change and
+password reset — validates it against the same policy
+(`validatePassword` in `internal/service/password_policy.go`):
+
+| Rule | Detail |
+| --- | --- |
+| Length | 12–72 bytes. The upper bound is bcrypt's: it silently truncates beyond 72 bytes, so a longer password would hash to the same digest as its prefix. |
+| Lowercase | At least one lowercase letter |
+| Uppercase | At least one uppercase (or titlecase) letter |
+| Digit | At least one decimal digit |
+| Special | At least one rune that is neither a letter nor a number — punctuation, symbols and spaces all qualify |
+
+A length violation returns `ErrPasswordTooShort` / `ErrPasswordTooLong`; a
+missing character class returns `ErrPasswordTooWeak`. All three map to `400`.
+
+The policy applies only to passwords being **set**. Existing passwords are never
+re-validated at login, so accounts created before this policy keep working until
+their owner changes the password.
+
+The frontend mirrors these rules in `src/lib/passwordStrength.ts` to drive its
+signup strength meter. The two must stay in step — the client is advisory, the
+service is authoritative.
+
+---
+
 ## Authentication Flows
 
 ### Registration
@@ -60,14 +87,14 @@ POST /api/v1/auth/register
 ```json
 {
   "email": "pilot@example.com",
-  "password": "securepilotpass",
+  "password": "SecurePass123!",
   "name": "Jane Doe"
 }
 ```
 
 **Validation:**
 - Email — required, ≤255 characters, valid format
-- Password — required, **≥12 characters**, ≤72 characters (bcrypt limit)
+- Password — required, must satisfy the [password policy](#password-policy)
 - Name — required
 
 **201 Created:**
@@ -299,14 +326,15 @@ Requires authentication.
 **Request:**
 ```json
 {
-  "currentPassword": "oldpassword",
-  "newPassword": "newsecurepassword"
+  "currentPassword": "OldSecurePass1!",
+  "newPassword": "NewSecurePass2!"
 }
 ```
 
 **204 No Content** on success. All refresh tokens are revoked, forcing re-login on all devices.
 
-**Errors:** `401` wrong current password, `400` new password doesn't meet requirements.
+**Errors:** `401` wrong current password, `400` new password fails the
+[password policy](#password-policy).
 
 ---
 

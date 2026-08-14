@@ -421,7 +421,7 @@ func authenticatedContext(w *httptest.ResponseRecorder, userID uuid.UUID) *gin.C
 func TestRegisterUser_Success(t *testing.T) {
 	h, _ := setupTestHandler()
 
-	body := `{"email":"test@example.com","password":"password1234","name":"Test User"}`
+	body := `{"email":"test@example.com","password":"Password1234!","name":"Test User"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register", bytes.NewBufferString(body))
@@ -451,7 +451,7 @@ func TestRegisterUser_Success_WithSMTPConfigured(t *testing.T) {
 		From: "noreply@example.com",
 	}))
 
-	body := `{"email":"smtp@example.com","password":"password1234","name":"SMTP User"}`
+	body := `{"email":"smtp@example.com","password":"Password1234!","name":"SMTP User"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register", bytes.NewBufferString(body))
@@ -473,7 +473,7 @@ func TestRegisterUser_Success_WithSMTPConfigured(t *testing.T) {
 func TestRegisterUser_DuplicateEmail(t *testing.T) {
 	h, _ := setupTestHandler()
 
-	body := `{"email":"test@example.com","password":"password1234","name":"Test User"}`
+	body := `{"email":"test@example.com","password":"Password1234!","name":"Test User"}`
 
 	// First registration
 	w1 := httptest.NewRecorder()
@@ -529,7 +529,7 @@ func TestLoginUser_Success(t *testing.T) {
 	h, _ := setupTestHandler()
 
 	// Register first
-	regBody := `{"email":"login@example.com","password":"password1234","name":"Login User"}`
+	regBody := `{"email":"login@example.com","password":"Password1234!","name":"Login User"}`
 	w1 := httptest.NewRecorder()
 	c1, _ := gin.CreateTestContext(w1)
 	c1.Request = httptest.NewRequest("POST", "/auth/register", bytes.NewBufferString(regBody))
@@ -537,7 +537,7 @@ func TestLoginUser_Success(t *testing.T) {
 	h.RegisterUser(c1)
 
 	// Login
-	loginBody := `{"email":"login@example.com","password":"password1234"}`
+	loginBody := `{"email":"login@example.com","password":"Password1234!"}`
 	w2 := httptest.NewRecorder()
 	c2, _ := gin.CreateTestContext(w2)
 	c2.Request = httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(loginBody))
@@ -552,7 +552,7 @@ func TestLoginUser_Success(t *testing.T) {
 func TestLoginUser_InvalidCredentials(t *testing.T) {
 	h, _ := setupTestHandler()
 
-	body := `{"email":"nobody@example.com","password":"password1234"}`
+	body := `{"email":"nobody@example.com","password":"Password1234!"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(body))

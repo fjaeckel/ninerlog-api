@@ -44,6 +44,7 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 			return
 		}
 		if err == service.ErrPasswordTooShort || err == service.ErrPasswordTooLong ||
+			err == service.ErrPasswordTooWeak ||
 			err == service.ErrEmailRequired || err == service.ErrPasswordRequired ||
 			err == service.ErrNameRequired || err == service.ErrInvalidEmail ||
 			err == service.ErrEmailTooLong {
@@ -312,7 +313,8 @@ func (h *APIHandler) ChangePassword(c *gin.Context) {
 			h.sendError(c, http.StatusUnauthorized, "Current password is incorrect")
 			return
 		}
-		if err == service.ErrPasswordTooShort || err == service.ErrPasswordTooLong {
+		if err == service.ErrPasswordTooShort || err == service.ErrPasswordTooLong ||
+			err == service.ErrPasswordTooWeak {
 			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -458,7 +460,8 @@ func (h *APIHandler) ResetPassword(c *gin.Context) {
 			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}
-		if errors.Is(err, service.ErrPasswordTooShort) || errors.Is(err, service.ErrPasswordTooLong) {
+		if errors.Is(err, service.ErrPasswordTooShort) || errors.Is(err, service.ErrPasswordTooLong) ||
+			errors.Is(err, service.ErrPasswordTooWeak) {
 			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}
