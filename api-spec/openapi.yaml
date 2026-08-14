@@ -3171,6 +3171,17 @@ paths:
         Every logbook page carries the three-row totals block (total this page /
         total from previous pages / total time) and a per-page certification and
         signature block, so each printed page can be individually signed.
+
+        If the pilot has recorded prior experience (`PUT /users/me/baseline`),
+        those hours open the balance: they are carried into the first
+        "total from previous pages" row and into every running total and the
+        summary page after it, the way a paper logbook carries the previous
+        book's closing totals forward. A snapshot records no single-/multi-engine
+        split, no FSTD session time and no approach or hold counts, so those
+        columns cover logged flights only; a footer line on every page and a note
+        on the summary page disclose both facts. A `logbookLicenseId`-filtered
+        export covers part of the logbook, so the career-wide snapshot is left
+        out of it.
       operationId: exportFlightsPDF
       security:
         - bearerAuth: []
