@@ -422,6 +422,23 @@ PILOT'S SIGNATURE and DATE rules), so each printed page — or the right-hand
 page of each spread — can be individually signed. Exports are capped at
 10 000 flights per PDF.
 
+**Prior experience opens the balance.** If the pilot has recorded an
+initial-hours snapshot (`PUT /users/me/baseline`), those hours are carried
+into the first TOTAL FROM PREVIOUS PAGES row and into every running total,
+the TOTAL TIME rows and the summary page after it — the way a paper logbook
+carries the previous book's closing totals forward. Without it the TOTAL TIME
+row of a pilot who joined mid-career would understate their real total time.
+
+A snapshot records fewer figures than a logbook sheet has columns: it holds no
+single-/multi-engine split, no FSTD session time, no FAA actual-vs-simulated
+instrument split and no approach or hold counts, so those columns count logged
+flights only rather than being given an invented breakdown. Both facts are
+disclosed on the document itself — a footer line on every page ("Totals include
+*h:mm* brought forward (as of *date*)") and a note under the summary table.
+
+A `logbookLicenseId`-filtered export covers only part of the logbook, so the
+career-wide snapshot is deliberately left out of it.
+
 ### Admin
 User management (list, disable/enable, unlock, reset 2FA, delete), platform stats,
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,

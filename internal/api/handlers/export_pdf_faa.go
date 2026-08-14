@@ -98,6 +98,27 @@ func (t *faaTotals) add(f *models.Flight) {
 	t.total += f.TotalTime
 }
 
+// addBaseline opens the balance with the pilot's prior experience, the way a
+// paper logbook carries the old book's closing totals into the first page.
+// act, sim, appr and holds stay untouched: a baseline's IFR figure is a single
+// number that cannot be split into actual and simulated instrument time, and
+// approach and hold counts are not recorded at all.
+func (t *faaTotals) addBaseline(b *models.FlightBaseline) {
+	if !baselineApplies(b) {
+		return
+	}
+	t.solo += b.SoloMinutes
+	t.pic += b.PICMinutes
+	t.sic += b.SICMinutes
+	t.dual += b.DualMinutes
+	t.instr += b.DualGivenMinutes
+	t.xc += b.CrossCountryMinutes
+	t.night += b.NightMinutes
+	t.ldgD += b.LandingsDay
+	t.ldgN += b.LandingsNight
+	t.total += b.TotalMinutes
+}
+
 func (t *faaTotals) addAll(o faaTotals) {
 	t.solo += o.solo
 	t.pic += o.pic
@@ -133,18 +154,19 @@ func faaRemarks(f *models.Flight, max int) string {
 	return truncRunes(flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview), max)
 }
 
-func generateFAAPDF(flights []*models.Flight, g pageGeometry, userName, layout string) *fpdf.Fpdf {
+func generateFAAPDF(flights []*models.Flight, g pageGeometry, userName, layout string, b *models.FlightBaseline) *fpdf.Fpdf {
 	d := newDoc(g, faaRegulation, userName, certFAA)
+	d.note = baselineFooterNote(b)
 	if layout == layoutSingle {
-		renderFAASingle(d, flights)
+		renderFAASingle(d, flights, b)
 	} else {
-		renderFAASpread(d, flights)
+		renderFAASpread(d, flights, b)
 	}
-	addGrandSummaryPage(d, flights)
+	addGrandSummaryPage(d, flights, b)
 	return d.pdf
 }
 
-func renderFAASpread(d *pdfDoc, flights []*models.Flight) {
+func renderFAASpread(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseline) {
 	g, pdf := d.g, d.pdf
 	leftW := scaleWidths(faaLeftBaseW, g.usableWidth())
 	rightW := scaleWidths(faaRightBaseW, g.usableWidth())
@@ -158,7 +180,10 @@ func renderFAASpread(d *pdfDoc, flights []*models.Flight) {
 		d.addBlankPage()
 	}
 
+	// Opened with whatever the pilot brought into this logbook so the first
+	// "previous pages" row states their prior experience rather than zero.
 	var cum faaTotals
+	cum.addBaseline(b)
 
 	for startIdx := 0; startIdx < len(flights); startIdx += rpp {
 		endIdx := startIdx + rpp
@@ -254,7 +279,7 @@ func renderFAASpread(d *pdfDoc, flights []*models.Flight) {
 	}
 }
 
-func renderFAASingle(d *pdfDoc, flights []*models.Flight) {
+func renderFAASingle(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseline) {
 	g, pdf := d.g, d.pdf
 	colW := scaleWidths(faaSingleBaseW, g.usableWidth())
 
@@ -262,7 +287,9 @@ func renderFAASingle(d *pdfDoc, flights []*models.Flight) {
 	totalPages := (len(flights) + rpp - 1) / rpp
 	pageNum := 0
 
+	// Opened with the pilot's prior experience — see renderFAASpread.
 	var cum faaTotals
+	cum.addBaseline(b)
 
 	for startIdx := 0; startIdx < len(flights); startIdx += rpp {
 		endIdx := startIdx + rpp

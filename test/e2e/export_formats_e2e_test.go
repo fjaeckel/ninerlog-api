@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestExportCSVFormats verifies CSV export with EASA, FAA, and standard column formats.
@@ -245,4 +246,68 @@ func TestExportPDFFormats(t *testing.T) {
 		c.ClearToken()
 		assertStatus(t, c.GET("/exports/pdf?format=faa"), http.StatusUnauthorized)
 	})
+}
+
+// TestExportPDFCarriesPriorExperience covers the initial-hours snapshot in the
+// printed logbook: hours flown before this logbook was started have to open the
+// balance on the sheets, the way a paper logbook carries the previous book's
+// closing totals into its first "total from previous pages" row. Before this,
+// a pilot who joined mid-career got a signable document whose "TOTAL TIME"
+// row understated their real total time.
+func TestExportPDFCarriesPriorExperience(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("pdf-baseline"), "SecurePass123!", "PDFBaseline")
+
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": pastDate(3), "aircraftReg": "D-EPDF", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+		"picName": "Self",
+	}), http.StatusCreated)
+
+	formats := []string{"easa", "faa", "summary"}
+	exportSize := func(t *testing.T, format string) int {
+		t.Helper()
+		resp := c.GET("/exports/pdf?format=" + format)
+		requireStatus(t, resp, http.StatusOK)
+		if len(resp.Body) < 100 || !strings.HasPrefix(string(resp.Body[:5]), "%PDF-") {
+			t.Fatalf("%s export is not a valid PDF (%d bytes)", format, len(resp.Body))
+		}
+		return len(resp.Body)
+	}
+
+	loggedOnly := make(map[string]int, len(formats))
+	for _, format := range formats {
+		loggedOnly[format] = exportSize(t, format)
+	}
+
+	// 500 h carried over from a paper logbook, cut off three years ago.
+	requireStatus(t, c.PUT("/users/me/baseline", map[string]interface{}{
+		"baselineDate":  time.Now().AddDate(-3, 0, 0).Format("2006-01-02"),
+		"totalFlights":  400,
+		"totalMinutes":  30000,
+		"picMinutes":    24000,
+		"nightMinutes":  1800,
+		"landingsDay":   600,
+		"landingsNight": 90,
+	}), http.StatusOK)
+
+	// The seeded balances, the footer disclosure on every page and the summary
+	// note all add content, so every format's export grows once the snapshot
+	// exists — a format that ignored the baseline would come back unchanged.
+	for _, format := range formats {
+		if got := exportSize(t, format); got <= loggedOnly[format] {
+			t.Errorf("%s export ignored the recorded prior experience: %d bytes with a baseline, %d without",
+				format, got, loggedOnly[format])
+		}
+	}
+
+	// Deleting the snapshot returns every export to logged flights only.
+	requireStatus(t, c.DELETE("/users/me/baseline"), http.StatusNoContent)
+	for _, format := range formats {
+		// Only the embedded creation timestamp may differ.
+		if diff := exportSize(t, format) - loggedOnly[format]; diff < -64 || diff > 64 {
+			t.Errorf("%s export did not return to its pre-baseline size after the snapshot was deleted", format)
+		}
+	}
 }
