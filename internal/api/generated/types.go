@@ -1230,6 +1230,24 @@ func (e ExportFlightsPDFParamsPageSize) Valid() bool {
 	}
 }
 
+// Defines values for ExportFlightsPDFParamsLayout.
+const (
+	Single ExportFlightsPDFParamsLayout = "single"
+	Spread ExportFlightsPDFParamsLayout = "spread"
+)
+
+// Valid indicates whether the value is a known member of the ExportFlightsPDFParamsLayout enum.
+func (e ExportFlightsPDFParamsLayout) Valid() bool {
+	switch e {
+	case Single:
+		return true
+	case Spread:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListFlightsParamsSortBy.
 const (
 	ListFlightsParamsSortByCreatedAt ListFlightsParamsSortBy = "createdAt"
@@ -5119,11 +5137,14 @@ type ExportFlightsPDFParams struct {
 	// LogbookLicenseId Filter flights for a specific logbook license
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
 
-	// Format PDF format — easa (AMC1 FCL.050 two-page spread), faa (ASA/Jeppesen layout), or summary (simplified totals)
+	// Format PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 / ASA-Jeppesen columns), or summary (simplified totals)
 	Format *ExportFlightsPDFParamsFormat `form:"format,omitempty" json:"format,omitempty"`
 
-	// PageSize Page size for the generated PDF. All sizes are rendered in landscape orientation. EASA format is laid out as a book-style two-page spread (left + right) intended for double-sided printing.
+	// PageSize Page size for the generated PDF. All sizes are rendered in landscape orientation.
 	PageSize *ExportFlightsPDFParamsPageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
+
+	// Layout Page layout. `spread` (default) lays the logbook out as a book-style two-page spread (left + right facing pages) intended for double-sided printing, in any page size; intentionally-blank filler pages (one at the start, one before the totals summary) keep each spread on facing pages when printed duplex. `single` renders all columns on one landscape page per batch of flights — designed for single-page A4 landscape printing. Ignored for the summary format.
+	Layout *ExportFlightsPDFParamsLayout `form:"layout,omitempty" json:"layout,omitempty"`
 }
 
 // ExportFlightsPDFParamsFormat defines parameters for ExportFlightsPDF.
@@ -5131,6 +5152,9 @@ type ExportFlightsPDFParamsFormat string
 
 // ExportFlightsPDFParamsPageSize defines parameters for ExportFlightsPDF.
 type ExportFlightsPDFParamsPageSize string
+
+// ExportFlightsPDFParamsLayout defines parameters for ExportFlightsPDF.
+type ExportFlightsPDFParamsLayout string
 
 // ListFlightsParams defines parameters for ListFlights.
 type ListFlightsParams struct {

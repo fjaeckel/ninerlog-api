@@ -3164,7 +3164,13 @@ paths:
     get:
       tags: [Export]
       summary: Export flights as PDF logbook
-      description: Export all flight data as a formatted PDF document. Supports EASA AMC1 FCL.050, FAA (ASA/Jeppesen), and summary formats.
+      description: |
+        Export all flight data as a formatted PDF document. Supports EASA AMC1 FCL.050
+        and FAA 14 CFR § 61.51 (ASA/Jeppesen-style) logbook layouts plus a summary format.
+
+        Every logbook page carries the three-row totals block (total this page /
+        total from previous pages / total time) and a per-page certification and
+        signature block, so each printed page can be individually signed.
       operationId: exportFlightsPDF
       security:
         - bearerAuth: []
@@ -3177,18 +3183,32 @@ paths:
             format: uuid
         - name: format
           in: query
-          description: PDF format — easa (AMC1 FCL.050 two-page spread), faa (ASA/Jeppesen layout), or summary (simplified totals)
+          description: PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 / ASA-Jeppesen columns), or summary (simplified totals)
           schema:
             type: string
             enum: [easa, faa, summary]
             default: easa
         - name: page_size
           in: query
-          description: Page size for the generated PDF. All sizes are rendered in landscape orientation. EASA format is laid out as a book-style two-page spread (left + right) intended for double-sided printing.
+          description: Page size for the generated PDF. All sizes are rendered in landscape orientation.
           schema:
             type: string
             enum: [a4, a5, letter]
             default: a4
+        - name: layout
+          in: query
+          description: >-
+            Page layout. `spread` (default) lays the logbook out as a book-style
+            two-page spread (left + right facing pages) intended for double-sided
+            printing, in any page size; intentionally-blank filler pages (one at
+            the start, one before the totals summary) keep each spread on facing
+            pages when printed duplex. `single` renders all columns on one
+            landscape page per batch of flights — designed for single-page A4
+            landscape printing. Ignored for the summary format.
+          schema:
+            type: string
+            enum: [spread, single]
+            default: spread
       responses:
         '200':
           description: PDF file download

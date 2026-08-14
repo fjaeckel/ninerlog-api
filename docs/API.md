@@ -397,6 +397,27 @@ accepts `updatedSince`.
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
 history) and export to CSV, JSON, and PDF.
 
+`GET /exports/pdf` renders the logbook as a print-ready PDF:
+
+- `format` — `easa` (AMC1 FCL.050 columns, times in h:mm), `faa`
+  (14 CFR § 61.51 / ASA-Jeppesen columns, decimal hours), or `summary`
+  (grand totals only). Default `easa`.
+- `layout` — `spread` (default) is a book-style two-page spread (left + right
+  facing pages) for double-sided printing; intentionally-blank filler pages
+  (one at the start, one before the totals summary) keep each spread on facing
+  pages when printed duplex. `single` condenses all columns onto one landscape
+  page per batch of flights, designed for single-page A4 landscape printing.
+  Ignored for `summary`.
+- `page_size` — `a4` (default), `a5`, or `letter`; always landscape.
+- `logbookLicenseId` — restrict flights to the aircraft classes of one licence.
+
+Every logbook page carries the three-row totals block (TOTAL THIS PAGE /
+TOTAL FROM PREVIOUS PAGES / TOTAL TIME) and a certification + signature strip
+("I certify that the entries in this log are true[.and correct.]" with
+PILOT'S SIGNATURE and DATE rules), so each printed page — or the right-hand
+page of each spread — can be individually signed. Exports are capped at
+10 000 flights per PDF.
+
 ### Admin
 User management (list, disable/enable, unlock, reset 2FA, delete), platform stats,
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,

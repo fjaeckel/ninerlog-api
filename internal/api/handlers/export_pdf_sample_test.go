@@ -29,19 +29,30 @@ func TestGenerateSamplePDFs(t *testing.T) {
 
 	cases := []struct {
 		fmtName  string
+		layout   string
 		pageSize string
 	}{
-		{"easa", "a4"},
-		{"easa", "a5"},
-		{"easa", "letter"},
-		{"faa", "a4"},
-		{"faa", "letter"},
-		{"summary", "a4"},
+		{"easa", "spread", "a4"},
+		{"easa", "spread", "a5"},
+		{"easa", "spread", "letter"},
+		{"easa", "single", "a4"},
+		{"easa", "single", "a5"},
+		{"easa", "single", "letter"},
+		{"faa", "spread", "a4"},
+		{"faa", "spread", "a5"},
+		{"faa", "spread", "letter"},
+		{"faa", "single", "a4"},
+		{"faa", "single", "a5"},
+		{"faa", "single", "letter"},
+		{"summary", "", "a4"},
 	}
 
 	for _, c := range cases {
 		geom := geometryFor(c.pageSize)
-		path := fmt.Sprintf("%s/sample_%s_%s.pdf", outDir, c.fmtName, c.pageSize)
+		path := fmt.Sprintf("%s/sample_%s_%s_%s.pdf", outDir, c.fmtName, c.layout, c.pageSize)
+		if c.fmtName == "summary" {
+			path = fmt.Sprintf("%s/sample_summary_%s.pdf", outDir, c.pageSize)
+		}
 		f, err := os.Create(path)
 		if err != nil {
 			t.Fatal(err)
@@ -49,16 +60,18 @@ func TestGenerateSamplePDFs(t *testing.T) {
 		var doc *fpdf.Fpdf
 		switch c.fmtName {
 		case "faa":
-			doc = generateFAAPDF(flights, geom)
+			doc = generateFAAPDF(flights, geom, "Sample Pilot", c.layout)
 		case "summary":
-			doc = generateSummaryPDF(flights, geom)
+			doc = generateSummaryPDF(flights, geom, "Sample Pilot")
 		case "easa":
-			doc = renderEASA(flights, geom, map[string]string{}, "")
+			doc = renderEASA(flights, geom, map[string]string{}, "Sample Pilot", c.layout)
 		}
 		if err := doc.Output(f); err != nil {
 			t.Fatal(err)
 		}
-		f.Close()
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
 		t.Logf("wrote %s", path)
 	}
 }
