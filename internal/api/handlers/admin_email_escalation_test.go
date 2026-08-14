@@ -36,7 +36,7 @@ func TestUpdateCurrentUser_EmailChangeRequiresPassword(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"attacker@evil.com","password":"password1234","name":"A"}`))
+		bytes.NewBufferString(`{"email":"attacker@evil.com","password":"Password1234!","name":"A"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.RegisterUser(c)
 
@@ -68,7 +68,7 @@ func TestUpdateCurrentUser_EmailChangeClearsVerifiedAndDeniesAdmin(t *testing.T)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"attacker2@evil.com","password":"password1234","name":"A"}`))
+		bytes.NewBufferString(`{"email":"attacker2@evil.com","password":"Password1234!","name":"A"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.RegisterUser(c)
 
@@ -81,7 +81,7 @@ func TestUpdateCurrentUser_EmailChangeClearsVerifiedAndDeniesAdmin(t *testing.T)
 	w = httptest.NewRecorder()
 	c = authenticatedContext(w, u.ID)
 	c.Request = httptest.NewRequest("PATCH", "/users/me",
-		bytes.NewBufferString(`{"email":"admin@test.com","currentPassword":"password1234"}`))
+		bytes.NewBufferString(`{"email":"admin@test.com","currentPassword":"Password1234!"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.UpdateCurrentUser(c)
 
@@ -117,7 +117,7 @@ func TestUpdateCurrentUser_RejectsNonRoundTrippableEmail(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"bs@example.com","password":"password1234","name":"B"}`))
+		bytes.NewBufferString(`{"email":"bs@example.com","password":"Password1234!","name":"B"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.RegisterUser(c)
 	u, _ := userRepo.GetByEmail(c.Request.Context(), "bs@example.com")
@@ -126,7 +126,7 @@ func TestUpdateCurrentUser_RejectsNonRoundTrippableEmail(t *testing.T) {
 	c = authenticatedContext(w, u.ID)
 	body, _ := json.Marshal(map[string]string{
 		"email":           `"back\\slash"@evil.test`,
-		"currentPassword": "password1234",
+		"currentPassword": "Password1234!",
 	})
 	c.Request = httptest.NewRequest("PATCH", "/users/me", bytes.NewBuffer(body))
 	c.Request.Header.Set("Content-Type", "application/json")

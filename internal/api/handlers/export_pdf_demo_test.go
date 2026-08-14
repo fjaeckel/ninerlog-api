@@ -46,7 +46,7 @@ func TestGenerateExportDemoPDF(t *testing.T) {
 	geom := geometryFor("A4")
 
 	// EASA two-page spread (the format that showed the SELF bug).
-	easaPDF := renderEASA(flights, geom, regToClass, userName, layoutSpread)
+	easaPDF := renderEASA(flights, geom, regToClass, userName, layoutSpread, nil)
 	easaPath := filepath.Join(outDir, "easa-pic-name-variations.pdf")
 	if err := easaPDF.OutputFileAndClose(easaPath); err != nil {
 		t.Fatalf("write EASA PDF: %v", err)
@@ -54,7 +54,7 @@ func TestGenerateExportDemoPDF(t *testing.T) {
 	t.Logf("EASA PDF:    %s", easaPath)
 
 	// FAA layout.
-	faaPDF := generateFAAPDF(flights, geom, userName, layoutSpread)
+	faaPDF := generateFAAPDF(flights, geom, userName, layoutSpread, nil)
 	faaPath := filepath.Join(outDir, "faa-pic-name-variations.pdf")
 	if err := faaPDF.OutputFileAndClose(faaPath); err != nil {
 		t.Fatalf("write FAA PDF: %v", err)
@@ -62,7 +62,7 @@ func TestGenerateExportDemoPDF(t *testing.T) {
 	t.Logf("FAA PDF:     %s", faaPath)
 
 	// Summary layout.
-	sumPDF := generateSummaryPDF(flights, geom, userName)
+	sumPDF := generateSummaryPDF(flights, geom, userName, nil)
 	sumPath := filepath.Join(outDir, "summary-pic-name-variations.pdf")
 	if err := sumPDF.OutputFileAndClose(sumPath); err != nil {
 		t.Fatalf("write summary PDF: %v", err)

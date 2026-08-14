@@ -29,6 +29,7 @@ var (
 	ErrEmailNotVerified   = errors.New("email address not verified")
 	ErrPasswordTooShort   = errors.New("password must be at least 12 characters")
 	ErrPasswordTooLong    = errors.New("password must not exceed 72 characters")
+	ErrPasswordTooWeak    = errors.New("password must contain at least one lowercase letter, one uppercase letter, one digit and one special character")
 	ErrEmailRequired      = errors.New("email is required")
 	ErrPasswordRequired   = errors.New("password is required")
 	ErrNameRequired       = errors.New("name is required")
@@ -138,11 +139,8 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*model
 	if _, err := mail.ParseAddress(input.Email); err != nil {
 		return nil, "", ErrInvalidEmail
 	}
-	if len(input.Password) < 12 {
-		return nil, "", ErrPasswordTooShort
-	}
-	if len(input.Password) > 72 {
-		return nil, "", ErrPasswordTooLong
+	if err := validatePassword(input.Password); err != nil {
+		return nil, "", err
 	}
 
 	// Normalize preferred locale; fall back to the default for unknown values.
@@ -562,11 +560,8 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword, two
 	}
 
 	// Validate new password
-	if len(newPassword) < 12 {
-		return nil, ErrPasswordTooShort
-	}
-	if len(newPassword) > 72 {
-		return nil, ErrPasswordTooLong
+	if err := validatePassword(newPassword); err != nil {
+		return nil, err
 	}
 
 	if user.TwoFactorEnabled {
@@ -749,8 +744,8 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	}
 
 	// Validate new password
-	if len(newPassword) < 12 {
-		return ErrPasswordTooShort
+	if err := validatePassword(newPassword); err != nil {
+		return err
 	}
 
 	// Hash new password

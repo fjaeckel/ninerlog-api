@@ -115,7 +115,97 @@ func easaFSTDTotal(f *models.Flight) int {
 	return 0
 }
 
-func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c *gin.Context, userID uuid.UUID, layout string) *fpdf.Fpdf {
+// easaTotals accumulates every numeric EASA column. The left and right pages
+// of a spread print disjoint slices of the same struct, so one accumulator
+// keeps the two halves of a spread from drifting apart, and the single-page
+// layout reuses it unchanged.
+type easaTotals struct {
+	se, me, mp, total                       int
+	ldgD, ldgN                              int
+	night, ifr, pic, sic, dual, instr, fstd int
+}
+
+func (t *easaTotals) add(rd easaRow) {
+	f := rd.f
+	t.se += rd.spSE
+	t.me += rd.spME
+	t.mp += rd.mp
+	t.total += f.TotalTime
+	t.ldgD += f.LandingsDay
+	t.ldgN += f.LandingsNight
+	t.night += f.NightTime
+	t.ifr += rd.ifr
+	t.pic += f.PICTime
+	t.sic += f.SICTime
+	t.dual += f.DualTime
+	t.instr += f.DualGivenTime
+	t.fstd += easaFSTDTotal(f)
+}
+
+func (t *easaTotals) addAll(o easaTotals) {
+	t.se += o.se
+	t.me += o.me
+	t.mp += o.mp
+	t.total += o.total
+	t.ldgD += o.ldgD
+	t.ldgN += o.ldgN
+	t.night += o.night
+	t.ifr += o.ifr
+	t.pic += o.pic
+	t.sic += o.sic
+	t.dual += o.dual
+	t.instr += o.instr
+	t.fstd += o.fstd
+}
+
+// addBaseline opens the balance with the pilot's prior experience, the way a
+// paper logbook carries the old book's closing totals into the first sheet.
+// se, me and fstd stay untouched — a baseline records neither the
+// single-/multi-engine split nor FSTD session time.
+func (t *easaTotals) addBaseline(b *models.FlightBaseline) {
+	if !baselineApplies(b) {
+		return
+	}
+	t.mp += b.MultiPilotMinutes
+	t.total += b.TotalMinutes
+	t.ldgD += b.LandingsDay
+	t.ldgN += b.LandingsNight
+	t.night += b.NightMinutes
+	t.ifr += b.IFRMinutes
+	t.pic += b.PICMinutes
+	t.sic += b.SICMinutes
+	t.dual += b.DualMinutes
+	t.instr += b.DualGivenMinutes
+}
+
+// Value cells for the three totals rows, one builder per layout so a page's
+// "this page", "previous pages" and "total time" rows can never disagree about
+// column order.
+func easaLeftTotCells(t easaTotals) []string {
+	return []string{fmtDec(t.se), fmtDec(t.me), fmtDec(t.mp), fmtDec(t.total), ""}
+}
+
+func easaRightTotCells(t easaTotals) []string {
+	return []string{
+		fmt.Sprintf("%d", t.ldgD), fmt.Sprintf("%d", t.ldgN),
+		fmtDec(t.night), fmtDec(t.ifr),
+		fmtDec(t.pic), fmtDec(t.sic),
+		fmtDec(t.dual), fmtDec(t.instr),
+		"", "", fmtDec(t.fstd), "",
+	}
+}
+
+func easaSingleTotCells(t easaTotals) []string {
+	return []string{
+		fmtDec(t.se), fmtDec(t.me), fmtDec(t.mp), fmtDec(t.total), "",
+		fmt.Sprintf("%d", t.ldgD), fmt.Sprintf("%d", t.ldgN),
+		fmtDec(t.night), fmtDec(t.ifr),
+		fmtDec(t.pic), fmtDec(t.sic), fmtDec(t.dual), fmtDec(t.instr),
+		"", fmtDec(t.fstd), "",
+	}
+}
+
+func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c *gin.Context, userID uuid.UUID, layout string, b *models.FlightBaseline) *fpdf.Fpdf {
 	aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 	regToClass := make(map[string]string)
 	for _, ac := range aircraftList {
@@ -124,23 +214,24 @@ func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c 
 		}
 	}
 	userName := h.getUserNameFromContext(c)
-	return renderEASA(flights, g, regToClass, userName, layout)
+	return renderEASA(flights, g, regToClass, userName, layout, b)
 }
 
 // renderEASA performs the actual EASA PDF rendering. Extracted so tests can
 // invoke it without a full APIHandler.
-func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]string, userName, layout string) *fpdf.Fpdf {
+func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]string, userName, layout string, b *models.FlightBaseline) *fpdf.Fpdf {
 	d := newDoc(g, easaRegulation, userName, certEASA)
+	d.note = baselineFooterNote(b)
 	if layout == layoutSingle {
-		renderEASASingle(d, flights, regToClass, userName)
+		renderEASASingle(d, flights, regToClass, userName, b)
 	} else {
-		renderEASASpread(d, flights, regToClass, userName)
+		renderEASASpread(d, flights, regToClass, userName, b)
 	}
-	addGrandSummaryPage(d, flights)
+	addGrandSummaryPage(d, flights, b)
 	return d.pdf
 }
 
-func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string]string, userName string) {
+func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string]string, userName string, b *models.FlightBaseline) {
 	g, pdf := d.g, d.pdf
 	leftW := scaleWidths(easaLeftBaseW, g.usableWidth())
 	rightW := scaleWidths(easaRightBaseW, g.usableWidth())
@@ -154,13 +245,11 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 		d.addBlankPage()
 	}
 
-	// Cumulative running totals across all spreads. Left- and right-page
-	// columns differ, so they are tracked separately.
-	var (
-		cumLSE, cumLME, cumLMP, cumLTotal                                   int
-		cumRLdgD, cumRLdgN                                                  int
-		cumRNight, cumRIFR, cumRPIC, cumRSIC, cumRDual, cumRInstr, cumRFSTD int
-	)
+	// Cumulative running total across all spreads, opened with whatever the
+	// pilot brought into this logbook so the first "previous pages" row states
+	// their prior experience rather than zero.
+	var cum easaTotals
+	cum.addBaseline(b)
 
 	for startIdx := 0; startIdx < len(flights); startIdx += rpp {
 		endIdx := startIdx + rpp
@@ -170,11 +259,17 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 		spreadNum++
 		rows := buildEASARows(flights[startIdx:endIdx], regToClass, userName, 38)
 
+		var pt easaTotals
+		for _, rd := range rows {
+			pt.add(rd)
+		}
+		cumAfter := cum
+		cumAfter.addAll(pt)
+
 		// ── LEFT PAGE ───────────────────────────────────────────────────────
 		d.startPage(fmt.Sprintf("Spread %d of %d %s Left", spreadNum, totalSpreads, emdash()))
 		d.drawHeader(leftW, easaLeftGroups, easaLeftSub)
 
-		var lTotal, lSE, lME, lMP int
 		pdf.SetFont("Helvetica", "", g.fontBody)
 		for i, rd := range rows {
 			f := rd.f
@@ -188,31 +283,15 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 				rd.picName,
 			}
 			d.drawDataRow(leftW, cells, easaLeftAlign, i)
-			lTotal += f.TotalTime
-			lSE += rd.spSE
-			lME += rd.spME
-			lMP += rd.mp
 		}
-		d.drawTotalsRow(leftW, 7, "TOTAL THIS PAGE", []string{
-			fmtDec(lSE), fmtDec(lME), fmtDec(lMP), fmtDec(lTotal), "",
-		}, easaLeftAlign, false)
-		d.drawTotalsRow(leftW, 7, "TOTAL FROM PREVIOUS PAGES", []string{
-			fmtDec(cumLSE), fmtDec(cumLME), fmtDec(cumLMP), fmtDec(cumLTotal), "",
-		}, easaLeftAlign, false)
-		cumLSE += lSE
-		cumLME += lME
-		cumLMP += lMP
-		cumLTotal += lTotal
-		d.drawTotalsRow(leftW, 7, "TOTAL TIME", []string{
-			fmtDec(cumLSE), fmtDec(cumLME), fmtDec(cumLMP), fmtDec(cumLTotal), "",
-		}, easaLeftAlign, true)
+		d.drawTotalsRow(leftW, 7, "TOTAL THIS PAGE", easaLeftTotCells(pt), easaLeftAlign, false)
+		d.drawTotalsRow(leftW, 7, "TOTAL FROM PREVIOUS PAGES", easaLeftTotCells(cum), easaLeftAlign, false)
+		d.drawTotalsRow(leftW, 7, "TOTAL TIME", easaLeftTotCells(cumAfter), easaLeftAlign, true)
 
 		// ── RIGHT PAGE ──────────────────────────────────────────────────────
 		d.startPage(fmt.Sprintf("Spread %d of %d %s Right", spreadNum, totalSpreads, emdash()))
 		d.drawHeader(rightW, easaRightGroups, easaRightSub)
 
-		var rNight, rIFR, rPIC, rSIC, rDual, rInstr, rFSTD int
-		var rLdgD, rLdgN int
 		pdf.SetFont("Helvetica", "", g.fontBody)
 		for i, rd := range rows {
 			f := rd.f
@@ -227,47 +306,12 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 				rd.remarks,
 			}
 			d.drawDataRow(rightW, cells, easaRightAlign, i)
-			rLdgD += f.LandingsDay
-			rLdgN += f.LandingsNight
-			rNight += f.NightTime
-			rIFR += rd.ifr
-			rPIC += f.PICTime
-			rSIC += f.SICTime
-			rDual += f.DualTime
-			rInstr += f.DualGivenTime
-			rFSTD += easaFSTDTotal(f)
 		}
-		d.drawTotalsRow(rightW, 1, "TOTAL THIS PAGE", []string{
-			fmt.Sprintf("%d", rLdgD), fmt.Sprintf("%d", rLdgN),
-			fmtDec(rNight), fmtDec(rIFR),
-			fmtDec(rPIC), fmtDec(rSIC),
-			fmtDec(rDual), fmtDec(rInstr),
-			"", "", fmtDec(rFSTD), "",
-		}, easaRightAlign, false)
-		d.drawTotalsRow(rightW, 1, "FROM PREV PAGES", []string{
-			fmt.Sprintf("%d", cumRLdgD), fmt.Sprintf("%d", cumRLdgN),
-			fmtDec(cumRNight), fmtDec(cumRIFR),
-			fmtDec(cumRPIC), fmtDec(cumRSIC),
-			fmtDec(cumRDual), fmtDec(cumRInstr),
-			"", "", fmtDec(cumRFSTD), "",
-		}, easaRightAlign, false)
-		cumRLdgD += rLdgD
-		cumRLdgN += rLdgN
-		cumRNight += rNight
-		cumRIFR += rIFR
-		cumRPIC += rPIC
-		cumRSIC += rSIC
-		cumRDual += rDual
-		cumRInstr += rInstr
-		cumRFSTD += rFSTD
-		d.drawTotalsRow(rightW, 1, "TOTAL TIME", []string{
-			fmt.Sprintf("%d", cumRLdgD), fmt.Sprintf("%d", cumRLdgN),
-			fmtDec(cumRNight), fmtDec(cumRIFR),
-			fmtDec(cumRPIC), fmtDec(cumRSIC),
-			fmtDec(cumRDual), fmtDec(cumRInstr),
-			"", "", fmtDec(cumRFSTD), "",
-		}, easaRightAlign, true)
+		d.drawTotalsRow(rightW, 1, "TOTAL THIS PAGE", easaRightTotCells(pt), easaRightAlign, false)
+		d.drawTotalsRow(rightW, 1, "FROM PREV PAGES", easaRightTotCells(cum), easaRightAlign, false)
+		d.drawTotalsRow(rightW, 1, "TOTAL TIME", easaRightTotCells(cumAfter), easaRightAlign, true)
 
+		cum = cumAfter
 		d.drawSignatureBlock()
 	}
 
@@ -277,7 +321,7 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 	}
 }
 
-func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string]string, userName string) {
+func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string]string, userName string, b *models.FlightBaseline) {
 	g, pdf := d.g, d.pdf
 	colW := scaleWidths(easaSingleBaseW, g.usableWidth())
 
@@ -285,11 +329,9 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 	totalPages := (len(flights) + rpp - 1) / rpp
 	pageNum := 0
 
-	var (
-		cumSE, cumME, cumMP, cumTotal                                int
-		cumLdgD, cumLdgN                                             int
-		cumNight, cumIFR, cumPIC, cumSIC, cumDual, cumInstr, cumFSTD int
-	)
+	// Opened with the pilot's prior experience — see renderEASASpread.
+	var cum easaTotals
+	cum.addBaseline(b)
 
 	for startIdx := 0; startIdx < len(flights); startIdx += rpp {
 		endIdx := startIdx + rpp
@@ -302,9 +344,7 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 		d.startPage(fmt.Sprintf("Logbook Page %d of %d", pageNum, totalPages))
 		d.drawHeader(colW, easaSingleGroups, easaSingleSub)
 
-		var pSE, pME, pMP, pTotal int
-		var pLdgD, pLdgN int
-		var pNight, pIFR, pPIC, pSIC, pDual, pInstr, pFSTD int
+		var pt easaTotals
 		pdf.SetFont("Helvetica", "", g.fontBody)
 		for i, rd := range rows {
 			f := rd.f
@@ -325,52 +365,15 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 				rd.remarks,
 			}
 			d.drawDataRow(colW, cells, easaSingleAlign, i)
-			pSE += rd.spSE
-			pME += rd.spME
-			pMP += rd.mp
-			pTotal += f.TotalTime
-			pLdgD += f.LandingsDay
-			pLdgN += f.LandingsNight
-			pNight += f.NightTime
-			pIFR += rd.ifr
-			pPIC += f.PICTime
-			pSIC += f.SICTime
-			pDual += f.DualTime
-			pInstr += f.DualGivenTime
-			pFSTD += easaFSTDTotal(f)
+			pt.add(rd)
 		}
 
-		totCells := func(se, me, mp, tot, ldgD, ldgN, night, ifr, pic, sic, dual, instr, fstd int) []string {
-			return []string{
-				fmtDec(se), fmtDec(me), fmtDec(mp), fmtDec(tot), "",
-				fmt.Sprintf("%d", ldgD), fmt.Sprintf("%d", ldgN),
-				fmtDec(night), fmtDec(ifr),
-				fmtDec(pic), fmtDec(sic), fmtDec(dual), fmtDec(instr),
-				"", fmtDec(fstd), "",
-			}
-		}
-		d.drawTotalsRow(colW, 7, "TOTAL THIS PAGE",
-			totCells(pSE, pME, pMP, pTotal, pLdgD, pLdgN, pNight, pIFR, pPIC, pSIC, pDual, pInstr, pFSTD),
-			easaSingleAlign, false)
-		d.drawTotalsRow(colW, 7, "TOTAL FROM PREVIOUS PAGES",
-			totCells(cumSE, cumME, cumMP, cumTotal, cumLdgD, cumLdgN, cumNight, cumIFR, cumPIC, cumSIC, cumDual, cumInstr, cumFSTD),
-			easaSingleAlign, false)
-		cumSE += pSE
-		cumME += pME
-		cumMP += pMP
-		cumTotal += pTotal
-		cumLdgD += pLdgD
-		cumLdgN += pLdgN
-		cumNight += pNight
-		cumIFR += pIFR
-		cumPIC += pPIC
-		cumSIC += pSIC
-		cumDual += pDual
-		cumInstr += pInstr
-		cumFSTD += pFSTD
-		d.drawTotalsRow(colW, 7, "TOTAL TIME",
-			totCells(cumSE, cumME, cumMP, cumTotal, cumLdgD, cumLdgN, cumNight, cumIFR, cumPIC, cumSIC, cumDual, cumInstr, cumFSTD),
-			easaSingleAlign, true)
+		cumAfter := cum
+		cumAfter.addAll(pt)
+		d.drawTotalsRow(colW, 7, "TOTAL THIS PAGE", easaSingleTotCells(pt), easaSingleAlign, false)
+		d.drawTotalsRow(colW, 7, "TOTAL FROM PREVIOUS PAGES", easaSingleTotCells(cum), easaSingleAlign, false)
+		cum = cumAfter
+		d.drawTotalsRow(colW, 7, "TOTAL TIME", easaSingleTotCells(cum), easaSingleAlign, true)
 
 		d.drawSignatureBlock()
 	}

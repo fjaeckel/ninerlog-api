@@ -20,14 +20,14 @@ func TestLogout_RevokesRefreshToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"logout@example.com","password":"password1234","name":"L"}`))
+		bytes.NewBufferString(`{"email":"logout@example.com","password":"Password1234!","name":"L"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.RegisterUser(c)
 
 	w = httptest.NewRecorder()
 	c, _ = gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/auth/login",
-		bytes.NewBufferString(`{"email":"logout@example.com","password":"password1234"}`))
+		bytes.NewBufferString(`{"email":"logout@example.com","password":"Password1234!"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	h.LoginUser(c)
 	if w.Code != http.StatusOK {

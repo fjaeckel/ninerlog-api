@@ -133,7 +133,8 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   `GET /exports/vcard` hands the whole address book to a phone or mail client as a
   vCard 3.0 `.vcf`, with each person's logged crew roles as `CATEGORIES`.
 - **Baseline** (`internal/service/flight.go` + `FlightBaseline`) — carried-over totals from
-  a previous logbook so statistics reflect full history.
+  a previous logbook so statistics, the Reports page and the printed PDF logbook all
+  reflect full history.
 
 ## Flight logging
 
@@ -172,7 +173,8 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Initial hours** — a per-user snapshot of pre-existing experience (`FlightBaseline`).
   It is added to the totals of both the statistics endpoint and the Reports analytics
   totals whenever the requested range reaches back to its cutoff date, so the dashboard
-  and the Reports page show the same career totals.
+  and the Reports page show the same career totals. The PDF logbook export applies it
+  too, as the opening carried-forward balance on the sheets.
 - **Maps** — airport lookup/search backed by the in-memory airport database
   (`internal/airports`), plus route and airport-activity statistics (`maps.go`).
   The database merges two upstream datasets — OurAirports (CSV) and mwgg/Airports
@@ -198,11 +200,15 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   the crew names are re-linked by name against the destination account's address book and
   created where they are new, reported as `contactsCreated` in the restore summary.
 - **Export** (`export.go`, `export_pdf.go`, `export_pdf_easa.go`,
-  `export_pdf_faa.go`, `export_crew.go`, `export_vcard.go`) — CSV, JSON, PDF (rendered
-  with `go-pdf/fpdf`) and vCard. PDF logbooks come in EASA AMC1 FCL.050 and FAA
-  14 CFR § 61.51 layouts, each as a book-style two-page spread (default) or a
-  condensed single-page landscape layout, in A4/A5/Letter. Every page carries
-  per-page / carried-forward / running totals and a signature strip.
+  `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_crew.go`,
+  `export_vcard.go`) — CSV, JSON, PDF (rendered with `go-pdf/fpdf`) and vCard.
+  PDF logbooks come in EASA AMC1 FCL.050 and FAA 14 CFR § 61.51 layouts, each as
+  a book-style two-page spread (default) or a condensed single-page landscape
+  layout, in A4/A5/Letter. Every page carries per-page / carried-forward /
+  running totals and a signature strip. The initial-hours snapshot (below) opens
+  the carried-forward balance, so the TOTAL TIME row is a career total and not
+  just what NinerLog holds; the columns a snapshot cannot supply are documented
+  in `export_pdf_baseline.go` and disclosed on the printed page.
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.

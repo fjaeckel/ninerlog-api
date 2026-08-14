@@ -19,6 +19,25 @@ func TestGenerateSamplePDFs(t *testing.T) {
 
 	flights := buildSamplePDFFlights(45)
 
+	// Samples carry prior experience so the carried-forward opening balance,
+	// the footer disclosure and the summary note are all visible for review.
+	sampleBaseline := &models.FlightBaseline{
+		BaselineDate:        time.Date(2019, 3, 12, 0, 0, 0, 0, time.UTC),
+		TotalFlights:        412,
+		TotalMinutes:        73_920,
+		PICMinutes:          51_300,
+		SICMinutes:          4_140,
+		DualMinutes:         18_480,
+		DualGivenMinutes:    2_760,
+		MultiPilotMinutes:   9_600,
+		NightMinutes:        6_840,
+		IFRMinutes:          11_100,
+		SoloMinutes:         7_260,
+		CrossCountryMinutes: 29_400,
+		LandingsDay:         690,
+		LandingsNight:       84,
+	}
+
 	outDir := os.Getenv("SAMPLE_PDF_DIR")
 	if outDir == "" {
 		outDir = "/tmp/ninerlog-pdf-samples"
@@ -60,11 +79,11 @@ func TestGenerateSamplePDFs(t *testing.T) {
 		var doc *fpdf.Fpdf
 		switch c.fmtName {
 		case "faa":
-			doc = generateFAAPDF(flights, geom, "Sample Pilot", c.layout)
+			doc = generateFAAPDF(flights, geom, "Sample Pilot", c.layout, sampleBaseline)
 		case "summary":
-			doc = generateSummaryPDF(flights, geom, "Sample Pilot")
+			doc = generateSummaryPDF(flights, geom, "Sample Pilot", sampleBaseline)
 		case "easa":
-			doc = renderEASA(flights, geom, map[string]string{}, "Sample Pilot", c.layout)
+			doc = renderEASA(flights, geom, map[string]string{}, "Sample Pilot", c.layout, sampleBaseline)
 		}
 		if err := doc.Output(f); err != nil {
 			t.Fatal(err)
