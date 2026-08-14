@@ -5145,6 +5145,9 @@ type ExportFlightsPDFParams struct {
 
 	// Layout Page layout. `spread` (default) lays the logbook out as a book-style two-page spread (left + right facing pages) intended for double-sided printing, in any page size; intentionally-blank filler pages (one at the start, one before the totals summary) keep each spread on facing pages when printed duplex. `single` renders all columns on one landscape page per batch of flights — designed for single-page A4 landscape printing. Ignored for the summary format.
 	Layout *ExportFlightsPDFParamsLayout `form:"layout,omitempty" json:"layout,omitempty"`
+
+	// RowsPerPage Number of flight rows per logbook page. When set, the row height — and, for dense layouts, the body font — scales dynamically so the rows fill the page: fewer rows give an airier, larger-print logbook, more rows a denser one. Values are clamped to what stays legible on the chosen page size; omitted, the row count is derived from the page size's default row height. Ignored for the summary format.
+	RowsPerPage *int `form:"rows_per_page,omitempty" json:"rows_per_page,omitempty"`
 }
 
 // ExportFlightsPDFParamsFormat defines parameters for ExportFlightsPDF.

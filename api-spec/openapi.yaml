@@ -3209,6 +3209,20 @@ paths:
             type: string
             enum: [spread, single]
             default: spread
+        - name: rows_per_page
+          in: query
+          description: >-
+            Number of flight rows per logbook page. When set, the row height —
+            and, for dense layouts, the body font — scales dynamically so the
+            rows fill the page: fewer rows give an airier, larger-print
+            logbook, more rows a denser one. Values are clamped to what stays
+            legible on the chosen page size; omitted, the row count is derived
+            from the page size's default row height. Ignored for the summary
+            format.
+          schema:
+            type: integer
+            minimum: 5
+            maximum: 60
       responses:
         '200':
           description: PDF file download

@@ -218,6 +218,16 @@ func TestExportPDFFormats(t *testing.T) {
 		}
 	}
 
+	t.Run("rows_per_page scales pagination", func(t *testing.T) {
+		// 3 seeded flights fit one batch either way — both must be valid;
+		// a dense row count must not error and stays a valid PDF too.
+		for _, rows := range []int{10, 40} {
+			resp := c.GET(fmt.Sprintf("/exports/pdf?format=easa&layout=single&rows_per_page=%d", rows))
+			requireStatus(t, resp, http.StatusOK)
+			assertValidPDF(t, resp.Body)
+		}
+	})
+
 	t.Run("layout defaults to spread", func(t *testing.T) {
 		def := c.GET("/exports/pdf?format=easa&page_size=a4")
 		requireStatus(t, def, http.StatusOK)

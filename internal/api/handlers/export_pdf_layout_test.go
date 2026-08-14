@@ -54,6 +54,43 @@ func TestPDFLayoutPageCounts(t *testing.T) {
 	}
 }
 
+// TestWithRowsPerPage checks the dynamic row-scaling contract: an in-range
+// request yields exactly that many rows per page with the row height scaled
+// to fill the grid, and out-of-range requests clamp to a legible row height
+// instead of failing.
+func TestWithRowsPerPage(t *testing.T) {
+	for _, size := range []string{"a4", "a5", "letter"} {
+		base := geometryFor(size)
+		for _, n := range []int{16, 20, 30} {
+			g := base.withRowsPerPage(n)
+			if got := g.logRowsPerPage(); got != n {
+				t.Errorf("%s withRowsPerPage(%d): logRowsPerPage()=%d", size, n, got)
+			}
+			if g.rowH < minDynRowH-0.001 || g.rowH > maxDynRowH+0.001 {
+				t.Errorf("%s withRowsPerPage(%d): rowH %.2f out of bounds", size, n, g.rowH)
+			}
+		}
+
+		// Requesting an absurd density clamps to the minimum row height and
+		// degrades to the densest legible row count.
+		dense := base.withRowsPerPage(500)
+		if dense.rowH != minDynRowH {
+			t.Errorf("%s withRowsPerPage(500): rowH=%.2f, want clamp to %.1f", size, dense.rowH, minDynRowH)
+		}
+		if dense.fontBody > minDynRowH*1.35+0.001 {
+			t.Errorf("%s withRowsPerPage(500): fontBody=%.2f not scaled down", size, dense.fontBody)
+		}
+		// Requesting very few rows clamps to the maximum row height.
+		airy := base.withRowsPerPage(5)
+		if airy.rowH > maxDynRowH+0.001 {
+			t.Errorf("%s withRowsPerPage(5): rowH=%.2f above max", size, airy.rowH)
+		}
+		if airy.fontBody != base.fontBody {
+			t.Errorf("%s withRowsPerPage(5): fontBody changed to %.2f, want unchanged", size, airy.fontBody)
+		}
+	}
+}
+
 // TestPDFLayoutEmptyLogbook ensures a user with zero flights still gets a
 // valid PDF (just the summary page) in every format and layout.
 func TestPDFLayoutEmptyLogbook(t *testing.T) {

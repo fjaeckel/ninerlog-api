@@ -65,11 +65,43 @@ func (g pageGeometry) usableHeight() float64 { return g.gridBottom() - g.gridTop
 // pages / total time) and the per-page signature strip.
 func (g pageGeometry) logRowsPerPage() int {
 	avail := g.usableHeight() - 2*g.headerH - 3*g.rowH - g.sigH
-	n := int(avail / g.rowH)
+	n := int((avail + 0.001) / g.rowH) // epsilon absorbs float error from withRowsPerPage
 	if n < 5 {
 		n = 5
 	}
 	return n
+}
+
+// Legibility bounds for dynamically scaled rows. Below minDynRowH the core
+// fonts stop being readable in print; above maxDynRowH rows look detached
+// from their grid.
+const (
+	minDynRowH = 2.6
+	maxDynRowH = 9.5
+)
+
+// withRowsPerPage returns a geometry whose row height is scaled so that
+// exactly n data rows (plus the three totals rows) fill the page. The row
+// height is clamped to stay legible — an out-of-range request degrades to
+// the nearest workable row count rather than failing. Dense layouts also
+// scale the body font down to fit the shrunken rows.
+func (g pageGeometry) withRowsPerPage(n int) pageGeometry {
+	if n < 5 {
+		n = 5
+	}
+	avail := g.usableHeight() - 2*g.headerH - g.sigH
+	rowH := avail / float64(n+3)
+	if rowH < minDynRowH {
+		rowH = minDynRowH
+	}
+	if rowH > maxDynRowH {
+		rowH = maxDynRowH
+	}
+	g.rowH = rowH
+	if f := rowH * 1.35; f < g.fontBody {
+		g.fontBody = f
+	}
+	return g
 }
 
 func geometryFor(sizeName string) pageGeometry {
@@ -518,6 +550,9 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		layout = layoutSingle
 	}
 	geom := geometryFor(pageSize)
+	if params.RowsPerPage != nil {
+		geom = geom.withRowsPerPage(*params.RowsPerPage)
+	}
 	userName := h.getUserNameFromContext(c)
 
 	var pdf *fpdf.Fpdf

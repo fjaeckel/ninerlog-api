@@ -2051,6 +2051,14 @@ func (siw *ServerInterfaceWrapper) ExportFlightsPDF(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "rows_per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "rows_per_page", c.Request.URL.Query(), &params.RowsPerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter rows_per_page: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {

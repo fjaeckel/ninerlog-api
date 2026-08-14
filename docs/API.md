@@ -409,6 +409,10 @@ history) and export to CSV, JSON, and PDF.
   page per batch of flights, designed for single-page A4 landscape printing.
   Ignored for `summary`.
 - `page_size` — `a4` (default), `a5`, or `letter`; always landscape.
+- `rows_per_page` — optional flight-row count per logbook page (5–60). Row
+  height — and, for dense layouts, the body font — scales dynamically to fill
+  the page: fewer rows print larger and airier, more rows denser. Clamped to
+  what stays legible on the chosen page size; ignored for `summary`.
 - `logbookLicenseId` — restrict flights to the aircraft classes of one licence.
 
 Every logbook page carries the three-row totals block (TOTAL THIS PAGE /
