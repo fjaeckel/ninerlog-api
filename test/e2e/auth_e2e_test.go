@@ -32,21 +32,34 @@ func TestAuthRegistration(t *testing.T) {
 		assertStatus(t, resp, http.StatusConflict)
 	})
 
-	// Fixed: API now validates password length (12-72 chars)
+	// The API validates password length (12-72 chars) and character classes.
 	t.Run("register with short password should return 400", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("short-pw"), "password": "short", "name": "Test"})
 		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("register with 11-char password should return 400", func(t *testing.T) {
-		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("11char-pw"), "password": "Abcdefghij1", "name": "Test"})
+		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("11char-pw"), "password": "Abcdefghi1!", "name": "Test"})
 		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("register with 12-char password should succeed", func(t *testing.T) {
-		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("12char-pw"), "password": "Abcdefghij12", "name": "Test"})
+		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("12char-pw"), "password": "Abcdefghij1!", "name": "Test"})
 		requireStatus(t, resp, http.StatusCreated)
 	})
+
+	// Long enough, but each of these misses one required character class.
+	for name, password := range map[string]string{
+		"no-lowercase": "ABCDEFGHIJ1!",
+		"no-uppercase": "abcdefghij1!",
+		"no-digit":     "Abcdefghijk!",
+		"no-special":   "Abcdefghij12",
+	} {
+		t.Run("register with password missing "+name+" returns 400", func(t *testing.T) {
+			resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail(name), "password": password, "name": "Test"})
+			assertStatus(t, resp, http.StatusBadRequest)
+		})
+	}
 
 	t.Run("register with empty email returns 400", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": "", "password": "SecurePass123!", "name": "Test"})

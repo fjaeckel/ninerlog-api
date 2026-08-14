@@ -4974,7 +4974,7 @@ type ChangePasswordJSONBody struct {
 	// CurrentPassword The user's current password
 	CurrentPassword string `json:"currentPassword"`
 
-	// NewPassword The new password (minimum 12 characters)
+	// NewPassword The new password. 12–72 characters, containing at least one lowercase letter, one uppercase letter, one digit and one special character.
 	NewPassword string `json:"newPassword"`
 }
 
@@ -5005,7 +5005,7 @@ type ExchangeOidcCodeJSONBody struct {
 
 // ResetPasswordJSONBody defines parameters for ResetPassword.
 type ResetPasswordJSONBody struct {
-	// NewPassword The new password (minimum 12 characters)
+	// NewPassword The new password. 12–72 characters, containing at least one lowercase letter, one uppercase letter, one digit and one special character.
 	NewPassword string `json:"newPassword"`
 
 	// Token Password reset token from email
@@ -5039,7 +5039,7 @@ type RegisterUserJSONBody struct {
 	// Name Example: John Doe
 	Name string `json:"name"`
 
-	// Password Must be at least 12 characters
+	// Password 12–72 characters, containing at least one lowercase letter, one uppercase letter, one digit and one special character.
 	//
 	// Example: SecurePass123!
 	Password string `json:"password"`

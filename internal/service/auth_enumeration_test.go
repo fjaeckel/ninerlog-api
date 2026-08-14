@@ -21,7 +21,7 @@ func setupAuthServiceWithRepo() (*service.AuthService, *mockUserRepo) {
 		service.NewTwoFactorService(userRepo, jwtManager, nil)), userRepo
 }
 
-const enumPassword = "correct-horse-battery"
+const enumPassword = "Correct-Horse-Battery1"
 
 func registerEnumUser(t *testing.T, svc *service.AuthService, email string) {
 	t.Helper()
@@ -107,7 +107,7 @@ func TestLogin_UnknownVsWrongPassword_SameError(t *testing.T) {
 	ctx := context.Background()
 	registerEnumUser(t, svc, "known@example.com")
 
-	_, _, errUnknown := svc.Login(ctx, service.LoginInput{Email: "nobody@example.com", Password: "whatever-123"})
+	_, _, errUnknown := svc.Login(ctx, service.LoginInput{Email: "nobody@example.com", Password: "Whatever-123!"})
 	_, _, errWrong := svc.Login(ctx, service.LoginInput{Email: "known@example.com", Password: "wrong-password"})
 
 	if errUnknown != service.ErrInvalidCredentials {

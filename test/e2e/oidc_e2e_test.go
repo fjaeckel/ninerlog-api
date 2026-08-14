@@ -80,7 +80,7 @@ func TestLocalAuthStillWorksWithoutOIDC(t *testing.T) {
 	// The mirror of the OIDC-mode gate: with no provider configured, the
 	// ordinary login path must be untouched by any of this.
 	c := NewE2EClient(t)
-	registerAndLogin(t, c, uniqueEmail("oidc-local-mode"), "password1234", "Local Mode")
+	registerAndLogin(t, c, uniqueEmail("oidc-local-mode"), "SecurePass123!", "Local Mode")
 
 	resp := c.GET("/users/me")
 	assertStatus(t, resp, http.StatusOK)

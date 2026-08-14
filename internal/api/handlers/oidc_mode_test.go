@@ -89,9 +89,9 @@ func TestOIDCMode_LocalCredentialEndpointsAreClosed(t *testing.T) {
 		body   string
 		invoke func(*APIHandler, *gin.Context)
 	}{
-		{"register", `{"email":"a@b.com","password":"password1234","name":"A"}`,
+		{"register", `{"email":"a@b.com","password":"Password1234!","name":"A"}`,
 			func(h *APIHandler, c *gin.Context) { h.RegisterUser(c) }},
-		{"login", `{"email":"a@b.com","password":"password1234"}`,
+		{"login", `{"email":"a@b.com","password":"Password1234!"}`,
 			func(h *APIHandler, c *gin.Context) { h.LoginUser(c) }},
 		{"verify email", `{"token":"x"}`,
 			func(h *APIHandler, c *gin.Context) { h.VerifyEmail(c) }},
@@ -99,15 +99,15 @@ func TestOIDCMode_LocalCredentialEndpointsAreClosed(t *testing.T) {
 			func(h *APIHandler, c *gin.Context) { h.ResendVerificationEmail(c) }},
 		{"password reset request", `{"email":"a@b.com"}`,
 			func(h *APIHandler, c *gin.Context) { h.RequestPasswordReset(c) }},
-		{"password reset", `{"token":"x","newPassword":"password1234"}`,
+		{"password reset", `{"token":"x","newPassword":"Password1234!"}`,
 			func(h *APIHandler, c *gin.Context) { h.ResetPassword(c) }},
-		{"change password", `{"currentPassword":"a","newPassword":"password1234"}`,
+		{"change password", `{"currentPassword":"a","newPassword":"Password1234!"}`,
 			func(h *APIHandler, c *gin.Context) { h.ChangePassword(c) }},
 		{"2fa setup", `{}`,
 			func(h *APIHandler, c *gin.Context) { h.Setup2FA(c) }},
 		{"2fa verify", `{"code":"123456"}`,
 			func(h *APIHandler, c *gin.Context) { h.Verify2FA(c) }},
-		{"2fa disable", `{"password":"password1234"}`,
+		{"2fa disable", `{"password":"Password1234!"}`,
 			func(h *APIHandler, c *gin.Context) { h.Disable2FA(c) }},
 		{"2fa login", `{"twoFactorToken":"x","code":"123456"}`,
 			func(h *APIHandler, c *gin.Context) { h.Login2FA(c) }},
@@ -139,7 +139,7 @@ func TestOIDCMode_LocalCredentialEndpointsStayOpenInLocalMode(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = jsonRequest("POST", "/api/v1/auth/register",
-		`{"email":"local@example.com","password":"password1234","name":"Local"}`)
+		`{"email":"local@example.com","password":"Password1234!","name":"Local"}`)
 
 	h.RegisterUser(c)
 
