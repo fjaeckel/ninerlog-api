@@ -204,6 +204,23 @@ func TestContactRenamePropagatesToCrew(t *testing.T) {
 	}
 }
 
+// The rename count is delivered in a response header, and a browser client on
+// another origin can only read a header the server explicitly exposes. Without
+// this the frontend sees the header as absent and cannot tell "renamed nothing"
+// from "server did not say" — so the CORS entry is part of the contract.
+func TestCrewEntriesRenamedHeaderIsCORSExposed(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("cnt-cors"), "SecurePass123!", "CorsCheck")
+
+	r := c.DoWithHeaders("GET", "/contacts", nil, map[string]string{"Origin": "http://localhost:5173"})
+	requireStatus(t, r, 200)
+
+	exposed := r.Headers.Get("Access-Control-Expose-Headers")
+	if !strings.Contains(exposed, "X-Crew-Entries-Renamed") {
+		t.Errorf("Access-Control-Expose-Headers = %q, want it to include X-Crew-Entries-Renamed", exposed)
+	}
+}
+
 // Renaming onto a name already in use is a merge, and merges are not implicit.
 func TestContactRenameOntoExistingNameConflicts(t *testing.T) {
 	c := NewE2EClient(t)

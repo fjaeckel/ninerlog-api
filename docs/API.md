@@ -400,7 +400,8 @@ confirm and backup restore. So:
 - `POST /contacts` returns **409** if the user already has that name. It is for adding
   email/phone to somebody the logbook already knows, not for a second row.
 - `PUT /contacts/{id}` renaming a contact rewrites the crew entries of the user's
-  **unsigned** flights to match, and reports how many in `X-Crew-Entries-Renamed`.
+  **unsigned** flights to match, and reports how many in `X-Crew-Entries-Renamed`
+  (listed in the CORS `ExposeHeaders`, without which a browser client cannot read it).
   Flights with a completed instructor signature keep the name they were signed with.
   Renaming onto an existing name returns **409** — contacts are never merged implicitly.
 - `DELETE /contacts/{id}` removes only the address-book entry. Crew entries keep their

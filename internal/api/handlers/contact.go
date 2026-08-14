@@ -13,6 +13,13 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// HeaderCrewEntriesRenamed reports how many flight crew entries a contact
+// rename rewrote. It must stay listed in the CORS ExposeHeaders in
+// cmd/api/main.go: a cross-origin browser client cannot read a response header
+// that is not explicitly exposed, so dropping it there makes this silently
+// unreadable rather than merely absent.
+const HeaderCrewEntriesRenamed = "X-Crew-Entries-Renamed"
+
 // ListContacts handles GET /contacts
 func (h *APIHandler) ListContacts(c *gin.Context, params generated.ListContactsParams) {
 	userID, err := h.getUserIDFromContext(c)
@@ -120,8 +127,10 @@ func (h *APIHandler) UpdateContact(c *gin.Context, contactId openapi_types.UUID)
 		return
 	}
 	// A rename rewrites the crew entries of unsigned flights, so a client
-	// holding cached flights knows whether it needs to refetch them.
-	c.Header("X-Crew-Entries-Renamed", strconv.Itoa(renamed))
+	// holding cached flights knows whether it needs to refetch them. The header
+	// is listed in the CORS ExposeHeaders in main.go — without that a browser
+	// client cannot read it at all.
+	c.Header(HeaderCrewEntriesRenamed, strconv.Itoa(renamed))
 	c.JSON(http.StatusOK, contact)
 }
 
