@@ -195,6 +195,52 @@ func TestExportPDFFormats(t *testing.T) {
 		assertValidPDF(t, resp.Body)
 	})
 
+	// Every format × layout × page_size combination must produce a valid PDF.
+	// Spread PDFs carry two physical pages per logbook page, so with the same
+	// flights a spread export is strictly larger than its single-layout twin.
+	for _, format := range []string{"easa", "faa"} {
+		for _, pageSize := range []string{"a4", "a5", "letter"} {
+			format, pageSize := format, pageSize
+			t.Run(fmt.Sprintf("%s spread vs single %s", format, pageSize), func(t *testing.T) {
+				spread := c.GET(fmt.Sprintf("/exports/pdf?format=%s&layout=spread&page_size=%s", format, pageSize))
+				requireStatus(t, spread, http.StatusOK)
+				assertValidPDF(t, spread.Body)
+
+				single := c.GET(fmt.Sprintf("/exports/pdf?format=%s&layout=single&page_size=%s", format, pageSize))
+				requireStatus(t, single, http.StatusOK)
+				assertValidPDF(t, single.Body)
+
+				if len(spread.Body) <= len(single.Body) {
+					t.Errorf("spread PDF (%d bytes) not larger than single-layout PDF (%d bytes)",
+						len(spread.Body), len(single.Body))
+				}
+			})
+		}
+	}
+
+	t.Run("rows_per_page scales pagination", func(t *testing.T) {
+		// 3 seeded flights fit one batch either way — both must be valid;
+		// a dense row count must not error and stays a valid PDF too.
+		for _, rows := range []int{10, 40} {
+			resp := c.GET(fmt.Sprintf("/exports/pdf?format=easa&layout=single&rows_per_page=%d", rows))
+			requireStatus(t, resp, http.StatusOK)
+			assertValidPDF(t, resp.Body)
+		}
+	})
+
+	t.Run("layout defaults to spread", func(t *testing.T) {
+		def := c.GET("/exports/pdf?format=easa&page_size=a4")
+		requireStatus(t, def, http.StatusOK)
+		spread := c.GET("/exports/pdf?format=easa&layout=spread&page_size=a4")
+		requireStatus(t, spread, http.StatusOK)
+		// Same layout → same page structure → near-identical size (only the
+		// embedded creation timestamp may differ).
+		if diff := len(def.Body) - len(spread.Body); diff < -64 || diff > 64 {
+			t.Errorf("default layout differs from explicit spread: %d vs %d bytes",
+				len(def.Body), len(spread.Body))
+		}
+	})
+
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		c.ClearToken()
 		assertStatus(t, c.GET("/exports/pdf?format=faa"), http.StatusUnauthorized)

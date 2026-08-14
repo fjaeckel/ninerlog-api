@@ -172,8 +172,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   contribute their aircraft, so re-importing a file backfills a fleet an earlier import
   left empty. The confirm response reports both counts as `contactsCreated` and
   `aircraftCreated`.
-- **Export** (`export.go`, `export_pdf.go`, `export_crew.go`) — CSV, JSON, and PDF
-  (rendered with `go-pdf/fpdf`).
+- **Export** (`export.go`, `export_pdf.go`, `export_pdf_easa.go`,
+  `export_pdf_faa.go`, `export_crew.go`) — CSV, JSON, and PDF (rendered with
+  `go-pdf/fpdf`). PDF logbooks come in EASA AMC1 FCL.050 and FAA
+  14 CFR § 61.51 layouts, each as a book-style two-page spread (default) or a
+  condensed single-page landscape layout, in A4/A5/Letter. Every page carries
+  per-page / carried-forward / running totals and a signature strip.
 
 ## Notifications
 
