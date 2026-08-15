@@ -109,8 +109,29 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   bandwidth half of the problem. Stored files are retained and reappear if it is switched
   back on. `GET /features` reports the current state and limits so clients hide the UI
   instead of discovering the `403`.
-- **Contacts** (`internal/service/contact.go`) — reusable people (crew/instructors) with
-  search, so names aren't retyped per flight.
+- **Contacts / people** (`internal/service/contact.go`) — reusable people
+  (crew/instructors) with search, so names aren't retyped per flight.
+
+  A contact **is** its name: unique per user, case-insensitive, whitespace-trimmed. The
+  cockpit role is not part of that identity — it belongs to the crew entry — so one
+  person stays one contact whether they fly as PIC, instructor or passenger, on one
+  flight or a hundred.
+
+  Contacts are created as a side effect of logging. Every path that writes crew rows —
+  `POST`/`PUT /flights`, spreadsheet import confirm, and JSON backup restore — runs the
+  names through `ContactService.CrewLinker`, which finds or creates one contact per
+  distinct name and links the crew row to it. (Until migration 60 only import did this,
+  so a pilot who logged flights in the UI ended up with an empty address book beside a
+  logbook full of crew names; that migration also merged the duplicates already stored.)
+
+  Editing follows the link. Renaming a contact rewrites the crew entries on the user's
+  unsigned flights so a corrected spelling reaches the logbook, and stops at flights
+  carrying a completed instructor signature, whose crew names are attested content.
+  Deleting a contact removes only the address-book entry: the crew entry keeps the name
+  it was logged with, so nothing in the logbook changes and the delete is always allowed.
+
+  `GET /exports/vcard` hands the whole address book to a phone or mail client as a
+  vCard 3.0 `.vcf`, with each person's logged crew roles as `CATEGORIES`.
 - **Baseline** (`internal/service/flight.go` + `FlightBaseline`) — carried-over totals from
   a previous logbook so statistics, the Reports page and the printed PDF logbook all
   reflect full history.
@@ -168,22 +189,29 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   (CSV/XLSX, including ForeFlight exports) → preview → confirm, or import JSON directly.
   Import sessions are tracked (history endpoints).
   Confirming an import also fills in the entities the flights reference: contacts for
-  crew names, and fleet entries for every registration in the file that the user does
-  not own yet (from a ForeFlight export's Aircraft Table when present, otherwise from
+  crew names (the same auto-creation that flight create/update performs — see
+  **Contacts / people** under Pilot data management), and fleet entries for every registration in the file that the
+  user does not own yet (from a ForeFlight export's Aircraft Table when present, otherwise from
   the flight rows' registration/type columns). Rows skipped as duplicates still
   contribute their aircraft, so re-importing a file backfills a fleet an earlier import
   left empty. The confirm response reports both counts as `contactsCreated` and
   `aircraftCreated`.
+  Restoring a JSON backup does the same: contacts are not carried in the backup format, so
+  the crew names are re-linked by name against the destination account's address book and
+  created where they are new, reported as `contactsCreated` in the restore summary.
 - **Export** (`export.go`, `export_pdf.go`, `export_pdf_easa.go`,
-  `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_crew.go`) — CSV, JSON,
-  and PDF (rendered with `go-pdf/fpdf`). PDF logbooks come in EASA AMC1 FCL.050
-  and FAA 14 CFR § 61.51 layouts, each as a book-style two-page spread (default)
-  or a condensed single-page landscape layout, in A4/A5/Letter. Every page
-  carries per-page / carried-forward / running totals and a signature strip.
-  The initial-hours snapshot (below) opens the carried-forward balance, so the
-  TOTAL TIME row is a career total and not just what NinerLog holds; the columns
-  a snapshot cannot supply are documented in `export_pdf_baseline.go` and
-  disclosed on the printed page.
+  `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_crew.go`,
+  `export_vcard.go`) — CSV, JSON, PDF (rendered with `go-pdf/fpdf`) and vCard.
+  PDF logbooks come in EASA AMC1 FCL.050 and FAA 14 CFR § 61.51 layouts, each as
+  a book-style two-page spread (default) or a condensed single-page landscape
+  layout, in A4/A5/Letter. Every page carries per-page / carried-forward /
+  running totals and a signature strip. The initial-hours snapshot (below) opens
+  the carried-forward balance, so the TOTAL TIME row is a career total and not
+  just what NinerLog holds; the columns a snapshot cannot supply are documented
+  in `export_pdf_baseline.go` and disclosed on the printed page.
+  `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
+  client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
+  re-importing updates the existing cards.
 
 ## Notifications
 
@@ -235,7 +263,9 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
 - **Users** — list, disable/enable, unlock, reset 2FA (mails the user a notice), delete
   (`admin_users.go`).
 - **Platform** — stats/dashboard (`admin_dashboard.go`), audit log (`AdminAuditLog`,
-  migration 27), config view.
+  migration 27), config view. `totalContacts` sits alongside the flight and aircraft
+  counts: contacts accumulate on their own as crew names are logged, so it is a growth
+  number, not a configuration one.
 - **Maintenance** — cleanup expired tokens, SMTP test, manually trigger the notification
   check.
 - **Announcements** — create/delete platform-wide banners (`SystemAnnouncement`,

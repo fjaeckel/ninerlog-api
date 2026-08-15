@@ -374,8 +374,19 @@ type ContactRepository interface {
 	// narrows the result to contacts changed strictly after that instant.
 	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Contact, error)
 	GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error)
+	// FindOrCreateByName returns the user's contact with this name — creating
+	// it if absent — and reports whether it created one. Concurrent callers
+	// converge on a single row; see the postgres implementation.
+	FindOrCreateByName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error)
 	Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error)
 	Update(ctx context.Context, contact *models.Contact) error
+	// UpdateWithCrewRename updates the contact and carries a name change into
+	// the crew rows of the user's unsigned flights, returning the number of
+	// crew rows rewritten. Signed flights keep the name they were signed with.
+	UpdateWithCrewRename(ctx context.Context, contact *models.Contact) (int, error)
+	// RolesByContact maps each of the user's contacts to the distinct crew
+	// roles it has been logged in, most-used first.
+	RolesByContact(ctx context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 

@@ -481,7 +481,7 @@ func main() {
 		// has to be exposed for the same reason on the way back, so a client
 		// can tell a fresh write from a replayed one.
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", middleware.HeaderIdempotencyKey},
-		ExposeHeaders:    []string{"Content-Length", middleware.HeaderIdempotencyReplayed, "Retry-After"},
+		ExposeHeaders:    []string{"Content-Length", middleware.HeaderIdempotencyReplayed, "Retry-After", handlers.HeaderCrewEntriesRenamed},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))

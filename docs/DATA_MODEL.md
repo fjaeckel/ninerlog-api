@@ -149,10 +149,22 @@ is never rendered inside the application's own origin. See
 The whole feature is switchable: `DOCUMENT_FILES_ENABLED=false` makes every file endpoint
 answer 403 without touching the stored rows.
 
-### Contact (`internal/models/contact.go`, migration 15)
+### Contact (`internal/models/contact.go`, migrations 15, 60)
 
 Reusable people (instructors, fellow crew). Referenced by flights so names don't have to
 be retyped; supports search.
+
+**A contact is identified by its name**, unique per user, case-insensitively and ignoring
+surrounding whitespace (`idx_contacts_user_lower_name`, migration 60, which also merged
+the duplicates that had accumulated before it). The role is *not* part of that identity —
+it lives on `FlightCrewMember`, so one contact is free to be PIC on one flight and
+Instructor on the next.
+
+Contacts are created automatically: every path that writes crew rows (flight create,
+flight update, spreadsheet import, backup restore) runs the crew names through
+`ContactService.CrewLinker` first, so the address book is a function of the logbook rather
+than of which entry point the pilot used. `POST /contacts` is for filling in email and
+phone, and returns 409 on a name that already exists rather than creating a second row.
 
 ### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32)
 
@@ -185,7 +197,19 @@ function-time consistency (see [DOMAIN.md](./DOMAIN.md#flight-validation)).
 
 ### FlightCrewMember (migration 15)
 
-Associates contacts/named people with a flight in a specific role.
+Associates contacts/named people with a flight in a specific role. There is no uniqueness
+constraint across `(flight_id, contact_id)`: the same person may hold several roles on one
+flight.
+
+`name` is denormalised — it is the name **as logged**, and it is what exports and
+PIC-of-record resolution read. Two consequences:
+
+- Renaming a contact rewrites `name` on the crew rows that reference it, so correcting a
+  misspelling also corrects the logbook. Rows belonging to flights with a completed
+  instructor signature are excluded, exactly as the bulk aircraft-registration rename is
+  (`ContactRepository.UpdateWithCrewRename`).
+- Deleting a contact sets `contact_id` to NULL and leaves `name` untouched, so no logbook
+  content is lost. Deleting is therefore always permitted.
 
 ### FlightBaseline (`internal/models/flight_baseline.go`, migration 38)
 

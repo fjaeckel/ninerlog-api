@@ -32,16 +32,13 @@ func TestContactDeletionWithCrewReferences(t *testing.T) {
 	r.JSON(&flt)
 	fltID := flt["id"].(string)
 
+	// Deleting a contact is an address-book operation and is always allowed:
+	// the crew row keeps the name it was logged with, so no logbook content is
+	// lost. This used to accept either 204 or 409; the semantics are settled
+	// now, and TestContactDeleteKeepsLoggedCrewName covers the same ground from
+	// the auto-created-contact side.
 	t.Run("delete contact used as crew", func(t *testing.T) {
-		r := c.DELETE(fmt.Sprintf("/contacts/%s", contactID))
-		// Should succeed (FK is SET NULL) or fail (409)
-		if r.StatusCode == 204 || r.StatusCode == 200 {
-			t.Log("Contact deleted despite being crew — FK SET NULL")
-		} else if r.StatusCode == 409 {
-			t.Log("Contact protected — 409 Conflict returned")
-		} else {
-			t.Errorf("Unexpected status %d: %s", r.StatusCode, string(r.Body))
-		}
+		requireStatus(t, c.DELETE(fmt.Sprintf("/contacts/%s", contactID)), 204)
 	})
 
 	t.Run("flight crew still has name after contact deletion", func(t *testing.T) {
@@ -50,13 +47,14 @@ func TestContactDeletionWithCrewReferences(t *testing.T) {
 		var f map[string]interface{}
 		r.JSON(&f)
 
-		if crew, ok := f["crewMembers"].([]interface{}); ok && len(crew) > 0 {
-			member := crew[0].(map[string]interface{})
-			assertStr(t, "crew name preserved", member["name"], "Instructor Linked")
-			// contactId should be null now if FK was SET NULL
-			t.Logf("contactId after deletion: %v", member["contactId"])
-		} else {
-			t.Log("No crew members in response after contact deletion")
+		crew, ok := f["crewMembers"].([]interface{})
+		if !ok || len(crew) == 0 {
+			t.Fatalf("crew members disappeared with the contact: %v", f["crewMembers"])
+		}
+		member := crew[0].(map[string]interface{})
+		assertStr(t, "crew name preserved", member["name"], "Instructor Linked")
+		if member["contactId"] != nil {
+			t.Errorf("contactId = %v, want null after the contact was deleted", member["contactId"])
 		}
 	})
 }

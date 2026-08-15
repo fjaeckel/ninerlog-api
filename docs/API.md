@@ -393,9 +393,28 @@ cover logged flights only — there is nothing to attribute a snapshot to.
 CRUD and search on `/contacts` (reusable crew/instructor records). `GET /contacts`
 accepts `updatedSince`.
 
+Contacts are keyed by name — unique per user, case-insensitive, whitespace-trimmed — and
+are created automatically for every crew name written by `POST`/`PUT /flights`, import
+confirm and backup restore. So:
+
+- `POST /contacts` returns **409** if the user already has that name. It is for adding
+  email/phone to somebody the logbook already knows, not for a second row.
+- `PUT /contacts/{id}` renaming a contact rewrites the crew entries of the user's
+  **unsigned** flights to match, and reports how many in `X-Crew-Entries-Renamed`
+  (listed in the CORS `ExposeHeaders`, without which a browser client cannot read it).
+  Flights with a completed instructor signature keep the name they were signed with.
+  Renaming onto an existing name returns **409** — contacts are never merged implicitly.
+- `DELETE /contacts/{id}` removes only the address-book entry. Crew entries keep their
+  name and have `contactId` set to null, so the logbook is unchanged and the delete is
+  allowed even for contacts on signed flights.
+
 ### Import / Export
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
-history) and export to CSV, JSON, and PDF.
+history) and export to CSV, JSON, PDF, and vCard.
+
+`GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,
+email, phone, notes, the contact's logged crew roles as `CATEGORIES`, and a stable `UID`
+so a re-import updates existing cards instead of duplicating them.
 
 `GET /exports/pdf` renders the logbook as a print-ready PDF:
 

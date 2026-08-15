@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -11,6 +12,13 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// HeaderCrewEntriesRenamed reports how many flight crew entries a contact
+// rename rewrote. It must stay listed in the CORS ExposeHeaders in
+// cmd/api/main.go: a cross-origin browser client cannot read a response header
+// that is not explicitly exposed, so dropping it there makes this silently
+// unreadable rather than merely absent.
+const HeaderCrewEntriesRenamed = "X-Crew-Entries-Renamed"
 
 // ListContacts handles GET /contacts
 func (h *APIHandler) ListContacts(c *gin.Context, params generated.ListContactsParams) {
@@ -56,6 +64,10 @@ func (h *APIHandler) CreateContact(c *gin.Context) {
 		UserID: userID, Name: req.Name, Email: req.Email, Phone: req.Phone, Notes: req.Notes,
 	}
 	if err := h.contactService.CreateContact(c.Request.Context(), contact); err != nil {
+		if errors.Is(err, service.ErrContactNameExists) {
+			h.sendError(c, http.StatusConflict, "A contact with this name already exists")
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to create contact")
 		return
 	}
@@ -101,14 +113,24 @@ func (h *APIHandler) UpdateContact(c *gin.Context, contactId openapi_types.UUID)
 	contact := &models.Contact{
 		ID: uuid.UUID(contactId), Name: req.Name, Email: req.Email, Phone: req.Phone, Notes: req.Notes,
 	}
-	if err := h.contactService.UpdateContact(c.Request.Context(), contact, userID); err != nil {
+	renamed, err := h.contactService.UpdateContact(c.Request.Context(), contact, userID)
+	if err != nil {
 		if errors.Is(err, service.ErrContactNotFound) || errors.Is(err, service.ErrUnauthorizedContact) {
 			h.sendError(c, http.StatusNotFound, "Contact not found")
+			return
+		}
+		if errors.Is(err, service.ErrContactNameExists) {
+			h.sendError(c, http.StatusConflict, "A contact with this name already exists")
 			return
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update contact")
 		return
 	}
+	// A rename rewrites the crew entries of unsigned flights, so a client
+	// holding cached flights knows whether it needs to refetch them. The header
+	// is listed in the CORS ExposeHeaders in main.go — without that a browser
+	// client cannot read it at all.
+	c.Header(HeaderCrewEntriesRenamed, strconv.Itoa(renamed))
 	c.JSON(http.StatusOK, contact)
 }
 

@@ -245,6 +245,9 @@ type ServerInterface interface {
 	// ExportFlightsPDF Export flights as PDF logbook
 	// (GET /exports/pdf)
 	ExportFlightsPDF(c *gin.Context, params ExportFlightsPDFParams)
+	// ExportContactsVCard Export contacts as vCard
+	// (GET /exports/vcard)
+	ExportContactsVCard(c *gin.Context)
 	// GetFeatures Which optional features this server has switched on
 	// (GET /features)
 	GetFeatures(c *gin.Context)
@@ -2069,6 +2072,19 @@ func (siw *ServerInterfaceWrapper) ExportFlightsPDF(c *gin.Context) {
 	siw.Handler.ExportFlightsPDF(c, params)
 }
 
+// ExportContactsVCard operation middleware
+func (siw *ServerInterfaceWrapper) ExportContactsVCard(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportContactsVCard(c)
+}
+
 // GetFeatures operation middleware
 func (siw *ServerInterfaceWrapper) GetFeatures(c *gin.Context) {
 
@@ -3669,6 +3685,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/imports", wrapper.ListImports)
 	router.GET(options.BaseURL+"/imports/:importId", wrapper.GetImport)
 	router.GET(options.BaseURL+"/exports/csv", wrapper.ExportFlightsCSV)
+	router.GET(options.BaseURL+"/exports/vcard", wrapper.ExportContactsVCard)
 	router.GET(options.BaseURL+"/exports/json", wrapper.ExportDataJSON)
 	router.POST(options.BaseURL+"/imports/json", wrapper.ImportDataJSON)
 	router.GET(options.BaseURL+"/exports/pdf", wrapper.ExportFlightsPDF)

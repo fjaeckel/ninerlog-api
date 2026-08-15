@@ -1546,6 +1546,9 @@ type AdminStats struct {
 	LockedAccounts   int `json:"lockedAccounts"`
 	NewUsersThisWeek int `json:"newUsersThisWeek"`
 	TotalAircraft    int `json:"totalAircraft"`
+
+	// TotalContacts Contacts across all users. Grows on its own as flights are logged, since crew names are turned into contacts automatically.
+	TotalContacts    int `json:"totalContacts"`
 	TotalCredentials int `json:"totalCredentials"`
 	TotalFlights     int `json:"totalFlights"`
 	TotalImports     int `json:"totalImports"`
@@ -3945,6 +3948,11 @@ type ImportJSONResult struct {
 	// ClassRatingsImported Example: 4
 	ClassRatingsImported int `json:"classRatingsImported"`
 
+	// ContactsCreated Contacts created because a crew name in the backup matched none of this account's contacts. Contacts are not carried in the backup format, so a restore into an empty account creates one per distinct crew name.
+	//
+	// Example: 5
+	ContactsCreated int `json:"contactsCreated"`
+
 	// CredentialsImported Example: 2
 	CredentialsImported int `json:"credentialsImported"`
 
@@ -4862,6 +4870,9 @@ type UpdatedSince = time.Time
 
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
+
+// Conflict defines model for Conflict.
+type Conflict = Error
 
 // DocumentFileLimitReached defines model for DocumentFileLimitReached.
 type DocumentFileLimitReached = Error
