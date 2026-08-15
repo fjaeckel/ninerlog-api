@@ -200,10 +200,13 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   Covered today: ForeFlight, LogTen Pro, MyFlightbook, capzlog.aero, FLYLOG.io, Wader,
   Vereinsflieger (German headers), mccPILOTLOG/CrewLounge, SkyDemon, the generic EASA
   (AMC1 FCL.050) and FAA column layouts, and NinerLog's own CSV export. Each template
-  declares a `confidence`: `exact` where the header row is known verbatim (NinerLog's own
-  exports and the two regulatory layouts, which this repository also writes), `best-effort`
-  where the aliases cover the vendor's documented columns plus the usual spelling variants
-  but the export has not been verified byte for byte.
+  declares a `confidence`: `exact` where the header row is known verbatim — NinerLog's own
+  exports and the two regulatory layouts, which this repository also writes, plus FLYLOG.io,
+  which was rebuilt from a real export — and `best-effort` where the aliases cover the
+  vendor's documented columns plus the usual spelling variants but no real export has been
+  seen. A best-effort template is a hypothesis: FLYLOG.io's was wrong in every column but
+  the date until a real file was checked against it, which is why
+  `testdata/importsamples/` exists and why its `wanted` list is worth working through.
 
   Detection never blocks an import. A file that matches nothing is recorded as `CSV` and
   mapped through a cross-vendor alias table, then adjusted on the mapping screen — so an

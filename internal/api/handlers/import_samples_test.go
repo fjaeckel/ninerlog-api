@@ -223,3 +223,65 @@ func importTemplatesNeedingRealSamples() []string {
 	}
 	return out
 }
+
+// FLYLOG.io records the logbook's owner as the literal string SELF in whichever
+// NAME_* column the pilot occupied. Taken at face value it produces a crew
+// member — and then a contact — called "SELF", linked to every such flight.
+//
+// The real sample is a training flight: the owner is the student (SELF) and the
+// instructor is a named third party who is also PIC of record. Exactly one crew
+// member must come out of it.
+func TestImportSample_FlylogDropsSelfCrewSentinel(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(importSamplesDir, "flylog.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	columns, rows, _, err := parseCSV(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	tpl, _, mappings := detectImportFormat(columns)
+	if tpl == nil || tpl.ID != "FLYLOG_CSV" {
+		t.Fatalf("detected %v, want FLYLOG_CSV", tpl)
+	}
+
+	got, errs := mapRowToFlight(rows[0], toMappingLookup(mappings), nil)
+	if len(errs) > 0 {
+		t.Fatalf("row errors: %+v", errs)
+	}
+
+	if got.CrewMembers == nil {
+		t.Fatal("expected the named instructor as a crew member")
+	}
+	for _, cm := range *got.CrewMembers {
+		if isSelfCrewSentinel(cm.Name) {
+			t.Errorf("SELF was imported as a crew member (role %s) — it denotes "+
+				"the logbook owner and would become a contact", cm.Role)
+		}
+	}
+	if len(*got.CrewMembers) != 1 {
+		t.Fatalf("got %d crew members, want 1: %+v", len(*got.CrewMembers), *got.CrewMembers)
+	}
+	crew := (*got.CrewMembers)[0]
+	if crew.Name != "Alex Rivera" || string(crew.Role) != "Instructor" {
+		t.Errorf("crew = %q/%s, want Alex Rivera/Instructor", crew.Name, crew.Role)
+	}
+	if got.InstructorName == nil || *got.InstructorName != "Alex Rivera" {
+		t.Errorf("instructorName = %v, want Alex Rivera", got.InstructorName)
+	}
+}
+
+func TestIsSelfCrewSentinel(t *testing.T) {
+	for _, in := range []string{"SELF", "self", " Self ", "sELF"} {
+		if !isSelfCrewSentinel(in) {
+			t.Errorf("isSelfCrewSentinel(%q) = false, want true", in)
+		}
+	}
+	// A real name that merely contains the word must survive: dropping a crew
+	// member is silent data loss, which is worse than one odd contact.
+	for _, in := range []string{"", "Self Loading Freight", "Selfridge", "Me", "S. Elf"} {
+		if isSelfCrewSentinel(in) {
+			t.Errorf("isSelfCrewSentinel(%q) = true, want false", in)
+		}
+	}
+}

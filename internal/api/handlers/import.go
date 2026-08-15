@@ -1031,6 +1031,9 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "remarks":
 			flight.Remarks = &val
 		case "instructorName":
+			if isSelfCrewSentinel(val) {
+				continue
+			}
 			instructorName = val
 			flight.InstructorName = &val
 		case "instructorComments":
@@ -1042,18 +1045,16 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			} else {
 				errs = append(errs, fieldError{"dualGivenTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
-		case "person1":
-			personNames["person1"], personRoles["person1"] = foreFlightPersonNameRole(val)
-		case "person2":
-			personNames["person2"], personRoles["person2"] = foreFlightPersonNameRole(val)
-		case "person3":
-			personNames["person3"], personRoles["person3"] = foreFlightPersonNameRole(val)
-		case "person4":
-			personNames["person4"], personRoles["person4"] = foreFlightPersonNameRole(val)
-		case "person5":
-			personNames["person5"], personRoles["person5"] = foreFlightPersonNameRole(val)
-		case "person6":
-			personNames["person6"], personRoles["person6"] = foreFlightPersonNameRole(val)
+		case "person1", "person2", "person3", "person4", "person5", "person6":
+			slot := string(mapping.TargetField)
+			name, role := foreFlightPersonNameRole(val)
+			if isSelfCrewSentinel(name) {
+				// The logbook's owner, not a crew member. Dropping the cell
+				// leaves the slot empty, which is what a file that simply
+				// omitted the owner would have produced.
+				continue
+			}
+			personNames[slot], personRoles[slot] = name, role
 		}
 	}
 
@@ -1367,6 +1368,23 @@ func normalizeApproachType(s string) generated.ApproachType {
 	default:
 		return generated.ApproachTypeOther
 	}
+}
+
+// isSelfCrewSentinel reports whether a crew cell names the logbook's owner
+// rather than another person.
+//
+// FLYLOG.io writes the literal string SELF into whichever NAME_* column the
+// pilot occupied on that flight — NAME_STUDENT on a training flight, NAME_PIC
+// when flying as commander. Taken at face value it produces a crew member and
+// then a contact called "SELF", which pollutes the address book and, worse,
+// links every such flight to one bogus person.
+//
+// Only the exact word is treated as a sentinel. "Self" appearing inside a real
+// name is left alone, and no attempt is made to guess at other markers ("ME",
+// initials): a wrongly dropped crew member is silent data loss, which is worse
+// than one odd-looking contact.
+func isSelfCrewSentinel(name string) bool {
+	return strings.EqualFold(strings.TrimSpace(name), "SELF")
 }
 
 // foreFlightPersonNameRole extracts the name and (optional) role tag from

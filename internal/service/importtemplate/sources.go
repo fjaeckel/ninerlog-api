@@ -549,13 +549,21 @@ var capzlogTemplate = register(&Template{
 	Priority:         8,
 })
 
+// flylogTemplate is built from a real FLYLOG.io export, not from documentation.
+//
+// The header row is UPPER_SNAKE_CASE with its own vocabulary — DURATION_*,
+// TIME_*, LDGS_*, NAME_* — and shares almost nothing with the EASA column names
+// an EASA-region logbook might be expected to use. Durations are H:MM. Crew is
+// recorded in role-named columns rather than positionally, and the logbook
+// owner appears in them as the literal string SELF (see selfCrewSentinel in the
+// importer, which drops it rather than filing the owner as their own crew).
 var flylogTemplate = register(&Template{
 	ID:          "FLYLOG_CSV",
 	Name:        "FLYLOG.io",
 	Vendor:      "FLYLOG.io",
 	Website:     "https://www.flylog.io",
-	Description: "FLYLOG.io CSV export, including its custom bulk-import template layout.",
-	Confidence:  ConfidenceBestEffort,
+	Description: "FLYLOG.io CSV export. Carries block and airborne times, the full EASA duration breakdown, and named crew per role.",
+	Confidence:  ConfidenceExact,
 	Regions:     []string{"EASA"},
 	ExportSteps: []string{
 		"Sign in at flylog.io and open your Logbook.",
@@ -564,24 +572,73 @@ var flylogTemplate = register(&Template{
 		"If FLYLOG gave you an XLSX, save it as CSV first.",
 	},
 	DateFormat: "2006-01-02",
-	Columns: merge(coreColumns, easaColumns, map[string]Field{
-		"departure":        FieldDepartureIcao,
-		"arrival":          FieldArrivalIcao,
-		"dep":              FieldDepartureIcao,
-		"arr":              FieldArrivalIcao,
-		"aircraft":         FieldAircraftReg,
-		"sic time":         FieldIgnore,
-		"multi pilot time": FieldIgnore,
-		"takeoffs day":     FieldIgnore,
-		"takeoffs night":   FieldIgnore,
-		"night takeoffs":   FieldIgnore,
-		"day takeoffs":     FieldIgnore,
-		"simulator time":   FieldIgnore,
-		"simulator type":   FieldIgnore,
-	}),
+	Columns: map[string]Field{
+		"date":                  FieldDate,
+		"departure_airport":     FieldDepartureIcao,
+		"arrival_airport":       FieldArrivalIcao,
+		"aircraft_type":         FieldAircraftType,
+		"aircraft_registration": FieldAircraftReg,
+		"route":                 FieldRoute,
+
+		"duration_block":   FieldTotalTime,
+		"time_block_start": FieldOffBlockTime,
+		"time_block_end":   FieldOnBlockTime,
+		"time_takeoff":     FieldDepartureTime,
+		"time_landing":     FieldArrivalTime,
+
+		"ldgs_day":   FieldLandingsDay,
+		"ldgs_night": FieldLandingsNight,
+
+		"duration_pic":           FieldIsPic,
+		"duration_dual":          FieldIsDual,
+		"duration_instructor":    FieldDualGivenTime,
+		"duration_night":         FieldNightTime,
+		"duration_ifr":           FieldIFRTime,
+		"duration_ifr_actual":    FieldActualInstrumentTime,
+		"duration_ifr_simulated": FieldSimulatedInstrumentTime,
+
+		"approach_nr": FieldApproachesCount,
+		"remarks":     FieldRemarks,
+
+		"name_pic":        FieldPerson1,
+		"name_student":    FieldPerson2,
+		"name_instructor": FieldInstructorName,
+
+		// Recognised for scoring, deliberately not mapped.
+		//
+		// NAME_COPILOT and NAME_PICUS name a role the import fields cannot
+		// express: person2–person6 carry a position, not a role, and
+		// InferLegacyCrew files anything past person2 as a Passenger. Filing a
+		// co-pilot as a passenger is worse than leaving the column for the
+		// pilot to assign, and the mapping screen now counts unmapped columns
+		// so it is visible rather than silent. Role-typed crew import fields
+		// would fix this properly for FLYLOG, LogTen and mccPILOTLOG alike.
+		"name_copilot":  FieldIgnore,
+		"name_picus":    FieldIgnore,
+		"name_examiner": FieldIgnore,
+
+		"duration_picus":       FieldIgnore,
+		"duration_sic":         FieldIgnore,
+		"duration_examiner":    FieldIgnore,
+		"duration_xc":          FieldIgnore,
+		"duration_multi_pilot": FieldIgnore,
+		"duration_simulator":   FieldIgnore,
+		"duration_airborne":    FieldIgnore,
+		"duration_duty":        FieldIgnore,
+		"simulator_type":       FieldIgnore,
+		"personal_note":        FieldIgnore,
+		"approach_type":        FieldIgnore,
+		"tags":                 FieldIgnore,
+		"takeoffs_day":         FieldIgnore,
+		"takeoffs_night":       FieldIgnore,
+		"time_duty_start":      FieldIgnore,
+		"time_duty_end":        FieldIgnore,
+		"flight_number":        FieldIgnore,
+	},
 	Signature: []string{
-		"pic time", "sic time", "multi pilot time", "departure airport",
-		"arrival airport", "simulator type", "block time",
+		"duration_block", "time_block_start", "time_block_end",
+		"ldgs_day", "ldgs_night", "duration_picus", "name_picus",
+		"duration_ifr_actual", "duration_airborne", "aircraft_registration",
 	},
 	MinSignatureHits: 3,
 	Priority:         8,

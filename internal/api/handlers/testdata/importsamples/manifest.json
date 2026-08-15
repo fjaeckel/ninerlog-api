@@ -78,6 +78,22 @@
         "totalTimeMinutes": 90,
         "landings": 2
       }
+    },
+    {
+      "file": "flylog.csv",
+      "expectTemplate": "FLYLOG_CSV",
+      "provenance": "real",
+      "notes": "Real FLYLOG.io export, crew name anonymised (the same replacement in NAME_PIC and NAME_INSTRUCTOR, since one person in both cells is what the sample proves). UPPER_SNAKE_CASE headers, H:MM durations, comma-delimited. NAME_STUDENT=SELF is FLYLOG's marker for the logbook owner and must not become a contact.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-11",
+        "aircraftReg": "D-ERAE",
+        "aircraftType": "C172",
+        "departureIcao": "EDAZ",
+        "arrivalIcao": "EDAY",
+        "totalTimeMinutes": 48,
+        "landings": 1
+      }
     }
   ],
   "wanted": [
@@ -95,11 +111,6 @@
       "template": "CAPZLOG_CSV",
       "why": "We assume the long-form EASA spellings ('Departure Place', 'Name(s) PIC'). If capzlog uses the short forms it will be detected as generic EASA instead.",
       "howToExport": "capzlog.aero → Flights → Export → CSV."
-    },
-    {
-      "template": "FLYLOG_CSV",
-      "why": "Signature rests on 'PIC Time' / 'SIC Time' / 'Multi Pilot Time'. Unverified.",
-      "howToExport": "flylog.io → Logbook → Export → CSV. If you only get XLSX, save it as CSV."
     },
     {
       "template": "WADER_CSV",

@@ -29,7 +29,11 @@ var (
 
 	capzlogHeaders = strings.Split("Date,Departure Place,Departure Time,Arrival Place,Arrival Time,Aircraft Model,Aircraft Registration,Single Pilot SE,Single Pilot ME,Multi Pilot,Total Time of Flight,Name(s) PIC,Landings Day,Landings Night,Night,IFR,PIC,Co-Pilot,Dual,Instructor,FSTD Date,FSTD Type,FSTD Total Time,Remarks and Endorsements", ",")
 
-	flylogHeaders = strings.Split("Date,Departure Airport,Arrival Airport,Aircraft Type,Aircraft Registration,Block Time,PIC Time,SIC Time,Multi Pilot Time,Night,IFR,Day Takeoffs,Night Takeoffs,Landings Day,Landings Night,PIC Name,Simulator Type,Remarks", ",")
+	// The real FLYLOG.io export header row, from an export supplied by the
+	// maintainer. The row this replaced was written from the vendor's prose
+	// description and was wrong in every column but the date — see
+	// testdata/importsamples/flylog.csv.
+	flylogHeaders = strings.Split("DATE,DEPARTURE_AIRPORT,ARRIVAL_AIRPORT,AIRCRAFT_TYPE,AIRCRAFT_REGISTRATION,DURATION_BLOCK,LDGS_DAY,LDGS_NIGHT,TIME_BLOCK_START,TIME_BLOCK_END,DURATION_PIC,DURATION_PICUS,DURATION_SIC,DURATION_DUAL,DURATION_INSTRUCTOR,DURATION_EXAMINER,DURATION_NIGHT,DURATION_IFR,DURATION_IFR_ACTUAL,DURATION_IFR_SIMULATED,DURATION_XC,DURATION_MULTI_PILOT,DURATION_SIMULATOR,SIMULATOR_TYPE,REMARKS,PERSONAL_NOTE,APPROACH_TYPE,APPROACH_NR,TAGS,NAME_PIC,NAME_PICUS,NAME_COPILOT,NAME_STUDENT,NAME_INSTRUCTOR,NAME_EXAMINER,TAKEOFFS_DAY,TAKEOFFS_NIGHT,TIME_TAKEOFF,TIME_LANDING,DURATION_AIRBORNE,TIME_DUTY_START,TIME_DUTY_END,DURATION_DUTY,FLIGHT_NUMBER,ROUTE", ",")
 
 	vereinsfliegerHeaders = strings.Split("Datum;Kennzeichen;Muster;Startort;Zielort;Startzeit;Landezeit;Flugzeit;Pilot;Begleiter;Startart;Landungen;Bemerkung", ";")
 
