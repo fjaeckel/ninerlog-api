@@ -1,0 +1,17 @@
+ForeFlight Logbook Import
+
+Aircraft Table
+text,text,text,text,text,text,category,class,gearType,engineType,boolean,boolean,boolean,boolean
+AircraftID,EquipmentType,TypeCode,Year,Make,Model,Category,Class,GearType,EngineType,Complex,HighPerformance,Pressurized,TAA
+D-EABC,aircraft,C172,,Cessna,172S Skyhawk,Airplane,Single-Engine Land,fixed_tricycle,Piston,,,,
+D-IXYZ,aircraft,BE58,,Beechcraft,Baron 58,Airplane,Multi-Engine Land,fixed_tricycle,Piston,true,true,,
+SIM-FNPT2,sim,FNPT II,,,FNPT II,,,,,,,,
+G-OLDY,aircraft,PA18,,,PA18,Airplane,Single-Engine Land,fixed_tricycle,Piston,,,,
+
+Flights Table
+date,text,text,text,text,hhmm,hhmm,hhmm,hhmm,hhmm,hhmm,decimal,decimal,decimal,decimal,decimal,decimal,decimal,number,number,number,number,number,decimal,decimal,decimal,decimal,decimal,decimal,number,text,text,text,text,text,text,decimal,decimal,decimal,decimal,text,text,text,text,text,text,text,text,boolean,boolean,boolean,boolean,boolean,text
+Date,AircraftID,From,To,Route,TimeOut,TimeOff,TimeOn,TimeIn,OnDuty,OffDuty,TotalTime,PIC,SIC,Night,Solo,CrossCountry,Distance,DayTakeoffs,DayLandingsFullStop,NightTakeoffs,NightLandingsFullStop,AllLandings,ActualInstrument,SimulatedInstrument,HobbsStart,HobbsEnd,TachStart,TachEnd,Holds,Approach1,Approach2,Approach3,Approach4,Approach5,Approach6,DualGiven,DualReceived,SimulatedFlight,GroundTraining,InstructorName,InstructorComments,Person1,Person2,Person3,Person4,Person5,Person6,FlightReview,Checkride,IPC,NVGProficiency,FAA6158,PilotComments
+2026-01-12,D-EABC,EDDF,EDDF,,0815,0825,0940,0950,,,1.58,,,,,,,6,6,,,6,,,,,,,,,,,,,,,1.58,,,Karl Fluglehrer,,,,,,,,,,,,,Circuits and bumps
+2026-02-03,D-IXYZ,EDDF,LSZH,EDDF DKB LSZH,1400,1412,1535,1545,,,1.75,1.75,,0.42,,1.75,154.3,1,,,1,1,0.67,0.17,,,,,1,1;ILS;14;LSZH,1;RNAV/GPS;16;LSZH,1;APCH;;LSZH,,,,,,,,,,Peter Kopilot,,,,,,,,,,,'=SUM(A1:A9) noted in tech log
+2026-02-20,SIM-FNPT2,,,,,,,,,,2.00,,,,,,,,,,,,,2.00,,,,,,4;APCH;;,,,,,,,2.00,2.00,,,,,,,,,,,,,,,IR renewal training
+2026-03-01,G-OLDY,EGTB,EGLM,,1100,,,1155,,,0.92,0.92,,,0.92,0.92,18.5,1,1,,,1,,,,,,,,,,,,,,,,,,,,,,,,,,true,,,,,

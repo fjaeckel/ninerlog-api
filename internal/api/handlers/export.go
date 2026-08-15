@@ -13,6 +13,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
+	"github.com/fjaeckel/ninerlog-api/pkg/csvsafe"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 )
@@ -48,28 +49,12 @@ func sortFlightsChronological(flights []*models.Flight) {
 	})
 }
 
-// csvFormulaLeaders are the characters that make Excel, LibreOffice Calc and
-// Google Sheets treat a cell as a formula rather than text. A tab or carriage
-// return can also lead into one once the sheet re-parses the cell.
-const csvFormulaLeaders = "=+-@\t\r"
-
 // neutralizeCSVCell defuses spreadsheet formula injection (CWE-1236).
 //
-// Logbook text is user-controlled (remarks, endorsements, PIC and instructor
-// names, registrations) and can also arrive from a third party via CSV import.
-// EASA/FAA exports exist specifically to be handed to an examiner or authority,
-// so a cell like `=HYPERLINK("http://evil.test")` or `@SUM(...)` would execute
-// on the recipient's machine when they open the file.
-//
-// Prefixing with an apostrophe is the conventional defence: spreadsheet
-// applications treat the value as literal text and do not display the
-// apostrophe itself.
-func neutralizeCSVCell(s string) string {
-	if s == "" || !strings.ContainsRune(csvFormulaLeaders, rune(s[0])) {
-		return s
-	}
-	return "'" + s
-}
+// The implementation lives in pkg/csvsafe so that the handler exports and the
+// portability exports in internal/service/portability share one guard; this
+// wrapper keeps the local call sites readable.
+func neutralizeCSVCell(s string) string { return csvsafe.Cell(s) }
 
 // csvWrite writes a record to the CSV writer, logging errors.
 // csv.Writer buffers errors internally, so writes after a failure are no-ops.
@@ -78,11 +63,7 @@ func neutralizeCSVCell(s string) string {
 // sites, so all export formats (standard, EASA, FAA) are covered by
 // construction and a new column cannot reintroduce the injection.
 func csvWrite(w *csv.Writer, record []string) {
-	safe := make([]string, len(record))
-	for i, field := range record {
-		safe[i] = neutralizeCSVCell(field)
-	}
-	if err := w.Write(safe); err != nil {
+	if err := w.Write(csvsafe.Record(record)); err != nil {
 		slog.Error("csv write error", "error", err)
 	}
 }

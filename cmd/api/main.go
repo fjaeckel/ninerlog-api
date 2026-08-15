@@ -614,6 +614,17 @@ func main() {
 		expensiveRateLimit := middleware.NewUserRateLimitMiddleware("expensive", 15, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(expensiveRateLimit,
 			"/exports/pdf",
+			// Portability exports read the pilot's entire account — every
+			// flight, plus a per-flight signature lookup — and render it in
+			// one request. The archive additionally zips signature images.
+			//
+			// The budget is deliberately generous relative to the work: this
+			// is the path a pilot uses to leave, and a rate limit must never
+			// be what stops somebody retrieving their own logbook. 15/min is
+			// far more than the handful of attempts a real migration takes,
+			// while still bounding a loop.
+			"/exports/logbook",
+			"/exports/archive",
 			// Custom-currency preview evaluates an arbitrary user-supplied rule
 			// (aggregate + per-flight lapse queries) without persisting it, so
 			// it is the most repeatable heavy path in this feature.

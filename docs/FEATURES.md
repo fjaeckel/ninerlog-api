@@ -212,6 +212,19 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.
+- **Leaving** (`internal/service/portability`) — the CSV and PDF exports above target
+  *authorities*; these target *other software*. `GET /exports/logbook?target=…` writes the
+  logbook in another product's own import format (ForeFlight Logbook, LogTen Pro,
+  MyFlightbook, CrewLounge PILOTLOG), so migrating is one upload rather than a hand-mapped
+  spreadsheet; `GET /exports/targets` enumerates the destinations with their caveats so
+  clients never hard-code the list. Aircraft flown but never added to the fleet are
+  reconstructed from the flights, and training devices are declared as simulators rather
+  than aeroplanes, so nothing is dropped and simulator hours do not become flight time.
+  Every vendor format is lossy — none carries licences, medicals, contacts, instructor
+  signatures or the pre-NinerLog opening balance — so `GET /exports/archive` ships the
+  complete account as a documented, versioned ZIP of plain CSV and JSON that needs no
+  NinerLog software to read. Full specification, per-destination support matrix and the
+  list of layouts still awaiting a live round-trip: [PORTABILITY.md](./PORTABILITY.md).
 
 ## Notifications
 

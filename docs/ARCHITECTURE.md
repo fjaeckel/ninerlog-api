@@ -13,7 +13,7 @@ testable and independent of HTTP and SQL details.
 ```mermaid
 flowchart TD
     H["<b>HTTP / Transport</b> — internal/api/handlers, middleware<br/>Gin handlers (one method per OpenAPI operation)<br/>Parse/validate requests, map errors → HTTP status codes<br/>Middleware: auth, metrics, rate limit, CORS, recovery, …"]
-    S["<b>Business logic</b> — internal/service (+ sub-packages)<br/>All domain rules, validation, calculations, orchestration<br/>Owns ownership checks, sentinel errors<br/>Sub-engines: currency/, flightcalc/, flightrules/, cloudbackup/"]
+    S["<b>Business logic</b> — internal/service (+ sub-packages)<br/>All domain rules, validation, calculations, orchestration<br/>Owns ownership checks, sentinel errors<br/>Sub-engines: currency/, flightcalc/, flightrules/, cloudbackup/, portability/"]
     R["<b>Data access</b> — internal/repository (+ postgres/)<br/>Interfaces in repository/, PostgreSQL impl in postgres/<br/>Parameterized SQL only; returns domain models"]
     M["<b>Domain models</b> — internal/models<br/>Plain structs + validation helpers; no I/O"]
     P["<b>pkg/</b> — shared, dependency-light utilities<br/>jwt, hash, duration, cryptoutil, email, solar"]
@@ -73,7 +73,7 @@ flowchart TD
     MAIN --> GEN["internal/api/generated (oapi-codegen output; route registration)"]
 
     PG -->|implements| REPO["internal/repository interfaces"]
-    SVC --> SUB["service/currency · service/flightcalc · service/flightrules<br/>service/cloudbackup (+provider/{s3,sftp,webdav})"]
+    SVC --> SUB["service/currency · service/flightcalc · service/flightrules<br/>service/cloudbackup (+provider/{s3,sftp,webdav}) · service/portability"]
 ```
 
 `internal/api/handlers.APIHandler` is the aggregate struct that holds every service (and

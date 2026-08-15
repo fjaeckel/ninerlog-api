@@ -3091,6 +3091,115 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /exports/targets:
+    get:
+      tags: [Export]
+      summary: List the logbook products this account can export to
+      description: |
+        List every third-party logbook product `GET /exports/logbook` can write
+        a native import file for.
+
+        Each entry carries the product's own name, the notes a pilot should read
+        before downloading (including what that product cannot represent), and
+        whether the layout has been round-tripped through a live import of the
+        destination product. Clients render this list rather than hard-coding it,
+        so a newly supported product appears without a client release.
+      operationId: listExportTargets
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Supported export targets
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [targets]
+                properties:
+                  targets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExportTarget'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /exports/logbook:
+    get:
+      tags: [Export]
+      summary: Export the logbook in another product's import format
+      description: |
+        Export the authenticated pilot's logbook as a file the named product's
+        own importer accepts, so moving to another logbook is a single upload
+        rather than a hand-mapped spreadsheet.
+
+        Each target is a lossy projection: a destination can only store what it
+        models. ForeFlight, LogTen Pro and MyFlightbook are built around FAA
+        columns and have nowhere to put EASA multi-pilot time or the
+        single-/multi-engine split; CrewLounge PILOTLOG carries those but not
+        licenses, medicals or instructor signatures. **No vendor format carries
+        everything** — for a complete, lossless copy use `GET /exports/archive`.
+
+        Aircraft flown but never added to the pilot's fleet are reconstructed
+        from the flights themselves, so no entry is dropped for want of a fleet
+        record.
+
+        Call `GET /exports/targets` for the supported targets and their caveats.
+      operationId: exportLogbookForTarget
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: target
+          in: query
+          required: true
+          description: The destination logbook product.
+          schema:
+            $ref: '#/components/schemas/ExportTargetId'
+      responses:
+        '200':
+          description: A file in the destination product's import format
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /exports/archive:
+    get:
+      tags: [Export]
+      summary: Export the complete logbook as an open, documented archive
+      description: |
+        Download everything this account holds as a single ZIP of plain UTF-8
+        CSV and JSON — flights, aircraft, licenses, class ratings, credentials,
+        contacts, per-flight crew, instructor signatures (with their images) and
+        the pre-NinerLog opening balance.
+
+        Unlike the vendor formats behind `GET /exports/logbook`, this archive is
+        lossless: it carries the records no third-party importer models. It is
+        versioned and documented in `docs/PORTABILITY.md`, needs no NinerLog
+        software to read, and includes a `manifest.json` index and a `README.md`
+        explaining its own conventions.
+
+        This is the portability guarantee the vendor exports sit on top of: a
+        pilot's logbook is a career-long legal record and must remain readable
+        whatever happens to any single product, including this one.
+      operationId: exportPortabilityArchive
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: ZIP archive of the complete account
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /exports/vcard:
     get:
       tags: [Export]
@@ -8129,6 +8238,62 @@ components:
           format: date-time
           example: '2026-02-13T18:00:00Z'
 
+    ExportTargetId:
+      type: string
+      description: |
+        Identifier of a third-party logbook product NinerLog can export to.
+        Values are stable; new products are added over time, so clients should
+        take the list from `GET /exports/targets` rather than hard-coding it.
+      enum:
+        - foreflight
+        - logten
+        - myflightbook
+        - crewlounge
+      example: foreflight
+
+    ExportTarget:
+      type: object
+      description: |
+        One destination logbook product, as returned by `GET /exports/targets`.
+      required:
+        - id
+        - product
+        - contentType
+        - extension
+        - notes
+        - verified
+      properties:
+        id:
+          $ref: '#/components/schemas/ExportTargetId'
+        product:
+          type: string
+          description: The destination product's own name for itself.
+          example: ForeFlight Logbook
+        contentType:
+          type: string
+          description: MIME type the export is served with.
+          example: text/csv; charset=utf-8
+        extension:
+          type: string
+          description: File extension of the generated file, without the dot.
+          example: csv
+        notes:
+          type: string
+          description: >-
+            What a pilot should know before downloading, including what this
+            destination cannot represent. Shown verbatim in the UI.
+          example: >-
+            Two-table ForeFlight import template. Carries the aircraft fleet,
+            times, landings, approaches, holds, instructor and crew names.
+        verified:
+          type: boolean
+          description: >-
+            True once this layout has been round-tripped through a live import
+            of the destination product. False means it was built from the
+            product's published template but not yet confirmed end to end — the
+            UI says so rather than implying an untested guarantee.
+          example: false
+
     ImportJSONResult:
       type: object
       description: Summary returned by `POST /imports/json` after restoring a backup.
@@ -8467,6 +8632,26 @@ components:
             type: string
           description: Names of registered cloud backup providers (e.g. s3, sftp, webdav). Empty when cloud backups are disabled.
           example: [s3, sftp, webdav]
+        exportTargets:
+          type: array
+          items:
+            type: string
+          description: >-
+            Third-party logbook products this deployment can export to, as
+            served by `GET /exports/targets`. Lets an operator confirm at a
+            glance that the leave-whenever-you-want path is present and which
+            destinations it offers.
+          example: [foreflight, logten, myflightbook, crewlounge]
+        exportTargetsUnverified:
+          type: array
+          items:
+            type: string
+          description: >-
+            Export targets whose column layout has not yet been round-tripped
+            through a live import of the destination product. Surfaced so an
+            operator fielding "my import failed" knows which layouts are still
+            unconfirmed without reading the source.
+          example: [foreflight, logten, myflightbook, crewlounge]
 
     AdminUser:
       type: object

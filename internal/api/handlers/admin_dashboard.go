@@ -11,6 +11,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/internal/service/portability"
 	emailpkg "github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/gin-gonic/gin"
 )
@@ -228,6 +229,24 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 
 	documentFilesEnabled := h.documentFileService != nil && h.documentFileService.Enabled()
 
+	// Which logbook products this deployment can export to. The list is taken
+	// from the registry that actually serves the exports rather than restated
+	// here, so the console can never advertise a destination the server does
+	// not implement.
+	//
+	// Unverified layouts are called out separately: an operator fielding "my
+	// import into <product> failed" needs to know which layouts have been
+	// round-tripped against the real importer and which have only been built
+	// from a published template.
+	exportTargets := []string{}
+	exportTargetsUnverified := []string{}
+	for _, target := range portability.Targets() {
+		exportTargets = append(exportTargets, string(target.Target))
+		if !target.Verified {
+			exportTargetsUnverified = append(exportTargetsUnverified, string(target.Target))
+		}
+	}
+
 	config := generated.AdminConfig{
 		AuthMode:               &authMode,
 		OidcIssuer:             oidcIssuer,
@@ -243,6 +262,9 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		CloudBackupsConfigured: cloudBackupsConfigured,
 		CloudBackupProviders:   cloudBackupProviders,
 		DocumentFilesEnabled:   &documentFilesEnabled,
+
+		ExportTargets:           &exportTargets,
+		ExportTargetsUnverified: &exportTargetsUnverified,
 	}
 
 	// The unverified-account lifecycle is only reported when it is actually

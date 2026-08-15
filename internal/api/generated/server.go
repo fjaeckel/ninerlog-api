@@ -236,15 +236,24 @@ type ServerInterface interface {
 	// GetAllCurrencyStatus Get currency status for all class ratings
 	// (GET /currency)
 	GetAllCurrencyStatus(c *gin.Context)
+	// ExportPortabilityArchive Export the complete logbook as an open, documented archive
+	// (GET /exports/archive)
+	ExportPortabilityArchive(c *gin.Context)
 	// ExportFlightsCSV Export flights as CSV
 	// (GET /exports/csv)
 	ExportFlightsCSV(c *gin.Context, params ExportFlightsCSVParams)
 	// ExportDataJSON Export full data backup as JSON
 	// (GET /exports/json)
 	ExportDataJSON(c *gin.Context)
+	// ExportLogbookForTarget Export the logbook in another product's import format
+	// (GET /exports/logbook)
+	ExportLogbookForTarget(c *gin.Context, params ExportLogbookForTargetParams)
 	// ExportFlightsPDF Export flights as PDF logbook
 	// (GET /exports/pdf)
 	ExportFlightsPDF(c *gin.Context, params ExportFlightsPDFParams)
+	// ListExportTargets List the logbook products this account can export to
+	// (GET /exports/targets)
+	ListExportTargets(c *gin.Context)
 	// ExportContactsVCard Export contacts as vCard
 	// (GET /exports/vcard)
 	ExportContactsVCard(c *gin.Context)
@@ -1973,6 +1982,19 @@ func (siw *ServerInterfaceWrapper) GetAllCurrencyStatus(c *gin.Context) {
 	siw.Handler.GetAllCurrencyStatus(c)
 }
 
+// ExportPortabilityArchive operation middleware
+func (siw *ServerInterfaceWrapper) ExportPortabilityArchive(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportPortabilityArchive(c)
+}
+
 // ExportFlightsCSV operation middleware
 func (siw *ServerInterfaceWrapper) ExportFlightsCSV(c *gin.Context) {
 
@@ -2011,6 +2033,33 @@ func (siw *ServerInterfaceWrapper) ExportDataJSON(c *gin.Context) {
 	}
 
 	siw.Handler.ExportDataJSON(c)
+}
+
+// ExportLogbookForTarget operation middleware
+func (siw *ServerInterfaceWrapper) ExportLogbookForTarget(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportLogbookForTargetParams
+
+	// ------------- Required query parameter "target" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "target", c.Request.URL.Query(), &params.Target, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter target: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportLogbookForTarget(c, params)
 }
 
 // ExportFlightsPDF operation middleware
@@ -2070,6 +2119,19 @@ func (siw *ServerInterfaceWrapper) ExportFlightsPDF(c *gin.Context) {
 	}
 
 	siw.Handler.ExportFlightsPDF(c, params)
+}
+
+// ListExportTargets operation middleware
+func (siw *ServerInterfaceWrapper) ListExportTargets(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListExportTargets(c)
 }
 
 // ExportContactsVCard operation middleware
@@ -3685,6 +3747,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/imports", wrapper.ListImports)
 	router.GET(options.BaseURL+"/imports/:importId", wrapper.GetImport)
 	router.GET(options.BaseURL+"/exports/csv", wrapper.ExportFlightsCSV)
+	router.GET(options.BaseURL+"/exports/targets", wrapper.ListExportTargets)
+	router.GET(options.BaseURL+"/exports/logbook", wrapper.ExportLogbookForTarget)
+	router.GET(options.BaseURL+"/exports/archive", wrapper.ExportPortabilityArchive)
 	router.GET(options.BaseURL+"/exports/vcard", wrapper.ExportContactsVCard)
 	router.GET(options.BaseURL+"/exports/json", wrapper.ExportDataJSON)
 	router.POST(options.BaseURL+"/imports/json", wrapper.ImportDataJSON)

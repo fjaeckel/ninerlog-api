@@ -95,7 +95,7 @@ would ever call. The JSON half of that flow (`GET /auth/providers`,
   |---|---|---|---|
   | `general` | 120/min | every `/api/v1` route | user ID (IP when unauthenticated) |
   | `search` | `SEARCH_RATE_LIMIT_PER_MINUTE`, default 60/min | `GET /flights` **with** a `q` parameter | user ID |
-  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*`, and **writes** to `/…/files*` | user ID |
+  | `expensive` | 15/min | `/exports/pdf`, `/exports/logbook`, `/exports/archive`, `/custom-currency/preview`, `/imports/*`, and **writes** to `/…/files*` | user ID |
   | `file_read` | `FILE_READ_RATE_LIMIT_PER_MINUTE`, default 90/min | **reads** of `/…/files*` | user ID |
   | `auth` | 10/min | login, register, refresh, password reset, 2FA, WebAuthn | client IP |
   | `admin` | 30/min | `/admin/*` and user state changes | client IP |
@@ -411,6 +411,22 @@ confirm and backup restore. So:
 ### Import / Export
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
 history) and export to CSV, JSON, PDF, and vCard.
+
+Three endpoints exist so a pilot can take their logbook to another product. See
+[PORTABILITY.md](./PORTABILITY.md) for the per-destination support matrix, the archive
+format specification, and which layouts have not yet been round-tripped through a live
+import.
+
+- `GET /exports/targets` — the destinations this deployment supports, each with the
+  product's name, the caveats to show the pilot, and a `verified` flag. Clients render
+  this list rather than hard-coding it.
+- `GET /exports/logbook?target=…` — the logbook in one destination's own import format
+  (`foreflight`, `logten`, `myflightbook`, `crewlounge`). An unknown target is a `400`
+  rather than an empty file. Every vendor format is a lossy projection: none carries
+  licences, medicals, contacts, signatures or the pre-NinerLog opening balance.
+- `GET /exports/archive` — the complete account as a ZIP of plain UTF-8 CSV and JSON,
+  with a `manifest.json` index and a generated `README.md`. Lossless, versioned, and
+  readable without any NinerLog software.
 
 `GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,
 email, phone, notes, the contact's logged crew roles as `CATEGORIES`, and a stable `UID`

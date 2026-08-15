@@ -1,0 +1,5 @@
+Date,AircraftReg,AircraftType,AircraftMake,AircraftModel,AircraftClass,DepartureICAO,DepartureTime,ArrivalICAO,ArrivalTime,TakeoffTime,LandingTime,TotalTime,SingleEngine,MultiEngine,MultiPilot,PICTime,CopilotTime,DualTime,InstructorTime,NightTime,IFRTime,ActualInstrument,SimulatedInstrument,CrossCountry,SoloTime,TakeoffsDay,TakeoffsNight,LandingsDay,LandingsNight,Approaches,Holdings,SimType,SimTime,PICName,CopilotName,InstructorName,StudentName,LaunchMethod,Remarks,Endorsement,Signed
+2026-01-12,D-EABC,C172,Cessna,172S Skyhawk,SEP_LAND,EDDF,08:15,EDDF,09:50,08:25,09:40,1:35,1:35,,,,,1:35,,,,,,,,6,,6,,,,,,Karl Fluglehrer,,Karl Fluglehrer,,,Circuits and bumps,,No
+2026-02-03,D-IXYZ,BE58,Beechcraft,Baron 58,MEP_LAND,EDDF,14:00,LSZH,15:45,14:12,15:35,1:45,,,1:45,1:45,,,,0:25,1:30,0:40,0:10,1:45,,1,,,1,3,1,,,SELF,Peter Kopilot,,,,'=SUM(A1:A9) noted in tech log,Line check completed,Yes
+2026-02-20,SIM-FNPT2,FNPT II,,FNPT II,,,,,,,,,,,,,,2:00,,,2:00,,2:00,,,,,,,4,,FNPT II MCC,2:00,SELF,,,,,IR renewal training,,No
+2026-03-01,G-OLDY,PA18,,PA18,,EGTB,11:00,EGLM,11:55,,,0:55,0:55,,,0:55,,,,,,,,0:55,0:55,1,,1,,,,,,SELF,,,,self-launch,,,No

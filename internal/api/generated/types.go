@@ -492,6 +492,30 @@ func (e EmailDeliveryEventStatus) Valid() bool {
 	}
 }
 
+// Defines values for ExportTargetId.
+const (
+	Crewlounge   ExportTargetId = "crewlounge"
+	Foreflight   ExportTargetId = "foreflight"
+	Logten       ExportTargetId = "logten"
+	Myflightbook ExportTargetId = "myflightbook"
+)
+
+// Valid indicates whether the value is a known member of the ExportTargetId enum.
+func (e ExportTargetId) Valid() bool {
+	switch e {
+	case Crewlounge:
+		return true
+	case Foreflight:
+		return true
+	case Logten:
+		return true
+	case Myflightbook:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FlightLaunchMethod.
 const (
 	FlightLaunchMethodAerotow    FlightLaunchMethod = "aerotow"
@@ -1465,6 +1489,16 @@ type AdminConfig struct {
 
 	// EmailSuppressedCount Addresses currently suppressed after a permanent delivery failure.
 	EmailSuppressedCount *int `json:"emailSuppressedCount,omitempty"`
+
+	// ExportTargets Third-party logbook products this deployment can export to, as served by `GET /exports/targets`. Lets an operator confirm at a glance that the leave-whenever-you-want path is present and which destinations it offers.
+	//
+	// Example: ["foreflight","logten","myflightbook","crewlounge"]
+	ExportTargets *[]string `json:"exportTargets,omitempty"`
+
+	// ExportTargetsUnverified Export targets whose column layout has not yet been round-tripped through a live import of the destination product. Surfaced so an operator fielding "my import failed" knows which layouts are still unconfirmed without reading the source.
+	//
+	// Example: ["foreflight","logten","myflightbook","crewlounge"]
+	ExportTargetsUnverified *[]string `json:"exportTargetsUnverified,omitempty"`
 
 	// GoVersion Example: go1.23.0
 	GoVersion string `json:"goVersion"`
@@ -3098,6 +3132,49 @@ type Error struct {
 	// Example: Validation failed
 	Error string `json:"error"`
 }
+
+// ExportTarget One destination logbook product, as returned by `GET /exports/targets`.
+type ExportTarget struct {
+	// ContentType MIME type the export is served with.
+	//
+	// Example: text/csv; charset=utf-8
+	ContentType string `json:"contentType"`
+
+	// Extension File extension of the generated file, without the dot.
+	//
+	// Example: csv
+	Extension string `json:"extension"`
+
+	// Id Identifier of a third-party logbook product NinerLog can export to.
+	// Values are stable; new products are added over time, so clients should
+	// take the list from `GET /exports/targets` rather than hard-coding it.
+	//
+	//
+	// Example: foreflight
+	Id ExportTargetId `json:"id"`
+
+	// Notes What a pilot should know before downloading, including what this destination cannot represent. Shown verbatim in the UI.
+	//
+	// Example: Two-table ForeFlight import template. Carries the aircraft fleet, times, landings, approaches, holds, instructor and crew names.
+	Notes string `json:"notes"`
+
+	// Product The destination product's own name for itself.
+	//
+	// Example: ForeFlight Logbook
+	Product string `json:"product"`
+
+	// Verified True once this layout has been round-tripped through a live import of the destination product. False means it was built from the product's published template but not yet confirmed end to end — the UI says so rather than implying an untested guarantee.
+	//
+	// Example: false
+	Verified bool `json:"verified"`
+}
+
+// ExportTargetId Identifier of a third-party logbook product NinerLog can export to.
+// Values are stable; new products are added over time, so clients should
+// take the list from `GET /exports/targets` rather than hard-coding it.
+//
+// Example: foreflight
+type ExportTargetId string
 
 // Features Optional features an operator can switch off at deploy time, with the
 // limits a client needs in order to validate before uploading.
@@ -5142,6 +5219,12 @@ type ExportFlightsCSVParams struct {
 
 // ExportFlightsCSVParamsFormat defines parameters for ExportFlightsCSV.
 type ExportFlightsCSVParamsFormat string
+
+// ExportLogbookForTargetParams defines parameters for ExportLogbookForTarget.
+type ExportLogbookForTargetParams struct {
+	// Target The destination logbook product.
+	Target ExportTargetId `form:"target" json:"target"`
+}
 
 // ExportFlightsPDFParams defines parameters for ExportFlightsPDF.
 type ExportFlightsPDFParams struct {

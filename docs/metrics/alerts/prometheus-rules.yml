@@ -293,3 +293,55 @@ groups:
         annotations:
           summary: "Verification reminders are not being delivered"
           description: "{{ $value | humanizePercentage }} of verification reminders failed over the last hour. Accounts will still be deleted on schedule without their final warning."
+
+  - name: ninerlog-api.portability
+    rules:
+      # A pilot exporting their logbook is on their way out the door. If the
+      # export fails they cannot take a career's worth of legally required
+      # records with them, and unlike most failures they have no workaround —
+      # there is no other route to that data.
+      #
+      # This fires on any sustained failure rather than on a ratio: these are
+      # low-volume, deliberate, one-shot requests, so a 50%-of-traffic
+      # threshold could mean a single pilot failing every attempt for an hour
+      # and never alerting. One broken export is worth a look.
+      - alert: NinerlogApiPortabilityExportsFailing
+        expr: sum(increase(portability_exports_total{job="ninerlog-api",result="error"}[15m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Logbook exports are failing"
+          description: "{{ $value | humanize }} logbook export(s) failed in the last 15 minutes. Pilots cannot move their logbook to another product until this is fixed — treat it as user-facing data loss risk, not a degraded feature."
+
+      # A gathering bug returns 200 with a header-only file. The pilot imports
+      # it somewhere else, sees an empty logbook, and has no reason to suspect
+      # this service. Only the row histogram can tell that apart from a run of
+      # genuinely new accounts, so it is worth watching when exports are
+      # actually happening.
+      - alert: NinerlogApiPortabilityExportsEmpty
+        expr: |
+          sum(increase(portability_export_flight_rows_count{job="ninerlog-api"}[1h])) > 5
+          and
+          sum(increase(portability_export_flight_rows_sum{job="ninerlog-api"}[1h])) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Logbook exports are returning no flights"
+          description: "Every logbook export in the last hour contained zero flight rows. If these are not all brand-new accounts, the data-gathering path is broken and pilots are silently receiving empty logbooks."
+
+      # The pilots with the longest careers have the most to lose and the
+      # slowest exports. A p95 climbing toward the request timeout means the
+      # longest-serving users lose the ability to leave first.
+      - alert: NinerlogApiPortabilityExportSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(portability_export_duration_seconds_bucket{job="ninerlog-api"}[30m]))
+          ) > 30
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Logbook exports are approaching the request timeout"
+          description: "p95 export build time is {{ $value | humanizeDuration }}. Pilots with the largest logbooks will start timing out before the rest."

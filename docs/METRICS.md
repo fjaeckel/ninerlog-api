@@ -169,6 +169,30 @@ The in-memory airport database (`internal/airports`) merges two upstream dataset
 > a jump in `unverified_accounts_deleted_total` is worth alerting on, because
 > account deletion is irreversible.
 
+### Data Portability Metrics
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `portability_exports_total` | Counter | `target`, `result` | Logbook exports by destination and outcome. Targets: `foreflight`, `logten`, `myflightbook`, `crewlounge`, `archive`. Results: `success`, `error` |
+| `portability_export_duration_seconds` | Histogram | `target` | Time to gather and render one export. Buckets extend to 60s because the cost scales with a whole career of flights |
+| `portability_export_flight_rows` | Histogram | — | Flight rows written per export |
+
+> **Why this matters:** these endpoints are how a pilot takes their logbook to
+> another product. A failing export is not a degraded feature — it is a pilot
+> being held in by a broken door, and it is the most urgent class of bug this
+> service has. `result="error"` is therefore alertable on its own rather than
+> tolerated inside a success ratio.
+>
+> `portability_export_flight_rows` separates a genuinely empty account from a
+> gathering bug that silently produced a header-only file. A success counter
+> cannot distinguish the two: both return 200. If p50 rows collapses to zero
+> while exports continue, the data-gathering path has broken, not the traffic.
+>
+> `portability_export_duration_seconds` matters at the tail, not the median.
+> The pilots with the longest careers have the most to lose and are the ones
+> whose export is slowest; a p95 climbing toward the request timeout means the
+> longest-serving users are the first to lose the ability to leave.
+
 ### Rate Limiting Metrics
 
 | Metric | Type | Labels | Description |

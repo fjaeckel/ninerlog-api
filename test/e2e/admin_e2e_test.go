@@ -80,6 +80,28 @@ func TestAdminEndpoints(t *testing.T) {
 		if _, ok := cfg["cloudBackupProviders"]; !ok {
 			t.Error("Expected cloudBackupProviders field")
 		}
+
+		// The console must show which logbook products this deployment can
+		// export to, so an operator can confirm the leave-whenever-you-want
+		// path is present without reading the source.
+		targets, ok := cfg["exportTargets"].([]interface{})
+		if !ok {
+			t.Fatalf("Expected exportTargets array, got %T", cfg["exportTargets"])
+		}
+		advertised := map[string]bool{}
+		for _, target := range targets {
+			if s, ok := target.(string); ok {
+				advertised[s] = true
+			}
+		}
+		for _, want := range []string{"foreflight", "logten", "myflightbook", "crewlounge"} {
+			if !advertised[want] {
+				t.Errorf("Expected exportTargets to include %q", want)
+			}
+		}
+		if _, ok := cfg["exportTargetsUnverified"]; !ok {
+			t.Error("Expected exportTargetsUnverified field")
+		}
 	})
 
 	t.Run("admin list users", func(t *testing.T) {

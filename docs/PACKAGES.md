@@ -30,6 +30,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | `internal/service/flightrules` | Composable flight rules used by `flightcalc`: `night.go` (day/night via solar), `crew.go`, `roles.go`, `names.go`, `ifr.go`, `fstd.go`, `remarks.go`, `display.go`. |
 | `internal/service/cloudbackup` | Cloud backup orchestration: `service.go`, `destinations.go`, `runner.go`, `scheduler.go`, `jsonbuilder.go`. |
 | `internal/service/cloudbackup/provider` | Pluggable storage `Provider` interface + registry, with `s3/`, `sftp/`, and `webdav/` implementations. |
+| `internal/service/portability` | Exports for leaving: `portability.go` (`Bundle`/`Gatherer`), `target.go` (destination registry), one file per destination (`foreflight.go`, `logten.go`, `myflightbook.go`, `crewlounge.go`), `archive.go` (the open ZIP), `values.go` (shared unit/format conversions), `metrics.go`. Golden files in `testdata/`. See [PORTABILITY.md](./PORTABILITY.md). |
 
 ### Data layer
 
@@ -56,6 +57,7 @@ Reusable utilities with minimal dependencies, safe to use from any layer.
 | `pkg/jwt` | `Manager` — minting and validating JWT access/refresh tokens. |
 | `pkg/hash` | bcrypt password hashing/verification and SHA-256 token hashing. |
 | `pkg/cryptoutil` | AES-256-GCM (`AEAD`) for encrypting stored backup credentials; key helpers (`New`, `NewFromBase64`, `GenerateKey`, `GenerateKeyBase64`). |
+| `pkg/csvsafe` | CSV writer that neutralises spreadsheet formula injection (CWE-1236) on every cell. The single guard shared by all exports; see [PORTABILITY.md](./PORTABILITY.md#security). |
 | `pkg/duration` | Convert/format flight durations: minutes ↔ decimal hours, `HH:MM`, parsing. See [DOMAIN.md](./DOMAIN.md#time-and-duration-handling). |
 | `pkg/email` | SMTP sender (`smtp.go`) with localized templates (`templates_en.go`, `templates_de.go`) and email metrics (`metrics.go`). Recipients go through the SMTP envelope, not message headers (anti-injection). The send path runs the SMTP conversation command by command so a refusal can be attributed to the recipient or to our own setup; `delivery.go` defines those outcomes and the `DeliveryRecorder` interface that lets `internal/service` persist them without `pkg/email` depending on a database. |
 | `pkg/solar` | Sunrise/sunset/twilight (`Calculate`, `CivilTwilight`, `IsNight`) wrapping `go-solar`; powers the day/night flight split. |
