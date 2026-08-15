@@ -725,6 +725,7 @@ const (
 	ImportFieldIsPic                   ImportField = "isPic"
 	ImportFieldLandingsDay             ImportField = "landingsDay"
 	ImportFieldLandingsNight           ImportField = "landingsNight"
+	ImportFieldLandingsTotal           ImportField = "landingsTotal"
 	ImportFieldNightTime               ImportField = "nightTime"
 	ImportFieldOffBlockTime            ImportField = "offBlockTime"
 	ImportFieldOnBlockTime             ImportField = "onBlockTime"
@@ -785,6 +786,8 @@ func (e ImportField) Valid() bool {
 		return true
 	case ImportFieldLandingsNight:
 		return true
+	case ImportFieldLandingsTotal:
+		return true
 	case ImportFieldNightTime:
 		return true
 	case ImportFieldOffBlockTime:
@@ -818,18 +821,51 @@ func (e ImportField) Valid() bool {
 
 // Defines values for ImportFormat.
 const (
-	CSV           ImportFormat = "CSV"
-	FOREFLIGHTCSV ImportFormat = "FOREFLIGHT_CSV"
-	XLS           ImportFormat = "XLS"
-	XLSX          ImportFormat = "XLSX"
+	CAPZLOGCSV        ImportFormat = "CAPZLOG_CSV"
+	CSV               ImportFormat = "CSV"
+	EASACSV           ImportFormat = "EASA_CSV"
+	FAACSV            ImportFormat = "FAA_CSV"
+	FLYLOGCSV         ImportFormat = "FLYLOG_CSV"
+	FOREFLIGHTCSV     ImportFormat = "FOREFLIGHT_CSV"
+	LOGTENCSV         ImportFormat = "LOGTEN_CSV"
+	MCCPILOTLOGCSV    ImportFormat = "MCC_PILOTLOG_CSV"
+	MYFLIGHTBOOKCSV   ImportFormat = "MYFLIGHTBOOK_CSV"
+	NINERLOGCSV       ImportFormat = "NINERLOG_CSV"
+	SKYDEMONCSV       ImportFormat = "SKYDEMON_CSV"
+	VEREINSFLIEGERCSV ImportFormat = "VEREINSFLIEGER_CSV"
+	WADERCSV          ImportFormat = "WADER_CSV"
+	XLS               ImportFormat = "XLS"
+	XLSX              ImportFormat = "XLSX"
 )
 
 // Valid indicates whether the value is a known member of the ImportFormat enum.
 func (e ImportFormat) Valid() bool {
 	switch e {
+	case CAPZLOGCSV:
+		return true
 	case CSV:
 		return true
+	case EASACSV:
+		return true
+	case FAACSV:
+		return true
+	case FLYLOGCSV:
+		return true
 	case FOREFLIGHTCSV:
+		return true
+	case LOGTENCSV:
+		return true
+	case MCCPILOTLOGCSV:
+		return true
+	case MYFLIGHTBOOKCSV:
+		return true
+	case NINERLOGCSV:
+		return true
+	case SKYDEMONCSV:
+		return true
+	case VEREINSFLIEGERCSV:
+		return true
+	case WADERCSV:
 		return true
 	case XLS:
 		return true
@@ -876,6 +912,42 @@ func (e ImportStatus) Valid() bool {
 	case ImportStatusFailed:
 		return true
 	case ImportStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportTemplateConfidence.
+const (
+	BestEffort ImportTemplateConfidence = "best-effort"
+	Exact      ImportTemplateConfidence = "exact"
+)
+
+// Valid indicates whether the value is a known member of the ImportTemplateConfidence enum.
+func (e ImportTemplateConfidence) Valid() bool {
+	switch e {
+	case BestEffort:
+		return true
+	case Exact:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportTemplateRegions.
+const (
+	EASA ImportTemplateRegions = "EASA"
+	FAA  ImportTemplateRegions = "FAA"
+)
+
+// Valid indicates whether the value is a known member of the ImportTemplateRegions enum.
+func (e ImportTemplateRegions) Valid() bool {
+	switch e {
+	case EASA:
+		return true
+	case FAA:
 		return true
 	default:
 		return false
@@ -1543,9 +1615,14 @@ type AdminStats struct {
 	} `json:"cloudBackupDestinations"`
 	DisabledAccounts int `json:"disabledAccounts"`
 	FlightsThisMonth int `json:"flightsThisMonth"`
-	LockedAccounts   int `json:"lockedAccounts"`
-	NewUsersThisWeek int `json:"newUsersThisWeek"`
-	TotalAircraft    int `json:"totalAircraft"`
+
+	// ImportsByFormat Completed imports grouped by the detected source format, i.e. which logbook pilots are migrating from. Keys are ImportFormat values; formats nobody has imported are omitted.
+	//
+	// Example: {"CSV":2,"FOREFLIGHT_CSV":12,"MYFLIGHTBOOK_CSV":4}
+	ImportsByFormat  map[string]int `json:"importsByFormat"`
+	LockedAccounts   int            `json:"lockedAccounts"`
+	NewUsersThisWeek int            `json:"newUsersThisWeek"`
+	TotalAircraft    int            `json:"totalAircraft"`
 
 	// TotalContacts Contacts across all users. Grows on its own as flights are logged, since crew names are turned into contacts automatically.
 	TotalContacts    int `json:"totalContacts"`
@@ -3875,6 +3952,13 @@ type ImportColumnMapping struct {
 	SourceColumn string `json:"sourceColumn"`
 
 	// TargetField Target flight log field for column mapping.
+	//
+	// Landings can be mapped either as a day/night split (`landingsDay` +
+	// `landingsNight`, which are summed) or as a single `landingsTotal`
+	// column. When a file carries both — as ForeFlight and MyFlightbook do —
+	// the larger of the two wins, so touch-and-go landings counted only in
+	// the total column are not lost.
+	//
 	// Person fields (`person1`–`person6`) extract crew members from import rows.
 	// During ForeFlight imports, role assignment is automatic:
 	// - If an instructor is detected (via `instructorName` or dual-received time),
@@ -3915,6 +3999,13 @@ type ImportConfirmRequest struct {
 }
 
 // ImportField Target flight log field for column mapping.
+//
+// Landings can be mapped either as a day/night split (`landingsDay` +
+// `landingsNight`, which are summed) or as a single `landingsTotal`
+// column. When a file carries both — as ForeFlight and MyFlightbook do —
+// the larger of the two wins, so touch-and-go landings counted only in
+// the total column are not lost.
+//
 // Person fields (`person1`–`person6`) extract crew members from import rows.
 // During ForeFlight imports, role assignment is automatic:
 //   - If an instructor is detected (via `instructorName` or dual-received time),
@@ -3926,9 +4017,24 @@ type ImportConfirmRequest struct {
 // Use `ignore` to skip a column during import.
 type ImportField string
 
-// ImportFormat Detected file format:
-// - CSV: Generic comma/semicolon/tab-separated values
-// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+// ImportFormat The import template that matched the uploaded file, detected from its
+// header row. Recording the source format is what makes the import
+// auditable — and it is the value the admin dashboard groups by to show
+// which logbooks pilots are migrating from.
+//
+// - CSV: no template matched; columns were mapped by name and by hand
+// - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+// - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+// - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+// - MYFLIGHTBOOK_CSV: MyFlightbook
+// - CAPZLOG_CSV: capzlog.aero
+// - FLYLOG_CSV: FLYLOG.io
+// - WADER_CSV: Wader Pilot Logbook
+// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list (German headers)
+// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
+// - SKYDEMON_CSV: SkyDemon logbook export
+// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+// - FAA_CSV: generic FAA/ASA column layout
 // - XLS: Microsoft Excel 97-2003 workbook
 // - XLSX: Microsoft Excel 2007+ workbook (Open XML)
 type ImportFormat string
@@ -4091,9 +4197,24 @@ type ImportResult struct {
 	// FileName Example: foreflight_logbook_2025.csv
 	FileName string `json:"fileName"`
 
-	// Format Detected file format:
-	// - CSV: Generic comma/semicolon/tab-separated values
-	// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+	// Format The import template that matched the uploaded file, detected from its
+	// header row. Recording the source format is what makes the import
+	// auditable — and it is the value the admin dashboard groups by to show
+	// which logbooks pilots are migrating from.
+	//
+	// - CSV: no template matched; columns were mapped by name and by hand
+	// - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+	// - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+	// - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+	// - MYFLIGHTBOOK_CSV: MyFlightbook
+	// - CAPZLOG_CSV: capzlog.aero
+	// - FLYLOG_CSV: FLYLOG.io
+	// - WADER_CSV: Wader Pilot Logbook
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list (German headers)
+	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
+	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
 	// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
 	Format ImportFormat `json:"format"`
@@ -4135,6 +4256,86 @@ type ImportResult struct {
 // - failed: No rows imported (all failed validation)
 type ImportStatus string
 
+// ImportTemplate One logbook export format NinerLog knows how to read, together with the
+// steps for getting that file out of the source application.
+type ImportTemplate struct {
+	// AutoDetected Whether a file in this format is recognised automatically from its
+	// header row. `false` means the file still imports, but every column
+	// is mapped on the mapping screen.
+	AutoDetected bool `json:"autoDetected"`
+
+	// Confidence How the template's column list was built.
+	// - `exact`: the header row is known verbatim (NinerLog's own exports,
+	//   or a published and stable column list)
+	// - `best-effort`: the aliases cover the documented columns plus the
+	//   usual spelling variants, but the export has not been verified byte
+	//   for byte. Auto-detection may miss; the column-mapping step catches it.
+	Confidence ImportTemplateConfidence `json:"confidence"`
+
+	// Description What this template covers and what it cannot carry across
+	Description string `json:"description"`
+
+	// ExportSteps Ordered, human-readable instructions for exporting from the source
+	// application. Shown on the import screen.
+	ExportSteps []string `json:"exportSteps"`
+
+	// Id The import template that matched the uploaded file, detected from its
+	// header row. Recording the source format is what makes the import
+	// auditable — and it is the value the admin dashboard groups by to show
+	// which logbooks pilots are migrating from.
+	//
+	// - CSV: no template matched; columns were mapped by name and by hand
+	// - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+	// - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+	// - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+	// - MYFLIGHTBOOK_CSV: MyFlightbook
+	// - CAPZLOG_CSV: capzlog.aero
+	// - FLYLOG_CSV: FLYLOG.io
+	// - WADER_CSV: Wader Pilot Logbook
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list (German headers)
+	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
+	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+	// - FAA_CSV: generic FAA/ASA column layout
+	// - XLS: Microsoft Excel 97-2003 workbook
+	// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
+	Id ImportFormat `json:"id"`
+
+	// Name Display name of the source logbook
+	//
+	// Example: MyFlightbook
+	Name string `json:"name"`
+
+	// Regions Regulatory layouts the source targets
+	Regions []ImportTemplateRegions `json:"regions"`
+
+	// Vendor Company or project behind the source logbook
+	//
+	// Example: MyFlightbook
+	Vendor *string `json:"vendor,omitempty"`
+
+	// Website Homepage of the source logbook, when it has one
+	//
+	// Example: https://myflightbook.com
+	Website *string `json:"website,omitempty"`
+}
+
+// ImportTemplateConfidence How the template's column list was built.
+//   - `exact`: the header row is known verbatim (NinerLog's own exports,
+//     or a published and stable column list)
+//   - `best-effort`: the aliases cover the documented columns plus the
+//     usual spelling variants, but the export has not been verified byte
+//     for byte. Auto-detection may miss; the column-mapping step catches it.
+type ImportTemplateConfidence string
+
+// ImportTemplateRegions defines model for ImportTemplate.Regions.
+type ImportTemplateRegions string
+
+// ImportTemplateList defines model for ImportTemplateList.
+type ImportTemplateList struct {
+	Templates []ImportTemplate `json:"templates"`
+}
+
 // ImportUploadResponse defines model for ImportUploadResponse.
 type ImportUploadResponse struct {
 	// Columns Column headers found in the file
@@ -4142,9 +4343,28 @@ type ImportUploadResponse struct {
 	// Example: ["Date","AircraftID","From","To","Route","TimeOut","TimeIn","TotalTime","PIC","Landings"]
 	Columns []string `json:"columns"`
 
-	// Format Detected file format:
-	// - CSV: Generic comma/semicolon/tab-separated values
-	// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+	// DetectedTemplate One logbook export format NinerLog knows how to read, together with the
+	// steps for getting that file out of the source application.
+	DetectedTemplate *ImportTemplate `json:"detectedTemplate,omitempty"`
+
+	// Format The import template that matched the uploaded file, detected from its
+	// header row. Recording the source format is what makes the import
+	// auditable — and it is the value the admin dashboard groups by to show
+	// which logbooks pilots are migrating from.
+	//
+	// - CSV: no template matched; columns were mapped by name and by hand
+	// - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+	// - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+	// - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+	// - MYFLIGHTBOOK_CSV: MyFlightbook
+	// - CAPZLOG_CSV: capzlog.aero
+	// - FLYLOG_CSV: FLYLOG.io
+	// - WADER_CSV: Wader Pilot Logbook
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list (German headers)
+	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
+	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
 	// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
 	Format ImportFormat `json:"format"`
@@ -4155,7 +4375,8 @@ type ImportUploadResponse struct {
 	PreviewRows []map[string]string `json:"previewRows"`
 
 	// SuggestedMappings Server-suggested column mappings based on header names.
-	// For ForeFlight exports these are pre-filled from the known column layout.
+	// When a template matched, these come from that template's column
+	// layout; otherwise they fall back to a cross-vendor alias table.
 	// The user can adjust mappings before submitting the preview request.
 	SuggestedMappings []ImportColumnMapping `json:"suggestedMappings"`
 

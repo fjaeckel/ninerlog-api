@@ -619,7 +619,11 @@ func main() {
 			// it is the most repeatable heavy path in this feature.
 			"/custom-currency/preview",
 		))
-		api.Use(middleware.RateLimitByPathPrefix(expensiveRateLimit, "/imports"))
+		// GET /imports/templates is exempt: it serves a static catalogue and is
+		// read every time the import screen opens, so it must not spend the
+		// budget reserved for actual imports.
+		api.Use(middleware.RateLimitByPathPrefixExcept(expensiveRateLimit,
+			[]string{"/imports/templates"}, "/imports"))
 
 		// Advanced search ("q") drives up to 50 leading-wildcard ILIKE scans
 		// plus a correlated crew subquery per request; plain /flights listing

@@ -186,8 +186,36 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 ## Import & export
 
 - **Import** (`internal/api/handlers/import.go`, `import_json.go`) — upload a file
-  (CSV/XLSX, including ForeFlight exports) → preview → confirm, or import JSON directly.
+  (CSV/XLSX) → preview → confirm, or import JSON directly.
   Import sessions are tracked (history endpoints).
+- **Import templates** (`internal/service/importtemplate`) — the catalogue of logbook
+  export formats NinerLog reads. Each template is data: header aliases pointing at import
+  fields, the signature columns that identify the source application, a date-format hint,
+  and the export instructions shown on the import screen. Upload matches a file's header
+  row against the catalogue and records the winning template as the import's
+  `format`, which is also what `GET /admin/stats` groups `importsByFormat` by — i.e. which
+  logbook pilots are migrating from. `GET /imports/templates` serves the catalogue so the
+  import screen can list supported logbooks and how to export from each.
+
+  Covered today: ForeFlight, LogTen Pro, MyFlightbook, capzlog.aero, FLYLOG.io, Wader,
+  Vereinsflieger (German headers), mccPILOTLOG/CrewLounge, SkyDemon, the generic EASA
+  (AMC1 FCL.050) and FAA column layouts, and NinerLog's own CSV export. Each template
+  declares a `confidence`: `exact` where the header row is known verbatim (NinerLog's own
+  exports and the two regulatory layouts, which this repository also writes), `best-effort`
+  where the aliases cover the vendor's documented columns plus the usual spelling variants
+  but the export has not been verified byte for byte.
+
+  Detection never blocks an import. A file that matches nothing is recorded as `CSV` and
+  mapped through a cross-vendor alias table, then adjusted on the mapping screen — so an
+  unknown logbook degrades to manual mapping rather than a rejection. Two mapping rules
+  exist to absorb format differences: a `landingsTotal` column is reconciled against the
+  day/night split by taking the larger (so touch-and-goes counted only in a total column
+  survive), and departure/arrival are derived from the first and last waypoint of the
+  route when the source has no separate airport columns, as MyFlightbook does.
+
+  Adding a logbook means adding a `Template` in `importtemplate/sources.go`, the matching
+  `ImportFormat` member in `api-spec/openapi.yaml`, and the value in the `import_format`
+  database enum — no handler or service changes.
   Confirming an import also fills in the entities the flights reference: contacts for
   crew names (the same auto-creation that flight create/update performs — see
   **Contacts / people** under Pilot data management), and fleet entries for every registration in the file that the

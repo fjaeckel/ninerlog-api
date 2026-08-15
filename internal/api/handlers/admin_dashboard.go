@@ -39,6 +39,26 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM credentials"), &stats.TotalCredentials)
 	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flight_imports"), &stats.TotalImports)
 
+	// Imports grouped by source format — i.e. which logbook pilots are
+	// migrating from. Formats nobody has imported are simply absent.
+	stats.ImportsByFormat = map[string]int{}
+	if formatRows, err := h.db.QueryContext(c.Request.Context(),
+		"SELECT import_format::text, COUNT(*) FROM flight_imports GROUP BY import_format",
+	); err != nil {
+		slog.Error("admin stats: flight_imports by format query failed", "error", err)
+	} else {
+		defer formatRows.Close()
+		for formatRows.Next() {
+			var format string
+			var count int
+			if err := formatRows.Scan(&format, &count); err != nil {
+				slog.Error("admin stats: flight_imports by format scan failed", "error", err)
+				continue
+			}
+			stats.ImportsByFormat[format] = count
+		}
+	}
+
 	// Flights this month
 	monthStart := time.Now().Format("2006-01") + "-01"
 	scanCount(h.db.QueryRowContext(c.Request.Context(),

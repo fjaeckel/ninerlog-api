@@ -5,7 +5,41 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/service/importtemplate"
 )
+
+// Format detection and column suggestion moved into the importtemplate
+// catalogue when per-source templates were added. These shims keep the handler
+// tests exercising the behaviour the handler actually depends on — that a
+// ForeFlight file is recognised and mapped the way it always was — through the
+// new entry points.
+
+// foreFlightExportColumns is the header row of a ForeFlight Logbook export.
+var foreFlightExportColumns = []string{
+	"Date", "AircraftID", "From", "To", "Route", "TimeOut", "TimeOff", "TimeOn", "TimeIn",
+	"OnDuty", "OffDuty", "TotalTime", "PIC", "SIC", "Night", "Solo", "CrossCountry",
+	"NVG", "NVG Ops", "Distance", "DayTakeoffs", "DayLandingsFullStop", "NightTakeoffs",
+	"NightLandingsFullStop", "AllLandings", "ActualInstrument", "SimulatedInstrument",
+	"HobbsStart", "HobbsEnd", "TachStart", "TachEnd", "Holds", "Approach1", "Approach2",
+	"Approach3", "Approach4", "Approach5", "Approach6", "DualGiven", "DualReceived",
+	"SimulatedFlight", "GroundTraining", "InstructorName", "InstructorComments",
+	"Person1", "Person2", "Person3", "Person4", "Person5", "Person6",
+	"FlightReview", "Checkride", "IPC", "NVG Proficiency", "FAA6158",
+	"PilotComments",
+}
+
+func isForeFlight(headers []string) bool {
+	tpl := importtemplate.Detect(headers)
+	return tpl != nil && tpl.ID == "FOREFLIGHT_CSV"
+}
+
+func suggestForeFlight() []generated.ImportColumnMapping {
+	return toGeneratedMappings(importtemplate.ByID("FOREFLIGHT_CSV").Suggest(foreFlightExportColumns))
+}
+
+func suggestGenericCSV(headers []string) []generated.ImportColumnMapping {
+	return toGeneratedMappings(importtemplate.Suggest(nil, headers))
+}
 
 func TestParseCSV_ForeFlightFormat(t *testing.T) {
 	csvData := `ForeFlight Logbook Import;;;;;;;

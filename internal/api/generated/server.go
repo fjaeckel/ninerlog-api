@@ -317,6 +317,9 @@ type ServerInterface interface {
 	// PreviewImport Preview mapped flights
 	// (POST /imports/preview)
 	PreviewImport(c *gin.Context)
+	// ListImportTemplates List supported logbook import templates
+	// (GET /imports/templates)
+	ListImportTemplates(c *gin.Context)
 	// UploadImportFile Upload file for import
 	// (POST /imports/upload)
 	UploadImportFile(c *gin.Context)
@@ -2709,6 +2712,19 @@ func (siw *ServerInterfaceWrapper) PreviewImport(c *gin.Context) {
 	siw.Handler.PreviewImport(c)
 }
 
+// ListImportTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListImportTemplates(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListImportTemplates(c)
+}
+
 // UploadImportFile operation middleware
 func (siw *ServerInterfaceWrapper) UploadImportFile(c *gin.Context) {
 
@@ -3679,6 +3695,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/airports/search", wrapper.SearchAirports)
 	router.GET(options.BaseURL+"/reports/routes", wrapper.GetFlightRoutes)
 	router.GET(options.BaseURL+"/reports/airport-stats", wrapper.GetAirportStats)
+	router.GET(options.BaseURL+"/imports/templates", wrapper.ListImportTemplates)
 	router.POST(options.BaseURL+"/imports/upload", wrapper.UploadImportFile)
 	router.POST(options.BaseURL+"/imports/preview", wrapper.PreviewImport)
 	router.POST(options.BaseURL+"/imports/confirm", wrapper.ConfirmImport)

@@ -23,6 +23,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
+	"github.com/fjaeckel/ninerlog-api/internal/service/importtemplate"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -126,130 +127,72 @@ func cleanupOldSessions() {
 	}
 }
 
-// ForeFlight known column headers
-var foreflightColumns = []string{
-	"Date", "AircraftID", "From", "To", "Route", "TimeOut", "TimeOff", "TimeOn", "TimeIn",
-	"OnDuty", "OffDuty", "TotalTime", "PIC", "SIC", "Night", "Solo", "CrossCountry",
-	"NVG", "NVG Ops", "Distance", "DayTakeoffs", "DayLandingsFullStop", "NightTakeoffs",
-	"NightLandingsFullStop", "AllLandings", "ActualInstrument", "SimulatedInstrument",
-	"HobbsStart", "HobbsEnd", "TachStart", "TachEnd", "Holds", "Approach1", "Approach2",
-	"Approach3", "Approach4", "Approach5", "Approach6", "DualGiven", "DualReceived",
-	"SimulatedFlight", "GroundTraining", "InstructorName", "InstructorComments",
-	"Person1", "Person2", "Person3", "Person4", "Person5", "Person6",
-	"FlightReview", "Checkride", "IPC", "NVG Proficiency", "FAA6158",
-	"PilotComments",
+// detectImportFormat matches a file's header row against the template
+// catalogue in internal/service/importtemplate and returns the format to
+// record plus the suggested column mappings.
+//
+// Detection is best-effort by design: an unrecognised file falls back to the
+// generic CSV format and the cross-vendor alias table, so it still reaches the
+// mapping screen rather than being rejected.
+func detectImportFormat(headers []string) (*importtemplate.Template, generated.ImportFormat, []generated.ImportColumnMapping) {
+	tpl, format, mappings := importtemplate.DetectAndSuggest(headers)
+	return tpl, generated.ImportFormat(format), toGeneratedMappings(mappings)
 }
 
-func isForeFlight(headers []string) bool {
-	if len(headers) < 10 {
-		return false
-	}
-	matches := 0
-	ffSet := make(map[string]bool)
-	for _, h := range foreflightColumns {
-		ffSet[strings.ToLower(h)] = true
-	}
-	for _, h := range headers {
-		if ffSet[strings.ToLower(strings.TrimSpace(h))] {
-			matches++
+func toGeneratedMappings(mappings []importtemplate.Mapping) []generated.ImportColumnMapping {
+	out := make([]generated.ImportColumnMapping, 0, len(mappings))
+	for _, m := range mappings {
+		gm := generated.ImportColumnMapping{
+			SourceColumn: m.SourceColumn,
+			TargetField:  generated.ImportField(m.TargetField),
 		}
+		if m.DateFormat != "" {
+			df := m.DateFormat
+			gm.DateFormat = &df
+		}
+		out = append(out, gm)
 	}
-	return matches >= 8
+	return out
 }
 
-func suggestForeFlight() []generated.ImportColumnMapping {
-	mapping := map[string]generated.ImportField{
-		"Date":                  "date",
-		"AircraftID":            "aircraftReg",
-		"From":                  "departureIcao",
-		"To":                    "arrivalIcao",
-		"Route":                 "route",
-		"TimeOut":               "offBlockTime",
-		"TimeIn":                "onBlockTime",
-		"TimeOff":               "departureTime",
-		"TimeOn":                "arrivalTime",
-		"TotalTime":             "totalTime",
-		"PIC":                   "isPic",
-		"Night":                 "nightTime",
-		"DualReceived":          "isDual",
-		"ActualInstrument":      "actualInstrumentTime",
-		"SimulatedInstrument":   "simulatedInstrumentTime",
-		"DayLandingsFullStop":   "landingsDay",
-		"NightLandingsFullStop": "landingsNight",
-		"Holds":                 "holds",
-		"FlightReview":          "isFlightReview",
-		"IPC":                   "isIpc",
-		"PilotComments":         "remarks",
-		"InstructorName":        "instructorName",
-		"InstructorComments":    "instructorComments",
-		"DualGiven":             "dualGivenTime",
-		"Person1":               "person1",
-		"Person2":               "person2",
-		"Person3":               "person3",
-		"Person4":               "person4",
-		"Person5":               "person5",
-		"Person6":               "person6",
+// toGeneratedTemplate converts a catalogue entry into its API representation.
+func toGeneratedTemplate(t *importtemplate.Template) generated.ImportTemplate {
+	out := generated.ImportTemplate{
+		Id:           generated.ImportFormat(t.ID),
+		Name:         t.Name,
+		Description:  t.Description,
+		Confidence:   generated.ImportTemplateConfidence(t.Confidence),
+		ExportSteps:  append([]string(nil), t.ExportSteps...),
+		AutoDetected: len(t.Signature) > 0 && t.MinSignatureHits > 0,
+		Regions:      make([]generated.ImportTemplateRegions, 0, len(t.Regions)),
 	}
-
-	var result []generated.ImportColumnMapping
-	for src, tgt := range mapping {
-		m := generated.ImportColumnMapping{
-			SourceColumn: src,
-			TargetField:  tgt,
-		}
-		if tgt == "date" {
-			df := "2006-01-02"
-			m.DateFormat = &df
-		}
-		result = append(result, m)
+	for _, r := range t.Regions {
+		out.Regions = append(out.Regions, generated.ImportTemplateRegions(r))
 	}
-	return result
+	if t.Vendor != "" {
+		v := t.Vendor
+		out.Vendor = &v
+	}
+	if t.Website != "" {
+		w := t.Website
+		out.Website = &w
+	}
+	return out
 }
 
-func suggestGenericCSV(headers []string) []generated.ImportColumnMapping {
-	guesses := map[string]generated.ImportField{
-		"date": "date", "flight date": "date", "datum": "date",
-		"aircraft": "aircraftReg", "registration": "aircraftReg", "reg": "aircraftReg", "aircraftid": "aircraftReg", "aircraft reg": "aircraftReg", "aircraftreg": "aircraftReg", "tail": "aircraftReg", "tail number": "aircraftReg",
-		"a/c reg": "aircraftReg", "a/c ident": "aircraftReg",
-		"type": "aircraftType", "aircraft type": "aircraftType", "typecode": "aircraftType", "aircrafttype": "aircraftType", "a/c type": "aircraftType",
-		"from": "departureIcao", "departure": "departureIcao", "dep": "departureIcao", "departure icao": "departureIcao", "departureicao": "departureIcao", "dep place": "departureIcao",
-		"to": "arrivalIcao", "arrival": "arrivalIcao", "arr": "arrivalIcao", "dest": "arrivalIcao", "arrival icao": "arrivalIcao", "arrivalicao": "arrivalIcao", "arr place": "arrivalIcao",
-		"off block": "offBlockTime", "offblock": "offBlockTime", "off-block": "offBlockTime", "out-block": "offBlockTime", "out block": "offBlockTime", "timeout": "offBlockTime", "chocks off": "offBlockTime", "offblocktime": "offBlockTime", "dep time": "offBlockTime",
-		"on block": "onBlockTime", "onblock": "onBlockTime", "on-block": "onBlockTime", "in-block": "onBlockTime", "in block": "onBlockTime", "timein": "onBlockTime", "chocks on": "onBlockTime", "onblocktime": "onBlockTime", "arr time": "onBlockTime",
-		"takeoff": "departureTime", "timeoff": "departureTime", "departure time": "departureTime", "departuretime": "departureTime",
-		"landing": "arrivalTime", "timeon": "arrivalTime", "arrival time": "arrivalTime", "arrivaltime": "arrivalTime",
-		"total": "totalTime", "total time": "totalTime", "totaltime": "totalTime", "block time": "totalTime", "flight time": "totalTime",
-		"pic": "isPic", "pic time": "isPic",
-		"dual": "isDual", "dual received": "isDual", "dualreceived": "isDual", "dual rcvd": "isDual",
-		"night": "nightTime", "night time": "nightTime", "nighttime": "nightTime",
-		"ifr": "ifrTime", "ifr time": "ifrTime", "ifrtime": "ifrTime", "instrument": "ifrTime",
-		"actual instrument": "actualInstrumentTime", "actualinstrument": "actualInstrumentTime", "actual inst": "actualInstrumentTime",
-		"simulated instrument": "simulatedInstrumentTime", "simulatedinstrument": "simulatedInstrumentTime", "sim inst": "simulatedInstrumentTime",
-		"day landings": "landingsDay", "daylandingsfullstop": "landingsDay", "day ldg": "landingsDay", "landingsday": "landingsDay", "ldg day": "landingsDay",
-		"night landings": "landingsNight", "nightlandingsfullstop": "landingsNight", "night ldg": "landingsNight", "landingsnight": "landingsNight", "ldg night": "landingsNight",
-		"remarks": "remarks", "comments": "remarks", "pilotcomments": "remarks", "notes": "remarks", "remarks/endorsements": "remarks", "remarks & endorsements": "remarks",
-		"holds": "holds", "approaches": "approachesCount", "approachescount": "approachesCount",
-		"instructorname": "instructorName", "instructor name": "instructorName",
-		"instructorcomments": "instructorComments", "instructor comments": "instructorComments",
-		"dualgiven": "dualGivenTime", "dual given": "dualGivenTime", "instr given": "dualGivenTime",
+// ListImportTemplates implements GET /imports/templates
+func (h *APIHandler) ListImportTemplates(c *gin.Context) {
+	if _, err := h.getUserIDFromContext(c); err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
 	}
 
-	var result []generated.ImportColumnMapping
-	for _, h := range headers {
-		lower := strings.ToLower(strings.TrimSpace(h))
-		if field, ok := guesses[lower]; ok {
-			m := generated.ImportColumnMapping{
-				SourceColumn: h,
-				TargetField:  field,
-			}
-			if field == "date" {
-				df := "2006-01-02"
-				m.DateFormat = &df
-			}
-			result = append(result, m)
-		}
+	templates := importtemplate.All()
+	out := make([]generated.ImportTemplate, 0, len(templates))
+	for _, t := range templates {
+		out = append(out, toGeneratedTemplate(t))
 	}
-	return result
+	c.JSON(http.StatusOK, generated.ImportTemplateList{Templates: out})
 }
 
 // UploadImportFile implements POST /imports/upload
@@ -285,6 +228,8 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 	var rows []map[string]string
 	var aircraftData []map[string]string
 	var format generated.ImportFormat
+	var detected *importtemplate.Template
+	var suggested []generated.ImportColumnMapping
 
 	lower := strings.ToLower(fileName)
 	if strings.HasSuffix(lower, ".csv") || strings.HasSuffix(lower, ".txt") {
@@ -293,11 +238,7 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 			h.sendError(c, http.StatusBadRequest, "Failed to parse CSV file")
 			return
 		}
-		if isForeFlight(columns) {
-			format = "FOREFLIGHT_CSV"
-		} else {
-			format = "CSV"
-		}
+		detected, format, suggested = detectImportFormat(columns)
 	} else {
 		h.sendError(c, http.StatusBadRequest, "Unsupported file format. Please upload a CSV file.")
 		return
@@ -324,22 +265,19 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 		previewRows = previewRows[:5]
 	}
 
-	// Suggest mappings
-	var suggested []generated.ImportColumnMapping
-	if format == "FOREFLIGHT_CSV" {
-		suggested = suggestForeFlight()
-	} else {
-		suggested = suggestGenericCSV(columns)
-	}
-
-	c.JSON(http.StatusOK, generated.ImportUploadResponse{
+	resp := generated.ImportUploadResponse{
 		UploadToken:       token,
 		Format:            format,
 		Columns:           columns,
 		PreviewRows:       previewRows,
 		TotalRows:         len(rows),
 		SuggestedMappings: suggested,
-	})
+	}
+	if detected != nil {
+		tpl := toGeneratedTemplate(detected)
+		resp.DetectedTemplate = &tpl
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // PreviewImport implements POST /imports/preview
@@ -514,12 +452,12 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		for _, m := range session.mappings {
 			mappingLookup[m.SourceColumn] = m
 		}
-	} else if session.format == "FOREFLIGHT_CSV" {
-		for _, m := range suggestForeFlight() {
-			mappingLookup[m.SourceColumn] = m
-		}
 	} else {
-		for _, m := range suggestGenericCSV(session.columns) {
+		// Re-derive from the template that matched at upload time rather than
+		// re-detecting, so a confirm always replays the same mapping the
+		// preview was built from.
+		tpl := importtemplate.ByID(string(session.format))
+		for _, m := range toGeneratedMappings(importtemplate.Suggest(tpl, session.columns)) {
 			mappingLookup[m.SourceColumn] = m
 		}
 	}
@@ -978,6 +916,10 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	var instructorName string
 	var dualReceivedVal float64
 	var dualGivenVal float64
+	// landingsTotal is tracked separately from the day/night split so the two
+	// can be reconciled after the loop. Map iteration order is random, so
+	// neither may overwrite the other as it is read.
+	landingsTotal := -1
 
 	for col, mapping := range mappings {
 		val := strings.TrimSpace(row[col])
@@ -1080,6 +1022,12 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			} else {
 				errs = append(errs, fieldError{"landingsNight", fmt.Sprintf("Invalid number '%s'", val)})
 			}
+		case "landingsTotal":
+			if n, err := strconv.Atoi(val); err == nil {
+				landingsTotal = n
+			} else {
+				errs = append(errs, fieldError{"landingsTotal", fmt.Sprintf("Invalid number '%s'", val)})
+			}
 		case "remarks":
 			flight.Remarks = &val
 		case "instructorName":
@@ -1140,6 +1088,30 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 
 	if len(crewMembers) > 0 {
 		flight.CrewMembers = &crewMembers
+	}
+
+	// Reconcile a total-landings column with the day/night split. Formats that
+	// carry both (ForeFlight's AllLandings beside its two full-stop columns,
+	// MyFlightbook's Landings beside FS Day/Night) count touch-and-go landings
+	// only in the total, so taking the larger keeps them instead of silently
+	// dropping them — while a file that only has the split is unaffected.
+	if landingsTotal > flight.Landings {
+		flight.Landings = landingsTotal
+	}
+
+	// Derive the airports from the route when the source has no separate
+	// departure and arrival columns. MyFlightbook stores the whole sector as a
+	// single "KSFO KOAK" route string, and the flight would otherwise fail
+	// validation on two required fields the file does in fact contain.
+	if flight.Route != nil && (flight.DepartureIcao == "" || flight.ArrivalIcao == "") {
+		if dep, arr := splitRouteEndpoints(*flight.Route); dep != "" {
+			if flight.DepartureIcao == "" {
+				flight.DepartureIcao = dep
+			}
+			if flight.ArrivalIcao == "" {
+				flight.ArrivalIcao = arr
+			}
+		}
 	}
 
 	// Validate required fields
@@ -1238,6 +1210,32 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	}
 
 	return flight, errs
+}
+
+// routeSeparators splits a route string on the punctuation logbooks use between
+// waypoints: whitespace, hyphens, arrows, slashes and commas.
+var routeSeparators = regexp.MustCompile(`[\s,;/>-]+`)
+
+// splitRouteEndpoints returns the first and last waypoint of a route string.
+// A single-waypoint route (a local flight, logged as just "KSFO") yields that
+// waypoint as both endpoints, which is how such a flight is logged by hand.
+// An empty or unusable route yields two empty strings.
+func splitRouteEndpoints(route string) (dep, arr string) {
+	var tokens []string
+	for _, tok := range routeSeparators.Split(strings.TrimSpace(route), -1) {
+		if tok = strings.TrimSpace(tok); tok != "" {
+			tokens = append(tokens, tok)
+		}
+	}
+	switch len(tokens) {
+	case 0:
+		return "", ""
+	case 1:
+		loc := normalizeLocation(tokens[0])
+		return loc, loc
+	default:
+		return normalizeLocation(tokens[0]), normalizeLocation(tokens[len(tokens)-1])
+	}
 }
 
 // collectAircraftFromRows extracts the distinct aircraft the import file
