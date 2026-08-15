@@ -216,6 +216,39 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   Adding a logbook means adding a `Template` in `importtemplate/sources.go`, the matching
   `ImportFormat` member in `api-spec/openapi.yaml`, and the value in the `import_format`
   database enum — no handler or service changes.
+- **Round-trip guarantee** — *a CSV NinerLog exports is always a CSV NinerLog can import.*
+  This is the one interchange path where we own both ends, so it is the one that must never
+  regress: a pilot moving between installations, restoring an archived export, or splitting a
+  logbook across accounts depends on it. All three export layouts round-trip, each detected as
+  its own template — standard → `NINERLOG_CSV`, EASA → `EASA_CSV`, FAA → `FAA_CSV`.
+
+  Two levels of coverage, both mandatory:
+  `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers
+  through the real import pipeline across every column layout × date format × decimal
+  separator (24 cases, no Docker), and
+  `test/e2e/export_import_roundtrip_e2e_test.go` asserts the same invariant over real HTTP
+  against a real database, including that flights land in the target account, the fleet is
+  backfilled, and re-importing an export into the account it came from is deduplicated rather
+  than doubling the logbook.
+
+  Total time survives exactly where the layout carries block times (standard, EASA); the FAA
+  layout has no time-of-day columns, so its total goes through a decimal-hours cell rounded to
+  0.1h and is asserted within ±3 minutes. Only the standard layout honours the user's
+  date-format and decimal-separator preferences — EASA and FAA hardcode their regulatory
+  conventions (`export.go:326`, `export.go:362`) — but the full matrix is run against all
+  three so that wiring a preference in later lands on existing coverage.
+- **Import samples** (`internal/api/handlers/testdata/importsamples/`) — real and generated
+  export files run through the whole pipeline and checked against `manifest.json`. This is the
+  only place a template meets a complete file rather than a header row it was written from,
+  which is what catches metadata preambles, unexpected delimiters and date conventions that
+  differ from the template's declaration. Each sample records its `provenance`: `generated`
+  (our own export code, authoritative — and a backwards-compatibility guard for files older
+  versions produced), `synthetic` (hand-written from a vendor's documented columns; proves
+  only self-consistency), or `real` (an anonymised vendor export). Promoting a template from
+  `best-effort` to `exact` means replacing its synthetic sample with a real one. The manifest's
+  `wanted` list is the standing request for the exports still missing, and a test keeps that
+  list in step with the catalogue. Contribution and anonymisation rules: the directory's
+  `README.md`.
   Confirming an import also fills in the entities the flights reference: contacts for
   crew names (the same auto-creation that flight create/update performs — see
   **Contacts / people** under Pilot data management), and fleet entries for every registration in the file that the

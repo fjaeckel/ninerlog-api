@@ -1,0 +1,125 @@
+{
+  "_comment": [
+    "Registry of import sample files. Every .csv in this directory must have an",
+    "entry here, and every entry must have a file — samples_test.go fails on",
+    "either mismatch, so a sample cannot be dropped in without declaring what it",
+    "is meant to prove.",
+    "",
+    "provenance is the load-bearing field. 'generated' samples were produced by",
+    "this repository's own export code and are authoritative. 'synthetic' samples",
+    "were written by hand from a vendor's documented column list and prove only",
+    "that the template matches what we believe the format to be — they cannot",
+    "confirm the belief. Replacing a synthetic sample with a 'real' one (an",
+    "actual, anonymised export from the application) is what turns a best-effort",
+    "template into a verified one.",
+    "",
+    "See README.md for how to contribute a real export."
+  ],
+  "samples": [
+    {
+      "file": "ninerlog-standard.csv",
+      "expectTemplate": "NINERLOG_CSV",
+      "provenance": "generated",
+      "notes": "Frozen output of writeStandardCSV. Also guards backwards compatibility: exports a pilot downloaded from an older version must keep importing.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "C172",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    },
+    {
+      "file": "ninerlog-easa.csv",
+      "expectTemplate": "EASA_CSV",
+      "provenance": "generated",
+      "notes": "Frozen output of writeEASACSV — the AMC1 FCL.050 column layout, H:MM durations, DD.MM.YYYY dates.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "C172",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    },
+    {
+      "file": "ninerlog-faa.csv",
+      "expectTemplate": "FAA_CSV",
+      "provenance": "generated",
+      "notes": "Frozen output of writeFAACSV — decimal-hour durations, MM/DD/YYYY dates, no block times.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "C172",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    },
+    {
+      "file": "foreflight.csv",
+      "expectTemplate": "FOREFLIGHT_CSV",
+      "provenance": "synthetic",
+      "notes": "Written from ForeFlight's documented export layout, including the Aircraft Table preamble and a structured Approach1 cell. Semicolon-delimited, as ForeFlight writes.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    }
+  ],
+  "wanted": [
+    {
+      "template": "LOGTEN_CSV",
+      "why": "Two dialects exist — human-readable headers and flight_… field keys. We guess at both. One export of each settles it.",
+      "howToExport": "LogTen Pro → Reports → Exporters → Export Flights (Tab or CSV). Do not use Dynamic Export."
+    },
+    {
+      "template": "MYFLIGHTBOOK_CSV",
+      "why": "Column list is documented but unverified, and this is the one format with no departure/arrival columns — the route-splitting path depends on the exact Route spelling.",
+      "howToExport": "myflightbook.com → Logbook → Import/Export → download CSV."
+    },
+    {
+      "template": "CAPZLOG_CSV",
+      "why": "We assume the long-form EASA spellings ('Departure Place', 'Name(s) PIC'). If capzlog uses the short forms it will be detected as generic EASA instead.",
+      "howToExport": "capzlog.aero → Flights → Export → CSV."
+    },
+    {
+      "template": "FLYLOG_CSV",
+      "why": "Signature rests on 'PIC Time' / 'SIC Time' / 'Multi Pilot Time'. Unverified.",
+      "howToExport": "flylog.io → Logbook → Export → CSV. If you only get XLSX, save it as CSV."
+    },
+    {
+      "template": "WADER_CSV",
+      "why": "Least certain of the set — the signature columns ('Sector', 'Captain', 'Crew') are an educated guess at an EASA-shaped sector list.",
+      "howToExport": "Wader app → Settings → Export → CSV, or logbook.waderaviation.com."
+    },
+    {
+      "template": "VEREINSFLIEGER_CSV",
+      "why": "German club export. Column names likely vary by club configuration, so two exports from different clubs are worth more than one.",
+      "howToExport": "vereinsflieger.de → Flugbetrieb → Flüge → CSV export."
+    },
+    {
+      "template": "MCC_PILOTLOG_CSV",
+      "why": "Assumed to use the mcc_/flight_ prefixed database column names. Unverified.",
+      "howToExport": "mccPILOTLOG / CrewLounge PILOTLOG → File → Export → CSV."
+    },
+    {
+      "template": "SKYDEMON_CSV",
+      "why": "SkyDemon logs sectors rather than logbook rows; we need to see which columns actually exist before promising anything.",
+      "howToExport": "SkyDemon → Logbook → Export → CSV."
+    }
+  ]
+}
