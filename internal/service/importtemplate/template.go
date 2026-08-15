@@ -135,12 +135,21 @@ func merge(tables ...map[string]Field) map[string]Field {
 // Suggest returns a mapping for every header in the file this template
 // recognises. Headers the template does not know are omitted, leaving them
 // unmapped ("skip") on the import screen for the user to assign.
+// No target field is ever fed by two source columns: the importer assigns each
+// mapping in turn, so two columns claiming one field would overwrite each other
+// in Go's randomised map order — the same file importing differently on
+// different runs. A file can genuinely carry two recognised spellings (NinerLog's
+// own export writes both "Remarks" and "Endorsements", which both mean remarks),
+// so the tie is broken deterministically: the column that appears first in the
+// header row wins, and the later one is left unmapped for the user to reassign.
 func (t *Template) Suggest(headers []string) []Mapping {
 	var out []Mapping
-	seen := make(map[string]bool, len(headers))
+	seenColumn := make(map[string]bool, len(headers))
+	claimedField := make(map[Field]bool, len(headers))
+
 	for _, h := range headers {
 		key := normalizeHeader(h)
-		if key == "" || seen[key] {
+		if key == "" || seenColumn[key] {
 			continue
 		}
 		field, ok := t.Columns[key]
@@ -152,7 +161,11 @@ func (t *Template) Suggest(headers []string) []Mapping {
 		if !ok || field == FieldIgnore {
 			continue
 		}
-		seen[key] = true
+		if claimedField[field] {
+			continue
+		}
+		seenColumn[key] = true
+		claimedField[field] = true
 		m := Mapping{SourceColumn: h, TargetField: field}
 		if field == FieldDate {
 			m.DateFormat = t.DateFormat

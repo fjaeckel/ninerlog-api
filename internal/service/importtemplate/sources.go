@@ -811,10 +811,12 @@ var genericExtraColumns = map[string]Field{
 	"typecode":     FieldAircraftType,
 	"type code":    FieldAircraftType,
 
+	"departure":      FieldDepartureIcao,
 	"departure icao": FieldDepartureIcao,
 	"departureicao":  FieldDepartureIcao,
 	"dep":            FieldDepartureIcao,
 	"origin":         FieldDepartureIcao,
+	"arrival":        FieldArrivalIcao,
 	"arrival icao":   FieldArrivalIcao,
 	"arrivalicao":    FieldArrivalIcao,
 	"arr":            FieldArrivalIcao,
