@@ -1058,6 +1058,34 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		}
 	}
 
+	// Drop placeholder midnight timestamps before anything derives from them.
+	//
+	// Wader pre-fills its time fields with 00:00 and leaves them there when the
+	// pilot never records that event: a real export has startTime 11:03 and
+	// landingTime 12:04 alongside takeoffTime 00:00 and parkingTime 00:00.
+	// Taken literally, an on-block of 00:00 against an off-block of 11:03
+	// derives a 777-minute block time for a one-hour flight — and block times
+	// take precedence over the file's own total-time column, so the error lands
+	// in the logbook silently and inflates career totals.
+	//
+	// The trade is deliberately lopsided. Being wrong costs one timestamp on a
+	// flight that genuinely blocked off at exactly 00:00:00, which then falls
+	// back to the file's explicit total — the same number. Not doing it costs a
+	// corrupted logbook.
+	const placeholderMidnight = "00:00:00"
+	if flight.OffBlockTime == placeholderMidnight {
+		flight.OffBlockTime = ""
+	}
+	if flight.OnBlockTime == placeholderMidnight {
+		flight.OnBlockTime = ""
+	}
+	if flight.DepartureTime != nil && *flight.DepartureTime == placeholderMidnight {
+		flight.DepartureTime = nil
+	}
+	if flight.ArrivalTime != nil && *flight.ArrivalTime == placeholderMidnight {
+		flight.ArrivalTime = nil
+	}
+
 	// Build crew members from person data via the centralised legacy-crew
 	// inference helper. The importer is the only caller today, but any
 	// future re-importer of legacy spreadsheet formats MUST reuse this

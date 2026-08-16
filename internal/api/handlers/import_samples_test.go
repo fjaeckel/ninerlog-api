@@ -307,3 +307,61 @@ func TestIsSelfCrewSentinel(t *testing.T) {
 		}
 	}
 }
+
+// Wader writes 00:00 into time fields the pilot never recorded. Taken
+// literally, the real sample's on-block of 00:00 against an off-block of 11:03
+// derives a 777-minute block time for a one-hour flight — and block times take
+// precedence over a file's own total-time column, so the error would land in
+// the logbook silently and inflate career totals.
+func TestImportSample_WaderDropsPlaceholderMidnightTimes(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(importSamplesDir, "wader.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	columns, rows, _, err := parseCSV(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	tpl, _, mappings := detectImportFormat(columns)
+	if tpl == nil || tpl.ID != "WADER_CSV" {
+		t.Fatalf("detected %v, want WADER_CSV", tpl)
+	}
+
+	// The file really does carry the placeholders — if Wader ever stops writing
+	// them this test is guarding nothing, so assert the input too.
+	if rows[0]["parkingTime"] != "00:00" || rows[0]["takeoffTime"] != "00:00" {
+		t.Fatalf("sample no longer carries 00:00 placeholders: parking=%q takeoff=%q",
+			rows[0]["parkingTime"], rows[0]["takeoffTime"])
+	}
+
+	got, errs := mapRowToFlight(rows[0], toMappingLookup(mappings), nil)
+	if len(errs) > 0 {
+		t.Fatalf("row errors: %+v", errs)
+	}
+
+	if got.OffBlockTime != "11:03:00" {
+		t.Errorf("offBlockTime = %q, want the recorded 11:03:00", got.OffBlockTime)
+	}
+	if got.OnBlockTime != "" {
+		t.Errorf("onBlockTime = %q, want it dropped as a placeholder", got.OnBlockTime)
+	}
+	if got.DepartureTime != nil {
+		t.Errorf("departureTime = %q, want it dropped as a placeholder", *got.DepartureTime)
+	}
+	if got.ArrivalTime == nil || *got.ArrivalTime != "12:04:00" {
+		t.Errorf("arrivalTime = %v, want the recorded 12:04:00", got.ArrivalTime)
+	}
+
+	// The whole point: no 12-hour block time is derived from the placeholder.
+	if mins := effectiveTotalMinutes(t, got); mins != 0 {
+		t.Errorf("derived total = %d min, want 0 — a block time must not be "+
+			"derived from a placeholder midnight", mins)
+	}
+
+	// pilotName1 is the SELF marker, not a person.
+	if got.CrewMembers != nil {
+		for _, cm := range *got.CrewMembers {
+			t.Errorf("SELF became crew member %q (role %s)", cm.Name, cm.Role)
+		}
+	}
+}

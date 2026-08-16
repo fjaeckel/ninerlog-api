@@ -127,6 +127,21 @@
         "totalTimeMinutes": 151,
         "landings": 5
       }
+    },
+    {
+      "file": "wader.csv",
+      "expectTemplate": "WADER_CSV",
+      "provenance": "real",
+      "notes": "Real Wader export. camelCase headers. Nothing needed anonymising: the only crew cell is the literal SELF marker. Unrecorded times are written as 00:00 rather than left blank (takeoffTime and parkingTime here), which the importer drops before deriving a block time. aircraftType is empty, so the type falls back to the registration. totalTime is empty and no on-block was recorded, so this flight imports with a zero total — incomplete source data, not a mapping fault.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-11",
+        "aircraftReg": "D-BANA",
+        "aircraftType": "D-BANA",
+        "departureIcao": "EDAZ",
+        "arrivalIcao": "EDAY",
+        "landings": 1
+      }
     }
   ],
   "wanted": [
@@ -134,11 +149,6 @@
       "template": "CAPZLOG_CSV",
       "why": "We assume the long-form EASA spellings ('Departure Place', 'Name(s) PIC'). If capzlog uses the short forms it will be detected as generic EASA instead.",
       "howToExport": "capzlog.aero → Flights → Export → CSV."
-    },
-    {
-      "template": "WADER_CSV",
-      "why": "Least certain of the set — the signature columns ('Sector', 'Captain', 'Crew') are an educated guess at an EASA-shaped sector list.",
-      "howToExport": "Wader app → Settings → Export → CSV, or logbook.waderaviation.com."
     },
     {
       "template": "VEREINSFLIEGER_CSV",

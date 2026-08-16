@@ -9,8 +9,8 @@ import (
 //
 // The ForeFlight, NinerLog and EASA/FAA rows are verbatim (they are produced
 // by, or consumed by, code in this repository). FLYLOG.io, MyFlightbook and
-// LogTen Pro are verbatim from real exports — every one of the three was wrong
-// when written from vendor documentation instead. The remainder still
+// LogTen Pro, MyFlightbook and Wader are verbatim from real exports — every
+// one of the four was wrong when written from vendor documentation instead. The remainder still
 // reproduce the columns each vendor documents, which is what the best-effort
 // templates target and what makes them provisional.
 var (
@@ -49,7 +49,10 @@ var (
 
 	mccPilotLogHeaders = strings.Split("flight_date,ac_reg,ac_model,af_dep,af_arr,time_dep,time_arr,time_total,time_night,time_ifr,time_pic,time_dual,time_instructor,pilot1_name,pilot2_name,ldg_day,ldg_night,to_day,to_night,remarks", ",")
 
-	waderHeaders = strings.Split("Date,Sector,Aircraft,Aircraft Type,Departure,Arrival,Off Block,On Block,Total Time,Captain,Crew,Instructor Name,Night,IFR,Landings Day,Landings Night,Remarks", ",")
+	// The real Wader export header row: camelCase, with its own field
+	// vocabulary. The row this replaced assumed EASA column names and
+	// matched nothing, so Wader files were not detected at all.
+	waderHeaders = strings.Split("isPreviousExperience,isSimulator,flightDate,startTime,takeoffTime,landingTime,parkingTime,flightNumber,depAirport,arrAirport,aircraftTailnumber,aircraftType,simType,function,pilotName1,pilotName2,pilotName3,pilotName4,totalTime,picTime,sicTime,soloTime,dualTime,picusTime,spicTime,examinerTime,instructorTime,simTraineeTime,simTrainerTime,crossCountryTime,actualInstrumentTime,simulatedInstrumentTime,reliefTime,ifrTime,nightTime,dayTakeoffs,nightTakeoffs,dayLandings,nightLandings,approachType,remarks,multiEngine,multiPilot,depNotes,depRunway,depProcedure,depTransition,depThreats,arrNotes,arrRunway,arrProcedure,arrTransition,arrThreats", ",")
 
 	skyDemonHeaders = strings.Split("Date,Aircraft,Aircraft Type,Pilot In Command,Departure,Departure Time,Arrival,Arrival Time,Duration,Distance", ",")
 )

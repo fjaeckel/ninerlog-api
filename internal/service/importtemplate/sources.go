@@ -723,37 +723,107 @@ var flylogTemplate = register(&Template{
 	Priority:         8,
 })
 
+// waderTemplate is built from a real Wader export.
+//
+// Wader writes camelCase headers and its own field vocabulary — nothing in
+// common with the EASA column names this template previously assumed. Two
+// behaviours matter beyond the column names:
+//
+//   - Unrecorded times are written as 00:00 rather than left blank. The
+//     importer drops placeholder midnights before deriving a block time; see
+//     mapRowToFlight.
+//   - The logbook's owner appears in pilotName1 as the literal string SELF,
+//     the same convention FLYLOG.io uses.
+//
+// isPreviousExperience and isSimulator mark rows that are not ordinary flights
+// — a carried-forward totals line and an FSTD session. Both import as flights
+// today, because the mapping layer works column by column and has no way to
+// reject a row. Anyone importing a Wader logbook that uses either should
+// expect to clean those rows up afterwards.
 var waderTemplate = register(&Template{
 	ID:          "WADER_CSV",
 	Name:        "Wader",
 	Vendor:      "Wader Aviation",
 	Website:     "https://www.waderaviation.com",
-	Description: "Wader Pilot Logbook CSV export. Wader writes an EASA-shaped sector list; unrecognised columns land on the mapping screen.",
-	Confidence:  ConfidenceBestEffort,
+	Description: "Wader Pilot Logbook CSV export. Carries block, takeoff and landing times, the full EASA duration breakdown and up to four named crew. Rows Wader marks as previous experience or simulator sessions are imported as ordinary flights and are worth reviewing afterwards.",
+	Confidence:  ConfidenceExact,
 	Regions:     []string{"EASA", "FAA"},
 	ExportSteps: []string{
 		"Open Wader on your phone, or sign in at logbook.waderaviation.com.",
-		"Go to Settings → Export (or Logbook → Export).",
-		"Choose CSV rather than PDF.",
+		"Open your logbook and choose Export.",
+		"Pick CSV rather than PDF.",
 		"Upload the downloaded file here.",
 	},
 	DateFormat: "2006-01-02",
-	Columns: merge(coreColumns, easaColumns, map[string]Field{
-		"aircraft":        FieldAircraftReg,
-		"departure":       FieldDepartureIcao,
-		"arrival":         FieldArrivalIcao,
-		"sector":          FieldIgnore,
-		"crew":            FieldPerson2,
-		"captain":         FieldPerson1,
-		"instructor name": FieldInstructorName,
-		"takeoffs":        FieldIgnore,
-		"flight time":     FieldTotalTime,
-	}),
-	Signature: []string{
-		"sector", "captain", "crew", "instructor name",
+	Columns: map[string]Field{
+		"flightdate":         FieldDate,
+		"depairport":         FieldDepartureIcao,
+		"arrairport":         FieldArrivalIcao,
+		"aircrafttailnumber": FieldAircraftReg,
+		"aircrafttype":       FieldAircraftType,
+
+		"starttime":   FieldOffBlockTime,
+		"parkingtime": FieldOnBlockTime,
+		"takeofftime": FieldDepartureTime,
+		"landingtime": FieldArrivalTime,
+
+		"totaltime":               FieldTotalTime,
+		"nighttime":               FieldNightTime,
+		"ifrtime":                 FieldIFRTime,
+		"actualinstrumenttime":    FieldActualInstrumentTime,
+		"simulatedinstrumenttime": FieldSimulatedInstrumentTime,
+		"pictime":                 FieldIsPic,
+		"dualtime":                FieldIsDual,
+		"instructortime":          FieldDualGivenTime,
+
+		"daylandings":   FieldLandingsDay,
+		"nightlandings": FieldLandingsNight,
+		"remarks":       FieldRemarks,
+
+		"pilotname1": FieldPerson1,
+		"pilotname2": FieldPerson2,
+		"pilotname3": FieldPerson3,
+		"pilotname4": FieldPerson4,
+
+		// Recognised for scoring, not mapped.
+		"ispreviousexperience": FieldIgnore,
+		"issimulator":          FieldIgnore,
+		"simtype":              FieldIgnore,
+		"function":             FieldIgnore,
+		"flightnumber":         FieldIgnore,
+		"sictime":              FieldIgnore,
+		"solotime":             FieldIgnore,
+		"picustime":            FieldIgnore,
+		"spictime":             FieldIgnore,
+		"examinertime":         FieldIgnore,
+		"simtraineetime":       FieldIgnore,
+		"simtrainertime":       FieldIgnore,
+		"crosscountrytime":     FieldIgnore,
+		"relieftime":           FieldIgnore,
+		"daytakeoffs":          FieldIgnore,
+		"nighttakeoffs":        FieldIgnore,
+		"approachtype":         FieldIgnore,
+		"multiengine":          FieldIgnore,
+		"multipilot":           FieldIgnore,
+		"depnotes":             FieldIgnore,
+		"deprunway":            FieldIgnore,
+		"depprocedure":         FieldIgnore,
+		"deptransition":        FieldIgnore,
+		"depthreats":           FieldIgnore,
+		"arrnotes":             FieldIgnore,
+		"arrrunway":            FieldIgnore,
+		"arrprocedure":         FieldIgnore,
+		"arrtransition":        FieldIgnore,
+		"arrthreats":           FieldIgnore,
 	},
-	MinSignatureHits: 2,
-	Priority:         12,
+	Signature: []string{
+		"aircrafttailnumber", "ispreviousexperience", "issimulator",
+		"depairport", "arrairport", "pilotname1", "picustime", "spictime",
+		"relieftime", "depthreats", "arrthreats", "parkingtime",
+		"simtraineetime",
+	},
+	MinSignatureHits: 3,
+	Priority:         10,
 })
 
 var vereinsfliegerTemplate = register(&Template{
