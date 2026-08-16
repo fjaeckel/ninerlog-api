@@ -261,7 +261,11 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   EASA column names, so it matched nothing and failed every row on four required fields.
   SkyDemon and capzlog.aero then turned out to have no date column at all — both date a
   flight by a timestamped time column, which the importer now falls back on; SkyDemon has no
-  total-time column either, so its total is derived from the block times.
+  total-time column either, so its total is derived from the block times. SkyDemon also
+  writes its places as "ICAO Name" ("EDOI Bienenfarm"), so the leading code is extracted
+  from the value's own shape rather than by an airport-database lookup — the database is
+  fetched at startup and refreshed in the background, and depending on it would make the
+  same file import differently on different instances.
 
   They also turned up five importer defects a header row cannot expose: a UTF-8 BOM breaking
   quoted-header parsing, bare four-digit clock times (`1003`) reaching Postgres unparsed,

@@ -1757,6 +1757,15 @@ var icaoLikePattern = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
 // free-text location values, e.g. "EDDF" out of "Frankfurt (EDDF)".
 var icaoTokenPattern = regexp.MustCompile(`\b[A-Za-z0-9]{4}\b`)
 
+// leadingICAOPattern matches a value that opens with a bare four-character
+// upper-case code followed by free text, e.g. "EDOI Bienenfarm".
+//
+// The upper-case requirement is what keeps this safe. ICAO codes are always
+// written in capitals, while a genuinely named site reads "Golf Course Strip" —
+// whose first token is also four alphanumeric characters, but not capitalised,
+// so it is left alone.
+var leadingICAOPattern = regexp.MustCompile(`^([A-Z0-9]{4})\s+\S`)
+
 // normalizeLocation cleans a departure/arrival location from an import row.
 // Values that look like an airport code (<=4 alphanumeric chars) are
 // upper-cased so ICAO codes stay canonical. Longer free-text values (e.g. a
@@ -1776,6 +1785,22 @@ func normalizeLocation(val string) string {
 			return code
 		}
 	}
+
+	// No airport database hit. Fall back to the shape of the value itself: a
+	// leading four-character upper-case code followed by a name is how SkyDemon
+	// writes every place ("EDOI Bienenfarm").
+	//
+	// This has to work without a database lookup. The airport data is fetched
+	// at startup and refreshed in the background, so relying on it alone makes
+	// the imported value depend on whether that fetch succeeded — the same file
+	// would import as "EDOI" on one instance and "EDOI Bienenfarm" on another.
+	// Storing the long form is not a crash (the column takes 100 characters)
+	// but it is silently wrong: night and solar calculations, distance,
+	// cross-country detection and airport statistics all need an exact match.
+	if m := leadingICAOPattern.FindStringSubmatch(trimmed); m != nil {
+		return m[1]
+	}
+
 	return trimmed
 }
 

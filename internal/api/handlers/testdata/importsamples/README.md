@@ -79,6 +79,7 @@ alone** instead: it is what detection keys off, and it carries no flight data.
 | `logten-dynamic-export.txt` | `LOGTEN_CSV` | real |
 | `wader.csv` | `WADER_CSV` | real |
 | `capzlog.csv` | `CAPZLOG_CSV` | real |
+| `skydemon.csv` | `SKYDEMON_CSV` | real |
 | `skydemon-empty.csv` | `SKYDEMON_CSV` | header-only |
 
 The three NinerLog files are frozen output of `writeStandardCSV`,
@@ -119,9 +120,10 @@ vendor documentation first, and every one was wrong:
 - **SkyDemon** — the export has *no date column and no total-time column*. A
   flight is dated by its departure timestamp and its total derived from the
   departure/arrival pair, neither of which the template had accounted for, and
-  its signature matched nothing so the file was not detected. The export
-  supplied was of an empty logbook, so the column names are verified and the
-  value formats are not.
+  its signature matched nothing so the file was not detected. A populated
+  export later showed it also writes places as "ICAO Name"
+  ("EDOI Bienenfarm"), durations as whole minutes, and registrations with the
+  hyphen stripped ("DEROQ" for D-EROQ).
 
 - **capzlog.aero** — also has no date column: the flight is dated by its
   "Off Block" timestamp. "Departure"/"Arrival" are places rather than times,
@@ -130,16 +132,21 @@ vendor documentation first, and every one was wrong:
   writes. The template's signature matched none of the real column names, so
   the file was not detected at all.
 
-Six files, ten defects, none of which a header-row test written from the same
-assumptions could have caught. Every single template written from vendor
+Seven files, eleven defects, none of which a header-row test written from the
+same assumptions could have caught. Every single template written from vendor
 documentation has been wrong — treat the two that remain that way
 (Vereinsflieger, mccPILOTLOG) as wrong until a real file says otherwise.
+
+Two SkyDemon samples are kept deliberately. `skydemon-empty.csv` is an export
+of an empty logbook and pins the rejection message for that case;
+`skydemon.csv` is populated and pins the pipeline. The empty one was supplied
+first, and it could not answer the question that mattered — whether the time
+columns carry a date — which is the clearest argument in this directory for
+sending a file *with flights in it*.
 
 Three products — FLYLOG.io, Wader and capzlog.aero — write a literal self-marker
 into a crew cell for the logbook's owner, which is why the importer drops it
 rather than creating a contact called "SELF".
 
-Still wanted: see the `wanted` list in `manifest.json` — Vereinsflieger,
-mccPILOTLOG, and a **populated** SkyDemon export. The SkyDemon one matters more
-than it looks: if its time columns are bare clock times rather than timestamps,
-a SkyDemon logbook carries no date anywhere and cannot be imported at all.
+Still wanted: see the `wanted` list in `manifest.json` — Vereinsflieger and
+mccPILOTLOG.

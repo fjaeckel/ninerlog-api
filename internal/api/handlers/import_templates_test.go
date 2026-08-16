@@ -439,3 +439,30 @@ func TestMapRowToFlight_ExplicitDateBeatsTimestampDerivation(t *testing.T) {
 		t.Errorf("date = %q, want the Date column's 2026-03-07", got)
 	}
 }
+
+// SkyDemon writes its places as "ICAO Name". The code has to be extracted
+// without consulting the airport database, because that data is fetched at
+// startup and refreshed in the background: relying on it would make the same
+// file import as "EDOI" on one instance and "EDOI Bienenfarm" on another, and
+// the long form silently breaks night/solar, distance, cross-country and
+// airport statistics, all of which need an exact match.
+func TestNormalizeLocation_LeadingICAOCode(t *testing.T) {
+	tests := map[string]string{
+		"EDOI Bienenfarm":         "EDOI",
+		"KSFO San Francisco Intl": "KSFO",
+		"EDDF":                    "EDDF",
+		"eddf":                    "EDDF",
+		"  EGKA  ":                "EGKA",
+		// Not an ICAO code: a named site whose first word happens to be four
+		// letters. Capitalisation is what tells them apart.
+		"Golf Course Strip": "Golf Course Strip",
+		"Home Field":        "Home Field",
+		// A bare name with no code stays intact rather than being truncated.
+		"Bienenfarm": "Bienenfarm",
+	}
+	for in, want := range tests {
+		if got := normalizeLocation(in); got != want {
+			t.Errorf("normalizeLocation(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

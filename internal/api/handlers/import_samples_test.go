@@ -460,3 +460,51 @@ func TestImportSample_CapzlogDatedByOffBlockTimestamp(t *testing.T) {
 		}
 	}
 }
+
+// The populated SkyDemon export is the file that settled whether SkyDemon
+// logbooks can be imported at all: its time columns carry full timestamps, so
+// the flight can be dated even though the format has no date column.
+func TestImportSample_SkyDemonIsDatedAndTimed(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(importSamplesDir, "skydemon.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	columns, rows, _, err := parseCSV(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	tpl, _, mappings := detectImportFormat(columns)
+	if tpl == nil || tpl.ID != "SKYDEMON_CSV" {
+		t.Fatalf("detected %v, want SKYDEMON_CSV", tpl)
+	}
+
+	// Assert the input: if SkyDemon ever drops the date half of these values,
+	// its logbooks stop being importable and this must fail loudly.
+	if !strings.Contains(rows[0]["Departure Time"], "-") {
+		t.Fatalf("Departure Time %q no longer carries a date — SkyDemon has no "+
+			"date column, so its flights can no longer be dated",
+			rows[0]["Departure Time"])
+	}
+
+	got, errs := mapRowToFlight(rows[0], toMappingLookup(mappings), nil)
+	if len(errs) > 0 {
+		t.Fatalf("row errors: %+v", errs)
+	}
+	if s := got.Date.String(); s != "2025-10-11" {
+		t.Errorf("date = %q, want 2025-10-11 from the departure timestamp", s)
+	}
+	// "EDOI Bienenfarm" must reduce to the code.
+	if got.DepartureIcao != "EDOI" || got.ArrivalIcao != "EDOI" {
+		t.Errorf("airports = %q → %q, want EDOI → EDOI", got.DepartureIcao, got.ArrivalIcao)
+	}
+	// SkyDemon has no total column; the total comes from the block times and
+	// must agree with its own PIC Time of 67 whole minutes.
+	if mins := effectiveTotalMinutes(t, got); mins != 67 {
+		t.Errorf("total = %d min, want 67 (PIC Time reads 67, i.e. whole minutes)", mins)
+	}
+	// The hyphen SkyDemon strips is imported as written — a known migration
+	// wrinkle for pilots whose fleet already holds the hyphenated form.
+	if got.AircraftReg != "DEROQ" {
+		t.Errorf("aircraftReg = %q, want DEROQ as exported", got.AircraftReg)
+	}
+}

@@ -970,19 +970,22 @@ var mccPilotLogTemplate = register(&Template{
 // And there is no total-time column either, so the total is derived from those
 // same two values.
 //
-// The export that produced this header row was of an empty logbook, so the
-// column names are verified but the value formats are not — in particular
-// whether the time columns carry a full timestamp or a bare clock time. If
-// they are bare clock times, a SkyDemon logbook cannot be dated at all and
-// every row will fail on the date. That is why this template stays
-// best-effort: the header is known, the contents are not.
+// A populated export settled the question the header row could not: SkyDemon's
+// time columns carry full timestamps ("2025-10-11 14:46"), so a SkyDemon
+// logbook can be dated and is importable. Its durations are integer minutes
+// rather than decimal hours, and its places are written "ICAO Name"
+// ("EDOI Bienenfarm"), from which normalizeLocation takes the leading code.
+//
+// One thing it does that nothing else here does: the registration has its
+// hyphen stripped ("DEROQ" for D-EROQ). It is imported as written, so a pilot
+// whose fleet already holds D-EROQ gets a second aircraft rather than a match.
 var skyDemonTemplate = register(&Template{
 	ID:          "SKYDEMON_CSV",
 	Name:        "SkyDemon",
 	Vendor:      "Divelements / SkyDemon",
 	Website:     "https://www.skydemon.aero",
-	Description: "SkyDemon logbook export. It dates each flight by its departure and arrival timestamps rather than a date column, and records no total time — the total is derived from those two. Instrument, approach and hold detail are not exported at all.",
-	Confidence:  ConfidenceBestEffort,
+	Description: "SkyDemon logbook export. It dates each flight by its departure and arrival timestamps rather than a date column, and records no total time — the total is derived from those two. Durations are whole minutes, and registrations are exported without their hyphen. Approach and hold detail is not exported at all.",
+	Confidence:  ConfidenceExact,
 	Regions:     []string{"EASA"},
 	ExportSteps: []string{
 		"Open SkyDemon on your tablet or PC and go to the Logbook.",
