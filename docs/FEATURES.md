@@ -252,6 +252,15 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `wanted` list is the standing request for the exports still missing, and a test keeps that
   list in step with the catalogue. Contribution and anonymisation rules: the directory's
   `README.md`.
+
+  The first three real exports each disproved the template written for them: FLYLOG.io was
+  wrong in every column but the date, LogTen Pro's Dynamic Export was being claimed by
+  `FAA_CSV` (it uses the FAA short column names) and imported as nothing, and MyFlightbook
+  was putting a marketing description into the aircraft type because it maps `ICAO Model`,
+  not `Model`. They also turned up three importer defects a header row cannot expose: a
+  UTF-8 BOM breaking quoted-header parsing, bare four-digit clock times (`1003`) reaching
+  Postgres unparsed, and FLYLOG's `SELF` crew marker becoming a contact. A `best-effort`
+  template should be read as a hypothesis, not as support.
   Confirming an import also fills in the entities the flights reference: contacts for
   crew names (the same auto-creation that flight create/update performs — see
   **Contacts / people** under Pilot data management), and fleet entries for every registration in the file that the

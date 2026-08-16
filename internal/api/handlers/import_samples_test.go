@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -44,7 +45,12 @@ type importSample struct {
 	Provenance     string `json:"provenance"`
 	Notes          string `json:"notes"`
 	ExpectRows     int    `json:"expectRows"`
-	ExpectFirstRow struct {
+	// ExpectRowErrorFields marks a sample whose first row legitimately cannot
+	// become a flight — the source recorded something FlightCreate requires and
+	// the file does not carry. The listed fields are asserted exactly, so this
+	// is a pinned behaviour rather than a known-failure escape hatch.
+	ExpectRowErrorFields []string `json:"expectRowErrorFields"`
+	ExpectFirstRow       struct {
 		Date             string `json:"date"`
 		AircraftReg      string `json:"aircraftReg"`
 		AircraftType     string `json:"aircraftType"`
@@ -98,7 +104,18 @@ func TestImportSamples(t *testing.T) {
 			}
 
 			got, errs := mapRowToFlight(rows[0], toMappingLookup(mappings), nil)
-			if len(errs) > 0 {
+			if len(sample.ExpectRowErrorFields) > 0 {
+				gotFields := make([]string, 0, len(errs))
+				for _, e := range errs {
+					gotFields = append(gotFields, e.field)
+				}
+				sort.Strings(gotFields)
+				want := append([]string(nil), sample.ExpectRowErrorFields...)
+				sort.Strings(want)
+				if strings.Join(gotFields, ",") != strings.Join(want, ",") {
+					t.Errorf("row errors = %v, manifest says %v", gotFields, want)
+				}
+			} else if len(errs) > 0 {
 				t.Fatalf("first row does not map cleanly: %+v\nrow: %v", errs, rows[0])
 			}
 
@@ -132,9 +149,11 @@ func TestImportSamples(t *testing.T) {
 
 			// Every row must map, not just the first — a file that imports its
 			// header row and then fails on row 40 is the worst outcome.
-			for i, row := range rows {
-				if _, errs := mapRowToFlight(row, toMappingLookup(mappings), nil); len(errs) > 0 {
-					t.Errorf("row %d does not map cleanly: %+v", i+1, errs)
+			if len(sample.ExpectRowErrorFields) == 0 {
+				for i, row := range rows {
+					if _, errs := mapRowToFlight(row, toMappingLookup(mappings), nil); len(errs) > 0 {
+						t.Errorf("row %d does not map cleanly: %+v", i+1, errs)
+					}
 				}
 			}
 
@@ -167,7 +186,10 @@ func TestImportSamplesAreAllRegistered(t *testing.T) {
 	}
 	for _, e := range entries {
 		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(strings.ToLower(name), ".csv") {
+		// Both extensions the importer accepts. A LogTen tab export arrives as
+		// .txt, and a sample the guard cannot see is a sample nobody is testing.
+		lower := strings.ToLower(name)
+		if e.IsDir() || (!strings.HasSuffix(lower, ".csv") && !strings.HasSuffix(lower, ".txt")) {
 			continue
 		}
 		if !registered[name] {

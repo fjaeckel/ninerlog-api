@@ -379,24 +379,56 @@ var logTenTemplate = register(&Template{
 	Name:        "LogTen Pro",
 	Vendor:      "Coradine Aviation",
 	Website:     "https://logtenpro.com",
-	Description: "LogTen Pro flight export, in both the human-readable and the field-key (flight_…) dialect. Times come across as decimal hours.",
-	Confidence:  ConfidenceBestEffort,
+	Description: "LogTen Pro flight export — the Dynamic Export column set and the field-key (flight_…) dialect. Times are H:MM or bare four-digit clock times.",
+	Confidence:  ConfidenceExact,
 	Regions:     []string{"FAA", "EASA"},
 	ExportSteps: []string{
 		"Open LogTen Pro on Mac or iPad.",
-		"Go to Reports → Exporters and choose Export Flights (Tab or CSV).",
-		"Do not use Dynamic Export — it can omit columns.",
-		"Save the file and upload it here.",
+		"Go to Reports → Exporters and export your flights (Dynamic Export or Export Flights, tab or CSV).",
+		"Save the file — a .txt from a tab export is fine.",
+		"Upload it here.",
 	},
 	DateFormat: "2006-01-02",
 	Columns: merge(coreColumns, map[string]Field{
-		// Human-readable dialect.
-		"aircraft id":              FieldAircraftReg,
-		"aircraft type":            FieldAircraftType,
-		"from":                     FieldDepartureIcao,
-		"to":                       FieldArrivalIcao,
-		"total time":               FieldTotalTime,
-		"night":                    FieldNightTime,
+		// Dynamic Export dialect, from a real export.
+		//
+		// LogTen writes the FAA short spellings — "Dual Rcvd", "Sim Inst",
+		// "Actual Inst", "Day Ldg", "Night Ldg", "XC" — which are exactly
+		// FAA_CSV's signature columns. Detection therefore cannot lean on
+		// those; see this template's Signature for the columns LogTen is
+		// alone in writing.
+		"aircraft id":   FieldAircraftReg,
+		"aircraft type": FieldAircraftType,
+		"from":          FieldDepartureIcao,
+		"to":            FieldArrivalIcao,
+		"total time":    FieldTotalTime,
+		"night":         FieldNightTime,
+		"actual inst":   FieldActualInstrumentTime,
+		"sim inst":      FieldSimulatedInstrumentTime,
+		"day ldg":       FieldLandingsDay,
+		"night ldg":     FieldLandingsNight,
+		"dual rcvd":     FieldIsDual,
+		"flight review": FieldIsFlightReview,
+
+		// These hold names, unlike the EASA layout where "Instructor" is a
+		// duration.
+		"pic/p1 crew": FieldPerson1,
+		"student":     FieldPerson2,
+		"instructor":  FieldInstructorName,
+
+		"day t/o":    FieldIgnore,
+		"night t/o":  FieldIgnore,
+		"approach 1": FieldIgnore,
+		"approach 2": FieldIgnore,
+		"approach 3": FieldIgnore,
+		"approach 4": FieldIgnore,
+		"approach 5": FieldIgnore,
+		"approach 6": FieldIgnore,
+		"simulator":  FieldIgnore,
+		"ground":     FieldIgnore,
+		"xc":         FieldIgnore,
+
+		// Longer spellings LogTen's other exporters emit.
 		"actual instrument":        FieldActualInstrumentTime,
 		"simulated instrument":     FieldSimulatedInstrumentTime,
 		"day landings":             FieldLandingsDay,
@@ -452,23 +484,40 @@ var logTenTemplate = register(&Template{
 		"flight_solo":                       FieldIgnore,
 		"flight_crosscountry":               FieldIgnore,
 	}),
+	// Only spellings LogTen is alone in using. The obvious candidates —
+	// "dual rcvd", "sim inst", "day ldg" — are shared verbatim with the FAA
+	// layout, and leaning on those let FAA_CSV claim a LogTen file and import
+	// it with no registration, no aircraft type, no times and no crew.
 	Signature: []string{
 		"flight_flightdate", "flight_totaltime", "flight_selectedcrewpic",
 		"flight_selectedaircraftid", "flight_dualreceived", "aircraft_aircraftid",
 		"selected crew pic", "selected crew sic", "selected crew instructor",
-		"aircraft id",
+		"pic/p1 crew", "day t/o", "night t/o", "approach 1", "approach 2",
 	},
 	MinSignatureHits: 2,
 	Priority:         10,
 })
 
+// myFlightbookTemplate is built from a real MyFlightbook export.
+//
+// Two columns need care. "Model" is a marketing description
+// ("C-172 S, Cessna Skyhawk SP") while "ICAO Model" is the type code ("C172"),
+// so the type must come from the latter — mapping "Model" put a sentence in the
+// aircraft type and created a fleet entry to match. And "Aircraft ID" is
+// MyFlightbook's internal numeric row ID, not a registration, despite being the
+// spelling LogTen Pro uses for exactly that.
+//
+// MyFlightbook also has no departure/arrival columns: the sector lives in
+// "Route", and the importer derives the airports from its first and last
+// waypoint. A row with an empty Route therefore cannot become a flight, because
+// FlightCreate requires both airports.
 var myFlightbookTemplate = register(&Template{
 	ID:          "MYFLIGHTBOOK_CSV",
 	Name:        "MyFlightbook",
 	Vendor:      "MyFlightbook",
 	Website:     "https://myflightbook.com",
-	Description: "MyFlightbook CSV export. It records the route as a single field rather than separate airports, so departure and arrival are taken from the first and last waypoint.",
-	Confidence:  ConfidenceBestEffort,
+	Description: "MyFlightbook CSV export. It records the route as a single field rather than separate airports, so departure and arrival are taken from the first and last waypoint — a flight logged with an empty Route cannot be imported.",
+	Confidence:  ConfidenceExact,
 	Regions:     []string{"FAA"},
 	ExportSteps: []string{
 		"Sign in at myflightbook.com.",
@@ -479,8 +528,7 @@ var myFlightbookTemplate = register(&Template{
 	DateFormat: "2006-01-02",
 	Columns: merge(coreColumns, map[string]Field{
 		"tail number":          FieldAircraftReg,
-		"model":                FieldAircraftType,
-		"aircraft type":        FieldAircraftType,
+		"icao model":           FieldAircraftType,
 		"route":                FieldRoute,
 		"comments":             FieldRemarks,
 		"approaches":           FieldApproachesCount,
@@ -498,19 +546,50 @@ var myFlightbookTemplate = register(&Template{
 		"engine end":           FieldOnBlockTime,
 		"flight start":         FieldDepartureTime,
 		"flight end":           FieldArrivalTime,
+		"cfi name":             FieldInstructorName,
+		"cfi comment":          FieldInstructorComments,
 
-		"flight id":        FieldIgnore,
-		"pic":              FieldIsPic,
-		"sic":              FieldIgnore,
-		"x-country":        FieldIgnore,
-		"ground simulator": FieldIgnore,
-		"category/class":   FieldIgnore,
-		"hobbs start":      FieldIgnore,
-		"hobbs end":        FieldIgnore,
+		// "Model" is the marketing description, not the type code — see above.
+		"model":        FieldIgnore,
+		"display tail": FieldIgnore,
+		"aircraft id":  FieldIgnore,
+
+		// HH:MM duplicates of the decimal-hour columns above.
+		"cfi time (hh:mm)":          FieldIgnore,
+		"sic time (hh:mm)":          FieldIgnore,
+		"pic (hh:mm)":               FieldIgnore,
+		"total flight time (hh:mm)": FieldIgnore,
+
+		"flight id":               FieldIgnore,
+		"pic":                     FieldIsPic,
+		"sic":                     FieldIgnore,
+		"x-country":               FieldIgnore,
+		"ground simulator":        FieldIgnore,
+		"category/class":          FieldIgnore,
+		"hobbs start":             FieldIgnore,
+		"hobbs end":               FieldIgnore,
+		"engine time":             FieldIgnore,
+		"flying time":             FieldIgnore,
+		"flight properties":       FieldIgnore,
+		"complex":                 FieldIgnore,
+		"controllable pitch prop": FieldIgnore,
+		"flaps":                   FieldIgnore,
+		"retract":                 FieldIgnore,
+		"tailwheel":               FieldIgnore,
+		"high performance":        FieldIgnore,
+		"turbine":                 FieldIgnore,
+		"taa":                     FieldIgnore,
+		"signature state":         FieldIgnore,
+		"date of signature":       FieldIgnore,
+		"cfi certificate":         FieldIgnore,
+		"cfi email":               FieldIgnore,
+		"cfi expiration":          FieldIgnore,
+		"public":                  FieldIgnore,
 	}),
 	Signature: []string{
 		"tail number", "total flight time", "ground simulator", "x-country",
 		"fs day landings", "fs night landings", "imc", "cfi", "flight id",
+		"icao model", "display tail", "signature state", "flight properties",
 	},
 	MinSignatureHits: 3,
 	Priority:         10,

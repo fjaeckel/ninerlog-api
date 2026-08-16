@@ -5,10 +5,14 @@ import (
 	"testing"
 )
 
-// Header rows as the respective applications write them. The ForeFlight,
-// NinerLog and EASA/FAA rows are verbatim (they are produced by, or consumed
-// by, code in this repository); the rest reproduce the columns each vendor
-// documents, which is what the best-effort templates target.
+// Header rows as the respective applications write them.
+//
+// The ForeFlight, NinerLog and EASA/FAA rows are verbatim (they are produced
+// by, or consumed by, code in this repository). FLYLOG.io, MyFlightbook and
+// LogTen Pro are verbatim from real exports — every one of the three was wrong
+// when written from vendor documentation instead. The remainder still
+// reproduce the columns each vendor documents, which is what the best-effort
+// templates target and what makes them provisional.
 var (
 	foreFlightHeaders = strings.Split("Date,AircraftID,From,To,Route,TimeOut,TimeOff,TimeOn,TimeIn,OnDuty,OffDuty,TotalTime,PIC,SIC,Night,Solo,CrossCountry,NVG,NVG Ops,Distance,DayTakeoffs,DayLandingsFullStop,NightTakeoffs,NightLandingsFullStop,AllLandings,ActualInstrument,SimulatedInstrument,HobbsStart,HobbsEnd,TachStart,TachEnd,Holds,Approach1,Approach2,Approach3,Approach4,Approach5,Approach6,DualGiven,DualReceived,SimulatedFlight,GroundTraining,InstructorName,InstructorComments,Person1,Person2,Person3,Person4,Person5,Person6,FlightReview,Checkride,IPC,NVG Proficiency,FAA6158,PilotComments", ",")
 
@@ -23,9 +27,15 @@ var (
 
 	logTenKeyHeaders = strings.Split("flight_flightDate,flight_selectedAircraftID,flight_from,flight_to,flight_route,flight_totalTime,flight_pic,flight_sic,flight_night,flight_actualInstrument,flight_simulatedInstrument,flight_dayLandings,flight_nightLandings,flight_holds,flight_dualGiven,flight_dualReceived,flight_remarks,flight_selectedCrewPIC,flight_selectedCrewSIC,flight_selectedCrewInstructor", ",")
 
-	logTenHumanHeaders = strings.Split("Flight Date,Aircraft ID,Aircraft Type,From,To,Route,Total Time,PIC,SIC,Solo,Night,Cross Country,Actual Instrument,Simulated Instrument,Day Landings,Night Landings,Holds,Approaches,Dual Given,Dual Received,Remarks,Out,In,Off,On,Selected Crew PIC,Selected Crew SIC,Selected Crew Instructor", ",")
+	// The real LogTen Pro Dynamic Export header row (tab-delimited, with a
+	// trailing empty column). It uses the FAA short spellings, which is why
+	// FAA_CSV used to claim it.
+	logTenHumanHeaders = strings.Split("Date\tAircraft ID\tAircraft Type\tFrom\tRoute\tTo\tOut\tIn\tTotal Time\tNight\tPIC\tDual Rcvd\tSolo\tXC\tSim Inst\tActual Inst\tSimulator\tGround\tPIC/P1 Crew\tStudent\tInstructor\tDay T/O\tDay Ldg\tNight T/O\tNight Ldg\tApproach 1\tApproach 2\tHolds\tRemarks\tFlight Review\t", "\t")
 
-	myFlightbookHeaders = strings.Split("Date,Tail Number,Model,Category/Class,Route,Comments,Approaches,Hold,Landings,FS Day Landings,FS Night Landings,X-Country,Night,Simulated Instrument,IMC,Ground Simulator,Dual Received,CFI,SIC,PIC,Total Flight Time,Hobbs Start,Hobbs End,Engine Start,Engine End,Flight Start,Flight End,Flight ID", ",")
+	// The real MyFlightbook export header row. Note both "Model" (a marketing
+	// description) and "ICAO Model" (the type code), and "Aircraft ID" — which
+	// is MyFlightbook's internal row ID, not a registration.
+	myFlightbookHeaders = strings.Split("Date,Flight ID,Model,ICAO Model,Tail Number,Display Tail,Aircraft ID,Category/Class,Approaches,Hold,Landings,FS Night Landings,FS Day Landings,X-Country,Night,IMC,Simulated Instrument,Ground Simulator,Dual Received,CFI,SIC,PIC,Total Flight Time,CFI Time (HH:MM),SIC Time (HH:MM),PIC (HH:MM),Total Flight Time (HH:MM),Route,Flight Properties,Comments,Hobbs Start,Hobbs End,Engine Start,Engine End,Engine Time,Flight Start,Flight End,Flying Time,Complex,Controllable pitch prop,Flaps,Retract,Tailwheel,High Performance,Turbine,TAA,Signature State,Date of Signature,CFI Comment,CFI Certificate,CFI Name,CFI Email,CFI Expiration,Public", ",")
 
 	capzlogHeaders = strings.Split("Date,Departure Place,Departure Time,Arrival Place,Arrival Time,Aircraft Model,Aircraft Registration,Single Pilot SE,Single Pilot ME,Multi Pilot,Total Time of Flight,Name(s) PIC,Landings Day,Landings Night,Night,IFR,PIC,Co-Pilot,Dual,Instructor,FSTD Date,FSTD Type,FSTD Total Time,Remarks and Endorsements", ",")
 
@@ -55,7 +65,7 @@ func TestDetectIdentifiesEachSource(t *testing.T) {
 		{"NinerLog EASA export", easaHeaders, "EASA_CSV"},
 		{"NinerLog FAA export", faaHeaders, "FAA_CSV"},
 		{"LogTen Pro field keys", logTenKeyHeaders, "LOGTEN_CSV"},
-		{"LogTen Pro human headers", logTenHumanHeaders, "LOGTEN_CSV"},
+		{"LogTen Pro Dynamic Export", logTenHumanHeaders, "LOGTEN_CSV"},
 		{"MyFlightbook", myFlightbookHeaders, "MYFLIGHTBOOK_CSV"},
 		{"capzlog.aero", capzlogHeaders, "CAPZLOG_CSV"},
 		{"FLYLOG.io", flylogHeaders, "FLYLOG_CSV"},

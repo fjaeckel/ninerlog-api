@@ -33,9 +33,12 @@ func headersOf(row map[string]string) []string {
 // actually contained.
 func TestMapRowToFlight_MyFlightbookDerivesAirportsFromRoute(t *testing.T) {
 	row := map[string]string{
-		"Date":              "2026-03-07",
-		"Tail Number":       "N12345",
-		"Model":             "C172",
+		"Date":        "2026-03-07",
+		"Tail Number": "N12345",
+		// The type code lives in "ICAO Model"; "Model" is the marketing
+		// description and is deliberately not mapped.
+		"ICAO Model":        "C172",
+		"Model":             "C-172 S, Cessna Skyhawk SP",
 		"Route":             "KSFO KSJC KOAK",
 		"Comments":          "Bay tour",
 		"Total Flight Time": "1.5",
@@ -78,7 +81,7 @@ func TestMapRowToFlight_SingleWaypointRoute(t *testing.T) {
 	row := map[string]string{
 		"Date":              "2026-03-07",
 		"Tail Number":       "N12345",
-		"Model":             "C172",
+		"ICAO Model":        "C172",
 		"Route":             "KSFO",
 		"Total Flight Time": "0.8",
 	}

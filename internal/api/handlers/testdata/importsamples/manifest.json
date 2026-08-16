@@ -13,6 +13,7 @@
     "actual, anonymised export from the application) is what turns a best-effort",
     "template into a verified one.",
     "",
+    "expectRowErrorFields marks a sample whose first row legitimately cannot become a flight — the source recorded something FlightCreate requires and the file does not carry. It is not a known-failure escape hatch: the listed fields are asserted exactly, so the day the importer stops rejecting that row, or starts rejecting it for a different reason, the test fails.",
     "See README.md for how to contribute a real export."
   ],
   "samples": [
@@ -94,19 +95,41 @@
         "totalTimeMinutes": 48,
         "landings": 1
       }
+    },
+    {
+      "file": "myflightbook.csv",
+      "expectTemplate": "MYFLIGHTBOOK_CSV",
+      "provenance": "real",
+      "notes": "Real MyFlightbook export. Fully quoted, UTF-8 BOM, 54 columns. Carries both 'Model' (marketing description: 'C-172 S, Cessna Skyhawk SP') and 'ICAO Model' (the type code) — the type must come from the latter. 'Aircraft ID' is MyFlightbook's internal numeric row ID, not a registration. Its one flight has an empty Route, which is why it cannot import.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-14",
+        "aircraftReg": "D-ERAE",
+        "aircraftType": "C172"
+      },
+      "expectRowErrorFields": [
+        "departureIcao",
+        "arrivalIcao"
+      ]
+    },
+    {
+      "file": "logten-dynamic-export.txt",
+      "expectTemplate": "LOGTEN_CSV",
+      "provenance": "real",
+      "notes": "Real LogTen Pro Dynamic Export: TAB-delimited .txt, trailing empty column, trailing blank rows. Uses the FAA short column names ('Dual Rcvd', 'Sim Inst', 'Day Ldg', 'XC'), so it was detected as FAA_CSV and imported as nothing until LOGTEN_CSV got a signature on the columns LogTen alone writes. Out/In are bare four-digit clock times ('1003'). Crew name anonymised.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-13",
+        "aircraftReg": "D-BANA",
+        "aircraftType": "C172",
+        "departureIcao": "EDAZ",
+        "arrivalIcao": "EDAY",
+        "totalTimeMinutes": 151,
+        "landings": 5
+      }
     }
   ],
   "wanted": [
-    {
-      "template": "LOGTEN_CSV",
-      "why": "Two dialects exist — human-readable headers and flight_… field keys. We guess at both. One export of each settles it.",
-      "howToExport": "LogTen Pro → Reports → Exporters → Export Flights (Tab or CSV). Do not use Dynamic Export."
-    },
-    {
-      "template": "MYFLIGHTBOOK_CSV",
-      "why": "Column list is documented but unverified, and this is the one format with no departure/arrival columns — the route-splitting path depends on the exact Route spelling.",
-      "howToExport": "myflightbook.com → Logbook → Import/Export → download CSV."
-    },
     {
       "template": "CAPZLOG_CSV",
       "why": "We assume the long-form EASA spellings ('Departure Place', 'Name(s) PIC'). If capzlog uses the short forms it will be detected as generic EASA instead.",

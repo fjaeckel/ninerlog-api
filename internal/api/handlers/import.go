@@ -1450,6 +1450,17 @@ func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *op
 }
 
 func parseCSV(data []byte) ([]string, []map[string]string, []map[string]string, error) {
+	// Strip a UTF-8 byte-order mark before anything else looks at the bytes.
+	//
+	// Detection tolerates a BOM on its own, but the CSV reader does not: a
+	// header written as <BOM>"Date" has its opening quote in second position,
+	// so the field is not treated as quoted and the column comes through as
+	// the literal `"Date"` — quotes and BOM included. It still matched, because
+	// header normalisation trims both, but that raw string is what the mapping
+	// screen shows the pilot and what any exact comparison sees. MyFlightbook
+	// writes exactly this.
+	data = bytes.TrimPrefix(data, []byte("\ufeff"))
+
 	// ForeFlight exports have metadata preamble sections:
 	// "ForeFlight Logbook Import", "Aircraft Table", "Flights Table"
 	// We need to find both sections and parse them.
@@ -1699,6 +1710,24 @@ func normalizeTime(val string) string {
 		}
 	}
 	val = strings.TrimSpace(val)
+
+	// Bare four-digit military time, as LogTen Pro writes it: "1003" is 10:03.
+	// Without this the value reaches Postgres as "1003" and the whole row
+	// fails on a TIME column. Three digits ("930") is the same convention with
+	// the leading zero dropped.
+	//
+	// Out-of-range values are deliberately left untouched rather than coerced:
+	// a column that is not really a time (a flight number, a Hobbs reading)
+	// should fail visibly instead of silently becoming a plausible clock time.
+	if len(val) == 3 || len(val) == 4 {
+		if digits := strings.TrimLeft(val, "0123456789"); digits == "" {
+			h, _ := strconv.Atoi(val[:len(val)-2])
+			m, _ := strconv.Atoi(val[len(val)-2:])
+			if h <= 23 && m <= 59 {
+				return fmt.Sprintf("%02d:%02d:00", h, m)
+			}
+		}
+	}
 
 	// Handle HH:MM, HH:MM:SS, H:MM
 	if len(val) == 4 && val[1] == ':' {
