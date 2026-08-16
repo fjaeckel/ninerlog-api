@@ -78,6 +78,7 @@ alone** instead: it is what detection keys off, and it carries no flight data.
 | `myflightbook.csv` | `MYFLIGHTBOOK_CSV` | real |
 | `logten-dynamic-export.txt` | `LOGTEN_CSV` | real |
 | `wader.csv` | `WADER_CSV` | real |
+| `capzlog.csv` | `CAPZLOG_CSV` | real |
 | `skydemon-empty.csv` | `SKYDEMON_CSV` | header-only |
 
 The three NinerLog files are frozen output of `writeStandardCSV`,
@@ -122,12 +123,23 @@ vendor documentation first, and every one was wrong:
   supplied was of an empty logbook, so the column names are verified and the
   value formats are not.
 
-Five files, nine defects, none of which a header-row test written from the same
-assumptions could have caught. Treat every remaining `best-effort` template as
-wrong until a real file says otherwise.
+- **capzlog.aero** — also has no date column: the flight is dated by its
+  "Off Block" timestamp. "Departure"/"Arrival" are places rather than times,
+  "Copi" is the co-pilot, "Remark" is singular, and the sheet carries Swiss
+  mountain/glacier and rotary HESLO/HEC/HHO columns that no other logbook
+  writes. The template's signature matched none of the real column names, so
+  the file was not detected at all.
 
-Still wanted: see the `wanted` list in `manifest.json` — capzlog.aero,
-Vereinsflieger and mccPILOTLOG, plus a **populated** SkyDemon export. The
-SkyDemon one matters more than it looks: if its time columns are bare clock
-times rather than timestamps, a SkyDemon logbook carries no date anywhere and
-cannot be imported at all.
+Six files, ten defects, none of which a header-row test written from the same
+assumptions could have caught. Every single template written from vendor
+documentation has been wrong — treat the two that remain that way
+(Vereinsflieger, mccPILOTLOG) as wrong until a real file says otherwise.
+
+Three products — FLYLOG.io, Wader and capzlog.aero — write a literal self-marker
+into a crew cell for the logbook's owner, which is why the importer drops it
+rather than creating a contact called "SELF".
+
+Still wanted: see the `wanted` list in `manifest.json` — Vereinsflieger,
+mccPILOTLOG, and a **populated** SkyDemon export. The SkyDemon one matters more
+than it looks: if its time columns are bare clock times rather than timestamps,
+a SkyDemon logbook carries no date anywhere and cannot be imported at all.

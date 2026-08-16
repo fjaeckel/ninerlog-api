@@ -9,10 +9,11 @@ import (
 //
 // The ForeFlight, NinerLog and EASA/FAA rows are verbatim (they are produced
 // by, or consumed by, code in this repository). FLYLOG.io, MyFlightbook and
-// LogTen Pro, MyFlightbook, Wader and SkyDemon are verbatim from real exports —
-// every one of the five was wrong when written from vendor documentation
-// instead. SkyDemon's came from an export of an empty logbook, so its column
-// names are verified but its value formats are not. The remainder still
+// FLYLOG.io, MyFlightbook, LogTen Pro, Wader, SkyDemon and capzlog.aero are
+// verbatim from real exports — every one of the six was wrong when written from
+// vendor documentation instead. SkyDemon's came from an export of an empty
+// logbook, so its column names are verified but its value formats are not.
+// Only Vereinsflieger and mccPILOTLOG remain as documentation guesses. The remainder still
 // reproduce the columns each vendor documents, which is what the best-effort
 // templates target and what makes them provisional.
 var (
@@ -39,7 +40,10 @@ var (
 	// is MyFlightbook's internal row ID, not a registration.
 	myFlightbookHeaders = strings.Split("Date,Flight ID,Model,ICAO Model,Tail Number,Display Tail,Aircraft ID,Category/Class,Approaches,Hold,Landings,FS Night Landings,FS Day Landings,X-Country,Night,IMC,Simulated Instrument,Ground Simulator,Dual Received,CFI,SIC,PIC,Total Flight Time,CFI Time (HH:MM),SIC Time (HH:MM),PIC (HH:MM),Total Flight Time (HH:MM),Route,Flight Properties,Comments,Hobbs Start,Hobbs End,Engine Start,Engine End,Engine Time,Flight Start,Flight End,Flying Time,Complex,Controllable pitch prop,Flaps,Retract,Tailwheel,High Performance,Turbine,TAA,Signature State,Date of Signature,CFI Comment,CFI Certificate,CFI Name,CFI Email,CFI Expiration,Public", ",")
 
-	capzlogHeaders = strings.Split("Date,Departure Place,Departure Time,Arrival Place,Arrival Time,Aircraft Model,Aircraft Registration,Single Pilot SE,Single Pilot ME,Multi Pilot,Total Time of Flight,Name(s) PIC,Landings Day,Landings Night,Night,IFR,PIC,Co-Pilot,Dual,Instructor,FSTD Date,FSTD Type,FSTD Total Time,Remarks and Endorsements", ",")
+	// The real capzlog.aero export header row. No date column — the flight is
+	// dated by the Off Block timestamp. "Departure"/"Arrival" are places,
+	// not times.
+	capzlogHeaders = strings.Split("Departure,Arrival,Off Block,On Block,Block,Takeoff,Landing,Airborne,Aircraft,Model,Single Engine,Multi Engine,Multi Pilot,PIC Name,Type of Flight,VFR,IFR,Day,Night,Pilot Function,PIC,Copi,Dual,Instructor,Landings,Day Landings,Night Landings,Remark,Mountain Landings,Mountain Takeoffs,Mountain Landings > 2000m,Mountain Landings > 2700m,Glacier Landings,Holding Patterns,Go Arounds,Touch and Goes,Number of PAX,Sea Takeoffs,Sea Landings,InstructionTime,HESLO1 Cycles,HESLO2 Cycles,HESLO3 Cycles,HESLO4 Cycles,HEC1 Cycles,HEC2 Cycles,HHO Cycles,HESLO1 Time,HESLO2 Time,HESLO3 Time,HESLO4 Time,HEC1 Time,HEC2 Time,HHO Time", ",")
 
 	// The real FLYLOG.io export header row, from an export supplied by the
 	// maintainer. The row this replaced was written from the vendor's prose
@@ -168,6 +172,9 @@ func TestSuggestMapsTheEssentialFields(t *testing.T) {
 		"SKYDEMON_CSV": {
 			FieldDate:      "no date column — derived from the departure timestamp",
 			FieldTotalTime: "no total column — derived from the block times",
+		},
+		"CAPZLOG_CSV": {
+			FieldDate: "no date column — derived from the off-block timestamp",
 		},
 		"MYFLIGHTBOOK_CSV": {
 			// Present but not required here: MyFlightbook's own totals may be

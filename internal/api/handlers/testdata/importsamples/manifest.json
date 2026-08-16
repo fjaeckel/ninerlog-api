@@ -150,14 +150,25 @@
       "provenance": "header-only",
       "notes": "Real SkyDemon export header, but of an EMPTY logbook — one header row, no flights. The column names are therefore verified and the value formats are not: it is unknown whether the time columns carry a full timestamp or a bare clock time, which decides whether a SkyDemon logbook can be dated at all (it has no date column). A populated export is still wanted. Detection is asserted on the header row; the file itself must be rejected with a message that says it has no flights.",
       "expectParseError": "no flights"
+    },
+    {
+      "file": "capzlog.csv",
+      "expectTemplate": "CAPZLOG_CSV",
+      "provenance": "real",
+      "notes": "Real capzlog.aero Airplane Flights Report. Nothing needed anonymising: the only crew cell is the literal 'Self' marker. No date column — the flight is dated by the 'Off Block' timestamp (8/15/2026 04:00, month-first). 'Departure'/'Arrival' are places, not times; 'Copi' is the co-pilot; 'Remark' is singular. Carries Swiss mountain/glacier and rotary HESLO/HEC/HHO columns even in the airplane report.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-15",
+        "aircraftReg": "D-ERAE",
+        "aircraftType": "C172",
+        "departureIcao": "EDAZ",
+        "arrivalIcao": "EDAY",
+        "totalTimeMinutes": 127,
+        "landings": 1
+      }
     }
   ],
   "wanted": [
-    {
-      "template": "CAPZLOG_CSV",
-      "why": "We assume the long-form EASA spellings ('Departure Place', 'Name(s) PIC'). If capzlog uses the short forms it will be detected as generic EASA instead.",
-      "howToExport": "capzlog.aero → Flights → Export → CSV."
-    },
     {
       "template": "VEREINSFLIEGER_CSV",
       "why": "German club export. Column names likely vary by club configuration, so two exports from different clubs are worth more than one.",
@@ -170,8 +181,8 @@
     },
     {
       "template": "SKYDEMON_CSV",
-      "why": "SkyDemon logs sectors rather than logbook rows; we need to see which columns actually exist before promising anything.",
-      "howToExport": "SkyDemon → Logbook → Export → CSV."
+      "why": "The header row is now known from an export of an EMPTY logbook, so detection and column names are settled — but no value formats are. SkyDemon has no date column, so if its time columns hold bare clock times rather than timestamps, a SkyDemon logbook cannot be dated at all. A populated export settles it.",
+      "howToExport": "SkyDemon → Logbook → Export → CSV, with at least a few flights logged."
     }
   ]
 }

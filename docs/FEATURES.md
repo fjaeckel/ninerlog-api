@@ -259,15 +259,18 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   putting a marketing description into the aircraft type because the type lives in
   `ICAO Model` rather than `Model`, and Wader used camelCase against a template that assumed
   EASA column names, so it matched nothing and failed every row on four required fields.
-  SkyDemon then turned out to have neither a date column nor a total-time column, both of
-  which the importer now derives from the departure/arrival timestamps.
+  SkyDemon and capzlog.aero then turned out to have no date column at all — both date a
+  flight by a timestamped time column, which the importer now falls back on; SkyDemon has no
+  total-time column either, so its total is derived from the block times.
 
   They also turned up five importer defects a header row cannot expose: a UTF-8 BOM breaking
   quoted-header parsing, bare four-digit clock times (`1003`) reaching Postgres unparsed,
   FLYLOG's `SELF` crew marker becoming a contact, Wader's `00:00` placeholder times deriving
   a 777-minute block time for a one-hour flight, and an export of an empty logbook being
-  reported as an unparseable file rather than as one with no flights in it. A `best-effort`
-  template should be read as a hypothesis, not as support.
+  reported as an unparseable file rather than as one with no flights in it. Three products —
+  FLYLOG.io, Wader and capzlog.aero — write a literal self-marker into a crew cell for the
+  logbook's owner, which the importer drops rather than turning into a contact. A
+  `best-effort` template should be read as a hypothesis, not as support.
   Confirming an import also fills in the entities the flights reference: contacts for
   crew names (the same auto-creation that flight create/update performs — see
   **Contacts / people** under Pilot data management), and fleet entries for every registration in the file that the

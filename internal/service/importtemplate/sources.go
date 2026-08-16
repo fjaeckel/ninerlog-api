@@ -595,13 +595,27 @@ var myFlightbookTemplate = register(&Template{
 	Priority:         10,
 })
 
+// capzlogTemplate is built from a real capzlog.aero export.
+//
+// It shares SkyDemon's structural surprise — there is no date column, and the
+// flight is dated by the "Off Block" timestamp — and adds its own vocabulary:
+// "Departure"/"Arrival" are places rather than times, "Copi" is the co-pilot,
+// "Remark" is singular, and the sheet carries Swiss and rotary-specific columns
+// (mountain and glacier landings, HESLO/HEC/HHO external-load and hoist cycles)
+// that no other logbook in the catalogue writes. Those make it unmistakable.
+//
+// One caveat worth knowing. The export seen here dates its timestamps
+// month-first ("8/15/2026 04:00"), which is only provable because 15 cannot be
+// a month. If capzlog follows the user's locale, a European export would be
+// day-first and an ambiguous date like "8/9/2026" would resolve to the wrong
+// month — silently. See TestCaptureDateFromTimestamp_AmbiguousSlashDateIsMonthFirst.
 var capzlogTemplate = register(&Template{
 	ID:          "CAPZLOG_CSV",
 	Name:        "capzlog.aero",
 	Vendor:      "Aviaso / capzlog.aero",
 	Website:     "https://capzlog.aero",
-	Description: "capzlog.aero flight export. Follows the EASA AMC1 FCL.050 column layout, so single-pilot, multi-pilot and FSTD columns come across as recorded.",
-	Confidence:  ConfidenceBestEffort,
+	Description: "capzlog.aero flights report. Dates each flight by its off-block timestamp rather than a date column, and carries the Swiss mountain/glacier and rotary external-load columns alongside the standard EASA breakdown.",
+	Confidence:  ConfidenceExact,
 	Regions:     []string{"EASA"},
 	ExportSteps: []string{
 		"Sign in at capzlog.aero and open your Flights list.",
@@ -609,22 +623,74 @@ var capzlogTemplate = register(&Template{
 		"Choose Export and pick CSV rather than PDF.",
 		"Upload the downloaded file here.",
 	},
-	DateFormat: "2006-01-02",
-	Columns: merge(coreColumns, easaColumns, map[string]Field{
-		"aircraft":       FieldAircraftReg,
-		"flight time":    FieldTotalTime,
-		"takeoffs day":   FieldIgnore,
-		"takeoffs night": FieldIgnore,
-		"function":       FieldIgnore,
-		"flight rules":   FieldIgnore,
-		"flight type":    FieldIgnore,
-	}),
-	Signature: []string{
-		"total time of flight", "name(s) pic", "departure place", "arrival place",
-		"remarks and endorsements", "fstd total time", "single pilot se",
-		"single pilot me",
+	DateFormat: "1/2/2006",
+	Columns: map[string]Field{
+		"departure": FieldDepartureIcao,
+		"arrival":   FieldArrivalIcao,
+		"off block": FieldOffBlockTime,
+		"on block":  FieldOnBlockTime,
+		"takeoff":   FieldDepartureTime,
+		"landing":   FieldArrivalTime,
+		"block":     FieldTotalTime,
+		"aircraft":  FieldAircraftReg,
+		"model":     FieldAircraftType,
+		"pic name":  FieldPerson1,
+
+		"ifr":              FieldIFRTime,
+		"night":            FieldNightTime,
+		"pic":              FieldIsPic,
+		"dual":             FieldIsDual,
+		"instructor":       FieldDualGivenTime,
+		"landings":         FieldLandingsTotal,
+		"day landings":     FieldLandingsDay,
+		"night landings":   FieldLandingsNight,
+		"holding patterns": FieldHolds,
+		"remark":           FieldRemarks,
+
+		// Recognised for scoring, not mapped.
+		"airborne":       FieldIgnore,
+		"single engine":  FieldIgnore,
+		"multi engine":   FieldIgnore,
+		"multi pilot":    FieldIgnore,
+		"type of flight": FieldIgnore,
+		"vfr":            FieldIgnore,
+		"day":            FieldIgnore,
+		"pilot function": FieldIgnore,
+		"copi":           FieldIgnore,
+		// InstructionTime duplicates the "Instructor" duration above.
+		"instructiontime":           FieldIgnore,
+		"mountain landings":         FieldIgnore,
+		"mountain takeoffs":         FieldIgnore,
+		"mountain landings > 2000m": FieldIgnore,
+		"mountain landings > 2700m": FieldIgnore,
+		"glacier landings":          FieldIgnore,
+		"go arounds":                FieldIgnore,
+		"touch and goes":            FieldIgnore,
+		"number of pax":             FieldIgnore,
+		"sea takeoffs":              FieldIgnore,
+		"sea landings":              FieldIgnore,
+		"heslo1 cycles":             FieldIgnore,
+		"heslo2 cycles":             FieldIgnore,
+		"heslo3 cycles":             FieldIgnore,
+		"heslo4 cycles":             FieldIgnore,
+		"hec1 cycles":               FieldIgnore,
+		"hec2 cycles":               FieldIgnore,
+		"hho cycles":                FieldIgnore,
+		"heslo1 time":               FieldIgnore,
+		"heslo2 time":               FieldIgnore,
+		"heslo3 time":               FieldIgnore,
+		"heslo4 time":               FieldIgnore,
+		"hec1 time":                 FieldIgnore,
+		"hec2 time":                 FieldIgnore,
+		"hho time":                  FieldIgnore,
 	},
-	MinSignatureHits: 3,
+	Signature: []string{
+		"copi", "pilot function", "type of flight", "airborne", "block",
+		"mountain landings", "glacier landings", "heslo1 cycles", "hho time",
+		"go arounds", "touch and goes", "number of pax", "instructiontime",
+		"sea takeoffs", "sea landings", "holding patterns",
+	},
+	MinSignatureHits: 4,
 	Priority:         8,
 })
 

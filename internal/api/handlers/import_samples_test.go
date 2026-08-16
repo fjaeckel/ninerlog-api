@@ -410,3 +410,53 @@ func assertHeaderRowDetects(t *testing.T, data []byte, wantTemplate string) {
 		t.Errorf("header row detected as %s, manifest says %s", tpl.ID, wantTemplate)
 	}
 }
+
+// capzlog.aero has no date column: the flight is dated by its off-block
+// timestamp. It is also the third product in this catalogue to write a literal
+// self-marker into a crew cell, after FLYLOG.io and Wader.
+func TestImportSample_CapzlogDatedByOffBlockTimestamp(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(importSamplesDir, "capzlog.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	columns, rows, _, err := parseCSV(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	tpl, _, mappings := detectImportFormat(columns)
+	if tpl == nil || tpl.ID != "CAPZLOG_CSV" {
+		t.Fatalf("detected %v, want CAPZLOG_CSV", tpl)
+	}
+
+	// Assert the input shape too: if capzlog ever adds a date column or stops
+	// timestamping Off Block, this test is guarding nothing.
+	for _, c := range columns {
+		if strings.EqualFold(strings.TrimSpace(c), "date") {
+			t.Fatalf("sample now has a Date column — the derivation is no longer what dates it")
+		}
+	}
+	if !strings.Contains(rows[0]["Off Block"], "/") {
+		t.Fatalf("Off Block %q no longer carries a date", rows[0]["Off Block"])
+	}
+
+	got, errs := mapRowToFlight(rows[0], toMappingLookup(mappings), nil)
+	if len(errs) > 0 {
+		t.Fatalf("row errors: %+v", errs)
+	}
+	if s := got.Date.String(); s != "2026-08-15" {
+		t.Errorf("date = %q, want 2026-08-15 derived from the off-block timestamp", s)
+	}
+	// The clock half must still reach the block times, or the total is lost.
+	if got.OffBlockTime != "04:00:00" || got.OnBlockTime != "06:07:00" {
+		t.Errorf("block times = %q/%q, want 04:00:00/06:07:00", got.OffBlockTime, got.OnBlockTime)
+	}
+	if mins := effectiveTotalMinutes(t, got); mins != 127 {
+		t.Errorf("total = %d min, want 127 (the Block column reads 2:07)", mins)
+	}
+	// "Self" is the logbook owner, not a crew member.
+	if got.CrewMembers != nil {
+		for _, cm := range *got.CrewMembers {
+			t.Errorf("%q was imported as crew (role %s)", cm.Name, cm.Role)
+		}
+	}
+}
