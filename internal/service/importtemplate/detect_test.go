@@ -9,8 +9,10 @@ import (
 //
 // The ForeFlight, NinerLog and EASA/FAA rows are verbatim (they are produced
 // by, or consumed by, code in this repository). FLYLOG.io, MyFlightbook and
-// LogTen Pro, MyFlightbook and Wader are verbatim from real exports — every
-// one of the four was wrong when written from vendor documentation instead. The remainder still
+// LogTen Pro, MyFlightbook, Wader and SkyDemon are verbatim from real exports —
+// every one of the five was wrong when written from vendor documentation
+// instead. SkyDemon's came from an export of an empty logbook, so its column
+// names are verified but its value formats are not. The remainder still
 // reproduce the columns each vendor documents, which is what the best-effort
 // templates target and what makes them provisional.
 var (
@@ -54,7 +56,11 @@ var (
 	// matched nothing, so Wader files were not detected at all.
 	waderHeaders = strings.Split("isPreviousExperience,isSimulator,flightDate,startTime,takeoffTime,landingTime,parkingTime,flightNumber,depAirport,arrAirport,aircraftTailnumber,aircraftType,simType,function,pilotName1,pilotName2,pilotName3,pilotName4,totalTime,picTime,sicTime,soloTime,dualTime,picusTime,spicTime,examinerTime,instructorTime,simTraineeTime,simTrainerTime,crossCountryTime,actualInstrumentTime,simulatedInstrumentTime,reliefTime,ifrTime,nightTime,dayTakeoffs,nightTakeoffs,dayLandings,nightLandings,approachType,remarks,multiEngine,multiPilot,depNotes,depRunway,depProcedure,depTransition,depThreats,arrNotes,arrRunway,arrProcedure,arrTransition,arrThreats", ",")
 
-	skyDemonHeaders = strings.Split("Date,Aircraft,Aircraft Type,Pilot In Command,Departure,Departure Time,Arrival,Arrival Time,Duration,Distance", ",")
+	// The real SkyDemon export header row, from an export of an empty
+	// logbook. Note the three unnamed columns, and that there is no date
+	// column and no total-time column at all — both are derived from the
+	// departure/arrival timestamps.
+	skyDemonHeaders = strings.Split("Departure Time,Departure Place,Arrival Time,Arrival Place,Aircraft Reg,Aircraft Type,PIC Name,PIC Time,Dual Time,Night Time,IFR Time,Instructor Time,,,,Day Landings,Night Landings,Comments", ",")
 )
 
 func TestDetectIdentifiesEachSource(t *testing.T) {
@@ -154,6 +160,21 @@ func TestSuggestMapsTheEssentialFields(t *testing.T) {
 	// created without, otherwise the import is guaranteed to error out.
 	required := []Field{FieldDate, FieldAircraftReg, FieldTotalTime}
 
+	// Exceptions, each because the source genuinely has no such column and the
+	// importer derives the value instead. These are the two derivations in
+	// mapRowToFlight; adding a third exception here without a matching
+	// derivation would be hiding a broken template.
+	exempt := map[string]map[Field]string{
+		"SKYDEMON_CSV": {
+			FieldDate:      "no date column — derived from the departure timestamp",
+			FieldTotalTime: "no total column — derived from the block times",
+		},
+		"MYFLIGHTBOOK_CSV": {
+			// Present but not required here: MyFlightbook's own totals may be
+			// blank, with the time coming from Engine Start/End.
+		},
+	}
+
 	cases := map[string][]string{
 		"FOREFLIGHT_CSV":     foreFlightHeaders,
 		"NINERLOG_CSV":       ninerlogHeaders,
@@ -180,9 +201,14 @@ func TestSuggestMapsTheEssentialFields(t *testing.T) {
 				mapped[m.TargetField] = m.SourceColumn
 			}
 			for _, f := range required {
-				if _, ok := mapped[f]; !ok {
-					t.Errorf("template %s does not map %s", id, f)
+				if _, ok := mapped[f]; ok {
+					continue
 				}
+				if why, excused := exempt[id][f]; excused {
+					t.Logf("template %s does not map %s: %s", id, f, why)
+					continue
+				}
+				t.Errorf("template %s does not map %s", id, f)
 			}
 		})
 	}

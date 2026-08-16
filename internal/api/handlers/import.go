@@ -235,7 +235,9 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 	if strings.HasSuffix(lower, ".csv") || strings.HasSuffix(lower, ".txt") {
 		columns, rows, aircraftData, err = parseCSV(data)
 		if err != nil {
-			h.sendError(c, http.StatusBadRequest, "Failed to parse CSV file")
+			// The specific reason matters: "no flights in this file" and
+			// "this is not a CSV" send the pilot to two different places.
+			h.sendError(c, http.StatusBadRequest, "Failed to parse CSV file: "+err.Error())
 			return
 		}
 		detected, format, suggested = detectImportFormat(columns)
@@ -920,6 +922,10 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	// can be reconciled after the loop. Map iteration order is random, so
 	// neither may overwrite the other as it is read.
 	landingsTotal := -1
+	// timestampDate is the date half of a time column that carried a full
+	// timestamp, kept as a fallback for sources with no date column of their
+	// own. See the derivation after the loop.
+	var timestampDate time.Time
 
 	for col, mapping := range mappings {
 		val := strings.TrimSpace(row[col])
@@ -948,13 +954,17 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "arrivalIcao":
 			flight.ArrivalIcao = normalizeLocation(val)
 		case "offBlockTime":
+			captureDateFromTimestamp(val, &timestampDate)
 			flight.OffBlockTime = normalizeTime(val)
 		case "onBlockTime":
+			captureDateFromTimestamp(val, &timestampDate)
 			flight.OnBlockTime = normalizeTime(val)
 		case "departureTime":
+			captureDateFromTimestamp(val, &timestampDate)
 			s := normalizeTime(val)
 			flight.DepartureTime = &s
 		case "arrivalTime":
+			captureDateFromTimestamp(val, &timestampDate)
 			s := normalizeTime(val)
 			flight.ArrivalTime = &s
 		case "totalTime":
@@ -1143,6 +1153,18 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		}
 	}
 
+	// Derive the flight date from a timestamped time column when the source has
+	// no date column at all.
+	//
+	// SkyDemon exports a "Departure Time"/"Arrival Time" pair and nothing else
+	// to date the flight by, so without this every row of a SkyDemon logbook
+	// fails on a required field the file does carry — just not in a column of
+	// its own. A source that writes a bare clock time ("11:03") yields nothing
+	// here and still errors, which is correct: that file genuinely has no date.
+	if flight.Date.IsZero() && !timestampDate.IsZero() {
+		flight.Date = openapi_types.Date{Time: timestampDate}
+	}
+
 	// Validate required fields
 	if flight.Date.IsZero() {
 		errs = append(errs, fieldError{"date", "Date is required"})
@@ -1239,6 +1261,33 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	}
 
 	return flight, errs
+}
+
+// captureDateFromTimestamp records the date half of a time cell that carries a
+// full timestamp, so a source with no date column can still date its flights.
+// The first usable value wins; a bare clock time contributes nothing.
+func captureDateFromTimestamp(val string, dest *time.Time) {
+	if !dest.IsZero() {
+		return
+	}
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return
+	}
+	// Split the date half off an ISO ("2026-08-11T11:03:00Z") or
+	// space-separated ("2026-08-11 11:03", "11/08/2026 11:03") timestamp. A
+	// value with neither separator is a clock time, not a timestamp.
+	var datePart string
+	if idx := strings.Index(val, "T"); idx > 0 {
+		datePart = val[:idx]
+	} else if fields := strings.Fields(val); len(fields) > 1 {
+		datePart = fields[0]
+	} else {
+		return
+	}
+	if t, err := parseFlexibleDate(datePart, ""); err == nil {
+		*dest = t
+	}
 }
 
 // routeSeparators splits a route string on the punctuation logbooks use between
@@ -1539,9 +1588,17 @@ func parseCSV(data []byte) ([]string, []map[string]string, []map[string]string, 
 
 func parseSectionCSV(csvData []byte) ([]string, []map[string]string, error) {
 
-	// Detect delimiter by trying each
+	// Detect delimiter by trying each.
+	//
+	// headerOnly remembers a delimiter that produced a plausible header row but
+	// no data rows. Without it, an export of an empty logbook fell through
+	// every delimiter and was reported as "could not parse as CSV", sending the
+	// pilot to look for a formatting problem in a file that is formatted
+	// perfectly and simply has no flights in it. SkyDemon exports exactly this
+	// when the logbook is empty.
 	delimiters := []rune{';', ',', '\t'}
 	var records [][]string
+	var headerOnly [][]string
 	var err error
 
 	for _, delim := range delimiters {
@@ -1549,13 +1606,27 @@ func parseSectionCSV(csvData []byte) ([]string, []map[string]string, error) {
 		reader.LazyQuotes = true
 		reader.Comma = delim
 		reader.FieldsPerRecord = -1 // allow variable field counts
-		records, err = reader.ReadAll()
-		if err == nil && len(records) >= 2 && len(records[0]) >= 3 {
+		recs, rerr := reader.ReadAll()
+		if rerr != nil {
+			err = rerr
+			continue
+		}
+		if len(recs) >= 2 && len(recs[0]) >= 3 {
+			records, err = recs, nil
 			break
+		}
+		if len(recs) >= 1 && len(recs[0]) >= 3 && len(recs[0]) > len(headerOnly) {
+			headerOnly = recs
 		}
 	}
 
-	if err != nil || len(records) < 2 {
+	if len(records) < 2 {
+		if len(headerOnly) > 0 {
+			return nil, nil, fmt.Errorf("the file has a header row but no flights — export again with flights in the logbook")
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not parse as CSV (tried semicolon, comma, tab)")
+		}
 		return nil, nil, fmt.Errorf("could not parse as CSV (tried semicolon, comma, tab)")
 	}
 

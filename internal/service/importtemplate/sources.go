@@ -896,36 +896,62 @@ var mccPilotLogTemplate = register(&Template{
 	Priority:         10,
 })
 
+// skyDemonTemplate is built from a real SkyDemon export header.
+//
+// Two structural things set it apart from every other template here. There is
+// no date column: the flight is dated by the "Departure Time"/"Arrival Time"
+// pair, which the importer falls back on when nothing else supplies a date.
+// And there is no total-time column either, so the total is derived from those
+// same two values.
+//
+// The export that produced this header row was of an empty logbook, so the
+// column names are verified but the value formats are not — in particular
+// whether the time columns carry a full timestamp or a bare clock time. If
+// they are bare clock times, a SkyDemon logbook cannot be dated at all and
+// every row will fail on the date. That is why this template stays
+// best-effort: the header is known, the contents are not.
 var skyDemonTemplate = register(&Template{
 	ID:          "SKYDEMON_CSV",
 	Name:        "SkyDemon",
 	Vendor:      "Divelements / SkyDemon",
 	Website:     "https://www.skydemon.aero",
-	Description: "SkyDemon logbook export. SkyDemon logs the flown sector rather than a full logbook row, so instrument, night and landing columns are usually absent.",
+	Description: "SkyDemon logbook export. It dates each flight by its departure and arrival timestamps rather than a date column, and records no total time — the total is derived from those two. Instrument, approach and hold detail are not exported at all.",
 	Confidence:  ConfidenceBestEffort,
 	Regions:     []string{"EASA"},
 	ExportSteps: []string{
 		"Open SkyDemon on your tablet or PC and go to the Logbook.",
 		"Choose Export and pick the CSV format.",
 		"Upload the downloaded file here.",
-		"Expect to fill in instrument and night columns afterwards — SkyDemon does not record them.",
+		"Expect to fill in approach and hold detail afterwards — SkyDemon does not record it.",
 	},
-	DateFormat: "02/01/2006",
-	Columns: merge(coreColumns, easaColumns, map[string]Field{
-		"aircraft":         FieldAircraftReg,
-		"aircraft type":    FieldAircraftType,
-		"pilot in command": FieldPerson1,
-		"departure":        FieldDepartureIcao,
-		"arrival":          FieldArrivalIcao,
-		"duration":         FieldTotalTime,
-		"distance":         FieldIgnore,
-		"engine time":      FieldIgnore,
-	}),
+	DateFormat: "2006-01-02",
+	Columns: map[string]Field{
+		"departure time":  FieldOffBlockTime,
+		"arrival time":    FieldOnBlockTime,
+		"departure place": FieldDepartureIcao,
+		"arrival place":   FieldArrivalIcao,
+		"aircraft reg":    FieldAircraftReg,
+		"aircraft type":   FieldAircraftType,
+		"pic name":        FieldPerson1,
+		"pic time":        FieldIsPic,
+		"dual time":       FieldIsDual,
+		"night time":      FieldNightTime,
+		"ifr time":        FieldIFRTime,
+		"instructor time": FieldDualGivenTime,
+		"day landings":    FieldLandingsDay,
+		"night landings":  FieldLandingsNight,
+		"comments":        FieldRemarks,
+	},
+	// The individual spellings are shared with the EASA layout; it is the
+	// combination that identifies SkyDemon, so the bar is set high enough that
+	// a file merely using EASA names cannot clear it.
 	Signature: []string{
-		"duration", "pilot in command", "departure time", "arrival time", "distance",
+		"departure time", "arrival time", "departure place", "arrival place",
+		"aircraft reg", "pic name", "pic time", "dual time", "instructor time",
+		"day landings", "night landings",
 	},
-	MinSignatureHits: 3,
-	Priority:         14,
+	MinSignatureHits: 5,
+	Priority:         12,
 })
 
 var easaTemplate = register(&Template{

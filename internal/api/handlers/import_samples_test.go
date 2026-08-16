@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -50,7 +52,12 @@ type importSample struct {
 	// the file does not carry. The listed fields are asserted exactly, so this
 	// is a pinned behaviour rather than a known-failure escape hatch.
 	ExpectRowErrorFields []string `json:"expectRowErrorFields"`
-	ExpectFirstRow       struct {
+	// ExpectParseError marks a sample that must be rejected, and the substring
+	// the pilot should see. An export of an empty logbook is a real upload, and
+	// reporting it as malformed sends them hunting for a problem that is not
+	// there. Detection is still asserted, against the header row alone.
+	ExpectParseError string `json:"expectParseError"`
+	ExpectFirstRow   struct {
 		Date             string `json:"date"`
 		AircraftReg      string `json:"aircraftReg"`
 		AircraftType     string `json:"aircraftType"`
@@ -88,6 +95,20 @@ func TestImportSamples(t *testing.T) {
 			}
 
 			columns, rows, aircraft, err := parseCSV(data)
+			if sample.ExpectParseError != "" {
+				if err == nil {
+					t.Fatalf("sample parsed, manifest says it must be rejected with %q",
+						sample.ExpectParseError)
+				}
+				if !strings.Contains(err.Error(), sample.ExpectParseError) {
+					t.Errorf("rejected with %q, manifest says it must mention %q",
+						err, sample.ExpectParseError)
+				}
+				// Detection reads the header row, so it is still assertable —
+				// which is the whole value of a header-only sample.
+				assertHeaderRowDetects(t, data, sample.ExpectTemplate)
+				return
+			}
 			if err != nil {
 				t.Fatalf("sample does not parse: %v", err)
 			}
@@ -172,8 +193,10 @@ func TestImportSamplesAreAllRegistered(t *testing.T) {
 	registered := make(map[string]bool, len(manifest.Samples))
 	for _, s := range manifest.Samples {
 		registered[s.File] = true
-		if s.Provenance != "generated" && s.Provenance != "synthetic" && s.Provenance != "real" {
-			t.Errorf("%s: provenance %q must be generated, synthetic or real", s.File, s.Provenance)
+		switch s.Provenance {
+		case "generated", "synthetic", "real", "header-only":
+		default:
+			t.Errorf("%s: provenance %q must be generated, synthetic, real or header-only", s.File, s.Provenance)
 		}
 		if s.ExpectTemplate == "" {
 			t.Errorf("%s: no expectTemplate", s.File)
@@ -363,5 +386,27 @@ func TestImportSample_WaderDropsPlaceholderMidnightTimes(t *testing.T) {
 		for _, cm := range *got.CrewMembers {
 			t.Errorf("SELF became crew member %q (role %s)", cm.Name, cm.Role)
 		}
+	}
+}
+
+// assertHeaderRowDetects checks detection against a file's header row alone.
+// A header-only export cannot go through the import pipeline, but its column
+// names are exactly what detection keys off, so the most valuable half of the
+// sample is still testable.
+func assertHeaderRowDetects(t *testing.T, data []byte, wantTemplate string) {
+	t.Helper()
+	r := csv.NewReader(bytes.NewReader(data))
+	r.LazyQuotes = true
+	r.FieldsPerRecord = -1
+	records, err := r.ReadAll()
+	if err != nil || len(records) == 0 {
+		t.Fatalf("could not read the header row: %v", err)
+	}
+	tpl := importtemplate.Detect(records[0])
+	if tpl == nil {
+		t.Fatalf("header row is not detected as any template: %v", records[0])
+	}
+	if tpl.ID != wantTemplate {
+		t.Errorf("header row detected as %s, manifest says %s", tpl.ID, wantTemplate)
 	}
 }

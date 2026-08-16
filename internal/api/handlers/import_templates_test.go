@@ -3,6 +3,7 @@ package handlers
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service/importtemplate"
@@ -300,5 +301,141 @@ func TestImportTemplateCatalogueIsServable(t *testing.T) {
 		if tpl.ID == importtemplate.FormatGenericCSV && toGeneratedTemplate(tpl).AutoDetected {
 			t.Error("generic CSV entry must not be marked auto-detected")
 		}
+	}
+}
+
+// SkyDemon has no date column: a flight is dated by its departure and arrival
+// timestamps. Whether those carry a date is the open question — the export we
+// have is of an empty logbook — so both shapes are pinned here. The first is
+// what makes SkyDemon importable; the second documents exactly what breaks if
+// SkyDemon writes bare clock times instead.
+func TestMapRowToFlight_SkyDemonDatedByDepartureTimestamp(t *testing.T) {
+	base := map[string]string{
+		"Departure Place": "EGKA",
+		"Arrival Place":   "EGHR",
+		"Aircraft Reg":    "G-ABCD",
+		"Aircraft Type":   "PA28",
+		"Day Landings":    "1",
+		"PIC Name":        "Alex Rivera",
+		"Comments":        "Coastal hop",
+	}
+
+	t.Run("timestamped times date the flight", func(t *testing.T) {
+		for _, stamp := range []struct{ name, dep, arr string }{
+			{"ISO with seconds", "2026-08-11 11:03:00", "2026-08-11 12:04:00"},
+			{"ISO without seconds", "2026-08-11 11:03", "2026-08-11 12:04"},
+			{"ISO T separator", "2026-08-11T11:03:00Z", "2026-08-11T12:04:00Z"},
+			// Unambiguous day-first (25 > 12, so it cannot be a month).
+			// An ambiguous slash date like "11/08/2026" resolves MM/DD-first
+			// by the repo's existing convention (see dateLayouts) — asserted
+			// separately below, because for a genuinely day-first source that
+			// is a silent off-by-months and we have no populated SkyDemon
+			// export to say which convention it uses.
+			{"day-first unambiguous", "25/08/2026 11:03", "25/08/2026 12:04"},
+		} {
+			t.Run(stamp.name, func(t *testing.T) {
+				row := map[string]string{"Departure Time": stamp.dep, "Arrival Time": stamp.arr}
+				for k, v := range base {
+					row[k] = v
+				}
+				flight, errs := mapRowToFlight(row, mappingsFor("SKYDEMON_CSV", headersOf(row)), nil)
+				if len(errs) > 0 {
+					t.Fatalf("unexpected errors: %+v", errs)
+				}
+				wantDate := "2026-08-11"
+				if strings.HasPrefix(stamp.dep, "25/") {
+					wantDate = "2026-08-25"
+				}
+				if got := flight.Date.String(); got != wantDate {
+					t.Errorf("date = %q, want %s derived from the departure timestamp", got, wantDate)
+				}
+				// The clock half must still land in the block times, or the
+				// total cannot be derived — SkyDemon has no total column.
+				if flight.OffBlockTime != "11:03:00" || flight.OnBlockTime != "12:04:00" {
+					t.Errorf("block times = %q/%q, want 11:03:00/12:04:00",
+						flight.OffBlockTime, flight.OnBlockTime)
+				}
+				if mins := effectiveTotalMinutes(t, flight); mins != 61 {
+					t.Errorf("derived total = %d min, want 61", mins)
+				}
+			})
+		}
+	})
+
+	// If SkyDemon writes a bare clock time, the file carries no date anywhere
+	// and the row must fail on it rather than invent one.
+	t.Run("bare clock times cannot date the flight", func(t *testing.T) {
+		row := map[string]string{"Departure Time": "11:03", "Arrival Time": "12:04"}
+		for k, v := range base {
+			row[k] = v
+		}
+		_, errs := mapRowToFlight(row, mappingsFor("SKYDEMON_CSV", headersOf(row)), nil)
+		var dateErr bool
+		for _, e := range errs {
+			if e.field == "date" {
+				dateErr = true
+			}
+		}
+		if !dateErr {
+			t.Errorf("expected a date error, got %+v — a bare clock time carries no "+
+				"date and must not be invented", errs)
+		}
+	})
+}
+
+// An ambiguous slash-separated date in a derived timestamp follows the same
+// MM/DD-first convention as a mapped date column (dateLayouts). For a day-first
+// source that is an off-by-months no validation can catch, so it is pinned here
+// rather than left to be discovered in someone's logbook.
+func TestCaptureDateFromTimestamp_AmbiguousSlashDateIsMonthFirst(t *testing.T) {
+	var got time.Time
+	captureDateFromTimestamp("11/08/2026 11:03", &got)
+	if s := got.Format("2006-01-02"); s != "2026-11-08" {
+		t.Errorf("11/08/2026 derived as %s, want 2026-11-08 (month-first, per dateLayouts)", s)
+	}
+}
+
+// The derivation must never override a real date column, and must ignore
+// values that are not timestamps.
+func TestCaptureDateFromTimestamp(t *testing.T) {
+	var got time.Time
+
+	captureDateFromTimestamp("11:03", &got)
+	if !got.IsZero() {
+		t.Errorf("a bare clock time yielded %v, want nothing", got)
+	}
+	captureDateFromTimestamp("", &got)
+	if !got.IsZero() {
+		t.Errorf("an empty cell yielded %v, want nothing", got)
+	}
+
+	captureDateFromTimestamp("2026-08-11 11:03", &got)
+	if got.Format("2006-01-02") != "2026-08-11" {
+		t.Fatalf("got %v, want 2026-08-11", got)
+	}
+	// First usable value wins: a later column must not move the flight.
+	captureDateFromTimestamp("2020-01-01 09:00", &got)
+	if got.Format("2006-01-02") != "2026-08-11" {
+		t.Errorf("a later timestamp overwrote the date: %v", got)
+	}
+}
+
+// A mapped date column always wins — the derivation is a fallback, not a
+// competitor.
+func TestMapRowToFlight_ExplicitDateBeatsTimestampDerivation(t *testing.T) {
+	row := map[string]string{
+		"Date":       "2026-03-07",
+		"AircraftID": "D-EABC",
+		"From":       "EDDF",
+		"To":         "EDDM",
+		"TimeOut":    "2026-08-11 10:00",
+		"TimeIn":     "2026-08-11 11:00",
+	}
+	flight, errs := mapRowToFlight(row, mappingsFor("FOREFLIGHT_CSV", headersOf(row)), nil)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %+v", errs)
+	}
+	if got := flight.Date.String(); got != "2026-03-07" {
+		t.Errorf("date = %q, want the Date column's 2026-03-07", got)
 	}
 }
