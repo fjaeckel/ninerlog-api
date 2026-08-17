@@ -2,16 +2,23 @@ package registration
 
 // Nationality mark table.
 //
-// Source of truth, in order of authority:
+// Source of truth:
 //
-//  1. ITU Radio Regulations Appendix 42, "Table of International Call Sign
-//     Series" — allocates the call-sign series that nationality marks are
-//     drawn from. https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx
-//  2. ICAO Annex 7, Aircraft Nationality and Registration Marks — selects
-//     the aviation mark out of each state's ITU series and carries the
-//     hyphen rule. https://www.icao.int/nationality-marks
-//  3. Wikipedia, "List of aircraft registration prefixes" — the practical
-//     consolidation of the two, and the easiest thing to diff against.
+//  1. ICAO. Annex 7 Standard 3.3 requires a state to select its nationality
+//     mark from the radio call-sign series the ITU allocated to it, and Annex
+//     7 carries the hyphen convention. ICAO publishes the marks states have
+//     actually selected: https://www.icao.int/nationality-marks
+//  2. Wikipedia, "List of aircraft registration prefixes" — the practical
+//     consolidation, and the easiest thing to diff against.
+//
+// ITU Radio Regulations Appendix 42, the "Table of International Call Sign
+// Series", is a radiocommunication document and says nothing about aircraft.
+// It is upstream of (1) only by the reference in Standard 3.3, and it
+// allocates whole blocks — Germany holds DAA–DRZ, the United States holds AAA–
+// ALZ, KAA–KZZ, NAA–NZZ and WAA–WZZ. Which slice of its block a state uses for
+// aircraft (D, N) is the state's own choice, and hyphenation is not in
+// Appendix 42 at all. It is therefore a cross-check that a mark falls inside
+// its state's allocation, never a source for the two facts this table records.
 //
 // See docs/AIRCRAFT_REGISTRATIONS.md for the review procedure. Allocations
 // change on the order of once every few years (a new state, a state changing

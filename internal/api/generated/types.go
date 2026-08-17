@@ -1492,7 +1492,7 @@ type AdminConfig struct {
 	// Example: 208
 	RegistrationPrefixCount int `json:"registrationPrefixCount"`
 
-	// RegistrationPrefixesReviewed When the vendored nationality mark table was last checked against ITU Appendix 42 / ICAO Annex 7. The table is vendored rather than fetched, so this is the only signal that it may be stale.
+	// RegistrationPrefixesReviewed When the vendored nationality mark table was last checked against ICAO's published nationality marks. The table is vendored rather than fetched, so this is the only signal that it may be stale.
 	//
 	// Example: 2026-08-17
 	RegistrationPrefixesReviewed openapi_types.Date `json:"registrationPrefixesReviewed"`

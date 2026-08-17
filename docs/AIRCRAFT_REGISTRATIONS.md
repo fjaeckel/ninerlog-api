@@ -111,20 +111,38 @@ it.
 
 ## Keeping the table current
 
-### Sources, in order of authority
+### Sources
 
-1. **ITU Radio Regulations, Appendix 42** — *Table of International Call Sign
-   Series*. The underlying allocation; nationality marks are drawn from a
-   state's call-sign series. Maintained by the ITU and reissued with the Radio
-   Regulations. <https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx>
-2. **ICAO Annex 7 / ICAO nationality marks** — which part of its ITU series a
-   state actually uses for aircraft, and the hyphen rule.
+1. **ICAO** — the authority for both facts this table records. Annex 7
+   Standard 3.3 requires a state to select its nationality mark from the radio
+   call-sign series the ITU allocated to it; Annex 7 also carries the hyphen
+   convention. ICAO publishes the marks states have actually selected.
    <https://www.icao.int/nationality-marks>
-3. **Wikipedia, *List of aircraft registration prefixes*** — the practical
-   consolidation of (1) and (2), and by far the easiest to diff.
+2. **Wikipedia, *List of aircraft registration prefixes*** — the practical
+   consolidation, and by far the easiest to diff.
    <https://en.wikipedia.org/wiki/List_of_aircraft_registration_prefixes>
 
-Use (3) to notice a change and (1) or (2) to confirm it before editing.
+Use (2) to notice a change and (1) to confirm it before editing.
+
+#### What ITU Appendix 42 is and is not
+
+The *Table of International Call Sign Series* (ITU Radio Regulations Appendix
+42) is often cited as the source for registration prefixes. It is not — it is a
+radiocommunication document and says nothing about aircraft. It is upstream of
+ICAO's list only by the reference in Standard 3.3, and it allocates whole
+blocks rather than aircraft marks:
+
+| State | ITU call-sign allocation | Nationality mark |
+| --- | --- | --- |
+| Germany | `DAA`–`DRZ` | `D` |
+| United States | `AAA`–`ALZ`, `KAA`–`KZZ`, `NAA`–`NZZ`, `WAA`–`WZZ` | `N` |
+
+Which slice of its block a state uses for aircraft is the state's own choice,
+and hyphenation does not appear in Appendix 42 at all. So Appendix 42 is a
+cross-check that a mark falls inside its state's allocation — useful for
+sanity-checking a surprising entry, useless as a source for what the mark is or
+how it is written.
+<https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx>
 
 ### Why vendored and not fetched
 
@@ -160,8 +178,9 @@ that touches `pkg/registration/`. A failure is a prompt to review, not a bug.
 
 ### Making a change
 
-1. Run the drift check and confirm each difference against ITU Appendix 42 or
-   ICAO Annex 7.
+1. Run the drift check and confirm each difference against ICAO's published
+   nationality marks — not ITU Appendix 42, which cannot answer either
+   question (see above).
 2. Edit `entries` in `pkg/registration/prefixes.go`, keeping it sorted by mark.
    Set `NoHyphen` only for a state that genuinely runs the two marks together.
    Add a `Suffix` pattern only if the new mark shadows a shorter one, or is

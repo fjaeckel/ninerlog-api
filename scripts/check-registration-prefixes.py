@@ -17,17 +17,24 @@ Usage:
     scripts/check-registration-prefixes.py --file upstream.txt
     scripts/check-registration-prefixes.py --url  <upstream url>
 
-Upstream sources, in order of authority (see docs/AIRCRAFT_REGISTRATIONS.md):
+Upstream sources (see docs/AIRCRAFT_REGISTRATIONS.md):
 
-  1. ITU Radio Regulations Appendix 42, Table of International Call Sign Series
-     https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx
-  2. ICAO Annex 7 / https://www.icao.int/nationality-marks
-  3. https://en.wikipedia.org/wiki/List_of_aircraft_registration_prefixes
-     (wikitext: .../w/api.php?action=raw&title=List_of_aircraft_registration_prefixes)
+  1. ICAO's published nationality marks — https://www.icao.int/nationality-marks
+     The authority: Annex 7 Standard 3.3 and the hyphen convention.
+  2. https://en.wikipedia.org/wiki/List_of_aircraft_registration_prefixes
+     (wikitext: .../w/index.php?title=List_of_aircraft_registration_prefixes&action=raw)
+     The practical consolidation, and the default for `make prefix-check`.
 
-Any of them works: the extractor looks for cells that are shaped like a
-nationality mark, so wikitext, an HTML table saved as text, or a column pasted
-out of a PDF all parse.
+Either works: the extractor looks for cells that are shaped like a nationality
+mark, so wikitext, an HTML table saved as text, or a column pasted out of a PDF
+all parse.
+
+Do NOT point this at ITU Radio Regulations Appendix 42. It is a
+radiocommunication document that says nothing about aircraft: it allocates
+whole call-sign blocks (Germany DAA-DRZ, the United States AAA-ALZ / KAA-KZZ /
+NAA-NZZ / WAA-WZZ), not the aircraft marks selected out of them (D, N), and it
+has no notion of hyphenation. Feeding it in would report hundreds of spurious
+differences.
 
 Exit status is 0 when the two sides agree, 1 when they differ (so a scheduled
 CI job fails visibly), or 2 on a usage or fetch error. --warn-only always
@@ -161,8 +168,9 @@ def main():
 
     print(
         "\nThis is a review aid and over-reports by design. Confirm each difference against\n"
-        "ITU Appendix 42 or ICAO Annex 7 before editing pkg/registration/prefixes.go, then\n"
-        "update its LastReviewed date. See docs/AIRCRAFT_REGISTRATIONS.md."
+        "ICAO's published nationality marks (https://www.icao.int/nationality-marks) before\n"
+        "editing pkg/registration/prefixes.go, then update its LastReviewed date.\n"
+        "See docs/AIRCRAFT_REGISTRATIONS.md."
     )
     return 0 if args.warn_only else 1
 

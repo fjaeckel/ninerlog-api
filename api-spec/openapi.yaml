@@ -8436,8 +8436,8 @@ components:
           type: string
           format: date
           description: >-
-            When the vendored nationality mark table was last checked against ITU
-            Appendix 42 / ICAO Annex 7. The table is vendored rather than fetched,
+            When the vendored nationality mark table was last checked against ICAO's
+            published nationality marks. The table is vendored rather than fetched,
             so this is the only signal that it may be stale.
           example: '2026-08-17'
         corsOrigins:
