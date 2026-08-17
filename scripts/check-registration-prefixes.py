@@ -36,9 +36,15 @@ NAA-NZZ / WAA-WZZ), not the aircraft marks selected out of them (D, N), and it
 has no notion of hyphenation. Feeding it in would report hundreds of spurious
 differences.
 
-Exit status is 0 when the two sides agree, 1 when they differ (so a scheduled
-CI job fails visibly), or 2 on a usage or fetch error. --warn-only always
-exits 0.
+This is advisory and exits 0 even when it finds differences. That is deliberate:
+the extractor reads cells rather than a layout, so its recall against any given
+upstream is imperfect, and a check that cannot be calibrated must not gate a
+pull request — a permanently red check is one everybody learns to scroll past.
+Read the report instead. Pass --fail-on-drift to make it exit 1 once the
+extractor has been calibrated against a live upstream and the noise floor is
+known to be zero.
+
+Exit status is 2 on a usage or fetch error.
 """
 
 import argparse
@@ -110,6 +116,13 @@ def marks_from_upstream(text, no_hyphen):
         if not found:
             continue
         mark = found.group(1)
+        # Every ICAO nationality mark contains at least one letter (3A, 9XR, D,
+        # RDPL). An all-digit cell is a year or a count from a neighbouring
+        # column — upstream lists carry allocation dates right next to the
+        # marks, and without this the report is mostly "1947, 1948, 1949".
+        # TestEveryMarkHasALetter in pkg/registration keeps this rule true.
+        if not any(c.isalpha() for c in mark):
+            continue
         if cell.endswith("-") or any(c.isdigit() for c in mark) or mark in no_hyphen:
             marks.add(mark)
     return marks
@@ -130,7 +143,11 @@ def main():
     source.add_argument("--file", help="upstream list saved to disk")
     source.add_argument("--url", help="upstream list to fetch")
     parser.add_argument("--table", default=DEFAULT_TABLE, help=f"Go table to check (default: {DEFAULT_TABLE})")
-    parser.add_argument("--warn-only", action="store_true", help="report differences but exit 0")
+    parser.add_argument(
+        "--fail-on-drift",
+        action="store_true",
+        help="exit 1 when the two sides differ (default: report and exit 0)",
+    )
     args = parser.parse_args()
 
     if args.file:
@@ -172,7 +189,7 @@ def main():
         "editing pkg/registration/prefixes.go, then update its LastReviewed date.\n"
         "See docs/AIRCRAFT_REGISTRATIONS.md."
     )
-    return 0 if args.warn_only else 1
+    return 1 if args.fail_on_drift else 0
 
 
 if __name__ == "__main__":

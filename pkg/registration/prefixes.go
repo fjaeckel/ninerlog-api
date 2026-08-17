@@ -114,6 +114,7 @@ var entries = []Entry{
 	{Prefix: "A5", Country: "BT", CountryName: "Bhutan"},
 	{Prefix: "A6", Country: "AE", CountryName: "United Arab Emirates"},
 	{Prefix: "A7", Country: "QA", CountryName: "Qatar"},
+	{Prefix: "A8", Country: "LR", CountryName: "Liberia"},
 	{Prefix: "A9C", Country: "BH", CountryName: "Bahrain"},
 	{Prefix: "AP", Country: "PK", CountryName: "Pakistan"},
 
@@ -292,6 +293,7 @@ var entries = []Entry{
 	{Prefix: "YV", Country: "VE", CountryName: "Venezuela"},
 	{Prefix: "Z", Country: "ZW", CountryName: "Zimbabwe", Suffix: `[A-Z]{3}`},
 	{Prefix: "Z3", Country: "MK", CountryName: "North Macedonia", Suffix: `[A-Z]{3}`},
+	{Prefix: "Z8", Country: "SS", CountryName: "South Sudan", Suffix: `[A-Z]{3}`},
 	{Prefix: "ZA", Country: "AL", CountryName: "Albania", Suffix: `[A-Z]{3}`},
 	{Prefix: "ZK", Country: "NZ", CountryName: "New Zealand", Suffix: `[A-Z]{3}`},
 	{Prefix: "ZL", Country: "NZ", CountryName: "New Zealand", Suffix: `[A-Z]{3}`},

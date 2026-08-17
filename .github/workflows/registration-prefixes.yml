@@ -3,11 +3,17 @@ name: Registration Prefixes
 # The aircraft nationality mark table in pkg/registration/prefixes.go is
 # vendored rather than fetched at runtime, because ICAO marks change on the
 # order of once every few years. That interval is exactly long enough for a
-# vendored table to go stale unnoticed, so this job checks it against upstream
-# on a schedule and fails visibly when the two disagree.
+# vendored table to go stale unnoticed, so this job compares it against
+# upstream on a schedule.
 #
-# A failure is a prompt to review, not a bug: the check over-reports by design.
-# See docs/AIRCRAFT_REGISTRATIONS.md for what to do with the output.
+# The job is ADVISORY and does not fail on drift. The checker reads cells
+# rather than one upstream's layout, so it over-reports and its recall is
+# imperfect — gating on it would leave a permanently red check that everybody
+# learns to scroll past. The report is written to the job summary instead, so
+# the quarterly run is worth opening. See docs/AIRCRAFT_REGISTRATIONS.md.
+#
+# Once the checker has been calibrated against a live upstream and its noise
+# floor is known to be zero, add --fail-on-drift and let it gate.
 
 on:
   schedule:
@@ -34,4 +40,14 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Compare the vendored table against upstream
-        run: make prefix-check
+        run: |
+          {
+            echo '## Nationality mark drift'
+            echo
+            echo 'Advisory. Confirm anything real against ICAO before editing the table —'
+            echo 'see `docs/AIRCRAFT_REGISTRATIONS.md`.'
+            echo
+            echo '```'
+            make prefix-check 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

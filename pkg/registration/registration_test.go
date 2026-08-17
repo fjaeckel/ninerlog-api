@@ -68,6 +68,8 @@ func TestNormalize(t *testing.T) {
 		{"albania beats zimbabwe", "ZAABC", "ZA-ABC", "AL"},
 		{"zimbabwe", "ZWKM", "Z-WKM", "ZW"},
 		{"new zealand", "ZKABC", "ZK-ABC", "NZ"},
+		{"liberia", "A8ABC", "A8-ABC", "LR"},
+		{"south sudan beats zimbabwe", "Z8BAB", "Z8-BAB", "SS"},
 		{"rwanda three-character mark", "9XRAA", "9XR-AA", "RW"},
 		{"bahrain three-character mark", "A9CAA", "A9C-AA", "BH"},
 		{"laos four-character mark", "RDPL34123", "RDPL-34123", "LA"},
@@ -204,6 +206,18 @@ func sampleFor(e Entry) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// scripts/check-registration-prefixes.py discards all-digit cells when reading
+// an upstream list, because upstream carries allocation years in a column
+// beside the marks. That filter is only safe while no mark is all digits.
+func TestEveryMarkHasALetter(t *testing.T) {
+	for _, e := range Entries() {
+		if !strings.ContainsAny(e.Prefix, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+			t.Errorf("mark %q is all digits; scripts/check-registration-prefixes.py "+
+				"would filter it out of an upstream list", e.Prefix)
+		}
+	}
 }
 
 // LastReviewed is reported to operators as a date via GET /admin/config, and

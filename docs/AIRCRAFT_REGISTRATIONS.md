@@ -171,10 +171,22 @@ python3 scripts/check-registration-prefixes.py --file saved-list.txt
 It reports marks present on one side but not the other. It is a **review aid,
 not an auto-updater** — it looks for cells shaped like a nationality mark rather
 than parsing one upstream's layout, because layouts change more often than the
-data does, so it can over-report. Nothing edits the Go table but a human.
+data does. Nothing edits the Go table but a human.
 
 `.github/workflows/registration-prefixes.yml` runs it quarterly and on any PR
-that touches `pkg/registration/`. A failure is a prompt to review, not a bug.
+that touches `pkg/registration/`, and writes the report to the job summary.
+
+**It is advisory and exits 0 even when it finds differences.** Reading cells
+instead of a layout costs recall, and a check that cannot be calibrated must not
+gate a pull request — a permanently red check is one everybody learns to scroll
+past. Its first live run against Wikipedia read 105 marks out of a table of 208,
+so the "in the table but not upstream" side was almost entirely false positives.
+That same run did surface two real gaps, `A8` (Liberia) and `Z8` (South Sudan),
+which is the check earning its keep even in this state.
+
+Calibrating the extractor — getting its recall against Wikipedia's current
+layout close to 1 — is the outstanding work. Once its noise floor is known to be
+zero, add `--fail-on-drift` in the workflow and let it gate.
 
 ### Making a change
 
