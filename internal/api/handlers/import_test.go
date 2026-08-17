@@ -1136,6 +1136,44 @@ func TestCollectAircraftFromRows_HonoursRowSelection(t *testing.T) {
 	}
 }
 
+// A file that spells the same aircraft two ways — hyphenated and the legacy
+// unhyphenated form — must still collapse to one fleet entry, keyed by the
+// canonical spelling.
+func TestCollectAircraftFromRows_CanonicalizesLegacySpelling(t *testing.T) {
+	mappings := map[string]generated.ImportColumnMapping{
+		"Reg": {SourceColumn: "Reg", TargetField: "aircraftReg"},
+	}
+	rows := []map[string]string{
+		{"Reg": "D-EABC"},
+		{"Reg": "DEABC"},
+	}
+
+	got := collectAircraftFromRows(rows, mappings, nil)
+	if len(got) != 1 {
+		t.Fatalf("collected %v, want a single entry", got)
+	}
+	if _, ok := got["D-EABC"]; !ok {
+		t.Errorf("collected %v, want it keyed canonically as D-EABC", got)
+	}
+}
+
+// The aircraft-type column is free text (e.g. "C172"), not a registration —
+// it must never be run through registration normalisation, which would
+// otherwise rewrite a type that happens to look like a nationality mark plus
+// digits into a hyphenated registration.
+func TestCollectAircraftFromRows_TypeColumnNotRegistrationNormalized(t *testing.T) {
+	mappings := map[string]generated.ImportColumnMapping{
+		"Reg":  {SourceColumn: "Reg", TargetField: "aircraftReg"},
+		"Type": {SourceColumn: "Type", TargetField: "aircraftType"},
+	}
+	rows := []map[string]string{{"Reg": "D-EABC", "Type": "C172"}}
+
+	got := collectAircraftFromRows(rows, mappings, nil)
+	if typeCode := got["D-EABC"]; typeCode != "C172" {
+		t.Errorf("type = %q, want unnormalized %q", typeCode, "C172")
+	}
+}
+
 // A type column that is blank for every row of a registration leaves the type
 // empty; the caller falls back to the registration, matching what
 // mapRowToFlight writes into the flight's aircraftType.

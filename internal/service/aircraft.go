@@ -7,6 +7,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/google/uuid"
 )
 
@@ -25,6 +26,7 @@ func NewAircraftService(aircraftRepo repository.AircraftRepository) *AircraftSer
 }
 
 func (s *AircraftService) CreateAircraft(ctx context.Context, aircraft *models.Aircraft) error {
+	aircraft.Registration = registration.Canonical(aircraft.Registration)
 	if err := aircraft.Validate(); err != nil {
 		return err
 	}
@@ -66,7 +68,14 @@ func (s *AircraftService) ListAircraftUpdatedSince(ctx context.Context, userID u
 // registration changes, flights logged under the old registration are
 // repointed to the new one; the returned count is the number of flights
 // updated.
+//
+// Flights also follow when the only change is canonicalising the stored
+// registration (DEABC → D-EABC), whatever renameFlights says: that is the
+// same aircraft spelled properly, not a rename, and leaving the flights
+// behind would strand them in the per-registration statistics.
 func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.Aircraft, userID uuid.UUID, renameFlights bool) (int, error) {
+	aircraft.Registration = registration.Canonical(aircraft.Registration)
+
 	existing, err := s.aircraftRepo.GetByID(ctx, aircraft.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -85,7 +94,9 @@ func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.A
 	}
 
 	flightsUpdated := 0
-	if renameFlights && existing.Registration != aircraft.Registration {
+	changed := existing.Registration != aircraft.Registration
+	canonicalisation := changed && registration.Canonical(existing.Registration) == aircraft.Registration
+	if changed && (renameFlights || canonicalisation) {
 		flightsUpdated, err = s.aircraftRepo.UpdateWithFlightRename(ctx, aircraft, existing.Registration)
 	} else {
 		err = s.aircraftRepo.Update(ctx, aircraft)

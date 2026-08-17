@@ -7,6 +7,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/google/uuid"
 )
 
@@ -35,6 +36,10 @@ func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repos
 
 // CreateFlight creates a new flight log entry
 func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight) error {
+	// Canonical registration notation, so a flight and its fleet entry always
+	// agree on the spelling the per-registration statistics group by.
+	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
+
 	// Validate text field lengths
 	if err := models.ValidateFlightTextFields(flight); err != nil {
 		return err
@@ -78,6 +83,8 @@ func (s *FlightService) ListFlights(ctx context.Context, userID uuid.UUID, opts 
 
 // UpdateFlight updates a flight and verifies user ownership
 func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight, userID uuid.UUID) error {
+	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
+
 	// Verify ownership
 	existing, err := s.flightRepo.GetByID(ctx, flight.ID)
 	if err != nil {

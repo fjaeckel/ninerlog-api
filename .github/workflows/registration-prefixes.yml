@@ -1,0 +1,37 @@
+name: Registration Prefixes
+
+# The aircraft nationality mark table in pkg/registration/prefixes.go is
+# vendored rather than fetched at runtime, because ICAO marks change on the
+# order of once every few years. That interval is exactly long enough for a
+# vendored table to go stale unnoticed, so this job checks it against upstream
+# on a schedule and fails visibly when the two disagree.
+#
+# A failure is a prompt to review, not a bug: the check over-reports by design.
+# See docs/AIRCRAFT_REGISTRATIONS.md for what to do with the output.
+
+on:
+  schedule:
+    # 07:00 UTC on the first of every third month.
+    - cron: '0 7 1 */3 *'
+  workflow_dispatch: {}
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/registration/**'
+      - 'scripts/check-registration-prefixes.py'
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Nationality Mark Drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Compare the vendored table against upstream
+        run: make prefix-check

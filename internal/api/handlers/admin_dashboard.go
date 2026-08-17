@@ -12,8 +12,15 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	emailpkg "github.com/fjaeckel/ninerlog-api/pkg/email"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// prefixesReviewed is registration.LastReviewed as a date. The constant is a
+// string so scripts/check-registration-prefixes.py and the table itself can
+// share one literal; TestLastReviewedIsADate keeps it parseable.
+var prefixesReviewed, _ = time.Parse("2006-01-02", registration.LastReviewed)
 
 // scanCount scans a single count value from a query row, defaulting to 0 on error.
 func scanCount(row *sql.Row, dest *int) {
@@ -229,20 +236,25 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	documentFilesEnabled := h.documentFileService != nil && h.documentFileService.Enabled()
 
 	config := generated.AdminConfig{
-		AuthMode:               &authMode,
-		OidcIssuer:             oidcIssuer,
-		GoVersion:              runtime.Version(),
-		ServerUptime:           uptimeStr,
-		MigrationVersion:       migrationVersion,
-		AirportDatabaseSize:    airports.Count(),
-		CorsOrigins:            h.corsOrigins,
-		RateLimitAuth:          "10 req/min",
-		RateLimitAdmin:         "30 req/min",
-		SmtpConfigured:         smtpConfigured,
-		AdminEmailConfigured:   adminEmailConfigured,
-		CloudBackupsConfigured: cloudBackupsConfigured,
-		CloudBackupProviders:   cloudBackupProviders,
-		DocumentFilesEnabled:   &documentFilesEnabled,
+		AuthMode:            &authMode,
+		OidcIssuer:          oidcIssuer,
+		GoVersion:           runtime.Version(),
+		ServerUptime:        uptimeStr,
+		MigrationVersion:    migrationVersion,
+		AirportDatabaseSize: airports.Count(),
+		// The nationality mark table is vendored, not fetched, so its size and
+		// review date are the only way an operator can tell whether aircraft
+		// registrations are being normalised against a current ICAO list.
+		RegistrationPrefixCount:      registration.Count(),
+		RegistrationPrefixesReviewed: openapi_types.Date{Time: prefixesReviewed},
+		CorsOrigins:                  h.corsOrigins,
+		RateLimitAuth:                "10 req/min",
+		RateLimitAdmin:               "30 req/min",
+		SmtpConfigured:               smtpConfigured,
+		AdminEmailConfigured:         adminEmailConfigured,
+		CloudBackupsConfigured:       cloudBackupsConfigured,
+		CloudBackupProviders:         cloudBackupProviders,
+		DocumentFilesEnabled:         &documentFilesEnabled,
 	}
 
 	// The unverified-account lifecycle is only reported when it is actually

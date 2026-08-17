@@ -57,6 +57,7 @@ Reusable utilities with minimal dependencies, safe to use from any layer.
 | `pkg/hash` | bcrypt password hashing/verification and SHA-256 token hashing. |
 | `pkg/cryptoutil` | AES-256-GCM (`AEAD`) for encrypting stored backup credentials; key helpers (`New`, `NewFromBase64`, `GenerateKey`, `GenerateKeyBase64`). |
 | `pkg/duration` | Convert/format flight durations: minutes ↔ decimal hours, `HH:MM`, parsing. See [DOMAIN.md](./DOMAIN.md#time-and-duration-handling). |
+| `pkg/registration` | `Normalize`/`Canonical` — rewrites an aircraft registration into the canonical notation of its state of registry, against a vendored ICAO nationality-mark table (`prefixes.go`). See [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md). |
 | `pkg/email` | SMTP sender (`smtp.go`) with localized templates (`templates_en.go`, `templates_de.go`) and email metrics (`metrics.go`). Recipients go through the SMTP envelope, not message headers (anti-injection). The send path runs the SMTP conversation command by command so a refusal can be attributed to the recipient or to our own setup; `delivery.go` defines those outcomes and the `DeliveryRecorder` interface that lets `internal/service` persist them without `pkg/email` depending on a database. |
 | `pkg/solar` | Sunrise/sunset/twilight (`Calculate`, `CivilTwilight`, `IsNight`) wrapping `go-solar`; powers the day/night flight split. |
 

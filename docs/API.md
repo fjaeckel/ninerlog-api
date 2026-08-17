@@ -318,11 +318,16 @@ CRUD on `/licenses`, per-license statistics and currency, and nested class ratin
 (`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
 
 ### Aircraft
-CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`.
+CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`. `registration`
+is normalised on write into the canonical notation of its state of registry (`pkg/registration`);
+see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 
 ### Flights
 CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
-(re-run auto-calculations respecting overrides). Flight responses include the read-only
+(re-run auto-calculations respecting overrides). `aircraftReg` is normalised the same way
+as `registration` on create/update. `POST /flights/recalculate` also canonicalises the
+user's whole fleet first and reports the outcome as `aircraftNormalized` and
+`aircraftConflicts`. Flight responses include the read-only
 `departureAirportName` / `arrivalAirportName`, resolved per request from the airport
 database and `null` when the stored location does not resolve; they are response-only and
 are not accepted on create or update. `GET /flights` carries the filter, search, sort and

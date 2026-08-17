@@ -101,7 +101,10 @@ A class/type rating attached to a license. `ClassType` is an enum:
 
 A user's aircraft: registration, type, make, model, and a class (e.g. `SEP_LAND`) that
 links flights in that aircraft to the right currency bucket. Equipment flags capture
-complex/high-performance/tailwheel characteristics.
+complex/high-performance/tailwheel characteristics. `Registration` is stored in the
+canonical notation of its state of registry (`pkg/registration`) — the same normalisation
+`Flight.AircraftReg` gets, since the two are joined by this string. See
+[AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 
 ### Credential (`internal/models/credential.go`, migration 9)
 
@@ -170,7 +173,8 @@ phone, and returns 409 on a name that already exists rather than creating a seco
 
 The central record. Highlights (all durations are **integer minutes**):
 
-- **Identity / context**: `Date`, `AircraftReg`, `AircraftType`, `DepartureICAO`,
+- **Identity / context**: `Date`, `AircraftReg` (canonicalised the same way as
+  `Aircraft.Registration` — see above), `AircraftType`, `DepartureICAO`,
   `ArrivalICAO`, `Route` (comma-separated ICAO waypoints).
 - **Block / event times** (`HH:MM:SS`, UTC): `OffBlockTime`, `OnBlockTime`,
   `DepartureTime`, `ArrivalTime`.

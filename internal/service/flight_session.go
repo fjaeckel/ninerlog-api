@@ -11,6 +11,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/google/uuid"
 )
 
@@ -292,11 +293,15 @@ func (s *FlightSessionService) lookupAircraftType(ctx context.Context, userID uu
 	return "UNKNOWN"
 }
 
+// normalizeReg puts a session's aircraft registration into canonical notation,
+// mapping empty to nil. A session becomes a flight, so it has to agree with
+// the spelling FlightService stores or the resulting flight would appear to
+// change aircraft on save.
 func normalizeReg(reg *string) *string {
 	if reg == nil {
 		return nil
 	}
-	r := strings.ToUpper(strings.TrimSpace(*reg))
+	r := registration.Canonical(*reg)
 	if r == "" {
 		return nil
 	}
