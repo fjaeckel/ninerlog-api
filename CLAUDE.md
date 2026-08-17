@@ -71,7 +71,9 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
    and (where a human should act) an alert rule — see
    `.claude/skills/metrics-dashboards/SKILL.md`.
 6. Conventional Commits (`feat(flights): …`); branch from `main`.
-7. **Security findings are never committed or pushed** — no audit reports, vulnerability
+7. **Comments state the what, never the why** — rationale lives in commit messages and
+   `docs/`. See `.claude/skills/terse-comments/SKILL.md`.
+8. **Security findings are never committed or pushed** — no audit reports, vulnerability
    write-ups, exploit fixtures, or commit/PR text describing an unfixed weakness. Write them to
    the gitignored `security-audits/` and report privately (`SECURITY.md`, or a GitHub Security
    Advisory). Fixes get pushed; findings do not. See `.claude/skills/security-audit/SKILL.md`.
