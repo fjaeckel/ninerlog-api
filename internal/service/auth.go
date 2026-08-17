@@ -707,6 +707,13 @@ func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
 	return nil
 }
 
+// RevokeAllSessions deletes every refresh token a user holds, forcing a fresh
+// login on all devices. Used when an admin disables an account, so a disabled
+// user cannot keep an existing session alive.
+func (s *AuthService) RevokeAllSessions(ctx context.Context, userID uuid.UUID) error {
+	return s.refreshTokenRepo.DeleteForUser(ctx, userID)
+}
+
 // VerifyPassword checks a plaintext password against the stored hash for the
 // given user. Used to re-authenticate before security-sensitive profile
 // changes (e.g. changing the email address, which is both the account recovery

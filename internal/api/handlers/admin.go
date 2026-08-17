@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -36,72 +37,43 @@ func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdmi
 		pageSize = *params.PageSize
 	}
 
-	// Count total
-	var total int
-	if err := h.db.QueryRowContext(c.Request.Context(),
-		"SELECT COUNT(*) FROM admin_audit_log",
-	).Scan(&total); err != nil {
+	total, err := h.adminRepo.CountAuditLog(c.Request.Context())
+	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to count audit log entries")
 		return
 	}
 
-	// Query entries with admin/target user details (LEFT JOIN so deleted
-	// users don't drop their audit rows).
-	rows, err := h.db.QueryContext(c.Request.Context(), `
-		SELECT al.id, al.admin_user_id, au.email, au.name,
-		       al.action, al.target_user_id, tu.email, tu.name,
-		       al.details, al.created_at
-		FROM admin_audit_log al
-		LEFT JOIN users au ON au.id = al.admin_user_id
-		LEFT JOIN users tu ON tu.id = al.target_user_id
-		ORDER BY al.created_at DESC
-		LIMIT $1 OFFSET $2
-	`, pageSize, (page-1)*pageSize)
+	logEntries, err := h.adminRepo.ListAuditLog(c.Request.Context(), pageSize, (page-1)*pageSize)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query audit log")
 		return
 	}
-	defer rows.Close()
 
 	var entries []generated.AdminAuditLogEntry
-	for rows.Next() {
-		var id, adminUserID uuid.UUID
-		var adminEmail, adminName *string
-		var action string
-		var targetUserID *uuid.UUID
-		var targetEmail, targetName *string
-		var details []byte
-		var createdAt time.Time
-
-		if err := rows.Scan(&id, &adminUserID, &adminEmail, &adminName,
-			&action, &targetUserID, &targetEmail, &targetName,
-			&details, &createdAt); err != nil {
-			continue
-		}
-
+	for _, le := range logEntries {
 		entry := generated.AdminAuditLogEntry{
-			Id:          openapi_types.UUID(id),
-			AdminUserId: openapi_types.UUID(adminUserID),
-			Action:      action,
-			CreatedAt:   createdAt,
+			Id:          openapi_types.UUID(le.ID),
+			AdminUserId: openapi_types.UUID(le.AdminUserID),
+			Action:      le.Action,
+			CreatedAt:   le.CreatedAt,
 		}
-		if adminEmail != nil {
-			e := openapi_types.Email(*adminEmail)
+		if le.AdminEmail != nil {
+			e := openapi_types.Email(*le.AdminEmail)
 			entry.AdminEmail = &e
 		}
-		if adminName != nil {
-			entry.AdminName = adminName
+		if le.AdminName != nil {
+			entry.AdminName = le.AdminName
 		}
-		if targetUserID != nil {
-			tid := openapi_types.UUID(*targetUserID)
+		if le.TargetUserID != nil {
+			tid := openapi_types.UUID(*le.TargetUserID)
 			entry.TargetUserId = &tid
 		}
-		if targetEmail != nil {
-			e := openapi_types.Email(*targetEmail)
+		if le.TargetUserEmail != nil {
+			e := openapi_types.Email(*le.TargetUserEmail)
 			entry.TargetUserEmail = &e
 		}
-		if targetName != nil {
-			entry.TargetUserName = targetName
+		if le.TargetUserName != nil {
+			entry.TargetUserName = le.TargetUserName
 		}
 
 		entries = append(entries, entry)
@@ -127,7 +99,6 @@ func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdmi
 	})
 }
 
-// logAdminAction records an admin action to the audit log
 // logAdminAction records an admin action to the audit log.
 //
 // details is marshalled with encoding/json rather than assembled by hand. The
@@ -154,10 +125,14 @@ func (h *APIHandler) logAdminAction(c *gin.Context, adminUserID uuid.UUID, actio
 		slog.Error("audit log: marshal details", "action", action, "error", err)
 		payload = []byte(`{}`)
 	}
-	if _, err := h.db.ExecContext(c.Request.Context(), `
-		INSERT INTO admin_audit_log (id, admin_user_id, action, target_user_id, details, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, uuid.New(), adminUserID, action, targetUserID, string(payload), time.Now()); err != nil {
+	if err := h.adminRepo.InsertAuditLog(c.Request.Context(), &repository.AdminAuditLogEntry{
+		ID:           uuid.New(),
+		AdminUserID:  adminUserID,
+		Action:       action,
+		TargetUserID: targetUserID,
+		Details:      payload,
+		CreatedAt:    time.Now(),
+	}); err != nil {
 		slog.Error("audit log: insert failed", "action", action, "admin_user_id", adminUserID, "error", err)
 	}
 }

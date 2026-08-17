@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -44,96 +43,49 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 		pageSize = *params.PageSize
 	}
 
-	// Build query with optional search
-	countQuery := "SELECT COUNT(*) FROM users"
-	dataQuery := `
-		SELECT u.id, u.email, u.name, u.created_at, u.last_login_at,
-		       u.email_verified, u.two_factor_enabled, u.disabled, u.failed_login_attempts,
-		       u.locked_until, u.verification_reminder_sent_at,
-		       EXISTS (SELECT 1 FROM email_suppressions es WHERE es.email = u.email) as email_suppressed,
-		       (SELECT COUNT(*) FROM flights WHERE user_id = u.id) as flight_count,
-		       (SELECT COUNT(*) FROM aircraft WHERE user_id = u.id) as aircraft_count
-		FROM users u
-	`
-	var args []interface{}
-	argIdx := 1
-
-	if params.Search != nil && *params.Search != "" {
-		searchClause := fmt.Sprintf(" WHERE LOWER(email) LIKE LOWER($%d) OR LOWER(name) LIKE LOWER($%d)", argIdx, argIdx)
-		pattern := "%" + *params.Search + "%"
-		args = append(args, pattern)
-		argIdx++
-		countQuery += searchClause
-		dataQuery += searchClause
+	search := ""
+	if params.Search != nil {
+		search = *params.Search
 	}
-
-	dataQuery += fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
-	args = append(args, pageSize, (page-1)*pageSize)
-
-	// Count total
-	var total int
-	if len(args) > 2 {
-		scanCount(h.db.QueryRowContext(c.Request.Context(), countQuery, args[0]), &total)
-	} else {
-		scanCount(h.db.QueryRowContext(c.Request.Context(), countQuery), &total)
-	}
-
-	// Query users
-	rows, err := h.db.QueryContext(c.Request.Context(), dataQuery, args...)
+	rows, total, err := h.adminRepo.ListUsers(c.Request.Context(), search, pageSize, (page-1)*pageSize)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query users")
 		return
 	}
-	defer rows.Close()
 
 	var users []generated.AdminUser
-	for rows.Next() {
-		var id uuid.UUID
-		var email, name string
-		var createdAt time.Time
-		var lastLoginAt *time.Time
-		var emailVerified, twoFactorEnabled, disabled, emailSuppressed bool
-		var failedAttempts int
-		var lockedUntil, reminderSentAt *time.Time
-		var flightCount, aircraftCount int
-
-		if err := rows.Scan(&id, &email, &name, &createdAt, &lastLoginAt,
-			&emailVerified, &twoFactorEnabled, &disabled, &failedAttempts, &lockedUntil,
-			&reminderSentAt, &emailSuppressed,
-			&flightCount, &aircraftCount); err != nil {
-			continue
-		}
-
-		isLocked := lockedUntil != nil && lockedUntil.After(time.Now())
+	for _, row := range rows {
+		isLocked := row.LockedUntil != nil && row.LockedUntil.After(time.Now())
+		emailSuppressed := row.EmailSuppressed
 		adminUser := generated.AdminUser{
-			Id:               openapi_types.UUID(id),
-			Email:            openapi_types.Email(email),
-			Name:             name,
-			CreatedAt:        createdAt,
-			EmailVerified:    emailVerified,
-			TwoFactorEnabled: twoFactorEnabled,
-			Disabled:         disabled,
+			Id:               openapi_types.UUID(row.ID),
+			Email:            openapi_types.Email(row.Email),
+			Name:             row.Name,
+			CreatedAt:        row.CreatedAt,
+			EmailVerified:    row.EmailVerified,
+			TwoFactorEnabled: row.TwoFactorEnabled,
+			Disabled:         row.Disabled,
 			Locked:           &isLocked,
 			EmailSuppressed:  &emailSuppressed,
-			FlightCount:      flightCount,
-			AircraftCount:    aircraftCount,
+			FlightCount:      row.FlightCount,
+			AircraftCount:    row.AircraftCount,
 		}
-		if lastLoginAt != nil {
-			adminUser.LastLoginAt = lastLoginAt
+		if row.LastLoginAt != nil {
+			adminUser.LastLoginAt = row.LastLoginAt
 		}
 		// The reminder timestamp is what the retention clock counts from, so
 		// the deletion date is derived rather than stored. Both are reported
 		// only while the account is still unverified: on a verified account the
 		// stamp is a historical footnote, not a pending deletion.
-		if !emailVerified && reminderSentAt != nil {
-			adminUser.VerificationReminderSentAt = reminderSentAt
+		if !row.EmailVerified && row.VerificationReminderSentAt != nil {
+			adminUser.VerificationReminderSentAt = row.VerificationReminderSentAt
 			if h.unverifiedAccountService != nil {
-				scheduled := reminderSentAt.Add(h.unverifiedAccountService.Config().Retention)
+				scheduled := row.VerificationReminderSentAt.Add(h.unverifiedAccountService.Config().Retention)
 				adminUser.ScheduledDeletionAt = &scheduled
 			}
 		}
-		if lockedUntil != nil && lockedUntil.After(time.Now()) {
-			adminUser.LockedUntil = lockedUntil
+		if isLocked {
+			adminUser.LockedUntil = row.LockedUntil
 		}
 		users = append(users, adminUser)
 	}
@@ -180,8 +132,7 @@ func (h *APIHandler) DisableUser(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	// Revoke all tokens
-	_, _ = h.db.ExecContext(c.Request.Context(),
-		"DELETE FROM refresh_tokens WHERE user_id = $1", targetID)
+	_ = h.authService.RevokeAllSessions(c.Request.Context(), targetID)
 
 	h.logAdminAction(c, adminUserID, "disable_user", &targetID, map[string]any{"email": user.Email})
 
@@ -229,9 +180,10 @@ func (h *APIHandler) UnlockUser(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	// Reset failed login attempts and lockout
-	_, _ = h.db.ExecContext(c.Request.Context(),
-		"UPDATE users SET failed_login_attempts = 0, locked_until = NULL, updated_at = $1 WHERE id = $2",
-		time.Now(), targetID)
+	if err := h.adminRepo.UnlockUser(c.Request.Context(), targetID); err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to unlock user")
+		return
+	}
 
 	h.logAdminAction(c, adminUserID, "unlock_user", &targetID, map[string]any{"email": user.Email})
 
@@ -314,8 +266,7 @@ func (h *APIHandler) DeleteUser(c *gin.Context, userId openapi_types.UUID) {
 
 	// Cascading FKs handle removal of flights, aircraft, licenses, contacts,
 	// credentials, refresh tokens, backups, notifications, etc.
-	if _, err := h.db.ExecContext(c.Request.Context(),
-		"DELETE FROM users WHERE id = $1", targetID); err != nil {
+	if err := h.authService.DeleteUserConfirmed(c.Request.Context(), targetID); err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to delete user")
 		return
 	}

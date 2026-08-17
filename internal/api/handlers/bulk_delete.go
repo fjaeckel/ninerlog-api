@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,8 +15,7 @@ func (h *APIHandler) DeleteAllFlights(c *gin.Context) {
 	}
 
 	// Delete import history first
-	_, _ = h.db.ExecContext(c.Request.Context(),
-		`DELETE FROM flight_imports WHERE user_id = $1`, userID)
+	_ = h.flightImportRepo.DeleteByUserID(c.Request.Context(), userID)
 
 	deleted, err := h.flightService.DeleteAllFlights(c.Request.Context(), userID)
 	if err != nil {
@@ -36,51 +34,10 @@ func (h *APIHandler) DeleteAllUserData(c *gin.Context) {
 		return
 	}
 
-	// Delete in dependency order to respect FK constraints:
-	// 1. flight_crew_members (depends on flights, contacts)
-	// 2. flight_imports (depends on users)
-	// 3. flights (depends on users)
-	// 4. class_ratings (depends on licenses)
-	// 5. licenses (depends on users)
-	// 6. aircraft (depends on users)
-	// 7. contacts (depends on users)
-	// 8. credentials (depends on users)
-	// 9. notification_log (depends on users)
-
-	queries := []string{
-		`DELETE FROM flight_crew_members WHERE flight_id IN (SELECT id FROM flights WHERE user_id = $1)`,
-		`DELETE FROM flight_imports WHERE user_id = $1`,
-		`DELETE FROM flights WHERE user_id = $1`,
-		`DELETE FROM class_ratings WHERE license_id IN (SELECT id FROM licenses WHERE user_id = $1)`,
-		`DELETE FROM licenses WHERE user_id = $1`,
-		`DELETE FROM aircraft WHERE user_id = $1`,
-		`DELETE FROM contacts WHERE user_id = $1`,
-		`DELETE FROM credentials WHERE user_id = $1`,
-		`DELETE FROM notification_log WHERE user_id = $1`,
-	}
-
-	// One transaction, and errors are surfaced. Previously each statement ran
-	// standalone with its error discarded, so a mid-sequence failure left the
-	// account half-deleted -- flights gone, licenses still present -- while the
-	// caller was told the wipe had succeeded. For a destructive, irreversible
-	// operation that is the worst possible failure mode.
-	tx, err := h.db.BeginTx(c.Request.Context(), nil)
-	if err != nil {
-		h.sendError(c, http.StatusInternalServerError, "Failed to delete user data")
-		return
-	}
-	defer func() { _ = tx.Rollback() }() // no-op once committed
-
-	for _, q := range queries {
-		if _, err := tx.ExecContext(c.Request.Context(), q, userID); err != nil {
-			slog.Error("bulk delete failed, rolling back", "user_id", userID, "error", err)
-			h.sendError(c, http.StatusInternalServerError, "Failed to delete user data")
-			return
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		slog.Error("bulk delete commit failed", "user_id", userID, "error", err)
+	// The wipe is a single transaction (see the repository): a mid-sequence
+	// failure must never leave the account half-deleted while the caller is
+	// told the wipe succeeded.
+	if err := h.userContentRepo.DeleteAllContent(c.Request.Context(), userID); err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to delete user data")
 		return
 	}

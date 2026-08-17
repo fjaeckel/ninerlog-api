@@ -58,6 +58,9 @@ Read these in roughly this order:
 
 Topic-specific deep dives already in this repo:
 
+- **[SQL_LAYERING.md](./SQL_LAYERING.md)** — where SQL may live, the repository
+  catalogue, and the deliberate exceptions (search compiler, migrations, test
+  scaffolding).
 - **[AUTHENTICATION.md](./AUTHENTICATION.md)** — token architecture, 2FA, WebAuthn,
   lockout, rate limiting.
 - **[OIDC.md](./OIDC.md)** — optional single sign-on: configuration, provider recipes,

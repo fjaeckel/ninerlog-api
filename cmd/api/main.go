@@ -271,7 +271,7 @@ func main() {
 	webauthnSessionRepo := postgres.NewWebAuthnSessionRepository(db)
 
 	// Initialize currency evaluation
-	flightDataProvider := currency.NewFlightDataProvider(db)
+	flightDataProvider := postgres.NewCurrencyFlightDataProvider(db)
 	currencyRegistry := currency.NewRegistry()
 	currencyRegistry.Register(currency.NewEASAEvaluator())
 	currencyRegistry.Register(currency.NewFAAEvaluator())
@@ -282,7 +282,7 @@ func main() {
 
 	// Custom (user-authored) currency rules
 	customCurrencyRepo := postgres.NewCustomCurrencyRuleRepository(db)
-	customCurrencyEvaluator := currency.NewCustomEvaluator(db)
+	customCurrencyEvaluator := currency.NewCustomEvaluator(postgres.NewCustomCurrencyDataProvider(db))
 	customCurrencyService := currency.NewCustomService(customCurrencyRepo, customCurrencyEvaluator)
 	customCurrencyHandler := handlers.NewCustomCurrencyHandler(customCurrencyService)
 
@@ -381,7 +381,13 @@ func main() {
 	// Initialize unified API handler that implements the OpenAPI ServerInterface
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetOIDCService(oidcService)
-	apiHandler.SetDB(db)
+	// Repositories the handler uses directly (admin console, reports, import
+	// history, announcements, bulk wipes) — no raw *sql.DB reaches a handler.
+	apiHandler.SetAdminRepository(postgres.NewAdminRepository(db))
+	apiHandler.SetAnnouncementRepository(postgres.NewAnnouncementRepository(db))
+	apiHandler.SetFlightImportRepository(postgres.NewFlightImportRepository(db))
+	apiHandler.SetReportsRepository(postgres.NewReportsRepository(db))
+	apiHandler.SetUserContentRepository(postgres.NewUserContentRepository(db))
 	apiHandler.SetEmailSender(emailSender)
 	flightSessionService := service.NewFlightSessionService(flightSessionRepo, aircraftRepo, flightService)
 	apiHandler.SetFlightSessionService(flightSessionService)
@@ -774,9 +780,6 @@ func main() {
 			c.JSON(statusCode, gin.H{"error": "Invalid request parameters"})
 		},
 	})
-
-	// Register custom reports routes (not in OpenAPI spec)
-	handlers.RegisterReportsRoutes(api, apiHandler, db)
 
 	// Register flight utility routes
 	handlers.RegisterFlightUtilRoutes(api, apiHandler)

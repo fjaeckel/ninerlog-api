@@ -1,13 +1,13 @@
 package handlers
 
 import (
-	"database/sql"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
@@ -50,32 +50,17 @@ func (h *APIHandler) GetFlightRoutes(c *gin.Context) {
 		return
 	}
 
-	query := `
-		SELECT departure_icao, arrival_icao, COUNT(*) AS flight_count
-		FROM flights
-		WHERE user_id = $1
-		  AND departure_icao IS NOT NULL AND departure_icao != ''
-		  AND arrival_icao IS NOT NULL AND arrival_icao != ''
-		GROUP BY departure_icao, arrival_icao
-		ORDER BY flight_count DESC
-	`
-
-	rows, err := h.db.QueryContext(c.Request.Context(), query, userID)
+	routeCounts, err := h.reportsRepo.RouteCounts(c.Request.Context(), userID)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query routes")
 		return
 	}
-	defer rows.Close()
 
 	airportSet := make(map[string]*airports.AirportInfo)
 	var routes []generated.FlightRoute
 
-	for rows.Next() {
-		var dep, arr string
-		var count int
-		if err := rows.Scan(&dep, &arr, &count); err != nil {
-			continue
-		}
+	for _, rc := range routeCounts {
+		dep, arr, count := rc.DepartureICAO, rc.ArrivalICAO, rc.FlightCount
 		depAP := airports.Lookup(strings.ToUpper(dep))
 		arrAP := airports.Lookup(strings.ToUpper(arr))
 		if depAP == nil || arrAP == nil {
@@ -123,24 +108,11 @@ func (h *APIHandler) GetAirportStats(c *gin.Context) {
 		return
 	}
 
-	query := `
-		SELECT icao, direction, COUNT(*) AS cnt FROM (
-			SELECT departure_icao AS icao, 'dep' AS direction FROM flights
-			WHERE user_id = $1 AND departure_icao IS NOT NULL AND departure_icao != ''
-			UNION ALL
-			SELECT arrival_icao AS icao, 'arr' AS direction FROM flights
-			WHERE user_id = $1 AND arrival_icao IS NOT NULL AND arrival_icao != ''
-		) sub
-		GROUP BY icao, direction
-		ORDER BY icao
-	`
-
-	rows, err := h.db.QueryContext(c.Request.Context(), query, userID)
+	airportCounts, err := h.reportsRepo.AirportCounts(c.Request.Context(), userID)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query airport stats")
 		return
 	}
-	defer rows.Close()
 
 	type counts struct {
 		departures int
@@ -148,20 +120,15 @@ func (h *APIHandler) GetAirportStats(c *gin.Context) {
 	}
 	statsMap := make(map[string]*counts)
 
-	for rows.Next() {
-		var icao, dir string
-		var cnt int
-		if err := rows.Scan(&icao, &dir, &cnt); err != nil {
-			continue
-		}
-		upper := strings.ToUpper(icao)
+	for _, ac := range airportCounts {
+		upper := strings.ToUpper(ac.ICAO)
 		if _, ok := statsMap[upper]; !ok {
 			statsMap[upper] = &counts{}
 		}
-		if dir == "dep" {
-			statsMap[upper].departures = cnt
+		if ac.Direction == "dep" {
+			statsMap[upper].departures = ac.Count
 		} else {
-			statsMap[upper].arrivals = cnt
+			statsMap[upper].arrivals = ac.Count
 		}
 	}
 
@@ -192,9 +159,30 @@ func (h *APIHandler) GetAirportStats(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// SetDB stores the database reference for direct queries in map handlers
-func (h *APIHandler) SetDB(db *sql.DB) {
-	h.db = db
+// SetAdminRepository stores the repository behind the admin console (stats,
+// audit log, user listing, maintenance sweeps).
+func (h *APIHandler) SetAdminRepository(repo repository.AdminRepository) {
+	h.adminRepo = repo
+}
+
+// SetAnnouncementRepository stores the system announcement repository.
+func (h *APIHandler) SetAnnouncementRepository(repo repository.AnnouncementRepository) {
+	h.announcementRepo = repo
+}
+
+// SetFlightImportRepository stores the import-history repository.
+func (h *APIHandler) SetFlightImportRepository(repo repository.FlightImportRepository) {
+	h.flightImportRepo = repo
+}
+
+// SetReportsRepository stores the reports/analytics read repository.
+func (h *APIHandler) SetReportsRepository(repo repository.ReportsRepository) {
+	h.reportsRepo = repo
+}
+
+// SetUserContentRepository stores the account-content wipe repository.
+func (h *APIHandler) SetUserContentRepository(repo repository.UserContentRepository) {
+	h.userContentRepo = repo
 }
 
 // SetEmailSender stores the email sender for admin SMTP test

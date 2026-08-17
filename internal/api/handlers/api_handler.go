@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"strings"
 	"time"
 
@@ -36,16 +35,23 @@ type APIHandler struct {
 	// oidcService is nil unless OIDC_ISSUER is configured. Non-nil means the
 	// server runs in OIDC mode, which also switches every local credential
 	// path off — see requireLocalAuth.
-	oidcService     *service.OIDCService
-	jwtManager      *jwt.Manager
-	db              *sql.DB
-	flightCrewRepo  repository.FlightCrewRepository
-	adminEmail      string
-	emailSender     *email.Sender
-	startedAt       time.Time
-	corsOrigins     []string
-	backupService   *cloudbackup.Service
-	deletionService *service.DeletionService
+	oidcService    *service.OIDCService
+	jwtManager     *jwt.Manager
+	flightCrewRepo repository.FlightCrewRepository
+	// Direct repository access for read-mostly surfaces with no business
+	// logic of their own (admin console, reports/analytics, import history,
+	// announcements, bulk wipes). Everything else goes through a service.
+	adminRepo        repository.AdminRepository
+	announcementRepo repository.AnnouncementRepository
+	flightImportRepo repository.FlightImportRepository
+	reportsRepo      repository.ReportsRepository
+	userContentRepo  repository.UserContentRepository
+	adminEmail       string
+	emailSender      *email.Sender
+	startedAt        time.Time
+	corsOrigins      []string
+	backupService    *cloudbackup.Service
+	deletionService  *service.DeletionService
 	// documentFileService is nil only if the subsystem was never wired up;
 	// the operator-facing off switch lives inside the service itself so that
 	// GET /features can still report it accurately.

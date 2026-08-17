@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -21,36 +25,24 @@ func (h *APIHandler) GetAnnouncements(c *gin.Context) {
 
 	now := time.Now()
 
-	// 1. Fetch active system announcements
-	rows, err := h.db.QueryContext(c.Request.Context(), `
-		SELECT id, message, severity, expires_at, created_at
-		FROM system_announcements
-		WHERE expires_at IS NULL OR expires_at > $1
-		ORDER BY created_at DESC
-	`, now)
-
+	// 1. Fetch active system announcements. Best-effort: the hints below are
+	// still useful when the announcement query fails.
 	var announcements []generated.Announcement
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var id uuid.UUID
-			var message, severity string
-			var expiresAt *time.Time
-			var createdAt time.Time
-			if err := rows.Scan(&id, &message, &severity, &expiresAt, &createdAt); err != nil {
-				continue
-			}
+	if active, err := h.announcementRepo.ListActive(c.Request.Context(), now); err == nil {
+		for _, sa := range active {
 			a := generated.Announcement{
-				Id:        id.String(),
-				Message:   message,
-				Severity:  generated.AnnouncementSeverity(severity),
-				CreatedAt: &createdAt,
+				Id:        sa.ID.String(),
+				Message:   sa.Message,
+				Severity:  generated.AnnouncementSeverity(sa.Severity),
+				CreatedAt: &sa.CreatedAt,
 			}
-			if expiresAt != nil {
-				a.ExpiresAt = expiresAt
+			if sa.ExpiresAt != nil {
+				a.ExpiresAt = sa.ExpiresAt
 			}
 			announcements = append(announcements, a)
 		}
+	} else {
+		slog.Error("announcements: listing failed", "error", err)
 	}
 	if announcements == nil {
 		announcements = []generated.Announcement{}
@@ -70,8 +62,11 @@ func (h *APIHandler) GetAnnouncements(c *gin.Context) {
 		}
 
 		// Hint: No flights yet
-		var flightCount int
-		scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flights WHERE user_id = $1", userID), &flightCount)
+		flightCount, err := h.flightService.CountFlights(c.Request.Context(), userID, nil)
+		if err != nil {
+			slog.Error("announcements: flight count failed", "error", err)
+			flightCount = 0
+		}
 		if flightCount == 0 {
 			hints = append(hints, generated.Announcement{
 				Id:       "hint-add-first-flight",
@@ -81,8 +76,11 @@ func (h *APIHandler) GetAnnouncements(c *gin.Context) {
 		}
 
 		// Hint: No aircraft
-		var aircraftCount int
-		scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM aircraft WHERE user_id = $1", userID), &aircraftCount)
+		aircraftCount, err := h.aircraftService.CountAircraft(c.Request.Context(), userID)
+		if err != nil {
+			slog.Error("announcements: aircraft count failed", "error", err)
+			aircraftCount = 0
+		}
 		if aircraftCount == 0 && flightCount > 0 {
 			hints = append(hints, generated.Announcement{
 				Id:       "hint-add-aircraft",
@@ -92,8 +90,12 @@ func (h *APIHandler) GetAnnouncements(c *gin.Context) {
 		}
 
 		// Hint: No credentials
-		var credentialCount int
-		scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM credentials WHERE user_id = $1", userID), &credentialCount)
+		credentialCount := 0
+		if credentials, err := h.credentialService.ListCredentials(c.Request.Context(), userID); err == nil {
+			credentialCount = len(credentials)
+		} else {
+			slog.Error("announcements: credential listing failed", "error", err)
+		}
 		if credentialCount == 0 && flightCount > 3 {
 			hints = append(hints, generated.Announcement{
 				Id:       "hint-add-credentials",
@@ -140,11 +142,14 @@ func (h *APIHandler) CreateAnnouncement(c *gin.Context) {
 	id := uuid.New()
 	now := time.Now()
 
-	_, err := h.db.ExecContext(c.Request.Context(), `
-		INSERT INTO system_announcements (id, message, severity, expires_at, created_by, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, id, req.Message, req.Severity, req.ExpiresAt, adminUserID, now)
-	if err != nil {
+	if err := h.announcementRepo.Create(c.Request.Context(), &models.SystemAnnouncement{
+		ID:        id,
+		Message:   req.Message,
+		Severity:  req.Severity,
+		ExpiresAt: req.ExpiresAt,
+		CreatedBy: adminUserID,
+		CreatedAt: now,
+	}); err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to create announcement")
 		return
 	}
@@ -172,16 +177,12 @@ func (h *APIHandler) DeleteAnnouncement(c *gin.Context, announcementId openapi_t
 	}
 
 	targetID := uuid.UUID(announcementId)
-	result, err := h.db.ExecContext(c.Request.Context(),
-		"DELETE FROM system_announcements WHERE id = $1", targetID)
-	if err != nil {
+	if err := h.announcementRepo.Delete(c.Request.Context(), targetID); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			h.sendError(c, http.StatusNotFound, "Announcement not found")
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to delete announcement")
-		return
-	}
-
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		h.sendError(c, http.StatusNotFound, "Announcement not found")
 		return
 	}
 

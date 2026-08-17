@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
@@ -806,19 +805,28 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		status = "failed"
 	}
 
-	// Save import record to DB
+	// Save import record to DB (best-effort: a failed history row must not
+	// undo an import that already happened).
 	importID := uuid.New()
 	errorsJSON, _ := json.Marshal(importErrors)
 	mappingsJSON, _ := json.Marshal(mappingLookup)
-	_, _ = h.db.ExecContext(c.Request.Context(), `
-		INSERT INTO flight_imports (id, user_id, file_name, import_format, import_status,
-			total_rows, imported_count, skipped_count, error_count, duplicate_count,
-			imported_flight_ids, errors, column_mappings)
-		VALUES ($1, $2, $3, $4::import_format, $5::import_status, $6, $7, $8, $9, $10, $11, $12, $13)
-	`, importID, userID, session.fileName, string(session.format), string(status),
-		len(session.rows), imported, skipped, errored, dups,
-		uuidSliceToStringArray(importedIDs), errorsJSON, mappingsJSON,
-	)
+	if err := h.flightImportRepo.Create(c.Request.Context(), &models.FlightImport{
+		ID:                importID,
+		UserID:            userID,
+		FileName:          session.fileName,
+		Format:            string(session.format),
+		Status:            string(status),
+		TotalRows:         len(session.rows),
+		ImportedCount:     imported,
+		SkippedCount:      skipped,
+		ErrorCount:        errored,
+		DuplicateCount:    dups,
+		ImportedFlightIDs: uuidSliceToStringArray(importedIDs),
+		Errors:            errorsJSON,
+		ColumnMappings:    mappingsJSON,
+	}); err != nil {
+		slog.Warn("import: failed to save import history record", "importId", importID, "error", err)
+	}
 
 	// Clean up session
 	sessionMu.Lock()
@@ -878,32 +886,21 @@ func (h *APIHandler) ListImports(c *gin.Context, params generated.ListImportsPar
 		pageSize = *params.PageSize
 	}
 
-	var total int
-	scanCount(h.db.QueryRowContext(c.Request.Context(),
-		"SELECT COUNT(*) FROM flight_imports WHERE user_id = $1", userID,
-	), &total)
+	total, err := h.flightImportRepo.CountByUserID(c.Request.Context(), userID)
+	if err != nil {
+		slog.Error("imports: count failed", "error", err)
+		total = 0
+	}
 
-	rows, err := h.db.QueryContext(c.Request.Context(), `
-		SELECT id, user_id, file_name, import_format, import_status,
-			total_rows, imported_count, skipped_count, error_count, duplicate_count,
-			imported_flight_ids, errors, created_at
-		FROM flight_imports WHERE user_id = $1
-		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3
-	`, userID, pageSize, (page-1)*pageSize)
+	records, err := h.flightImportRepo.ListByUserID(c.Request.Context(), userID, pageSize, (page-1)*pageSize)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to list imports")
 		return
 	}
-	defer rows.Close()
 
 	var results []generated.ImportResult
-	for rows.Next() {
-		r, err := scanImportResult(rows)
-		if err != nil {
-			continue
-		}
-		results = append(results, r)
+	for _, rec := range records {
+		results = append(results, importResultFromModel(rec))
 	}
 	if results == nil {
 		results = []generated.ImportResult{}
@@ -929,30 +926,13 @@ func (h *APIHandler) GetImport(c *gin.Context, importId generated.ImportId) {
 		return
 	}
 
-	row := h.db.QueryRowContext(c.Request.Context(), `
-		SELECT id, user_id, file_name, import_format, import_status,
-			total_rows, imported_count, skipped_count, error_count, duplicate_count,
-			imported_flight_ids, errors, created_at
-		FROM flight_imports WHERE id = $1 AND user_id = $2
-	`, uuid.UUID(importId), userID)
-
-	var r generated.ImportResult
-	var flightIDs string
-	var errorsJSON []byte
-	var formatStr, statusStr string
-	err = row.Scan(
-		&r.Id, &r.UserId, &r.FileName, &formatStr, &statusStr,
-		&r.TotalRows, &r.ImportedCount, &r.SkippedCount, &r.ErrorCount, &r.DuplicateCount,
-		&flightIDs, &errorsJSON, &r.CreatedAt,
-	)
+	rec, err := h.flightImportRepo.GetByIDForUser(c.Request.Context(), uuid.UUID(importId), userID)
 	if err != nil {
 		h.sendError(c, http.StatusNotFound, "Import not found")
 		return
 	}
-	r.Format = generated.ImportFormat(formatStr)
-	r.Status = generated.ImportStatus(statusStr)
 
-	c.JSON(http.StatusOK, r)
+	c.JSON(http.StatusOK, importResultFromModel(rec))
 }
 
 // --- Helpers ---
@@ -1720,20 +1700,21 @@ func uuidSliceToStringArray(ids []openapi_types.UUID) string {
 	return "{" + strings.Join(parts, ",") + "}"
 }
 
-func scanImportResult(rows *sql.Rows) (generated.ImportResult, error) {
-	var r generated.ImportResult
-	var flightIDs string
-	var errorsJSON []byte
-	var formatStr, statusStr string
-	err := rows.Scan(
-		&r.Id, &r.UserId, &r.FileName, &formatStr, &statusStr,
-		&r.TotalRows, &r.ImportedCount, &r.SkippedCount, &r.ErrorCount, &r.DuplicateCount,
-		&flightIDs, &errorsJSON, &r.CreatedAt,
-	)
-	if err != nil {
-		return r, err
+// importResultFromModel maps a stored import record onto the API shape. The
+// stored flight-id array and error JSON are deliberately not expanded — list
+// and detail views have never returned them, only the counts.
+func importResultFromModel(rec *models.FlightImport) generated.ImportResult {
+	return generated.ImportResult{
+		Id:             openapi_types.UUID(rec.ID),
+		UserId:         openapi_types.UUID(rec.UserID),
+		FileName:       rec.FileName,
+		Format:         generated.ImportFormat(rec.Format),
+		Status:         generated.ImportStatus(rec.Status),
+		TotalRows:      rec.TotalRows,
+		ImportedCount:  rec.ImportedCount,
+		SkippedCount:   rec.SkippedCount,
+		ErrorCount:     rec.ErrorCount,
+		DuplicateCount: rec.DuplicateCount,
+		CreatedAt:      rec.CreatedAt,
 	}
-	r.Format = generated.ImportFormat(formatStr)
-	r.Status = generated.ImportStatus(statusStr)
-	return r, nil
 }
