@@ -31,9 +31,7 @@ var (
 	)
 
 	// OIDCLoginAttemptsTotal counts steps of the OIDC login flow by result.
-	// Zero on deployments that do not use OIDC. A rising invalid_state or
-	// email_conflict rate is the signal an operator needs when a provider is
-	// misconfigured, since the browser only ever sees a coarse error code.
+	// Zero on deployments that do not use OIDC.
 	OIDCLoginAttemptsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "auth_oidc_login_attempts_total",

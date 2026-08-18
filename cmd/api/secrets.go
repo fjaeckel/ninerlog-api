@@ -6,12 +6,11 @@ import (
 )
 
 // minJWTSecretLength is the minimum number of characters required for a JWT
-// signing secret. 32 bytes (256 bits) matches the HMAC-SHA256 output size and
-// is the smallest value that does not weaken the MAC.
+// signing secret.
 const minJWTSecretLength = 32
 
-// placeholderSecrets are example values that have shipped in the repository or
-// documentation. They are public and must never be used to sign tokens.
+// placeholderSecrets are known public example values, rejected as signing
+// secrets.
 var placeholderSecrets = map[string]struct{}{
 	"change-this-secret-key-in-production":     {},
 	"change-this-refresh-secret-in-production": {},
@@ -19,9 +18,7 @@ var placeholderSecrets = map[string]struct{}{
 
 // validateJWTSecrets enforces that the access and refresh signing secrets are
 // present, long enough, not a known public placeholder, and distinct from each
-// other. It returns a non-nil error describing the first problem found so the
-// caller can fail closed at startup instead of silently signing tokens with a
-// guessable key.
+// other. It returns a non-nil error describing the first problem found.
 func validateJWTSecrets(accessSecret, refreshSecret string) error {
 	if err := validateJWTSecret("JWT_SECRET", accessSecret); err != nil {
 		return err

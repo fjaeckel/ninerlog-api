@@ -50,8 +50,7 @@ type Field struct {
 }
 
 // Fields lists every searchable tag, in display order. All columns are on the
-// flights table; text columns are wrapped in COALESCE so negations behave
-// sensibly for NULLs.
+// flights table; text columns are wrapped in COALESCE.
 var Fields = []Field{
 	{Name: "date", Type: FieldDate, Column: "date", Description: "Flight date (YYYY, YYYY-MM or YYYY-MM-DD)"},
 	{Name: "aircraftReg", Aliases: []string{"reg", "registration", "aircraft"}, Type: FieldText, Column: "COALESCE(aircraft_reg, '')", Description: "Aircraft registration"},
@@ -104,9 +103,7 @@ var Fields = []Field{
 	{Name: "updatedAt", Type: FieldDate, Column: "updated_at", Description: "Entry last-modified date"},
 }
 
-// freeTextColumns are searched by bare (untagged) terms. Superset of the
-// legacy `search` parameter's columns, so `q=EDDF` finds at least everything
-// `search=EDDF` found.
+// freeTextColumns are searched by bare (untagged) terms.
 var freeTextColumns = []string{
 	"COALESCE(aircraft_reg, '')",
 	"COALESCE(aircraft_type, '')",

@@ -70,8 +70,7 @@ func TestFlightSignatureCreate_DuplicatePendingReturnsErrDuplicate(t *testing.T)
 }
 
 // pqUniqueViolationError is a minimal stand-in for lib/pq's *pq.Error, whose
-// Error() string contains the violated constraint name — exactly what
-// flightSignatureRepository.Create string-matches against.
+// Error() string contains the violated constraint name.
 type pqUniqueViolationError struct {
 	constraint string
 }

@@ -168,9 +168,8 @@ func TestLoadOIDCConfigCustomTTLs(t *testing.T) {
 }
 
 func TestOIDCCookieScoping(t *testing.T) {
-	// The cookie must be scoped to the callback's own directory, whatever
-	// prefix a reverse proxy mounts the API under, and Secure must follow the
-	// browser-visible scheme rather than the (possibly proxied) request.
+	// The cookie is scoped to the callback's own directory (any reverse-proxy
+	// prefix included), and Secure follows the callback URL's scheme.
 	for _, tc := range []struct {
 		redirect   string
 		wantPath   string

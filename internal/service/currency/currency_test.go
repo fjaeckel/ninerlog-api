@@ -400,15 +400,12 @@ func TestEASA_SEP_Expired(t *testing.T) {
 }
 
 // TestEASA_SEP_WindowNotYetOpen verifies that a freshly revalidated PPL/SEP
-// rating (expiry > 12 months out) is reported as `current` with WindowOpen=false
-// and no requirements list — flights logged before the experience window
-// opens don't count toward FCL.740.A revalidation, so showing red "not met"
-// bars would be misleading.
+// rating (expiry > 12 months out) is reported as `current` with
+// WindowOpen=false and no requirements list.
 func TestEASA_SEP_WindowNotYetOpen(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	// Even though the pilot has plenty of recent activity, the FCL.740.A
-	// window has not yet opened, so it must not be considered.
+	// Recent activity must not be considered while the window is closed.
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
 		TotalMinutes: 9999, PICMinutes: 9999, Landings: 99, InstructorMinutes: 999,
 	}

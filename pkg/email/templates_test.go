@@ -21,7 +21,6 @@ func TestTemplates_German(t *testing.T) {
 
 func TestTemplates_UnknownLocaleFallsBackToEnglish(t *testing.T) {
 	ts := Templates("fr")
-	// Should fallback to English
 	subj, _ := ts.CredentialExpiry(CredentialExpiryParams{
 		UserName:       "Test",
 		CredentialType: "Medical",
@@ -265,8 +264,8 @@ func TestPassengerCurrency_German_Day(t *testing.T) {
 	}
 }
 
-// TestTemplates_HTMLEscapesUserInput ensures user-controlled values are HTML
-// escaped in email bodies so they cannot inject markup (CWE-79/116).
+// TestTemplates_HTMLEscapesUserInput asserts user-controlled values are
+// HTML-escaped in every email body.
 func TestTemplates_HTMLEscapesUserInput(t *testing.T) {
 	const payload = `<script>alert('xss')</script>`
 	const escaped = `&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;`
@@ -294,8 +293,8 @@ func TestTemplates_HTMLEscapesUserInput(t *testing.T) {
 	}
 }
 
-// TestVerifyEmail_EscapesLinkAttribute ensures the verification link cannot break
-// out of the href attribute to inject additional HTML.
+// TestVerifyEmail_EscapesLinkAttribute asserts the verification link cannot
+// break out of the href attribute.
 func TestVerifyEmail_EscapesLinkAttribute(t *testing.T) {
 	for _, locale := range []string{"en", "de"} {
 		ts := Templates(locale)
@@ -309,11 +308,8 @@ func TestVerifyEmail_EscapesLinkAttribute(t *testing.T) {
 	}
 }
 
-// TestCustomCurrency_EscapesMaliciousRuleName ensures a rule name containing an
-// XSS/header-injection payload is neutralized: the HTML body escapes it and the
-// subject carries no raw CR/LF that could inject email headers. (The SMTP layer
-// additionally Q-encodes the subject; the notification service rejects control
-// characters at input.)
+// TestCustomCurrency_EscapesMaliciousRuleName asserts the HTML body escapes
+// the rule name and the subject carries no raw CR/LF.
 func TestCustomCurrency_EscapesMaliciousRuleName(t *testing.T) {
 	payload := `<script>alert('x')</script>`
 	for _, locale := range []string{"en", "de"} {

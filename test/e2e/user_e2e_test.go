@@ -33,8 +33,7 @@ func TestUserProfile(t *testing.T) {
 		}
 	})
 
-	// The address is the account's recovery channel, so changing it requires
-	// the current password.
+	// Changing the address requires the current password.
 	t.Run("update email without currentPassword is rejected", func(t *testing.T) {
 		resp := c.PATCH("/users/me", map[string]string{"email": uniqueEmail("profile-nopw")})
 		assertStatus(t, resp, http.StatusBadRequest)

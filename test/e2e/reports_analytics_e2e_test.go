@@ -9,8 +9,7 @@ import (
 )
 
 // analyticsResponse mirrors the parts of GET /reports/analytics the tests
-// assert on. It is deliberately a hand-written subset rather than the
-// generated type so a spec change that drops a field fails here loudly.
+// assert on, as a hand-written subset.
 type analyticsResponse struct {
 	Range struct {
 		Months  int     `json:"months"`
@@ -157,8 +156,7 @@ func TestReportsAnalyticsEmptyLogbook(t *testing.T) {
 		t.Error("Expected null daysSinceLastFlight on an empty logbook")
 	}
 
-	// Ranked breakdowns are empty, but the fixed-axis histograms stay dense so
-	// the client can render a full axis without gap-filling.
+	// Ranked breakdowns are empty; the fixed-axis histograms stay dense.
 	if len(a.Monthly) != 0 || len(a.ByAircraftType) != 0 || len(a.ByAirport) != 0 {
 		t.Error("Expected empty breakdowns on an empty logbook")
 	}
@@ -193,9 +191,8 @@ func seedAnalyticsLogbook(t *testing.T, c *E2EClient) {
 			"totalTime": 90, "picTime": 90, "landings": 2,
 		},
 		{
-			// 60 min dual received. The instructor has to be on the crew for
-			// the EASA auto-calculation to classify this as dual — an
-			// instructorName alone leaves the flight logged as PIC.
+			// 60 min dual received, instructor on the crew (EASA
+			// auto-calculation classifies it as dual).
 			"date": pastDate(12), "aircraftReg": "D-EAAA", "aircraftType": "C172",
 			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
 			"offBlockTime": "10:00", "onBlockTime": "11:00",
@@ -419,8 +416,8 @@ func TestReportsAnalyticsTotalsAndBreakdowns(t *testing.T) {
 			t.Errorf("%s buckets sum to %d flights, expected %d", tc.name, sum, a.Totals.TotalFlights)
 		}
 	}
-	// All three seed flights record an off-block time, so the hour histogram
-	// covers every flight too.
+	// All three seed flights record an off-block time; the hour histogram
+	// covers every flight.
 	var hourSum int
 	for _, b := range a.HourOfDay {
 		hourSum += b.Flights
@@ -486,8 +483,7 @@ func TestReportsAnalyticsTimeframeScoping(t *testing.T) {
 		t.Errorf("6 months: expected 1 aircraft type in range, got %d", recent.Totals.DistinctTypes)
 	}
 
-	// The cumulative curve carries the out-of-range hours forward, so the
-	// windowed report still shows true career totals.
+	// The cumulative curve carries the out-of-range hours forward.
 	if len(recent.Monthly) == 0 {
 		t.Fatal("Expected at least one month in the 6-month window")
 	}
@@ -495,18 +491,15 @@ func TestReportsAnalyticsTimeframeScoping(t *testing.T) {
 		t.Errorf("Expected the cumulative curve to reach 180 career minutes, got %d", last)
 	}
 
-	// Days since last flight ignores the timeframe — a narrow window must not
-	// make the pilot look lapsed.
+	// Days since last flight ignores the timeframe.
 	if recent.Records.DaysSinceLastFlight == nil || *recent.Records.DaysSinceLastFlight != 3 {
 		t.Errorf("Expected 3 days since last flight regardless of timeframe, got %v",
 			recent.Records.DaysSinceLastFlight)
 	}
 }
 
-// TestReportsAnalyticsBaseline covers the initial-hours snapshot: pre-existing
-// experience that was never entered as flights still has to show up in the
-// Reports totals, and it has to agree with GET /users/me/statistics — the two
-// pages used to disagree because only the statistics endpoint applied it.
+// TestReportsAnalyticsBaseline covers the initial-hours snapshot: it counts
+// into the Reports totals and agrees with GET /users/me/statistics.
 func TestReportsAnalyticsBaseline(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("analytics-baseline"), "SecurePass123!", "Analytics Baseline")
@@ -554,7 +547,7 @@ func TestReportsAnalyticsBaseline(t *testing.T) {
 			want, all.Totals.LandingsDay)
 	}
 
-	// The dashboard reads this endpoint; the two totals must match.
+	// Totals agree with GET /users/me/statistics.
 	statsResp := c.GET("/users/me/statistics")
 	requireStatus(t, statsResp, http.StatusOK)
 	var stats struct {
@@ -572,8 +565,8 @@ func TestReportsAnalyticsBaseline(t *testing.T) {
 			stats.TotalFlights, stats.TotalMinutes, stats.PICMinutes)
 	}
 
-	// The cumulative curve starts from the carried-forward hours, so over all
-	// time it ends exactly at the totals.
+	// The cumulative curve starts from the carried-forward hours and, over all
+	// time, ends exactly at the totals.
 	if len(all.Monthly) == 0 {
 		t.Fatal("Expected at least one month in the all-time series")
 	}
@@ -581,8 +574,7 @@ func TestReportsAnalyticsBaseline(t *testing.T) {
 		t.Errorf("Cumulative curve ends at %d, expected %d", last, all.Totals.TotalMinutes)
 	}
 
-	// A window that starts after the baseline cutoff reports logged time only —
-	// the same rule the statistics endpoint applies to startDate.
+	// A window that starts after the baseline cutoff reports logged time only.
 	recent := getAnalytics(t, c, "?months=6")
 	if recent.Baseline != nil {
 		t.Errorf("6 months: expected no baseline contribution, got %+v", *recent.Baseline)
@@ -591,7 +583,7 @@ func TestReportsAnalyticsBaseline(t *testing.T) {
 		t.Errorf("6 months: expected 1 flight / 60 min without the baseline, got %d / %d",
 			recent.Totals.TotalFlights, recent.Totals.TotalMinutes)
 	}
-	// It is still carried into the cumulative curve, which shows career hours.
+	// The baseline is still carried into the cumulative curve.
 	if len(recent.Monthly) == 0 {
 		t.Fatal("Expected at least one month in the 6-month window")
 	}

@@ -15,11 +15,9 @@ import (
 // resolves the window, fetches aggregated flight data via the existing
 // FlightDataProvider, builds the requirement breakdown, and hands a populated
 // runtime to a small, fixed library of status "computers" (the finalize
-// closures) that own the user-facing prose for each rule family.
-//
-// The architecture deliberately keeps the FlightDataProvider interface
-// unchanged: rules declare *what* aggregate to ask for (scope + window); the
-// provider owns *how* to query it.
+// closures) that own the user-facing prose for each rule family. Rules declare
+// what aggregate to ask for (scope + window); the provider owns how to query
+// it.
 
 // metric identifies a single aggregated field on Progress that a requirement
 // is measured against. The vocabulary is a fixed enumeration — adding a term

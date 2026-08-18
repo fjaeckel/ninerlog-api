@@ -11,10 +11,9 @@ import (
 )
 
 // The delta-sync list methods must pass the watermark down to the repository
-// rather than fetching everything and trimming afterwards — a sync client's
-// whole reason for sending updatedSince is to avoid paging the full logbook.
-// These tests drive the in-memory repositories, which apply the same
-// strictly-after rule as the SQL predicate.
+// rather than fetching everything and trimming afterwards. These tests drive
+// the in-memory repositories, which apply the same strictly-after rule as the
+// SQL predicate.
 
 func TestListsUpdatedSince(t *testing.T) {
 	ctx := context.Background()
@@ -41,8 +40,7 @@ func TestListsUpdatedSince(t *testing.T) {
 			t.Fatalf("got %d aircraft, want only %s", len(got), fresh.Registration)
 		}
 
-		// A record whose updatedAt equals the watermark is excluded: the
-		// client already has it, and returning it would loop forever.
+		// A record whose updatedAt equals the watermark is excluded.
 		atBoundary, err := svc.ListAircraftUpdatedSince(ctx, userID, fresh.UpdatedAt)
 		if err != nil {
 			t.Fatalf("boundary list: %v", err)

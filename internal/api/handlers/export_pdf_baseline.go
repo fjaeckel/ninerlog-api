@@ -10,26 +10,13 @@ import (
 // Prior experience (flight baseline)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// A flight baseline is the flying a pilot had accumulated before this logbook —
-// normally transcribed from the paper book they carried over from. A paper
-// logbook opens its first sheet by writing that closing balance into the
-// "total from previous pages" row, and every later sheet inherits it through
-// the running total.
-//
-// The PDF export does the same: each renderer seeds its cumulative totals from
-// the baseline before the first sheet is drawn. Without that seed the "TOTAL
-// TIME" row on the last sheet reports only what NinerLog happens to hold,
-// which for anyone who did not start their flying career here is not their
-// total time at all.
-//
-// A baseline records fewer figures than a logbook sheet has columns. The
+// A flight baseline is the flying a pilot had accumulated before this
+// logbook. Each PDF renderer seeds its cumulative totals from the baseline
+// before the first sheet is drawn. A baseline does not record the
 // single-/multi-engine split, FSTD session time, the FAA actual-vs-simulated
-// instrument split, approaches and holds are not part of the snapshot, so
-// those columns open at zero and count logged flights only. That is
-// deliberate: inventing a breakdown the pilot never supplied would put figures
-// into a balance they are asked to sign but cannot substantiate. The summary
-// page states the limitation in full, and every page footer carries a one-line
-// disclosure that the totals are not purely logged time.
+// instrument split, approaches, or holds, so those columns open at zero and
+// count logged flights only; the summary page and every footer carry a
+// disclosure of the limitation.
 
 // baselineApplies reports whether b carries anything worth carrying forward.
 // A nil baseline — or one whose every figure is zero — renders exactly like no

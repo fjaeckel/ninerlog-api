@@ -1,11 +1,7 @@
 // Package provider defines the contract every cloud backup provider plugin
-// must satisfy.
-//
-// The split between "config" (non-secret, visible to the user) and
-// "credentials" (secret, encrypted at rest, only sent to the provider during
-// validation/upload) is intentional and load-bearing: the API surface exposes
-// configs in plain text on GET; credentials are *only* accepted on
-// create/update and are never returned.
+// must satisfy. "Config" is non-secret and returned in plain text on GET;
+// "credentials" are secret, encrypted at rest, accepted only on create/update
+// and never returned.
 package provider
 
 import (
@@ -16,7 +12,7 @@ import (
 )
 
 // FieldType enumerates the input widget kinds presented to the frontend.
-// Strings deliberately match the OpenAPI BackupFieldType schema.
+// Strings match the OpenAPI BackupFieldType schema.
 type FieldType string
 
 const (
@@ -24,8 +20,7 @@ const (
 	FieldTypePassword FieldType = "password"
 	FieldTypeRegion   FieldType = "region"
 	FieldTypeURL      FieldType = "url"
-	// FieldTypeBool is rendered as a checkbox/toggle. Used for the transport
-	// escape hatches, which MUST be declared so the UI can warn about them.
+	// FieldTypeBool is rendered as a checkbox/toggle.
 	FieldTypeBool FieldType = "bool"
 )
 
@@ -107,9 +102,8 @@ type Provider interface {
 	Upload(ctx context.Context, cfg Config, creds Credentials, in UploadInput) (*UploadResult, error)
 
 	// List enumerates backups previously written by NinerLog to this
-	// destination. Implementations should scope the listing to the
-	// configured prefix and the well-known filename convention to avoid
-	// returning unrelated objects.
+	// destination. Implementations scope the listing to the configured prefix
+	// and the well-known filename convention.
 	List(ctx context.Context, cfg Config, creds Credentials) ([]RemoteBackup, error)
 
 	// Delete removes one object at path.

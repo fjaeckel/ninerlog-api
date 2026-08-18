@@ -201,9 +201,6 @@ func TestPasswordReset(t *testing.T) {
 		}
 	})
 
-	// A reset must NOT be a way around 2FA. Control of the mailbox gets an
-	// attacker the reset link; if that link also stripped the second factor,
-	// the mailbox alone would be enough for a full account takeover.
 	t.Run("reset requires 2FA and keeps it enabled", func(t *testing.T) {
 		email := uniqueEmail("pwreset-2fa")
 		pw := "SecurePass123!"
@@ -295,8 +292,7 @@ func TestPasswordReset(t *testing.T) {
 		}
 	})
 
-	// The self-service escape hatch when the authenticator is gone: a recovery
-	// code stands in for the TOTP code, so no admin has to intervene.
+	// A recovery code stands in for the TOTP code.
 	t.Run("reset accepts a recovery code", func(t *testing.T) {
 		email := uniqueEmail("pwreset-recovery")
 		pw := "SecurePass123!"

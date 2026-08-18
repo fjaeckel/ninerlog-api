@@ -18,8 +18,8 @@ import (
 
 const testClientID = "ninerlog-test-client"
 
-// oidcUserRepo is mockUserRepo with the auto-verify behaviour removed: these
-// tests are precisely about whether email_verified comes from the ID token.
+// oidcUserRepo is mockUserRepo with the auto-verify behaviour removed;
+// email_verified must come from the ID token.
 type oidcUserRepo struct{ *mockUserRepo }
 
 func newOIDCUserRepo() *oidcUserRepo { return &oidcUserRepo{newMockUserRepo()} }
@@ -322,8 +322,7 @@ func TestOIDCCallbackRejectsNonceMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
-	// A token minted for a different login — the replay this nonce exists to
-	// stop — must not be accepted.
+	// A token minted for a different login must not be accepted.
 	h.idp.nonceOverride = "some-other-logins-nonce"
 
 	_, err = h.svc.CompleteCallback(context.Background(), "code",
@@ -661,8 +660,7 @@ func TestOIDCProvisionedUserCannotPasswordLogin(t *testing.T) {
 		t.Fatalf("ExchangeHandoff: %v", err)
 	}
 
-	// Defence in depth: even if a deployment switched back to local mode with
-	// OIDC accounts in the database, the empty hash must never authenticate.
+	// The empty hash must never authenticate, in any mode.
 	for _, password := range []string{"", " ", "password", "$2a$12$hash"} {
 		if _, _, err := h.auth.Login(context.Background(), service.LoginInput{
 			Email: user.Email, Password: password,

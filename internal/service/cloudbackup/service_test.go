@@ -225,7 +225,7 @@ func (f *fakeProvider) Upload(_ context.Context, _ provider.Config, _ provider.C
 	if f.uploadErr != nil {
 		return nil, f.uploadErr
 	}
-	// drain reader to simulate real provider behaviour and capture size
+	// Drain the reader and capture the size.
 	body, _ := io.ReadAll(in.Reader)
 	in.Reader = bytes.NewReader(body)
 	f.uploads = append(f.uploads, in)

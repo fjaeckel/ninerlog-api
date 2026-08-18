@@ -88,9 +88,8 @@ func (m *mockDocumentFileRepo) CountBySubject(ctx context.Context, userID uuid.U
 	return count, nil
 }
 
-// The licence mock in license_test.go lives in the internal `service` package
-// and is not visible from this external test package, so these tests carry
-// their own.
+// The licence mock in license_test.go is not visible from this external test
+// package; these tests carry their own.
 type docMockLicenseRepo struct {
 	licenses map[uuid.UUID]*models.License
 }
@@ -260,9 +259,8 @@ func TestDocumentFileUpload_AcceptsJPEG(t *testing.T) {
 	}
 }
 
-// The declared type is never trusted, so the checks that matter are on the
-// bytes: a script/document masquerading as an image must not be storable, or
-// it comes back out of our own origin later.
+// A script/document masquerading as an image must not be storable; the checks
+// run on the bytes, never the declared type.
 func TestDocumentFileUpload_RejectsNonImageContent(t *testing.T) {
 	tests := []struct {
 		name string
@@ -289,16 +287,8 @@ func TestDocumentFileUpload_RejectsNonImageContent(t *testing.T) {
 	}
 }
 
-// Characterization test: validation stops at the header, so a valid header
-// followed by arbitrary bytes IS accepted. This is deliberate — proving every
-// byte means a full image.Decode, which allocates the whole pixel buffer and
-// reintroduces the decompression-bomb cost the dimension cap exists to avoid.
-//
-// It is contained by how the bytes are served, not by the validator: the
-// response Content-Type is the sniffed value, X-Content-Type-Options: nosniff
-// is global, and the download needs a bearer token, so a browser can never
-// navigate to these bytes or treat them as a scriptable type. The residual is
-// storage abuse, bounded by the size and per-document caps.
+// Characterization test: validation stops at the header — a valid header
+// followed by arbitrary bytes IS accepted.
 //
 // If validation is ever tightened to full decode or a structural walk, this
 // test SHOULD fail — update it together with the claims in
@@ -334,9 +324,8 @@ func TestDocumentFileUpload_ValidatesTheHeaderNotTheWholeFile(t *testing.T) {
 	}
 }
 
-// PDFs are what authorities actually issue, so they are accepted — but they
-// cannot be verified by decoding, and they are an active format. The contract
-// is: structural markers only, no dimensions, and never served inline.
+// PDFs are accepted: structural markers only, no dimensions, and never served
+// inline.
 func TestDocumentFileUpload_AcceptsPDF(t *testing.T) {
 	f := newDocImageFixture(t, true)
 
@@ -347,8 +336,7 @@ func TestDocumentFileUpload_AcceptsPDF(t *testing.T) {
 	if file.ContentType != models.ContentTypePDF {
 		t.Errorf("contentType = %q, want %q", file.ContentType, models.ContentTypePDF)
 	}
-	// No intrinsic pixel size — the columns stay null rather than storing a
-	// made-up zero.
+	// No intrinsic pixel size: dimensions stay null.
 	if file.Width != nil || file.Height != nil {
 		t.Errorf("dimensions = %v×%v, want null×null for a PDF", file.Width, file.Height)
 	}
@@ -385,8 +373,7 @@ func TestDocumentFileUpload_RejectsBrokenPDFs(t *testing.T) {
 	}
 }
 
-// The trailer is looked for in a window at the end, not at the exact end,
-// because a linearized or incrementally-updated PDF appends bytes after it.
+// The trailer is looked for in a window at the end, not at the exact end.
 func TestDocumentFileUpload_AcceptsTrailerBeforeTrailingBytes(t *testing.T) {
 	f := newDocImageFixture(t, true)
 	data := append(pdfBytes(), bytes.Repeat([]byte(" "), 512)...)
@@ -442,8 +429,7 @@ func TestDocumentFileUpload_RejectsDecompressionBomb(t *testing.T) {
 
 	_, err := f.svc.Upload(context.Background(), f.userID, models.DocumentSubjectLicense, f.licenseID,
 		service.UploadInput{Data: bombed})
-	// The CRC over the doctored IHDR no longer matches, so a strict decoder
-	// reports corruption; either verdict is a rejection, which is the point.
+	// Either a pixel-cap or a corruption rejection is acceptable.
 	if !errors.Is(err, service.ErrDocumentFileTooManyPixel) && !errors.Is(err, service.ErrDocumentFileCorrupt) {
 		t.Errorf("err = %v, want a pixel-cap or corruption rejection", err)
 	}
@@ -576,8 +562,7 @@ func TestDocumentFile_Delete(t *testing.T) {
 	}
 }
 
-// The switch is a kill switch for the whole feature, reads included — serving
-// stored blobs is the bandwidth half of what an operator turns it off to stop.
+// The switch blocks the whole feature, reads included.
 func TestDocumentFile_DisabledBlocksEveryOperation(t *testing.T) {
 	f := newDocImageFixture(t, false)
 	ctx := context.Background()

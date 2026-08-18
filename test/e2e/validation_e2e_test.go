@@ -140,7 +140,6 @@ func TestEmailValidation(t *testing.T) {
 		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	// Fixed: Long email now returns 400 instead of 500
 	t.Run("very long email causes 400", func(t *testing.T) {
 		long := strings.Repeat("a", 250) + "@test.com"
 		resp := c.POST("/auth/register", map[string]string{
@@ -153,7 +152,6 @@ func TestEmailValidation(t *testing.T) {
 func TestPasswordValidation(t *testing.T) {
 	c := NewE2EClient(t)
 
-	// Fixed: Long password now returns 400 instead of 500
 	t.Run("very long password causes 400", func(t *testing.T) {
 		longPw := strings.Repeat("Aa1!", 100) // 400 chars, bcrypt limit is 72 bytes
 		email := uniqueEmail("longpw")

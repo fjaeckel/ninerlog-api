@@ -16,11 +16,10 @@ type mockContactRepo struct {
 	contacts map[uuid.UUID]*models.Contact
 	// roles is returned verbatim by RolesByContact.
 	roles map[uuid.UUID][]string
-	// crewRenames is what UpdateWithCrewRename reports; the mock has no
-	// flights to rewrite, so the count is supplied by the test.
+	// crewRenames is the count UpdateWithCrewRename reports, supplied by the
+	// test.
 	crewRenames int
-	// lookups counts GetByExactName calls, so a test can show that the crew
-	// linker's cache is actually saving round-trips.
+	// lookups counts GetByExactName calls.
 	lookups int
 }
 

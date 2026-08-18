@@ -23,9 +23,7 @@
 // Credential model (secret, encrypted at rest):
 //
 //	username - required
-//	password - required (this v1 only supports password authentication;
-//	           private-key auth is tracked separately because it requires a
-//	           multi-line textarea field type in the frontend form).
+//	password - required (password authentication only).
 //
 // The provider performs an authenticated SFTP session during Validate, opens
 // the target directory (creating it via MkdirAll if necessary) and reads a
@@ -57,7 +55,7 @@ type Provider struct {
 }
 
 // New returns an SFTP provider with sane defaults. Connections are restricted
-// by an SSRF guard so a user-supplied host cannot reach internal addresses.
+// by an SSRF guard.
 func New() *Provider {
 	return &Provider{
 		dialTimeout: 15 * time.Second,
@@ -227,7 +225,7 @@ func (p *Provider) Delete(ctx context.Context, cfg provider.Config, creds provid
 
 	if err := client.Remove(remotePath); err != nil {
 		if isNotExist(err) {
-			// Retention pruning is idempotent.
+			// Already gone counts as success.
 			return nil
 		}
 		return classifyError(err)
@@ -289,8 +287,8 @@ func parseConfig(cfg provider.Config, creds provider.Credentials) (*parsedConfig
 	if !strings.HasSuffix(subPath, "/") {
 		subPath += "/"
 	}
-	// Strip trailing slash for path.Join friendliness; we re-add it where
-	// human-facing paths are returned.
+	// Strip trailing slash for path.Join; re-added where human-facing paths
+	// are returned.
 	cleanPath := strings.TrimRight(subPath, "/")
 	if cleanPath == "" {
 		cleanPath = "."
@@ -415,8 +413,7 @@ func isNotExist(err error) bool {
 	if err == nil {
 		return false
 	}
-	// pkg/sftp returns wrapped errors that satisfy os.IsNotExist; checking the
-	// message is the documented way for code we don't control.
+	// Matches pkg/sftp's not-found error messages.
 	msg := err.Error()
 	return strings.Contains(msg, "does not exist") ||
 		strings.Contains(msg, "no such file") ||
@@ -460,5 +457,5 @@ func classifyError(err error) error {
 	return err
 }
 
-// Compile-time assertion that we satisfy the provider interface.
+// Compile-time assertion of the provider interface.
 var _ provider.Provider = (*Provider)(nil)

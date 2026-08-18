@@ -92,18 +92,9 @@ func TestExportCSVFormats(t *testing.T) {
 	})
 }
 
-// TestExportEASACSV_DualFlightShowsInstructorAsPIC is a regression test for
-// the bug where Dual flights with the instructor recorded only in
-// `crewMembers` (not in the legacy `instructorName` column) exported as
-// "SELF" instead of the instructor's name in the EASA CSV "PIC Name" column.
-//
-// Reproduces the exact data shape the modern frontend writes:
-//   - no legacy instructorName field
-//   - Instructor lives in crewMembers
-//   - User is NOT the instructor
-//
-// The exported EASA CSV row MUST contain the instructor's name in the
-// PIC Name column and MUST NOT contain "SELF" for that row.
+// TestExportEASACSV_DualFlightShowsInstructorAsPIC covers a dual flight whose
+// instructor is recorded only in crewMembers: the EASA CSV "PIC Name" column
+// carries the instructor's name, not "SELF".
 func TestExportEASACSV_DualFlightShowsInstructorAsPIC(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("easa-pic"), "SecurePass123!", "Amelia Earhart")
@@ -196,9 +187,8 @@ func TestExportPDFFormats(t *testing.T) {
 		assertValidPDF(t, resp.Body)
 	})
 
-	// Every format × layout × page_size combination must produce a valid PDF.
-	// Spread PDFs carry two physical pages per logbook page, so with the same
-	// flights a spread export is strictly larger than its single-layout twin.
+	// Every format × layout × page_size combination produces a valid PDF, and
+	// a spread export is strictly larger than its single-layout twin.
 	for _, format := range []string{"easa", "faa"} {
 		for _, pageSize := range []string{"a4", "a5", "letter"} {
 			format, pageSize := format, pageSize
@@ -220,8 +210,7 @@ func TestExportPDFFormats(t *testing.T) {
 	}
 
 	t.Run("rows_per_page scales pagination", func(t *testing.T) {
-		// 3 seeded flights fit one batch either way — both must be valid;
-		// a dense row count must not error and stays a valid PDF too.
+		// Both row counts produce a valid PDF.
 		for _, rows := range []int{10, 40} {
 			resp := c.GET(fmt.Sprintf("/exports/pdf?format=easa&layout=single&rows_per_page=%d", rows))
 			requireStatus(t, resp, http.StatusOK)
@@ -234,8 +223,8 @@ func TestExportPDFFormats(t *testing.T) {
 		requireStatus(t, def, http.StatusOK)
 		spread := c.GET("/exports/pdf?format=easa&layout=spread&page_size=a4")
 		requireStatus(t, spread, http.StatusOK)
-		// Same layout → same page structure → near-identical size (only the
-		// embedded creation timestamp may differ).
+		// Same layout yields a near-identical size (only the embedded creation
+		// timestamp may differ).
 		if diff := len(def.Body) - len(spread.Body); diff < -64 || diff > 64 {
 			t.Errorf("default layout differs from explicit spread: %d vs %d bytes",
 				len(def.Body), len(spread.Body))
@@ -248,12 +237,8 @@ func TestExportPDFFormats(t *testing.T) {
 	})
 }
 
-// TestExportPDFCarriesPriorExperience covers the initial-hours snapshot in the
-// printed logbook: hours flown before this logbook was started have to open the
-// balance on the sheets, the way a paper logbook carries the previous book's
-// closing totals into its first "total from previous pages" row. Before this,
-// a pilot who joined mid-career got a signable document whose "TOTAL TIME"
-// row understated their real total time.
+// TestExportPDFCarriesPriorExperience covers the initial-hours snapshot in
+// the printed logbook: carried-forward hours open the balance on the sheets.
 func TestExportPDFCarriesPriorExperience(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("pdf-baseline"), "SecurePass123!", "PDFBaseline")
@@ -292,9 +277,7 @@ func TestExportPDFCarriesPriorExperience(t *testing.T) {
 		"landingsNight": 90,
 	}), http.StatusOK)
 
-	// The seeded balances, the footer disclosure on every page and the summary
-	// note all add content, so every format's export grows once the snapshot
-	// exists — a format that ignored the baseline would come back unchanged.
+	// Every format's export grows once the snapshot exists.
 	for _, format := range formats {
 		if got := exportSize(t, format); got <= loggedOnly[format] {
 			t.Errorf("%s export ignored the recorded prior experience: %d bytes with a baseline, %d without",

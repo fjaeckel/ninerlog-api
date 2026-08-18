@@ -55,9 +55,8 @@ func flightCrew(t *testing.T, c *E2EClient, flightID string) []map[string]interf
 	return flight.CrewMembers
 }
 
-// Logging a flight fills the address book. Before contacts were created on this
-// path, only import produced them, so a pilot who never imported ended up with
-// an empty contact list next to a logbook full of crew names.
+// TestFlightCrewCreatesContacts covers crew names on a logged flight creating
+// contacts.
 func TestFlightCrewCreatesContacts(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("cnt-autocreate"), "SecurePass123!", "AutoCreate")
@@ -175,8 +174,8 @@ func TestDuplicateContactNameAcrossUsersIsAllowed(t *testing.T) {
 	assertStatus(t, second.POST("/contacts", map[string]interface{}{"name": "Hans Müller"}), 201)
 }
 
-// Renaming a contact corrects the logbook entries that reference it — that is
-// the point of storing the link — and reports how many it touched.
+// Renaming a contact rewrites the crew entries that reference it and reports
+// how many it touched.
 func TestContactRenamePropagatesToCrew(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("cnt-rename"), "SecurePass123!", "Rename")
@@ -204,10 +203,8 @@ func TestContactRenamePropagatesToCrew(t *testing.T) {
 	}
 }
 
-// The rename count is delivered in a response header, and a browser client on
-// another origin can only read a header the server explicitly exposes. Without
-// this the frontend sees the header as absent and cannot tell "renamed nothing"
-// from "server did not say" — so the CORS entry is part of the contract.
+// TestCrewEntriesRenamedHeaderIsCORSExposed covers X-Crew-Entries-Renamed
+// being listed in Access-Control-Expose-Headers.
 func TestCrewEntriesRenamedHeaderIsCORSExposed(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("cnt-cors"), "SecurePass123!", "CorsCheck")
@@ -313,7 +310,7 @@ func TestExportContactsVCard(t *testing.T) {
 	requireStatus(t, c.POST("/contacts", map[string]interface{}{
 		"name": "Hans Müller", "email": "hans@example.com", "phone": "+49 170 1234567",
 	}), 201)
-	// Flown with, so the export can report the role.
+	// Logged as crew, giving the export a role to report.
 	createFlightWithCrew(t, c, "D-EVCD", []map[string]interface{}{
 		{"name": "Hans Müller", "role": "Instructor"},
 	})
@@ -360,8 +357,7 @@ func TestExportContactsVCardEmpty(t *testing.T) {
 	}
 }
 
-// Restoring a backup rebuilds the address book: contacts are not carried in the
-// backup format, so the crew names have to be re-linked by name on arrival.
+// Restoring a backup rebuilds the address book by re-linking crew names.
 func TestBackupRestoreRebuildsContacts(t *testing.T) {
 	source := NewE2EClient(t)
 	registerAndLogin(t, source, uniqueEmail("cnt-restore-src"), "SecurePass123!", "RestoreSrc")

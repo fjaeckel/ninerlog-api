@@ -18,9 +18,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// unguardedDial dials without the production SSRF guard so protocol tests can
-// reach the loopback test SSH server. SSRF-blocking behavior of the default
-// (guarded) dialer is covered separately in sftp_ssrf_test.go.
+// unguardedDial dials without the production SSRF guard; the guarded dialer
+// is covered in sftp_ssrf_test.go.
 func unguardedDial(ctx context.Context, network, addr string) (net.Conn, error) {
 	return (&net.Dialer{Timeout: 15 * time.Second}).DialContext(ctx, network, addr)
 }
@@ -407,11 +406,9 @@ func TestParseConfigRequiresCredentials(t *testing.T) {
 	}
 }
 
-// TestDialerTimeoutHonoured points the provider at an address that nothing
-// listens on and asserts we fail quickly via the dialer.
+// TestDialerTimeoutHonoured asserts a slow dial fails at the configured
+// timeout.
 func TestDialerTimeoutHonoured(t *testing.T) {
-	// Reserve a port by listening then immediately closing — the port is now
-	// almost certainly unbound. We use 127.0.0.1:1 instead to ensure refusal.
 	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		// Slow dialer.
 		select {

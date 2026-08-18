@@ -32,7 +32,7 @@ type ClassRatingCurrency struct {
 	// WindowOpen is only meaningful when WindowOpensAt is set. It is true
 	// once now >= WindowOpensAt; while false, flight experience does not
 	// yet count toward this rating's revalidation and Requirements is
-	// suppressed so the UI doesn't show misleading "not met" bars.
+	// suppressed.
 	WindowOpen           bool                   `json:"windowOpen"`
 	Message              string                 `json:"message"`
 	RuleDescription      string                 `json:"ruleDescription,omitempty"`

@@ -10,10 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Logout used to be entirely client-side: AuthService.Logout existed but was
-// never routed, and the frontend only cleared localStorage. The refresh token
-// stayed valid in the database for its full lifetime, so a retained copy could
-// resurrect the session after the user believed it had ended.
+// Asserts logout revokes the refresh token server-side.
 func TestLogout_RevokesRefreshToken(t *testing.T) {
 	h, _ := setupTestHandler()
 

@@ -85,7 +85,7 @@ func TestDurationFormats(t *testing.T) {
 
 func TestDurationOverflowRejected(t *testing.T) {
 	cases := []string{
-		"totalTime>1e308h",          // huge float, would overflow int on conversion
+		"totalTime>1e308h",          // huge float
 		"totalTime>999999999h",      // huge but finite decimal hours
 		"totalTime>NaNh",            // ParseFloat accepts "NaN"
 		"totalTime>Infh",            // ParseFloat accepts "Inf"
@@ -101,8 +101,7 @@ func TestDurationOverflowRejected(t *testing.T) {
 }
 
 func TestDurationAtBoundaryAllowed(t *testing.T) {
-	// One year in minutes/hours — the documented sane upper bound — should
-	// still parse successfully.
+	// One year in minutes/hours — the upper bound — parses.
 	cases := map[string]int{
 		"totalTime>8784h":   maxDurationMinutes,
 		"totalTime>527040":  maxDurationMinutes,
@@ -279,8 +278,8 @@ func TestParseErrors(t *testing.T) {
 }
 
 func TestTermLimit(t *testing.T) {
-	// Tagged conditions, not bare free-text terms, so this exercises the
-	// general maxQueryTerms cap rather than the stricter free-text cap below.
+	// Tagged conditions: exercises the general maxQueryTerms cap, not the
+	// free-text cap.
 	q := strings.TrimSpace(strings.Repeat("isPic:true ", maxQueryTerms+1))
 	if _, err := Parse(q); err == nil {
 		t.Fatal("term limit should be enforced")

@@ -13,10 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Tombstones are written by AFTER DELETE triggers, not by Go, precisely so that
-// deletes which never touch a repository still get recorded. That guarantee can
-// only be checked against real Postgres — a mock would just re-assert the
-// behaviour the trigger is there to provide.
+// TestDeletionTombstoneTriggersIntegration covers the AFTER DELETE tombstone
+// triggers against real Postgres.
 func TestDeletionTombstoneTriggersIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
@@ -38,7 +36,7 @@ func TestDeletionTombstoneTriggersIntegration(t *testing.T) {
 		return u.ID
 	}
 
-	// epoch is before anything this test creates, so "everything for this user".
+	// epoch is before anything this test creates.
 	epoch := time.Now().Add(-time.Hour)
 
 	listAll := func(t *testing.T, userID uuid.UUID) []*models.Deletion {
@@ -141,8 +139,7 @@ func TestDeletionTombstoneTriggersIntegration(t *testing.T) {
 			}
 		}
 
-		// This is the statement DeleteAllUserData issues; it never reaches a
-		// repository, which is why the recording lives in the database.
+		// Raw SQL delete, bypassing every repository.
 		if _, err := db.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1`, userID); err != nil {
 			t.Fatalf("bulk delete: %v", err)
 		}
@@ -161,10 +158,8 @@ func TestDeletionTombstoneTriggersIntegration(t *testing.T) {
 			t.Fatalf("create contact: %v", err)
 		}
 
-		// Deleting the user cascades to contacts. The trigger must skip those
-		// rows: the account is gone, so a tombstone has nobody to inform, and
-		// inserting one would reference a user that no longer exists. If this
-		// statement errors, the trigger is fighting the cascade.
+		// Deleting the user cascades to contacts; the trigger must skip the
+		// cascaded rows.
 		if _, err := db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, userID); err != nil {
 			t.Fatalf("delete user: %v", err)
 		}
@@ -246,7 +241,7 @@ func TestDeletionTombstoneTriggersIntegration(t *testing.T) {
 				t.Fatalf("create flight %d: %v", i, err)
 			}
 		}
-		// One statement, so every tombstone gets the same transaction NOW().
+		// One statement: every tombstone gets the same transaction NOW().
 		if _, err := db.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1`, userID); err != nil {
 			t.Fatalf("bulk delete: %v", err)
 		}

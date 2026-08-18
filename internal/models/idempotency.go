@@ -21,9 +21,7 @@ const (
 // that carried an `Idempotency-Key` header, scoped to the user who sent it.
 //
 // CreatedAt is the claim timestamp and doubles as a fencing token: only the
-// request that took the claim may finalize or release it, so a request that
-// took over an abandoned claim cannot have its record clobbered by the
-// original straggler.
+// request that took the claim may finalize or release it.
 type IdempotencyRecord struct {
 	UserID uuid.UUID
 	Key    string

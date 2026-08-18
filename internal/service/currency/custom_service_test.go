@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// mockCustomRepo is an in-memory CustomCurrencyRuleRepository for exercising the
-// service's authorization, quota, and sharing logic without a database. Paths
-// under test short-circuit before any flight evaluation, so the evaluator's DB
-// is never touched.
+// mockCustomRepo is an in-memory CustomCurrencyRuleRepository for exercising
+// the service's authorization, quota, and sharing logic without a database.
+// Paths under test short-circuit before any flight evaluation; the evaluator's
+// DB is never touched.
 type mockCustomRepo struct {
 	rules map[uuid.UUID]*models.CustomCurrencyRule
 }
@@ -278,8 +278,7 @@ func TestService_RejectsControlCharsInMetadata(t *testing.T) {
 	if _, err := svc.Create(ctx, owner, crInjection); !IsValidationError(err) {
 		t.Errorf("carriage return in description should be rejected, got %v", err)
 	}
-	// A plain newline in a description is allowed (validated directly, so the
-	// nil-DB evaluator is not reached).
+	// A plain newline in a description is allowed.
 	nlDesc := "line1\nline2 is fine"
 	nlOK := validInput()
 	nlOK.Description = &nlDesc

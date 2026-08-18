@@ -9,12 +9,9 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/webdav"
 )
 
-// Config used to be copied through verbatim, so a caller could set keys the
-// provider reads but never declares. Three of those disabled transport
-// security: accept_any_host_key (no SSH host-key verification), allow_insecure
-// (plain http://) and use_ssl=false (plain HTTP to a custom S3 endpoint).
-// Because they were absent from ConfigSchema the UI could not render or warn
-// about them, even though the SFTP code comments assume such a warning exists.
+// Every security-relevant config key a provider reads must appear in its
+// ConfigSchema: accept_any_host_key (SFTP), allow_insecure (WebDAV),
+// use_ssl (S3).
 func TestEverySecurityRelevantConfigKeyIsDeclared(t *testing.T) {
 	cases := []struct {
 		name   string

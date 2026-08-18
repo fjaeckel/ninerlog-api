@@ -9,12 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// The /files sub-collection sits in the middle of a path and has per-item
-// routes under it, so neither prefix nor suffix matching covers both
-// "/licenses/{id}/files" and "/licenses/{id}/files/{imageId}". And reads and
-// writes there need different budgets: uploading is heavy and deliberate,
-// while a list page fetches images once per card and again on every revisit.
-// One shared bucket made the read path 429 long before any upload was abusive.
+// Segment matching covers both "/licenses/{id}/files" and
+// "/licenses/{id}/files/{imageId}" with one predicate, with separate read and
+// write budgets.
 
 func newFileRouter(t *testing.T, attach func(*gin.RouterGroup)) *gin.Engine {
 	t.Helper()
@@ -59,8 +56,7 @@ func TestRateLimitByPathSegment_LeavesOtherRoutesAlone(t *testing.T) {
 	}
 }
 
-// The property the split exists for: hammering reads must not consume the
-// write budget, and vice versa.
+// Hammering reads must not consume the write budget, and vice versa.
 func TestRateLimitByPathSegmentForMethods_SeparatesReadsFromWrites(t *testing.T) {
 	r := newFileRouter(t, func(api *gin.RouterGroup) {
 		api.Use(RateLimitByPathSegmentForMethods(

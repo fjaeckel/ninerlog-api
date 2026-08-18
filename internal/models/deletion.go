@@ -30,8 +30,7 @@ func ValidDeletionEntityTypes() []DeletionEntityType {
 	}
 }
 
-// IsValid reports whether the value is one the trigger can produce. Anything
-// else in a request is a client error, not an empty result.
+// IsValid reports whether the value is one the trigger can produce.
 func (e DeletionEntityType) IsValid() bool {
 	for _, valid := range ValidDeletionEntityTypes() {
 		if e == valid {
@@ -42,8 +41,7 @@ func (e DeletionEntityType) IsValid() bool {
 }
 
 // Deletion is a tombstone: the record identified by EntityType/EntityID no
-// longer exists. It carries no payload beyond the identity and the timestamp —
-// a client only needs to know what to drop from its local store.
+// longer exists.
 type Deletion struct {
 	UserID     uuid.UUID          `json:"-"`
 	EntityType DeletionEntityType `json:"entity"`

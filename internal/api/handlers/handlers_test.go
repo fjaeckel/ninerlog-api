@@ -1433,8 +1433,7 @@ func TestLogin2FA_InvalidBody(t *testing.T) {
 	}
 }
 
-// A 2FA account only gets its session here — LoginUser answered the password
-// with a challenge — so this is where the login is recorded.
+// A 2FA account's last-login is recorded here, not in LoginUser.
 func TestLogin2FA_RecordsLastLogin(t *testing.T) {
 	h, userRepo := setupTestHandler()
 

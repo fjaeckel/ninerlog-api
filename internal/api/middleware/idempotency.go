@@ -17,22 +17,19 @@ import (
 )
 
 // HeaderIdempotencyKey is the request header a client sets to make a mutating
-// request safe to retry. Spelled as in the IETF "Idempotency-Key Header Field"
-// draft, which is what HTTP clients and API tooling already expect.
+// request safe to retry (spelled as in the IETF "Idempotency-Key Header
+// Field" draft).
 const HeaderIdempotencyKey = "Idempotency-Key"
 
 // HeaderIdempotencyReplayed is set on a response served from a stored record
-// rather than by executing the request. Clients use it to tell "my write was
-// applied just now" from "my write had already been applied".
+// rather than by executing the request.
 const HeaderIdempotencyReplayed = "Idempotency-Replayed"
 
-// maxIdempotencyKeyLength bounds what a client may send. Long enough for a
-// UUID, a ULID, or a namespaced client-side queue ID.
+// maxIdempotencyKeyLength bounds the client-supplied key.
 const maxIdempotencyKeyLength = 255
 
 // maxFingerprintBodyBytes is the largest request body hashed into the
-// fingerprint. Matches the default JSON body cap, so every ordinary write is
-// covered and only the deliberately-large endpoints opt out.
+// fingerprint.
 const maxFingerprintBodyBytes = 1 << 20
 
 // IdempotencyRequestsTotal counts requests that carried an Idempotency-Key,
@@ -51,7 +48,7 @@ func init() {
 }
 
 // IdempotencyStore is the slice of the idempotency service this middleware
-// needs. Declared here so the middleware can be unit-tested without a database.
+// needs.
 type IdempotencyStore interface {
 	Begin(ctx context.Context, userID uuid.UUID, key string, requestHash []byte) (service.IdempotencyClaim, error)
 	Finish(ctx context.Context, userID uuid.UUID, key string, claimedAt time.Time, resp service.IdempotentResponse) error
@@ -60,31 +57,21 @@ type IdempotencyStore interface {
 }
 
 // IdempotencyMiddleware makes mutating requests safe to retry when the client
-// opts in with an `Idempotency-Key` header.
-//
-// The header is the entire opt-in. A request without it takes exactly the path
-// it took before this middleware existed — which is what keeps the current
-// frontend, and every other existing client, unaffected — while a client that
-// queues writes offline can replay its queue without risking a duplicate
-// logbook entry.
+// opts in with an `Idempotency-Key` header; a request without the header
+// passes through untouched.
 //
 // Shape of the guarantee:
 //
-//   - Scoped per authenticated user. Unauthenticated endpoints (login,
-//     registration, password reset) are not covered: there is no user to key
-//     the record by, and re-running them is not a logbook-integrity problem.
+//   - Scoped per authenticated user; unauthenticated endpoints are not
+//     covered.
 //   - The first request with a key executes; concurrent duplicates get 409;
 //     later duplicates get the stored response verbatim, plus
 //     `Idempotency-Replayed: true`.
-//   - Reusing one key for a different request body gets 422 rather than the
-//     first request's answer.
-//   - Server errors (5xx) and panics release the key, because a 5xx says
-//     nothing about whether the write landed and the client must stay free to
-//     retry.
+//   - Reusing one key for a different request body gets 422.
+//   - Server errors (5xx) and panics release the key.
 //
 // It must be registered after AuthMiddleware (it reads "userID" from the
-// context) and after the rate limiters, so a rejected request never consumes
-// a key.
+// context) and after the rate limiters.
 func IdempotencyMiddleware(store IdempotencyStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !isMutatingMethod(c.Request.Method) {
@@ -104,10 +91,7 @@ func IdempotencyMiddleware(store IdempotencyStore) gin.HandlerFunc {
 			return
 		}
 
-		// No authenticated user means no record to key by. Pass the request
-		// through untouched rather than failing it: an offline client that
-		// sets the header on every queued request should not have its login
-		// rejected for it.
+		// Without an authenticated user the request passes through untouched.
 		userID, ok := c.Get("userID")
 		uid, isUUID := userID.(uuid.UUID)
 		if !ok || !isUUID {
@@ -117,9 +101,6 @@ func IdempotencyMiddleware(store IdempotencyStore) gin.HandlerFunc {
 
 		hash, err := fingerprintRequest(c)
 		if err != nil {
-			// The only way to fail here is an unreadable or over-sized body,
-			// which MaxBodyBytesMiddleware already rejects downstream with the
-			// same status.
 			IdempotencyRequestsTotal.WithLabelValues("body_error").Inc()
 			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Request body too large"})
 			return
@@ -127,10 +108,7 @@ func IdempotencyMiddleware(store IdempotencyStore) gin.HandlerFunc {
 
 		claim, err := store.Begin(c.Request.Context(), uid, key, hash)
 		if err != nil {
-			// Fail closed. The client asked for exactly-once; quietly
-			// downgrading it to at-least-once is how duplicate entries are
-			// created, and a 503 is something an offline queue already knows
-			// how to handle.
+			// Fail closed with 503.
 			slog.Warn("Idempotency claim failed", "error", err, "path", c.Request.URL.Path)
 			IdempotencyRequestsTotal.WithLabelValues("unavailable").Inc()
 			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
@@ -168,30 +146,24 @@ func IdempotencyMiddleware(store IdempotencyStore) gin.HandlerFunc {
 		writer := &capturingWriter{ResponseWriter: c.Writer, limit: store.MaxResponseBytes()}
 		c.Writer = writer
 
-		// Deferred so a panic unwinding to the recovery middleware settles the
-		// claim too — a panicking request has no response worth replaying, and
-		// leaving the claim behind would answer the retry with a 409 instead.
+		// Deferred: the claim is settled even when a panic unwinds to the
+		// recovery middleware.
 		defer settleClaim(c, store, uid, key, claim.ClaimedAt, writer)
 
 		c.Next()
 	}
 }
 
-// settleClaim either stores the captured response or releases the claim.
-//
-// It deliberately uses a background context: the request context may already
-// be cancelled (client hung up, or the request timeout fired) at exactly the
-// moment a stored response matters most — that is the "server committed, client
-// never heard" case this whole mechanism exists for.
+// settleClaim either stores the captured response or releases the claim, on a
+// fresh background context.
 func settleClaim(c *gin.Context, store IdempotencyStore, userID uuid.UUID, key string, claimedAt time.Time, w *capturingWriter) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	status := w.Status()
 	if status >= http.StatusInternalServerError || !w.wroteHeader {
-		// A 5xx (or a panic, which unwinds before any status is set) says
-		// nothing about whether the write landed, so the client must stay
-		// free to retry.
+		// A 5xx, or a panic that unwound before any status was set, releases
+		// the claim.
 		if err := store.Abandon(ctx, userID, key, claimedAt); err != nil {
 			slog.Warn("Releasing idempotency claim failed", "error", err, "path", c.Request.URL.Path)
 		}
@@ -206,16 +178,12 @@ func settleClaim(c *gin.Context, store IdempotencyStore, userID uuid.UUID, key s
 	if !w.truncated {
 		resp.Body = w.body.Bytes()
 	} else {
-		// Over the cap: mark the key consumed with no response. Finish records
-		// that as "completed, not replayable", so the retry is refused rather
-		// than re-executed — re-executing is the duplicate we are here to
-		// prevent.
+		// Over the cap: the key is marked consumed with no replayable response.
 		resp.Status = 0
 		resp.ContentType = ""
 	}
 	if err := store.Finish(ctx, userID, key, claimedAt, resp); err != nil {
-		// The response has already gone out; all that is lost is the ability
-		// to replay it. The stale claim expires on its own lease.
+		// The stale claim expires on its own lease.
 		slog.Warn("Storing idempotent response failed", "error", err, "path", c.Request.URL.Path)
 	}
 	IdempotencyRequestsTotal.WithLabelValues("executed").Inc()
@@ -245,9 +213,7 @@ func isMutatingMethod(method string) bool {
 	}
 }
 
-// validIdempotencyKey accepts bounded, printable-ASCII keys. Rejecting
-// anything else keeps control characters and non-ASCII bytes out of logs and
-// out of the primary key, and costs clients nothing: UUIDs and ULIDs qualify.
+// validIdempotencyKey accepts bounded, printable-ASCII keys.
 func validIdempotencyKey(key string) bool {
 	if len(key) == 0 || len(key) > maxIdempotencyKeyLength {
 		return false
@@ -260,15 +226,9 @@ func validIdempotencyKey(key string) bool {
 	return true
 }
 
-// fingerprintRequest hashes what makes this request unique: method, path and
-// query, plus the body. It leaves the body readable by the handler.
-//
-// Bulk payloads — multipart uploads, the 50 MB logbook restore, anything sent
-// chunked with no declared length — are fingerprinted by method and path
-// alone. Buffering them a second time to hash them would cost more than the
-// check is worth, and a bulk upload is not what a client varies between
-// retries of the same queued write. Only the mismatch *diagnostic* weakens;
-// the replay guarantee itself is unaffected.
+// fingerprintRequest hashes method, path and query, plus the body, leaving
+// the body readable by the handler. Multipart, chunked, and over-cap bodies
+// are fingerprinted by method and path alone.
 func fingerprintRequest(c *gin.Context) ([]byte, error) {
 	h := sha256.New()
 	h.Write([]byte(c.Request.Method))
@@ -293,12 +253,8 @@ func fingerprintRequest(c *gin.Context) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-// capturingWriter tees the response body into a buffer so it can be stored
-// for replay, stopping at limit bytes rather than growing without bound.
-//
-// It also records whether a status was ever set. gin's own Written() only
-// flips once bytes reach the socket, which would misread an empty 204 (the
-// shape of every successful DELETE here) as "no response produced".
+// capturingWriter tees the response body into a buffer, stopping at limit
+// bytes, and records whether a status was ever set.
 type capturingWriter struct {
 	gin.ResponseWriter
 	body        bytes.Buffer
@@ -329,8 +285,7 @@ func (w *capturingWriter) capture(b []byte) {
 		return
 	}
 	if w.body.Len()+len(b) > w.limit {
-		// Release what was buffered: a partial body is worse than none, since
-		// the caller must not replay it.
+		// Drop the partial buffer.
 		w.truncated = true
 		w.body.Reset()
 		return

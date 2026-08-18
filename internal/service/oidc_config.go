@@ -10,22 +10,18 @@ import (
 	"time"
 )
 
-// OIDC login mode.
-//
-// NinerLog runs in exactly one authentication mode. Setting OIDC_ISSUER
-// switches the deployment to OIDC and turns off every local credential path —
-// passwords, registration, password reset, TOTP and passkeys — because in that
-// mode the identity provider owns accounts entirely and a surviving local
-// credential would be a way around it.
+// OIDC login mode. NinerLog runs in exactly one authentication mode: setting
+// OIDC_ISSUER switches the deployment to OIDC and turns off every local
+// credential path — passwords, registration, password reset, TOTP and
+// passkeys.
 const (
-	// DefaultOIDCLoginStateTTL bounds how long a pending authorization request
-	// stays usable. Generous enough to type a password and pass MFA at the
-	// provider, short enough that abandoned logins age out quickly.
+	// DefaultOIDCLoginStateTTL bounds how long a pending authorization
+	// request stays usable.
 	DefaultOIDCLoginStateTTL = 10 * time.Minute
 
-	// DefaultOIDCHandoffTTL bounds the window between the provider redirecting
-	// the browser back and the SPA exchanging its code for tokens. This is a
-	// single automatic request, so it needs seconds, not minutes.
+	// DefaultOIDCHandoffTTL bounds the window between the provider
+	// redirecting the browser back and the SPA exchanging its code for
+	// tokens.
 	DefaultOIDCHandoffTTL = 60 * time.Second
 )
 
@@ -42,8 +38,7 @@ type OIDCConfig struct {
 	// provider (…/api/v1/auth/oidc/callback).
 	RedirectURL string
 	// PostLoginRedirect is the frontend URL the browser is sent to after a
-	// successful login. Fixed by configuration and never read from the
-	// request, so the callback cannot be turned into an open redirect.
+	// successful login. Fixed by configuration, never read from the request.
 	PostLoginRedirect string
 	// Scopes requested at the provider. "openid" is always included.
 	Scopes []string
@@ -53,13 +48,11 @@ type OIDCConfig struct {
 	NameClaim string
 	// LinkByVerifiedEmail lets a first OIDC login adopt a pre-existing local
 	// account with the same address, but only when the ID token asserts
-	// email_verified. Off by default: with an IdP where users choose their own
-	// address this is an account-takeover path.
+	// email_verified. Off by default.
 	LinkByVerifiedEmail bool
 	// TrustEmailVerified marks provisioned users as email-verified even when
-	// the ID token carries no email_verified claim. Needed for providers that
-	// omit it — and required for ADMIN_EMAIL to take effect, since admin
-	// status demands a verified address.
+	// the ID token carries no email_verified claim. Required for ADMIN_EMAIL
+	// to take effect with providers that omit the claim.
 	TrustEmailVerified bool
 	// LoginStateTTL and HandoffTTL bound the two single-use artefacts of a
 	// login round trip.
@@ -70,13 +63,8 @@ type OIDCConfig struct {
 // Enabled reports whether OIDC mode is switched on.
 func (c OIDCConfig) Enabled() bool { return c.Issuer != "" }
 
-// CookiePath scopes the login-state cookie to the OIDC endpoints.
-//
-// It is derived from the configured callback rather than hard-coded, because
-// the browser matches the cookie against the path *it* requested. A deployment
-// that mounts the API under a prefix (a reverse proxy serving NinerLog at
-// /backend, say) would otherwise store the cookie at a path the callback never
-// matches, and every login would fail with an unexplained invalid state.
+// CookiePath scopes the login-state cookie to the OIDC endpoints. It is
+// derived from the configured callback, including any reverse-proxy prefix.
 func (c OIDCConfig) CookiePath() string {
 	u, err := url.Parse(c.RedirectURL)
 	if err != nil || u.Path == "" {
@@ -90,11 +78,7 @@ func (c OIDCConfig) CookiePath() string {
 }
 
 // CookieSecure reports whether the login-state cookie must carry the Secure
-// attribute. Derived from the configured callback URL, not from the inbound
-// request: behind a TLS-terminating proxy the request reaching Go is plain
-// http, but the browser is on https and would silently drop a non-Secure
-// cookie set from a Secure context in modern browsers. Local http development
-// must conversely not set Secure, or the cookie is dropped there instead.
+// attribute, derived from the configured callback URL's scheme.
 func (c OIDCConfig) CookieSecure() bool {
 	return strings.HasPrefix(strings.ToLower(c.RedirectURL), "https://")
 }
@@ -104,10 +88,9 @@ func (c OIDCConfig) CookieSecure() bool {
 var ErrOIDCNotConfigured = errors.New("oidc is not configured")
 
 // LoadOIDCConfig reads OIDC configuration from the environment. It returns a
-// disabled config (and no error) when OIDC_ISSUER is unset. When the issuer is
-// set, every other mandatory value must be present and well-formed: a
-// half-configured identity provider must stop startup rather than leave a
-// deployment that can neither log in locally nor via OIDC.
+// disabled config (and no error) when OIDC_ISSUER is unset. When the issuer
+// is set, every other mandatory value must be present and well-formed or
+// startup stops.
 func LoadOIDCConfig() (OIDCConfig, error) {
 	cfg := OIDCConfig{
 		Issuer:              strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
@@ -148,8 +131,8 @@ func LoadOIDCConfig() (OIDCConfig, error) {
 		return cfg, err
 	}
 
-	// The issuer must not carry a query or fragment: it is compared verbatim
-	// against the `iss` claim, and a provider never issues one with either.
+	// The issuer must not carry a query or fragment; it is compared verbatim
+	// against the `iss` claim.
 	if u, _ := url.Parse(cfg.Issuer); u != nil && (u.RawQuery != "" || u.Fragment != "") {
 		return cfg, errors.New("OIDC_ISSUER must not contain a query string or fragment")
 	}
@@ -175,9 +158,8 @@ func LoadOIDCConfig() (OIDCConfig, error) {
 	return cfg, nil
 }
 
-// parseOIDCScopes normalises the configured scope list. "openid" is mandatory
-// per the spec, so it is added when the operator leaves it out, and duplicates
-// are dropped so the authorization URL stays clean.
+// parseOIDCScopes normalises the configured scope list: "openid" is added
+// when absent and duplicates are dropped.
 func parseOIDCScopes(raw string) []string {
 	fields := strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == ' '
@@ -201,9 +183,7 @@ func parseOIDCScopes(raw string) []string {
 	return scopes
 }
 
-// requireAbsoluteURL rejects values that are not absolute http(s) URLs. A
-// relative or scheme-less value here would produce a broken authorization URL
-// or, worse, a redirect the browser resolves against the API's own origin.
+// requireAbsoluteURL rejects values that are not absolute http(s) URLs.
 func requireAbsoluteURL(key, raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -218,8 +198,7 @@ func requireAbsoluteURL(key, raw string) error {
 	return nil
 }
 
-// envBool treats only the explicit affirmative spellings as true, so a typo
-// never silently switches on a security-relevant behaviour.
+// envBool treats only the explicit affirmative spellings as true.
 func envBool(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
 	case "1", "true", "yes", "on":
@@ -229,10 +208,8 @@ func envBool(key string) bool {
 	}
 }
 
-// envDuration parses an optional Go duration. Unlike the tuning knobs in
-// cmd/api, an unparseable value here is an error rather than a warning: these
-// bound how long a security artefact stays valid, and silently keeping the
-// default would hide a misconfiguration the operator believes is in effect.
+// envDuration parses an optional Go duration; an unparseable value is an
+// error.
 func envDuration(key string) (time.Duration, error) {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {

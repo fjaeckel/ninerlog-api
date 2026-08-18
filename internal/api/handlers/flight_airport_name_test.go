@@ -8,11 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Airport names are resolved fresh on every response rather than stored with
-// the flight, so convertToGeneratedFlight must fill them in from the airport
-// database — and must leave them nil for locations that do not resolve, since
-// off-airport sites are stored as free text and the client falls back to
-// rendering the raw stored value.
+// Asserts convertToGeneratedFlight fills in airport names from the airport
+// database, and leaves them nil for locations that do not resolve.
 func TestConvertToGeneratedFlight_AirportNames(t *testing.T) {
 	airports.SetTestDB(map[string]airports.AirportInfo{
 		"EDDF": {ICAO: "EDDF", Name: "Frankfurt am Main Airport", Latitude: 50.0333, Longitude: 8.5706},

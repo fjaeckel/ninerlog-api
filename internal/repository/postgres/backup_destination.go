@@ -176,11 +176,9 @@ func (r *backupDestinationRepository) Delete(ctx context.Context, id uuid.UUID) 
 	return nil
 }
 
-// ListDueForRun returns enabled, non-paused destinations whose schedule says
-// they are due to run at or before `now`. The schedule check is intentionally
-// generous: any destination whose schedule_hour_utc matches the current UTC
-// hour AND whose previous successful run was on an earlier calendar day (for
-// daily), week (for weekly), or month (for monthly) is returned. The service
+// ListDueForRun returns enabled, active destinations whose schedule_hour_utc
+// matches the current UTC hour and whose previous successful run was on an
+// earlier calendar day (daily), week (weekly), or month (monthly). The service
 // layer is responsible for at-most-once-per-window semantics via
 // last_success_at.
 func (r *backupDestinationRepository) ListDueForRun(ctx context.Context, now time.Time) ([]*models.BackupDestination, error) {
@@ -219,8 +217,7 @@ func (r *backupDestinationRepository) ListDueForRun(ctx context.Context, now tim
 	return out, rows.Err()
 }
 
-// rowScanner abstracts *sql.Row and *sql.Rows so we can share the column
-// decoding logic.
+// rowScanner abstracts *sql.Row and *sql.Rows.
 type rowScanner interface {
 	Scan(dest ...any) error
 }
