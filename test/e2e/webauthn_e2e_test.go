@@ -7,11 +7,9 @@ import (
 	"testing"
 )
 
-// TestWebAuthnEndpoints exercises the contract / wiring of the new
-// /auth/webauthn/* endpoints without performing a full ceremony — full
-// register/login flows are exercised from the frontend Playwright suite using
-// Chromium's virtual authenticator. The server must be configured with
-// WEBAUTHN_RP_ID for these tests to be meaningful.
+// TestWebAuthnEndpoints exercises the contract of the /auth/webauthn/*
+// endpoints without performing a full ceremony. The server must be configured
+// with WEBAUTHN_RP_ID for these tests to be meaningful.
 func TestWebAuthnEndpoints(t *testing.T) {
 	c := NewE2EClient(t)
 

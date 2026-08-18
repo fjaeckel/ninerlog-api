@@ -188,10 +188,8 @@ func TestValidateAccessDenied(t *testing.T) {
 }
 
 func TestListInvalidCredentials(t *testing.T) {
-	// Use List() because BucketExists (HEAD) discards the body and the SDK
-	// can only see the HTTP status, which the BucketExists call short-circuits
-	// before classifyError sees an InvalidCredentials code. List() issues a
-	// GET that carries the XML <Error><Code> payload through.
+	// List() issues a GET whose XML <Error><Code> payload reaches
+	// classifyError.
 	fake, host := startFakeS3(t)
 	fake.signatureError = true
 	p := NewWithHTTPClient(http.DefaultClient)

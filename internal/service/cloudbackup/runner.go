@@ -19,15 +19,14 @@ import (
 // RunRequest describes a single backup execution.
 type RunRequest struct {
 	DestinationID uuid.UUID
-	// UserID must match the destination's owner; the runner re-checks this
-	// to guarantee scheduler bugs cannot leak data across tenants.
+	// UserID must match the destination's owner; the runner re-checks it.
 	UserID  uuid.UUID
 	Trigger models.BackupRunTrigger
 }
 
-// runLocks serializes concurrent runs against the same destination. The
-// runner uses tryLock semantics so that a manual "Run now" while another
-// run is in progress fails fast with ErrConcurrentRun rather than queueing.
+// runLocks serializes concurrent runs against the same destination, with
+// tryLock semantics: a run while another is in progress fails fast with
+// ErrConcurrentRun.
 type runLocks struct {
 	mu       sync.Mutex
 	inflight map[uuid.UUID]struct{}
@@ -53,8 +52,7 @@ func (l *runLocks) release(id uuid.UUID) {
 	l.mu.Unlock()
 }
 
-// ensureRunLocks lazily initialises the per-destination lock map. This is a
-// method on Service so we can keep state across RunOnce calls.
+// ensureRunLocks lazily initialises the per-destination lock map.
 func (s *Service) ensureRunLocks() {
 	if s.runLocks == nil {
 		s.runLocks = newRunLocks()
@@ -75,7 +73,7 @@ func (s *Service) ensureRunLocks() {
 //  6. Persist a BackupRun row and update the destination's status.
 //
 // Errors at any step are recorded as a "failed" BackupRun with a sanitised
-// message; the function returns the original error so callers can surface it.
+// message; the function returns the original error.
 func (s *Service) RunOnce(ctx context.Context, req RunRequest) (*models.BackupRun, error) {
 	s.ensureRunLocks()
 
@@ -140,7 +138,7 @@ func (s *Service) RunOnce(ctx context.Context, req RunRequest) (*models.BackupRu
 	}
 	defer reader.Close()
 
-	// Snapshot counts immediately so we record them even on upload failure.
+	// Snapshot counts before the upload.
 	run.SHA256 = meta.SHA256
 	run.SizeBytes = &meta.SizeBytes
 	run.FlightCount = ptrInt(meta.FlightCount)
@@ -148,15 +146,13 @@ func (s *Service) RunOnce(ctx context.Context, req RunRequest) (*models.BackupRu
 	run.LicenseCount = ptrInt(meta.LicenseCount)
 	run.CredentialCount = ptrInt(meta.CredentialCount)
 
-	// Skip-if-unchanged: if the previous *successful* run produced the same
-	// hash, we record a "skipped" run without touching the remote store.
+	// Skip-if-unchanged: the previous successful run produced the same hash —
+	// record a "skipped" run without touching the remote store.
 	if d.LastSuccessSHA256 != "" && d.LastSuccessSHA256 == meta.SHA256 {
 		return finalize(models.BackupRunStatusSkipped, nil)
 	}
 
-	// Read the body into memory once so the provider can use Content-Length;
-	// the gzipped JSON is small (kBs) so this is cheap and simpler than
-	// computing a teeing reader twice.
+	// Read the body into memory so the upload carries Content-Length.
 	body, err := io.ReadAll(reader)
 	if err != nil {
 		return finalize(models.BackupRunStatusFailed, err)
@@ -175,9 +171,8 @@ func (s *Service) RunOnce(ctx context.Context, req RunRequest) (*models.BackupRu
 	}
 	run.RemotePath = res.RemotePath
 
-	// Retention pruning runs best-effort: a failure here does NOT fail the
-	// run (the backup itself succeeded), but it does get logged in the
-	// destination's last_error field.
+	// Retention pruning is best-effort: a failure does not fail the run, only
+	// lands in the destination's last_error field.
 	if d.RetentionCount > 0 {
 		if err := s.prune(ctx, d, p, cfg, creds); err != nil {
 			d.LastError = sanitizeMessage(err)

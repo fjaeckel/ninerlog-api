@@ -163,9 +163,8 @@ var faaInstrumentRule = ratingRule{
 // instead of "takeoffs": 3 launches and landings in the preceding 90 days.
 // Night and IR currency are not applicable for gliders.
 //
-// The description deliberately defaults to the passenger text and is only
-// upgraded to the glider-specific text after a successful data fetch, matching
-// the historical behaviour on the error path.
+// The description defaults to the passenger text and is upgraded to the
+// glider-specific text after a successful data fetch.
 var faaGliderRule = ratingRule{
 	displayKey:  "faa_pax_day_night",
 	description: "Requires 3 takeoffs & landings in preceding 90 days in same category/class for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57)",
@@ -240,9 +239,8 @@ func plural(n int) string {
 	return "s"
 }
 
-// EvaluatePassengerCurrency evaluates FAA §61.57(a)/(b) as Tier 2 passenger currency.
-// This is separate from rating currency — FAA certificates don't expire, so passenger
-// currency IS the primary rolling metric for non-IR class ratings.
+// EvaluatePassengerCurrency evaluates FAA §61.57(a)/(b) as Tier 2 passenger
+// currency, separate from rating currency.
 func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, _ []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
 	since := time.Now().AddDate(0, 0, -90)
 	hasNight := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority)
@@ -332,19 +330,17 @@ func (e *FAAEvaluator) EvaluateFlightReview(ctx context.Context, userID uuid.UUI
 	return faaFlightReviewStatus(time.Now(), *lastReview)
 }
 
-// faaFlightReviewStatus is the pure decision behind EvaluateFlightReview, split
-// out so the expiry boundary can be tested against a fixed clock.
+// faaFlightReviewStatus is the pure decision behind EvaluateFlightReview.
 func faaFlightReviewStatus(now, lastReview time.Time) *FlightReviewStatus {
 	completedStr := lastReview.Format("2006-01-02")
 
-	// §61.56: "since the beginning of the 24th calendar month before the month
-	// in which that person acts as pilot in command"
-	// Simplified: review is valid for 24 calendar months from the end of the month it was completed.
+	// §61.56: valid for 24 calendar months from the end of the month the
+	// review was completed.
 	expiresOn := time.Date(lastReview.Year(), lastReview.Month()+25, 0, 0, 0, 0, 0, time.UTC) // last day of month + 24
 	expiresStr := expiresOn.Format("2006-01-02")
 
-	// expiresOn is midnight at the *start* of the last valid day, so the review
-	// stays valid through that whole day, up to midnight the following day.
+	// expiresOn is midnight at the start of the last valid day; validity runs
+	// through that whole day.
 	validUntil := expiresOn.AddDate(0, 0, 1)
 	daysUntilExpiry := int(validUntil.Sub(now).Hours() / 24)
 

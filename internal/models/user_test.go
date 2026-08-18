@@ -77,9 +77,7 @@ func TestNormalizeFlightListColumnMode(t *testing.T) {
 	}
 }
 
-// The frontend and the OpenAPI enum both key off these strings, and the time
-// columns' order decides which ones survive on a narrow screen. Freeze it so a
-// reordering has to be a deliberate edit here as well.
+// Asserts the exact contents and order of FlightListColumns.
 func TestFlightListColumnsIsStable(t *testing.T) {
 	want := []string{
 		"offOnBlock",

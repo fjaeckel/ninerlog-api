@@ -62,9 +62,7 @@ func (r *webauthnCredentialRepository) scan(row interface {
 	); err != nil {
 		return nil, err
 	}
-	// sign_count is stored as int64 but the WebAuthn spec defines it as a
-	// uint32. Clamp to the valid range to satisfy gosec G115 — values
-	// outside the range cannot occur for a well-behaved authenticator.
+	// sign_count is stored as int64; clamp to the uint32 range.
 	switch {
 	case signCount < 0:
 		c.SignCount = 0
@@ -165,13 +163,7 @@ func (r *webauthnSessionRepository) Create(ctx context.Context, s *models.WebAut
 	return err
 }
 
-// consumeQuery deletes and returns a session in a single statement, which makes
-// consumption exactly-once across concurrent requests and replicas with no
-// read-modify-write window.
-//
-// The `expires_at > NOW()` predicate is a correctness requirement, not an
-// optimisation: a lagging or stopped cleanup job must never make a stale
-// challenge usable.
+// consumeQuery atomically deletes and returns an unexpired session.
 const consumeQuery = `
 	DELETE FROM webauthn_sessions
 	 WHERE id_hash = $1 AND ceremony = $2 AND expires_at > NOW()

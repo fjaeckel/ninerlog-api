@@ -280,8 +280,7 @@ func (h *APIHandler) VoidFlightSignature(c *gin.Context, flightId generated.Flig
 
 // sendSignatureRequestEmailAndMark sends the "please sign" email to the
 // request's instructor address and records that it was sent. Errors are
-// swallowed (mirrors sendVerificationEmail): the operator can inspect SMTP
-// logs and the owner can resend from the UI.
+// swallowed.
 func (h *APIHandler) sendSignatureRequestEmailAndMark(c *gin.Context, userID uuid.UUID, sig *models.FlightSignature, signURL string) {
 	if h.emailSender == nil || sig.InstructorEmail == nil {
 		return

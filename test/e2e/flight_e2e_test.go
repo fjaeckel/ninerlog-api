@@ -261,7 +261,7 @@ func TestFlightNightTime(t *testing.T) {
 		var f map[string]interface{}
 		r.JSON(&f)
 		nt := gf(f, "nightTime")
-		// Night calc uses dep/arr times (1h10m ≈ 1.2h), not block time (1.5h)
+		// Night calc uses dep/arr times (1h10m), not block time (1.5h).
 		if nt < 1.0 {
 			t.Errorf("nightTime %.2f should be > 1.0 for winter evening flight", nt)
 		}

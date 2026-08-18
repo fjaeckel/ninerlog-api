@@ -90,7 +90,6 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	api := router.Group("/api/v1")
 	api.Use(AuthMiddleware(jwtMgr, []string{"/auth/login"}))
 	api.GET("/flights", func(c *gin.Context) {
-		// Verify the userID was set in context
 		ctxUserID, exists := c.Get("userID")
 		if !exists {
 			t.Error("userID not set in context")
@@ -113,11 +112,8 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	}
 }
 
-// TestAuthMiddleware_Rejects2FAChallengeToken is the end-to-end regression test
-// for the 2FA-bypass vulnerability. The short-lived twoFactorToken issued after
-// the password step must NOT be accepted as a Bearer access token on protected
-// routes — otherwise an attacker with only the password could skip the TOTP
-// step entirely.
+// TestAuthMiddleware_Rejects2FAChallengeToken asserts a 2FA challenge token
+// is not accepted as a Bearer access token on protected routes.
 func TestAuthMiddleware_Rejects2FAChallengeToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	jwtMgr := newTestJWTManager()
@@ -144,12 +140,8 @@ func TestAuthMiddleware_Rejects2FAChallengeToken(t *testing.T) {
 	}
 }
 
-// TestAuthMiddleware_PublicPath_WithPathParam is the regression test for a
-// bug where publicPaths entries shaped as a gin route pattern (e.g.
-// "/sign/:token") never matched because the middleware only compared against
-// the literal incoming request path. Real requests like "/sign/abc123" would
-// silently 401 despite being listed as public. AuthMiddleware must also
-// check c.FullPath() (the resolved route pattern) for this to work.
+// TestAuthMiddleware_PublicPath_WithPathParam asserts a publicPaths entry
+// shaped as a gin route pattern ("/sign/:token") matches via c.FullPath().
 func TestAuthMiddleware_PublicPath_WithPathParam(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	jwtMgr := newTestJWTManager()
@@ -172,9 +164,7 @@ func TestAuthMiddleware_PublicPath_WithPathParam(t *testing.T) {
 		t.Errorf("Parameterized public path returned %d, want 200", w.Code)
 	}
 
-	// A different parameterized route that is NOT in publicPaths must still
-	// require auth — the pattern-matching fix must not make every
-	// parameterized route public.
+	// A parameterized route not in publicPaths must still require auth.
 	req2 := httptest.NewRequest("GET", "/api/v1/flights/some-id", nil)
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
@@ -186,7 +176,7 @@ func TestAuthMiddleware_PublicPath_WithPathParam(t *testing.T) {
 
 func TestAuthMiddleware_ExpiredToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	// Create manager with 0 expiry so tokens are instantly expired
+	// Negative expiry: tokens are already expired when minted.
 	jwtMgr := jwt.NewManager("test-access-secret", "test-refresh-secret", -1*time.Second, 7*24*time.Hour)
 	userID := uuid.New()
 

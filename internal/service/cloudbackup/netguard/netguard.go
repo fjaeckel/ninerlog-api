@@ -1,15 +1,7 @@
 // Package netguard restricts the network destinations the cloud-backup
-// subsystem is allowed to connect to, mitigating server-side request forgery
-// (SSRF). Backup destinations (S3 endpoint, WebDAV base URL, SFTP host) are
-// fully user-controlled, so without a guard an authenticated user could point
-// a destination at cloud metadata (169.254.169.254), loopback, or other
-// internal services and use the connection result to probe the internal
-// network.
-//
-// The guard is applied as a net.Dialer Control hook, which runs against the
-// concrete IP that will actually be dialed *after* DNS resolution. That closes
-// the DNS-rebinding hole where a hostname resolves to a public address during
-// validation and a private one at connect time.
+// subsystem is allowed to connect to (SSRF mitigation). The guard is applied
+// as a net.Dialer Control hook, which runs against the concrete IP that will
+// actually be dialed, after DNS resolution.
 package netguard
 
 import (
@@ -23,9 +15,7 @@ import (
 )
 
 // AllowPrivateNetworksEnv, when set to "true", permits connections to RFC-1918 /
-// unique-local / CGNAT ranges. This is the opt-in switch for self-hosted
-// deployments that legitimately back up to a NAS on the local network.
-// Loopback, link-local (including cloud metadata), unspecified, and multicast
+// unique-local / CGNAT ranges. Loopback, link-local, unspecified, and multicast
 // addresses are always blocked regardless of this setting.
 const AllowPrivateNetworksEnv = "BACKUP_ALLOW_PRIVATE_NETWORKS"
 
@@ -53,14 +43,12 @@ func (g *Guard) blockedReason(ip net.IP) string {
 	if ip == nil {
 		return "unparseable address"
 	}
-	// Normalize IPv4-in-IPv6 so the To4-based checks below behave consistently.
+	// Normalize IPv4-in-IPv6.
 	if v4 := ip.To4(); v4 != nil {
 		ip = v4
 	}
-	// NAT64 (64:ff9b::/96) and IPv4-compatible IPv6 (::a.b.c.d) both wrap an
-	// IPv4 address that Go's To4 does not unwrap, so the checks below would
-	// otherwise miss e.g. 64:ff9b::7f00:1 (127.0.0.1) or ::169.254.169.254.
-	// Re-evaluate against the embedded address.
+	// Re-evaluate NAT64 (64:ff9b::/96) and IPv4-compatible IPv6 (::a.b.c.d)
+	// against the embedded IPv4 address.
 	if v4 := embeddedIPv4(ip); v4 != nil {
 		if reason := g.blockedReason(v4); reason != "" {
 			return "embedded IPv4 " + reason
@@ -73,8 +61,7 @@ func (g *Guard) blockedReason(ip net.IP) string {
 	case ip.IsUnspecified():
 		return "unspecified address"
 	case ip.IsLinkLocalUnicast(), ip.IsLinkLocalMulticast():
-		// Covers 169.254.0.0/16 (incl. the 169.254.169.254 metadata endpoint)
-		// and fe80::/10.
+		// 169.254.0.0/16 and fe80::/10.
 		return "link-local address"
 	case ip.IsMulticast(), ip.IsInterfaceLocalMulticast():
 		return "multicast address"
@@ -95,9 +82,8 @@ var nat64Prefix = net.IPNet{
 	Mask: net.CIDRMask(96, 128),
 }
 
-// embeddedIPv4 returns the IPv4 address wrapped inside an IPv6 address for the
-// forms Go's To4 does not unwrap: NAT64 (64:ff9b::/96) and the deprecated
-// IPv4-compatible form (::a.b.c.d). Returns nil when there is none.
+// embeddedIPv4 returns the IPv4 address wrapped inside a NAT64 (64:ff9b::/96)
+// or IPv4-compatible (::a.b.c.d) IPv6 address, or nil when there is none.
 func embeddedIPv4(ip net.IP) net.IP {
 	if len(ip) != net.IPv6len || ip.To4() != nil {
 		return nil
@@ -105,8 +91,7 @@ func embeddedIPv4(ip net.IP) net.IP {
 	if nat64Prefix.Contains(ip) {
 		return net.IPv4(ip[12], ip[13], ip[14], ip[15])
 	}
-	// ::a.b.c.d — all-zero high 96 bits, non-zero low 32. Excludes :: and ::1,
-	// which the unspecified/loopback checks already cover.
+	// ::a.b.c.d — all-zero high 96 bits, non-zero low 32; excludes :: and ::1.
 	if isZeros(ip[0:12]) && !(ip[12] == 0 && ip[13] == 0 && ip[14] == 0 && ip[15] <= 1) {
 		return net.IPv4(ip[12], ip[13], ip[14], ip[15])
 	}
@@ -122,9 +107,7 @@ func isZeros(b []byte) bool {
 	return true
 }
 
-// reservedRanges are IPv4 blocks that are not private per RFC 1918 but are not
-// legitimate backup destinations either, and are routinely used to reach
-// infrastructure that should be unreachable from user-supplied config.
+// reservedRanges are non-RFC-1918 IPv4 blocks that are always blocked.
 var reservedRanges = []struct {
 	cidr string
 	name string
@@ -214,11 +197,7 @@ func (g *Guard) DialContext(ctx context.Context, network, addr string) (net.Conn
 // used by the S3 and WebDAV providers.
 func (g *Guard) HTTPTransport() *http.Transport {
 	return &http.Transport{
-		// Proxy is deliberately nil. With ProxyFromEnvironment, a deployment
-		// that sets HTTP(S)_PROXY would have the connection dialled to the
-		// PROXY, so the Control hook below would validate the proxy's address
-		// rather than the user-supplied backup target -- silently voiding the
-		// entire SSRF guard.
+		// Proxy stays nil; environment proxies are never consulted.
 		Proxy:                 nil,
 		DialContext:           g.Dialer(10 * time.Second).DialContext,
 		ForceAttemptHTTP2:     true,

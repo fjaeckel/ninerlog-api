@@ -25,8 +25,7 @@ func (h *APIHandler) GetAnnouncements(c *gin.Context) {
 
 	now := time.Now()
 
-	// 1. Fetch active system announcements. Best-effort: the hints below are
-	// still useful when the announcement query fails.
+	// 1. Fetch active system announcements; a failure yields an empty list.
 	var announcements []generated.Announcement
 	if active, err := h.announcementRepo.ListActive(c.Request.Context(), now); err == nil {
 		for _, sa := range active {

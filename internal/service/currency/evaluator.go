@@ -43,9 +43,8 @@ type Evaluator interface {
 // to provide Tier 2 passenger currency evaluation (FCL.060(b) / §61.57(a)/(b)).
 // This is separate from Tier 1 rating currency.
 //
-// peerRatings contains all class ratings on the same license — used by EASA
-// FCL.060(b)(2)(ii) to detect whether the pilot holds an IR (which exempts
-// the night-landing requirement).
+// peerRatings contains all class ratings on the same license (EASA
+// FCL.060(b)(2)(ii) IR detection).
 type PassengerCurrencyEvaluator interface {
 	EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency
 }

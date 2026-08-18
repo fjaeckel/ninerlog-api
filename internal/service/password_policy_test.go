@@ -25,8 +25,7 @@ func TestValidatePassword(t *testing.T) {
 		{"one below minimum", "Abcdefghi1!", ErrPasswordTooShort},
 		{"one above maximum", strings.Repeat("aB1!", 18) + "x", ErrPasswordTooLong},
 		{"multibyte pushes past the byte limit", strings.Repeat("ü", 36) + "aB1!", ErrPasswordTooLong},
-		// Length is checked before complexity, so a short password that also
-		// misses classes reports the length problem.
+		// Length is checked before complexity.
 		{"short and weak reports too short", "abc", ErrPasswordTooShort},
 
 		// Complexity — each class missing in turn, all at valid length
@@ -48,8 +47,8 @@ func TestValidatePassword(t *testing.T) {
 	}
 }
 
-// A password at exactly the bcrypt ceiling must be accepted, and one byte more
-// rejected — the boundary the max-length rule exists to protect.
+// A password at exactly the bcrypt ceiling is accepted; one byte more is
+// rejected.
 func TestValidatePasswordLengthBoundaries(t *testing.T) {
 	atMax := "aB1!" + strings.Repeat("x", PasswordMaxLength-4)
 	if len(atMax) != PasswordMaxLength {

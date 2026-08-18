@@ -45,8 +45,7 @@ func (m *mockAircraftRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.A
 	if !exists {
 		return nil, repository.ErrNotFound
 	}
-	// Return a copy so callers mutating the result don't change stored state,
-	// matching the behavior of a real database-backed repository.
+	// Return a detached copy, matching a database-backed repository.
 	clone := *a
 	return &clone, nil
 }

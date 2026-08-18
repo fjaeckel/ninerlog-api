@@ -1,11 +1,9 @@
 // Package airports keeps an in-memory database of the world's airports,
 // merged from two upstream datasets and refreshed on a timer.
 //
-// The database is read on nearly every flight response, so reads are
-// lock-free: a reload builds a completely new indexed snapshot and swaps it in
-// with a single atomic store. Readers either see the old snapshot or the new
-// one, never a partial merge, and a failed refresh leaves the previous
-// snapshot serving traffic.
+// Reads are lock-free: a reload builds a new indexed snapshot and swaps it in
+// with a single atomic store; a failed refresh leaves the previous snapshot
+// serving.
 package airports
 
 import (
@@ -44,21 +42,18 @@ type AirportInfo struct {
 var (
 	// current holds the live snapshot; nil until the first successful load.
 	current atomic.Pointer[snapshot]
-	// once guards the one-shot startup load. It is a pointer so tests can
-	// swap in a fresh guard without copying a lock.
+	// once guards the one-shot startup load; tests swap in a fresh guard.
 	once = new(sync.Once)
-	// reloadMu serialises reloads so a manual reload and the refresher
-	// cannot fetch and swap concurrently.
+	// reloadMu serialises reloads.
 	reloadMu sync.Mutex
 )
 
 // defaultRefreshInterval is how often the database is refetched when
-// AIRPORT_REFRESH_INTERVAL is unset. Both upstreams publish at most daily.
+// AIRPORT_REFRESH_INTERVAL is unset.
 const defaultRefreshInterval = 24 * time.Hour
 
 // minRetainFraction rejects a reload whose result is less than this fraction
-// of the airports currently loaded. A truncated download or an upstream that
-// starts serving a stub would otherwise silently shrink the database.
+// of the airports currently loaded.
 const minRetainFraction = 0.5
 
 // ErrNoSources is returned by Reload when every upstream failed. The previous
@@ -66,12 +61,11 @@ const minRetainFraction = 0.5
 var ErrNoSources = errors.New("airports: no source could be loaded")
 
 // ErrSuspectResult is returned when a reload produced far fewer airports than
-// the live snapshot, so the swap was rejected.
+// the live snapshot and the swap was rejected.
 var ErrSuspectResult = errors.New("airports: reload rejected, result too small")
 
 // Init loads the airport database once, synchronously, at startup. A failure
-// is logged and leaves the database empty rather than blocking boot: airport
-// lookups degrade to "unknown" instead of taking the API down.
+// is logged and leaves the database empty.
 func Init() {
 	once.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -99,8 +93,7 @@ func StartRefresher(ctx context.Context, interval time.Duration) {
 				slog.Info("Airport database refresher stopped")
 				return
 			case <-ticker.C:
-				// Bound each attempt so a hung upstream cannot stall the
-				// refresher past its next tick.
+				// Per-attempt timeout.
 				reloadCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				if err := Reload(reloadCtx); err != nil {
 					slog.Warn("Airport database refresh failed; keeping previous data", "error", err)
@@ -141,9 +134,7 @@ func Reload(ctx context.Context) error {
 	start := time.Now()
 	defer func() { LoadDurationSeconds.Observe(time.Since(start).Seconds()) }()
 
-	// fetchOne runs one source and records its outcome. A source failure is
-	// returned to the caller, which decides whether the reload as a whole
-	// still has enough data to be worth swapping in.
+	// fetchOne runs one source and records its outcome.
 	fetchOne := func(source string, fn func(context.Context) (map[string]AirportInfo, int64, error)) (map[string]AirportInfo, error) {
 		fetchStart := time.Now()
 		data, size, err := fn(ctx)
@@ -295,14 +286,11 @@ func Search(prefix string, limit int) []AirportInfo {
 	return results
 }
 
-// maxNearestDistanceNM bounds Nearest lookups: a fix further than this from
-// every known airport (mid-ocean coordinates, bogus GPS data) returns nil
-// rather than a misleading "nearest" hundreds of miles away.
+// maxNearestDistanceNM is the search radius for Nearest.
 const maxNearestDistanceNM = 30.0
 
 // Nearest returns the airport closest to the given coordinates, or nil when
-// the database is unavailable or no airport lies within 30 NM. Used to
-// resolve a phone's GPS fix to a departure/arrival airport for tap-to-log.
+// the database is unavailable or no airport lies within 30 NM.
 func Nearest(lat, lon float64) *AirportInfo {
 	s := current.Load()
 	if s == nil {

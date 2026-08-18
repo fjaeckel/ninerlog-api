@@ -30,9 +30,8 @@ func TestParseLevel(t *testing.T) {
 	}
 }
 
-// TestStdlogBridgeEmitsJSON verifies that a plain standard-library log call is
-// converted into a structured JSON record, so third-party code using the std
-// logger doesn't leak unstructured lines into the stream.
+// TestStdlogBridgeEmitsJSON verifies that a plain standard-library log call
+// is converted into a structured JSON record.
 func TestStdlogBridgeEmitsJSON(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))

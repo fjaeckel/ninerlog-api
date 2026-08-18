@@ -10,15 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// This file evaluates user-authored ("custom") currency rules. The rule shape
-// is user data, so the flight aggregates it needs are assembled at runtime —
-// but only from the rule's controlled vocabulary. All SQL lives behind
-// CustomFlightDataProvider (implemented in internal/repository/postgres),
-// which maps each vocabulary identifier onto a fixed expression and binds
-// every user-supplied value as a query parameter. The rule body is validated
-// (models.CustomCurrencyRuleBody.Validate) before it is ever persisted or
-// evaluated, so an unknown identifier reaching the provider is an internal
-// error, not user input.
+// This file evaluates user-authored ("custom") currency rules. Metrics and
+// filters are identifiers from the rule's controlled vocabulary; the flight
+// aggregates they name are fetched through CustomFlightDataProvider,
+// implemented in internal/repository/postgres. The rule body is validated
+// (models.CustomCurrencyRuleBody.Validate) before it is persisted or
+// evaluated; an unknown identifier is an internal error.
 
 // CustomFlightDataProvider supplies the flight aggregates a custom rule
 // evaluation needs. Metrics are identifiers from the rule vocabulary (e.g.
@@ -76,8 +73,7 @@ type CustomCurrencyResult struct {
 }
 
 // expiringThresholdDays returns how far ahead a lapse counts as "expiring
-// soon": 30 days, but never more than half the window (so short-window rules
-// don't sit permanently in the amber state), and at least 1 day.
+// soon": 30 days, but never more than half the window, and at least 1 day.
 func expiringThresholdDays(w models.CurrencyWindow) int {
 	days := windowDays(w)
 	t := days / 2
@@ -120,8 +116,8 @@ func NewCustomEvaluator(data CustomFlightDataProvider) *CustomEvaluator {
 func (e *CustomEvaluator) Evaluate(ctx context.Context, userID uuid.UUID, body *models.CustomCurrencyRuleBody) (CustomCurrencyResult, error) {
 	since := windowSince(e.now().UTC(), body.Window)
 
-	// Collect the distinct metrics referenced by the requirements so each is
-	// aggregated exactly once, then map results back per requirement.
+	// Aggregate each distinct metric exactly once, then map results back per
+	// requirement.
 	metricIndex := map[string]int{}
 	var metrics []string
 	for _, r := range body.Requirements {

@@ -38,8 +38,8 @@ func TestNearestNilDB(t *testing.T) {
 	}
 }
 
-// TestNearest_AcrossCellBoundaries pins the cases the grid index can get
-// wrong: an airport in the neighbouring degree cell, and the antimeridian.
+// TestNearest_AcrossCellBoundaries covers an airport in the neighbouring
+// degree cell and the antimeridian.
 func TestNearest_AcrossCellBoundaries(t *testing.T) {
 	SetTestDB(map[string]AirportInfo{
 		// 0.02° north of the query, but in cell 51 while the query is in 50.
@@ -59,8 +59,7 @@ func TestNearest_AcrossCellBoundaries(t *testing.T) {
 
 func TestNearest_HighLatitude(t *testing.T) {
 	SetTestDB(map[string]AirportInfo{
-		// Svalbard: a degree of longitude is ~26 NM here, so the grid has to
-		// widen its longitude span or it will miss this.
+		// Svalbard: a degree of longitude is ~26 NM here.
 		"ENSB":  {ICAO: "ENSB", Latitude: 78.246, Longitude: 15.465},
 		"NPOLE": {ICAO: "NPOLE", Latitude: 89.9, Longitude: 100},
 	})
@@ -74,9 +73,8 @@ func TestNearest_HighLatitude(t *testing.T) {
 	}
 }
 
-// TestNearest_MatchesBruteForce is the real safety net for the grid index:
-// over a randomised world-wide dataset, the indexed answer must equal a full
-// linear scan for every query.
+// TestNearest_MatchesBruteForce checks the indexed answer equals a full
+// linear scan over a randomised world-wide dataset.
 func TestNearest_MatchesBruteForce(t *testing.T) {
 	rng := rand.New(rand.NewSource(20260730))
 

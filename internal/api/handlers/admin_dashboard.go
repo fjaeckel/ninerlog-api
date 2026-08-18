@@ -209,10 +209,8 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		DocumentFilesEnabled:   &documentFilesEnabled,
 	}
 
-	// The unverified-account lifecycle is only reported when it is actually
-	// running. Showing "30 days" on a deployment where nothing reaps would be
-	// worse than showing nothing — so when it is off, the reason is reported
-	// instead, and the timing is not.
+	// The unverified-account lifecycle timing is reported only when running;
+	// otherwise the disabled reason is reported instead.
 	enabled := h.unverifiedAccountService != nil
 	config.UnverifiedCleanupEnabled = &enabled
 	if enabled {

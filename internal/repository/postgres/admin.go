@@ -19,9 +19,8 @@ func NewAdminRepository(db *sql.DB) repository.AdminRepository {
 	return &adminRepository{db: db}
 }
 
-// scanCount scans a single count value from a query row, defaulting to 0 on
-// error. The admin dashboard prefers a zeroed counter over a dead page, so a
-// failing counter is logged and reported as 0.
+// scanCount scans a single count value from a query row, logging and
+// defaulting to 0 on error.
 func (r *adminRepository) scanCount(row *sql.Row, dest *int) {
 	if err := row.Scan(dest); err != nil {
 		slog.Error("admin stats: count query failed", "error", err)
@@ -63,9 +62,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 		"SELECT COUNT(*) FROM users WHERE disabled = true",
 	), &stats.DisabledAccounts)
 
-	// Cloud backup destinations: breakdown by provider. Always queryable since
-	// the table is part of the standard schema; an empty result simply yields
-	// an empty map.
+	// Cloud backup destinations: breakdown by provider.
 	rows, err := r.db.QueryContext(ctx,
 		"SELECT provider, COUNT(*) FROM backup_destinations GROUP BY provider")
 	if err != nil {
@@ -107,7 +104,7 @@ func (r *adminRepository) CountAuditLog(ctx context.Context) (int, error) {
 }
 
 func (r *adminRepository) ListAuditLog(ctx context.Context, limit, offset int) ([]*repository.AdminAuditLogEntry, error) {
-	// LEFT JOIN so deleted users don't drop their audit rows.
+	// LEFT JOIN keeps audit rows whose users have been deleted.
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT al.id, al.admin_user_id, au.email, au.name,
 		       al.action, al.target_user_id, tu.email, tu.name,
@@ -169,8 +166,6 @@ func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, o
 	}
 	dataArgs = append(dataArgs, limit, offset)
 
-	// Best-effort total: a failing count zeroes the pagination header rather
-	// than blanking the whole listing.
 	var total int
 	r.scanCount(r.db.QueryRowContext(ctx, countQuery, countArgs...), &total)
 

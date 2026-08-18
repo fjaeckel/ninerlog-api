@@ -18,10 +18,8 @@ import (
 )
 
 // fakeWebDAV is a minimal WebDAV server emulating just the verbs the provider
-// exercises: OPTIONS (for Connect), PROPFIND, MKCOL, PUT, DELETE.
-//
-// It is intentionally permissive about XML — the gowebdav client only inspects
-// a small subset of the multistatus response.
+// exercises: OPTIONS (for Connect), PROPFIND, MKCOL, PUT, DELETE. Permissive
+// about XML.
 type fakeWebDAV struct {
 	mu       sync.Mutex
 	files    map[string][]byte // key: "/" + path, value: body
@@ -106,8 +104,7 @@ func (f *fakeWebDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				selfPath += "/"
 			}
 			writePropfindEntry(&b, selfPath, 0, true)
-			// Children (1 level deep — Depth header is ignored, this fake
-			// server is fine to over-report).
+			// Children, 1 level deep; the Depth header is ignored.
 			for k, v := range f.files {
 				if strings.HasPrefix(k, selfPath) && !strings.Contains(strings.TrimPrefix(k, selfPath), "/") {
 					writePropfindEntry(&b, k, int64(len(v)), false)
@@ -426,11 +423,10 @@ func TestParseConfigRejectsInvalidURL(t *testing.T) {
 	}
 }
 
-// TestClientTimeoutIsApplied ensures our configured timeout flows through to
-// the underlying client by pointing it at a server that never responds and
-// asserting the request fails quickly.
+// TestClientTimeoutIsApplied asserts the configured timeout reaches the
+// underlying client.
 func TestClientTimeoutIsApplied(t *testing.T) {
-	// Server that blocks forever (until test teardown closes it).
+	// Server that blocks until test teardown.
 	hang := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-hang

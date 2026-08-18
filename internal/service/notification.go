@@ -15,9 +15,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// customCurrencyLister lists a user's custom currency rules with their current
-// evaluation. Satisfied by *currency.CustomService; an interface here keeps the
-// notification checker unit-testable without a database.
+// customCurrencyLister lists a user's custom currency rules with their
+// current evaluation. Satisfied by *currency.CustomService.
 type customCurrencyLister interface {
 	List(ctx context.Context, userID uuid.UUID) ([]currency.CustomRuleWithStatus, error)
 }
@@ -205,7 +204,7 @@ func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *
 		for _, warningDay := range prefs.WarningDays {
 			wd := int(warningDay)
 			if daysUntilExpiry <= wd && daysUntilExpiry >= 0 {
-				// Cycle-aware dedup: include the expiry date so renewals trigger fresh warnings
+				// Cycle-aware dedup: the expiry date is part of the key.
 				sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(category), cred.ID, wd, &expiryDate)
 				if err != nil || sent {
 					continue
@@ -302,7 +301,7 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 	// Revalidation currency notification (EASA — requirements not met approaching expiry)
 	if (rating.Status == currency.StatusExpiring || rating.Status == currency.StatusExpired) &&
 		prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
-		// Use class rating ID as reference, no specific expiry date for revalidation checks
+		// Reference is the class rating ID; no expiry date key.
 		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyRevalidation), rating.ClassRatingID, 0, nil)
 		if err != nil || sent {
 			return
@@ -496,7 +495,7 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 	if err != nil {
 		return
 	}
-	// Nothing opted in — avoid the extra user lookup.
+	// Skip the user lookup when nothing is opted in.
 	anyNotify := false
 	for _, item := range rules {
 		if item.Rule.Enabled && item.Rule.Notify {
@@ -539,7 +538,7 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 				"custom_currency_rule", daysUntilExpiry, &expiry, subject, body, userEmail)
 
 		case currency.StatusExpired:
-			// One notice per rule while lapsed (no expiry cycle key to reset on).
+			// One notice per rule while lapsed.
 			sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCustomCurrency), rule.ID, 0, nil)
 			if err != nil || sent {
 				continue

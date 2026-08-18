@@ -34,9 +34,6 @@ func (h *APIHandler) DeleteAllUserData(c *gin.Context) {
 		return
 	}
 
-	// The wipe is a single transaction (see the repository): a mid-sequence
-	// failure must never leave the account half-deleted while the caller is
-	// told the wipe succeeded.
 	if err := h.userContentRepo.DeleteAllContent(c.Request.Context(), userID); err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to delete user data")
 		return

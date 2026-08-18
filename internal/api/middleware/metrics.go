@@ -93,7 +93,7 @@ func MetricsMiddleware() gin.HandlerFunc {
 }
 
 // normalizeRoutePath returns the Gin route template (e.g. "/api/v1/flights/:id")
-// instead of the actual URL path, to avoid high-cardinality label values.
+// instead of the actual URL path.
 func normalizeRoutePath(c *gin.Context) string {
 	route := c.FullPath()
 	if route == "" {
@@ -103,9 +103,8 @@ func normalizeRoutePath(c *gin.Context) string {
 	return route
 }
 
-// normalizeFallbackPath returns a stable label for requests that don't match
-// any registered route (e.g. 404s). Keeps the first two path segments to give
-// some routing context, appends "/*unmatched".
+// normalizeFallbackPath returns a stable label for requests that match no
+// registered route: the first two path segments plus "/*unmatched".
 func normalizeFallbackPath(path string) string {
 	parts := strings.SplitN(strings.TrimPrefix(path, "/"), "/", 3)
 	if len(parts) >= 2 {

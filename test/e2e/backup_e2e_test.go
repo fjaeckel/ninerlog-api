@@ -15,8 +15,7 @@ import (
 //   bucket:     ninerlog-backups (pre-created by seaweedfs-init)
 //   creds:      ninerlogadmin / ninerlogsecret
 //
-// The API talks to SeaweedFS via its docker network alias, so when constructing
-// a backup destination we use the docker hostname.
+// Backup destinations are constructed with the docker hostname.
 func s3Endpoint() string {
 	if v := os.Getenv("E2E_S3_ENDPOINT"); v != "" {
 		return v

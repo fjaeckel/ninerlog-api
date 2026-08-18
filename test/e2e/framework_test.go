@@ -61,8 +61,7 @@ func (c *E2EClient) Do(method, path string, body interface{}) *Response {
 	return c.DoWithHeaders(method, path, body, nil)
 }
 
-// DoWithHeaders is Do with extra request headers, for transport-level features
-// that are not part of any request body (e.g. Idempotency-Key).
+// DoWithHeaders is Do with extra request headers (e.g. Idempotency-Key).
 func (c *E2EClient) DoWithHeaders(method, path string, body interface{}, headers map[string]string) *Response {
 	c.t.Helper()
 	var bodyReader io.Reader
@@ -160,8 +159,8 @@ func registerUser(t *testing.T, c *E2EClient, email, password, name string) Auth
 	resp := c.POST("/auth/register", map[string]string{"email": email, "password": password, "name": name})
 	requireStatus(t, resp, http.StatusCreated)
 
-	// Email verification is now required: pull the verification token from
-	// the e2e SMTP server (mailpit) and exchange it for an AuthResponse.
+	// Pull the verification token from mailpit and exchange it for an
+	// AuthResponse.
 	token := extractVerificationToken(t, email)
 	verifyResp := c.POST("/auth/verify-email", map[string]string{"token": token})
 	requireStatus(t, verifyResp, http.StatusOK)
@@ -178,8 +177,7 @@ func extractVerificationToken(t *testing.T, email string) string {
 }
 
 // extractVerificationTokenSubject is like extractVerificationToken but allows
-// matching a localized subject line (the verification email is sent in the
-// user's preferredLocale).
+// matching a localized subject line.
 func extractVerificationTokenSubject(t *testing.T, email, subjectContains string) string {
 	t.Helper()
 	msg := mailpitRequireEmail(t, email, subjectContains)
@@ -256,14 +254,9 @@ func mailpitDeleteAll(t *testing.T) {
 	defer resp.Body.Close()
 }
 
-// mailpitSearchByRecipient searches MailPit for messages to a specific email address.
-//
-// The query intentionally does NOT use a `to:` prefix. For security (CWE-640),
-// the API delivers the recipient via the SMTP envelope only and omits the `To:`
-// header from the message bytes (see pkg/email/smtp.go). MailPit therefore
-// records the envelope-only recipient as Bcc, so a `to:` search would never
-// match. A bare address query matches the recipient regardless of which address
-// header MailPit assigns it to.
+// mailpitSearchByRecipient searches MailPit for messages to a specific email
+// address. The bare address query (no `to:` prefix) matches the recipient in
+// any header, including envelope-only recipients recorded as Bcc.
 func mailpitSearchByRecipient(t *testing.T, email string) MailPitSearchResult {
 	t.Helper()
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -310,9 +303,7 @@ type MailPitFullMessage struct {
 		Address string `json:"Address"`
 		Name    string `json:"Name"`
 	} `json:"To"`
-	// Bcc carries the recipient when the API delivers it via the SMTP envelope
-	// only (security fix for CWE-640 — see pkg/email/smtp.go). MailPit records an
-	// envelope-only recipient here with a null To header.
+	// Bcc carries envelope-only recipients (null To header).
 	Bcc []struct {
 		Address string `json:"Address"`
 		Name    string `json:"Name"`
@@ -322,9 +313,7 @@ type MailPitFullMessage struct {
 }
 
 // recipientAddresses returns every address the message was delivered to,
-// combining the To and Bcc headers. The recipient may appear in either: the API
-// omits the To header and delivers via the SMTP envelope (CWE-640), which MailPit
-// surfaces as Bcc.
+// combining the To and Bcc headers.
 func (m MailPitFullMessage) recipientAddresses() []string {
 	addrs := make([]string, 0, len(m.To)+len(m.Bcc))
 	for _, t := range m.To {
@@ -372,7 +361,6 @@ func mailpitRequireEmail(t *testing.T, recipientEmail, subjectContains string) M
 	t.Helper()
 	msg := mailpitFindEmail(t, recipientEmail, subjectContains)
 	if msg == nil {
-		// List what was found for debugging
 		result := mailpitSearchByRecipient(t, recipientEmail)
 		subjects := make([]string, len(result.Messages))
 		for i, m := range result.Messages {

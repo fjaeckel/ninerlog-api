@@ -8,9 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// vCard 3.0 rather than 4.0: it is what Apple Contacts, Google Contacts,
-// Outlook and every Android importer read without complaint, and none of the
-// properties below need anything 4.0 added.
 const (
 	vcardCRLF = "\r\n"
 	// vcardFoldWidth is RFC 2426's 75-octet line limit. Continuation lines
@@ -20,15 +17,14 @@ const (
 
 // ExportVCard renders the user's contacts as a single vCard 3.0 stream, in the
 // same name order as the contact list. Contacts the pilot has flown with carry
-// their crew roles as CATEGORIES, so an instructor stays recognisable as one
-// after the file leaves NinerLog.
+// their crew roles as CATEGORIES.
 func (s *ContactService) ExportVCard(ctx context.Context, userID uuid.UUID) ([]byte, error) {
 	contacts, err := s.contactRepo.GetByUserID(ctx, userID, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// Roles are decoration: an export is still worth producing without them.
+	// Roles are optional; the export proceeds without them.
 	roles, err := s.contactRepo.RolesByContact(ctx, userID)
 	if err != nil {
 		roles = nil
@@ -55,11 +51,7 @@ func writeVCard(b *strings.Builder, c *models.Contact, roles []string) {
 	writeVCardLine(b, "BEGIN:VCARD")
 	writeVCardLine(b, "VERSION:3.0")
 
-	// FN is the only mandatory content property and is what every client
-	// displays. N is structured and required by 3.0, so it is emitted too,
-	// from a best-effort split — a logbook only ever collected one free-text
-	// name, and guessing beyond "last token is the family name" would mangle
-	// more names than it would fix.
+	// FN carries the display name; N is emitted from a best-effort split.
 	line("FN", c.Name)
 	family, given := splitVCardName(c.Name)
 	writeVCardLine(b, "N:"+vcardEscape(family)+";"+vcardEscape(given)+";;;")
@@ -74,8 +66,7 @@ func writeVCard(b *strings.Builder, c *models.Contact, roles []string) {
 		line("NOTE", strings.TrimSpace(*c.Notes))
 	}
 	if len(roles) > 0 {
-		// vcardEscape turns the separators back into literal characters, so
-		// each role is escaped on its own and joined with a real comma.
+		// Each role is escaped on its own, then joined with a real comma.
 		escaped := make([]string, 0, len(roles))
 		for _, r := range roles {
 			escaped = append(escaped, vcardEscape(r))
@@ -83,17 +74,13 @@ func writeVCard(b *strings.Builder, c *models.Contact, roles []string) {
 		writeVCardLine(b, "CATEGORIES:"+strings.Join(escaped, ","))
 	}
 
-	// A stable UID lets a re-export update the same card in the importing
-	// address book instead of duplicating it.
+	// UID is stable across re-exports.
 	writeVCardLine(b, "UID:urn:uuid:"+c.ID.String())
 	writeVCardLine(b, "REV:"+c.UpdatedAt.UTC().Format("20060102T150405Z"))
 	writeVCardLine(b, "END:VCARD")
 }
 
-// vcardEscape applies RFC 2426 §5 escaping. Escaping the newlines is not
-// cosmetic: a contact name or note is user-supplied text, and an unescaped CRLF
-// would end the property and let the rest of the value be read as vCard
-// properties of its own — or as the start of another card.
+// vcardEscape applies RFC 2426 §5 escaping, newlines included.
 func vcardEscape(s string) string {
 	r := strings.NewReplacer(
 		"\\", "\\\\",
@@ -106,9 +93,8 @@ func vcardEscape(s string) string {
 	return r.Replace(s)
 }
 
-// writeVCardLine appends one content line, folded to vcardFoldWidth octets.
-// Folding counts bytes, but a break must not fall inside a UTF-8 sequence, so
-// the split point walks back off any continuation byte.
+// writeVCardLine appends one content line, folded to vcardFoldWidth octets;
+// the split point walks back off any UTF-8 continuation byte.
 func writeVCardLine(b *strings.Builder, line string) {
 	for len(line) > vcardFoldWidth {
 		cut := vcardFoldWidth
@@ -125,9 +111,7 @@ func writeVCardLine(b *strings.Builder, line string) {
 }
 
 // splitVCardName splits a free-text name into (family, given) for the N
-// property. The last whitespace-separated token is taken as the family name,
-// which is right for "Hans Müller" and wrong for names that do not work that
-// way — FN carries the authoritative form either way.
+// property; the last whitespace-separated token is taken as the family name.
 func splitVCardName(name string) (family, given string) {
 	fields := strings.Fields(name)
 	switch len(fields) {

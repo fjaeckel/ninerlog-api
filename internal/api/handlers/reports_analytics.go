@@ -608,8 +608,7 @@ func (h *APIHandler) analyticsRecords(ctx context.Context, userID uuid.UUID, mon
 		r.BusiestDayFlights = busiestDayFlights
 	}
 
-	// Days since last flight is deliberately measured against the whole
-	// logbook — a narrow timeframe should not make a pilot look lapsed.
+	// Days since last flight is measured against the whole logbook.
 	last, err := h.reportsRepo.LastFlightDate(ctx, userID)
 	if err != nil {
 		return r, err

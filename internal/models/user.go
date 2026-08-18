@@ -39,11 +39,7 @@ type User struct {
 }
 
 // HasPassword reports whether the account has a usable local password.
-//
-// Accounts provisioned through OIDC carry an empty hash: there is no password
-// to verify, and no endpoint that could set one while OIDC mode is active.
-// Callers must treat a passwordless account as "cannot authenticate locally"
-// rather than "any password matches".
+// OIDC-provisioned accounts have none and cannot authenticate locally.
 func (u *User) HasPassword() bool { return u.PasswordHash != "" }
 
 // Flight list column modes.
@@ -52,14 +48,10 @@ const (
 	FlightListColumnModeCustom = "custom"
 )
 
-// FlightListColumns is the set of flights-list columns a user may switch on or
-// off. Date, route, aircraft and total time are the identity of a logbook row
-// and are always shown, so they are deliberately absent here.
-//
-// The order is the display order the client uses, and — for the time columns —
-// the priority order in which they survive on a narrow screen. Keep it in sync
-// with the enum in api-spec/openapi.yaml and the registry in the frontend's
-// src/components/flights/flightTableColumns.ts.
+// FlightListColumns is the set of optional flights-list columns a user may
+// switch on or off, in display order (for time columns, also narrow-screen
+// priority order). Keep in sync with the enum in api-spec/openapi.yaml and
+// the frontend's src/components/flights/flightTableColumns.ts.
 var FlightListColumns = []string{
 	"offOnBlock",
 	"picTime",
@@ -78,9 +70,7 @@ var FlightListColumns = []string{
 }
 
 // NormalizeFlightListColumns drops unknown and duplicate column keys and
-// returns the remainder in canonical display order. Unknown keys are ignored
-// rather than rejected, matching how the other display preferences treat a
-// value they do not recognise.
+// returns the remainder in canonical display order.
 func NormalizeFlightListColumns(columns []string) pq.StringArray {
 	selected := make(map[string]bool, len(columns))
 	for _, c := range columns {

@@ -11,7 +11,7 @@ type Query struct {
 }
 
 // node is one element of the query AST. Values are validated and converted at
-// parse time, so emitting SQL cannot fail.
+// parse time; emitting SQL cannot fail.
 type node interface {
 	sql(b *sqlBuilder) string
 }
@@ -30,13 +30,7 @@ const (
 	maxQueryLength = 1000
 	maxQueryTerms  = 50
 
-	// Bare free-text terms are far more expensive than tagged field
-	// conditions: each compiles to a leading-wildcard ILIKE across every
-	// column in freeTextColumns plus a correlated crew EXISTS subquery
-	// (fields.go), none of which a B-tree index can assist. maxFreeTextTerms
-	// keeps that amplification well under the general maxQueryTerms cap, and
-	// minFreeTextTermLength avoids the worst-selectivity single/double
-	// character wildcard scans (e.g. a bare "e" matching nearly every row).
+	// Caps on bare free-text terms and their minimum length.
 	maxFreeTextTerms   = 5
 	minFreeTextTermLen = 3
 )
@@ -133,7 +127,7 @@ func (p *parser) parseAnd() (node, error) {
 	for {
 		save := p.pos
 		explicit := p.consumeKeyword("AND") || p.consumeSymbol("&&")
-		// OR binds looser: stop so parseOr can consume it.
+		// OR binds looser; left for parseOr.
 		if !explicit && p.peekKeyword("OR") {
 			break
 		}
@@ -239,9 +233,6 @@ func (p *parser) parseCondition() (node, error) {
 }
 
 // freeTextCondition validates and builds a bare (untagged) free-text term.
-// Bare terms are far more expensive than tagged conditions (see
-// maxFreeTextTerms), so they get their own, stricter cap and a minimum
-// length so a 1-2 character wildcard can't force a near-full-table scan.
 func (p *parser) freeTextCondition(term string, start int) (node, error) {
 	p.freeTextTerms++
 	if p.freeTextTerms > maxFreeTextTerms {
@@ -287,8 +278,7 @@ func (p *parser) readOperator() string {
 }
 
 // readValue reads a (possibly quoted) value after an operator. Unquoted
-// values run to whitespace or a parenthesis, so `date:2024-05` and
-// `totalTime>1:30` keep their '-' and ':' characters.
+// values run to whitespace or a parenthesis, keeping '-' and ':' characters.
 func (p *parser) readValue() (string, error) {
 	if p.peek() == '"' || p.peek() == '\'' {
 		return p.readQuoted()
@@ -364,8 +354,7 @@ func (p *parser) consumeSymbol(sym string) bool {
 	if end > len(p.input) || p.input[p.pos:end] != sym {
 		return false
 	}
-	// '-' only negates when attached to a following term (e.g. -remarks:x),
-	// avoiding surprises for stray dashes.
+	// '-' negates only when attached to a following term (e.g. -remarks:x).
 	if sym == "-" && (end >= len(p.input) || p.input[end] == ' ') {
 		return false
 	}

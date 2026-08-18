@@ -58,7 +58,7 @@ func (s *stubStore) MaxResponseBytes() int {
 }
 
 // newIdempotencyRouter wires the middleware behind a stand-in for
-// AuthMiddleware, which is where the user ID comes from in production.
+// AuthMiddleware.
 func newIdempotencyRouter(store IdempotencyStore, userID *uuid.UUID, handler gin.HandlerFunc) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -97,8 +97,7 @@ func okHandler(c *gin.Context) {
 }
 
 func TestIdempotency_NoHeaderIsUntouched(t *testing.T) {
-	// The whole compatibility story: today's clients send no header and must
-	// keep the exact behaviour they had before this middleware existed.
+	// Without the header the request passes through unchanged.
 	store := &stubStore{}
 	user := uuid.New()
 	calls := 0
@@ -136,8 +135,7 @@ func TestIdempotency_SafeMethodsAreUntouched(t *testing.T) {
 }
 
 func TestIdempotency_UnauthenticatedPassesThrough(t *testing.T) {
-	// Auth endpoints have no user to key a record by; the header is ignored
-	// rather than made an error, so a client can set it unconditionally.
+	// Without a user in the context the header is ignored, not an error.
 	store := &stubStore{}
 	called := false
 	r := newIdempotencyRouter(store, nil, func(c *gin.Context) {
@@ -286,8 +284,7 @@ func TestIdempotency_ReplayReturnsStoredResponse(t *testing.T) {
 }
 
 func TestIdempotency_ReplayOfEmptyBody(t *testing.T) {
-	// A successful DELETE is 204 with no body — the shape that matters most
-	// for a client reconciling deletions after being offline.
+	// A successful DELETE replays as 204 with no body.
 	store := &stubStore{claim: service.IdempotencyClaim{
 		Outcome:  service.IdempotencyReplay,
 		Response: &service.IdempotentResponse{Status: http.StatusNoContent},
@@ -366,9 +363,7 @@ func TestIdempotency_ConflictOutcomes(t *testing.T) {
 }
 
 func TestIdempotency_StoreUnavailableFailsClosed(t *testing.T) {
-	// Silently downgrading to at-least-once is exactly how a duplicate
-	// logbook entry gets created, so an unreachable store must fail the
-	// request the client asked to be exactly-once.
+	// An unreachable store fails the request.
 	store := &stubStore{claimErr: errors.New("connection refused")}
 	user := uuid.New()
 	called := false
@@ -406,8 +401,7 @@ func TestIdempotency_ServerErrorReleasesTheKey(t *testing.T) {
 }
 
 func TestIdempotency_ClientErrorIsStored(t *testing.T) {
-	// A 4xx is a deterministic verdict on the request: replaying it is
-	// correct, and re-running validation on every retry is wasted work.
+	// A 4xx response is stored and replayed.
 	store := &stubStore{claim: service.IdempotencyClaim{Outcome: service.IdempotencyClaimed}}
 	user := uuid.New()
 	r := newIdempotencyRouter(store, &user, func(c *gin.Context) {
@@ -457,8 +451,7 @@ func TestIdempotency_OversizedResponseIsNotStored(t *testing.T) {
 	if len(store.finished) != 1 {
 		t.Fatalf("Finish calls: want 1, got %d", len(store.finished))
 	}
-	// Status 0 marks the record consumed-but-unreplayable, so a retry is
-	// refused instead of duplicating the write.
+	// Status 0 marks the record consumed but not replayable.
 	if store.finished[0].Status != 0 || len(store.finished[0].Body) != 0 {
 		t.Errorf("oversized response should be recorded empty, got %+v", store.finished[0])
 	}

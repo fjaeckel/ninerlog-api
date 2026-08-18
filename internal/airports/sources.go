@@ -15,11 +15,9 @@ import (
 // Upstream datasets. Both are fetched on every reload and merged; see
 // mergeSources for how a record is picked when both describe the same ICAO.
 const (
-	// sourceOurAirports is the OurAirports CSV export: broad coverage,
-	// updated continuously, no IATA-quality curation of names.
+	// sourceOurAirports is the OurAirports CSV export.
 	sourceOurAirports = "ourairports"
-	// sourceMWGG is the mwgg/Airports JSON dataset: hand-curated names,
-	// IATA codes, city and IANA timezone per airport.
+	// sourceMWGG is the mwgg/Airports JSON dataset.
 	sourceMWGG = "mwgg"
 	// sourceMerged marks a record assembled from both datasets.
 	sourceMerged = "merged"
@@ -28,23 +26,19 @@ const (
 	mwggDefaultURL        = "https://raw.githubusercontent.com/mwgg/Airports/master/airports.json"
 )
 
-// Source URLs are variables so tests can point them at an httptest server.
+// Source URLs, overridden in tests.
 var (
 	ourAirportsURL = ourAirportsDefaultURL
 	mwggURL        = mwggDefaultURL
 )
 
-// httpClient is shared by both sources. The datasets are ~10 MB each, so the
-// timeout covers the whole body, not just the handshake.
+// httpClient is shared by both sources; the timeout covers the whole body.
 var httpClient = &http.Client{Timeout: 90 * time.Second}
 
-// maxSourceBytes caps how much we will read from an upstream before giving
-// up, so a misbehaving mirror cannot exhaust memory.
+// maxSourceBytes caps how much is read from one upstream.
 const maxSourceBytes = 128 << 20 // 128 MB
 
-// fetchError carries the failure reason used as a metric label, keeping
-// upstream schema drift (decode) distinguishable from an outage (request,
-// status) in dashboards.
+// fetchError carries the failure reason used as a metric label.
 type fetchError struct {
 	reason string
 	err    error
@@ -66,8 +60,7 @@ func reasonOf(err error) string {
 	return "error"
 }
 
-// countingReader tracks how many bytes were read from an upstream so the
-// download size can be reported without buffering the whole body.
+// countingReader counts bytes read from an upstream.
 type countingReader struct {
 	r io.Reader
 	n int64
@@ -155,8 +148,7 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 		ident := field(record, "ident")
 		apType := field(record, "type")
 
-		// Only 4-char ICAO-shaped identifiers; heliports and closed fields
-		// are noise for a logbook.
+		// Keep only 4-char ICAO identifiers; drop heliports and closed fields.
 		if len(ident) != 4 {
 			continue
 		}

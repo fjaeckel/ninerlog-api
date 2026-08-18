@@ -13,8 +13,7 @@ type userContentRepository struct {
 	db *sql.DB
 }
 
-// NewUserContentRepository creates the repository behind the "delete all my
-// data" account wipe.
+// NewUserContentRepository creates the account-content wipe repository.
 func NewUserContentRepository(db *sql.DB) repository.UserContentRepository {
 	return &userContentRepository{db: db}
 }
@@ -42,11 +41,7 @@ func (r *userContentRepository) DeleteAllContent(ctx context.Context, userID uui
 		`DELETE FROM notification_log WHERE user_id = $1`,
 	}
 
-	// One transaction, and errors are surfaced: a mid-sequence failure must
-	// not leave the account half-deleted — flights gone, licenses still
-	// present — while the caller is told the wipe succeeded. For a
-	// destructive, irreversible operation that is the worst possible failure
-	// mode.
+	// One transaction; errors are surfaced.
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

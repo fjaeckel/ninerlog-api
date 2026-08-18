@@ -12,18 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// This file runs the queries behind user-authored ("custom") currency rules.
-// Unlike the regulatory evaluators, the rule shape here is user data, so the
-// query is assembled at runtime. Safety rests on two rules:
-//
-//  1. Every identifier that reaches SQL comes from a fixed lookup table keyed
-//     by the rule's controlled vocabulary — no user string is ever interpolated
-//     as a column, table, or operator.
-//  2. Every user-supplied value is bound as a query parameter.
-//
-// The rule body is validated (models.CustomCurrencyRuleBody.Validate) before it
-// is ever persisted or evaluated, so the maps below are guaranteed to contain
-// any identifier this provider sees; a miss is treated as an internal error.
+// This file runs the queries behind user-authored ("custom") currency rules,
+// assembling the query at runtime. Every identifier that reaches SQL comes
+// from a fixed lookup table keyed by the rule's controlled vocabulary; every
+// user-supplied value is bound as a query parameter. The rule body is
+// validated (models.CustomCurrencyRuleBody.Validate) before it is persisted or
+// evaluated; a lookup miss is treated as an internal error.
 
 // customMetricSQL maps a metric identifier to its aggregate expression over
 // the joined flights (f) / aircraft (a) rows. Time metrics aggregate minutes.

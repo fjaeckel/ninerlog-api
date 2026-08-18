@@ -16,11 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// maxPDFExportFlights caps how many flights a single PDF export will
-// render. Without a cap, a large logbook (or a bulk CSV import first)
-// forces an unpaginated query plus a heavy fpdf render on every request;
-// combined with no rate limit on this endpoint, a handful of concurrent
-// calls consume CPU/memory/DB-connection time disproportionately.
+// maxPDFExportFlights caps how many flights a single PDF export will render.
 const maxPDFExportFlights = 10000
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,11 +76,9 @@ const (
 	maxDynRowH = 9.5
 )
 
-// withRowsPerPage returns a geometry whose row height is scaled so that
-// exactly n data rows (plus the three totals rows) fill the page. The row
-// height is clamped to stay legible — an out-of-range request degrades to
-// the nearest workable row count rather than failing. Dense layouts also
-// scale the body font down to fit the shrunken rows.
+// withRowsPerPage returns a geometry whose row height is scaled so exactly n
+// data rows (plus the three totals rows) fill the page. Row height is
+// clamped to stay legible; dense layouts also scale the body font down.
 func (g pageGeometry) withRowsPerPage(n int) pageGeometry {
 	if n < 5 {
 		n = 5
@@ -215,7 +209,6 @@ func newDoc(g pageGeometry, regulation, holder, cert string) *pdfDoc {
 		Size:           g.fpdfSize(),
 	})
 	pdf.SetMargins(g.marginLR, g.gridTop(), g.marginLR)
-	// Pagination is fully layout-driven; an automatic break would tear rows.
 	pdf.SetAutoPageBreak(false, 0)
 	pdf.AliasNbPages("{nb}")
 	return &pdfDoc{
@@ -291,11 +284,8 @@ func (d *pdfDoc) drawFooter() {
 		fmt.Sprintf("Page %d of {nb}", pdf.PageNo()), "", 0, "R", false, 0, "")
 }
 
-// addBlankPage inserts an intentionally-blank filler page. Spread documents
-// get one before the first spread and one before the totals summary so that
-// double-sided printing lands every left page on the back of a sheet and
-// every right page on the front of the next — the bound result opens as
-// facing pages, like a paper logbook.
+// addBlankPage inserts an intentionally-blank filler page, before the first
+// spread and before the totals summary of a spread document.
 func (d *pdfDoc) addBlankPage() {
 	g, pdf := d.g, d.pdf
 	pdf.AddPage()
@@ -450,8 +440,7 @@ func (d *pdfDoc) drawTotalsRow(widths []float64, span int, label string, cells, 
 }
 
 // drawSignatureBlock pins the certification text and the signature/date
-// rules to the bottom of the page, just above the footer. Every logbook
-// page carries one so each printed page can be individually signed.
+// rules to the bottom of the page, just above the footer.
 func (d *pdfDoc) drawSignatureBlock() {
 	cert := d.cert
 	g, pdf := d.g, d.pdf
@@ -514,12 +503,8 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
-	// Populate crew members so DisplayPICName can resolve the instructor
-	// (PIC of record on Dual flights) from the flight_crew_members table.
 	h.attachCrewMembers(c.Request.Context(), flights)
 
-	// A class-rating-filtered export covers only part of the logbook, which
-	// changes whether prior experience may be carried into its balances.
 	classFiltered := false
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)
@@ -550,12 +535,8 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 
 	sortFlightsChronological(flights)
 
-	// Prior experience opens the balance on every sheet, so it has to be
-	// resolved before rendering. A class-rating-filtered export is a partial
-	// view of the logbook and a career-wide baseline would overstate it, so it
-	// is deliberately left out there. A lookup failure is not swallowed: the
-	// alternative is silently handing the pilot a signable document whose
-	// totals understate their time.
+	// Prior experience opens the balance on every sheet; omitted for a
+	// class-rating-filtered export.
 	var baseline *models.FlightBaseline
 	if !classFiltered {
 		baseline, err = h.analyticsBaseline(c.Request.Context(), userID)
@@ -631,11 +612,9 @@ type summaryTotals struct {
 	ldgDay, ldgNight           int
 }
 
-// computeSummaryTotals aggregates every logged flight and folds in the prior
-// experience the pilot carried into this logbook, so the summary page reports
-// a career total rather than a NinerLog total. A baseline records no
-// multi-pilot-vs-single-pilot breakdown beyond MultiPilotMinutes, and nothing
-// at all about approaches or FSTD sessions — see export_pdf_baseline.go.
+// computeSummaryTotals aggregates every logged flight plus the prior
+// experience baseline into a career total. See export_pdf_baseline.go for the
+// baseline's field coverage.
 func computeSummaryTotals(flights []*models.Flight, b *models.FlightBaseline) summaryTotals {
 	var t summaryTotals
 	for _, f := range flights {
@@ -702,16 +681,14 @@ func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBa
 		{"Night Landings", fmt.Sprintf("%d", t.ldgNight)},
 		{"Total Landings", fmt.Sprintf("%d", t.ldgDay+t.ldgNight)},
 	}
-	// Lead with the carried-forward block so the reader can see how much of
-	// the total below came from outside this logbook.
+	// Lead with the carried-forward block.
 	if baselineApplies(b) {
 		rows = append([]struct{ label, value string }{
 			{"Brought Forward (prior logbooks)", fmtDecTotal(b.TotalMinutes)},
 		}, rows...)
 	}
 
-	// Measure the disclosure note so the table stays vertically centred in the
-	// space above the signature strip once the note is added underneath it.
+	// Measure the disclosure note so the table stays vertically centred.
 	noteLineH := 3.4
 	if g.sizeName == "A5" {
 		noteLineH = 2.8
@@ -770,9 +747,7 @@ const (
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-// emdash returns the em-dash character. Centralised so we can swap to a plain
-// hyphen if encoding ever proves problematic. The unicode translator in each
-// generator converts this to CP1252 0x97 for fpdf core fonts.
+// emdash returns the em-dash character.
 func emdash() string { return "—" }
 
 func safeStr(s *string) string {

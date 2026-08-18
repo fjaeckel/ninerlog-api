@@ -9,7 +9,6 @@ import (
 )
 
 // BenchmarkApplyAutoCalculations benchmarks the core flight auto-calculation pipeline.
-// This is a hot-path function called on every flight create/update.
 func BenchmarkApplyAutoCalculations(b *testing.B) {
 	dep := "EDNY"
 	arr := "EDDS"

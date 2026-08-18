@@ -10,12 +10,9 @@ import (
 	"time"
 )
 
-// updatedSince is the delta-sync query parameter added for issue #158. The
-// contract a sync engine relies on is narrow and easy to break silently:
-// strictly-after semantics (so replaying the watermark cannot loop), full
-// timestamp precision (the `q=updatedAt>YYYY-MM-DD` workaround only had day
-// granularity), composition with the endpoint's other filters, and a paginated
-// envelope whose total counts the delta rather than the whole logbook.
+// These tests cover the updatedSince delta-sync parameter: strictly-after
+// semantics, full timestamp precision, composition with other filters, and a
+// paginated envelope whose total counts the delta.
 
 func sinceParam(ts string) string {
 	return "updatedSince=" + url.QueryEscape(ts)
@@ -82,8 +79,7 @@ func TestDeltaSyncContacts(t *testing.T) {
 	watermark := updatedAtOf(t, first[0])
 	annaID := idOf(t, first[0])
 
-	// Replaying the watermark must return nothing: the client already holds
-	// everything up to and including that instant.
+	// Replaying the watermark returns nothing.
 	if got := listRecords(t, c, "/contacts?"+sinceParam(watermark)); len(got) != 0 {
 		t.Errorf("replaying the watermark returned %d contacts, want 0", len(got))
 	}
@@ -95,8 +91,7 @@ func TestDeltaSyncContacts(t *testing.T) {
 	}
 	benWatermark := updatedAtOf(t, delta[0])
 
-	// Editing an existing record must bring it back into a later window —
-	// a sync client that missed updates would silently diverge.
+	// Editing an existing record brings it back into a later window.
 	requireStatus(t, c.PUT("/contacts/"+annaID, map[string]interface{}{"name": "Anna Examiner"}), http.StatusOK)
 	afterEdit := listRecords(t, c, "/contacts?"+sinceParam(benWatermark))
 	if len(afterEdit) != 1 || idOf(t, afterEdit[0]) != annaID {
@@ -187,8 +182,7 @@ func TestDeltaSyncAircraft(t *testing.T) {
 		"aircraftClass": "SEP_LAND",
 	}), http.StatusCreated)
 
-	// The pagination envelope must describe the delta, not the fleet: a total
-	// of 2 here would send the client paging for a record it can never reach.
+	// The pagination envelope describes the delta, not the fleet.
 	delta, deltaTotal := listPaged(t, c, "/aircraft?"+sinceParam(watermark))
 	if deltaTotal != 1 {
 		t.Errorf("delta pagination.total = %d, want 1", deltaTotal)
@@ -228,9 +222,7 @@ func TestDeltaSyncFlights(t *testing.T) {
 		t.Errorf("replaying the watermark reported total %d, want 0", deltaTotal)
 	}
 
-	// Both flights are logged on the same calendar day, so day-granular
-	// `q=updatedAt>YYYY-MM-DD` cannot separate them. This is the gap
-	// updatedSince closes.
+	// Both flights are logged on the same calendar day.
 	newFlight("D-EBBB", "second")
 	delta, deltaTotal := listPaged(t, c, "/flights?"+sinceParam(watermark))
 	if deltaTotal != 1 {
@@ -242,8 +234,7 @@ func TestDeltaSyncFlights(t *testing.T) {
 	secondWatermark := updatedAtOf(t, delta[0])
 
 	t.Run("combines with the other filters", func(t *testing.T) {
-		// updatedSince is ANDed, not substituted: the only flight in the
-		// window is D-EBBB, so asking for D-EAAA within it yields nothing.
+		// updatedSince is ANDed with aircraftReg.
 		_, narrowed := listPaged(t, c, "/flights?"+sinceParam(watermark)+"&aircraftReg=D-EAAA")
 		if narrowed != 0 {
 			t.Errorf("updatedSince AND aircraftReg reported total %d, want 0", narrowed)
@@ -272,8 +263,7 @@ func TestDeltaSyncFlights(t *testing.T) {
 	})
 
 	t.Run("pages the delta", func(t *testing.T) {
-		// Everything logged so far is newer than the epoch, so this pages the
-		// full result set through the delta filter.
+		// An epoch watermark pages the full result set through the delta filter.
 		epoch := "1970-01-01T00:00:00Z"
 		page1, total := listPaged(t, c, "/flights?"+sinceParam(epoch)+"&page=1&pageSize=1")
 		if total != 2 {
@@ -294,9 +284,8 @@ func TestDeltaSyncFlights(t *testing.T) {
 
 var deltaSyncEndpoints = []string{"/flights", "/aircraft", "/contacts", "/credentials", "/licenses"}
 
-// A malformed watermark must be rejected outright. Silently ignoring it would
-// hand the client a full listing it would mistake for "nothing changed since",
-// which is the worst possible failure for a sync loop.
+// TestDeltaSyncRejectsMalformedUpdatedSince covers 400 responses for
+// malformed watermarks.
 func TestDeltaSyncRejectsMalformedUpdatedSince(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("delta-bad"), "SecurePass123!", "Delta Bad")
@@ -312,8 +301,7 @@ func TestDeltaSyncRejectsMalformedUpdatedSince(t *testing.T) {
 	}
 }
 
-// The accepted spellings, pinned so the bound cannot silently narrow (which
-// would break sync clients) or widen into the malformed cases above.
+// TestDeltaSyncAcceptedFormats pins the accepted watermark spellings.
 func TestDeltaSyncAcceptedFormats(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("delta-fmt"), "SecurePass123!", "Delta Fmt")
@@ -335,8 +323,7 @@ func TestDeltaSyncAcceptedFormats(t *testing.T) {
 		}
 	}
 
-	// A date-only watermark means midnight UTC on that date, so today's date
-	// excludes nothing logged before today and includes what was logged since.
+	// A date-only watermark means midnight UTC on that date.
 	requireStatus(t, c.POST("/contacts", map[string]interface{}{"name": "Logged Today"}), http.StatusCreated)
 	todayOnly := listRecords(t, c, "/contacts?"+sinceParam(time.Now().UTC().Format("2006-01-02")))
 	if len(todayOnly) != 1 {
@@ -347,16 +334,13 @@ func TestDeltaSyncAcceptedFormats(t *testing.T) {
 		t.Errorf("a future date-only watermark returned %d contacts, want 0", len(tomorrowOnly))
 	}
 
-	// An empty value must behave exactly like omitting the parameter, not like
-	// a year-zero watermark that quietly reintroduces a full pull under a name
-	// that says otherwise.
+	// An empty value behaves like omitting the parameter.
 	if got := listRecords(t, c, "/contacts?"+sinceParam("")); len(got) != 1 {
 		t.Errorf("empty updatedSince returned %d contacts, want the full list of 1", len(got))
 	}
 }
 
-// Delta pulls stay inside the caller's own data — the filter must never widen
-// the user scope.
+// TestDeltaSyncIsUserScoped covers the user scoping of delta pulls.
 func TestDeltaSyncIsUserScoped(t *testing.T) {
 	owner := NewE2EClient(t)
 	registerAndLogin(t, owner, uniqueEmail("delta-owner"), "SecurePass123!", "Delta Owner")

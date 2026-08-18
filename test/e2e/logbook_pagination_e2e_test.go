@@ -8,24 +8,10 @@ import (
 	"testing"
 )
 
-// TestLogbookFilterPaginationRegression reproduces the production bug reported
-// where a PPL holder's SEP logbook only showed ~18 of ~100 eligible flights.
-//
-// Root cause: the per-license logbook filter (GET /flights?logbookLicenseId=...)
-// matched flights to aircraft class IN MEMORY, but only AFTER the database had
-// already applied pagination (default page size 20). So at most one page of raw
-// flights was ever considered, the reported `total` was wrong, and the pilot
-// could not page past the handful of matches that happened to land on page 1.
-// "Recalculate all flights" did not help because it only recomputes flight-time
-// fields, not the logbook membership.
-//
-// This test creates more eligible (SEP) flights than fit on a single page and
-// deliberately makes the INELIGIBLE (glider) flights the most recent ones, so
-// they dilute the first page exactly the way they did for the real user. It then
-// asserts that:
-//   - the filtered total reflects ALL eligible flights (not just page 1),
-//   - every page can be retrieved and contains only eligible flights,
-//   - no ineligible (glider) flight ever leaks into the SEP logbook.
+// TestLogbookFilterPaginationRegression covers the per-license logbook filter
+// (GET /flights?logbookLicenseId=...) under pagination: the filtered total
+// counts all eligible flights, every page contains only eligible flights, and
+// ineligible flights never leak in.
 func TestLogbookFilterPaginationRegression(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("logbook-pagination"), "SecurePass123!", "Logbook Pagination")
@@ -58,10 +44,9 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 	}), http.StatusCreated)
 
 	// --- Flights ---
-	// 25 eligible SEP flights and 8 ineligible glider flights. The default page
-	// size is 20, so the SEP flights span two pages. The glider flights are given
-	// the MOST RECENT dates so that, sorted by date desc, they occupy the top of
-	// page 1 — the precise condition that made the pre-fix code undercount.
+	// 25 eligible SEP flights spanning two default-size pages, and 8
+	// ineligible glider flights on the most recent dates, occupying the top of
+	// page 1 when sorted by date desc.
 	const sepCount = 25
 	const gliderCount = 8
 
@@ -100,14 +85,7 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 		assertInt(t, "unfiltered total", totalOf(r), sepCount+gliderCount)
 	})
 
-	// Regression: the filtered total must reflect ALL eligible SEP flights, not
-	// just the ones that fit on the first raw page. This MUST be queried with a
-	// page size SMALLER than the flight count (here the default 20 < 33), because
-	// that is the only condition under which the pre-fix in-memory filter saw a
-	// truncated page. Pre-fix, page 1's 20 newest rows were 8 gliders + 12 SEP,
-	// so the filter returned 12 and reported total=12 — mirroring the real
-	// "18 of ~100". With pageSize>=33 every flight fits on one raw page and the
-	// bug is completely masked, so do NOT raise the page size here.
+	// Queried at the default page size (20), smaller than the 33 flights.
 	t.Run("filtered total counts all eligible flights", func(t *testing.T) {
 		resp := c.GET(fmt.Sprintf("/flights?logbookLicenseId=%s", pplID)) // default page size (20)
 		requireStatus(t, resp, http.StatusOK)
@@ -118,8 +96,7 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 			t.Errorf("filtered total: want %d eligible SEP flights, got %d (regression: filter applied after pagination undercounts)", sepCount, got)
 		}
 
-		// Page 1 must contain only eligible SEP flights — no glider may leak in,
-		// even though gliders are the most recent flights overall.
+		// Page 1 contains only eligible SEP flights.
 		data := r["data"].([]interface{})
 		for _, item := range data {
 			f := item.(map[string]interface{})
@@ -127,9 +104,6 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 		}
 	})
 
-	// Regression: pagination must work WITH the filter — every eligible flight is
-	// reachable across pages, and no glider flight leaks in. Pre-fix, page 2 was
-	// empty because the (wrong) total collapsed the result to a single page.
 	t.Run("filtered flights are reachable across pages", func(t *testing.T) {
 		const pageSize = 20
 		seen := map[string]bool{}
@@ -144,9 +118,7 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 			if len(data) == 0 {
 				break
 			}
-			// Every page must agree on the true eligible total. Pre-fix, page 1
-			// reported total=12 (only the SEP rows that survived its single raw
-			// page), so a paginating client believed there was just one page.
+			// Every page reports the same eligible total.
 			if got := totalOf(r); got != sepCount {
 				t.Errorf("page %d reported total %d, want %d (regression: paginated total is wrong)", page, got, sepCount)
 			}
@@ -160,7 +132,7 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 					seen[id] = true
 				}
 			}
-			if page > 10 { // safety valve against an accidental infinite loop
+			if page > 10 { // page-count bound
 				t.Fatal("too many pages; pagination likely broken")
 			}
 		}

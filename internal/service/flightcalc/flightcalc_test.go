@@ -147,8 +147,7 @@ func TestTakeoffOverride_Respected(t *testing.T) {
 }
 
 func TestLandingSplit_NoArrivalTime_DefaultsToDay(t *testing.T) {
-	// Regression: when ArrivalTime is nil, calculateLandingSplit returned early
-	// and left LandingsDay/Night at 0, then AllLandings was overwritten to 0.
+	// AllLandings must be preserved when ArrivalTime is nil.
 	f := baseFlight()
 	f.ArrivalTime = nil
 	f.AllLandings = 3
@@ -236,10 +235,9 @@ func TestNormalizeICAO(t *testing.T) {
 	}
 }
 
-// Regression: entering someone else as PIC and yourself as SIC must log the
-// flight as co-pilot time, NOT PIC time (AMC1 FCL.050: only the designated
-// PIC logs PIC time; FOCA GM/INFO §2.3.3). Multi-pilot time is auto-filled
-// for both pilots of a multi-pilot operation.
+// Someone else as PIC and yourself as SIC logs co-pilot time, not PIC time
+// (AMC1 FCL.050; FOCA GM/INFO §2.3.3). Multi-pilot time is auto-filled for
+// both pilots of a multi-pilot operation.
 func TestSICTime_OtherPICSelfSIC_UserIsSIC(t *testing.T) {
 	f := baseFlight()
 	f.CrewMembers = []models.FlightCrewMember{
@@ -434,12 +432,11 @@ func TestDualGivenTime_SelfListedAsInstructor_IsDualGiving(t *testing.T) {
 	}
 }
 
-// Regression: GH issue — user added another person as Instructor and got
-// "Dual given" (wrong). With the user's name set, a third-party Instructor
-// must produce Dual received and zero Dual given.
+// With the user's name set, a third-party Instructor must produce Dual
+// received and zero Dual given.
 func TestDualGivenTime_ThirdPartyInstructor_IsDualReceived(t *testing.T) {
 	f := baseFlight()
-	f.DualGivenTime = 90 // simulate stale value from earlier buggy save
+	f.DualGivenTime = 90 // stale value to be zeroed
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Jane Instructor", Role: models.CrewRoleInstructor},
 	}
@@ -476,10 +473,8 @@ func TestDualGivenTime_ThirdPartyInstructorWithStudent_PrefersDualReceived(t *te
 	}
 }
 
-// Regression: GH issue #98 — a check ride with a third-party Examiner was
-// counted as PIC time. Per NfL 2021-2-602 §4.2.2 no. 4 the examiner in a
-// pilot seat is PIC of record and there is only one PIC, so the candidate
-// logs the flight as Dual.
+// A check ride with a third-party Examiner is Dual, not PIC: the examiner in
+// a pilot seat is PIC of record (NfL 2021-2-602 §4.2.2 no. 4).
 func TestExamFlight_ThirdPartyExaminer_IsDualReceived(t *testing.T) {
 	f := baseFlight()
 	f.CrewMembers = []models.FlightCrewMember{
@@ -561,11 +556,8 @@ func TestDualGivenTime_EmptyUserName_TreatsInstructorAsThirdParty(t *testing.T) 
 	}
 }
 
-// Regression: a user reported that adding themselves as Instructor still
-// produced DualGivenTime = 0. Run the same scenario through every plausible
-// name-variant the UI / contacts list could produce, so we can pinpoint
-// which form (if any) breaks the self-instructor detection in
-// `determineUserRole`.
+// Self-instructor detection must hold across every plausible name-variant
+// the UI / contacts list could produce.
 func TestDualGivenTime_SelfInstructor_NameVariants(t *testing.T) {
 	const profile = "Amelia Earhart"
 
@@ -717,11 +709,9 @@ func TestCalculateNightTime_NilTimes(t *testing.T) {
 	}
 }
 
-// TestCalculateNightTime_OffBlockFallback_Regression covers ninerlog-api#34:
-// EASA-style imports often only carry off-block / on-block times (no separate
-// takeoff / landing time). A flight from EDBO 18:56→19:19 UTC on 19 Mar 2019
-// is entirely after evening civil twilight, so all 23 minutes must be logged
-// as night even when DepartureTime / ArrivalTime are nil.
+// Night time is computed from block times alone: a flight from EDBO
+// 18:56→19:19 UTC on 19 Mar 2019 is entirely after evening civil twilight,
+// and all 23 minutes are night even when DepartureTime / ArrivalTime are nil.
 func TestCalculateNightTime_OffBlockFallback_Regression(t *testing.T) {
 	airports.SetTestDB(map[string]airports.AirportInfo{
 		// EDBO Oehna Airfield, Brandenburg DE (from OurAirports)
@@ -734,8 +724,7 @@ func TestCalculateNightTime_OffBlockFallback_Regression(t *testing.T) {
 		Date:          time.Date(2019, 3, 19, 0, 0, 0, 0, time.UTC),
 		DepartureICAO: strPtr("EDBO"),
 		ArrivalICAO:   strPtr("EDAZ"),
-		// Only block times set — the EASA CSV import path leaves DepartureTime /
-		// ArrivalTime nil.
+		// Only block times set.
 		OffBlockTime: strPtr("18:56:00"),
 		OnBlockTime:  strPtr("19:19:00"),
 		TotalTime:    23,
@@ -760,9 +749,7 @@ func TestLandingSplit_FromTotalLandings(t *testing.T) {
 	calculateLandingSplit(f)
 	// Without airport lookup data, day landings = total (fallback)
 	if f.LandingsDay+f.LandingsNight != 3 {
-		// The function falls through without airport data, but total should be set
-		// When no airport found, the function returns early without modifying
-		// In that case day=0, night=0, but AllLandings=3
+		// Without airport data the split stays 0/0 while AllLandings=3.
 		t.Logf("Landing split: day=%d night=%d (no airport data)", f.LandingsDay, f.LandingsNight)
 	}
 }

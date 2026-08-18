@@ -12,13 +12,9 @@ import (
 // Scheduler is a process-local goroutine that periodically asks the repository
 // for due destinations and dispatches them via Service.RunOnce.
 //
-// Design notes:
-//   - One scheduler per API process. In a horizontally-scaled deployment
-//     (which we are not yet doing) you would want a leadership election or
-//     row-level lock; the current design only guarantees at-most-once per
-//     destination per process due to runLocks.
-//   - Ticks every minute, with a small jitter on the first tick to spread out
-//     load when multiple instances of the API restart simultaneously.
+//   - One scheduler per API process; runLocks guarantees at-most-once per
+//     destination per process.
+//   - Ticks every minute, with a small delay on the first tick.
 //   - Per-user concurrency cap: at most one run per user can be in flight
 //     across all of their destinations.
 type Scheduler struct {
@@ -29,8 +25,7 @@ type Scheduler struct {
 	wg        sync.WaitGroup
 	logger    *log.Logger
 	userLocks *userLockSet
-	// runHook is called for each dispatched run; tests use it to observe
-	// without spinning the goroutine.
+	// runHook is called for each dispatched run.
 	runHook func(req RunRequest)
 }
 
@@ -74,9 +69,7 @@ func (s *Scheduler) Stop() {
 func (s *Scheduler) loop(ctx context.Context) {
 	defer s.wg.Done()
 
-	// Sleep a small amount on first iteration to avoid stampeding on cold
-	// start. We pin to a deterministic small offset (3s) rather than rand
-	// so tests don't flake.
+	// Deterministic 3s delay before the first tick.
 	timer := time.NewTimer(3 * time.Second)
 	defer timer.Stop()
 
@@ -93,8 +86,7 @@ func (s *Scheduler) loop(ctx context.Context) {
 	}
 }
 
-// tickOnce runs one scheduler iteration. Exported via type embedding so tests
-// can step the scheduler manually.
+// tickOnce runs one scheduler iteration.
 func (s *Scheduler) tickOnce(ctx context.Context) {
 	now := s.svc.clock()
 	due, err := s.svc.destRepo.ListDueForRun(ctx, now)
@@ -111,7 +103,7 @@ func (s *Scheduler) tickOnce(ctx context.Context) {
 // userLocks; per-destination concurrency is enforced by Service.RunOnce.
 func (s *Scheduler) dispatch(ctx context.Context, d *models.BackupDestination) {
 	if !s.userLocks.tryAcquire(d.UserID) {
-		return // another destination for this user is running; pick this one up next tick
+		return // another destination for this user is running; retried next tick
 	}
 	s.wg.Add(1)
 	go func() {

@@ -12,13 +12,10 @@ var (
 	// ErrDuplicateRegistration is returned when a user already has an aircraft with the same registration
 	ErrDuplicateRegistration = errors.New("aircraft registration already exists")
 
-	// ErrDuplicate is returned when a uniqueness constraint is violated,
-	// e.g. creating a second open flight session for the same user
+	// ErrDuplicate is returned when a uniqueness constraint is violated
 	ErrDuplicate = errors.New("duplicate resource")
 
 	// ErrDocumentFileLimit is returned when an image would push a licence or
-	// credential past its per-document image cap. The count is taken while
-	// holding a row lock on the owning document, so this is authoritative even
-	// when two uploads race for the last slot.
+	// credential past its per-document image cap.
 	ErrDocumentFileLimit = errors.New("document image limit reached")
 )

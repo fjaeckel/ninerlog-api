@@ -1,11 +1,8 @@
 // Package logging configures application-wide structured logging.
 //
-// All log output is emitted as JSON on stdout via log/slog so it can be
-// parsed safely by a log-aggregation stack (e.g. Grafana Loki) without
-// brittle line-based regex. Application code logs through the slog default
-// logger (slog.Info/Warn/Error/…); this package wires that default up and
-// also bridges the standard library's log package so that any third-party
-// code still using it produces structured lines too.
+// All log output is JSON on stdout via log/slog. Setup installs the
+// process-wide default logger and bridges the standard library's log package
+// into it.
 package logging
 
 import (
@@ -26,9 +23,7 @@ func Setup() *slog.Logger {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
-	// Route anything written through the standard library's global logger
-	// (some dependencies still use it) into slog, so no unstructured lines
-	// leak into the output stream.
+	// Route the standard library's global logger into slog.
 	log.SetFlags(0)
 	log.SetOutput(stdlogBridge{logger: logger})
 

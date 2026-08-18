@@ -15,13 +15,9 @@ import (
 	jwtlib "github.com/golang-jwt/jwt/v5"
 )
 
-// fakeIDP is a minimal but standards-shaped OpenID Connect provider: discovery
-// document, JWKS, and a token endpoint that mints RS256 ID tokens.
-//
-// It exists so the whole login flow — discovery, code exchange, signature and
-// nonce verification, provisioning — can be exercised in a unit test without a
-// real identity provider, and so the negative cases (wrong key, wrong
-// audience, wrong nonce) can be produced deliberately.
+// fakeIDP is a minimal but standards-shaped OpenID Connect provider:
+// discovery document, JWKS, and a token endpoint that mints RS256 ID tokens.
+// Knobs produce the negative cases (wrong key, wrong audience, wrong nonce).
 type fakeIDP struct {
 	t      *testing.T
 	server *httptest.Server
@@ -34,8 +30,7 @@ type fakeIDP struct {
 	claims        map[string]any  // merged into the ID token
 	expiry        time.Duration   // defaults to +1h
 
-	// lastForm records what the client posted to the token endpoint, so tests
-	// can assert PKCE and grant parameters were sent.
+	// lastForm records what the client posted to the token endpoint.
 	lastForm url.Values
 }
 
@@ -98,8 +93,7 @@ func newFakeIDP(t *testing.T, clientID string) *fakeIDP {
 
 func (f *fakeIDP) issuer() string {
 	if f.server == nil {
-		// Discovery is fetched lazily; the issuer is only needed once the
-		// server is up. Tests never call this before newFakeIDP returns.
+		// Only called after newFakeIDP returns.
 		return ""
 	}
 	return f.server.URL

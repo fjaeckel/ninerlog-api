@@ -11,12 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// The JSON restore inserts rows in a loop with no cap. The only bound was the
-// 50 MB body limit, so one request could drive an unbounded number of inserts —
-// and since the loop is not transactional, a failure partway (bad row, or the
-// request/statement timeout firing) left a partially-imported account with no
-// rollback while the summary reported only what landed first. Refusing an
-// oversized backup up front avoids half-applying it.
+// An oversized JSON restore is refused up front.
 func TestImportDataJSON_RejectsOversizedBackup(t *testing.T) {
 	h, userRepo := setupTestHandler()
 

@@ -9,8 +9,7 @@ import (
 )
 
 // AdminStats aggregates the instance-wide counters shown on the admin
-// dashboard. Counts are best-effort: a failing counter is reported as zero
-// rather than failing the whole dashboard (see the postgres implementation).
+// dashboard. A counter whose query fails is reported as zero.
 type AdminStats struct {
 	TotalUsers       int
 	TotalFlights     int
@@ -138,8 +137,7 @@ type FlightImportRepository interface {
 
 // UserContentRepository wipes a user's logbook content (flights, crew rows,
 // imports, licenses and their class ratings, aircraft, contacts, credentials,
-// notification history) while keeping the account itself. The whole wipe is
-// one transaction: it either completes or leaves everything in place.
+// notification history) in one transaction, keeping the account itself.
 type UserContentRepository interface {
 	DeleteAllContent(ctx context.Context, userID uuid.UUID) error
 }

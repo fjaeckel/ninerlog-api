@@ -60,8 +60,7 @@ func (r *oidcIdentityRepository) Create(ctx context.Context, identity *models.OI
 		identity.Email, identity.LastLoginAt)
 	if err != nil {
 		var pqErr *pq.Error
-		// 23505 = unique_violation: another request linked the same subject
-		// concurrently. The caller re-reads and uses the winning row.
+		// 23505 = unique_violation.
 		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
 			return repository.ErrDuplicate
 		}
@@ -91,10 +90,7 @@ func (r *oidcIdentityRepository) CreateLoginState(ctx context.Context, state *mo
 	return nil
 }
 
-// consumeLoginStateQuery deletes and returns the row in one statement, making
-// consumption exactly-once with no read-modify-write window. The
-// `expires_at > NOW()` predicate is a correctness requirement, not an
-// optimisation: a stopped reaper must never make a stale state replayable.
+// consumeLoginStateQuery atomically deletes and returns an unexpired row.
 const consumeLoginStateQuery = `
 	DELETE FROM oidc_login_states
 	 WHERE state_hash = $1 AND expires_at > NOW()

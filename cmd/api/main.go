@@ -42,17 +42,14 @@ import (
 
 // fatal logs a structured error and exits. Structured attributes (e.g. an
 // "error" key) may be passed after the message, matching slog's variadic API.
-// Used for unrecoverable startup failures where the process must fail closed.
 func fatal(msg string, args ...any) {
 	slog.Error(msg, args...)
 	os.Exit(1)
 }
 
 // envInt reads a positive integer from the environment, falling back to def
-// when the variable is unset, unparseable, or non-positive. Tuning knobs must
-// never be able to silently configure a limit of zero — that would reject
-// every request — so a bad value logs and keeps the default rather than
-// failing closed on traffic.
+// when the variable is unset, unparseable, or non-positive. A bad value logs
+// a warning and returns the default.
 func envInt(key string, def int64) int64 {
 	raw := os.Getenv(key)
 	if raw == "" {
@@ -67,10 +64,8 @@ func envInt(key string, def int64) int64 {
 	return v
 }
 
-// envIntNarrow is envInt for knobs consumed as a plain int. Parsing at a
-// 32-bit width keeps the result in range on every platform, so the conversion
-// cannot truncate a large configured value into a small — or negative — one.
-// Out-of-range, unparseable, and non-positive values all keep the default.
+// envIntNarrow is envInt for knobs consumed as a plain int, parsed at 32-bit
+// width. Out-of-range, unparseable, and non-positive values keep the default.
 func envIntNarrow(key string, def int) int {
 	raw := os.Getenv(key)
 	if raw == "" {
@@ -87,12 +82,9 @@ func envIntNarrow(key string, def int) int {
 
 // envDuration reads a Go duration (e.g. "24h", "60s") from the environment,
 // keeping the default when the variable is unset, unparseable, or non-positive.
-// Same fail-safe reasoning as envInt: a misconfigured retention window must not
-// silently become zero.
 // envBoolWithLegacy reads a boolean feature switch, honouring a previous name
-// for the same knob. Only the exact string "false" disables — an unset or
-// unparseable value leaves the default in place, so a typo never silently
-// turns a feature off. The current name wins when both are set.
+// for the same knob. Only the exact string "false" disables; the current name
+// wins when both are set.
 func envBoolWithLegacy(key, legacyKey string, def bool) bool {
 	for _, k := range []string{key, legacyKey} {
 		if v, ok := os.LookupEnv(k); ok && v != "" {
@@ -124,26 +116,17 @@ func main() {
 	logging.Setup()
 	slog.Info("Starting NinerLog API...")
 
-	// Load environment variables
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		// Local development fallback for passwordless local Postgres; deployed environments should set DATABASE_URL with the required TLS settings.
+		// Local development fallback.
 		dbURL = "postgresql://localhost:5432/ninerlog?sslmode=disable"
 	}
-	// Server-side backstop: kill any query that runs longer than this,
-	// regardless of client behavior, so it can't hold its pool connection
-	// indefinitely. Defense in depth alongside RequestTimeoutMiddleware.
-	// This DSN is also used below for running migrations, so any migration
-	// expected to run longer than this needs its own
-	// "SET LOCAL statement_timeout = 0;" to opt out for that transaction.
+	// 10s server-side statement timeout on the DSN (migrations included).
 	dbURL = withStatementTimeout(dbURL, 10*time.Second)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
 	}
-	// JWT signing secrets are mandatory and must be strong. Fail closed at
-	// startup rather than silently falling back to a public placeholder value,
-	// which would let anyone forge tokens for any user.
 	jwtSecret := os.Getenv("JWT_SECRET")
 	refreshSecret := os.Getenv("REFRESH_SECRET")
 	if err := validateJWTSecrets(jwtSecret, refreshSecret); err != nil {
@@ -164,7 +147,6 @@ func main() {
 		slog.Info("Admin email configured", "email", adminEmail)
 	}
 
-	// Connect to database
 	slog.Info("Connecting to database...")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -176,20 +158,14 @@ func main() {
 		fatal("failed to ping database", "error", err)
 	}
 
-	// Bound the connection pool. database/sql defaults to an unlimited
-	// MaxOpenConns, so without this a burst of slow requests (or a slow
-	// query with no statement timeout) can open connections until
-	// Postgres's own max_connections is exhausted, taking the database
-	// down for every tenant. Excess load queues (and eventually times out)
-	// instead.
-	db.SetMaxOpenConns(25) // tune to Postgres max_connections / replica count
+	// Bound the connection pool.
+	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
 	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetConnMaxIdleTime(1 * time.Minute)
 
 	slog.Info("Database connected")
 
-	// Run database migrations
 	migrationsPath := os.Getenv("MIGRATIONS_PATH")
 	if migrationsPath == "" {
 		migrationsPath = "db/migrations"
@@ -210,14 +186,12 @@ func main() {
 	}
 	slog.Info("Database migrations applied")
 
-	// Load the in-memory airport database (OurAirports + mwgg, merged).
-	// Refreshed periodically below; a failure here is non-fatal.
+	// Load the in-memory airport database (OurAirports + mwgg, merged);
+	// a failure here is non-fatal.
 	airports.Init()
 
-	// Initialize JWT manager
 	jwtManager := jwt.NewManager(jwtSecret, refreshSecret, 15*time.Minute, 7*24*time.Hour)
 
-	// Initialize repositories
 	userRepo := postgres.NewUserRepository(db)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
 	passwordResetRepo := postgres.NewPasswordResetTokenRepository(db)
@@ -225,9 +199,8 @@ func main() {
 	licenseRepo := postgres.NewLicenseRepository(db)
 	flightRepo := postgres.NewFlightRepository(db)
 	flightBaselineRepo := postgres.NewFlightBaselineRepository(db)
-	// TOTP secrets are encrypted at rest when TOTP_ENCRYPTION_KEY (base64,
-	// 32 bytes) is set. Without it, secrets are stored as plaintext; warn so
-	// operators enable encryption in production.
+	// TOTP secrets are encrypted at rest only when TOTP_ENCRYPTION_KEY
+	// (base64, 32 bytes) is set.
 	var totpAEAD *cryptoutil.AEAD
 	if totpKey := os.Getenv("TOTP_ENCRYPTION_KEY"); totpKey != "" {
 		totpAEAD, err = cryptoutil.NewFromBase64(totpKey)
@@ -239,8 +212,6 @@ func main() {
 		slog.Warn("TOTP_ENCRYPTION_KEY not set — 2FA secrets are stored unencrypted")
 	}
 
-	// Initialize services. The two-factor service is built first: the auth
-	// service needs it to verify the second factor during a password reset.
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager, totpAEAD)
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerificationRepo, jwtManager, twoFactorService)
 	licenseService := service.NewLicenseService(licenseRepo)
@@ -254,10 +225,7 @@ func main() {
 	smtpConfig := email.LoadSMTPConfig()
 	emailSender := email.NewSender(smtpConfig)
 
-	// Give the sender somewhere to record what SMTP said about each message.
-	// Attached after construction because the recorder needs the database and
-	// the sender does not; without it, sending still works and simply keeps no
-	// history.
+	// The delivery recorder is attached after construction.
 	emailDeliveryService := service.NewEmailDeliveryService(postgres.NewEmailDeliveryRepository(db))
 	emailSender.SetDeliveryRecorder(emailDeliveryService)
 	emailDeliveryService.RefreshSuppressionGauge(context.Background())
@@ -270,7 +238,6 @@ func main() {
 	webauthnCredRepo := postgres.NewWebAuthnCredentialRepository(db)
 	webauthnSessionRepo := postgres.NewWebAuthnSessionRepository(db)
 
-	// Initialize currency evaluation
 	flightDataProvider := postgres.NewCurrencyFlightDataProvider(db)
 	currencyRegistry := currency.NewRegistry()
 	currencyRegistry.Register(currency.NewEASAEvaluator())
@@ -286,22 +253,12 @@ func main() {
 	customCurrencyService := currency.NewCustomService(customCurrencyRepo, customCurrencyEvaluator)
 	customCurrencyHandler := handlers.NewCustomCurrencyHandler(customCurrencyService)
 
-	// Notification service depends on currency service for two-tier evaluation
 	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService, customCurrencyService)
 
-	// OIDC single sign-on (optional — enabled by setting OIDC_ISSUER).
-	//
-	// This is a mode switch, not an additional login method: when an identity
-	// provider is configured it owns accounts outright, and every local
-	// credential path (passwords, registration, email verification, TOTP,
-	// passkeys) is switched off. Leaving one of them reachable would be a way
-	// around the provider's own policy — its MFA requirements, its account
-	// lifecycle, its lockouts.
-	//
-	// A malformed configuration is fatal. A half-configured provider would
-	// leave a deployment that can neither sign in locally nor via OIDC, and
-	// failing at startup surfaces that immediately rather than at the first
-	// login attempt.
+	// OIDC single sign-on (optional — enabled by setting OIDC_ISSUER). When
+	// configured, every local credential path (passwords, registration, email
+	// verification, TOTP, passkeys) is switched off. A malformed configuration
+	// is fatal.
 	oidcConfig, err := service.LoadOIDCConfig()
 	if err != nil {
 		fatal("invalid OIDC configuration", "error", err)
@@ -337,9 +294,8 @@ func main() {
 	for i := range webauthnOrigins {
 		webauthnOrigins[i] = strings.TrimSpace(webauthnOrigins[i])
 	}
-	// How long ceremony state stays usable. Also drives the client-side
-	// WebAuthn timeout, so a stored challenge never outlives the browser
-	// ceremony that produced it.
+	// TTL for stored ceremony state; also drives the client-side WebAuthn
+	// timeout.
 	webauthnSessionTTL := service.DefaultWebAuthnSessionTTL
 	if raw := os.Getenv("WEBAUTHN_SESSION_TTL"); raw != "" {
 		parsed, parseErr := time.ParseDuration(raw)
@@ -356,9 +312,6 @@ func main() {
 	var webauthnService *service.WebAuthnService
 	switch {
 	case oidcConfig.Enabled():
-		// Passkeys are a local credential: leaving them registerable would let
-		// a user keep a way into NinerLog that the identity provider cannot
-		// revoke.
 		slog.Info("WebAuthn disabled (OIDC mode owns authentication)")
 	case webauthnRPID != "":
 		webauthnService, err = service.NewWebAuthnService(webauthnRPID, webauthnRPName, webauthnOrigins,
@@ -378,7 +331,6 @@ func main() {
 		_ = webauthnSessionRepo
 	}
 
-	// Initialize unified API handler that implements the OpenAPI ServerInterface
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetOIDCService(oidcService)
 	// Repositories the handler uses directly (admin console, reports, import
@@ -394,17 +346,10 @@ func main() {
 	flightSignatureRepo := postgres.NewFlightSignatureRepository(db)
 	flightSignatureService := service.NewFlightSignatureService(flightSignatureRepo, flightRepo, userRepo)
 	apiHandler.SetFlightSignatureService(flightSignatureService)
-	// Licence/credential reference files (JPEG, PNG, PDF). Uploading and
-	// serving user-supplied blobs is an abuse surface an operator may not want
-	// open at all (storage growth, bandwidth amplification), so
-	// DOCUMENT_FILES_ENABLED=false turns the whole feature off — every /files
-	// endpoint then answers 403 and GET /features reports it, while stored
-	// rows are left untouched.
-	//
-	// DOCUMENT_IMAGES_ENABLED is the name this knob shipped under before the
-	// feature grew beyond images. It is still honoured so an operator who
-	// already switched the feature off does not silently get it switched back
-	// on by an upgrade; the new name wins when both are set.
+	// Licence/credential reference files (JPEG, PNG, PDF).
+	// DOCUMENT_FILES_ENABLED=false turns the feature off: every /files
+	// endpoint answers 403, GET /features reports it, stored rows are kept.
+	// DOCUMENT_IMAGES_ENABLED is the legacy name for the same knob.
 	documentFilesEnabled := envBoolWithLegacy("DOCUMENT_FILES_ENABLED", "DOCUMENT_IMAGES_ENABLED", true)
 	documentFileService := service.NewDocumentFileService(
 		postgres.NewDocumentFileRepository(db), licenseRepo, credentialRepo, documentFilesEnabled)
@@ -452,66 +397,48 @@ func main() {
 		slog.Info("Cloud backups disabled (set BACKUP_CREDENTIALS_KEY to enable)")
 	}
 
-	// Setup router
 	gin.SetMode(gin.ReleaseMode)
-	router := gin.New() // Use gin.New() instead of gin.Default() for custom recovery
+	router := gin.New()
 
-	// Metrics & recovery — first in the middleware chain so all requests are instrumented
+	// Metrics & recovery — first in the middleware chain.
 	metricsEnabled := os.Getenv("METRICS_ENABLED") != "false" // default: true
 	if metricsEnabled {
 		router.Use(middleware.MetricsMiddleware())
 	}
 	router.Use(middleware.RecoveryWithMetrics())
 
-	// Structured access log: one JSON line per request with request ID,
-	// method, path, status, latency, client IP, and (when authenticated) the
-	// user ID. Registered ahead of AuthMiddleware, but its post-handler
-	// section runs after auth has populated the user ID in the context.
-	// nil → the JSON default logger configured by logging.Setup above.
+	// Structured access log: one JSON line per request. nil selects the
+	// default logger configured by logging.Setup.
 	router.Use(middleware.LoggerMiddleware(nil))
 
-	// Trust proxy headers (X-Real-IP, X-Forwarded-For) from nginx
-	// so that c.ClientIP() returns the real client IP, not the proxy's address.
+	// Trust proxy headers (X-Real-IP, X-Forwarded-For) from nginx.
 	if err := router.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}); err != nil {
 		fatal("failed to set trusted proxies", "error", err)
 	}
 	router.ForwardedByClientIP = true
 	router.RemoteIPHeaders = []string{"X-Real-IP", "X-Forwarded-For"}
 
-	// CORS
 	router.Use(cors.New(cors.Config{
-		AllowOrigins: corsOrigins,
-		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		// Idempotency-Key is opt-in per request, but a browser client cannot
-		// send it at all unless it is allow-listed here; Idempotency-Replayed
-		// has to be exposed for the same reason on the way back, so a client
-		// can tell a fresh write from a replayed one.
+		AllowOrigins:     corsOrigins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", middleware.HeaderIdempotencyKey},
 		ExposeHeaders:    []string{"Content-Length", middleware.HeaderIdempotencyReplayed, "Retry-After", handlers.HeaderCrewEntriesRenamed},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Security headers on all responses
 	router.Use(middleware.SecurityHeadersMiddleware())
 
 	// Request body size limit for multipart uploads (10 MB)
 	router.MaxMultipartMemory = 10 << 20
 
-	// Cap non-multipart request bodies (JSON endpoints via ShouldBindJSON
-	// read the body in full before any application-level check runs).
-	// Multipart requests are exempt — they're already bounded by
-	// MaxMultipartMemory above plus the explicit CSV size check.
-	// POST /imports/json restores a full logbook backup and legitimately
-	// needs more room than a single-entity JSON body.
-	// The multipart cap sits just above MaxMultipartMemory (10 MB) so a
-	// legitimate max-size CSV plus its multipart framing fits, while an
-	// oversized upload is refused before its bytes are written to disk.
+	// Cap request bodies: 1 MB non-multipart, 12 MB multipart, 50 MB for
+	// POST /imports/json.
 	router.Use(middleware.MaxBodyBytesMiddleware(1<<20, 12<<20, map[string]int64{
 		"/imports/json": 50 << 20,
 	}))
 
-	// Health check with DB connectivity
+	// Health check with DB connectivity.
 	router.GET("/health", func(c *gin.Context) {
 		if err := db.Ping(); err != nil {
 			if metricsEnabled {
@@ -563,28 +490,17 @@ func main() {
 		}()
 	}
 
-	// Rate limiting for auth endpoints: 10 requests per minute per IP
-	// Disabled via DISABLE_RATE_LIMIT=true for e2e test environments
-
-	// Register OpenAPI-generated routes
-	// This automatically maps all routes to the correct handlers with proper parameter extraction
 	api := router.Group("/api/v1")
 
-	// Bound every request's context so a slow/unbounded query can't hold its
-	// DB connection forever; releases the connection even if the query
-	// itself has no deadline. Defense in depth alongside statement_timeout.
+	// 15s deadline on every request context.
 	api.Use(middleware.RequestTimeoutMiddleware(15 * time.Second))
 
 	// Centralized auth middleware — all routes require auth except explicit public paths
 	api.Use(middleware.AuthMiddleware(jwtManager, []string{
 		"/auth/register",
 		"/auth/login",
-		// Capability probe: the client must be able to ask which sign-in
-		// methods exist before anyone can be authenticated.
 		"/auth/providers",
-		// OIDC login flow. The browser reaches authorize/callback with no
-		// token by definition, and exchange trades the single-use handoff
-		// code minted by the callback for the token pair.
+		// OIDC login flow.
 		"/auth/oidc/authorize",
 		"/auth/oidc/callback",
 		"/auth/oidc/exchange",
@@ -598,60 +514,33 @@ func main() {
 		"/auth/webauthn/login/options",
 		"/auth/webauthn/login/verify",
 		"/airports/search",
-		// Instructor signing links: unauthenticated by design (the signer
-		// has no NinerLog account). "/airports/:icaoCode" is deliberately
-		// NOT listed here — the OpenAPI spec requires bearerAuth for it, and
-		// unlike this literal-path allowlist, "/sign/:token" is a gin route
-		// *pattern* that AuthMiddleware matches via c.FullPath().
+		// Unauthenticated instructor signing links; a gin route *pattern*
+		// matched via c.FullPath(), unlike the literal paths above.
 		"/sign/:token",
 	}))
 
 	if os.Getenv("DISABLE_RATE_LIMIT") != "true" {
-		// Coarse global limiter on every authenticated route. Previously only
-		// /auth/* and /admin/* were rate-limited at all — /flights, search,
-		// /exports/pdf, /imports/*, etc. were open to unlimited repetition by
-		// an authenticated user (or a stolen token). Keyed by user ID so it
-		// can't be inflated by users sharing a NAT/office IP.
+		// Coarse global limiter on every authenticated route, keyed by user ID.
 		generalRateLimit := middleware.NewUserRateLimitMiddleware("general", 120, 1*time.Minute)
 		api.Use(generalRateLimit)
 
-		// Tighter limits for specifically expensive endpoints, layered on top
-		// of the general limiter above.
+		// Tighter limits for expensive endpoints, layered on the general
+		// limiter.
 		expensiveRateLimit := middleware.NewUserRateLimitMiddleware("expensive", 15, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(expensiveRateLimit,
 			"/exports/pdf",
-			// Custom-currency preview evaluates an arbitrary user-supplied rule
-			// (aggregate + per-flight lapse queries) without persisting it, so
-			// it is the most repeatable heavy path in this feature.
 			"/custom-currency/preview",
 		))
 		api.Use(middleware.RateLimitByPathPrefix(expensiveRateLimit, "/imports"))
 
-		// Advanced search ("q") drives up to 50 leading-wildcard ILIKE scans
-		// plus a correlated crew subquery per request; plain /flights listing
-		// (no "q") stays under only the general limiter above.
-		//
-		// Search used to share the "expensive" bucket, which is sized for
-		// one-shot operations a user triggers deliberately — a PDF export, a
-		// logbook import. Search is nothing like those: it is *interactive*.
-		// The flights page debounces typing at 300ms and re-issues the query
-		// on every filter, sort, and page change, so a single user refining
-		// one search burns through 15/min without doing anything abusive.
-		// The query itself stays cheap — it is bounded to 50 terms and always
-		// filtered by user_id — so the coarse 120/min limiter remains the real
-		// backstop against a stolen token, and this bucket only needs to stop
-		// a pathological loop.
-		//
-		// Tunable via SEARCH_RATE_LIMIT_PER_MINUTE so the value can be trimmed
-		// against the search panels in the rate-limit dashboard without a
-		// rebuild; see docs/metrics/dashboards/ninerlog-ratelimits.json.
+		// Advanced search ("q") gets its own per-user bucket, tunable via
+		// SEARCH_RATE_LIMIT_PER_MINUTE; plain /flights listing stays under
+		// the general limiter only.
 		searchRateLimit := middleware.NewUserRateLimitMiddleware(
 			"search", envInt("SEARCH_RATE_LIMIT_PER_MINUTE", 60), 1*time.Minute)
 		api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q"))
 
 		authRateLimit := middleware.NewRateLimitMiddleware("auth", 10, 1*time.Minute)
-
-		// Apply rate limiter to sensitive auth endpoints via path-matching middleware
 		api.Use(middleware.RateLimitByPath(authRateLimit,
 			"/auth/register",
 			"/auth/login",
@@ -666,12 +555,7 @@ func main() {
 			"/auth/webauthn/login/verify",
 		))
 
-		// OIDC login and the capability probe get their own budget rather than
-		// sharing the 10/min auth bucket: one sign-in costs three requests
-		// (authorize → callback → exchange), so a household or office behind a
-		// single NAT address would otherwise exhaust the auth bucket after
-		// three logins a minute. The work per request is a redirect or one
-		// single-use row lookup, so a larger budget is still cheap.
+		// OIDC login and the capability probe get their own budget.
 		oidcRateLimit := middleware.NewRateLimitMiddleware("oidc", 60, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(oidcRateLimit,
 			"/auth/providers",
@@ -680,7 +564,7 @@ func main() {
 			"/auth/oidc/exchange",
 		))
 
-		// Stricter rate limiting for admin endpoints: 30 requests per minute per IP
+		// Admin endpoints: 30 requests per minute per IP.
 		adminRateLimit := middleware.NewRateLimitMiddleware("admin", 30, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(adminRateLimit,
 			"/admin/stats",
@@ -696,28 +580,13 @@ func main() {
 			"/reset-2fa",
 		))
 
-		// Public signing links are unauthenticated and token-guessing-prone
-		// by nature (though the 256-bit token itself makes brute force
-		// infeasible); rate-limit by path prefix since the trailing token
-		// segment defeats RateLimitByPath's suffix matching.
+		// Public signing links, rate-limited by path prefix.
 		signRateLimit := middleware.NewRateLimitMiddleware("sign", 20, 1*time.Minute)
 		api.Use(middleware.RateLimitByPathPrefix(signRateLimit, "/sign/"))
 
-		// Licence/credential files: separate budgets for writing and reading.
-		//
-		// Uploading is heavy and deliberate — up to 5 MB spooled, decoded and
-		// written per request — so it keeps the tight "expensive" budget.
-		//
-		// Reading is not the same shape at all. The clients render a thumbnail
-		// strip on every licence and credential card, so opening one list page
-		// legitimately costs one listing plus a few image fetches *per card*,
-		// and again whenever the page is revisited. Charging that against
-		// 15/min made the feature unusable: a pilot with eight documents got
-		// 429 on essentially every image request. Reads get their own, larger
-		// bucket instead — still well under the general 120/min ceiling, and
-		// still per-user, so a stolen token cannot mine the store for bandwidth.
-		//
-		// Tunable without a rebuild, like the search bucket.
+		// Licence/credential files: uploads share the "expensive" budget;
+		// reads get their own per-user bucket, tunable via
+		// FILE_READ_RATE_LIMIT_PER_MINUTE.
 		fileReadRateLimit := middleware.NewUserRateLimitMiddleware(
 			"file_read", envInt("FILE_READ_RATE_LIMIT_PER_MINUTE", 90), 1*time.Minute)
 		api.Use(middleware.RateLimitByPathSegmentForMethods(
@@ -733,10 +602,8 @@ func main() {
 		))
 	} // end DISABLE_RATE_LIMIT check
 
-	// Idempotent writes. Registered after auth (the records are keyed per
-	// user) and after the rate limiters (a throttled request must not burn a
-	// key), and it is a no-op for any request that does not carry an
-	// Idempotency-Key header — which is every request from today's clients.
+	// Idempotent writes; a no-op for requests without an Idempotency-Key
+	// header.
 	idempotencyService := service.NewIdempotencyService(
 		postgres.NewIdempotencyRepository(db),
 		envDuration("IDEMPOTENCY_TTL", service.DefaultIdempotencyTTL),
@@ -745,8 +612,8 @@ func main() {
 	)
 	api.Use(middleware.IdempotencyMiddleware(idempotencyService))
 
-	// Deletion tombstones. The rows themselves are written by database
-	// triggers (migration 000054), so this only serves and sweeps them.
+	// Deletion tombstones. The rows are written by database triggers
+	// (migration 000054); this serves and sweeps them.
 	deletionService := service.NewDeletionService(
 		postgres.NewDeletionRepository(db),
 		envDuration("TOMBSTONE_RETENTION", service.DefaultTombstoneRetention),
@@ -754,12 +621,9 @@ func main() {
 	apiHandler.SetDeletionService(deletionService)
 	apiHandler.SetEmailDeliveryService(emailDeliveryService)
 
-	// Unverified-account lifecycle. Every condition that forbids reaping is
-	// decided in UnverifiedCleanupDisabledReason; a non-empty reason means the
-	// service is never constructed, so neither the worker nor the admin
-	// endpoint exists. Note in particular that OIDC mode refuses it outright:
-	// there, "unverified" is the provider's claim about a live account, not an
-	// abandoned signup.
+	// Unverified-account lifecycle. Constructed only when
+	// UnverifiedCleanupDisabledReason returns empty; a non-empty reason means
+	// neither the worker nor the admin endpoint exists.
 	var unverifiedAccountService *service.UnverifiedAccountService
 	if reason := service.UnverifiedCleanupDisabledReason(emailSender.IsConfigured(), oidcService != nil); reason == "" {
 		unverifiedAccountService = service.NewUnverifiedAccountService(
@@ -787,12 +651,8 @@ func main() {
 	// Register custom currency rule routes (not in OpenAPI spec)
 	handlers.RegisterCustomCurrencyRoutes(api, customCurrencyHandler)
 
-	// OIDC authorize/callback are browser redirects rather than JSON
-	// operations, so they are registered manually; the JSON half of the flow
-	// (/auth/providers, /auth/oidc/exchange) comes from the spec above.
-	// Registered unconditionally so the endpoints answer 503 rather than 404
-	// when OIDC is off — a 404 reads as "wrong URL" to someone setting the
-	// provider up.
+	// OIDC authorize/callback browser redirects, registered manually and
+	// unconditionally; they answer 503 when OIDC is off.
 	handlers.RegisterOIDCRoutes(api, apiHandler)
 
 	slog.Info("Routes registered from OpenAPI specification")
@@ -806,45 +666,35 @@ func main() {
 	// default 24h). A failed refresh keeps the snapshot already in memory.
 	airports.StartRefresher(notifCtx, airports.RefreshInterval())
 
-	// Evict expired CSV upload sessions on a timer. Without this, parsed rows
-	// stay resident until the next upload happens to trigger cleanup.
+	// Evict expired CSV upload sessions on a timer.
 	handlers.StartImportSessionReaper(notifCtx, time.Minute)
 
-	// Sweep expired idempotency records. Purely hygiene — a claim past its
-	// expiry is taken over on the next request regardless of the reaper.
+	// Sweep expired idempotency records.
 	idempotencyService.StartReaper(notifCtx, time.Hour)
 
-	// Sweep deletion tombstones past the retention horizon. Not hygiene: the
-	// horizon is part of the sync contract, and GET /sync/deletions tells a
-	// client its watermark expired using the same bound this enforces.
+	// Sweep deletion tombstones past the retention horizon.
 	deletionService.StartReaper(notifCtx, time.Hour)
 
-	// Sweep expired WebAuthn ceremony rows. Purely hygiene — Consume already
-	// refuses to return an expired session, so a stalled reaper cannot make a
-	// stale challenge usable.
+	// Sweep expired WebAuthn ceremony rows.
 	if webauthnService != nil {
 		webauthnService.StartSessionReaper(notifCtx, 5*time.Minute)
 	}
 
-	// Same hygiene for pending OIDC logins and unredeemed handoff codes.
+	// Sweep pending OIDC logins and unredeemed handoff codes.
 	if oidcService != nil {
 		oidcService.StartStateReaper(notifCtx, 5*time.Minute)
 	}
 
-	// Remind, then reap, accounts that never confirmed their address. Not
-	// hygiene: this deletes user accounts, which is why it runs only when
-	// verification is enforced and can be switched off outright.
+	// Remind, then reap, accounts that never confirmed their address.
 	if unverifiedAccountService != nil {
 		unverifiedAccountService.Start(notifCtx)
 	}
 
-	// Start cloud-backup scheduler if configured
 	if backupScheduler != nil {
 		backupScheduler.Start(notifCtx)
 		slog.Info("Cloud backup scheduler started")
 	}
 
-	// Start server with timeouts to prevent slow-loris and resource exhaustion
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%s", port),
 		Handler:           router,
