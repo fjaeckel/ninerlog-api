@@ -52,8 +52,7 @@ type Provider struct {
 }
 
 // New returns a WebDAV provider using a hardened default HTTP transport whose
-// connections are restricted by an SSRF guard so user-supplied base URLs cannot
-// reach internal addresses.
+// connections are restricted by an SSRF guard.
 func New() *Provider {
 	return &Provider{
 		transport: netguard.FromEnv().HTTPTransport(),
@@ -131,8 +130,8 @@ func (p *Provider) Validate(ctx context.Context, cfg provider.Config, creds prov
 		return err
 	}
 
-	// Ensure the target directory exists. MkdirAll is idempotent and is the
-	// cheapest write-permission probe available on WebDAV.
+	// Ensure the target directory exists; MkdirAll doubles as the
+	// write-permission probe.
 	if err := client.MkdirAll(parsed.Path, 0o755); err != nil {
 		return classifyError(err)
 	}
@@ -160,9 +159,7 @@ func (p *Provider) Upload(ctx context.Context, cfg provider.Config, creds provid
 		reader = strings.NewReader("")
 	}
 
-	// Prefer WriteStreamWithLength so the server gets a Content-Length header
-	// and can reject early on quota; fall back to WriteStream if size is
-	// unknown.
+	// WriteStreamWithLength when the size is known; WriteStream otherwise.
 	var writeErr error
 	if in.Size > 0 {
 		writeErr = client.WriteStreamWithLength(remotePath, reader, in.Size, 0o644)
@@ -188,7 +185,7 @@ func (p *Provider) List(ctx context.Context, cfg provider.Config, creds provider
 
 	entries, err := client.ReadDir(parsed.Path)
 	if err != nil {
-		// A missing directory is treated as "no backups yet" rather than an error.
+		// A missing directory is "no backups yet", not an error.
 		if gowebdav.IsErrNotFound(err) {
 			return nil, nil
 		}
@@ -223,7 +220,7 @@ func (p *Provider) Delete(ctx context.Context, cfg provider.Config, creds provid
 		return err
 	}
 	if err := client.Remove(path); err != nil {
-		// Treat "already gone" as success — retention pruning is idempotent.
+		// Already gone counts as success.
 		if gowebdav.IsErrNotFound(err) {
 			return nil
 		}
@@ -360,8 +357,7 @@ func classifyError(err error) error {
 	if errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("%w: %v", provider.ErrNotFound, err)
 	}
-	// Fall back to ErrTransient for opaque transport/IO failures so the
-	// service's retry policy kicks in.
+	// Opaque transport/IO failures fall back to ErrTransient.
 	var statusErr *gowebdav.StatusError
 	if errors.As(err, &statusErr) {
 		return err
@@ -369,13 +365,12 @@ func classifyError(err error) error {
 	if _, ok := err.(interface{ Timeout() bool }); ok {
 		return fmt.Errorf("%w: %v", provider.ErrTransient, err)
 	}
-	// As a last resort, surface the raw error verbatim.
+	// Last resort: the raw error verbatim.
 	return err
 }
 
-// Compile-time assertion that we satisfy the provider interface.
+// Compile-time assertion of the provider interface.
 var _ provider.Provider = (*Provider)(nil)
 
-// Ensure io.Reader is referenced even when callers pass nil readers; this
-// keeps go vet happy in case future refactors trim the import.
+// Keeps the io import referenced.
 var _ io.Reader = (*strings.Reader)(nil)

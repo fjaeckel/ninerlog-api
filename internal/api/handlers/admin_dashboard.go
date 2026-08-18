@@ -62,8 +62,6 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	), &stats.DisabledAccounts)
 
 	// Cloud backup destinations: total count + breakdown by provider.
-	// Always queryable since the table is part of the standard schema; an
-	// empty result simply yields total=0 and an empty byProvider map.
 	stats.CloudBackupDestinations.ByProvider = map[string]int{}
 	rows, err := h.db.QueryContext(c.Request.Context(),
 		"SELECT provider, COUNT(*) FROM backup_destinations GROUP BY provider")
@@ -245,10 +243,8 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		DocumentFilesEnabled:   &documentFilesEnabled,
 	}
 
-	// The unverified-account lifecycle is only reported when it is actually
-	// running. Showing "30 days" on a deployment where nothing reaps would be
-	// worse than showing nothing — so when it is off, the reason is reported
-	// instead, and the timing is not.
+	// The unverified-account lifecycle timing is reported only when running;
+	// otherwise the disabled reason is reported instead.
 	enabled := h.unverifiedAccountService != nil
 	config.UnverifiedCleanupEnabled = &enabled
 	if enabled {

@@ -15,10 +15,6 @@ func resetSessions() {
 	sessionMu.Unlock()
 }
 
-// A parsed session holds every row as a map[string]string, costing roughly an
-// order of magnitude more than the raw bytes. Uncapped, repeated uploads that
-// are never completed pinned that memory for the whole TTL (measured: ~1.7 GB
-// RSS after 20 x 8 MB uploads, never released).
 func TestStoreSession_EnforcesPerUserCap(t *testing.T) {
 	resetSessions()
 	defer resetSessions()

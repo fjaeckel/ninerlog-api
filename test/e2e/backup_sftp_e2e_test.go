@@ -17,11 +17,7 @@ import (
 //   password: ninerlogtest
 //   writable folder: /upload (relative to the user's home)
 //
-// The atmoz/sftp image regenerates the host key on container start so the
-// fingerprint isn't known up front. The e2e tests set
-// accept_any_host_key=true to skip host-key verification — which is the
-// documented insecure-but-explicit mode the provider supports for trusted
-// networks and tests.
+// The e2e tests set accept_any_host_key=true to skip host-key verification.
 func sftpHost() string {
 	if v := os.Getenv("E2E_SFTP_HOST"); v != "" {
 		return v
@@ -201,8 +197,7 @@ func TestBackup_SFTP_InvalidCredentials(t *testing.T) {
 }
 
 // TestBackup_SFTP_RequiresHostKeyOrAcceptAny verifies the provider rejects a
-// destination missing both host_key_fingerprint and accept_any_host_key — a
-// security regression guard.
+// destination missing both host_key_fingerprint and accept_any_host_key.
 func TestBackup_SFTP_RequiresHostKeyOrAcceptAny(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("backup-sftp-nohostkey"), "Password123!", "SFTP NoHostKey")

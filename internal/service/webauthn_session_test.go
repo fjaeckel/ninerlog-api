@@ -147,8 +147,8 @@ func testUser(email string) *models.User {
 }
 
 // garbage is a syntactically valid JSON body that is not a credential
-// response. Reaching the parser means session handling already succeeded, so
-// ErrWebAuthnInvalidResponse is the "session accepted" signal in these tests.
+// response; ErrWebAuthnInvalidResponse is the "session accepted" signal in
+// these tests.
 var garbage = []byte(`{"id":"nope"}`)
 
 // --- tests -------------------------------------------------------------

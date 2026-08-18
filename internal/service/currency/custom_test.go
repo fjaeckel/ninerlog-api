@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// fixedNow gives the evaluator a deterministic clock so windowSince is stable.
+// fixedNow pins the evaluator's clock.
 func fixedNow() time.Time { return time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC) }
 
 func newTestEvaluator(t *testing.T) (*CustomEvaluator, sqlmock.Sqlmock, func()) {

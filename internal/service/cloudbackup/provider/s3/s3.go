@@ -49,7 +49,7 @@ type Provider struct {
 
 // New returns an S3 provider using a hardened default HTTP client (10s
 // dial/handshake, 60s response timeout) whose connections are restricted by an
-// SSRF guard so user-supplied endpoints cannot reach internal addresses.
+// SSRF guard.
 func New() *Provider {
 	return &Provider{httpClient: defaultHTTPClient()}
 }
@@ -99,22 +99,15 @@ func (*Provider) CredentialSchema() []provider.Field {
 // Validate authenticates and confirms the bucket is reachable and writeable.
 // It performs:
 //  1. A 1-key prefix list (GET) to verify credentials and list permission.
-//     We probe with GET before HEAD because HEAD responses carry no body, so
-//     when credentials are bad some S3 implementations (SeaweedFS, and minio-go
-//     itself on HEAD) collapse the error to a generic "AccessDenied" instead
-//     of the real "InvalidAccessKeyId" / "SignatureDoesNotMatch" code. A GET
-//     against the bucket always returns an XML <Error> body, so the real code
-//     reaches classifyError.
-//  2. A "BucketExists" call (HEAD on the bucket) to distinguish missing buckets
-//     from auth failures once we know the credentials work.
+//  2. A "BucketExists" call (HEAD on the bucket) to distinguish missing
+//     buckets from auth failures.
 func (p *Provider) Validate(ctx context.Context, cfg provider.Config, creds provider.Credentials) error {
 	client, parsed, err := p.newClient(cfg, creds)
 	if err != nil {
 		return err
 	}
 
-	// Probe list permission first — GET returns an XML body even on auth
-	// failure, which is necessary for accurate error classification.
+	// Probe list permission first.
 	ch := client.ListObjects(ctx, parsed.Bucket, minio.ListObjectsOptions{
 		Prefix:    parsed.Prefix,
 		Recursive: false,
@@ -124,7 +117,7 @@ func (p *Provider) Validate(ctx context.Context, cfg provider.Config, creds prov
 		if obj.Err != nil {
 			return classifyError(obj.Err)
 		}
-		// We don't actually care about the listed object — just that we got one.
+		// One listed object is enough.
 		break
 	}
 
@@ -326,8 +319,7 @@ func stringField(m map[string]any, key string) (string, bool) {
 	return strings.TrimSpace(s), true
 }
 
-// classifyError maps minio-go errors onto the provider.Err* sentinels so the
-// service can render appropriate HTTP status codes.
+// classifyError maps minio-go errors onto the provider.Err* sentinels.
 func classifyError(err error) error {
 	if err == nil {
 		return nil

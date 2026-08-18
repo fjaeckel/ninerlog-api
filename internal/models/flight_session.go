@@ -32,15 +32,12 @@ var (
 )
 
 // MaxFlightSessionDuration is the longest off-block → on-block span accepted
-// when completing a session. Anything longer is almost certainly a forgotten
-// session that should be discarded instead.
+// when completing a session.
 const MaxFlightSessionDuration = 24 * time.Hour
 
 // FlightSession represents an in-progress flight captured live via
-// tap-to-log from a mobile device. Event instants are full UTC timestamps
-// (not bare times of day) so flights crossing midnight stay unambiguous;
-// they are split into date + HH:MM:SS when the session is converted into a
-// Flight.
+// tap-to-log from a mobile device. Event instants are full UTC timestamps,
+// split into date + HH:MM:SS when the session is converted into a Flight.
 type FlightSession struct {
 	ID     uuid.UUID `json:"id"`
 	UserID uuid.UUID `json:"userId"`
@@ -66,7 +63,6 @@ type FlightSession struct {
 // ValidateEventOrder checks that whichever event instants are present occur
 // in the physical order off block ≤ takeoff ≤ landing ≤ on block.
 func (s *FlightSession) ValidateEventOrder() error {
-	// Collect present timestamps in expected order and verify monotonicity.
 	ordered := []*time.Time{s.OffBlockAt, s.TakeoffAt, s.LandingAt, s.OnBlockAt}
 	var prev *time.Time
 	for _, t := range ordered {

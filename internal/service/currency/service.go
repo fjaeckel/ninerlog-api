@@ -53,7 +53,7 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 	var ratings []ClassRatingCurrency
 	var passengerCurrency []PassengerCurrency
 	var flightReview *FlightReviewStatus
-	seenPassengerClasses := make(map[string]bool) // avoid duplicate passenger currency for same class across licenses
+	seenPassengerClasses := make(map[string]bool) // one passenger currency per class across licenses
 	flightReviewEvaluated := false
 
 	for _, license := range licenses {
@@ -74,8 +74,8 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 			result := eval.Evaluate(ctx, cr, license, s.flightData)
 			ratings = append(ratings, result)
 
-			// Tier 2: Passenger currency (if evaluator supports it)
-			// Skip IR ratings — passenger currency doesn't apply to instrument ratings
+			// Tier 2: Passenger currency (if evaluator supports it).
+			// IR ratings are skipped.
 			if cr.ClassType == models.ClassTypeIR {
 				continue
 			}

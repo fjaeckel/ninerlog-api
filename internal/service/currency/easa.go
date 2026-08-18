@@ -436,8 +436,7 @@ var easaSPLTMGRule = ratingRule{
 // the opening of its 12-month experience-counting window (EASA FCL.740.A,
 // FCL.625.A). It populates the WindowOpensAt / WindowOpen fields on the
 // result, and — if the window is still closed — fills in a "recently
-// revalidated" message and returns (result, true) so the caller can return
-// early without consulting the FlightDataProvider.
+// revalidated" message and returns (result, true).
 //
 // `since` must be the 12-month look-back anchor (rating.ExpiryDate − 12mo).
 func applyClosedWindow(rating *models.ClassRating, since *time.Time, result ClassRatingCurrency) (ClassRatingCurrency, bool) {
@@ -456,9 +455,8 @@ func applyClosedWindow(rating *models.ClassRating, since *time.Time, result Clas
 	return result, true
 }
 
-// EvaluatePassengerCurrency evaluates EASA FCL.060(b) passenger-carrying recency.
-// This is SEPARATE from rating revalidation — a pilot can have a valid rating but
-// cannot carry passengers without meeting FCL.060(b).
+// EvaluatePassengerCurrency evaluates EASA FCL.060(b) passenger-carrying
+// recency, separate from rating revalidation.
 //
 // FCL.060(b)(1): 3 takeoffs, approaches and landings in same type or class
 // within the preceding 90 days (rolling from now) for any passenger flight.
@@ -539,9 +537,8 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 }
 
 // hasValidIRRating returns true if the given list of class ratings contains a
-// current Instrument Rating — i.e. one with a non-nil expiry date that has not
-// yet passed. Ratings without an expiry date are treated as unknown/not current
-// because currency cannot be confirmed.
+// current Instrument Rating — one with a non-nil expiry date that has not yet
+// passed. Ratings without an expiry date count as not current.
 func hasValidIRRating(ratings []*models.ClassRating) bool {
 	for _, r := range ratings {
 		if r == nil || r.ClassType != models.ClassTypeIR {

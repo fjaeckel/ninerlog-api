@@ -42,13 +42,6 @@ type uploadSession struct {
 }
 
 // Bounds on the in-memory upload-session store.
-//
-// A parsed session holds every row as a map[string]string, which costs roughly
-// an order of magnitude more than the raw bytes. Without caps, repeatedly
-// uploading a max-size CSV and never completing the import pinned that memory
-// for the full session TTL: measured growth was ~85 MB of RSS per 8 MB upload,
-// reaching 1.7 GB after 20 uploads and never released. Any single authenticated
-// user could OOM the shared API.
 const (
 	// maxImportRows caps rows parsed from one file.
 	maxImportRows = 20000
@@ -94,9 +87,7 @@ func newUploadToken() string {
 	return hex.EncodeToString(b)
 }
 
-// StartImportSessionReaper evicts expired upload sessions on a timer. Cleanup
-// previously ran only at the start of the next upload, so an attacker who
-// stopped uploading left everything resident until someone else uploaded.
+// StartImportSessionReaper evicts expired upload sessions on a timer.
 func StartImportSessionReaper(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
 		interval = time.Minute
@@ -370,8 +361,8 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 		mappingLookup[m.SourceColumn] = m
 	}
 
-	// Persist user-confirmed mappings on the session so confirm can reuse them
-	// (the confirm endpoint does not re-send mappings).
+	// Persist user-confirmed mappings on the session; the confirm endpoint
+	// does not re-send mappings.
 	sessionMu.Lock()
 	session.mappings = append(session.mappings[:0], req.Mappings...)
 	sessionMu.Unlock()
@@ -379,16 +370,14 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	// Get existing flights for duplicate detection
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 
-	// Build a registration → type lookup from the user's fleet so the importer
-	// can resolve aircraft types when the source row does not include one.
+	// Build a registration → type lookup from the user's fleet.
 	aircraftTypes := make(map[string]string)
 	if existingAircraft, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
 		for _, a := range existingAircraft {
 			aircraftTypes[strings.ToUpper(a.Registration)] = a.Type
 		}
 	}
-	// Also seed from the ForeFlight Aircraft Table in this upload session so the
-	// preview reflects types that will be auto-created on confirm.
+	// Also seed from the ForeFlight Aircraft Table in this upload session.
 	for _, acRow := range session.aircraft {
 		reg := strings.ToUpper(strings.TrimSpace(acRow["AircraftID"]))
 		typeCode := strings.ToUpper(strings.TrimSpace(acRow["TypeCode"]))
@@ -482,8 +471,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		return
 	}
 
-	// Re-run preview to get validated flights
-	// For simplicity, we re-parse — in production you'd cache preview results
+	// Re-parse to get validated flights.
 
 	// Build selected row set
 	selectedSet := make(map[int]bool)
@@ -496,8 +484,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	isSelected := func(rowIdx int) bool { return importAll || selectedSet[rowIdx] }
 	includeDups := req.IncludeDuplicates != nil && *req.IncludeDuplicates
 
-	// Resolve user display name once for flight auto-calculations (used to
-	// distinguish self-as-instructor from third-party instructor in crew).
+	// Resolve the user display name once for flight auto-calculations.
 	userName := ""
 	if user, err := h.authService.GetUserByID(c.Request.Context(), userID); err == nil && user != nil {
 		userName = user.Name
@@ -506,9 +493,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	// Get existing flights for duplicate check
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 
-	// Get the preview mappings from the session (they were stored during preview).
-	// Fall back to suggested mappings only when the client called confirm without
-	// having gone through preview (older clients / API misuse).
+	// Use the mappings stored during preview; fall back to suggested mappings
+	// when none are stored.
 	mappingLookup := make(map[string]generated.ImportColumnMapping)
 	if len(session.mappings) > 0 {
 		for _, m := range session.mappings {
@@ -593,14 +579,11 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		RowIndex int     `json:"rowIndex"`
 	}
 	imported, skipped, errored, dups := 0, 0, 0, 0
-	// One linker for the whole import: it caches name lookups across flights,
-	// which matters because a logbook is mostly the same handful of people.
+	// One linker for the whole import; it caches name lookups across flights.
 	crewLinker := h.contactService.NewCrewLinker(userID)
 
-	// Build a registration → type lookup from the user's (now-augmented) fleet so
-	// the importer can resolve aircraft types when the source row does not
-	// include one. This must happen AFTER the ForeFlight Aircraft Table
-	// auto-create block above so newly-created aircraft are picked up.
+	// Build a registration → type lookup from the user's now-augmented fleet;
+	// runs AFTER the ForeFlight Aircraft Table auto-create block above.
 	aircraftTypes := make(map[string]string)
 	if fleet, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
 		for _, a := range fleet {
@@ -609,22 +592,15 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	}
 
 	// Auto-create fleet entries for registrations that appear in the file but
-	// are not in the user's fleet yet. Only ForeFlight exports carry a dedicated
-	// Aircraft Table (handled above); every other CSV names its aircraft solely
-	// in the flight rows, so imports of those used to create flights while
-	// leaving the fleet empty — no aircraft page entries, no per-aircraft
-	// statistics or recency.
-	//
-	// Rows that will be skipped as duplicates still count here: re-importing a
-	// file whose flights already exist is exactly how a user backfills a fleet
-	// that an earlier import left empty. Rows the user deselected do not.
+	// are not in the user's fleet yet. Rows that will be skipped as duplicates
+	// still count here; rows the user deselected do not.
 	for reg, typeCode := range collectAircraftFromRows(session.rows, mappingLookup, isSelected) {
 		if _, exists := aircraftTypes[reg]; exists {
 			continue
 		}
 		if typeCode == "" {
 			// Same last-resort fallback mapRowToFlight applies to the flight's
-			// aircraftType, so the fleet entry agrees with the imported flights.
+			// aircraftType.
 			typeCode = reg
 		}
 		// Make/Model are required by Aircraft.Validate but a flight row carries
@@ -638,9 +614,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			IsActive:     true,
 		}
 		if err := h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft); err != nil {
-			// A registration or type too long for the column, or a race with a
-			// concurrent create: import the flights anyway rather than failing
-			// the whole run over a fleet entry.
+			// Fleet-entry failures are non-fatal; the flights still import.
 			continue
 		}
 		aircraftCreated++
@@ -1110,9 +1084,7 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	}
 
 	// Build crew members from person data via the centralised legacy-crew
-	// inference helper. The importer is the only caller today, but any
-	// future re-importer of legacy spreadsheet formats MUST reuse this
-	// helper instead of re-deriving the role logic locally.
+	// inference helper.
 	inferred := flightrules.InferLegacyCrew(flightrules.LegacyCrewInput{
 		Person1:         personNames["person1"],
 		Person2:         personNames["person2"],
@@ -1198,20 +1170,9 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		}
 	}
 
-	// ForeFlight: auto-calculate IFR time from actual + simulated instrument
-	// if not explicitly set. The same rule (flightrules.EffectiveIFRTime) is
-	// applied unconditionally in flightcalc.ApplyAutoCalculations at save
-	// time; this pre-derivation lets the validator and dedup logic see the
-	// derived value early.
-	//
-	// The derived value is capped at the effective total time (block-time
-	// derived when available, else the explicit TotalTime cell). ForeFlight
-	// stores both the instrument-time and the total-time columns as decimal
-	// hours rounded independently to one decimal, which can round to slightly
-	// different minute counts (e.g. SimulatedInstrument=3.3 → 198 min while
-	// the block time 09:53→13:10 → 197 min). Without the cap, the rounding
-	// mismatch produces an invalid "IFR exceeds total" flight that fails
-	// validation in flightService.CreateFlight.
+	// ForeFlight: pre-derive IFR time from actual + simulated instrument when
+	// not explicitly set (flightrules.EffectiveIFRTime), capped at the
+	// effective total time.
 	if (flight.IfrTime == nil || *flight.IfrTime == 0) && (flight.ActualInstrumentTime != nil || flight.SimulatedInstrumentTime != nil) {
 		var ifrTotal int
 		if flight.ActualInstrumentTime != nil {
@@ -1435,8 +1396,7 @@ func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *op
 
 func parseCSV(data []byte) ([]string, []map[string]string, []map[string]string, error) {
 	// ForeFlight exports have metadata preamble sections:
-	// "ForeFlight Logbook Import", "Aircraft Table", "Flights Table"
-	// We need to find both sections and parse them.
+	// "ForeFlight Logbook Import", "Aircraft Table", "Flights Table".
 	content := string(data)
 	lines := strings.Split(content, "\n")
 
@@ -1559,13 +1519,9 @@ func parseSectionCSV(csvData []byte) ([]string, []map[string]string, error) {
 
 // dateLayouts is a prioritized list of date layouts tried when a mapped
 // column's DateFormat hint is absent or does not match. It covers every
-// format ninerlog's own CSV export can produce (exportPrefs.formatDate's
-// three options plus the fixed layouts used by the EASA/FAA exports) so
-// that re-importing our own exports always works, alongside common
-// third-party logbook date formats. For ambiguous numeric slash-separated
-// dates (e.g. "07/04/2019"), MM/DD/YYYY is tried before DD/MM/YYYY since
-// that matches ninerlog's own default/FAA export convention; unambiguous
-// values (day > 12) still resolve correctly via the DD/MM fallback.
+// format ninerlog's own CSV export can produce plus common third-party
+// logbook formats. For ambiguous slash-separated dates, MM/DD/YYYY is tried
+// before DD/MM/YYYY.
 var dateLayouts = []string{
 	"2006-01-02",                // ISO / ForeFlight / ninerlog YYYY-MM-DD export
 	"02.01.2006",                // ninerlog default DD.MM.YYYY export
@@ -1588,9 +1544,7 @@ var dateLayouts = []string{
 }
 
 // parseFlexibleDate parses val as a date, trying the mapping's DateFormat
-// hint first (when set) and then falling back through dateLayouts. This
-// lets the importer accept a myriad of date formats instead of requiring
-// an exact match against a single hardcoded/suggested layout.
+// hint first (when set) and then falling back through dateLayouts.
 func parseFlexibleDate(val, hint string) (time.Time, error) {
 	val = strings.TrimSpace(val)
 	if hint != "" {
@@ -1610,12 +1564,8 @@ func parseFlexibleDate(val, hint string) (time.Time, error) {
 }
 
 // normalizeDecimalSeparator converts a European-style comma decimal
-// separator (e.g. "1,5") to the dot form ("1.5") expected by
-// duration.ParseDuration/strconv.ParseFloat. ninerlog's own CSV export
-// writes decimal-hour fields with a comma when the user's decimalSeparator
-// preference is "comma", so numeric columns must accept it back on import.
-// A value already containing a dot is left untouched to avoid mangling
-// unrelated formats.
+// separator (e.g. "1,5") to the dot form ("1.5"). A value already containing
+// a dot is left untouched.
 func normalizeDecimalSeparator(val string) string {
 	if strings.Contains(val, ",") && !strings.Contains(val, ".") {
 		return strings.Replace(val, ",", ".", 1)
@@ -1633,12 +1583,9 @@ var icaoTokenPattern = regexp.MustCompile(`\b[A-Za-z0-9]{4}\b`)
 
 // normalizeLocation cleans a departure/arrival location from an import row.
 // Values that look like an airport code (<=4 alphanumeric chars) are
-// upper-cased so ICAO codes stay canonical. Longer free-text values (e.g. a
-// source column combining airport name and code) are scanned for an
-// embedded 4-char token that resolves to a known airport, since the
-// night/landing/distance auto-calculations need an exact ICAO match; values
-// with no recognizable ICAO substring (genuine off-airport strips) keep
-// their original casing.
+// upper-cased; longer free-text values are scanned for an embedded 4-char
+// token resolving to a known airport; values with no recognizable ICAO
+// substring keep their original casing.
 func normalizeLocation(val string) string {
 	trimmed := strings.TrimSpace(val)
 	if icaoLikePattern.MatchString(trimmed) {

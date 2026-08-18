@@ -16,11 +16,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// OIDC mode is a mode switch, not an extra login button: when an identity
-// provider owns accounts, every local credential path has to be closed. These
-// tests walk each of those endpoints and assert it refuses, because a single
-// one left reachable is a way around the provider's own policy — its MFA
-// requirements, its lockouts, its offboarding.
+// These tests walk every local credential endpoint under OIDC mode and
+// assert it refuses.
 
 // oidcTestHandler returns a handler wired for OIDC mode. The service is
 // constructed with a real config but is never asked to reach the provider:

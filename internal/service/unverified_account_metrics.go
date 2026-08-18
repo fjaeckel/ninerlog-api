@@ -7,8 +7,8 @@ var (
 	//
 	// Results:
 	//   sent          — the reminder was delivered; the deletion clock started.
-	//   undeliverable — the address refused mail permanently; the clock started
-	//                   anyway, because no later attempt would do better.
+	//   undeliverable — the address refused mail permanently; the clock
+	//                   started anyway.
 	//   deferred      — a transient failure; the account is retried next sweep.
 	//   error         — the token could not be minted; nothing was sent.
 	UnverifiedRemindersTotal = prometheus.NewCounterVec(
@@ -20,8 +20,7 @@ var (
 	)
 
 	// UnverifiedAccountsDeletedTotal counts accounts reaped for never having
-	// verified their address. Irreversible, so it is worth alerting on an
-	// unexpected jump.
+	// verified their address.
 	UnverifiedAccountsDeletedTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "unverified_accounts_deleted_total",

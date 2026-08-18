@@ -12,9 +12,8 @@ import (
 )
 
 // hitsValue and requestsValue read a single labelled child of the rate-limit
-// counters. The counters are package-level and registered in init(), so their
-// values persist across tests in this package — every assertion below is on a
-// delta or on a limiter name used by exactly one test.
+// counters. The counters persist across tests in this package; every
+// assertion below is on a delta or on a limiter name used by exactly one test.
 func hitsValue(limiterName, path string) float64 {
 	return testutil.ToFloat64(RateLimitHitsTotal.WithLabelValues(limiterName, path))
 }
@@ -250,8 +249,7 @@ func TestNewUserRateLimitMiddleware_KeysByUserIDNotIP(t *testing.T) {
 		t.Fatalf("First request returned %d, want 200", w.Code)
 	}
 
-	// Second request for the SAME user from a DIFFERENT IP is still blocked,
-	// because keying is by user ID, not IP.
+	// Second request for the SAME user from a DIFFERENT IP is still blocked.
 	req = httptest.NewRequest("GET", "/test", nil)
 	req.RemoteAddr = "10.0.0.2:1"
 	w = httptest.NewRecorder()
@@ -339,9 +337,7 @@ func TestRateLimitByPathWithQueryParam_OnlyLimitsWhenParamPresent(t *testing.T) 
 }
 
 // A concrete URL like /api/v1/flights/<uuid> must be recorded under the Gin
-// route template, not the raw path. Labelling by the raw path made every
-// flight ID its own time series (unbounded cardinality) and left these
-// counters unjoinable with http_requests_total, which normalizes the same way.
+// route template, not the raw path.
 func TestRateLimitMetrics_LabelsByRouteTemplateNotRawPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -371,8 +367,7 @@ func TestRateLimitMetrics_LabelsByRouteTemplateNotRawPath(t *testing.T) {
 	}
 }
 
-// The denominator metric must count allowed requests too — a rejection rate is
-// uninterpretable without the traffic it is a fraction of.
+// The denominator metric must count allowed requests too.
 func TestRateLimitMetrics_RequestsCountsAllowedAndRejected(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -394,10 +389,8 @@ func TestRateLimitMetrics_RequestsCountsAllowedAndRejected(t *testing.T) {
 	}
 }
 
-// The reason this change exists: /flights carries both the coarse "general"
-// limiter and the search limiter. Since the path label drops the query string,
-// the limiter name is the only thing that separates a rejected search from a
-// rejected plain listing on the same route.
+// The limiter name label separates a rejected search from a rejected plain
+// listing on the same route.
 func TestRateLimitMetrics_SearchIsDistinguishableFromPlainListing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -413,9 +406,8 @@ func TestRateLimitMetrics_SearchIsDistinguishableFromPlainListing(t *testing.T) 
 		req.RemoteAddr = "10.0.0.11:1"
 		router.ServeHTTP(httptest.NewRecorder(), req)
 	}
-	// Four plain listings: the fourth exhausts the general bucket. (The first
-	// search also consumed a general slot, since it passed the search limiter
-	// and fell through to the chain.)
+	// Four plain listings: the fourth exhausts the general bucket (the first
+	// search already consumed a general slot).
 	for i := 0; i < 4; i++ {
 		req := httptest.NewRequest("GET", "/flights", nil)
 		req.RemoteAddr = "10.0.0.11:1"

@@ -938,8 +938,7 @@ func (h *APIHandler) analyticsRecords(ctx context.Context, s analyticsScope, now
 		r.BusiestDayFlights = busiestDayFlights
 	}
 
-	// Days since last flight is deliberately measured against the whole
-	// logbook — a narrow timeframe should not make a pilot look lapsed.
+	// Days since last flight is measured against the whole logbook.
 	var last sql.NullTime
 	if err := h.db.QueryRowContext(ctx,
 		`SELECT MAX(f.date) FROM flights f WHERE f.user_id = $1`, s.userID,

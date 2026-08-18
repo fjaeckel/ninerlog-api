@@ -74,7 +74,6 @@ func TestLicenseCRUD(t *testing.T) {
 		assertStatus(t, c.GET("/licenses/00000000-0000-0000-0000-000000000000"), http.StatusNotFound)
 	})
 
-	// Fixed: Missing fields now returns 400 instead of 500
 	t.Run("missing fields should return 400 not 500", func(t *testing.T) {
 		resp := c.POST("/licenses", map[string]interface{}{"licenseType": "PPL"})
 		assertStatus(t, resp, http.StatusBadRequest)

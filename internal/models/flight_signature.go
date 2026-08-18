@@ -41,8 +41,7 @@ const (
 )
 
 // FlightSignature is an instructor sign-off request/record for a single
-// flight log entry. See db/migrations/000042_create_flight_signatures for
-// the full column rationale.
+// flight log entry.
 type FlightSignature struct {
 	ID       uuid.UUID
 	FlightID uuid.UUID
@@ -76,8 +75,7 @@ type FlightSignature struct {
 	UpdatedAt time.Time
 }
 
-// MaxSignatureImageBytes bounds the size of an uploaded signature image
-// (decoded PNG bytes) to keep the flight_signatures table well-behaved.
+// MaxSignatureImageBytes caps an uploaded signature image (decoded PNG bytes).
 const MaxSignatureImageBytes = 500 * 1024
 
 // MinSignatureRequestExpiryHours / MaxSignatureRequestExpiryHours clamp the

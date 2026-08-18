@@ -111,8 +111,8 @@ func TestAircraftLoggingDefaults(t *testing.T) {
 		assertStr(t, "defaultArrivalIcao", updated["defaultArrivalIcao"], "LSZH")
 	})
 
-	// The field holds an ICAO code or a free-text place name for off-airport
-	// sites (#116), so it is bounded at 100 characters rather than 4.
+	// The field holds an ICAO code or a free-text place name, bounded at 100
+	// characters.
 	t.Run("free-text default longer than an ICAO code is accepted", func(t *testing.T) {
 		resp := c.PATCH(fmt.Sprintf("/aircraft/%s", acID), map[string]interface{}{
 			"defaultDepartureIcao": "Hausen am Albis",

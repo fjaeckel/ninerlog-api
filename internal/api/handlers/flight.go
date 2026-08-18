@@ -92,10 +92,8 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	}
 
 	// Logbook filtering: if logbookLicenseId is set, restrict to flights on
-	// aircraft whose class matches the license's class ratings. This is applied
-	// at the SQL level (via opts) so it works correctly together with counting
-	// and pagination — filtering after pagination would only ever consider a
-	// single page of flights and report a wrong total.
+	// aircraft whose class matches the license's class ratings, applied at
+	// the SQL level via opts.
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)
 		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
@@ -301,11 +299,8 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.ApproachesCount = len(flight.Approaches)
 	}
 
-	// Parse crew members. Names are trimmed here rather than in
-	// persistCrewMembers below, because ApplyAutoCalculations and
-	// ResolvePICNameForSave read them in between — trimming later would let a
-	// padded name resolve PIC-of-record differently from the name that ends up
-	// stored.
+	// Parse crew members; names are trimmed here, before
+	// ApplyAutoCalculations and ResolvePICNameForSave read them.
 	if req.CrewMembers != nil {
 		for _, cm := range *req.CrewMembers {
 			member := models.FlightCrewMember{

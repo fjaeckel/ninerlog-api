@@ -13,17 +13,13 @@ var (
 	ErrExpiredToken = errors.New("token has expired")
 )
 
-// Token types. The type is embedded as a claim and verified on validation so a
-// token minted for one purpose cannot be replayed for another (e.g. a 2FA
-// challenge token being used as a full access token, which would bypass the
-// second factor).
+// Token types, embedded as a claim and verified on validation.
 const (
 	TokenTypeAccess  = "access"
 	TokenTypeRefresh = "refresh"
 	TokenType2FA     = "2fa"
 
-	// subject2FAChallenge is the subject set on 2FA challenge tokens. Kept for
-	// backwards compatibility with tokens issued before token_type existed.
+	// subject2FAChallenge is the subject set on 2FA challenge tokens.
 	subject2FAChallenge = "2fa-challenge"
 )
 
@@ -56,7 +52,7 @@ func (m *Manager) GenerateAccessToken(userID uuid.UUID) (string, error) {
 		UserID:    userID,
 		TokenType: TokenTypeAccess,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        uuid.New().String(), // Add unique JTI for each token
+			ID:        uuid.New().String(),
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.accessTokenExpiry)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
@@ -73,7 +69,7 @@ func (m *Manager) GenerateRefreshToken(userID uuid.UUID) (string, error) {
 		UserID:    userID,
 		TokenType: TokenTypeRefresh,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        uuid.New().String(), // Add unique JTI for each token
+			ID:        uuid.New().String(),
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.refreshTokenExpiry)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
@@ -83,12 +79,8 @@ func (m *Manager) GenerateRefreshToken(userID uuid.UUID) (string, error) {
 	return token.SignedString([]byte(m.refreshSecret))
 }
 
-// ValidateAccessToken validates and parses an access token.
-//
-// It rejects 2FA challenge tokens, which are signed with the same secret as
-// access tokens. Without this check a client could take the short-lived
-// twoFactorToken returned by the password step and use it directly as a Bearer
-// access token, bypassing the second factor entirely.
+// ValidateAccessToken validates and parses an access token. 2FA challenge
+// tokens are rejected.
 func (m *Manager) ValidateAccessToken(tokenString string) (*Claims, error) {
 	claims, err := m.validateToken(tokenString, m.accessSecret)
 	if err != nil {

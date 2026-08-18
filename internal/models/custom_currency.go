@@ -12,9 +12,7 @@ import (
 )
 
 // ContainsControlChar reports whether s contains any control character (C0/C1,
-// including CR, LF, NUL and tab). User-facing rule text must not: rejecting it
-// at the input boundary stops email-header/log injection and stray control
-// bytes reaching any downstream sink, independent of per-sink escaping.
+// including CR, LF, NUL and tab).
 func ContainsControlChar(s string) bool {
 	for _, r := range s {
 		if unicode.IsControl(r) {
@@ -48,11 +46,9 @@ type CustomCurrencyRule struct {
 	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
-// CustomCurrencyRuleBody is the declarative rule document. It mirrors the shape
-// of the built-in engine's rules: a lookback Window, a set of Filters that
-// select which flights count, and one or more Requirements measured against
-// aggregated flight metrics. Requirements are combined with logical AND — the
-// rule is "current" only when every requirement is met.
+// CustomCurrencyRuleBody is the declarative rule document: a lookback Window,
+// Filters selecting which flights count, and Requirements measured against
+// aggregated flight metrics, combined with logical AND.
 type CustomCurrencyRuleBody struct {
 	Window       CurrencyWindow        `json:"window"`
 	Filters      []CurrencyFilter      `json:"filters,omitempty"`
@@ -60,9 +56,7 @@ type CustomCurrencyRuleBody struct {
 }
 
 // CurrencyWindow is a rolling lookback anchored at the moment of evaluation:
-// only flights on or after (now − Amount×Unit) count. Expiry-anchored windows
-// (as used by some regulatory revalidation rules) are intentionally out of
-// scope for user-authored rules in this version.
+// only flights on or after (now − Amount×Unit) count.
 type CurrencyWindow struct {
 	Amount int    `json:"amount"`
 	Unit   string `json:"unit"` // days | weeks | months | years
@@ -92,10 +86,8 @@ type CurrencyRequirement struct {
 
 // --- Controlled vocabulary -------------------------------------------------
 //
-// These sets are the single source of truth for what a rule may reference. The
-// evaluator maps each identifier to a parameterized SQL fragment; validation
-// here rejects anything outside the vocabulary so no user-supplied string ever
-// reaches a query as an identifier.
+// The complete set of identifiers a rule may reference; validation rejects
+// anything outside it.
 
 // ValidWindowUnits enumerates the accepted lookback units.
 var ValidWindowUnits = map[string]bool{
@@ -161,8 +153,7 @@ const (
 )
 
 // validateFilterValue bounds a filter value's length and rejects control
-// characters. Values are always bound as SQL parameters, so this is purely
-// defense in depth and input hygiene, not the SQL-injection defense.
+// characters.
 func validateFilterValue(field, value string) error {
 	if len(value) > maxCustomFilterValueLen {
 		return fmt.Errorf("filter value for %q is too long", field)
@@ -261,18 +252,13 @@ func (b *CustomCurrencyRuleBody) Validate() error {
 	return nil
 }
 
-// Compile-time guarantees that the body satisfies the database interfaces used
-// to persist and load it as JSONB. Value() in particular must return the named
-// driver.Value type — an (interface{}, error) signature silently fails to
-// implement driver.Valuer and the struct reaches the driver unconverted.
+// Compile-time interface checks for JSONB persistence.
 var (
 	_ driver.Valuer = CustomCurrencyRuleBody{}
 	_ sql.Scanner   = (*CustomCurrencyRuleBody)(nil)
 )
 
-// Value implements driver.Valuer so the body can be stored directly in a JSONB
-// column. It returns the JSON as a string (text) so lib/pq sends it in a form
-// Postgres accepts for jsonb.
+// Value implements driver.Valuer, returning the body's JSON as a string.
 func (b CustomCurrencyRuleBody) Value() (driver.Value, error) {
 	data, err := json.Marshal(b)
 	if err != nil {
@@ -281,7 +267,7 @@ func (b CustomCurrencyRuleBody) Value() (driver.Value, error) {
 	return string(data), nil
 }
 
-// Scan implements sql.Scanner so the body can be read from a JSONB column.
+// Scan implements sql.Scanner for JSONB columns.
 func (b *CustomCurrencyRuleBody) Scan(src interface{}) error {
 	switch v := src.(type) {
 	case []byte:

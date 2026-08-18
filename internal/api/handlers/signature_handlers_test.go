@@ -115,8 +115,7 @@ func (m *mockFlightSignatureRepoH) ExpirePendingPastDue(ctx context.Context) (in
 
 // setupSignatureTestHandlerSharedRepo builds an APIHandler whose
 // flightService and flightSignatureService share the same underlying
-// FlightRepository instance (required for the signature lock to be
-// observable across both services), and seeds one flight owned by userID.
+// FlightRepository instance, and seeds one flight owned by userID.
 func setupSignatureTestHandlerSharedRepo(t *testing.T) (h *APIHandler, userID uuid.UUID, flight *models.Flight) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)

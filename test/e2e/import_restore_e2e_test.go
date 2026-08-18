@@ -11,19 +11,10 @@ import (
 	"testing"
 )
 
-// TestJSONExportImportRoundTrip exercises the full backup-and-restore flow:
-//
-//  1. User A populates a rich profile (aircraft, licenses + class ratings,
-//     credentials, multi-flight history with crew members).
-//  2. They download a JSON backup via GET /exports/json.
-//  3. A brand new User B (fresh account, no data) uploads the same JSON to
-//     POST /imports/json.
-//  4. User B's GET endpoints are then asserted to return semantically
-//     equivalent data — i.e. the user can take their JSON download and
-//     restore it on any NinerLog installation.
-//
-// This is the canonical "data portability" test for NinerLog: as long as the
-// JSON export remains the source of truth, a user is never locked in.
+// TestJSONExportImportRoundTrip covers the backup-and-restore flow: a
+// populated account's GET /exports/json backup is imported into a fresh
+// account via POST /imports/json, which then returns semantically equivalent
+// data.
 func TestJSONExportImportRoundTrip(t *testing.T) {
 	source := NewE2EClient(t)
 	dest := NewE2EClient(t)
@@ -288,9 +279,7 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 	}
 
 	// Flights + crew — re-export the destination account and verify the
-	// round-tripped backup contains the same flights, in the same shape,
-	// with the same crew members. This doubles as a stronger round-trip
-	// assertion: export → import → export must produce equivalent data.
+	// round-tripped backup contains the same flights and crew members.
 	{
 		r := dest.GET("/exports/json")
 		requireStatus(t, r, http.StatusOK)
@@ -355,10 +344,8 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 	}
 
 	// ----------------------------------------------------------------------
-	// 5. Re-running the import should be additive: existing aircraft regs are
-	//    skipped, but the rest is re-imported (no UNIQUE constraints on
-	//    licenses/credentials/flights). This proves the endpoint is safely
-	//    re-runnable without crashing on duplicate aircraft.
+	// 5. Re-running the import is additive: existing aircraft regs are
+	//    skipped, the rest is re-imported.
 	// ----------------------------------------------------------------------
 	secondResp := dest.Do("POST", "/imports/json", backupShape)
 	requireStatus(t, secondResp, http.StatusOK)
@@ -373,9 +360,8 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 	assertInt(t, "second-run flightsImported", second.FlightsImported, len(flights))
 }
 
-// TestJSONImportRejectsForeignBackup ensures the import endpoint refuses input
-// that wasn't produced by NinerLog's exporter — protecting against accidental
-// imports of unrelated JSON files.
+// TestJSONImportRejectsForeignBackup covers the import endpoint refusing input
+// that was not produced by NinerLog's exporter.
 func TestJSONImportRejectsForeignBackup(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("bkp-foreign"), "SecurePass123!", "F")

@@ -53,7 +53,6 @@ func TestGuard_PrivateBlockedByDefault(t *testing.T) {
 }
 
 func TestGuard_PrivateAllowedWhenOptedIn(t *testing.T) {
-	// Self-hosters that back up to a LAN NAS opt in via BACKUP_ALLOW_PRIVATE_NETWORKS.
 	g := New(true)
 	for _, s := range []string{"10.0.0.5", "192.168.1.10", "172.16.9.9", "100.64.0.1", "fd00::1"} {
 		ip := net.ParseIP(s)
@@ -105,8 +104,7 @@ func TestGuard_Control_AllowsPublicWithPort(t *testing.T) {
 }
 
 func TestGuard_Control_RejectsNonIP(t *testing.T) {
-	// Control receives an already-resolved address; a hostname here means
-	// something went wrong, so fail closed.
+	// A non-IP (hostname) address fails closed.
 	g := New(false)
 	if err := g.Control("tcp", "example.com:443", nil); err == nil {
 		t.Error("Control should reject a non-IP address")

@@ -66,7 +66,7 @@ func TestBruteForceProtection(t *testing.T) {
 		resp := c.POST("/auth/login", map[string]string{"email": email2, "password": pw})
 		requireStatus(t, resp, http.StatusOK)
 
-		// Fail 3 more times — counter should have reset, so still not locked
+		// Fail 3 more times: the counter reset, still not locked.
 		for i := 0; i < 3; i++ {
 			c.POST("/auth/login", map[string]string{"email": email2, "password": "Wrong!"})
 		}

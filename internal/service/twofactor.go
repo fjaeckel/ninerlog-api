@@ -28,15 +28,14 @@ var (
 )
 
 // encSecretPrefix marks a TOTP secret that is stored encrypted (AES-256-GCM).
-// Secrets without this prefix are legacy plaintext and are read as-is, so an
-// existing database keeps working after the encryption key is introduced.
+// Secrets without this prefix are legacy plaintext and are read as-is.
 const encSecretPrefix = "enc:v1:"
 
 type TwoFactorService struct {
 	userRepo   repository.UserRepository
 	jwtManager *jwt.Manager
 	// aead encrypts TOTP secrets at rest. When nil, secrets are stored as
-	// plaintext (legacy behavior) — the deployment should set an encryption key.
+	// plaintext (legacy behavior).
 	aead *cryptoutil.AEAD
 }
 
@@ -194,13 +193,10 @@ func (s *TwoFactorService) Disable(ctx context.Context, userID uuid.UUID, passwo
 	return s.userRepo.Update(ctx, user)
 }
 
-// ValidateTOTP validates a TOTP code or recovery code for a user.
-//
-// The 2FA step is brute-force protected with the same per-account lockout used
-// by password login: a locked account is rejected with ErrAccountLocked, each
-// failed code counts toward the lockout, and a successful validation resets the
-// counter. This prevents an attacker who has the password from grinding TOTP
-// codes via repeated /auth/2fa/login calls.
+// ValidateTOTP validates a TOTP code or recovery code for a user. It shares
+// the per-account lockout with password login: a locked account is rejected
+// with ErrAccountLocked, each failed code counts toward the lockout, and a
+// successful validation resets the counter.
 func (s *TwoFactorService) ValidateTOTP(ctx context.Context, userID uuid.UUID, code string) (bool, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -226,14 +222,8 @@ func (s *TwoFactorService) ValidateTOTP(ctx context.Context, userID uuid.UUID, c
 		return true, nil
 	}
 
-	// Try recovery codes.
-	//
-	// Matching is a bcrypt compare per stored hash, so the candidate must be
-	// identified first; consumption is then delegated to an atomic conditional
-	// UPDATE. Removing the entry in memory and writing the whole row back (the
-	// previous approach) let concurrent submissions of the SAME code all see it
-	// as present and all succeed -- ten parallel requests authenticated ten
-	// times off one single-use code.
+	// Try recovery codes: identify the candidate by bcrypt compare, then
+	// consume it via an atomic conditional UPDATE.
 	code = strings.TrimSpace(strings.ToLower(code))
 	for _, hashedCode := range user.RecoveryCodes {
 		if hash.ComparePassword(hashedCode, code) != nil {
@@ -244,24 +234,21 @@ func (s *TwoFactorService) ValidateTOTP(ctx context.Context, userID uuid.UUID, c
 			return false, err
 		}
 		if !consumed {
-			// Another request consumed this code first. Treat it as invalid so
-			// a single-use code authenticates exactly once.
+			// Another request consumed this code first; treat it as invalid.
 			break
 		}
 		s.resetFailedAttempts(ctx, user)
 		return true, nil
 	}
 
-	// Neither the TOTP nor a recovery code matched — count the failure toward
-	// the account lockout.
+	// No match; count the failure toward the account lockout.
 	s.recordFailedAttempt(ctx, userID)
 	return false, nil
 }
 
-// recordFailedAttempt increments the shared failed-attempt counter and locks the
-// account once it reaches the threshold. It re-reads the authoritative count
-// after incrementing so the threshold is correct regardless of repository
-// implementation.
+// recordFailedAttempt increments the shared failed-attempt counter and locks
+// the account once it reaches the threshold, re-reading the authoritative
+// count after incrementing.
 func (s *TwoFactorService) recordFailedAttempt(ctx context.Context, userID uuid.UUID) {
 	_ = s.userRepo.IncrementFailedLoginAttempts(ctx, userID)
 	if u, err := s.userRepo.GetByID(ctx, userID); err == nil && u.FailedLoginAttempts >= maxFailedLoginAttempts {

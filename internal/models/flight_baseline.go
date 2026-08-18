@@ -34,14 +34,12 @@ type FlightBaseline struct {
 // ErrInvalidFlightBaseline indicates a baseline failed validation.
 var ErrInvalidFlightBaseline = errors.New("invalid flight baseline")
 
-// Validate enforces the basic invariants that aren't covered by DB CHECK
-// constraints (non-negative values are enforced in the database, but we still
-// fail fast at the API boundary).
+// Validate checks basic FlightBaseline invariants.
 func (b *FlightBaseline) Validate() error {
 	if b.BaselineDate.IsZero() {
 		return errors.Join(ErrInvalidFlightBaseline, errors.New("baselineDate is required"))
 	}
-	// Reject baselines dated in the future to avoid nonsensical totals.
+	// Reject dates more than one day in the future.
 	if b.BaselineDate.After(time.Now().UTC().AddDate(0, 0, 1)) {
 		return errors.Join(ErrInvalidFlightBaseline, errors.New("baselineDate cannot be in the future"))
 	}

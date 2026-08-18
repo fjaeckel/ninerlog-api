@@ -8,9 +8,7 @@ import (
 )
 
 // raceUserRepo models the atomic semantics the SQL provides: removal and the
-// "did I remove it" answer happen as one indivisible step. A mutex here stands
-// in for the single conditional UPDATE; a mock that instead did
-// read-then-write would reproduce the original bug.
+// "did I remove it" answer happen as one indivisible step, under a mutex.
 type raceUserRepo struct {
 	mu     sync.Mutex
 	userID uuid.UUID

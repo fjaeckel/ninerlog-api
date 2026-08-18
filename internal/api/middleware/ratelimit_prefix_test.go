@@ -9,11 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Routes are mounted under the /api/v1 group but the limiter predicates are
-// written group-relative ("/imports", "/sign/"). Matching those against the
-// ABSOLUTE request path ("/api/v1/imports/upload") is never true, which left
-// both limiters completely inert in production. These tests assert the limits
-// actually fire — the property that was missing.
+// These tests assert the limiter predicates fire against the group-relative
+// path of routes mounted under the /api/v1 group.
 
 // newLimitedRouter builds a router shaped like main.go: an /api/v1 group with
 // the limiter applied, and a handler that always 200s.
@@ -77,8 +74,7 @@ func TestRateLimitByPathPrefix_LeavesOtherRoutesAlone(t *testing.T) {
 	}
 }
 
-// The suffix matcher already worked; keep it working once it reads the
-// group-relative path.
+// The suffix matcher fires on the group-relative path.
 func TestRateLimitByPath_StillFiresOnGroupedRoute(t *testing.T) {
 	r := newLimitedRouter(t, func(api *gin.RouterGroup) {
 		api.Use(RateLimitByPath(NewRateLimitMiddleware("test", 2, time.Minute), "/imports/upload"))

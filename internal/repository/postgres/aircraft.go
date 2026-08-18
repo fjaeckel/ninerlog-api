@@ -174,13 +174,8 @@ func (r *aircraftRepository) UpdateWithFlightRename(ctx context.Context, aircraf
 		return 0, repository.ErrNotFound
 	}
 
-	// signature_id IS NULL is REQUIRED. A flight with a completed instructor
-	// signature is locked: FlightService.UpdateFlight and DeleteFlight both
-	// refuse to touch it (ErrFlightLocked). Without this predicate the bulk
-	// rename silently rewrote the aircraft registration on already-signed
-	// entries, mutating attested logbook content behind the instructor's back
-	// while the signature record still read "completed". Signatures store no
-	// content hash, so that tampering was undetectable after the fact.
+	// signature_id IS NULL: signed flights keep the registration they were
+	// signed with.
 	flightsResult, err := tx.ExecContext(ctx,
 		`UPDATE flights SET aircraft_reg = $1, updated_at = NOW()
 		 WHERE user_id = $2 AND aircraft_reg = $3 AND signature_id IS NULL`,

@@ -13,20 +13,14 @@ import (
 
 const (
 	// DefaultTombstoneRetention bounds how long a deletion stays reportable.
-	// Ninety days is long enough that a client offline for a season still
-	// resyncs incrementally, and short enough that the table stays small after
-	// a bulk delete.
 	DefaultTombstoneRetention = 90 * 24 * time.Hour
 
-	// DefaultDeletionPageSize / MaxDeletionPageSize bound the feed. A
-	// delete-all writes one tombstone per flight, so this endpoint must page.
+	// DefaultDeletionPageSize / MaxDeletionPageSize bound the feed.
 	DefaultDeletionPageSize = 100
 	MaxDeletionPageSize     = 500
 )
 
 // ErrInvalidDeletionEntity is returned for an entity filter outside the enum.
-// Answering with an empty feed instead would read to a sync client as "nothing
-// was deleted", which is the one answer that must never be wrong.
 var ErrInvalidDeletionEntity = errors.New("unknown deletion entity type")
 
 // DeletionService serves the tombstone feed and sweeps it.
@@ -34,7 +28,7 @@ type DeletionService struct {
 	repo      repository.DeletionRepository
 	retention time.Duration
 
-	// now is overridable so tests can pin the retention horizon.
+	// now is overridable in tests.
 	now func() time.Time
 }
 
@@ -45,29 +39,23 @@ func NewDeletionService(repo repository.DeletionRepository, retention time.Durat
 	return &DeletionService{repo: repo, retention: retention, now: time.Now}
 }
 
-// Retention is how long a tombstone is kept, reported to clients so they can
-// schedule their fallback reconciliation.
+// Retention is how long a tombstone is kept; reported to clients.
 func (s *DeletionService) Retention() time.Duration { return s.retention }
 
-// DeletionPage is one page of the feed plus the two things a client needs in
-// order to trust it: how many deletions match, and whether its watermark is old
-// enough that the answer may be incomplete.
+// DeletionPage is one page of the feed plus how many deletions match and
+// whether the client's watermark predates the retention horizon.
 type DeletionPage struct {
 	Deletions []*models.Deletion
 	Total     int
 
-	// WatermarkExpired is true when `since` predates the retention horizon.
-	// Tombstones older than the horizon have been swept, so the feed is no
-	// longer a complete account of what was deleted and the client must fall
-	// back to a full ID-set reconciliation.
+	// WatermarkExpired is true when `since` predates the retention horizon;
+	// the feed may be incomplete and the client must fall back to a full
+	// ID-set reconciliation.
 	WatermarkExpired bool
 }
 
 // ListDeletions returns the deletions recorded for the user after `since`.
-//
-// The result is always user-scoped: a tombstone carries only an id and a type,
-// but leaking another pilot's deletion timings would still be a disclosure, so
-// the filter is applied in SQL rather than after the fact.
+// The result is always user-scoped; the filter is applied in SQL.
 func (s *DeletionService) ListDeletions(
 	ctx context.Context, userID uuid.UUID, since time.Time,
 	entity *models.DeletionEntityType, page, pageSize int,
@@ -105,10 +93,8 @@ func (s *DeletionService) ListDeletions(
 	}, nil
 }
 
-// StartReaper sweeps tombstones past the retention horizon. Unlike the
-// idempotency reaper this is not purely hygiene: retention is part of the
-// contract, and a client is told its watermark expired based on the same
-// horizon the sweeper enforces.
+// StartReaper sweeps tombstones past the retention horizon — the same horizon
+// WatermarkExpired is computed from.
 func (s *DeletionService) StartReaper(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
 		interval = time.Hour

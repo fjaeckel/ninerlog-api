@@ -9,14 +9,8 @@ import (
 func frontendBaseURL() string { return FrontendBaseURL() }
 
 // FrontendBaseURL resolves the canonical frontend origin used to build links
-// embedded in outbound emails (verification, password reset, signature
-// requests, ...). Mirrors the FRONTEND_URL -> CORS_ORIGIN -> localhost
-// fallback chain used ad hoc elsewhere; CORS_ORIGIN may contain multiple
-// comma-separated origins, so only the first is used.
-//
-// Exported so background workers, which build the same links without a request
-// in hand, resolve the origin the same way rather than reimplementing the
-// fallback chain.
+// embedded in outbound emails: FRONTEND_URL, then the first comma-separated
+// CORS_ORIGIN entry, then localhost.
 func FrontendBaseURL() string {
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {

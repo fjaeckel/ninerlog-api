@@ -6,16 +6,9 @@ import (
 	"testing"
 )
 
-// Recovery codes are single-use. Consumption used to be a read-modify-write on
-// the user row with no lock or version check: load the user, drop the matching
-// entry in Go, write the whole row back. Concurrent submissions of the SAME
-// code all observed it as present, all matched, and all authenticated --
-// confirmed against a running instance, where ten parallel /auth/2fa/login
-// requests with one code returned 200 ten times.
-//
-// Consumption now goes through an atomic conditional UPDATE
-// (array_remove ... WHERE $hash = ANY(recovery_codes)), so exactly one caller
-// wins. This test drives the same race through the repository contract.
+// Recovery codes are single-use: under concurrent submissions of the SAME
+// code, exactly one caller wins. Consumption is an atomic conditional UPDATE
+// (array_remove ... WHERE $hash = ANY(recovery_codes)).
 func TestConsumeRecoveryCode_ExactlyOneWinnerUnderConcurrency(t *testing.T) {
 	const attempts = 20
 	repo := newRaceUserRepo("hash-A", "hash-B")

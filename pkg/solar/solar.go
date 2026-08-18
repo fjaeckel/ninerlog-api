@@ -1,10 +1,6 @@
 // Package solar provides a thin wrapper around github.com/mstephenholl/go-solar
 // for computing sunrise/sunset and determining whether a given UTC instant is
 // during daytime or nighttime.
-//
-// The wrapper preserves the historical API used throughout this repository
-// (Calculate, SunTimes, IsNight) while delegating the underlying astronomical
-// math to go-solar.
 package solar
 
 import (
@@ -25,9 +21,9 @@ type SunTimes struct {
 //
 // Edge cases:
 //   - Polar night (sun never rises): both Sunrise and Sunset are set to the
-//     start of the UTC day, so any time on that day is considered "night".
+//     start of the UTC day; the whole day counts as night.
 //   - Midnight sun (sun never sets): Sunrise is set to the start of the UTC
-//     day and Sunset to 23:59:59 UTC, so any time on that day is considered "day".
+//     day and Sunset to 23:59:59 UTC; the whole day counts as day.
 func Calculate(date time.Time, latitude, longitude float64) SunTimes {
 	loc := gosolar.NewLocation(latitude, longitude)
 	t := gosolar.NewTime(date.Year(), date.Month(), date.Day())
@@ -52,16 +48,7 @@ func Calculate(date time.Time, latitude, longitude float64) SunTimes {
 }
 
 // TwilightTimes holds the morning (Dawn) and evening (Dusk) civil twilight
-// boundaries for a given UTC date and location. Per ICAO Annex 2 / EU
-// Regulation 2018/1976 the aeronautical definition of "night" is:
-//
-//	"the period between the end of evening civil twilight and the beginning
-//	 of morning civil twilight or such other period between sunset and
-//	 sunrise as may be prescribed by the appropriate authority."
-//
-// Civil twilight is defined as the period during which the centre of the
-// sun is between 0° and 6° below the horizon. Dawn marks the beginning of
-// morning civil twilight; Dusk marks the end of evening civil twilight.
+// boundaries for a given UTC date and location.
 type TwilightTimes struct {
 	Dawn time.Time // beginning of morning civil twilight (sun at -6° rising)
 	Dusk time.Time // end of evening civil twilight (sun at -6° setting)
@@ -70,15 +57,10 @@ type TwilightTimes struct {
 // CivilTwilight computes the morning-civil-twilight start (Dawn) and
 // evening-civil-twilight end (Dusk) in UTC for the given date and location.
 // These are the EASA "night" boundaries: any time between Dusk and the next
-// day's Dawn is considered night.
+// day's Dawn is night.
 //
-// Edge cases (polar night / midnight sun): when the sun is permanently below
-// or above the civil-twilight threshold, go-solar returns the zero time for
-// the affected boundary. We collapse those zero values to the start of the
-// UTC day for Dawn and end of the UTC day for Dusk so that:
-//   - permanent polar night (no civil dawn or dusk): the entire UTC day is
-//     night;
-//   - midnight sun (sun stays above −6°): the entire UTC day is day.
+// Edge cases: polar night collapses the window to zero width (the entire UTC
+// day is night); midnight sun spans the whole UTC day (the entire day is day).
 func CivilTwilight(date time.Time, latitude, longitude float64) TwilightTimes {
 	loc := gosolar.NewLocation(latitude, longitude)
 	t := gosolar.NewTime(date.Year(), date.Month(), date.Day())
@@ -93,8 +75,7 @@ func CivilTwilight(date time.Time, latitude, longitude float64) TwilightTimes {
 		noon := time.Date(date.Year(), date.Month(), date.Day(), 12, 0, 0, 0, time.UTC)
 		elev := gosolar.Elevation(loc, noon)
 		if elev <= -6 {
-			// Polar night: sun never reaches civil-twilight altitude. Make the
-			// whole day count as night by collapsing the window to zero width.
+			// Polar night: whole day counts as night.
 			return TwilightTimes{Dawn: startOfDay, Dusk: startOfDay}
 		}
 		// Midnight sun above civil twilight: whole day is "day".

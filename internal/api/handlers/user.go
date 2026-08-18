@@ -46,42 +46,29 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 		return
 	}
 
-	// Get current user
 	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		h.sendError(c, http.StatusNotFound, "User not found")
 		return
 	}
 
-	// In OIDC mode the provider owns the identity fields: both are re-applied
-	// from the ID token on every login, so accepting a local edit here would
-	// silently revert at the next sign-in. Refusing is the honest answer, and
-	// it keeps the email — which ADMIN_EMAIL is matched against — under the
-	// provider's control rather than the user's.
+	// In OIDC mode the provider owns the identity fields.
 	if h.OIDCEnabled() && (req.Name != nil || req.Email != nil) {
 		h.sendError(c, http.StatusForbidden,
 			"Name and email are managed by the identity provider and cannot be changed here")
 		return
 	}
 
-	// Apply updates
 	if req.Name != nil {
 		user.Name = strings.TrimSpace(*req.Name)
 	}
 
-	// Changing the email address is a security-sensitive operation: the address
-	// is the account's recovery channel and (via ADMIN_EMAIL) the basis for
-	// admin authorization. It therefore requires the current password, and the
-	// new address must be re-verified before it is trusted again.
+	// Changing the email address requires the current password; the new
+	// address must be re-verified.
 	emailChanged := false
 	if req.Email != nil {
 		newEmail := strings.ToLower(strings.TrimSpace(string(*req.Email)))
 		if !strings.EqualFold(newEmail, user.Email) {
-			// Re-validate the normalized address. mail.ParseAddress accepts
-			// quoted local-parts that it then re-emits unquoted (e.g.
-			// "back\\slash"@x -> back\slash@x); such a value round-trips back
-			// through openapi_types.Email as invalid and breaks every response
-			// that serializes this user (including the admin user list).
 			if _, err := mail.ParseAddress(newEmail); err != nil {
 				h.sendError(c, http.StatusBadRequest, "Invalid email address")
 				return
@@ -95,7 +82,6 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 				return
 			}
 			user.Email = newEmail
-			// The new address is unproven until its verification link is used.
 			user.EmailVerified = false
 			emailChanged = true
 		}
@@ -136,8 +122,7 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 			user.FlightListColumnMode = mode
 		}
 	}
-	// An empty array is meaningful here — in custom mode it means "none of the
-	// optional columns" — so the list is replaced whenever the field is present.
+	// An empty array is meaningful: the list is replaced whenever present.
 	if req.FlightListColumns != nil {
 		columns := make([]string, 0, len(*req.FlightListColumns))
 		for _, c := range *req.FlightListColumns {
@@ -146,7 +131,6 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 		user.FlightListColumns = models.NormalizeFlightListColumns(columns)
 	}
 
-	// Update user
 	if err := h.authService.UpdateUser(c.Request.Context(), user); err != nil {
 		if errors.Is(err, service.ErrUserAlreadyExists) {
 			h.sendError(c, http.StatusConflict, "This email is already in use by another account")
@@ -156,9 +140,7 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 		return
 	}
 
-	// Send a verification link to the NEW address so the user can prove control
-	// of it. Failures are non-fatal — the address is already marked unverified,
-	// and the user can request a fresh link via /auth/verify-email/resend.
+	// Send a verification link to the new address. Failures are non-fatal.
 	if emailChanged {
 		if token, err := h.authService.CreateEmailVerificationToken(c.Request.Context(), userID); err == nil {
 			h.sendVerificationEmail(c.Request.Context(), user.Email, user.Name, user.PreferredLocale, token)

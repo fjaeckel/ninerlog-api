@@ -102,8 +102,8 @@ func TestMaxBodyBytesMiddleware_PathOverrideStillEnforced(t *testing.T) {
 	}
 }
 
-// Multipart is no longer subject to the small JSON default limit; it gets its
-// own (larger) cap instead. See TestMaxBodyBytes_MultipartIsCapped.
+// Multipart carries its own larger cap, not the JSON default limit. See
+// TestMaxBodyBytes_MultipartIsCapped.
 func TestMaxBodyBytesMiddleware_MultipartUsesOwnLimitNotJSONDefault(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -147,10 +147,7 @@ func TestMaxBodyBytesMiddleware_MultipartUsesOwnLimitNotJSONDefault(t *testing.T
 	}
 }
 
-// Multipart requests used to be exempt from any cap. router.MaxMultipartMemory
-// only decides how much buffers in RAM before Go spills to disk, and the CSV
-// handler's own 10 MB check runs after the body is fully consumed — so an
-// oversized upload was received and written to disk before being rejected.
+// Multipart bodies over the multipart cap are refused.
 func TestMaxBodyBytes_MultipartIsCapped(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

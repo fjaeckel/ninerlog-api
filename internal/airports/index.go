@@ -6,17 +6,15 @@ import (
 	"time"
 )
 
-// snapshot is an immutable, fully indexed view of the airport database.
-// Reloads build a new snapshot and swap it in atomically, so readers never
-// take a lock and never observe a half-built database.
+// snapshot is an immutable, fully indexed view of the airport database,
+// swapped in atomically on reload.
 type snapshot struct {
-	// list holds every airport sorted by ICAO code. Everything else indexes
-	// into it, so a record exists exactly once in memory.
+	// list holds every airport sorted by ICAO code; the indexes below point
+	// into it.
 	list []AirportInfo
 	// byICAO maps an upper-case ICAO code to its index in list.
 	byICAO map[string]int32
-	// grid buckets airports into 1°×1° cells so Nearest scans a handful of
-	// cells instead of all ~35k airports.
+	// grid buckets airports into 1°×1° cells for nearest.
 	grid map[gridCell][]int32
 
 	loadedAt time.Time
@@ -72,8 +70,7 @@ func (s *snapshot) lookup(icao string) *AirportInfo {
 }
 
 // searchPrefix returns up to limit airports whose ICAO code starts with
-// prefix, in ICAO order. The sorted list makes this a binary search plus a
-// short scan instead of a full map walk, and makes results deterministic.
+// prefix, in ICAO order.
 func (s *snapshot) searchPrefix(prefix string, limit int) []AirportInfo {
 	start := sort.Search(len(s.list), func(i int) bool { return s.list[i].ICAO >= prefix })
 	var results []AirportInfo
@@ -86,9 +83,8 @@ func (s *snapshot) searchPrefix(prefix string, limit int) []AirportInfo {
 	return results
 }
 
-// polarCosLimit is the cosine below which the longitude span of a 30 NM
-// radius exceeds any useful cell count, and a full scan is cheaper than
-// walking the grid. Reached only within ~0.5° of a pole.
+// polarCosLimit is the latitude cosine below which nearest falls back to a
+// full scan (within ~0.5° of a pole).
 const polarCosLimit = 0.01
 
 // nearest returns the airport within maxDistNM of the given coordinates,
@@ -106,15 +102,14 @@ func (s *snapshot) nearest(lat, lon float64, maxDistNM float64) *AirportInfo {
 		}
 	}
 
-	// One degree of latitude is ~60 NM; a degree of longitude shrinks with
-	// cos(latitude). Widen the longitude span accordingly, using the highest
-	// latitude the search box reaches so the span is never too narrow.
+	// Widen the longitude span by cos of the highest latitude the search box
+	// reaches.
 	spanDeg := maxDistNM / 60.0
 	maxAbsLat := math.Min(math.Abs(lat)+spanDeg, 90)
 	cosLat := math.Cos(degToRad(maxAbsLat))
 
 	if cosLat < polarCosLimit {
-		// Near the poles every meridian converges; scan everything.
+		// Full scan near the poles.
 		for i := range s.list {
 			consider(int32(i))
 		}

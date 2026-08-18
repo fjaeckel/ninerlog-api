@@ -148,9 +148,8 @@ type recencyAgg struct {
 	lapsesOn *time.Time
 }
 
-// add processes one per-day row; rows must arrive newest-first so the lapse
-// date anchors on the day the cumulative count first reaches 3 (the 3rd-most
-// recent landing), which stays countable for 90 days.
+// add processes one per-day row; rows must arrive newest-first. The lapse date
+// is 90 days after the day the cumulative count first reaches 3.
 func (a *recencyAgg) add(date time.Time, landings int) {
 	if landings <= 0 {
 		return

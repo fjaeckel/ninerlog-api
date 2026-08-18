@@ -143,9 +143,7 @@ func (r *flightSignatureRepository) GetPendingByFlightID(ctx context.Context, fl
 }
 
 // CountEmailsSentSince returns how many signature-request emails a user has
-// triggered since the given instant. Used to cap outbound mail per account:
-// each request emails an arbitrary recipient from the platform's own domain,
-// so without a ceiling one user can bulk-mail strangers under NinerLog's brand.
+// triggered since the given instant.
 func (r *flightSignatureRepository) CountEmailsSentSince(ctx context.Context, userID uuid.UUID, since time.Time) (int, error) {
 	var n int
 	err := r.db.QueryRowContext(ctx,

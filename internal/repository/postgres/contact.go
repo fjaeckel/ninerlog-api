@@ -13,8 +13,7 @@ import (
 	"github.com/lib/pq"
 )
 
-// contactColumns is the column list every contact read shares, so a new column
-// cannot be added to one query and forgotten in the next.
+// contactColumns is the column list shared by every contact read.
 const contactColumns = `id, user_id, name, email, phone, notes, created_at, updated_at`
 
 type ContactRepository struct {
@@ -35,7 +34,7 @@ func scanContact(row interface{ Scan(...any) error }) (*models.Contact, error) {
 }
 
 // isDuplicateName reports whether err is the unique violation raised by
-// idx_contacts_user_lower_name (migration 000060).
+// idx_contacts_user_lower_name.
 func isDuplicateName(err error) bool {
 	var pqErr *pq.Error
 	// 23505 = unique_violation.
@@ -64,17 +63,9 @@ func (r *ContactRepository) Create(ctx context.Context, contact *models.Contact)
 }
 
 // FindOrCreateByName returns the user's contact with this name, creating it if
-// there is none, and reports whether it created one.
-//
-// The read-then-insert is deliberately racy-tolerant rather than racy: two
-// concurrent crew writes for the same new name both miss the SELECT, one
-// INSERT wins, and the loser's ON CONFLICT DO NOTHING returns no row and falls
-// through to the second lookup. Without idx_contacts_user_lower_name backing
-// the conflict target this collapses back into a plain read-then-write and
-// duplicates reappear.
-//
-// The caller is responsible for trimming; the name is matched and stored
-// verbatim.
+// there is none, and reports whether it created one. Concurrent callers
+// converge on a single row. The caller is responsible for trimming; the name
+// is matched and stored verbatim.
 func (r *ContactRepository) FindOrCreateByName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error) {
 	existing, err := r.GetByExactName(ctx, userID, name)
 	if err == nil {
@@ -100,7 +91,7 @@ func (r *ContactRepository) FindOrCreateByName(ctx context.Context, userID uuid.
 		return nil, false, err
 	}
 
-	// Lost the race: the winner's row is what everyone should use.
+	// Insert conflicted; fetch the existing row.
 	existing, err = r.GetByExactName(ctx, userID, name)
 	if err != nil {
 		return nil, false, err
@@ -209,15 +200,9 @@ func (r *ContactRepository) Update(ctx context.Context, contact *models.Contact)
 }
 
 // UpdateWithCrewRename updates the contact and carries a name change into the
-// crew rows that reference it, returning how many crew rows were rewritten.
+// crew rows of the user's unsigned flights, returning how many crew rows were
+// rewritten. Signed flights keep the crew name they were signed with.
 // contact.UserID must be set by the caller.
-//
-// flight_crew_members.name is denormalised: it is the name as logged, and it is
-// what exports and PIC-of-record resolution read. Leaving it behind on a rename
-// means correcting a typo in the address book fixes nothing in the logbook,
-// while rewriting it everywhere would mutate entries an instructor has already
-// attested. So the rename stops at the signature boundary, exactly as the
-// aircraft-registration rename does.
 func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *models.Contact) (int, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -243,9 +228,8 @@ func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *m
 		return 0, repository.ErrNotFound
 	}
 
-	// signature_id IS NULL is REQUIRED — see UpdateWithFlightRename in
-	// aircraft.go for what dropping the equivalent guard did there. A signed
-	// flight keeps the crew name it was signed with.
+	// signature_id IS NULL: signed flights keep the crew name they were
+	// signed with.
 	crewResult, err := tx.ExecContext(ctx, `
 		UPDATE flight_crew_members fcm
 		SET name = $1
@@ -273,8 +257,7 @@ func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *m
 }
 
 // RolesByContact returns the distinct crew roles each of the user's contacts
-// has been logged in, so an export can say that someone is an instructor
-// without the caller walking every flight.
+// has been logged in, most-used first.
 func (r *ContactRepository) RolesByContact(ctx context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT fcm.contact_id, fcm.role::text, COUNT(*)

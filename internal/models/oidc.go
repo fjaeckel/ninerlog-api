@@ -37,7 +37,7 @@ type OIDCLoginState struct {
 }
 
 // OIDCHandoffCode is a single-use, short-lived credential the callback hands
-// to the browser so the SPA can fetch the real token pair over POST.
+// to the browser; the SPA exchanges it for the token pair over POST.
 type OIDCHandoffCode struct {
 	CodeHash  []byte
 	UserID    uuid.UUID

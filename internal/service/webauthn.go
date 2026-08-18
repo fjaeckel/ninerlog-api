@@ -24,10 +24,9 @@ import (
 
 var (
 	ErrWebAuthnNotConfigured = errors.New("webauthn is not configured")
-	// ErrWebAuthnSessionNotFound is returned for every unusable ceremony
-	// handle — expired, already consumed, wrong ceremony, scoped to another
-	// user, or never issued. Keeping these indistinguishable denies an
-	// attacker any signal about which handles once existed.
+	// ErrWebAuthnSessionNotFound is returned, indistinguishably, for every
+	// unusable ceremony handle: expired, already consumed, wrong ceremony,
+	// scoped to another user, or never issued.
 	ErrWebAuthnSessionNotFound   = errors.New("webauthn session not found or expired")
 	ErrWebAuthnInvalidResponse   = errors.New("invalid webauthn response")
 	ErrWebAuthnUnknownCredential = errors.New("unknown webauthn credential")
@@ -38,14 +37,11 @@ const (
 	// DefaultWebAuthnSessionTTL is used when WEBAUTHN_SESSION_TTL is unset.
 	DefaultWebAuthnSessionTTL = 5 * time.Minute
 	// DefaultWebAuthnMaxOpenCeremonies is used when
-	// WEBAUTHN_MAX_OPEN_CEREMONIES is unset. Generous for legitimate use
-	// (phone, laptop, tablet, plus retries) while bounding a compromised
-	// account to a trivial footprint.
+	// WEBAUTHN_MAX_OPEN_CEREMONIES is unset.
 	DefaultWebAuthnMaxOpenCeremonies = 10
 
 	// webauthnHandleBytes is the entropy of the opaque handle that binds the
-	// begin and finish halves of a ceremony. For discoverable login the handle
-	// is the only thing linking the two requests, so it must be unguessable.
+	// begin and finish halves of a ceremony.
 	webauthnHandleBytes = 16
 )
 
@@ -86,11 +82,8 @@ func NewWebAuthnService(
 	if maxOpenCeremonies <= 0 {
 		maxOpenCeremonies = DefaultWebAuthnMaxOpenCeremonies
 	}
-	// Drive the client-side ceremony timeout from the same value as the row
-	// TTL. This keeps the stored challenge from outliving the browser ceremony
-	// no matter how the TTL is configured — a challenge that is still valid
-	// after the browser has given up is pure attack surface. Enforce also has
-	// the library re-check expiry server-side during verification.
+	// The client-side ceremony timeout equals the row TTL; Enforce has the
+	// library re-check expiry server-side during verification.
 	timeouts := webauthn.TimeoutConfig{
 		Enforce:    true,
 		Timeout:    sessionTTL,
@@ -179,8 +172,7 @@ func newWebAuthnHandle() (string, error) {
 }
 
 // hashWebAuthnHandle derives the storage key for a handle. Only the hash is
-// persisted, so a database dump or read-only SQL injection yields no usable
-// ceremony state.
+// persisted.
 func hashWebAuthnHandle(handle string) []byte {
 	sum := sha256.Sum256([]byte(handle))
 	return sum[:]
@@ -207,11 +199,9 @@ func (s *WebAuthnService) saveSession(ctx context.Context, userID *uuid.UUID, ce
 	}
 	WebAuthnSessionsCreatedTotal.WithLabelValues(ceremony).Inc()
 
-	// Bound how many ceremonies a user can hold open, evicting oldest-first so
-	// the attempt they just started always survives. Deliberately outside the
-	// insert's transaction: a race between two concurrent begin calls leaves
-	// briefly N+1 rows, which is harmless. A failure here must not fail the
-	// ceremony the user is actually starting.
+	// Bound how many ceremonies a user can hold open, evicting oldest-first.
+	// Runs outside the insert's transaction; a failure does not fail the
+	// ceremony being started.
 	if userID != nil {
 		evicted, err := s.sessionRepo.DeleteOldestForUser(ctx, *userID, s.maxOpenCeremonies)
 		if err != nil {
@@ -224,11 +214,8 @@ func (s *WebAuthnService) saveSession(ctx context.Context, userID *uuid.UUID, ce
 }
 
 // StartSessionReaper deletes expired ceremony rows on a timer until ctx is
-// cancelled.
-//
-// This is hygiene, not a control. Correctness is enforced by the
-// `expires_at > NOW()` predicate in Consume, so a stopped or lagging reaper
-// can never make a stale challenge usable — it only lets dead rows accumulate.
+// cancelled. Hygiene only: expiry is enforced by the `expires_at > NOW()`
+// predicate in Consume.
 func (s *WebAuthnService) StartSessionReaper(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
 		interval = 5 * time.Minute
@@ -259,8 +246,7 @@ func (s *WebAuthnService) StartSessionReaper(ctx context.Context, interval time.
 }
 
 // consumeSession atomically claims a ceremony session. Every failure mode
-// collapses to ErrWebAuthnSessionNotFound so callers cannot distinguish an
-// expired handle from a consumed, mismatched or forged one.
+// collapses to ErrWebAuthnSessionNotFound.
 func (s *WebAuthnService) consumeSession(ctx context.Context, handle, ceremony string) (*webauthn.SessionData, *models.WebAuthnSession, error) {
 	if handle == "" {
 		WebAuthnSessionsConsumedTotal.WithLabelValues(ceremony, "rejected").Inc()
@@ -276,9 +262,7 @@ func (s *WebAuthnService) consumeSession(ctx context.Context, handle, ceremony s
 	}
 	sd := &webauthn.SessionData{}
 	if err := json.Unmarshal(row.Data, sd); err != nil {
-		// A row whose payload will not decode is corrupt, not a transient
-		// fault. It has already been consumed by the DELETE, so reject it the
-		// same way as any other unusable handle rather than surfacing a 500.
+		// A corrupt payload is rejected like any other unusable handle.
 		slog.Warn("discarding corrupt webauthn session", "ceremony", ceremony, "error", err)
 		WebAuthnSessionsConsumedTotal.WithLabelValues(ceremony, "rejected").Inc()
 		return nil, nil, ErrWebAuthnSessionNotFound
@@ -299,10 +283,7 @@ func (s *WebAuthnService) BeginRegistration(ctx context.Context, userID uuid.UUI
 		return "", nil, err
 	}
 
-	// Require a discoverable (resident) credential with user verification so
-	// the resulting credential is a real passkey: it gets saved into the
-	// platform's credential manager, can be used for username-less sign-in,
-	// and shows up in browser autofill on the login page.
+	// Require a discoverable (resident) credential with user verification.
 	requireResident := true
 	authenticatorSelection := protocol.AuthenticatorSelection{
 		ResidentKey:        protocol.ResidentKeyRequirementRequired,
@@ -328,10 +309,8 @@ func (s *WebAuthnService) FinishRegistration(ctx context.Context, userID uuid.UU
 		return nil, err
 	}
 
-	// A registration session is scoped to the user who opened it. Without this
-	// check a stolen handle would let its holder attach a credential to their
-	// own account using someone else's challenge. Rejected uniformly so the
-	// mismatch is not distinguishable from an unknown handle.
+	// A registration session is scoped to the user who opened it; a mismatch
+	// is rejected like an unknown handle.
 	if row.UserID == nil || *row.UserID != userID {
 		slog.Warn("rejected webauthn registration session scoped to a different user",
 			"authenticated_user_id", userID)
@@ -407,7 +386,7 @@ func (s *WebAuthnService) BeginLogin(ctx context.Context, email string) (handle 
 
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		// Fall back to discoverable login to avoid email enumeration.
+		// Unknown email: fall back to discoverable login.
 		assertion, sd, beginErr := s.wa.BeginDiscoverableLogin()
 		if beginErr != nil {
 			return "", nil, fmt.Errorf("begin discoverable login: %w", beginErr)
@@ -485,9 +464,8 @@ func (s *WebAuthnService) FinishLogin(ctx context.Context, handle string, respon
 	var verified *webauthn.Credential
 	if len(sd.UserID) == 0 {
 		handler := func(rawID, userHandle []byte) (webauthn.User, error) {
-			// userHandle from the authenticator MUST match the user we resolved
-			// from rawID, otherwise someone could try to impersonate via a
-			// crafted handle. Both should equal user.WebAuthnID().
+			// userHandle from the authenticator must match the user resolved
+			// from rawID; both equal user.WebAuthnID().
 			expected := wu.WebAuthnID()
 			if len(userHandle) > 0 && !bytes.Equal(userHandle, expected) {
 				return nil, ErrWebAuthnUnknownCredential
@@ -505,7 +483,7 @@ func (s *WebAuthnService) FinishLogin(ctx context.Context, handle string, respon
 	// Update sign count for replay-clone detection.
 	_ = s.credRepo.UpdateSignCount(ctx, storedCred.ID, verified.Authenticator.SignCount, time.Now().UTC())
 
-	// Issue access + refresh tokens. Passkeys count as 2FA, so we skip the 2FA challenge.
+	// Issue access + refresh tokens; passkeys count as 2FA, no 2FA challenge.
 	tokens, err := s.authService.GenerateTokensForUser(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err

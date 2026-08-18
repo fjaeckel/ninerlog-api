@@ -13,15 +13,11 @@ import (
 )
 
 // smtpScript drives a fake SMTP server. Each entry replaces the default reply
-// for a command prefix, which is how a test makes one specific step fail.
+// for a command prefix.
 type smtpScript map[string]string
 
 // startFakeSMTP runs a minimal SMTP server that speaks just enough of the
 // protocol for net/smtp, replying from the script where one is given.
-//
-// A real conversation is the only way to test the classification that matters
-// here: the whole point is telling a 5xx on RCPT TO apart from a 5xx on AUTH,
-// and a stubbed error value cannot express that difference.
 func startFakeSMTP(t *testing.T, script smtpScript) (host, port string) {
 	t.Helper()
 
@@ -43,8 +39,7 @@ func startFakeSMTP(t *testing.T, script smtpScript) (host, port string) {
 		}
 	}()
 
-	// Close and wait in one cleanup: the accept loop only returns once the
-	// listener is closed, so waiting before closing would deadlock.
+	// Close the listener, then wait for the accept loop to return.
 	t.Cleanup(func() {
 		_ = listener.Close()
 		wg.Wait()
@@ -92,8 +87,7 @@ func serveFakeSMTP(conn net.Conn, script smtpScript) {
 		upper := strings.ToUpper(line)
 		switch {
 		case strings.HasPrefix(upper, "EHLO"), strings.HasPrefix(upper, "HELO"):
-			// No STARTTLS and no AUTH advertised by default, so the client
-			// talks plaintext to this loopback server.
+			// No STARTTLS and no AUTH advertised by default.
 			write("250-fake.test")
 			write(reply("EHLO", "250 SIZE 35882577"))
 		case strings.HasPrefix(upper, "AUTH"):
@@ -163,9 +157,7 @@ func TestSendMessage_ClassifiesOutcomes(t *testing.T) {
 		script     smtpScript
 		wantStatus DeliveryStatus
 		wantCode   int
-		// permanent is what the reaper keys on to decide whether to start the
-		// deletion clock, so it is asserted separately from the status.
-		permanent bool
+		permanent  bool
 	}{
 		{
 			name:       "accepted message is delivered",
@@ -186,10 +178,6 @@ func TestSendMessage_ClassifiesOutcomes(t *testing.T) {
 			wantCode:   452,
 		},
 		{
-			// The regression this whole design exists to prevent: a permanent
-			// failure that is about our credentials, not the recipient. If this
-			// were classified as a bounce, one stale SMTP password would
-			// suppress every address the system mails.
 			name:       "5xx on AUTH is a server error, never a bounce",
 			script:     smtpScript{"EHLO": "250 AUTH PLAIN LOGIN", "AUTH": "535 5.7.8 Authentication credentials invalid"},
 			wantStatus: StatusServerError,
@@ -202,8 +190,6 @@ func TestSendMessage_ClassifiesOutcomes(t *testing.T) {
 			wantCode:   553,
 		},
 		{
-			// The recipient was accepted; only the message was refused. The
-			// mailbox is real, so the address must survive.
 			name:       "5xx after the message body is a rejection, not a bounce",
 			script:     smtpScript{"ENDDATA": "552 5.3.4 Message too big"},
 			wantStatus: StatusRejected,
@@ -265,8 +251,7 @@ func TestSendMessage_ClassifiesOutcomes(t *testing.T) {
 
 func TestSendMessage_SuppressedAddressIsNotDialled(t *testing.T) {
 	recorder := &recordingRecorder{suppressed: map[string]bool{"dead@example.test": true}}
-	// Point at an address nothing is listening on: if the sender dialled, the
-	// failure would be a server error rather than a suppression.
+	// Nothing listens on this address; a dial would surface as a server error.
 	sender := NewSender(&SMTPConfig{Host: "127.0.0.1", Port: "1", From: "noreply@ninerlog.test"})
 	sender.SetDeliveryRecorder(recorder)
 
@@ -339,8 +324,8 @@ func TestSendMessage_DryRunWhenSMTPUnconfigured(t *testing.T) {
 }
 
 func TestSendMessage_RecipientNeverReachesMessageHeaders(t *testing.T) {
-	// The recipient travels in the envelope only (CWE-640). Capture the DATA
-	// payload the fake server receives and assert the address is absent.
+	// Captures the DATA payload the fake server receives and asserts the
+	// recipient address is absent.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -415,9 +400,7 @@ func TestSendMessage_RecipientNeverReachesMessageHeaders(t *testing.T) {
 }
 
 func TestDeliveryStatus_OnlyRecipientFailuresCondemnAnAddress(t *testing.T) {
-	// Guards the rule the suppression list depends on. A status added later
-	// that blames the server or the message must not silently start
-	// suppressing real addresses.
+	// Asserts exactly which statuses count as recipient failures.
 	recipientFailures := []DeliveryStatus{StatusHardBounce, StatusInvalidAddress, StatusSuppressed}
 	others := []DeliveryStatus{StatusDelivered, StatusSoftBounce, StatusRejected, StatusServerError, StatusDryRun}
 

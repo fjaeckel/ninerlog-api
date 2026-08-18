@@ -7,7 +7,7 @@ import (
 // EffectiveIFRTime returns the IFR/Instrument time minutes that should be
 // reported for a flight. If the user explicitly set IFRTime it is returned
 // as-is. Otherwise the sum of ActualInstrumentTime + SimulatedInstrumentTime
-// is used (capped at TotalTime so a logging mistake cannot produce >100%).
+// is used, capped at TotalTime.
 //
 // This is the single source of truth for IFR derivation: imports, the
 // auto-calc pipeline and exporters all flow through it.

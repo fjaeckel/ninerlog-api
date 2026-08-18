@@ -35,30 +35,22 @@ type UserRepository interface {
 	// LockAccount locks the account until the given time
 	LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error
 
-	// UpdateLastLogin stamps the last successful login. Narrow on purpose: every
-	// authentication path (password, 2FA, passkey, OIDC, sign-up verification)
-	// records the login, and a full-row Update would write back whatever else the
-	// caller happened to be holding.
+	// UpdateLastLogin stamps the last successful login.
 	UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error
 
 	// MarkEmailVerified flips the email_verified flag to true.
 	// ConsumeRecoveryCode atomically removes a recovery code hash, returning
-	// true only for the caller that actually removed it. Prevents the same
-	// single-use code authenticating more than once under concurrency.
+	// true only for the caller that actually removed it.
 	ConsumeRecoveryCode(ctx context.Context, id uuid.UUID, codeHash string) (bool, error)
 	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
 
 	// ListUnverifiedForReminder returns accounts that are still unverified,
 	// were created before `createdBefore`, and have not yet been sent the
-	// follow-up verification reminder.
-	//
-	// Accounts that have ever logged in and accounts linked to an OIDC identity
-	// are excluded by the implementation: neither is a dead signup, and neither
-	// is reachable by our verification email.
+	// follow-up verification reminder. Accounts that have ever logged in and
+	// accounts linked to an OIDC identity are excluded.
 	ListUnverifiedForReminder(ctx context.Context, createdBefore time.Time, limit int) ([]*models.User, error)
 
-	// MarkVerificationReminderSent stamps the reminder time, which is what
-	// starts the deletion clock.
+	// MarkVerificationReminderSent stamps the reminder time.
 	MarkVerificationReminderSent(ctx context.Context, id uuid.UUID, at time.Time) error
 
 	// DeleteUnverifiedRemindedBefore deletes still-unverified accounts whose
@@ -84,18 +76,18 @@ type EmailDeliveryRepository interface {
 	// address is already listed.
 	Suppress(ctx context.Context, email, reason string, smtpCode *int, detail string) error
 
-	// Unsuppress removes an address from the suppression list, so mail to it is
-	// attempted again. Returns ErrNotFound when the address was not listed.
+	// Unsuppress removes an address from the suppression list. Returns
+	// ErrNotFound when the address was not listed.
 	Unsuppress(ctx context.Context, email string) error
 
 	// ListSuppressions returns suppressed addresses, most recently bounced first.
 	ListSuppressions(ctx context.Context, limit int) ([]*models.EmailSuppression, error)
 
-	// CountSuppressions reports the size of the suppression list, for metrics.
+	// CountSuppressions reports the size of the suppression list.
 	CountSuppressions(ctx context.Context) (int, error)
 
-	// UserIDForEmail resolves an address to an account so a delivery event can
-	// be attributed. Returns ErrNotFound when no account has that address.
+	// UserIDForEmail resolves an address to an account. Returns ErrNotFound
+	// when no account has that address.
 	UserIDForEmail(ctx context.Context, email string) (uuid.UUID, error)
 }
 
@@ -184,11 +176,10 @@ type FlightQueryOptions struct {
 	IsDual        *bool
 	Search        *string
 	// UpdatedSince restricts the result to flights whose updated_at is
-	// strictly after the given instant (delta sync). Compared at full
-	// timestamp precision, unlike the day-granular date filters above.
+	// strictly after the given instant, compared at full timestamp precision.
 	UpdatedSince *time.Time
-	// Query is a parsed advanced search query (see internal/flightsearch).
-	// It compiles to a SQL condition and is ANDed with the other filters.
+	// Query is a parsed advanced search query (see internal/flightsearch),
+	// ANDed with the other filters.
 	Query     *flightsearch.Query
 	Page      int
 	PageSize  int
@@ -198,8 +189,7 @@ type FlightQueryOptions struct {
 	// Logbook filtering: when FilterByRegistrations is true, only flights whose
 	// aircraft_reg matches one of AircraftRegistrations (case-insensitive) are
 	// returned. Registrations should be supplied upper-cased. An empty slice with
-	// FilterByRegistrations=true matches no flights. This filter is applied at the
-	// SQL level so it works correctly together with pagination and counting.
+	// FilterByRegistrations=true matches no flights. Applied at the SQL level.
 	FilterByRegistrations bool
 	AircraftRegistrations []string
 }
@@ -208,7 +198,7 @@ type FlightQueryOptions struct {
 // session (tap-to-log quick log) data access.
 type FlightSessionRepository interface {
 	// Create creates a new flight session. Returns ErrDuplicate when the
-	// user already has an open session (enforced by a partial unique index).
+	// user already has an open session.
 	Create(ctx context.Context, session *models.FlightSession) error
 
 	// GetOpenByUserID returns the user's open session, or ErrNotFound.
@@ -220,22 +210,19 @@ type FlightSessionRepository interface {
 }
 
 // FlightSignatureRepository defines the interface for instructor sign-off
-// request/record data access. See models.FlightSignature for the field
-// rationale; rows are append-only history, with flights.signature_id (via
-// FlightRepository.SetSignatureLock) as the denormalized "is locked" pointer.
+// request/record data access. Rows are append-only history, with
+// flights.signature_id as the "is locked" pointer.
 type FlightSignatureRepository interface {
 	// Create creates a new flight signature row (live 'completed' or
 	// deferred 'pending'). Returns ErrDuplicate if a pending row already
-	// exists for the flight (enforced by a partial unique index).
+	// exists for the flight.
 	Create(ctx context.Context, sig *models.FlightSignature) error
 
 	// GetByID retrieves a signature by ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*models.FlightSignature, error)
 
-	// GetByTokenHash retrieves a signature by its hashed token, for the
-	// public /sign/{token} flow. Returns ErrNotFound if no row has this hash
-	// (regardless of status) so callers can't distinguish "never existed"
-	// from "already used" via this lookup alone.
+	// GetByTokenHash retrieves a signature by its hashed token. Returns
+	// ErrNotFound if no row has this hash, regardless of status.
 	GetByTokenHash(ctx context.Context, tokenHash string) (*models.FlightSignature, error)
 
 	// GetPendingByFlightID returns the flight's current pending request, or
@@ -245,7 +232,7 @@ type FlightSignatureRepository interface {
 	// ListByFlightID returns the full signature history for a flight, newest
 	// first.
 	// CountEmailsSentSince returns how many signature-request emails the user
-	// has triggered since the given instant, for per-account rate limiting.
+	// has triggered since the given instant.
 	CountEmailsSentSince(ctx context.Context, userID uuid.UUID, since time.Time) (int, error)
 	ListByFlightID(ctx context.Context, flightID uuid.UUID) ([]*models.FlightSignature, error)
 
@@ -253,8 +240,7 @@ type FlightSignatureRepository interface {
 	Update(ctx context.Context, sig *models.FlightSignature) error
 
 	// ExpirePendingPastDue flips any 'pending' row whose token_expires_at
-	// has passed to 'expired' (soft, keeps audit trail) and returns the
-	// number of rows affected. Used by the admin cleanup-tokens sweep.
+	// has passed to 'expired' and returns the number of rows affected.
 	ExpirePendingPastDue(ctx context.Context) (int64, error)
 }
 
@@ -307,23 +293,19 @@ type CredentialRepository interface {
 }
 
 // DocumentFileRepository stores reference photos attached to a licence or a
-// credential. Every method is scoped by the owning user: an image is only ever
-// reachable through the subject it hangs off, and both are checked.
+// credential. Every method is scoped by the owning user and subject.
 type DocumentFileRepository interface {
-	// Create inserts the image only if the subject is still below maxPerSubject
-	// images, and returns repository.ErrDocumentFileLimit otherwise. The count
-	// and the insert share a transaction that holds a row lock on the owning
-	// document, so two concurrent uploads cannot both see room for the last
-	// slot. Returns ErrNotFound if the document was deleted in the meantime.
+	// Create atomically inserts the image only if the subject is still below
+	// maxPerSubject images, returning repository.ErrDocumentFileLimit
+	// otherwise, or ErrNotFound if the document does not exist.
 	Create(ctx context.Context, image *models.DocumentFile, maxPerSubject int) error
 
 	// ListBySubject returns the images attached to one licence or credential,
 	// oldest first, without their payload (DocumentFile.Data is nil).
 	ListBySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) ([]*models.DocumentFile, error)
 
-	// GetWithData returns a single image including its bytes. subjectID scopes
-	// the lookup so an id belonging to another document cannot be read through
-	// the wrong parent's URL.
+	// GetWithData returns a single image including its bytes, scoped by
+	// subjectID.
 	GetWithData(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID, imageID uuid.UUID) (*models.DocumentFile, error)
 
 	// Delete removes one image, scoped the same way as GetWithData.
@@ -376,7 +358,7 @@ type ContactRepository interface {
 	GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error)
 	// FindOrCreateByName returns the user's contact with this name — creating
 	// it if absent — and reports whether it created one. Concurrent callers
-	// converge on a single row; see the postgres implementation.
+	// converge on a single row.
 	FindOrCreateByName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error)
 	Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]*models.Contact, error)
 	Update(ctx context.Context, contact *models.Contact) error
@@ -416,14 +398,11 @@ type WebAuthnSessionRepository interface {
 	Create(ctx context.Context, session *models.WebAuthnSession) error
 
 	// Consume atomically deletes and returns the session if it exists, matches
-	// the ceremony, and has not expired. Returns ErrNotFound otherwise, so that
-	// expired, already-consumed, wrong-ceremony and forged handles are
-	// indistinguishable to the caller.
+	// the ceremony, and has not expired. Returns ErrNotFound otherwise.
 	Consume(ctx context.Context, idHash []byte, ceremony string) (*models.WebAuthnSession, error)
 
 	// DeleteOldestForUser keeps the newest `keep` sessions belonging to userID
-	// and deletes the rest, bounding how many ceremonies a user can hold open.
-	// Returns the number deleted.
+	// and deletes the rest. Returns the number deleted.
 	DeleteOldestForUser(ctx context.Context, userID uuid.UUID, keep int) (int64, error)
 
 	// DeleteExpired removes expired rows. Returns the number deleted.
@@ -471,14 +450,11 @@ type FlightBaselineRepository interface {
 }
 
 // OIDCIdentityRepository persists the mapping between external OpenID Connect
-// identities and local users, plus the two kinds of short-lived, single-use
-// state a login round trip needs (authorization state and browser handoff
-// codes). Only used when OIDC_ISSUER is configured; the tables stay empty
-// otherwise.
+// identities and local users, plus short-lived single-use login state
+// (authorization state and browser handoff codes).
 type OIDCIdentityRepository interface {
 	// GetBySubject returns the identity for an (issuer, subject) pair, or
-	// ErrNotFound. This is the only supported way to resolve an incoming
-	// login to an existing account.
+	// ErrNotFound.
 	GetBySubject(ctx context.Context, issuer, subject string) (*models.OIDCIdentity, error)
 
 	// GetByUserID returns the identity linked to a local user, or ErrNotFound.
@@ -496,7 +472,7 @@ type OIDCIdentityRepository interface {
 
 	// ConsumeLoginState atomically deletes and returns an unexpired login
 	// state. Returns ErrNotFound for expired, already-consumed and forged
-	// state values alike, so they stay indistinguishable to the caller.
+	// state values alike.
 	ConsumeLoginState(ctx context.Context, stateHash []byte) (*models.OIDCLoginState, error)
 
 	// CreateHandoffCode stores a single-use code the SPA can exchange for a
@@ -512,11 +488,8 @@ type OIDCIdentityRepository interface {
 	DeleteExpired(ctx context.Context) (int64, error)
 }
 
-// IdempotencyRepository stores the server-side replay records that make
-// mutating requests safe to retry (see db/migrations/000052).
-//
-// Every method is scoped by user ID: one user's key can never read, claim or
-// overwrite another's.
+// IdempotencyRepository stores server-side idempotency replay records.
+// Every method is scoped by user ID.
 type IdempotencyRepository interface {
 	// Claim atomically takes ownership of (rec.UserID, rec.Key) for the
 	// current request.
@@ -528,18 +501,15 @@ type IdempotencyRepository interface {
 	// execute the request.
 	//
 	// A record that has expired, or whose in-progress claim was taken before
-	// staleBefore (its owner died without finalizing), is taken over rather
-	// than reported as a conflict.
+	// staleBefore, is taken over rather than reported as a conflict.
 	Claim(ctx context.Context, rec *models.IdempotencyRecord, staleBefore time.Time) (*models.IdempotencyRecord, error)
 
 	// Complete finalizes a claimed record with the captured response. It is a
-	// no-op when the claim identified by rec.CreatedAt is no longer held, so a
-	// straggler cannot overwrite a record another request has since taken over.
+	// no-op when the claim identified by rec.CreatedAt is no longer held.
 	Complete(ctx context.Context, rec *models.IdempotencyRecord) error
 
-	// Release drops a claim so the key can be used again, for requests that
-	// must stay retryable (server errors). Like Complete it only acts on a
-	// claim still owned by claimedAt.
+	// Release drops a claim so the key can be used again. Like Complete it
+	// only acts on a claim still owned by claimedAt.
 	Release(ctx context.Context, userID uuid.UUID, key string, claimedAt time.Time) error
 
 	// DeleteExpired removes records that expired at or before `before`.
@@ -547,10 +517,8 @@ type IdempotencyRepository interface {
 	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
 }
 
-// DeletionRepository reads the tombstones that make deletions visible to a
-// delta-syncing client. Rows are written by database triggers, never from Go,
-// so that a delete reaching the database by any route — repository, raw SQL, or
-// ON DELETE CASCADE — is recorded. There is deliberately no Create method.
+// DeletionRepository reads deletion tombstones for delta sync. Rows are
+// written by database triggers, never from Go.
 type DeletionRepository interface {
 	// ListSince returns the user's deletions strictly after `since`, oldest
 	// first, optionally narrowed to one entity type.
@@ -559,7 +527,7 @@ type DeletionRepository interface {
 	// CountSince counts the set ListSince pages over.
 	CountSince(ctx context.Context, userID uuid.UUID, since time.Time, entity *models.DeletionEntityType) (int, error)
 
-	// DeleteExpired sweeps tombstones older than `before`, bounding retention.
-	// Returns the number deleted.
+	// DeleteExpired removes tombstones older than `before`. Returns the
+	// number deleted.
 	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
 }

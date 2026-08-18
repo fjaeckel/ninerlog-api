@@ -11,16 +11,14 @@ type LegacyCrewMember struct {
 	Role string
 }
 
-// LegacyCrewInput describes the flat set of legacy/spreadsheet columns we
-// historically used to encode crew before the CrewMembers array existed:
+// LegacyCrewInput describes the flat set of legacy/spreadsheet crew columns:
 // up to six "personN" names, an InstructorName, and the user-declared
 // DualReceived / DualGiven totals.
 //
 // ForeFlight optionally encodes a role tag inside each Person cell
 // ("Name;Role;email"). When that explicit role is available the caller
-// SHOULD pass it via the matching PersonNRole field so positional
-// inference does not overwrite the source-of-truth tag (e.g. a flight
-// where the instructor is Person2 and Person1 is the student).
+// SHOULD pass it via the matching PersonNRole field; it wins over
+// positional inference.
 type LegacyCrewInput struct {
 	Person1, Person2, Person3, Person4, Person5, Person6                         string
 	Person1Role, Person2Role, Person3Role, Person4Role, Person5Role, Person6Role string
@@ -59,7 +57,7 @@ func NormalizeLegacyRole(s string) string {
 // into a CrewMembers array. Both the CSV importer and any future legacy
 // re-importer MUST use this — do not re-derive crew roles by hand.
 //
-// Rules (preserved exactly from the historical importer):
+// Rules:
 //   - Training flight  ≡ InstructorName set OR HasDualReceived.
 //   - Instructor-giving ≡ HasDualGiven (and not a training flight).
 //   - Person1 is treated as Instructor on a training flight, Student when
@@ -73,10 +71,7 @@ func NormalizeLegacyRole(s string) string {
 // When the caller supplies an explicit role for a person via the
 // matching PersonNRole field (see NormalizeLegacyRole for the accepted
 // vocabulary), that role wins over the positional rules for that
-// person. Other persons still follow the positional rules so a partial
-// set of tags works (e.g. only Person1 tagged "Student", Person2 left
-// untagged still becomes the Passenger / Student per the positional
-// rule).
+// person; other persons still follow the positional rules.
 func InferLegacyCrew(in LegacyCrewInput) []LegacyCrewMember {
 	persons := [6]string{in.Person1, in.Person2, in.Person3, in.Person4, in.Person5, in.Person6}
 	roles := [6]string{

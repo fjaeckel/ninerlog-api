@@ -98,11 +98,8 @@ func (t *faaTotals) add(f *models.Flight) {
 	t.total += f.TotalTime
 }
 
-// addBaseline opens the balance with the pilot's prior experience, the way a
-// paper logbook carries the old book's closing totals into the first page.
-// act, sim, appr and holds stay untouched: a baseline's IFR figure is a single
-// number that cannot be split into actual and simulated instrument time, and
-// approach and hold counts are not recorded at all.
+// addBaseline opens the balance with the pilot's prior experience. act, sim,
+// appr and holds stay untouched.
 func (t *faaTotals) addBaseline(b *models.FlightBaseline) {
 	if !baselineApplies(b) {
 		return
@@ -180,8 +177,7 @@ func renderFAASpread(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 		d.addBlankPage()
 	}
 
-	// Opened with whatever the pilot brought into this logbook so the first
-	// "previous pages" row states their prior experience rather than zero.
+	// Cumulative running total across all spreads, opened with the baseline.
 	var cum faaTotals
 	cum.addBaseline(b)
 
@@ -287,7 +283,7 @@ func renderFAASingle(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 	totalPages := (len(flights) + rpp - 1) / rpp
 	pageNum := 0
 
-	// Opened with the pilot's prior experience — see renderFAASpread.
+	// Cumulative running total, opened with the baseline.
 	var cum faaTotals
 	cum.addBaseline(b)
 

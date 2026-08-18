@@ -35,18 +35,15 @@ var (
 	ErrNameRequired       = errors.New("name is required")
 	ErrInvalidEmail       = errors.New("invalid email format")
 	ErrEmailTooLong       = errors.New("email must not exceed 255 characters")
-	// ErrPasswordNotSet marks an account that has no local password — an OIDC
-	// account. Password-based operations are refused outright rather than
-	// compared against an empty hash.
+	// ErrPasswordNotSet marks an account that has no local password (an OIDC
+	// account).
 	ErrPasswordNotSet = errors.New("account has no local password")
 
 	// ErrTwoFactorRequired is returned by ResetPassword when the account has 2FA
-	// enabled and the caller supplied no code. The reset token is left unused so
-	// the caller can retry with a code.
+	// enabled and the caller supplied no code; the reset token is left unused.
 	ErrTwoFactorRequired = errors.New("two-factor authentication code required")
 	// ErrTwoFactorUnavailable is returned when a 2FA-protected reset is attempted
-	// but no validator is wired. It fails the reset closed rather than falling
-	// back to bypassing the second factor.
+	// but no validator is wired.
 	ErrTwoFactorUnavailable = errors.New("two-factor verification is unavailable")
 )
 
@@ -57,8 +54,7 @@ const (
 )
 
 // TwoFactorValidator is the part of TwoFactorService that the password-reset
-// flow depends on. It is an interface so AuthService does not have to own the
-// TOTP/recovery-code implementation, and so tests can substitute a stub.
+// flow depends on.
 type TwoFactorValidator interface {
 	// ValidateTOTP reports whether code is a valid TOTP code or an unused
 	// recovery code for the user. Recovery codes are consumed on success, and
@@ -77,7 +73,7 @@ type AuthService struct {
 
 // NewAuthService constructs the service. twoFactor may be nil, in which case a
 // password reset for an account with 2FA enabled fails with
-// ErrTwoFactorUnavailable — the second factor is never silently skipped.
+// ErrTwoFactorUnavailable.
 func NewAuthService(
 	userRepo repository.UserRepository,
 	refreshTokenRepo repository.RefreshTokenRepository,
@@ -113,12 +109,10 @@ type TokenPair struct {
 	RefreshToken string
 }
 
-// Register creates a new user account. The account is created with
-// EmailVerified=false, an email-verification token is generated and stored,
-// and the plaintext token is returned to the caller so the handler can
-// deliver it via email. No JWT tokens are issued at this stage — the user
-// must consume the verification token (see VerifyEmail) before they can
-// log in.
+// Register creates a new user account with EmailVerified=false, stores an
+// email-verification token, and returns the plaintext token for the handler
+// to deliver via email. No JWT tokens are issued; the user must consume the
+// verification token (see VerifyEmail) before logging in.
 func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*models.User, string, error) {
 	// Normalize and validate input
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
@@ -218,8 +212,7 @@ func (s *AuthService) createEmailVerificationToken(ctx context.Context, userID u
 }
 
 // VerifyEmail consumes a verification token and, on success, marks the user's
-// email as verified and returns a fresh access/refresh token pair so the
-// frontend can log the user in.
+// email as verified and returns a fresh access/refresh token pair.
 func (s *AuthService) VerifyEmail(ctx context.Context, token string) (*models.User, *TokenPair, error) {
 	if token == "" {
 		return nil, nil, ErrInvalidToken
@@ -260,8 +253,7 @@ func (s *AuthService) VerifyEmail(ctx context.Context, token string) (*models.Us
 		return nil, nil, err
 	}
 
-	// Following the link signs the account in — that is a login, and it is the
-	// first one a freshly registered user ever has.
+	// Verifying counts as a login.
 	s.RecordLogin(ctx, user)
 
 	return user, tokens, nil
@@ -269,8 +261,8 @@ func (s *AuthService) VerifyEmail(ctx context.Context, token string) (*models.Us
 
 // ResendVerification issues a fresh verification token for the given email if
 // (and only if) the address belongs to a known, not-yet-verified user. The
-// returned values are empty when nothing should be sent — callers should not
-// distinguish "unknown email" from "already verified" to avoid enumeration.
+// returned values are empty when nothing should be sent; "unknown email" and
+// "already verified" are indistinguishable to callers.
 func (s *AuthService) ResendVerification(ctx context.Context, email string) (token, userEmail, userName, locale string, err error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	user, err := s.userRepo.GetByEmail(ctx, email)
@@ -317,38 +309,27 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 	user, err := s.userRepo.GetByEmail(ctx, input.Email)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			// Burn a comparable amount of CPU so the response timing of an
-			// unknown account matches that of a wrong password. Combined with
-			// the identical error below, this prevents user enumeration.
+			// Burn CPU comparable to a real password comparison.
 			hash.DummyCompare()
 			return nil, nil, ErrInvalidCredentials
 		}
 		return nil, nil, err
 	}
 
-	// Enforce account lockout before checking the password so a locked account
-	// cannot be probed further.
+	// Enforce account lockout before the password check.
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
 		return nil, nil, ErrAccountLocked
 	}
 
-	// Accounts provisioned through OIDC have no local password. The password
-	// endpoints are already disabled while OIDC mode is on, so this is defence
-	// in depth for a deployment that switched modes with such accounts in the
-	// database. It burns the same CPU as a real comparison so the absence of a
-	// password is not detectable by response timing.
+	// No local password (OIDC account): burn a comparison and refuse.
 	if !user.HasPassword() {
 		hash.DummyCompare()
 		return nil, nil, ErrInvalidCredentials
 	}
 
-	// Verify the password BEFORE surfacing any account-state details. Returning
-	// "disabled" / "email not verified" prior to authentication would let an
-	// unauthenticated attacker enumerate which addresses are registered and in
-	// what state (CWE-204). A wrong password always yields the same generic
-	// ErrInvalidCredentials regardless of whether the account exists.
+	// Verify the password before surfacing any account-state details; a wrong
+	// password always yields the same generic ErrInvalidCredentials.
 	if err := hash.ComparePassword(user.PasswordHash, input.Password); err != nil {
-		// Increment failed attempts
 		_ = s.userRepo.IncrementFailedLoginAttempts(ctx, user.ID)
 
 		// Lock account after maxFailedLoginAttempts consecutive failures
@@ -359,8 +340,6 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 		return nil, nil, ErrInvalidCredentials
 	}
 
-	// Password is correct — from here on it is safe to reveal account state,
-	// since only the legitimate owner reaches this point.
 	if user.Disabled {
 		return nil, nil, ErrAccountDisabled
 	}
@@ -373,20 +352,16 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 		_ = s.userRepo.ResetFailedLoginAttempts(ctx, user.ID)
 	}
 
-	// Record the sign-in. For a 2FA account the password is only the first
-	// factor — the handler answers with a challenge instead of a session, and
-	// Login2FA stamps the login once the second factor passes.
+	// For a 2FA account, Login2FA stamps the login after the second factor.
 	if !user.TwoFactorEnabled {
 		s.RecordLogin(ctx, user)
 	}
 
-	// Delete all existing refresh tokens for this user to avoid constraint violations
-	// This ensures only one active session per user
+	// Delete existing refresh tokens: one active session per user.
 	if err := s.refreshTokenRepo.DeleteForUser(ctx, user.ID); err != nil {
-		// Log error but don't fail the login
+		// Best-effort; login proceeds.
 	}
 
-	// Generate tokens
 	tokens, err := s.generateTokenPair(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err
@@ -443,8 +418,7 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 // fields are loaded from the database, never from the HTTP request.
 type PasswordResetRequest struct {
 	// Token is the plaintext reset token to embed in the mail. Empty when no
-	// account matched — callers must stay silent in that case so the response
-	// does not reveal whether the address exists.
+	// account matched; callers must stay silent in that case.
 	Token string
 	Email string
 	Name  string
@@ -455,12 +429,9 @@ type PasswordResetRequest struct {
 	TwoFactorEnabled bool
 }
 
-// RequestPasswordReset creates a password reset token.
-//
-// On success it returns the reset token together with the recipient details
-// loaded from the database. The handler uses the database-sourced email
-// (rather than the HTTP request) when sending the reset mail, which keeps
-// untrusted input out of the SMTP message (CWE-640).
+// RequestPasswordReset creates a password reset token. On success it returns
+// the reset token together with the recipient details loaded from the
+// database, never from the HTTP request.
 func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (*PasswordResetRequest, error) {
 	// Normalize email
 	email = strings.ToLower(strings.TrimSpace(email))
@@ -468,7 +439,7 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (*
 	// Get user
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		// Don't reveal if user exists
+		// Unknown address: empty request.
 		if errors.Is(err, repository.ErrNotFound) {
 			return &PasswordResetRequest{}, nil
 		}
@@ -508,31 +479,22 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (*
 	}, nil
 }
 
-// PasswordResetResult describes a completed password reset, so the handler can
-// send the confirmation mail without loading the user again.
+// PasswordResetResult describes a completed password reset.
 type PasswordResetResult struct {
 	UserID uuid.UUID
 	Email  string
 	Name   string
 	Locale string
-	// TwoFactorEnabled reports whether the account still has 2FA active. A
-	// reset never turns it off, so this is simply the account's current state.
+	// TwoFactorEnabled reports whether the account still has 2FA active; a
+	// reset never turns it off.
 	TwoFactorEnabled bool
 }
 
-// ResetPassword resets a user's password using a reset token.
-//
-// A reset does NOT disable two-factor authentication. It used to: control of
-// the mailbox alone was enough to strip the second factor and take the account
-// over, and the owner was never told. Instead, an account with 2FA enabled must
-// prove the second factor here too — twoFactorCode is a TOTP code or one of the
-// account's recovery codes, which is the self-service path for a lost
-// authenticator. Only a user who has lost the authenticator AND every recovery
-// code needs an admin (POST /admin/users/{userId}/reset-2fa).
-//
-// The reset token is consumed only on success, so a wrong or missing code can
-// be retried with the same link. Code guessing is bounded by the shared account
-// lockout applied inside the validator.
+// ResetPassword resets a user's password using a reset token. A reset does NOT
+// disable two-factor authentication: an account with 2FA enabled must prove
+// the second factor here too — twoFactorCode is a TOTP code or one of the
+// account's recovery codes. The reset token is consumed only on success, so a
+// wrong or missing code can be retried with the same link.
 func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword, twoFactorCode string) (*PasswordResetResult, error) {
 	// Get token
 	tokenHash := hash.HashToken(token)
@@ -569,7 +531,6 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword, two
 			return nil, ErrTwoFactorRequired
 		}
 		if s.twoFactor == nil {
-			// No validator wired — refuse rather than reset without the factor.
 			return nil, ErrTwoFactorUnavailable
 		}
 		valid, err := s.twoFactor.ValidateTOTP(ctx, user.ID, twoFactorCode)
@@ -581,8 +542,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword, two
 		}
 
 		// Re-read the user: validating may have consumed a recovery code and
-		// cleared the failed-attempt counter. Writing the copy loaded above back
-		// would restore the consumed code and make it usable a second time.
+		// cleared the failed-attempt counter.
 		user, err = s.userRepo.GetByID(ctx, resetToken.UserID)
 		if err != nil {
 			return nil, err
@@ -595,7 +555,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword, two
 		return nil, err
 	}
 
-	// Update the password only. 2FA enrolment is deliberately left untouched.
+	// Update the password only; 2FA enrolment is untouched.
 	user.PasswordHash = hashedPassword
 	user.UpdatedAt = time.Now()
 	if err := s.userRepo.Update(ctx, user); err != nil {
@@ -660,18 +620,10 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID uuid.UUID) (*model
 }
 
 // RecordLogin stamps a successful sign-in on the account and mirrors the value
-// onto the in-memory user so the caller's response carries it.
-//
-// Every path that hands a session to a user calls this: password login, the 2FA
-// second factor, passkeys, OIDC, and the sign-up verification link — following
-// that link signs the new account in on the spot, so it is a login like any
-// other and the admin list should show its date.
-//
-// A refresh is deliberately not a login: it renews a session that an earlier
-// login already established.
-//
-// Failure is logged and swallowed. The user is authenticated either way, and an
-// administrative timestamp is not worth failing a login over.
+// onto the in-memory user. Called by every path that hands a session to a
+// user: password login, the 2FA second factor, passkeys, OIDC, and the sign-up
+// verification link. A refresh is not a login. Failure is logged and
+// swallowed.
 func (s *AuthService) RecordLogin(ctx context.Context, user *models.User) {
 	now := time.Now()
 	if err := s.userRepo.UpdateLastLogin(ctx, user.ID, now); err != nil {
@@ -709,8 +661,7 @@ func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
 
 // VerifyPassword checks a plaintext password against the stored hash for the
 // given user. Used to re-authenticate before security-sensitive profile
-// changes (e.g. changing the email address, which is both the account recovery
-// channel and the basis for admin authorization).
+// changes.
 func (s *AuthService) VerifyPassword(ctx context.Context, userID uuid.UUID, password string) error {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -723,7 +674,7 @@ func (s *AuthService) VerifyPassword(ctx context.Context, userID uuid.UUID, pass
 }
 
 // CreateEmailVerificationToken mints a fresh verification token for a user
-// whose address has just changed, so the new address can be proven.
+// whose address has just changed.
 func (s *AuthService) CreateEmailVerificationToken(ctx context.Context, userID uuid.UUID) (string, error) {
 	return s.createEmailVerificationToken(ctx, userID)
 }
@@ -783,12 +734,8 @@ func (s *AuthService) DeleteUser(ctx context.Context, userID uuid.UUID, password
 }
 
 // DeleteUserConfirmed permanently deletes an account whose identity has been
-// confirmed by means other than a password.
-//
-// In OIDC mode there is no password to re-enter, so the handler confirms the
-// destructive action by requiring the caller to type their own email address
-// instead. The confirmation itself happens in the handler; this method is the
-// deletion once that check has passed.
+// confirmed by means other than a password; the confirmation itself happens in
+// the handler.
 func (s *AuthService) DeleteUserConfirmed(ctx context.Context, userID uuid.UUID) error {
 	if _, err := s.userRepo.GetByID(ctx, userID); err != nil {
 		return err

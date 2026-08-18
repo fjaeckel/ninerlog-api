@@ -51,7 +51,7 @@ type CustomRuleWithStatus struct {
 }
 
 // SharedRuleView is the read-only projection of a shared rule shown to a user
-// following a share link. It deliberately omits owner identity.
+// following a share link. It omits owner identity.
 type SharedRuleView struct {
 	Name        string                        `json:"name"`
 	Description *string                       `json:"description,omitempty"`
@@ -61,21 +61,20 @@ type SharedRuleView struct {
 }
 
 const (
-	// maxRuleNameLen matches the custom_currency_rules.name column (VARCHAR 120),
-	// counted in runes so multi-byte names can't overflow the column.
+	// maxRuleNameLen matches the custom_currency_rules.name column
+	// (VARCHAR 120), counted in runes.
 	maxRuleNameLen = 120
 	// maxRuleEmojiLen matches the emoji column (VARCHAR 16).
 	maxRuleEmojiLen = 16
 	// maxRuleDescLen bounds the free-text description (stored as TEXT).
 	maxRuleDescLen = 2000
-	// maxRulesPerUser caps how many rules one account can hold. Each rule is
-	// evaluated (1–2 queries) on every list, so this bounds that fan-out.
+	// maxRulesPerUser caps how many rules one account can hold.
 	maxRulesPerUser = 200
 )
 
 // validateInput normalizes and validates rule metadata and definition. Length
-// limits are enforced here (in runes) so the database never rejects a value
-// with an opaque 500; the controlled vocabulary is validated by the model.
+// limits are enforced here (in runes); the controlled vocabulary is validated
+// by the model.
 func validateInput(in *CustomRuleInput) error {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
@@ -99,8 +98,7 @@ func validateInput(in *CustomRuleInput) error {
 		if utf8.RuneCountInString(*in.Description) > maxRuleDescLen {
 			return newValidationError("description is too long")
 		}
-		// Newlines are allowed in descriptions, but other control characters
-		// (CR, NUL, C1, etc.) are not.
+		// Newlines are allowed; other control characters are not.
 		if containsForbiddenDescriptionChar(*in.Description) {
 			return newValidationError("description contains invalid characters")
 		}
@@ -111,9 +109,8 @@ func validateInput(in *CustomRuleInput) error {
 	return nil
 }
 
-// containsForbiddenDescriptionChar rejects control characters in a description
-// except the plain newline (\n), which is legitimate multi-line text. Carriage
-// returns and every other control byte are rejected.
+// containsForbiddenDescriptionChar rejects control characters in a
+// description, except the plain newline (\n).
 func containsForbiddenDescriptionChar(s string) bool {
 	for _, r := range s {
 		if r == '\n' {
@@ -143,9 +140,9 @@ func (s *CustomService) List(ctx context.Context, userID uuid.UUID) ([]CustomRul
 	return out, nil
 }
 
-// evaluateRule evaluates an enabled rule against the user's flights. A disabled
-// (paused) rule is not evaluated — it returns an unknown status carrying only
-// its window label, so the UI can render it as paused without running queries.
+// evaluateRule evaluates an enabled rule against the user's flights. A
+// disabled (paused) rule is not evaluated — it returns an unknown status
+// carrying only its window label.
 func (s *CustomService) evaluateRule(ctx context.Context, userID uuid.UUID, rule *models.CustomCurrencyRule) (CustomCurrencyResult, error) {
 	if !rule.Enabled {
 		return CustomCurrencyResult{
@@ -323,10 +320,7 @@ func (s *CustomService) Import(ctx context.Context, userID uuid.UUID, token stri
 	if err := s.checkQuota(ctx, userID); err != nil {
 		return nil, err
 	}
-	// Re-validate the shared rule before copying it in. The source is another
-	// user's data; validating here keeps the importer's account free of content
-	// that would fail today's rules (control characters, over-length fields,
-	// unknown vocabulary), independent of when the source was created.
+	// Re-validate the shared rule before copying it in.
 	in := CustomRuleInput{
 		Name:        source.Name,
 		Description: source.Description,
@@ -367,8 +361,8 @@ func (s *CustomService) checkQuota(ctx context.Context, userID uuid.UUID) error 
 	return nil
 }
 
-// ownedRule fetches a rule and enforces ownership. To avoid leaking the
-// existence of other users' rules, a non-owner sees repository.ErrNotFound.
+// ownedRule fetches a rule and enforces ownership; a non-owner sees
+// repository.ErrNotFound.
 func (s *CustomService) ownedRule(ctx context.Context, userID, id uuid.UUID) (*models.CustomCurrencyRule, error) {
 	rule, err := s.repo.GetByID(ctx, id)
 	if err != nil {

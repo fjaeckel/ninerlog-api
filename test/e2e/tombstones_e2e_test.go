@@ -10,10 +10,7 @@ import (
 	"time"
 )
 
-// GET /sync/deletions closes the gap updatedSince leaves open: a deleted record
-// simply stops appearing in the list endpoints, so a client mirroring the
-// logbook would keep it forever. Together the two make a full sync pass — pull
-// changes, then pull deletions — expressible without reading the whole logbook.
+// These tests cover the GET /sync/deletions tombstone feed.
 
 type deletionFeed struct {
 	Data []struct {
@@ -61,8 +58,7 @@ func TestTombstonesReportDeletions(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("tomb"), "SecurePass123!", "Tomb User")
 
-	// A watermark from before anything exists: the account was created moments
-	// ago, so this is "everything that ever happened to this logbook".
+	// A watermark from before anything in this account exists.
 	epoch := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
 
 	if feed := deletionsSince(t, c, epoch); feed.Pagination.Total != 0 {
@@ -154,7 +150,7 @@ func TestTombstonesReportDeletions(t *testing.T) {
 	})
 
 	t.Run("advancing the watermark past a deletion drops it", func(t *testing.T) {
-		// Take the watermark from the feed itself, as a client would.
+		// Take the watermark from the feed itself.
 		last := feed.Data[len(feed.Data)-1].DeletedAt
 		if got := deletionsSince(t, c, last); got.Pagination.Total != 0 {
 			t.Errorf("replaying the last deletedAt reported %d deletions, want 0 — strictly-after", got.Pagination.Total)
@@ -195,8 +191,8 @@ func TestTombstonesReportDeletions(t *testing.T) {
 	})
 }
 
-// The bulk paths delete without going through a per-record endpoint. They are
-// exactly the case a Go-side implementation would have missed.
+// TestTombstonesCoverBulkDeletes covers deletes that bypass per-record
+// endpoints.
 func TestTombstonesCoverBulkDeletes(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("tomb-bulk"), "SecurePass123!", "Tomb Bulk")
@@ -218,8 +214,8 @@ func TestTombstonesCoverBulkDeletes(t *testing.T) {
 	}
 }
 
-// An account-data wipe must be reported too: the user keeps their login, so a
-// client is still syncing and needs to drop everything it mirrors.
+// TestTombstonesCoverUserDataWipe covers DELETE /users/me/data producing
+// tombstones.
 func TestTombstonesCoverUserDataWipe(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("tomb-wipe"), "SecurePass123!", "Tomb Wipe")
@@ -254,8 +250,6 @@ func TestDeletionFeedValidation(t *testing.T) {
 	epoch := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
 
 	t.Run("since is required", func(t *testing.T) {
-		// Without a watermark the feed has no meaning; answering with
-		// everything would be a silent, unbounded response.
 		assertStatus(t, c.GET("/sync/deletions"), http.StatusBadRequest)
 	})
 
@@ -266,8 +260,6 @@ func TestDeletionFeedValidation(t *testing.T) {
 	})
 
 	t.Run("an unknown entity is rejected", func(t *testing.T) {
-		// Answering with an empty feed would read as "nothing was deleted",
-		// which is the one answer a sync client must never get wrong.
 		assertStatus(t, c.GET("/sync/deletions?since="+url.QueryEscape(epoch)+"&entity=spaceship"),
 			http.StatusBadRequest)
 	})
@@ -278,8 +270,7 @@ func TestDeletionFeedValidation(t *testing.T) {
 	})
 }
 
-// One pilot must never see another's deletions, even though a tombstone carries
-// only an id and a type.
+// TestDeletionFeedIsUserScoped covers the user scoping of the deletion feed.
 func TestDeletionFeedIsUserScoped(t *testing.T) {
 	owner := NewE2EClient(t)
 	registerAndLogin(t, owner, uniqueEmail("tomb-owner"), "SecurePass123!", "Tomb Owner")

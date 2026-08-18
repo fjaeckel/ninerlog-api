@@ -11,10 +11,8 @@ import (
 	"github.com/fjaeckel/ninerlog-api/pkg/solar"
 )
 
-// Role enum + classification moved to internal/service/flightrules so the
-// read path (handlers, exporters, PDF) and the write path (this package)
-// cannot disagree about who is PIC. The flightcalc package keeps a thin
-// alias to avoid touching every internal call site.
+// Role enum + classification live in internal/service/flightrules; this
+// package keeps thin aliases for its internal call sites.
 type userPilotRole = flightrules.Role
 
 const (
@@ -27,14 +25,12 @@ const (
 // ApplyAutoCalculations computes all auto-calculated fields on a flight.
 // Fields with manual override flags set are not overwritten.
 //
-// userName is the authenticated user's display name. It is used to decide
-// whether an Instructor crew member refers to the user themselves (→ Dual
-// given) or to a third party (→ Dual received), and likewise whether an
-// Examiner is a third party (→ Dual received; the examiner is PIC of record
-// on a check ride) or the user themselves (→ PIC). When userName is empty,
-// any Instructor or Examiner crew member is conservatively treated as a
-// third party (Dual received), preserving prior behaviour for callers that
-// do not yet have the user context (e.g. some legacy tests).
+// userName is the authenticated user's display name, used to decide whether
+// an Instructor crew member is the user themselves (→ Dual given) or a third
+// party (→ Dual received), and likewise whether an Examiner is a third party
+// (→ Dual received) or the user themselves (→ PIC). When userName is empty,
+// any Instructor or Examiner crew member is treated as a third party (Dual
+// received).
 func ApplyAutoCalculations(flight *models.Flight, userName string) {
 	role := determineUserRole(flight, userName)
 
@@ -79,8 +75,7 @@ func ApplyAutoCalculations(flight *models.Flight, userName string) {
 	flight.IFRTime = flightrules.EffectiveIFRTime(flight)
 }
 
-// determineUserRole is a thin wrapper over flightrules.DetermineRole kept
-// for backward compatibility with this package's internal call sites.
+// determineUserRole is a thin wrapper over flightrules.DetermineRole.
 func determineUserRole(flight *models.Flight, userName string) userPilotRole {
 	return flightrules.DetermineRole(flight, userName)
 }
@@ -113,11 +108,8 @@ func calculatePICDual(flight *models.Flight, role userPilotRole) {
 // calculateNightTime computes night time from the flight's off-block /
 // on-block times and the civil twilight boundaries at the departure airport.
 // Per ICAO / EASA, night is the period between the end of evening civil
-// twilight and the beginning of morning civil twilight.
-//
-// Block times are used exclusively (not takeoff/landing times): they are the
-// authoritative recorded times in this logbook, populated by every import
-// path and required for any flight to be valid.
+// twilight and the beginning of morning civil twilight. Block times are used
+// exclusively (not takeoff/landing times).
 func calculateNightTime(flight *models.Flight) {
 	dep := normalizeICAO(flight.DepartureICAO)
 	if dep == "" {
@@ -345,7 +337,7 @@ func parseTimeOfDay(date time.Time, timeStr string) (time.Time, error) {
 // calculateSICTime sets SIC (co-pilot) time when the user's resolved role is
 // SIC — someone else is the designated PIC and the user occupies the other
 // pilot seat (AMC1 FCL.050). In all other roles the time is zeroed when crew
-// context exists, so stale values do not survive a recalculation.
+// context exists.
 func calculateSICTime(flight *models.Flight, role userPilotRole) {
 	if role == roleSIC {
 		flight.SICTime = flight.TotalTime
@@ -380,10 +372,9 @@ func calculateMultiPilotTime(flight *models.Flight, role userPilotRole) {
 }
 
 // calculateDualGivenTime sets dual given time when the user is acting as
-// instructor. Per determineUserRole, that means a Student is on board OR the
-// user themselves is listed with the Instructor role. In all other cases this
-// time is zeroed so stale values do not survive a recalculation (e.g. when a
-// flight is re-saved after fixing crew roles).
+// instructor: a Student is on board OR the user themselves is listed with the
+// Instructor role. In all other cases the time is zeroed when crew context
+// exists.
 func calculateDualGivenTime(flight *models.Flight, role userPilotRole) {
 	if role == roleDualGiving {
 		flight.DualGivenTime = flight.TotalTime

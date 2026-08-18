@@ -24,8 +24,8 @@ var (
 		[]string{"ceremony", "result"},
 	)
 
-	// WebAuthnSessionsEvictedTotal counts sessions dropped by the per-user open
-	// ceremony cap. Sustained growth means users are abandoning ceremonies.
+	// WebAuthnSessionsEvictedTotal counts sessions dropped by the per-user
+	// open ceremony cap.
 	WebAuthnSessionsEvictedTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "webauthn_sessions_evicted_total",
@@ -34,8 +34,6 @@ var (
 	)
 
 	// WebAuthnSessionsExpiredTotal counts rows removed by the cleanup reaper.
-	// Sustained growth indicates abandoned ceremonies, which is the signal that
-	// matters for unauthenticated discoverable-login writes.
 	WebAuthnSessionsExpiredTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "webauthn_sessions_expired_total",

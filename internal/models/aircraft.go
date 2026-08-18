@@ -36,8 +36,7 @@ type AircraftStats struct {
 	LandingsNight   int        `json:"landingsNight"`
 	FirstFlightDate *time.Time `json:"firstFlightDate,omitempty"`
 	LastFlightDate  *time.Time `json:"lastFlightDate,omitempty"`
-	// Informational 90-day recency (EASA FCL.060(b)-style day recency:
-	// 3 landings in the preceding 90 days)
+	// Landings in the preceding 90 days, and the date that count lapses
 	LandingsLast90Days int        `json:"landingsLast90Days"`
 	RecencyLapsesOn    *time.Time `json:"recencyLapsesOn,omitempty"`
 }
@@ -55,8 +54,7 @@ type AircraftTypeStats struct {
 	RecencyLapsesOn    *time.Time `json:"recencyLapsesOn,omitempty"`
 }
 
-// AircraftRecencyRow is one day of landings for one registration/type pair,
-// used to derive 90-day recency counts and lapse dates
+// AircraftRecencyRow is one day of landings for one registration/type pair
 type AircraftRecencyRow struct {
 	Registration string
 	AircraftType string

@@ -118,8 +118,7 @@ func (p *postgresFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 	var query string
 	var args []interface{}
 
-	// IR is a rating type, not an aircraft class — prof checks for IR can be on any aircraft.
-	// Skip the aircraft class filter for IR (FCL.625.A is cross-class).
+	// IR skips the aircraft-class filter (FCL.625.A is cross-class).
 	if classType == models.ClassTypeIR {
 		query = `
 			SELECT date FROM flights

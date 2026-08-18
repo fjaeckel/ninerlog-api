@@ -13,16 +13,11 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
-// A password reset must not be a way around the second factor: whoever controls
-// the mailbox controls the reset link, so if the link alone stripped 2FA the
-// factor would add nothing against a compromised mailbox. These tests pin the
-// rule that a 2FA account must also prove the factor during the reset, and that
-// the enrolment survives it.
+// These tests pin the rule that a 2FA account must also prove the factor
+// during a password reset, and that the enrolment survives it.
 
 // copyingUserRepo returns detached copies from the read methods, the way the
-// Postgres repository does. The plain mockUserRepo hands out pointers into its
-// own map, which hides aliasing bugs — notably a stale user struct being written
-// back over a recovery code that was just consumed.
+// Postgres repository does.
 type copyingUserRepo struct {
 	*mockUserRepo
 }
@@ -160,8 +155,8 @@ func TestResetPasswordWithWrongTwoFactorCodeIsRejected(t *testing.T) {
 		t.Fatalf("Expected ErrInvalidTOTPCode, got %v", err)
 	}
 
-	// A failed attempt does not consume the reset token, so the same link still
-	// works once the user gets the code right.
+	// A failed attempt does not consume the reset token; the same link still
+	// works.
 	code, err := totp.GenerateCode(secret, time.Now())
 	if err != nil {
 		t.Fatalf("GenerateCode failed: %v", err)

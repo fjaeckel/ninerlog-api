@@ -59,10 +59,8 @@ type VerifyEmailParams struct {
 	Link     string
 }
 
-// VerificationReminderParams drives the follow-up sent when an account is still
-// unverified a day after signup. It states the deletion deadline outright: the
-// account will be removed if the address is never confirmed, and someone who
-// never sees that stated has no way to act on it.
+// VerificationReminderParams drives the follow-up sent when an account is
+// still unverified a day after signup.
 type VerificationReminderParams struct {
 	UserName string
 	Link     string
@@ -81,11 +79,10 @@ type PasswordResetParams struct {
 }
 
 // PasswordChangedParams drives the security notice sent after a password reset
-// completes. It is what tells the account owner that the reset happened at all.
+// completes.
 type PasswordChangedParams struct {
 	UserName string
-	// TwoFactorEnabled reports whether 2FA is still active on the account, so
-	// the notice can state plainly that the second factor was not removed.
+	// TwoFactorEnabled reports whether 2FA is still active on the account.
 	TwoFactorEnabled bool
 }
 
@@ -97,11 +94,8 @@ type TwoFactorResetParams struct {
 
 type SignatureRequestParams struct {
 	OwnerName string
-	// OwnerEmail is the requester's VERIFIED account address. OwnerName is a
-	// free-form display name the sender chooses, so on its own it lets anyone
-	// address a stranger as e.g. "Lufthansa Flight Operations" from the
-	// platform's own domain. Showing the account address alongside it gives the
-	// recipient something the sender could not invent.
+	// OwnerEmail is the requester's verified account address, shown alongside
+	// the free-form OwnerName.
 	OwnerEmail    string
 	FlightSummary string // e.g. "12 Jul 2026 — D-EFGH (C172), 1h24m"
 	Link          string
