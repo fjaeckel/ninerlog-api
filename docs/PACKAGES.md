@@ -25,7 +25,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | Package | Responsibility |
 | --- | --- |
 | `internal/service` | Domain services: `auth.go`, `flight.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `notification.go` (+ `notification_metrics.go`), `twofactor.go`, `webauthn.go`, `oidc.go` (+ `oidc_config.go`), `idempotency.go`, `deletion.go` (tombstone feed + reaper). Each takes repository interfaces + `pkg` utilities. |
-| `internal/service/currency` | The currency engine: `Evaluator`/`Registry`/`FlightDataProvider` (`evaluator.go`), `Service` (`service.go`), authority evaluators (`easa.go`, `faa.go`, `german_ul.go`, `other.go`), shared logic (`engine.go`, `types.go`), and PostgreSQL aggregation (`flight_data.go`). See [DOMAIN.md](./DOMAIN.md#currency-engine). |
+| `internal/service/currency` | The currency engine: `Evaluator`/`Registry`/`FlightDataProvider` (`evaluator.go`), `Service` (`service.go`), authority evaluators (`easa.go`, `faa.go`, `german_ul.go`, `other.go`), and shared logic (`engine.go`, `types.go`). The PostgreSQL implementations of `FlightDataProvider` and `CustomFlightDataProvider` live in `internal/repository/postgres` (`currency_flight_data.go`, `custom_currency_data.go`). See [DOMAIN.md](./DOMAIN.md#currency-engine). |
 | `internal/service/flightcalc` | `ApplyAutoCalculations(flight, userName)` — the single entry point that derives flight fields. |
 | `internal/service/flightrules` | Composable flight rules used by `flightcalc`: `night.go` (day/night via solar), `crew.go`, `roles.go`, `names.go`, `ifr.go`, `fstd.go`, `remarks.go`, `display.go`. |
 | `internal/service/cloudbackup` | Cloud backup orchestration: `service.go`, `destinations.go`, `runner.go`, `scheduler.go`, `jsonbuilder.go`. |
@@ -35,7 +35,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/repository` | Repository **interfaces** (`interfaces.go`) — e.g. `UserRepository`, `FlightRepository`, `LicenseRepository`, `ClassRating`, `Credential`, `Aircraft`, `Contact`, `FlightCrew`, `Notification`, `RefreshToken`, `PasswordResetToken`, `EmailVerificationToken`, `WebAuthnCredential`/`WebAuthnSession`, `BackupDestination`/`BackupRun`, `FlightBaseline`, `Idempotency`, `Deletion` (read-and-sweep over trigger-written tombstones). |
+| `internal/repository` | Repository **interfaces** (`interfaces.go`) — e.g. `UserRepository`, `FlightRepository`, `LicenseRepository`, `ClassRating`, `Credential`, `Aircraft`, `Contact`, `FlightCrew`, `Notification`, `RefreshToken`, `PasswordResetToken`, `EmailVerificationToken`, `WebAuthnCredential`/`WebAuthnSession`, `BackupDestination`/`BackupRun`, `FlightBaseline`, `Idempotency`, `Deletion` (read-and-sweep over trigger-written tombstones), plus the direct-access interfaces `Admin`, `Announcement`, `FlightImport`, `Reports` (analytics/trends/map aggregates) and `UserContent` (transactional account-content wipe). |
 | `internal/repository/postgres` | PostgreSQL implementations of those interfaces (one file per entity). Parameterized SQL only; returns domain models. |
 
 ### Supporting

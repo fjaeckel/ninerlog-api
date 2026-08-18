@@ -9,6 +9,7 @@ Developer documentation for the NinerLog API backend. Start with the
 | --- | --- |
 | [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) | Orientation, tech stack, core concepts, documentation map |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Layers, request lifecycle, package relationships, startup/wiring |
+| [SQL_LAYERING.md](./SQL_LAYERING.md) | Where SQL may live, repository catalogue, deliberate exceptions |
 | [DATA_MODEL.md](./DATA_MODEL.md) | Domain entities, relationships, DB schema & migrations |
 | [DOMAIN.md](./DOMAIN.md) | Flight logging, time handling, auto-calculations, validation, currency engine |
 | [API.md](./API.md) | HTTP surface, OpenAPI-first workflow, routing & security |

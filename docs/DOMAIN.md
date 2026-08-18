@@ -108,7 +108,7 @@ additionally implement optional interfaces:
 
 Evaluators never write SQL. They request aggregates through the `FlightDataProvider`
 interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL in
-`flight_data.go`:
+`internal/repository/postgres/currency_flight_data.go`:
 
 - `GetProgressByAircraftClass(userID, classType, since)` — summed times/landings for a
   class since a date.

@@ -303,8 +303,9 @@ changed.
 
 Rows are written by an `AFTER DELETE` trigger (`record_deletion_tombstone()`) on
 `flights`, `aircraft`, `contacts`, `credentials` and `licenses`, not by the repositories.
-Deletions reach the database by several routes that never touch a repository — the raw SQL
-in `DeleteAllUserData`, the admin user delete, and `ON DELETE CASCADE` — so a Go-side
+Deletions reach the database by several independent routes — the multi-table wipe behind
+`DeleteAllUserData` (`UserContentRepository`), the admin user delete, and
+`ON DELETE CASCADE` — so a Go-side
 implementation would have to be remembered at every one of them, now and in future. The
 trigger also runs inside the deleting transaction, so a tombstone cannot go missing after a
 delete the client was told succeeded.

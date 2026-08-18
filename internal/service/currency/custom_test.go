@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
 )
@@ -13,34 +12,66 @@ import (
 // fixedNow pins the evaluator's clock.
 func fixedNow() time.Time { return time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC) }
 
-func newTestEvaluator(t *testing.T) (*CustomEvaluator, sqlmock.Sqlmock, func()) {
-	t.Helper()
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatalf("sqlmock: %v", err)
+// fakeCustomData is a canned CustomFlightDataProvider. Aggregates returns one
+// value per requested metric in request order; Rows returns the per-flight
+// contributions for lapse computation. It records the last requests so tests
+// can assert what the evaluator asked for.
+type fakeCustomData struct {
+	aggregates    map[string]int64
+	rows          []FlightMetricRow // Values index-aligned with requested metrics
+	rowsByMetric  []map[string]int64
+	rowDates      []time.Time
+	lastMetrics   []string
+	lastFilters   []models.CurrencyFilter
+	rowsRequested bool
+}
+
+func (f *fakeCustomData) AggregateMetrics(_ context.Context, _ uuid.UUID, _ time.Time, metrics []string, filters []models.CurrencyFilter) ([]int64, error) {
+	f.lastMetrics = metrics
+	f.lastFilters = filters
+	out := make([]int64, len(metrics))
+	for i, m := range metrics {
+		out[i] = f.aggregates[m]
 	}
-	e := NewCustomEvaluator(db)
+	return out, nil
+}
+
+func (f *fakeCustomData) MetricRowsByDate(_ context.Context, _ uuid.UUID, _ time.Time, metrics []string, _ []models.CurrencyFilter) ([]FlightMetricRow, error) {
+	f.rowsRequested = true
+	if f.rowsByMetric != nil {
+		rows := make([]FlightMetricRow, len(f.rowsByMetric))
+		for i, byMetric := range f.rowsByMetric {
+			vals := make([]int64, len(metrics))
+			for j, m := range metrics {
+				vals[j] = byMetric[m]
+			}
+			rows[i] = FlightMetricRow{Date: f.rowDates[i], Values: vals}
+		}
+		return rows, nil
+	}
+	return f.rows, nil
+}
+
+func newTestEvaluator(data *fakeCustomData) *CustomEvaluator {
+	e := NewCustomEvaluator(data)
 	e.now = fixedNow
-	return e, mock, func() { db.Close() }
+	return e
 }
 
 func TestEvaluate_CountRequirementMet(t *testing.T) {
-	e, mock, done := newTestEvaluator(t)
-	defer done()
+	data := &fakeCustomData{
+		aggregates: map[string]int64{"landings": 5},
+		// Recent flight => far-off lapse => stays current, not expiring.
+		rowsByMetric: []map[string]int64{{"landings": 5}},
+		rowDates:     []time.Time{fixedNow()},
+	}
+	e := newTestEvaluator(data)
 
 	userID := uuid.New()
 	body := &models.CustomCurrencyRuleBody{
 		Window:       models.CurrencyWindow{Amount: 90, Unit: "days"},
 		Requirements: []models.CurrencyRequirement{{Metric: "landings", Min: 3}},
 	}
-
-	mock.ExpectQuery("FROM flights f").
-		WithArgs(userID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(5)))
-	// A met rule triggers the per-flight lapse query. Recent flight => far-off
-	// lapse => stays current, not expiring.
-	mock.ExpectQuery("ORDER BY f.date ASC").
-		WillReturnRows(sqlmock.NewRows([]string{"date", "m0"}).AddRow(fixedNow(), int64(5)))
 
 	res, err := e.Evaluate(context.Background(), userID, body)
 	if err != nil {
@@ -58,24 +89,20 @@ func TestEvaluate_CountRequirementMet(t *testing.T) {
 	if res.WindowLabel != "last 90 days" {
 		t.Errorf("windowLabel = %q", res.WindowLabel)
 	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("expectations: %v", err)
+	if !data.rowsRequested {
+		t.Error("a met rule should trigger the per-flight lapse computation")
 	}
 }
 
 func TestEvaluate_NotMetIsExpired(t *testing.T) {
-	e, mock, done := newTestEvaluator(t)
-	defer done()
+	data := &fakeCustomData{aggregates: map[string]int64{"approaches": 2}}
+	e := newTestEvaluator(data)
 
 	userID := uuid.New()
 	body := &models.CustomCurrencyRuleBody{
 		Window:       models.CurrencyWindow{Amount: 6, Unit: "months"},
 		Requirements: []models.CurrencyRequirement{{Metric: "approaches", Min: 6}},
 	}
-
-	mock.ExpectQuery("FROM flights f").
-		WithArgs(userID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(2)))
 
 	res, err := e.Evaluate(context.Background(), userID, body)
 	if err != nil {
@@ -87,24 +114,25 @@ func TestEvaluate_NotMetIsExpired(t *testing.T) {
 	if res.Requirements[0].Met {
 		t.Error("requirement should not be met")
 	}
+	if data.rowsRequested {
+		t.Error("an unmet rule must not run the lapse computation")
+	}
 }
 
 func TestEvaluate_TimeMetricConvertsToHours(t *testing.T) {
-	e, mock, done := newTestEvaluator(t)
-	defer done()
+	// 720 minutes == 12 hours >= 10
+	data := &fakeCustomData{
+		aggregates:   map[string]int64{"total_time": 720},
+		rowsByMetric: []map[string]int64{{"total_time": 720}},
+		rowDates:     []time.Time{fixedNow()},
+	}
+	e := newTestEvaluator(data)
 
 	userID := uuid.New()
 	body := &models.CustomCurrencyRuleBody{
 		Window:       models.CurrencyWindow{Amount: 12, Unit: "months"},
 		Requirements: []models.CurrencyRequirement{{Metric: "total_time", Min: 10}}, // 10 hours
 	}
-
-	// 720 minutes == 12 hours >= 10
-	mock.ExpectQuery("FROM flights f").
-		WithArgs(userID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(720)))
-	mock.ExpectQuery("ORDER BY f.date ASC").
-		WillReturnRows(sqlmock.NewRows([]string{"date", "m0"}).AddRow(fixedNow(), int64(720)))
 
 	res, err := e.Evaluate(context.Background(), userID, body)
 	if err != nil {
@@ -118,44 +146,45 @@ func TestEvaluate_TimeMetricConvertsToHours(t *testing.T) {
 	}
 }
 
-func TestEvaluate_FilterValuesAreBound(t *testing.T) {
-	e, mock, done := newTestEvaluator(t)
-	defer done()
+func TestEvaluate_PassesFiltersThrough(t *testing.T) {
+	data := &fakeCustomData{
+		aggregates:   map[string]int64{"night_landings": 1},
+		rowsByMetric: []map[string]int64{{"night_landings": 1}},
+		rowDates:     []time.Time{fixedNow()},
+	}
+	e := newTestEvaluator(data)
 
 	userID := uuid.New()
+	filters := []models.CurrencyFilter{
+		{Field: "aircraft_class", Op: "eq", Value: "SEP_LAND"},
+		{Field: "aircraft_type", Op: "in", Values: []string{"C172", "PA28"}},
+		{Field: "has_night", Op: "is_true"},
+	}
 	body := &models.CustomCurrencyRuleBody{
-		Window: models.CurrencyWindow{Amount: 90, Unit: "days"},
-		Filters: []models.CurrencyFilter{
-			{Field: "aircraft_class", Op: "eq", Value: "SEP_LAND"},
-			{Field: "aircraft_type", Op: "in", Values: []string{"C172", "PA28"}},
-			{Field: "has_night", Op: "is_true"},
-		},
+		Window:       models.CurrencyWindow{Amount: 90, Unit: "days"},
+		Filters:      filters,
 		Requirements: []models.CurrencyRequirement{{Metric: "night_landings", Min: 1}},
 	}
-
-	// Args: userID, since, then filter values in order. is_true binds nothing.
-	mock.ExpectQuery("FROM flights f").
-		WithArgs(userID, sqlmock.AnyArg(), "SEP_LAND", "C172", "PA28").
-		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(1)))
-	// The per-flight query binds the same parameters in the same order.
-	mock.ExpectQuery("ORDER BY f.date ASC").
-		WithArgs(userID, sqlmock.AnyArg(), "SEP_LAND", "C172", "PA28").
-		WillReturnRows(sqlmock.NewRows([]string{"date", "m0"}).AddRow(fixedNow(), int64(1)))
 
 	if _, err := e.Evaluate(context.Background(), userID, body); err != nil {
 		t.Fatalf("Evaluate: %v", err)
 	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("expectations: %v", err)
+	if len(data.lastFilters) != len(filters) {
+		t.Fatalf("provider saw %d filters, want %d", len(data.lastFilters), len(filters))
+	}
+	for i := range filters {
+		if data.lastFilters[i].Field != filters[i].Field || data.lastFilters[i].Op != filters[i].Op {
+			t.Errorf("filter %d = %+v, want %+v", i, data.lastFilters[i], filters[i])
+		}
 	}
 }
 
 func TestEvaluate_DedupesRepeatedMetric(t *testing.T) {
-	e, mock, done := newTestEvaluator(t)
-	defer done()
+	data := &fakeCustomData{aggregates: map[string]int64{"landings": 5}}
+	e := newTestEvaluator(data)
 
 	userID := uuid.New()
-	// Two requirements on the same metric should aggregate it once (single column).
+	// Two requirements on the same metric should aggregate it once.
 	body := &models.CustomCurrencyRuleBody{
 		Window: models.CurrencyWindow{Amount: 90, Unit: "days"},
 		Requirements: []models.CurrencyRequirement{
@@ -164,13 +193,12 @@ func TestEvaluate_DedupesRepeatedMetric(t *testing.T) {
 		},
 	}
 
-	mock.ExpectQuery("FROM flights f").
-		WithArgs(userID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(5)))
-
 	res, err := e.Evaluate(context.Background(), userID, body)
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
+	}
+	if len(data.lastMetrics) != 1 || data.lastMetrics[0] != "landings" {
+		t.Errorf("provider should be asked for the metric once, got %v", data.lastMetrics)
 	}
 	if len(res.Requirements) != 2 {
 		t.Fatalf("want 2 requirements, got %d", len(res.Requirements))
@@ -181,51 +209,6 @@ func TestEvaluate_DedupesRepeatedMetric(t *testing.T) {
 	if res.Status != StatusExpired {
 		t.Errorf("status should be expired when any requirement unmet")
 	}
-}
-
-func TestBuildFilterClause(t *testing.T) {
-	t.Run("eq", func(t *testing.T) {
-		args := []interface{}{"u", "since"}
-		clause, err := buildFilterClause(models.CurrencyFilter{Field: "aircraft_class", Op: "eq", Value: "SEP_LAND"}, &args)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if clause != "a.aircraft_class = $3" {
-			t.Errorf("clause = %q", clause)
-		}
-		if len(args) != 3 || args[2] != "SEP_LAND" {
-			t.Errorf("args = %v", args)
-		}
-	})
-	t.Run("in", func(t *testing.T) {
-		args := []interface{}{"u", "since"}
-		clause, err := buildFilterClause(models.CurrencyFilter{Field: "aircraft_type", Op: "in", Values: []string{"A", "B"}}, &args)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if clause != "f.aircraft_type IN ($3, $4)" {
-			t.Errorf("clause = %q", clause)
-		}
-	})
-	t.Run("is_true uses fixed predicate, binds nothing", func(t *testing.T) {
-		args := []interface{}{"u", "since"}
-		clause, err := buildFilterClause(models.CurrencyFilter{Field: "has_ifr", Op: "is_true"}, &args)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if clause != "f.ifr_time > 0" {
-			t.Errorf("clause = %q", clause)
-		}
-		if len(args) != 2 {
-			t.Errorf("is_true should not bind args, got %v", args)
-		}
-	})
-	t.Run("unknown field rejected", func(t *testing.T) {
-		args := []interface{}{}
-		if _, err := buildFilterClause(models.CurrencyFilter{Field: "evil'; DROP", Op: "eq", Value: "x"}, &args); err == nil {
-			t.Error("expected error for unknown field")
-		}
-	})
 }
 
 func TestWindowSinceAndLabel(t *testing.T) {
@@ -245,23 +228,21 @@ func TestWindowSinceAndLabel(t *testing.T) {
 }
 
 func TestEvaluate_ExpiringSoon(t *testing.T) {
-	e, mock, done := newTestEvaluator(t)
-	defer done()
+	// Met exactly (3). The only contributing flight was 25 days ago, so it ages
+	// out of the 30-day window in 5 days -> within the ~15-day threshold.
+	flightDate := fixedNow().AddDate(0, 0, -25)
+	data := &fakeCustomData{
+		aggregates:   map[string]int64{"landings": 3},
+		rowsByMetric: []map[string]int64{{"landings": 3}},
+		rowDates:     []time.Time{flightDate},
+	}
+	e := newTestEvaluator(data)
 
 	userID := uuid.New()
 	body := &models.CustomCurrencyRuleBody{
 		Window:       models.CurrencyWindow{Amount: 30, Unit: "days"},
 		Requirements: []models.CurrencyRequirement{{Metric: "landings", Min: 3}},
 	}
-
-	// Met exactly (3). The only contributing flight was 25 days ago, so it ages
-	// out of the 30-day window in 5 days -> within the ~15-day threshold.
-	flightDate := fixedNow().AddDate(0, 0, -25)
-	mock.ExpectQuery("FROM flights f").
-		WithArgs(userID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"m0"}).AddRow(int64(3)))
-	mock.ExpectQuery("ORDER BY f.date ASC").
-		WillReturnRows(sqlmock.NewRows([]string{"date", "m0"}).AddRow(flightDate, int64(3)))
 
 	res, err := e.Evaluate(context.Background(), userID, body)
 	if err != nil {
@@ -277,8 +258,20 @@ func TestEvaluate_ExpiringSoon(t *testing.T) {
 }
 
 func TestEvaluate_EarliestRequirementDrivesExpiry(t *testing.T) {
-	e, mock, done := newTestEvaluator(t)
-	defer done()
+	// landings: sole flight 80 days ago -> lapses in 10 days.
+	// approaches: sole flight 10 days ago -> lapses in 80 days.
+	// Earliest (10 days) should drive the rule expiry.
+	landingDate := fixedNow().AddDate(0, 0, -80)
+	approachDate := fixedNow().AddDate(0, 0, -10)
+	data := &fakeCustomData{
+		aggregates: map[string]int64{"landings": 1, "approaches": 1},
+		rowsByMetric: []map[string]int64{
+			{"landings": 1, "approaches": 0},
+			{"landings": 0, "approaches": 1},
+		},
+		rowDates: []time.Time{landingDate, approachDate},
+	}
+	e := newTestEvaluator(data)
 
 	userID := uuid.New()
 	body := &models.CustomCurrencyRuleBody{
@@ -288,19 +281,6 @@ func TestEvaluate_EarliestRequirementDrivesExpiry(t *testing.T) {
 			{Metric: "approaches", Min: 1},
 		},
 	}
-
-	// landings: sole flight 80 days ago -> lapses in 10 days.
-	// approaches: sole flight 10 days ago -> lapses in 80 days.
-	// Earliest (10 days) should drive the rule expiry.
-	landingDate := fixedNow().AddDate(0, 0, -80)
-	approachDate := fixedNow().AddDate(0, 0, -10)
-	mock.ExpectQuery("FROM flights f").
-		WithArgs(userID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"m0", "m1"}).AddRow(int64(1), int64(1)))
-	mock.ExpectQuery("ORDER BY f.date ASC").
-		WillReturnRows(sqlmock.NewRows([]string{"date", "m0", "m1"}).
-			AddRow(landingDate, int64(1), int64(0)).
-			AddRow(approachDate, int64(0), int64(1)))
 
 	res, err := e.Evaluate(context.Background(), userID, body)
 	if err != nil {
