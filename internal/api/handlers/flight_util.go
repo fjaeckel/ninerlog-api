@@ -24,10 +24,7 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 		return
 	}
 
-	// Canonicalise the fleet before touching flights. AircraftService repoints
-	// a canonicalised registration's flights as part of the update, so doing
-	// this first means the flight loop below sees registrations that already
-	// agree with the fleet.
+	// The fleet is canonicalised first; AircraftService repoints its flights.
 	aircraftNormalized, aircraftConflicts := h.normalizeFleetRegistrations(c, userID)
 
 	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, nil)
@@ -53,10 +50,8 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 			}
 		}
 		flightcalc.ApplyAutoCalculations(flight, userName)
-		// UpdateFlight canonicalises AircraftReg, so a flight logged as
-		// "DEABC" is rewritten to "D-EABC" here even when nothing else about
-		// it changed. Signed flights are rejected as locked and land in the
-		// error count, as they do for any other recalculated field.
+		// UpdateFlight canonicalises AircraftReg; signed flights are rejected
+		// as locked and counted as errors.
 		if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 			failed++
 			continue
@@ -73,15 +68,10 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 	})
 }
 
-// normalizeFleetRegistrations rewrites every one of the user's aircraft whose
-// registration is not in canonical notation, and reports how many were
-// rewritten and how many could not be.
-//
-// A rewrite fails when the canonical spelling is already taken by another
-// aircraft in the same fleet — the user holds both "DEABC" and "D-EABC", which
-// are one aircraft entered twice. Merging those means deciding which entry's
-// make, model and notes survive, so this reports the count and leaves both in
-// place rather than guessing.
+// normalizeFleetRegistrations rewrites the user's aircraft whose registration
+// is not in canonical notation. It returns the number rewritten and the number
+// whose canonical spelling is already held by another aircraft in the same
+// fleet; those are left untouched.
 func (h *APIHandler) normalizeFleetRegistrations(c *gin.Context, userID uuid.UUID) (normalized, conflicts int) {
 	fleet, err := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 	if err != nil {
@@ -91,8 +81,6 @@ func (h *APIHandler) normalizeFleetRegistrations(c *gin.Context, userID uuid.UUI
 		if registration.Canonical(ac.Registration) == ac.Registration {
 			continue
 		}
-		// renameFlights is false: AircraftService repoints the flights on its
-		// own for a canonicalisation, which this is by construction.
 		if _, err := h.aircraftService.UpdateAircraft(c.Request.Context(), ac, userID, false); err != nil {
 			if errors.Is(err, service.ErrDuplicateRegistration) {
 				conflicts++

@@ -18,10 +18,8 @@ func NewDocumentFileRepository(db *sql.DB) repository.DocumentFileRepository {
 	return &documentFileRepository{db: db}
 }
 
-// subjectColumn maps a subject type to the FK column that carries it. Callers
-// come from a closed set of two constants; an unknown value is a programming
-// error and is refused rather than defaulted, so a typo can never widen a
-// query to "all rows".
+// subjectColumn maps a subject type to the FK column that carries it. An
+// unknown value returns an error.
 func subjectColumn(subject models.DocumentSubjectType) (string, error) {
 	switch subject {
 	case models.DocumentSubjectLicense:
@@ -33,8 +31,7 @@ func subjectColumn(subject models.DocumentSubjectType) (string, error) {
 	}
 }
 
-// subjectTable names the parent table a subject lives in. Only used to take a
-// row lock on the owning document while its image count is being enforced.
+// subjectTable names the parent table a subject lives in.
 func subjectTable(subject models.DocumentSubjectType) (string, error) {
 	switch subject {
 	case models.DocumentSubjectLicense:
@@ -46,8 +43,7 @@ func subjectTable(subject models.DocumentSubjectType) (string, error) {
 	}
 }
 
-// documentFileColumns is the metadata projection — deliberately without
-// `data`, so listings never pull the payload out of TOAST storage.
+// documentFileColumns is the metadata projection, without `data`.
 const documentFileColumns = `id, user_id, license_id, credential_id, content_type,
 		byte_size, width, height, filename, caption, created_at, updated_at`
 
@@ -82,21 +78,8 @@ func (r *documentFileRepository) Create(ctx context.Context, image *models.Docum
 		return err
 	}
 
-	// Enforcing the cap needs a lock, not just a single statement.
-	//
-	// Putting the count in the INSERT's WHERE clause is NOT enough on its own:
-	// under READ COMMITTED the subquery reads the statement's snapshot and
-	// takes no lock, so two uploads arriving together both see "4 images" and
-	// both write a fifth. That is a genuine race, and it reproduces under the
-	// concurrent-upload integration test.
-	//
-	// So the count and the insert run inside one transaction that first takes
-	// a row lock on the owning document. Competing uploads for the same
-	// licence/credential serialize on that row, which makes the count stable
-	// for the rest of the transaction. Uploads to *different* documents never
-	// contend. The lock is taken on the parent before touching the child, the
-	// same order a cascading DELETE of the parent takes, so the two cannot
-	// deadlock against each other.
+	// Count and insert run in one transaction holding a row lock on the
+	// owning document.
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -107,8 +90,7 @@ func (r *documentFileRepository) Create(ctx context.Context, image *models.Docum
 	lockQuery := fmt.Sprintf(`SELECT id FROM %s WHERE id = $1 FOR UPDATE`, table)
 	if err := tx.QueryRowContext(ctx, lockQuery, subjectID).Scan(&lockedID); err != nil {
 		if err == sql.ErrNoRows {
-			// The document was deleted between the service's ownership check
-			// and this write.
+			// Document no longer exists.
 			return repository.ErrNotFound
 		}
 		return err

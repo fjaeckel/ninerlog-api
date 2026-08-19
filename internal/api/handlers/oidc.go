@@ -11,10 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// oidcStateCookie holds the browser half of the login-state binding. It is
-// HttpOnly (no script needs it), SameSite=Lax so it is still sent on the
-// provider's top-level redirect back to the callback, and scoped to the OIDC
-// paths so it is never attached to ordinary API calls.
+// oidcStateCookie holds the browser half of the login-state binding:
+// HttpOnly, SameSite=Lax, scoped to the OIDC paths.
 const oidcStateCookie = "ninerlog_oidc_state"
 
 // OIDCEnabled reports whether the server runs in OIDC mode.
@@ -29,13 +27,9 @@ func (h *APIHandler) requireOIDC(c *gin.Context) bool {
 	return true
 }
 
-// requireLocalAuth writes a 503 and returns false when the server runs in OIDC
-// mode, where the identity provider owns accounts and every local credential
-// path is switched off.
-//
-// This is the single choke point for that rule: registration, password login,
-// email verification, password reset, password change, TOTP and passkeys all
-// go through it, so there is one place to audit rather than a dozen.
+// requireLocalAuth writes a 503 and returns false when the server runs in
+// OIDC mode. Registration, password login, email verification, password
+// reset, password change, TOTP and passkeys all go through it.
 func (h *APIHandler) requireLocalAuth(c *gin.Context) bool {
 	if h.oidcService != nil {
 		h.sendError(c, http.StatusServiceUnavailable,
@@ -45,11 +39,8 @@ func (h *APIHandler) requireLocalAuth(c *gin.Context) bool {
 	return true
 }
 
-// GetAuthProviders implements GET /auth/providers
-//
-// Unauthenticated on purpose: the client has to know which sign-in UI to draw
-// before anyone can log in. It exposes only which methods exist, never the
-// issuer's client secret or any account data.
+// GetAuthProviders implements GET /auth/providers. Unauthenticated; exposes
+// only which sign-in methods exist.
 func (h *APIHandler) GetAuthProviders(c *gin.Context) {
 	resp := generated.AuthProviders{
 		Mode:                 generated.AuthProvidersModeLocal,
@@ -79,13 +70,9 @@ func (h *APIHandler) GetAuthProviders(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// RegisterOIDCRoutes registers the two browser-facing OIDC endpoints.
-//
-// These are redirects driven by top-level navigation, not JSON operations, so
-// they are wired manually rather than through the generated ServerInterface —
-// the same treatment the reports and flight-utility routes get. The two JSON
-// endpoints of the flow (/auth/providers and /auth/oidc/exchange) are in the
-// OpenAPI spec and generated normally.
+// RegisterOIDCRoutes registers the two browser-facing OIDC endpoints, wired
+// manually; the JSON endpoints of the flow (/auth/providers and
+// /auth/oidc/exchange) come from the OpenAPI spec.
 func RegisterOIDCRoutes(rg *gin.RouterGroup, h *APIHandler) {
 	rg.GET("/auth/oidc/authorize", h.OIDCAuthorize)
 	rg.GET("/auth/oidc/callback", h.OIDCCallback)
@@ -119,17 +106,14 @@ func (h *APIHandler) OIDCAuthorize(c *gin.Context) {
 
 // OIDCCallback implements GET /auth/oidc/callback.
 //
-// The provider sends the browser here. Everything that can go wrong ends in a
-// redirect back to the frontend carrying a short error code rather than a JSON
-// error page, because the user is looking at a browser window mid-login, not
-// at an API client.
+// The provider sends the browser here. Every failure ends in a redirect back
+// to the frontend carrying a short error code, not a JSON error page.
 func (h *APIHandler) OIDCCallback(c *gin.Context) {
 	if !h.requireOIDC(c) {
 		return
 	}
 
-	// The cookie is single-use regardless of outcome: a failed attempt must
-	// not leave a binding another attempt could ride on.
+	// The cookie is single-use regardless of outcome.
 	browserToken, _ := c.Cookie(oidcStateCookie)
 	h.clearOIDCStateCookie(c)
 
@@ -183,9 +167,8 @@ func (h *APIHandler) ExchangeOidcCode(c *gin.Context) {
 	c.JSON(http.StatusOK, h.convertAuthResponse(user, tokens))
 }
 
-// oidcErrorCode maps an internal failure to the short, non-descriptive code
-// handed to the frontend. Deliberately coarse: the browser (and anyone
-// watching the URL) learns that the login failed, not why.
+// oidcErrorCode maps an internal failure to the short, coarse code handed to
+// the frontend.
 func oidcErrorCode(err error) string {
 	switch {
 	case errors.Is(err, service.ErrOIDCProviderUnavailable):
@@ -214,11 +197,8 @@ func (h *APIHandler) redirectOIDCError(c *gin.Context, code string) {
 }
 
 // redirectOIDC sends the browser back to the configured frontend URL with the
-// supplied query parameters merged in.
-//
-// The target always comes from OIDC_POST_LOGIN_REDIRECT and never from the
-// request, so no combination of query parameters can turn the callback into an
-// open redirect.
+// supplied query parameters merged in. The target always comes from
+// OIDC_POST_LOGIN_REDIRECT, never from the request.
 func (h *APIHandler) redirectOIDC(c *gin.Context, params url.Values) {
 	target := h.oidcService.PostLoginRedirect()
 	u, err := url.Parse(target)
@@ -236,12 +216,8 @@ func (h *APIHandler) redirectOIDC(c *gin.Context, params url.Values) {
 	c.Redirect(http.StatusFound, u.String())
 }
 
-// setOIDCStateCookie plants the browser-binding value.
-//
-// Secure is derived from the configured callback URL rather than from the
-// inbound request, which may have been terminated at a reverse proxy: an
-// https deployment must always get a Secure cookie, and a plain-http local
-// dev setup must not (browsers drop Secure cookies on insecure origins).
+// setOIDCStateCookie plants the browser-binding value. Secure is derived from
+// the configured callback URL, not from the inbound request.
 func (h *APIHandler) setOIDCStateCookie(c *gin.Context, value string, maxAge int) {
 	if maxAge <= 0 {
 		maxAge = int(service.DefaultOIDCLoginStateTTL.Seconds())

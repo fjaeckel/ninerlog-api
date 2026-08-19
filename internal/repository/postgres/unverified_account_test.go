@@ -11,10 +11,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// The reaper's queries destroy accounts, so the guards that keep them from
-// destroying the wrong ones are asserted on the SQL itself. A mock cannot prove
-// Postgres agrees, but it does catch a guard being dropped in a refactor —
-// which is the failure that would actually hurt.
+// TestUnverifiedQueries_CarryTheirSafetyGuards asserts the guard predicates on
+// the reaper's SQL itself.
 func TestUnverifiedQueries_CarryTheirSafetyGuards(t *testing.T) {
 	requiredGuards := []struct {
 		fragment string
@@ -65,8 +63,7 @@ func TestUnverifiedQueries_CarryTheirSafetyGuards(t *testing.T) {
 				t.Errorf("delete query is missing %q — %s\n%s", guard.fragment, guard.why, captured)
 			}
 		}
-		// Without this, an account that was never reminded — never warned —
-		// would be deleted the moment the retention window passed its signup.
+		// The delete query requires that a reminder was sent.
 		if !regexp.MustCompile("verification_reminder_sent_at IS NOT NULL").MatchString(captured) {
 			t.Errorf("delete query must require that a reminder was actually sent:\n%s", captured)
 		}
@@ -82,15 +79,14 @@ func TestMarkVerificationReminderSent_OnlyStampsAnUnstampedAccount(t *testing.T)
 		t.Fatalf("MarkVerificationReminderSent: %v", err)
 	}
 
-	// Two overlapping sweeps must not be able to push the deletion date out.
+	// The stamp only writes a still-NULL column.
 	if captured := *capturedSQL; !regexp.MustCompile("verification_reminder_sent_at IS NULL").MatchString(captured) {
 		t.Errorf("the stamp must be guarded against overwriting an existing one:\n%s", captured)
 	}
 }
 
 // captureSQL builds a sqlmock whose matcher records the SQL it is handed and
-// accepts everything, so a test can assert on the query's shape rather than
-// only on the call having happened.
+// accepts everything.
 func captureSQL(t *testing.T) (*sql.DB, sqlmock.Sqlmock, *string) {
 	t.Helper()
 	var captured string

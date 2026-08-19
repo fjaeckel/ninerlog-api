@@ -8,15 +8,10 @@ import (
 )
 
 // withStatementTimeout returns dbURL with a Postgres statement_timeout
-// applied via the "options" connection parameter, so the server itself
-// kills any query that runs longer than timeout — a backstop independent of
-// client-side context deadlines (see middleware.RequestTimeoutMiddleware).
-//
-// dbURL may be a URL-style DSN ("postgres://…" / "postgresql://…", the only
-// form this codebase constructs) or a keyword/value DSN ("host=… user=…").
-// Keyword/value DSNs are passed through with the option appended, since
-// url.Parse cannot round-trip them without risking corruption of an
-// already-set "options" value.
+// applied via the "options" connection parameter. dbURL may be a URL-style
+// DSN ("postgres://…" / "postgresql://…") or a keyword/value DSN
+// ("host=… user=…"); keyword/value DSNs are passed through with the option
+// appended.
 func withStatementTimeout(dbURL string, timeout time.Duration) string {
 	setting := fmt.Sprintf("-c statement_timeout=%d", timeout.Milliseconds())
 

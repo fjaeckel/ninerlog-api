@@ -9,10 +9,7 @@ import (
 )
 
 // Registrations are stored in the canonical notation of their state of
-// registry (pkg/registration): the nationality mark is looked up in the ICAO
-// table and the hyphen inserted, moved or removed to suit. Every write path —
-// aircraft, flights, import — normalises, so the fleet and the flights always
-// agree on how an aircraft is spelled.
+// registry (pkg/registration) on every write path.
 
 func TestAircraftRegistrationNormalization(t *testing.T) {
 	c := NewE2EClient(t)
@@ -28,9 +25,6 @@ func TestAircraftRegistrationNormalization(t *testing.T) {
 		assertStr(t, "registration", ac["registration"], "D-EABC")
 	})
 
-	// The duplicate check runs on the normalised value, so the canonical
-	// spelling of an aircraft already in the fleet is the same aircraft — not
-	// a second entry that only differs in punctuation.
 	t.Run("canonical spelling of an existing aircraft returns 409", func(t *testing.T) {
 		resp := c.POST("/aircraft", map[string]interface{}{
 			"registration": "D-EABC", "type": "PA28", "make": "Piper", "model": "Cherokee",
@@ -48,8 +42,6 @@ func TestAircraftRegistrationNormalization(t *testing.T) {
 		assertStr(t, "registration", ac["registration"], "N12345")
 	})
 
-	// Nothing in the table matches "SIM", so normalisation must not invent a
-	// nationality mark for it — uppercase and trim is all it may do.
 	t.Run("unrecognised mark is left alone", func(t *testing.T) {
 		resp := c.POST("/aircraft", map[string]interface{}{
 			"registration": "SIM", "type": "FNPT2", "make": "Elite", "model": "S812",
@@ -85,9 +77,6 @@ func TestFlightRegistrationNormalization(t *testing.T) {
 	})
 }
 
-// A logbook exported from elsewhere routinely spells the same aircraft two
-// ways. Importing it must key the aircraft canonically, so the file yields one
-// fleet entry rather than one per spelling, and every flight points at it.
 func TestImportCSV_NormalizesRegistrations(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("import-norm"), "SecurePass123!", "ImportNorm")
@@ -163,10 +152,6 @@ func TestImportCSV_NormalizesRegistrations(t *testing.T) {
 	})
 }
 
-// POST /flights/recalculate canonicalises the fleet before it touches the
-// flights, and reports what it did in two counters alongside the flight
-// counts. Everything written through the API is already canonical, so a clean
-// fleet must report zero of each — but the fields have to be there.
 func TestRecalculateReportsFleetNormalization(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("recalc-norm"), "SecurePass123!", "RecalcNorm")

@@ -447,8 +447,8 @@ func TestReload_MergesBothSources(t *testing.T) {
 	if eddf.Source != sourceMerged {
 		t.Errorf("EDDF.Source = %q, want %q", eddf.Source, sourceMerged)
 	}
-	// mwgg's record is the more complete one (it carries a timezone), so it
-	// wins the base and EDDF ends up with the curated name…
+	// mwgg's record scores higher (it carries a timezone) and supplies the
+	// base name…
 	if eddf.Name != "Frankfurt am Main International Airport" {
 		t.Errorf("EDDF.Name = %q, want the mwgg name (its record scores higher)", eddf.Name)
 	}
@@ -505,7 +505,7 @@ func TestReload_AllSourcesFailKeepsSnapshot(t *testing.T) {
 
 func TestReload_RejectsSuspiciouslySmallResult(t *testing.T) {
 	// A live snapshot of 20 airports vs. a reload yielding 4: below the
-	// retain fraction, so the swap must be refused.
+	// retain fraction.
 	big := make(map[string]AirportInfo, 20)
 	for i := 0; i < 20; i++ {
 		code := string(rune('A'+i)) + "ZZZ"

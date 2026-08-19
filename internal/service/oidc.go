@@ -25,14 +25,13 @@ import (
 // them are ever echoed back to the browser verbatim.
 var (
 	// ErrOIDCProviderUnavailable means the issuer's discovery document could
-	// not be fetched. Distinct from a misconfiguration: the deployment is set
-	// up correctly and the provider is simply unreachable right now.
+	// not be fetched.
 	ErrOIDCProviderUnavailable = errors.New("oidc provider is unavailable")
 
-	// ErrOIDCInvalidState covers every unusable authorization response: an
-	// unknown, expired or already-consumed state, and a state presented by a
-	// different browser than the one that started the login. They are
-	// deliberately indistinguishable.
+	// ErrOIDCInvalidState covers every unusable authorization response,
+	// indistinguishably: an unknown, expired or already-consumed state, and a
+	// state presented by a different browser than the one that started the
+	// login.
 	ErrOIDCInvalidState = errors.New("oidc login state is invalid or has expired")
 
 	// ErrOIDCExchangeFailed means the provider rejected the authorization code
@@ -43,9 +42,8 @@ var (
 	// audience, expiry or nonce validation.
 	ErrOIDCInvalidToken = errors.New("oidc id token is invalid")
 
-	// ErrOIDCEmailMissing means the ID token carried no usable email address.
-	// NinerLog keys logbooks, signature requests and notifications off the
-	// address, so an account cannot be provisioned without one.
+	// ErrOIDCEmailMissing means the ID token carried no usable email address;
+	// an account cannot be provisioned without one.
 	ErrOIDCEmailMissing = errors.New("oidc id token contains no email address")
 
 	// ErrOIDCEmailConflict means the address belongs to an existing local
@@ -58,8 +56,7 @@ var (
 )
 
 // oidcRandomBytes is the entropy used for the state, nonce, browser-binding
-// value and handoff code. Each is the sole guard on a different step of the
-// flow, so all of them are full-strength.
+// value and handoff code.
 const oidcRandomBytes = 32
 
 // OIDCService implements the authorization-code + PKCE login flow against a
@@ -74,18 +71,15 @@ type OIDCService struct {
 	identityRepo repository.OIDCIdentityRepository
 	authService  *AuthService
 
-	// Discovery is performed lazily and cached. A provider that boots after
-	// the API — the normal case in a single docker compose stack — must not
-	// prevent NinerLog from starting, so a failure here is retried on the next
-	// login attempt rather than at startup.
+	// Discovery is performed lazily and cached; a failure is retried on the
+	// next login attempt.
 	mu           sync.Mutex
 	provider     *oidclib.Provider
 	lastAttempt  time.Time
 	discoveryErr error
 }
 
-// oidcDiscoveryRetryInterval throttles rediscovery after a failure so a
-// provider outage cannot be amplified into a request storm by repeated logins.
+// oidcDiscoveryRetryInterval throttles rediscovery after a failure.
 const oidcDiscoveryRetryInterval = 15 * time.Second
 
 // NewOIDCService returns a service for the supplied configuration, or nil when
@@ -158,26 +152,21 @@ func (s *OIDCService) oauthConfig(provider *oidclib.Provider) *oauth2.Config {
 	}
 }
 
-// OIDCAuthorization is what the authorize step hands back: the provider URL to
-// send the browser to, and the value that must be planted in the browser as a
-// cookie so the callback can prove it is the same browser.
+// OIDCAuthorization is what the authorize step hands back: the provider URL
+// to send the browser to, and the value to plant in the browser as a cookie
+// for the callback's same-browser check.
 type OIDCAuthorization struct {
 	AuthorizationURL string
 	BrowserToken     string
-	// Expiry is when the pending login stops being usable, used as the
-	// cookie's Max-Age so it disappears with the state it guards.
+	// Expiry is when the pending login stops being usable; used as the
+	// cookie's Max-Age.
 	Expiry time.Time
 }
 
 // BeginLogin creates a pending authorization request and returns the provider
-// URL to redirect the browser to.
-//
-// Three independent single-use values are minted: `state` (returned by the
-// provider, proves the callback belongs to a login we started), `nonce`
-// (embedded in the ID token, proves the token was minted for this login and
-// not replayed), and the PKCE verifier (proves the code is redeemed by the
-// party that requested it). Only hashes of the state and the browser token are
-// persisted.
+// URL to redirect the browser to. Three independent single-use values are
+// minted: `state`, `nonce`, and the PKCE verifier. Only hashes of the state
+// and the browser token are persisted.
 func (s *OIDCService) BeginLogin(ctx context.Context) (*OIDCAuthorization, error) {
 	provider, err := s.resolveProvider(ctx)
 	if err != nil {
@@ -220,11 +209,9 @@ func (s *OIDCService) BeginLogin(ctx context.Context) (*OIDCAuthorization, error
 	}, nil
 }
 
-// CompleteCallback validates the provider's response, provisions or updates the
-// local user, and returns a single-use handoff code for the browser.
-//
-// It deliberately returns only that code: the access and refresh tokens are
-// minted later, by ExchangeHandoff, so they never travel in a URL.
+// CompleteCallback validates the provider's response, provisions or updates
+// the local user, and returns only a single-use handoff code for the browser;
+// the access and refresh tokens are minted later, by ExchangeHandoff.
 func (s *OIDCService) CompleteCallback(ctx context.Context, code, state, browserToken string) (string, error) {
 	if code == "" || state == "" || browserToken == "" {
 		return "", ErrOIDCInvalidState
@@ -234,8 +221,8 @@ func (s *OIDCService) CompleteCallback(ctx context.Context, code, state, browser
 		return "", err
 	}
 
-	// Consuming the state is what makes an authorization response usable
-	// exactly once, including under concurrent replays of the same URL.
+	// Consuming the state makes an authorization response usable exactly
+	// once.
 	loginState, err := s.identityRepo.ConsumeLoginState(ctx, hashOIDCToken(state))
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -243,7 +230,7 @@ func (s *OIDCService) CompleteCallback(ctx context.Context, code, state, browser
 		}
 		return "", err
 	}
-	// Constant-time: the browser token is a secret held by the client.
+	// Constant-time compare of the browser token.
 	if subtle.ConstantTimeCompare(loginState.BrowserHash, hashOIDCToken(browserToken)) != 1 {
 		return "", ErrOIDCInvalidState
 	}
@@ -261,7 +248,7 @@ func (s *OIDCService) CompleteCallback(ctx context.Context, code, state, browser
 	}
 
 	// Verifier checks the signature against the provider's JWKS and validates
-	// issuer, audience and expiry. The nonce is ours to check.
+	// issuer, audience and expiry; the nonce is checked here.
 	idToken, err := provider.Verifier(&oidclib.Config{ClientID: s.cfg.ClientID}).Verify(ctx, rawIDToken)
 	if err != nil {
 		slog.Warn("OIDC id_token verification failed", "error", err)
@@ -316,8 +303,7 @@ func (s *OIDCService) ExchangeHandoff(ctx context.Context, handoff string) (*mod
 		}
 		return nil, nil, err
 	}
-	// Re-checked here and not only at provisioning time: an admin may have
-	// disabled the account in the seconds between callback and exchange.
+	// Disabled state is re-checked at exchange time.
 	if user.Disabled {
 		return nil, nil, ErrAccountDisabled
 	}
@@ -343,11 +329,9 @@ type oidcClaims struct {
 	Name          string
 }
 
-// parseOIDCClaims extracts and normalises the claims an account is built from.
-//
-// The display name falls back through the configured claim, `name`,
-// `preferred_username` and finally the local part of the address, so a sparse
-// provider still yields a usable logbook owner name rather than an empty one.
+// parseOIDCClaims extracts and normalises the claims an account is built
+// from. The display name falls back through the configured claim, `name`,
+// `preferred_username` and finally the local part of the address.
 func parseOIDCClaims(idToken *oidclib.IDToken, nameClaim string) (oidcClaims, error) {
 	var raw map[string]any
 	if err := idToken.Claims(&raw); err != nil {
@@ -393,8 +377,7 @@ func claimString(raw map[string]any, key string) string {
 	return ""
 }
 
-// claimBool accepts the boolean and the stringified spellings: several
-// providers serialise email_verified as "true".
+// claimBool accepts the boolean and the stringified spellings ("true").
 func claimBool(raw map[string]any, key string) bool {
 	switch v := raw[key].(type) {
 	case bool:
@@ -435,10 +418,8 @@ func (s *OIDCService) provisionUser(ctx context.Context, issuer string, claims o
 	existing, err := s.userRepo.GetByEmail(ctx, claims.Email)
 	switch {
 	case err == nil:
-		// An account already holds this address. Adopting it is only safe when
-		// the provider asserts the address is verified AND the operator has
-		// opted in, because otherwise anyone able to set their own email at
-		// the IdP could claim someone else's logbook.
+		// An account already holds this address. Adopting it requires the
+		// provider to assert the address is verified AND the operator opt-in.
 		if !s.cfg.LinkByVerifiedEmail || !claims.EmailVerified {
 			slog.Warn("OIDC login refused: email belongs to an existing account",
 				"link_by_verified_email", s.cfg.LinkByVerifiedEmail,
@@ -465,10 +446,8 @@ func (s *OIDCService) provisionUser(ctx context.Context, issuer string, claims o
 	now := time.Now()
 	user := &models.User{
 		Email: claims.Email,
-		// No local password exists for an OIDC account, and none can be set:
-		// every password entry point is disabled in OIDC mode. An empty hash
-		// can never validate — bcrypt rejects it as malformed — so this is a
-		// credential that cannot be used, not a weak one.
+		// An OIDC account has no local password; an empty hash never
+		// validates.
 		PasswordHash:  "",
 		Name:          claims.Name,
 		EmailVerified: claims.EmailVerified || s.cfg.TrustEmailVerified,
@@ -512,9 +491,8 @@ func (s *OIDCService) syncUserFromClaims(ctx context.Context, user *models.User,
 	changed := false
 
 	if !strings.EqualFold(user.Email, claims.Email) {
-		// The address moved at the provider. If it collides with another local
-		// account, keep the old one rather than failing the login, and leave a
-		// log line for the operator: two identities cannot share an address.
+		// The address moved at the provider. On a collision with another
+		// local account, keep the old address and log.
 		if other, err := s.userRepo.GetByEmail(ctx, claims.Email); err == nil && other.ID != user.ID {
 			slog.Warn("OIDC email change ignored: address already in use by another account",
 				"user_id", user.ID)
@@ -545,8 +523,7 @@ func (s *OIDCService) syncUserFromClaims(ctx context.Context, user *models.User,
 }
 
 // StartStateReaper deletes expired login states and handoff codes on a timer.
-// Hygiene only: consumption already refuses expired rows, so a stalled reaper
-// cannot make a stale artefact usable.
+// Hygiene only: consumption already refuses expired rows.
 func (s *OIDCService) StartStateReaper(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
 		interval = 5 * time.Minute

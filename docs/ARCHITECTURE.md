@@ -77,7 +77,10 @@ flowchart TD
 ```
 
 `internal/api/handlers.APIHandler` is the aggregate struct that holds every service (and
-a few repositories it needs directly, such as `FlightCrewRepository`). The generated
+a few repositories it needs directly — `FlightCrewRepository`, plus the read-mostly
+`AdminRepository`, `AnnouncementRepository`, `FlightImportRepository`,
+`ReportsRepository` and `UserContentRepository`, which back surfaces with no business
+logic of their own; see [SQL_LAYERING.md](./SQL_LAYERING.md)). The generated
 server interface is implemented by `APIHandler`, so each OpenAPI operation maps to a
 method on it. See [API.md](./API.md).
 

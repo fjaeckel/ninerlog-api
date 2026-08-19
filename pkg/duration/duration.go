@@ -1,5 +1,5 @@
 // Package duration provides helpers for converting between flight time representations.
-// All internal storage uses integer minutes for lossless precision.
+// All internal storage uses integer minutes.
 package duration
 
 import (
@@ -48,8 +48,6 @@ func FormatColonHM(minutes int) string {
 var colonRe = regexp.MustCompile(`^(\d+):(\d{1,2})$`)
 
 // hmRe matches "1h23m", "1h 23m", "1h", "23m", and decimal-hour "1.5h" formats.
-// The hours part may carry a decimal fraction because FormatDecimal writes
-// durations as "1.5h" on CSV export, and those values must round-trip on import.
 var hmRe = regexp.MustCompile(`^(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+)\s*m)?$`)
 
 // ParseDuration parses a flexible duration string into integer minutes.

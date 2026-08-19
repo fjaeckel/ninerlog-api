@@ -53,7 +53,6 @@ func TestValidateJWTSecrets_MinLengthBoundary(t *testing.T) {
 }
 
 func TestValidateJWTSecrets_RejectsPlaceholders(t *testing.T) {
-	// The exact placeholder strings that used to be the hardcoded fallbacks.
 	err := validateJWTSecrets(
 		"change-this-secret-key-in-production",
 		"change-this-refresh-secret-in-production",
@@ -64,8 +63,7 @@ func TestValidateJWTSecrets_RejectsPlaceholders(t *testing.T) {
 }
 
 func TestValidateJWTSecrets_RejectsPlaceholderEvenWhenLongEnough(t *testing.T) {
-	// A placeholder is >= 32 chars, so length alone would pass; the placeholder
-	// check must still reject it.
+	// Asserts a placeholder is rejected even when it passes the length check.
 	placeholder := "change-this-secret-key-in-production"
 	if len(placeholder) < minJWTSecretLength {
 		t.Fatalf("test precondition: placeholder should be >= %d chars", minJWTSecretLength)

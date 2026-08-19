@@ -12,26 +12,20 @@ import (
 // allowed public paths. It extracts the user ID from the token and sets it
 // in the Gin context as "userID".
 func AuthMiddleware(jwtManager *jwt.Manager, publicPaths []string) gin.HandlerFunc {
-	// Build a set for O(1) lookup
 	public := make(map[string]bool, len(publicPaths))
 	for _, p := range publicPaths {
 		public[p] = true
 	}
 
 	return func(c *gin.Context) {
-		// Strip the router group prefix to get the relative path
-		// e.g., /api/v1/auth/login -> /auth/login
+		// Strip the router group prefix: /api/v1/auth/login -> /auth/login.
 		path := c.Request.URL.Path
-		// Remove /api/v1 prefix if present
 		if idx := strings.Index(path, "/api/v1"); idx >= 0 {
 			path = path[idx+len("/api/v1"):]
 		}
 
-		// Check if the path is public. publicPaths may contain either literal
-		// paths (e.g. "/auth/login") or gin route patterns for parameterized
-		// routes (e.g. "/sign/:token"); c.FullPath() returns the resolved
-		// pattern for the matched route, so pattern-shaped entries need to be
-		// checked against it rather than against the literal request path.
+		// publicPaths may contain literal paths ("/auth/login") or gin route
+		// patterns ("/sign/:token"); patterns are matched via c.FullPath().
 		fullPath := c.FullPath()
 		if idx := strings.Index(fullPath, "/api/v1"); idx >= 0 {
 			fullPath = fullPath[idx+len("/api/v1"):]
@@ -57,7 +51,6 @@ func AuthMiddleware(jwtManager *jwt.Manager, publicPaths []string) gin.HandlerFu
 			return
 		}
 
-		// Set user ID in context for handlers to use
 		c.Set("userID", claims.UserID)
 		c.Next()
 	}

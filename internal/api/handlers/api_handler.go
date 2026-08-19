@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"strings"
 	"time"
 
@@ -36,23 +35,27 @@ type APIHandler struct {
 	// oidcService is nil unless OIDC_ISSUER is configured. Non-nil means the
 	// server runs in OIDC mode, which also switches every local credential
 	// path off — see requireLocalAuth.
-	oidcService     *service.OIDCService
-	jwtManager      *jwt.Manager
-	db              *sql.DB
-	flightCrewRepo  repository.FlightCrewRepository
-	adminEmail      string
-	emailSender     *email.Sender
-	startedAt       time.Time
-	corsOrigins     []string
-	backupService   *cloudbackup.Service
-	deletionService *service.DeletionService
+	oidcService    *service.OIDCService
+	jwtManager     *jwt.Manager
+	flightCrewRepo repository.FlightCrewRepository
+	// Repositories used directly by the admin console, reports/analytics,
+	// import history, announcements and bulk wipes.
+	adminRepo        repository.AdminRepository
+	announcementRepo repository.AnnouncementRepository
+	flightImportRepo repository.FlightImportRepository
+	reportsRepo      repository.ReportsRepository
+	userContentRepo  repository.UserContentRepository
+	adminEmail       string
+	emailSender      *email.Sender
+	startedAt        time.Time
+	corsOrigins      []string
+	backupService    *cloudbackup.Service
+	deletionService  *service.DeletionService
 	// documentFileService is nil only if the subsystem was never wired up;
-	// the operator-facing off switch lives inside the service itself so that
-	// GET /features can still report it accurately.
+	// the operator-facing off switch lives inside the service itself.
 	documentFileService *service.DocumentFileService
 	// emailDeliveryService and unverifiedAccountService are nil until wired in
-	// cmd/api/main.go; the admin endpoints that use them answer 503 rather than
-	// panicking when a deployment runs without them.
+	// cmd/api/main.go; the admin endpoints that use them answer 503 when nil.
 	emailDeliveryService     *service.EmailDeliveryService
 	unverifiedAccountService *service.UnverifiedAccountService
 }
@@ -116,11 +119,9 @@ func (h *APIHandler) getUserIDFromContext(c *gin.Context) (uuid.UUID, error) {
 	return claims.UserID, nil
 }
 
-// getUserNameFromContext returns the authenticated user's display name, used
-// by flight auto-calculations to resolve whether an Instructor crew member is
-// the user themselves (Dual given) or a third party (Dual received). Returns
-// "" if the user cannot be resolved; flightcalc treats an empty name
-// conservatively (any Instructor → Dual received).
+// getUserNameFromContext returns the authenticated user's display name, or ""
+// if the user cannot be resolved; flightcalc treats an empty name as "any
+// Instructor → Dual received".
 func (h *APIHandler) getUserNameFromContext(c *gin.Context) string {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
@@ -165,15 +166,8 @@ func (h *APIHandler) sendError(c *gin.Context, statusCode int, message string, d
 // Verify that APIHandler implements the generated.ServerInterface
 var _ generated.ServerInterface = (*APIHandler)(nil)
 
-// isAdminUser reports whether the user holds the configured admin address.
-//
-// The email must be VERIFIED. Admin status is derived from a user-settable
-// field, so without the verification requirement any authenticated user could
-// PATCH /users/me to the configured ADMIN_EMAIL and inherit full admin rights
-// whenever no account currently holds that address (fresh deployment, rotated
-// admin address, deleted admin account). Requiring email_verified means the
-// caller must additionally prove control of the mailbox — and UpdateCurrentUser
-// clears email_verified on every address change (see updateUserEmail).
+// isAdminUser reports whether the user holds the configured admin address;
+// the email must be verified.
 func (h *APIHandler) isAdminUser(user *models.User) bool {
 	if user == nil || h.adminEmail == "" {
 		return false
@@ -193,8 +187,7 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 	recencyPerModel := user.RecencyPerModel
 	recencyPerRegistration := user.RecencyPerRegistration
 	columnMode := generated.UserFlightListColumnMode(models.NormalizeFlightListColumnMode(user.FlightListColumnMode))
-	// Always an array, never null: the client treats a missing list as "no
-	// optional columns", which is a different answer from "auto".
+	// Always an array, never null.
 	columns := make([]generated.FlightListColumn, 0, len(user.FlightListColumns))
 	for _, c := range user.FlightListColumns {
 		columns = append(columns, generated.FlightListColumn(c))

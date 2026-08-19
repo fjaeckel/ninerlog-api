@@ -49,8 +49,6 @@ func TestAdminEndpoints(t *testing.T) {
 		if s["totalUsers"] == nil {
 			t.Error("Expected totalUsers")
 		}
-		// Contacts accumulate on their own — every crew name logged on a
-		// flight becomes one — so the operator needs the count.
 		if s["totalContacts"] == nil {
 			t.Error("Expected totalContacts")
 		}
@@ -114,9 +112,8 @@ func TestAdminEndpoints(t *testing.T) {
 		}
 	})
 
-	// Following the verification link signs the new account in, so the admin
-	// list must show a last-login date even for a user who never went through
-	// the login form afterwards.
+	// Following the verification link signs the new account in; the admin list
+	// shows a last-login date for it.
 	t.Run("sign-up verification shows as last login", func(t *testing.T) {
 		vc := NewE2EClient(t)
 		ve := uniqueEmail("admin-verify-login")
@@ -320,9 +317,8 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 
 	t.Run("unverified sweep is callable and reports counts", func(t *testing.T) {
 		resp := ac.POST("/admin/maintenance/cleanup-unverified", nil)
-		// 503 is the honest answer on a deployment that runs without the
-		// reaper — no SMTP, OIDC mode, or switched off. Anything else must be
-		// a well-formed result.
+		// 503 when the reaper is not running; anything else is a well-formed
+		// result.
 		if resp.StatusCode == http.StatusServiceUnavailable {
 			t.Skip("Unverified account cleanup is disabled on this deployment")
 		}
@@ -339,9 +335,6 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 	})
 
 	t.Run("a freshly registered account is never swept away", func(t *testing.T) {
-		// The reminder is only due a day after signup and deletion 30 days
-		// after that, so a sweep immediately after registration must leave the
-		// account able to verify and log in.
 		uc := NewE2EClient(t)
 		email := uniqueEmail("sweep-survivor")
 		requireStatus(t, uc.POST("/auth/register", map[string]string{
@@ -352,8 +345,7 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 			t.Skip("Unverified account cleanup is disabled on this deployment")
 		}
 
-		// Still registered: a duplicate signup is refused because the account
-		// survived the sweep.
+		// A surviving account refuses a duplicate signup.
 		dup := uc.POST("/auth/register", map[string]string{
 			"email": email, "password": "UserPass123!", "name": "Survivor",
 		})
@@ -381,7 +373,7 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 			if cfg.UnverifiedCleanupDisabledReason != nil {
 				t.Errorf("Enabled cleanup should carry no disabled reason, got %q", *cfg.UnverifiedCleanupDisabledReason)
 			}
-			// Reaping must never be on under an identity provider.
+			// Cleanup is never enabled in OIDC mode.
 			if cfg.AuthMode == "oidc" {
 				t.Error("Unverified-account cleanup must never be enabled in OIDC mode")
 			}

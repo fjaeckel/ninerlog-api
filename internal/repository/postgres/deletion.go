@@ -15,17 +15,14 @@ type deletionRepository struct {
 	db *sql.DB
 }
 
-// NewDeletionRepository creates a repository over the tombstones written by the
-// AFTER DELETE triggers in migration 000054. It is read-and-sweep only: nothing
-// in Go ever inserts a tombstone, which is what keeps the record complete
-// across the delete paths that bypass the repositories entirely.
+// NewDeletionRepository creates a repository over trigger-written deletion
+// tombstones. It is read-and-sweep only.
 func NewDeletionRepository(db *sql.DB) repository.DeletionRepository {
 	return &deletionRepository{db: db}
 }
 
-// filter builds the shared WHERE clause. entity is optional; the caller has
-// already validated it against the enum, so it is a bounded value rather than
-// arbitrary client input.
+// deletionFilter builds the shared WHERE clause. entity is optional and
+// pre-validated against the enum.
 func deletionFilter(userID uuid.UUID, since time.Time, entity *models.DeletionEntityType) (string, []any) {
 	where := " WHERE user_id = $1 AND deleted_at > $2"
 	args := []any{userID, since}
@@ -36,10 +33,8 @@ func deletionFilter(userID uuid.UUID, since time.Time, entity *models.DeletionEn
 	return where, args
 }
 
-// ListSince returns the user's deletions after the watermark, oldest first so a
-// client can page forward and advance its watermark as it goes. A bulk delete
-// stamps every row with one transaction timestamp, so id is the tie-break that
-// keeps paging from repeating or skipping entries.
+// ListSince returns the user's deletions after the watermark, oldest first,
+// tie-broken on id.
 func (r *deletionRepository) ListSince(
 	ctx context.Context, userID uuid.UUID, since time.Time,
 	entity *models.DeletionEntityType, limit, offset int,
@@ -78,8 +73,8 @@ func (r *deletionRepository) CountSince(
 	return count, err
 }
 
-// DeleteExpired removes tombstones older than the retention horizon. Returns
-// how many were swept.
+// DeleteExpired removes tombstones older than `before`. Returns how many were
+// swept.
 func (r *deletionRepository) DeleteExpired(ctx context.Context, before time.Time) (int64, error) {
 	res, err := r.db.ExecContext(ctx,
 		`DELETE FROM deletion_tombstones WHERE deleted_at < $1`, before)

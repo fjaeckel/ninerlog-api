@@ -169,8 +169,8 @@ func newBoolLeaf(column, op string, value bool) (node, error) {
 	}}, nil
 }
 
-// newDateLeaf compares against a [start, next) range so partial dates
-// (YYYY or YYYY-MM) behave intuitively for every operator.
+// newDateLeaf compares against the [start, next) range a (possibly partial)
+// date denotes.
 func newDateLeaf(field *Field, op string, start, next time.Time) (node, error) {
 	col := field.Column
 	build := func(fn func(b *sqlBuilder) string) (node, error) {
@@ -234,14 +234,7 @@ func newSignedLeaf(op, value string) (node, error) {
 	return &leafNode{fn: func(b *sqlBuilder) string { return cond }}, nil
 }
 
-// maxDurationHours bounds any parsed duration to a generous year-long
-// ceiling — far beyond any real flight duration, but small enough that
-// hours*60 (and the float-to-int conversion in the decimal-hours branch
-// below) can never overflow int. Without this, a value like "999999999h"
-// or "1e308h" would overflow to a large negative int and still get bound
-// into the query, either producing a confusing 500 (INTEGER out of range)
-// or, if the wrapped value happened to fit, a garbage comparison silently
-// disguised as valid input.
+// maxDurationHours / maxDurationMinutes bound any parsed duration.
 const (
 	maxDurationHours   = 366 * 24
 	maxDurationMinutes = maxDurationHours * 60

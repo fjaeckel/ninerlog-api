@@ -4,7 +4,7 @@
 // flightcalc/ owns the *write* path (mutates Flight on save). flightrules
 // owns the *read* path (pure helpers consumed by handlers, exporters, PDF
 // renderers, stats and tests). The two share the role + name primitives
-// below so they cannot disagree.
+// below.
 //
 // IMPORTANT: do NOT inline any of these rules in handlers/, repository/ or
 // exporter code. A grep-guard in scripts/run-all-tests.sh enforces this.
@@ -38,27 +38,16 @@ const (
 // DetermineRole inspects the crew list to classify the user's pilot role.
 //
 // Precedence: a third-party Instructor or Examiner (name ≠ user) makes the
-// user a Dual receiver, regardless of any Student also being present (e.g.
-// observed CFI check rides). A Student or self-listed Instructor makes the
-// user a Dual giver. A third-party PIC or a self-listed SIC makes the user
-// the co-pilot (SIC) of a multi-pilot operation. Otherwise the user is PIC.
-//
-// A third-party Examiner counts as Dual received because there can only be
-// one PIC per flight and the examiner occupying a pilot seat is PIC of
-// record (NfL 2021-2-602 §4.2.2 no. 4; EASA AMC1 FCL.050). A self-listed
-// Examiner leaves the user as PIC — an examiner logs their exam flights as
-// PIC time.
-//
-// A third-party PIC counts as SIC for the same "only one PIC per flight"
-// reason: if someone else was designated PIC, the user occupying the other
-// pilot seat logs co-pilot time (AMC1 FCL.050; FOCA GM/INFO §2.3.3), even
-// when both pilots hold PIC qualifications. A self-listed PIC crew entry
-// keeps the user as PIC and wins over a simultaneous third-party PIC entry
-// (conflicting data — trust the user's explicit self-declaration).
+// user a Dual receiver, regardless of any Student also being present
+// (NfL 2021-2-602 §4.2.2 no. 4; EASA AMC1 FCL.050). A Student or self-listed
+// Instructor makes the user a Dual giver. A third-party PIC or a self-listed
+// SIC makes the user the co-pilot (SIC) of a multi-pilot operation
+// (AMC1 FCL.050; FOCA GM/INFO §2.3.3). A self-listed Examiner leaves the
+// user as PIC; a self-listed PIC crew entry keeps the user as PIC and wins
+// over a simultaneous third-party PIC entry. Otherwise the user is PIC.
 //
 // When userName is empty, any Instructor, Examiner or PIC crew member is
-// conservatively treated as a third party, preserving prior behaviour for
-// callers that do not yet have user context.
+// treated as a third party.
 func DetermineRole(flight *models.Flight, userName string) Role {
 	hasOtherInstructor := false
 	hasSelfInstructor := false

@@ -60,7 +60,6 @@ api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q
 api.Use(middleware.RateLimitByPath(authRateLimit, /* /auth paths */))
 api.Use(middleware.RateLimitByPath(adminRateLimit, /* /admin paths */))
 generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{...})
-handlers.RegisterReportsRoutes(api, apiHandler, db)   // custom, not in OpenAPI spec
 handlers.RegisterFlightUtilRoutes(api, apiHandler)    // custom, not in OpenAPI spec
 handlers.RegisterOIDCRoutes(api, apiHandler)          // browser redirects, not in the spec
 ```
@@ -280,9 +279,10 @@ GET /api/v1/sync/deletions?since=<watermark>      → removals
   past the horizon would resync incrementally and silently keep deleted records.
 
 Tombstones are written by `AFTER DELETE` triggers on the five tables (migration `000054`),
-not by the Go repositories. That is deliberate: deletions reach the database by routes
-that never touch a repository — the raw SQL in `DeleteAllUserData`, the admin user delete,
-and `ON DELETE CASCADE` — and a trigger cannot be forgotten by a future caller, nor can it
+not by the Go repositories. That is deliberate: deletions reach the database by several
+independent routes — the multi-table wipe behind `DeleteAllUserData`
+(`UserContentRepository`), the admin user delete, and `ON DELETE CASCADE` — and a
+trigger cannot be forgotten by a future caller, nor can it
 fail after a delete the client was told succeeded. Deleting a whole **account** records
 nothing: there is no client left to inform. See [DATA_MODEL.md](./DATA_MODEL.md).
 

@@ -36,8 +36,6 @@ func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repos
 
 // CreateFlight creates a new flight log entry
 func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight) error {
-	// Canonical registration notation, so a flight and its fleet entry always
-	// agree on the spelling the per-registration statistics group by.
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 
 	// Validate text field lengths

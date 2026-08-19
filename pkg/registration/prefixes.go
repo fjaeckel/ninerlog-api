@@ -1,68 +1,18 @@
 package registration
 
-// Nationality mark table.
-//
-// Source of truth:
-//
-//  1. ICAO. Annex 7 Standard 3.3 requires a state to select its nationality
-//     mark from the radio call-sign series the ITU allocated to it, and Annex
-//     7 carries the hyphen convention. ICAO publishes the marks states have
-//     actually selected: https://www.icao.int/nationality-marks
-//  2. Wikipedia, "List of aircraft registration prefixes" — the practical
-//     consolidation, and the easiest thing to diff against.
-//
-// ITU Radio Regulations Appendix 42, the "Table of International Call Sign
-// Series", is a radiocommunication document and says nothing about aircraft.
-// It is upstream of (1) only by the reference in Standard 3.3, and it
-// allocates whole blocks — Germany holds DAA–DRZ, the United States holds AAA–
-// ALZ, KAA–KZZ, NAA–NZZ and WAA–WZZ. Which slice of its block a state uses for
-// aircraft (D, N) is the state's own choice, and hyphenation is not in
-// Appendix 42 at all. It is therefore a cross-check that a mark falls inside
-// its state's allocation, never a source for the two facts this table records.
-//
-// See docs/AIRCRAFT_REGISTRATIONS.md for the review procedure. Allocations
-// change on the order of once every few years (a new state, a state changing
-// its mark), which is why this table is vendored rather than fetched at
-// runtime like the airport database.
+// Nationality mark table, vendored from ICAO's published marks.
+// Sources and review procedure: docs/AIRCRAFT_REGISTRATIONS.md.
 
-// LastReviewed is when this table was last checked against upstream. Because
-// the table is vendored, this date is the only signal that it may be stale —
-// it is reported to operators via GET /admin/config and must be updated
-// whenever the table is reviewed, whether or not anything changed.
+// LastReviewed is the date this table was last checked against upstream,
+// reported via GET /admin/config.
 const LastReviewed = "2026-08-17"
 
-// Suffix patterns
-//
-// Suffix is a regular expression matched against the registration mark — the
-// part after the nationality mark, with all separators removed. It is
-// anchored on both ends at init.
-//
-// Most entries leave it empty and inherit defaultSuffix. A pattern is only
-// spelled out where it does real work, which is one of two cases:
-//
-//   - A one-character mark (B, C, D, F, G, I, M, N, P, Z). Without a pattern
-//     these swallow anything that happens to start with that letter — an
-//     aircraft "type" mistakenly entered as a registration ("B738", "C172",
-//     "G1000", "FNPT2") would come back hyphenated as "B-738". A pattern
-//     makes those fall through unrecognised and be left alone.
-//   - A two-character mark that shadows a one-character mark whose own
-//     registration marks can start with a digit. "D2345" is a German glider
-//     D-2345, not an Angolan D2-345; Angola's marks are three letters, so
-//     pinning D2 to letters resolves it.
-//
-// Everything else is unambiguous under longest-prefix matching and does not
-// need one.
+// defaultSuffix is the registration-mark pattern for entries that declare no
+// Suffix of their own. Patterns are anchored at both ends at init.
 const defaultSuffix = `[A-Z0-9]{1,5}`
 
-// entries is the nationality mark table. Order within the slice does not
-// matter for matching — matchOrder sorts by mark length, longest first — but
-// it is kept sorted for review against upstream.
-//
-// Hyphen records the canonical notation, which is not derivable from the
-// Annex 7 rule alone: the rule ("a registration mark starting with a letter
-// is preceded by a hyphen") explains N12345, JA8089 and HL7747, but plenty of
-// states hyphenate a numeric registration mark anyway — B-1234, RA-12345,
-// CU-T1234. Hyphenation is therefore recorded per state, not computed.
+// entries is the nationality mark table, sorted by mark for review against
+// upstream. Match order is by mark length, longest first (see matchOrder).
 var entries = []Entry{
 	{Prefix: "3A", Country: "MC", CountryName: "Monaco"},
 	{Prefix: "3B", Country: "MU", CountryName: "Mauritius"},
@@ -118,11 +68,7 @@ var entries = []Entry{
 	{Prefix: "A9C", Country: "BH", CountryName: "Bahrain"},
 	{Prefix: "AP", Country: "PK", CountryName: "Pakistan"},
 
-	// One mark covers the mainland (B-1234, B-123A), Hong Kong (B-Hxx,
-	// B-Kxx, B-Lxx), Macau (B-Mxx) and Taiwan (B-12345). They differ only in
-	// which sub-range of the registration mark they draw from, never in the
-	// notation, so splitting them would put the hyphen in the wrong place
-	// ("BH-KA") for no gain.
+	// One mark for the mainland, Hong Kong, Macau and Taiwan.
 	{Prefix: "B", Country: "CN", CountryName: "China (incl. Hong Kong, Macau, Taiwan)", Suffix: `[0-9]{4,5}|[0-9]{3}[A-Z]|[HKLM][A-Z0-9]{2,4}`},
 
 	{Prefix: "C", Country: "CA", CountryName: "Canada", Suffix: `[A-Z]{4}`},
@@ -138,8 +84,7 @@ var entries = []Entry{
 	{Prefix: "CU", Country: "CU", CountryName: "Cuba", Suffix: `[A-Z][0-9]{3,4}|[A-Z]{3}`},
 	{Prefix: "CX", Country: "UY", CountryName: "Uruguay", Suffix: `[A-Z]{3}`},
 
-	// Powered aircraft take four letters (D-EABC, D-ABCD); gliders take four
-	// digits (D-1234), which is what collides with D2/D4/D6 below.
+	// Powered aircraft take four letters, gliders four digits.
 	{Prefix: "D", Country: "DE", CountryName: "Germany", Suffix: `[A-Z]{4}|[0-9]{4}`},
 	{Prefix: "D2", Country: "AO", CountryName: "Angola", Suffix: `[A-Z]{3}`},
 	{Prefix: "D4", Country: "CV", CountryName: "Cabo Verde", Suffix: `[A-Z]{3}`},
@@ -171,7 +116,6 @@ var entries = []Entry{
 	{Prefix: "HI", Country: "DO", CountryName: "Dominican Republic"},
 	{Prefix: "HK", Country: "CO", CountryName: "Colombia"},
 
-	// No hyphen: the registration mark is numeric (HL7747).
 	{Prefix: "HL", Country: "KR", CountryName: "South Korea", NoHyphen: true, Suffix: `[0-9]{4}[A-Z]?`},
 
 	{Prefix: "HP", Country: "PA", CountryName: "Panama"},
@@ -186,7 +130,6 @@ var entries = []Entry{
 	{Prefix: "J7", Country: "DM", CountryName: "Dominica"},
 	{Prefix: "J8", Country: "VC", CountryName: "Saint Vincent and the Grenadines"},
 
-	// No hyphen: the registration mark is numeric (JA8089, JA01AA).
 	{Prefix: "JA", Country: "JP", CountryName: "Japan", NoHyphen: true, Suffix: `[0-9]{2,4}[A-Z]{0,2}`},
 
 	{Prefix: "JU", Country: "MN", CountryName: "Mongolia"},
@@ -199,9 +142,6 @@ var entries = []Entry{
 	{Prefix: "LZ", Country: "BG", CountryName: "Bulgaria"},
 	{Prefix: "M", Country: "IM", CountryName: "Isle of Man", Suffix: `[A-Z]{4}`},
 
-	// No hyphen: the registration mark always starts with a digit (N12345,
-	// N123AB). The letters I and O are not issued, but accepting them here
-	// costs nothing — this table decides notation, not validity.
 	{Prefix: "N", Country: "US", CountryName: "United States", NoHyphen: true, Suffix: `[0-9][0-9A-Z]{0,4}`},
 
 	{Prefix: "OB", Country: "PE", CountryName: "Peru"},
@@ -267,10 +207,7 @@ var entries = []Entry{
 	{Prefix: "VH", Country: "AU", CountryName: "Australia"},
 	{Prefix: "VN", Country: "VN", CountryName: "Vietnam"},
 
-	// The British overseas territories share VP-/VQ- and are told apart by
-	// the first letter of the registration mark (VP-B Bermuda, VP-C Cayman
-	// Islands, VQ-T Turks and Caicos, …). As with B above, the split is
-	// inside the registration mark, so the mark itself stays two characters.
+	// One mark per series; the territory is the registration mark's first letter.
 	{Prefix: "VP", Country: "GB", CountryName: "British overseas territory"},
 	{Prefix: "VQ", Country: "GB", CountryName: "British overseas territory"},
 

@@ -1,19 +1,9 @@
 name: Registration Prefixes
 
-# The aircraft nationality mark table in pkg/registration/prefixes.go is
-# vendored rather than fetched at runtime, because ICAO marks change on the
-# order of once every few years. That interval is exactly long enough for a
-# vendored table to go stale unnoticed, so this job compares it against
-# upstream on a schedule.
-#
-# The job is ADVISORY and does not fail on drift. The checker reads cells
-# rather than one upstream's layout, so it over-reports and its recall is
-# imperfect — gating on it would leave a permanently red check that everybody
-# learns to scroll past. The report is written to the job summary instead, so
-# the quarterly run is worth opening. See docs/AIRCRAFT_REGISTRATIONS.md.
-#
-# Once the checker has been calibrated against a live upstream and its noise
-# floor is known to be zero, add --fail-on-drift and let it gate.
+# Compares the vendored nationality mark table in pkg/registration/prefixes.go
+# against upstream. Advisory: it does not fail on drift, and writes its report
+# to the job summary. Add --fail-on-drift to gate once the checker's recall is
+# calibrated. See docs/AIRCRAFT_REGISTRATIONS.md.
 
 on:
   schedule:

@@ -92,7 +92,6 @@ func TestGenerate2FAToken(t *testing.T) {
 		t.Error("Generate2FAToken() returned empty token")
 	}
 
-	// Validate the 2FA token
 	claims, err := manager.Validate2FAToken(token)
 	if err != nil {
 		t.Fatalf("Validate2FAToken() error = %v", err)
@@ -109,7 +108,6 @@ func TestValidate2FAToken_RejectsRegularAccessToken(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	userID := uuid.New()
 
-	// A regular access token should not pass 2FA validation
 	accessToken, _ := manager.GenerateAccessToken(userID)
 
 	_, err := manager.Validate2FAToken(accessToken)
@@ -119,9 +117,7 @@ func TestValidate2FAToken_RejectsRegularAccessToken(t *testing.T) {
 }
 
 func TestValidate2FAToken_Expired(t *testing.T) {
-	// Generate a 2FA token, then validate with expired time
-	// We can't easily expire a 5-minute token, but we can verify the token
-	// is signed with the access secret by using a different manager
+	// Asserts the 2FA token is signed with the access secret.
 	manager1 := NewManager("secret1", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	manager2 := NewManager("secret2", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
@@ -133,9 +129,7 @@ func TestValidate2FAToken_Expired(t *testing.T) {
 	}
 }
 
-// TestValidateAccessToken_Rejects2FAToken is the core regression test for the
-// 2FA-bypass vulnerability: a 2FA challenge token is signed with the access
-// secret, so before the fix it validated as a full access token. It must now be
+// TestValidateAccessToken_Rejects2FAToken asserts a 2FA challenge token is
 // rejected on the access path.
 func TestValidateAccessToken_Rejects2FAToken(t *testing.T) {
 	manager := NewManager("access-secret-value", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
@@ -151,8 +145,6 @@ func TestValidateAccessToken_Rejects2FAToken(t *testing.T) {
 	}
 }
 
-// TestAccessToken_HasAccessTokenType documents the positive claim that lets the
-// server distinguish token purposes.
 func TestAccessToken_HasAccessTokenType(t *testing.T) {
 	manager := NewManager("access-secret-value", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	token, _ := manager.GenerateAccessToken(uuid.New())
@@ -201,7 +193,6 @@ func TestAccessTokenCannotValidateAsRefresh(t *testing.T) {
 
 	accessToken, _ := manager.GenerateAccessToken(userID)
 
-	// Access token should not validate as refresh (different secrets)
 	_, err := manager.ValidateRefreshToken(accessToken)
 	if err == nil {
 		t.Error("Access token should not validate as refresh token")

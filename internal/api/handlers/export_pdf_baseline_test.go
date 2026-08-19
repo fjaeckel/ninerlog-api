@@ -29,9 +29,8 @@ func testBaseline() *models.FlightBaseline {
 	}
 }
 
-// TestBaselineApplies pins the "nothing to carry forward" cases: no baseline
-// at all and a baseline recorded with every figure zero must both render like
-// a logbook that has never had one, disclosure notes included.
+// TestBaselineApplies asserts a nil baseline and an all-zero baseline both
+// render as "no baseline", disclosure notes included.
 func TestBaselineApplies(t *testing.T) {
 	if baselineApplies(nil) {
 		t.Error("nil baseline should not apply")
@@ -43,17 +42,14 @@ func TestBaselineApplies(t *testing.T) {
 	if !baselineApplies(testBaseline()) {
 		t.Error("populated baseline should apply")
 	}
-	// A single non-zero figure is enough — a pilot may carry forward landings
-	// or night time without a block-time total.
 	if !baselineApplies(&models.FlightBaseline{LandingsNight: 1}) {
 		t.Error("baseline with a single non-zero figure should apply")
 	}
 }
 
-// TestEASATotalsAddBaseline verifies the EASA opening balance: every column a
-// baseline records is seeded, and the columns it does not record (the
-// single-/multi-engine split and FSTD session time) stay at zero rather than
-// being invented.
+// TestEASATotalsAddBaseline asserts every column a baseline records is
+// seeded, and the single-/multi-engine split and FSTD session time stay at
+// zero.
 func TestEASATotalsAddBaseline(t *testing.T) {
 	b := testBaseline()
 	var got easaTotals
@@ -82,10 +78,8 @@ func TestEASATotalsAddBaseline(t *testing.T) {
 	}
 }
 
-// TestFAATotalsAddBaseline verifies the FAA opening balance. A baseline's IFR
-// figure is one number and cannot be split into actual and simulated
-// instrument time, and approaches and holds are not recorded at all, so those
-// four columns stay at zero.
+// TestFAATotalsAddBaseline asserts actual/simulated instrument time,
+// approaches and holds stay at zero.
 func TestFAATotalsAddBaseline(t *testing.T) {
 	b := testBaseline()
 	var got faaTotals
@@ -163,8 +157,6 @@ func TestBaselineNotes(t *testing.T) {
 		}
 	}
 
-	// A baseline that records hours but no flight count must not claim "over
-	// 0 flights".
 	noCount := testBaseline()
 	noCount.TotalFlights = 0
 	if strings.Contains(baselineSummaryNote(noCount), "0 flights") {
@@ -188,16 +180,14 @@ func renderedText(t *testing.T, doc *fpdf.Fpdf) string {
 	return buf.String()
 }
 
-// TestBaselineReachesLogbookBalances is the end-to-end check that the opening
-// balance is wired into the rendered sheets and not just into the accumulator:
-// a carried-forward co-pilot figure has to show up in the totals block of the
-// logbook pages themselves, not only on the summary page.
+// TestBaselineReachesLogbookBalances asserts a carried-forward co-pilot
+// figure appears in the totals block of the logbook pages, not only the
+// summary page.
 func TestBaselineReachesLogbookBalances(t *testing.T) {
 	flights := buildSamplePDFFlights(4)
 	g := geometryFor("a4")
 
-	// 61 h 11 m of co-pilot time: a value no sample flight produces, so every
-	// occurrence in the output comes from the carried-forward balance.
+	// 61 h 11 m of co-pilot time: a value no sample flight produces.
 	b := &models.FlightBaseline{
 		BaselineDate: time.Date(2019, 3, 12, 0, 0, 0, 0, time.UTC),
 		SICMinutes:   3_671,
@@ -261,9 +251,8 @@ func TestBaselineDoesNotChangePagination(t *testing.T) {
 	}
 }
 
-// TestBaselineEmptyLogbook covers the pilot who has just signed up: no logged
-// flights at all, but decades of prior experience to carry forward. The export
-// must still be a valid one-page summary.
+// TestBaselineEmptyLogbook asserts a baseline with no logged flights still
+// renders a valid one-page summary.
 func TestBaselineEmptyLogbook(t *testing.T) {
 	g := geometryFor("a4")
 	b := testBaseline()

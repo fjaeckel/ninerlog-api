@@ -8,15 +8,9 @@ import (
 	"testing"
 )
 
-// The e2e stack runs in the default local-credential mode (no OIDC_ISSUER),
-// which is the configuration ninerlog.com and every fresh self-hosted install
-// use. These tests lock in that default: the capability probe must advertise
-// local sign-in, the OIDC endpoints must exist but stay closed, and none of
-// them may become a way in.
-//
-// The OIDC flow itself is covered at unit level against a fake provider
-// (internal/service/oidc_test.go) — an e2e stack cannot mint ID tokens for a
-// real issuer.
+// The e2e stack runs in local-credential mode (no OIDC_ISSUER). These tests
+// cover that default: the capability probe advertises local sign-in and the
+// OIDC endpoints exist but stay closed.
 
 func TestAuthProvidersProbe(t *testing.T) {
 	c := NewE2EClient(t)
@@ -69,7 +63,7 @@ func TestOIDCEndpointsClosedInLocalMode(t *testing.T) {
 	t.Run("exchange", func(t *testing.T) {
 		resp := c.POST("/auth/oidc/exchange", map[string]any{"code": "anything"})
 		assertStatus(t, resp, http.StatusServiceUnavailable)
-		// A disabled feature must not be a token oracle.
+		// A disabled exchange returns no token material.
 		if body := string(resp.Body); strings.Contains(body, "accessToken") {
 			t.Errorf("exchange returned token material while disabled: %s", body)
 		}
@@ -77,8 +71,6 @@ func TestOIDCEndpointsClosedInLocalMode(t *testing.T) {
 }
 
 func TestLocalAuthStillWorksWithoutOIDC(t *testing.T) {
-	// The mirror of the OIDC-mode gate: with no provider configured, the
-	// ordinary login path must be untouched by any of this.
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("oidc-local-mode"), "SecurePass123!", "Local Mode")
 

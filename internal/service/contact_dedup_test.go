@@ -261,8 +261,7 @@ func TestCrewLinker_CachesAcrossFlights(t *testing.T) {
 	svc, repo := setupContactServiceWithRepo()
 	ctx := context.Background()
 
-	// An import walks many flights flown with the same instructor. The shared
-	// linker must not re-query for every one of them.
+	// The shared linker must not re-query for a repeated name.
 	linker := svc.NewCrewLinker(uuid.New())
 	for i := 0; i < 25; i++ {
 		members := []models.FlightCrewMember{{Name: "Hans Müller", Role: models.CrewRoleInstructor}}
@@ -323,9 +322,7 @@ func TestExportVCard_EscapesSeparatorsAndNewlines(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
 
-	// A name carrying vCard separators and a line break. If these reach the
-	// output unescaped, the note ends the NOTE property and the rest is parsed
-	// as vCard properties of its own.
+	// A name carrying vCard separators and a line break.
 	notes := "Line one\r\nEND:VCARD\r\nBEGIN:VCARD\r\nFN:Injected"
 	contact := &models.Contact{UserID: userID, Name: "Doe, John; Jr.", Notes: &notes}
 	if err := svc.CreateContact(ctx, contact); err != nil {
@@ -338,9 +335,8 @@ func TestExportVCard_EscapesSeparatorsAndNewlines(t *testing.T) {
 	}
 	card := string(out)
 
-	// The injected text may appear inside a property value — escaped, it is
-	// inert. What must not happen is it appearing as a content line of its own,
-	// which is what a parser acts on.
+	// The injected text may appear escaped inside a property value; it must
+	// never appear as a content line of its own.
 	begins, ends := 0, 0
 	for _, line := range strings.Split(card, "\r\n") {
 		switch line {
@@ -366,8 +362,7 @@ func TestExportVCard_FoldsLongLinesOnRuneBoundaries(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
 
-	// Multi-byte throughout, so a byte-counted fold lands mid-rune unless the
-	// split point is walked back. 98 octets: long enough to fold, short enough
+	// Multi-byte throughout; 98 octets — long enough to fold, short enough
 	// for the 100-byte name limit.
 	longName := strings.Repeat("Müller", 14)
 	if err := svc.CreateContact(ctx, &models.Contact{UserID: userID, Name: longName}); err != nil {

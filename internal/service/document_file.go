@@ -18,17 +18,15 @@ import (
 )
 
 var (
-	// ErrDocumentFilesDisabled is returned from every image endpoint when the
-	// feature is switched off (DOCUMENT_FILES_ENABLED=false). It covers reads
-	// as well as writes: serving multi-megabyte blobs is itself the bandwidth
-	// half of the abuse surface an operator turns this off to close. Stored
-	// rows are left untouched and become reachable again when it is turned
-	// back on.
+	// ErrDocumentFilesDisabled is returned from every image endpoint — reads
+	// included — when the feature is switched off (DOCUMENT_FILES_ENABLED=
+	// false). Stored rows are left untouched and become reachable again when
+	// it is turned back on.
 	ErrDocumentFilesDisabled = errors.New("document image uploads are disabled on this server")
 
 	// ErrDocumentFileNotFound covers both "no such image" and "that image
-	// belongs to a different document or user" — the caller cannot tell them
-	// apart, so an id cannot be probed through someone else's URL.
+	// belongs to a different document or user"; the caller cannot tell them
+	// apart.
 	ErrDocumentFileNotFound = errors.New("document image not found")
 
 	// ErrDocumentSubjectNotFound means the licence or credential the image
@@ -45,11 +43,9 @@ var (
 
 // DocumentFileService owns reference photos attached to licences and
 // credentials: the feature switch, upload validation, ownership checks and the
-// per-document cap.
-//
-// Every method resolves the subject through the licence/credential repository
-// first. That both proves ownership and means an image can never be addressed
-// except through the document it belongs to.
+// per-document cap. Every method resolves the subject through the
+// licence/credential repository first; an image is only addressable through
+// the document it belongs to.
 type DocumentFileService struct {
 	imageRepo      repository.DocumentFileRepository
 	licenseRepo    repository.LicenseRepository
@@ -72,12 +68,11 @@ func NewDocumentFileService(
 }
 
 // Enabled reports whether the feature is switched on. Handlers use it to
-// answer GET /features so a client can hide the UI instead of discovering the
-// 403 by uploading.
+// answer GET /features.
 func (s *DocumentFileService) Enabled() bool { return s.enabled }
 
 // UploadInput is one candidate image as it arrives from the handler. Data is
-// the raw file; ContentType is *derived* from it, never taken from the
+// the raw file; the content type is derived from it, never taken from the
 // client's declared part header.
 type UploadInput struct {
 	Data     []byte
@@ -86,8 +81,7 @@ type UploadInput struct {
 }
 
 // verifySubject proves the caller owns the licence/credential the request
-// addresses. Both misses collapse to ErrDocumentSubjectNotFound so a
-// non-owner learns nothing beyond "not yours".
+// addresses. Both misses collapse to ErrDocumentSubjectNotFound.
 func (s *DocumentFileService) verifySubject(ctx context.Context, userID uuid.UUID, subject models.DocumentSubjectType, subjectID uuid.UUID) error {
 	switch subject {
 	case models.DocumentSubjectLicense:
@@ -133,8 +127,8 @@ func (s *DocumentFileService) Upload(ctx context.Context, userID uuid.UUID, subj
 		return nil, err
 	}
 
-	// Width and height are nil for formats without intrinsic pixel dimensions
-	// (PDF), and are passed through as such rather than stored as zeroes.
+	// Width and height are nil for formats without intrinsic pixel
+	// dimensions (PDF).
 	img := &models.DocumentFile{
 		UserID:      userID,
 		ContentType: contentType,
@@ -165,8 +159,7 @@ func (s *DocumentFileService) Upload(ctx context.Context, userID uuid.UUID, subj
 		return nil, err
 	}
 
-	// The stored payload is not part of the create response; drop it so a
-	// caller cannot accidentally serialize megabytes back out.
+	// The stored payload is not part of the create response.
 	img.Data = nil
 	return img, nil
 }
@@ -218,14 +211,9 @@ func (s *DocumentFileService) Delete(ctx context.Context, userID uuid.UUID, subj
 	return nil
 }
 
-// inspectFile decides whether a byte slice is something we are willing to
-// store, and returns its true content type and (for images) its dimensions.
-//
-// The declared Content-Type of the multipart part is ignored entirely: it is
-// attacker-controlled, and the only thing that matters is what the bytes
-// actually are — because those same bytes get served back to a browser later.
-// Sniffing pins the format; what happens next depends on which format it is,
-// because the two families offer very different guarantees.
+// inspectFile decides whether a byte slice is storable and returns its
+// sniffed content type and (for images) its dimensions. The declared
+// Content-Type of the multipart part is ignored entirely.
 func inspectFile(data []byte) (contentType string, width, height *int, err error) {
 	if len(data) == 0 {
 		return "", nil, nil, ErrDocumentFileEmpty
@@ -246,43 +234,25 @@ func inspectFile(data []byte) (contentType string, width, height *int, err error
 		if err := inspectPDF(data); err != nil {
 			return "", nil, nil, err
 		}
-		// A PDF has no single intrinsic pixel size — pages carry their own
-		// dimensions in points — so width/height stay null rather than being
-		// invented.
+		// A PDF has no single intrinsic pixel size; width/height stay null.
 		return sniffed, nil, nil, nil
 	default:
 		return "", nil, nil, ErrDocumentFileUnsupported
 	}
 }
 
-// inspectImage verifies a raster image and returns its declared dimensions.
-//
-// DecodeConfig requires the header to parse as the sniffed format, and the
-// header's declared dimensions are capped, so a decompression bomb is refused
-// without ever allocating its pixels.
-//
-// This validates the HEADER, not the whole file. DecodeConfig stops at the
-// PNG IHDR / JPEG SOF, so a valid header followed by arbitrary bytes — or by
-// nothing at all — is accepted and stored verbatim. That is a deliberate
-// trade: a full image.Decode is the only thing that proves every byte, and it
-// must allocate the entire pixel buffer, which is exactly the cost the
-// dimension cap exists to avoid.
-//
-// Serving is what makes that acceptable. The response Content-Type is the
-// sniffed value, never the uploader's, X-Content-Type-Options: nosniff is set
-// on every response, and the download requires a bearer token — so a browser
-// can neither navigate to these bytes nor reinterpret them as anything but an
-// image. The residual is storage: a caller can park arbitrary bytes behind a
-// valid header, bounded by the 5 MB × 5-per-document caps and attributable to
-// their account. See TestDocumentFileUpload_ValidatesTheHeaderNotTheWholeFile.
+// inspectImage verifies a raster image header and returns its declared
+// dimensions. It validates the HEADER, not the whole file: the header must
+// parse as the sniffed format and its declared dimensions must be within the
+// pixel cap; a valid header followed by arbitrary bytes is accepted and
+// stored verbatim. See
+// TestDocumentFileUpload_ValidatesTheHeaderNotTheWholeFile.
 func inspectImage(data []byte, sniffed string) (width, height int, err error) {
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		return 0, 0, ErrDocumentFileCorrupt
 	}
-	// The decoder that claimed the file must be the one the sniffed type
-	// implies — otherwise the bytes are a polyglot and the two consumers
-	// (browser and server) would disagree about what they hold.
+	// The decoder that claimed the file must match the sniffed type.
 	if "image/"+format != sniffed {
 		return 0, 0, ErrDocumentFileUnsupported
 	}
@@ -295,24 +265,9 @@ func inspectImage(data []byte, sniffed string) (width, height int, err error) {
 	return cfg.Width, cfg.Height, nil
 }
 
-// inspectPDF applies the only structural check a PDF affords us without a
-// parser: the %PDF- signature at the front and a %%EOF trailer at the end.
-//
-// This is deliberately weaker than the image path and it is worth being blunt
-// about why. Nothing in the standard library parses PDF, and pulling in a
-// third-party parser to inspect untrusted input would add attack surface
-// rather than remove it. So this rejects the honest mistakes — a truncated
-// download, a renamed archive, a text file with the wrong extension — and
-// nothing more. A structurally valid PDF carrying JavaScript or an embedded
-// payload is stored.
-//
-// What contains that is the serving path, not this function: PDFs go out with
-// Content-Disposition: attachment (see models.ContentTypeIsInlineSafe), behind
-// nosniff and a bearer token, so nothing renders them inside our origin.
-//
-// The trailer is looked for in the last few KB rather than at the very end,
-// because a linearized or incrementally-updated PDF legitimately carries bytes
-// after its final %%EOF.
+// inspectPDF checks structural markers only: the %PDF- signature at the front
+// and a %%EOF trailer within the last few KB. A structurally valid PDF
+// carrying JavaScript or an embedded payload is stored.
 func inspectPDF(data []byte) error {
 	if !bytes.HasPrefix(data, models.PDFMagic) {
 		return ErrDocumentFileUnsupported
@@ -328,22 +283,19 @@ func inspectPDF(data []byte) error {
 }
 
 // pdfTrailerSearchWindow is how far back from the end of the file to look for
-// %%EOF. Generous enough for the trailing bytes a linearized or incrementally
-// updated PDF appends, small enough that the scan is trivial.
+// %%EOF.
 const pdfTrailerSearchWindow = 4096
 
 // sanitizeFilename reduces a client-supplied filename to a display-safe
-// basename. It is never used to build a path — it exists so the UI can show
-// "licence-front.jpg" — but it still gets stripped of directory components
-// and control characters so a stored name cannot smuggle a traversal sequence
-// or a terminal escape into whatever renders it later.
+// basename, stripping directory components and control characters. It is
+// never used to build a path.
 func sanitizeFilename(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
-	// Cut Windows-style separators too: filepath.Base is a no-op on "\" when
-	// the server runs on Linux.
+	// Cut Windows-style separators too; filepath.Base only handles "/" on
+	// Linux.
 	if idx := strings.LastIndexAny(name, `/\`); idx >= 0 {
 		name = name[idx+1:]
 	}
@@ -361,8 +313,7 @@ func sanitizeFilename(name string) string {
 	return truncateRunes(name, models.MaxDocumentFileFilenameLen)
 }
 
-// truncateRunes caps a string at max runes (not bytes), so a cut never lands
-// mid-codepoint.
+// truncateRunes caps a string at max runes (not bytes).
 func truncateRunes(s string, max int) string {
 	runes := []rune(s)
 	if len(runes) <= max {

@@ -5,10 +5,8 @@ import (
 	"testing"
 )
 
-// Go's To4 only unwraps IPv4-MAPPED addresses (::ffff:a.b.c.d). NAT64
-// (64:ff9b::/96) and the deprecated IPv4-compatible form (::a.b.c.d) also carry
-// an IPv4 address, and neither IsLoopback nor IsPrivate sees through them — so
-// a destination like 64:ff9b::7f00:1 reached loopback past the guard.
+// NAT64 (64:ff9b::/96) and IPv4-compatible (::a.b.c.d) addresses embedding an
+// internal IPv4 address are blocked.
 func TestBlocked_EmbeddedIPv4Forms(t *testing.T) {
 	g := New(false) // private networks blocked, the production default
 
@@ -49,8 +47,7 @@ func TestBlocked_ReservedRanges(t *testing.T) {
 	}
 }
 
-// The guard must still permit ordinary public destinations, otherwise cloud
-// backups break entirely.
+// Ordinary public destinations are permitted.
 func TestAllowed_PublicDestinations(t *testing.T) {
 	g := New(false)
 	for _, addr := range []string{
@@ -65,8 +62,8 @@ func TestAllowed_PublicDestinations(t *testing.T) {
 	}
 }
 
-// The opt-in switch for self-hosted NAS targets must still work, and must not
-// re-open loopback or link-local.
+// The opt-in switch permits private ranges without re-opening loopback or
+// link-local.
 func TestAllowPrivate_StillBlocksLoopbackAndMetadata(t *testing.T) {
 	g := New(true)
 	if !g.Allowed(net.ParseIP("192.168.1.10")) {
@@ -79,8 +76,7 @@ func TestAllowPrivate_StillBlocksLoopbackAndMetadata(t *testing.T) {
 	}
 }
 
-// A proxy configured in the environment would make the Control hook validate
-// the PROXY's address instead of the user-supplied target, voiding the guard.
+// HTTPTransport never consults environment proxies.
 func TestHTTPTransport_DoesNotUseEnvironmentProxy(t *testing.T) {
 	if tr := New(false).HTTPTransport(); tr.Proxy != nil {
 		t.Error("HTTPTransport must not use a proxy: the SSRF guard validates the dialled address, " +

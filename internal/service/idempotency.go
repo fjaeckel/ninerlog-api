@@ -17,30 +17,20 @@ import (
 // Defaults for idempotent-write bookkeeping. All three are overridable at
 // startup (IDEMPOTENCY_TTL, IDEMPOTENCY_LEASE, IDEMPOTENCY_MAX_RESPONSE_BYTES).
 const (
-	// DefaultIdempotencyTTL is how long a key stays replayable. A day covers
-	// the realistic offline window — a flight logged on a phone with no
-	// signal, replayed once the aircraft is back on the ground — without
-	// keeping response bodies around indefinitely.
+	// DefaultIdempotencyTTL is how long a key stays replayable.
 	DefaultIdempotencyTTL = 24 * time.Hour
 
 	// DefaultIdempotencyLease is how long an in-progress claim is honoured
-	// before another request may take it over. It must exceed the request
-	// timeout (15s) so a slow-but-alive request is never displaced, and stay
-	// short enough that a crashed process does not wedge a key for the whole
-	// retention window.
+	// before another request may take it over. Must exceed the request
+	// timeout (15s).
 	DefaultIdempotencyLease = 60 * time.Second
 
 	// DefaultIdempotencyMaxResponseBytes caps what is stored per record.
-	// Mutating endpoints return a single entity or a short summary; the cap
-	// exists so an outlier (a large import summary, a PDF) cannot turn this
-	// table into a blob store.
 	DefaultIdempotencyMaxResponseBytes = 256 << 10
 )
 
 // ErrIdempotencyUnavailable is returned when the replay store cannot be
-// reached. Callers must fail the request rather than execute it: the client
-// asked for an exactly-once guarantee, and silently downgrading to
-// at-least-once is how duplicate logbook entries get created.
+// reached. Callers must fail the request rather than execute it.
 var ErrIdempotencyUnavailable = errors.New("idempotency store unavailable")
 
 // IdempotencyOutcome is the verdict on a claim attempt.
@@ -60,8 +50,7 @@ const (
 	IdempotencyInProgress
 
 	// IdempotencyMismatch means the key was used before with a different
-	// request. Almost always a client bug (a reused key, or a key derived
-	// from too little of the payload).
+	// request.
 	IdempotencyMismatch
 
 	// IdempotencyNotReplayable means the original request completed but its
@@ -124,12 +113,11 @@ func NewIdempotencyService(repo repository.IdempotencyRepository, ttl, lease tim
 func (s *IdempotencyService) MaxResponseBytes() int { return s.maxResponseBytes }
 
 // Begin claims the key for this request, or reports why the request must not
-// run. requestHash fingerprints the request so a key reused for a different
-// payload is refused instead of silently answered with the wrong response.
+// run. requestHash fingerprints the request; a key reused for a different
+// payload is refused.
 func (s *IdempotencyService) Begin(ctx context.Context, userID uuid.UUID, key string, requestHash []byte) (IdempotencyClaim, error) {
-	// Postgres stores TIMESTAMPTZ at microsecond precision. Truncate here so
-	// the value we hand back as a fencing token compares equal to the one
-	// that comes out of the database.
+	// Truncate to Postgres's TIMESTAMPTZ microsecond precision; the value is
+	// compared as a fencing token.
 	now := s.now().Truncate(time.Microsecond)
 
 	rec := &models.IdempotencyRecord{
@@ -148,9 +136,7 @@ func (s *IdempotencyService) Begin(ctx context.Context, userID uuid.UUID, key st
 		return IdempotencyClaim{Outcome: IdempotencyClaimed, ClaimedAt: now}, nil
 	}
 
-	// A key that has already been answered for a *different* request is a
-	// client bug, and the check has to come first: replaying the stored
-	// response would answer a question nobody asked.
+	// The mismatch check comes before any replay.
 	if !bytes.Equal(existing.RequestHash, requestHash) {
 		return IdempotencyClaim{Outcome: IdempotencyMismatch}, nil
 	}
@@ -172,10 +158,9 @@ func (s *IdempotencyService) Begin(ctx context.Context, userID uuid.UUID, key st
 
 // Finish stores the response against a claim so retries replay it.
 //
-// A response the caller could not capture — signalled with Status 0 — or one
-// larger than the cap is recorded as completed with nothing to replay: the key
-// stays consumed (re-executing would duplicate the write) but a retry is told
-// the response is gone rather than handed a truncated one.
+// A response the caller could not capture (signalled with Status 0), or one
+// larger than the cap, is recorded as completed with nothing to replay: the
+// key stays consumed and a retry is told the response is gone.
 func (s *IdempotencyService) Finish(ctx context.Context, userID uuid.UUID, key string, claimedAt time.Time, resp IdempotentResponse) error {
 	completedAt := s.now().Truncate(time.Microsecond)
 	rec := &models.IdempotencyRecord{
@@ -194,18 +179,14 @@ func (s *IdempotencyService) Finish(ctx context.Context, userID uuid.UUID, key s
 	return s.repo.Complete(ctx, rec)
 }
 
-// Abandon drops the claim, leaving the key free for a genuine retry. Used
-// when the request failed in a way that says nothing about whether it should
-// be repeated — a server error, or a panic.
+// Abandon drops the claim, leaving the key free for a genuine retry. Used on
+// a server error or a panic.
 func (s *IdempotencyService) Abandon(ctx context.Context, userID uuid.UUID, key string, claimedAt time.Time) error {
 	return s.repo.Release(ctx, userID, key, claimedAt)
 }
 
 // StartReaper deletes expired records on a timer until ctx is cancelled.
-//
-// Hygiene only: Begin takes over any record past its expires_at, so a stopped
-// reaper cannot make a stale key behave incorrectly — it only lets dead rows
-// accumulate.
+// Hygiene only: Begin takes over any record past its expires_at.
 func (s *IdempotencyService) StartReaper(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
 		interval = time.Hour
@@ -235,7 +216,6 @@ func (s *IdempotencyService) StartReaper(ctx context.Context, interval time.Dura
 }
 
 // IdempotencyStatus maps an outcome to the HTTP status a client should see.
-// Kept next to the outcomes so the transport layer does not re-derive it.
 func IdempotencyStatus(o IdempotencyOutcome) int {
 	switch o {
 	case IdempotencyInProgress:

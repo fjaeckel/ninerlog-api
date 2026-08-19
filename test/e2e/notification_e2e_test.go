@@ -498,8 +498,7 @@ func TestNotificationEmailDedup(t *testing.T) {
 	email := uniqueEmail("notif-email-dedup")
 	registerAndLogin(t, c, email, "SecurePass123!", "Dedup")
 
-	// Use a single warning day to isolate dedup behavior
-	// (multiple warning days would each trigger separately — that's correct behavior)
+	// A single warning day isolates dedup behavior.
 	c.PATCH("/users/me/notifications", map[string]interface{}{
 		"emailEnabled":      true,
 		"enabledCategories": []string{"credential_medical"},

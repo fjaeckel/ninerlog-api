@@ -1,4 +1,4 @@
-package currency
+package postgres
 
 import (
 	"context"
@@ -6,20 +6,23 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/google/uuid"
 )
 
-// postgresFlightDataProvider implements FlightDataProvider using PostgreSQL
-type postgresFlightDataProvider struct {
+// currencyFlightDataProvider implements currency.FlightDataProvider — the
+// aggregate flight reads the regulatory currency evaluators run on.
+type currencyFlightDataProvider struct {
 	db *sql.DB
 }
 
-// NewFlightDataProvider creates a FlightDataProvider backed by PostgreSQL
-func NewFlightDataProvider(db *sql.DB) FlightDataProvider {
-	return &postgresFlightDataProvider{db: db}
+// NewCurrencyFlightDataProvider creates a currency.FlightDataProvider backed
+// by PostgreSQL.
+func NewCurrencyFlightDataProvider(db *sql.DB) currency.FlightDataProvider {
+	return &currencyFlightDataProvider{db: db}
 }
 
-func (p *postgresFlightDataProvider) GetProgressByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (*Progress, error) {
+func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (*currency.Progress, error) {
 	query := `
 		SELECT
 			COUNT(*) as flights,
@@ -38,7 +41,7 @@ func (p *postgresFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 		WHERE f.user_id = $1 AND a.aircraft_class = $2 AND f.date >= $3
 	`
 
-	progress := &Progress{}
+	progress := &currency.Progress{}
 	err := p.db.QueryRowContext(ctx, query, userID, string(classType), since).Scan(
 		&progress.Flights,
 		&progress.TotalMinutes,
@@ -58,7 +61,7 @@ func (p *postgresFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 	return progress, nil
 }
 
-func (p *postgresFlightDataProvider) GetProgressAll(ctx context.Context, userID uuid.UUID, since time.Time) (*Progress, error) {
+func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID uuid.UUID, since time.Time) (*currency.Progress, error) {
 	query := `
 		SELECT
 			COUNT(*) as flights,
@@ -76,7 +79,7 @@ func (p *postgresFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 		WHERE user_id = $1 AND date >= $2
 	`
 
-	progress := &Progress{}
+	progress := &currency.Progress{}
 	err := p.db.QueryRowContext(ctx, query, userID, since).Scan(
 		&progress.Flights,
 		&progress.TotalMinutes,
@@ -96,7 +99,7 @@ func (p *postgresFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 	return progress, nil
 }
 
-func (p *postgresFlightDataProvider) GetLastFlightReview(ctx context.Context, userID uuid.UUID) (*time.Time, error) {
+func (p *currencyFlightDataProvider) GetLastFlightReview(ctx context.Context, userID uuid.UUID) (*time.Time, error) {
 	query := `
 		SELECT date FROM flights
 		WHERE user_id = $1 AND is_flight_review = true
@@ -114,12 +117,11 @@ func (p *postgresFlightDataProvider) GetLastFlightReview(ctx context.Context, us
 	return &reviewDate, nil
 }
 
-func (p *postgresFlightDataProvider) GetLastProficiencyCheck(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (*time.Time, error) {
+func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (*time.Time, error) {
 	var query string
 	var args []interface{}
 
-	// IR is a rating type, not an aircraft class — prof checks for IR can be on any aircraft.
-	// Skip the aircraft class filter for IR (FCL.625.A is cross-class).
+	// IR skips the aircraft-class filter (FCL.625.A is cross-class).
 	if classType == models.ClassTypeIR {
 		query = `
 			SELECT date FROM flights
@@ -150,7 +152,7 @@ func (p *postgresFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 	return &checkDate, nil
 }
 
-func (p *postgresFlightDataProvider) GetLaunchCounts(ctx context.Context, userID uuid.UUID, since time.Time) (map[string]int, error) {
+func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID uuid.UUID, since time.Time) (map[string]int, error) {
 	query := `
 		SELECT launch_method, COUNT(*) as launches
 		FROM flights

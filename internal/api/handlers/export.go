@@ -32,8 +32,7 @@ func flightChronoTime(f *models.Flight) string {
 }
 
 // sortFlightsChronological sorts flights ascending by Date, then by
-// off-block / departure time so that the first flight of a day appears
-// first in exports. Falls back to flight ID for a stable order.
+// off-block / departure time. Falls back to flight ID for a stable order.
 func sortFlightsChronological(flights []*models.Flight) {
 	sort.SliceStable(flights, func(i, j int) bool {
 		a, b := flights[i], flights[j]
@@ -53,17 +52,8 @@ func sortFlightsChronological(flights []*models.Flight) {
 // return can also lead into one once the sheet re-parses the cell.
 const csvFormulaLeaders = "=+-@\t\r"
 
-// neutralizeCSVCell defuses spreadsheet formula injection (CWE-1236).
-//
-// Logbook text is user-controlled (remarks, endorsements, PIC and instructor
-// names, registrations) and can also arrive from a third party via CSV import.
-// EASA/FAA exports exist specifically to be handed to an examiner or authority,
-// so a cell like `=HYPERLINK("http://evil.test")` or `@SUM(...)` would execute
-// on the recipient's machine when they open the file.
-//
-// Prefixing with an apostrophe is the conventional defence: spreadsheet
-// applications treat the value as literal text and do not display the
-// apostrophe itself.
+// neutralizeCSVCell defuses spreadsheet formula injection by prefixing a
+// leading formula character with an apostrophe.
 func neutralizeCSVCell(s string) string {
 	if s == "" || !strings.ContainsRune(csvFormulaLeaders, rune(s[0])) {
 		return s
@@ -71,12 +61,8 @@ func neutralizeCSVCell(s string) string {
 	return "'" + s
 }
 
-// csvWrite writes a record to the CSV writer, logging errors.
-// csv.Writer buffers errors internally, so writes after a failure are no-ops.
-//
-// Every cell is passed through neutralizeCSVCell here rather than at the call
-// sites, so all export formats (standard, EASA, FAA) are covered by
-// construction and a new column cannot reintroduce the injection.
+// csvWrite writes a record to the CSV writer, logging errors, passing every
+// cell through neutralizeCSVCell.
 func csvWrite(w *csv.Writer, record []string) {
 	safe := make([]string, len(record))
 	for i, field := range record {
@@ -125,12 +111,9 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
-	// Populate crew members so DisplayPICName can resolve the instructor
-	// (PIC of record on Dual flights) from the flight_crew_members table.
 	h.attachCrewMembers(c.Request.Context(), flights)
 	sortFlightsChronological(flights)
 
-	// Fetch user preferences for formatting
 	prefs := exportPrefs{DateFormat: "DD.MM.YYYY", DecimalSeparator: "dot"}
 	userName := ""
 	if user, err := h.authService.GetUserByID(c.Request.Context(), userID); err == nil && user != nil {
@@ -301,10 +284,9 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, us
 		arrTime := fmtTimeCSV(f.OnBlockTime)
 		picName := flightrules.DisplayPICName(f, userName)
 
-		// SP-SE / SP-ME / MP from the centralised rule. CSV does not have
-		// access to the user's aircraft fleet here, so acClass is empty;
-		// the rule then defaults non-MP rows to SP-SE (CSV's historical
-		// behaviour). PDF export passes a real acClass to split SP-ME.
+		// SP-SE / SP-ME / MP from the centralised rule; acClass is empty
+		// (CSV has no access to the user's aircraft fleet here), defaulting
+		// non-MP rows to SP-SE.
 		spSEMin, spMEMin, mpMin := flightrules.RowTimes(f, "")
 		spSE, spME, mp := "", "", ""
 		if spSEMin > 0 {
@@ -417,7 +399,7 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 		return
 	}
 
-	// Gather all user data
+	// Gather all user data.
 	flights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 	h.attachCrewMembers(c.Request.Context(), flights)
 	sortFlightsChronological(flights)
@@ -425,7 +407,7 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 	licenses, _ := h.licenseService.ListLicenses(c.Request.Context(), userID)
 	credentials, _ := h.credentialService.ListCredentials(c.Request.Context(), userID)
 
-	// Class ratings per license
+	// Class ratings per license.
 	type licenseWithRatings struct {
 		License      interface{}   `json:"license"`
 		ClassRatings []interface{} `json:"classRatings"`

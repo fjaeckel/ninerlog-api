@@ -45,8 +45,7 @@ func (m *mockAircraftRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.A
 	if !exists {
 		return nil, repository.ErrNotFound
 	}
-	// Return a copy so callers mutating the result don't change stored state,
-	// matching the behavior of a real database-backed repository.
+	// Return a detached copy, matching a database-backed repository.
 	clone := *a
 	return &clone, nil
 }
@@ -188,9 +187,6 @@ func TestCreateAircraftCanonicalizesRegistration(t *testing.T) {
 	}
 }
 
-// A whitespace-only registration canonicalises to "", so the missing-
-// registration validation error must still fire — normalisation must not
-// mask it.
 func TestCreateAircraftWhitespaceRegistrationStillRequired(t *testing.T) {
 	svc := setupAircraftService()
 	ctx := context.Background()
@@ -210,9 +206,6 @@ func TestCreateAircraftWhitespaceRegistrationStillRequired(t *testing.T) {
 	}
 }
 
-// Canonicalising a legacy, un-hyphenated stored registration to its proper
-// notation is the same aircraft spelled correctly, not a rename — flights
-// must follow even when the caller didn't ask for a rename.
 func TestUpdateAircraftCanonicalizationIsNotARename(t *testing.T) {
 	repo := newMockAircraftRepo()
 	svc := service.NewAircraftService(repo)
@@ -223,7 +216,7 @@ func TestUpdateAircraftCanonicalizationIsNotARename(t *testing.T) {
 	repo.aircraft[id] = &models.Aircraft{
 		ID:           id,
 		UserID:       userID,
-		Registration: "DEABC", // legacy data stored before canonicalisation existed
+		Registration: "DEABC",
 		Type:         "C172",
 		Make:         "Cessna",
 		Model:        "172",
@@ -234,7 +227,7 @@ func TestUpdateAircraftCanonicalizationIsNotARename(t *testing.T) {
 	aircraft := &models.Aircraft{
 		ID:           id,
 		UserID:       userID,
-		Registration: "D-EABC", // same aircraft, spelled canonically
+		Registration: "D-EABC",
 		Type:         "C172",
 		Make:         "Cessna",
 		Model:        "172",
@@ -252,9 +245,6 @@ func TestUpdateAircraftCanonicalizationIsNotARename(t *testing.T) {
 	}
 }
 
-// A genuine rename (different aircraft mark, not just re-spelling) must NOT
-// repoint flights unless the caller explicitly asks for it — unchanged
-// existing behaviour, checked here with renameFlights=false.
 func TestUpdateAircraftGenuineRenameWithoutFlagLeavesFlights(t *testing.T) {
 	repo := newMockAircraftRepo()
 	svc := service.NewAircraftService(repo)

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,18 +16,8 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// prefixesReviewed is registration.LastReviewed as a date. The constant is a
-// string so scripts/check-registration-prefixes.py and the table itself can
-// share one literal; TestLastReviewedIsADate keeps it parseable.
+// prefixesReviewed is registration.LastReviewed parsed as a date.
 var prefixesReviewed, _ = time.Parse("2006-01-02", registration.LastReviewed)
-
-// scanCount scans a single count value from a query row, defaulting to 0 on error.
-func scanCount(row *sql.Row, dest *int) {
-	if err := row.Scan(dest); err != nil {
-		slog.Error("admin stats: count query failed", "error", err)
-		*dest = 0
-	}
-}
 
 // GetAdminStats implements GET /admin/stats
 func (h *APIHandler) GetAdminStats(c *gin.Context) {
@@ -37,57 +26,26 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 		return
 	}
 
-	var stats generated.AdminStats
-
-	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM users"), &stats.TotalUsers)
-	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flights"), &stats.TotalFlights)
-	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM aircraft"), &stats.TotalAircraft)
-	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM contacts"), &stats.TotalContacts)
-	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM credentials"), &stats.TotalCredentials)
-	scanCount(h.db.QueryRowContext(c.Request.Context(), "SELECT COUNT(*) FROM flight_imports"), &stats.TotalImports)
-
-	// Flights this month
-	monthStart := time.Now().Format("2006-01") + "-01"
-	scanCount(h.db.QueryRowContext(c.Request.Context(),
-		"SELECT COUNT(*) FROM flights WHERE created_at >= $1", monthStart,
-	), &stats.FlightsThisMonth)
-
-	// New users this week
-	weekAgo := time.Now().AddDate(0, 0, -7)
-	scanCount(h.db.QueryRowContext(c.Request.Context(),
-		"SELECT COUNT(*) FROM users WHERE created_at >= $1", weekAgo,
-	), &stats.NewUsersThisWeek)
-
-	// Locked accounts (locked_until in the future)
-	scanCount(h.db.QueryRowContext(c.Request.Context(),
-		"SELECT COUNT(*) FROM users WHERE locked_until IS NOT NULL AND locked_until > $1", time.Now(),
-	), &stats.LockedAccounts)
-
-	// Disabled accounts
-	scanCount(h.db.QueryRowContext(c.Request.Context(),
-		"SELECT COUNT(*) FROM users WHERE disabled = true",
-	), &stats.DisabledAccounts)
-
-	// Cloud backup destinations: total count + breakdown by provider.
-	// Always queryable since the table is part of the standard schema; an
-	// empty result simply yields total=0 and an empty byProvider map.
-	stats.CloudBackupDestinations.ByProvider = map[string]int{}
-	rows, err := h.db.QueryContext(c.Request.Context(),
-		"SELECT provider, COUNT(*) FROM backup_destinations GROUP BY provider")
+	adminStats, err := h.adminRepo.GetStats(c.Request.Context(), time.Now())
 	if err != nil {
-		slog.Error("admin stats: backup_destinations query failed", "error", err)
-	} else {
-		defer rows.Close()
-		for rows.Next() {
-			var provider string
-			var count int
-			if err := rows.Scan(&provider, &count); err != nil {
-				slog.Error("admin stats: backup_destinations scan failed", "error", err)
-				continue
-			}
-			stats.CloudBackupDestinations.ByProvider[provider] = count
-			stats.CloudBackupDestinations.Total += count
-		}
+		h.sendError(c, http.StatusInternalServerError, "Failed to load admin stats")
+		return
+	}
+
+	var stats generated.AdminStats
+	stats.TotalUsers = adminStats.TotalUsers
+	stats.TotalFlights = adminStats.TotalFlights
+	stats.TotalAircraft = adminStats.TotalAircraft
+	stats.TotalContacts = adminStats.TotalContacts
+	stats.TotalCredentials = adminStats.TotalCredentials
+	stats.TotalImports = adminStats.TotalImports
+	stats.FlightsThisMonth = adminStats.FlightsThisMonth
+	stats.NewUsersThisWeek = adminStats.NewUsersThisWeek
+	stats.LockedAccounts = adminStats.LockedAccounts
+	stats.DisabledAccounts = adminStats.DisabledAccounts
+	stats.CloudBackupDestinations.ByProvider = adminStats.BackupDestinationsByProvider
+	for _, count := range adminStats.BackupDestinationsByProvider {
+		stats.CloudBackupDestinations.Total += count
 	}
 
 	c.JSON(http.StatusOK, stats)
@@ -103,14 +61,16 @@ func (h *APIHandler) CleanupTokens(c *gin.Context) {
 	now := time.Now()
 
 	// Delete expired refresh tokens
-	result1, _ := h.db.ExecContext(c.Request.Context(),
-		"DELETE FROM refresh_tokens WHERE expires_at < $1 OR revoked = true", now)
-	refreshDeleted, _ := result1.RowsAffected()
+	refreshDeleted, err := h.adminRepo.DeleteExpiredRefreshTokens(c.Request.Context(), now)
+	if err != nil {
+		slog.Error("cleanup tokens: refresh token sweep failed", "error", err)
+	}
 
 	// Delete expired/used password reset tokens
-	result2, _ := h.db.ExecContext(c.Request.Context(),
-		"DELETE FROM password_reset_tokens WHERE expires_at < $1 OR used = true", now)
-	resetDeleted, _ := result2.RowsAffected()
+	resetDeleted, err := h.adminRepo.DeleteExpiredPasswordResetTokens(c.Request.Context(), now)
+	if err != nil {
+		slog.Error("cleanup tokens: password reset token sweep failed", "error", err)
+	}
 
 	// Soft-expire past-due pending signature requests (not hard-deleted —
 	// flight_signatures is an append-only audit trail).
@@ -202,11 +162,13 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	minutes := int(uptime.Minutes()) % 60
 	uptimeStr := fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
 
-	// Get migration version
-	var migrationVersion int
-	scanCount(h.db.QueryRowContext(c.Request.Context(),
-		"SELECT COALESCE(MAX(version), 0) FROM schema_migrations WHERE dirty = false",
-	), &migrationVersion)
+	// Get migration version (0 when it cannot be read — the config page is
+	// more useful degraded than dead).
+	migrationVersion, err := h.adminRepo.MigrationVersion(c.Request.Context())
+	if err != nil {
+		slog.Error("admin config: migration version query failed", "error", err)
+		migrationVersion = 0
+	}
 
 	// SMTP configured?
 	smtpConfigured := h.emailSender != nil
@@ -236,15 +198,12 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	documentFilesEnabled := h.documentFileService != nil && h.documentFileService.Enabled()
 
 	config := generated.AdminConfig{
-		AuthMode:            &authMode,
-		OidcIssuer:          oidcIssuer,
-		GoVersion:           runtime.Version(),
-		ServerUptime:        uptimeStr,
-		MigrationVersion:    migrationVersion,
-		AirportDatabaseSize: airports.Count(),
-		// The nationality mark table is vendored, not fetched, so its size and
-		// review date are the only way an operator can tell whether aircraft
-		// registrations are being normalised against a current ICAO list.
+		AuthMode:                     &authMode,
+		OidcIssuer:                   oidcIssuer,
+		GoVersion:                    runtime.Version(),
+		ServerUptime:                 uptimeStr,
+		MigrationVersion:             migrationVersion,
+		AirportDatabaseSize:          airports.Count(),
 		RegistrationPrefixCount:      registration.Count(),
 		RegistrationPrefixesReviewed: openapi_types.Date{Time: prefixesReviewed},
 		CorsOrigins:                  h.corsOrigins,
@@ -257,10 +216,8 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		DocumentFilesEnabled:         &documentFilesEnabled,
 	}
 
-	// The unverified-account lifecycle is only reported when it is actually
-	// running. Showing "30 days" on a deployment where nothing reaps would be
-	// worse than showing nothing — so when it is off, the reason is reported
-	// instead, and the timing is not.
+	// The unverified-account lifecycle timing is reported only when running;
+	// otherwise the disabled reason is reported instead.
 	enabled := h.unverifiedAccountService != nil
 	config.UnverifiedCleanupEnabled = &enabled
 	if enabled {

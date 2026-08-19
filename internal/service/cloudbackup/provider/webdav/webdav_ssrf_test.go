@@ -8,10 +8,8 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider"
 )
 
-// TestNew_BlocksSSRFToMetadata verifies the SSRF guard is wired into the
-// default provider constructor: a user-supplied base_url pointing at the cloud
-// metadata endpoint must be refused before any connection is made. Uses a
-// literal IP so no DNS lookup or network traffic occurs.
+// TestNew_BlocksSSRFToMetadata verifies the default provider refuses a
+// link-local base_url before any connection is made.
 func TestNew_BlocksSSRFToMetadata(t *testing.T) {
 	p := New() // default, guarded
 

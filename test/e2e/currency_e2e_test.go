@@ -151,7 +151,7 @@ func getReq(rc map[string]interface{}, name string) map[string]interface{} {
 func strPtr(s string) *string { return &s }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// LEGACY TESTS (preserved from original file)
+// GENERAL CURRENCY TESTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 func TestCurrencyStatus(t *testing.T) {
@@ -1783,9 +1783,9 @@ func TestFAA_FlightReview_Expiring(t *testing.T) {
 	licID := createLicenseCur(t, c, "FAA", "Private")
 	createRatingCur(t, c, licID, "SEP_LAND", nil)
 
-	// §61.56 uses calendar month math: expiry = last day of (review month + 24).
-	// Use 1st of 23 months ago so expiry is always last day of (now.Month + 1),
-	// i.e. 30-62 days away — safely within the 90-day "expiring" window.
+	// §61.56 calendar month math: expiry = last day of (review month + 24). A
+	// review on the 1st of 23 months ago puts expiry 30-62 days away, inside
+	// the 90-day "expiring" window.
 	review := time.Now().AddDate(0, -23, 0)
 	reviewDate := time.Date(review.Year(), review.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
 
@@ -2055,7 +2055,6 @@ func TestCurrency_MultipleAuthorities(t *testing.T) {
 		t.Errorf("Expected >= 2 ratings with multiple authorities, got %d", len(ratings))
 	}
 
-	// Log results for analysis
 	for _, r := range ratings {
 		rc := r.(map[string]interface{})
 		t.Logf("Authority: %s, ClassType: %s, Status: %s",

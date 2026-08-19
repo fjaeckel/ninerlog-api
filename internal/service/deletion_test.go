@@ -16,8 +16,7 @@ import (
 // oldest first.
 type mockDeletionRepo struct {
 	tombstones []*models.Deletion
-	// lastLimit / lastOffset record what the service asked for, so the tests
-	// can assert the paging clamps actually reach the query.
+	// lastLimit / lastOffset record what the service asked for.
 	lastLimit  int
 	lastOffset int
 }
@@ -206,10 +205,7 @@ func TestDeletionServiceListDeletions(t *testing.T) {
 	})
 }
 
-// A watermark older than retention means swept tombstones may be missing, so
-// the feed cannot be trusted as complete. Getting this wrong is the failure
-// mode the whole retention bound depends on: the client would keep syncing
-// incrementally and never learn about the deletes that were swept.
+// A watermark older than retention reports WatermarkExpired.
 func TestDeletionServiceWatermarkExpiry(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()

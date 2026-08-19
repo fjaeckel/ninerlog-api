@@ -9,9 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Licenses live in the in-package test file (the license mock is unexported
-// there), so their delta-sync coverage sits alongside it rather than in
-// updated_since_test.go.
+// License delta-sync coverage sits beside the unexported license mock.
 func TestListLicensesUpdatedSince(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
@@ -36,8 +34,7 @@ func TestListLicensesUpdatedSince(t *testing.T) {
 		t.Fatalf("got %d licenses, want only %s", len(got), fresh.LicenseNumber)
 	}
 
-	// A licence whose updatedAt equals the watermark is excluded: the client
-	// already has it, and returning it would loop forever.
+	// A licence whose updatedAt equals the watermark is excluded.
 	atBoundary, err := svc.ListLicensesUpdatedSince(ctx, userID, fresh.UpdatedAt)
 	if err != nil {
 		t.Fatalf("boundary list: %v", err)

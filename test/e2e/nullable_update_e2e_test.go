@@ -9,11 +9,9 @@ import (
 	"testing"
 )
 
-// TestNullableFieldsClearOnNull covers issue #160: update requests follow
-// JSON Merge Patch (RFC 7386) semantics — an explicit `null` clears a
-// nullable field, while omitting the field leaves it unchanged. Before the
-// fix, `null` was indistinguishable from "omitted" server-side, so nullable
-// fields (including dates) could never be cleared through the API.
+// TestNullableFieldsClearOnNull covers JSON Merge Patch (RFC 7386) semantics
+// on update requests: an explicit `null` clears a nullable field, while
+// omitting the field leaves it unchanged.
 func TestNullableFieldsClearOnNull(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("nullable-upd"), "SecurePass123!", "NullableUpd")
@@ -41,9 +39,8 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 			"offBlockTime": "08:00", "onBlockTime": "08:45", "landings": 1,
 		})
 		requireStatus(t, resp, http.StatusOK)
-		// f is decoded into fresh each time: a cleared field is omitted from the
-		// response JSON (omitempty on a nil pointer), not sent as null, so
-		// reusing a map here would leave the previous value's stale entry behind.
+		// Decode into a fresh map: a cleared field is omitted from the
+		// response JSON, not sent as null.
 		f = map[string]interface{}{}
 		resp.JSON(&f)
 		if f["remarks"] != "Original remarks" {
@@ -53,8 +50,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 			t.Errorf("omitted launchMethod should be unchanged, got %v", f["launchMethod"])
 		}
 
-		// Explicit null clears both — this is the launchMethod field the issue
-		// calls out by name: previously only the literal string "null" worked.
+		// Explicit null clears the fields.
 		resp = c.PUT(fmt.Sprintf("/flights/%s", fid), map[string]interface{}{
 			"date": today(), "aircraftReg": "D-ENUL", "aircraftType": "ASK21",
 			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
@@ -97,9 +93,8 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		// Omitting notes/aircraftClass on an unrelated update leaves them unchanged.
 		resp = c.PATCH(fmt.Sprintf("/aircraft/%s", acID), map[string]interface{}{"isActive": true})
 		requireStatus(t, resp, http.StatusOK)
-		// a is decoded into fresh each time: a cleared field is omitted from the
-		// response JSON (omitempty on a nil pointer), not sent as null, so
-		// reusing a map here would leave the previous value's stale entry behind.
+		// Decode into a fresh map: a cleared field is omitted from the
+		// response JSON, not sent as null.
 		a = map[string]interface{}{}
 		resp.JSON(&a)
 		if a["notes"] != "Club aircraft" || a["aircraftClass"] != "SEP_LAND" {
@@ -134,17 +129,15 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		// Omitting expiryDate/notes leaves them unchanged.
 		resp = c.PATCH(fmt.Sprintf("/credentials/%s", credID), map[string]interface{}{"issuingAuthority": "AME Smith"})
 		requireStatus(t, resp, http.StatusOK)
-		// cr is decoded into fresh each time: a cleared field is omitted from the
-		// response JSON (omitempty on a nil pointer), not sent as null, so
-		// reusing a map here would leave the previous value's stale entry behind.
+		// Decode into a fresh map: a cleared field is omitted from the
+		// response JSON, not sent as null.
 		cr = map[string]interface{}{}
 		resp.JSON(&cr)
 		if cr["expiryDate"] == nil || cr["notes"] != "Annual" {
 			t.Errorf("omitted fields should be unchanged, got expiryDate=%v notes=%v", cr["expiryDate"], cr["notes"])
 		}
 
-		// Before this fix a nullable date could not be cleared through the API
-		// at all (the issue's headline example).
+		// Explicit null clears the fields, including a nullable date.
 		resp = c.PATCH(fmt.Sprintf("/credentials/%s", credID), map[string]interface{}{
 			"expiryDate": nil, "notes": nil, "credentialNumber": nil,
 		})
@@ -181,16 +174,13 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		resp.JSON(&cr)
 		rid := cr["id"].(string)
 
-		// Regression check for the pre-existing bug this change also fixes:
-		// updating one field must not silently wipe issueDate/expiryDate that
-		// were not part of the request.
+		// Updating one field leaves issueDate/expiryDate unchanged.
 		resp = c.PATCH(fmt.Sprintf("/licenses/%s/ratings/%s", lid, rid), map[string]interface{}{
 			"notes": "Renewed",
 		})
 		requireStatus(t, resp, http.StatusOK)
-		// cr is decoded into fresh each time: a cleared field is omitted from the
-		// response JSON (omitempty on a nil pointer), not sent as null, so
-		// reusing a map here would leave the previous value's stale entry behind.
+		// Decode into a fresh map: a cleared field is omitted from the
+		// response JSON, not sent as null.
 		cr = map[string]interface{}{}
 		resp.JSON(&cr)
 		if !strings.HasPrefix(fmt.Sprint(cr["issueDate"]), "2023-01-15") {

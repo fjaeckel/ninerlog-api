@@ -13,8 +13,7 @@ func TestNormalize(t *testing.T) {
 		want    string
 		country string // expected ISO code; "" means the input must not match
 	}{
-		// EASA states: the hyphen is mandatory and gets inserted, moved or
-		// kept as needed.
+		// Hyphenating states.
 		{"german already canonical", "D-EABC", "D-EABC", "DE"},
 		{"german missing hyphen", "DEABC", "D-EABC", "DE"},
 		{"german lowercase", "d-eabc", "D-EABC", "DE"},
@@ -37,7 +36,7 @@ func TestNormalize(t *testing.T) {
 		{"czechia", "OKABC", "OK-ABC", "CZ"},
 		{"isle of man", "MABCD", "M-ABCD", "IM"},
 
-		// Non-hyphenating states: a hyphen the pilot typed is removed.
+		// Non-hyphenating states.
 		{"us canonical", "N12345", "N12345", "US"},
 		{"us with hyphen", "N-12345", "N12345", "US"},
 		{"us lowercase", "n123ab", "N123AB", "US"},
@@ -47,8 +46,7 @@ func TestNormalize(t *testing.T) {
 		{"japan alphanumeric", "JA01AA", "JA01AA", "JP"},
 		{"south korea", "HL-7747", "HL7747", "KR"},
 
-		// Hyphenating states with numeric registration marks — the reason
-		// the Annex 7 letter/digit rule is not enough on its own.
+		// Hyphenating states with numeric registration marks.
 		{"china", "B1234", "B-1234", "CN"},
 		{"taiwan", "B12345", "B-12345", "CN"},
 		{"hong kong", "BHKA", "B-HKA", "CN"},
@@ -74,14 +72,12 @@ func TestNormalize(t *testing.T) {
 		{"bahrain three-character mark", "A9CAA", "A9C-AA", "BH"},
 		{"laos four-character mark", "RDPL34123", "RDPL-34123", "LA"},
 
-		// The disambiguation that motivates the suffix patterns: a German
-		// glider whose registration mark starts with a digit that also names
-		// another state.
+		// German gliders, not the states whose marks their digits spell.
 		{"german glider not angola", "D-2345", "D-2345", "DE"},
 		{"german glider not cabo verde", "D4123", "D-4123", "DE"},
 		{"german glider not comoros", "D6789", "D-6789", "DE"},
 
-		// Unrecognised input is cleaned but never rewritten.
+		// Unrecognised input is cleaned, never rewritten.
 		{"simulator", "SIM", "SIM", ""},
 		{"fnpt", "FNPT2", "FNPT2", ""},
 		{"aircraft type in the wrong field", "B738", "B738", ""},
@@ -118,8 +114,7 @@ func TestNormalize(t *testing.T) {
 	}
 }
 
-// Normalising an already-normalised registration must be a no-op, or repeated
-// imports and recalculations would keep rewriting the same rows.
+// Normalising an already-normalised registration is a no-op.
 func TestNormalizeIsIdempotent(t *testing.T) {
 	for _, in := range []string{
 		"D-EABC", "N12345", "JA8089", "HL7747", "B-1234", "9XR-AA",
@@ -133,15 +128,10 @@ func TestNormalizeIsIdempotent(t *testing.T) {
 	}
 }
 
-// A normalised registration must still fit the 20-character registration
-// column. The longest mark is four characters and every suffix pattern caps
-// the registration mark at five, so the bound holds by construction — this
-// test keeps it holding as the table grows.
+// A normalised registration fits the 20-character registration column.
 func TestNormalizeStaysWithinColumnLength(t *testing.T) {
 	const maxRegistrationLength = 20
 	for _, e := range Entries() {
-		// The longest string this entry can produce is its mark, a hyphen,
-		// and the longest registration mark its pattern admits.
 		longest := len(e.Prefix) + 1 + 5
 		if longest > maxRegistrationLength {
 			t.Errorf("mark %q can normalise to %d characters, exceeding the %d-character column",
@@ -172,9 +162,7 @@ func TestTableIntegrity(t *testing.T) {
 	}
 }
 
-// Every entry must be reachable: a mark shadowed by a longer one that accepts
-// a superset of its registration marks could never win, which would silently
-// misattribute a whole country.
+// Every mark is reachable: no mark is fully shadowed by a longer one.
 func TestEveryMarkIsReachable(t *testing.T) {
 	for _, e := range Entries() {
 		sample, ok := sampleFor(e)
@@ -194,8 +182,7 @@ func TestEveryMarkIsReachable(t *testing.T) {
 	}
 }
 
-// sampleFor builds a registration that the entry's own pattern accepts, by
-// trying the registration-mark shapes the table actually uses.
+// sampleFor builds a registration the entry's own pattern accepts.
 func sampleFor(e Entry) (string, bool) {
 	candidates := []string{
 		"ABC", "ABCD", "AB", "1234", "12345", "123", "T1234", "HKA", "123A", "AA",
@@ -208,9 +195,8 @@ func sampleFor(e Entry) (string, bool) {
 	return "", false
 }
 
-// scripts/check-registration-prefixes.py discards all-digit cells when reading
-// an upstream list, because upstream carries allocation years in a column
-// beside the marks. That filter is only safe while no mark is all digits.
+// No mark is all digits; scripts/check-registration-prefixes.py relies on this
+// to discard allocation years when reading an upstream list.
 func TestEveryMarkHasALetter(t *testing.T) {
 	for _, e := range Entries() {
 		if !strings.ContainsAny(e.Prefix, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
@@ -220,9 +206,7 @@ func TestEveryMarkHasALetter(t *testing.T) {
 	}
 }
 
-// LastReviewed is reported to operators as a date via GET /admin/config, and
-// is the only signal that the vendored table may be stale — a typo would show
-// them the zero date.
+// LastReviewed parses as a date; GET /admin/config reports it as one.
 func TestLastReviewedIsADate(t *testing.T) {
 	if _, err := time.Parse("2006-01-02", LastReviewed); err != nil {
 		t.Errorf("LastReviewed = %q, want YYYY-MM-DD: %v", LastReviewed, err)

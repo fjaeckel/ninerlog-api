@@ -1,23 +1,12 @@
-// Package registration normalises aircraft registrations to their canonical
-// notation.
+// Package registration normalises aircraft registrations to the canonical
+// notation of their state of registry, looked up in the nationality mark
+// table in prefixes.go.
 //
-// A registration is a nationality mark followed by a registration mark. ICAO
-// Annex 7 requires the two to be separated by a hyphen when the registration
-// mark starts with a letter, which is why most of the world writes D-EABC,
-// G-ABCD or HB-PNT — but the United States, Japan and South Korea draw
-// numeric registration marks and run them together (N12345, JA8089, HL7747),
-// while China and Russia hyphenate numeric marks anyway (B-1234, RA-12345).
-// The notation therefore cannot be derived from the string; it has to be
-// looked up per state of registry. See prefixes.go for the table and its
-// sources.
+// A registration is only rewritten when its nationality mark is recognised
+// and the remainder matches the shape that state issues. Anything else is
+// returned uppercased and trimmed, otherwise unchanged.
 //
-// Normalisation is deliberately conservative. A registration is only
-// rewritten when its nationality mark is recognised *and* the rest of the
-// string has the shape that state issues. Anything else — a simulator
-// identifier, an aircraft type entered in the wrong field, a mark this table
-// has not caught up with — is returned uppercased and trimmed but otherwise
-// untouched, so the normaliser can never turn a value it does not understand
-// into a different value.
+// Design and maintenance: docs/AIRCRAFT_REGISTRATIONS.md.
 package registration
 
 import (
@@ -36,12 +25,10 @@ type Entry struct {
 	Country string
 	// CountryName is the English name of the state of registry.
 	CountryName string
-	// NoHyphen marks the states that write the nationality mark and the
-	// registration mark without a separator. The zero value — hyphenated —
-	// is the common case.
+	// NoHyphen marks states that write the two marks without a separator.
+	// The zero value is hyphenated.
 	NoHyphen bool
 	// Suffix constrains the registration mark; empty means defaultSuffix.
-	// See prefixes.go for when a pattern is worth spelling out.
 	Suffix string
 
 	re *regexp.Regexp
@@ -59,13 +46,11 @@ type Result struct {
 	// Entry is the matched nationality mark, zero when Matched is false.
 	Entry Entry
 	// Matched reports whether a nationality mark was recognised and the
-	// registration mark had the shape that state issues. When false, Value
-	// carries the input with only case and whitespace cleaned up.
+	// registration mark had the shape that state issues.
 	Matched bool
 }
 
-// matchOrder is entries sorted longest mark first, so "D2" is considered
-// before "D" and "9XR" before "9X". Built once at init.
+// matchOrder is entries sorted longest mark first. Built at init.
 var matchOrder []Entry
 
 // byPrefix indexes entries by nationality mark.
@@ -95,8 +80,7 @@ func init() {
 }
 
 // Normalize rewrites a registration into the canonical notation of its state
-// of registry. See the package comment for what happens to input it does not
-// recognise.
+// of registry, leaving unrecognised input uppercased and trimmed.
 func Normalize(raw string) Result {
 	cleaned := clean(raw)
 	bare := bareForm(cleaned)
@@ -128,9 +112,7 @@ func Lookup(prefix string) (Entry, bool) {
 	return e, ok
 }
 
-// Entries returns the nationality mark table, longest mark first. The
-// returned slice is a copy; the caller may not mutate the package's table
-// through it.
+// Entries returns a copy of the nationality mark table, longest mark first.
 func Entries() []Entry {
 	out := make([]Entry, len(matchOrder))
 	copy(out, matchOrder)
@@ -141,16 +123,13 @@ func Entries() []Entry {
 func Count() int { return len(matchOrder) }
 
 // clean uppercases, trims, and collapses internal whitespace runs to a single
-// space. This is the most that is done to input whose nationality mark is not
-// recognised, so it must never reorder or drop characters.
+// space. It never reorders or drops characters.
 func clean(raw string) string {
 	return strings.Join(strings.Fields(strings.ToUpper(raw)), " ")
 }
 
-// bareForm reduces a cleaned registration to the characters that carry
-// meaning, dropping the separators a pilot might type: hyphens of any dash
-// flavour, spaces, dots, slashes, underscores. The result is what the
-// nationality mark is matched against.
+// bareForm strips every separator from a cleaned registration, leaving the
+// alphanumerics the nationality mark is matched against.
 func bareForm(cleaned string) string {
 	var b strings.Builder
 	b.Grow(len(cleaned))

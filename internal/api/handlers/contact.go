@@ -14,10 +14,8 @@ import (
 )
 
 // HeaderCrewEntriesRenamed reports how many flight crew entries a contact
-// rename rewrote. It must stay listed in the CORS ExposeHeaders in
-// cmd/api/main.go: a cross-origin browser client cannot read a response header
-// that is not explicitly exposed, so dropping it there makes this silently
-// unreadable rather than merely absent.
+// rename rewrote. Must stay listed in the CORS ExposeHeaders in
+// cmd/api/main.go.
 const HeaderCrewEntriesRenamed = "X-Crew-Entries-Renamed"
 
 // ListContacts handles GET /contacts

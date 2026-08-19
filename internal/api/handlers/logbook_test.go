@@ -5,12 +5,10 @@ import (
 	"testing"
 )
 
-// collectAllowedRegistrations mirrors the logic in ListFlights: given the set of
-// class types a license is rated for and the user's aircraft (reg → class), it
-// returns the upper-cased registrations whose class qualifies for the logbook.
-// These registrations are handed to the SQL layer, which filters and paginates
-// together so the reported total stays correct (the previous in-memory filter
-// ran AFTER pagination and undercounted multi-page logbooks).
+// collectAllowedRegistrations mirrors the logic in ListFlights: given the set
+// of class types a license is rated for and the user's aircraft (reg →
+// class), it returns the upper-cased registrations whose class qualifies for
+// the logbook.
 func collectAllowedRegistrations(allowedClasses map[string]bool, regToClass map[string]string) []string {
 	regs := make([]string, 0, len(regToClass))
 	for reg, class := range regToClass {

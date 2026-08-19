@@ -16,10 +16,7 @@ var (
 	ErrUnauthorizedContact = errors.New("unauthorized access to contact")
 
 	// ErrContactNameExists is returned when a create or rename would give the
-	// user two contacts with the same name. A contact is identified by its
-	// name, so returning the pre-existing row instead would hand the caller a
-	// different resource than the one it asked to create; the caller is told
-	// about the collision and can look the existing one up.
+	// user two contacts with the same name.
 	ErrContactNameExists = errors.New("a contact with this name already exists")
 
 	// ErrContactNameRequired is returned for an empty or whitespace-only name.
@@ -65,21 +62,15 @@ func (s *ContactService) FindOrCreateContact(ctx context.Context, userID uuid.UU
 }
 
 // CrewLinker resolves crew-member names to a single user's contacts across any
-// number of flights, remembering the names it has already looked up.
-//
-// Every path that writes crew rows goes through it — flight create, flight
-// update, spreadsheet import and backup restore — so the address book is a
-// function of the logbook rather than of which entry point the pilot happened
-// to use. Before this existed, only import created contacts, and a pilot who
-// logged flights in the UI ended up with an empty contact list.
+// number of flights, remembering the names it has already looked up. Every
+// path that writes crew rows goes through it: flight create, flight update,
+// spreadsheet import and backup restore.
 //
 // Not safe for concurrent use; take one per request.
 type CrewLinker struct {
 	svc    *ContactService
 	userID uuid.UUID
-	// cache is keyed by lower-cased name. An import walks hundreds of flights
-	// flown with the same handful of people; without it, every crew row is a
-	// database round-trip.
+	// cache is keyed by lower-cased name.
 	cache   map[string]*models.Contact
 	created int
 }
@@ -94,16 +85,10 @@ func (l *CrewLinker) Created() int { return l.created }
 
 // Link resolves one flight's crew members to contacts, updating them in place.
 //
-// A caller-supplied ContactID is honoured only if the caller owns that contact;
-// otherwise it is discarded and the name is resolved like any other. Contacts
-// are per-user, and a crew row is the only place a client can propose a contact
-// id, so an unverified one would let a flight reference another user's address
-// book.
-//
-// A member with a blank name is left unlinked: there is nobody to link. So is
-// one whose name is too long to be a contact — the crew row is still written
-// with the name as logged, and one unusable name does not cost the rest of the
-// crew their links. Only infrastructure failures abort.
+// A caller-supplied ContactID is honoured only if the caller owns that
+// contact; otherwise it is discarded and the name is resolved like any other.
+// A member with a blank or over-length name is left unlinked; the crew row is
+// still written with the name as logged. Only infrastructure failures abort.
 func (l *CrewLinker) Link(ctx context.Context, members []models.FlightCrewMember) error {
 	for i := range members {
 		name := strings.TrimSpace(members[i].Name)
@@ -148,9 +133,9 @@ func (l *CrewLinker) Link(ctx context.Context, members []models.FlightCrewMember
 	return nil
 }
 
-// LinkCrewMembers links a single flight's crew and reports how many contacts it
-// created. Callers processing many flights should hold a CrewLinker instead so
-// the name cache survives between them.
+// LinkCrewMembers links a single flight's crew and reports how many contacts
+// it created. Callers processing many flights should hold a CrewLinker
+// instead.
 func (s *ContactService) LinkCrewMembers(ctx context.Context, userID uuid.UUID, members []models.FlightCrewMember) (int, error) {
 	l := s.NewCrewLinker(userID)
 	err := l.Link(ctx, members)
@@ -192,17 +177,9 @@ func (s *ContactService) SearchContacts(ctx context.Context, userID uuid.UUID, q
 }
 
 // UpdateContact updates a contact and returns the number of logbook crew
-// entries whose name was rewritten to match.
-//
-// Renaming a contact is a correction to the address book, and the crew entries
-// that reference it carry a copy of the name, so the rename has to reach them
-// or fixing a typo would leave the logbook still showing it. Entries on flights
-// carrying a completed instructor signature are excluded: those are attested
-// records, and the repository enforces that boundary in SQL.
-//
-// Contacts a crew entry is not linked to are unaffected, which is why the
-// pre-000060 rows that were written with a NULL contact_id keep their text
-// until something links them.
+// entries whose name was rewritten to match. Entries on flights carrying a
+// completed instructor signature, and entries not linked to the contact, are
+// excluded; the repository enforces that boundary in SQL.
 func (s *ContactService) UpdateContact(ctx context.Context, contact *models.Contact, userID uuid.UUID) (int, error) {
 	existing, err := s.contactRepo.GetByID(ctx, contact.ID)
 	if err != nil {
@@ -236,15 +213,10 @@ func (s *ContactService) UpdateContact(ctx context.Context, contact *models.Cont
 	return renamed, nil
 }
 
-// DeleteContact removes a contact from the address book. It does not remove
-// the person from any flight: flight_crew_members.contact_id is ON DELETE SET
-// NULL and the crew row keeps the name it was logged with, so the logbook — the
-// legal record — reads exactly the same afterwards. Only the link, the email
-// and the phone number are lost. Deleting is therefore always allowed, even for
+// DeleteContact removes a contact from the address book. It does not touch any
+// flight: flight_crew_members.contact_id is ON DELETE SET NULL and the crew
+// row keeps the name it was logged with. Deleting is always allowed, even for
 // a contact referenced by signed flights.
-//
-// Re-logging the same person afterwards creates a fresh contact and links the
-// new crew row to it; the older crew rows stay unlinked.
 func (s *ContactService) DeleteContact(ctx context.Context, id, userID uuid.UUID) error {
 	contact, err := s.contactRepo.GetByID(ctx, id)
 	if err != nil {

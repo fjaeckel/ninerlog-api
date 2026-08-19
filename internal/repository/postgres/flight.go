@@ -23,15 +23,14 @@ func NewFlightRepository(db *sql.DB) repository.FlightRepository {
 }
 
 // appendRegistrationFilter adds the logbook aircraft-registration filter to a
-// query. It is shared between the list and count code paths so pagination and
-// counting stay consistent. Registrations in opts are expected upper-cased.
+// query, shared by the list and count paths. Registrations in opts are
+// expected upper-cased.
 func appendRegistrationFilter(query string, args []interface{}, argNum int, opts *repository.FlightQueryOptions) (string, []interface{}, int) {
 	if opts == nil || !opts.FilterByRegistrations {
 		return query, args, argNum
 	}
 	if len(opts.AircraftRegistrations) == 0 {
-		// Filter requested but no aircraft match the license's class ratings →
-		// the logbook has no qualifying flights.
+		// An empty registration list matches no flights.
 		return query + " AND 1=0", args, argNum
 	}
 	placeholders := make([]string, 0, len(opts.AircraftRegistrations))
@@ -370,7 +369,7 @@ func (r *flightRepository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *flightRepository) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	// Crew members cascade via FK, but delete explicitly for safety
+	// Crew members are deleted explicitly; the FK also cascades.
 	_, _ = r.db.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id IN (SELECT id FROM flights WHERE user_id = $1)`, userID)
 
 	result, err := r.db.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1`, userID)
@@ -626,9 +625,7 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 			sortDirection = "ASC"
 		}
 	}
-	// Stable ordering: tie-break on off_block_time (chronological within a day)
-	// then created_at, then id so paginated results are deterministic even when
-	// multiple flights share the same date / total_time / created_at.
+	// Stable ordering: tie-break on off_block_time, then created_at, then id.
 	nullsOrder := "NULLS LAST"
 	if sortDirection == "ASC" {
 		nullsOrder = "NULLS FIRST"

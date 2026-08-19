@@ -11,10 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// These tests lock in the fix for the privilege-escalation path where any
-// authenticated user could PATCH /users/me, set their address to ADMIN_EMAIL,
-// and inherit full admin rights — because admin was derived purely from a
-// case-insensitive email match and the email was freely mutable.
+// These tests assert admin status requires a verified ADMIN_EMAIL match.
 
 func TestIsAdminUser_RequiresVerifiedEmail(t *testing.T) {
 	h := &APIHandler{adminEmail: "admin@example.com"}
@@ -107,10 +104,9 @@ func TestUpdateCurrentUser_EmailChangeClearsVerifiedAndDeniesAdmin(t *testing.T)
 	}
 }
 
-// A malformed-but-parseable address (quoted local-part that re-emits with a raw
-// backslash) must be rejected, since such a value cannot round-trip back through
-// openapi_types.Email and would break every response serializing this user —
-// including the admin user list.
+// A malformed-but-parseable address (quoted local-part that re-emits with a
+// raw backslash) must be rejected: it cannot round-trip through
+// openapi_types.Email.
 func TestUpdateCurrentUser_RejectsNonRoundTrippableEmail(t *testing.T) {
 	h, userRepo := setupTestHandler()
 

@@ -5,9 +5,7 @@ import (
 	"time"
 )
 
-// SetTestDB replaces the airport database for testing purposes.
-// Passing nil clears it, which makes lookups behave as if no database
-// has been loaded. This should only be used in tests.
+// SetTestDB replaces the airport database in tests. Passing nil clears it.
 func SetTestDB(data map[string]AirportInfo) {
 	if data == nil {
 		current.Store(nil)

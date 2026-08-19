@@ -72,9 +72,8 @@ func TestEmailContent_CredentialMedical(t *testing.T) {
 		t.Errorf("From address should be noreply@ninerlog-test.com, got: %s", msg.From.Address)
 	}
 
-	// Verify the recipient. The API delivers the recipient via the SMTP envelope
-	// (CWE-640 hardening) so it arrives in Bcc rather than the To header; accept
-	// either.
+	// Verify the recipient; an envelope-only recipient arrives in Bcc rather
+	// than the To header, accept either.
 	recipients := msg.recipientAddresses()
 	found := false
 	for _, addr := range recipients {

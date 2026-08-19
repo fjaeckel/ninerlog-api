@@ -18,8 +18,6 @@ import (
 type mockUserRepo struct {
 	users map[string]*models.User
 	// reminders records when each account was sent its verification reminder.
-	// Held beside the user rather than on it, mirroring the real schema, where
-	// the column is written and read only by the reaper's own queries.
 	reminders map[uuid.UUID]time.Time
 	// oidcLinked marks accounts that authenticate through a provider. The
 	// production queries exclude them in SQL; the mock excludes them here.
@@ -95,9 +93,8 @@ func (m *mockUserRepo) Create(ctx context.Context, user *models.User) error {
 	user.ID = uuid.New()
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
-	// Auto-verify users in tests so existing Login-based assertions keep
-	// working. Tests that exercise the email-verification flow explicitly
-	// reset this flag on the stored user before calling Login.
+	// Auto-verify users; email-verification tests reset this flag on the
+	// stored user before calling Login.
 	user.EmailVerified = true
 	m.users[user.Email] = user
 	return nil
@@ -1177,17 +1174,14 @@ func TestChangePassword_WeakPassword(t *testing.T) {
 		t.Errorf("ChangePassword with weak password = %v, want ErrPasswordTooWeak", err)
 	}
 
-	// ChangePassword previously had no upper bound, so bcrypt would silently
-	// truncate. Guard that it is enforced now.
+	// The upper length bound applies to ChangePassword too.
 	long := strings.Repeat("aB1!", 18) + "x"
 	if err := authService.ChangePassword(ctx, user.ID, "Password1234!", long); err != service.ErrPasswordTooLong {
 		t.Errorf("ChangePassword with %d-byte password = %v, want ErrPasswordTooLong", len(long), err)
 	}
 }
 
-// Following the verification link signs the new account in, so it counts as a
-// login — otherwise a user who registered and never signed in again shows no
-// last-login date at all in the admin user list.
+// Verifying the email counts as a login and stamps LastLoginAt.
 func TestVerifyEmailRecordsLastLogin(t *testing.T) {
 	authService := setupAuthService()
 	ctx := context.Background()
@@ -1255,8 +1249,7 @@ func TestLoginRecordsLastLogin(t *testing.T) {
 	}
 }
 
-// The password is only the first factor for a 2FA account: the handler answers
-// with a challenge rather than a session, so the login is not complete yet.
+// A password-only login on a 2FA account does not stamp LastLoginAt.
 func TestLoginWithTwoFactorDefersLastLogin(t *testing.T) {
 	authService := setupAuthService()
 	ctx := context.Background()

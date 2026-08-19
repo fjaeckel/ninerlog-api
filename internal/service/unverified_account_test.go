@@ -129,8 +129,7 @@ func TestSweep_SkipsVerifiedLoggedInAndOIDCAccounts(t *testing.T) {
 
 	f.addUser("verified@example.test", longAgo, true)
 
-	// Unverified but actively signing in — an OIDC provider reporting
-	// email_verified=false leaves accounts in exactly this state.
+	// Unverified but actively signing in.
 	loggedIn := f.addUser("active@example.test", longAgo, false)
 	lastLogin := time.Now().Add(-time.Hour)
 	loggedIn.LastLoginAt = &lastLogin
@@ -158,8 +157,8 @@ func TestSweep_DeletesOnlyAfterTheRetentionWindowFromTheReminder(t *testing.T) {
 	// First sweep sends the reminder and starts the clock.
 	f.svc.Sweep(context.Background())
 
-	// One day short of the window: the account survives, even though it was
-	// created a hundred days ago. The clock runs from the reminder, not signup.
+	// One day short of the window: the account survives. The clock runs from
+	// the reminder, not signup.
 	f.users.reminders[user.ID] = time.Now().Add(-29 * 24 * time.Hour)
 	if _, deleted := f.svc.Sweep(context.Background()); deleted != 0 {
 		t.Fatalf("deleted %d accounts before the window elapsed", deleted)
@@ -203,8 +202,7 @@ func TestSweep_TransientSendFailureDefersTheClock(t *testing.T) {
 	f := newReaperFixture(t, service.UnverifiedAccountConfig{ReminderAfter: time.Hour})
 	user := f.addUser("stale@example.test", time.Now().Add(-48*time.Hour), false)
 
-	// Our own mail server is down. Nothing about this account is dead, so the
-	// deletion clock must not start.
+	// A transient send failure must not start the deletion clock.
 	f.sender.failWith = &emailpkg.SendError{
 		Status: emailpkg.StatusServerError,
 		Err:    errors.New("connection refused"),
@@ -234,9 +232,8 @@ func TestSweep_HardBounceStartsTheClockWithoutFurtherMail(t *testing.T) {
 	})
 	user := f.addUser("nosuchbox@example.test", time.Now().Add(-48*time.Hour), false)
 
-	// The mailbox does not exist. No later attempt will do better, so the
-	// account must not become immortal for want of a deliverable reminder —
-	// but it still gets the full retention window before deletion.
+	// A hard bounce starts the clock; the account still gets the full
+	// retention window before deletion.
 	f.sender.failWith = &emailpkg.SendError{
 		Status: emailpkg.StatusHardBounce,
 		Code:   550,
@@ -313,8 +310,7 @@ func TestSweep_ReminderCarriesAWorkingLinkAndTheDeadline(t *testing.T) {
 	if !strings.Contains(body, wantLink) {
 		t.Errorf("reminder body is missing the verification link %q:\n%s", wantLink, body)
 	}
-	// Someone who is told their account will be deleted can act on it; someone
-	// who is not, cannot.
+	// The reminder must state the deletion deadline.
 	if !strings.Contains(body, "30 days") {
 		t.Errorf("reminder must state the deletion deadline:\n%s", body)
 	}
@@ -354,7 +350,7 @@ func TestUnverifiedAccountConfig_DefaultsAreApplied(t *testing.T) {
 }
 
 func TestLoadUnverifiedAccountConfig_InvalidValuesFallBackToDefaults(t *testing.T) {
-	// A typo must not quietly reap accounts on a schedule nobody chose.
+	// Unparseable or negative values fall back to the defaults.
 	t.Setenv("UNVERIFIED_REMINDER_AFTER", "not-a-duration")
 	t.Setenv("UNVERIFIED_ACCOUNT_RETENTION", "-5h")
 	t.Setenv("UNVERIFIED_CLEANUP_INTERVAL", "30m")
@@ -385,20 +381,13 @@ func TestUnverifiedCleanupDisabledReason(t *testing.T) {
 			want:           "",
 		},
 		{
-			// The condition that is not negotiable. In OIDC mode the provider
-			// owns the account lifecycle and local registration and email
-			// verification are switched off, so an unverified account is one
-			// the provider did not assert email_verified for — quite possibly
-			// one its owner uses daily. Reaping on that signal deletes live
-			// accounts.
 			name:           "refused in OIDC mode even with SMTP configured",
 			smtpConfigured: true,
 			oidcEnabled:    true,
 			want:           service.CleanupDisabledByOIDC,
 		},
 		{
-			// OIDC outranks configuration: switching the flag on must not be
-			// able to turn reaping back on for a provider-backed deployment.
+			// OIDC outranks configuration.
 			name:           "OIDC outranks an explicit enable",
 			smtpConfigured: true,
 			oidcEnabled:    true,

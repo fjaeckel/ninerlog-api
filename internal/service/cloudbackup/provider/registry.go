@@ -18,8 +18,7 @@ func NewRegistry() *Registry {
 	return &Registry{providers: make(map[string]Provider)}
 }
 
-// Register adds a provider. Duplicate names panic; this is a startup-time
-// programming error.
+// Register adds a provider. Duplicate names panic.
 func (r *Registry) Register(p Provider) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

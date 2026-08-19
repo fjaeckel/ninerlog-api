@@ -69,9 +69,7 @@ REF = re.compile(r"<ref.*?</ref>|<ref[^>]*/>", re.DOTALL)
 def marks_from_table(path):
     """Extract the nationality marks the Go table declares.
 
-    Returns (all marks, the subset written without a hyphen). The second set
-    seeds the upstream extractor below, so the two stay in step without a
-    second hand-maintained list.
+    Returns (all marks, the subset written without a hyphen).
     """
     try:
         with open(path, encoding="utf-8") as fh:
@@ -95,13 +93,9 @@ def marks_from_upstream(text, no_hyphen):
     Splits on every separator a table might use rather than parsing a layout,
     then keeps the cells that are shaped like a mark.
 
-    Upstream lists sit a country column and usually an ISO 3166 column right
-    next to the mark column, and the same split sees all three. An ISO alpha-2
-    code is two letters with no hyphen, so a cell only counts as a mark when it
-    carries the trailing hyphen these lists write marks with, contains a digit
-    (no ISO code does), or is one of the handful of marks that genuinely have
-    none. Without that test every run reports "DE", "GB" and "US" as missing
-    marks and the real signal drowns.
+    A cell counts as a mark only when it carries the trailing hyphen these
+    lists write marks with, contains a digit, or is one of the marks that
+    genuinely have none. This keeps the adjacent ISO 3166 column out.
     """
     text = REF.sub(" ", text)
     text = WIKI_LINK.sub(r"\1", text)
@@ -116,11 +110,7 @@ def marks_from_upstream(text, no_hyphen):
         if not found:
             continue
         mark = found.group(1)
-        # Every ICAO nationality mark contains at least one letter (3A, 9XR, D,
-        # RDPL). An all-digit cell is a year or a count from a neighbouring
-        # column — upstream lists carry allocation dates right next to the
-        # marks, and without this the report is mostly "1947, 1948, 1949".
-        # TestEveryMarkHasALetter in pkg/registration keeps this rule true.
+        # Every mark has a letter; an all-digit cell is a year or a count.
         if not any(c.isalpha() for c in mark):
             continue
         if cell.endswith("-") or any(c.isdigit() for c in mark) or mark in no_hyphen:

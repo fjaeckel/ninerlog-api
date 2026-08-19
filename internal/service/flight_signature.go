@@ -16,9 +16,8 @@ import (
 
 var (
 	// ErrSignatureNotFound covers both "no signature with this ID" and, for
-	// the public token flow, "no signature with this token" — the latter is
-	// aliased to ErrSignatureTokenInvalid so a lookup miss and an
-	// already-used token are indistinguishable to an anonymous caller.
+	// the public token flow, "no signature with this token"; the latter is
+	// aliased to ErrSignatureTokenInvalid.
 	ErrSignatureNotFound = errors.New("signature request not found")
 
 	// ErrSignaturePendingExists is returned when creating a new deferred
@@ -26,9 +25,7 @@ var (
 	ErrSignaturePendingExists = errors.New("a pending signature request already exists for this flight")
 
 	// ErrSignatureTokenInvalid covers an unknown, revoked, voided, or
-	// already-completed token. Deliberately not distinguished from each
-	// other (or from "never existed") to avoid leaking state to an
-	// unauthenticated caller.
+	// already-completed token, indistinguishably.
 	ErrSignatureTokenInvalid = errors.New("signature link is invalid")
 	// ErrSignatureTokenExpired means the token's expiry has passed.
 	ErrSignatureTokenExpired = errors.New("signature link has expired")
@@ -46,11 +43,7 @@ var (
 	ErrSignatureReasonRequired = errors.New("a reason is required to void a signature")
 
 	// ErrSignatureEmailQuota is returned once a user has triggered too many
-	// signature-request emails in a day. Each request sends NinerLog-branded
-	// mail, from NinerLog's domain, to an arbitrary address chosen by the
-	// sender, and the landing page then collects the recipient's name,
-	// credential number and handwritten signature. Without a ceiling that is a
-	// ready-made bulk phishing and harvesting channel.
+	// signature-request emails in a day.
 	ErrSignatureEmailQuota = errors.New("daily limit for signature request emails reached")
 )
 
@@ -95,12 +88,10 @@ func generateRawToken() (string, error) {
 }
 
 // maxSignatureEmailsPerDay caps outbound signature-request mail per account.
-// Generous for real use (an instructor-heavy week is a handful of requests)
-// while making bulk abuse impractical.
 const maxSignatureEmailsPerDay = 20
 
-// checkEmailQuota enforces maxSignatureEmailsPerDay. A counting failure is not
-// treated as a quota breach: the feature stays usable if the query errors.
+// checkEmailQuota enforces maxSignatureEmailsPerDay. A counting failure is
+// not treated as a quota breach.
 func (s *FlightSignatureService) checkEmailQuota(ctx context.Context, userID uuid.UUID) error {
 	n, err := s.sigRepo.CountEmailsSentSince(ctx, userID, time.Now().Add(-24*time.Hour))
 	if err != nil {
@@ -361,8 +352,7 @@ func (s *FlightSignatureService) ResolveToken(ctx context.Context, token string)
 
 // CompleteFromToken records the instructor's signature against a valid
 // pending token. Returns the completed signature plus the flight owner's
-// DB-sourced email/name so the caller can send a confirmation without ever
-// trusting client-supplied contact details (CWE-640).
+// DB-sourced email/name for the confirmation mail.
 func (s *FlightSignatureService) CompleteFromToken(ctx context.Context, token, signerName string, credentialNo *string, image []byte, signerIP, signerUA string) (sig *models.FlightSignature, ownerEmail, ownerName string, err error) {
 	sig, err = s.lookupPendingByToken(ctx, token)
 	if err != nil {
@@ -417,17 +407,15 @@ func (s *FlightSignatureService) lookupPendingByToken(ctx context.Context, token
 	}
 
 	if sig.Status != models.SignatureStatusPending {
-		// completed / revoked / voided / expired all look the same to an
-		// anonymous caller — except a lapsed-but-not-yet-swept expiry,
-		// handled below, which gets its own distinguishable error since it
-		// carries no risk of enumeration (the token was already known).
+		// completed / revoked / voided all collapse to token-invalid; only
+		// an expired status gets its own error.
 		if sig.Status == models.SignatureStatusExpired {
 			return nil, ErrSignatureTokenExpired
 		}
 		return nil, ErrSignatureTokenInvalid
 	}
 	if sig.TokenExpiresAt != nil && sig.TokenExpiresAt.Before(time.Now()) {
-		// Lazily flip to 'expired' so the sweep job and this path agree.
+		// Lazily flip to 'expired', matching the sweep job.
 		sig.Status = models.SignatureStatusExpired
 		_ = s.sigRepo.Update(ctx, sig)
 		return nil, ErrSignatureTokenExpired
