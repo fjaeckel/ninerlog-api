@@ -139,6 +139,34 @@ var (
 		[]string{"operation", "result"},
 	)
 
+	// PackBuildDurationSeconds tracks assembling the downloadable pack
+	// (marshal, hash, gzip), once per snapshot.
+	PackBuildDurationSeconds = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "airport_pack_build_duration_seconds",
+			Help:    "Duration of building the gzip-compressed airport pack.",
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 12), // 1ms … ~4s
+		},
+	)
+
+	// PackBytes is the gzip-compressed size of the current pack.
+	PackBytes = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "airport_pack_bytes",
+			Help: "Size in bytes of the gzip-compressed airport pack.",
+		},
+	)
+
+	// PackRequestsTotal counts pack endpoint hits.
+	// Endpoints: pack, status. Results: success, unavailable.
+	PackRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "airport_pack_requests_total",
+			Help: "Total airport pack requests by endpoint and result.",
+		},
+		[]string{"endpoint", "result"},
+	)
+
 	// LookupDurationSeconds is observed only for the scanning operations
 	// (search, nearest).
 	LookupDurationSeconds = prometheus.NewHistogramVec(
@@ -167,6 +195,11 @@ var (
 
 	searchDuration  = LookupDurationSeconds.WithLabelValues("search")
 	nearestDuration = LookupDurationSeconds.WithLabelValues("nearest")
+
+	packSuccess           = PackRequestsTotal.WithLabelValues("pack", "success")
+	packUnavailable       = PackRequestsTotal.WithLabelValues("pack", "unavailable")
+	packStatusSuccess     = PackRequestsTotal.WithLabelValues("status", "success")
+	packStatusUnavailable = PackRequestsTotal.WithLabelValues("status", "unavailable")
 )
 
 func init() {
@@ -186,6 +219,9 @@ func init() {
 		LastSuccessTimestampSeconds,
 		LookupTotal,
 		LookupDurationSeconds,
+		PackBuildDurationSeconds,
+		PackBytes,
+		PackRequestsTotal,
 	)
 
 	// Snapshot age, computed from the live snapshot on scrape.

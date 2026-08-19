@@ -382,6 +382,17 @@ hide the affected UI rather than discovering the `403` by trying.
 
 ### Maps & Reports
 Airport lookup/search, route and airport statistics, trends, and stats-by-class, plus
+the downloadable airport pack:
+
+- `GET /airports/pack` — the complete merged airport database as a gzip-compressed JSON
+  envelope `{etag, generatedAt, count, airports}` with `airports` sorted by ICAO code,
+  for clients that need offline nearest-airport matching (the iOS Share Extension).
+- `GET /airports/pack/status` — the pack's `etag`, `generatedAt`, `count` and
+  `sizeBytes` without the body. The `etag` is a hash over the airport data alone, so it
+  survives refreshes that produce identical data; clients re-download only on a changed
+  `etag`. Both endpoints answer **503** while the airport database has never loaded.
+
+Also
 `GET /reports/analytics` — the whole Reports page in one round trip (totals, monthly and
 yearly series, breakdowns, patterns, records), scoped by `months` (0 = all time). Its
 `totals` include the user's initial-hours snapshot whenever the timeframe reaches back to

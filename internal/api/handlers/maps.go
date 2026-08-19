@@ -42,6 +42,31 @@ func (h *APIHandler) SearchAirports(c *gin.Context, params generated.SearchAirpo
 	c.JSON(http.StatusOK, out)
 }
 
+// GetAirportPack implements GET /airports/pack
+func (h *APIHandler) GetAirportPack(c *gin.Context) {
+	gz, _, ok := airports.Pack()
+	if !ok {
+		h.sendError(c, http.StatusServiceUnavailable, "Airport database not loaded")
+		return
+	}
+	c.Data(http.StatusOK, "application/gzip", gz)
+}
+
+// GetAirportPackStatus implements GET /airports/pack/status
+func (h *APIHandler) GetAirportPackStatus(c *gin.Context) {
+	status, ok := airports.PackInfo()
+	if !ok {
+		h.sendError(c, http.StatusServiceUnavailable, "Airport database not loaded")
+		return
+	}
+	c.JSON(http.StatusOK, generated.AirportPackStatus{
+		Etag:        status.Etag,
+		GeneratedAt: status.GeneratedAt,
+		Count:       status.Count,
+		SizeBytes:   status.SizeBytes,
+	})
+}
+
 // GetFlightRoutes implements GET /reports/routes
 func (h *APIHandler) GetFlightRoutes(c *gin.Context) {
 	userID, err := h.getUserIDFromContext(c)
