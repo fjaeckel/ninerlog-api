@@ -192,21 +192,27 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 
 	documentFilesEnabled := h.documentFileService != nil && h.documentFileService.Enabled()
 
+	var airportsUpdatedAt *time.Time
+	if t := airports.LoadedAt(); !t.IsZero() {
+		airportsUpdatedAt = &t
+	}
+
 	config := generated.AdminConfig{
-		AuthMode:               &authMode,
-		OidcIssuer:             oidcIssuer,
-		GoVersion:              runtime.Version(),
-		ServerUptime:           uptimeStr,
-		MigrationVersion:       migrationVersion,
-		AirportDatabaseSize:    airports.Count(),
-		CorsOrigins:            h.corsOrigins,
-		RateLimitAuth:          "10 req/min",
-		RateLimitAdmin:         "30 req/min",
-		SmtpConfigured:         smtpConfigured,
-		AdminEmailConfigured:   adminEmailConfigured,
-		CloudBackupsConfigured: cloudBackupsConfigured,
-		CloudBackupProviders:   cloudBackupProviders,
-		DocumentFilesEnabled:   &documentFilesEnabled,
+		AuthMode:                 &authMode,
+		OidcIssuer:               oidcIssuer,
+		GoVersion:                runtime.Version(),
+		ServerUptime:             uptimeStr,
+		MigrationVersion:         migrationVersion,
+		AirportDatabaseSize:      airports.Count(),
+		AirportDatabaseUpdatedAt: airportsUpdatedAt,
+		CorsOrigins:              h.corsOrigins,
+		RateLimitAuth:            "10 req/min",
+		RateLimitAdmin:           "30 req/min",
+		SmtpConfigured:           smtpConfigured,
+		AdminEmailConfigured:     adminEmailConfigured,
+		CloudBackupsConfigured:   cloudBackupsConfigured,
+		CloudBackupProviders:     cloudBackupProviders,
+		DocumentFilesEnabled:     &documentFilesEnabled,
 	}
 
 	// The unverified-account lifecycle timing is reported only when running;

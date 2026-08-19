@@ -140,6 +140,14 @@ The in-memory airport database (`internal/airports`) merges two upstream dataset
 | `airport_lookup_total` | Counter | `operation`, `result` | Read-path calls. Operations: `lookup` (exact ICAO), `search` (ICAO prefix), `nearest` (coordinates). Results: `hit`, `miss`, `unavailable` (no database loaded) |
 | `airport_lookup_duration_seconds` | Histogram | `operation` | Latency of the scanning operations (`search`, `nearest`) only — the exact-match path is a single map hit and is not timed |
 
+**Downloadable pack**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `airport_pack_requests_total` | Counter | `endpoint`, `result` | `GET /airports/pack` (`pack`) and `GET /airports/pack/status` (`status`) requests. Results: `success`, `unavailable` (no database loaded) |
+| `airport_pack_build_duration_seconds` | Histogram | — | Duration of assembling the gzip-compressed pack (marshal, hash, gzip), once per snapshot on first request |
+| `airport_pack_bytes` | Gauge | — | Gzip-compressed size of the current pack |
+
 > **Why this matters:** a `result="unavailable"` rate above zero means flights are being
 > served without airport names, distances, or night-time calculations. Alert on
 > `airport_db_age_seconds` rather than on reload failures alone — a single failed refresh

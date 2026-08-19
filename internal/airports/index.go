@@ -3,6 +3,7 @@ package airports
 import (
 	"math"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,13 @@ type snapshot struct {
 	grid map[gridCell][]int32
 
 	loadedAt time.Time
+
+	// packOnce guards the lazy build of the downloadable pack.
+	packOnce sync.Once
+	// packGz is the gzip-compressed pack document.
+	packGz []byte
+	// packEtag identifies the pack content, independent of loadedAt.
+	packEtag string
 }
 
 // gridCell is the integer (floor) degree cell an airport falls into.
