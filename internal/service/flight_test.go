@@ -218,6 +218,91 @@ func TestUpdateFlight(t *testing.T) {
 	}
 }
 
+func TestCreateFlightCanonicalizesAircraftReg(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"lowercase German mark gets hyphenated", "deabc", "D-EABC"},
+		{"lowercase US mark loses its hyphen", "n12345", "N12345"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			flightRepo := newMockFlightRepo()
+			svc := NewFlightService(flightRepo, nil)
+			ctx := context.Background()
+			userID := uuid.New()
+
+			flight := &models.Flight{
+				UserID:       userID,
+				Date:         time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC),
+				AircraftReg:  tc.input,
+				AircraftType: "C172",
+				TotalTime:    150,
+				IsPIC:        true,
+				PICTime:      150,
+				LandingsDay:  3,
+			}
+			if err := svc.CreateFlight(ctx, flight); err != nil {
+				t.Fatalf("CreateFlight failed: %v", err)
+			}
+			if flight.AircraftReg != tc.want {
+				t.Errorf("AircraftReg = %q, want %q", flight.AircraftReg, tc.want)
+			}
+		})
+	}
+}
+
+func TestUpdateFlightCanonicalizesAircraftReg(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"lowercase German mark gets hyphenated", "deabc", "D-EABC"},
+		{"lowercase US mark loses its hyphen", "n12345", "N12345"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			flightRepo := newMockFlightRepo()
+			svc := NewFlightService(flightRepo, nil)
+			ctx := context.Background()
+			userID := uuid.New()
+
+			flight := &models.Flight{
+				UserID:       userID,
+				Date:         time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC),
+				AircraftReg:  "D-EFGH",
+				AircraftType: "C172",
+				TotalTime:    150,
+				IsPIC:        true,
+				PICTime:      150,
+				LandingsDay:  3,
+			}
+			_ = svc.CreateFlight(ctx, flight)
+
+			flight.AircraftReg = tc.input
+			if err := svc.UpdateFlight(ctx, flight, userID); err != nil {
+				t.Fatalf("UpdateFlight failed: %v", err)
+			}
+			if flight.AircraftReg != tc.want {
+				t.Errorf("AircraftReg = %q, want %q", flight.AircraftReg, tc.want)
+			}
+
+			updated, err := svc.GetFlight(ctx, flight.ID, userID)
+			if err != nil {
+				t.Fatalf("GetFlight failed: %v", err)
+			}
+			if updated.AircraftReg != tc.want {
+				t.Errorf("stored AircraftReg = %q, want %q", updated.AircraftReg, tc.want)
+			}
+		})
+	}
+}
+
 func TestUpdateFlight_Locked_ReturnsErrFlightLocked(t *testing.T) {
 	flightRepo := newMockFlightRepo()
 	svc := NewFlightService(flightRepo, nil)

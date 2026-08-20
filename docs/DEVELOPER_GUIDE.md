@@ -58,6 +58,8 @@ Read these in roughly this order:
 
 Topic-specific deep dives already in this repo:
 
+- **[AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)** — canonical registration
+  notation, the vendored nationality-mark table, and how to keep it current.
 - **[SQL_LAYERING.md](./SQL_LAYERING.md)** — where SQL may live, the repository
   catalogue, and the deliberate exceptions (search compiler, migrations, test
   scaffolding).

@@ -11,9 +11,10 @@ import (
 )
 
 // The bytemark/webdav container in docker-compose.e2e.yaml exposes:
-//   endpoint:   http://webdav/      (inside docker)
-//   username:   ninerlog
-//   password:   ninerlogtest
+//
+//	endpoint:   http://webdav/      (inside docker)
+//	username:   ninerlog
+//	password:   ninerlogtest
 //
 // Backup destinations use the docker hostname and set allow_insecure=true for
 // the plain-HTTP endpoint.

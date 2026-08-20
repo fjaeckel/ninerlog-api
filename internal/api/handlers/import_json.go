@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -116,12 +117,13 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 		h.sendError(c, http.StatusInternalServerError, "Failed to load existing aircraft")
 		return
 	}
+	// Keyed in canonical notation.
 	existingRegs := make(map[string]bool, len(existingAircraft))
 	for _, a := range existingAircraft {
-		existingRegs[a.Registration] = true
+		existingRegs[registration.Canonical(a.Registration)] = true
 	}
 	for _, ac := range body.Aircraft {
-		if existingRegs[ac.Registration] {
+		if existingRegs[registration.Canonical(ac.Registration)] {
 			summary.AircraftSkipped++
 			continue
 		}

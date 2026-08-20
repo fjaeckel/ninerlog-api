@@ -325,7 +325,6 @@ func (m MailPitFullMessage) recipientAddresses() []string {
 	return addrs
 }
 
-
 // mailpitGetMessage retrieves the full message including HTML body
 func mailpitGetMessage(t *testing.T, messageID string) MailPitFullMessage {
 	t.Helper()

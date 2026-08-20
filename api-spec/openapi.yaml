@@ -3798,7 +3798,15 @@ paths:
       tags:
         - Flights
       summary: Recalculate all flights
-      description: Recalculates auto-computed fields (night time, distance, solo, cross-country, etc.) for all of the authenticated user's flights.
+      description: |
+        Recalculates auto-computed fields (night time, distance, solo, cross-country, etc.)
+        for all of the authenticated user's flights.
+
+        Also rewrites aircraft registrations into the canonical notation of their state of
+        registry — inserting, moving or removing the nationality-mark hyphen, so `DEABC`
+        becomes `D-EABC` and `N-12345` becomes `N12345`. Both the fleet and the flights are
+        normalised; flights follow their aircraft automatically. Registrations whose
+        nationality mark is not recognised are left untouched.
       operationId: recalculateFlights
       security:
         - bearerAuth: []
@@ -3819,6 +3827,16 @@ paths:
                   total:
                     type: integer
                     description: Total flights processed
+                  aircraftNormalized:
+                    type: integer
+                    description: Number of fleet entries rewritten into canonical registration notation
+                  aircraftConflicts:
+                    type: integer
+                    description: >-
+                      Number of fleet entries that could not be normalised because their
+                      canonical registration is already held by another aircraft in the same
+                      fleet (the same aircraft entered twice under different spellings).
+                      Both entries are left in place; merging them is a manual decision.
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -5416,7 +5434,13 @@ components:
         registration:
           type: string
           example: D-EFGH
-          description: Aircraft registration/tail number
+          description: >-
+            Aircraft registration/tail number. Normalised on write into the canonical
+            notation of its state of registry: the nationality mark is matched against the
+            ICAO table and the hyphen inserted, moved or removed to suit
+            (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`).
+            A registration whose nationality mark is not recognised is stored uppercased
+            and trimmed, but otherwise unchanged.
         type:
           type: string
           example: C172
@@ -5487,7 +5511,13 @@ components:
         registration:
           type: string
           example: D-EFGH
-          description: Aircraft registration/tail number
+          description: >-
+            Aircraft registration/tail number. Normalised on write into the canonical
+            notation of its state of registry: the nationality mark is matched against the
+            ICAO table and the hyphen inserted, moved or removed to suit
+            (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`).
+            A registration whose nationality mark is not recognised is stored uppercased
+            and trimmed, but otherwise unchanged.
         type:
           type: string
           example: C172
@@ -8464,6 +8494,8 @@ components:
         - serverUptime
         - migrationVersion
         - airportDatabaseSize
+        - registrationPrefixCount
+        - registrationPrefixesReviewed
         - corsOrigins
         - rateLimitAuth
         - rateLimitAdmin
@@ -8491,6 +8523,18 @@ components:
           type: [string, 'null']
           format: date-time
           description: When the airport database was last loaded from the upstream sources; null when it never loaded
+        registrationPrefixCount:
+          type: integer
+          description: Number of ICAO aircraft nationality marks in the vendored registration table
+          example: 210
+        registrationPrefixesReviewed:
+          type: string
+          format: date
+          description: >-
+            When the vendored nationality mark table was last checked against ICAO's
+            published nationality marks. The table is vendored rather than fetched,
+            so this is the only signal that it may be stale.
+          example: '2026-08-17'
         corsOrigins:
           type: array
           items:

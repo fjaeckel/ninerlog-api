@@ -50,9 +50,9 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 	// Licenses + class ratings — two licenses, several ratings.
 	pplResp := source.POST("/licenses", map[string]interface{}{
 		"regulatoryAuthority": "EASA", "licenseType": "PPL",
-		"licenseNumber":       "DE-PPL-BKP-001",
-		"issueDate":           "2022-04-01",
-		"issuingAuthority":    "LBA",
+		"licenseNumber":    "DE-PPL-BKP-001",
+		"issueDate":        "2022-04-01",
+		"issuingAuthority": "LBA",
 	})
 	requireStatus(t, pplResp, http.StatusCreated)
 	var pplLic map[string]interface{}
@@ -111,8 +111,8 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 			"date": "2024-06-15", "aircraftReg": "D-MBKP", "aircraftType": "PA44",
 			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
 			"offBlockTime": "10:00", "onBlockTime": "11:30", "landings": 1,
-			"remarks":  "MEP dual XC",
-			"isDual":   true,
+			"remarks": "MEP dual XC",
+			"isDual":  true,
 			"crewMembers": []map[string]interface{}{
 				{"name": "Hans Müller", "role": "Instructor"},
 			},

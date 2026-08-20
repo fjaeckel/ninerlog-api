@@ -11,8 +11,13 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	emailpkg "github.com/fjaeckel/ninerlog-api/pkg/email"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// prefixesReviewed is registration.LastReviewed parsed as a date.
+var prefixesReviewed, _ = time.Parse("2006-01-02", registration.LastReviewed)
 
 // GetAdminStats implements GET /admin/stats
 func (h *APIHandler) GetAdminStats(c *gin.Context) {
@@ -198,21 +203,23 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	}
 
 	config := generated.AdminConfig{
-		AuthMode:                 &authMode,
-		OidcIssuer:               oidcIssuer,
-		GoVersion:                runtime.Version(),
-		ServerUptime:             uptimeStr,
-		MigrationVersion:         migrationVersion,
-		AirportDatabaseSize:      airports.Count(),
-		AirportDatabaseUpdatedAt: airportsUpdatedAt,
-		CorsOrigins:              h.corsOrigins,
-		RateLimitAuth:            "10 req/min",
-		RateLimitAdmin:           "30 req/min",
-		SmtpConfigured:           smtpConfigured,
-		AdminEmailConfigured:     adminEmailConfigured,
-		CloudBackupsConfigured:   cloudBackupsConfigured,
-		CloudBackupProviders:     cloudBackupProviders,
-		DocumentFilesEnabled:     &documentFilesEnabled,
+		AuthMode:                     &authMode,
+		OidcIssuer:                   oidcIssuer,
+		GoVersion:                    runtime.Version(),
+		ServerUptime:                 uptimeStr,
+		MigrationVersion:             migrationVersion,
+		AirportDatabaseSize:          airports.Count(),
+		AirportDatabaseUpdatedAt:     airportsUpdatedAt,
+		RegistrationPrefixCount:      registration.Count(),
+		RegistrationPrefixesReviewed: openapi_types.Date{Time: prefixesReviewed},
+		CorsOrigins:                  h.corsOrigins,
+		RateLimitAuth:                "10 req/min",
+		RateLimitAdmin:               "30 req/min",
+		SmtpConfigured:               smtpConfigured,
+		AdminEmailConfigured:         adminEmailConfigured,
+		CloudBackupsConfigured:       cloudBackupsConfigured,
+		CloudBackupProviders:         cloudBackupProviders,
+		DocumentFilesEnabled:         &documentFilesEnabled,
 	}
 
 	// The unverified-account lifecycle timing is reported only when running;

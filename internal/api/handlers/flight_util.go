@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // RegisterFlightUtilRoutes registers utility routes for flights
@@ -20,6 +24,9 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 		return
 	}
 
+	// The fleet is canonicalised first; AircraftService repoints its flights.
+	aircraftNormalized, aircraftConflicts := h.normalizeFleetRegistrations(c, userID)
+
 	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
@@ -33,7 +40,7 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 	}
 
 	updated := 0
-	errors := 0
+	failed := 0
 	for _, flight := range flights {
 		// Load crew members so PIC/Dual calculation is correct
 		if h.flightCrewRepo != nil {
@@ -43,16 +50,44 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 			}
 		}
 		flightcalc.ApplyAutoCalculations(flight, userName)
+		// UpdateFlight canonicalises AircraftReg; signed flights are rejected
+		// as locked and counted as errors.
 		if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
-			errors++
+			failed++
 			continue
 		}
 		updated++
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"updated": updated,
-		"errors":  errors,
-		"total":   len(flights),
+		"updated":            updated,
+		"errors":             failed,
+		"total":              len(flights),
+		"aircraftNormalized": aircraftNormalized,
+		"aircraftConflicts":  aircraftConflicts,
 	})
+}
+
+// normalizeFleetRegistrations rewrites the user's aircraft whose registration
+// is not in canonical notation. It returns the number rewritten and the number
+// whose canonical spelling is already held by another aircraft in the same
+// fleet; those are left untouched.
+func (h *APIHandler) normalizeFleetRegistrations(c *gin.Context, userID uuid.UUID) (normalized, conflicts int) {
+	fleet, err := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+	if err != nil {
+		return 0, 0
+	}
+	for _, ac := range fleet {
+		if registration.Canonical(ac.Registration) == ac.Registration {
+			continue
+		}
+		if _, err := h.aircraftService.UpdateAircraft(c.Request.Context(), ac, userID, false); err != nil {
+			if errors.Is(err, service.ErrDuplicateRegistration) {
+				conflicts++
+			}
+			continue
+		}
+		normalized++
+	}
+	return normalized, conflicts
 }
