@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
@@ -34,9 +33,6 @@ type TrendsResponse struct {
 	ByAircraftType []AircraftBreakdown `json:"byAircraftType"`
 }
 
-// RegisterReportsRoutes kept for backward compat; routes now via generated interface.
-func RegisterReportsRoutes(api *gin.RouterGroup, h *APIHandler, db *sql.DB) {}
-
 // GetFlightTrends implements GET /reports/trends
 func (h *APIHandler) GetFlightTrends(c *gin.Context, params generated.GetFlightTrendsParams) {
 	userID, err := h.getUserIDFromContext(c)
@@ -50,109 +46,41 @@ func (h *APIHandler) GetFlightTrends(c *gin.Context, params generated.GetFlightT
 		months = *params.Months
 	}
 
-	var rows *sql.Rows
-	if months == 0 {
-		monthlyQuery := `
-			SELECT
-				TO_CHAR(date_trunc('month', date), 'YYYY-MM') AS month,
-				COUNT(*) AS total_flights,
-				COALESCE(SUM(total_time), 0) AS total_minutes,
-				COALESCE(SUM(pic_time), 0) AS pic_minutes,
-				COALESCE(SUM(dual_time), 0) AS dual_minutes,
-				COALESCE(SUM(night_time), 0) AS night_minutes,
-				COALESCE(SUM(ifr_time), 0) AS ifr_minutes,
-				COALESCE(SUM(landings_day), 0) AS landings_day,
-				COALESCE(SUM(landings_night), 0) AS landings_night
-			FROM flights
-			WHERE user_id = $1
-			GROUP BY date_trunc('month', date)
-			ORDER BY date_trunc('month', date) ASC
-		`
-		rows, err = h.db.QueryContext(c.Request.Context(), monthlyQuery, userID)
-	} else {
-		monthlyQuery := `
-			SELECT
-				TO_CHAR(date_trunc('month', date), 'YYYY-MM') AS month,
-				COUNT(*) AS total_flights,
-				COALESCE(SUM(total_time), 0) AS total_minutes,
-				COALESCE(SUM(pic_time), 0) AS pic_minutes,
-				COALESCE(SUM(dual_time), 0) AS dual_minutes,
-				COALESCE(SUM(night_time), 0) AS night_minutes,
-				COALESCE(SUM(ifr_time), 0) AS ifr_minutes,
-				COALESCE(SUM(landings_day), 0) AS landings_day,
-				COALESCE(SUM(landings_night), 0) AS landings_night
-			FROM flights
-			WHERE user_id = $1
-			  AND date >= date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)
-			GROUP BY date_trunc('month', date)
-			ORDER BY date_trunc('month', date) ASC
-		`
-		rows, err = h.db.QueryContext(c.Request.Context(), monthlyQuery, userID, months)
-	}
+	monthlyRows, err := h.reportsRepo.MonthlyTrends(c.Request.Context(), userID, months)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query monthly trends")
 		return
 	}
-	defer rows.Close()
-
 	var monthly []MonthlyTrend
-	for rows.Next() {
-		var t MonthlyTrend
-		if err := rows.Scan(
-			&t.Month, &t.TotalFlights, &t.TotalMinutes,
-			&t.PICMinutes, &t.DualMinutes, &t.NightMinutes, &t.IFRMinutes,
-			&t.LandingsDay, &t.LandingsNight,
-		); err != nil {
-			h.sendError(c, http.StatusInternalServerError, "Failed to scan monthly trends")
-			return
-		}
-		monthly = append(monthly, t)
+	for _, row := range monthlyRows {
+		monthly = append(monthly, MonthlyTrend{
+			Month:         row.Month,
+			TotalFlights:  row.TotalFlights,
+			TotalMinutes:  row.TotalMinutes,
+			PICMinutes:    row.PICMinutes,
+			DualMinutes:   row.DualMinutes,
+			NightMinutes:  row.NightMinutes,
+			IFRMinutes:    row.IFRMinutes,
+			LandingsDay:   row.LandingsDay,
+			LandingsNight: row.LandingsNight,
+		})
 	}
 	if monthly == nil {
 		monthly = []MonthlyTrend{}
 	}
 
-	var rows2 *sql.Rows
-	if months == 0 {
-		aircraftQuery := `
-			SELECT
-				aircraft_type,
-				COUNT(*) AS total_flights,
-				COALESCE(SUM(total_time), 0) AS total_minutes
-			FROM flights
-			WHERE user_id = $1
-			GROUP BY aircraft_type
-			ORDER BY total_minutes DESC
-		`
-		rows2, err = h.db.QueryContext(c.Request.Context(), aircraftQuery, userID)
-	} else {
-		aircraftQuery := `
-			SELECT
-				aircraft_type,
-				COUNT(*) AS total_flights,
-				COALESCE(SUM(total_time), 0) AS total_minutes
-			FROM flights
-			WHERE user_id = $1
-			  AND date >= date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)
-			GROUP BY aircraft_type
-			ORDER BY total_minutes DESC
-		`
-		rows2, err = h.db.QueryContext(c.Request.Context(), aircraftQuery, userID, months)
-	}
+	aircraftRows, err := h.reportsRepo.AircraftTypeTrends(c.Request.Context(), userID, months)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query aircraft breakdown")
 		return
 	}
-	defer rows2.Close()
-
 	var byAircraft []AircraftBreakdown
-	for rows2.Next() {
-		var ab AircraftBreakdown
-		if err := rows2.Scan(&ab.AircraftType, &ab.TotalFlights, &ab.TotalMinutes); err != nil {
-			h.sendError(c, http.StatusInternalServerError, "Failed to scan aircraft breakdown")
-			return
-		}
-		byAircraft = append(byAircraft, ab)
+	for _, row := range aircraftRows {
+		byAircraft = append(byAircraft, AircraftBreakdown{
+			AircraftType: row.AircraftType,
+			TotalFlights: row.TotalFlights,
+			TotalMinutes: row.TotalMinutes,
+		})
 	}
 	if byAircraft == nil {
 		byAircraft = []AircraftBreakdown{}
@@ -177,32 +105,11 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsBy
 		months = *params.Months
 	}
 
-	// Build optional timeframe predicate. months=0 means all time.
-	flightsDateFilter := ""
-	queryArgs := []any{userID}
-	if months > 0 {
-		flightsDateFilter = " AND f.date >= date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)"
-		queryArgs = append(queryArgs, months)
-	}
-
-	classRows, err := h.db.QueryContext(c.Request.Context(), `
-		SELECT COALESCE(a.aircraft_class, 'Unclassified') as class,
-			COUNT(*) as flights,
-			COALESCE(SUM(f.total_time), 0) as minutes,
-			COALESCE(SUM(f.pic_time), 0) as pic_minutes,
-			COALESCE(SUM(f.dual_time), 0) as dual_minutes,
-			COALESCE(SUM(f.landings_day + f.landings_night), 0) as landings
-		FROM flights f
-		LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1`+flightsDateFilter+`
-		GROUP BY COALESCE(a.aircraft_class, 'Unclassified')
-		ORDER BY minutes DESC
-	`, queryArgs...)
+	classRows, err := h.reportsRepo.StatsByClass(c.Request.Context(), userID, months)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query class stats")
 		return
 	}
-	defer classRows.Close()
 
 	type ClassStat struct {
 		Class       string `json:"class"`
@@ -213,43 +120,26 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsBy
 		Landings    int    `json:"landings"`
 	}
 	var byClass []ClassStat
-	for classRows.Next() {
-		var cs ClassStat
-		if err := classRows.Scan(&cs.Class, &cs.Flights, &cs.Minutes, &cs.PICMinutes, &cs.DualMinutes, &cs.Landings); err != nil {
-			continue
-		}
-		byClass = append(byClass, cs)
+	for _, row := range classRows {
+		byClass = append(byClass, ClassStat{
+			Class:       row.Class,
+			Flights:     row.Flights,
+			Minutes:     row.Minutes,
+			PICMinutes:  row.PICMinutes,
+			DualMinutes: row.DualMinutes,
+			Landings:    row.Landings,
+		})
 	}
 	if byClass == nil {
 		byClass = []ClassStat{}
 	}
 
-	// Query time by aircraft category (tailwheel, complex, high-performance)
-	categoryRows, err := h.db.QueryContext(c.Request.Context(), `
-		SELECT category, COUNT(*) as flights,
-			COALESCE(SUM(pic_time), 0) as pic_minutes,
-			COALESCE(SUM(dual_time), 0) as dual_minutes
-		FROM (
-			SELECT f.pic_time, f.dual_time, 'Tailwheel' as category
-			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND a.is_tailwheel`+flightsDateFilter+`
-			UNION ALL
-			SELECT f.pic_time, f.dual_time, 'Complex' as category
-			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND a.is_complex`+flightsDateFilter+`
-			UNION ALL
-			SELECT f.pic_time, f.dual_time, 'High Performance' as category
-			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND a.is_high_performance`+flightsDateFilter+`
-		) sub
-		GROUP BY category
-		ORDER BY COALESCE(SUM(pic_time), 0) + COALESCE(SUM(dual_time), 0) DESC
-	`, queryArgs...)
+	// Time by aircraft category (tailwheel, complex, high-performance)
+	categoryRows, err := h.reportsRepo.StatsByCategory(c.Request.Context(), userID, months)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query category stats")
 		return
 	}
-	defer categoryRows.Close()
 
 	type CategoryStat struct {
 		Category    string `json:"category"`
@@ -258,12 +148,13 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsBy
 		DualMinutes int    `json:"dualMinutes"`
 	}
 	var byCategory []CategoryStat
-	for categoryRows.Next() {
-		var cs CategoryStat
-		if err := categoryRows.Scan(&cs.Category, &cs.Flights, &cs.PICMinutes, &cs.DualMinutes); err != nil {
-			continue
-		}
-		byCategory = append(byCategory, cs)
+	for _, row := range categoryRows {
+		byCategory = append(byCategory, CategoryStat{
+			Category:    row.Category,
+			Flights:     row.Flights,
+			PICMinutes:  row.PICMinutes,
+			DualMinutes: row.DualMinutes,
+		})
 	}
 	if byCategory == nil {
 		byCategory = []CategoryStat{}

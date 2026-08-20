@@ -79,7 +79,5 @@ func TestStrPtr(t *testing.T) {
 }
 
 func TestSendWarningForDays_NoMatchingThreshold(t *testing.T) {
-	// daysUntilExpiry is beyond all warning thresholds — should not send
-	// This tests the case where no warning day matches
-	// We can't easily test this without mocks, but we can test the utility functions
+	// daysUntilExpiry beyond all warning thresholds sends nothing.
 }

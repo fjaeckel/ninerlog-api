@@ -35,44 +35,28 @@ func (h *APIHandler) ListAircraft(c *gin.Context, params generated.ListAircraftP
 		return
 	}
 
-	var aircraft []*models.Aircraft
-	if since := deltaWatermark(params.UpdatedSince); since != nil {
-		aircraft, err = h.aircraftService.ListAircraftUpdatedSince(c.Request.Context(), userID, *since)
-	} else {
-		aircraft, err = h.aircraftService.ListAircraft(c.Request.Context(), userID)
-	}
-	if err != nil {
-		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve aircraft")
-		return
-	}
-
-	// Pagination
 	page := 1
-	pageSize := 20
+	pageSize := service.DefaultAircraftPageSize
 	if params.Page != nil && *params.Page > 0 {
 		page = *params.Page
 	}
 	if params.PageSize != nil && *params.PageSize > 0 {
 		pageSize = *params.PageSize
-		if pageSize > 100 {
-			pageSize = 100
+		if pageSize > service.MaxAircraftPageSize {
+			pageSize = service.MaxAircraftPageSize
 		}
 	}
 
-	total := len(aircraft)
-	totalPages := (total + pageSize - 1) / pageSize
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if start > total {
-		start = total
-	}
-	if end > total {
-		end = total
+	aircraft, total, err := h.aircraftService.ListAircraftPage(
+		c.Request.Context(), userID, deltaWatermark(params.UpdatedSince), page, pageSize)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve aircraft")
+		return
 	}
 
-	pageAircraft := aircraft[start:end]
-	result := make([]generated.Aircraft, 0, len(pageAircraft))
-	for _, a := range pageAircraft {
+	totalPages := (total + pageSize - 1) / pageSize
+	result := make([]generated.Aircraft, 0, len(aircraft))
+	for _, a := range aircraft {
 		result = append(result, convertToGeneratedAircraft(a))
 	}
 

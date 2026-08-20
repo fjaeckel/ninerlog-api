@@ -10,9 +10,8 @@ import (
 )
 
 // TestNew_BlocksSSRFToMetadata verifies the default (guarded) SFTP provider
-// refuses to connect to the cloud metadata endpoint. A literal link-local IP is
-// used so no DNS lookup or connection actually happens — the guard rejects at
-// the dial Control hook.
+// refuses to connect to a link-local host; the literal IP is rejected at the
+// dial Control hook with no real connection.
 func TestNew_BlocksSSRFToMetadata(t *testing.T) {
 	p := New() // default, guarded
 

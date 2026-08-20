@@ -11,12 +11,12 @@ import (
 )
 
 // SeaweedFS container in docker-compose.e2e.yaml exposes an S3-compatible API:
-//   endpoint:   http://seaweedfs:8333 (inside docker) / http://localhost:8333 (host)
-//   bucket:     ninerlog-backups (pre-created by seaweedfs-init)
-//   creds:      ninerlogadmin / ninerlogsecret
 //
-// The API talks to SeaweedFS via its docker network alias, so when constructing
-// a backup destination we use the docker hostname.
+//	endpoint:   http://seaweedfs:8333 (inside docker) / http://localhost:8333 (host)
+//	bucket:     ninerlog-backups (pre-created by seaweedfs-init)
+//	creds:      ninerlogadmin / ninerlogsecret
+//
+// Backup destinations are constructed with the docker hostname.
 func s3Endpoint() string {
 	if v := os.Getenv("E2E_S3_ENDPOINT"); v != "" {
 		return v
@@ -25,10 +25,10 @@ func s3Endpoint() string {
 }
 
 type backupProvider struct {
-	Name             string `json:"name"`
-	DisplayName      string `json:"displayName"`
-	Description      string `json:"description"`
-	ConfigSchema     struct {
+	Name         string `json:"name"`
+	DisplayName  string `json:"displayName"`
+	Description  string `json:"description"`
+	ConfigSchema struct {
 		Fields []struct {
 			Name     string `json:"name"`
 			Type     string `json:"type"`
@@ -283,4 +283,3 @@ func TestBackup_ServiceDisabledReturns503(t *testing.T) {
 		t.Fatalf("expected 503 when backups disabled, got %d", resp.StatusCode)
 	}
 }
-

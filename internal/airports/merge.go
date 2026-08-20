@@ -12,9 +12,8 @@ type mergeStats struct {
 	Dropped          int // discarded: no source had usable coordinates
 }
 
-// validCoords rejects records that would poison distance and nearest-airport
-// lookups. Null Island is not an airport; both datasets use (0,0) as a
-// placeholder for "unknown".
+// validCoords reports whether a record has usable coordinates; (0,0) counts
+// as unknown.
 func validCoords(a AirportInfo) bool {
 	if math.IsNaN(a.Latitude) || math.IsNaN(a.Longitude) {
 		return false
@@ -26,9 +25,7 @@ func validCoords(a AirportInfo) bool {
 }
 
 // score rates how complete a record is. Records without usable coordinates
-// score below zero and are never chosen. The weights rank the fields by how
-// much a logbook depends on them: coordinates and name drive distance
-// calculations and display, the rest is enrichment.
+// score below zero and are never chosen.
 func score(a AirportInfo) int {
 	if !validCoords(a) {
 		return -1
@@ -56,14 +53,10 @@ func score(a AirportInfo) int {
 }
 
 // mergeSources combines the two datasets into the map that backs lookups.
-//
-// For an ICAO code present in both, the more complete record (see score) wins
-// and becomes the base; ties go to OurAirports, which is refreshed
-// continuously and already filters closed fields and heliports. Fields the
-// base is missing are then filled in from the other source — that is how
-// OurAirports records pick up mwgg's timezone and curated city, and how mwgg
-// records pick up an elevation OurAirports has. Codes unique to one source are
-// carried over as-is, provided their coordinates are usable.
+// For an ICAO code present in both, the higher-scoring record becomes the
+// base (ties go to OurAirports) and its missing fields are filled from the
+// other source. Codes unique to one source are carried over as-is when their
+// coordinates are usable.
 func mergeSources(ourAirports, mwgg map[string]AirportInfo) (map[string]AirportInfo, mergeStats) {
 	var stats mergeStats
 	merged := make(map[string]AirportInfo, len(ourAirports)+len(mwgg)/2)
@@ -113,9 +106,8 @@ func mergeSources(ourAirports, mwgg map[string]AirportInfo) (map[string]AirportI
 	return merged, stats
 }
 
-// fillGaps returns base enriched with any field it lacks from other.
-// Coordinates are never mixed: they come from the winning record as a pair,
-// so a merged airport is always at one real position.
+// fillGaps returns base enriched with any field it lacks from other;
+// coordinates are never mixed.
 func fillGaps(base, other AirportInfo) AirportInfo {
 	if base.Name == "" {
 		base.Name = other.Name

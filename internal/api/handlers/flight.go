@@ -16,6 +16,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -46,7 +47,8 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		opts.EndDate = &t
 	}
 	if params.AircraftReg != nil {
-		opts.AircraftReg = params.AircraftReg
+		reg := registration.Canonical(*params.AircraftReg)
+		opts.AircraftReg = &reg
 	}
 	if params.DepartureIcao != nil {
 		opts.DepartureICAO = params.DepartureIcao
@@ -92,10 +94,8 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	}
 
 	// Logbook filtering: if logbookLicenseId is set, restrict to flights on
-	// aircraft whose class matches the license's class ratings. This is applied
-	// at the SQL level (via opts) so it works correctly together with counting
-	// and pagination — filtering after pagination would only ever consider a
-	// single page of flights and report a wrong total.
+	// aircraft whose class matches the license's class ratings, applied at
+	// the SQL level via opts.
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)
 		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
@@ -110,7 +110,7 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 			regs := make([]string, 0, len(aircraftList))
 			for _, ac := range aircraftList {
 				if ac.AircraftClass != nil && allowedClasses[*ac.AircraftClass] {
-					regs = append(regs, strings.ToUpper(ac.Registration))
+					regs = append(regs, registration.Canonical(ac.Registration))
 				}
 			}
 			opts.FilterByRegistrations = true
@@ -301,11 +301,8 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.ApproachesCount = len(flight.Approaches)
 	}
 
-	// Parse crew members. Names are trimmed here rather than in
-	// persistCrewMembers below, because ApplyAutoCalculations and
-	// ResolvePICNameForSave read them in between — trimming later would let a
-	// padded name resolve PIC-of-record differently from the name that ends up
-	// stored.
+	// Parse crew members; names are trimmed here, before
+	// ApplyAutoCalculations and ResolvePICNameForSave read them.
 	if req.CrewMembers != nil {
 		for _, cm := range *req.CrewMembers {
 			member := models.FlightCrewMember{

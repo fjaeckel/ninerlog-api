@@ -12,14 +12,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// This file holds ONLY the two unauthenticated /sign/{token} endpoints. No
-// function here should ever call getUserIDFromContext, and neither endpoint
-// may respond with 401/403 — an anonymous instructor with no NinerLog
-// account must never be bounced through an auth flow (see the frontend's
-// global 401-response interceptor, which would otherwise redirect them to
-// /login). Invalid/used/revoked/voided tokens and unknown tokens all report
-// an identical 404 so a caller cannot distinguish "never existed" from
-// "already used" (anti-enumeration); expired tokens report 410.
+// This file holds only the two unauthenticated /sign/{token} endpoints. No
+// function here calls getUserIDFromContext, and neither endpoint responds
+// with 401/403. Invalid/used/revoked/voided/unknown tokens all report an
+// identical 404; expired tokens report 410.
 
 // GetPublicSignatureInfo implements GET /sign/{token}
 func (h *APIHandler) GetPublicSignatureInfo(c *gin.Context, token generated.SignatureToken) {
@@ -85,16 +81,12 @@ func sendPublicSigningError(h *APIHandler, c *gin.Context, err error) {
 }
 
 // sendSignatureCompletedEmail notifies the flight owner that their entry was
-// signed, using the DB-sourced address/name returned by the service — never
-// anything from the (unauthenticated) request itself (CWE-640). Errors are
-// swallowed; this is a courtesy notification, not part of the core flow.
+// signed, using the DB-sourced address/name returned by the service. Errors
+// are swallowed.
 func (h *APIHandler) sendSignatureCompletedEmail(c *gin.Context, sig *models.FlightSignature, ownerEmail, ownerName string) {
 	if h.emailSender == nil || ownerEmail == "" {
 		return
 	}
-	// The owner trivially "owns" their own flight; this is not an
-	// unauthenticated-caller-supplied ID, it comes from the already-verified
-	// signature record.
 	flight, err := h.flightService.GetFlight(c.Request.Context(), sig.FlightID, sig.UserID)
 	if err != nil {
 		return

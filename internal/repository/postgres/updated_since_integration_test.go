@@ -14,16 +14,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// deltaTick separates two writes far enough that their microsecond-precision
-// updated_at values cannot collide, so "strictly after" is actually exercised.
+// deltaTick separates two writes' updated_at values.
 const deltaTick = 5 * time.Millisecond
 
-// The delta-sync filter is a SQL predicate on updated_at, and its two load-
-// bearing properties — strictly-after (so a client can hand back the watermark
-// it already stored without receiving that record again) and full timestamp
-// precision (unlike the day-granular `date` filters) — can only be checked
-// against real Postgres, where updated_at is written by a trigger or by an
-// explicit UPDATE.
+// TestListRepositoriesUpdatedSinceIntegration covers the updatedSince
+// delta-sync filter — strictly-after comparison at full timestamp precision —
+// against real Postgres.
 func TestListRepositoriesUpdatedSinceIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
@@ -204,9 +200,7 @@ func TestListRepositoriesUpdatedSinceIntegration(t *testing.T) {
 		repo := postgres.NewFlightRepository(db)
 		userID := newUser(t)
 
-		// Both flights are logged on the same calendar day: the day-granular
-		// `q=updatedAt>YYYY-MM-DD` workaround cannot separate them, which is
-		// the gap updatedSince exists to close.
+		// Both flights are logged on the same calendar day.
 		first := deltaTestFlight(userID, "D-EAAA")
 		if err := repo.Create(ctx, first); err != nil {
 			t.Fatalf("create flight: %v", err)
@@ -232,8 +226,7 @@ func TestListRepositoriesUpdatedSinceIntegration(t *testing.T) {
 			t.Fatalf("delta list = %d flights, want only the second", len(delta))
 		}
 
-		// Counting must apply the same predicate, or pagination reports a
-		// total the caller can never page to.
+		// Counting applies the same predicate.
 		count, err := repo.CountByUserID(ctx, userID, opts)
 		if err != nil {
 			t.Fatalf("delta count: %v", err)
@@ -242,7 +235,7 @@ func TestListRepositoriesUpdatedSinceIntegration(t *testing.T) {
 			t.Errorf("delta count = %d, want 1", count)
 		}
 
-		// ANDs with the other filters rather than replacing them.
+		// UpdatedSince ANDs with the other filters.
 		reg := "D-EAAA"
 		narrowed := &repository.FlightQueryOptions{
 			Page: 1, PageSize: 20, UpdatedSince: &watermark, AircraftReg: &reg,

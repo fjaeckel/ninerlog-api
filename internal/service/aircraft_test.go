@@ -2,6 +2,8 @@ package service_test
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -45,8 +47,7 @@ func (m *mockAircraftRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.A
 	if !exists {
 		return nil, repository.ErrNotFound
 	}
-	// Return a copy so callers mutating the result don't change stored state,
-	// matching the behavior of a real database-backed repository.
+	// Return a detached copy, matching a database-backed repository.
 	clone := *a
 	return &clone, nil
 }
@@ -59,6 +60,23 @@ func (m *mockAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID, up
 		}
 	}
 	return result, nil
+}
+
+func (m *mockAircraftRepo) GetPageByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time, limit, offset int) ([]*models.Aircraft, int, error) {
+	all, err := m.GetByUserID(ctx, userID, updatedSince)
+	if err != nil {
+		return nil, 0, err
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Registration < all[j].Registration })
+	total := len(all)
+	if offset >= total {
+		return nil, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
 }
 
 func (m *mockAircraftRepo) Update(ctx context.Context, aircraft *models.Aircraft) error {
@@ -142,6 +160,137 @@ func TestCreateAircraft(t *testing.T) {
 	}
 	if aircraft.Registration != "D-EFGH" {
 		t.Errorf("Expected registration D-EFGH, got %s", aircraft.Registration)
+	}
+}
+
+func TestCreateAircraftCanonicalizesRegistration(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"lowercase German mark gets hyphenated", "deabc", "D-EABC"},
+		{"US mark loses its hyphen", "N-12345", "N12345"},
+		{"unrecognised mark is left alone", "SIM", "SIM"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := setupAircraftService()
+			ctx := context.Background()
+			userID := uuid.New()
+
+			aircraft := &models.Aircraft{
+				UserID:       userID,
+				Registration: tc.input,
+				Type:         "C172",
+				Make:         "Cessna",
+				Model:        "172",
+				IsActive:     true,
+			}
+			if err := svc.CreateAircraft(ctx, aircraft); err != nil {
+				t.Fatalf("CreateAircraft failed: %v", err)
+			}
+			if aircraft.Registration != tc.want {
+				t.Errorf("Registration = %q, want %q", aircraft.Registration, tc.want)
+			}
+
+			stored, err := svc.GetAircraft(ctx, aircraft.ID, userID)
+			if err != nil {
+				t.Fatalf("GetAircraft failed: %v", err)
+			}
+			if stored.Registration != tc.want {
+				t.Errorf("stored Registration = %q, want %q", stored.Registration, tc.want)
+			}
+		})
+	}
+}
+
+func TestCreateAircraftWhitespaceRegistrationStillRequired(t *testing.T) {
+	svc := setupAircraftService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	aircraft := &models.Aircraft{
+		UserID:       userID,
+		Registration: "  ",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172",
+		IsActive:     true,
+	}
+	err := svc.CreateAircraft(ctx, aircraft)
+	if err != models.ErrAircraftRegistrationRequired {
+		t.Errorf("Expected ErrAircraftRegistrationRequired, got %v", err)
+	}
+}
+
+func TestUpdateAircraftCanonicalizationIsNotARename(t *testing.T) {
+	repo := newMockAircraftRepo()
+	svc := service.NewAircraftService(repo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	id := uuid.New()
+	repo.aircraft[id] = &models.Aircraft{
+		ID:           id,
+		UserID:       userID,
+		Registration: "DEABC",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172",
+		IsActive:     true,
+	}
+	repo.flightsByReg["DEABC"] = 5
+
+	aircraft := &models.Aircraft{
+		ID:           id,
+		UserID:       userID,
+		Registration: "D-EABC",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172",
+		IsActive:     true,
+	}
+	updated, err := svc.UpdateAircraft(ctx, aircraft, userID, false)
+	if err != nil {
+		t.Fatalf("UpdateAircraft failed: %v", err)
+	}
+	if updated != 5 {
+		t.Errorf("Expected canonicalisation to repoint flights (5), got %d", updated)
+	}
+	if repo.aircraft[id].Registration != "D-EABC" {
+		t.Errorf("Expected stored registration D-EABC, got %s", repo.aircraft[id].Registration)
+	}
+}
+
+func TestUpdateAircraftGenuineRenameWithoutFlagLeavesFlights(t *testing.T) {
+	repo := newMockAircraftRepo()
+	svc := service.NewAircraftService(repo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	aircraft := &models.Aircraft{
+		UserID:       userID,
+		Registration: "D-EABC",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172",
+		IsActive:     true,
+	}
+	_ = svc.CreateAircraft(ctx, aircraft)
+	repo.flightsByReg["D-EABC"] = 7
+
+	aircraft.Registration = "D-EFGH"
+	updated, err := svc.UpdateAircraft(ctx, aircraft, userID, false)
+	if err != nil {
+		t.Fatalf("UpdateAircraft failed: %v", err)
+	}
+	if updated != 0 {
+		t.Errorf("Expected 0 flights updated for a genuine rename without renameFlights, got %d", updated)
+	}
+	if repo.aircraft[aircraft.ID].Registration != "D-EFGH" {
+		t.Errorf("Expected registration updated to D-EFGH, got %s", repo.aircraft[aircraft.ID].Registration)
 	}
 }
 
@@ -341,6 +490,105 @@ func TestListAircraft(t *testing.T) {
 	if len(list) != 2 {
 		t.Errorf("Expected 2 aircraft for user, got %d", len(list))
 	}
+}
+
+func TestListAircraftPage(t *testing.T) {
+	svc := setupAircraftService()
+	ctx := context.Background()
+	userID := uuid.New()
+	otherID := uuid.New()
+
+	for i := 0; i < 250; i++ {
+		if err := svc.CreateAircraft(ctx, &models.Aircraft{
+			UserID:       userID,
+			Registration: fmt.Sprintf("D-E%03d", i),
+			Type:         "C172", Make: "Cessna", Model: "172", IsActive: true,
+		}); err != nil {
+			t.Fatalf("seed %d: %v", i, err)
+		}
+	}
+	_ = svc.CreateAircraft(ctx, &models.Aircraft{
+		UserID: otherID, Registration: "D-ZZZZ", Type: "C152", Make: "Cessna", Model: "152", IsActive: true,
+	})
+
+	t.Run("total counts only the caller's fleet", func(t *testing.T) {
+		_, total, err := svc.ListAircraftPage(ctx, userID, nil, 1, 100)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if total != 250 {
+			t.Errorf("total = %d, want 250", total)
+		}
+	})
+
+	t.Run("pages do not overlap and cover the fleet", func(t *testing.T) {
+		seen := map[string]bool{}
+		for page := 1; page <= 3; page++ {
+			list, _, err := svc.ListAircraftPage(ctx, userID, nil, page, 100)
+			if err != nil {
+				t.Fatalf("page %d: %v", page, err)
+			}
+			want := 100
+			if page == 3 {
+				want = 50
+			}
+			if len(list) != want {
+				t.Errorf("page %d returned %d aircraft, want %d", page, len(list), want)
+			}
+			for _, a := range list {
+				if seen[a.Registration] {
+					t.Errorf("registration %s returned on more than one page", a.Registration)
+				}
+				seen[a.Registration] = true
+			}
+		}
+		if len(seen) != 250 {
+			t.Errorf("paging covered %d aircraft, want 250", len(seen))
+		}
+	})
+
+	t.Run("pageSize is clamped to the maximum", func(t *testing.T) {
+		list, _, err := svc.ListAircraftPage(ctx, userID, nil, 1, service.MaxAircraftPageSize+1_000)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if len(list) != 250 {
+			t.Errorf("got %d aircraft, want all 250 within the clamped page", len(list))
+		}
+	})
+
+	t.Run("a single request of 500 returns the whole fleet", func(t *testing.T) {
+		list, total, err := svc.ListAircraftPage(ctx, userID, nil, 1, service.MaxAircraftPageSize)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if len(list) != 250 || total != 250 {
+			t.Errorf("got %d of %d, want 250 of 250", len(list), total)
+		}
+	})
+
+	t.Run("page past the end is empty, not an error", func(t *testing.T) {
+		list, total, err := svc.ListAircraftPage(ctx, userID, nil, 99, 100)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if len(list) != 0 {
+			t.Errorf("got %d aircraft past the end, want 0", len(list))
+		}
+		if total != 250 {
+			t.Errorf("total = %d, want 250", total)
+		}
+	})
+
+	t.Run("non-positive page and pageSize fall back to defaults", func(t *testing.T) {
+		list, _, err := svc.ListAircraftPage(ctx, userID, nil, 0, 0)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if len(list) != service.DefaultAircraftPageSize {
+			t.Errorf("got %d aircraft, want the default page size %d", len(list), service.DefaultAircraftPageSize)
+		}
+	})
 }
 
 func TestUpdateAircraft(t *testing.T) {

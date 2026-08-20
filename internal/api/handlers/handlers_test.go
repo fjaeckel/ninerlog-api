@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -95,6 +96,27 @@ func (m *mockAircraftRepo) GetByUserID(_ context.Context, userID uuid.UUID, upda
 	}
 	return out, nil
 }
+func (m *mockAircraftRepo) GetPageByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time, limit, offset int) ([]*models.Aircraft, int, error) {
+	all, err := m.GetByUserID(ctx, userID, updatedSince)
+	if err != nil {
+		return nil, 0, err
+	}
+	return paginateAircraft(all, limit, offset), len(all), nil
+}
+
+// paginateAircraft mimics the repository's registration-ordered LIMIT/OFFSET.
+func paginateAircraft(all []*models.Aircraft, limit, offset int) []*models.Aircraft {
+	sort.Slice(all, func(i, j int) bool { return all[i].Registration < all[j].Registration })
+	if offset >= len(all) {
+		return nil
+	}
+	end := offset + limit
+	if end > len(all) {
+		end = len(all)
+	}
+	return all[offset:end]
+}
+
 func (m *mockAircraftRepo) Update(_ context.Context, a *models.Aircraft) error {
 	m.aircraft[a.ID] = a
 	return nil
@@ -1433,8 +1455,7 @@ func TestLogin2FA_InvalidBody(t *testing.T) {
 	}
 }
 
-// A 2FA account only gets its session here — LoginUser answered the password
-// with a challenge — so this is where the login is recorded.
+// A 2FA account's last-login is recorded here, not in LoginUser.
 func TestLogin2FA_RecordsLastLogin(t *testing.T) {
 	h, userRepo := setupTestHandler()
 

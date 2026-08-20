@@ -1518,6 +1518,9 @@ type AdminConfig struct {
 	// Example: 29331
 	AirportDatabaseSize int `json:"airportDatabaseSize"`
 
+	// AirportDatabaseUpdatedAt When the airport database was last loaded from the upstream sources; null when it never loaded
+	AirportDatabaseUpdatedAt *time.Time `json:"airportDatabaseUpdatedAt,omitempty"`
+
 	// AuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
 	AuthMode *AdminConfigAuthMode `json:"authMode,omitempty"`
 
@@ -1558,6 +1561,16 @@ type AdminConfig struct {
 	//
 	// Example: 10 req/min
 	RateLimitAuth string `json:"rateLimitAuth"`
+
+	// RegistrationPrefixCount Number of ICAO aircraft nationality marks in the vendored registration table
+	//
+	// Example: 210
+	RegistrationPrefixCount int `json:"registrationPrefixCount"`
+
+	// RegistrationPrefixesReviewed When the vendored nationality mark table was last checked against ICAO's published nationality marks. The table is vendored rather than fetched, so this is the only signal that it may be stale.
+	//
+	// Example: 2026-08-17
+	RegistrationPrefixesReviewed openapi_types.Date `json:"registrationPrefixesReviewed"`
 
 	// ServerUptime Human-readable uptime
 	//
@@ -1735,7 +1748,7 @@ type Aircraft struct {
 	// Example: Club aircraft, requires checkout
 	Notes *string `json:"notes,omitempty"`
 
-	// Registration Aircraft registration/tail number
+	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged.
 	//
 	// Example: D-EFGH
 	Registration string `json:"registration"`
@@ -1791,7 +1804,7 @@ type AircraftCreate struct {
 	// Notes Example: Club aircraft, requires checkout
 	Notes *string `json:"notes,omitempty"`
 
-	// Registration Aircraft registration/tail number
+	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged.
 	//
 	// Example: D-EFGH
 	Registration string `json:"registration"`
@@ -1979,6 +1992,29 @@ type Airport struct {
 	//
 	// Example: Frankfurt am Main
 	Name string `json:"name"`
+}
+
+// AirportPackStatus defines model for AirportPackStatus.
+type AirportPackStatus struct {
+	// Count Number of airports in the pack
+	//
+	// Example: 29331
+	Count int `json:"count"`
+
+	// Etag Content identifier of the current pack (hex SHA-256 over the
+	// airport data). Changes only when the merged dataset changes.
+	//
+	//
+	// Example: 3f6b1c9a2d4e5f60
+	Etag string `json:"etag"`
+
+	// GeneratedAt When the live airport snapshot was loaded from the upstream sources
+	GeneratedAt time.Time `json:"generatedAt"`
+
+	// SizeBytes Size of the gzip-compressed pack in bytes
+	//
+	// Example: 745211
+	SizeBytes int `json:"sizeBytes"`
 }
 
 // AirportStats defines model for AirportStats.

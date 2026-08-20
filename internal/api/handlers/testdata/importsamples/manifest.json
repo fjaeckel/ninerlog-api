@@ -171,11 +171,11 @@
       "file": "skydemon.csv",
       "expectTemplate": "SKYDEMON_CSV",
       "provenance": "real",
-      "notes": "Real populated SkyDemon export — the file that settled whether SkyDemon logbooks can be imported at all. Its time columns DO carry full timestamps ('2025-10-11 14:46'), so the flight can be dated; durations are integer MINUTES (PIC Time 67, matching the 67-minute block). Places are written 'ICAO Name' ('EDOI Bienenfarm'), and the registration has its hyphen stripped ('DEROQ' for D-EROQ). Crew name anonymised.",
+      "notes": "Real populated SkyDemon export — the file that settled whether SkyDemon logbooks can be imported at all. Its time columns DO carry full timestamps ('2025-10-11 14:46'), so the flight can be dated; durations are integer MINUTES (PIC Time 67, matching the 67-minute block). Places are written 'ICAO Name' ('EDOI Bienenfarm'), and the registration is exported without its hyphen ('DEROQ'), which registration.Canonical restores to 'D-EROQ'. Crew name anonymised.",
       "expectRows": 1,
       "expectFirstRow": {
         "date": "2025-10-11",
-        "aircraftReg": "DEROQ",
+        "aircraftReg": "D-EROQ",
         "aircraftType": "C172",
         "departureIcao": "EDOI",
         "arrivalIcao": "EDOI",

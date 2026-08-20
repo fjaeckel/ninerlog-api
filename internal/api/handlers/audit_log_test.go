@@ -5,19 +5,9 @@ import (
 	"testing"
 )
 
-// admin_audit_log.details is JSONB, so a payload that is not valid JSON is
-// rejected by Postgres and the audit row is lost. Both historical failures came
-// from assembling that payload by hand:
-//
-//   - `{"email":"%s"}` with only quotes escaped. Go's mail.ParseAddress accepts
-//     a quoted local-part and re-emits it unquoted ("back\\slash"@x ->
-//     back\slash@x); a raw backslash is not a valid JSON escape, so the insert
-//     failed. A user choosing their own address could make admin actions
-//     against them leave no trace.
-//   - Announcement create/delete passed a bare message string and a bare UUID.
-//     Neither is valid JSON, so those actions were never logged at all.
-//
-// json.Marshal handles every case. These tests pin that.
+// admin_audit_log.details is JSONB; these tests assert json.Marshal produces
+// valid JSON for every payload shape, including addresses with a quoted
+// local-part and bare string/UUID values.
 func TestAuditDetails_MarshalHandlesHostileValues(t *testing.T) {
 	cases := []struct {
 		name    string

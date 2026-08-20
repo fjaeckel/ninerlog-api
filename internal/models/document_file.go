@@ -16,20 +16,15 @@ const (
 )
 
 const (
-	// MaxDocumentFileBytes caps a single upload. Phone camera JPEGs of a
-	// licence booklet, and the PDFs an authority emails, both land well under
-	// this; anything larger is a scan nobody needs at full resolution.
+	// MaxDocumentFileBytes caps a single upload.
 	MaxDocumentFileBytes = 5 * 1024 * 1024
 
 	// MaxDocumentFilesPerSubject caps how many files one licence or
-	// credential can carry — front, back, and a couple of ratings pages.
+	// credential can carry.
 	MaxDocumentFilesPerSubject = 5
 
-	// MaxDocumentFilePixels bounds the decoded pixel count independently of
-	// the byte size. A 5 MB PNG can declare a 40000×40000 canvas that costs
-	// gigabytes to rasterize; the byte cap alone does not stop a
-	// decompression bomb, and DecodeConfig gives us the dimensions without
-	// allocating the pixel buffer.
+	// MaxDocumentFilePixels caps the decoded pixel count, independently of
+	// the byte size.
 	MaxDocumentFilePixels = 50_000_000
 
 	// MaxDocumentFileFilenameLen / MaxDocumentFileCaptionLen bound the
@@ -39,19 +34,6 @@ const (
 )
 
 // Content types accepted for upload.
-//
-// JPEG and PNG are decodable by the standard library, so an upload can be
-// re-verified server-side rather than trusted from its declared Content-Type.
-// WebP is absent because there is no stdlib decoder, so it could not be
-// verified the same way. SVG is deliberately absent and always will be: it is
-// a document format that executes script, and serving one back from our own
-// origin would be stored XSS.
-//
-// PDF is accepted because it is what authorities actually issue — but it
-// cannot be verified by decoding, and it is an active format in its own right
-// (scripts, embedded files). It earns its place by never being rendered in our
-// origin: ContentTypeIsInlineSafe is false for it, so it is served as an
-// attachment.
 const (
 	ContentTypeJPEG = "image/jpeg"
 	ContentTypePNG  = "image/png"
@@ -60,36 +42,27 @@ const (
 
 var AllowedDocumentFileContentTypes = []string{ContentTypeJPEG, ContentTypePNG, ContentTypePDF}
 
-// PDFMagic and PDFTrailer are the structural markers a PDF must carry. They
-// are not a validation of the document — nothing in the standard library
-// parses PDF — but together with the size cap they reject the obvious cases:
-// a truncated download, a renamed ZIP, a text file with a .pdf extension.
+// PDFMagic and PDFTrailer are the structural markers an uploaded PDF must
+// carry.
 var (
 	PDFMagic   = []byte("%PDF-")
 	PDFTrailer = []byte("%%EOF")
 )
 
-// ContentTypeIsImage reports whether a stored file is a raster image, i.e. one
-// the clients can render as a thumbnail and the server can verify by decoding.
+// ContentTypeIsImage reports whether a stored file is a raster image.
 func ContentTypeIsImage(ct string) bool {
 	return ct == ContentTypeJPEG || ct == ContentTypePNG
 }
 
 // ContentTypeIsInlineSafe reports whether a stored file may be served with
-// Content-Disposition: inline.
-//
-// Only the verified raster formats are. A PDF is an active document — it can
-// carry JavaScript and embedded attachments — and we cannot parse it to find
-// out what is inside, so it is always served as an attachment and never
-// rendered inside the application's own origin.
+// Content-Disposition: inline; anything else is served as an attachment.
 func ContentTypeIsInlineSafe(ct string) bool {
 	return ContentTypeIsImage(ct)
 }
 
 // DocumentFile is a reference photo or scan attached to a licence or a
-// credential. Data carries the raw bytes and is only populated on the
-// single-image download path — list and create responses leave it nil so a
-// listing never drags megabytes through the service layer.
+// credential. Data is populated only on the single-file download path and is
+// nil in list and create responses.
 type DocumentFile struct {
 	ID     uuid.UUID `json:"id"`
 	UserID uuid.UUID `json:"userId"`

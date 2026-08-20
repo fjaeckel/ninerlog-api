@@ -67,7 +67,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 		if got.Ceremony != models.WebAuthnCeremonyRegistration {
 			t.Errorf("expected registration ceremony, got %q", got.Ceremony)
 		}
-		// Compare semantically: JSONB reserialises with its own whitespace.
+		// Compare the JSON semantically.
 		var decoded map[string]string
 		if err := json.Unmarshal(got.Data, &decoded); err != nil {
 			t.Fatalf("decode data: %v", err)
@@ -102,9 +102,6 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 		}
 	})
 
-	// The single most important guarantee in the design: two racing finish
-	// requests — the same handle replayed, or begin/finish split across
-	// replicas — must not both verify.
 	t.Run("Concurrent consume: exactly one succeeds", func(t *testing.T) {
 		const goroutines = 8
 		for attempt := 0; attempt < 20; attempt++ {
@@ -149,7 +146,6 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 		}
 	})
 
-	// Correctness must not depend on the cleanup job having run.
 	t.Run("Expired row is not returned even though it is still present", func(t *testing.T) {
 		s := newSession("handle-expired", &user.ID, models.WebAuthnCeremonyLogin)
 		s.ExpiresAt = time.Now().Add(-time.Minute).UTC()
@@ -162,7 +158,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 			t.Errorf("expected ErrNotFound for expired session, got %v", err)
 		}
 
-		// It is rejected by the predicate, not because cleanup removed it.
+		// The expired row is still present.
 		var count int
 		if err := db.QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM webauthn_sessions WHERE id_hash = $1`,
@@ -219,7 +215,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 			t.Fatalf("create other user: %v", err)
 		}
 
-		// Distinct created_at values so "oldest" is unambiguous.
+		// Distinct created_at values.
 		base := time.Now().Add(-time.Hour)
 		handles := []string{"cap-1", "cap-2", "cap-3", "cap-4", "cap-5"}
 		for i, h := range handles {

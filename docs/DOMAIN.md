@@ -74,6 +74,19 @@ Validation is layered:
 Validation failures surface as sentinel errors (e.g. `ErrInvalidFlight`,
 `ErrInvalidTimeDistribution`) that handlers map to HTTP 400.
 
+## Aircraft registration normalisation
+
+`AircraftService.CreateAircraft`/`UpdateAircraft` and `FlightService.CreateFlight`/
+`UpdateFlight` canonicalise `Registration`/`AircraftReg` through `pkg/registration` before
+validating: a nationality mark recognised against the vendored ICAO table gets its hyphen
+inserted, moved or removed to match how that state writes it (`DEABC` → `D-EABC`,
+`N-12345` → `N12345`); anything unrecognised is only uppercased and trimmed. This matters
+because `flights.aircraft_reg` is a denormalised string and the join key the fleet and
+per-registration statistics group by — two spellings of one aircraft otherwise split into
+two fleet entries and two sets of statistics. Full design, the table-maintenance workflow,
+and the `POST /flights/recalculate` migration path are in
+[AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
+
 ## Currency engine
 
 **Currency** answers the regulator's question: *given recent flying, is this pilot
@@ -108,7 +121,7 @@ additionally implement optional interfaces:
 
 Evaluators never write SQL. They request aggregates through the `FlightDataProvider`
 interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL in
-`flight_data.go`:
+`internal/repository/postgres/currency_flight_data.go`:
 
 - `GetProgressByAircraftClass(userID, classType, since)` — summed times/landings for a
   class since a date.

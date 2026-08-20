@@ -25,8 +25,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	if user.PreferredLocale == "" {
 		user.PreferredLocale = "en"
 	}
-	// Keep the in-memory struct consistent with the DB column defaults so a
-	// later Update from this struct doesn't silently flip a preference
+	// Match the DB column defaults.
 	user.RecencyPerModel = true
 	user.FlightListColumnMode = models.FlightListColumnModeAuto
 	user.FlightListColumns = pq.StringArray{}
@@ -49,7 +48,6 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	)
 
 	if err != nil {
-		// Check for unique constraint violation (duplicate email)
 		if errMsg := err.Error(); errMsg == "pq: duplicate key value violates unique constraint \"users_email_key\"" ||
 			errMsg == "pq: duplicate key value violates unique constraint \"users_email_key\" (23505)" {
 			return repository.ErrDuplicateEmail
@@ -159,9 +157,7 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		WHERE id = $19
 	`
 
-	// Both columns are NOT NULL. Callers that build a User without touching the
-	// flights-list preferences (or that were written before it existed) would
-	// otherwise write a NULL and fail the whole update.
+	// Both columns are NOT NULL; zero values are replaced with defaults.
 	columnMode := user.FlightListColumnMode
 	if columnMode == "" {
 		columnMode = models.FlightListColumnModeAuto
@@ -188,9 +184,6 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.RecencyPerRegistration,
 		columnMode,
 		columns,
-		// email_verified is written here so a verified address cannot silently
-		// survive an address change (see UpdateCurrentUser). Every other caller
-		// loads the user first, so writing the unchanged value back is a no-op.
 		user.EmailVerified,
 		user.UpdatedAt,
 		user.ID,
@@ -255,9 +248,8 @@ func (r *UserRepository) ResetFailedLoginAttempts(ctx context.Context, id uuid.U
 	return err
 }
 
-// UpdateLastLogin stamps the moment a session was handed out. Missing rows are
-// not an error: the caller has already authenticated, and failing the login
-// because the stamp could not be written would be worse than a stale timestamp.
+// UpdateLastLogin stamps the moment a session was handed out. A missing row
+// is not an error.
 func (r *UserRepository) UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error {
 	query := `
 		UPDATE users
@@ -280,14 +272,6 @@ func (r *UserRepository) LockAccount(ctx context.Context, id uuid.UUID, until ti
 
 // ConsumeRecoveryCode atomically removes one recovery code hash from the user's
 // list, returning true only if this call was the one that removed it.
-//
-// The previous read-modify-write (load user, drop the matching entry in Go,
-// write the whole row back) had no lock or version check, so concurrent
-// submissions of the SAME code all observed it as present, all matched, and all
-// authenticated. Confirmed: ten parallel /auth/2fa/login requests with one code
-// returned 200 ten times. array_remove inside a single conditional UPDATE makes
-// consumption atomic -- the WHERE clause fails for every caller after the first,
-// and 0 rows affected means "already used".
 func (r *UserRepository) ConsumeRecoveryCode(ctx context.Context, id uuid.UUID, codeHash string) (bool, error) {
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE users
@@ -324,16 +308,8 @@ func (r *UserRepository) MarkEmailVerified(ctx context.Context, id uuid.UUID) er
 	return nil
 }
 
-// unverifiedAccountGuards restricts every reaper query to accounts that are
-// genuinely dead signups.
-//
-// Two exclusions matter beyond "not verified yet":
-//
-//   - last_login_at IS NULL — an account that has logged in is in use, whatever
-//     its verified flag says. OIDC provisioning can leave a working account
-//     unverified when the provider reports email_verified=false.
-//   - no OIDC identity — such an account authenticates through its provider and
-//     is never going to consume a link from our verification email.
+// unverifiedAccountGuards restricts every reaper query to unverified accounts
+// that have never logged in and have no OIDC identity.
 const unverifiedAccountGuards = `
 	email_verified = FALSE
 	AND last_login_at IS NULL
@@ -357,8 +333,6 @@ func (r *UserRepository) ListUnverifiedForReminder(ctx context.Context, createdB
 	}
 	defer func() { _ = rows.Close() }()
 
-	// Only the fields the reminder email needs are selected; the rest of the
-	// user record is irrelevant to sending it.
 	users := []*models.User{}
 	for rows.Next() {
 		u := &models.User{}
@@ -371,8 +345,6 @@ func (r *UserRepository) ListUnverifiedForReminder(ctx context.Context, createdB
 }
 
 func (r *UserRepository) MarkVerificationReminderSent(ctx context.Context, id uuid.UUID, at time.Time) error {
-	// Guarded on the column still being NULL so two overlapping sweeps cannot
-	// move the deletion clock forward on an account that was already reminded.
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE users
 		SET verification_reminder_sent_at = $1
@@ -392,9 +364,7 @@ func (r *UserRepository) MarkVerificationReminderSent(ctx context.Context, id uu
 }
 
 func (r *UserRepository) DeleteUnverifiedRemindedBefore(ctx context.Context, remindedBefore time.Time) (int64, error) {
-	// The guards are repeated here rather than trusted from the listing query:
-	// this is the statement that destroys data, and it must stand on its own.
-	// Every dependent row goes with it through ON DELETE CASCADE.
+	// Dependent rows are removed via ON DELETE CASCADE.
 	result, err := r.db.ExecContext(ctx, `
 		DELETE FROM users
 		WHERE `+unverifiedAccountGuards+`

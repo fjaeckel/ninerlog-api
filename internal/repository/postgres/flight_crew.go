@@ -18,7 +18,6 @@ func NewFlightCrewRepository(db *sql.DB) *FlightCrewRepository {
 }
 
 func (r *FlightCrewRepository) SetCrewMembers(ctx context.Context, flightID uuid.UUID, members []models.FlightCrewMember) error {
-	// Delete existing crew members for the flight
 	if err := r.DeleteByFlightID(ctx, flightID); err != nil {
 		return err
 	}
@@ -73,8 +72,7 @@ func (r *FlightCrewRepository) DeleteByFlightID(ctx context.Context, flightID uu
 }
 
 // GetByFlightIDs batch-loads crew members for multiple flights and returns
-// them grouped by flight ID. Used by exporters to avoid N+1 queries when
-// rendering many flights.
+// them grouped by flight ID.
 func (r *FlightCrewRepository) GetByFlightIDs(ctx context.Context, flightIDs []uuid.UUID) (map[uuid.UUID][]models.FlightCrewMember, error) {
 	out := make(map[uuid.UUID][]models.FlightCrewMember, len(flightIDs))
 	if len(flightIDs) == 0 {

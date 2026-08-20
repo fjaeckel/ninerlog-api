@@ -8,10 +8,7 @@ import (
 )
 
 // TestAppendRegistrationFilter covers the SQL fragment used by the logbook
-// class filter. This is the fix for the bug where the filter was previously
-// applied in-memory AFTER pagination, causing multi-page logbooks to be badly
-// undercounted (a pilot with 96 SEP flights only ever saw the ~18 that happened
-// to land on the first page).
+// class filter.
 func TestAppendRegistrationFilter(t *testing.T) {
 	t.Run("disabled filter leaves query untouched", func(t *testing.T) {
 		q, args, argNum := appendRegistrationFilter("WHERE user_id = $1", []interface{}{"u"}, 2, nil)

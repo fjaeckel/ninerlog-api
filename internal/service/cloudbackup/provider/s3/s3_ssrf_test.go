@@ -7,9 +7,8 @@ import (
 )
 
 // TestNew_BlocksSSRFToMetadata verifies the default (guarded) S3 provider
-// refuses to connect to the cloud metadata endpoint via a user-supplied
-// endpoint. A literal link-local IP is used so the guard rejects at the dial
-// Control hook with no real connection.
+// refuses to connect to a link-local endpoint; the literal IP is rejected at
+// the dial Control hook with no real connection.
 func TestNew_BlocksSSRFToMetadata(t *testing.T) {
 	p := New() // default, guarded
 

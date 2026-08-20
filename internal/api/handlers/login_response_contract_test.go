@@ -93,8 +93,7 @@ func TestLogin200AcceptsTwoFactorChallenge(t *testing.T) {
 	}
 }
 
-// The two branches have to be mutually exclusive, otherwise a generated client
-// cannot tell which one it received without probing.
+// Asserts the two branches are mutually exclusive.
 func TestLogin200BranchesAreUnambiguous(t *testing.T) {
 	schema := login200Schema(t)
 	if len(schema.OneOf) != 2 {

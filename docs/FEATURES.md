@@ -147,7 +147,10 @@ rules.
 - CRUD: `POST/GET/PUT/DELETE /flights`.
 - Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
-  respecting manual `*Override` flags.
+  respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
+  registrations into the notation their state of registry uses, reporting the outcome as
+  `aircraftNormalized`/`aircraftConflicts` — see
+  [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 - Rich data: structured approaches, crew members, endorsements, FSTD, launch method for
   gliders.
 - Airport names: flight responses carry read-only `departureAirportName` /
@@ -182,6 +185,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   filling its gaps from the other. It is loaded at startup and refetched every
   `AIRPORT_REFRESH_INTERVAL` (default 24h); a failed refresh keeps the data already in
   memory. See [METRICS.md](./METRICS.md) for the fetch/load/lookup metrics it exposes.
+  Clients that need offline nearest-airport matching (the iOS Share Extension) download
+  the whole database as a gzip-compressed pack via `GET /airports/pack`, and poll
+  `GET /airports/pack/status` for its content `etag` — hashed over the airport data
+  alone, so a refresh that produced identical data does not trigger a re-download.
 
 ## Import & export
 
@@ -289,8 +296,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   user does not own yet (from a ForeFlight export's Aircraft Table when present, otherwise from
   the flight rows' registration/type columns). Rows skipped as duplicates still
   contribute their aircraft, so re-importing a file backfills a fleet an earlier import
-  left empty. The confirm response reports both counts as `contactsCreated` and
-  `aircraftCreated`.
+  left empty. Registrations are keyed in canonical notation while collecting them, so a
+  file that spells one aircraft two ways yields one fleet entry, not two. The confirm
+  response reports both counts as `contactsCreated` and `aircraftCreated`.
   Restoring a JSON backup does the same: contacts are not carried in the backup format, so
   the crew names are re-linked by name against the destination account's address book and
   created where they are new, reported as `contactsCreated` in the restore summary.
@@ -360,7 +368,10 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
 - **Platform** — stats/dashboard (`admin_dashboard.go`), audit log (`AdminAuditLog`,
   migration 27), config view. `totalContacts` sits alongside the flight and aircraft
   counts: contacts accumulate on their own as crew names are logged, so it is a growth
-  number, not a configuration one.
+  number, not a configuration one. Config view also reports `registrationPrefixCount`
+  and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
+  and when it was last checked against upstream, since the table is vendored rather than
+  fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).
 - **Maintenance** — cleanup expired tokens, SMTP test, manually trigger the notification
   check.
 - **Announcements** — create/delete platform-wide banners (`SystemAnnouncement`,

@@ -40,8 +40,8 @@ func flightPayload(remarks string) map[string]interface{} {
 	}
 }
 
-// A queued write replayed after the connection dropped must not produce a
-// second logbook entry — the whole point of the feature.
+// TestIdempotentFlightCreate covers a replayed keyed POST returning the first
+// response without creating a second flight.
 func TestIdempotentFlightCreate(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("idem-create"), "SecurePass123!", "Idem Create")
@@ -72,8 +72,7 @@ func TestIdempotentFlightCreate(t *testing.T) {
 	}
 }
 
-// Without the header the API behaves exactly as it always has. This is what
-// keeps every existing client — the frontend included — unaffected.
+// Without the header the API behaviour is unchanged.
 func TestIdempotencyOptInOnly(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("idem-optout"), "SecurePass123!", "Idem OptOut")
@@ -86,8 +85,7 @@ func TestIdempotencyOptInOnly(t *testing.T) {
 	}
 }
 
-// Reusing one key for a different payload is a client bug; answering it with
-// the first request's response would hide it.
+// Reusing one key for a different payload is rejected with 422.
 func TestIdempotencyKeyReuseWithDifferentBody(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("idem-mismatch"), "SecurePass123!", "Idem Mismatch")
@@ -105,8 +103,7 @@ func TestIdempotencyKeyReuseWithDifferentBody(t *testing.T) {
 	}
 }
 
-// Keys are per user: two pilots picking the same client-side key must not see
-// each other's writes or responses.
+// Keys are scoped per user.
 func TestIdempotencyKeysAreScopedPerUser(t *testing.T) {
 	key := idempotencyKey("shared")
 	headers := map[string]string{"Idempotency-Key": key}
@@ -127,8 +124,7 @@ func TestIdempotencyKeysAreScopedPerUser(t *testing.T) {
 	}
 }
 
-// A repeated DELETE replays the original 204 instead of 404 — a client
-// reconciling a queue after being offline cannot tell those apart otherwise.
+// A repeated keyed DELETE replays the original 204 instead of 404.
 func TestIdempotentFlightDelete(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("idem-delete"), "SecurePass123!", "Idem Delete")
@@ -154,12 +150,11 @@ func TestIdempotentFlightDelete(t *testing.T) {
 		t.Error("repeated DELETE should be flagged as a replay")
 	}
 
-	// Without a key the same repeat is a 404, which is the pre-existing
-	// behaviour and must stay that way.
+	// Without a key the same repeat is a 404.
 	assertStatus(t, c.DELETE("/flights/"+id), http.StatusNotFound)
 }
 
-// Updates are idempotent too, so a queued edit can be replayed safely.
+// Keyed updates replay the same way as creates.
 func TestIdempotentFlightUpdate(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("idem-update"), "SecurePass123!", "Idem Update")
@@ -187,8 +182,8 @@ func TestIdempotentFlightUpdate(t *testing.T) {
 	}
 }
 
-// A rejected request is a deterministic verdict, so its response replays too —
-// and it must not become a flight on retry.
+// A rejected request's response replays too, and no flight is created on
+// retry.
 func TestIdempotentValidationFailureReplays(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("idem-invalid"), "SecurePass123!", "Idem Invalid")
@@ -234,8 +229,7 @@ func TestIdempotencyKeyValidation(t *testing.T) {
 	}
 }
 
-// GET is already idempotent; the header must be inert there rather than
-// consuming a record.
+// The header is inert on GET.
 func TestIdempotencyKeyIgnoredOnReads(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("idem-read"), "SecurePass123!", "Idem Read")

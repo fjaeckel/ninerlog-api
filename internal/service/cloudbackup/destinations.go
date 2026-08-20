@@ -61,17 +61,12 @@ func (s *Service) CreateDestination(ctx context.Context, in CreateDestinationInp
 		return nil, fmt.Errorf("retentionCount must be >= 0")
 	}
 
-	// Validate config/credential field presence based on the provider's
-	// declared schema; gives clearer errors than a remote auth failure.
+	// Validate config/credential field presence against the provider's
+	// declared schema.
 	if err := requireFields(p.ConfigSchema(), in.Config); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
-	// Reject keys the provider does not declare. Config was previously copied
-	// through verbatim, so a caller could set keys that exist in the provider
-	// code but not in its schema -- accept_any_host_key, allow_insecure,
-	// use_ssl -- silently disabling SSH host-key verification or TLS. Those are
-	// now declared (so the UI can warn about them); anything still unknown is
-	// a mistake and fails closed.
+	// Reject keys the provider does not declare.
 	if err := rejectUnknownFields(p.ConfigSchema(), in.Config); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
@@ -79,7 +74,7 @@ func (s *Service) CreateDestination(ctx context.Context, in CreateDestinationInp
 		return nil, fmt.Errorf("credentials: %w", err)
 	}
 
-	// Verify the credentials actually work before we persist them.
+	// Verify the credentials before persisting them.
 	if err := p.Validate(ctx, in.Config, in.Credentials); err != nil {
 		return nil, err
 	}
@@ -118,8 +113,8 @@ func (s *Service) CreateDestination(ctx context.Context, in CreateDestinationInp
 	return d, nil
 }
 
-// UpdateDestination applies a partial update. Credentials are intentionally
-// not modifiable here — to rotate, delete and recreate the destination.
+// UpdateDestination applies a partial update. Credentials are not modifiable
+// here — to rotate, delete and recreate the destination.
 func (s *Service) UpdateDestination(ctx context.Context, destinationID, userID uuid.UUID, in UpdateDestinationInput) (*models.BackupDestination, error) {
 	d, err := s.requireOwned(ctx, destinationID, userID)
 	if err != nil {
@@ -132,8 +127,8 @@ func (s *Service) UpdateDestination(ctx context.Context, destinationID, userID u
 		d.DisplayName = *in.DisplayName
 	}
 
-	// Schedule + companions are applied atomically; we evaluate the *intended*
-	// final shape and validate before persisting.
+	// Schedule + companions are applied atomically; the intended final shape
+	// is validated before persisting.
 	sched := d.Schedule
 	hour := d.ScheduleHourUTC
 	dow := d.ScheduleDayOfWeek
@@ -168,8 +163,7 @@ func (s *Service) UpdateDestination(ctx context.Context, destinationID, userID u
 	}
 	if in.Enabled != nil {
 		d.Enabled = *in.Enabled
-		// Manually re-enabling a destination that was in error clears the
-		// error so the scheduler picks it back up.
+		// Re-enabling a destination that was in error clears the error.
 		if d.Enabled && d.Status == models.BackupStatusError {
 			d.Status = models.BackupStatusActive
 			d.LastError = ""
@@ -192,8 +186,7 @@ func (s *Service) DeleteDestination(ctx context.Context, destinationID, userID u
 }
 
 // TestDestination decrypts the stored credentials and re-runs the provider's
-// Validate routine. It also updates last_error / status to reflect the result
-// so the UI's freshly-displayed status matches reality.
+// Validate routine, updating last_error / status to reflect the result.
 func (s *Service) TestDestination(ctx context.Context, destinationID, userID uuid.UUID) (bool, string, error) {
 	d, err := s.requireOwned(ctx, destinationID, userID)
 	if err != nil {
@@ -279,8 +272,7 @@ func requireFields(schema []provider.Field, data map[string]any) error {
 
 // credentialHint produces a short, non-secret label for a credential blob:
 // the last 4 visible characters of the first non-sensitive field, or "•••"
-// if no such field exists. The hint is what the UI shows for an existing
-// destination since the secret itself never leaves the server.
+// if no such field exists.
 func credentialHint(schema []provider.Field, creds map[string]any) string {
 	for _, f := range schema {
 		if f.Type == provider.FieldTypePassword || f.Sensitive {
@@ -316,8 +308,7 @@ func (s *Service) recordError(ctx context.Context, d *models.BackupDestination, 
 		d.Status = models.BackupStatusError
 	}
 	if updateErr := s.destRepo.Update(ctx, d); updateErr != nil {
-		// Logging is the responsibility of the caller; we want to surface the
-		// original cause to the user, not the persistence hiccup.
+		// The original cause, not the persistence error, is surfaced.
 		_ = updateErr
 	}
 }
@@ -340,8 +331,7 @@ func (s *Service) recordSuccess(ctx context.Context, d *models.BackupDestination
 }
 
 // nowWithin returns true if last_success_at is within the window relative to
-// now. Used by the runner's skip-if-unchanged short-circuit. Currently
-// unused but kept for clarity in tests.
+// now.
 func nowWithin(now time.Time, last *time.Time, window time.Duration) bool {
 	if last == nil {
 		return false

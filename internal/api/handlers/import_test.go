@@ -619,11 +619,8 @@ func TestMapRowToFlight_InstructorNameDiffFromPerson1(t *testing.T) {
 
 // TestMapRowToFlight_ForeFlightStructuredApproaches covers the ForeFlight
 // CSV format where each Approach1-6 cell holds a structured
-// "count;type;runway;airport;notes" payload (quoted in the source CSV).
-// It also pins the regression where SimulatedInstrument and TotalTime are
-// both stored as decimal hours rounded independently, so the derived IFR
-// time used to exceed the block-time-derived total by one minute and the
-// row was rejected by ValidateTimeDistribution.
+// "count;type;runway;airport;notes" payload (quoted in the source CSV), and
+// asserts the derived IFR time never exceeds the block-time-derived total.
 func TestMapRowToFlight_ForeFlightStructuredApproaches(t *testing.T) {
 	row := map[string]string{
 		"Date":                  "2019-07-26",
@@ -724,10 +721,9 @@ func TestMapRowToFlight_ForeFlightStructuredApproaches(t *testing.T) {
 	}
 }
 
-// TestMapRowToFlight_ForeFlightPersonRoleTags exercises the case where the
-// instructor on a training flight is recorded as Person2 (not Person1).
-// The role tags on the Person cells must win over the legacy positional
-// rule (which would otherwise label Person1 as the Instructor).
+// TestMapRowToFlight_ForeFlightPersonRoleTags asserts the role tags on the
+// Person cells win over the legacy positional rule when the instructor is
+// recorded as Person2.
 func TestMapRowToFlight_ForeFlightPersonRoleTagsInstructorIsPerson2(t *testing.T) {
 	row := map[string]string{
 		"Date":                  "2024-05-01",
@@ -875,11 +871,8 @@ func TestParseForeFlightApproach(t *testing.T) {
 
 func ptr(s string) *string { return &s }
 
-// TestParseFlexibleDate is a regression test for the bug where re-importing
-// ninerlog's own exported CSV failed because the importer only accepted the
-// single hardcoded ISO "2006-01-02" layout, while ninerlog's default (and
-// user-selectable) export date format is "DD.MM.YYYY" (e.g. "07.04.2019").
-// The importer must accept a myriad of common date formats.
+// TestParseFlexibleDate asserts the importer accepts a range of common date
+// formats, including "DD.MM.YYYY".
 func TestParseFlexibleDate(t *testing.T) {
 	tests := []struct {
 		name string
@@ -926,12 +919,9 @@ func TestParseFlexibleDate(t *testing.T) {
 	}
 }
 
-// TestMapRowToFlight_ReimportOwnExportDateFormat is an end-to-end regression
-// test for re-importing ninerlog's own "standard" CSV export, which is
-// detected as FOREFLIGHT_CSV (its headers overlap heavily with ForeFlight's)
-// and previously forced the ISO date layout via suggestForeFlight's
-// DateFormat hint, rejecting every row when the user's export date format
-// was the default "DD.MM.YYYY".
+// TestMapRowToFlight_ReimportOwnExportDateFormat asserts re-importing
+// ninerlog's own "standard" CSV export (detected as FOREFLIGHT_CSV) accepts
+// the default "DD.MM.YYYY" date format.
 func TestMapRowToFlight_ReimportOwnExportDateFormat(t *testing.T) {
 	row := map[string]string{
 		"Date":       "07.04.2019",
@@ -974,10 +964,8 @@ func TestNormalizeDecimalSeparator(t *testing.T) {
 	}
 }
 
-// TestMapRowToFlight_CommaDecimalDurationFields is a regression test for
-// re-importing CSVs exported with a comma decimal separator (a supported
-// ninerlog export preference), which previously made every decimal-hour
-// duration field silently fail to parse and get dropped.
+// TestMapRowToFlight_CommaDecimalDurationFields asserts every decimal-hour
+// duration field parses correctly from a comma decimal separator.
 func TestMapRowToFlight_CommaDecimalDurationFields(t *testing.T) {
 	row := map[string]string{
 		"Date":                "2022-06-10",
@@ -1042,11 +1030,9 @@ func TestMapRowToFlight_InvalidDurationSurfacesFieldError(t *testing.T) {
 	}
 }
 
-// TestSuggestGenericCSV_InstrumentTimeFields is a regression test for the
-// bug where "ActualInstrument"/"actual instrument" headers were mapped to
-// the combined "ifrTime" target instead of the dedicated
-// "actualInstrumentTime" field, and "SimulatedInstrument" wasn't recognised
-// at all.
+// TestSuggestGenericCSV_InstrumentTimeFields asserts "ActualInstrument" and
+// "SimulatedInstrument" headers map to their own dedicated fields, not the
+// combined "ifrTime" target.
 func TestSuggestGenericCSV_InstrumentTimeFields(t *testing.T) {
 	headers := []string{"ActualInstrument", "SimulatedInstrument"}
 	mappings := suggestGenericCSV(headers)
@@ -1105,10 +1091,7 @@ func TestSuggestGenericCSV_OwnEASAFAAExportAliases(t *testing.T) {
 	}
 }
 
-// collectAircraftFromRows backs the fleet auto-creation on confirm. Only
-// ForeFlight exports carry an Aircraft Table; every other CSV names its
-// aircraft solely in the flight rows, and importing one used to create the
-// flights while leaving the fleet empty.
+// collectAircraftFromRows backs the fleet auto-creation on confirm.
 func TestCollectAircraftFromRows(t *testing.T) {
 	mappings := map[string]generated.ImportColumnMapping{
 		"Reg":  {SourceColumn: "Reg", TargetField: "aircraftReg"},
@@ -1167,6 +1150,37 @@ func TestCollectAircraftFromRows_HonoursRowSelection(t *testing.T) {
 	}
 	if _, ok := got["D-EXYZ"]; !ok {
 		t.Errorf("collected %v, want D-EXYZ (row 2)", got)
+	}
+}
+
+func TestCollectAircraftFromRows_CanonicalizesLegacySpelling(t *testing.T) {
+	mappings := map[string]generated.ImportColumnMapping{
+		"Reg": {SourceColumn: "Reg", TargetField: "aircraftReg"},
+	}
+	rows := []map[string]string{
+		{"Reg": "D-EABC"},
+		{"Reg": "DEABC"},
+	}
+
+	got := collectAircraftFromRows(rows, mappings, nil)
+	if len(got) != 1 {
+		t.Fatalf("collected %v, want a single entry", got)
+	}
+	if _, ok := got["D-EABC"]; !ok {
+		t.Errorf("collected %v, want it keyed canonically as D-EABC", got)
+	}
+}
+
+func TestCollectAircraftFromRows_TypeColumnNotRegistrationNormalized(t *testing.T) {
+	mappings := map[string]generated.ImportColumnMapping{
+		"Reg":  {SourceColumn: "Reg", TargetField: "aircraftReg"},
+		"Type": {SourceColumn: "Type", TargetField: "aircraftType"},
+	}
+	rows := []map[string]string{{"Reg": "D-EABC", "Type": "C172"}}
+
+	got := collectAircraftFromRows(rows, mappings, nil)
+	if typeCode := got["D-EABC"]; typeCode != "C172" {
+		t.Errorf("type = %q, want unnormalized %q", typeCode, "C172")
 	}
 }
 

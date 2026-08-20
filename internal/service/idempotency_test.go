@@ -259,8 +259,8 @@ func TestIdempotencyService_OversizedResponseIsNotReplayable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
-	// The write happened, so re-executing would duplicate it; without a
-	// stored response the only honest answer is to refuse.
+	// A completed claim without a stored response must be refused, not
+	// re-executed.
 	if got.Outcome != IdempotencyNotReplayable {
 		t.Fatalf("want IdempotencyNotReplayable, got %v", got.Outcome)
 	}

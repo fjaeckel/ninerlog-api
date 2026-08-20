@@ -90,8 +90,8 @@ func (m *mockFlightSignatureRepo) Update(ctx context.Context, sig *models.Flight
 	if !ok {
 		return repository.ErrNotFound
 	}
-	// Mirror a real UNIQUE column: rotating token_hash must drop the old
-	// value from the index, otherwise a stale token would still resolve.
+	// Mirror a real UNIQUE column: rotating token_hash drops the old value
+	// from the index.
 	if existing.TokenHash != nil {
 		delete(m.byToken, *existing.TokenHash)
 	}
@@ -556,10 +556,7 @@ func (m *mockFlightSignatureRepo) CountEmailsSentSince(_ context.Context, _ uuid
 	return m.emailsSent, nil
 }
 
-// Each signature request emails an arbitrary recipient from the platform's own
-// domain, and the landing page then collects the recipient's name, credential
-// number and handwritten signature. Without a per-account ceiling that is a
-// ready-made bulk phishing and harvesting channel.
+// The per-account daily email quota is enforced on email-sending requests.
 func TestCreateRequest_EnforcesDailyEmailQuota(t *testing.T) {
 	svc, sigRepo, flightRepo, _ := newSignatureTestService()
 	userID := uuid.New()

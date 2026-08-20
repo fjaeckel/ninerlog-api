@@ -59,8 +59,7 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 	message := "A verification email has been sent. Please check your inbox to complete registration."
 
 	if verificationRequired {
-		// Deliver the verification email. Failures here are logged but do not
-		// fail the request — the user can request a fresh email via /auth/verify-email/resend.
+		// Deliver the verification email; failures are logged, not fatal.
 		h.sendVerificationEmail(c.Request.Context(), user.Email, user.Name, user.PreferredLocale, verificationToken)
 	} else {
 		if err := h.authService.MarkEmailVerified(c.Request.Context(), user.ID); err != nil {
@@ -79,8 +78,7 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 }
 
 // preferredLocaleString converts the optional generated locale enum into a
-// plain string, returning an empty value when omitted so the service can
-// apply its default.
+// plain string, returning an empty value when omitted.
 func preferredLocaleString(locale *generated.RegisterUserJSONBodyPreferredLocale) string {
 	if locale == nil {
 		return ""
@@ -129,7 +127,7 @@ func (h *APIHandler) ResendVerificationEmail(c *gin.Context) {
 
 	parsed, err := mail.ParseAddress(string(req.Email))
 	if err != nil {
-		// Stay indistinguishable to prevent enumeration.
+		// Indistinguishable from the success path.
 		c.Status(http.StatusNoContent)
 		return
 	}
@@ -149,7 +147,7 @@ func (h *APIHandler) ResendVerificationEmail(c *gin.Context) {
 }
 
 // sendVerificationEmail delivers the email-verification message. Errors are
-// swallowed: the operator can inspect SMTP logs and the user can resend.
+// swallowed.
 func (h *APIHandler) sendVerificationEmail(ctx context.Context, toEmail, userName, locale, token string) {
 	if h.emailSender == nil || toEmail == "" || token == "" {
 		return
@@ -215,18 +213,15 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	// Check if 2FA is enabled
 	if user.TwoFactorEnabled {
 		AuthLoginAttemptsTotal.WithLabelValues("2fa_required").Inc()
-		// Generate a short-lived 2FA challenge token
 		twoFactorToken, err := h.jwtManager.Generate2FAToken(user.ID)
 		if err != nil {
 			h.sendError(c, http.StatusInternalServerError, "Failed to generate 2FA token")
 			return
 		}
 
-		// One of the two shapes the spec's 200 allows. Using the generated type
-		// rather than a gin.H keeps the body and the spec from drifting apart.
+		// One of the two shapes the spec's 200 allows.
 		c.JSON(http.StatusOK, generated.TwoFactorLoginRequired{
 			RequiresTwoFactor: true,
 			TwoFactorToken:    twoFactorToken,
@@ -256,7 +251,6 @@ func (h *APIHandler) RefreshToken(c *gin.Context) {
 	}
 
 	AuthTokenRefreshTotal.WithLabelValues("success").Inc()
-	// Return new access and refresh tokens with expiry
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"accessToken":  tokens.AccessToken,
 		"refreshToken": tokens.RefreshToken,
@@ -264,16 +258,8 @@ func (h *APIHandler) RefreshToken(c *gin.Context) {
 	})
 }
 
-// LogoutUser implements POST /auth/logout
-//
-// Revokes the presented refresh token server-side. Previously no such endpoint
-// existed: AuthService.Logout was implemented but never wired to a route, and
-// the frontend only cleared localStorage. A refresh token therefore stayed
-// valid in the database for its full 7-day lifetime after the user had "logged
-// out", so anyone holding a copy could mint a fresh session at will.
-//
-// Always answers 204. Revocation is idempotent, and reporting whether a given
-// token existed would leak information to an unauthenticated caller.
+// LogoutUser implements POST /auth/logout. It revokes the presented refresh
+// token server-side and always answers 204; revocation is idempotent.
 func (h *APIHandler) LogoutUser(c *gin.Context) {
 	var req generated.LogoutUserJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -282,8 +268,8 @@ func (h *APIHandler) LogoutUser(c *gin.Context) {
 	}
 	if req.RefreshToken != "" {
 		if err := h.authService.Logout(c.Request.Context(), req.RefreshToken); err != nil {
-			// Deliberately not surfaced: an unknown or already-revoked token is
-			// indistinguishable from a successful revocation to the caller.
+			// An unknown or already-revoked token is indistinguishable from a
+			// successful revocation.
 			slog.Warn("logout revocation failed", "error", err)
 		}
 	}
@@ -340,11 +326,8 @@ func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
 		return
 	}
 
-	// Deleting a logbook is irreversible, so it always requires re-confirming
-	// identity. Which proof is acceptable depends on the authentication mode:
-	// a password where one exists, and otherwise the account's own address
-	// typed out, which is the standard "type the name to confirm" guard for a
-	// destructive action.
+	// Deletion requires re-confirming identity: a password where one exists,
+	// the account's own address typed out in OIDC mode.
 	if h.OIDCEnabled() {
 		user, err := h.authService.GetUserByID(c.Request.Context(), userID)
 		if err != nil {
@@ -409,10 +392,8 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	// Send reset email if token was generated (user exists). The recipient
-	// is the canonical address loaded from the database, NOT the HTTP
-	// request body — this keeps untrusted input out of the SMTP message
-	// and resolves CodeQL go/email-injection (CWE-640).
+	// Send the reset email if a token was generated. The recipient is the
+	// canonical address loaded from the database, not the HTTP request body.
 	if reset.Token != "" && reset.Email != "" && h.emailSender != nil {
 		resetLink := fmt.Sprintf("%s/new-password?token=%s", frontendBaseURL(), reset.Token)
 		tmpl := emailpkg.Templates(reset.Locale)
@@ -426,17 +407,16 @@ func (h *APIHandler) RequestPasswordReset(c *gin.Context) {
 		})
 	}
 
-	// Always return 204 to prevent user enumeration
+	// Always 204.
 	c.Status(http.StatusNoContent)
 }
 
 // ResetPassword implements POST /auth/password-reset
 // (POST /auth/password-reset)
 //
-// A reset does not disable 2FA. An account with 2FA enabled must supply a TOTP
-// or recovery code alongside the reset token, so control of the mailbox alone
-// is not enough to take the account over. Either way the owner is told by mail
-// that their password changed.
+// A reset does not disable 2FA: an account with 2FA enabled must supply a
+// TOTP or recovery code alongside the reset token. Either way the owner is
+// told by mail that their password changed.
 func (h *APIHandler) ResetPassword(c *gin.Context) {
 	if !h.requireLocalAuth(c) {
 		return
@@ -495,9 +475,7 @@ func (h *APIHandler) ResetPassword(c *gin.Context) {
 }
 
 // sendPasswordChangedEmail tells the account owner that their password was
-// reset — the signal that makes an unauthorised reset visible to them. Errors
-// are swallowed: the reset itself already succeeded and must not be reported as
-// failed because SMTP is down.
+// reset. Errors are swallowed.
 func (h *APIHandler) sendPasswordChangedEmail(ctx context.Context, result *service.PasswordResetResult) {
 	if h.emailSender == nil || result == nil || result.Email == "" {
 		return

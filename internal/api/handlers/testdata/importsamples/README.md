@@ -136,7 +136,8 @@ vendor documentation first, and every one was wrong:
   its signature matched nothing so the file was not detected. A populated
   export later showed it also writes places as "ICAO Name"
   ("EDOI Bienenfarm"), durations as whole minutes, and registrations with the
-  hyphen stripped ("DEROQ" for D-EROQ).
+  hyphen stripped ("DEROQ"), which `registration.Canonical` restores to
+  `D-EROQ` on import.
 
 - **capzlog.aero** — also has no date column: the flight is dated by its
   "Off Block" timestamp. "Departure"/"Arrival" are places rather than times,

@@ -9,6 +9,7 @@ Developer documentation for the NinerLog API backend. Start with the
 | --- | --- |
 | [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) | Orientation, tech stack, core concepts, documentation map |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Layers, request lifecycle, package relationships, startup/wiring |
+| [SQL_LAYERING.md](./SQL_LAYERING.md) | Where SQL may live, repository catalogue, deliberate exceptions |
 | [DATA_MODEL.md](./DATA_MODEL.md) | Domain entities, relationships, DB schema & migrations |
 | [DOMAIN.md](./DOMAIN.md) | Flight logging, time handling, auto-calculations, validation, currency engine |
 | [API.md](./API.md) | HTTP surface, OpenAPI-first workflow, routing & security |
@@ -20,6 +21,7 @@ Developer documentation for the NinerLog API backend. Start with the
 
 | Document | Covers |
 | --- | --- |
+| [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md) | Canonical registration notation and the vendored nationality-mark table |
 | [AUTHENTICATION.md](./AUTHENTICATION.md) | Tokens, 2FA, WebAuthn, lockout, rate limiting |
 | [OIDC.md](./OIDC.md) | Optional single sign-on: configuration, provider recipes, provisioning, migration |
 | [METRICS.md](./METRICS.md) | Prometheus metrics and observability |

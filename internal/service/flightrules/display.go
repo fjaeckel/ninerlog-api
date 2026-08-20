@@ -50,10 +50,8 @@ func thirdPartyNameFromCrew(f *models.Flight, userName string, role models.CrewR
 	return ""
 }
 
-// isSelfPlaceholder reports whether s is the literal "Self"/"SELF" placeholder
-// (case-insensitive, ignoring surrounding whitespace). When an actual
-// instructor is known for the flight, this value is wrong — the instructor is
-// PIC of record — and the instructor's name should override it.
+// isSelfPlaceholder reports whether s is the literal "Self"/"SELF"
+// placeholder (case-insensitive, ignoring surrounding whitespace).
 func isSelfPlaceholder(s string) bool {
 	return strings.EqualFold(strings.TrimSpace(s), "self")
 }
@@ -61,15 +59,12 @@ func isSelfPlaceholder(s string) bool {
 // DisplayPICName returns the value to render in the "PIC Name" column of a
 // logbook row, applying the canonical fallback chain:
 //
-//  1. flight.PICName, if set (but stale "Self" on a Dual flight is treated as
-//     unset so the instructor — who is PIC of record on a Dual — wins)
-//  2. flight.InstructorName, if set (legacy column; pre-crew-table flights)
-//  3. first non-self Instructor in flight.CrewMembers (modern data shape:
-//     the FE only writes the instructor into CrewMembers, leaving
-//     InstructorName nil — the instructor *is* PIC of record on a Dual)
-//  4. first non-self Examiner in flight.CrewMembers (an exam flight is Dual
-//     and the examiner is PIC of record)
-//  5. original PICName if present (e.g. "Self" with no instructor available)
+//  1. flight.PICName, if set (a stale "Self" with a known instructor is
+//     treated as unset)
+//  2. flight.InstructorName, if set (legacy column)
+//  3. first non-self Instructor in flight.CrewMembers
+//  4. first non-self Examiner in flight.CrewMembers
+//  5. original PICName if present
 //  6. "SELF"
 //
 // userName is the authenticated user's display name; pass "" if unknown.
@@ -79,10 +74,8 @@ func DisplayPICName(f *models.Flight, userName string) string {
 	if f == nil {
 		return "SELF"
 	}
-	// Resolve any known instructor/examiner first — used both as the primary
-	// fallback when PICName is empty AND to override a stale "Self" value
-	// (the candidate is never PIC of record when an instructor or examiner
-	// is on board).
+	// Resolve any known instructor/examiner first: the primary fallback when
+	// PICName is empty, and the override for a stale "Self" value.
 	var instructor string
 	if f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
 		instructor = strings.TrimSpace(*f.InstructorName)
@@ -101,7 +94,7 @@ func DisplayPICName(f *models.Flight, userName string) string {
 
 	picSet := f.PICName != nil && strings.TrimSpace(*f.PICName) != ""
 	// Stale "Self" is overridden whenever an actual instructor is known,
-	// regardless of IsDual (legacy data can have mismatched flags).
+	// regardless of IsDual.
 	staleSelf := picSet && isSelfPlaceholder(*f.PICName) && instructor != ""
 	if picSet && !staleSelf {
 		return *f.PICName
@@ -110,8 +103,7 @@ func DisplayPICName(f *models.Flight, userName string) string {
 		return instructor
 	}
 	if picSet {
-		// No instructor info available — preserve the original value
-		// (typically "Self") rather than losing it entirely.
+		// No instructor info available: preserve the original value.
 		return *f.PICName
 	}
 	return "SELF"
@@ -125,22 +117,19 @@ func DisplayPICName(f *models.Flight, userName string) string {
 //   - if the user is PIC and no instructor is involved → "Self",
 //   - if the user is Dual and an InstructorName is set → that instructor,
 //   - if the user is Dual and a non-self Instructor exists in CrewMembers
-//     → that instructor's name (modern data shape),
+//     → that instructor's name,
 //   - if the user is Dual and a non-self Examiner exists in CrewMembers
-//     → that examiner's name (exam flight: the examiner is PIC of record),
-//   - otherwise nil (column stays empty; exporter will fall through to
-//     DisplayPICName's "SELF" default at render time).
+//     → that examiner's name,
+//   - otherwise nil (column stays empty; DisplayPICName renders "SELF").
 //
-// The CRUD handler must call this once at save time so the persisted
-// column is canonical.
+// The CRUD handler must call this once at save time.
 func ResolvePICNameForSave(f *models.Flight, userName string) *string {
 	if f == nil {
 		return nil
 	}
 	picSet := f.PICName != nil && strings.TrimSpace(*f.PICName) != ""
-	// Resolve any known instructor first so a stale "Self" can be cleaned
-	// up regardless of the IsDual flag (legacy data may have mismatched
-	// flags).
+	// Resolve any known instructor first; a stale "Self" is cleaned up
+	// regardless of the IsDual flag.
 	var instructor *string
 	if f.InstructorName != nil && strings.TrimSpace(*f.InstructorName) != "" {
 		instructor = f.InstructorName
@@ -153,7 +142,7 @@ func ResolvePICNameForSave(f *models.Flight, userName string) *string {
 		instructor = &n
 	}
 	// Existing PICName wins — except a stale "Self" when an actual
-	// instructor is known (instructor is PIC of record on a Dual).
+	// instructor is known.
 	staleSelf := picSet && isSelfPlaceholder(*f.PICName) && instructor != nil
 	if picSet && !staleSelf {
 		return f.PICName
@@ -167,8 +156,7 @@ func ResolvePICNameForSave(f *models.Flight, userName string) *string {
 	}
 	if picSet {
 		// Stale "Self" with no instructor info available: preserve the
-		// original rather than clearing (exporter will still render it;
-		// user can correct manually).
+		// original.
 		return f.PICName
 	}
 	return nil

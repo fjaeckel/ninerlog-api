@@ -381,15 +381,10 @@ func TestService_TwoTier_OtherAuthority_NoPassengerCurrency(t *testing.T) {
 // ── Lookback Window Verification Tests ──────────────────────────────────
 
 func TestEASA_SEP_LookbackIs12Months_NotFlights(t *testing.T) {
-	// This test verifies that SEP uses 12-month lookback from expiry, not 24.
-	// We set up a scenario where flights exist in months 1-12 of the 24-month
-	// validity but NOT in months 13-24. With the correct 12-month window,
-	// these flights should NOT count.
+	// SEP uses a 12-month lookback from expiry, not 24: the lookback
+	// calculation is AddDate(-1,0,0), not AddDate(-2,0,0).
 	eval := NewEASAEvaluator()
 
-	// The mock always returns the same progress regardless of 'since' param,
-	// but this test documents the intent. The actual verification is that
-	// the lookback calculation is AddDate(-1,0,0) not AddDate(-2,0,0).
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
 		TotalMinutes: 0, PICMinutes: 0, Landings: 0, InstructorMinutes: 0,
@@ -536,10 +531,8 @@ func TestFAA_FlightReview_Current(t *testing.T) {
 func TestFAA_FlightReview_Expiring(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()
-	// Pick a review date whose 24-calendar-month expiry falls at the end of the
-	// month containing now+45d, i.e. 45–76 days out — comfortably inside the
-	// 90-day window whatever today's date is. Anchoring on the 15th keeps
-	// AddDate from rolling into the next month on the 29th–31st.
+	// A review date whose 24-calendar-month expiry falls 45–76 days out —
+	// inside the 90-day window — anchored on the 15th.
 	target := time.Now().AddDate(0, 0, 45)
 	reviewDate := time.Date(target.Year(), target.Month(), 15, 0, 0, 0, 0, time.UTC).AddDate(0, -24, 0)
 	dp.lastFlightReview = &reviewDate

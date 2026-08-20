@@ -10,7 +10,7 @@ import (
 // NotificationCategory represents a granular notification category
 type NotificationCategory string
 
-// #nosec G101 -- notification category identifiers describe credential reminders, not secrets.
+// #nosec G101
 const (
 	NotifCategoryCredentialMedical    NotificationCategory = "credential_medical"
 	NotifCategoryCredentialLanguage   NotificationCategory = "credential_language"
@@ -22,9 +22,8 @@ const (
 	NotifCategoryCurrencyInstrument   NotificationCategory = "currency_instrument"
 	NotifCategoryCurrencyFlightReview NotificationCategory = "currency_flight_review"
 	NotifCategoryCurrencyRevalidation NotificationCategory = "currency_revalidation"
-	// NotifCategoryCustomCurrency labels notifications for user-authored custom
-	// currency rules. It is used as the log/dedup type; opt-in is per-rule
-	// (custom_currency_rules.notify) rather than via enabled_categories.
+	// NotifCategoryCustomCurrency labels custom currency rule notifications;
+	// opt-in is per-rule (custom_currency_rules.notify).
 	NotifCategoryCustomCurrency NotificationCategory = "currency_custom"
 )
 
@@ -64,7 +63,7 @@ func (p *NotificationPreferences) IsCategoryEnabled(category NotificationCategor
 	return false
 }
 
-// NotificationLog tracks sent notifications to avoid duplicates
+// NotificationLog records a sent notification
 type NotificationLog struct {
 	ID                  uuid.UUID  `json:"id"`
 	UserID              uuid.UUID  `json:"userId"`

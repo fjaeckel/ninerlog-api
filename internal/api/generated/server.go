@@ -86,6 +86,12 @@ type ServerInterface interface {
 	// UpdateAircraft Update aircraft
 	// (PATCH /aircraft/{aircraftId})
 	UpdateAircraft(c *gin.Context, aircraftId AircraftId)
+	// GetAirportPack Download the airport database pack
+	// (GET /airports/pack)
+	GetAirportPack(c *gin.Context)
+	// GetAirportPackStatus Get airport pack freshness
+	// (GET /airports/pack/status)
+	GetAirportPackStatus(c *gin.Context)
 	// SearchAirports Search airports
 	// (GET /airports/search)
 	SearchAirports(c *gin.Context, params SearchAirportsParams)
@@ -987,6 +993,32 @@ func (siw *ServerInterfaceWrapper) UpdateAircraft(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAircraft(c, aircraftId)
+}
+
+// GetAirportPack operation middleware
+func (siw *ServerInterfaceWrapper) GetAirportPack(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAirportPack(c)
+}
+
+// GetAirportPackStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetAirportPackStatus(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAirportPackStatus(c)
 }
 
 // SearchAirports operation middleware
@@ -3693,6 +3725,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/sign/:token", wrapper.CompletePublicSignature)
 	router.GET(options.BaseURL+"/airports/:icaoCode", wrapper.GetAirport)
 	router.GET(options.BaseURL+"/airports/search", wrapper.SearchAirports)
+	router.GET(options.BaseURL+"/airports/pack", wrapper.GetAirportPack)
+	router.GET(options.BaseURL+"/airports/pack/status", wrapper.GetAirportPackStatus)
 	router.GET(options.BaseURL+"/reports/routes", wrapper.GetFlightRoutes)
 	router.GET(options.BaseURL+"/reports/airport-stats", wrapper.GetAirportStats)
 	router.GET(options.BaseURL+"/imports/templates", wrapper.ListImportTemplates)

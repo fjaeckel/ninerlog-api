@@ -148,8 +148,6 @@ func TestDocumentFileRepositoryIntegration(t *testing.T) {
 		}
 	})
 
-	// The cap is enforced inside the INSERT, so concurrent uploads racing for
-	// the last slot must not both succeed. A count-then-insert would.
 	t.Run("concurrent uploads cannot exceed the cap", func(t *testing.T) {
 		raceLicense := &models.License{
 			UserID: user.ID, RegulatoryAuthority: "EASA", LicenseType: "CPL",
@@ -159,10 +157,7 @@ func TestDocumentFileRepositoryIntegration(t *testing.T) {
 			t.Fatalf("create license: %v", err)
 		}
 
-		// A start barrier, so every goroutine issues its INSERT in the same
-		// instant rather than trickling in. Without it this test passes against
-		// a count-then-insert that has no lock, purely on timing — which is
-		// exactly how the unlocked version survived its first run.
+		// Start barrier: every goroutine issues its INSERT at the same instant.
 		const attempts = 12
 		var wg sync.WaitGroup
 		start := make(chan struct{})
@@ -226,8 +221,6 @@ func TestDocumentFileRepositoryIntegration(t *testing.T) {
 		}
 	})
 
-	// ON DELETE CASCADE on the FK is what keeps orphaned identity-document
-	// scans from surviving the record they belong to.
 	t.Run("deleting the licence cascades to its images", func(t *testing.T) {
 		cascadeLicense := &models.License{
 			UserID: user.ID, RegulatoryAuthority: "EASA", LicenseType: "ATPL",

@@ -66,19 +66,16 @@ func TestAuthRegistration(t *testing.T) {
 		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	// Fixed: API now rejects empty name
 	t.Run("register with empty name should return 400", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("no-name"), "password": "SecurePass123!", "name": ""})
 		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	// Fixed: API now validates required fields
 	t.Run("register with missing fields should return 400", func(t *testing.T) {
 		resp := c.POST("/auth/register", map[string]string{"email": uniqueEmail("missing")})
 		assertStatus(t, resp, http.StatusBadRequest)
 	})
 
-	// Fixed: Email now normalized to lowercase
 	t.Run("register email should be case insensitive", func(t *testing.T) {
 		email := uniqueEmail("case")
 		registerUser(t, c, email, "SecurePass123!", "Test")
@@ -94,8 +91,7 @@ func TestAuthRegistration(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 
-		// The verification email is sent in the user's preferredLocale, so the
-		// German subject confirms the locale propagated into the email layer.
+		// The verification email carries the preferredLocale's German subject.
 		token := extractVerificationTokenSubject(t, email, "E-Mail-Adresse bestätigen")
 		verifyResp := ac.POST("/auth/verify-email", map[string]string{"token": token})
 		requireStatus(t, verifyResp, http.StatusOK)
@@ -334,8 +330,8 @@ func TestEmailVerification(t *testing.T) {
 			"email": email, "password": "SecurePass123!", "name": "Resend",
 		})
 		requireStatus(t, regResp, http.StatusCreated)
-		// Drain the original verification email so the next assertion
-		// only sees the resent one.
+		// Drain the original verification email; the next assertion sees only
+		// the resent one.
 		_ = mailpitRequireEmail(t, email, "Confirm your email")
 		mailpitDeleteAll(t)
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -47,11 +48,9 @@ type importJSONSummary struct {
 	CredentialsImported  int `json:"credentialsImported"`
 	FlightsImported      int `json:"flightsImported"`
 	CrewMembersImported  int `json:"crewMembersImported"`
-	// ContactsCreated counts the address-book entries the restore had to
-	// create because a crew name in the backup matched none of the
-	// destination account's contacts. Contacts are not carried in the backup
-	// format, so restoring into an empty account creates one per distinct
-	// crew name.
+	// ContactsCreated counts address-book entries created for a crew name in
+	// the backup matching none of the destination account's contacts.
+	// Contacts are not carried in the backup format.
 	ContactsCreated int `json:"contactsCreated"`
 }
 
@@ -82,12 +81,7 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 		return
 	}
 
-	// Bound the restore. Without a cap the only limit was the 50 MB body size,
-	// so one request could drive an unbounded number of inserts -- and because
-	// the loops below are not transactional, a failure partway (a bad row, or
-	// the request/statement timeout firing on a large restore) left a
-	// partially-imported account with no rollback while the summary reported
-	// only what happened to land first.
+	// Bound the restore; the loops below are not transactional.
 	if n := len(body.Flights); n > maxRestoreFlights {
 		h.sendError(c, http.StatusBadRequest,
 			fmt.Sprintf("Backup contains too many flights (%d, max %d)", n, maxRestoreFlights))
@@ -123,12 +117,13 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 		h.sendError(c, http.StatusInternalServerError, "Failed to load existing aircraft")
 		return
 	}
+	// Keyed in canonical notation.
 	existingRegs := make(map[string]bool, len(existingAircraft))
 	for _, a := range existingAircraft {
-		existingRegs[a.Registration] = true
+		existingRegs[registration.Canonical(a.Registration)] = true
 	}
 	for _, ac := range body.Aircraft {
-		if existingRegs[ac.Registration] {
+		if existingRegs[registration.Canonical(ac.Registration)] {
 			summary.AircraftSkipped++
 			continue
 		}
@@ -214,12 +209,8 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 				// ID + FlightID are assigned by SetCrewMembers.
 				Name: m.Name,
 				Role: m.Role,
-				// ContactID starts nil: contacts are not part of the backup
-				// format, so the id from the source installation means nothing
-				// here. crewLinker re-establishes the link by name against the
-				// destination account's contacts, creating them as needed —
-				// which is why a restore rebuilds the address book rather than
-				// leaving it empty.
+				// ContactID starts nil; crewLinker re-establishes the link by
+				// name against the destination account's contacts.
 				ContactID: nil,
 			})
 		}

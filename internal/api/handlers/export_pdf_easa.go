@@ -115,10 +115,8 @@ func easaFSTDTotal(f *models.Flight) int {
 	return 0
 }
 
-// easaTotals accumulates every numeric EASA column. The left and right pages
-// of a spread print disjoint slices of the same struct, so one accumulator
-// keeps the two halves of a spread from drifting apart, and the single-page
-// layout reuses it unchanged.
+// easaTotals accumulates every numeric EASA column, shared by the left and
+// right pages of a spread and by the single-page layout.
 type easaTotals struct {
 	se, me, mp, total                       int
 	ldgD, ldgN                              int
@@ -158,10 +156,8 @@ func (t *easaTotals) addAll(o easaTotals) {
 	t.fstd += o.fstd
 }
 
-// addBaseline opens the balance with the pilot's prior experience, the way a
-// paper logbook carries the old book's closing totals into the first sheet.
-// se, me and fstd stay untouched — a baseline records neither the
-// single-/multi-engine split nor FSTD session time.
+// addBaseline opens the balance with the pilot's prior experience. se, me
+// and fstd stay untouched.
 func (t *easaTotals) addBaseline(b *models.FlightBaseline) {
 	if !baselineApplies(b) {
 		return
@@ -178,9 +174,7 @@ func (t *easaTotals) addBaseline(b *models.FlightBaseline) {
 	t.instr += b.DualGivenMinutes
 }
 
-// Value cells for the three totals rows, one builder per layout so a page's
-// "this page", "previous pages" and "total time" rows can never disagree about
-// column order.
+// Value cells for the three totals rows, one builder per layout.
 func easaLeftTotCells(t easaTotals) []string {
 	return []string{fmtDec(t.se), fmtDec(t.me), fmtDec(t.mp), fmtDec(t.total), ""}
 }
@@ -245,9 +239,7 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 		d.addBlankPage()
 	}
 
-	// Cumulative running total across all spreads, opened with whatever the
-	// pilot brought into this logbook so the first "previous pages" row states
-	// their prior experience rather than zero.
+	// Cumulative running total across all spreads, opened with the baseline.
 	var cum easaTotals
 	cum.addBaseline(b)
 
@@ -329,7 +321,7 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 	totalPages := (len(flights) + rpp - 1) / rpp
 	pageNum := 0
 
-	// Opened with the pilot's prior experience — see renderEASASpread.
+	// Cumulative running total, opened with the baseline.
 	var cum easaTotals
 	cum.addBaseline(b)
 

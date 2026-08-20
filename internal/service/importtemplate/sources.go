@@ -1015,15 +1015,14 @@ var vereinsfliegerExtendedTemplate = register(&Template{
 // rather than decimal hours, and its places are written "ICAO Name"
 // ("EDOI Bienenfarm"), from which normalizeLocation takes the leading code.
 //
-// One thing it does that nothing else here does: the registration has its
-// hyphen stripped ("DEROQ" for D-EROQ). It is imported as written, so a pilot
-// whose fleet already holds D-EROQ gets a second aircraft rather than a match.
+// Registrations are exported without the hyphen ("DEROQ"); registration.Canonical
+// restores it on import.
 var skyDemonTemplate = register(&Template{
 	ID:          "SKYDEMON_CSV",
 	Name:        "SkyDemon",
 	Vendor:      "Divelements / SkyDemon",
 	Website:     "https://www.skydemon.aero",
-	Description: "SkyDemon logbook export. It dates each flight by its departure and arrival timestamps rather than a date column, and records no total time — the total is derived from those two. Durations are whole minutes, and registrations are exported without their hyphen. Approach and hold detail is not exported at all.",
+	Description: "SkyDemon logbook export. It dates each flight by its departure and arrival timestamps rather than a date column, and records no total time — the total is derived from those two. Durations are whole minutes, and registrations are exported without their hyphen — they are restored to the canonical form on import. Approach and hold detail is not exported at all.",
 	Confidence:  ConfidenceExact,
 	Regions:     []string{"EASA"},
 	ExportSteps: []string{

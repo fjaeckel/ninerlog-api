@@ -11,14 +11,14 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/google/uuid"
 )
 
 var ErrInvalidSessionEvent = errors.New("invalid flight session event")
 
 // maxEventClockSkew bounds how far in the future a client-supplied event
-// timestamp may lie. Offline clients replay past taps; nothing legitimately
-// reports an event from the future beyond ordinary clock drift.
+// timestamp may lie.
 const maxEventClockSkew = 5 * time.Minute
 
 // FlightSessionService manages live tap-to-log flight sessions: opening a
@@ -85,9 +85,8 @@ func (s *FlightSessionService) Discard(ctx context.Context, userID uuid.UUID) er
 // RecordEvent applies one tap-to-log event. It returns the resulting session
 // and whether a new session was opened (offblock on a user with no open
 // session). Repeating an event type already recorded on the session is a
-// no-op returning the unchanged session, which makes offline retries and
-// double-taps safe. An onblock event completes the session and creates the
-// flight log entry.
+// no-op returning the unchanged session. An onblock event completes the
+// session and creates the flight log entry.
 func (s *FlightSessionService) RecordEvent(ctx context.Context, userID uuid.UUID, input FlightSessionEventInput) (*models.FlightSession, bool, error) {
 	occurredAt, err := s.resolveOccurredAt(input.OccurredAt)
 	if err != nil {
@@ -212,8 +211,7 @@ func (s *FlightSessionService) saveOrdered(ctx context.Context, session *models.
 }
 
 // completeSession validates the finished session, converts it into a flight
-// log entry, and closes it. The session stays open when validation fails so
-// the client can retry (e.g. resend onblock with the missing registration).
+// log entry, and closes it. The session stays open when validation fails.
 func (s *FlightSessionService) completeSession(ctx context.Context, session *models.FlightSession, userName string) (*models.FlightSession, bool, error) {
 	if err := session.ValidateEventOrder(); err != nil {
 		return nil, false, err
@@ -278,8 +276,7 @@ func (s *FlightSessionService) buildFlight(ctx context.Context, session *models.
 }
 
 // lookupAircraftType resolves the aircraft type from the user's aircraft
-// list by registration. Falls back to "UNKNOWN" so the quick-logged flight
-// can still be created; the pilot corrects it during review.
+// list by registration, falling back to "UNKNOWN".
 func (s *FlightSessionService) lookupAircraftType(ctx context.Context, userID uuid.UUID, reg string) string {
 	aircraft, err := s.aircraftRepo.GetByUserID(ctx, userID, nil)
 	if err == nil {
@@ -292,11 +289,13 @@ func (s *FlightSessionService) lookupAircraftType(ctx context.Context, userID uu
 	return "UNKNOWN"
 }
 
+// normalizeReg puts a registration into canonical notation, mapping empty to
+// nil.
 func normalizeReg(reg *string) *string {
 	if reg == nil {
 		return nil
 	}
-	r := strings.ToUpper(strings.TrimSpace(*reg))
+	r := registration.Canonical(*reg)
 	if r == "" {
 		return nil
 	}

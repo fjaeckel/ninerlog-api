@@ -32,11 +32,8 @@ func TestContactDeletionWithCrewReferences(t *testing.T) {
 	r.JSON(&flt)
 	fltID := flt["id"].(string)
 
-	// Deleting a contact is an address-book operation and is always allowed:
-	// the crew row keeps the name it was logged with, so no logbook content is
-	// lost. This used to accept either 204 or 409; the semantics are settled
-	// now, and TestContactDeleteKeepsLoggedCrewName covers the same ground from
-	// the auto-created-contact side.
+	// Deleting a contact is always allowed; the crew row keeps the name it
+	// was logged with.
 	t.Run("delete contact used as crew", func(t *testing.T) {
 		requireStatus(t, c.DELETE(fmt.Sprintf("/contacts/%s", contactID)), 204)
 	})

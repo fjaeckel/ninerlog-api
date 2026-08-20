@@ -19,8 +19,7 @@ func NewEmailDeliveryRepository(db *sql.DB) repository.EmailDeliveryRepository {
 	return &emailDeliveryRepository{db: db}
 }
 
-// normalizeEmail lower-cases and trims an address so the suppression list keys
-// on the same form the users table stores.
+// normalizeEmail lower-cases and trims an address.
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
@@ -46,8 +45,7 @@ func (r *emailDeliveryRepository) RecordEvent(ctx context.Context, event *models
 }
 
 func (r *emailDeliveryRepository) ListEvents(ctx context.Context, recipient string, limit int) ([]*models.EmailDeliveryEvent, error) {
-	// An empty recipient means "no filter". Expressed in SQL rather than by
-	// building two query strings: $1 IS NULL short-circuits the comparison.
+	// An empty recipient means "no filter".
 	const query = `
 		SELECT id, user_id, recipient, email_type, status, smtp_code, detail, created_at
 		FROM email_delivery_events
@@ -90,8 +88,7 @@ func (r *emailDeliveryRepository) IsSuppressed(ctx context.Context, email string
 
 func (r *emailDeliveryRepository) Suppress(ctx context.Context, email, reason string, smtpCode *int, detail string) error {
 	// A repeat bounce refreshes the reason and bumps the count but keeps
-	// first_bounced_at, so an operator can see how long the address has been
-	// dead.
+	// first_bounced_at.
 	const query = `
 		INSERT INTO email_suppressions (email, reason, smtp_code, detail)
 		VALUES ($1, $2, $3, $4)

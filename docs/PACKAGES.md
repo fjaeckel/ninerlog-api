@@ -25,7 +25,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | Package | Responsibility |
 | --- | --- |
 | `internal/service` | Domain services: `auth.go`, `flight.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `notification.go` (+ `notification_metrics.go`), `twofactor.go`, `webauthn.go`, `oidc.go` (+ `oidc_config.go`), `idempotency.go`, `deletion.go` (tombstone feed + reaper). Each takes repository interfaces + `pkg` utilities. |
-| `internal/service/currency` | The currency engine: `Evaluator`/`Registry`/`FlightDataProvider` (`evaluator.go`), `Service` (`service.go`), authority evaluators (`easa.go`, `faa.go`, `german_ul.go`, `other.go`), shared logic (`engine.go`, `types.go`), and PostgreSQL aggregation (`flight_data.go`). See [DOMAIN.md](./DOMAIN.md#currency-engine). |
+| `internal/service/currency` | The currency engine: `Evaluator`/`Registry`/`FlightDataProvider` (`evaluator.go`), `Service` (`service.go`), authority evaluators (`easa.go`, `faa.go`, `german_ul.go`, `other.go`), and shared logic (`engine.go`, `types.go`). The PostgreSQL implementations of `FlightDataProvider` and `CustomFlightDataProvider` live in `internal/repository/postgres` (`currency_flight_data.go`, `custom_currency_data.go`). See [DOMAIN.md](./DOMAIN.md#currency-engine). |
 | `internal/service/flightcalc` | `ApplyAutoCalculations(flight, userName)` — the single entry point that derives flight fields. |
 | `internal/service/flightrules` | Composable flight rules used by `flightcalc`: `night.go` (day/night via solar), `crew.go`, `roles.go`, `names.go`, `ifr.go`, `fstd.go`, `remarks.go`, `display.go`. |
 | `internal/service/importtemplate` | The logbook-import template catalogue: `field.go` (import-field constants), `template.go` (the `Template` type + registry), `sources.go` (the templates themselves — ForeFlight, LogTen Pro, MyFlightbook, capzlog.aero, FLYLOG.io, Wader, Vereinsflieger standard + extended, SkyDemon, generic EASA/FAA, NinerLog), `detect.go` (header normalisation, scored detection, mapping suggestion). Pure data + lookup; imports no generated types, so the handler converts at the edge. |
@@ -36,7 +36,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/repository` | Repository **interfaces** (`interfaces.go`) — e.g. `UserRepository`, `FlightRepository`, `LicenseRepository`, `ClassRating`, `Credential`, `Aircraft`, `Contact`, `FlightCrew`, `Notification`, `RefreshToken`, `PasswordResetToken`, `EmailVerificationToken`, `WebAuthnCredential`/`WebAuthnSession`, `BackupDestination`/`BackupRun`, `FlightBaseline`, `Idempotency`, `Deletion` (read-and-sweep over trigger-written tombstones). |
+| `internal/repository` | Repository **interfaces** (`interfaces.go`) — e.g. `UserRepository`, `FlightRepository`, `LicenseRepository`, `ClassRating`, `Credential`, `Aircraft`, `Contact`, `FlightCrew`, `Notification`, `RefreshToken`, `PasswordResetToken`, `EmailVerificationToken`, `WebAuthnCredential`/`WebAuthnSession`, `BackupDestination`/`BackupRun`, `FlightBaseline`, `Idempotency`, `Deletion` (read-and-sweep over trigger-written tombstones), plus the direct-access interfaces `Admin`, `Announcement`, `FlightImport`, `Reports` (analytics/trends/map aggregates) and `UserContent` (transactional account-content wipe). |
 | `internal/repository/postgres` | PostgreSQL implementations of those interfaces (one file per entity). Parameterized SQL only; returns domain models. |
 
 ### Supporting
@@ -58,6 +58,7 @@ Reusable utilities with minimal dependencies, safe to use from any layer.
 | `pkg/hash` | bcrypt password hashing/verification and SHA-256 token hashing. |
 | `pkg/cryptoutil` | AES-256-GCM (`AEAD`) for encrypting stored backup credentials; key helpers (`New`, `NewFromBase64`, `GenerateKey`, `GenerateKeyBase64`). |
 | `pkg/duration` | Convert/format flight durations: minutes ↔ decimal hours, `HH:MM`, parsing. See [DOMAIN.md](./DOMAIN.md#time-and-duration-handling). |
+| `pkg/registration` | `Normalize`/`Canonical` — rewrites an aircraft registration into the canonical notation of its state of registry, against a vendored ICAO nationality-mark table (`prefixes.go`). See [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md). |
 | `pkg/email` | SMTP sender (`smtp.go`) with localized templates (`templates_en.go`, `templates_de.go`) and email metrics (`metrics.go`). Recipients go through the SMTP envelope, not message headers (anti-injection). The send path runs the SMTP conversation command by command so a refusal can be attributed to the recipient or to our own setup; `delivery.go` defines those outcomes and the `DeliveryRecorder` interface that lets `internal/service` persist them without `pkg/email` depending on a database. |
 | `pkg/solar` | Sunrise/sunset/twilight (`Calculate`, `CivilTwilight`, `IsNight`) wrapping `go-solar`; powers the day/night flight split. |
 

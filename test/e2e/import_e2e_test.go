@@ -124,19 +124,13 @@ func TestImportCSV(t *testing.T) {
 	})
 }
 
-// TestImportCSV_ReimportsOwnExport is a regression test for a bug where
-// re-importing ninerlog's own exported CSV failed every row with
-// "Invalid date" errors: the default export date format is DD.MM.YYYY,
-// but the importer's suggested mapping hardcoded the ISO "2006-01-02"
-// layout and rejected anything else. This creates a flight, exports it
-// (default DD.MM.YYYY dates), re-uploads the exported CSV, and confirms
-// the preview reports no date errors for the row.
+// TestImportCSV_ReimportsOwnExport re-uploads ninerlog's own exported CSV
+// (default DD.MM.YYYY dates) and confirms the preview reports no date errors.
 func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("import-reexport"), "SecurePass123!", "Reexport")
 
-	// Use the comma decimal preference so the export writes durations like
-	// "1,5h" — the format that previously failed duration parsing on re-import.
+	// The comma decimal preference makes the export write durations as "1,5h".
 	pr := c.PATCH("/users/me", map[string]interface{}{"decimalSeparator": "comma"})
 	requireStatus(t, pr, http.StatusOK)
 
@@ -182,8 +176,8 @@ func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 		if len(flights) == 0 {
 			t.Fatal("expected at least one previewed row")
 		}
-		// Re-importing our own export must round-trip cleanly: no field may
-		// fail to parse (dates in DD.MM.YYYY, durations as "1.5h"/"1,5h", ...).
+		// No field fails to parse (dates in DD.MM.YYYY, durations as
+		// "1.5h"/"1,5h", ...).
 		for _, fi := range flights {
 			row := fi.(map[string]interface{})
 			if row["status"] == "error" {
@@ -199,12 +193,8 @@ func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 	})
 }
 
-// TestImportCSV_CreatesAircraft is a regression test for an import that logged
-// the flights but left the fleet empty. Aircraft were only auto-created from a
-// ForeFlight export's Aircraft Table; a plain CSV names its aircraft solely in
-// the flight rows, and those registrations were never turned into fleet
-// entries. Uses a semicolon-delimited file with the registration and type in
-// the flight rows, as European logbook exports do.
+// TestImportCSV_CreatesAircraft covers fleet entries being auto-created from
+// registrations named only in the flight rows of a semicolon-delimited CSV.
 func TestImportCSV_CreatesAircraft(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("import-fleet"), "SecurePass123!", "FleetImport")
@@ -286,16 +276,13 @@ func TestImportCSV_CreatesAircraft(t *testing.T) {
 	})
 }
 
-// Re-importing a file whose flights already exist is how a user backfills a
-// fleet that an earlier import left empty, so rows skipped as duplicates must
-// still create their aircraft — and a second run must not duplicate the fleet
-// entries the first one made.
+// Rows skipped as duplicates still create their aircraft, and a second run
+// does not duplicate the fleet entries.
 func TestImportCSV_DuplicateRowsStillCreateAircraft(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("import-fleet-again"), "SecurePass123!", "FleetReimport")
 
-	// The flight already exists; the fleet does not (logging a flight never
-	// creates an aircraft), which is the state an import before this fix left.
+	// The flight already exists; the fleet does not.
 	flightDate := pastDate(3)
 	requireStatus(t, c.POST("/flights", map[string]interface{}{
 		"date": flightDate, "aircraftReg": "D-EDUP", "aircraftType": "PA28",

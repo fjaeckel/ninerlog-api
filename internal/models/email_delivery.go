@@ -6,8 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// EmailDeliveryEvent is one recorded send attempt. The table is append-only:
-// it is the history of what the SMTP conversation said, not current state.
+// EmailDeliveryEvent is one recorded send attempt; the table is append-only.
 type EmailDeliveryEvent struct {
 	ID uuid.UUID `json:"id"`
 	// UserID is nil once the account has been removed, or when the address was
@@ -23,9 +22,8 @@ type EmailDeliveryEvent struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// EmailSuppression is an address we have stopped mailing because it refused
-// mail permanently. Only a recipient-level refusal creates one — see
-// pkg/email.DeliveryStatus.
+// EmailSuppression is an address no longer mailed after a permanent
+// recipient-level refusal — see pkg/email.DeliveryStatus.
 type EmailSuppression struct {
 	Email          string    `json:"email"`
 	Reason         string    `json:"reason"`

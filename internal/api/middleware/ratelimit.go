@@ -14,13 +14,9 @@ import (
 )
 
 var (
-	// RateLimitHitsTotal counts requests that were rejected by a rate limiter.
-	//
-	// The "limiter" label names the bucket that did the rejecting (see the
-	// names passed in cmd/api/main.go). Without it every limiter reports into
-	// one undifferentiated series, and a 429 on a route covered by two
-	// limiters — e.g. /flights, which carries both the coarse "general"
-	// limiter and the "search" limiter — cannot be attributed to either.
+	// RateLimitHitsTotal counts requests rejected by a rate limiter. The
+	// "limiter" label names the bucket that did the rejecting (see the names
+	// passed in cmd/api/main.go).
 	RateLimitHitsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "rate_limit_hits_total",
@@ -29,11 +25,8 @@ var (
 		[]string{"limiter", "path"},
 	)
 
-	// RateLimitRequestsTotal counts every request that passed *through* a rate
-	// limiter, whether it was allowed or rejected. It is the denominator for
-	// RateLimitHitsTotal: on its own a rejection rate says nothing about
-	// whether a limit is correctly sized, because 2 rejections/s is a
-	// non-event against 200 req/s of traffic and an outage against 3 req/s.
+	// RateLimitRequestsTotal counts every request evaluated by a rate limiter,
+	// allowed or rejected.
 	RateLimitRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "rate_limit_requests_total",
@@ -60,10 +53,7 @@ func newRateLimitMiddleware(name string, rate int64, period time.Duration, keyGe
 	store := memory.NewStore()
 	instance := limiter.New(store, r)
 
-	// Label by the Gin route template, not c.Request.URL.Path. The raw URL
-	// path turns every /api/v1/flights/{uuid} into its own series — an
-	// unbounded cardinality leak — and makes these counters impossible to
-	// join against http_requests_total, which normalizes the same way.
+	// Label by the Gin route template, not c.Request.URL.Path.
 	reject := func(c *gin.Context) {
 		RateLimitHitsTotal.WithLabelValues(name, normalizeRoutePath(c)).Inc()
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests, please try again later"})
@@ -82,23 +72,18 @@ func newRateLimitMiddleware(name string, rate int64, period time.Duration, keyGe
 	}
 }
 
-// NewRateLimitMiddleware creates a Gin middleware that rate-limits requests.
-// rate is the number of requests allowed per period (e.g., 10 requests per 1 minute).
-// It uses Gin's c.ClientIP() to key rate limits by the real client IP (respecting
-// X-Real-IP / X-Forwarded-For headers set by nginx) instead of the proxy's address.
+// NewRateLimitMiddleware creates a Gin middleware that rate-limits requests,
+// keyed by c.ClientIP(). rate is the number of requests allowed per period
+// (e.g., 10 requests per 1 minute).
 func NewRateLimitMiddleware(name string, rate int64, period time.Duration) gin.HandlerFunc {
 	return newRateLimitMiddleware(name, rate, period, func(c *gin.Context) string {
-		// Use Gin's ClientIP which reads X-Real-IP / X-Forwarded-For from trusted proxies
 		return c.ClientIP()
 	})
 }
 
 // NewUserRateLimitMiddleware is like NewRateLimitMiddleware, but keys by the
 // authenticated user's ID (set by AuthMiddleware as "userID") when present,
-// falling back to client IP otherwise (e.g. the request never reached
-// AuthMiddleware's authenticated branch). Per-user keying is more precise
-// for logged-in traffic than per-IP: it isn't inflated by users sharing a
-// NAT/office IP, and isn't defeated by one user rotating source IPs.
+// falling back to client IP.
 func NewUserRateLimitMiddleware(name string, rate int64, period time.Duration) gin.HandlerFunc {
 	return newRateLimitMiddleware(name, rate, period, func(c *gin.Context) string {
 		if userID, exists := c.Get("userID"); exists {
@@ -110,10 +95,8 @@ func NewUserRateLimitMiddleware(name string, rate int64, period time.Duration) g
 	})
 }
 
-// apiGroupPrefix is the router group every versioned route is mounted under.
-// Path predicates below are written relative to that group (e.g. "/imports"),
-// while c.Request.URL.Path is absolute (e.g. "/api/v1/imports/upload"), so the
-// prefix has to be stripped before matching.
+// apiGroupPrefix is the router group every versioned route is mounted under;
+// the path predicates below are written relative to it.
 const apiGroupPrefix = "/api/v1"
 
 // groupRelativePath returns the request path relative to the API router group.
@@ -141,10 +124,8 @@ func RateLimitByPath(rl gin.HandlerFunc, paths ...string) gin.HandlerFunc {
 	}
 }
 
-// RateLimitByPathPrefix applies a rate-limit middleware only to requests
-// whose path starts with one of the given prefixes. Unlike RateLimitByPath's
-// suffix matching, this is needed for routes ending in an opaque token
-// (e.g. "/sign/{token}"), which never share a fixed suffix.
+// RateLimitByPathPrefix applies a rate-limit middleware only to requests whose
+// path (relative to the router group) starts with one of the given prefixes.
 func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFunc {
 	return RateLimitByPathPrefixExcept(rl, nil, prefixes...)
 }
@@ -159,10 +140,6 @@ func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFu
 // screen a dozen times exhaust the budget for the import the pilot came to do.
 func RateLimitByPathPrefixExcept(rl gin.HandlerFunc, exempt []string, prefixes ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Must match against the GROUP-RELATIVE path. Comparing the absolute
-		// path ("/api/v1/imports/upload") against a group-relative prefix
-		// ("/imports") is never true, which silently disabled both the
-		// /imports and /sign/ limiters entirely.
 		rel := groupRelativePath(c)
 		for _, e := range exempt {
 			if rel == e {
@@ -182,25 +159,12 @@ func RateLimitByPathPrefixExcept(rl gin.HandlerFunc, exempt []string, prefixes .
 
 // RateLimitByPathSegment applies a rate-limit middleware to every request
 // whose path contains one of the given segments, wherever it appears.
-//
-// Neither suffix nor prefix matching covers a sub-collection that sits in the
-// middle of a path and also has per-item routes under it:
-// "/licenses/{id}/files" has no fixed prefix and "/licenses/{id}/files/{fileId}"
-// has no fixed suffix, so matching on the "images" segment is the only way to
-// cover the collection and its items with one predicate.
 func RateLimitByPathSegment(rl gin.HandlerFunc, segments ...string) gin.HandlerFunc {
 	return rateLimitByPathSegment(rl, nil, segments)
 }
 
 // RateLimitByPathSegmentForMethods is RateLimitByPathSegment narrowed to a set
-// of HTTP methods, so one sub-collection can carry different budgets for reads
-// and writes.
-//
-// A single budget across both is wrong whenever a resource is written rarely
-// but read repeatedly: uploading an image is heavy and deliberate, while
-// listing and displaying images happens once per card on a list page and again
-// on every revisit. Sharing one tight bucket makes the read path fail long
-// before the write path is anywhere near abusive.
+// of HTTP methods.
 func RateLimitByPathSegmentForMethods(rl gin.HandlerFunc, methods []string, segments ...string) gin.HandlerFunc {
 	set := make(map[string]bool, len(methods))
 	for _, m := range methods {
@@ -229,10 +193,7 @@ func rateLimitByPathSegment(rl gin.HandlerFunc, methods map[string]bool, segment
 
 // RateLimitByPathWithQueryParam applies a rate-limit middleware only to
 // requests whose path (relative to the router group) ends with the given
-// suffix AND which carry a non-empty queryParam. This targets expensive
-// query variants of an otherwise-cheap route (e.g. GET /flights only
-// becomes costly once a free-text search "q" is present) without limiting
-// plain, cheap requests to the same path.
+// suffix AND which carry a non-empty queryParam.
 func RateLimitByPathWithQueryParam(rl gin.HandlerFunc, path, queryParam string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.HasSuffix(groupRelativePath(c), path) && c.Query(queryParam) != "" {

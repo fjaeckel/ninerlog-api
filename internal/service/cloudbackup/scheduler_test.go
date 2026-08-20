@@ -89,7 +89,7 @@ func TestSchedulerPerUserLockPreventsConcurrentDispatchForSameUser(t *testing.T)
 		count.inc()
 	}
 
-	// Pre-acquire the user lock so both dispatch attempts skip the gate.
+	// Pre-acquire the user lock: both dispatch attempts must skip the gate.
 	if !sched.userLocks.tryAcquire(user) {
 		t.Fatal("failed to pre-acquire user lock")
 	}
@@ -99,17 +99,12 @@ func TestSchedulerPerUserLockPreventsConcurrentDispatchForSameUser(t *testing.T)
 		t.Fatalf("expected 0 dispatches while user lock held, got %d", got)
 	}
 
-	// Release and tick again — first destination gets dispatched, second
-	// is skipped because the goroutine for the first is still holding the
-	// user lock (the runHook returns immediately, but we want to assert
-	// per-tick semantics, not steady-state). Drain and re-check.
+	// Release and tick again, then drain and re-check.
 	sched.userLocks.release(user)
 	sched.tickOnce(context.Background())
 	sched.wg.Wait()
-	// Both ticks combined: still at most one dispatch per tick because
-	// the goroutine for d1 holds the user lock long enough that
-	// dispatch(d2) skips. With a no-op runHook this is racy; instead
-	// assert that count never exceeds 2 (sanity) and is at least 1.
+	// At most one dispatch per tick; with a no-op runHook the exact count is
+	// racy, so assert 1..2.
 	got := count.get()
 	if got < 1 || got > 2 {
 		t.Fatalf("expected 1 or 2 dispatches after release, got %d", got)
@@ -159,8 +154,7 @@ func TestSchedulerStartStop(t *testing.T) {
 	svc.destRepo = &schedDestRepo{memDestRepo: mem, due: nil}
 
 	sched := NewScheduler(svc, 10*time.Millisecond, log.New(&discardWriter{}, "", 0))
-	// Shrink the initial-tick delay reflectively by overwriting via Start
-	// then immediately Stop — we mainly assert Stop returns promptly.
+	// Start then immediately Stop; asserts Stop returns promptly.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sched.Start(ctx)

@@ -68,10 +68,8 @@ func TestDeltaWatermarkNormalisation(t *testing.T) {
 	}
 }
 
-// The list handlers must hand updatedSince down to the service rather than
-// filtering the page they already fetched — a client syncing incrementally
-// would otherwise still pay for a full read, and paginated endpoints would
-// report a total the caller cannot page to.
+// Asserts the list handlers hand updatedSince down to the service rather
+// than filtering the page they already fetched.
 func TestListHandlersApplyUpdatedSince(t *testing.T) {
 	userID := uuid.New()
 	stale := time.Now().Add(-2 * time.Hour)

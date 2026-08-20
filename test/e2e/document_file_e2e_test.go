@@ -11,14 +11,12 @@ import (
 	"image/png"
 	"io"
 	"mime/multipart"
-	"strings"
 	"net/http"
+	"strings"
 	"testing"
 )
 
-// e2ePNG / e2eJPEG produce genuinely decodable images — the API rejects
-// anything that only *claims* to be one, so a fixture of random bytes with the
-// right magic prefix would not get past upload.
+// e2ePNG / e2eJPEG produce genuinely decodable images.
 func e2ePNG(t *testing.T, w, h int) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -40,8 +38,7 @@ func e2eJPEG(t *testing.T, w, h int) []byte {
 }
 
 // uploadDocumentFile posts one multipart image to a document's image
-// collection. The declared part Content-Type is settable so a test can prove
-// the server does not trust it.
+// collection, with a settable declared part Content-Type.
 func uploadDocumentFile(t *testing.T, c *E2EClient, path, filename, partContentType, caption string, data []byte) *Response {
 	t.Helper()
 	var buf bytes.Buffer
@@ -262,7 +259,6 @@ func TestCredentialFiles(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("credimg"), "SecurePass123!", "Credential Image User")
 
-	// The German radio certificate doubles as coverage for the new enum values.
 	resp := c.POST("/credentials", map[string]interface{}{
 		"credentialType": "RADIO_AZF", "credentialNumber": "AZF-4711",
 		"issueDate": "2022-05-04", "issuingAuthority": "Bundesnetzagentur",
@@ -298,8 +294,7 @@ func TestCredentialFiles(t *testing.T) {
 		}
 	})
 
-	// An image id is only meaningful under the document it hangs off; the same
-	// id addressed through a licence must not resolve.
+	// The same id addressed through a licence does not resolve.
 	t.Run("not reachable through a licence URL", func(t *testing.T) {
 		licID := createFileTestLicense(t, c, "DE-IMG-CROSS")
 		requireStatus(t, c.GET(fmt.Sprintf("/licenses/%s/files/%s", licID, imageID)), http.StatusNotFound)
@@ -315,8 +310,8 @@ func TestCredentialFiles(t *testing.T) {
 	})
 }
 
-// The three German radio certificates are new enum members; a round-trip
-// through create/list is what proves the spec, model and column agree.
+// TestGermanRadioCredentialTypes round-trips the German radio certificate
+// enum members through create/list.
 func TestGermanRadioCredentialTypes(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("radio"), "SecurePass123!", "Radio User")
@@ -333,7 +328,7 @@ func TestGermanRadioCredentialTypes(t *testing.T) {
 			if cred["credentialType"] != credType {
 				t.Errorf("credentialType = %v, want %v", cred["credentialType"], credType)
 			}
-			// These certificates do not expire — the API must accept that.
+			// These certificates carry no expiry date.
 			if cred["expiryDate"] != nil {
 				t.Errorf("expiryDate = %v, want null", cred["expiryDate"])
 			}
@@ -341,8 +336,8 @@ func TestGermanRadioCredentialTypes(t *testing.T) {
 	}
 }
 
-// e2ePDF is a minimal but structurally real PDF — signature and %%EOF trailer,
-// which is exactly what the API checks for.
+// e2ePDF is a minimal but structurally real PDF with signature and %%EOF
+// trailer.
 func e2ePDF() []byte {
 	return []byte("%PDF-1.4\n" +
 		"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
@@ -351,9 +346,8 @@ func e2ePDF() []byte {
 		"%%EOF\n")
 }
 
-// A PDF is the format an authority actually issues, so it must round-trip —
-// and it must come back as an attachment, never inline, because nothing on the
-// server parsed it and it can carry active content.
+// TestDocumentFilePDF covers a PDF round-trip: it downloads as an attachment,
+// never inline.
 func TestDocumentFilePDF(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("pdf"), "SecurePass123!", "PDF User")
@@ -372,7 +366,7 @@ func TestDocumentFilePDF(t *testing.T) {
 		if f["contentType"] != "application/pdf" {
 			t.Errorf("contentType = %v, want application/pdf", f["contentType"])
 		}
-		// No intrinsic pixel size, so the API must report null rather than 0.
+		// A PDF has no pixel size; dimensions are null.
 		if f["width"] != nil || f["height"] != nil {
 			t.Errorf("dimensions = %v×%v, want null for a PDF", f["width"], f["height"])
 		}

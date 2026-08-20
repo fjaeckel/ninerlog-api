@@ -15,8 +15,7 @@ var (
 		[]string{"source", "result"},
 	)
 
-	// FetchErrorsTotal breaks failures down by cause so a persistent upstream
-	// change (schema drift) is distinguishable from a transient network blip.
+	// FetchErrorsTotal counts fetch failures per upstream source.
 	// Reasons: request, status, decode, empty.
 	FetchErrorsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -65,7 +64,7 @@ var (
 		},
 	)
 
-	// MergeDurationSeconds isolates the merge+index cost from network time.
+	// MergeDurationSeconds tracks the merge and index build.
 	MergeDurationSeconds = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "airport_db_merge_duration_seconds",
@@ -113,8 +112,8 @@ var (
 		[]string{"source"},
 	)
 
-	// DroppedRecords counts records discarded during the last merge because
-	// neither source had usable coordinates.
+	// DroppedRecords counts records discarded during the last merge for
+	// unusable coordinates.
 	DroppedRecords = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "airport_db_dropped_records",
@@ -123,7 +122,6 @@ var (
 	)
 
 	// LastSuccessTimestampSeconds is the Unix time of the last snapshot swap.
-	// Alert on this going stale rather than on reload failures alone.
 	LastSuccessTimestampSeconds = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "airport_db_last_success_timestamp_seconds",
@@ -141,9 +139,36 @@ var (
 		[]string{"operation", "result"},
 	)
 
-	// LookupDurationSeconds is only observed for the scanning operations
-	// (search, nearest); the exact-match path is a single map hit and is not
-	// worth a histogram observation per call.
+	// PackBuildDurationSeconds tracks assembling the downloadable pack
+	// (marshal, hash, gzip), once per snapshot.
+	PackBuildDurationSeconds = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "airport_pack_build_duration_seconds",
+			Help:    "Duration of building the gzip-compressed airport pack.",
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 12), // 1ms … ~4s
+		},
+	)
+
+	// PackBytes is the gzip-compressed size of the current pack.
+	PackBytes = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "airport_pack_bytes",
+			Help: "Size in bytes of the gzip-compressed airport pack.",
+		},
+	)
+
+	// PackRequestsTotal counts pack endpoint hits.
+	// Endpoints: pack, status. Results: success, unavailable.
+	PackRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "airport_pack_requests_total",
+			Help: "Total airport pack requests by endpoint and result.",
+		},
+		[]string{"endpoint", "result"},
+	)
+
+	// LookupDurationSeconds is observed only for the scanning operations
+	// (search, nearest).
 	LookupDurationSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "airport_lookup_duration_seconds",
@@ -154,9 +179,7 @@ var (
 	)
 )
 
-// Counter children for the read path are resolved once at init: Lookup runs
-// per flight row in reports, so the label-map hit on every call is avoidable
-// overhead.
+// Read-path counter children, resolved once at init.
 var (
 	lookupHit         = LookupTotal.WithLabelValues("lookup", "hit")
 	lookupMiss        = LookupTotal.WithLabelValues("lookup", "miss")
@@ -172,6 +195,11 @@ var (
 
 	searchDuration  = LookupDurationSeconds.WithLabelValues("search")
 	nearestDuration = LookupDurationSeconds.WithLabelValues("nearest")
+
+	packSuccess           = PackRequestsTotal.WithLabelValues("pack", "success")
+	packUnavailable       = PackRequestsTotal.WithLabelValues("pack", "unavailable")
+	packStatusSuccess     = PackRequestsTotal.WithLabelValues("status", "success")
+	packStatusUnavailable = PackRequestsTotal.WithLabelValues("status", "unavailable")
 )
 
 func init() {
@@ -191,10 +219,12 @@ func init() {
 		LastSuccessTimestampSeconds,
 		LookupTotal,
 		LookupDurationSeconds,
+		PackBuildDurationSeconds,
+		PackBytes,
+		PackRequestsTotal,
 	)
 
-	// Age is derived from the live snapshot on scrape, so a database that
-	// silently stops refreshing is visible without a separate ticker.
+	// Snapshot age, computed from the live snapshot on scrape.
 	prometheus.MustRegister(prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "airport_db_age_seconds",

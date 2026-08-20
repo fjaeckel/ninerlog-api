@@ -9,10 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TestRegisterCustomCurrencyRoutes ensures the route tree (which mixes a param
+// TestRegisterCustomCurrencyRoutes asserts the route tree (mixing param
 // segment ":id" with static siblings "preview"/"shared") registers without a
-// gin radix-tree panic, and that an unauthenticated request is rejected rather
-// than reaching the service.
+// panic, and that an unauthenticated request is rejected.
 func TestRegisterCustomCurrencyRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

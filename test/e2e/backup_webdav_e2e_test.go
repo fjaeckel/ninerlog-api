@@ -11,13 +11,13 @@ import (
 )
 
 // The bytemark/webdav container in docker-compose.e2e.yaml exposes:
-//   endpoint:   http://webdav/      (inside docker)
-//   username:   ninerlog
-//   password:   ninerlogtest
 //
-// The API talks to WebDAV via the docker network alias, so when constructing a
-// backup destination we use the docker hostname. The provider rejects
-// non-HTTPS URLs by default, so we set allow_insecure=true in the config.
+//	endpoint:   http://webdav/      (inside docker)
+//	username:   ninerlog
+//	password:   ninerlogtest
+//
+// Backup destinations use the docker hostname and set allow_insecure=true for
+// the plain-HTTP endpoint.
 func webdavBaseURL() string {
 	if v := os.Getenv("E2E_WEBDAV_URL"); v != "" {
 		return v
@@ -197,7 +197,7 @@ func TestBackup_WebDAV_InvalidCredentials(t *testing.T) {
 }
 
 // TestBackup_WebDAV_RejectsHTTPWithoutInsecureFlag ensures the provider
-// refuses plaintext URLs by default — a security regression guard.
+// refuses plaintext URLs by default.
 func TestBackup_WebDAV_RejectsHTTPWithoutInsecureFlag(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("backup-webdav-noinsecure"), "Password123!", "WebDAV NoInsecure")

@@ -18,9 +18,8 @@ import (
 )
 
 // DefaultJSONBuilder is the production implementation of JSONBuilder. It
-// composes the existing per-resource services to produce a stable backup
-// payload that matches the on-the-wire JSON export ExportDataJSON has emitted
-// since v1.0.
+// composes the per-resource services to produce a stable backup payload
+// matching the ExportDataJSON wire format.
 //
 // Stability guarantees:
 //   - Top-level keys: exportedAt, version, format, flights, aircraft,
@@ -30,16 +29,14 @@ import (
 //   - Licenses are sorted by id; class ratings are sorted by id.
 //   - Credentials are sorted by id.
 //   - The exportedAt field is excluded from the SHA-256 fingerprint used for
-//     "skip if unchanged" so a re-run on an otherwise-identical dataset is
-//     correctly identified as a no-op.
+//     "skip if unchanged".
 type DefaultJSONBuilder struct {
 	Flights     *service.FlightService
 	Aircraft    *service.AircraftService
 	Licenses    *service.LicenseService
 	Credentials *service.CredentialService
 	ClassRating *service.ClassRatingService
-	// AttachCrew is called with the flight slice before serialisation so the
-	// crew-table fallback that the export pathway relies on still fires.
+	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
 	AttachCrew func(ctx context.Context, flights []*models.Flight)
 	// SortFlights is called with the flight slice before serialisation.
@@ -132,9 +129,7 @@ func (b *DefaultJSONBuilder) BuildJSON(ctx context.Context, userID uuid.UUID) (i
 }
 
 // buildPayload serialises the gathered data into the canonical gzipped JSON
-// shape and returns both the reader and the audit metadata. It is split out
-// from BuildJSON so unit tests can exercise the deterministic serialisation
-// without spinning up a full database.
+// shape and returns both the reader and the audit metadata.
 func buildPayload(
 	now time.Time,
 	version string,
@@ -155,8 +150,7 @@ func buildPayload(
 		Credentials: credentials,
 	}
 
-	// Compute a stable fingerprint that excludes exportedAt so identical data
-	// at different times produces the same hash.
+	// Fingerprint excludes exportedAt.
 	fp := p
 	fp.ExportedAt = ""
 	fpBytes, err := json.Marshal(fp)

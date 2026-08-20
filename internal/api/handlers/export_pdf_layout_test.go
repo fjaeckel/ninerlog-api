@@ -5,12 +5,11 @@ import (
 	"testing"
 )
 
-// TestPDFLayoutPageCounts locks in the pagination contract for every
-// format × layout × page-size combination: a spread emits two physical pages
-// per batch of logRowsPerPage() flights plus two intentionally-blank filler
-// pages (one before the first spread, one before the summary) so duplex
-// printing opens as facing pages; a single layout emits one page per batch;
-// and every document ends with the one-page grand summary.
+// TestPDFLayoutPageCounts asserts the pagination contract for every format ×
+// layout × page-size combination: a spread emits two physical pages per
+// batch of logRowsPerPage() flights plus two blank filler pages; a single
+// layout emits one page per batch; every document ends with the one-page
+// grand summary.
 func TestPDFLayoutPageCounts(t *testing.T) {
 	const n = 45
 	flights := buildSamplePDFFlights(n)
@@ -54,10 +53,8 @@ func TestPDFLayoutPageCounts(t *testing.T) {
 	}
 }
 
-// TestWithRowsPerPage checks the dynamic row-scaling contract: an in-range
-// request yields exactly that many rows per page with the row height scaled
-// to fill the grid, and out-of-range requests clamp to a legible row height
-// instead of failing.
+// TestWithRowsPerPage asserts an in-range request yields exactly that many
+// rows per page, and out-of-range requests clamp to a legible row height.
 func TestWithRowsPerPage(t *testing.T) {
 	for _, size := range []string{"a4", "a5", "letter"} {
 		base := geometryFor(size)

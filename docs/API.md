@@ -60,7 +60,6 @@ api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q
 api.Use(middleware.RateLimitByPath(authRateLimit, /* /auth paths */))
 api.Use(middleware.RateLimitByPath(adminRateLimit, /* /admin paths */))
 generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{...})
-handlers.RegisterReportsRoutes(api, apiHandler, db)   // custom, not in OpenAPI spec
 handlers.RegisterFlightUtilRoutes(api, apiHandler)    // custom, not in OpenAPI spec
 handlers.RegisterOIDCRoutes(api, apiHandler)          // browser redirects, not in the spec
 ```
@@ -280,9 +279,10 @@ GET /api/v1/sync/deletions?since=<watermark>      → removals
   past the horizon would resync incrementally and silently keep deleted records.
 
 Tombstones are written by `AFTER DELETE` triggers on the five tables (migration `000054`),
-not by the Go repositories. That is deliberate: deletions reach the database by routes
-that never touch a repository — the raw SQL in `DeleteAllUserData`, the admin user delete,
-and `ON DELETE CASCADE` — and a trigger cannot be forgotten by a future caller, nor can it
+not by the Go repositories. That is deliberate: deletions reach the database by several
+independent routes — the multi-table wipe behind `DeleteAllUserData`
+(`UserContentRepository`), the admin user delete, and `ON DELETE CASCADE` — and a
+trigger cannot be forgotten by a future caller, nor can it
 fail after a delete the client was told succeeded. Deleting a whole **account** records
 nothing: there is no client left to inform. See [DATA_MODEL.md](./DATA_MODEL.md).
 
@@ -318,11 +318,23 @@ CRUD on `/licenses`, per-license statistics and currency, and nested class ratin
 (`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
 
 ### Aircraft
-CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`.
+CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`. `registration`
+is normalised on write into the canonical notation of its state of registry (`pkg/registration`);
+see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
+
+`pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
+rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
+`registration ASC` and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
+plus one `COUNT`, not a scan of the whole fleet. Clients that need the complete fleet — the
+fleet list, an aircraft picker — must page until `pagination.page` reaches
+`pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
 
 ### Flights
 CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
-(re-run auto-calculations respecting overrides). Flight responses include the read-only
+(re-run auto-calculations respecting overrides). `aircraftReg` is normalised the same way
+as `registration` on create/update. `POST /flights/recalculate` also canonicalises the
+user's whole fleet first and reports the outcome as `aircraftNormalized` and
+`aircraftConflicts`. Flight responses include the read-only
 `departureAirportName` / `arrivalAirportName`, resolved per request from the airport
 database and `null` when the stored location does not resolve; they are response-only and
 are not accepted on create or update. `GET /flights` carries the filter, search, sort and
@@ -382,6 +394,17 @@ hide the affected UI rather than discovering the `403` by trying.
 
 ### Maps & Reports
 Airport lookup/search, route and airport statistics, trends, and stats-by-class, plus
+the downloadable airport pack:
+
+- `GET /airports/pack` — the complete merged airport database as a gzip-compressed JSON
+  envelope `{etag, generatedAt, count, airports}` with `airports` sorted by ICAO code,
+  for clients that need offline nearest-airport matching (the iOS Share Extension).
+- `GET /airports/pack/status` — the pack's `etag`, `generatedAt`, `count` and
+  `sizeBytes` without the body. The `etag` is a hash over the airport data alone, so it
+  survives refreshes that produce identical data; clients re-download only on a changed
+  `etag`. Both endpoints answer **503** while the airport database has never loaded.
+
+Also
 `GET /reports/analytics` — the whole Reports page in one round trip (totals, monthly and
 yearly series, breakdowns, patterns, records), scoped by `months` (0 = all time). Its
 `totals` include the user's initial-hours snapshot whenever the timeframe reaches back to

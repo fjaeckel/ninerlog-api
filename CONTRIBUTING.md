@@ -6,7 +6,7 @@ For general project guidelines, see the [project-level CONTRIBUTING.md](https://
 
 ## Prerequisites
 
-- **Go 1.25+**
+- **Go 1.26.7+**
 - **PostgreSQL 16+** (or Docker)
 - **Docker & Docker Compose**
 - **golangci-lint**

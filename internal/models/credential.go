@@ -8,7 +8,7 @@ import (
 
 type CredentialType string
 
-// #nosec G101 -- enum identifiers describe credential types, not secrets.
+// #nosec G101
 const (
 	CredentialTypeEASAClass1Medical CredentialType = "EASA_CLASS1_MEDICAL"
 	CredentialTypeEASAClass2Medical CredentialType = "EASA_CLASS2_MEDICAL"
@@ -21,10 +21,7 @@ const (
 	CredentialTypeLangICAOLevel6    CredentialType = "LANG_ICAO_LEVEL6"
 	CredentialTypeSecClearanceZUP   CredentialType = "SEC_CLEARANCE_ZUP"
 	CredentialTypeSecClearanceZUBB  CredentialType = "SEC_CLEARANCE_ZUBB"
-	// German radio operator certificates (Flugfunkzeugnisse). Three separate
-	// certificates, not three levels of one: BZF II covers VFR radio in German
-	// only, BZF I adds English, and AZF is the full certificate required for
-	// IFR. They do not expire.
+	// German radio operator certificates (Flugfunkzeugnisse); non-expiring.
 	CredentialTypeRadioBZF2 CredentialType = "RADIO_BZF2"
 	CredentialTypeRadioBZF1 CredentialType = "RADIO_BZF1"
 	CredentialTypeRadioAZF  CredentialType = "RADIO_AZF"

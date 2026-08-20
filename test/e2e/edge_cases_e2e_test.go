@@ -43,7 +43,6 @@ func TestCredentialExpiryEdgeCases(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("cred-exp"), "SecurePass123!", "CredExp")
 
-	// Fixed: Credential expiry before issue date now returns 400
 	t.Run("expiry before issue date", func(t *testing.T) {
 		r := c.POST("/credentials", map[string]interface{}{
 			"credentialType":   "EASA_CLASS2_MEDICAL",
@@ -164,7 +163,6 @@ func TestEmailUpdateDuplicate(t *testing.T) {
 	registerAndLogin(t, c2, email2, "SecurePass123!", "User2")
 
 	// Email update to an address another account already holds returns 409.
-	// Changing the address at all requires the current password.
 	t.Run("update email to another user email fails", func(t *testing.T) {
 		r := c1.PATCH("/users/me", map[string]string{
 			"email":           email2,
@@ -173,8 +171,7 @@ func TestEmailUpdateDuplicate(t *testing.T) {
 		assertStatus(t, r, http.StatusConflict)
 	})
 
-	// Re-submitting the address the account already has is not a change, so it
-	// needs no password.
+	// Re-submitting the account's own address needs no password.
 	t.Run("update email to same email is no-op", func(t *testing.T) {
 		r := c1.PATCH("/users/me", map[string]string{"email": email1})
 		requireStatus(t, r, 200)

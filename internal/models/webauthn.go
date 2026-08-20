@@ -35,9 +35,8 @@ const (
 
 // WebAuthnSession holds the transient state of an in-flight WebAuthn ceremony
 // (registration or authentication) until the client returns its assertion.
-//
-// The raw handle that identifies a session is never stored: IDHash holds its
-// SHA-256, so a database dump does not yield usable ceremony state.
+// IDHash holds the SHA-256 of the raw session handle; the handle itself is
+// never stored.
 type WebAuthnSession struct {
 	IDHash    []byte     // sha256 of the raw handle issued to the client
 	UserID    *uuid.UUID // nil for usernameless / discoverable login

@@ -25,9 +25,6 @@ func TestEnvIntNarrow(t *testing.T) {
 		{name: "unparseable keeps default", set: true, val: "many", want: def},
 		{name: "max int32 is used", set: true, val: strconv.Itoa(math.MaxInt32), want: math.MaxInt32},
 
-		// The reason this helper exists: a value past the 32-bit range must not
-		// be truncated into a small or negative cap on any platform. Parsing at
-		// a 32-bit width rejects it outright instead.
 		{name: "above int32 keeps default", set: true, val: strconv.FormatInt(math.MaxInt32+1, 10), want: def},
 		{name: "far above int32 keeps default", set: true, val: "9223372036854775807", want: def},
 		{name: "overflows int64 keeps default", set: true, val: "99999999999999999999", want: def},

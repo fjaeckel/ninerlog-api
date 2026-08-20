@@ -66,9 +66,7 @@ func (h *APIHandler) DeleteCredentialFile(c *gin.Context, credentialId generated
 
 // ── Shared implementations ────────────────────────────────────────────────
 //
-// Licences and credentials get separate URLs because they are separate
-// resources, but the behaviour behind them is identical, so the eight handlers
-// above are thin adapters over these four.
+// The eight handlers above are thin adapters over these four.
 
 func (h *APIHandler) listDocumentFiles(c *gin.Context, subject models.DocumentSubjectType, subjectID uuid.UUID) {
 	userID, ok := h.documentFileCaller(c)
@@ -144,16 +142,9 @@ func (h *APIHandler) getDocumentFile(c *gin.Context, subject models.DocumentSubj
 		return
 	}
 
-	// These are scans of identity documents fetched with a bearer token.
-	// Keeping them out of shared caches and off disk costs nothing — the
-	// client holds the decoded blob for as long as it needs it.
 	c.Header("Cache-Control", "private, no-store")
 
-	// Images were verified by decoding their header and may be rendered
-	// inline. A PDF was not — nothing in the stdlib parses one — and it is an
-	// active format that can carry scripts and embedded files, so it always
-	// goes out as an attachment. That holds regardless of what the client
-	// asks for: the decision belongs on the server, not with the caller.
+	// Verified images may render inline; PDFs always go out as an attachment.
 	disposition := "attachment"
 	if models.ContentTypeIsInlineSafe(file.ContentType) {
 		disposition = "inline"
@@ -221,8 +212,7 @@ func (h *APIHandler) sendDocumentFileError(c *gin.Context, err error) {
 }
 
 // contentDispositionSafe strips the characters that would let a stored
-// filename break out of the quoted header value. The name is already
-// sanitized on the way in; this is the second belt on the way out.
+// filename break out of the quoted header value.
 func contentDispositionSafe(name string) string {
 	return strings.Map(func(r rune) rune {
 		if r == '"' || r == '\\' || r == '\r' || r == '\n' || r < 0x20 || r > 0x7e {

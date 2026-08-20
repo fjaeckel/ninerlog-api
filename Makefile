@@ -1,4 +1,4 @@
-.PHONY: help generate test test-short test-integration test-e2e verify-multi-replica coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
+.PHONY: help generate test test-short test-integration test-e2e verify-multi-replica coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check prefix-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
 
 # Default target
 .DEFAULT_GOAL := help
@@ -8,6 +8,8 @@ BINARY_NAME=ninerlog-api
 BUILD_DIR=bin
 COVERAGE_FILE=coverage.out
 COVERAGE_HTML=coverage.html
+# Upstream list for `make prefix-check`; see docs/AIRCRAFT_REGISTRATIONS.md.
+SOURCE?=https://en.wikipedia.org/w/index.php?title=List_of_aircraft_registration_prefixes&action=raw
 
 help: ## Show this help message
 	@echo "NinerLog API - Available commands:"
@@ -108,6 +110,9 @@ migrate-check: ## Verify migrations have no duplicate versions or missing up/dow
 
 dashboard-check: ## Verify Grafana dashboards and declared metrics match in both directions
 	@python3 scripts/check-dashboards.py
+
+prefix-check: ## Compare the vendored aircraft nationality mark table against upstream (override with SOURCE=<url>)
+	@python3 scripts/check-registration-prefixes.py --url "$(SOURCE)"
 
 migrate-up: ## Apply database migrations
 	@echo "Running database migrations..."

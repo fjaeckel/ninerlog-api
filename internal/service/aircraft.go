@@ -7,6 +7,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/google/uuid"
 )
 
@@ -14,6 +15,15 @@ var (
 	ErrAircraftNotFound      = errors.New("aircraft not found")
 	ErrUnauthorizedAircraft  = errors.New("unauthorized access to aircraft")
 	ErrDuplicateRegistration = errors.New("aircraft registration already exists")
+)
+
+const (
+	// DefaultAircraftPageSize is the page size applied when a client asks for none.
+	DefaultAircraftPageSize = 20
+	// MaxAircraftPageSize is the largest page a client may request.
+	MaxAircraftPageSize = 500
+	// maxAircraftOffset bounds the row offset a page number can translate to.
+	maxAircraftOffset = 1 << 30
 )
 
 type AircraftService struct {
@@ -25,6 +35,7 @@ func NewAircraftService(aircraftRepo repository.AircraftRepository) *AircraftSer
 }
 
 func (s *AircraftService) CreateAircraft(ctx context.Context, aircraft *models.Aircraft) error {
+	aircraft.Registration = registration.Canonical(aircraft.Registration)
 	if err := aircraft.Validate(); err != nil {
 		return err
 	}
@@ -62,11 +73,37 @@ func (s *AircraftService) ListAircraftUpdatedSince(ctx context.Context, userID u
 	return s.aircraftRepo.GetByUserID(ctx, userID, &updatedSince)
 }
 
+// ListAircraftPage returns one page of the user's aircraft ordered by
+// registration, along with the total number of aircraft matching the filter.
+// A non-nil updatedSince narrows both to aircraft changed strictly after that
+// instant. page is 1-indexed; page and pageSize are clamped to sane bounds.
+func (s *AircraftService) ListAircraftPage(ctx context.Context, userID uuid.UUID, updatedSince *time.Time, page, pageSize int) ([]*models.Aircraft, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = DefaultAircraftPageSize
+	}
+	if pageSize > MaxAircraftPageSize {
+		pageSize = MaxAircraftPageSize
+	}
+	offset := (page - 1) * pageSize
+	if offset < 0 || offset > maxAircraftOffset {
+		offset = maxAircraftOffset
+	}
+	return s.aircraftRepo.GetPageByUserID(ctx, userID, updatedSince, pageSize, offset)
+}
+
 // UpdateAircraft updates an aircraft. When renameFlights is true and the
 // registration changes, flights logged under the old registration are
 // repointed to the new one; the returned count is the number of flights
 // updated.
+//
+// Flights also follow when the only change is canonicalising the stored
+// registration (DEABC → D-EABC), whatever renameFlights says.
 func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.Aircraft, userID uuid.UUID, renameFlights bool) (int, error) {
+	aircraft.Registration = registration.Canonical(aircraft.Registration)
+
 	existing, err := s.aircraftRepo.GetByID(ctx, aircraft.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -85,7 +122,9 @@ func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.A
 	}
 
 	flightsUpdated := 0
-	if renameFlights && existing.Registration != aircraft.Registration {
+	changed := existing.Registration != aircraft.Registration
+	canonicalisation := changed && registration.Canonical(existing.Registration) == aircraft.Registration
+	if changed && (renameFlights || canonicalisation) {
 		flightsUpdated, err = s.aircraftRepo.UpdateWithFlightRename(ctx, aircraft, existing.Registration)
 	} else {
 		err = s.aircraftRepo.Update(ctx, aircraft)
@@ -148,9 +187,8 @@ type recencyAgg struct {
 	lapsesOn *time.Time
 }
 
-// add processes one per-day row; rows must arrive newest-first so the lapse
-// date anchors on the day the cumulative count first reaches 3 (the 3rd-most
-// recent landing), which stays countable for 90 days.
+// add processes one per-day row; rows must arrive newest-first. The lapse date
+// is 90 days after the day the cumulative count first reaches 3.
 func (a *recencyAgg) add(date time.Time, landings int) {
 	if landings <= 0 {
 		return

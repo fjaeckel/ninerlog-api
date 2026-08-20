@@ -25,15 +25,9 @@ const idempotencyColumns = `
 	response_status, response_body, response_content_type,
 	created_at, completed_at, expires_at`
 
-// Claim takes the key in a single statement so that two concurrent requests
-// carrying the same key cannot both proceed: the loser blocks on the row lock,
-// then re-evaluates the ON CONFLICT predicate against the winner's committed
-// row and comes back empty-handed.
-//
-// The DO UPDATE branch fires only for a record that is no longer live —
-// expired, or an in-progress claim whose owner never came back. Everything
-// else falls through to the SELECT below and is reported to the caller as a
-// conflict.
+// Claim atomically takes the key in a single statement. The DO UPDATE branch
+// fires only for a record that is no longer live — expired, or an in-progress
+// claim taken before staleBefore; everything else is reported as a conflict.
 func (r *idempotencyRepository) Claim(ctx context.Context, rec *models.IdempotencyRecord, staleBefore time.Time) (*models.IdempotencyRecord, error) {
 	res, err := r.db.ExecContext(ctx, `
 		INSERT INTO idempotency_keys (
@@ -69,9 +63,7 @@ func (r *idempotencyRepository) Claim(ctx context.Context, rec *models.Idempoten
 
 	existing, err := r.get(ctx, rec.UserID, rec.Key)
 	if err != nil {
-		// The holder can vanish between the failed claim and this read (the
-		// reaper, or a concurrent Release). Report it as a conflict rather
-		// than executing the request: the caller retries and claims cleanly.
+		// A vanished holder is reported as a conflict.
 		if errors.Is(err, repository.ErrNotFound) {
 			return &models.IdempotencyRecord{
 				UserID:      rec.UserID,

@@ -10,13 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// A flight carrying a completed instructor signature is locked: UpdateFlight
-// and DeleteFlight both refuse it with ErrFlightLocked. The bulk
-// aircraft-rename path bypassed that lock and rewrote aircraft_reg on signed
-// entries, mutating attested logbook content while the signature still read
-// "completed" — and since signatures store no content hash, undetectably.
-//
-// This test pins the guard into the query itself.
+// TestUpdateWithFlightRename_SkipsSignedFlights pins the signature_id IS NULL
+// guard into the bulk aircraft rename query.
 func TestUpdateWithFlightRename_SkipsSignedFlights(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -42,8 +37,7 @@ func TestUpdateWithFlightRename_SkipsSignedFlights(t *testing.T) {
 	mock.ExpectExec("UPDATE aircraft").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	// The flights rename MUST carry the signature_id IS NULL predicate. If the
-	// guard is dropped this expectation no longer matches and the test fails.
+	// The expectation matches only a rename carrying signature_id IS NULL.
 	mock.ExpectExec(`UPDATE flights SET aircraft_reg = \$1, updated_at = NOW\(\)\s+WHERE user_id = \$2 AND aircraft_reg = \$3 AND signature_id IS NULL`).
 		WithArgs(ac.Registration, ac.UserID, "D-AAAA").
 		WillReturnResult(sqlmock.NewResult(0, 2))

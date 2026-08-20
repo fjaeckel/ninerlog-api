@@ -13,21 +13,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// Defaults for the unverified-account lifecycle.
-//
-// An account that never verifies its address cannot log in, so it holds nothing
-// but a row and an email address. It gets one reminder a day after signup —
-// enough time that the reminder does not race the original message into the
-// same inbox — and that reminder starts a 30-day clock. If the address is still
-// unverified when the clock runs out, the account is deleted.
+// Defaults for the unverified-account lifecycle: one reminder a day after
+// signup, and that reminder starts a 30-day deletion clock.
 const (
 	DefaultVerificationReminderAfter = 24 * time.Hour
 	DefaultUnverifiedRetention       = 30 * 24 * time.Hour
 	DefaultUnverifiedSweepInterval   = time.Hour
 
-	// defaultReminderBatchSize bounds how many reminders one sweep sends, so a
-	// backlog is worked off over several sweeps instead of blocking the worker
-	// on a few thousand sequential SMTP conversations.
+	// defaultReminderBatchSize bounds how many reminders one sweep sends.
 	defaultReminderBatchSize = 200
 )
 
@@ -73,13 +66,8 @@ func (c UnverifiedAccountConfig) withDefaults() UnverifiedAccountConfig {
 }
 
 // UnverifiedAccountService reminds, then reaps, accounts that never verified
-// their email address.
-//
-// It only makes sense when email verification is actually enforced. With SMTP
-// unconfigured, registration marks accounts verified on the spot, so there is
-// nothing here to act on — and acting anyway would delete accounts that were
-// never asked to verify. cmd/api/main.go therefore starts the worker only when
-// the sender is configured, and the service re-checks on every sweep.
+// their email address. cmd/api/main.go starts the worker only when the email
+// sender is configured, and the service re-checks on every sweep.
 type UnverifiedAccountService struct {
 	users      repository.UserRepository
 	tokens     verificationTokenIssuer
@@ -108,8 +96,7 @@ func NewUnverifiedAccountService(
 	}
 }
 
-// Config reports the effective lifecycle timing, so it can be surfaced to
-// administrators and stated in the reminder email.
+// Config reports the effective lifecycle timing.
 func (s *UnverifiedAccountService) Config() UnverifiedAccountConfig { return s.cfg }
 
 // Start runs the sweep loop until ctx is cancelled.
@@ -136,13 +123,9 @@ func (s *UnverifiedAccountService) Start(ctx context.Context) {
 }
 
 // Sweep sends any due reminders and deletes any accounts past the retention
-// horizon. Exported so an administrator can trigger it and tests can run one
-// pass deterministically.
+// horizon. Exported for the admin trigger and tests.
 func (s *UnverifiedAccountService) Sweep(ctx context.Context) (reminded int, deleted int64) {
-	// Re-checked every sweep rather than only at startup: if SMTP is
-	// unconfigured we cannot send a reminder, and deleting accounts whose
-	// 30-day clock we never honestly started would destroy data on the
-	// strength of a stamp we could not stand behind.
+	// SMTP configuration is re-checked every sweep.
 	if s.sender == nil || !s.sender.IsConfigured() {
 		return 0, 0
 	}
@@ -197,13 +180,8 @@ func (s *UnverifiedAccountService) sendDueReminders(ctx context.Context) int {
 			Type:     emailpkg.TypeVerificationReminder,
 		})
 
-		// The stamp is what starts the deletion clock, so it is only set when
-		// we know the outcome is final. A permanent refusal — the mailbox does
-		// not exist, or the address is already suppressed from an earlier hard
-		// bounce — is as final as a delivery: no future sweep will do better,
-		// and leaving the stamp unset would make the account immortal. A
-		// transient failure (our SMTP server is down, greylisting) sets
-		// nothing, so the account is picked up again next sweep.
+		// The stamp starts the deletion clock; it is set on delivery and on a
+		// permanent refusal, never on a transient failure.
 		var sendError *emailpkg.SendError
 		switch {
 		case sendErr == nil:
@@ -220,8 +198,8 @@ func (s *UnverifiedAccountService) sendDueReminders(ctx context.Context) int {
 		}
 
 		if err := s.users.MarkVerificationReminderSent(ctx, user.ID, now); err != nil {
-			// ErrNotFound means the account verified or was removed between the
-			// listing and now — a race the guarded UPDATE is there to lose safely.
+			// ErrNotFound: the account verified or was removed between the
+			// listing and now.
 			if !errors.Is(err, repository.ErrNotFound) {
 				slog.Warn("Could not stamp verification reminder", "userId", user.ID, "error", err)
 			}
@@ -263,10 +241,9 @@ func (s *UnverifiedAccountService) baseURL() string {
 	return s.baseURLFn()
 }
 
-// LoadUnverifiedAccountConfig reads the lifecycle timing from the environment.
-// Every value is optional; an unparseable or non-positive setting falls back to
-// the default rather than disabling a step, because a typo must not silently
-// switch account deletion on a different schedule than intended.
+// LoadUnverifiedAccountConfig reads the lifecycle timing from the
+// environment. Every value is optional; an unparseable or non-positive
+// setting falls back to the default.
 func LoadUnverifiedAccountConfig() UnverifiedAccountConfig {
 	return UnverifiedAccountConfig{
 		ReminderAfter: durationFromEnv("UNVERIFIED_REMINDER_AFTER", DefaultVerificationReminderAfter),
@@ -275,28 +252,20 @@ func LoadUnverifiedAccountConfig() UnverifiedAccountConfig {
 	}
 }
 
-// Reasons the reaper is not running, reported to administrators so a disabled
-// reaper is explained rather than merely absent.
+// Reasons the reaper is not running, reported to administrators.
 const (
-	// CleanupDisabledByOIDC is the one that is not configurable. In OIDC mode
-	// the identity provider owns the account lifecycle: local registration and
-	// email verification are switched off entirely, so "unverified" no longer
-	// means "an abandoned signup". It means the provider did not assert
-	// email_verified — for an account its owner may be using daily. Reaping on
-	// that signal would delete live accounts, so the feature is refused in OIDC
-	// mode outright rather than left to configuration.
+	// CleanupDisabledByOIDC: OIDC mode refuses the feature outright; it is
+	// not configurable.
 	CleanupDisabledByOIDC = "oidc_mode"
-	// CleanupDisabledNoSMTP: without SMTP, registration marks accounts verified
-	// on the spot. There is nothing unverified to chase, and anything that is
-	// unverified was never asked to confirm.
+	// CleanupDisabledNoSMTP: without SMTP, registration marks accounts
+	// verified on the spot.
 	CleanupDisabledNoSMTP = "smtp_not_configured"
 	// CleanupDisabledByConfig: UNVERIFIED_CLEANUP_ENABLED=false.
 	CleanupDisabledByConfig = "disabled_by_configuration"
 )
 
-// UnverifiedCleanupDisabledReason reports why the reaper must not run, or "" if
-// it may. Deleting accounts is irreversible, so every condition that forbids it
-// is decided in one place rather than spread across the composition root.
+// UnverifiedCleanupDisabledReason reports why the reaper must not run, or ""
+// if it may.
 func UnverifiedCleanupDisabledReason(smtpConfigured, oidcEnabled bool) string {
 	switch {
 	case oidcEnabled:

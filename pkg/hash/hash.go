@@ -23,14 +23,12 @@ func ComparePassword(hashedPassword, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
 
-// dummyHash is a precomputed bcrypt hash used only to burn a comparable amount
-// of CPU when authenticating a non-existent account, so the "unknown user" and
-// "wrong password" paths take similar time. It is never expected to match.
+// dummyHash is a precomputed bcrypt hash consumed by DummyCompare; it never
+// matches.
 var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("ninerlog-timing-equalizer"), bcryptCost)
 
-// DummyCompare performs a throwaway bcrypt comparison. Call it on the
-// user-not-found login path so an attacker cannot distinguish a missing account
-// from a wrong password by response timing (user enumeration, CWE-204).
+// DummyCompare performs a throwaway bcrypt comparison for the user-not-found
+// login path.
 func DummyCompare() {
 	_ = bcrypt.CompareHashAndPassword(dummyHash, []byte("ninerlog-timing-equalizer-x"))
 }

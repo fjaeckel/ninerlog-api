@@ -14,8 +14,7 @@ const (
 	// RequestIDHeader is the header key for request ID
 	RequestIDHeader = "X-Request-ID"
 	// UserIDKey is the context key AuthMiddleware uses to store the
-	// authenticated user's ID. Declared here so the access log can attribute
-	// requests without importing the auth package.
+	// authenticated user's ID.
 	UserIDKey = "userID"
 )
 
@@ -36,9 +35,7 @@ func LoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 
-		// Reuse an upstream request ID (e.g. one assigned by nginx) so a log
-		// line can be correlated with the proxy's access log; otherwise mint
-		// a fresh one. Expose it for downstream correlation either way.
+		// Reuse a valid upstream request ID, or mint a fresh one.
 		requestID := sanitizeRequestID(c.GetHeader(RequestIDHeader))
 		if requestID == "" {
 			requestID = uuid.New().String()
@@ -46,8 +43,6 @@ func LoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
 		c.Set(RequestIDKey, requestID)
 		c.Header(RequestIDHeader, requestID)
 
-		// Process request. Downstream middleware (e.g. AuthMiddleware) runs
-		// inside this call, so any userID it sets is visible below.
 		c.Next()
 
 		latency := time.Since(start)
@@ -56,16 +51,14 @@ func LoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
 		attrs := []any{
 			slog.String("request_id", requestID),
 			slog.String("method", c.Request.Method),
-			// Log the request path only, never the raw query string, which
-			// may carry sensitive values.
+			// Path only, never the raw query string.
 			slog.String("path", c.Request.URL.Path),
 			slog.Int("status", status),
 			slog.Int64("latency_ms", latency.Milliseconds()),
 			slog.String("client_ip", c.ClientIP()),
 		}
 
-		// Attribute the request to a user when authenticated. Public and
-		// unauthenticated routes simply omit the field.
+		// Attribute the request to a user when authenticated.
 		if uid, ok := c.Get(UserIDKey); ok {
 			attrs = append(attrs, slog.String("user_id", userIDString(uid)))
 		}
@@ -86,21 +79,17 @@ func LoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	}
 }
 
-// maxRequestIDLen bounds how much of an inbound X-Request-ID we accept, so a
-// client can't bloat log lines with an oversized header value.
+// maxRequestIDLen bounds an inbound X-Request-ID value.
 const maxRequestIDLen = 128
 
-// sanitizeRequestID validates an inbound X-Request-ID header. It is untrusted
-// client input, so anything with control characters (log-injection vectors) or
-// beyond the length bound is rejected by returning "", signalling the caller to
-// generate a fresh ID instead.
+// sanitizeRequestID validates an inbound X-Request-ID header, returning ""
+// for values carrying control characters or beyond the length bound.
 func sanitizeRequestID(id string) string {
 	if id == "" || len(id) > maxRequestIDLen {
 		return ""
 	}
 	for _, r := range id {
-		// Reject C0/C1 control characters and DEL; allow ordinary printable
-		// text (proxies typically send hex/UUID-ish tokens).
+		// Reject C0/C1 control characters and DEL.
 		if r < 0x20 || r == 0x7f {
 			return ""
 		}

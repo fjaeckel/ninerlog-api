@@ -12,14 +12,8 @@ import (
 	"github.com/lib/pq"
 )
 
-// Renaming a contact rewrites the denormalised name on the crew rows that
-// reference it, so correcting a misspelling also corrects the logbook. A flight
-// carrying a completed instructor signature must be excluded: its crew names
-// are attested content, and signatures store no content hash, so rewriting one
-// would be undetectable after the fact. This is the same guard the bulk
-// aircraft rename carries (see TestUpdateWithFlightRename_SkipsSignedFlights).
-//
-// This test pins the guard into the query itself.
+// TestUpdateWithCrewRename_SkipsSignedFlights pins the signature_id IS NULL
+// guard into the crew rename query.
 func TestUpdateWithCrewRename_SkipsSignedFlights(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -40,8 +34,7 @@ func TestUpdateWithCrewRename_SkipsSignedFlights(t *testing.T) {
 	mock.ExpectExec("UPDATE contacts").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	// The crew rename MUST carry f.signature_id IS NULL. If the guard is
-	// dropped this expectation no longer matches and the test fails.
+	// The expectation matches only a rename carrying f.signature_id IS NULL.
 	mock.ExpectExec(`UPDATE flight_crew_members fcm\s+SET name = \$1\s+FROM flights f\s+WHERE fcm\.flight_id = f\.id\s+AND fcm\.contact_id = \$2\s+AND f\.user_id = \$3\s+AND f\.signature_id IS NULL`).
 		WithArgs(contact.Name, contact.ID, contact.UserID).
 		WillReturnResult(sqlmock.NewResult(0, 3))
@@ -59,9 +52,8 @@ func TestUpdateWithCrewRename_SkipsSignedFlights(t *testing.T) {
 	}
 }
 
-// A rename that collides with another of the user's contacts must surface as
-// ErrDuplicate — not as a raw driver error — so the service can turn it into a
-// 409 instead of a 500. The transaction must not commit.
+// TestUpdateWithCrewRename_DuplicateNameRollsBack covers a colliding rename
+// surfacing as ErrDuplicate without committing the transaction.
 func TestUpdateWithCrewRename_DuplicateNameRollsBack(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

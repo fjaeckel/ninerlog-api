@@ -67,9 +67,7 @@ type BuildMetadata struct {
 	AircraftCount   int
 	LicenseCount    int
 	CredentialCount int
-	// ContentType describes the bytes returned by BuildJSON. Currently always
-	// "application/gzip" — JSON wrapped in gzip — but we expose it explicitly
-	// so the provider can set the correct Content-Type header.
+	// ContentType describes the bytes returned by BuildJSON ("application/gzip").
 	ContentType string
 	// Filename is a recommended object name, e.g. "ninerlog-backup-2025-...".
 	Filename string
@@ -208,9 +206,7 @@ func indexOfNewline(s string) int {
 	return -1
 }
 
-// SetScheduler attaches a scheduler to this service so that handler-side
-// "destination updated" hints can propagate. Returning the scheduler also
-// lets callers Start/Stop it during process lifecycle.
+// SetScheduler attaches a scheduler to this service.
 func (s *Service) SetScheduler(sc *Scheduler) {
 	s.scheduler = sc
 }
@@ -228,7 +224,6 @@ func stringSlice(vals []string) []string {
 }
 
 // withinClockSkew returns true if t1 and t2 are within d of each other.
-// Used by tests; exposed at package scope to avoid lint warnings.
 func withinClockSkew(t1, t2 time.Time, d time.Duration) bool {
 	diff := t1.Sub(t2)
 	if diff < 0 {
@@ -245,8 +240,7 @@ func timeOrNil(t time.Time) *time.Time {
 	return &t
 }
 
-// Service composition note: the service code is split across files to keep
-// each below ~300 lines. See:
+// The service code is split across files:
 //   - destinations.go  (CRUD + Validate)
 //   - runner.go        (RunOnce, retention pruning)
 //   - jsonbuilder.go   (default JSONBuilder implementation)

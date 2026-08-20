@@ -1,15 +1,6 @@
-// Package cryptoutil provides symmetric encryption primitives used to protect
-// per-user secrets (currently: cloud backup credentials) at rest.
-//
-// Design goals:
-//   - One key, one algorithm — AES-256-GCM with a 96-bit random nonce.
-//   - Tampering and nonce-reuse are detectable (GCM authentication tag).
-//   - Caller-friendly: ciphertext and nonce are returned as separate byte
-//     slices so the storage layer can put each in its own column.
-//   - Key handling: the key is loaded from a base64-encoded environment
-//     variable at startup; KeyFromBase64 enforces a 32-byte key length and
-//     refuses obviously-empty values to fail closed on a misconfigured
-//     deployment.
+// Package cryptoutil provides symmetric encryption for per-user secrets at
+// rest: AES-256-GCM with a 96-bit random nonce, ciphertext and nonce returned
+// as separate byte slices, 32-byte keys decoded from base64.
 package cryptoutil
 
 import (
@@ -62,7 +53,7 @@ func New(key []byte) (*AEAD, error) {
 }
 
 // NewFromBase64 decodes a standard or URL-safe base64 string and constructs an
-// AEAD. Spaces in the input are ignored to tolerate copy-paste artifacts.
+// AEAD.
 func NewFromBase64(encoded string) (*AEAD, error) {
 	key, err := DecodeKey(encoded)
 	if err != nil {
@@ -76,7 +67,7 @@ func DecodeKey(encoded string) ([]byte, error) {
 	if encoded == "" {
 		return nil, ErrInvalidKey
 	}
-	// Try both standard and URL-safe encodings; either is acceptable in env vars.
+	// Try standard, raw, and URL-safe base64 variants.
 	if key, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(key) == KeySize {
 		return key, nil
 	}

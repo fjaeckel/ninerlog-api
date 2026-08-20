@@ -510,9 +510,8 @@ func TestImportSample_SkyDemonIsDatedAndTimed(t *testing.T) {
 	if mins := effectiveTotalMinutes(t, got); mins != 67 {
 		t.Errorf("total = %d min, want 67 (PIC Time reads 67, i.e. whole minutes)", mins)
 	}
-	// The hyphen SkyDemon strips is imported as written — a known migration
-	// wrinkle for pilots whose fleet already holds the hyphenated form.
-	if got.AircraftReg != "DEROQ" {
-		t.Errorf("aircraftReg = %q, want DEROQ as exported", got.AircraftReg)
+	// SkyDemon exports "DEROQ"; the registration is canonicalised on import.
+	if got.AircraftReg != "D-EROQ" {
+		t.Errorf("aircraftReg = %q, want D-EROQ", got.AircraftReg)
 	}
 }
