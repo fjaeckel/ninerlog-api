@@ -185,6 +185,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   filling its gaps from the other. It is loaded at startup and refetched every
   `AIRPORT_REFRESH_INTERVAL` (default 24h); a failed refresh keeps the data already in
   memory. See [METRICS.md](./METRICS.md) for the fetch/load/lookup metrics it exposes.
+  Clients that need offline nearest-airport matching (the iOS Share Extension) download
+  the whole database as a gzip-compressed pack via `GET /airports/pack`, and poll
+  `GET /airports/pack/status` for its content `etag` — hashed over the airport data
+  alone, so a refresh that produced identical data does not trigger a re-download.
 
 ## Import & export
 

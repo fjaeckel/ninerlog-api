@@ -197,6 +197,11 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 
 	documentFilesEnabled := h.documentFileService != nil && h.documentFileService.Enabled()
 
+	var airportsUpdatedAt *time.Time
+	if t := airports.LoadedAt(); !t.IsZero() {
+		airportsUpdatedAt = &t
+	}
+
 	config := generated.AdminConfig{
 		AuthMode:                     &authMode,
 		OidcIssuer:                   oidcIssuer,
@@ -204,6 +209,7 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		ServerUptime:                 uptimeStr,
 		MigrationVersion:             migrationVersion,
 		AirportDatabaseSize:          airports.Count(),
+		AirportDatabaseUpdatedAt:     airportsUpdatedAt,
 		RegistrationPrefixCount:      registration.Count(),
 		RegistrationPrefixesReviewed: openapi_types.Date{Time: prefixesReviewed},
 		CorsOrigins:                  h.corsOrigins,

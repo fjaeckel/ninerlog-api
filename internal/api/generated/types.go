@@ -1446,6 +1446,9 @@ type AdminConfig struct {
 	// Example: 29331
 	AirportDatabaseSize int `json:"airportDatabaseSize"`
 
+	// AirportDatabaseUpdatedAt When the airport database was last loaded from the upstream sources; null when it never loaded
+	AirportDatabaseUpdatedAt *time.Time `json:"airportDatabaseUpdatedAt,omitempty"`
+
 	// AuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
 	AuthMode *AdminConfigAuthMode `json:"authMode,omitempty"`
 
@@ -1489,7 +1492,7 @@ type AdminConfig struct {
 
 	// RegistrationPrefixCount Number of ICAO aircraft nationality marks in the vendored registration table
 	//
-	// Example: 208
+	// Example: 210
 	RegistrationPrefixCount int `json:"registrationPrefixCount"`
 
 	// RegistrationPrefixesReviewed When the vendored nationality mark table was last checked against ICAO's published nationality marks. The table is vendored rather than fetched, so this is the only signal that it may be stale.
@@ -1912,6 +1915,29 @@ type Airport struct {
 	//
 	// Example: Frankfurt am Main
 	Name string `json:"name"`
+}
+
+// AirportPackStatus defines model for AirportPackStatus.
+type AirportPackStatus struct {
+	// Count Number of airports in the pack
+	//
+	// Example: 29331
+	Count int `json:"count"`
+
+	// Etag Content identifier of the current pack (hex SHA-256 over the
+	// airport data). Changes only when the merged dataset changes.
+	//
+	//
+	// Example: 3f6b1c9a2d4e5f60
+	Etag string `json:"etag"`
+
+	// GeneratedAt When the live airport snapshot was loaded from the upstream sources
+	GeneratedAt time.Time `json:"generatedAt"`
+
+	// SizeBytes Size of the gzip-compressed pack in bytes
+	//
+	// Example: 745211
+	SizeBytes int `json:"sizeBytes"`
 }
 
 // AirportStats defines model for AirportStats.
