@@ -51,7 +51,21 @@ var (
 	// testdata/importsamples/flylog.csv.
 	flylogHeaders = strings.Split("DATE,DEPARTURE_AIRPORT,ARRIVAL_AIRPORT,AIRCRAFT_TYPE,AIRCRAFT_REGISTRATION,DURATION_BLOCK,LDGS_DAY,LDGS_NIGHT,TIME_BLOCK_START,TIME_BLOCK_END,DURATION_PIC,DURATION_PICUS,DURATION_SIC,DURATION_DUAL,DURATION_INSTRUCTOR,DURATION_EXAMINER,DURATION_NIGHT,DURATION_IFR,DURATION_IFR_ACTUAL,DURATION_IFR_SIMULATED,DURATION_XC,DURATION_MULTI_PILOT,DURATION_SIMULATOR,SIMULATOR_TYPE,REMARKS,PERSONAL_NOTE,APPROACH_TYPE,APPROACH_NR,TAGS,NAME_PIC,NAME_PICUS,NAME_COPILOT,NAME_STUDENT,NAME_INSTRUCTOR,NAME_EXAMINER,TAKEOFFS_DAY,TAKEOFFS_NIGHT,TIME_TAKEOFF,TIME_LANDING,DURATION_AIRBORNE,TIME_DUTY_START,TIME_DUTY_END,DURATION_DUTY,FLIGHT_NUMBER,ROUTE", ",")
 
-	vereinsfliegerHeaders = strings.Split("Datum;Kennzeichen;Muster;Startort;Zielort;Startzeit;Landezeit;Flugzeit;Pilot;Begleiter;Startart;Landungen;Bemerkung", ";")
+	// The two real Vereinsflieger export header rows. The row this replaced was
+	// written from documentation and matched neither: it missed the aircraft
+	// registration ("Lfz."), both airborne times ("Start"/"Landung") and the
+	// crew column ("Begleiter/FI"), so a club export was detected but then
+	// failed every row on a required field it does in fact carry.
+	//
+	// The two exports are the same list with three columns swapped, which is
+	// why they need signature entries that tell them apart rather than just
+	// more aliases: the standard export alone has "S.-Art" and "Verein", and
+	// the extended alone has the block columns.
+	vereinsfliegerHeaders = strings.Split(
+		"Datum;Lfz.;Pilot;Begleiter/FI;Start;Landung;Flugzeit;Startort;Landeort;Landungen;S.-Art;Flugart;Abr.;Verein;Bemerkung", ";")
+
+	vereinsfliegerExtendedHeaders = strings.Split(
+		"Datum;Lfz.;Pilot;Begleiter/FI;Start;Landung;Flugzeit;Startort;Landeort;Landungen;Off-Block;On-Block;Blockzeit in Minuten;Flugart;Bemerkung;Abr.", ";")
 
 	mccPilotLogHeaders = strings.Split("flight_date,ac_reg,ac_model,af_dep,af_arr,time_dep,time_arr,time_total,time_night,time_ifr,time_pic,time_dual,time_instructor,pilot1_name,pilot2_name,ldg_day,ldg_night,to_day,to_night,remarks", ",")
 
@@ -82,7 +96,8 @@ func TestDetectIdentifiesEachSource(t *testing.T) {
 		{"MyFlightbook", myFlightbookHeaders, "MYFLIGHTBOOK_CSV"},
 		{"capzlog.aero", capzlogHeaders, "CAPZLOG_CSV"},
 		{"FLYLOG.io", flylogHeaders, "FLYLOG_CSV"},
-		{"Vereinsflieger", vereinsfliegerHeaders, "VEREINSFLIEGER_CSV"},
+		{"Vereinsflieger (standard)", vereinsfliegerHeaders, "VEREINSFLIEGER_CSV"},
+		{"Vereinsflieger (extended)", vereinsfliegerExtendedHeaders, "VEREINSFLIEGER_EXTENDED_CSV"},
 		{"mccPILOTLOG", mccPilotLogHeaders, "MCC_PILOTLOG_CSV"},
 		{"Wader", waderHeaders, "WADER_CSV"},
 		{"SkyDemon", skyDemonHeaders, "SKYDEMON_CSV"},
@@ -134,11 +149,12 @@ func TestDetectReturnsNilForUnknownFile(t *testing.T) {
 // failure mode that silently maps a column to the wrong field.
 func TestDetectDoesNotCrossClaim(t *testing.T) {
 	cases := map[string][]string{
-		"FOREFLIGHT_CSV":     foreFlightHeaders,
-		"EASA_CSV":           easaHeaders,
-		"FAA_CSV":            faaHeaders,
-		"MYFLIGHTBOOK_CSV":   myFlightbookHeaders,
-		"VEREINSFLIEGER_CSV": vereinsfliegerHeaders,
+		"FOREFLIGHT_CSV":              foreFlightHeaders,
+		"EASA_CSV":                    easaHeaders,
+		"FAA_CSV":                     faaHeaders,
+		"MYFLIGHTBOOK_CSV":            myFlightbookHeaders,
+		"VEREINSFLIEGER_CSV":          vereinsfliegerHeaders,
+		"VEREINSFLIEGER_EXTENDED_CSV": vereinsfliegerExtendedHeaders,
 	}
 	for wantID, headers := range cases {
 		for _, tpl := range All() {
@@ -183,18 +199,19 @@ func TestSuggestMapsTheEssentialFields(t *testing.T) {
 	}
 
 	cases := map[string][]string{
-		"FOREFLIGHT_CSV":     foreFlightHeaders,
-		"NINERLOG_CSV":       ninerlogHeaders,
-		"EASA_CSV":           easaHeaders,
-		"FAA_CSV":            faaHeaders,
-		"LOGTEN_CSV":         logTenKeyHeaders,
-		"MYFLIGHTBOOK_CSV":   myFlightbookHeaders,
-		"CAPZLOG_CSV":        capzlogHeaders,
-		"FLYLOG_CSV":         flylogHeaders,
-		"VEREINSFLIEGER_CSV": vereinsfliegerHeaders,
-		"MCC_PILOTLOG_CSV":   mccPilotLogHeaders,
-		"WADER_CSV":          waderHeaders,
-		"SKYDEMON_CSV":       skyDemonHeaders,
+		"FOREFLIGHT_CSV":              foreFlightHeaders,
+		"NINERLOG_CSV":                ninerlogHeaders,
+		"EASA_CSV":                    easaHeaders,
+		"FAA_CSV":                     faaHeaders,
+		"LOGTEN_CSV":                  logTenKeyHeaders,
+		"MYFLIGHTBOOK_CSV":            myFlightbookHeaders,
+		"CAPZLOG_CSV":                 capzlogHeaders,
+		"FLYLOG_CSV":                  flylogHeaders,
+		"VEREINSFLIEGER_CSV":          vereinsfliegerHeaders,
+		"VEREINSFLIEGER_EXTENDED_CSV": vereinsfliegerExtendedHeaders,
+		"MCC_PILOTLOG_CSV":            mccPilotLogHeaders,
+		"WADER_CSV":                   waderHeaders,
+		"SKYDEMON_CSV":                skyDemonHeaders,
 	}
 
 	for id, headers := range cases {
@@ -225,17 +242,18 @@ func TestSuggestMapsTheEssentialFields(t *testing.T) {
 // ones whose source genuinely stores a single route string must resolve both.
 func TestSuggestMapsAirports(t *testing.T) {
 	cases := map[string][]string{
-		"FOREFLIGHT_CSV":     foreFlightHeaders,
-		"NINERLOG_CSV":       ninerlogHeaders,
-		"EASA_CSV":           easaHeaders,
-		"FAA_CSV":            faaHeaders,
-		"LOGTEN_CSV":         logTenKeyHeaders,
-		"CAPZLOG_CSV":        capzlogHeaders,
-		"FLYLOG_CSV":         flylogHeaders,
-		"VEREINSFLIEGER_CSV": vereinsfliegerHeaders,
-		"MCC_PILOTLOG_CSV":   mccPilotLogHeaders,
-		"WADER_CSV":          waderHeaders,
-		"SKYDEMON_CSV":       skyDemonHeaders,
+		"FOREFLIGHT_CSV":              foreFlightHeaders,
+		"NINERLOG_CSV":                ninerlogHeaders,
+		"EASA_CSV":                    easaHeaders,
+		"FAA_CSV":                     faaHeaders,
+		"LOGTEN_CSV":                  logTenKeyHeaders,
+		"CAPZLOG_CSV":                 capzlogHeaders,
+		"FLYLOG_CSV":                  flylogHeaders,
+		"VEREINSFLIEGER_CSV":          vereinsfliegerHeaders,
+		"VEREINSFLIEGER_EXTENDED_CSV": vereinsfliegerExtendedHeaders,
+		"MCC_PILOTLOG_CSV":            mccPilotLogHeaders,
+		"WADER_CSV":                   waderHeaders,
+		"SKYDEMON_CSV":                skyDemonHeaders,
 	}
 	for id, headers := range cases {
 		t.Run(id, func(t *testing.T) {
@@ -366,5 +384,113 @@ func TestCatalogueIsWellFormed(t *testing.T) {
 			t.Errorf("%s: MinSignatureHits %d exceeds %d signature columns",
 				tpl.ID, tpl.MinSignatureHits, len(tpl.Signature))
 		}
+	}
+}
+
+// The two Vereinsflieger exports differ by three columns out of sixteen, and
+// every alias they share is shared deliberately. Detection therefore rests
+// entirely on the columns only one of them has, and this is the test that says
+// so: swap a signature entry to the shared set and one of these two breaks.
+func TestVereinsfliegerVariantsAreNotConfusedForEachOther(t *testing.T) {
+	cases := []struct {
+		name    string
+		headers []string
+		want    string
+		loser   string
+	}{
+		{"standard", vereinsfliegerHeaders, "VEREINSFLIEGER_CSV", "VEREINSFLIEGER_EXTENDED_CSV"},
+		{"extended", vereinsfliegerExtendedHeaders, "VEREINSFLIEGER_EXTENDED_CSV", "VEREINSFLIEGER_CSV"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Detect(tc.headers)
+			if got == nil || got.ID != tc.want {
+				t.Fatalf("Detect() = %v, want %s", got, tc.want)
+			}
+
+			// Not just "the right one wins" but "by a margin". The two share
+			// most of their column table, so a one-point win would flip on any
+			// club that omits a column.
+			winScore, winSig := scoreOf(t, tc.want, tc.headers)
+			loseScore, loseSig := scoreOf(t, tc.loser, tc.headers)
+			if winScore-loseScore < 8 {
+				t.Errorf("%s beats %s by only %d (sig %d vs %d) — too close to survive a "+
+					"club that omits a column", tc.want, tc.loser, winScore-loseScore, winSig, loseSig)
+			}
+		})
+	}
+}
+
+func scoreOf(t *testing.T, id string, headers []string) (score, sig int) {
+	t.Helper()
+	tpl := ByID(id)
+	if tpl == nil {
+		t.Fatalf("template %s not registered", id)
+	}
+	cols, sig := tpl.Matches(headers)
+	return cols + signatureWeight*sig, sig
+}
+
+// The extended export carries two whole-minute durations that mean different
+// things: "Flugzeit" is airborne time and "Blockzeit in Minuten" is block time
+// (95 against 112 for the same flight). Only one can be the logbook total, and
+// EASA FCL.050 totals block time.
+//
+// Suggest breaks a two-columns-one-field tie by header order, and "Flugzeit"
+// sits six columns earlier — so mapping both would silently log every flight
+// short by the taxi time. "Flugzeit" is dropped here instead; the airborne
+// times survive as the Start/Landung pair.
+func TestVereinsfliegerExtendedTotalsOnBlockTime(t *testing.T) {
+	mapped := map[Field]string{}
+	for _, m := range ByID("VEREINSFLIEGER_EXTENDED_CSV").Suggest(vereinsfliegerExtendedHeaders) {
+		if prev, dup := mapped[m.TargetField]; dup {
+			t.Fatalf("%s claimed by both %q and %q", m.TargetField, prev, m.SourceColumn)
+		}
+		mapped[m.TargetField] = m.SourceColumn
+	}
+
+	if got := mapped[FieldTotalTime]; got != "Blockzeit in Minuten" {
+		t.Errorf("totalTime ← %q, want \"Blockzeit in Minuten\"", got)
+	}
+	for _, f := range []Field{FieldOffBlockTime, FieldOnBlockTime, FieldDepartureTime, FieldArrivalTime} {
+		if mapped[f] == "" {
+			t.Errorf("%s is unmapped — the extended export carries it", f)
+		}
+	}
+
+	// The standard export has no block pair, so there its airborne "Flugzeit"
+	// is the only total available and must be mapped.
+	std := map[Field]string{}
+	for _, m := range ByID("VEREINSFLIEGER_CSV").Suggest(vereinsfliegerHeaders) {
+		std[m.TargetField] = m.SourceColumn
+	}
+	if got := std[FieldTotalTime]; got != "Flugzeit" {
+		t.Errorf("standard export totalTime ← %q, want \"Flugzeit\"", got)
+	}
+	if std[FieldOffBlockTime] != "" || std[FieldOnBlockTime] != "" {
+		t.Errorf("standard export has no block columns, but block times were mapped: "+
+			"off=%q on=%q", std[FieldOffBlockTime], std[FieldOnBlockTime])
+	}
+}
+
+// Every column of both real exports is either mapped or a known-and-ignored
+// one. An unmapped column is not a failure at import time — it lands on the
+// mapping screen — but for a format we hold the real header row for it means
+// an alias is missing, which is how the previous Vereinsflieger template lost
+// the registration and both airborne times.
+func TestVereinsfliegerLeavesNoColumnUnaccountedFor(t *testing.T) {
+	cases := map[string][]string{
+		"VEREINSFLIEGER_CSV":          vereinsfliegerHeaders,
+		"VEREINSFLIEGER_EXTENDED_CSV": vereinsfliegerExtendedHeaders,
+	}
+	for id, headers := range cases {
+		t.Run(id, func(t *testing.T) {
+			tpl := ByID(id)
+			for _, h := range headers {
+				if _, known := tpl.Columns[normalizeHeader(h)]; !known {
+					t.Errorf("column %q is neither mapped nor listed as ignored", h)
+				}
+			}
+		})
 	}
 }

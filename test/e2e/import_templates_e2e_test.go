@@ -68,7 +68,8 @@ func TestImportTemplates_Catalogue(t *testing.T) {
 	// The logbooks pilots actually migrate from must all be listed.
 	for _, want := range []string{
 		"FOREFLIGHT_CSV", "LOGTEN_CSV", "MYFLIGHTBOOK_CSV", "CAPZLOG_CSV",
-		"FLYLOG_CSV", "WADER_CSV", "VEREINSFLIEGER_CSV", "MCC_PILOTLOG_CSV",
+		"FLYLOG_CSV", "WADER_CSV", "VEREINSFLIEGER_CSV", "VEREINSFLIEGER_EXTENDED_CSV",
+		"MCC_PILOTLOG_CSV",
 		"SKYDEMON_CSV", "EASA_CSV", "FAA_CSV", "NINERLOG_CSV", "CSV",
 	} {
 		if !byID[want] {
@@ -104,11 +105,24 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 			wantFormat: "LOGTEN_CSV",
 		},
 		{
-			name:     "Vereinsflieger",
+			// The real standard export: semicolon-delimited, every cell quoted,
+			// airborne times only, durations as bare whole minutes, and places
+			// written "Name ICAO".
+			name:     "Vereinsflieger (standard)",
 			filename: "vereinsflieger.csv",
-			csv: "Datum;Kennzeichen;Muster;Startort;Zielort;Startzeit;Landezeit;Flugzeit;Pilot;Begleiter;Startart;Landungen;Bemerkung\n" +
-				fmt.Sprintf("%s;D-EABC;C172;EDDF;EDDM;10:15;11:45;1:30;Anna Berger;;E;2;Ueberlandflug\n", todayGerman()),
+			csv: "\"Datum\";\"Lfz.\";\"Pilot\";\"Begleiter/FI\";\"Start\";\"Landung\";\"Flugzeit\";\"Startort\";\"Landeort\";\"Landungen\";\"S.-Art\";\"Flugart\";\"Abr.\";\"Verein\";\"Bemerkung\"\n" +
+				fmt.Sprintf("\"%s\";\"D-EABC\";\"Rivera, Alex\";\"\";\"09:12\";\"10:47\";\"95\";\"Uetersen EDHE\";\"Stade EDHS\";\"1\";\"E\";\"N\";\"K\";\"Aero-Club Musterstadt e.V.\";\"\"\n", todayGerman()),
 			wantFormat: "VEREINSFLIEGER_CSV",
+		},
+		{
+			// The extended export is the same list plus the block columns, and
+			// must not be reported as the standard one: the two differ by three
+			// columns out of sixteen and share every other alias.
+			name:     "Vereinsflieger (extended)",
+			filename: "vereinsflieger-extended.csv",
+			csv: "\"Datum\";\"Lfz.\";\"Pilot\";\"Begleiter/FI\";\"Start\";\"Landung\";\"Flugzeit\";\"Startort\";\"Landeort\";\"Landungen\";\"Off-Block\";\"On-Block\";\"Blockzeit in Minuten\";\"Flugart\";\"Bemerkung\";\"Abr.\"\n" +
+				fmt.Sprintf("\"%s\";\"D-EABC\";\"Rivera, Alex\";\"\";\"09:12\";\"10:47\";\"95\";\"Uetersen EDHE\";\"Stade EDHS\";\"1\";\"09:04\";\"10:56\";\"112\";\"N\";\"\";\"K\"\n", todayGerman()),
+			wantFormat: "VEREINSFLIEGER_EXTENDED_CSV",
 		},
 		{
 			name:     "capzlog.aero",

@@ -182,14 +182,41 @@
         "totalTimeMinutes": 67,
         "landings": 1
       }
+    },
+    {
+      "file": "vereinsflieger.csv",
+      "expectTemplate": "VEREINSFLIEGER_CSV",
+      "provenance": "real-header",
+      "notes": "Header row verbatim from a real Vereinsflieger standard export; the values are invented because the source file could not be committed. The value SHAPES are the real ones: dates are DD.MM.YYYY, durations are whole MINUTES in a bare integer ('95'), places are written 'Name ICAO' ('Uetersen EDHE') — the opposite order to SkyDemon — the pilot is 'Surname, First', and every cell is quoted with a semicolon delimiter. The export carries no aircraft type, so the type falls back to the registration, and no off-block/on-block pair, so the total is airborne time.",
+      "expectRows": 3,
+      "expectFirstRow": {
+        "date": "2026-03-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "D-EABC",
+        "departureIcao": "EDHE",
+        "arrivalIcao": "EDHS",
+        "totalTimeMinutes": 95,
+        "landings": 1
+      }
+    },
+    {
+      "file": "vereinsflieger-extended.csv",
+      "expectTemplate": "VEREINSFLIEGER_EXTENDED_CSV",
+      "provenance": "real-header",
+      "notes": "Header row verbatim from a real Vereinsflieger extended export; values invented, shapes real. Same columns as the standard export plus Off-Block, On-Block and 'Blockzeit in Minuten'. It therefore carries two whole-minute durations that mean different things — Flugzeit 95 airborne against Blockzeit 112 block — and the template must total on the block one. This sample is what fails if 'Flugzeit' is ever mapped here again: it sits earlier in the header row and would win the tie.",
+      "expectRows": 3,
+      "expectFirstRow": {
+        "date": "2026-03-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "D-EABC",
+        "departureIcao": "EDHE",
+        "arrivalIcao": "EDHS",
+        "totalTimeMinutes": 112,
+        "landings": 1
+      }
     }
   ],
   "wanted": [
-    {
-      "template": "VEREINSFLIEGER_CSV",
-      "why": "German club export. Column names likely vary by club configuration, so two exports from different clubs are worth more than one.",
-      "howToExport": "vereinsflieger.de → Flugbetrieb → Flüge → CSV export."
-    },
     {
       "template": "MCC_PILOTLOG_CSV",
       "why": "Assumed to use the mcc_/flight_ prefixed database column names. Unverified.",

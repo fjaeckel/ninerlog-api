@@ -821,21 +821,22 @@ func (e ImportField) Valid() bool {
 
 // Defines values for ImportFormat.
 const (
-	CAPZLOGCSV        ImportFormat = "CAPZLOG_CSV"
-	CSV               ImportFormat = "CSV"
-	EASACSV           ImportFormat = "EASA_CSV"
-	FAACSV            ImportFormat = "FAA_CSV"
-	FLYLOGCSV         ImportFormat = "FLYLOG_CSV"
-	FOREFLIGHTCSV     ImportFormat = "FOREFLIGHT_CSV"
-	LOGTENCSV         ImportFormat = "LOGTEN_CSV"
-	MCCPILOTLOGCSV    ImportFormat = "MCC_PILOTLOG_CSV"
-	MYFLIGHTBOOKCSV   ImportFormat = "MYFLIGHTBOOK_CSV"
-	NINERLOGCSV       ImportFormat = "NINERLOG_CSV"
-	SKYDEMONCSV       ImportFormat = "SKYDEMON_CSV"
-	VEREINSFLIEGERCSV ImportFormat = "VEREINSFLIEGER_CSV"
-	WADERCSV          ImportFormat = "WADER_CSV"
-	XLS               ImportFormat = "XLS"
-	XLSX              ImportFormat = "XLSX"
+	CAPZLOGCSV                ImportFormat = "CAPZLOG_CSV"
+	CSV                       ImportFormat = "CSV"
+	EASACSV                   ImportFormat = "EASA_CSV"
+	FAACSV                    ImportFormat = "FAA_CSV"
+	FLYLOGCSV                 ImportFormat = "FLYLOG_CSV"
+	FOREFLIGHTCSV             ImportFormat = "FOREFLIGHT_CSV"
+	LOGTENCSV                 ImportFormat = "LOGTEN_CSV"
+	MCCPILOTLOGCSV            ImportFormat = "MCC_PILOTLOG_CSV"
+	MYFLIGHTBOOKCSV           ImportFormat = "MYFLIGHTBOOK_CSV"
+	NINERLOGCSV               ImportFormat = "NINERLOG_CSV"
+	SKYDEMONCSV               ImportFormat = "SKYDEMON_CSV"
+	VEREINSFLIEGERCSV         ImportFormat = "VEREINSFLIEGER_CSV"
+	VEREINSFLIEGEREXTENDEDCSV ImportFormat = "VEREINSFLIEGER_EXTENDED_CSV"
+	WADERCSV                  ImportFormat = "WADER_CSV"
+	XLS                       ImportFormat = "XLS"
+	XLSX                      ImportFormat = "XLSX"
 )
 
 // Valid indicates whether the value is a known member of the ImportFormat enum.
@@ -864,6 +865,8 @@ func (e ImportFormat) Valid() bool {
 	case SKYDEMONCSV:
 		return true
 	case VEREINSFLIEGERCSV:
+		return true
+	case VEREINSFLIEGEREXTENDEDCSV:
 		return true
 	case WADERCSV:
 		return true
@@ -4030,7 +4033,8 @@ type ImportField string
 // - CAPZLOG_CSV: capzlog.aero
 // - FLYLOG_CSV: FLYLOG.io
 // - WADER_CSV: Wader Pilot Logbook
-// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list (German headers)
+// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 // - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
 // - SKYDEMON_CSV: SkyDemon logbook export
 // - EASA_CSV: generic EASA AMC1 FCL.050 column layout
@@ -4210,7 +4214,8 @@ type ImportResult struct {
 	// - CAPZLOG_CSV: capzlog.aero
 	// - FLYLOG_CSV: FLYLOG.io
 	// - WADER_CSV: Wader Pilot Logbook
-	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list (German headers)
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
 	// - SKYDEMON_CSV: SkyDemon logbook export
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
@@ -4292,7 +4297,8 @@ type ImportTemplate struct {
 	// - CAPZLOG_CSV: capzlog.aero
 	// - FLYLOG_CSV: FLYLOG.io
 	// - WADER_CSV: Wader Pilot Logbook
-	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list (German headers)
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
 	// - SKYDEMON_CSV: SkyDemon logbook export
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
@@ -4360,7 +4366,8 @@ type ImportUploadResponse struct {
 	// - CAPZLOG_CSV: capzlog.aero
 	// - FLYLOG_CSV: FLYLOG.io
 	// - WADER_CSV: Wader Pilot Logbook
-	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list (German headers)
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
 	// - SKYDEMON_CSV: SkyDemon logbook export
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout

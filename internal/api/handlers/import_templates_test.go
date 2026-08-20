@@ -173,52 +173,135 @@ func TestMapRowToFlight_LandingsReconciliation(t *testing.T) {
 	}
 }
 
-// A Vereinsflieger export is German-language and semicolon-separated, and its
-// dates are DD.MM.YYYY. All three have to work together or the rows error out.
-func TestMapRowToFlight_Vereinsflieger(t *testing.T) {
+// A Vereinsflieger standard export is German-language and semicolon-separated,
+// its dates are DD.MM.YYYY, its durations are bare whole minutes, and its places
+// are written "Name ICAO". All of that has to work together or the rows error
+// out — which is what the previous version of this template did: written from
+// documentation, it missed "Lfz.", "Start" and "Landung" entirely, so every row
+// failed on a registration the file was carrying all along.
+func TestMapRowToFlight_VereinsfliegerStandard(t *testing.T) {
 	row := map[string]string{
-		"Datum":       "07.03.2026",
-		"Kennzeichen": "D-EABC",
-		"Muster":      "C172",
-		"Startort":    "EDDF",
-		"Zielort":     "EDDM",
-		"Startzeit":   "10:15",
-		"Landezeit":   "11:45",
-		"Flugzeit":    "1:30",
-		"Pilot":       "Anna Berger",
-		"Landungen":   "2",
-		"Bemerkung":   "Überlandflug",
+		"Datum":        "14.03.2026",
+		"Lfz.":         "D-EABC",
+		"Pilot":        "Rivera, Alex",
+		"Begleiter/FI": "Okafor, Sam",
+		"Start":        "09:12",
+		"Landung":      "10:47",
+		"Flugzeit":     "95",
+		"Startort":     "Uetersen EDHE",
+		"Landeort":     "Stade EDHS",
+		"Landungen":    "1",
+		"S.-Art":       "E",
+		"Flugart":      "N",
+		"Abr.":         "K",
+		"Verein":       "Aero-Club Musterstadt e.V.",
+		"Bemerkung":    "Überlandflug",
 	}
 
 	flight, errs := mapRowToFlight(row, mappingsFor("VEREINSFLIEGER_CSV", headersOf(row)), nil)
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %+v", errs)
 	}
-	if got := flight.Date.String(); got != "2026-03-07" {
-		t.Errorf("Date = %q, want 2026-03-07", got)
+	if got := flight.Date.String(); got != "2026-03-14" {
+		t.Errorf("Date = %q, want 2026-03-14", got)
 	}
-	if flight.AircraftReg != "D-EABC" || flight.AircraftType != "C172" {
-		t.Errorf("aircraft = %q/%q, want D-EABC/C172", flight.AircraftReg, flight.AircraftType)
+	if flight.AircraftReg != "D-EABC" {
+		t.Errorf("AircraftReg = %q, want D-EABC", flight.AircraftReg)
 	}
-	if flight.DepartureIcao != "EDDF" || flight.ArrivalIcao != "EDDM" {
-		t.Errorf("got %q → %q, want EDDF → EDDM", flight.DepartureIcao, flight.ArrivalIcao)
+	if flight.DepartureIcao != "EDHE" || flight.ArrivalIcao != "EDHS" {
+		t.Errorf("got %q → %q, want EDHE → EDHS", flight.DepartureIcao, flight.ArrivalIcao)
 	}
-	if flight.OffBlockTime != "10:15:00" || flight.OnBlockTime != "11:45:00" {
-		t.Errorf("block times = %q/%q, want 10:15:00/11:45:00", flight.OffBlockTime, flight.OnBlockTime)
+	// "Start"/"Landung" are wheels-off and wheels-on, not chocks. The standard
+	// export has no block pair at all, so they must not be filed as one: block
+	// times override the file's own total downstream, and taxi time would be
+	// lost from every flight in the logbook.
+	if flight.DepartureTime == nil || *flight.DepartureTime != "09:12:00" {
+		t.Errorf("DepartureTime = %v, want 09:12:00", flight.DepartureTime)
 	}
-	if flight.Landings != 2 {
-		t.Errorf("Landings = %d, want 2", flight.Landings)
+	if flight.ArrivalTime == nil || *flight.ArrivalTime != "10:47:00" {
+		t.Errorf("ArrivalTime = %v, want 10:47:00", flight.ArrivalTime)
+	}
+	if flight.OffBlockTime != "" || flight.OnBlockTime != "" {
+		t.Errorf("block times = %q/%q, want empty — the standard export has none",
+			flight.OffBlockTime, flight.OnBlockTime)
+	}
+	// A bare integer is minutes, which is what Vereinsflieger writes. Read as
+	// decimal hours it would be 95 hours.
+	if flight.TotalTime == nil || *flight.TotalTime != 95 {
+		t.Errorf("TotalTime = %v, want 95 minutes", flight.TotalTime)
+	}
+	if flight.Landings != 1 {
+		t.Errorf("Landings = %d, want 1", flight.Landings)
 	}
 	if flight.Remarks == nil || *flight.Remarks != "Überlandflug" {
 		t.Errorf("Remarks = %v, want Überlandflug", flight.Remarks)
 	}
-	// The club record names the pilot; that becomes the PIC crew member, which
-	// is what drives the PIC/dual auto-calculation downstream.
-	if flight.CrewMembers == nil || len(*flight.CrewMembers) == 0 {
-		t.Fatal("expected a crew member for the Pilot column")
+
+	// The club record names the pilot, and Vereinsflieger writes every name
+	// inverted. Both names come through in reading order so they match the same
+	// person arriving from any other logbook.
+	if flight.CrewMembers == nil {
+		t.Fatal("expected crew members for the Pilot and Begleiter/FI columns")
 	}
-	if (*flight.CrewMembers)[0].Name != "Anna Berger" {
-		t.Errorf("crew[0] = %q, want Anna Berger", (*flight.CrewMembers)[0].Name)
+	crew := map[string]string{}
+	for _, c := range *flight.CrewMembers {
+		crew[c.Name] = string(c.Role)
+	}
+	if role, ok := crew["Alex Rivera"]; !ok || role != "PIC" {
+		t.Errorf("crew = %v, want Alex Rivera as PIC", crew)
+	}
+	// "Begleiter/FI" is companion-or-instructor with nothing in the file to say
+	// which. Assuming instructor would mark the flight as training and change
+	// what the logbook counts, so it is recorded as an ordinary second person.
+	if role, ok := crew["Sam Okafor"]; !ok || role != "Passenger" {
+		t.Errorf("crew = %v, want Sam Okafor as Passenger", crew)
+	}
+	if flight.InstructorName != nil {
+		t.Errorf("InstructorName = %v, want nil — the column does not say it is an instructor",
+			flight.InstructorName)
+	}
+}
+
+// The extended export is the same list plus the block columns, and it carries
+// two whole-minute durations that disagree: Flugzeit 95 airborne against
+// Blockzeit 112 block. A logbook totals block time.
+func TestMapRowToFlight_VereinsfliegerExtended(t *testing.T) {
+	row := map[string]string{
+		"Datum":                "14.03.2026",
+		"Lfz.":                 "D-EABC",
+		"Pilot":                "Rivera, Alex",
+		"Begleiter/FI":         "",
+		"Start":                "09:12",
+		"Landung":              "10:47",
+		"Flugzeit":             "95",
+		"Startort":             "Uetersen EDHE",
+		"Landeort":             "Stade EDHS",
+		"Landungen":            "1",
+		"Off-Block":            "09:04",
+		"On-Block":             "10:56",
+		"Blockzeit in Minuten": "112",
+		"Flugart":              "N",
+		"Bemerkung":            "",
+		"Abr.":                 "K",
+	}
+
+	flight, errs := mapRowToFlight(row, mappingsFor("VEREINSFLIEGER_EXTENDED_CSV", headersOf(row)), nil)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %+v", errs)
+	}
+	if flight.OffBlockTime != "09:04:00" || flight.OnBlockTime != "10:56:00" {
+		t.Errorf("block times = %q/%q, want 09:04:00/10:56:00",
+			flight.OffBlockTime, flight.OnBlockTime)
+	}
+	if flight.DepartureTime == nil || *flight.DepartureTime != "09:12:00" {
+		t.Errorf("DepartureTime = %v, want 09:12:00", flight.DepartureTime)
+	}
+	if flight.TotalTime == nil || *flight.TotalTime != 112 {
+		t.Errorf("TotalTime = %v, want 112 (block) — 95 would be the airborne Flugzeit",
+			flight.TotalTime)
+	}
+	if got := effectiveTotalMinutes(t, flight); got != 112 {
+		t.Errorf("effective total = %d, want 112", got)
 	}
 }
 
@@ -258,7 +341,8 @@ func TestImportTemplateCatalogueIsServable(t *testing.T) {
 	for _, f := range []generated.ImportFormat{
 		generated.CSV, generated.FOREFLIGHTCSV, generated.NINERLOGCSV, generated.LOGTENCSV,
 		generated.MYFLIGHTBOOKCSV, generated.CAPZLOGCSV, generated.FLYLOGCSV, generated.WADERCSV,
-		generated.VEREINSFLIEGERCSV, generated.MCCPILOTLOGCSV, generated.SKYDEMONCSV,
+		generated.VEREINSFLIEGERCSV, generated.VEREINSFLIEGEREXTENDEDCSV,
+		generated.MCCPILOTLOGCSV, generated.SKYDEMONCSV,
 		generated.EASACSV, generated.FAACSV, generated.XLS, generated.XLSX,
 	} {
 		valid[f] = true
@@ -463,6 +547,65 @@ func TestNormalizeLocation_LeadingICAOCode(t *testing.T) {
 	for in, want := range tests {
 		if got := normalizeLocation(in); got != want {
 			t.Errorf("normalizeLocation(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Vereinsflieger writes the same two tokens the other way round —
+// "Uetersen EDHE" where SkyDemon writes "EDOI Bienenfarm" — so the reduction
+// has to work from either end, and for the same reason: without it the value
+// depends on whether the airport database happened to resolve the code, so the
+// same file imports differently on two instances.
+func TestNormalizeLocation_TrailingICAOCode(t *testing.T) {
+	tests := map[string]string{
+		"Uetersen EDHE":     "EDHE",
+		"Stade EDHS":        "EDHS",
+		"Bad Neuenahr EDRA": "EDRA",
+		"Hartenholm EDHM":   "EDHM",
+		// Lower case is a name, not a code — the same guard the leading form uses.
+		"Landewiese hinten": "Landewiese hinten",
+		"Feld beim Hof":     "Feld beim Hof",
+		// One token only: neither pattern applies, and it is too long to be a code.
+		"Bienenfarm": "Bienenfarm",
+	}
+	for in, want := range tests {
+		if got := normalizeLocation(in); got != want {
+			t.Errorf("normalizeLocation(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Contacts are deduplicated by name, so a logbook that writes "Rivera, Alex"
+// where every other one writes "Alex Rivera" would give the same person two
+// contact records and split the flights they flew together between them.
+//
+// The rewrite is narrow on purpose: a false positive mangles a name on every
+// flight it appears on, and the crew column of an unknown format can hold
+// anything.
+func TestNormalizePersonName(t *testing.T) {
+	tests := map[string]string{
+		"Rivera, Alex":        "Alex Rivera",
+		"van der Berg, Anna":  "Anna van der Berg",
+		"Okafor, Sam Michael": "Sam Michael Okafor",
+		"  Rivera ,  Alex  ":  "Alex Rivera",
+
+		// Already in reading order, or a single name: untouched.
+		"Alex Rivera": "Alex Rivera",
+		"Alex":        "Alex",
+		"":            "",
+
+		// Not a name in inverted order. Each of these would be actively damaged
+		// by the swap, which is why they are pinned rather than merely allowed.
+		"Rivera, Jr.":                 "Rivera, Jr.",
+		"Rivera, Alex, Okafor, Sam":   "Rivera, Alex, Okafor, Sam",
+		"Cessna 172, right seat":      "Cessna 172, right seat",
+		"Rivera, standing in for Sam": "Rivera, standing in for Sam",
+		", Alex":                      ", Alex",
+		"Rivera,":                     "Rivera,",
+	}
+	for in, want := range tests {
+		if got := normalizePersonName(in); got != want {
+			t.Errorf("normalizePersonName(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

@@ -892,27 +892,112 @@ var waderTemplate = register(&Template{
 	Priority:         10,
 })
 
+// vereinsfliegerColumns are the columns the two Vereinsflieger exports share,
+// on top of germanColumns. They are the abbreviations the club software is
+// alone in using, which is also what makes them good signature entries.
+//
+// "Begleiter/FI" is one column carrying two different things: the companion on
+// board (usually a passenger) or the flight instructor. Nothing in the file
+// says which, so it is imported as a second person rather than as the
+// instructor — InferLegacyCrew files an untagged second person as Passenger,
+// and a passenger wrongly labelled is a role to correct, whereas an instructor
+// assumed would mark the flight as training and change what the logbook counts.
+var vereinsfliegerColumns = map[string]Field{
+	"lfz.":         FieldAircraftReg,
+	"begleiter/fi": FieldPerson2,
+
+	// Airborne times. The standard export has no block columns at all; the
+	// extended one adds them and they take precedence there.
+	"start":   FieldDepartureTime,
+	"landung": FieldArrivalTime,
+
+	// Known, and deliberately not imported: "S.-Art" is the glider launch
+	// method (E/F/W — self-launch, aerotow, winch) and "Abr." the billing code.
+	// Neither has a NinerLog field; listing them still earns recognition score.
+	"s.-art": FieldIgnore,
+	"abr.":   FieldIgnore,
+}
+
+// vereinsfliegerSharedSignature identifies a Vereinsflieger file as such,
+// without saying which of the two exports it is. The variant is decided by the
+// extra entries each template adds below.
+var vereinsfliegerSharedSignature = []string{
+	"lfz.", "begleiter/fi", "abr.", "startort", "landeort", "flugart", "landungen",
+}
+
+// vereinsfliegerTemplate is the standard club export.
+//
+// It records airborne times only — "Start" and "Landung" — and its "Flugzeit"
+// is the airborne time in whole minutes. There is no off-block/on-block pair,
+// so the imported total is airborne time rather than block time, which is not
+// what EASA FCL.050 asks a logbook to total. That is why the export steps point
+// at the extended export instead: it is the same list with the block columns
+// added, and it is the only one of the two that produces a correct block total.
+//
+// Two things the export simply does not carry: an aircraft type (only the
+// registration, in "Lfz.") and any night, IFR or instrument breakdown. The type
+// is resolved from the pilot's existing fleet by registration where possible,
+// and otherwise falls back to the registration itself.
 var vereinsfliegerTemplate = register(&Template{
 	ID:          "VEREINSFLIEGER_CSV",
 	Name:        "Vereinsflieger",
 	Vendor:      "Vereinsflieger.de",
 	Website:     "https://vereinsflieger.de",
-	Description: "Vereinsflieger club flight list (German column headers). Club records log the aircraft, times and crew; instrument and night columns are usually absent and stay empty.",
-	Confidence:  ConfidenceBestEffort,
+	Description: "Vereinsflieger club flight list, standard export. Records take-off and landing times but no off-block/on-block pair, so the total is airborne time rather than block time — prefer the extended export if your club offers it. Carries no aircraft type and no night or instrument breakdown.",
+	Confidence:  ConfidenceExact,
 	Regions:     []string{"EASA"},
 	ExportSteps: []string{
 		"Sign in at vereinsflieger.de.",
 		"Open Flugbetrieb → Flüge and filter to your own flights.",
-		"Use the CSV export button above the list.",
-		"Upload the downloaded file here — German headers are recognised.",
+		"Choose the extended CSV export if your club offers it — it adds off-block and on-block times, which is what a logbook should total. Either export is read here.",
+		"Upload the downloaded file — the German column names are recognised.",
 	},
 	DateFormat: "02.01.2006",
-	Columns:    merge(coreColumns, germanColumns),
-	Signature: []string{
-		"kennzeichen", "startort", "landezeit", "startzeit", "flugzeit",
-		"startart", "bemerkung", "begleiter", "zielort",
+	Columns:    merge(coreColumns, germanColumns, vereinsfliegerColumns),
+	Signature: append([]string{
+		// Present in the standard export and absent from the extended one.
+		"s.-art", "verein",
+	}, vereinsfliegerSharedSignature...),
+	MinSignatureHits: 5,
+	Priority:         10,
+})
+
+// vereinsfliegerExtendedTemplate is the extended club export: the standard
+// column list plus "Off-Block", "On-Block" and "Blockzeit in Minuten".
+//
+// "Flugzeit" is deliberately dropped here rather than mapped. Both it and
+// "Blockzeit in Minuten" are durations in whole minutes, but they measure
+// different things — 95 airborne against 112 block for the same flight — and
+// only one of them can be the logbook total. Left mapped, "Flugzeit" wins
+// simply by sitting earlier in the header row, and every flight would be logged
+// short by its taxi time. Nothing is lost by dropping it: airborne time is
+// still carried by the "Start"/"Landung" pair.
+var vereinsfliegerExtendedTemplate = register(&Template{
+	ID:          "VEREINSFLIEGER_EXTENDED_CSV",
+	Name:        "Vereinsflieger (extended export)",
+	Vendor:      "Vereinsflieger.de",
+	Website:     "https://vereinsflieger.de",
+	Description: "Vereinsflieger club flight list, extended export. Adds off-block and on-block times and the block time in minutes, so flights are totalled on block time as EASA FCL.050 expects. This is the export to use if your club offers it.",
+	Confidence:  ConfidenceExact,
+	Regions:     []string{"EASA"},
+	ExportSteps: []string{
+		"Sign in at vereinsflieger.de.",
+		"Open Flugbetrieb → Flüge and filter to your own flights.",
+		"Choose the extended CSV export — the one whose columns include Off-Block and On-Block.",
+		"Upload the downloaded file — the German column names are recognised.",
 	},
-	MinSignatureHits: 3,
+	DateFormat: "02.01.2006",
+	Columns: merge(coreColumns, germanColumns, vereinsfliegerColumns, map[string]Field{
+		"off-block":            FieldOffBlockTime,
+		"on-block":             FieldOnBlockTime,
+		"blockzeit in minuten": FieldTotalTime,
+		"flugzeit":             FieldIgnore,
+	}),
+	Signature: append([]string{
+		// Present in the extended export and absent from the standard one.
+		"off-block", "on-block", "blockzeit in minuten",
+	}, vereinsfliegerSharedSignature...),
+	MinSignatureHits: 5,
 	Priority:         10,
 })
 

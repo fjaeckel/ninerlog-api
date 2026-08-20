@@ -29,7 +29,10 @@ import (
 // authoritative. "synthetic" samples were written from a vendor's documented
 // column list and prove only that the template matches what we believe the
 // format to be — replacing one with a real anonymised export is what turns a
-// best-effort template into a verified one. See testdata/importsamples/README.md.
+// best-effort template into a verified one. "real-header" sits between the two:
+// the header row came out of the vendor's application, the values did not,
+// because the file it came from could not be shared. See
+// testdata/importsamples/README.md.
 
 const importSamplesDir = "testdata/importsamples"
 
@@ -194,9 +197,10 @@ func TestImportSamplesAreAllRegistered(t *testing.T) {
 	for _, s := range manifest.Samples {
 		registered[s.File] = true
 		switch s.Provenance {
-		case "generated", "synthetic", "real", "header-only":
+		case "generated", "synthetic", "real", "header-only", "real-header":
 		default:
-			t.Errorf("%s: provenance %q must be generated, synthetic, real or header-only", s.File, s.Provenance)
+			t.Errorf("%s: provenance %q must be generated, synthetic, real, header-only or real-header",
+				s.File, s.Provenance)
 		}
 		if s.ExpectTemplate == "" {
 			t.Errorf("%s: no expectTemplate", s.File)
@@ -228,9 +232,13 @@ func TestImportSamplesAreAllRegistered(t *testing.T) {
 func TestImportSampleWantedListMatchesUnverifiedTemplates(t *testing.T) {
 	manifest := loadImportSampleManifest(t)
 
+	// "real-header" counts here for the same reason "real" does: the wanted
+	// list asks for a file whose column names came out of the vendor's own
+	// application, and a real header row is exactly that. What it does not
+	// settle is the value formats, which is why it stays a separate provenance.
 	haveReal := make(map[string]bool)
 	for _, s := range manifest.Samples {
-		if s.Provenance == "real" {
+		if s.Provenance == "real" || s.Provenance == "real-header" {
 			haveReal[s.ExpectTemplate] = true
 		}
 	}

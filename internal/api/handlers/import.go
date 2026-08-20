@@ -1044,8 +1044,8 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			if isSelfCrewSentinel(val) {
 				continue
 			}
-			instructorName = val
-			flight.InstructorName = &val
+			instructorName = normalizePersonName(val)
+			flight.InstructorName = &instructorName
 		case "instructorComments":
 			flight.InstructorComments = &val
 		case "dualGivenTime":
@@ -1058,6 +1058,7 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "person1", "person2", "person3", "person4", "person5", "person6":
 			slot := string(mapping.TargetField)
 			name, role := foreFlightPersonNameRole(val)
+			name = normalizePersonName(name)
 			if isSelfCrewSentinel(name) {
 				// The logbook's owner, not a crew member. Dropping the cell
 				// leaves the slot empty, which is what a file that simply
@@ -1464,6 +1465,51 @@ func isSelfCrewSentinel(name string) bool {
 	return strings.EqualFold(strings.TrimSpace(name), "SELF")
 }
 
+// nameSuffixes are the trailing name parts that are not given names, so
+// "Fitzgerald, Jr." must not be rewritten to "Jr. Fitzgerald".
+var nameSuffixes = map[string]bool{
+	"jr": true, "jr.": true, "sr": true, "sr.": true,
+	"ii": true, "iii": true, "iv": true,
+	"phd": true, "ph.d.": true, "md": true, "m.d.": true,
+}
+
+// normalizePersonName rewrites a "Surname, First" crew name into "First
+// Surname", and leaves everything else exactly as written.
+//
+// Vereinsflieger is the format that forces this: its Pilot column is always
+// "Rivera, Alex" where every other logbook here writes "Alex Rivera".
+// Contacts are deduplicated by name, so without the rewrite the same person
+// arrives as two contacts — one per logbook the pilot migrated from — and the
+// flights they flew together end up split between them.
+//
+// The conditions are deliberately narrow, because the cost of a false positive
+// is a mangled name on every flight. Anything with a second comma, a digit, a
+// long tail, or a known suffix is left alone: those are free-text cells, not
+// names in inverted order.
+func normalizePersonName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if strings.Count(trimmed, ",") != 1 {
+		return trimmed
+	}
+	last, first, _ := strings.Cut(trimmed, ",")
+	last, first = strings.TrimSpace(last), strings.TrimSpace(first)
+	if last == "" || first == "" {
+		return trimmed
+	}
+	if strings.ContainsAny(trimmed, "0123456789") {
+		return trimmed
+	}
+	// A given name plus at most two middle names. Longer means prose.
+	given := strings.Fields(first)
+	if len(given) == 0 || len(given) > 3 {
+		return trimmed
+	}
+	if nameSuffixes[strings.ToLower(given[len(given)-1])] {
+		return trimmed
+	}
+	return first + " " + last
+}
+
 // foreFlightPersonNameRole extracts the name and (optional) role tag from
 // a ForeFlight Person cell. ForeFlight encodes crew metadata inside the
 // cell as
@@ -1766,6 +1812,15 @@ var icaoTokenPattern = regexp.MustCompile(`\b[A-Za-z0-9]{4}\b`)
 // so it is left alone.
 var leadingICAOPattern = regexp.MustCompile(`^([A-Z0-9]{4})\s+\S`)
 
+// trailingICAOPattern is the mirror image: a value that ends in a bare
+// four-character upper-case code, e.g. "Uetersen EDHE".
+//
+// Vereinsflieger writes every place this way round, and SkyDemon writes the
+// same two tokens the other way round, so both orders have to reduce to the
+// code. The same upper-case requirement applies and does the same work: a
+// trailing word in ordinary case is a name, not a code.
+var trailingICAOPattern = regexp.MustCompile(`\S\s+([A-Z0-9]{4})$`)
+
 // normalizeLocation cleans a departure/arrival location from an import row.
 // Values that look like an airport code (<=4 alphanumeric chars) are
 // upper-cased so ICAO codes stay canonical. Longer free-text values (e.g. a
@@ -1798,6 +1853,9 @@ func normalizeLocation(val string) string {
 	// but it is silently wrong: night and solar calculations, distance,
 	// cross-country detection and airport statistics all need an exact match.
 	if m := leadingICAOPattern.FindStringSubmatch(trimmed); m != nil {
+		return m[1]
+	}
+	if m := trailingICAOPattern.FindStringSubmatch(trimmed); m != nil {
 		return m[1]
 	}
 
