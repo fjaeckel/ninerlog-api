@@ -3267,12 +3267,17 @@ paths:
       tags: [Export]
       summary: Export flights as PDF logbook
       description: |
-        Export all flight data as a formatted PDF document. Supports EASA AMC1 FCL.050
+        Export the logged flights as a formatted PDF document. Supports EASA AMC1 FCL.050
         and FAA 14 CFR § 61.51 (ASA/Jeppesen-style) logbook layouts plus a summary format.
 
         Every logbook page carries the three-row totals block (total this page /
         total from previous pages / total time) and a per-page certification and
         signature block, so each printed page can be individually signed.
+
+        Only flights the holder logged as PIC (including dual given) or as dual
+        received are rendered. A flight flown purely as co-pilot (SIC) is left
+        out of every format, the totals summary included; the CSV and JSON
+        exports still cover the complete logbook.
 
         If the pilot has recorded prior experience (`PUT /users/me/baseline`),
         those hours open the balance: they are carried into the first

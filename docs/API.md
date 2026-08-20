@@ -445,6 +445,13 @@ so a re-import updates existing cards instead of duplicating them.
   what stays legible on the chosen page size; ignored for `summary`.
 - `logbookLicenseId` — restrict flights to the aircraft classes of one licence.
 
+**Only PIC and dual rows are printed.** A flight the holder logged as PIC
+(dual given included — the instructor is PIC) or as dual received is rendered;
+a flight flown purely as co-pilot (SIC) is left out of every format, the totals
+summary included, so the summary counts and hours cover the printed rows only.
+A carried-forward baseline is unaffected: its co-pilot hours still open the
+balance. CSV and JSON export the complete logbook.
+
 Every logbook page carries the three-row totals block (TOTAL THIS PAGE /
 TOTAL FROM PREVIOUS PAGES / TOTAL TIME) and a certification + signature strip
 ("I certify that the entries in this log are true[.and correct.]" with

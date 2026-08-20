@@ -3,7 +3,10 @@
 package e2e_test
 
 import (
+	"bytes"
+	"compress/zlib"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -293,4 +296,86 @@ func TestExportPDFCarriesPriorExperience(t *testing.T) {
 			t.Errorf("%s export did not return to its pre-baseline size after the snapshot was deleted", format)
 		}
 	}
+}
+
+// pdfStreamText concatenates every inflated content stream of a rendered
+// PDF, which is where the cell text of the logbook rows lives.
+func pdfStreamText(raw []byte) string {
+	var out bytes.Buffer
+	const openTag, closeTag = "\nstream\n", "\nendstream"
+	for pos := 0; ; {
+		i := bytes.Index(raw[pos:], []byte(openTag))
+		if i < 0 {
+			break
+		}
+		start := pos + i + len(openTag)
+		j := bytes.Index(raw[start:], []byte(closeTag))
+		if j < 0 {
+			break
+		}
+		body := raw[start : start+j]
+		pos = start + j + len(closeTag)
+		r, err := zlib.NewReader(bytes.NewReader(body))
+		if err != nil {
+			out.Write(body)
+			continue
+		}
+		data, err := io.ReadAll(r)
+		_ = r.Close()
+		if err != nil {
+			continue
+		}
+		out.Write(data)
+	}
+	return out.String()
+}
+
+// TestExportPDFOmitsCoPilotOnlyFlights covers the PIC/dual filter of the
+// printed logbook: a flight flown as co-pilot (a third-party PIC in the
+// crew) reaches neither the logbook sheets nor the totals summary.
+func TestExportPDFOmitsCoPilotOnlyFlights(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("pdf-role"), "SecurePass123!", "Amelia Earhart")
+
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": pastDate(2), "aircraftReg": "D-EPIC", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+		"picName": "Self",
+	}), http.StatusCreated)
+
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": pastDate(1), "aircraftReg": "D-ESIC", "aircraftType": "DA42",
+		"departureIcao": "EDDS", "arrivalIcao": "EDNY",
+		"offBlockTime": "10:00", "onBlockTime": "12:00", "landings": 1,
+		"crewMembers": []map[string]interface{}{
+			{"name": "Otto Lilienthal", "role": "PIC"},
+		},
+	}), http.StatusCreated)
+
+	for _, format := range []string{"easa", "faa"} {
+		t.Run(format, func(t *testing.T) {
+			resp := c.GET("/exports/pdf?format=" + format + "&layout=single")
+			requireStatus(t, resp, http.StatusOK)
+			text := pdfStreamText(resp.Body)
+			if !strings.Contains(text, "D-EPIC") {
+				t.Errorf("%s PDF is missing the PIC flight", format)
+			}
+			if strings.Contains(text, "D-ESIC") {
+				t.Errorf("%s PDF renders a co-pilot-only flight", format)
+			}
+		})
+	}
+
+	t.Run("summary counts printed rows only", func(t *testing.T) {
+		resp := c.GET("/exports/pdf?format=summary")
+		requireStatus(t, resp, http.StatusOK)
+		text := pdfStreamText(resp.Body)
+		if !strings.Contains(text, "(1:30)") {
+			t.Errorf("summary should total the 1:30 PIC flight alone:\n%s", text)
+		}
+		if strings.Contains(text, "(3:30)") {
+			t.Error("summary still totals the co-pilot-only flight")
+		}
+	})
 }
