@@ -83,10 +83,10 @@ type analyticsResponse struct {
 		Type  string `json:"type"`
 		Count int    `json:"count"`
 	} `json:"approachTypes"`
-	DayOfWeek       []analyticsBucket `json:"dayOfWeek"`
-	HourOfDay       []analyticsBucket `json:"hourOfDay"`
-	MonthOfYear     []analyticsBucket `json:"monthOfYear"`
-	DurationBuckets []analyticsBucket `json:"durationBuckets"`
+	DayOfWeek       []analyticsBucket  `json:"dayOfWeek"`
+	HourOfDay       []analyticsBucket  `json:"hourOfDay"`
+	MonthOfYear     []analyticsBucket  `json:"monthOfYear"`
+	DurationBuckets []analyticsBucket  `json:"durationBuckets"`
 	Baseline        *analyticsBaseline `json:"baseline"`
 	Records         struct {
 		LongestFlight *struct {

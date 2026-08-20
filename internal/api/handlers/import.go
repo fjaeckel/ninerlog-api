@@ -23,6 +23,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -373,12 +374,12 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	aircraftTypes := make(map[string]string)
 	if existingAircraft, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
 		for _, a := range existingAircraft {
-			aircraftTypes[strings.ToUpper(a.Registration)] = a.Type
+			aircraftTypes[registration.Canonical(a.Registration)] = a.Type
 		}
 	}
 	// Also seed from the ForeFlight Aircraft Table in this upload session.
 	for _, acRow := range session.aircraft {
-		reg := strings.ToUpper(strings.TrimSpace(acRow["AircraftID"]))
+		reg := registration.Canonical(acRow["AircraftID"])
 		typeCode := strings.ToUpper(strings.TrimSpace(acRow["TypeCode"]))
 		if reg != "" && typeCode != "" {
 			if _, exists := aircraftTypes[reg]; !exists {
@@ -516,10 +517,10 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		existingAircraft, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 		existingRegs := make(map[string]bool)
 		for _, a := range existingAircraft {
-			existingRegs[strings.ToUpper(a.Registration)] = true
+			existingRegs[registration.Canonical(a.Registration)] = true
 		}
 		for _, acRow := range session.aircraft {
-			reg := strings.ToUpper(strings.TrimSpace(acRow["AircraftID"]))
+			reg := registration.Canonical(acRow["AircraftID"])
 			if reg == "" || existingRegs[reg] {
 				continue
 			}
@@ -586,7 +587,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	aircraftTypes := make(map[string]string)
 	if fleet, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
 		for _, a := range fleet {
-			aircraftTypes[strings.ToUpper(a.Registration)] = a.Type
+			aircraftTypes[registration.Canonical(a.Registration)] = a.Type
 		}
 	}
 
@@ -951,7 +952,7 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				flight.Date = openapi_types.Date{Time: t}
 			}
 		case "aircraftReg":
-			flight.AircraftReg = strings.ToUpper(val)
+			flight.AircraftReg = registration.Canonical(val)
 		case "aircraftType":
 			flight.AircraftType = strings.ToUpper(val)
 		case "departureIcao":
@@ -1103,7 +1104,7 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	if flight.AircraftType == "" {
 		// Try to resolve the type from the user's aircraft fleet by registration.
 		if flight.AircraftReg != "" && aircraftTypes != nil {
-			if t, ok := aircraftTypes[strings.ToUpper(flight.AircraftReg)]; ok && t != "" {
+			if t, ok := aircraftTypes[registration.Canonical(flight.AircraftReg)]; ok && t != "" {
 				flight.AircraftType = t
 			}
 		}
@@ -1181,7 +1182,7 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 }
 
 // collectAircraftFromRows extracts the distinct aircraft the import file
-// references, as an uppercase registration → type-code map. The type is empty
+// references, as a canonical registration → type-code map. The type is empty
 // when the file has no aircraft-type column (or leaves the cell blank for every
 // row of that registration); a registration seen with a type anywhere in the
 // file keeps that type.
@@ -1201,25 +1202,26 @@ func collectAircraftFromRows(rows []map[string]string, mappings map[string]gener
 		return nil
 	}
 
-	firstValue := func(row map[string]string, cols []string) string {
+	firstValue := func(row map[string]string, cols []string, normalize func(string) string) string {
 		for _, col := range cols {
-			if v := strings.ToUpper(strings.TrimSpace(row[col])); v != "" {
+			if v := normalize(row[col]); v != "" {
 				return v
 			}
 		}
 		return ""
 	}
+	upper := func(v string) string { return strings.ToUpper(strings.TrimSpace(v)) }
 
 	found := make(map[string]string)
 	for i, row := range rows {
 		if isSelected != nil && !isSelected(i+1) {
 			continue
 		}
-		reg := firstValue(row, regCols)
+		reg := firstValue(row, regCols, registration.Canonical)
 		if reg == "" {
 			continue
 		}
-		typeCode := firstValue(row, typeCols)
+		typeCode := firstValue(row, typeCols, upper)
 		if existing, seen := found[reg]; !seen || (existing == "" && typeCode != "") {
 			found[reg] = typeCode
 		}

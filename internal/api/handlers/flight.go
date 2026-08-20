@@ -16,6 +16,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -46,7 +47,8 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		opts.EndDate = &t
 	}
 	if params.AircraftReg != nil {
-		opts.AircraftReg = params.AircraftReg
+		reg := registration.Canonical(*params.AircraftReg)
+		opts.AircraftReg = &reg
 	}
 	if params.DepartureIcao != nil {
 		opts.DepartureICAO = params.DepartureIcao
@@ -108,7 +110,7 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 			regs := make([]string, 0, len(aircraftList))
 			for _, ac := range aircraftList {
 				if ac.AircraftClass != nil && allowedClasses[*ac.AircraftClass] {
-					regs = append(regs, strings.ToUpper(ac.Registration))
+					regs = append(regs, registration.Canonical(ac.Registration))
 				}
 			}
 			opts.FilterByRegistrations = true

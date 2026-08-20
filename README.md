@@ -131,6 +131,7 @@ Full developer documentation lives in [`docs/`](docs/README.md). Start with the
 - [Feature Catalogue](docs/FEATURES.md) — every feature, end to end
 - [Package Reference](docs/PACKAGES.md) — `internal/` and `pkg/` packages
 - [Development Guide](docs/DEVELOPMENT.md) — setup, build, test, conventions
+- [Aircraft Registrations](docs/AIRCRAFT_REGISTRATIONS.md) — canonical registration notation
 - [Authentication](docs/AUTHENTICATION.md) — tokens, 2FA, WebAuthn
 - [OIDC Single Sign-On](docs/OIDC.md) — optional external identity provider
 - [Metrics](docs/METRICS.md) · [Performance](docs/PERFORMANCE.md) · [Running Tests](docs/RUNNING_TESTS.md)

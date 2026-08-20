@@ -1490,6 +1490,16 @@ type AdminConfig struct {
 	// Example: 10 req/min
 	RateLimitAuth string `json:"rateLimitAuth"`
 
+	// RegistrationPrefixCount Number of ICAO aircraft nationality marks in the vendored registration table
+	//
+	// Example: 210
+	RegistrationPrefixCount int `json:"registrationPrefixCount"`
+
+	// RegistrationPrefixesReviewed When the vendored nationality mark table was last checked against ICAO's published nationality marks. The table is vendored rather than fetched, so this is the only signal that it may be stale.
+	//
+	// Example: 2026-08-17
+	RegistrationPrefixesReviewed openapi_types.Date `json:"registrationPrefixesReviewed"`
+
 	// ServerUptime Human-readable uptime
 	//
 	// Example: 2d 5h 30m
@@ -1661,7 +1671,7 @@ type Aircraft struct {
 	// Example: Club aircraft, requires checkout
 	Notes *string `json:"notes,omitempty"`
 
-	// Registration Aircraft registration/tail number
+	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged.
 	//
 	// Example: D-EFGH
 	Registration string `json:"registration"`
@@ -1717,7 +1727,7 @@ type AircraftCreate struct {
 	// Notes Example: Club aircraft, requires checkout
 	Notes *string `json:"notes,omitempty"`
 
-	// Registration Aircraft registration/tail number
+	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged.
 	//
 	// Example: D-EFGH
 	Registration string `json:"registration"`

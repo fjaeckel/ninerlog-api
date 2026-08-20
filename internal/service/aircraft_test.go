@@ -144,6 +144,137 @@ func TestCreateAircraft(t *testing.T) {
 	}
 }
 
+func TestCreateAircraftCanonicalizesRegistration(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"lowercase German mark gets hyphenated", "deabc", "D-EABC"},
+		{"US mark loses its hyphen", "N-12345", "N12345"},
+		{"unrecognised mark is left alone", "SIM", "SIM"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := setupAircraftService()
+			ctx := context.Background()
+			userID := uuid.New()
+
+			aircraft := &models.Aircraft{
+				UserID:       userID,
+				Registration: tc.input,
+				Type:         "C172",
+				Make:         "Cessna",
+				Model:        "172",
+				IsActive:     true,
+			}
+			if err := svc.CreateAircraft(ctx, aircraft); err != nil {
+				t.Fatalf("CreateAircraft failed: %v", err)
+			}
+			if aircraft.Registration != tc.want {
+				t.Errorf("Registration = %q, want %q", aircraft.Registration, tc.want)
+			}
+
+			stored, err := svc.GetAircraft(ctx, aircraft.ID, userID)
+			if err != nil {
+				t.Fatalf("GetAircraft failed: %v", err)
+			}
+			if stored.Registration != tc.want {
+				t.Errorf("stored Registration = %q, want %q", stored.Registration, tc.want)
+			}
+		})
+	}
+}
+
+func TestCreateAircraftWhitespaceRegistrationStillRequired(t *testing.T) {
+	svc := setupAircraftService()
+	ctx := context.Background()
+	userID := uuid.New()
+
+	aircraft := &models.Aircraft{
+		UserID:       userID,
+		Registration: "  ",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172",
+		IsActive:     true,
+	}
+	err := svc.CreateAircraft(ctx, aircraft)
+	if err != models.ErrAircraftRegistrationRequired {
+		t.Errorf("Expected ErrAircraftRegistrationRequired, got %v", err)
+	}
+}
+
+func TestUpdateAircraftCanonicalizationIsNotARename(t *testing.T) {
+	repo := newMockAircraftRepo()
+	svc := service.NewAircraftService(repo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	id := uuid.New()
+	repo.aircraft[id] = &models.Aircraft{
+		ID:           id,
+		UserID:       userID,
+		Registration: "DEABC",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172",
+		IsActive:     true,
+	}
+	repo.flightsByReg["DEABC"] = 5
+
+	aircraft := &models.Aircraft{
+		ID:           id,
+		UserID:       userID,
+		Registration: "D-EABC",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172",
+		IsActive:     true,
+	}
+	updated, err := svc.UpdateAircraft(ctx, aircraft, userID, false)
+	if err != nil {
+		t.Fatalf("UpdateAircraft failed: %v", err)
+	}
+	if updated != 5 {
+		t.Errorf("Expected canonicalisation to repoint flights (5), got %d", updated)
+	}
+	if repo.aircraft[id].Registration != "D-EABC" {
+		t.Errorf("Expected stored registration D-EABC, got %s", repo.aircraft[id].Registration)
+	}
+}
+
+func TestUpdateAircraftGenuineRenameWithoutFlagLeavesFlights(t *testing.T) {
+	repo := newMockAircraftRepo()
+	svc := service.NewAircraftService(repo)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	aircraft := &models.Aircraft{
+		UserID:       userID,
+		Registration: "D-EABC",
+		Type:         "C172",
+		Make:         "Cessna",
+		Model:        "172",
+		IsActive:     true,
+	}
+	_ = svc.CreateAircraft(ctx, aircraft)
+	repo.flightsByReg["D-EABC"] = 7
+
+	aircraft.Registration = "D-EFGH"
+	updated, err := svc.UpdateAircraft(ctx, aircraft, userID, false)
+	if err != nil {
+		t.Fatalf("UpdateAircraft failed: %v", err)
+	}
+	if updated != 0 {
+		t.Errorf("Expected 0 flights updated for a genuine rename without renameFlights, got %d", updated)
+	}
+	if repo.aircraft[aircraft.ID].Registration != "D-EFGH" {
+		t.Errorf("Expected registration updated to D-EFGH, got %s", repo.aircraft[aircraft.ID].Registration)
+	}
+}
+
 func TestCreateAircraftValidation(t *testing.T) {
 	svc := setupAircraftService()
 	ctx := context.Background()

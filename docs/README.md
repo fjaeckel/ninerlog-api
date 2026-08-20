@@ -21,6 +21,7 @@ Developer documentation for the NinerLog API backend. Start with the
 
 | Document | Covers |
 | --- | --- |
+| [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md) | Canonical registration notation and the vendored nationality-mark table |
 | [AUTHENTICATION.md](./AUTHENTICATION.md) | Tokens, 2FA, WebAuthn, lockout, rate limiting |
 | [OIDC.md](./OIDC.md) | Optional single sign-on: configuration, provider recipes, provisioning, migration |
 | [METRICS.md](./METRICS.md) | Prometheus metrics and observability |

@@ -11,11 +11,12 @@ import (
 )
 
 // The atmoz/sftp container in docker-compose.e2e.yaml exposes:
-//   host:     sftp        (inside the docker network)
-//   port:     22
-//   username: ninerlog
-//   password: ninerlogtest
-//   writable folder: /upload (relative to the user's home)
+//
+//	host:     sftp        (inside the docker network)
+//	port:     22
+//	username: ninerlog
+//	password: ninerlogtest
+//	writable folder: /upload (relative to the user's home)
 //
 // The e2e tests set accept_any_host_key=true to skip host-key verification.
 func sftpHost() string {

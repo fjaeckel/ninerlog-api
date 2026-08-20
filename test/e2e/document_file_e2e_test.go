@@ -11,8 +11,8 @@ import (
 	"image/png"
 	"io"
 	"mime/multipart"
-	"strings"
 	"net/http"
+	"strings"
 	"testing"
 )
 
