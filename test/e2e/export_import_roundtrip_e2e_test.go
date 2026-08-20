@@ -216,7 +216,7 @@ func TestExportImportRoundTrip_ReimportIntoSameAccountIsDeduplicated(t *testing.
 				r := c.POST("/flights", map[string]interface{}{
 					"date": date, "aircraftReg": "D-EDUPE", "aircraftType": "C152",
 					"departureIcao": "EDDF", "arrivalIcao": "EDDM",
-					"offBlockTime": fmt.Sprintf("0%d:00", 8+i), "onBlockTime": fmt.Sprintf("0%d:30", 9+i),
+					"offBlockTime": fmt.Sprintf("%02d:00", 8+i), "onBlockTime": fmt.Sprintf("%02d:30", 9+i),
 					"landings": 1,
 				})
 				requireStatus(t, r, http.StatusCreated)

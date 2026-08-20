@@ -80,9 +80,6 @@ func TestImportTemplates_Catalogue(t *testing.T) {
 // Upload must report which template matched, so the mapping screen can say what
 // it recognised instead of presenting an unexplained set of pre-filled columns.
 func TestImportTemplates_DetectedOnUpload(t *testing.T) {
-	c := NewE2EClient(t)
-	registerAndLogin(t, c, uniqueEmail("import-detect"), "SecurePass123!", "Detect")
-
 	cases := []struct {
 		name       string
 		filename   string
@@ -141,6 +138,13 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// One account per case. A pending upload is only released by a
+			// confirm or the session TTL, and maxSessionsPerUser is 3, so
+			// detecting more than three formats under one account rejects the
+			// fourth upload with 429 rather than reporting its format.
+			c := NewE2EClient(t)
+			registerAndLogin(t, c, uniqueEmail("import-detect"), "SecurePass123!", "Detect")
+
 			resp := uploadCSV(t, c, tc.filename, tc.csv)
 			requireStatus(t, resp, http.StatusOK)
 
