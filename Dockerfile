@@ -1,5 +1,5 @@
 # Build stage — run natively, cross-compile via GOARCH
-FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.7-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make bash
