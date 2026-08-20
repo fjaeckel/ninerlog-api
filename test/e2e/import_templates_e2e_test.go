@@ -89,6 +89,11 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 		filename   string
 		csv        string
 		wantFormat string
+		// derivedFields names the otherwise-required fields this source has no
+		// column for. The importer derives them from another column instead, so
+		// there is nothing for the mapping step to suggest — but the value still
+		// has to come out, which is asserted below via a preview.
+		derivedFields []string
 	}{
 		{
 			name:     "MyFlightbook",
@@ -139,7 +144,8 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 			csv: "Departure,Arrival,Off Block,On Block,Block,Takeoff,Landing,Airborne,Aircraft,Model,Single Engine,Multi Engine,Multi Pilot,PIC Name,Type of Flight,VFR,IFR,Day,Night,Pilot Function,PIC,Copi,Dual,Instructor,Landings,Day Landings,Night Landings,Remark,Mountain Landings,Mountain Takeoffs,Mountain Landings > 2000m,Mountain Landings > 2700m,Glacier Landings,Holding Patterns,Go Arounds,Touch and Goes,Number of PAX,Sea Takeoffs,Sea Landings,InstructionTime,HESLO1 Cycles,HESLO2 Cycles,HESLO3 Cycles,HESLO4 Cycles,HEC1 Cycles,HEC2 Cycles,HHO Cycles,HESLO1 Time,HESLO2 Time,HESLO3 Time,HESLO4 Time,HEC1 Time,HEC2 Time,HHO Time\n" +
 				fmt.Sprintf("EDAZ,EDAY,%s 04:00,%s 06:07,2:07,,,0:00,D-ERAE,C172,2:07,0:00,0:00,Self,VFR,2:07,0:00,2:07,0:00,PIC,2:07,0:00,0:00,0:00,1,1,0,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0:00,0:00,0:00,0:00,0:00,0:00,0:00\n",
 					todayCapzlog(), todayCapzlog()),
-			wantFormat: "CAPZLOG_CSV",
+			wantFormat:    "CAPZLOG_CSV",
+			derivedFields: []string{"date"},
 		},
 		{
 			name:     "unrecognised file still maps by name",
@@ -164,6 +170,7 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 
 			var result struct {
 				Format            string `json:"format"`
+				UploadToken       string `json:"uploadToken"`
 				SuggestedMappings []struct {
 					SourceColumn string `json:"sourceColumn"`
 					TargetField  string `json:"targetField"`
@@ -186,9 +193,43 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 			for _, m := range result.SuggestedMappings {
 				mapped[m.TargetField] = true
 			}
+			derived := make(map[string]bool, len(tc.derivedFields))
+			for _, f := range tc.derivedFields {
+				derived[f] = true
+			}
 			for _, field := range []string{"date", "aircraftReg", "totalTime"} {
-				if !mapped[field] {
-					t.Errorf("%s: %s was not mapped", tc.name, field)
+				if derived[field] || mapped[field] {
+					continue
+				}
+				t.Errorf("%s: %s was not mapped", tc.name, field)
+			}
+
+			// A field with no column of its own is the easiest kind to lose:
+			// detection still succeeds and only the rows come out wrong. Preview
+			// the file so the derived value is asserted rather than excused.
+			if len(tc.derivedFields) > 0 {
+				prev := c.POST("/imports/preview", map[string]interface{}{
+					"uploadToken":    result.UploadToken,
+					"mappings":       result.SuggestedMappings,
+					"skipDuplicates": false,
+				})
+				requireStatus(t, prev, http.StatusOK)
+				var preview map[string]interface{}
+				prev.JSON(&preview)
+
+				flights, _ := preview["flights"].([]interface{})
+				if len(flights) == 0 {
+					t.Fatalf("%s: preview returned no rows: %s", tc.name, string(prev.Body))
+				}
+				row := flights[0].(map[string]interface{})
+				if row["status"] == "error" {
+					t.Fatalf("%s: previewed row errored: %v", tc.name, row["errors"])
+				}
+				flight, _ := row["flight"].(map[string]interface{})
+				for _, field := range tc.derivedFields {
+					if v, _ := flight[field].(string); v == "" {
+						t.Errorf("%s: %s is derived but came out empty: %v", tc.name, field, flight)
+					}
 				}
 			}
 
