@@ -17,6 +17,8 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 | `UPDATE_CHECK_INTERVAL` | `24h` | How often the release lookup runs. `off` or `0s` leaves only the lookup performed at startup |
 | `UPDATE_CHECK_API_REPO` | `fjaeckel/ninerlog-api` | `owner/name` repository the API's releases are read from |
 | `UPDATE_CHECK_FRONTEND_REPO` | `fjaeckel/ninerlog-frontend` | `owner/name` repository the frontend's releases are read from |
+| `UPDATE_CHECK_BRANCH` | `main` | Branch an untagged (`latest`) build's commit is compared against |
+| `APP_COMMIT` | unset | Commit this build came from, used only when the binary carries no build stamp |
 
 Rate limiting is not a metrics setting, but it is what the rate-limit metrics
 below are for:
@@ -161,8 +163,10 @@ The in-memory airport database (`internal/airports`) merges two upstream dataset
 ### Release Update Check Metrics
 
 The release check (`internal/updatecheck`) compares the running components against the
-newest release published for each component's repository. It is skipped entirely when
-`UPDATE_CHECK_ENABLED=false`, in which case none of these series exist.
+newest release published for each component's repository, or — for a build carrying only
+a commit, which is what the `latest` image tags are — against the head of
+`UPDATE_CHECK_BRANCH`. It is skipped entirely when `UPDATE_CHECK_ENABLED=false`, in which
+case none of these series exist.
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
@@ -170,7 +174,8 @@ newest release published for each component's repository. It is skipped entirely
 | `update_check_errors_total` | Counter | `reason` | Lookup failures. Reasons: `request` (network/DNS), `status` (non-200, including GitHub rate limiting), `decode` (unreadable body), `empty` (release without a tag) |
 | `update_check_duration_seconds` | Histogram | — | Duration of one run, covering every component queried |
 | `update_check_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last run in which every component was read |
-| `app_update_available` | Gauge | `component` | 1 when a newer release exists, 0 when current. Only `component="api"`: the frontend's running version is known to the browser, not to the API. The series is absent while the running version is not a semantic version |
+| `app_update_available` | Gauge | `component` | 1 when a newer build exists, 0 when current. Only `component="api"`: the frontend's running build is known to the browser, not to the API. The series is absent while the API build carries neither a semantic version nor a commit |
+| `app_commits_behind` | Gauge | `component` | Commits the tracked branch is ahead of the running build. Only `component="api"`, and only for a build compared by commit (the `latest` tag); absent for a tagged release build |
 | `update_check_latest_version_info` | Gauge (const 1) | `component`, `version` | Newest published release per component. Components: `api`, `frontend` |
 
 > **Why this matters:** `app_update_available` is the series to alert on for a

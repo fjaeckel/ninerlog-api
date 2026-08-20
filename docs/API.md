@@ -495,12 +495,26 @@ status means and what it does not claim.
 Update availability: `GET /admin/update` answers from a cache the background release
 check fills, so it never blocks on GitHub. Each component reports `up_to_date`,
 `update_available` or `unknown`, and `updateAvailable` is true when any of them is
-behind. The API's own version comes from its build stamp; the frontend passes its own
-as `?frontendVersion=`, since only the browser knows which frontend image is serving.
-`unknown` is what an unstamped build (`dev`, `latest`, a commit SHA) reports — the
-running version cannot be compared, and a locally built image is not expected to match
-a published release. Deployments that set `UPDATE_CHECK_ENABLED=false` make no outbound
-request and report `checkEnabled: false`.
+behind. The API's own version and commit come from its build stamps; the frontend
+passes its own as `?frontendVersion=` and `?frontendCommit=`, since only the browser
+knows which frontend image is serving.
+
+`channel` says which comparison produced the state:
+
+- `release` — the build carries a semantic version, compared against the newest
+  published release of its repository. This is what a deployment pinned to `:v1.3.4`
+  gets.
+- `commit` — the build carries only a commit, which is what the `:latest` tags are.
+  It is compared against the head of `UPDATE_CHECK_BRANCH` (default `main`), and
+  `behindBy` reports how many commits it is behind, with `compareUrl` linking the
+  diff. A build that has diverged from the branch — a fork, or a locally built
+  image — reports `unknown` rather than guessing.
+
+`unknown` therefore means neither comparison was possible: no semantic version, no
+commit, or nothing looked up yet. A commit reported for the first time is `unknown`
+until the comparison lands, a moment later. Deployments that set
+`UPDATE_CHECK_ENABLED=false` make no outbound request and report
+`checkEnabled: false`.
 
 ### Backups
 List providers, manage destinations (CRUD), test/run a destination, and inspect run

@@ -1249,7 +1249,7 @@
     {
       "title": "Release Check Health",
       "type": "timeseries",
-      "description": "Release lookup runs against failures by reason and p95 duration. status covers GitHub rate limiting, which is what a shared egress IP hits first.",
+      "description": "Release lookup runs against failures by reason, p95 duration, and how far an untagged (latest) build trails the tracked branch. status covers GitHub rate limiting, which is what a shared egress IP hits first.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -1314,6 +1314,14 @@
           },
           "expr": "histogram_quantile(0.95, sum by (le) (rate(update_check_duration_seconds_bucket{job=\"$job\"}[6h])))",
           "legendFormat": "p95 duration"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max(app_commits_behind{job=\"$job\"})",
+          "legendFormat": "commits behind branch"
         }
       ]
     }

@@ -46,7 +46,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | `internal/models` | Domain structs + validation helpers (no I/O): `user.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `flight.go`, `flight_baseline.go`, `notification.go`, `backup.go`, `webauthn.go`, `oidc.go`, `idempotency.go`, `deletion.go`, plus `validation.go` (text-length limits) and `errors.go` (shared error types). |
 | `internal/config` | Loads typed configuration from environment variables. |
 | `internal/airports` | In-memory airport database merged from OurAirports (CSV) and mwgg/Airports (JSON). `Init()` at startup, `StartRefresher()` refetches on a timer. Lock-free reads over an atomically swapped snapshot: ICAO map for exact lookups, sorted code list for prefix search, 1°×1° grid for `Nearest`. Used for coordinates/distance and airport lookup/search. |
-| `internal/updatecheck` | Release update check. Holds the running version (link-time stamp, else `APP_VERSION`), reads the newest published GitHub release per component on a timer, and compares the two by semantic version. Serves `GET /admin/update`; disabled by `UPDATE_CHECK_ENABLED=false`. |
+| `internal/updatecheck` | Release update check. Holds the running version and commit (link-time stamps, else `APP_VERSION`/`APP_COMMIT`), reads the newest published GitHub release per component on a timer, and compares by semantic version — or, for an untagged `latest` build, compares the build commit against the tracked branch head. Serves `GET /admin/update`; disabled by `UPDATE_CHECK_ENABLED=false`. |
 | `internal/testutil` | Shared test fixtures, database setup/teardown, and an API client for tests. |
 
 ## `pkg/`

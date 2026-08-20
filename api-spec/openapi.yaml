@@ -4265,6 +4265,18 @@ paths:
             type: string
             maxLength: 64
             example: v1.3.2
+        - name: frontendCommit
+          in: query
+          required: false
+          description: >-
+            Commit the calling frontend image was built from. Used when the
+            frontend runs an untagged build (the `latest` image), where there
+            is no version to compare.
+          schema:
+            type: string
+            maxLength: 40
+            pattern: '^[0-9a-fA-F]{7,40}$'
+            example: 4f2c1ab9d3e5c6178b0a2d4e6f8091a2b3c4d5e6
       responses:
         '200':
           description: Update status
@@ -8831,6 +8843,10 @@ components:
             True when at least one component is behind its newest published
             release. False when every component is current, unknown, or the
             check is disabled.
+        branch:
+          type: string
+          description: Branch a `latest` build's commit is compared against (UPDATE_CHECK_BRANCH)
+          example: main
         lastCheckedAt:
           type: [string, 'null']
           format: date-time
@@ -8875,6 +8891,12 @@ components:
           type: string
           description: Newest release published for the component, absent until a lookup succeeds
           example: v1.3.5
+        currentCommit:
+          type: string
+          description: >-
+            Short commit the running image was built from, absent when the
+            component reported none.
+          example: 4f2c1ab
         state:
           type: string
           enum:
@@ -8882,9 +8904,29 @@ components:
             - update_available
             - unknown
           description: >-
-            `unknown` covers a running version that is not a semantic version
-            (`dev`, `latest`, a commit SHA) and a component whose release has
-            not been looked up yet.
+            `unknown` means neither comparison could be made: no semantic
+            version, no build commit, or nothing looked up yet.
+        channel:
+          type: string
+          enum:
+            - release
+            - commit
+          description: >-
+            How `state` was reached. `release` compares a semantic version
+            against the newest published release; `commit` compares the build
+            commit against the tracked branch, which is what an image running
+            the `latest` tag gets. Absent when the state is `unknown`.
+        behindBy:
+          type: integer
+          description: >-
+            Commits the tracked branch is ahead of this build. Present only on
+            the `commit` channel.
+          example: 7
+        compareUrl:
+          type: string
+          description: >-
+            GitHub comparison between this build and the branch head. Present
+            only on the `commit` channel.
         releaseUrl:
           type: string
           description: GitHub release page for the newest release

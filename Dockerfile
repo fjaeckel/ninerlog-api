@@ -17,8 +17,9 @@ COPY . .
 # VERSION is stamped into the binary and reported by /admin/update and app_info.
 ARG TARGETARCH
 ARG VERSION=dev
+ARG COMMIT=""
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
-    -ldflags="-w -s -X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildVersion=${VERSION}" \
+    -ldflags="-w -s -X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildVersion=${VERSION} -X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildCommit=${COMMIT}" \
     -o /build/ninerlog-api \
     ./cmd/api
 

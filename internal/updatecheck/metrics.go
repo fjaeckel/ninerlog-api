@@ -54,6 +54,17 @@ var (
 		[]string{"component"},
 	)
 
+	// CommitsBehind reports how many commits behind the tracked branch a
+	// component's build is. Components: api. Absent for a build compared by
+	// release version rather than by commit.
+	CommitsBehind = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "app_commits_behind",
+			Help: "Commits the tracked branch is ahead of the running build.",
+		},
+		[]string{"component"},
+	)
+
 	// LatestVersionInfo carries the newest published release per component.
 	// Components: api, frontend.
 	LatestVersionInfo = prometheus.NewGaugeVec(
@@ -72,6 +83,7 @@ func init() {
 		DurationSeconds,
 		LastSuccessTimestampSeconds,
 		UpdateAvailable,
+		CommitsBehind,
 		LatestVersionInfo,
 	)
 }

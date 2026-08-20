@@ -128,8 +128,8 @@ func TestAdminEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("admin update status accepts a frontend version", func(t *testing.T) {
-		resp := ac.GET("/admin/update?frontendVersion=v1.0.0")
+	t.Run("admin update status accepts a frontend version and commit", func(t *testing.T) {
+		resp := ac.GET("/admin/update?frontendVersion=v1.0.0&frontendCommit=4f2c1ab9d3e5c6178b0a2d4e6f8091a2b3c4d5e6")
 		requireStatus(t, resp, http.StatusOK)
 		var status map[string]interface{}
 		resp.JSON(&status)
@@ -142,6 +142,9 @@ func TestAdminEndpoints(t *testing.T) {
 			}
 			if got := component["currentVersion"]; got != "v1.0.0" {
 				t.Errorf("frontend currentVersion = %v, want v1.0.0", got)
+			}
+			if got := component["currentCommit"]; got != "4f2c1ab" {
+				t.Errorf("frontend currentCommit = %v, want the short form 4f2c1ab", got)
 			}
 			return
 		}

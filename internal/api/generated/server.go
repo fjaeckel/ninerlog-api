@@ -703,6 +703,14 @@ func (siw *ServerInterfaceWrapper) GetUpdateStatus(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "frontendCommit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "frontendCommit", c.Request.URL.Query(), &params.FrontendCommit, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter frontendCommit: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {

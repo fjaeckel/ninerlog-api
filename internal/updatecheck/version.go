@@ -5,9 +5,14 @@ import (
 	"strings"
 )
 
-// buildVersion is stamped at link time:
-// -ldflags "-X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildVersion=v1.2.3".
-var buildVersion string
+// buildVersion and buildCommit are stamped at link time:
+// -ldflags "-X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildVersion=v1.2.3
+//
+//	-X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildCommit=<sha>".
+var (
+	buildVersion string
+	buildCommit  string
+)
 
 // DevVersion is the version reported by a binary that was neither stamped at
 // build time nor given APP_VERSION.
@@ -23,4 +28,16 @@ func RunningVersion() string {
 		return v
 	}
 	return DevVersion
+}
+
+// RunningCommit returns the commit this binary was built from: the link-time
+// stamp, then APP_COMMIT. Empty when neither is set or the value is not a
+// commit SHA.
+func RunningCommit() string {
+	for _, candidate := range []string{buildCommit, os.Getenv("APP_COMMIT")} {
+		if sha, ok := normalizeCommit(candidate); ok {
+			return sha
+		}
+	}
+	return ""
 }

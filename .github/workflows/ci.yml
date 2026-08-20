@@ -140,6 +140,7 @@ jobs:
           push: true
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

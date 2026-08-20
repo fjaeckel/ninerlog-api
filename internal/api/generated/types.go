@@ -1104,6 +1104,24 @@ func (e SignatureRequestCreatedStatus) Valid() bool {
 	}
 }
 
+// Defines values for UpdateComponentChannel.
+const (
+	Commit  UpdateComponentChannel = "commit"
+	Release UpdateComponentChannel = "release"
+)
+
+// Valid indicates whether the value is a known member of the UpdateComponentChannel enum.
+func (e UpdateComponentChannel) Valid() bool {
+	switch e {
+	case Commit:
+		return true
+	case Release:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateComponentName.
 const (
 	Api      UpdateComponentName = "api"
@@ -5039,6 +5057,22 @@ type TwoFactorSetup struct {
 
 // UpdateComponent defines model for UpdateComponent.
 type UpdateComponent struct {
+	// BehindBy Commits the tracked branch is ahead of this build. Present only on the `commit` channel.
+	//
+	// Example: 7
+	BehindBy *int `json:"behindBy,omitempty"`
+
+	// Channel How `state` was reached. `release` compares a semantic version against the newest published release; `commit` compares the build commit against the tracked branch, which is what an image running the `latest` tag gets. Absent when the state is `unknown`.
+	Channel *UpdateComponentChannel `json:"channel,omitempty"`
+
+	// CompareUrl GitHub comparison between this build and the branch head. Present only on the `commit` channel.
+	CompareUrl *string `json:"compareUrl,omitempty"`
+
+	// CurrentCommit Short commit the running image was built from, absent when the component reported none.
+	//
+	// Example: 4f2c1ab
+	CurrentCommit *string `json:"currentCommit,omitempty"`
+
 	// CurrentVersion Version the component is running. Empty when the frontend did not report one; `dev` for a build that was never stamped.
 	//
 	// Example: v1.3.4
@@ -5058,18 +5092,26 @@ type UpdateComponent struct {
 	// ReleaseUrl GitHub release page for the newest release
 	ReleaseUrl *string `json:"releaseUrl,omitempty"`
 
-	// State `unknown` covers a running version that is not a semantic version (`dev`, `latest`, a commit SHA) and a component whose release has not been looked up yet.
+	// State `unknown` means neither comparison could be made: no semantic version, no build commit, or nothing looked up yet.
 	State UpdateComponentState `json:"state"`
 }
+
+// UpdateComponentChannel How `state` was reached. `release` compares a semantic version against the newest published release; `commit` compares the build commit against the tracked branch, which is what an image running the `latest` tag gets. Absent when the state is `unknown`.
+type UpdateComponentChannel string
 
 // UpdateComponentName Component this entry describes
 type UpdateComponentName string
 
-// UpdateComponentState `unknown` covers a running version that is not a semantic version (`dev`, `latest`, a commit SHA) and a component whose release has not been looked up yet.
+// UpdateComponentState `unknown` means neither comparison could be made: no semantic version, no build commit, or nothing looked up yet.
 type UpdateComponentState string
 
 // UpdateStatus defines model for UpdateStatus.
 type UpdateStatus struct {
+	// Branch Branch a `latest` build's commit is compared against (UPDATE_CHECK_BRANCH)
+	//
+	// Example: main
+	Branch *string `json:"branch,omitempty"`
+
 	// CheckEnabled Whether this deployment checks for releases (UPDATE_CHECK_ENABLED)
 	CheckEnabled bool `json:"checkEnabled"`
 
@@ -5322,6 +5364,9 @@ type ListEmailSuppressionsParams struct {
 type GetUpdateStatusParams struct {
 	// FrontendVersion Version the calling frontend build was stamped with.
 	FrontendVersion *string `form:"frontendVersion,omitempty" json:"frontendVersion,omitempty"`
+
+	// FrontendCommit Commit the calling frontend image was built from. Used when the frontend runs an untagged build (the `latest` image), where there is no version to compare.
+	FrontendCommit *string `form:"frontendCommit,omitempty" json:"frontendCommit,omitempty"`
 }
 
 // ListAdminUsersParams defines parameters for ListAdminUsers.

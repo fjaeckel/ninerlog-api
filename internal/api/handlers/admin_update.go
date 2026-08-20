@@ -28,12 +28,15 @@ func (h *APIHandler) GetUpdateStatus(c *gin.Context, params generated.GetUpdateS
 		return
 	}
 
-	var frontendVersion string
+	var frontendVersion, frontendCommit string
 	if params.FrontendVersion != nil {
 		frontendVersion = *params.FrontendVersion
 	}
+	if params.FrontendCommit != nil {
+		frontendCommit = *params.FrontendCommit
+	}
 
-	c.JSON(http.StatusOK, toUpdateStatus(h.updateChecker.Status(frontendVersion)))
+	c.JSON(http.StatusOK, toUpdateStatus(h.updateChecker.Status(frontendVersion, frontendCommit)))
 }
 
 // toUpdateStatus maps the checker's status onto the generated response.
@@ -43,6 +46,11 @@ func toUpdateStatus(status updatecheck.Status) generated.UpdateStatus {
 		UpdateAvailable: status.UpdateAvailable,
 		LastCheckedAt:   status.LastCheckedAt,
 		Components:      make([]generated.UpdateComponent, 0, len(status.Components)),
+	}
+
+	if status.Branch != "" {
+		branch := status.Branch
+		out.Branch = &branch
 	}
 
 	if status.LastError != "" {
@@ -67,6 +75,22 @@ func toUpdateStatus(status updatecheck.Status) generated.UpdateStatus {
 		if component.ReleaseURL != "" {
 			url := component.ReleaseURL
 			entry.ReleaseUrl = &url
+		}
+		if component.CurrentCommit != "" {
+			commit := component.CurrentCommit
+			entry.CurrentCommit = &commit
+		}
+		if component.Channel != "" {
+			channel := generated.UpdateComponentChannel(component.Channel)
+			entry.Channel = &channel
+		}
+		if component.Channel == updatecheck.ChannelCommit {
+			behindBy := component.BehindBy
+			entry.BehindBy = &behindBy
+			if component.CompareURL != "" {
+				compareURL := component.CompareURL
+				entry.CompareUrl = &compareURL
+			}
 		}
 		out.Components = append(out.Components, entry)
 	}
