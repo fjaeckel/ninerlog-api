@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
@@ -55,6 +56,8 @@ func (h *APIHandler) GetAuthProviders(c *gin.Context) {
 		cfg := h.oidcService.Config()
 		name := cfg.ProviderName
 		authorizeURL := "/api/v1/auth/oidc/authorize"
+		nativeAuthorizeURL := authorizeURL + "?native=1"
+		nativeRedirectURI := cfg.NativePostLoginRedirect
 		resp = generated.AuthProviders{
 			Mode:                 generated.AuthProvidersModeOidc,
 			PasswordLoginEnabled: false,
@@ -65,6 +68,8 @@ func (h *APIHandler) GetAuthProviders(c *gin.Context) {
 		resp.Oidc.Enabled = true
 		resp.Oidc.Name = &name
 		resp.Oidc.AuthorizeUrl = &authorizeURL
+		resp.Oidc.NativeAuthorizeUrl = &nativeAuthorizeURL
+		resp.Oidc.NativeRedirectUri = &nativeRedirectURI
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -81,13 +86,15 @@ func RegisterOIDCRoutes(rg *gin.RouterGroup, h *APIHandler) {
 // OIDCAuthorize implements GET /auth/oidc/authorize.
 //
 // Starts a login: mints the state, nonce and PKCE verifier, plants the
-// browser-binding cookie, and redirects to the provider.
+// browser-binding cookie, and redirects to the provider. `native=1` finishes
+// the login at the native redirect URI instead of the web frontend.
 func (h *APIHandler) OIDCAuthorize(c *gin.Context) {
 	if !h.requireOIDC(c) {
 		return
 	}
 
-	auth, err := h.oidcService.BeginLogin(c.Request.Context())
+	native := isAffirmative(c.Query("native"))
+	auth, err := h.oidcService.BeginLogin(c.Request.Context(), native)
 	if err != nil {
 		OIDCLoginAttemptsTotal.WithLabelValues("authorize_failed").Inc()
 		if errors.Is(err, service.ErrOIDCProviderUnavailable) {
@@ -100,7 +107,11 @@ func (h *APIHandler) OIDCAuthorize(c *gin.Context) {
 	}
 
 	h.setOIDCStateCookie(c, auth.BrowserToken, int(time.Until(auth.Expiry).Seconds()))
-	OIDCLoginAttemptsTotal.WithLabelValues("authorize").Inc()
+	if native {
+		OIDCLoginAttemptsTotal.WithLabelValues("authorize_native").Inc()
+	} else {
+		OIDCLoginAttemptsTotal.WithLabelValues("authorize").Inc()
+	}
 	c.Redirect(http.StatusFound, auth.AuthorizationURL)
 }
 
@@ -117,23 +128,25 @@ func (h *APIHandler) OIDCCallback(c *gin.Context) {
 	browserToken, _ := c.Cookie(oidcStateCookie)
 	h.clearOIDCStateCookie(c)
 
+	native := service.IsNativeOIDCState(c.Query("state"))
+
 	// The provider reports user-facing failures (consent denied, and so on) as
 	// query parameters rather than a non-2xx status.
 	if providerErr := c.Query("error"); providerErr != "" {
 		OIDCLoginAttemptsTotal.WithLabelValues("provider_error").Inc()
-		h.redirectOIDCError(c, "provider_error")
+		h.redirectOIDCError(c, native, "provider_error")
 		return
 	}
 
 	handoff, err := h.oidcService.CompleteCallback(c.Request.Context(),
 		c.Query("code"), c.Query("state"), browserToken)
 	if err != nil {
-		h.redirectOIDCError(c, oidcErrorCode(err))
+		h.redirectOIDCError(c, native, oidcErrorCode(err))
 		return
 	}
 
 	OIDCLoginAttemptsTotal.WithLabelValues("callback_success").Inc()
-	h.redirectOIDC(c, url.Values{"oidc_code": {handoff}})
+	h.redirectOIDC(c, native, url.Values{"oidc_code": {handoff}})
 }
 
 // ExchangeOidcCode implements POST /auth/oidc/exchange
@@ -192,15 +205,19 @@ func oidcErrorCode(err error) string {
 	}
 }
 
-func (h *APIHandler) redirectOIDCError(c *gin.Context, code string) {
-	h.redirectOIDC(c, url.Values{"oidc_error": {code}})
+func (h *APIHandler) redirectOIDCError(c *gin.Context, native bool, code string) {
+	h.redirectOIDC(c, native, url.Values{"oidc_error": {code}})
 }
 
-// redirectOIDC sends the browser back to the configured frontend URL with the
-// supplied query parameters merged in. The target always comes from
-// OIDC_POST_LOGIN_REDIRECT, never from the request.
-func (h *APIHandler) redirectOIDC(c *gin.Context, params url.Values) {
+// redirectOIDC sends the browser back to the configured post-login URL with
+// the supplied query parameters merged in. Both targets come from
+// configuration — OIDC_POST_LOGIN_REDIRECT and OIDC_NATIVE_POST_LOGIN_REDIRECT
+// — never from the request.
+func (h *APIHandler) redirectOIDC(c *gin.Context, native bool, params url.Values) {
 	target := h.oidcService.PostLoginRedirect()
+	if native {
+		target = h.oidcService.NativePostLoginRedirect()
+	}
 	u, err := url.Parse(target)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Sign-in failed")
@@ -226,6 +243,16 @@ func (h *APIHandler) setOIDCStateCookie(c *gin.Context, value string, maxAge int
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(oidcStateCookie, value, maxAge, cfg.CookiePath(), "",
 		cfg.CookieSecure(), true)
+}
+
+// isAffirmative reads the query-parameter spellings of true.
+func isAffirmative(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *APIHandler) clearOIDCStateCookie(c *gin.Context) {

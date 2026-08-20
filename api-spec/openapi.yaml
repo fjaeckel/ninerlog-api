@@ -5339,6 +5339,22 @@ components:
                 Where to send the browser to start the login. A redirect
                 endpoint, not a JSON API — navigate to it, do not fetch it.
               example: /api/v1/auth/oidc/authorize
+            nativeAuthorizeUrl:
+              type: string
+              description: >-
+                Where a native app sends its in-app browser to start the login.
+                The same redirect endpoint, flagged so the callback finishes at
+                `nativeRedirectUri` instead of the web frontend.
+              example: /api/v1/auth/oidc/authorize?native=1
+            nativeRedirectUri:
+              type: string
+              description: >-
+                Where the callback sends the browser after a login started at
+                `nativeAuthorizeUrl`, carrying the same `oidc_code` or
+                `oidc_error` parameter. A custom scheme, which a native app can
+                intercept without an associated domain. From
+                OIDC_NATIVE_POST_LOGIN_REDIRECT.
+              example: ninerlog://auth/callback
 
     RegistrationResponse:
       type: object
@@ -8756,6 +8772,12 @@ components:
           description: >-
             Configured OIDC issuer URL. Present only in oidc mode; the client
             ID and secret are never exposed.
+        oidcNativeRedirect:
+          type: string
+          description: >-
+            Where a native-client login finishes, from
+            OIDC_NATIVE_POST_LOGIN_REDIRECT. Present only in oidc mode.
+          example: ninerlog://auth/callback
         cloudBackupProviders:
           type: array
           items:

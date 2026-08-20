@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -23,6 +24,11 @@ const (
 	// redirecting the browser back and the SPA exchanging its code for
 	// tokens.
 	DefaultOIDCHandoffTTL = 60 * time.Second
+
+	// DefaultOIDCNativePostLoginRedirect is where the callback sends the
+	// browser when the login was started by a native client. The official
+	// mobile app registers this scheme.
+	DefaultOIDCNativePostLoginRedirect = "ninerlog://auth/callback"
 )
 
 // OIDCConfig is the operator-supplied configuration for OIDC mode. It is built
@@ -40,6 +46,10 @@ type OIDCConfig struct {
 	// PostLoginRedirect is the frontend URL the browser is sent to after a
 	// successful login. Fixed by configuration, never read from the request.
 	PostLoginRedirect string
+	// NativePostLoginRedirect is the same target for a login started through
+	// the native authorize endpoint: a custom-scheme URI an app intercepts in
+	// its own web-authentication session. Fixed by configuration.
+	NativePostLoginRedirect string
 	// Scopes requested at the provider. "openid" is always included.
 	Scopes []string
 	// ProviderName is the label the sign-in button shows ("Sign in with …").
@@ -93,17 +103,18 @@ var ErrOIDCNotConfigured = errors.New("oidc is not configured")
 // startup stops.
 func LoadOIDCConfig() (OIDCConfig, error) {
 	cfg := OIDCConfig{
-		Issuer:              strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
-		ClientID:            strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")),
-		ClientSecret:        os.Getenv("OIDC_CLIENT_SECRET"),
-		RedirectURL:         strings.TrimSpace(os.Getenv("OIDC_REDIRECT_URL")),
-		PostLoginRedirect:   strings.TrimSpace(os.Getenv("OIDC_POST_LOGIN_REDIRECT")),
-		ProviderName:        strings.TrimSpace(os.Getenv("OIDC_PROVIDER_NAME")),
-		NameClaim:           strings.TrimSpace(os.Getenv("OIDC_NAME_CLAIM")),
-		LinkByVerifiedEmail: envBool("OIDC_LINK_BY_VERIFIED_EMAIL"),
-		TrustEmailVerified:  envBool("OIDC_TRUST_EMAIL_VERIFIED"),
-		LoginStateTTL:       DefaultOIDCLoginStateTTL,
-		HandoffTTL:          DefaultOIDCHandoffTTL,
+		Issuer:                  strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
+		ClientID:                strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")),
+		ClientSecret:            os.Getenv("OIDC_CLIENT_SECRET"),
+		RedirectURL:             strings.TrimSpace(os.Getenv("OIDC_REDIRECT_URL")),
+		PostLoginRedirect:       strings.TrimSpace(os.Getenv("OIDC_POST_LOGIN_REDIRECT")),
+		NativePostLoginRedirect: strings.TrimSpace(os.Getenv("OIDC_NATIVE_POST_LOGIN_REDIRECT")),
+		ProviderName:            strings.TrimSpace(os.Getenv("OIDC_PROVIDER_NAME")),
+		NameClaim:               strings.TrimSpace(os.Getenv("OIDC_NAME_CLAIM")),
+		LinkByVerifiedEmail:     envBool("OIDC_LINK_BY_VERIFIED_EMAIL"),
+		TrustEmailVerified:      envBool("OIDC_TRUST_EMAIL_VERIFIED"),
+		LoginStateTTL:           DefaultOIDCLoginStateTTL,
+		HandoffTTL:              DefaultOIDCHandoffTTL,
 	}
 	if !cfg.Enabled() {
 		return cfg, nil
@@ -128,6 +139,12 @@ func LoadOIDCConfig() (OIDCConfig, error) {
 		return cfg, errors.New("OIDC_POST_LOGIN_REDIRECT is required when OIDC_ISSUER is set")
 	}
 	if err := requireAbsoluteURL("OIDC_POST_LOGIN_REDIRECT", cfg.PostLoginRedirect); err != nil {
+		return cfg, err
+	}
+	if cfg.NativePostLoginRedirect == "" {
+		cfg.NativePostLoginRedirect = DefaultOIDCNativePostLoginRedirect
+	}
+	if err := requireRedirectURI("OIDC_NATIVE_POST_LOGIN_REDIRECT", cfg.NativePostLoginRedirect); err != nil {
 		return cfg, err
 	}
 
@@ -194,6 +211,35 @@ func requireAbsoluteURL(key, raw string) error {
 	}
 	if u.Host == "" {
 		return fmt.Errorf("%s must include a host", key)
+	}
+	return nil
+}
+
+// oidcSchemePattern is the set of scheme spellings a redirect URI may use.
+var oidcSchemePattern = regexp.MustCompile(`^[a-z][a-z0-9+.-]*$`)
+
+// requireRedirectURI accepts an absolute http(s) URL or a custom-scheme URI,
+// and rejects the schemes a browser treats as script.
+func requireRedirectURI(key, raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("%s is not a valid URI: %w", key, err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if !oidcSchemePattern.MatchString(scheme) {
+		return fmt.Errorf("%s must start with a scheme, e.g. ninerlog://auth/callback", key)
+	}
+	switch scheme {
+	case "http", "https":
+		if u.Host == "" {
+			return fmt.Errorf("%s must include a host", key)
+		}
+	case "javascript", "data", "vbscript", "file":
+		return fmt.Errorf("%s must not use the %s scheme", key, scheme)
+	default:
+		if u.Opaque == "" && u.Host == "" && u.Path == "" {
+			return fmt.Errorf("%s must include a host or path after the scheme", key)
+		}
 	}
 	return nil
 }

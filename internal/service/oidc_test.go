@@ -199,7 +199,7 @@ func newOIDCHarness(t *testing.T, mutate func(*service.OIDCConfig)) *oidcHarness
 // login runs one complete browser round trip and returns the handoff code.
 func (h *oidcHarness) login(t *testing.T) (string, error) {
 	t.Helper()
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		return "", err
 	}
@@ -243,7 +243,7 @@ func TestOIDCLoginProvisionsUserAndIssuesTokens(t *testing.T) {
 
 func TestOIDCLoginSendsPKCEVerifier(t *testing.T) {
 	h := newOIDCHarness(t, nil)
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestOIDCLoginSendsPKCEVerifier(t *testing.T) {
 
 func TestOIDCCallbackRejectsReplayedState(t *testing.T) {
 	h := newOIDCHarness(t, nil)
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestOIDCCallbackRejectsReplayedState(t *testing.T) {
 
 func TestOIDCCallbackRejectsForeignBrowser(t *testing.T) {
 	h := newOIDCHarness(t, nil)
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestOIDCCallbackRejectsUnknownState(t *testing.T) {
 
 func TestOIDCCallbackRejectsNonceMismatch(t *testing.T) {
 	h := newOIDCHarness(t, nil)
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestOIDCCallbackRejectsNonceMismatch(t *testing.T) {
 
 func TestOIDCCallbackRejectsMissingNonce(t *testing.T) {
 	h := newOIDCHarness(t, nil)
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestOIDCCallbackRejectsForeignSigningKey(t *testing.T) {
 	other := newFakeIDP(t, testClientID)
 	h.idp.signWith = other.key
 
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -369,7 +369,7 @@ func TestOIDCCallbackRejectsForeignAudience(t *testing.T) {
 	// A token the provider legitimately issued — to a different client.
 	h.idp.audience = "some-other-application"
 
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -386,7 +386,7 @@ func TestOIDCCallbackRejectsExpiredToken(t *testing.T) {
 	h := newOIDCHarness(t, nil)
 	h.idp.expiry = -time.Minute
 
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -674,7 +674,7 @@ func TestOIDCProviderUnavailable(t *testing.T) {
 	h := newOIDCHarness(t, func(c *service.OIDCConfig) {
 		c.Issuer = "http://127.0.0.1:1/not-a-provider"
 	})
-	if _, err := h.svc.BeginLogin(context.Background()); !errors.Is(err, service.ErrOIDCProviderUnavailable) {
+	if _, err := h.svc.BeginLogin(context.Background(), false); !errors.Is(err, service.ErrOIDCProviderUnavailable) {
 		t.Errorf("error = %v, want ErrOIDCProviderUnavailable", err)
 	}
 }
@@ -683,7 +683,7 @@ func TestOIDCAuthorizationURLCarriesConfiguredScopes(t *testing.T) {
 	h := newOIDCHarness(t, func(c *service.OIDCConfig) {
 		c.Scopes = []string{"openid", "email", "groups"}
 	})
-	auth, err := h.svc.BeginLogin(context.Background())
+	auth, err := h.svc.BeginLogin(context.Background(), false)
 	if err != nil {
 		t.Fatalf("BeginLogin: %v", err)
 	}
@@ -706,5 +706,40 @@ func TestNewOIDCServiceDisabledWithoutIssuer(t *testing.T) {
 	}
 	if svc != nil {
 		t.Error("expected a nil service when OIDC is not configured")
+	}
+}
+
+func TestOIDCNativeLoginMarksStateAndCompletes(t *testing.T) {
+	h := newOIDCHarness(t, nil)
+
+	auth, err := h.svc.BeginLogin(context.Background(), true)
+	if err != nil {
+		t.Fatalf("BeginLogin: %v", err)
+	}
+	state := stateFrom(t, auth.AuthorizationURL)
+	if !service.IsNativeOIDCState(state) {
+		t.Fatalf("state %q was not marked as native", state)
+	}
+
+	h.idp.echoNonce(auth.AuthorizationURL)
+	handoff, err := h.svc.CompleteCallback(context.Background(),
+		"authorization-code", state, auth.BrowserToken)
+	if err != nil {
+		t.Fatalf("CompleteCallback: %v", err)
+	}
+	if handoff == "" {
+		t.Error("expected a handoff code")
+	}
+}
+
+func TestOIDCWebLoginStateIsNotMarkedNative(t *testing.T) {
+	h := newOIDCHarness(t, nil)
+
+	auth, err := h.svc.BeginLogin(context.Background(), false)
+	if err != nil {
+		t.Fatalf("BeginLogin: %v", err)
+	}
+	if state := stateFrom(t, auth.AuthorizationURL); service.IsNativeOIDCState(state) {
+		t.Errorf("state %q must not be marked native", state)
 	}
 }

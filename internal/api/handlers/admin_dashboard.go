@@ -190,10 +190,13 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	// admin; the client secret deliberately has no representation here.
 	authMode := generated.AdminConfigAuthModeLocal
 	var oidcIssuer *string
+	var oidcNativeRedirect *string
 	if h.oidcService != nil {
 		authMode = generated.AdminConfigAuthModeOidc
 		issuer := h.oidcService.Config().Issuer
 		oidcIssuer = &issuer
+		nativeRedirect := h.oidcService.NativePostLoginRedirect()
+		oidcNativeRedirect = &nativeRedirect
 	}
 
 	documentFilesEnabled := h.documentFileService != nil && h.documentFileService.Enabled()
@@ -206,6 +209,7 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	config := generated.AdminConfig{
 		AuthMode:                     &authMode,
 		OidcIssuer:                   oidcIssuer,
+		OidcNativeRedirect:           oidcNativeRedirect,
 		GoVersion:                    runtime.Version(),
 		ServerUptime:                 uptimeStr,
 		MigrationVersion:             migrationVersion,
