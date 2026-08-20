@@ -12,6 +12,10 @@ import (
 // todayGerman renders today the way a German-language club export writes it.
 func todayGerman() string { return time.Now().Format("02.01.2006") }
 
+// todayCapzlog renders today the way capzlog.aero writes the date half of its
+// Off Block / On Block timestamps: month-first, without zero padding.
+func todayCapzlog() string { return time.Now().Format("1/2/2006") }
+
 // The import screen asks for the catalogue before a file is chosen, so it can
 // tell a pilot whether their current logbook is covered and how to export from
 // it. It must be authenticated, complete, and self-describing.
@@ -121,10 +125,20 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 			wantFormat: "VEREINSFLIEGER_EXTENDED_CSV",
 		},
 		{
+			// The real Airplane Flights Report header. The row this replaced was
+			// the EASA AMC1 FCL.050 layout under a capzlog filename, written
+			// before a real export was seen — it is now correctly detected as
+			// EASA_CSV, which is what it is.
+			//
+			// Note what the real format does: no date column (the flight is
+			// dated by the month-first "Off Block" timestamp), "Departure" and
+			// "Arrival" are places rather than times, and the airplane report
+			// still carries the Swiss mountain and rotary HESLO/HEC/HHO columns.
 			name:     "capzlog.aero",
 			filename: "capzlog.csv",
-			csv: "Date,Departure Place,Departure Time,Arrival Place,Arrival Time,Aircraft Model,Aircraft Registration,Single Pilot SE,Single Pilot ME,Multi Pilot,Total Time of Flight,Name(s) PIC,Landings Day,Landings Night,Night,IFR,PIC,Co-Pilot,Dual,Instructor,FSTD Date,FSTD Type,FSTD Total Time,Remarks and Endorsements\n" +
-				fmt.Sprintf("%s,LSZH,09:00,LSGG,10:00,C172,HB-ABC,1.0,,,1.0,Anna Berger,1,0,0,0,1.0,,,,,,,Training\n", today()),
+			csv: "Departure,Arrival,Off Block,On Block,Block,Takeoff,Landing,Airborne,Aircraft,Model,Single Engine,Multi Engine,Multi Pilot,PIC Name,Type of Flight,VFR,IFR,Day,Night,Pilot Function,PIC,Copi,Dual,Instructor,Landings,Day Landings,Night Landings,Remark,Mountain Landings,Mountain Takeoffs,Mountain Landings > 2000m,Mountain Landings > 2700m,Glacier Landings,Holding Patterns,Go Arounds,Touch and Goes,Number of PAX,Sea Takeoffs,Sea Landings,InstructionTime,HESLO1 Cycles,HESLO2 Cycles,HESLO3 Cycles,HESLO4 Cycles,HEC1 Cycles,HEC2 Cycles,HHO Cycles,HESLO1 Time,HESLO2 Time,HESLO3 Time,HESLO4 Time,HEC1 Time,HEC2 Time,HHO Time\n" +
+				fmt.Sprintf("EDAZ,EDAY,%s 04:00,%s 06:07,2:07,,,0:00,D-ERAE,C172,2:07,0:00,0:00,Self,VFR,2:07,0:00,2:07,0:00,PIC,2:07,0:00,0:00,0:00,1,1,0,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0:00,0:00,0:00,0:00,0:00,0:00,0:00\n",
+					todayCapzlog(), todayCapzlog()),
 			wantFormat: "CAPZLOG_CSV",
 		},
 		{
