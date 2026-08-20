@@ -88,6 +88,22 @@ func (m *sessionAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID,
 	return result, nil
 }
 
+func (m *sessionAircraftRepo) GetPageByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time, limit, offset int) ([]*models.Aircraft, int, error) {
+	all, err := m.GetByUserID(ctx, userID, updatedSince)
+	if err != nil {
+		return nil, 0, err
+	}
+	total := len(all)
+	if offset >= total {
+		return nil, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
+}
+
 func (m *sessionAircraftRepo) Update(ctx context.Context, a *models.Aircraft) error { return nil }
 func (m *sessionAircraftRepo) UpdateWithFlightRename(ctx context.Context, a *models.Aircraft, oldRegistration string) (int, error) {
 	return 0, nil

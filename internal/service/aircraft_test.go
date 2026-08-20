@@ -2,6 +2,8 @@ package service_test
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -58,6 +60,23 @@ func (m *mockAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID, up
 		}
 	}
 	return result, nil
+}
+
+func (m *mockAircraftRepo) GetPageByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time, limit, offset int) ([]*models.Aircraft, int, error) {
+	all, err := m.GetByUserID(ctx, userID, updatedSince)
+	if err != nil {
+		return nil, 0, err
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Registration < all[j].Registration })
+	total := len(all)
+	if offset >= total {
+		return nil, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
 }
 
 func (m *mockAircraftRepo) Update(ctx context.Context, aircraft *models.Aircraft) error {
@@ -471,6 +490,105 @@ func TestListAircraft(t *testing.T) {
 	if len(list) != 2 {
 		t.Errorf("Expected 2 aircraft for user, got %d", len(list))
 	}
+}
+
+func TestListAircraftPage(t *testing.T) {
+	svc := setupAircraftService()
+	ctx := context.Background()
+	userID := uuid.New()
+	otherID := uuid.New()
+
+	for i := 0; i < 250; i++ {
+		if err := svc.CreateAircraft(ctx, &models.Aircraft{
+			UserID:       userID,
+			Registration: fmt.Sprintf("D-E%03d", i),
+			Type:         "C172", Make: "Cessna", Model: "172", IsActive: true,
+		}); err != nil {
+			t.Fatalf("seed %d: %v", i, err)
+		}
+	}
+	_ = svc.CreateAircraft(ctx, &models.Aircraft{
+		UserID: otherID, Registration: "D-ZZZZ", Type: "C152", Make: "Cessna", Model: "152", IsActive: true,
+	})
+
+	t.Run("total counts only the caller's fleet", func(t *testing.T) {
+		_, total, err := svc.ListAircraftPage(ctx, userID, nil, 1, 100)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if total != 250 {
+			t.Errorf("total = %d, want 250", total)
+		}
+	})
+
+	t.Run("pages do not overlap and cover the fleet", func(t *testing.T) {
+		seen := map[string]bool{}
+		for page := 1; page <= 3; page++ {
+			list, _, err := svc.ListAircraftPage(ctx, userID, nil, page, 100)
+			if err != nil {
+				t.Fatalf("page %d: %v", page, err)
+			}
+			want := 100
+			if page == 3 {
+				want = 50
+			}
+			if len(list) != want {
+				t.Errorf("page %d returned %d aircraft, want %d", page, len(list), want)
+			}
+			for _, a := range list {
+				if seen[a.Registration] {
+					t.Errorf("registration %s returned on more than one page", a.Registration)
+				}
+				seen[a.Registration] = true
+			}
+		}
+		if len(seen) != 250 {
+			t.Errorf("paging covered %d aircraft, want 250", len(seen))
+		}
+	})
+
+	t.Run("pageSize is clamped to the maximum", func(t *testing.T) {
+		list, _, err := svc.ListAircraftPage(ctx, userID, nil, 1, service.MaxAircraftPageSize+1_000)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if len(list) != 250 {
+			t.Errorf("got %d aircraft, want all 250 within the clamped page", len(list))
+		}
+	})
+
+	t.Run("a single request of 500 returns the whole fleet", func(t *testing.T) {
+		list, total, err := svc.ListAircraftPage(ctx, userID, nil, 1, service.MaxAircraftPageSize)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if len(list) != 250 || total != 250 {
+			t.Errorf("got %d of %d, want 250 of 250", len(list), total)
+		}
+	})
+
+	t.Run("page past the end is empty, not an error", func(t *testing.T) {
+		list, total, err := svc.ListAircraftPage(ctx, userID, nil, 99, 100)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if len(list) != 0 {
+			t.Errorf("got %d aircraft past the end, want 0", len(list))
+		}
+		if total != 250 {
+			t.Errorf("total = %d, want 250", total)
+		}
+	})
+
+	t.Run("non-positive page and pageSize fall back to defaults", func(t *testing.T) {
+		list, _, err := svc.ListAircraftPage(ctx, userID, nil, 0, 0)
+		if err != nil {
+			t.Fatalf("ListAircraftPage failed: %v", err)
+		}
+		if len(list) != service.DefaultAircraftPageSize {
+			t.Errorf("got %d aircraft, want the default page size %d", len(list), service.DefaultAircraftPageSize)
+		}
+	})
 }
 
 func TestUpdateAircraft(t *testing.T) {

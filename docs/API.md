@@ -322,6 +322,13 @@ CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`. `r
 is normalised on write into the canonical notation of its state of registry (`pkg/registration`);
 see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 
+`pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
+rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
+`registration ASC` and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
+plus one `COUNT`, not a scan of the whole fleet. Clients that need the complete fleet — the
+fleet list, an aircraft picker — must page until `pagination.page` reaches
+`pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
+
 ### Flights
 CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
 (re-run auto-calculations respecting overrides). `aircraftReg` is normalised the same way
