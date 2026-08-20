@@ -50,6 +50,9 @@ type ServerInterface interface {
 	// GetAdminStats System-wide aggregate statistics
 	// (GET /admin/stats)
 	GetAdminStats(c *gin.Context)
+	// GetUpdateStatus Release update status for the deployed components
+	// (GET /admin/update)
+	GetUpdateStatus(c *gin.Context, params GetUpdateStatusParams)
 	// ListAdminUsers List all users (privacy-preserving)
 	// (GET /admin/users)
 	ListAdminUsers(c *gin.Context, params ListAdminUsersParams)
@@ -681,6 +684,41 @@ func (siw *ServerInterfaceWrapper) GetAdminStats(c *gin.Context) {
 	}
 
 	siw.Handler.GetAdminStats(c)
+}
+
+// GetUpdateStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetUpdateStatus(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUpdateStatusParams
+
+	// ------------- Optional query parameter "frontendVersion" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "frontendVersion", c.Request.URL.Query(), &params.FrontendVersion, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter frontendVersion: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "frontendCommit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "frontendCommit", c.Request.URL.Query(), &params.FrontendCommit, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter frontendCommit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUpdateStatus(c, params)
 }
 
 // ListAdminUsers operation middleware
@@ -3763,6 +3801,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/admin/users/:userId/unlock", wrapper.UnlockUser)
 	router.POST(options.BaseURL+"/admin/users/:userId/reset-2fa", wrapper.ResetUser2fa)
 	router.GET(options.BaseURL+"/admin/stats", wrapper.GetAdminStats)
+	router.GET(options.BaseURL+"/admin/update", wrapper.GetUpdateStatus)
 	router.POST(options.BaseURL+"/admin/maintenance/cleanup-tokens", wrapper.CleanupTokens)
 	router.POST(options.BaseURL+"/admin/maintenance/smtp-test", wrapper.SmtpTest)
 	router.POST(options.BaseURL+"/admin/maintenance/trigger-notifications", wrapper.TriggerNotifications)

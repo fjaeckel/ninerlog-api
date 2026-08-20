@@ -239,6 +239,35 @@ groups:
           summary: "Airport source {{ $labels.source }} is failing"
           description: "{{ $value }} fetch failure(s) for source {{ $labels.source }} (reason: {{ $labels.reason }}) in the last 25h."
 
+  - name: ninerlog-api.updates
+    rules:
+      # A published release this deployment has not taken. Not paging: the
+      # operator chooses when to pull, and the admin console shows the same
+      # thing. The series is absent when the running build carries no semantic
+      # version, so an untagged build never fires this.
+      - alert: NinerlogApiUpdateAvailable
+        expr: app_update_available{job="ninerlog-api",component="api"} == 1
+        for: 24h
+        labels:
+          severity: warning
+        annotations:
+          summary: "A newer NinerLog API release is available"
+          description: "The running API is behind the newest published release. Pull the new image (docker compose pull && docker compose up -d)."
+
+      # The check runs daily (UPDATE_CHECK_INTERVAL) and keeps serving the last
+      # known releases when a lookup fails, so staleness is the signal.
+      # Threshold = 3x the default interval. Deployments that opted out
+      # (UPDATE_CHECK_ENABLED=false) emit no series and never fire.
+      - alert: NinerlogApiUpdateCheckStale
+        expr: |
+          (time() - update_check_last_success_timestamp_seconds{job="ninerlog-api"}) > (3 * 86400)
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Release check has not succeeded in days"
+          description: "The last successful release lookup was {{ $value | humanizeDuration }} ago (expected daily). Update notices are no longer trustworthy."
+
   - name: ninerlog-api.auth
     rules:
       # A surge in failed logins relative to successes suggests credential

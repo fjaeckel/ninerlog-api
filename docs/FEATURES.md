@@ -374,6 +374,14 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).
 - **Maintenance** — cleanup expired tokens, SMTP test, manually trigger the notification
   check.
+- **Update availability** — `GET /admin/update` reports what each component is running
+  against what has been published, so a self-hosted operator sees in the admin console
+  that an upgrade is waiting. A tagged build is compared against the newest GitHub
+  release; a `latest` build, which carries only the commit its image was built from, is
+  compared against the head of the tracked branch and reports how many commits it is
+  behind. The API knows its own version and commit from its build stamps; the frontend
+  reports its own in the request. `UPDATE_CHECK_ENABLED=false` turns the outbound lookup
+  off, after which every component reports `unknown`.
 - **Announcements** — create/delete platform-wide banners (`SystemAnnouncement`,
   served publicly at `GET /announcements`; managed in `announcements.go`).
 
@@ -382,6 +390,9 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
 - **Health** — `GET /health` (used by the Docker healthcheck).
 - **Metrics** — `GET /metrics` (Prometheus), plus a DB-stats collector. See
   [METRICS.md](./METRICS.md).
+- **Release check** — a daily background lookup of the newest published release per
+  component (`internal/updatecheck`), surfaced in the admin console and as
+  `app_update_available`. Opt out with `UPDATE_CHECK_ENABLED=false`.
 - **Profiling** — optional pprof server when `PPROF_ENABLED=true`. See
   [PERFORMANCE.md](./PERFORMANCE.md).
 - **Structured logging, panic recovery, security headers, CORS, rate limiting** — see the

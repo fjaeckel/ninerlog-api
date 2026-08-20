@@ -1104,6 +1104,90 @@ func (e SignatureRequestCreatedStatus) Valid() bool {
 	}
 }
 
+// Defines values for UpdateComponentChannel.
+const (
+	Commit  UpdateComponentChannel = "commit"
+	Release UpdateComponentChannel = "release"
+)
+
+// Valid indicates whether the value is a known member of the UpdateComponentChannel enum.
+func (e UpdateComponentChannel) Valid() bool {
+	switch e {
+	case Commit:
+		return true
+	case Release:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateComponentName.
+const (
+	Api      UpdateComponentName = "api"
+	Frontend UpdateComponentName = "frontend"
+)
+
+// Valid indicates whether the value is a known member of the UpdateComponentName enum.
+func (e UpdateComponentName) Valid() bool {
+	switch e {
+	case Api:
+		return true
+	case Frontend:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateComponentState.
+const (
+	UpdateComponentStateUnknown         UpdateComponentState = "unknown"
+	UpdateComponentStateUpToDate        UpdateComponentState = "up_to_date"
+	UpdateComponentStateUpdateAvailable UpdateComponentState = "update_available"
+)
+
+// Valid indicates whether the value is a known member of the UpdateComponentState enum.
+func (e UpdateComponentState) Valid() bool {
+	switch e {
+	case UpdateComponentStateUnknown:
+		return true
+	case UpdateComponentStateUpToDate:
+		return true
+	case UpdateComponentStateUpdateAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateStatusLastError.
+const (
+	UpdateStatusLastErrorDecode  UpdateStatusLastError = "decode"
+	UpdateStatusLastErrorEmpty   UpdateStatusLastError = "empty"
+	UpdateStatusLastErrorError   UpdateStatusLastError = "error"
+	UpdateStatusLastErrorRequest UpdateStatusLastError = "request"
+	UpdateStatusLastErrorStatus  UpdateStatusLastError = "status"
+)
+
+// Valid indicates whether the value is a known member of the UpdateStatusLastError enum.
+func (e UpdateStatusLastError) Valid() bool {
+	switch e {
+	case UpdateStatusLastErrorDecode:
+		return true
+	case UpdateStatusLastErrorEmpty:
+		return true
+	case UpdateStatusLastErrorError:
+		return true
+	case UpdateStatusLastErrorRequest:
+		return true
+	case UpdateStatusLastErrorStatus:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserDateFormat.
 const (
 	UserDateFormatDDMMYYYY UserDateFormat = "DD.MM.YYYY"
@@ -1521,6 +1605,11 @@ type AdminConfig struct {
 	// AirportDatabaseUpdatedAt When the airport database was last loaded from the upstream sources; null when it never loaded
 	AirportDatabaseUpdatedAt *time.Time `json:"airportDatabaseUpdatedAt,omitempty"`
 
+	// AppVersion Version this API binary was stamped with at build time, falling back to APP_VERSION. `dev` for an unstamped build.
+	//
+	// Example: v1.3.4
+	AppVersion *string `json:"appVersion,omitempty"`
+
 	// AuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
 	AuthMode *AdminConfigAuthMode `json:"authMode,omitempty"`
 
@@ -1608,6 +1697,14 @@ type AdminConfig struct {
 	//
 	// Example: 720h0m0s
 	UnverifiedRetention *string `json:"unverifiedRetention,omitempty"`
+
+	// UpdateCheckEnabled Whether the deployment checks GitHub for newer releases (UPDATE_CHECK_ENABLED)
+	UpdateCheckEnabled *bool `json:"updateCheckEnabled,omitempty"`
+
+	// UpdateCheckInterval How often the release check runs. Absent when the check is disabled.
+	//
+	// Example: 24h0m0s
+	UpdateCheckInterval *string `json:"updateCheckInterval,omitempty"`
 }
 
 // AdminConfigAuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
@@ -4973,6 +5070,82 @@ type TwoFactorSetup struct {
 	Secret string `json:"secret"`
 }
 
+// UpdateComponent defines model for UpdateComponent.
+type UpdateComponent struct {
+	// BehindBy Commits the tracked branch is ahead of this build. Present only on the `commit` channel.
+	//
+	// Example: 7
+	BehindBy *int `json:"behindBy,omitempty"`
+
+	// Channel How `state` was reached. `release` compares a semantic version against the newest published release; `commit` compares the build commit against the tracked branch, which is what an image running the `latest` tag gets. Absent when the state is `unknown`.
+	Channel *UpdateComponentChannel `json:"channel,omitempty"`
+
+	// CompareUrl GitHub comparison between this build and the branch head. Present only on the `commit` channel.
+	CompareUrl *string `json:"compareUrl,omitempty"`
+
+	// CurrentCommit Short commit the running image was built from, absent when the component reported none.
+	//
+	// Example: 4f2c1ab
+	CurrentCommit *string `json:"currentCommit,omitempty"`
+
+	// CurrentVersion Version the component is running. Empty when the frontend did not report one; `dev` for a build that was never stamped.
+	//
+	// Example: v1.3.4
+	CurrentVersion string `json:"currentVersion"`
+
+	// LatestVersion Newest release published for the component, absent until a lookup succeeds
+	//
+	// Example: v1.3.5
+	LatestVersion *string `json:"latestVersion,omitempty"`
+
+	// Name Component this entry describes
+	Name UpdateComponentName `json:"name"`
+
+	// PublishedAt When the newest release was published
+	PublishedAt *time.Time `json:"publishedAt,omitempty"`
+
+	// ReleaseUrl GitHub release page for the newest release
+	ReleaseUrl *string `json:"releaseUrl,omitempty"`
+
+	// State `unknown` means neither comparison could be made: no semantic version, no build commit, or nothing looked up yet.
+	State UpdateComponentState `json:"state"`
+}
+
+// UpdateComponentChannel How `state` was reached. `release` compares a semantic version against the newest published release; `commit` compares the build commit against the tracked branch, which is what an image running the `latest` tag gets. Absent when the state is `unknown`.
+type UpdateComponentChannel string
+
+// UpdateComponentName Component this entry describes
+type UpdateComponentName string
+
+// UpdateComponentState `unknown` means neither comparison could be made: no semantic version, no build commit, or nothing looked up yet.
+type UpdateComponentState string
+
+// UpdateStatus defines model for UpdateStatus.
+type UpdateStatus struct {
+	// Branch Branch a `latest` build's commit is compared against (UPDATE_CHECK_BRANCH)
+	//
+	// Example: main
+	Branch *string `json:"branch,omitempty"`
+
+	// CheckEnabled Whether this deployment checks for releases (UPDATE_CHECK_ENABLED)
+	CheckEnabled bool `json:"checkEnabled"`
+
+	// Components One entry per deployed component, in a stable order.
+	Components []UpdateComponent `json:"components"`
+
+	// LastCheckedAt When the release lookup last ran; null when it never has
+	LastCheckedAt *time.Time `json:"lastCheckedAt,omitempty"`
+
+	// LastError Coarse reason the last lookup failed, absent when it succeeded. `request` is a network or DNS failure, `status` a non-200 answer (rate limiting included), `decode` an unreadable body, `empty` a release without a tag.
+	LastError *UpdateStatusLastError `json:"lastError,omitempty"`
+
+	// UpdateAvailable True when at least one component is behind its newest published release. False when every component is current, unknown, or the check is disabled.
+	UpdateAvailable bool `json:"updateAvailable"`
+}
+
+// UpdateStatusLastError Coarse reason the last lookup failed, absent when it succeeded. `request` is a network or DNS failure, `status` a non-200 answer (rate limiting included), `decode` an unreadable body, `empty` a release without a tag.
+type UpdateStatusLastError string
+
 // User defines model for User.
 type User struct {
 	// CreatedAt Example: 2026-01-15T10:30:00Z
@@ -5200,6 +5373,15 @@ type ListEmailDeliveriesParams struct {
 // ListEmailSuppressionsParams defines parameters for ListEmailSuppressions.
 type ListEmailSuppressionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetUpdateStatusParams defines parameters for GetUpdateStatus.
+type GetUpdateStatusParams struct {
+	// FrontendVersion Version the calling frontend build was stamped with.
+	FrontendVersion *string `form:"frontendVersion,omitempty" json:"frontendVersion,omitempty"`
+
+	// FrontendCommit Commit the calling frontend image was built from. Used when the frontend runs an untagged build (the `latest` image), where there is no version to compare.
+	FrontendCommit *string `form:"frontendCommit,omitempty" json:"frontendCommit,omitempty"`
 }
 
 // ListAdminUsersParams defines parameters for ListAdminUsers.

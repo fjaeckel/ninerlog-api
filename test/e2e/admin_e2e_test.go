@@ -78,6 +78,77 @@ func TestAdminEndpoints(t *testing.T) {
 		if _, ok := cfg["cloudBackupProviders"]; !ok {
 			t.Error("Expected cloudBackupProviders field")
 		}
+		if _, ok := cfg["appVersion"]; !ok {
+			t.Error("Expected appVersion field")
+		}
+		if _, ok := cfg["updateCheckEnabled"]; !ok {
+			t.Error("Expected updateCheckEnabled field")
+		}
+	})
+
+	t.Run("admin update status", func(t *testing.T) {
+		resp := ac.GET("/admin/update")
+		requireStatus(t, resp, http.StatusOK)
+		var status map[string]interface{}
+		resp.JSON(&status)
+
+		if _, ok := status["checkEnabled"].(bool); !ok {
+			t.Errorf("Expected checkEnabled boolean, got %T", status["checkEnabled"])
+		}
+		if _, ok := status["updateAvailable"].(bool); !ok {
+			t.Errorf("Expected updateAvailable boolean, got %T", status["updateAvailable"])
+		}
+
+		components, ok := status["components"].([]interface{})
+		if !ok {
+			t.Fatalf("Expected components array, got %T", status["components"])
+		}
+		seen := map[string]bool{}
+		for _, entry := range components {
+			component, ok := entry.(map[string]interface{})
+			if !ok {
+				t.Fatalf("Expected component object, got %T", entry)
+			}
+			name, _ := component["name"].(string)
+			seen[name] = true
+			state, _ := component["state"].(string)
+			switch state {
+			case "up_to_date", "update_available", "unknown":
+			default:
+				t.Errorf("Component %q has unexpected state %q", name, state)
+			}
+			if _, ok := component["currentVersion"].(string); !ok {
+				t.Errorf("Component %q is missing currentVersion", name)
+			}
+		}
+		for _, want := range []string{"api", "frontend"} {
+			if !seen[want] {
+				t.Errorf("Expected a %q component in the update status", want)
+			}
+		}
+	})
+
+	t.Run("admin update status accepts a frontend version and commit", func(t *testing.T) {
+		resp := ac.GET("/admin/update?frontendVersion=v1.0.0&frontendCommit=4f2c1ab9d3e5c6178b0a2d4e6f8091a2b3c4d5e6")
+		requireStatus(t, resp, http.StatusOK)
+		var status map[string]interface{}
+		resp.JSON(&status)
+
+		components, _ := status["components"].([]interface{})
+		for _, entry := range components {
+			component, _ := entry.(map[string]interface{})
+			if component["name"] != "frontend" {
+				continue
+			}
+			if got := component["currentVersion"]; got != "v1.0.0" {
+				t.Errorf("frontend currentVersion = %v, want v1.0.0", got)
+			}
+			if got := component["currentCommit"]; got != "4f2c1ab" {
+				t.Errorf("frontend currentCommit = %v, want the short form 4f2c1ab", got)
+			}
+			return
+		}
+		t.Error("No frontend component in the update status")
 	})
 
 	t.Run("admin list users", func(t *testing.T) {
@@ -204,6 +275,7 @@ func TestAdminAccessControl(t *testing.T) {
 	t.Run("non-admin stats 403", func(t *testing.T) { assertStatus(t, c.GET("/admin/stats"), http.StatusForbidden) })
 	t.Run("non-admin users 403", func(t *testing.T) { assertStatus(t, c.GET("/admin/users"), http.StatusForbidden) })
 	t.Run("non-admin config 403", func(t *testing.T) { assertStatus(t, c.GET("/admin/config"), http.StatusForbidden) })
+	t.Run("non-admin update 403", func(t *testing.T) { assertStatus(t, c.GET("/admin/update"), http.StatusForbidden) })
 	t.Run("non-admin announce 403", func(t *testing.T) {
 		assertStatus(t, c.POST("/admin/announcements", map[string]interface{}{"message": "X", "severity": "info"}), http.StatusForbidden)
 	})
