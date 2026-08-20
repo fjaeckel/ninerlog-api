@@ -21,6 +21,9 @@ type AdminStats struct {
 	NewUsersThisWeek int
 	LockedAccounts   int
 	DisabledAccounts int
+	// ImportsByFormat maps import_format value to import count. Never nil;
+	// formats with no imports are absent.
+	ImportsByFormat map[string]int
 	// BackupDestinationsByProvider maps provider name to destination count.
 	// Never nil.
 	BackupDestinationsByProvider map[string]int

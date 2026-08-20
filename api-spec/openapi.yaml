@@ -2947,21 +2947,52 @@ paths:
 
   # ── Import ────────────────────────────────────────────────────────────
 
+  /imports/templates:
+    get:
+      tags: [Import]
+      summary: List supported logbook import templates
+      description: |
+        The catalogue of logbook export formats NinerLog can read, each with the
+        steps for exporting from that application.
+
+        The list is static configuration, not per-user data — it is the same for
+        every caller and safe to cache for the lifetime of a session. Uploading
+        a file does not require picking a template first: the format is detected
+        from the header row, and this endpoint exists so the import screen can
+        tell a pilot up front whether their current logbook is covered and how
+        to get the file out of it.
+      operationId: listImportTemplates
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Supported import templates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportTemplateList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /imports/upload:
     post:
       tags: [Import]
       summary: Upload file for import
       description: |
-        Upload a CSV or XLS/XLSX file containing flight log entries.
-        The server parses the file, detects the format (generic CSV, ForeFlight CSV,
-        or Excel), and returns the detected columns along with a preview of the
-        first rows.  No flights are created at this stage.
+        Upload a CSV file containing flight log entries. The server parses the
+        file, matches its header row against the import-template catalogue
+        (`GET /imports/templates`), and returns the detected columns, the
+        matched template, and a preview of the first rows. No flights are
+        created at this stage.
 
-        **Supported formats:**
-        - Generic CSV (comma, semicolon, or tab delimited)
-        - ForeFlight logbook export CSV (auto-detected via header row)
-        - XLS (Excel 97-2003)
-        - XLSX (Excel 2007+)
+        Detection is automatic — the caller does not select a template. When no
+        template matches, `format` is `CSV` and the suggested mappings come from
+        a cross-vendor alias table, so the file still imports via the mapping
+        step rather than being rejected.
+
+        Delimiters (comma, semicolon, tab) are detected per file, and a
+        ForeFlight export's Aircraft Table is parsed alongside the flights so
+        the pilot's fleet is created too.
 
         Maximum file size: 10 MB.
       operationId: uploadImportFile
@@ -7894,12 +7925,38 @@ components:
       enum:
         - CSV
         - FOREFLIGHT_CSV
+        - NINERLOG_CSV
+        - LOGTEN_CSV
+        - MYFLIGHTBOOK_CSV
+        - CAPZLOG_CSV
+        - FLYLOG_CSV
+        - WADER_CSV
+        - VEREINSFLIEGER_CSV
+        - VEREINSFLIEGER_EXTENDED_CSV
+        - SKYDEMON_CSV
+        - EASA_CSV
+        - FAA_CSV
         - XLS
         - XLSX
       description: |
-        Detected file format:
-        - CSV: Generic comma/semicolon/tab-separated values
-        - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+        The import template that matched the uploaded file, detected from its
+        header row. Recording the source format is what makes the import
+        auditable — and it is the value the admin dashboard groups by to show
+        which logbooks pilots are migrating from.
+
+        - CSV: no template matched; columns were mapped by name and by hand
+        - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+        - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+        - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+        - MYFLIGHTBOOK_CSV: MyFlightbook
+        - CAPZLOG_CSV: capzlog.aero
+        - FLYLOG_CSV: FLYLOG.io
+        - WADER_CSV: Wader Pilot Logbook
+        - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+        - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
+        - SKYDEMON_CSV: SkyDemon logbook export
+        - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+        - FAA_CSV: generic FAA/ASA column layout
         - XLS: Microsoft Excel 97-2003 workbook
         - XLSX: Microsoft Excel 2007+ workbook (Open XML)
 
@@ -7922,6 +7979,7 @@ components:
         - ifrTime
         - landingsDay
         - landingsNight
+        - landingsTotal
         - remarks
         - route
         - approachesCount
@@ -7942,6 +8000,13 @@ components:
         - ignore
       description: |
         Target flight log field for column mapping.
+
+        Landings can be mapped either as a day/night split (`landingsDay` +
+        `landingsNight`, which are summed) or as a single `landingsTotal`
+        column. When a file carries both — as ForeFlight and MyFlightbook do —
+        the larger of the two wins, so touch-and-go landings counted only in
+        the total column are not lost.
+
         Person fields (`person1`–`person6`) extract crew members from import rows.
         During ForeFlight imports, role assignment is automatic:
         - If an instructor is detected (via `instructorName` or dual-received time),
@@ -7950,6 +8015,77 @@ components:
         - `person3`–`person6` default to **Passenger**.
         Contacts are auto-created for each unique person name.
         Use `ignore` to skip a column during import.
+
+    ImportTemplate:
+      type: object
+      description: |
+        One logbook export format NinerLog knows how to read, together with the
+        steps for getting that file out of the source application.
+      required:
+        - id
+        - name
+        - description
+        - confidence
+        - regions
+        - exportSteps
+        - autoDetected
+      properties:
+        id:
+          $ref: '#/components/schemas/ImportFormat'
+        name:
+          type: string
+          description: Display name of the source logbook
+          example: MyFlightbook
+        vendor:
+          type: string
+          description: Company or project behind the source logbook
+          example: MyFlightbook
+        website:
+          type: string
+          description: Homepage of the source logbook, when it has one
+          example: https://myflightbook.com
+        description:
+          type: string
+          description: What this template covers and what it cannot carry across
+        confidence:
+          type: string
+          enum: [exact, best-effort]
+          description: |
+            How the template's column list was built.
+            - `exact`: the header row is known verbatim (NinerLog's own exports,
+              or a published and stable column list)
+            - `best-effort`: the aliases cover the documented columns plus the
+              usual spelling variants, but the export has not been verified byte
+              for byte. Auto-detection may miss; the column-mapping step catches it.
+        regions:
+          type: array
+          items:
+            type: string
+            enum: [EASA, FAA]
+          description: Regulatory layouts the source targets
+        exportSteps:
+          type: array
+          items:
+            type: string
+          description: |
+            Ordered, human-readable instructions for exporting from the source
+            application. Shown on the import screen.
+        autoDetected:
+          type: boolean
+          description: |
+            Whether a file in this format is recognised automatically from its
+            header row. `false` means the file still imports, but every column
+            is mapped on the mapping screen.
+
+    ImportTemplateList:
+      type: object
+      required:
+        - templates
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportTemplate'
 
     ImportColumnMapping:
       type: object
@@ -8023,8 +8159,15 @@ components:
             $ref: '#/components/schemas/ImportColumnMapping'
           description: |
             Server-suggested column mappings based on header names.
-            For ForeFlight exports these are pre-filled from the known column layout.
+            When a template matched, these come from that template's column
+            layout; otherwise they fall back to a cross-vendor alias table.
             The user can adjust mappings before submitting the preview request.
+        detectedTemplate:
+          $ref: '#/components/schemas/ImportTemplate'
+          description: |
+            The import template recognised from the header row. Absent when no
+            template matched, in which case `format` is `CSV` and the suggested
+            mappings come from the generic alias table.
 
     ImportPreviewRequest:
       type: object
@@ -8414,6 +8557,7 @@ components:
         - lockedAccounts
         - disabledAccounts
         - cloudBackupDestinations
+        - importsByFormat
       properties:
         totalUsers:
           type: integer
@@ -8456,6 +8600,18 @@ components:
               example:
                 s3: 3
                 sftp: 1
+        importsByFormat:
+          type: object
+          additionalProperties:
+            type: integer
+          description: >-
+            Completed imports grouped by the detected source format, i.e. which
+            logbook pilots are migrating from. Keys are ImportFormat values;
+            formats nobody has imported are omitted.
+          example:
+            FOREFLIGHT_CSV: 12
+            MYFLIGHTBOOK_CSV: 4
+            CSV: 2
 
     Announcement:
       type: object

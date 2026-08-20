@@ -1,0 +1,220 @@
+{
+  "_comment": [
+    "Registry of import sample files. Every .csv in this directory must have an",
+    "entry here, and every entry must have a file — samples_test.go fails on",
+    "either mismatch, so a sample cannot be dropped in without declaring what it",
+    "is meant to prove.",
+    "",
+    "provenance is the load-bearing field. 'generated' samples were produced by",
+    "this repository's own export code and are authoritative. 'synthetic' samples",
+    "were written by hand from a vendor's documented column list and prove only",
+    "that the template matches what we believe the format to be — they cannot",
+    "confirm the belief. Replacing a synthetic sample with a 'real' one (an",
+    "actual, anonymised export from the application) is what turns a best-effort",
+    "template into a verified one.",
+    "",
+    "expectRowErrorFields marks a sample whose first row legitimately cannot become a flight — the source recorded something FlightCreate requires and the file does not carry. It is not a known-failure escape hatch: the listed fields are asserted exactly, so the day the importer stops rejecting that row, or starts rejecting it for a different reason, the test fails.",
+    "expectParseError marks a sample that must be REJECTED, with the message the pilot should see. An export of an empty logbook is a real thing people upload, and telling them the file is malformed sends them hunting for a problem that is not there.",
+    "See README.md for how to contribute a real export."
+  ],
+  "samples": [
+    {
+      "file": "ninerlog-standard.csv",
+      "expectTemplate": "NINERLOG_CSV",
+      "provenance": "generated",
+      "notes": "Frozen output of writeStandardCSV. Also guards backwards compatibility: exports a pilot downloaded from an older version must keep importing.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "C172",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    },
+    {
+      "file": "ninerlog-easa.csv",
+      "expectTemplate": "EASA_CSV",
+      "provenance": "generated",
+      "notes": "Frozen output of writeEASACSV — the AMC1 FCL.050 column layout, H:MM durations, DD.MM.YYYY dates.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "C172",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    },
+    {
+      "file": "ninerlog-faa.csv",
+      "expectTemplate": "FAA_CSV",
+      "provenance": "generated",
+      "notes": "Frozen output of writeFAACSV — decimal-hour durations, MM/DD/YYYY dates, no block times.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "C172",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    },
+    {
+      "file": "foreflight.csv",
+      "expectTemplate": "FOREFLIGHT_CSV",
+      "provenance": "synthetic",
+      "notes": "Written from ForeFlight's documented export layout, including the Aircraft Table preamble and a structured Approach1 cell. Semicolon-delimited, as ForeFlight writes.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    },
+    {
+      "file": "flylog.csv",
+      "expectTemplate": "FLYLOG_CSV",
+      "provenance": "real",
+      "notes": "Real FLYLOG.io export, crew name anonymised (the same replacement in NAME_PIC and NAME_INSTRUCTOR, since one person in both cells is what the sample proves). UPPER_SNAKE_CASE headers, H:MM durations, comma-delimited. NAME_STUDENT=SELF is FLYLOG's marker for the logbook owner and must not become a contact.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-11",
+        "aircraftReg": "D-ERAE",
+        "aircraftType": "C172",
+        "departureIcao": "EDAZ",
+        "arrivalIcao": "EDAY",
+        "totalTimeMinutes": 48,
+        "landings": 1
+      }
+    },
+    {
+      "file": "myflightbook.csv",
+      "expectTemplate": "MYFLIGHTBOOK_CSV",
+      "provenance": "real",
+      "notes": "Real MyFlightbook export. Fully quoted, UTF-8 BOM, 54 columns. Carries both 'Model' (marketing description: 'C-172 S, Cessna Skyhawk SP') and 'ICAO Model' (the type code) — the type must come from the latter. 'Aircraft ID' is MyFlightbook's internal numeric row ID, not a registration. Its one flight has an empty Route, which is why it cannot import.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-14",
+        "aircraftReg": "D-ERAE",
+        "aircraftType": "C172"
+      },
+      "expectRowErrorFields": [
+        "departureIcao",
+        "arrivalIcao"
+      ]
+    },
+    {
+      "file": "logten-dynamic-export.txt",
+      "expectTemplate": "LOGTEN_CSV",
+      "provenance": "real",
+      "notes": "Real LogTen Pro Dynamic Export: TAB-delimited .txt, trailing empty column, trailing blank rows. Uses the FAA short column names ('Dual Rcvd', 'Sim Inst', 'Day Ldg', 'XC'), so it was detected as FAA_CSV and imported as nothing until LOGTEN_CSV got a signature on the columns LogTen alone writes. Out/In are bare four-digit clock times ('1003'). Crew name anonymised.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-13",
+        "aircraftReg": "D-BANA",
+        "aircraftType": "C172",
+        "departureIcao": "EDAZ",
+        "arrivalIcao": "EDAY",
+        "totalTimeMinutes": 151,
+        "landings": 5
+      }
+    },
+    {
+      "file": "wader.csv",
+      "expectTemplate": "WADER_CSV",
+      "provenance": "real",
+      "notes": "Real Wader export. camelCase headers. Nothing needed anonymising: the only crew cell is the literal SELF marker. Unrecorded times are written as 00:00 rather than left blank (takeoffTime and parkingTime here), which the importer drops before deriving a block time. aircraftType is empty, so the type falls back to the registration. totalTime is empty and no on-block was recorded, so this flight imports with a zero total — incomplete source data, not a mapping fault.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-11",
+        "aircraftReg": "D-BANA",
+        "aircraftType": "D-BANA",
+        "departureIcao": "EDAZ",
+        "arrivalIcao": "EDAY",
+        "landings": 1
+      }
+    },
+    {
+      "file": "skydemon-empty.csv",
+      "expectTemplate": "SKYDEMON_CSV",
+      "provenance": "header-only",
+      "notes": "Real SkyDemon export header, but of an EMPTY logbook — one header row, no flights. The column names are therefore verified and the value formats are not: it is unknown whether the time columns carry a full timestamp or a bare clock time, which decides whether a SkyDemon logbook can be dated at all (it has no date column). A populated export is still wanted. Detection is asserted on the header row; the file itself must be rejected with a message that says it has no flights.",
+      "expectParseError": "no flights"
+    },
+    {
+      "file": "capzlog.csv",
+      "expectTemplate": "CAPZLOG_CSV",
+      "provenance": "real",
+      "notes": "Real capzlog.aero Airplane Flights Report. Nothing needed anonymising: the only crew cell is the literal 'Self' marker. No date column — the flight is dated by the 'Off Block' timestamp (8/15/2026 04:00, month-first). 'Departure'/'Arrival' are places, not times; 'Copi' is the co-pilot; 'Remark' is singular. Carries Swiss mountain/glacier and rotary HESLO/HEC/HHO columns even in the airplane report.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2026-08-15",
+        "aircraftReg": "D-ERAE",
+        "aircraftType": "C172",
+        "departureIcao": "EDAZ",
+        "arrivalIcao": "EDAY",
+        "totalTimeMinutes": 127,
+        "landings": 1
+      }
+    },
+    {
+      "file": "skydemon.csv",
+      "expectTemplate": "SKYDEMON_CSV",
+      "provenance": "real",
+      "notes": "Real populated SkyDemon export — the file that settled whether SkyDemon logbooks can be imported at all. Its time columns DO carry full timestamps ('2025-10-11 14:46'), so the flight can be dated; durations are integer MINUTES (PIC Time 67, matching the 67-minute block). Places are written 'ICAO Name' ('EDOI Bienenfarm'), and the registration is exported without its hyphen ('DEROQ'), which registration.Canonical restores to 'D-EROQ'. Crew name anonymised.",
+      "expectRows": 1,
+      "expectFirstRow": {
+        "date": "2025-10-11",
+        "aircraftReg": "D-EROQ",
+        "aircraftType": "C172",
+        "departureIcao": "EDOI",
+        "arrivalIcao": "EDOI",
+        "totalTimeMinutes": 67,
+        "landings": 1
+      }
+    },
+    {
+      "file": "vereinsflieger.csv",
+      "expectTemplate": "VEREINSFLIEGER_CSV",
+      "provenance": "real-header",
+      "notes": "Header row verbatim from a real Vereinsflieger standard export; the values are invented because the source file could not be committed. The value SHAPES are the real ones: dates are DD.MM.YYYY, durations are whole MINUTES in a bare integer ('95'), places are written 'Name ICAO' ('Uetersen EDHE') — the opposite order to SkyDemon — the pilot is 'Surname, First', and every cell is quoted with a semicolon delimiter. The export carries no aircraft type, so the type falls back to the registration, and no off-block/on-block pair, so the total is airborne time.",
+      "expectRows": 3,
+      "expectFirstRow": {
+        "date": "2026-03-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "D-EABC",
+        "departureIcao": "EDHE",
+        "arrivalIcao": "EDHS",
+        "totalTimeMinutes": 95,
+        "landings": 1
+      }
+    },
+    {
+      "file": "vereinsflieger-extended.csv",
+      "expectTemplate": "VEREINSFLIEGER_EXTENDED_CSV",
+      "provenance": "real-header",
+      "notes": "Header row verbatim from a real Vereinsflieger extended export; values invented, shapes real. Same columns as the standard export plus Off-Block, On-Block and 'Blockzeit in Minuten'. It therefore carries two whole-minute durations that mean different things — Flugzeit 95 airborne against Blockzeit 112 block — and the template must total on the block one. This sample is what fails if 'Flugzeit' is ever mapped here again: it sits earlier in the header row and would win the tie.",
+      "expectRows": 3,
+      "expectFirstRow": {
+        "date": "2026-03-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "D-EABC",
+        "departureIcao": "EDHE",
+        "arrivalIcao": "EDHS",
+        "totalTimeMinutes": 112,
+        "landings": 1
+      }
+    }
+  ],
+  "wanted": []
+}

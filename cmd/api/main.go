@@ -531,7 +531,11 @@ func main() {
 			"/exports/pdf",
 			"/custom-currency/preview",
 		))
-		api.Use(middleware.RateLimitByPathPrefix(expensiveRateLimit, "/imports"))
+		// GET /imports/templates is exempt: it serves a static catalogue and is
+		// read every time the import screen opens, so it must not spend the
+		// budget reserved for actual imports.
+		api.Use(middleware.RateLimitByPathPrefixExcept(expensiveRateLimit,
+			[]string{"/imports/templates"}, "/imports"))
 
 		// Advanced search ("q") gets its own per-user bucket, tunable via
 		// SEARCH_RATE_LIMIT_PER_MINUTE; plain /flights listing stays under
