@@ -7,15 +7,13 @@ import (
 
 // Header rows as the respective applications write them.
 //
-// The ForeFlight, NinerLog and EASA/FAA rows are verbatim (they are produced
-// by, or consumed by, code in this repository). FLYLOG.io, MyFlightbook and
-// FLYLOG.io, MyFlightbook, LogTen Pro, Wader, SkyDemon and capzlog.aero are
-// verbatim from real exports — every one of the six was wrong when written from
-// vendor documentation instead. SkyDemon's came from an export of an empty
+// Every header row below is verbatim. The ForeFlight, NinerLog and EASA/FAA
+// rows are produced by, or consumed by, code in this repository; FLYLOG.io,
+// MyFlightbook, LogTen Pro, Wader, SkyDemon, capzlog.aero and both
+// Vereinsflieger exports come from real files. Every one of those was wrong
+// when written from vendor documentation instead, which is why none are
+// written that way any more. SkyDemon's came from an export of an empty
 // logbook, so its column names are verified but its value formats are not.
-// Only Vereinsflieger and mccPILOTLOG remain as documentation guesses. The remainder still
-// reproduce the columns each vendor documents, which is what the best-effort
-// templates target and what makes them provisional.
 var (
 	foreFlightHeaders = strings.Split("Date,AircraftID,From,To,Route,TimeOut,TimeOff,TimeOn,TimeIn,OnDuty,OffDuty,TotalTime,PIC,SIC,Night,Solo,CrossCountry,NVG,NVG Ops,Distance,DayTakeoffs,DayLandingsFullStop,NightTakeoffs,NightLandingsFullStop,AllLandings,ActualInstrument,SimulatedInstrument,HobbsStart,HobbsEnd,TachStart,TachEnd,Holds,Approach1,Approach2,Approach3,Approach4,Approach5,Approach6,DualGiven,DualReceived,SimulatedFlight,GroundTraining,InstructorName,InstructorComments,Person1,Person2,Person3,Person4,Person5,Person6,FlightReview,Checkride,IPC,NVG Proficiency,FAA6158,PilotComments", ",")
 
@@ -67,8 +65,6 @@ var (
 	vereinsfliegerExtendedHeaders = strings.Split(
 		"Datum;Lfz.;Pilot;Begleiter/FI;Start;Landung;Flugzeit;Startort;Landeort;Landungen;Off-Block;On-Block;Blockzeit in Minuten;Flugart;Bemerkung;Abr.", ";")
 
-	mccPilotLogHeaders = strings.Split("flight_date,ac_reg,ac_model,af_dep,af_arr,time_dep,time_arr,time_total,time_night,time_ifr,time_pic,time_dual,time_instructor,pilot1_name,pilot2_name,ldg_day,ldg_night,to_day,to_night,remarks", ",")
-
 	// The real Wader export header row: camelCase, with its own field
 	// vocabulary. The row this replaced assumed EASA column names and
 	// matched nothing, so Wader files were not detected at all.
@@ -98,7 +94,6 @@ func TestDetectIdentifiesEachSource(t *testing.T) {
 		{"FLYLOG.io", flylogHeaders, "FLYLOG_CSV"},
 		{"Vereinsflieger (standard)", vereinsfliegerHeaders, "VEREINSFLIEGER_CSV"},
 		{"Vereinsflieger (extended)", vereinsfliegerExtendedHeaders, "VEREINSFLIEGER_EXTENDED_CSV"},
-		{"mccPILOTLOG", mccPilotLogHeaders, "MCC_PILOTLOG_CSV"},
 		{"Wader", waderHeaders, "WADER_CSV"},
 		{"SkyDemon", skyDemonHeaders, "SKYDEMON_CSV"},
 	}
@@ -209,7 +204,6 @@ func TestSuggestMapsTheEssentialFields(t *testing.T) {
 		"FLYLOG_CSV":                  flylogHeaders,
 		"VEREINSFLIEGER_CSV":          vereinsfliegerHeaders,
 		"VEREINSFLIEGER_EXTENDED_CSV": vereinsfliegerExtendedHeaders,
-		"MCC_PILOTLOG_CSV":            mccPilotLogHeaders,
 		"WADER_CSV":                   waderHeaders,
 		"SKYDEMON_CSV":                skyDemonHeaders,
 	}
@@ -251,7 +245,6 @@ func TestSuggestMapsAirports(t *testing.T) {
 		"FLYLOG_CSV":                  flylogHeaders,
 		"VEREINSFLIEGER_CSV":          vereinsfliegerHeaders,
 		"VEREINSFLIEGER_EXTENDED_CSV": vereinsfliegerExtendedHeaders,
-		"MCC_PILOTLOG_CSV":            mccPilotLogHeaders,
 		"WADER_CSV":                   waderHeaders,
 		"SKYDEMON_CSV":                skyDemonHeaders,
 	}

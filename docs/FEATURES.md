@@ -198,23 +198,23 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   import screen can list supported logbooks and how to export from each.
 
   Covered today: ForeFlight, LogTen Pro, MyFlightbook, capzlog.aero, FLYLOG.io, Wader,
-  Vereinsflieger (both the standard and the extended club export), mccPILOTLOG/CrewLounge,
-  SkyDemon, the generic EASA (AMC1 FCL.050) and FAA column layouts, and NinerLog's own CSV
-  export. One vendor may need more than one template: Vereinsflieger's two exports differ
-  by three columns out of sixteen and share every other alias, so they are told apart by the
-  columns only one of them has, and recorded as separate formats because the standard export
-  carries no block times and therefore totals airborne time instead.
+  Vereinsflieger (both the standard and the extended club export), SkyDemon, the generic
+  EASA (AMC1 FCL.050) and FAA column layouts, and NinerLog's own CSV export. One vendor may
+  need more than one template: Vereinsflieger's two exports differ by three columns out of
+  sixteen and share every other alias, so they are told apart by the columns only one of
+  them has, and recorded as separate formats because the standard export carries no block
+  times and therefore totals airborne time instead.
 
-  Each template declares a `confidence`: `exact` where the header row is known verbatim —
-  NinerLog's own exports and the two regulatory layouts, which this repository also writes,
-  plus every template rebuilt from a real export — and `best-effort` where the aliases cover
-  the vendor's documented columns plus the usual spelling variants but no real export has
-  been seen. A best-effort template is a hypothesis, and every one tested so far has been
-  wrong: FLYLOG.io's was wrong in every column but the date, LogTen files were detected as
-  FAA logbooks and imported as nothing, and Vereinsflieger's missed the aircraft
-  registration, so a club export was detected and then failed every row on a field the file
-  was carrying all along. That is what `testdata/importsamples/` exists for, and why its
-  `wanted` list is worth working through.
+  Every template in the catalogue rests on a file, or at least a header row, that the
+  vendor's own application produced — `testdata/importsamples/` holds them, and its
+  `wanted` list is where a new logbook starts. Templates carry a `confidence` of `exact` or
+  `best-effort`; `best-effort` means the aliases were inferred rather than seen, and nothing
+  in the catalogue is in that state today. It is kept because the distinction is what the
+  import screen tells the pilot, and because the evidence says inference does not work here:
+  every template ever written from vendor documentation was wrong. FLYLOG.io's was wrong in
+  every column but the date. LogTen files were detected as FAA logbooks and imported as
+  nothing. Vereinsflieger's missed the aircraft registration, so a club export was detected
+  and then failed every row on a field the file was carrying all along.
 
   Detection never blocks an import. A file that matches nothing is recorded as `CSV` and
   mapped through a cross-vendor alias table, then adjusted on the mapping screen — so an

@@ -145,10 +145,11 @@ vendor documentation first, and every one was wrong:
   writes. The template's signature matched none of the real column names, so
   the file was not detected at all.
 
-Seven files, eleven defects, none of which a header-row test written from the
-same assumptions could have caught. Every single template written from vendor
-documentation has been wrong — treat the two that remain that way
-(Vereinsflieger, mccPILOTLOG) as wrong until a real file says otherwise.
+Seven files and two header rows; twelve defects, none of which a header-row test
+written from the same assumptions could have caught. Every single template
+written from vendor documentation turned out to be wrong, without exception —
+so none are written that way any more. If a logbook is not in this directory, it
+is not in the catalogue.
 
 Two SkyDemon samples are kept deliberately. `skydemon-empty.csv` is an export
 of an empty logbook and pins the rejection message for that case;
@@ -161,5 +162,6 @@ Three products — FLYLOG.io, Wader and capzlog.aero — write a literal self-ma
 into a crew cell for the logbook's owner, which is why the importer drops it
 rather than creating a contact called "SELF".
 
-Still wanted: see the `wanted` list in `manifest.json` — Vereinsflieger and
-mccPILOTLOG.
+Still wanted: see the `wanted` list in `manifest.json`. It is empty today —
+every template in the catalogue rests on a real export or a real header row. A
+new logbook adds an entry there first, and the template follows the file.

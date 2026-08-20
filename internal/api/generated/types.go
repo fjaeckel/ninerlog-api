@@ -828,7 +828,6 @@ const (
 	FLYLOGCSV                 ImportFormat = "FLYLOG_CSV"
 	FOREFLIGHTCSV             ImportFormat = "FOREFLIGHT_CSV"
 	LOGTENCSV                 ImportFormat = "LOGTEN_CSV"
-	MCCPILOTLOGCSV            ImportFormat = "MCC_PILOTLOG_CSV"
 	MYFLIGHTBOOKCSV           ImportFormat = "MYFLIGHTBOOK_CSV"
 	NINERLOGCSV               ImportFormat = "NINERLOG_CSV"
 	SKYDEMONCSV               ImportFormat = "SKYDEMON_CSV"
@@ -855,8 +854,6 @@ func (e ImportFormat) Valid() bool {
 	case FOREFLIGHTCSV:
 		return true
 	case LOGTENCSV:
-		return true
-	case MCCPILOTLOGCSV:
 		return true
 	case MYFLIGHTBOOKCSV:
 		return true
@@ -4035,7 +4032,6 @@ type ImportField string
 // - WADER_CSV: Wader Pilot Logbook
 // - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 // - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
-// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
 // - SKYDEMON_CSV: SkyDemon logbook export
 // - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 // - FAA_CSV: generic FAA/ASA column layout
@@ -4216,7 +4212,6 @@ type ImportResult struct {
 	// - WADER_CSV: Wader Pilot Logbook
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
-	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
 	// - SKYDEMON_CSV: SkyDemon logbook export
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout
@@ -4299,7 +4294,6 @@ type ImportTemplate struct {
 	// - WADER_CSV: Wader Pilot Logbook
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
-	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
 	// - SKYDEMON_CSV: SkyDemon logbook export
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout
@@ -4368,7 +4362,6 @@ type ImportUploadResponse struct {
 	// - WADER_CSV: Wader Pilot Logbook
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
-	// - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
 	// - SKYDEMON_CSV: SkyDemon logbook export
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout

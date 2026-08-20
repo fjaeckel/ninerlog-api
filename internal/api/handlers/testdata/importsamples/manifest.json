@@ -216,11 +216,5 @@
       }
     }
   ],
-  "wanted": [
-    {
-      "template": "MCC_PILOTLOG_CSV",
-      "why": "Assumed to use the mcc_/flight_ prefixed database column names. Unverified.",
-      "howToExport": "mccPILOTLOG / CrewLounge PILOTLOG → File → Export → CSV."
-    }
-  ]
+  "wanted": []
 }

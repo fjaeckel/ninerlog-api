@@ -757,7 +757,7 @@ var flylogTemplate = register(&Template{
 		// co-pilot as a passenger is worse than leaving the column for the
 		// pilot to assign, and the mapping screen now counts unmapped columns
 		// so it is visible rather than silent. Role-typed crew import fields
-		// would fix this properly for FLYLOG, LogTen and mccPILOTLOG alike.
+		// would fix this properly for FLYLOG and LogTen alike.
 		"name_copilot":  FieldIgnore,
 		"name_picus":    FieldIgnore,
 		"name_examiner": FieldIgnore,
@@ -998,52 +998,6 @@ var vereinsfliegerExtendedTemplate = register(&Template{
 		"off-block", "on-block", "blockzeit in minuten",
 	}, vereinsfliegerSharedSignature...),
 	MinSignatureHits: 5,
-	Priority:         10,
-})
-
-var mccPilotLogTemplate = register(&Template{
-	ID:          "MCC_PILOTLOG_CSV",
-	Name:        "mccPILOTLOG",
-	Vendor:      "CrewLounge AERO",
-	Website:     "https://crewlounge.aero",
-	Description: "mccPILOTLOG / CrewLounge PILOTLOG export. Its column names carry the mcc_ and flight_ prefixes used by the desktop database.",
-	Confidence:  ConfidenceBestEffort,
-	Regions:     []string{"EASA", "FAA"},
-	ExportSteps: []string{
-		"Open mccPILOTLOG or CrewLounge PILOTLOG on your computer.",
-		"Go to File → Export and choose the CSV / text export.",
-		"Select all flights and export.",
-		"Upload the downloaded file here.",
-	},
-	DateFormat: "2006-01-02",
-	Columns: merge(coreColumns, easaColumns, map[string]Field{
-		"flight_date":     FieldDate,
-		"ac_reg":          FieldAircraftReg,
-		"ac_model":        FieldAircraftType,
-		"af_dep":          FieldDepartureIcao,
-		"af_arr":          FieldArrivalIcao,
-		"time_dep":        FieldOffBlockTime,
-		"time_arr":        FieldOnBlockTime,
-		"time_total":      FieldTotalTime,
-		"time_night":      FieldNightTime,
-		"time_ifr":        FieldIFRTime,
-		"time_instructor": FieldDualGivenTime,
-		"time_dual":       FieldIsDual,
-		"time_pic":        FieldIsPic,
-		"pilot1_name":     FieldPerson1,
-		"pilot2_name":     FieldPerson2,
-		"pilot3_name":     FieldPerson3,
-		"pilot4_name":     FieldPerson4,
-		"ldg_day":         FieldLandingsDay,
-		"ldg_night":       FieldLandingsNight,
-		"to_day":          FieldIgnore,
-		"to_night":        FieldIgnore,
-	}),
-	Signature: []string{
-		"time_total", "af_dep", "af_arr", "ac_reg", "pilot1_name",
-		"ldg_day", "ldg_night", "flight_date",
-	},
-	MinSignatureHits: 3,
 	Priority:         10,
 })
 

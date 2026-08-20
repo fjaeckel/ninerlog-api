@@ -342,7 +342,7 @@ func TestImportTemplateCatalogueIsServable(t *testing.T) {
 		generated.CSV, generated.FOREFLIGHTCSV, generated.NINERLOGCSV, generated.LOGTENCSV,
 		generated.MYFLIGHTBOOKCSV, generated.CAPZLOGCSV, generated.FLYLOGCSV, generated.WADERCSV,
 		generated.VEREINSFLIEGERCSV, generated.VEREINSFLIEGEREXTENDEDCSV,
-		generated.MCCPILOTLOGCSV, generated.SKYDEMONCSV,
+		generated.SKYDEMONCSV,
 		generated.EASACSV, generated.FAACSV, generated.XLS, generated.XLSX,
 	} {
 		valid[f] = true

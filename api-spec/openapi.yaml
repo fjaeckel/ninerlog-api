@@ -7812,7 +7812,6 @@ components:
         - WADER_CSV
         - VEREINSFLIEGER_CSV
         - VEREINSFLIEGER_EXTENDED_CSV
-        - MCC_PILOTLOG_CSV
         - SKYDEMON_CSV
         - EASA_CSV
         - FAA_CSV
@@ -7834,7 +7833,6 @@ components:
         - WADER_CSV: Wader Pilot Logbook
         - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
         - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
-        - MCC_PILOTLOG_CSV: mccPILOTLOG / CrewLounge PILOTLOG
         - SKYDEMON_CSV: SkyDemon logbook export
         - EASA_CSV: generic EASA AMC1 FCL.050 column layout
         - FAA_CSV: generic FAA/ASA column layout
