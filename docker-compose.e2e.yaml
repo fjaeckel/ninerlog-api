@@ -156,6 +156,8 @@ services:
       NOTIFICATION_CHECK_INTERVAL: "24h"
       # No periodic airport refetch in test containers
       AIRPORT_REFRESH_INTERVAL: "off"
+      # No GitHub release lookups from test containers
+      UPDATE_CHECK_ENABLED: "false"
       # Cloud backups: 32-byte base64 key (deterministic for e2e only)
       BACKUP_CREDENTIALS_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
       # The e2e backup targets (seaweedfs-test, sftp, webdav) are Docker

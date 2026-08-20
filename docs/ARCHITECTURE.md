@@ -116,9 +116,10 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
     routes not in the spec (reports, flight utilities, and the OIDC browser redirects,
     which are navigations rather than JSON operations).
 11. **Start background workers**: the notification background checker, the airport
-    database refresher (`AIRPORT_REFRESH_INTERVAL`, default 24h), the import-session
-    reaper, the idempotency-record reaper, the deletion-tombstone reaper, and
-    (optionally) the backup scheduler — all bound to a cancellable context.
+    database refresher (`AIRPORT_REFRESH_INTERVAL`, default 24h), the release update
+    check (`UPDATE_CHECK_INTERVAL`, default 24h), the import-session reaper, the
+    idempotency-record reaper, the deletion-tombstone reaper, and (optionally) the
+    backup scheduler — all bound to a cancellable context.
 12. **Serve** with graceful shutdown that stops background workers.
 
 ### Optional / feature-flagged subsystems
@@ -131,6 +132,7 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 | Cloud backups | backup credentials key set | Registers S3/SFTP/WebDAV providers + scheduler |
 | pprof profiling | `PPROF_ENABLED=true` | Debug profiling server |
 | Airport DB refresh | `AIRPORT_REFRESH_INTERVAL` ≠ `off`/`0` | Refetches and re-merges both airport datasets on a timer |
+| Release update check | `UPDATE_CHECK_ENABLED` not `false` | Reads the newest published GitHub release per component on a timer and serves `GET /admin/update`; the only outbound call the API makes on its own behalf besides the airport datasets |
 | Licence/credential files | `DOCUMENT_FILES_ENABLED` not `false` (legacy `DOCUMENT_IMAGES_ENABLED` still honoured) | Reference photos, scans and PDFs on licences and credentials. Off closes every `/files` endpoint (reads included) with 403 and is reported by `GET /features`; stored rows are untouched |
 
 ## Cross-cutting concerns

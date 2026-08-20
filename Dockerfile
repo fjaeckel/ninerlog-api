@@ -13,10 +13,12 @@ RUN go mod download
 # Copy source code (includes pre-generated types in internal/api/generated/)
 COPY . .
 
-# Build the application (TARGETARCH is set automatically by Docker Buildx)
+# Build the application (TARGETARCH is set automatically by Docker Buildx).
+# VERSION is stamped into the binary and reported by /admin/update and app_info.
 ARG TARGETARCH
+ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
-    -ldflags="-w -s" \
+    -ldflags="-w -s -X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildVersion=${VERSION}" \
     -o /build/ninerlog-api \
     ./cmd/api
 

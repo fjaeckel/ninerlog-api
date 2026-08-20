@@ -11,8 +11,12 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 | Env Var | Default | Description |
 |---------|---------|-------------|
 | `METRICS_ENABLED` | `true` | Set to `false` to disable metrics collection |
-| `APP_VERSION` | `dev` | Version string exposed in `app_info` gauge |
+| `APP_VERSION` | `dev` | Version string exposed in the `app_info` gauge, used only when the binary carries no build stamp |
 | `AIRPORT_REFRESH_INTERVAL` | `24h` | How often the airport database is refetched. `off` or `0s` disables the refresher |
+| `UPDATE_CHECK_ENABLED` | `true` | Set to `false` to stop looking up published releases on GitHub. No `update_check_*` series are emitted when off |
+| `UPDATE_CHECK_INTERVAL` | `24h` | How often the release lookup runs. `off` or `0s` leaves only the lookup performed at startup |
+| `UPDATE_CHECK_API_REPO` | `fjaeckel/ninerlog-api` | `owner/name` repository the API's releases are read from |
+| `UPDATE_CHECK_FRONTEND_REPO` | `fjaeckel/ninerlog-frontend` | `owner/name` repository the frontend's releases are read from |
 
 Rate limiting is not a metrics setting, but it is what the rate-limit metrics
 below are for:
@@ -153,6 +157,27 @@ The in-memory airport database (`internal/airports`) merges two upstream dataset
 > `airport_db_age_seconds` rather than on reload failures alone — a single failed refresh
 > is harmless because the previous snapshot keeps serving, but a database that stops
 > refreshing for days is drifting away from the upstream data.
+
+### Release Update Check Metrics
+
+The release check (`internal/updatecheck`) compares the running components against the
+newest release published for each component's repository. It is skipped entirely when
+`UPDATE_CHECK_ENABLED=false`, in which case none of these series exist.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `update_check_runs_total` | Counter | `result` | Release check runs. Results: `success` (every component read), `error` (at least one failed) |
+| `update_check_errors_total` | Counter | `reason` | Lookup failures. Reasons: `request` (network/DNS), `status` (non-200, including GitHub rate limiting), `decode` (unreadable body), `empty` (release without a tag) |
+| `update_check_duration_seconds` | Histogram | — | Duration of one run, covering every component queried |
+| `update_check_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last run in which every component was read |
+| `app_update_available` | Gauge | `component` | 1 when a newer release exists, 0 when current. Only `component="api"`: the frontend's running version is known to the browser, not to the API. The series is absent while the running version is not a semantic version |
+| `update_check_latest_version_info` | Gauge (const 1) | `component`, `version` | Newest published release per component. Components: `api`, `frontend` |
+
+> **Why this matters:** `app_update_available` is the series to alert on for a
+> self-hosted deployment — it is the only signal that a security fix has shipped
+> and this instance has not taken it. A failing check is not urgent on its own,
+> which is why staleness (`update_check_last_success_timestamp_seconds`) rather
+> than `update_check_errors_total` is what the alert rule watches.
 
 ### Email Delivery Metrics
 

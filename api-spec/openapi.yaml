@@ -4238,6 +4238,45 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /admin/update:
+    get:
+      tags:
+        - Admin
+      summary: Release update status for the deployed components
+      description: |
+        Reports the version each NinerLog component is running against the newest
+        release published on GitHub. The API knows its own version from its build
+        stamp; the frontend supplies its own via `frontendVersion`.
+
+        Releases are looked up in the background at most once per interval and
+        cached, so this endpoint never blocks on GitHub. When the deployment has
+        opted out (`UPDATE_CHECK_ENABLED=false`) the response reports
+        `checkEnabled: false` and every component is `unknown`.
+        Requires admin privileges.
+      operationId: getUpdateStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: frontendVersion
+          in: query
+          required: false
+          description: Version the calling frontend build was stamped with.
+          schema:
+            type: string
+            maxLength: 64
+            example: v1.3.2
+      responses:
+        '200':
+          description: Update status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /admin/maintenance/cleanup-tokens:
     post:
       tags:
@@ -8660,6 +8699,19 @@ components:
         - cloudBackupsConfigured
         - cloudBackupProviders
       properties:
+        appVersion:
+          type: string
+          description: >-
+            Version this API binary was stamped with at build time, falling back
+            to APP_VERSION. `dev` for an unstamped build.
+          example: v1.3.4
+        updateCheckEnabled:
+          type: boolean
+          description: Whether the deployment checks GitHub for newer releases (UPDATE_CHECK_ENABLED)
+        updateCheckInterval:
+          type: string
+          description: How often the release check runs. Absent when the check is disabled.
+          example: 24h0m0s
         goVersion:
           type: string
           example: go1.23.0
@@ -8762,6 +8814,84 @@ components:
             type: string
           description: Names of registered cloud backup providers (e.g. s3, sftp, webdav). Empty when cloud backups are disabled.
           example: [s3, sftp, webdav]
+
+    UpdateStatus:
+      type: object
+      required:
+        - checkEnabled
+        - updateAvailable
+        - components
+      properties:
+        checkEnabled:
+          type: boolean
+          description: Whether this deployment checks for releases (UPDATE_CHECK_ENABLED)
+        updateAvailable:
+          type: boolean
+          description: >-
+            True when at least one component is behind its newest published
+            release. False when every component is current, unknown, or the
+            check is disabled.
+        lastCheckedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the release lookup last ran; null when it never has
+        lastError:
+          type: string
+          enum:
+            - request
+            - status
+            - decode
+            - empty
+            - error
+          description: >-
+            Coarse reason the last lookup failed, absent when it succeeded.
+            `request` is a network or DNS failure, `status` a non-200 answer
+            (rate limiting included), `decode` an unreadable body, `empty` a
+            release without a tag.
+        components:
+          type: array
+          description: One entry per deployed component, in a stable order.
+          items:
+            $ref: '#/components/schemas/UpdateComponent'
+
+    UpdateComponent:
+      type: object
+      required:
+        - name
+        - currentVersion
+        - state
+      properties:
+        name:
+          type: string
+          enum: [api, frontend]
+          description: Component this entry describes
+        currentVersion:
+          type: string
+          description: >-
+            Version the component is running. Empty when the frontend did not
+            report one; `dev` for a build that was never stamped.
+          example: v1.3.4
+        latestVersion:
+          type: string
+          description: Newest release published for the component, absent until a lookup succeeds
+          example: v1.3.5
+        state:
+          type: string
+          enum:
+            - up_to_date
+            - update_available
+            - unknown
+          description: >-
+            `unknown` covers a running version that is not a semantic version
+            (`dev`, `latest`, a commit SHA) and a component whose release has
+            not been looked up yet.
+        releaseUrl:
+          type: string
+          description: GitHub release page for the newest release
+        publishedAt:
+          type: string
+          format: date-time
+          description: When the newest release was published
 
     AdminUser:
       type: object

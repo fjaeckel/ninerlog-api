@@ -27,6 +27,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/sftp"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/webdav"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
+	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
@@ -359,6 +360,10 @@ func main() {
 	apiHandler.SetStartedAt(startedAt)
 	apiHandler.SetCORSOrigins(corsOrigins)
 
+	// Release check against GitHub (UPDATE_CHECK_ENABLED=false opts out).
+	updateChecker := updatecheck.New(updatecheck.FromEnv())
+	apiHandler.SetUpdateChecker(updateChecker)
+
 	// Cloud backup service (optional — enabled only when BACKUP_CREDENTIALS_KEY is set).
 	var backupScheduler *cloudbackup.Scheduler
 	if backupKey := os.Getenv("BACKUP_CREDENTIALS_KEY"); backupKey != "" {
@@ -458,11 +463,7 @@ func main() {
 
 	// Prometheus metrics endpoint (no auth required, alongside /health)
 	if metricsEnabled {
-		appVersion := os.Getenv("APP_VERSION")
-		if appVersion == "" {
-			appVersion = "dev"
-		}
-		middleware.RegisterAppMetrics(appVersion, startedAt)
+		middleware.RegisterAppMetrics(updatecheck.RunningVersion(), startedAt)
 		prometheus.MustRegister(middleware.NewDBStatsCollector(db))
 
 		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -669,6 +670,10 @@ func main() {
 	// Refetch the airport database on a timer (AIRPORT_REFRESH_INTERVAL,
 	// default 24h). A failed refresh keeps the snapshot already in memory.
 	airports.StartRefresher(notifCtx, airports.RefreshInterval())
+
+	// Look up the newest published releases at startup and on a timer
+	// (UPDATE_CHECK_INTERVAL, default 24h).
+	updateChecker.Start(notifCtx)
 
 	// Evict expired CSV upload sessions on a timer.
 	handlers.StartImportSessionReaper(notifCtx, time.Minute)

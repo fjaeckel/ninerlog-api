@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
+	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
@@ -58,6 +59,9 @@ type APIHandler struct {
 	// cmd/api/main.go; the admin endpoints that use them answer 503 when nil.
 	emailDeliveryService     *service.EmailDeliveryService
 	unverifiedAccountService *service.UnverifiedAccountService
+	// updateChecker is nil until wired in cmd/api/main.go; GET /admin/update
+	// then reports the check as disabled.
+	updateChecker *updatecheck.Checker
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

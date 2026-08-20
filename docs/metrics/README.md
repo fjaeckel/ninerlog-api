@@ -181,7 +181,7 @@ dashboard dropdown in the top-right.
 | File | Focus |
 |------|-------|
 | [`dashboards/ninerlog-api-overview.json`](./dashboards/ninerlog-api-overview.json) | RED method: request rate, error rate, latency percentiles (global and per-route), in-flight, panics, response sizes, 4xx breakdown, rate-limit hits by limiter |
-| [`dashboards/ninerlog-operational.json`](./dashboards/ninerlog-operational.json) | Service health and version, DB pool and utilization, notification job freshness and errors, email delivery and SMTP latency, login/refresh/2FA, Go runtime |
+| [`dashboards/ninerlog-operational.json`](./dashboards/ninerlog-operational.json) | Service health and version, DB pool and utilization, notification job freshness and errors, email delivery and SMTP latency, login/refresh/2FA, Go runtime, release update availability and check health |
 | [`dashboards/ninerlog-ratelimits.json`](./dashboards/ninerlog-ratelimits.json) | **Start here to tune a limit.** Rejection ratio per limiter, search headroom and latency cost, rejections by route, and a cross-check against the 429s actually served |
 | [`dashboards/ninerlog-airports.json`](./dashboards/ninerlog-airports.json) | Airport database: snapshot age and size, reload outcomes, upstream fetch failures by source and reason, merge composition, lookup hit/miss/unavailable rates |
 | [`dashboards/ninerlog-accounts.json`](./dashboards/ninerlog-accounts.json) | Sign-in and account lifecycle: OIDC login flow by result, WebAuthn ceremonies started vs completed vs expired, verification reminders and unverified-account deletions |
@@ -210,9 +210,10 @@ notification background job going stale. Warning alerts cover elevated latency,
 recovered panics, a spike in login failures (possible brute force), a limiter
 rejecting more than 5% of its own traffic, flight search being throttled at all
 (a tighter 1% threshold, because search is interactive), a stale airport
-database, a failing airport source, a growing email suppression list, and the
+database, a failing airport source, a growing email suppression list, the
 unverified-account reaper deleting in bulk or sending its final warning into a
-void.
+void, a newer release having been published for more than a day, and the release
+check itself going stale.
 
 The two account alerts exist because deletion is irreversible and the affected
 user is by definition not around to complain: a spike in
