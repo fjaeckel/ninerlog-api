@@ -25,6 +25,7 @@ on, and it is a *mode switch*, not an extra sign-in button.
 - [Migrating an existing deployment](#migrating-an-existing-deployment)
 - [Administrators](#administrators)
 - [Frontend integration](#frontend-integration)
+- [Native app integration](#native-app-integration)
 - [Troubleshooting](#troubleshooting)
 - [Security properties](#security-properties)
 
@@ -84,7 +85,7 @@ does not override this — the mode wins. `GET /api/v1/admin/config` reports
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/v1/auth/providers` | Public capability probe — which mode is this server in |
-| `GET /api/v1/auth/oidc/authorize` | Browser redirect that starts a login |
+| `GET /api/v1/auth/oidc/authorize` | Browser redirect that starts a login (`?native=1` for a native client) |
 | `GET /api/v1/auth/oidc/callback` | Where the provider sends the browser back |
 | `POST /api/v1/auth/oidc/exchange` | Swaps the one-time handoff code for tokens |
 
@@ -161,6 +162,7 @@ identity provider in the same compose stack works regardless of order.
 | `OIDC_NAME_CLAIM` | `name` | Claim used as the pilot's display name. Falls back to `name`, then `preferred_username`, then the local part of the address. |
 | `OIDC_LINK_BY_VERIFIED_EMAIL` | `false` | Let a first OIDC login adopt an existing local account with the same address. See [Migrating](#migrating-an-existing-deployment) — read that before switching it on. |
 | `OIDC_TRUST_EMAIL_VERIFIED` | `false` | Treat provisioned addresses as verified even when the ID token carries no `email_verified` claim. Needed for providers that omit it, and **required for `ADMIN_EMAIL` to work** with such a provider. |
+| `OIDC_NATIVE_POST_LOGIN_REDIRECT` | `ninerlog://auth/callback` | Where a login started with `?native=1` finishes. A custom-scheme URI the mobile app intercepts in its own web-authentication session. Change it only for a different native client; the official app registers the default. |
 | `OIDC_LOGIN_STATE_TTL` | `10m` | How long a started login stays completable — the window in which the user types their password and passes MFA at the provider. |
 | `OIDC_HANDOFF_TTL` | `60s` | How long the code in the post-login redirect stays redeemable. One automatic request; seconds are enough. |
 
@@ -426,7 +428,13 @@ GET /api/v1/auth/providers
   "registrationEnabled": false,
   "twoFactorEnabled": false,
   "webauthnEnabled": false,
-  "oidc": { "enabled": true, "name": "Authentik", "authorizeUrl": "/api/v1/auth/oidc/authorize" }
+  "oidc": {
+    "enabled": true,
+    "name": "Authentik",
+    "authorizeUrl": "/api/v1/auth/oidc/authorize",
+    "nativeAuthorizeUrl": "/api/v1/auth/oidc/authorize?native=1",
+    "nativeRedirectUri": "ninerlog://auth/callback"
+  }
 }
 ```
 
@@ -451,6 +459,53 @@ logout at the provider is not implemented.
 
 ---
 
+## Native app integration
+
+A mobile app cannot receive the web frontend's redirect. iOS only lets an app
+intercept an `https` callback for a domain named in its signed Associated
+Domains entitlement, and a self-hosted frontend's domain is unknowable at
+signing time — so every OIDC deployment would be unreachable from the app.
+
+The native flow answers that with a second, custom-scheme post-login target:
+
+```http
+GET /api/v1/auth/providers
+```
+
+```json
+{
+  "mode": "oidc",
+  "oidc": {
+    "enabled": true,
+    "name": "Authentik",
+    "authorizeUrl": "/api/v1/auth/oidc/authorize",
+    "nativeAuthorizeUrl": "/api/v1/auth/oidc/authorize?native=1",
+    "nativeRedirectUri": "ninerlog://auth/callback"
+  }
+}
+```
+
+The app opens `nativeAuthorizeUrl` in a system web-authentication session and
+waits for `nativeRedirectUri`. Everything else is the web flow exactly: the
+same provider round trip, the same state, nonce, PKCE and browser-binding
+cookie, and the same `?oidc_code=…` / `?oidc_error=…` parameters, redeemed at
+`POST /auth/oidc/exchange`.
+
+`native=1` is recorded in the `state` parameter, which the provider echoes on
+success and on error alike. The callback reads it before consuming anything, so
+a login that fails on the way — a denied consent, an expired state — still
+lands back in the app rather than in a browser the app cannot see.
+
+Neither target is ever taken from the request: the flag selects between two
+values fixed in configuration, so the callback remains closed to open
+redirection.
+
+The metric separates the two: `auth_oidc_login_attempts_total{result="authorize_native"}`
+counts native starts, `result="authorize"` web ones. Everything after that step
+is shared.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -463,6 +518,8 @@ logout at the provider is not implemented.
 | `?oidc_error=email_conflict` | The address belongs to an existing local account | See [Migrating](#migrating-an-existing-deployment) |
 | `?oidc_error=account_disabled` | An admin disabled the account | `POST /admin/users/{id}/enable` |
 | `?oidc_error=login_failed` after entering credentials | ID token failed verification, or the code exchange was rejected | Check the server log — signature, issuer, audience and nonce failures are logged with the reason |
+| The app's SSO button opens nothing, or reports an unexpected answer | The app is on a build that predates `nativeRedirectUri` | Update the app; the flow needs `?native=1` support on both sides |
+| Native login lands in a browser instead of the app | The app started the login at `authorizeUrl` rather than `nativeAuthorizeUrl` | Read `nativeAuthorizeUrl` from `/auth/providers` |
 | Provider reports `redirect_uri_mismatch` | `OIDC_REDIRECT_URL` differs from the registration | They must match exactly, including scheme, port and trailing path |
 | Admin rights not granted | Address provisioned unverified | Set `OIDC_TRUST_EMAIL_VERIFIED=true`, or make the provider emit `email_verified` |
 
@@ -487,6 +544,7 @@ What the implementation guarantees, and where to verify each claim:
 | Only SHA-256 hashes of state, browser token and handoff code are stored — a database dump yields nothing replayable | migration `000055` |
 | Tokens never travel in a URL; the redirect carries a single-use 60-second code | `OIDCCallback` → `ExchangeOidcCode` |
 | Redirect target comes from configuration, never from the request — no open redirect | `redirectOIDC` |
+| The native flag selects between two configured targets and cannot introduce a third | `redirectOIDC`, `IsNativeOIDCState` |
 | Identity matched on `(issuer, sub)`, never on email | `provisionUser` |
 | Adopting an existing local account requires an operator opt-in *and* a verified-email assertion | `provisionUser` |
 | Disabled accounts refused at provisioning and again at code redemption | `provisionUser`, `ExchangeHandoff` |

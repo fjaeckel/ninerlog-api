@@ -81,7 +81,7 @@ design, so this metric is where the actual failure reason surfaces. See
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `auth_oidc_login_attempts_total` | Counter | `result` | Steps of the OIDC login flow. `result`: `authorize`, `callback_success`, `success`, `authorize_failed`, `provider_error`, `provider_unavailable`, `invalid_state`, `email_missing`, `email_conflict`, `account_disabled`, `handoff_invalid`, `error` |
+| `auth_oidc_login_attempts_total` | Counter | `result` | Steps of the OIDC login flow. `result`: `authorize`, `authorize_native`, `callback_success`, `success`, `authorize_failed`, `provider_error`, `provider_unavailable`, `invalid_state`, `email_missing`, `email_conflict`, `account_disabled`, `handoff_invalid`, `error` |
 
 A gap between `authorize` and `callback_success` means users are dropping out at the
 provider. `invalid_state` rising means expired logins, replayed callbacks, or a proxy

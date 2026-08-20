@@ -1552,6 +1552,11 @@ type AdminConfig struct {
 	// OidcIssuer Configured OIDC issuer URL. Present only in oidc mode; the client ID and secret are never exposed.
 	OidcIssuer *string `json:"oidcIssuer,omitempty"`
 
+	// OidcNativeRedirect Where a native-client login finishes, from OIDC_NATIVE_POST_LOGIN_REDIRECT. Present only in oidc mode.
+	//
+	// Example: ninerlog://auth/callback
+	OidcNativeRedirect *string `json:"oidcNativeRedirect,omitempty"`
+
 	// RateLimitAdmin Admin endpoint rate limit
 	//
 	// Example: 30 req/min
@@ -2415,6 +2420,16 @@ type AuthProviders struct {
 		//
 		// Example: Authentik
 		Name *string `json:"name,omitempty"`
+
+		// NativeAuthorizeUrl Where a native app sends its in-app browser to start the login. The same redirect endpoint, flagged so the callback finishes at `nativeRedirectUri` instead of the web frontend.
+		//
+		// Example: /api/v1/auth/oidc/authorize?native=1
+		NativeAuthorizeUrl *string `json:"nativeAuthorizeUrl,omitempty"`
+
+		// NativeRedirectUri Where the callback sends the browser after a login started at `nativeAuthorizeUrl`, carrying the same `oidc_code` or `oidc_error` parameter. A custom scheme, which a native app can intercept without an associated domain. From OIDC_NATIVE_POST_LOGIN_REDIRECT.
+		//
+		// Example: ninerlog://auth/callback
+		NativeRedirectUri *string `json:"nativeRedirectUri,omitempty"`
 	} `json:"oidc"`
 
 	// PasswordLoginEnabled Whether email/password sign-in is accepted
