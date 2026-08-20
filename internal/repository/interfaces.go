@@ -321,6 +321,11 @@ type AircraftRepository interface {
 	// GetByUserID retrieves all aircraft for a user. A non-nil updatedSince
 	// narrows the result to aircraft changed strictly after that instant.
 	GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error)
+	// GetPageByUserID retrieves one registration-ordered page of a user's
+	// aircraft, bounded by LIMIT/OFFSET in SQL, and the total row count
+	// matching the same filter. A non-nil updatedSince narrows both to
+	// aircraft changed strictly after that instant.
+	GetPageByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time, limit, offset int) ([]*models.Aircraft, int, error)
 	Update(ctx context.Context, aircraft *models.Aircraft) error
 	// UpdateWithFlightRename updates the aircraft and, in the same
 	// transaction, repoints flights (and open flight sessions) logged under
