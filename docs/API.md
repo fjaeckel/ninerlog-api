@@ -322,6 +322,13 @@ CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`. `r
 is normalised on write into the canonical notation of its state of registry (`pkg/registration`);
 see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 
+`pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
+rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
+`registration ASC` and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
+plus one `COUNT`, not a scan of the whole fleet. Clients that need the complete fleet — the
+fleet list, an aircraft picker — must page until `pagination.page` reaches
+`pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
+
 ### Flights
 CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
 (re-run auto-calculations respecting overrides). `aircraftReg` is normalised the same way
@@ -491,6 +498,30 @@ said, `GET /admin/email/suppressions` lists addresses that refused mail permanen
 and `DELETE /admin/email/suppressions/{email}` lifts one. See
 [AUTHENTICATION.md](./AUTHENTICATION.md#email-deliverability) for what each delivery
 status means and what it does not claim.
+
+Update availability: `GET /admin/update` answers from a cache the background release
+check fills, so it never blocks on GitHub. Each component reports `up_to_date`,
+`update_available` or `unknown`, and `updateAvailable` is true when any of them is
+behind. The API's own version and commit come from its build stamps; the frontend
+passes its own as `?frontendVersion=` and `?frontendCommit=`, since only the browser
+knows which frontend image is serving.
+
+`channel` says which comparison produced the state:
+
+- `release` — the build carries a semantic version, compared against the newest
+  published release of its repository. This is what a deployment pinned to `:v1.3.4`
+  gets.
+- `commit` — the build carries only a commit, which is what the `:latest` tags are.
+  It is compared against the head of `UPDATE_CHECK_BRANCH` (default `main`), and
+  `behindBy` reports how many commits it is behind, with `compareUrl` linking the
+  diff. A build that has diverged from the branch — a fork, or a locally built
+  image — reports `unknown` rather than guessing.
+
+`unknown` therefore means neither comparison was possible: no semantic version, no
+commit, or nothing looked up yet. A commit reported for the first time is `unknown`
+until the comparison lands, a moment later. Deployments that set
+`UPDATE_CHECK_ENABLED=false` make no outbound request and report
+`checkEnabled: false`.
 
 ### Backups
 List providers, manage destinations (CRUD), test/run a destination, and inspect run

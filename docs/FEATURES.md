@@ -193,8 +193,103 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 ## Import & export
 
 - **Import** (`internal/api/handlers/import.go`, `import_json.go`) — upload a file
-  (CSV/XLSX, including ForeFlight exports) → preview → confirm, or import JSON directly.
+  (CSV/XLSX) → preview → confirm, or import JSON directly.
   Import sessions are tracked (history endpoints).
+- **Import templates** (`internal/service/importtemplate`) — the catalogue of logbook
+  export formats NinerLog reads. Each template is data: header aliases pointing at import
+  fields, the signature columns that identify the source application, a date-format hint,
+  and the export instructions shown on the import screen. Upload matches a file's header
+  row against the catalogue and records the winning template as the import's
+  `format`, which is also what `GET /admin/stats` groups `importsByFormat` by — i.e. which
+  logbook pilots are migrating from. `GET /imports/templates` serves the catalogue so the
+  import screen can list supported logbooks and how to export from each.
+
+  Covered today: ForeFlight, LogTen Pro, MyFlightbook, capzlog.aero, FLYLOG.io, Wader,
+  Vereinsflieger (both the standard and the extended club export), SkyDemon, the generic
+  EASA (AMC1 FCL.050) and FAA column layouts, and NinerLog's own CSV export. One vendor may
+  need more than one template: Vereinsflieger's two exports differ by three columns out of
+  sixteen and share every other alias, so they are told apart by the columns only one of
+  them has, and recorded as separate formats because the standard export carries no block
+  times and therefore totals airborne time instead.
+
+  Every template in the catalogue rests on a file, or at least a header row, that the
+  vendor's own application produced — `testdata/importsamples/` holds them, and its
+  `wanted` list is where a new logbook starts. Templates carry a `confidence` of `exact` or
+  `best-effort`; `best-effort` means the aliases were inferred rather than seen, and nothing
+  in the catalogue is in that state today. It is kept because the distinction is what the
+  import screen tells the pilot, and because the evidence says inference does not work here:
+  every template ever written from vendor documentation was wrong. FLYLOG.io's was wrong in
+  every column but the date. LogTen files were detected as FAA logbooks and imported as
+  nothing. Vereinsflieger's missed the aircraft registration, so a club export was detected
+  and then failed every row on a field the file was carrying all along.
+
+  Detection never blocks an import. A file that matches nothing is recorded as `CSV` and
+  mapped through a cross-vendor alias table, then adjusted on the mapping screen — so an
+  unknown logbook degrades to manual mapping rather than a rejection. Two mapping rules
+  exist to absorb format differences: a `landingsTotal` column is reconciled against the
+  day/night split by taking the larger (so touch-and-goes counted only in a total column
+  survive), and departure/arrival are derived from the first and last waypoint of the
+  route when the source has no separate airport columns, as MyFlightbook does.
+
+  Adding a logbook means adding a `Template` in `importtemplate/sources.go`, the matching
+  `ImportFormat` member in `api-spec/openapi.yaml`, and the value in the `import_format`
+  database enum — no handler or service changes.
+- **Round-trip guarantee** — *a CSV NinerLog exports is always a CSV NinerLog can import.*
+  This is the one interchange path where we own both ends, so it is the one that must never
+  regress: a pilot moving between installations, restoring an archived export, or splitting a
+  logbook across accounts depends on it. All three export layouts round-trip, each detected as
+  its own template — standard → `NINERLOG_CSV`, EASA → `EASA_CSV`, FAA → `FAA_CSV`.
+
+  Two levels of coverage, both mandatory:
+  `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers
+  through the real import pipeline across every column layout × date format × decimal
+  separator (24 cases, no Docker), and
+  `test/e2e/export_import_roundtrip_e2e_test.go` asserts the same invariant over real HTTP
+  against a real database, including that flights land in the target account, the fleet is
+  backfilled, and re-importing an export into the account it came from is deduplicated rather
+  than doubling the logbook.
+
+  Total time survives exactly where the layout carries block times (standard, EASA); the FAA
+  layout has no time-of-day columns, so its total goes through a decimal-hours cell rounded to
+  0.1h and is asserted within ±3 minutes. Only the standard layout honours the user's
+  date-format and decimal-separator preferences — EASA and FAA hardcode their regulatory
+  conventions (`export.go:326`, `export.go:362`) — but the full matrix is run against all
+  three so that wiring a preference in later lands on existing coverage.
+- **Import samples** (`internal/api/handlers/testdata/importsamples/`) — real and generated
+  export files run through the whole pipeline and checked against `manifest.json`. This is the
+  only place a template meets a complete file rather than a header row it was written from,
+  which is what catches metadata preambles, unexpected delimiters and date conventions that
+  differ from the template's declaration. Each sample records its `provenance`: `generated`
+  (our own export code, authoritative — and a backwards-compatibility guard for files older
+  versions produced), `synthetic` (hand-written from a vendor's documented columns; proves
+  only self-consistency), or `real` (an anonymised vendor export). Promoting a template from
+  `best-effort` to `exact` means replacing its synthetic sample with a real one. The manifest's
+  `wanted` list is the standing request for the exports still missing, and a test keeps that
+  list in step with the catalogue. Contribution and anonymisation rules: the directory's
+  `README.md`.
+
+  The first four real exports each disproved the template written for them: FLYLOG.io was
+  wrong in every column but the date, LogTen Pro's Dynamic Export was being claimed by
+  `FAA_CSV` (it uses the FAA short column names) and imported as nothing, MyFlightbook was
+  putting a marketing description into the aircraft type because the type lives in
+  `ICAO Model` rather than `Model`, and Wader used camelCase against a template that assumed
+  EASA column names, so it matched nothing and failed every row on four required fields.
+  SkyDemon and capzlog.aero then turned out to have no date column at all — both date a
+  flight by a timestamped time column, which the importer now falls back on; SkyDemon has no
+  total-time column either, so its total is derived from the block times. SkyDemon also
+  writes its places as "ICAO Name" ("EDOI Bienenfarm"), so the leading code is extracted
+  from the value's own shape rather than by an airport-database lookup — the database is
+  fetched at startup and refreshed in the background, and depending on it would make the
+  same file import differently on different instances.
+
+  They also turned up five importer defects a header row cannot expose: a UTF-8 BOM breaking
+  quoted-header parsing, bare four-digit clock times (`1003`) reaching Postgres unparsed,
+  FLYLOG's `SELF` crew marker becoming a contact, Wader's `00:00` placeholder times deriving
+  a 777-minute block time for a one-hour flight, and an export of an empty logbook being
+  reported as an unparseable file rather than as one with no flights in it. Three products —
+  FLYLOG.io, Wader and capzlog.aero — write a literal self-marker into a crew cell for the
+  logbook's owner, which the importer drops rather than turning into a contact. A
+  `best-effort` template should be read as a hypothesis, not as support.
   Confirming an import also fills in the entities the flights reference: contacts for
   crew names (the same auto-creation that flight create/update performs — see
   **Contacts / people** under Pilot data management), and fleet entries for every registration in the file that the
@@ -282,6 +377,14 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).
 - **Maintenance** — cleanup expired tokens, SMTP test, manually trigger the notification
   check.
+- **Update availability** — `GET /admin/update` reports what each component is running
+  against what has been published, so a self-hosted operator sees in the admin console
+  that an upgrade is waiting. A tagged build is compared against the newest GitHub
+  release; a `latest` build, which carries only the commit its image was built from, is
+  compared against the head of the tracked branch and reports how many commits it is
+  behind. The API knows its own version and commit from its build stamps; the frontend
+  reports its own in the request. `UPDATE_CHECK_ENABLED=false` turns the outbound lookup
+  off, after which every component reports `unknown`.
 - **Announcements** — create/delete platform-wide banners (`SystemAnnouncement`,
   served publicly at `GET /announcements`; managed in `announcements.go`).
 
@@ -290,6 +393,9 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
 - **Health** — `GET /health` (used by the Docker healthcheck).
 - **Metrics** — `GET /metrics` (Prometheus), plus a DB-stats collector. See
   [METRICS.md](./METRICS.md).
+- **Release check** — a daily background lookup of the newest published release per
+  component (`internal/updatecheck`), surfaced in the admin console and as
+  `app_update_available`. Opt out with `UPDATE_CHECK_ENABLED=false`.
 - **Profiling** — optional pprof server when `PPROF_ENABLED=true`. See
   [PERFORMANCE.md](./PERFORMANCE.md).
 - **Structured logging, panic recovery, security headers, CORS, rate limiting** — see the

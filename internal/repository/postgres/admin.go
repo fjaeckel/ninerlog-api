@@ -30,6 +30,7 @@ func (r *adminRepository) scanCount(row *sql.Row, dest *int) {
 
 func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*repository.AdminStats, error) {
 	stats := &repository.AdminStats{
+		ImportsByFormat:              map[string]int{},
 		BackupDestinationsByProvider: map[string]int{},
 	}
 
@@ -61,6 +62,24 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	r.scanCount(r.db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM users WHERE disabled = true",
 	), &stats.DisabledAccounts)
+
+	// Imports grouped by source format.
+	if formatRows, err := r.db.QueryContext(ctx,
+		"SELECT import_format::text, COUNT(*) FROM flight_imports GROUP BY import_format",
+	); err != nil {
+		slog.Error("admin stats: flight_imports by format query failed", "error", err)
+	} else {
+		defer formatRows.Close()
+		for formatRows.Next() {
+			var format string
+			var count int
+			if err := formatRows.Scan(&format, &count); err != nil {
+				slog.Error("admin stats: flight_imports by format scan failed", "error", err)
+				continue
+			}
+			stats.ImportsByFormat[format] = count
+		}
+	}
 
 	// Cloud backup destinations: breakdown by provider.
 	rows, err := r.db.QueryContext(ctx,

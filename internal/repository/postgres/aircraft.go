@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -94,6 +95,47 @@ func (r *aircraftRepository) GetByUserID(ctx context.Context, userID uuid.UUID, 
 	}
 	defer rows.Close()
 
+	return scanAircraftRows(rows)
+}
+
+func (r *aircraftRepository) GetPageByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time, limit, offset int) ([]*models.Aircraft, int, error) {
+	countQuery := `SELECT COUNT(*) FROM aircraft WHERE user_id = $1`
+	countArgs := []any{userID}
+	clause, clauseArgs := updatedSinceClause(updatedSince, 2)
+	countQuery += clause
+	countArgs = append(countArgs, clauseArgs...)
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	query := `
+		SELECT id, user_id, registration, type, make, model,
+		       is_complex, is_high_performance, is_tailwheel, notes, is_active,
+		       aircraft_class, default_departure_icao, default_arrival_icao,
+		       created_at, updated_at
+		FROM aircraft WHERE user_id = $1`
+	args := append([]any{}, countArgs...)
+	argNum := len(args) + 1
+	query += clause + " ORDER BY registration ASC, id ASC"
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argNum, argNum+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	aircraft, err := scanAircraftRows(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return aircraft, total, nil
+}
+
+func scanAircraftRows(rows *sql.Rows) ([]*models.Aircraft, error) {
 	var aircraft []*models.Aircraft
 	for rows.Next() {
 		a := &models.Aircraft{}

@@ -1,5 +1,5 @@
 # Build stage — run natively, cross-compile via GOARCH
-FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.7-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make bash
@@ -13,10 +13,13 @@ RUN go mod download
 # Copy source code (includes pre-generated types in internal/api/generated/)
 COPY . .
 
-# Build the application (TARGETARCH is set automatically by Docker Buildx)
+# Build the application (TARGETARCH is set automatically by Docker Buildx).
+# VERSION is stamped into the binary and reported by /admin/update and app_info.
 ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT=""
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
-    -ldflags="-w -s" \
+    -ldflags="-w -s -X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildVersion=${VERSION} -X github.com/fjaeckel/ninerlog-api/internal/updatecheck.buildCommit=${COMMIT}" \
     -o /build/ninerlog-api \
     ./cmd/api
 

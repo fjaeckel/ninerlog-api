@@ -50,6 +50,9 @@ type ServerInterface interface {
 	// GetAdminStats System-wide aggregate statistics
 	// (GET /admin/stats)
 	GetAdminStats(c *gin.Context)
+	// GetUpdateStatus Release update status for the deployed components
+	// (GET /admin/update)
+	GetUpdateStatus(c *gin.Context, params GetUpdateStatusParams)
 	// ListAdminUsers List all users (privacy-preserving)
 	// (GET /admin/users)
 	ListAdminUsers(c *gin.Context, params ListAdminUsersParams)
@@ -323,6 +326,9 @@ type ServerInterface interface {
 	// PreviewImport Preview mapped flights
 	// (POST /imports/preview)
 	PreviewImport(c *gin.Context)
+	// ListImportTemplates List supported logbook import templates
+	// (GET /imports/templates)
+	ListImportTemplates(c *gin.Context)
 	// UploadImportFile Upload file for import
 	// (POST /imports/upload)
 	UploadImportFile(c *gin.Context)
@@ -678,6 +684,41 @@ func (siw *ServerInterfaceWrapper) GetAdminStats(c *gin.Context) {
 	}
 
 	siw.Handler.GetAdminStats(c)
+}
+
+// GetUpdateStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetUpdateStatus(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUpdateStatusParams
+
+	// ------------- Optional query parameter "frontendVersion" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "frontendVersion", c.Request.URL.Query(), &params.FrontendVersion, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter frontendVersion: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "frontendCommit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "frontendCommit", c.Request.URL.Query(), &params.FrontendCommit, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter frontendCommit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUpdateStatus(c, params)
 }
 
 // ListAdminUsers operation middleware
@@ -2741,6 +2782,19 @@ func (siw *ServerInterfaceWrapper) PreviewImport(c *gin.Context) {
 	siw.Handler.PreviewImport(c)
 }
 
+// ListImportTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListImportTemplates(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListImportTemplates(c)
+}
+
 // UploadImportFile operation middleware
 func (siw *ServerInterfaceWrapper) UploadImportFile(c *gin.Context) {
 
@@ -3713,6 +3767,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/airports/pack/status", wrapper.GetAirportPackStatus)
 	router.GET(options.BaseURL+"/reports/routes", wrapper.GetFlightRoutes)
 	router.GET(options.BaseURL+"/reports/airport-stats", wrapper.GetAirportStats)
+	router.GET(options.BaseURL+"/imports/templates", wrapper.ListImportTemplates)
 	router.POST(options.BaseURL+"/imports/upload", wrapper.UploadImportFile)
 	router.POST(options.BaseURL+"/imports/preview", wrapper.PreviewImport)
 	router.POST(options.BaseURL+"/imports/confirm", wrapper.ConfirmImport)
@@ -3746,6 +3801,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/admin/users/:userId/unlock", wrapper.UnlockUser)
 	router.POST(options.BaseURL+"/admin/users/:userId/reset-2fa", wrapper.ResetUser2fa)
 	router.GET(options.BaseURL+"/admin/stats", wrapper.GetAdminStats)
+	router.GET(options.BaseURL+"/admin/update", wrapper.GetUpdateStatus)
 	router.POST(options.BaseURL+"/admin/maintenance/cleanup-tokens", wrapper.CleanupTokens)
 	router.POST(options.BaseURL+"/admin/maintenance/smtp-test", wrapper.SmtpTest)
 	router.POST(options.BaseURL+"/admin/maintenance/trigger-notifications", wrapper.TriggerNotifications)

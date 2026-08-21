@@ -725,6 +725,7 @@ const (
 	ImportFieldIsPic                   ImportField = "isPic"
 	ImportFieldLandingsDay             ImportField = "landingsDay"
 	ImportFieldLandingsNight           ImportField = "landingsNight"
+	ImportFieldLandingsTotal           ImportField = "landingsTotal"
 	ImportFieldNightTime               ImportField = "nightTime"
 	ImportFieldOffBlockTime            ImportField = "offBlockTime"
 	ImportFieldOnBlockTime             ImportField = "onBlockTime"
@@ -785,6 +786,8 @@ func (e ImportField) Valid() bool {
 		return true
 	case ImportFieldLandingsNight:
 		return true
+	case ImportFieldLandingsTotal:
+		return true
 	case ImportFieldNightTime:
 		return true
 	case ImportFieldOffBlockTime:
@@ -818,18 +821,51 @@ func (e ImportField) Valid() bool {
 
 // Defines values for ImportFormat.
 const (
-	CSV           ImportFormat = "CSV"
-	FOREFLIGHTCSV ImportFormat = "FOREFLIGHT_CSV"
-	XLS           ImportFormat = "XLS"
-	XLSX          ImportFormat = "XLSX"
+	CAPZLOGCSV                ImportFormat = "CAPZLOG_CSV"
+	CSV                       ImportFormat = "CSV"
+	EASACSV                   ImportFormat = "EASA_CSV"
+	FAACSV                    ImportFormat = "FAA_CSV"
+	FLYLOGCSV                 ImportFormat = "FLYLOG_CSV"
+	FOREFLIGHTCSV             ImportFormat = "FOREFLIGHT_CSV"
+	LOGTENCSV                 ImportFormat = "LOGTEN_CSV"
+	MYFLIGHTBOOKCSV           ImportFormat = "MYFLIGHTBOOK_CSV"
+	NINERLOGCSV               ImportFormat = "NINERLOG_CSV"
+	SKYDEMONCSV               ImportFormat = "SKYDEMON_CSV"
+	VEREINSFLIEGERCSV         ImportFormat = "VEREINSFLIEGER_CSV"
+	VEREINSFLIEGEREXTENDEDCSV ImportFormat = "VEREINSFLIEGER_EXTENDED_CSV"
+	WADERCSV                  ImportFormat = "WADER_CSV"
+	XLS                       ImportFormat = "XLS"
+	XLSX                      ImportFormat = "XLSX"
 )
 
 // Valid indicates whether the value is a known member of the ImportFormat enum.
 func (e ImportFormat) Valid() bool {
 	switch e {
+	case CAPZLOGCSV:
+		return true
 	case CSV:
 		return true
+	case EASACSV:
+		return true
+	case FAACSV:
+		return true
+	case FLYLOGCSV:
+		return true
 	case FOREFLIGHTCSV:
+		return true
+	case LOGTENCSV:
+		return true
+	case MYFLIGHTBOOKCSV:
+		return true
+	case NINERLOGCSV:
+		return true
+	case SKYDEMONCSV:
+		return true
+	case VEREINSFLIEGERCSV:
+		return true
+	case VEREINSFLIEGEREXTENDEDCSV:
+		return true
+	case WADERCSV:
 		return true
 	case XLS:
 		return true
@@ -876,6 +912,42 @@ func (e ImportStatus) Valid() bool {
 	case ImportStatusFailed:
 		return true
 	case ImportStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportTemplateConfidence.
+const (
+	BestEffort ImportTemplateConfidence = "best-effort"
+	Exact      ImportTemplateConfidence = "exact"
+)
+
+// Valid indicates whether the value is a known member of the ImportTemplateConfidence enum.
+func (e ImportTemplateConfidence) Valid() bool {
+	switch e {
+	case BestEffort:
+		return true
+	case Exact:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportTemplateRegions.
+const (
+	EASA ImportTemplateRegions = "EASA"
+	FAA  ImportTemplateRegions = "FAA"
+)
+
+// Valid indicates whether the value is a known member of the ImportTemplateRegions enum.
+func (e ImportTemplateRegions) Valid() bool {
+	switch e {
+	case EASA:
+		return true
+	case FAA:
 		return true
 	default:
 		return false
@@ -1026,6 +1098,90 @@ func (e SignatureRequestCreatedStatus) Valid() bool {
 	case SignatureRequestCreatedStatusRevoked:
 		return true
 	case SignatureRequestCreatedStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateComponentChannel.
+const (
+	Commit  UpdateComponentChannel = "commit"
+	Release UpdateComponentChannel = "release"
+)
+
+// Valid indicates whether the value is a known member of the UpdateComponentChannel enum.
+func (e UpdateComponentChannel) Valid() bool {
+	switch e {
+	case Commit:
+		return true
+	case Release:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateComponentName.
+const (
+	Api      UpdateComponentName = "api"
+	Frontend UpdateComponentName = "frontend"
+)
+
+// Valid indicates whether the value is a known member of the UpdateComponentName enum.
+func (e UpdateComponentName) Valid() bool {
+	switch e {
+	case Api:
+		return true
+	case Frontend:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateComponentState.
+const (
+	UpdateComponentStateUnknown         UpdateComponentState = "unknown"
+	UpdateComponentStateUpToDate        UpdateComponentState = "up_to_date"
+	UpdateComponentStateUpdateAvailable UpdateComponentState = "update_available"
+)
+
+// Valid indicates whether the value is a known member of the UpdateComponentState enum.
+func (e UpdateComponentState) Valid() bool {
+	switch e {
+	case UpdateComponentStateUnknown:
+		return true
+	case UpdateComponentStateUpToDate:
+		return true
+	case UpdateComponentStateUpdateAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateStatusLastError.
+const (
+	UpdateStatusLastErrorDecode  UpdateStatusLastError = "decode"
+	UpdateStatusLastErrorEmpty   UpdateStatusLastError = "empty"
+	UpdateStatusLastErrorError   UpdateStatusLastError = "error"
+	UpdateStatusLastErrorRequest UpdateStatusLastError = "request"
+	UpdateStatusLastErrorStatus  UpdateStatusLastError = "status"
+)
+
+// Valid indicates whether the value is a known member of the UpdateStatusLastError enum.
+func (e UpdateStatusLastError) Valid() bool {
+	switch e {
+	case UpdateStatusLastErrorDecode:
+		return true
+	case UpdateStatusLastErrorEmpty:
+		return true
+	case UpdateStatusLastErrorError:
+		return true
+	case UpdateStatusLastErrorRequest:
+		return true
+	case UpdateStatusLastErrorStatus:
 		return true
 	default:
 		return false
@@ -1449,6 +1605,11 @@ type AdminConfig struct {
 	// AirportDatabaseUpdatedAt When the airport database was last loaded from the upstream sources; null when it never loaded
 	AirportDatabaseUpdatedAt *time.Time `json:"airportDatabaseUpdatedAt,omitempty"`
 
+	// AppVersion Version this API binary was stamped with at build time, falling back to APP_VERSION. `dev` for an unstamped build.
+	//
+	// Example: v1.3.4
+	AppVersion *string `json:"appVersion,omitempty"`
+
 	// AuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
 	AuthMode *AdminConfigAuthMode `json:"authMode,omitempty"`
 
@@ -1479,6 +1640,11 @@ type AdminConfig struct {
 
 	// OidcIssuer Configured OIDC issuer URL. Present only in oidc mode; the client ID and secret are never exposed.
 	OidcIssuer *string `json:"oidcIssuer,omitempty"`
+
+	// OidcNativeRedirect Where a native-client login finishes, from OIDC_NATIVE_POST_LOGIN_REDIRECT. Present only in oidc mode.
+	//
+	// Example: ninerlog://auth/callback
+	OidcNativeRedirect *string `json:"oidcNativeRedirect,omitempty"`
 
 	// RateLimitAdmin Admin endpoint rate limit
 	//
@@ -1531,6 +1697,14 @@ type AdminConfig struct {
 	//
 	// Example: 720h0m0s
 	UnverifiedRetention *string `json:"unverifiedRetention,omitempty"`
+
+	// UpdateCheckEnabled Whether the deployment checks GitHub for newer releases (UPDATE_CHECK_ENABLED)
+	UpdateCheckEnabled *bool `json:"updateCheckEnabled,omitempty"`
+
+	// UpdateCheckInterval How often the release check runs. Absent when the check is disabled.
+	//
+	// Example: 24h0m0s
+	UpdateCheckInterval *string `json:"updateCheckInterval,omitempty"`
 }
 
 // AdminConfigAuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
@@ -1556,9 +1730,14 @@ type AdminStats struct {
 	} `json:"cloudBackupDestinations"`
 	DisabledAccounts int `json:"disabledAccounts"`
 	FlightsThisMonth int `json:"flightsThisMonth"`
-	LockedAccounts   int `json:"lockedAccounts"`
-	NewUsersThisWeek int `json:"newUsersThisWeek"`
-	TotalAircraft    int `json:"totalAircraft"`
+
+	// ImportsByFormat Completed imports grouped by the detected source format, i.e. which logbook pilots are migrating from. Keys are ImportFormat values; formats nobody has imported are omitted.
+	//
+	// Example: {"CSV":2,"FOREFLIGHT_CSV":12,"MYFLIGHTBOOK_CSV":4}
+	ImportsByFormat  map[string]int `json:"importsByFormat"`
+	LockedAccounts   int            `json:"lockedAccounts"`
+	NewUsersThisWeek int            `json:"newUsersThisWeek"`
+	TotalAircraft    int            `json:"totalAircraft"`
 
 	// TotalContacts Contacts across all users. Grows on its own as flights are logged, since crew names are turned into contacts automatically.
 	TotalContacts    int `json:"totalContacts"`
@@ -2338,6 +2517,16 @@ type AuthProviders struct {
 		//
 		// Example: Authentik
 		Name *string `json:"name,omitempty"`
+
+		// NativeAuthorizeUrl Where a native app sends its in-app browser to start the login. The same redirect endpoint, flagged so the callback finishes at `nativeRedirectUri` instead of the web frontend.
+		//
+		// Example: /api/v1/auth/oidc/authorize?native=1
+		NativeAuthorizeUrl *string `json:"nativeAuthorizeUrl,omitempty"`
+
+		// NativeRedirectUri Where the callback sends the browser after a login started at `nativeAuthorizeUrl`, carrying the same `oidc_code` or `oidc_error` parameter. A custom scheme, which a native app can intercept without an associated domain. From OIDC_NATIVE_POST_LOGIN_REDIRECT.
+		//
+		// Example: ninerlog://auth/callback
+		NativeRedirectUri *string `json:"nativeRedirectUri,omitempty"`
 	} `json:"oidc"`
 
 	// PasswordLoginEnabled Whether email/password sign-in is accepted
@@ -3911,6 +4100,13 @@ type ImportColumnMapping struct {
 	SourceColumn string `json:"sourceColumn"`
 
 	// TargetField Target flight log field for column mapping.
+	//
+	// Landings can be mapped either as a day/night split (`landingsDay` +
+	// `landingsNight`, which are summed) or as a single `landingsTotal`
+	// column. When a file carries both — as ForeFlight and MyFlightbook do —
+	// the larger of the two wins, so touch-and-go landings counted only in
+	// the total column are not lost.
+	//
 	// Person fields (`person1`–`person6`) extract crew members from import rows.
 	// During ForeFlight imports, role assignment is automatic:
 	// - If an instructor is detected (via `instructorName` or dual-received time),
@@ -3951,6 +4147,13 @@ type ImportConfirmRequest struct {
 }
 
 // ImportField Target flight log field for column mapping.
+//
+// Landings can be mapped either as a day/night split (`landingsDay` +
+// `landingsNight`, which are summed) or as a single `landingsTotal`
+// column. When a file carries both — as ForeFlight and MyFlightbook do —
+// the larger of the two wins, so touch-and-go landings counted only in
+// the total column are not lost.
+//
 // Person fields (`person1`–`person6`) extract crew members from import rows.
 // During ForeFlight imports, role assignment is automatic:
 //   - If an instructor is detected (via `instructorName` or dual-received time),
@@ -3962,9 +4165,24 @@ type ImportConfirmRequest struct {
 // Use `ignore` to skip a column during import.
 type ImportField string
 
-// ImportFormat Detected file format:
-// - CSV: Generic comma/semicolon/tab-separated values
-// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+// ImportFormat The import template that matched the uploaded file, detected from its
+// header row. Recording the source format is what makes the import
+// auditable — and it is the value the admin dashboard groups by to show
+// which logbooks pilots are migrating from.
+//
+// - CSV: no template matched; columns were mapped by name and by hand
+// - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+// - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+// - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+// - MYFLIGHTBOOK_CSV: MyFlightbook
+// - CAPZLOG_CSV: capzlog.aero
+// - FLYLOG_CSV: FLYLOG.io
+// - WADER_CSV: Wader Pilot Logbook
+// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
+// - SKYDEMON_CSV: SkyDemon logbook export
+// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+// - FAA_CSV: generic FAA/ASA column layout
 // - XLS: Microsoft Excel 97-2003 workbook
 // - XLSX: Microsoft Excel 2007+ workbook (Open XML)
 type ImportFormat string
@@ -4127,9 +4345,24 @@ type ImportResult struct {
 	// FileName Example: foreflight_logbook_2025.csv
 	FileName string `json:"fileName"`
 
-	// Format Detected file format:
-	// - CSV: Generic comma/semicolon/tab-separated values
-	// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+	// Format The import template that matched the uploaded file, detected from its
+	// header row. Recording the source format is what makes the import
+	// auditable — and it is the value the admin dashboard groups by to show
+	// which logbooks pilots are migrating from.
+	//
+	// - CSV: no template matched; columns were mapped by name and by hand
+	// - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+	// - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+	// - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+	// - MYFLIGHTBOOK_CSV: MyFlightbook
+	// - CAPZLOG_CSV: capzlog.aero
+	// - FLYLOG_CSV: FLYLOG.io
+	// - WADER_CSV: Wader Pilot Logbook
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
+	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
 	// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
 	Format ImportFormat `json:"format"`
@@ -4171,6 +4404,86 @@ type ImportResult struct {
 // - failed: No rows imported (all failed validation)
 type ImportStatus string
 
+// ImportTemplate One logbook export format NinerLog knows how to read, together with the
+// steps for getting that file out of the source application.
+type ImportTemplate struct {
+	// AutoDetected Whether a file in this format is recognised automatically from its
+	// header row. `false` means the file still imports, but every column
+	// is mapped on the mapping screen.
+	AutoDetected bool `json:"autoDetected"`
+
+	// Confidence How the template's column list was built.
+	// - `exact`: the header row is known verbatim (NinerLog's own exports,
+	//   or a published and stable column list)
+	// - `best-effort`: the aliases cover the documented columns plus the
+	//   usual spelling variants, but the export has not been verified byte
+	//   for byte. Auto-detection may miss; the column-mapping step catches it.
+	Confidence ImportTemplateConfidence `json:"confidence"`
+
+	// Description What this template covers and what it cannot carry across
+	Description string `json:"description"`
+
+	// ExportSteps Ordered, human-readable instructions for exporting from the source
+	// application. Shown on the import screen.
+	ExportSteps []string `json:"exportSteps"`
+
+	// Id The import template that matched the uploaded file, detected from its
+	// header row. Recording the source format is what makes the import
+	// auditable — and it is the value the admin dashboard groups by to show
+	// which logbooks pilots are migrating from.
+	//
+	// - CSV: no template matched; columns were mapped by name and by hand
+	// - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+	// - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+	// - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+	// - MYFLIGHTBOOK_CSV: MyFlightbook
+	// - CAPZLOG_CSV: capzlog.aero
+	// - FLYLOG_CSV: FLYLOG.io
+	// - WADER_CSV: Wader Pilot Logbook
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
+	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+	// - FAA_CSV: generic FAA/ASA column layout
+	// - XLS: Microsoft Excel 97-2003 workbook
+	// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
+	Id ImportFormat `json:"id"`
+
+	// Name Display name of the source logbook
+	//
+	// Example: MyFlightbook
+	Name string `json:"name"`
+
+	// Regions Regulatory layouts the source targets
+	Regions []ImportTemplateRegions `json:"regions"`
+
+	// Vendor Company or project behind the source logbook
+	//
+	// Example: MyFlightbook
+	Vendor *string `json:"vendor,omitempty"`
+
+	// Website Homepage of the source logbook, when it has one
+	//
+	// Example: https://myflightbook.com
+	Website *string `json:"website,omitempty"`
+}
+
+// ImportTemplateConfidence How the template's column list was built.
+//   - `exact`: the header row is known verbatim (NinerLog's own exports,
+//     or a published and stable column list)
+//   - `best-effort`: the aliases cover the documented columns plus the
+//     usual spelling variants, but the export has not been verified byte
+//     for byte. Auto-detection may miss; the column-mapping step catches it.
+type ImportTemplateConfidence string
+
+// ImportTemplateRegions defines model for ImportTemplate.Regions.
+type ImportTemplateRegions string
+
+// ImportTemplateList defines model for ImportTemplateList.
+type ImportTemplateList struct {
+	Templates []ImportTemplate `json:"templates"`
+}
+
 // ImportUploadResponse defines model for ImportUploadResponse.
 type ImportUploadResponse struct {
 	// Columns Column headers found in the file
@@ -4178,9 +4491,28 @@ type ImportUploadResponse struct {
 	// Example: ["Date","AircraftID","From","To","Route","TimeOut","TimeIn","TotalTime","PIC","Landings"]
 	Columns []string `json:"columns"`
 
-	// Format Detected file format:
-	// - CSV: Generic comma/semicolon/tab-separated values
-	// - FOREFLIGHT_CSV: ForeFlight logbook export (auto-detected from header structure)
+	// DetectedTemplate One logbook export format NinerLog knows how to read, together with the
+	// steps for getting that file out of the source application.
+	DetectedTemplate *ImportTemplate `json:"detectedTemplate,omitempty"`
+
+	// Format The import template that matched the uploaded file, detected from its
+	// header row. Recording the source format is what makes the import
+	// auditable — and it is the value the admin dashboard groups by to show
+	// which logbooks pilots are migrating from.
+	//
+	// - CSV: no template matched; columns were mapped by name and by hand
+	// - FOREFLIGHT_CSV: ForeFlight Logbook export (also carries an Aircraft Table)
+	// - NINERLOG_CSV: NinerLog's own CSV export, re-imported
+	// - LOGTEN_CSV: LogTen Pro (Coradine), human-readable or `flight_…` key dialect
+	// - MYFLIGHTBOOK_CSV: MyFlightbook
+	// - CAPZLOG_CSV: capzlog.aero
+	// - FLYLOG_CSV: FLYLOG.io
+	// - WADER_CSV: Wader Pilot Logbook
+	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
+	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
+	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
+	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
 	// - XLSX: Microsoft Excel 2007+ workbook (Open XML)
 	Format ImportFormat `json:"format"`
@@ -4191,7 +4523,8 @@ type ImportUploadResponse struct {
 	PreviewRows []map[string]string `json:"previewRows"`
 
 	// SuggestedMappings Server-suggested column mappings based on header names.
-	// For ForeFlight exports these are pre-filled from the known column layout.
+	// When a template matched, these come from that template's column
+	// layout; otherwise they fall back to a cross-vendor alias table.
 	// The user can adjust mappings before submitting the preview request.
 	SuggestedMappings []ImportColumnMapping `json:"suggestedMappings"`
 
@@ -4737,6 +5070,82 @@ type TwoFactorSetup struct {
 	Secret string `json:"secret"`
 }
 
+// UpdateComponent defines model for UpdateComponent.
+type UpdateComponent struct {
+	// BehindBy Commits the tracked branch is ahead of this build. Present only on the `commit` channel.
+	//
+	// Example: 7
+	BehindBy *int `json:"behindBy,omitempty"`
+
+	// Channel How `state` was reached. `release` compares a semantic version against the newest published release; `commit` compares the build commit against the tracked branch, which is what an image running the `latest` tag gets. Absent when the state is `unknown`.
+	Channel *UpdateComponentChannel `json:"channel,omitempty"`
+
+	// CompareUrl GitHub comparison between this build and the branch head. Present only on the `commit` channel.
+	CompareUrl *string `json:"compareUrl,omitempty"`
+
+	// CurrentCommit Short commit the running image was built from, absent when the component reported none.
+	//
+	// Example: 4f2c1ab
+	CurrentCommit *string `json:"currentCommit,omitempty"`
+
+	// CurrentVersion Version the component is running. Empty when the frontend did not report one; `dev` for a build that was never stamped.
+	//
+	// Example: v1.3.4
+	CurrentVersion string `json:"currentVersion"`
+
+	// LatestVersion Newest release published for the component, absent until a lookup succeeds
+	//
+	// Example: v1.3.5
+	LatestVersion *string `json:"latestVersion,omitempty"`
+
+	// Name Component this entry describes
+	Name UpdateComponentName `json:"name"`
+
+	// PublishedAt When the newest release was published
+	PublishedAt *time.Time `json:"publishedAt,omitempty"`
+
+	// ReleaseUrl GitHub release page for the newest release
+	ReleaseUrl *string `json:"releaseUrl,omitempty"`
+
+	// State `unknown` means neither comparison could be made: no semantic version, no build commit, or nothing looked up yet.
+	State UpdateComponentState `json:"state"`
+}
+
+// UpdateComponentChannel How `state` was reached. `release` compares a semantic version against the newest published release; `commit` compares the build commit against the tracked branch, which is what an image running the `latest` tag gets. Absent when the state is `unknown`.
+type UpdateComponentChannel string
+
+// UpdateComponentName Component this entry describes
+type UpdateComponentName string
+
+// UpdateComponentState `unknown` means neither comparison could be made: no semantic version, no build commit, or nothing looked up yet.
+type UpdateComponentState string
+
+// UpdateStatus defines model for UpdateStatus.
+type UpdateStatus struct {
+	// Branch Branch a `latest` build's commit is compared against (UPDATE_CHECK_BRANCH)
+	//
+	// Example: main
+	Branch *string `json:"branch,omitempty"`
+
+	// CheckEnabled Whether this deployment checks for releases (UPDATE_CHECK_ENABLED)
+	CheckEnabled bool `json:"checkEnabled"`
+
+	// Components One entry per deployed component, in a stable order.
+	Components []UpdateComponent `json:"components"`
+
+	// LastCheckedAt When the release lookup last ran; null when it never has
+	LastCheckedAt *time.Time `json:"lastCheckedAt,omitempty"`
+
+	// LastError Coarse reason the last lookup failed, absent when it succeeded. `request` is a network or DNS failure, `status` a non-200 answer (rate limiting included), `decode` an unreadable body, `empty` a release without a tag.
+	LastError *UpdateStatusLastError `json:"lastError,omitempty"`
+
+	// UpdateAvailable True when at least one component is behind its newest published release. False when every component is current, unknown, or the check is disabled.
+	UpdateAvailable bool `json:"updateAvailable"`
+}
+
+// UpdateStatusLastError Coarse reason the last lookup failed, absent when it succeeded. `request` is a network or DNS failure, `status` a non-200 answer (rate limiting included), `decode` an unreadable body, `empty` a release without a tag.
+type UpdateStatusLastError string
+
 // User defines model for User.
 type User struct {
 	// CreatedAt Example: 2026-01-15T10:30:00Z
@@ -4964,6 +5373,15 @@ type ListEmailDeliveriesParams struct {
 // ListEmailSuppressionsParams defines parameters for ListEmailSuppressions.
 type ListEmailSuppressionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetUpdateStatusParams defines parameters for GetUpdateStatus.
+type GetUpdateStatusParams struct {
+	// FrontendVersion Version the calling frontend build was stamped with.
+	FrontendVersion *string `form:"frontendVersion,omitempty" json:"frontendVersion,omitempty"`
+
+	// FrontendCommit Commit the calling frontend image was built from. Used when the frontend runs an untagged build (the `latest` image), where there is no version to compare.
+	FrontendCommit *string `form:"frontendCommit,omitempty" json:"frontendCommit,omitempty"`
 }
 
 // ListAdminUsersParams defines parameters for ListAdminUsers.

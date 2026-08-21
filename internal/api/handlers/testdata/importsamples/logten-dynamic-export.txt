@@ -1,0 +1,5 @@
+Date	Aircraft ID	Aircraft Type	From	Route	To	Out	In	Total Time	Night	PIC	Dual Rcvd	Solo	XC	Sim Inst	Actual Inst	Simulator	Ground	PIC/P1 Crew	Student	Instructor	Day T/O	Day Ldg	Night T/O	Night Ldg	Approach 1	Approach 2	Holds	Remarks	Flight Review	
+2026-08-13	D-BANA	C172	EDAZ		EDAY	1003	1234	2:31		2:31			2:31					Alex Rivera			5	5							1	
+2026-08-14																														
+2026-08-14																														
+																														

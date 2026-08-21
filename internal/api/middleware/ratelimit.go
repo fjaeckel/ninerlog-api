@@ -127,8 +127,26 @@ func RateLimitByPath(rl gin.HandlerFunc, paths ...string) gin.HandlerFunc {
 // RateLimitByPathPrefix applies a rate-limit middleware only to requests whose
 // path (relative to the router group) starts with one of the given prefixes.
 func RateLimitByPathPrefix(rl gin.HandlerFunc, prefixes ...string) gin.HandlerFunc {
+	return RateLimitByPathPrefixExcept(rl, nil, prefixes...)
+}
+
+// RateLimitByPathPrefixExcept is RateLimitByPathPrefix with an exact-path
+// escape hatch, for the cheap read that happens to live under an expensive
+// prefix.
+//
+// "/imports" is budgeted for one-shot heavy work — parsing and inserting a
+// logbook. "/imports/templates" only serves a static catalogue, and the import
+// screen reads it on entry: sharing the expensive bucket would let opening that
+// screen a dozen times exhaust the budget for the import the pilot came to do.
+func RateLimitByPathPrefixExcept(rl gin.HandlerFunc, exempt []string, prefixes ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rel := groupRelativePath(c)
+		for _, e := range exempt {
+			if rel == e {
+				c.Next()
+				return
+			}
+		}
 		for _, p := range prefixes {
 			if strings.HasPrefix(rel, p) {
 				rl(c)

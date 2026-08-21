@@ -59,6 +59,11 @@ var (
 // value and handoff code.
 const oidcRandomBytes = 32
 
+// oidcNativeStatePrefix marks a state minted for a native client. It is
+// outside the base64url alphabet the random half uses, so a state either
+// carries it or does not.
+const oidcNativeStatePrefix = "n."
+
 // OIDCService implements the authorization-code + PKCE login flow against a
 // single configured provider.
 //
@@ -102,6 +107,9 @@ func NewOIDCService(
 	if cfg.HandoffTTL <= 0 {
 		cfg.HandoffTTL = DefaultOIDCHandoffTTL
 	}
+	if cfg.NativePostLoginRedirect == "" {
+		cfg.NativePostLoginRedirect = DefaultOIDCNativePostLoginRedirect
+	}
 	return &OIDCService{
 		cfg:          cfg,
 		userRepo:     userRepo,
@@ -116,6 +124,17 @@ func (s *OIDCService) Config() OIDCConfig { return s.cfg }
 
 // PostLoginRedirect is the fixed frontend URL the callback redirects to.
 func (s *OIDCService) PostLoginRedirect() string { return s.cfg.PostLoginRedirect }
+
+// NativePostLoginRedirect is the fixed custom-scheme URI the callback
+// redirects to for a login started by a native client.
+func (s *OIDCService) NativePostLoginRedirect() string { return s.cfg.NativePostLoginRedirect }
+
+// IsNativeOIDCState reports whether a state parameter was minted for a native
+// client. It reads the state as echoed by the provider, without consuming the
+// pending login, so it also answers for a callback that carries an error.
+func IsNativeOIDCState(state string) bool {
+	return strings.HasPrefix(state, oidcNativeStatePrefix)
+}
 
 // resolveProvider returns the cached provider, performing discovery on first
 // use. Failures are cached briefly so a down provider is retried, not hammered.
@@ -166,8 +185,9 @@ type OIDCAuthorization struct {
 // BeginLogin creates a pending authorization request and returns the provider
 // URL to redirect the browser to. Three independent single-use values are
 // minted: `state`, `nonce`, and the PKCE verifier. Only hashes of the state
-// and the browser token are persisted.
-func (s *OIDCService) BeginLogin(ctx context.Context) (*OIDCAuthorization, error) {
+// and the browser token are persisted. A native login marks its state, which
+// is what the callback reads to choose the post-login redirect.
+func (s *OIDCService) BeginLogin(ctx context.Context, native bool) (*OIDCAuthorization, error) {
 	provider, err := s.resolveProvider(ctx)
 	if err != nil {
 		return nil, err
@@ -176,6 +196,9 @@ func (s *OIDCService) BeginLogin(ctx context.Context) (*OIDCAuthorization, error
 	state, err := randomOIDCToken()
 	if err != nil {
 		return nil, err
+	}
+	if native {
+		state = oidcNativeStatePrefix + state
 	}
 	nonce, err := randomOIDCToken()
 	if err != nil {

@@ -13,18 +13,19 @@ import (
 func setOIDCEnv(t *testing.T, overrides map[string]string) {
 	t.Helper()
 	base := map[string]string{
-		"OIDC_ISSUER":                 "https://idp.example.com",
-		"OIDC_CLIENT_ID":              "ninerlog",
-		"OIDC_CLIENT_SECRET":          "s3cret",
-		"OIDC_REDIRECT_URL":           "https://logbook.example/api/v1/auth/oidc/callback",
-		"OIDC_POST_LOGIN_REDIRECT":    "https://logbook.example/auth/callback",
-		"OIDC_SCOPES":                 "",
-		"OIDC_PROVIDER_NAME":          "",
-		"OIDC_NAME_CLAIM":             "",
-		"OIDC_LINK_BY_VERIFIED_EMAIL": "",
-		"OIDC_TRUST_EMAIL_VERIFIED":   "",
-		"OIDC_LOGIN_STATE_TTL":        "",
-		"OIDC_HANDOFF_TTL":            "",
+		"OIDC_ISSUER":                     "https://idp.example.com",
+		"OIDC_CLIENT_ID":                  "ninerlog",
+		"OIDC_CLIENT_SECRET":              "s3cret",
+		"OIDC_REDIRECT_URL":               "https://logbook.example/api/v1/auth/oidc/callback",
+		"OIDC_POST_LOGIN_REDIRECT":        "https://logbook.example/auth/callback",
+		"OIDC_NATIVE_POST_LOGIN_REDIRECT": "",
+		"OIDC_SCOPES":                     "",
+		"OIDC_PROVIDER_NAME":              "",
+		"OIDC_NAME_CLAIM":                 "",
+		"OIDC_LINK_BY_VERIFIED_EMAIL":     "",
+		"OIDC_TRUST_EMAIL_VERIFIED":       "",
+		"OIDC_LOGIN_STATE_TTL":            "",
+		"OIDC_HANDOFF_TTL":                "",
 	}
 	for k, v := range overrides {
 		base[k] = v
@@ -187,6 +188,53 @@ func TestOIDCCookieScoping(t *testing.T) {
 			}
 			if got := cfg.CookieSecure(); got != tc.wantSecure {
 				t.Errorf("CookieSecure() = %v, want %v", got, tc.wantSecure)
+			}
+		})
+	}
+}
+
+func TestLoadOIDCConfigNativeRedirectDefaults(t *testing.T) {
+	setOIDCEnv(t, nil)
+
+	cfg, err := service.LoadOIDCConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.NativePostLoginRedirect != service.DefaultOIDCNativePostLoginRedirect {
+		t.Errorf("native redirect = %q, want %q",
+			cfg.NativePostLoginRedirect, service.DefaultOIDCNativePostLoginRedirect)
+	}
+}
+
+func TestLoadOIDCConfigNativeRedirectAcceptsCustomScheme(t *testing.T) {
+	setOIDCEnv(t, map[string]string{"OIDC_NATIVE_POST_LOGIN_REDIRECT": "fleetbook://sso/done"})
+
+	cfg, err := service.LoadOIDCConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.NativePostLoginRedirect != "fleetbook://sso/done" {
+		t.Errorf("native redirect = %q, want the configured value", cfg.NativePostLoginRedirect)
+	}
+}
+
+func TestLoadOIDCConfigRejectsUnusableNativeRedirect(t *testing.T) {
+	cases := map[string]string{
+		"no scheme":     "auth/callback",
+		"script scheme": "javascript:alert(1)",
+		"no host":       "https://",
+		"scheme only":   "ninerlog:",
+	}
+	for name, value := range cases {
+		t.Run(name, func(t *testing.T) {
+			setOIDCEnv(t, map[string]string{"OIDC_NATIVE_POST_LOGIN_REDIRECT": value})
+
+			_, err := service.LoadOIDCConfig()
+			if err == nil {
+				t.Fatalf("expected %q to be refused at startup", value)
+			}
+			if !strings.Contains(err.Error(), "OIDC_NATIVE_POST_LOGIN_REDIRECT") {
+				t.Errorf("error must name the offending variable, got %v", err)
 			}
 		})
 	}

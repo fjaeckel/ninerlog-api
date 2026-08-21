@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	emailpkg "github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,7 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	stats.NewUsersThisWeek = adminStats.NewUsersThisWeek
 	stats.LockedAccounts = adminStats.LockedAccounts
 	stats.DisabledAccounts = adminStats.DisabledAccounts
+	stats.ImportsByFormat = adminStats.ImportsByFormat
 	stats.CloudBackupDestinations.ByProvider = adminStats.BackupDestinationsByProvider
 	for _, count := range adminStats.BackupDestinationsByProvider {
 		stats.CloudBackupDestinations.Total += count
@@ -189,10 +191,13 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	// admin; the client secret deliberately has no representation here.
 	authMode := generated.AdminConfigAuthModeLocal
 	var oidcIssuer *string
+	var oidcNativeRedirect *string
 	if h.oidcService != nil {
 		authMode = generated.AdminConfigAuthModeOidc
 		issuer := h.oidcService.Config().Issuer
 		oidcIssuer = &issuer
+		nativeRedirect := h.oidcService.NativePostLoginRedirect()
+		oidcNativeRedirect = &nativeRedirect
 	}
 
 	documentFilesEnabled := h.documentFileService != nil && h.documentFileService.Enabled()
@@ -205,6 +210,7 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	config := generated.AdminConfig{
 		AuthMode:                     &authMode,
 		OidcIssuer:                   oidcIssuer,
+		OidcNativeRedirect:           oidcNativeRedirect,
 		GoVersion:                    runtime.Version(),
 		ServerUptime:                 uptimeStr,
 		MigrationVersion:             migrationVersion,
@@ -243,6 +249,15 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		if count, err := h.emailDeliveryService.CountSuppressions(c.Request.Context()); err == nil {
 			config.EmailSuppressedCount = &count
 		}
+	}
+
+	appVersion := updatecheck.RunningVersion()
+	config.AppVersion = &appVersion
+	updateCheckEnabled := h.updateChecker != nil && h.updateChecker.Enabled()
+	config.UpdateCheckEnabled = &updateCheckEnabled
+	if updateCheckEnabled && h.updateChecker.Interval() > 0 {
+		interval := h.updateChecker.Interval().String()
+		config.UpdateCheckInterval = &interval
 	}
 
 	c.JSON(http.StatusOK, config)

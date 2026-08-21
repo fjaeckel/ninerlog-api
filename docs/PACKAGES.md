@@ -28,6 +28,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | `internal/service/currency` | The currency engine: `Evaluator`/`Registry`/`FlightDataProvider` (`evaluator.go`), `Service` (`service.go`), authority evaluators (`easa.go`, `faa.go`, `german_ul.go`, `other.go`), and shared logic (`engine.go`, `types.go`). The PostgreSQL implementations of `FlightDataProvider` and `CustomFlightDataProvider` live in `internal/repository/postgres` (`currency_flight_data.go`, `custom_currency_data.go`). See [DOMAIN.md](./DOMAIN.md#currency-engine). |
 | `internal/service/flightcalc` | `ApplyAutoCalculations(flight, userName)` — the single entry point that derives flight fields. |
 | `internal/service/flightrules` | Composable flight rules used by `flightcalc`: `night.go` (day/night via solar), `crew.go`, `roles.go`, `names.go`, `ifr.go`, `fstd.go`, `remarks.go`, `display.go`. |
+| `internal/service/importtemplate` | The logbook-import template catalogue: `field.go` (import-field constants), `template.go` (the `Template` type + registry), `sources.go` (the templates themselves — ForeFlight, LogTen Pro, MyFlightbook, capzlog.aero, FLYLOG.io, Wader, Vereinsflieger standard + extended, SkyDemon, generic EASA/FAA, NinerLog), `detect.go` (header normalisation, scored detection, mapping suggestion). Pure data + lookup; imports no generated types, so the handler converts at the edge. |
 | `internal/service/cloudbackup` | Cloud backup orchestration: `service.go`, `destinations.go`, `runner.go`, `scheduler.go`, `jsonbuilder.go`. |
 | `internal/service/cloudbackup/provider` | Pluggable storage `Provider` interface + registry, with `s3/`, `sftp/`, and `webdav/` implementations. |
 
@@ -45,6 +46,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | `internal/models` | Domain structs + validation helpers (no I/O): `user.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `flight.go`, `flight_baseline.go`, `notification.go`, `backup.go`, `webauthn.go`, `oidc.go`, `idempotency.go`, `deletion.go`, plus `validation.go` (text-length limits) and `errors.go` (shared error types). |
 | `internal/config` | Loads typed configuration from environment variables. |
 | `internal/airports` | In-memory airport database merged from OurAirports (CSV) and mwgg/Airports (JSON). `Init()` at startup, `StartRefresher()` refetches on a timer. Lock-free reads over an atomically swapped snapshot: ICAO map for exact lookups, sorted code list for prefix search, 1°×1° grid for `Nearest`. Used for coordinates/distance and airport lookup/search. |
+| `internal/updatecheck` | Release update check. Holds the running version and commit (link-time stamps, else `APP_VERSION`/`APP_COMMIT`), reads the newest published GitHub release per component on a timer, and compares by semantic version — or, for an untagged `latest` build, compares the build commit against the tracked branch head. Serves `GET /admin/update`; disabled by `UPDATE_CHECK_ENABLED=false`. |
 | `internal/testutil` | Shared test fixtures, database setup/teardown, and an API client for tests. |
 
 ## `pkg/`

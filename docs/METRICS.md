@@ -11,8 +11,14 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 | Env Var | Default | Description |
 |---------|---------|-------------|
 | `METRICS_ENABLED` | `true` | Set to `false` to disable metrics collection |
-| `APP_VERSION` | `dev` | Version string exposed in `app_info` gauge |
+| `APP_VERSION` | `dev` | Version string exposed in the `app_info` gauge, used only when the binary carries no build stamp |
 | `AIRPORT_REFRESH_INTERVAL` | `24h` | How often the airport database is refetched. `off` or `0s` disables the refresher |
+| `UPDATE_CHECK_ENABLED` | `true` | Set to `false` to stop looking up published releases on GitHub. No `update_check_*` series are emitted when off |
+| `UPDATE_CHECK_INTERVAL` | `24h` | How often the release lookup runs. `off` or `0s` leaves only the lookup performed at startup |
+| `UPDATE_CHECK_API_REPO` | `fjaeckel/ninerlog-api` | `owner/name` repository the API's releases are read from |
+| `UPDATE_CHECK_FRONTEND_REPO` | `fjaeckel/ninerlog-frontend` | `owner/name` repository the frontend's releases are read from |
+| `UPDATE_CHECK_BRANCH` | `main` | Branch an untagged (`latest`) build's commit is compared against |
+| `APP_COMMIT` | unset | Commit this build came from, used only when the binary carries no build stamp |
 
 Rate limiting is not a metrics setting, but it is what the rate-limit metrics
 below are for:
@@ -81,7 +87,7 @@ design, so this metric is where the actual failure reason surfaces. See
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `auth_oidc_login_attempts_total` | Counter | `result` | Steps of the OIDC login flow. `result`: `authorize`, `callback_success`, `success`, `authorize_failed`, `provider_error`, `provider_unavailable`, `invalid_state`, `email_missing`, `email_conflict`, `account_disabled`, `handoff_invalid`, `error` |
+| `auth_oidc_login_attempts_total` | Counter | `result` | Steps of the OIDC login flow. `result`: `authorize`, `authorize_native`, `callback_success`, `success`, `authorize_failed`, `provider_error`, `provider_unavailable`, `invalid_state`, `email_missing`, `email_conflict`, `account_disabled`, `handoff_invalid`, `error` |
 
 A gap between `authorize` and `callback_success` means users are dropping out at the
 provider. `invalid_state` rising means expired logins, replayed callbacks, or a proxy
@@ -153,6 +159,30 @@ The in-memory airport database (`internal/airports`) merges two upstream dataset
 > `airport_db_age_seconds` rather than on reload failures alone — a single failed refresh
 > is harmless because the previous snapshot keeps serving, but a database that stops
 > refreshing for days is drifting away from the upstream data.
+
+### Release Update Check Metrics
+
+The release check (`internal/updatecheck`) compares the running components against the
+newest release published for each component's repository, or — for a build carrying only
+a commit, which is what the `latest` image tags are — against the head of
+`UPDATE_CHECK_BRANCH`. It is skipped entirely when `UPDATE_CHECK_ENABLED=false`, in which
+case none of these series exist.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `update_check_runs_total` | Counter | `result` | Release check runs. Results: `success` (every component read), `error` (at least one failed) |
+| `update_check_errors_total` | Counter | `reason` | Lookup failures. Reasons: `request` (network/DNS), `status` (non-200, including GitHub rate limiting), `decode` (unreadable body), `empty` (release without a tag) |
+| `update_check_duration_seconds` | Histogram | — | Duration of one run, covering every component queried |
+| `update_check_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last run in which every component was read |
+| `app_update_available` | Gauge | `component` | 1 when a newer build exists, 0 when current. Only `component="api"`: the frontend's running build is known to the browser, not to the API. The series is absent while the API build carries neither a semantic version nor a commit |
+| `app_commits_behind` | Gauge | `component` | Commits the tracked branch is ahead of the running build. Only `component="api"`, and only for a build compared by commit (the `latest` tag); absent for a tagged release build |
+| `update_check_latest_version_info` | Gauge (const 1) | `component`, `version` | Newest published release per component. Components: `api`, `frontend` |
+
+> **Why this matters:** `app_update_available` is the series to alert on for a
+> self-hosted deployment — it is the only signal that a security fix has shipped
+> and this instance has not taken it. A failing check is not urgent on its own,
+> which is why staleness (`update_check_last_success_timestamp_seconds`) rather
+> than `update_check_errors_total` is what the alert rule watches.
 
 ### Email Delivery Metrics
 
