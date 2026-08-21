@@ -43,7 +43,7 @@ func BenchmarkApplyAutoCalculations(b *testing.B) {
 			Route:         &route,
 			Remarks:       &remarks,
 		}
-		ApplyAutoCalculations(flight, "")
+		ApplyAutoCalculations(flight, "", nil)
 	}
 }
 
@@ -76,7 +76,7 @@ func BenchmarkApplyAutoCalculations_NightFlight(b *testing.B) {
 			LandingsDay:   0,
 			LandingsNight: 1,
 		}
-		ApplyAutoCalculations(flight, "")
+		ApplyAutoCalculations(flight, "", nil)
 	}
 }
 
@@ -115,6 +115,6 @@ func BenchmarkApplyAutoCalculations_WithCrew(b *testing.B) {
 				{Name: "Jane Student", Role: models.CrewRoleStudent},
 			},
 		}
-		ApplyAutoCalculations(flight, "")
+		ApplyAutoCalculations(flight, "", nil)
 	}
 }

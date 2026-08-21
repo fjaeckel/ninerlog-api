@@ -242,6 +242,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	flight.InstructorName = req.InstructorName
 	flight.InstructorComments = req.InstructorComments
 	flight.SICTime = getIntOrDefault(req.SicTime, 0)
+	flight.SICTimeOverride = req.SicTime != nil
 	flight.DualGivenTime = getIntOrDefault(req.DualGivenTime, 0)
 	flight.SimulatedFlightTime = getIntOrDefault(req.SimulatedFlightTime, 0)
 	flight.GroundTrainingTime = getIntOrDefault(req.GroundTrainingTime, 0)
@@ -276,6 +277,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	// Phase 6c: PIC Name, Multi-Pilot Time, FSTD Type, Approaches, Endorsements
 	flight.PICName = req.PicName
 	flight.MultiPilotTime = getIntOrDefault(req.MultiPilotTime, 0)
+	flight.MultiPilotTimeOverride = req.MultiPilotTime != nil
 	flight.FSTDType = req.FstdType
 	flight.Endorsements = req.Endorsements
 
@@ -313,7 +315,8 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	userName := h.getUserNameFromContext(c)
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
-	flightcalc.ApplyAutoCalculations(&flight, userName)
+	flightcalc.ApplyAutoCalculations(&flight, userName,
+		h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg))
 
 	// Auto-set PIC name via centralised rule. Runs AFTER crew parsing and
 	// auto-calc so IsPIC/IsDual + CrewMembers are populated.
@@ -434,6 +437,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	applyNullable(&flight.InstructorComments, req.InstructorComments)
 	if req.SicTime != nil {
 		flight.SICTime = *req.SicTime
+		flight.SICTimeOverride = true
 	}
 	if req.DualGivenTime != nil {
 		flight.DualGivenTime = *req.DualGivenTime
@@ -470,6 +474,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	applyNullable(&flight.PICName, req.PicName)
 	if req.MultiPilotTime != nil {
 		flight.MultiPilotTime = *req.MultiPilotTime
+		flight.MultiPilotTimeOverride = true
 	}
 	applyNullable(&flight.FSTDType, req.FstdType)
 	applyNullable(&flight.Endorsements, req.Endorsements)
@@ -528,7 +533,8 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	userName := h.getUserNameFromContext(c)
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
-	flightcalc.ApplyAutoCalculations(flight, userName)
+	flightcalc.ApplyAutoCalculations(flight, userName,
+		h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg))
 
 	// Auto-set PIC name if not explicitly provided. Runs AFTER crew parsing
 	// and auto-calc so IsPIC/IsDual + CrewMembers are populated.
@@ -611,6 +617,7 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		AircraftReg:      f.AircraftReg,
 		AircraftType:     f.AircraftType,
 		IsSimulator:      f.IsSimulator,
+		IsPassenger:      f.IsPassenger,
 		TotalTime:        f.TotalTime,
 		IsPic:            f.IsPIC,
 		IsDual:           f.IsDual,

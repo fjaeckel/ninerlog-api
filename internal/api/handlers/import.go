@@ -20,6 +20,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/internal/service/importtemplate"
@@ -424,11 +425,13 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	isSelected := func(rowIdx int) bool { return importAll || selectedSet[rowIdx] }
 	includeDups := req.IncludeDuplicates != nil && *req.IncludeDuplicates
 
-	// Resolve the user display name once for flight auto-calculations.
+	// Resolve the user display name and the fleet once for flight
+	// auto-calculations.
 	userName := ""
 	if user, err := h.authService.GetUserByID(c.Request.Context(), userID); err == nil && user != nil {
 		userName = user.Name
 	}
+	fleet := h.aircraftService.AircraftFactsIndexFor(c.Request.Context(), userID)
 
 	// Get existing flights for duplicate check
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
@@ -688,7 +691,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		// Apply auto-calculations (solo, cross-country, distance, night, landing split, PIC/Dual)
-		flightcalc.ApplyAutoCalculations(&newFlight, userName)
+		flightcalc.ApplyAutoCalculations(&newFlight, userName, fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)])
 
 		if err := h.flightService.CreateFlight(c.Request.Context(), &newFlight); err != nil {
 			importErrors = append(importErrors, struct {

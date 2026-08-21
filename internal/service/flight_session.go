@@ -271,7 +271,8 @@ func (s *FlightSessionService) buildFlight(ctx context.Context, session *models.
 		AllLandings:   1, // a completed flight has one landing; day/night split is auto-calculated
 	}
 
-	flightcalc.ApplyAutoCalculations(flight, userName)
+	flightcalc.ApplyAutoCalculations(flight, userName,
+		AircraftFactsFor(ctx, s.aircraftRepo, session.UserID, *session.AircraftReg))
 	return flight
 }
 

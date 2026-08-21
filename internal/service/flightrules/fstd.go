@@ -20,13 +20,14 @@ func IsFSTDRow(f *models.Flight) bool {
 
 // CountsAsFlightTime reports whether a row contributes to flight totals.
 // An FSTD session never does: AMC1 FCL.050 records session time separately
-// and it may not be summed with flight time.
+// and it may not be summed with flight time. Neither does a flight the user
+// was carried on as a passenger, which is not flight time at all.
 //
 // This is the single source of truth for the distinction. Aggregates in
-// internal/repository/postgres carry the equivalent `NOT is_simulator`
-// predicate in SQL.
+// internal/repository/postgres carry the equivalent
+// `NOT is_simulator AND NOT is_passenger` predicate in SQL.
 func CountsAsFlightTime(f *models.Flight) bool {
-	return f != nil && !f.IsSimulator
+	return f != nil && !f.IsSimulator && !f.IsPassenger
 }
 
 // FSTDFields returns the (date, type, time) triple to fill into the FSTD

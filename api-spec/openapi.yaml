@@ -5695,6 +5695,11 @@ components:
           default: false
           example: false
           description: Whether aircraft has tailwheel (conventional gear)
+        isMultiPilot:
+          type: boolean
+          default: false
+          example: false
+          description: Whether the type is certificated for a minimum crew of two pilots. Co-pilot time is loggable only on such an aircraft.
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
@@ -5769,6 +5774,11 @@ components:
           type: boolean
           default: false
           example: false
+        isMultiPilot:
+          type: boolean
+          default: false
+          example: false
+          description: Whether the type is certificated for a minimum crew of two pilots. Co-pilot time is loggable only on such an aircraft.
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
@@ -5811,6 +5821,10 @@ components:
         isTailwheel:
           type: boolean
           example: false
+        isMultiPilot:
+          type: boolean
+          example: false
+          description: Whether the type is certificated for a minimum crew of two pilots. Co-pilot time is loggable only on such an aircraft.
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
@@ -5966,6 +5980,7 @@ components:
         - aircraftReg
         - aircraftType
         - isSimulator
+        - isPassenger
         - totalTime
         - isPic
         - isDual
@@ -6209,6 +6224,18 @@ components:
             contributes to no flight total, statistic or currency calculation
             (EASA AMC1 FCL.050: session time is recorded separately and is never
             summed with flight time).
+        isPassenger:
+          type: boolean
+          example: false
+          description: |
+            True when the user was carried on this flight rather than crewing it.
+            Derived on save: another person is pilot-in-command and the operation
+            carries no co-pilot seat the user may occupy — the aircraft is not
+            certificated for a minimum crew of two, the user is not a required
+            safety pilot, and no co-pilot seat was declared. The row keeps its
+            route and block times as the record of the trip and carries zero in
+            every flight-time column, contributing to no total, statistic or
+            currency calculation.
         fstdType:
           type: [string, 'null']
           example: FNPT II
@@ -8773,6 +8800,7 @@ components:
         - totalUsers
         - totalFlights
         - totalSimulatorSessions
+        - totalPassengerFlights
         - totalAircraft
         - totalContacts
         - totalCredentials
@@ -8789,10 +8817,13 @@ components:
           type: integer
         totalFlights:
           type: integer
-          description: Flights across all users. Excludes FSTD sessions, which are counted separately.
+          description: Flights across all users. Excludes FSTD sessions and passenger flights, which are counted separately.
         totalSimulatorSessions:
           type: integer
           description: FSTD (simulator) sessions across all users. Recorded separately from flights and never summed into flight time (EASA AMC1 FCL.050).
+        totalPassengerFlights:
+          type: integer
+          description: Flights across all users whose owner was carried as a passenger rather than crewing. Recorded separately and never summed into flight time.
         totalAircraft:
           type: integer
         totalContacts:

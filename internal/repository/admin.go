@@ -14,6 +14,7 @@ type AdminStats struct {
 	TotalUsers             int
 	TotalFlights           int
 	TotalSimulatorSessions int
+	TotalPassengerFlights  int
 	TotalAircraft          int
 	TotalContacts          int
 	TotalCredentials       int

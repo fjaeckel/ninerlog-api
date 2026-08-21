@@ -20,25 +20,26 @@ func NewReportsRepository(db *sql.DB) repository.ReportsRepository {
 	return &reportsRepository{db: db}
 }
 
-// notSimulator excludes FSTD sessions from flight aggregates. Session time
-// is recorded separately and is never summed with flight time
-// (EASA AMC1 FCL.050); the Go-side counterpart is
-// flightrules.CountsAsFlightTime.
-const notSimulator = " AND NOT f.is_simulator"
+// onlyFlightTime restricts an aggregate to rows that count as flight time.
+// FSTD session time is recorded separately and is never summed with flight
+// time (EASA AMC1 FCL.050); a passenger flight is not flight time at all.
+// The Go-side counterpart is flightrules.CountsAsFlightTime.
+const onlyFlightTime = " AND NOT f.is_simulator AND NOT f.is_passenger"
 
 // reportScope carries the user and timeframe predicate shared by the
 // timeframe-aware queries. All queries alias the flights table as `f`.
 type reportScope struct {
 	userID uuid.UUID
 	months int
-	// filter is ANDed onto each WHERE clause. Always excludes FSTD
-	// sessions; additionally bounds the timeframe unless covering all time.
+	// filter is ANDed onto each WHERE clause. Always restricted to rows
+	// counting as flight time; additionally bounds the timeframe unless
+	// covering all time.
 	filter string
 	args   []any
 }
 
 func newReportScope(userID uuid.UUID, months int) reportScope {
-	s := reportScope{userID: userID, months: months, args: []any{userID}, filter: notSimulator}
+	s := reportScope{userID: userID, months: months, args: []any{userID}, filter: onlyFlightTime}
 	if months > 0 {
 		s.filter += " AND f.date >= date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)"
 		s.args = append(s.args, months)
@@ -61,7 +62,7 @@ func (r *reportsRepository) RouteCounts(ctx context.Context, userID uuid.UUID) (
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT departure_icao, arrival_icao, COUNT(*) AS flight_count
 		FROM flights
-		WHERE user_id = $1 AND NOT is_simulator
+		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger
 		  AND departure_icao IS NOT NULL AND departure_icao != ''
 		  AND arrival_icao IS NOT NULL AND arrival_icao != ''
 		GROUP BY departure_icao, arrival_icao
@@ -87,10 +88,10 @@ func (r *reportsRepository) AirportCounts(ctx context.Context, userID uuid.UUID)
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT icao, direction, COUNT(*) AS cnt FROM (
 			SELECT departure_icao AS icao, 'dep' AS direction FROM flights
-			WHERE user_id = $1 AND NOT is_simulator AND departure_icao IS NOT NULL AND departure_icao != ''
+			WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND departure_icao IS NOT NULL AND departure_icao != ''
 			UNION ALL
 			SELECT arrival_icao AS icao, 'arr' AS direction FROM flights
-			WHERE user_id = $1 AND NOT is_simulator AND arrival_icao IS NOT NULL AND arrival_icao != ''
+			WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND arrival_icao IS NOT NULL AND arrival_icao != ''
 		) sub
 		GROUP BY icao, direction
 		ORDER BY icao
@@ -398,7 +399,7 @@ func (r *reportsRepository) CarriedForwardMinutes(ctx context.Context, userID uu
 	if err := r.db.QueryRowContext(ctx, `
 		SELECT COALESCE(SUM(f.total_time), 0)
 		FROM flights f
-		WHERE f.user_id = $1 AND NOT f.is_simulator
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger
 		  AND f.date < date_trunc('month', CURRENT_DATE - ($2 || ' months')::interval)`,
 		userID, months,
 	).Scan(&earlier); err != nil {
@@ -603,7 +604,7 @@ func (r *reportsRepository) ByRoute(ctx context.Context, userID uuid.UUID, month
 			COALESCE(SUM(f.total_time), 0),
 			COALESCE(MAX(f.distance), 0)::float8
 		FROM flights f
-		WHERE f.user_id = $1 AND NOT f.is_simulator
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger
 		  AND f.departure_icao IS NOT NULL AND f.departure_icao <> ''
 		  AND f.arrival_icao IS NOT NULL AND f.arrival_icao <> ''`+s.filter+`
 		GROUP BY 1, 2
@@ -879,7 +880,7 @@ func (r *reportsRepository) BusiestDay(ctx context.Context, userID uuid.UUID, mo
 func (r *reportsRepository) LastFlightDate(ctx context.Context, userID uuid.UUID) (*time.Time, error) {
 	var last sql.NullTime
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT MAX(f.date) FROM flights f WHERE f.user_id = $1 AND NOT f.is_simulator`, userID,
+		`SELECT MAX(f.date) FROM flights f WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger`, userID,
 	).Scan(&last); err != nil {
 		return nil, err
 	}

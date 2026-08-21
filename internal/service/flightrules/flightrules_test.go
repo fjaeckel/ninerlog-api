@@ -208,7 +208,7 @@ func TestDetermineRole(t *testing.T) {
 			{Name: "Earhart, Amelia", Role: models.CrewRoleInstructor},
 		},
 	}
-	if got := DetermineRole(f, "Amelia Earhart"); got != RoleDualGiving {
+	if got := DetermineRole(f, "Amelia Earhart", nil); got != RoleDualGiving {
 		t.Errorf("self-instructor via reversed name = %v, want RoleDualGiving", got)
 	}
 
@@ -217,7 +217,7 @@ func TestDetermineRole(t *testing.T) {
 			{Name: "CFI Mueller", Role: models.CrewRoleInstructor},
 		},
 	}
-	if got := DetermineRole(f2, "Amelia Earhart"); got != RoleDualReceiving {
+	if got := DetermineRole(f2, "Amelia Earhart", nil); got != RoleDualReceiving {
 		t.Errorf("third-party instructor = %v, want RoleDualReceiving", got)
 	}
 }
@@ -230,12 +230,12 @@ func TestDetermineRole_Examiner(t *testing.T) {
 			{Name: "DPE Prüfer", Role: models.CrewRoleExaminer},
 		},
 	}
-	if got := DetermineRole(f, "Amelia Earhart"); got != RoleDualReceiving {
+	if got := DetermineRole(f, "Amelia Earhart", nil); got != RoleDualReceiving {
 		t.Errorf("third-party examiner = %v, want RoleDualReceiving", got)
 	}
 
 	// Empty userName: conservative fallback treats the examiner as third party.
-	if got := DetermineRole(f, ""); got != RoleDualReceiving {
+	if got := DetermineRole(f, "", nil); got != RoleDualReceiving {
 		t.Errorf("examiner with empty userName = %v, want RoleDualReceiving", got)
 	}
 
@@ -245,7 +245,7 @@ func TestDetermineRole_Examiner(t *testing.T) {
 			{Name: "Earhart, Amelia", Role: models.CrewRoleExaminer},
 		},
 	}
-	if got := DetermineRole(self, "Amelia Earhart"); got != RolePIC {
+	if got := DetermineRole(self, "Amelia Earhart", nil); got != RolePIC {
 		t.Errorf("self-examiner = %v, want RolePIC", got)
 	}
 }

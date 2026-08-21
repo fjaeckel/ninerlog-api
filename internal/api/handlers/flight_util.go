@@ -39,6 +39,10 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 		userName = user.Name
 	}
 
+	// The fleet decides whether co-pilot time may be logged; resolve it once
+	// for the whole pass.
+	fleet := h.aircraftService.AircraftFactsIndexFor(c.Request.Context(), userID)
+
 	updated := 0
 	failed := 0
 	for _, flight := range flights {
@@ -49,7 +53,7 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 				flight.CrewMembers = crew
 			}
 		}
-		flightcalc.ApplyAutoCalculations(flight, userName)
+		flightcalc.ApplyAutoCalculations(flight, userName, fleet[service.NormalizeRegistrationKey(flight.AircraftReg)])
 		// UpdateFlight canonicalises AircraftReg; signed flights are rejected
 		// as locked and counted as errors.
 		if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {

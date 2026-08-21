@@ -1756,9 +1756,12 @@ type AdminStats struct {
 	TotalContacts    int `json:"totalContacts"`
 	TotalCredentials int `json:"totalCredentials"`
 
-	// TotalFlights Flights across all users. Excludes FSTD sessions, which are counted separately.
+	// TotalFlights Flights across all users. Excludes FSTD sessions and passenger flights, which are counted separately.
 	TotalFlights int `json:"totalFlights"`
 	TotalImports int `json:"totalImports"`
+
+	// TotalPassengerFlights Flights across all users whose owner was carried as a passenger rather than crewing. Recorded separately and never summed into flight time.
+	TotalPassengerFlights int `json:"totalPassengerFlights"`
 
 	// TotalSimulatorSessions FSTD (simulator) sessions across all users. Recorded separately from flights and never summed into flight time (EASA AMC1 FCL.050).
 	TotalSimulatorSessions int `json:"totalSimulatorSessions"`
@@ -1848,6 +1851,11 @@ type Aircraft struct {
 	// Example: false
 	IsHighPerformance *bool `json:"isHighPerformance,omitempty"`
 
+	// IsMultiPilot Whether the type is certificated for a minimum crew of two pilots. Co-pilot time is loggable only on such an aircraft.
+	//
+	// Example: false
+	IsMultiPilot *bool `json:"isMultiPilot,omitempty"`
+
 	// IsTailwheel Whether aircraft has tailwheel (conventional gear)
 	//
 	// Example: false
@@ -1907,6 +1915,11 @@ type AircraftCreate struct {
 
 	// IsHighPerformance Example: false
 	IsHighPerformance *bool `json:"isHighPerformance,omitempty"`
+
+	// IsMultiPilot Whether the type is certificated for a minimum crew of two pilots. Co-pilot time is loggable only on such an aircraft.
+	//
+	// Example: false
+	IsMultiPilot *bool `json:"isMultiPilot,omitempty"`
 
 	// IsTailwheel Example: false
 	IsTailwheel *bool `json:"isTailwheel,omitempty"`
@@ -2056,6 +2069,11 @@ type AircraftUpdate struct {
 
 	// IsHighPerformance Example: false
 	IsHighPerformance *bool `json:"isHighPerformance,omitempty"`
+
+	// IsMultiPilot Whether the type is certificated for a minimum crew of two pilots. Co-pilot time is loggable only on such an aircraft.
+	//
+	// Example: false
+	IsMultiPilot *bool `json:"isMultiPilot,omitempty"`
 
 	// IsTailwheel Example: false
 	IsTailwheel *bool `json:"isTailwheel,omitempty"`
@@ -3501,6 +3519,19 @@ type Flight struct {
 	//
 	// Example: false
 	IsIpc *bool `json:"isIpc,omitempty"`
+
+	// IsPassenger True when the user was carried on this flight rather than crewing it.
+	// Derived on save: another person is pilot-in-command and the operation
+	// carries no co-pilot seat the user may occupy — the aircraft is not
+	// certificated for a minimum crew of two, the user is not a required
+	// safety pilot, and no co-pilot seat was declared. The row keeps its
+	// route and block times as the record of the trip and carries zero in
+	// every flight-time column, contributing to no total, statistic or
+	// currency calculation.
+	//
+	//
+	// Example: false
+	IsPassenger bool `json:"isPassenger"`
 
 	// IsPic Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
 	//

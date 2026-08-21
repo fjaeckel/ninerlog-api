@@ -20,6 +20,7 @@ const (
 	roleDualReceiving = flightrules.RoleDualReceiving
 	roleDualGiving    = flightrules.RoleDualGiving
 	roleSIC           = flightrules.RoleSIC
+	rolePassenger     = flightrules.RolePassenger
 )
 
 // ApplyAutoCalculations computes all auto-calculated fields on a flight.
@@ -31,13 +32,28 @@ const (
 // (→ Dual received) or the user themselves (→ PIC). When userName is empty,
 // any Instructor or Examiner crew member is treated as a third party (Dual
 // received).
-func ApplyAutoCalculations(flight *models.Flight, userName string) {
+//
+// aircraft carries the fleet facts for the registration flown; pass nil when
+// the registration has no fleet entry. Co-pilot and multi-pilot time are
+// derived from it, so an unknown aircraft is treated as single-pilot and
+// never has co-pilot time invented for it.
+func ApplyAutoCalculations(flight *models.Flight, userName string, aircraft *flightrules.AircraftFacts) {
 	if flight.IsSimulator {
 		applySessionCalculations(flight)
 		return
 	}
 
-	role := determineUserRole(flight, userName)
+	// A zero total is recovered from the block times; a non-zero one is kept.
+	if flight.TotalTime == 0 {
+		flight.TotalTime = blockMinutes(flight)
+	}
+
+	role := determineUserRole(flight, userName, aircraft)
+	flight.IsPassenger = role == rolePassenger
+	if flight.IsPassenger {
+		applyPassengerCalculations(flight)
+		return
+	}
 
 	// 0. Auto-determine PIC/Dual from crew + user role
 	calculatePICDual(flight, role)
@@ -71,9 +87,9 @@ func ApplyAutoCalculations(flight *models.Flight, userName string) {
 	// 8. Dual given: only when the user is acting as instructor
 	calculateDualGivenTime(flight, role)
 
-	// 8b. Multi-pilot time: auto-filled when the crew indicates a
-	//     multi-pilot operation (user is SIC, or a SIC crew member exists)
-	calculateMultiPilotTime(flight, role)
+	// 8b. Multi-pilot time: auto-filled when a two-pilot crew flies a
+	//     multi-pilot aircraft
+	calculateMultiPilotTime(flight, role, aircraft)
 
 	// 9. IFR time: if user did not set it explicitly, derive from
 	//    Actual + Simulated instrument (capped at TotalTime).
@@ -120,15 +136,68 @@ func applySessionCalculations(flight *models.Flight) {
 	flight.ActualInstrumentTime = 0
 }
 
+// applyPassengerCalculations normalises a flight the user was carried on.
+// Route, block times and distance are kept as the record of the trip; every
+// flight-time, pilot-function, landing and instrument column is cleared.
+func applyPassengerCalculations(flight *models.Flight) {
+	flight.TotalTime = 0
+	flight.IsPIC = false
+	flight.IsDual = false
+	flight.PICTime = 0
+	flight.DualTime = 0
+	flight.SICTime = 0
+	flight.DualGivenTime = 0
+	flight.MultiPilotTime = 0
+	flight.SoloTime = 0
+	flight.CrossCountryTime = 0
+	flight.NightTime = 0
+	flight.IFRTime = 0
+	flight.LandingsDay = 0
+	flight.LandingsNight = 0
+	flight.AllLandings = 0
+	flight.TakeoffsDay = 0
+	flight.TakeoffsNight = 0
+	flight.ActualInstrumentTime = 0
+	flight.SimulatedInstrumentTime = 0
+	flight.SimulatedFlightTime = 0
+	flight.Holds = 0
+	flight.Approaches = nil
+	flight.ApproachesCount = 0
+
+	calculateDistance(flight)
+}
+
+// blockMinutes returns the off-block to on-block duration in minutes, or 0
+// when either block time is absent or unparseable. Times after midnight are
+// treated as the following day.
+func blockMinutes(flight *models.Flight) int {
+	if flight.OffBlockTime == nil || flight.OnBlockTime == nil {
+		return 0
+	}
+	off, err := parseTimeOfDay(flight.Date, *flight.OffBlockTime)
+	if err != nil {
+		return 0
+	}
+	on, err := parseTimeOfDay(flight.Date, *flight.OnBlockTime)
+	if err != nil {
+		return 0
+	}
+	if !on.After(off) {
+		on = on.Add(24 * time.Hour)
+	}
+	return int(on.Sub(off).Minutes())
+}
+
 // determineUserRole is a thin wrapper over flightrules.DetermineRole.
-func determineUserRole(flight *models.Flight, userName string) userPilotRole {
-	return flightrules.DetermineRole(flight, userName)
+func determineUserRole(flight *models.Flight, userName string, aircraft *flightrules.AircraftFacts) userPilotRole {
+	return flightrules.DetermineRole(flight, userName, aircraft)
 }
 
 // calculatePICDual sets PIC/Dual flags and times based on the resolved user
 // role. A user giving instruction is also PIC of the flight. A user flying
 // as co-pilot (SIC) on a multi-pilot operation logs neither PIC nor Dual —
-// only the designated PIC logs PIC time (AMC1 FCL.050).
+// only the designated PIC logs PIC time (AMC1 FCL.050). A passenger logs no
+// pilot function time at all.
 func calculatePICDual(flight *models.Flight, role userPilotRole) {
 	switch role {
 	case roleDualReceiving:
@@ -380,40 +449,35 @@ func parseTimeOfDay(date time.Time, timeStr string) (time.Time, error) {
 }
 
 // calculateSICTime sets SIC (co-pilot) time when the user's resolved role is
-// SIC — someone else is the designated PIC and the user occupies the other
-// pilot seat (AMC1 FCL.050). In all other roles the time is zeroed when crew
-// context exists.
+// SIC — someone else is the designated PIC and the user occupies a co-pilot
+// seat the operation provides (AMC1 FCL.050). A co-pilot time the pilot
+// declared is left as entered; in every other case the time is zeroed.
 func calculateSICTime(flight *models.Flight, role userPilotRole) {
-	if role == roleSIC {
-		flight.SICTime = flight.TotalTime
-		return
-	}
-	if len(flight.CrewMembers) > 0 {
+	if role != roleSIC {
 		flight.SICTime = 0
 		return
 	}
-	// Don't zero out if no crew members — keep manually set value
+	if flight.SICTimeOverride {
+		return
+	}
+	flight.SICTime = flight.TotalTime
 }
 
 // calculateMultiPilotTime fills the multi-pilot column (EASA AMC1 FCL.050
-// Col 10) when the crew composition indicates a multi-pilot operation: both
-// the designated PIC and the co-pilot log the full flight time there. A
-// manually entered non-zero value is preserved (e.g. augmented-crew ops
-// where each pilot logs a fraction of block time). When crew context exists
-// but does not indicate a multi-pilot operation, a stale value is zeroed;
-// without any crew the manual value is kept (user-declared MP aircraft).
-func calculateMultiPilotTime(flight *models.Flight, role userPilotRole) {
-	if flightrules.IsMultiPilotOperation(flight, role) {
-		if flight.MultiPilotTime == 0 {
-			flight.MultiPilotTime = flight.TotalTime
-		}
+// Col 10) when a two-pilot crew flies a multi-pilot aircraft: both the
+// designated PIC and the co-pilot log the full flight time there. A value the
+// pilot declared is left as entered (e.g. augmented-crew ops where each pilot
+// logs a fraction of block time); anything else derivation wrote itself is
+// zeroed when the operation is not multi-pilot.
+func calculateMultiPilotTime(flight *models.Flight, role userPilotRole, aircraft *flightrules.AircraftFacts) {
+	if flight.MultiPilotTimeOverride {
 		return
 	}
-	if len(flight.CrewMembers) > 0 {
-		flight.MultiPilotTime = 0
+	if flightrules.IsMultiPilotOperation(flight, role, aircraft) {
+		flight.MultiPilotTime = flight.TotalTime
 		return
 	}
-	// No crew at all — leave any manually entered value untouched.
+	flight.MultiPilotTime = 0
 }
 
 // calculateDualGivenTime sets dual given time when the user is acting as

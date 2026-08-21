@@ -58,7 +58,71 @@ So the invariant is `PICTime + SICTime + DualTime <= TotalTime`, enforced by
 
 When a row declares `SICTime` but carries no crew list — typical of imported logbooks —
 `flightrules.DetermineRole` resolves the user to co-pilot so `PICTime` is not also claimed
-for the same minutes.
+for the same minutes. Whether the time may be logged at all is a separate question, covered
+next.
+
+## Who may log co-pilot time
+
+Co-pilot time is not a consequence of another pilot being on board. It requires a co-pilot
+seat that the operation actually calls for, and most general aviation flying has none:
+
+- a **multi-pilot aircraft** — certificated for a minimum crew of two pilots (EASA
+  FCL.010; 14 CFR §61.51(f)(1), "aircraft type certificated for more than one pilot").
+  This is `aircraft.is_multi_pilot`, a fleet fact alongside `is_complex`,
+  `is_high_performance` and `is_tailwheel`. `aircraft_class` cannot express it: that
+  column is free-form and describes engines and land/sea, not required crew;
+- a **required safety pilot** during simulated instrument flight (14 CFR §91.109(b),
+  loggable under §61.51(f)(2)) — the user carries the `SafetyPilot` crew role;
+- a **declaration by the pilot** — the user lists their own `SIC` crew entry, or enters
+  `sicTime` directly. Two-pilot operations mandated by an operations manual rather than by
+  the type certificate (EASA FCL.010; §61.51(f)(2), §135.99(c)) are recorded this way.
+
+`flightrules.MayLogCoPilotTime` is the single predicate. **An aircraft absent from the
+fleet is treated as single-pilot**: derivation never invents co-pilot time for an aircraft
+it knows nothing about.
+
+### Passenger flights
+
+When another person is pilot-in-command and none of the above applies, the user was
+carried rather than crewed. `flightrules.DetermineRole` returns `RolePassenger` and the row
+is stored with `is_passenger = true`: it keeps its route, block times and distance as the
+record of the trip, and carries zero in `total_time` and every pilot-function, landing and
+instrument column. Like an FSTD session it contributes to no total, statistic or currency
+calculation — `flightrules.CountsAsFlightTime` and the SQL predicate
+`NOT is_simulator AND NOT is_passenger` are the two sides of that rule.
+
+### Declared versus derived co-pilot time
+
+`SICTimeOverride` marks a co-pilot time the pilot entered, following the `*Override`
+convention used for takeoffs and landings. Derivation trusts a declared value on any
+aircraft and leaves it as entered; a value derivation wrote itself carries no override, so
+re-running `POST /flights/recalculate` can still correct a row an earlier derivation filled
+in. Without that distinction the derived value would justify itself on every subsequent
+save.
+
+### Multi-pilot time
+
+The EASA AMC1 FCL.050 multi-pilot column (Col 10) records time flown in aeroplanes
+certificated for a minimum crew of two, so `flightrules.IsMultiPilotOperation` requires
+`is_multi_pilot` in addition to a two-pilot crew. A safety pilot in a single-pilot
+aeroplane is a required crew member and logs co-pilot time, but the aeroplane stays
+single-pilot and the time is not multi-pilot time. `PilotingCategoryFor` continues to bucket
+a row as MP on `MultiPilotTime > 0`, which is now only ever filled for a multi-pilot
+aircraft.
+
+### Existing data
+
+Migration `000065` does not infer `is_multi_pilot` from existing `multi_pilot_time`: that
+would flag exactly the single-pilot aircraft this rule exists to correct, cementing the
+error. The fleet starts unmarked and the pilot marks it.
+
+What the migration does backfill is the two override flags, and only where derivation
+cannot have produced the value. Before it, a co-pilot or multi-pilot time on a row with no
+crew list was kept as entered — so it came from the pilot — while one on a row with a crew
+list was written by derivation. Marking only the former as declared protects imported and
+hand-entered logbooks from being re-derived on the next save, and leaves derived values
+free to be corrected. Everything else stays as it is until the pilot marks their fleet and
+runs `POST /flights/recalculate`.
 
 ## FSTD (simulator) sessions
 
@@ -107,7 +171,7 @@ what the paper form requires.
 
 When a flight is created or updated, the service derives several fields so pilots don't
 have to compute them by hand. The entry point is
-`flightcalc.ApplyAutoCalculations(flight, userName)`
+`flightcalc.ApplyAutoCalculations(flight, userName, aircraft)`
 (`internal/service/flightcalc/flightcalc.go`), which composes helpers from
 `internal/service/flightrules`:
 
@@ -121,6 +185,11 @@ have to compute them by hand. The entry point is
 - **Cross-country time** — derived when departure ≠ arrival airport.
 - **Distance** — great-circle distance (nautical miles) from airport coordinates in the
   in-memory airport database (`internal/airports`).
+- **Pilot role** — `flightrules.DetermineRole(flight, userName, aircraft)` resolves the
+  user to PIC, dual received, dual given, co-pilot or passenger. `aircraft` is the fleet
+  entry for the registration flown (`flightrules.AircraftFacts`), resolved by the caller
+  via `service.AircraftFactsFor`; `nil` means the registration has no fleet entry. See
+  [Who may log co-pilot time](#who-may-log-co-pilot-time).
 - **Crew / roles / names / IFR / FSTD / remarks / display** — additional helpers in
   `flightrules/` (`crew.go`, `roles.go`, `names.go`, `ifr.go`, `fstd.go`, `remarks.go`,
   `display.go`) normalise crew roles, instructor/PIC names, instrument fields, simulator
@@ -129,9 +198,11 @@ have to compute them by hand. The entry point is
 ### Manual overrides
 
 Every auto-calculated takeoff/landing field has an `*Override` boolean (e.g.
-`LandingsDayOverride`). When a pilot edits the value manually, the override flag is set so
-recalculation does not clobber the manual entry. The `POST /flights/recalculate` endpoint
-re-runs auto-calculations across a pilot's flights while respecting overrides.
+`LandingsDayOverride`), as do `SICTime` and `MultiPilotTime`. When a pilot edits the value
+manually, the override flag is set so recalculation does not clobber the manual entry. The
+`POST /flights/recalculate` endpoint re-runs auto-calculations across a pilot's flights
+while respecting overrides. The flags are not serialised: the handlers set them when the
+request carries the corresponding field.
 
 ## Flight validation
 
@@ -140,10 +211,11 @@ Validation is layered:
 1. **Model-level** (`internal/models/flight.go`):
    - `IsValid()` — required fields present. These differ by row kind: a flight needs a
      registration and block time, a session needs `FSTDType` and a positive
-     `SimulatedFlightTime` (see [FSTD sessions](#fstd-simulator-sessions)).
+     `SimulatedFlightTime` (see [FSTD sessions](#fstd-simulator-sessions)), and a
+     passenger flight needs only a registration.
    - `ValidateTimeDistribution()` — function-time consistency: component times must not
      exceed total time, `PICTime + SICTime + DualTime <= TotalTime`, PIC/dual logic must
-     be coherent, and a session must carry no flight time at all.
+     be coherent, and a session or passenger flight must carry no flight time at all.
 2. **Text-field limits** (`internal/models/validation.go`) — enforces maximum lengths on
    free-text fields (registration, type, remarks, notes, …) to prevent abuse and oversized
    payloads.
