@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFlightFieldRetrieval(t *testing.T) {
@@ -288,21 +289,29 @@ func TestConcurrentTokenRefresh(t *testing.T) {
 	c := NewE2EClient(t)
 	auth := registerUser(t, c, uniqueEmail("concurrent"), "SecurePass123!", "Concurrent")
 
-	t.Run("second refresh after first invalidates token", func(t *testing.T) {
+	t.Run("both clients are served inside the reuse grace window", func(t *testing.T) {
 		resp1 := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
 		requireStatus(t, resp1, http.StatusOK)
-		var new1 AuthResponseBody
-		resp1.JSON(&new1)
+		var first AuthResponseBody
+		resp1.JSON(&first)
 
-		// Original token already used above, try again
+		// A second client still holding the token the first just rotated.
 		resp2 := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
-		if resp2.StatusCode != http.StatusUnauthorized && resp2.StatusCode != http.StatusBadRequest {
-			t.Errorf("Expected 401/400 for reused refresh token, got %d", resp2.StatusCode)
-		}
+		requireStatus(t, resp2, http.StatusOK)
+		var second AuthResponseBody
+		resp2.JSON(&second)
 
-		// The new token should work
-		resp3 := c.POST("/auth/refresh", map[string]string{"refreshToken": new1.RefreshToken})
-		requireStatus(t, resp3, http.StatusOK)
+		// Neither client may be evicted by the other.
+		requireStatus(t, c.POST("/auth/refresh",
+			map[string]string{"refreshToken": first.RefreshToken}), http.StatusOK)
+		requireStatus(t, c.POST("/auth/refresh",
+			map[string]string{"refreshToken": second.RefreshToken}), http.StatusOK)
+	})
+
+	t.Run("the superseded token is refused once the grace window passes", func(t *testing.T) {
+		time.Sleep(refreshReuseGrace + 500*time.Millisecond)
+		resp := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
+		assertStatus(t, resp, http.StatusUnauthorized)
 	})
 }
 

@@ -29,6 +29,16 @@ type sessionListBody struct {
 	MaxSessions int           `json:"maxSessions"`
 }
 
+// registerOnly registers and verifies an account, then ends the session that
+// following the verification link created, so the session counts below
+// describe only the logins each test makes itself.
+func registerOnly(t *testing.T, c *E2EClient, email, password, name string) {
+	t.Helper()
+	auth := registerUser(t, c, email, password, name)
+	requireStatus(t, c.POST("/auth/logout",
+		map[string]string{"refreshToken": auth.RefreshToken}), http.StatusNoContent)
+}
+
 // loginAs signs in with a given User-Agent so the session gets a distinct
 // device label.
 func loginAs(t *testing.T, c *E2EClient, email, password, userAgent string) AuthResponseBody {
@@ -55,7 +65,7 @@ func TestSessionsSurviveASecondDevice(t *testing.T) {
 	c := NewE2EClient(t)
 	email := uniqueEmail("multisession")
 	const password = "SecurePass123!"
-	registerUser(t, c, email, password, "Multi Session")
+	registerOnly(t, c, email, password, "Multi Session")
 
 	phone := loginAs(t, c, email, password, "Mozilla/5.0 (iPhone) AppleWebKit/605.1 Safari/604.1")
 	laptop := loginAs(t, c, email, password, "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120.0 Safari/537.36")
@@ -105,7 +115,7 @@ func TestSessionRevocation(t *testing.T) {
 	c := NewE2EClient(t)
 	email := uniqueEmail("revokesession")
 	const password = "SecurePass123!"
-	registerUser(t, c, email, password, "Revoke Session")
+	registerOnly(t, c, email, password, "Revoke Session")
 
 	phone := loginAs(t, c, email, password, "Mozilla/5.0 (iPhone) AppleWebKit/605.1 Safari/604.1")
 	laptop := loginAs(t, c, email, password, "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120.0 Safari/537.36")
@@ -146,7 +156,7 @@ func TestSessionsRevokeAllOthers(t *testing.T) {
 	c := NewE2EClient(t)
 	email := uniqueEmail("revokeothers")
 	const password = "SecurePass123!"
-	registerUser(t, c, email, password, "Revoke Others")
+	registerOnly(t, c, email, password, "Revoke Others")
 
 	older := loginAs(t, c, email, password, "Mozilla/5.0 (iPhone) AppleWebKit/605.1 Safari/604.1")
 	loginAs(t, c, email, password, "Mozilla/5.0 (iPad) AppleWebKit/605.1 Safari/604.1")
@@ -176,7 +186,7 @@ func TestSessionsCappedPerUser(t *testing.T) {
 	c := NewE2EClient(t)
 	email := uniqueEmail("sessioncap")
 	const password = "SecurePass123!"
-	registerUser(t, c, email, password, "Session Cap")
+	registerOnly(t, c, email, password, "Session Cap")
 
 	first := loginAs(t, c, email, password, "Mozilla/5.0 (iPhone) AppleWebKit/605.1 Safari/604.1")
 
