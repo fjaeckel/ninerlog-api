@@ -151,8 +151,13 @@ rules.
   registrations into the notation their state of registry uses, reporting the outcome as
   `aircraftNormalized`/`aircraftConflicts` — see
   [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
-- Rich data: structured approaches, crew members, endorsements, FSTD, launch method for
-  gliders.
+- Rich data: structured approaches, crew members, endorsements, launch method for gliders.
+- FSTD sessions: `isSimulator: true` logs a simulator session (FNPT, FTD, FFS, BATD/AATD)
+  instead of a flight. It records the device type and session duration, keeps the
+  instrument work (approaches, holds, simulated instrument time), and carries no flight
+  time, route or block times at all — training time is never summed with flying time. The
+  admin dashboard reports sessions separately as `totalSimulatorSessions`. See
+  [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions).
 - Airport names: flight responses carry read-only `departureAirportName` /
   `arrivalAirportName`, resolved per request from the in-memory airport database
   (`internal/airports`) for display. Only the location itself is stored; the names are
@@ -311,7 +316,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   running totals and a signature strip. The initial-hours snapshot (below) opens
   the carried-forward balance, so the TOTAL TIME row is a career total and not
   just what NinerLog holds; the columns a snapshot cannot supply are documented
-  in `export_pdf_baseline.go` and disclosed on the printed page.
+  in `export_pdf_baseline.go` and disclosed on the printed page. Every logged row is
+  printed, co-pilot (SIC) flights included — co-pilot time is part of total time
+  of flight and the EASA layout has a CO-PILOT column for it.
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.
@@ -368,7 +375,9 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
 - **Platform** — stats/dashboard (`admin_dashboard.go`), audit log (`AdminAuditLog`,
   migration 27), config view. `totalContacts` sits alongside the flight and aircraft
   counts: contacts accumulate on their own as crew names are logged, so it is a growth
-  number, not a configuration one. Config view also reports `registrationPrefixCount`
+  number, not a configuration one. `totalFlights` counts flights only and
+  `totalSimulatorSessions` counts FSTD sessions, kept apart for the same reason the
+  logbook keeps them apart (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)). Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than
   fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).

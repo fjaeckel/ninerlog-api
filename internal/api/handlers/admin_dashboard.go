@@ -36,6 +36,7 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	var stats generated.AdminStats
 	stats.TotalUsers = adminStats.TotalUsers
 	stats.TotalFlights = adminStats.TotalFlights
+	stats.TotalSimulatorSessions = adminStats.TotalSimulatorSessions
 	stats.TotalAircraft = adminStats.TotalAircraft
 	stats.TotalContacts = adminStats.TotalContacts
 	stats.TotalCredentials = adminStats.TotalCredentials

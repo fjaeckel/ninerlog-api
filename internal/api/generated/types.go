@@ -1755,9 +1755,14 @@ type AdminStats struct {
 	// TotalContacts Contacts across all users. Grows on its own as flights are logged, since crew names are turned into contacts automatically.
 	TotalContacts    int `json:"totalContacts"`
 	TotalCredentials int `json:"totalCredentials"`
-	TotalFlights     int `json:"totalFlights"`
-	TotalImports     int `json:"totalImports"`
-	TotalUsers       int `json:"totalUsers"`
+
+	// TotalFlights Flights across all users. Excludes FSTD sessions, which are counted separately.
+	TotalFlights int `json:"totalFlights"`
+	TotalImports int `json:"totalImports"`
+
+	// TotalSimulatorSessions FSTD (simulator) sessions across all users. Recorded separately from flights and never summed into flight time (EASA AMC1 FCL.050).
+	TotalSimulatorSessions int `json:"totalSimulatorSessions"`
+	TotalUsers             int `json:"totalUsers"`
 }
 
 // AdminUser defines model for AdminUser.
@@ -3507,6 +3512,18 @@ type Flight struct {
 	// Example: false
 	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
+	// IsSimulator True when this entry is an FSTD (simulator) session rather than a flight.
+	// A session carries its duration in simulatedFlightTime and zero in every
+	// flight-time column — totalTime, picTime, dualTime, sicTime, dualGivenTime,
+	// multiPilotTime, soloTime, crossCountryTime, nightTime and ifrTime — and
+	// contributes to no flight total, statistic or currency calculation
+	// (EASA AMC1 FCL.050: session time is recorded separately and is never
+	// summed with flight time).
+	//
+	//
+	// Example: false
+	IsSimulator bool `json:"isSimulator"`
+
 	// LandingsDay Number of day landings. Auto-calculated from sunset/sunrise at arrival airport.
 	//
 	// Example: 3
@@ -3728,14 +3745,28 @@ type FlightBaselineInput struct {
 	TotalMinutes *int `json:"totalMinutes,omitempty"`
 }
 
-// FlightCreate defines model for FlightCreate.
+// FlightCreate Creates either a flight or an FSTD (simulator) session.
+//
+// For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
+// `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
+// omitting any of them returns 400.
+//
+// For an FSTD session (`isSimulator: true`) they must be omitted — a training
+// device is not flown between places and has no block times. The session
+// requires `fstdType` and `simulatedFlightTime` instead. Session time is never
+// summed into flight time (EASA AMC1 FCL.050 Cols 20-22).
 type FlightCreate struct {
+	// ActualInstrumentTime Actual instrument (IMC) time in minutes. Always 0 for an FSTD session.
 	ActualInstrumentTime *int `json:"actualInstrumentTime,omitempty"`
 
-	// AircraftReg Example: D-EFGH
-	AircraftReg string `json:"aircraftReg"`
+	// AircraftReg Aircraft registration. Required for a flight, rejected for an FSTD session.
+	//
+	// Example: D-EFGH
+	AircraftReg *string `json:"aircraftReg,omitempty"`
 
-	// AircraftType Example: C172
+	// AircraftType Aircraft type. For an FSTD session, the aircraft type the device represents.
+	//
+	// Example: C172
 	AircraftType string `json:"aircraftType"`
 
 	// AllLandings Total landings (day + night). Auto-calculated by the server.
@@ -3745,10 +3776,10 @@ type FlightCreate struct {
 	Approaches      *[]ApproachEntryInput `json:"approaches,omitempty"`
 	ApproachesCount *int                  `json:"approachesCount,omitempty"`
 
-	// ArrivalIcao Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
+	// ArrivalIcao Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites. Required for a flight, rejected for an FSTD session.
 	//
 	// Example: EDDH
-	ArrivalIcao string `json:"arrivalIcao"`
+	ArrivalIcao *string `json:"arrivalIcao,omitempty"`
 
 	// ArrivalTime Landing time in UTC
 	//
@@ -3764,10 +3795,10 @@ type FlightCreate struct {
 	// Date Example: 2026-01-30
 	Date openapi_types.Date `json:"date"`
 
-	// DepartureIcao Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
+	// DepartureIcao Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites. Required for a flight, rejected for an FSTD session.
 	//
 	// Example: EDDF
-	DepartureIcao string `json:"departureIcao"`
+	DepartureIcao *string `json:"departureIcao,omitempty"`
 
 	// DepartureTime Takeoff time in UTC
 	//
@@ -3786,7 +3817,7 @@ type FlightCreate struct {
 	// Endorsements Instructor endorsements, skill test references
 	Endorsements *string `json:"endorsements,omitempty"`
 
-	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320")
+	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320"). Required when isSimulator is true.
 	FstdType           *string `json:"fstdType,omitempty"`
 	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
 	Holds              *int    `json:"holds,omitempty"`
@@ -3799,24 +3830,27 @@ type FlightCreate struct {
 	IsIpc              *bool   `json:"isIpc,omitempty"`
 	IsProficiencyCheck *bool   `json:"isProficiencyCheck,omitempty"`
 
-	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport.
+	// IsSimulator Marks this entry as an FSTD (simulator) session rather than a flight.
+	IsSimulator *bool `json:"isSimulator,omitempty"`
+
+	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport. Required for a flight, rejected for an FSTD session.
 	//
 	// Example: 3
-	Landings     int                       `json:"landings"`
+	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod *FlightCreateLaunchMethod `json:"launchMethod,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
 	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
 
-	// OffBlockTime Off-block time (chocks off / engine start) in UTC
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Required for a flight, rejected for an FSTD session.
 	//
 	// Example: 14:15:00
-	OffBlockTime string `json:"offBlockTime"`
+	OffBlockTime *string `json:"offBlockTime,omitempty"`
 
-	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Required for a flight, rejected for an FSTD session.
 	//
 	// Example: 16:55:00
-	OnBlockTime string `json:"onBlockTime"`
+	OnBlockTime *string `json:"onBlockTime,omitempty"`
 
 	// PicName Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
 	PicName *string `json:"picName,omitempty"`
@@ -3832,10 +3866,12 @@ type FlightCreate struct {
 	// Route Route waypoints as comma-separated ICAO codes
 	//
 	// Example: EDDF,EDDS,EDDM
-	Route                   *string `json:"route,omitempty"`
-	SicTime                 *int    `json:"sicTime,omitempty"`
-	SimulatedFlightTime     *int    `json:"simulatedFlightTime,omitempty"`
-	SimulatedInstrumentTime *int    `json:"simulatedInstrumentTime,omitempty"`
+	Route   *string `json:"route,omitempty"`
+	SicTime *int    `json:"sicTime,omitempty"`
+
+	// SimulatedFlightTime FSTD session duration in minutes (EASA AMC1 FCL.050 Col 22). Required and positive when isSimulator is true.
+	SimulatedFlightTime     *int `json:"simulatedFlightTime,omitempty"`
+	SimulatedInstrumentTime *int `json:"simulatedInstrumentTime,omitempty"`
 
 	// SoloTime Solo time in minutes. Auto-calculated by the server.
 	SoloTime *int `json:"soloTime,omitempty"`
@@ -3850,7 +3886,7 @@ type FlightCreate struct {
 	// Example: 0
 	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
 
-	// TotalTime Total block time in minutes calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
+	// TotalTime Total block time in minutes calculated from offBlockTime and onBlockTime. Always 0 for an FSTD session. This field is computed by the server and should not be provided by the client.
 	//
 	// Example: 150
 	TotalTime *int `json:"totalTime,omitempty"`
@@ -4069,6 +4105,9 @@ type FlightUpdate struct {
 	IsIpc              *bool                     `json:"isIpc,omitempty"`
 	IsProficiencyCheck *bool                     `json:"isProficiencyCheck,omitempty"`
 
+	// IsSimulator Switches the entry between flight and FSTD session. Changing it clears the columns that do not apply to the new kind.
+	IsSimulator *bool `json:"isSimulator,omitempty"`
+
 	// Landings Total number of landings
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod nullable.Nullable[string] `json:"launchMethod,omitempty"`
@@ -4246,7 +4285,18 @@ type ImportPreviewFlight struct {
 
 	// ExistingFlightId ID of the matching existing flight when status is `duplicate`
 	ExistingFlightId *openapi_types.UUID `json:"existingFlightId,omitempty"`
-	Flight           FlightCreate        `json:"flight"`
+
+	// Flight Creates either a flight or an FSTD (simulator) session.
+	//
+	// For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
+	// `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
+	// omitting any of them returns 400.
+	//
+	// For an FSTD session (`isSimulator: true`) they must be omitted — a training
+	// device is not flown between places and has no block times. The session
+	// requires `fstdType` and `simulatedFlightTime` instead. Session time is never
+	// summed into flight time (EASA AMC1 FCL.050 Cols 20-22).
+	Flight FlightCreate `json:"flight"`
 
 	// RowIndex 1-based row number in the original file
 	//

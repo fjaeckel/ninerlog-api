@@ -54,14 +54,14 @@ func TestMapRowToFlight_MyFlightbookDerivesAirportsFromRoute(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %+v", errs)
 	}
-	if flight.DepartureIcao != "KSFO" {
-		t.Errorf("DepartureIcao = %q, want KSFO", flight.DepartureIcao)
+	if safeStr(flight.DepartureIcao) != "KSFO" {
+		t.Errorf("DepartureIcao = %q, want KSFO", safeStr(flight.DepartureIcao))
 	}
-	if flight.ArrivalIcao != "KOAK" {
-		t.Errorf("ArrivalIcao = %q, want KOAK", flight.ArrivalIcao)
+	if safeStr(flight.ArrivalIcao) != "KOAK" {
+		t.Errorf("ArrivalIcao = %q, want KOAK", safeStr(flight.ArrivalIcao))
 	}
-	if flight.AircraftReg != "N12345" {
-		t.Errorf("AircraftReg = %q, want N12345", flight.AircraftReg)
+	if safeStr(flight.AircraftReg) != "N12345" {
+		t.Errorf("AircraftReg = %q, want N12345", safeStr(flight.AircraftReg))
 	}
 	if flight.AircraftType != "C172" {
 		t.Errorf("AircraftType = %q, want C172", flight.AircraftType)
@@ -71,8 +71,8 @@ func TestMapRowToFlight_MyFlightbookDerivesAirportsFromRoute(t *testing.T) {
 	}
 	// 3 landings total, of which 1 was a full-stop day landing: the two
 	// touch-and-goes only appear in the total column.
-	if flight.Landings != 3 {
-		t.Errorf("Landings = %d, want 3", flight.Landings)
+	if getIntOrDefault(flight.Landings, 0) != 3 {
+		t.Errorf("Landings = %d, want 3", getIntOrDefault(flight.Landings, 0))
 	}
 }
 
@@ -90,8 +90,8 @@ func TestMapRowToFlight_SingleWaypointRoute(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %+v", errs)
 	}
-	if flight.DepartureIcao != "KSFO" || flight.ArrivalIcao != "KSFO" {
-		t.Errorf("got %q → %q, want KSFO → KSFO", flight.DepartureIcao, flight.ArrivalIcao)
+	if safeStr(flight.DepartureIcao) != "KSFO" || safeStr(flight.ArrivalIcao) != "KSFO" {
+		t.Errorf("got %q → %q, want KSFO → KSFO", safeStr(flight.DepartureIcao), safeStr(flight.ArrivalIcao))
 	}
 }
 
@@ -109,8 +109,8 @@ func TestMapRowToFlight_ExplicitAirportsBeatRoute(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %+v", errs)
 	}
-	if flight.DepartureIcao != "EDDF" || flight.ArrivalIcao != "EDDM" {
-		t.Errorf("got %q → %q, want EDDF → EDDM", flight.DepartureIcao, flight.ArrivalIcao)
+	if safeStr(flight.DepartureIcao) != "EDDF" || safeStr(flight.ArrivalIcao) != "EDDM" {
+		t.Errorf("got %q → %q, want EDDF → EDDM", safeStr(flight.DepartureIcao), safeStr(flight.ArrivalIcao))
 	}
 }
 
@@ -166,8 +166,8 @@ func TestMapRowToFlight_LandingsReconciliation(t *testing.T) {
 			if len(errs) > 0 {
 				t.Fatalf("unexpected errors: %+v", errs)
 			}
-			if flight.Landings != tc.want {
-				t.Errorf("Landings = %d, want %d", flight.Landings, tc.want)
+			if getIntOrDefault(flight.Landings, 0) != tc.want {
+				t.Errorf("Landings = %d, want %d", getIntOrDefault(flight.Landings, 0), tc.want)
 			}
 		})
 	}
@@ -205,11 +205,11 @@ func TestMapRowToFlight_VereinsfliegerStandard(t *testing.T) {
 	if got := flight.Date.String(); got != "2026-03-14" {
 		t.Errorf("Date = %q, want 2026-03-14", got)
 	}
-	if flight.AircraftReg != "D-EABC" {
-		t.Errorf("AircraftReg = %q, want D-EABC", flight.AircraftReg)
+	if safeStr(flight.AircraftReg) != "D-EABC" {
+		t.Errorf("AircraftReg = %q, want D-EABC", safeStr(flight.AircraftReg))
 	}
-	if flight.DepartureIcao != "EDHE" || flight.ArrivalIcao != "EDHS" {
-		t.Errorf("got %q → %q, want EDHE → EDHS", flight.DepartureIcao, flight.ArrivalIcao)
+	if safeStr(flight.DepartureIcao) != "EDHE" || safeStr(flight.ArrivalIcao) != "EDHS" {
+		t.Errorf("got %q → %q, want EDHE → EDHS", safeStr(flight.DepartureIcao), safeStr(flight.ArrivalIcao))
 	}
 	// "Start"/"Landung" are wheels-off and wheels-on, not chocks. The standard
 	// export has no block pair at all, so they must not be filed as one: block
@@ -221,17 +221,17 @@ func TestMapRowToFlight_VereinsfliegerStandard(t *testing.T) {
 	if flight.ArrivalTime == nil || *flight.ArrivalTime != "10:47:00" {
 		t.Errorf("ArrivalTime = %v, want 10:47:00", flight.ArrivalTime)
 	}
-	if flight.OffBlockTime != "" || flight.OnBlockTime != "" {
+	if safeStr(flight.OffBlockTime) != "" || safeStr(flight.OnBlockTime) != "" {
 		t.Errorf("block times = %q/%q, want empty — the standard export has none",
-			flight.OffBlockTime, flight.OnBlockTime)
+			safeStr(flight.OffBlockTime), safeStr(flight.OnBlockTime))
 	}
 	// A bare integer is minutes, which is what Vereinsflieger writes. Read as
 	// decimal hours it would be 95 hours.
 	if flight.TotalTime == nil || *flight.TotalTime != 95 {
 		t.Errorf("TotalTime = %v, want 95 minutes", flight.TotalTime)
 	}
-	if flight.Landings != 1 {
-		t.Errorf("Landings = %d, want 1", flight.Landings)
+	if getIntOrDefault(flight.Landings, 0) != 1 {
+		t.Errorf("Landings = %d, want 1", getIntOrDefault(flight.Landings, 0))
 	}
 	if flight.Remarks == nil || *flight.Remarks != "Überlandflug" {
 		t.Errorf("Remarks = %v, want Überlandflug", flight.Remarks)
@@ -289,9 +289,9 @@ func TestMapRowToFlight_VereinsfliegerExtended(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %+v", errs)
 	}
-	if flight.OffBlockTime != "09:04:00" || flight.OnBlockTime != "10:56:00" {
+	if safeStr(flight.OffBlockTime) != "09:04:00" || safeStr(flight.OnBlockTime) != "10:56:00" {
 		t.Errorf("block times = %q/%q, want 09:04:00/10:56:00",
-			flight.OffBlockTime, flight.OnBlockTime)
+			safeStr(flight.OffBlockTime), safeStr(flight.OnBlockTime))
 	}
 	if flight.DepartureTime == nil || *flight.DepartureTime != "09:12:00" {
 		t.Errorf("DepartureTime = %v, want 09:12:00", flight.DepartureTime)
@@ -322,8 +322,8 @@ func TestMapRowToFlight_LogTenFieldKeys(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %+v", errs)
 	}
-	if flight.AircraftReg != "N778LT" {
-		t.Errorf("AircraftReg = %q, want N778LT", flight.AircraftReg)
+	if safeStr(flight.AircraftReg) != "N778LT" {
+		t.Errorf("AircraftReg = %q, want N778LT", safeStr(flight.AircraftReg))
 	}
 	if flight.TotalTime == nil || *flight.TotalTime != 84 {
 		t.Errorf("TotalTime = %v, want 84 minutes", flight.TotalTime)
@@ -435,9 +435,9 @@ func TestMapRowToFlight_SkyDemonDatedByDepartureTimestamp(t *testing.T) {
 				}
 				// The clock half must still land in the block times, or the
 				// total cannot be derived — SkyDemon has no total column.
-				if flight.OffBlockTime != "11:03:00" || flight.OnBlockTime != "12:04:00" {
+				if safeStr(flight.OffBlockTime) != "11:03:00" || safeStr(flight.OnBlockTime) != "12:04:00" {
 					t.Errorf("block times = %q/%q, want 11:03:00/12:04:00",
-						flight.OffBlockTime, flight.OnBlockTime)
+						safeStr(flight.OffBlockTime), safeStr(flight.OnBlockTime))
 				}
 				if mins := effectiveTotalMinutes(t, flight); mins != 61 {
 					t.Errorf("derived total = %d min, want 61", mins)

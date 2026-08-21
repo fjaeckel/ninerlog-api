@@ -348,6 +348,20 @@ are not accepted on create or update. `GET /flights` carries the filter, search,
 pagination parameters, plus `updatedSince` for delta sync. See
 [FEATURES.md](./FEATURES.md#flight-logging).
 
+`POST /flights` creates either a flight or an FSTD (simulator) session, chosen by
+`isSimulator`. Which fields are mandatory depends on the kind, so they are conditionally
+rather than unconditionally required and a mismatch is a 400:
+
+| `isSimulator` | Required | Rejected |
+| --- | --- | --- |
+| absent / `false` | `aircraftReg`, `departureIcao`, `arrivalIcao`, `offBlockTime`, `onBlockTime`, `landings` | `-` |
+| `true` | `fstdType`, `simulatedFlightTime` (> 0) | `aircraftReg`, `departureIcao`, `arrivalIcao`, `offBlockTime`, `onBlockTime`, `landings` |
+
+`date` and `aircraftType` are required for both. A session responds with `0` in every
+flight-time field and never contributes to statistics, reports, the fleet list or currency
+— session time is recorded separately and is never summed with flight time
+(EASA AMC1 FCL.050). See [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions).
+
 ### Credentials
 CRUD on `/credentials` (medicals, language proficiency, clearances, and the German radio
 certificates `RADIO_BZF2`/`RADIO_BZF1`/`RADIO_AZF`). `GET /credentials` accepts
@@ -463,6 +477,11 @@ so a re-import updates existing cards instead of duplicating them.
   the page: fewer rows print larger and airier, more rows denser. Clamped to
   what stays legible on the chosen page size; ignored for `summary`.
 - `logbookLicenseId` — restrict flights to the aircraft classes of one licence.
+
+**Every logged row is printed**, co-pilot (SIC) flights included. Co-pilot time
+is part of total time of flight, and the EASA layout has a CO-PILOT column for it
+(AMC1 FCL.050 col 16), so the sheets and the totals summary both cover the whole
+logbook.
 
 Every logbook page carries the three-row totals block (TOTAL THIS PAGE /
 TOTAL FROM PREVIOUS PAGES / TOTAL TIME) and a certification + signature strip

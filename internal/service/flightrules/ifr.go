@@ -5,24 +5,28 @@ import (
 )
 
 // EffectiveIFRTime returns the IFR/Instrument time minutes that should be
-// reported for a flight. If the user explicitly set IFRTime it is returned
-// as-is. Otherwise the sum of ActualInstrumentTime + SimulatedInstrumentTime
-// is used, capped at TotalTime.
+// reported for a flight. Explicit and derived values alike are capped at
+// TotalTime; an unset IFRTime is derived from ActualInstrumentTime +
+// SimulatedInstrumentTime.
+//
+// IFR is an operational condition of a flight (AMC1 FCL.050 Col 14), so an
+// FSTD session always reports zero — its instrument work stays in
+// SimulatedInstrumentTime and the FSTD columns.
 //
 // This is the single source of truth for IFR derivation: imports, the
 // auto-calc pipeline and exporters all flow through it.
 func EffectiveIFRTime(f *models.Flight) int {
-	if f == nil {
+	if f == nil || f.IsSimulator {
 		return 0
 	}
-	if f.IFRTime > 0 {
-		return f.IFRTime
+	derived := f.IFRTime
+	if derived <= 0 {
+		derived = f.ActualInstrumentTime + f.SimulatedInstrumentTime
 	}
-	derived := f.ActualInstrumentTime + f.SimulatedInstrumentTime
 	if derived <= 0 {
 		return 0
 	}
-	if f.TotalTime > 0 && derived > f.TotalTime {
+	if derived > f.TotalTime {
 		return f.TotalTime
 	}
 	return derived

@@ -276,7 +276,7 @@ func (r *aircraftRepository) GetStatsByUserID(ctx context.Context, userID uuid.U
 		       MIN(date),
 		       MAX(date)
 		FROM flights
-		WHERE user_id = $1
+		WHERE user_id = $1 AND NOT is_simulator
 		GROUP BY aircraft_reg
 		ORDER BY aircraft_reg ASC
 	`
@@ -311,7 +311,7 @@ func (r *aircraftRepository) GetTypeStatsByUserID(ctx context.Context, userID uu
 		       MIN(date),
 		       MAX(date)
 		FROM flights
-		WHERE user_id = $1
+		WHERE user_id = $1 AND NOT is_simulator
 		GROUP BY aircraft_type
 		ORDER BY aircraft_type ASC
 	`
@@ -341,7 +341,7 @@ func (r *aircraftRepository) GetRecencyRowsByUserID(ctx context.Context, userID 
 		SELECT aircraft_reg, aircraft_type, date,
 		       COALESCE(SUM(landings_day + landings_night), 0)
 		FROM flights
-		WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '90 days'
+		WHERE user_id = $1 AND NOT is_simulator AND date >= CURRENT_DATE - INTERVAL '90 days'
 		GROUP BY aircraft_reg, aircraft_type, date
 		ORDER BY date DESC
 	`

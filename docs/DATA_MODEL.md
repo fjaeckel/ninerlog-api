@@ -169,9 +169,12 @@ flight update, spreadsheet import, backup restore) runs the crew names through
 than of which entry point the pilot used. `POST /contacts` is for filling in email and
 phone, and returns 409 on a name that already exists rather than creating a second row.
 
-### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32)
+### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63)
 
-The central record. Highlights (all durations are **integer minutes**):
+The central record. It holds **two kinds of row**, told apart by `IsSimulator`: a flight,
+and an FSTD (simulator) session. See
+[DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions) for the rules. Highlights (all durations
+are **integer minutes**):
 
 - **Identity / context**: `Date`, `AircraftReg` (canonicalised the same way as
   `Aircraft.Registration` — see above), `AircraftType`, `DepartureICAO`,
@@ -192,12 +195,20 @@ The central record. Highlights (all durations are **integer minutes**):
   `ApproachEntry{Type, Airport, Runway}` per FAA §61.51(g)(3)), `IsIPC`,
   `IsFlightReview`, `IsProficiencyCheck`.
 - **Crew/instruction**: `PICName`, `InstructorName`, `InstructorComments`,
-  `CrewMembers` (`FlightCrewMember`), `FSTDType`, `Endorsements`.
+  `CrewMembers` (`FlightCrewMember`), `Endorsements`.
+- **FSTD session** (EASA AMC1 FCL.050 cols 20–22): `IsSimulator` (migration 64),
+  `FSTDType`, `SimulatedFlightTime` (the session duration). On a session every
+  flight-time column is 0 and `AircraftReg`, the route and the block times are empty —
+  a training device is not flown between places and its time is never summed with flight
+  time. Aggregate queries carry a `NOT is_simulator` predicate; migration 64 also adds
+  the partial indexes those queries use.
 - **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`).
 - **Free text**: `Remarks`.
 
-Validation: `IsValid()` checks required fields; `ValidateTimeDistribution()` enforces
-function-time consistency (see [DOMAIN.md](./DOMAIN.md#flight-validation)).
+Validation: `IsValid()` checks required fields — which differ by row kind;
+`ValidateTimeDistribution()` enforces function-time consistency, including
+`PICTime + SICTime + DualTime <= TotalTime` (see
+[DOMAIN.md](./DOMAIN.md#flight-validation)).
 
 ### FlightCrewMember (migration 15)
 

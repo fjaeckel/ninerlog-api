@@ -163,14 +163,14 @@ func TestExportImportRoundTrip(t *testing.T) {
 					if want := src.Date.Format("2006-01-02"); got.Date.String() != want {
 						t.Errorf("date = %q, want %q (detected %s)", got.Date.String(), want, tpl.ID)
 					}
-					if got.AircraftReg != src.AircraftReg {
-						t.Errorf("aircraftReg = %q, want %q", got.AircraftReg, src.AircraftReg)
+					if safeStr(got.AircraftReg) != src.AircraftReg {
+						t.Errorf("aircraftReg = %q, want %q", safeStr(got.AircraftReg), src.AircraftReg)
 					}
-					if got.DepartureIcao != *src.DepartureICAO {
-						t.Errorf("departureIcao = %q, want %q", got.DepartureIcao, *src.DepartureICAO)
+					if safeStr(got.DepartureIcao) != *src.DepartureICAO {
+						t.Errorf("departureIcao = %q, want %q", safeStr(got.DepartureIcao), *src.DepartureICAO)
 					}
-					if got.ArrivalIcao != *src.ArrivalICAO {
-						t.Errorf("arrivalIcao = %q, want %q", got.ArrivalIcao, *src.ArrivalICAO)
+					if safeStr(got.ArrivalIcao) != *src.ArrivalICAO {
+						t.Errorf("arrivalIcao = %q, want %q", safeStr(got.ArrivalIcao), *src.ArrivalICAO)
 					}
 
 					// Total time: from block times where the layout carries
@@ -182,8 +182,8 @@ func TestExportImportRoundTrip(t *testing.T) {
 					}
 
 					// Landings must not be lost or double-counted.
-					if got.Landings != src.AllLandings {
-						t.Errorf("landings = %d, want %d", got.Landings, src.AllLandings)
+					if getIntOrDefault(got.Landings, 0) != src.AllLandings {
+						t.Errorf("landings = %d, want %d", getIntOrDefault(got.Landings, 0), src.AllLandings)
 					}
 
 					if got.Remarks == nil || !strings.Contains(*got.Remarks, "Round trip check") {
@@ -255,8 +255,8 @@ func toMappingLookup(mappings []generated.ImportColumnMapping) map[string]genera
 // flight's total: block times win over the explicit total cell.
 func effectiveTotalMinutes(t *testing.T, f generated.FlightCreate) int {
 	t.Helper()
-	if f.OffBlockTime != "" && f.OnBlockTime != "" {
-		if mins, err := calculateBlockTime(f.OffBlockTime, f.OnBlockTime); err == nil {
+	if safeStr(f.OffBlockTime) != "" && safeStr(f.OnBlockTime) != "" {
+		if mins, err := calculateBlockTime(safeStr(f.OffBlockTime), safeStr(f.OnBlockTime)); err == nil {
 			return mins
 		}
 	}
