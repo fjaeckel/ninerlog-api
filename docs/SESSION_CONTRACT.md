@@ -99,8 +99,12 @@ Any NinerLog client — the React PWA, the mobile app, anything else — must:
 | `DELETE` | `/auth/sessions` | Revoke every session except the caller's |
 
 Each session reports `deviceLabel` (derived from the User-Agent), `ipAddress`, `createdAt`,
-`lastUsedAt`, `expiresAt` and `current`. Revocation is always scoped to the authenticated user
-in SQL — a session ID alone never authorises anything.
+`lastUsedAt`, `expiresAt` and `current`. The label is established at login and survives
+rotation: a refresh replaces it only when its own User-Agent names a recognisable device, so
+renewing from a client that sends none never degrades the label to "Unknown device".
+
+Revocation is always scoped to the authenticated user in SQL — a session ID alone never
+authorises anything.
 
 ## 8. What still ends every session at once
 
@@ -133,4 +137,5 @@ An unparseable or non-positive value falls back to the default. Both are reporte
 | Session UI | `ninerlog-frontend/src/pages/ProfilePage.tsx`, `src/hooks/useSessions.ts` |
 
 Tests that hold these rules in place: `internal/service/session_test.go`,
-`test/e2e/session_e2e_test.go`, and `ninerlog-frontend/src/__tests__/api/client.test.ts`.
+`test/e2e/session_e2e_test.go`, and
+`ninerlog-frontend/src/__tests__/api/refreshResilience.test.ts`.

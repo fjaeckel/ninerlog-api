@@ -377,9 +377,11 @@ All three require authentication.
 }
 ```
 
-`deviceLabel` is derived from the User-Agent at each refresh (`internal/service/devicelabel.go`)
-and is advisory — a client controls its own User-Agent, so the label identifies a device to its
-owner, never to the server.
+`deviceLabel` is derived from the User-Agent (`internal/service/devicelabel.go`) and is
+advisory — a client controls its own User-Agent, so the label identifies a device to its owner,
+never to the server. It is set when the session starts and **only replaced by a refresh whose
+User-Agent names a recognisable device**: a client that sends none, or sends an HTTP library
+default, renews its session without relabelling it "Unknown device".
 
 Revocation is scoped to the authenticated user in SQL, so a session ID alone authorises
 nothing: revoking another user's session answers `404`, exactly as an unknown ID does.

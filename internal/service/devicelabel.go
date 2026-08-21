@@ -5,12 +5,15 @@ import "strings"
 // maxUserAgentLength bounds the stored User-Agent to the column width.
 const maxUserAgentLength = 512
 
+// UnknownDeviceLabel is the label for a User-Agent nothing was recognised in.
+const UnknownDeviceLabel = "Unknown device"
+
 // DeviceLabel renders a User-Agent as a short "<browser> on <platform>" label
 // for the session list. Returns "Unknown device" when nothing is recognised.
 func DeviceLabel(userAgent string) string {
 	ua := strings.TrimSpace(userAgent)
 	if ua == "" {
-		return "Unknown device"
+		return UnknownDeviceLabel
 	}
 
 	client := detectClient(ua)
@@ -24,7 +27,7 @@ func DeviceLabel(userAgent string) string {
 	case platform != "":
 		return platform
 	default:
-		return "Unknown device"
+		return UnknownDeviceLabel
 	}
 }
 

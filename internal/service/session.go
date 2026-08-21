@@ -90,11 +90,12 @@ func (s *AuthService) startSession(ctx context.Context, userID uuid.UUID) (*Toke
 	return s.generateTokenPair(ctx, userID, uuid.New(), DeviceFromContext(ctx))
 }
 
-// deviceForRotation prefers the calling client's details and falls back to the
-// ones recorded on the token being rotated.
+// deviceForRotation prefers the calling client's details, keeping the ones
+// recorded on the token being rotated whenever the caller's are missing or
+// yield no recognisable device.
 func deviceForRotation(ctx context.Context, previous *models.RefreshToken) DeviceInfo {
 	info := DeviceFromContext(ctx)
-	if info.UserAgent == "" {
+	if DeviceLabel(info.UserAgent) == UnknownDeviceLabel {
 		info.UserAgent = previous.UserAgent
 	}
 	if info.IPAddress == "" {

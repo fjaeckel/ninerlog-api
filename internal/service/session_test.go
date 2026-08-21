@@ -191,6 +191,56 @@ func TestRefreshToken_KeepsSessionIdentityAcrossRotation(t *testing.T) {
 	}
 }
 
+func TestRefreshToken_KeepsTheDeviceLabelWhenTheClientSendsNoUsefulUserAgent(t *testing.T) {
+	f := newSessionFixture(t, service.SessionPolicy{})
+
+	tokens := f.login(t, "Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Safari/604.1")
+
+	// A refresh from a client whose User-Agent names no device — a native app,
+	// an HTTP library default — must not relabel the session.
+	for _, userAgent := range []string{"", "Go-http-client/1.1"} {
+		ctx := service.ContextWithDevice(context.Background(), service.DeviceInfo{UserAgent: userAgent})
+		rotated, err := f.auth.RefreshToken(ctx, tokens.RefreshToken)
+		if err != nil {
+			t.Fatalf("RefreshToken() with User-Agent %q error = %v", userAgent, err)
+		}
+		tokens = rotated
+
+		sessions, err := f.auth.ListSessions(ctx, f.userID, uuid.Nil)
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(sessions) != 1 {
+			t.Fatalf("ListSessions() returned %d sessions, want 1", len(sessions))
+		}
+		if sessions[0].DeviceLabel != "Safari on iPhone" {
+			t.Errorf("after a refresh with User-Agent %q the label is %q, want %q",
+				userAgent, sessions[0].DeviceLabel, "Safari on iPhone")
+		}
+	}
+}
+
+func TestRefreshToken_AdoptsARecognisableNewUserAgent(t *testing.T) {
+	f := newSessionFixture(t, service.SessionPolicy{})
+
+	tokens := f.login(t, "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120.0 Safari/537.36")
+
+	ctx := service.ContextWithDevice(context.Background(), service.DeviceInfo{
+		UserAgent: "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/121.0 Safari/537.36 Edg/121.0",
+	})
+	if _, err := f.auth.RefreshToken(ctx, tokens.RefreshToken); err != nil {
+		t.Fatalf("RefreshToken() error = %v", err)
+	}
+
+	sessions, err := f.auth.ListSessions(ctx, f.userID, uuid.Nil)
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if sessions[0].DeviceLabel != "Edge on macOS" {
+		t.Errorf("session label = %q, want %q", sessions[0].DeviceLabel, "Edge on macOS")
+	}
+}
+
 func TestListSessions_FlagsTheCallersSession(t *testing.T) {
 	f := newSessionFixture(t, service.SessionPolicy{})
 	ctx := context.Background()
