@@ -330,7 +330,11 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   just what NinerLog holds; the columns a snapshot cannot supply are documented
   in `export_pdf_baseline.go` and disclosed on the printed page. Every logged row is
   printed, co-pilot (SIC) flights included — co-pilot time is part of total time
-  of flight and the EASA layout has a CO-PILOT column for it.
+  of flight and the EASA layout has a CO-PILOT column for it. Rows that log no
+  flight time at all are the exception: a leg the pilot was carried on as a
+  passenger is left out of every PDF format, because it would print an empty row
+  and total nothing. An FSTD session still prints, in the FSTD columns. CSV and
+  JSON carry both.
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.
