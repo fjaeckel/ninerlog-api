@@ -30,6 +30,17 @@ func CountsAsFlightTime(f *models.Flight) bool {
 	return f != nil && !f.IsSimulator && !f.IsPassenger
 }
 
+// RendersLogbookRow reports whether a row has anything to print in an
+// exported logbook. A flight the user was carried on as a passenger has no
+// time in any column and prints nothing; an FSTD session has no flight time
+// but fills the FSTD columns.
+func RendersLogbookRow(f *models.Flight) bool {
+	if f == nil {
+		return false
+	}
+	return f.IsSimulator || f.TotalTime > 0
+}
+
 // FSTDFields returns the (date, type, time) triple to fill into the FSTD
 // columns. dateLayout is the Go time layout used to format the date (e.g.
 // "02.01.2006" for full EASA CSV, "02.01" for the compact PDF column).

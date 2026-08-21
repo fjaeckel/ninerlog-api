@@ -475,6 +475,17 @@ func (d *pdfDoc) drawSignatureBlock() {
 // Handler
 // ─────────────────────────────────────────────────────────────────────────────
 
+// dropEmptyRows returns flights with the entries that print nothing removed.
+func dropEmptyRows(flights []*models.Flight) []*models.Flight {
+	out := make([]*models.Flight, 0, len(flights))
+	for _, f := range flights {
+		if flightrules.RendersLogbookRow(f) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 // ExportFlightsPDF implements GET /exports/pdf
 func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFlightsPDFParams) {
 	userID, err := h.getUserIDFromContext(c)
@@ -503,6 +514,7 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
+	flights = dropEmptyRows(flights)
 	h.attachCrewMembers(c.Request.Context(), flights)
 
 	classFiltered := false

@@ -503,6 +503,12 @@ PILOT'S SIGNATURE and DATE rules), so each printed page — or the right-hand
 page of each spread — can be individually signed. Exports are capped at
 10 000 flights per PDF.
 
+A flight the pilot was **carried on as a passenger** (`isPassenger`) logs no flight
+time, and is left out of every PDF format: it would print an empty logbook row and
+contribute nothing to any total, including the summary page's flight count. An
+**FSTD session** (`isSimulator`) likewise carries no total time, but still prints —
+its session time belongs in the FSTD columns. CSV and JSON exports carry both.
+
 **Prior experience opens the balance.** If the pilot has recorded an
 initial-hours snapshot (`PUT /users/me/baseline`), those hours are carried
 into the first TOTAL FROM PREVIOUS PAGES row and into every running total,
