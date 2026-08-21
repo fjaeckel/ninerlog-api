@@ -47,7 +47,8 @@ Strict layering: **handler → service → repository → models**.
   parameterized SQL, `lib/pq`). No sqlc/pgx despite older docs; `make sqlc-generate` is inactive.
 - `pkg/` — `jwt`, `hash`, `duration`, `cryptoutil`, `email`, `solar`.
 
-`/api/v1` sits behind `AuthMiddleware` (JWT, public-path allow-list) and `RateLimitByPath`.
+`/api/v1` sits behind `AuthMiddleware` (JWT, public-path allow-list, per-request session
+state) and `RateLimitByPath`.
 Most routes come from `generated.RegisterHandlersWithOptions`; reports and flight utilities are
 registered manually in `main.go` and are **not** in the OpenAPI spec.
 Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.

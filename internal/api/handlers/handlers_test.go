@@ -376,6 +376,15 @@ func (m *mockRefreshTokenRepo) CountActiveSessions(_ context.Context) (int64, er
 	return 0, nil
 }
 
+func (m *mockRefreshTokenRepo) AccessTokenState(_ context.Context, userID, sessionID uuid.UUID) (bool, bool, error) {
+	for _, t := range m.tokens {
+		if t.UserID == userID && t.SessionID == sessionID && !t.Revoked && t.ExpiresAt.After(time.Now()) {
+			return false, true, nil
+		}
+	}
+	return false, false, nil
+}
+
 type mockPasswordResetRepo struct{}
 
 func (m *mockPasswordResetRepo) Create(_ context.Context, _ *models.PasswordResetToken) error {

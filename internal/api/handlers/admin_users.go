@@ -224,6 +224,9 @@ func (h *APIHandler) ResetUser2fa(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
+	// Removing the second factor ends every session.
+	_ = h.authService.RevokeAllSessions(c.Request.Context(), targetID)
+
 	h.logAdminAction(c, adminUserID, "reset_2fa", &targetID, map[string]any{"email": user.Email})
 
 	// Tell the account owner their second factor is gone. Without this the

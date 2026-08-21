@@ -28,6 +28,12 @@ login and **preserved across every rotation**. The refresh token rotates; the se
 `refresh_tokens` rows are the chain of tokens belonging to a session. A session is *live* while
 it holds at least one unrevoked, unexpired row.
 
+**An access token is only as alive as its session.** Every authenticated request checks that the
+token's `session_id` still belongs to a live session and that the account is neither disabled nor
+deleted. Without that check a 15-minute access token outlives everything meant to end it — a
+sign-out, a password change, an admin disabling the account — because revoking `refresh_tokens`
+rows alone stops a session being *extended*, not being *used*.
+
 ## 3. Concurrent sessions are supported
 
 - A user may hold up to `MAX_SESSIONS_PER_USER` (default **5**) live sessions at once.
@@ -56,6 +62,10 @@ pair is issued on the same session.
 The distinction is stored in two separate columns: `rotated_at` (superseded, grace applies) and
 `revoked_at` (revoked, no grace). They must never be collapsed into one.
 
+A rotation writes the replacement row **before** superseding the presented one, so the session
+never momentarily holds zero live rows. A request arriving in that gap would otherwise be read as
+a revoked session and rejected.
+
 ## 5. What each failure means to a client
 
 This table is the heart of the contract. **Only 401 means the session is over.**
@@ -71,6 +81,13 @@ This table is the heart of the contract. **Only 401 means the session is over.**
 A backend restart, a deploy, a proxy 502, a flaky mobile connection and a rate limit are all
 **transient**. A session must survive every one of them. Treating any non-401 as a logout is a
 bug, not a safety measure.
+
+On an **ordinary API call** the same rule holds from the other side. A revoked session, a
+disabled account and a deleted account all answer `401` — the server never invents a fourth
+meaning for "your session is over", so the client's existing path (refresh once, sign out if the
+refresh 401s) handles all of them. When the session state cannot be read at all, the answer is
+`503`, not `401`: an unreadable state is not a revocation, and a database blip must not sign
+every client out.
 
 ## 6. Client obligations
 
@@ -112,7 +129,12 @@ These are deliberate and must stay:
 
 - Password change and password reset.
 - An administrator disabling the account.
+- An administrator resetting the account's second factor.
 - Account deletion.
+
+"At once" is literal: the outstanding access tokens stop working on the next request, not when
+they expire. Ending a single session through `/auth/sessions` is just as immediate, and is scoped
+to that one device.
 
 ## 9. Configuration
 
@@ -129,6 +151,7 @@ An unparseable or non-positive value falls back to the default. Both are reporte
 | Concern | Location |
 |---|---|
 | Session policy, rotation, grace, replay detection | `internal/service/auth.go`, `internal/service/session.go` |
+| Per-request session check | `internal/api/middleware/auth.go`, `AuthService.AccessTokenState` |
 | Device labelling | `internal/service/devicelabel.go` |
 | Session SQL | `internal/repository/postgres/refresh_token.go` |
 | Endpoints | `internal/api/handlers/session.go` |
@@ -137,5 +160,7 @@ An unparseable or non-positive value falls back to the default. Both are reporte
 | Session UI | `ninerlog-frontend/src/pages/ProfilePage.tsx`, `src/hooks/useSessions.ts` |
 
 Tests that hold these rules in place: `internal/service/session_test.go`,
-`test/e2e/session_e2e_test.go`, and
+`internal/service/access_token_state_test.go`,
+`internal/api/middleware/auth_session_state_test.go`, `test/e2e/session_e2e_test.go`,
+`test/e2e/access_token_revocation_e2e_test.go`, and
 `ninerlog-frontend/src/__tests__/api/refreshResilience.test.ts`.

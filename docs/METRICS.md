@@ -52,6 +52,7 @@ below are for:
 | `auth_sessions_evicted_total` | Counter | — | Sessions revoked because the per-user session cap (`MAX_SESSIONS_PER_USER`) was reached |
 | `auth_refresh_grace_total` | Counter | — | Refreshes served from a superseded token inside `REFRESH_REUSE_GRACE`. A steady rate is normal (multi-tab clients); a spike suggests clients are not coordinating refreshes |
 | `auth_refresh_reuse_detected_total` | Counter | — | Refresh token replays after the grace window. Each one revoked a session — sustained non-zero values warrant investigation |
+| `auth_access_tokens_rejected_total` | Counter | `reason` | Authenticated requests refused because the access token's session is no longer usable. Reasons: `session_revoked`, `account_disabled`, `lookup_failed`. A background rate of `session_revoked` is normal (every sign-out produces some); `lookup_failed` means the state could not be read and the request was answered 503, so any sustained rate is a database problem |
 
 ### Application Metrics
 

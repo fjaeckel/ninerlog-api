@@ -409,6 +409,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 		return nil, ErrTokenExpired
 	}
 
+	rotate := false
 	if storedToken.Revoked {
 		// Revoked outright — a logout, a password change, or the owner ending
 		// the session. No grace applies.
@@ -425,11 +426,23 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 			return nil, ErrTokenReuseDetected
 		}
 		RefreshGraceTotal.Inc()
-	} else if err := s.refreshTokenRepo.MarkRotated(ctx, tokenHash); err != nil {
+	} else {
+		rotate = true
+	}
+
+	// The replacement row is written before the presented token is superseded.
+	pair, err := s.generateTokenPair(ctx, storedToken.UserID, storedToken.SessionID, deviceForRotation(ctx, storedToken))
+	if err != nil {
 		return nil, err
 	}
 
-	return s.generateTokenPair(ctx, storedToken.UserID, storedToken.SessionID, deviceForRotation(ctx, storedToken))
+	if rotate {
+		if err := s.refreshTokenRepo.MarkRotated(ctx, tokenHash); err != nil {
+			return nil, err
+		}
+	}
+
+	return pair, nil
 }
 
 // withinReuseGrace reports whether a rotated token was superseded recently
@@ -661,6 +674,20 @@ func (s *AuthService) generateTokenPair(
 		RefreshToken: refreshToken,
 		SessionID:    sessionID,
 	}, nil
+}
+
+// AccessTokenState reports whether the account behind an access token is
+// disabled and whether the token's session still holds a live refresh token.
+// A deleted account reports live=false rather than an error.
+func (s *AuthService) AccessTokenState(ctx context.Context, userID, sessionID uuid.UUID) (bool, bool, error) {
+	disabled, live, err := s.refreshTokenRepo.AccessTokenState(ctx, userID, sessionID)
+	if errors.Is(err, repository.ErrNotFound) {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	return disabled, live, nil
 }
 
 // GetUserByID retrieves a user by ID

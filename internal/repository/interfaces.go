@@ -136,6 +136,11 @@ type RefreshTokenRepository interface {
 
 	// CountActiveSessions counts live sessions across all users.
 	CountActiveSessions(ctx context.Context) (int64, error)
+
+	// AccessTokenState reports the account's disabled flag and whether the
+	// session still holds a live refresh token, in one round trip. It returns
+	// ErrNotFound when no such user exists.
+	AccessTokenState(ctx context.Context, userID, sessionID uuid.UUID) (disabled bool, live bool, err error)
 }
 
 // LicenseRepository defines the interface for license data access

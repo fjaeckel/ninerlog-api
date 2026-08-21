@@ -409,7 +409,9 @@ Requires authentication.
 }
 ```
 
-**204 No Content** on success. All refresh tokens are revoked, forcing re-login on all devices.
+**204 No Content** on success. Every session is revoked, forcing re-login on all devices. The
+access tokens go with them: the other device stops working on its next request, not when its
+token expires.
 
 **Errors:** `401` wrong current password, `400` new password fails the
 [password policy](#password-policy).
@@ -685,6 +687,16 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 **401 responses:**
 - `{"error": "Authentication required"}` — missing or malformed header
 - `{"error": "Invalid or expired token"}` — token validation failed
+- `{"error": "Session ended, please sign in again"}` — the token is well-formed and unexpired,
+  but its session has been revoked or the account is disabled or deleted
+
+**503 response:**
+- `{"error": "Session state unavailable"}` — the session state could not be read. This is not a
+  revocation and must not be treated as one; retry, keeping the credentials.
+
+Every authenticated request re-checks the token's session against the database, so a sign-out,
+a password change, an admin disable or a revoked device takes effect immediately rather than
+after the access token's 15 minutes. See [SESSION_CONTRACT.md](./SESSION_CONTRACT.md).
 
 ---
 
@@ -752,7 +764,7 @@ Admin endpoints require both a valid access token and admin status. Non-admin us
 | `POST` | `/admin/users/{userId}/disable` | Disable account |
 | `POST` | `/admin/users/{userId}/enable` | Enable account |
 | `POST` | `/admin/users/{userId}/unlock` | Unlock locked account |
-| `POST` | `/admin/users/{userId}/reset-2fa` | Force-reset 2FA (last resort — authenticator *and* all recovery codes lost). Clears the secret and recovery codes, and mails the user a notice that their second factor was removed |
+| `POST` | `/admin/users/{userId}/reset-2fa` | Force-reset 2FA (last resort — authenticator *and* all recovery codes lost). Clears the secret and recovery codes, ends every session the user holds, and mails the user a notice that their second factor was removed |
 | `GET` | `/admin/audit-log` | View audit log |
 | `GET` | `/admin/config` | View runtime config |
 | `POST` | `/admin/maintenance/cleanup-tokens` | Purge expired tokens |

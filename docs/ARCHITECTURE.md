@@ -43,7 +43,7 @@ flowchart TD
     C[Client] -->|HTTP request| GR
     GR["Gin router (cmd/api/main.go)<br/>global middleware chain:<br/>Metrics → Recovery(+metrics) → gin.Logger → CORS → SecurityHeaders"]
     GR --> G
-    G["/api/v1 group<br/>AuthMiddleware (validates JWT, sets userID; allow-list for public paths)<br/>Rate limiters: coarse per-user limit on every route,<br/>tighter budgets on /auth, /admin, exports, imports, flight search"]
+    G["/api/v1 group<br/>AuthMiddleware (validates JWT and session state, sets userID; allow-list for public paths)<br/>Rate limiters: coarse per-user limit on every route,<br/>tighter budgets on /auth, /admin, exports, imports, flight search"]
     G --> D["Generated route dispatch<br/>(internal/api/generated, registered against APIHandler)"]
     D --> HM["Handler method (internal/api/handlers/flight.go)<br/>getUserIDFromContext · bind & validate body · call service"]
     HM --> SV["Service (internal/service/flight.go)<br/>ownership & business-rule validation<br/>auto-calculations (flightrules / flightcalc) · call repository"]
@@ -138,8 +138,11 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 ## Cross-cutting concerns
 
 - **Authentication & authorization** — JWT validated in `middleware.AuthMiddleware`; the
-  authenticated `userID` is stored on the Gin context and read by handlers. Admin-only
-  routes additionally check the admin middleware. See [AUTHENTICATION.md](./AUTHENTICATION.md).
+  authenticated `userID` is stored on the Gin context and read by handlers. The same
+  middleware checks that the token's session is still live and the account still enabled,
+  so a revoked session cannot be used for the rest of the token's lifetime. Admin-only
+  routes additionally check the admin middleware. See [AUTHENTICATION.md](./AUTHENTICATION.md)
+  and [SESSION_CONTRACT.md](./SESSION_CONTRACT.md).
 - **Rate limiting** — layered and backed by `ulule/limiter`. A coarse per-user limiter
   covers every `/api/v1` route; `RateLimitByPath`, `RateLimitByPathPrefix`, and
   `RateLimitByPathSegment` and `RateLimitByPathWithQueryParam` layer tighter budgets onto specific paths — `/auth`,
