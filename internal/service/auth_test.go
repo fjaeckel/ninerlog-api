@@ -225,6 +225,8 @@ func (m *mockEmailVerificationRepo) DeleteExpired(ctx context.Context) error {
 
 type mockRefreshTokenRepo struct {
 	tokens map[string]*models.RefreshToken
+	// disabled stands in for users.disabled.
+	disabled map[uuid.UUID]bool
 }
 
 func newMockRefreshTokenRepo() *mockRefreshTokenRepo {
@@ -388,6 +390,15 @@ func (m *mockRefreshTokenRepo) EvictOldestSessions(ctx context.Context, userID u
 		}
 	}
 	return evicted, nil
+}
+
+func (m *mockRefreshTokenRepo) AccessTokenState(_ context.Context, userID, sessionID uuid.UUID) (bool, bool, error) {
+	for _, token := range m.tokens {
+		if token.UserID == userID && token.SessionID == sessionID && live(token) {
+			return m.disabled[userID], true, nil
+		}
+	}
+	return m.disabled[userID], false, nil
 }
 
 func (m *mockRefreshTokenRepo) CountActiveSessions(ctx context.Context) (int64, error) {

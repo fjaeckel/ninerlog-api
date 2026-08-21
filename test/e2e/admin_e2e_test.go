@@ -165,11 +165,21 @@ func TestAdminEndpoints(t *testing.T) {
 		if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("Expected 403/401, got %d", resp.StatusCode)
 		}
+
+		// The outstanding access token goes with the account.
+		assertStatus(t, uc.GET("/users/me"), http.StatusUnauthorized)
 	})
 
 	t.Run("admin enable user", func(t *testing.T) {
 		requireStatus(t, ac.POST(fmt.Sprintf("/admin/users/%s/enable", ua.User.ID), nil), http.StatusOK)
-		requireStatus(t, uc.POST("/auth/login", map[string]string{"email": ue, "password": "UserPass123!"}), http.StatusOK)
+		resp := uc.POST("/auth/login", map[string]string{"email": ue, "password": "UserPass123!"})
+		requireStatus(t, resp, http.StatusOK)
+
+		// Signing in again issues a new session.
+		var reauth AuthResponseBody
+		resp.JSON(&reauth)
+		uc.SetToken(reauth.AccessToken)
+		assertStatus(t, uc.GET("/users/me"), http.StatusOK)
 	})
 
 	t.Run("admin unlock", func(t *testing.T) {

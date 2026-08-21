@@ -5065,7 +5065,14 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT access token obtained from /auth/login or /auth/refresh
+      description: |
+        JWT access token obtained from /auth/login or /auth/refresh.
+
+        The token's session is checked on every request. A revoked session, a
+        disabled account and a deleted account all answer 401; the client
+        refreshes once and signs out only if that refresh also answers 401.
+        When the session state cannot be read the answer is 503, which is not a
+        revocation and must not be treated as one.
 
   parameters:
     LicenseId:
@@ -10478,7 +10485,9 @@ components:
                 message: Cannot exceed total time
 
     Unauthorized:
-      description: Unauthorized - missing or invalid token
+      description: |
+        Unauthorized - missing or invalid token, or a token whose session has
+        been revoked or whose account is disabled or deleted
       content:
         application/json:
           schema:

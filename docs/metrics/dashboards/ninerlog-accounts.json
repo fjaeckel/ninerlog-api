@@ -428,6 +428,36 @@
       ]
     },
     {
+      "title": "Access Tokens Rejected (24h)",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(auth_access_tokens_rejected_total{job=\"$job\"}[24h]))",
+          "legendFormat": "rejected"
+        }
+      ]
+    },
+    {
       "title": "Refresh Replays Detected (24h)",
       "type": "stat",
       "datasource": {
@@ -530,6 +560,36 @@
           },
           "expr": "rate(auth_sessions_evicted_total{job=\"$job\"}[5m])",
           "legendFormat": "evicted at cap"
+        }
+      ]
+    },
+    {
+      "title": "Access Tokens Rejected (by reason)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (reason) (rate(auth_access_tokens_rejected_total{job=\"$job\"}[5m]))",
+          "legendFormat": "{{reason}}"
         }
       ]
     }

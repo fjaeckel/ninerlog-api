@@ -53,7 +53,7 @@ Routes are wired in `cmd/api/main.go`:
 
 ```go
 api := router.Group("/api/v1")
-api.Use(middleware.AuthMiddleware(jwtManager, /* public path allow-list */))
+api.Use(middleware.AuthMiddlewareWithState(jwtManager, /* public path allow-list */, authService.AccessTokenState))
 api.Use(generalRateLimit)                                                     // every route
 api.Use(middleware.RateLimitByPath(expensiveRateLimit, /* exports, previews */))
 api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q"))
@@ -85,7 +85,10 @@ would ever call. The JSON half of that flow (`GET /auth/providers`,
 - **JWT bearer authentication** (`bearerAuth` in the spec). Clients send the access
   token in the HTTP `Authorization` request header using the `Bearer` scheme;
   `middleware.AuthMiddleware` validates the token and stores the `userID` on the Gin
-  context.
+  context. It also checks the token's session against the database on every request: a
+  revoked session, a disabled account and a deleted account each answer `401`, and a state
+  that cannot be read answers `503` rather than being mistaken for a revocation. See
+  [SESSION_CONTRACT.md](./SESSION_CONTRACT.md).
 - **Public allow-list** — auth endpoints (register, login, refresh, password reset, email
   verification) and a few read-only lookups (airport search/lookup, public announcements)
   are exempt from auth via the allow-list passed to the middleware.

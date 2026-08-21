@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -309,4 +310,32 @@ func (r *refreshTokenRepository) CountActiveSessions(ctx context.Context) (int64
 	}
 
 	return count, nil
+}
+
+// AccessTokenState reads the account's disabled flag and the session's
+// liveness in a single query. Returns ErrNotFound when no such user exists.
+func (r *refreshTokenRepository) AccessTokenState(ctx context.Context, userID, sessionID uuid.UUID) (bool, bool, error) {
+	query := `
+		SELECT u.disabled,
+		       EXISTS (
+		           SELECT 1
+		           FROM refresh_tokens
+		           WHERE user_id = u.id
+		             AND session_id = $2
+		             AND ` + liveSessionPredicate + `
+		       )
+		FROM users u
+		WHERE u.id = $1
+	`
+
+	var disabled, live bool
+	err := r.db.QueryRowContext(ctx, query, userID, sessionID).Scan(&disabled, &live)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, false, repository.ErrNotFound
+	}
+	if err != nil {
+		return false, false, err
+	}
+
+	return disabled, live, nil
 }

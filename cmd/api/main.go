@@ -506,7 +506,7 @@ func main() {
 	api.Use(middleware.DeviceContext())
 
 	// Centralized auth middleware — all routes require auth except explicit public paths
-	api.Use(middleware.AuthMiddleware(jwtManager, []string{
+	api.Use(middleware.AuthMiddlewareWithState(jwtManager, []string{
 		"/auth/register",
 		"/auth/login",
 		"/auth/providers",
@@ -527,7 +527,7 @@ func main() {
 		// Unauthenticated instructor signing links; a gin route *pattern*
 		// matched via c.FullPath(), unlike the literal paths above.
 		"/sign/:token",
-	}))
+	}, authService.AccessTokenState))
 
 	if os.Getenv("DISABLE_RATE_LIMIT") != "true" {
 		// Coarse global limiter on every authenticated route, keyed by user ID.

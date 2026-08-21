@@ -43,7 +43,7 @@ Routes are wired in `cmd/api/main.go`:
 
 ```go
 api := router.Group("/api/v1")
-api.Use(middleware.AuthMiddleware(jwtManager, /* public path allow-list */))
+api.Use(middleware.AuthMiddlewareWithState(jwtManager, /* public path allow-list */, authService.AccessTokenState))
 api.Use(middleware.RateLimitByPath(authRateLimit, /* /auth paths */))
 generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{...})
 handlers.RegisterReportsRoutes(api, apiHandler, db)   // custom, not in the spec

@@ -246,6 +246,15 @@ npm run lighthouse
 | 8 | Currency progress (JOIN) | 0.024ms | Nested Loop + Index Scan | shared hit=2 | Optimal |
 | 9 | Stats by aircraft class | 0.095ms | Hash Left Join | shared hit=31 | Good |
 | 10 | Last flight review | 0.030ms | Bitmap Heap Scan + Filter | shared hit=25 | Good |
+| 11 | Session state (per authenticated request) | 0.037ms | Index Scan (`users_pkey`) + Index Scan on `refresh_tokens` | shared hit=6 | Optimal |
+
+**Session state on the hot path:** every authenticated request runs one extra query (#11) — the
+account's `disabled` flag and the token session's liveness, answered together by primary key on
+`users` and an index scan on `refresh_tokens(user_id, …)`. It is the price of revocation taking
+effect immediately instead of after the access token's 15 minutes (see
+[SESSION_CONTRACT.md](./SESSION_CONTRACT.md)). Watch `auth_access_tokens_rejected_total` and the
+connection-pool gauges if request latency regresses; a short-TTL cache keyed by session is the
+next step, at the cost of revocation lagging by the TTL.
 
 **Key finding:** All queries under 0.3ms. The `idx_flights_user_date(user_id, date)` composite index handles all primary access patterns. Text search (query #3) is the only query that will degrade at scale due to leading-wildcard LIKE filters across 5 columns.
 

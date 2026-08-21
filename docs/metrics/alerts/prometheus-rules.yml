@@ -339,6 +339,19 @@ groups:
           summary: "Refresh tokens are being replayed after the grace window"
           description: "{{ $value }} refresh replays in the last hour, each revoking a session. Check for a client that stopped sharing its in-flight refresh before assuming token theft."
 
+      # The session-state check answers 503 when it cannot read the state,
+      # because an unreadable state is not a revocation. That keeps a database
+      # blip from signing everyone out, but it also means every authenticated
+      # request fails while it lasts.
+      - alert: NinerlogApiSessionStateUnavailable
+        expr: rate(auth_access_tokens_rejected_total{job="ninerlog-api",reason="lookup_failed"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Session state cannot be read, authenticated requests are failing"
+          description: "Authenticated requests are being answered 503 because the session-state lookup fails. Check database health and connection pool saturation."
+
       # Users being signed out is the failure this whole subsystem exists to
       # prevent, so a refresh failure rate this high means it is happening
       # again — whatever the cause.
