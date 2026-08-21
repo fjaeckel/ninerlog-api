@@ -108,6 +108,9 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 	if req.IsTailwheel != nil {
 		aircraft.IsTailwheel = *req.IsTailwheel
 	}
+	if req.IsMultiPilot != nil {
+		aircraft.IsMultiPilot = *req.IsMultiPilot
+	}
 	if req.Notes != nil {
 		aircraft.Notes = req.Notes
 	}
@@ -197,6 +200,9 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 	}
 	if req.IsTailwheel != nil {
 		aircraft.IsTailwheel = *req.IsTailwheel
+	}
+	if req.IsMultiPilot != nil {
+		aircraft.IsMultiPilot = *req.IsMultiPilot
 	}
 	applyNullable(&aircraft.Notes, req.Notes)
 	if req.IsActive != nil {
@@ -321,6 +327,7 @@ func convertToGeneratedAircraft(a *models.Aircraft) generated.Aircraft {
 		IsComplex:            &a.IsComplex,
 		IsHighPerformance:    &a.IsHighPerformance,
 		IsTailwheel:          &a.IsTailwheel,
+		IsMultiPilot:         &a.IsMultiPilot,
 		Notes:                a.Notes,
 		IsActive:             &a.IsActive,
 		DefaultDepartureIcao: a.DefaultDepartureICAO,

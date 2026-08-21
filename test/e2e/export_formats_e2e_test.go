@@ -331,11 +331,19 @@ func pdfStreamText(raw []byte) string {
 }
 
 // TestExportPDFPrintsCoPilotFlights covers the printed logbook's coverage: a
-// flight flown as co-pilot (a third-party PIC in the crew) reaches both the
-// logbook sheets and the totals summary, like any other logged flight.
+// flight flown as co-pilot (a third-party PIC in the crew, on an aircraft
+// certificated for two pilots) reaches both the logbook sheets and the totals
+// summary, like any other logged flight.
 func TestExportPDFPrintsCoPilotFlights(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("pdf-role"), "SecurePass123!", "Amelia Earhart")
+
+	// The co-pilot seat only exists on a multi-pilot aircraft, so the fleet
+	// entry is what makes the second flight loggable as co-pilot time.
+	requireStatus(t, c.POST("/aircraft", map[string]interface{}{
+		"registration": "D-ESIC", "type": "DA42",
+		"make": "Diamond", "model": "DA42", "isMultiPilot": true,
+	}), http.StatusCreated)
 
 	requireStatus(t, c.POST("/flights", map[string]interface{}{
 		"date": pastDate(2), "aircraftReg": "D-EPIC", "aircraftType": "C172",
@@ -372,6 +380,62 @@ func TestExportPDFPrintsCoPilotFlights(t *testing.T) {
 		text := pdfStreamText(resp.Body)
 		if !strings.Contains(text, "(3:30)") {
 			t.Errorf("summary should total both flights (3:30):\n%s", text)
+		}
+	})
+}
+
+// The same crew list in a single-pilot aircraft is not a co-pilot flight: a
+// GA pilot sitting beside the pilot-in-command of a C172 is not a crew member
+// and logs nothing (EASA FCL.010; 14 CFR 61.51(f)). The row survives as the
+// record of the trip and drops out of every total.
+func TestExportPDFExcludesPassengerFlights(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("pdf-pax"), "SecurePass123!", "Amelia Earhart")
+
+	requireStatus(t, c.POST("/aircraft", map[string]interface{}{
+		"registration": "D-EPAX", "type": "C172", "make": "Cessna", "model": "172",
+	}), http.StatusCreated)
+
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": pastDate(2), "aircraftReg": "D-EPIC", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+		"picName": "Self",
+	}), http.StatusCreated)
+
+	resp := c.POST("/flights", map[string]interface{}{
+		"date": pastDate(1), "aircraftReg": "D-EPAX", "aircraftType": "C172",
+		"departureIcao": "EDDS", "arrivalIcao": "EDNY",
+		"offBlockTime": "10:00", "onBlockTime": "12:00", "landings": 1,
+		"crewMembers": []map[string]interface{}{
+			{"name": "Otto Lilienthal", "role": "PIC"},
+		},
+	})
+	requireStatus(t, resp, http.StatusCreated)
+
+	var pax map[string]interface{}
+	resp.JSON(&pax)
+	if pax["isPassenger"] != true {
+		t.Fatalf("isPassenger = %v, want true — a C172 has no co-pilot seat", pax["isPassenger"])
+	}
+	for _, field := range []string{"totalTime", "picTime", "sicTime", "multiPilotTime"} {
+		if got := gi(pax, field); got != 0 {
+			t.Errorf("%s = %d, want 0 on a passenger flight", field, got)
+		}
+	}
+	if pax["departureIcao"] != "EDDS" {
+		t.Errorf("departureIcao = %v, want EDDS — the trip record must survive", pax["departureIcao"])
+	}
+
+	t.Run("summary totals only the flown flight", func(t *testing.T) {
+		resp := c.GET("/exports/pdf?format=summary")
+		requireStatus(t, resp, http.StatusOK)
+		text := pdfStreamText(resp.Body)
+		if !strings.Contains(text, "(1:30)") {
+			t.Errorf("summary should total only the flown flight (1:30):\n%s", text)
+		}
+		if strings.Contains(text, "(3:30)") {
+			t.Errorf("passenger time must not reach the totals:\n%s", text)
 		}
 	})
 }

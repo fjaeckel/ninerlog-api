@@ -17,9 +17,11 @@ type Aircraft struct {
 	IsComplex         bool      `json:"isComplex"`
 	IsHighPerformance bool      `json:"isHighPerformance"`
 	IsTailwheel       bool      `json:"isTailwheel"`
-	Notes             *string   `json:"notes,omitempty"`
-	IsActive          bool      `json:"isActive"`
-	AircraftClass     *string   `json:"aircraftClass,omitempty"`
+	// IsMultiPilot marks a type certificated for a minimum crew of two pilots.
+	IsMultiPilot  bool    `json:"isMultiPilot"`
+	Notes         *string `json:"notes,omitempty"`
+	IsActive      bool    `json:"isActive"`
+	AircraftClass *string `json:"aircraftClass,omitempty"`
 	// Logging defaults, prefilled when a flight with this aircraft is logged
 	DefaultDepartureICAO *string   `json:"defaultDepartureIcao,omitempty"`
 	DefaultArrivalICAO   *string   `json:"defaultArrivalIcao,omitempty"`

@@ -362,6 +362,16 @@ flight-time field and never contributes to statistics, reports, the fleet list o
 — session time is recorded separately and is never summed with flight time
 (EASA AMC1 FCL.050). See [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions).
 
+Flight responses carry a read-only `isPassenger`. It is `true` when another person is
+pilot-in-command and the operation carries no co-pilot seat the user may occupy — the
+aircraft is not marked `isMultiPilot`, the user is not listed with the `SafetyPilot` crew
+role, and no co-pilot seat was declared. Such a row keeps its route and block times and
+responds with `0` in every flight-time field, contributing to no statistic, report or
+currency window. Clients never send it; it is derived on save. Sending `sicTime`
+explicitly declares the co-pilot seat and is honoured on any aircraft. Mark the aircraft
+with `isMultiPilot` (on `POST`/`PATCH /aircraft`) and re-run `POST /flights/recalculate` to
+re-derive existing flights. See [DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time).
+
 ### Credentials
 CRUD on `/credentials` (medicals, language proficiency, clearances, and the German radio
 certificates `RADIO_BZF2`/`RADIO_BZF1`/`RADIO_AZF`). `GET /credentials` accepts

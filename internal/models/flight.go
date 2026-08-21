@@ -65,10 +65,12 @@ type Flight struct {
 	Distance         float64 `json:"distance"`         // Auto-calculated from airport coordinates (NM)
 
 	// Manual override flags
-	TakeoffsDayOverride   bool `json:"-"` // When true, takeoffsDay is not auto-calculated
-	TakeoffsNightOverride bool `json:"-"` // When true, takeoffsNight is not auto-calculated
-	LandingsDayOverride   bool `json:"-"` // When true, landingsDay is not auto-calculated
-	LandingsNightOverride bool `json:"-"` // When true, landingsNight is not auto-calculated
+	TakeoffsDayOverride    bool `json:"-"` // When true, takeoffsDay is not auto-calculated
+	TakeoffsNightOverride  bool `json:"-"` // When true, takeoffsNight is not auto-calculated
+	LandingsDayOverride    bool `json:"-"` // When true, landingsDay is not auto-calculated
+	LandingsNightOverride  bool `json:"-"` // When true, landingsNight is not auto-calculated
+	SICTimeOverride        bool `json:"-"` // When true, sicTime was declared by the pilot rather than derived
+	MultiPilotTimeOverride bool `json:"-"` // When true, multiPilotTime was declared by the pilot rather than derived
 
 	// Instructor & comments
 	InstructorName     *string `json:"instructorName,omitempty"`
@@ -91,6 +93,11 @@ type Flight struct {
 	// Session duration lives in SimulatedFlightTime; TotalTime is 0 and the
 	// row contributes nothing to flight totals.
 	IsSimulator bool `json:"isSimulator"`
+
+	// IsPassenger marks a flight the user was carried on rather than crewed.
+	// The row keeps its route and block times as a record of the trip;
+	// TotalTime is 0 and it contributes nothing to flight totals.
+	IsPassenger bool `json:"isPassenger"`
 
 	// Instrument tracking
 	ActualInstrumentTime    int             `json:"actualInstrumentTime"`
@@ -125,13 +132,17 @@ type Flight struct {
 
 // IsValid checks if all required fields are set. An FSTD session identifies
 // the device instead of an aircraft, so it carries no registration and no
-// block time.
+// block time. A passenger flight identifies the aircraft but logs no flight
+// time.
 func (f *Flight) IsValid() bool {
 	if f.UserID == uuid.Nil || f.Date.IsZero() || f.AircraftType == "" {
 		return false
 	}
 	if f.IsSimulator {
 		return f.FSTDType != nil && *f.FSTDType != "" && f.SimulatedFlightTime > 0
+	}
+	if f.IsPassenger {
+		return f.AircraftReg != ""
 	}
 	return f.AircraftReg != "" && f.TotalTime > 0
 }
@@ -177,6 +188,13 @@ func (f *Flight) ValidateTimeDistribution() error {
 	// Instructor time overlays the function time it is flown under
 	if f.DualGivenTime > f.TotalTime {
 		return ErrInvalidDualGivenTime
+	}
+
+	// A passenger is not a crew member and logs no flight time
+	if f.IsPassenger && (f.TotalTime != 0 || f.PICTime != 0 || f.SICTime != 0 ||
+		f.DualTime != 0 || f.DualGivenTime != 0 || f.MultiPilotTime != 0 ||
+		f.SoloTime != 0) {
+		return ErrPassengerFunctionTime
 	}
 
 	// Landings must be non-negative

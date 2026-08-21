@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 )
 
 func str(s string) *string { return &s }
@@ -45,7 +46,7 @@ func TestApplyAutoCalculationsClearsFlightFieldsOnSession(t *testing.T) {
 		Distance:             169.4,
 	}
 
-	ApplyAutoCalculations(f, "Test Pilot")
+	ApplyAutoCalculations(f, "Test Pilot", nil)
 
 	zeros := map[string]int{
 		"TotalTime": f.TotalTime, "PICTime": f.PICTime, "DualTime": f.DualTime,
@@ -102,7 +103,7 @@ func TestApplyAutoCalculationsCapsSessionInstrumentTime(t *testing.T) {
 		IsSimulator: true, FSTDType: &fstd, AircraftType: "A320",
 		SimulatedFlightTime: 60, SimulatedInstrumentTime: 200,
 	}
-	ApplyAutoCalculations(f, "Test Pilot")
+	ApplyAutoCalculations(f, "Test Pilot", nil)
 	if f.SimulatedInstrumentTime != 60 {
 		t.Errorf("SimulatedInstrumentTime = %d, want it capped at the session duration 60", f.SimulatedInstrumentTime)
 	}
@@ -121,7 +122,7 @@ func TestApplyAutoCalculationsLeavesFlightsAlone(t *testing.T) {
 		TotalTime:     120,
 		AllLandings:   1,
 	}
-	ApplyAutoCalculations(f, "Test Pilot")
+	ApplyAutoCalculations(f, "Test Pilot", nil)
 	if f.TotalTime != 120 || f.PICTime != 120 {
 		t.Errorf("totalTime=%d picTime=%d, want 120/120", f.TotalTime, f.PICTime)
 	}
@@ -132,21 +133,23 @@ func TestApplyAutoCalculationsLeavesFlightsAlone(t *testing.T) {
 
 // A logbook row declaring co-pilot time with no crew list is the co-pilot's
 // own entry: PIC time must not also be claimed, or the function times would
-// exceed block time.
+// exceed block time. SICTimeOverride is what marks the time as declared —
+// the create and update handlers set it when the client sends sicTime.
 func TestDeclaredSICTimeWithoutCrewDoesNotAlsoClaimPIC(t *testing.T) {
 	f := &models.Flight{
-		Date:          time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC),
-		AircraftReg:   "D-ABCD",
-		AircraftType:  "A320",
-		DepartureICAO: str("EDDF"),
-		ArrivalICAO:   str("EDDM"),
-		OffBlockTime:  str("09:00:00"),
-		OnBlockTime:   str("11:00:00"),
-		TotalTime:     120,
-		SICTime:       120,
-		AllLandings:   1,
+		Date:            time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC),
+		AircraftReg:     "D-ABCD",
+		AircraftType:    "A320",
+		DepartureICAO:   str("EDDF"),
+		ArrivalICAO:     str("EDDM"),
+		OffBlockTime:    str("09:00:00"),
+		OnBlockTime:     str("11:00:00"),
+		TotalTime:       120,
+		SICTime:         120,
+		SICTimeOverride: true,
+		AllLandings:     1,
 	}
-	ApplyAutoCalculations(f, "Test Pilot")
+	ApplyAutoCalculations(f, "Test Pilot", nil)
 
 	if f.PICTime != 0 {
 		t.Errorf("PICTime = %d, want 0 — the user flew as co-pilot", f.PICTime)
@@ -156,5 +159,68 @@ func TestDeclaredSICTimeWithoutCrewDoesNotAlsoClaimPIC(t *testing.T) {
 	}
 	if err := f.ValidateTimeDistribution(); err != nil {
 		t.Errorf("declared co-pilot time does not validate: %v", err)
+	}
+}
+
+// A co-pilot time that derivation itself wrote is not a declaration. Without
+// SICTimeOverride the row re-derives from scratch, which is what lets
+// POST /flights/recalculate correct rows an earlier derivation filled in.
+func TestUndeclaredSICTimeIsRederived(t *testing.T) {
+	f := &models.Flight{
+		Date:          time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC),
+		AircraftReg:   "D-EFGH",
+		AircraftType:  "C172",
+		DepartureICAO: str("EDDF"),
+		ArrivalICAO:   str("EDDM"),
+		OffBlockTime:  str("09:00:00"),
+		OnBlockTime:   str("11:00:00"),
+		TotalTime:     120,
+		SICTime:       120,
+		AllLandings:   1,
+	}
+	ApplyAutoCalculations(f, "Test Pilot", nil)
+
+	if f.SICTime != 0 {
+		t.Errorf("SICTime = %d, want 0 — no crew and no declaration", f.SICTime)
+	}
+	if f.PICTime != 120 {
+		t.Errorf("PICTime = %d, want 120", f.PICTime)
+	}
+}
+
+// Promoting a passenger flight back to a logged flight must be lossless: the
+// zeroed total is recovered from the block times the row kept.
+func TestPassengerFlightPromotionRecoversTotalTime(t *testing.T) {
+	captain := models.FlightCrewMember{Name: "Otto Lilienthal", Role: models.CrewRolePIC}
+	f := &models.Flight{
+		Date:          time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC),
+		AircraftReg:   "D-ARCA",
+		AircraftType:  "B737",
+		DepartureICAO: str("EDDF"),
+		ArrivalICAO:   str("EDDM"),
+		OffBlockTime:  str("06:00:00"),
+		OnBlockTime:   str("07:30:00"),
+		TotalTime:     90,
+		AllLandings:   1,
+		CrewMembers:   []models.FlightCrewMember{captain},
+	}
+
+	ApplyAutoCalculations(f, "Amelia Earhart", nil)
+	if !f.IsPassenger || f.TotalTime != 0 {
+		t.Fatalf("IsPassenger=%v TotalTime=%d, want true/0", f.IsPassenger, f.TotalTime)
+	}
+
+	// The fleet entry now records the type as multi-pilot.
+	ApplyAutoCalculations(f, "Amelia Earhart", &flightrules.AircraftFacts{
+		Registration: "D-ARCA", IsMultiPilot: true,
+	})
+	if f.IsPassenger {
+		t.Fatal("IsPassenger = true after the aircraft was marked multi-pilot")
+	}
+	if f.TotalTime != 90 {
+		t.Errorf("TotalTime = %d, want 90 recovered from the block times", f.TotalTime)
+	}
+	if f.SICTime != 90 || f.MultiPilotTime != 90 {
+		t.Errorf("SICTime=%d MultiPilotTime=%d, want 90/90", f.SICTime, f.MultiPilotTime)
 	}
 }

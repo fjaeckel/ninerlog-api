@@ -23,9 +23,10 @@ func NewAircraftRepository(db *sql.DB) repository.AircraftRepository {
 func (r *aircraftRepository) Create(ctx context.Context, aircraft *models.Aircraft) error {
 	query := `
 		INSERT INTO aircraft (user_id, registration, type, make, model,
-		                      is_complex, is_high_performance, is_tailwheel, notes, is_active, aircraft_class,
+		                      is_complex, is_high_performance, is_tailwheel, is_multi_pilot,
+		                      notes, is_active, aircraft_class,
 		                      default_departure_icao, default_arrival_icao)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at, updated_at
 	`
 	err := r.db.QueryRowContext(ctx, query,
@@ -37,6 +38,7 @@ func (r *aircraftRepository) Create(ctx context.Context, aircraft *models.Aircra
 		aircraft.IsComplex,
 		aircraft.IsHighPerformance,
 		aircraft.IsTailwheel,
+		aircraft.IsMultiPilot,
 		aircraft.Notes,
 		aircraft.IsActive,
 		aircraft.AircraftClass,
@@ -55,7 +57,7 @@ func (r *aircraftRepository) Create(ctx context.Context, aircraft *models.Aircra
 func (r *aircraftRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Aircraft, error) {
 	query := `
 		SELECT id, user_id, registration, type, make, model,
-		       is_complex, is_high_performance, is_tailwheel, notes, is_active,
+		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
 		       aircraft_class, default_departure_icao, default_arrival_icao,
 		       created_at, updated_at
 		FROM aircraft WHERE id = $1
@@ -63,7 +65,7 @@ func (r *aircraftRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 	a := &models.Aircraft{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&a.ID, &a.UserID, &a.Registration, &a.Type, &a.Make, &a.Model,
-		&a.IsComplex, &a.IsHighPerformance, &a.IsTailwheel,
+		&a.IsComplex, &a.IsHighPerformance, &a.IsTailwheel, &a.IsMultiPilot,
 		&a.Notes, &a.IsActive, &a.AircraftClass,
 		&a.DefaultDepartureICAO, &a.DefaultArrivalICAO,
 		&a.CreatedAt, &a.UpdatedAt,
@@ -80,7 +82,7 @@ func (r *aircraftRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 func (r *aircraftRepository) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error) {
 	query := `
 		SELECT id, user_id, registration, type, make, model,
-		       is_complex, is_high_performance, is_tailwheel, notes, is_active,
+		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
 		       aircraft_class, default_departure_icao, default_arrival_icao,
 		       created_at, updated_at
 		FROM aircraft WHERE user_id = $1`
@@ -112,7 +114,7 @@ func (r *aircraftRepository) GetPageByUserID(ctx context.Context, userID uuid.UU
 
 	query := `
 		SELECT id, user_id, registration, type, make, model,
-		       is_complex, is_high_performance, is_tailwheel, notes, is_active,
+		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
 		       aircraft_class, default_departure_icao, default_arrival_icao,
 		       created_at, updated_at
 		FROM aircraft WHERE user_id = $1`
@@ -141,7 +143,7 @@ func scanAircraftRows(rows *sql.Rows) ([]*models.Aircraft, error) {
 		a := &models.Aircraft{}
 		if err := rows.Scan(
 			&a.ID, &a.UserID, &a.Registration, &a.Type, &a.Make, &a.Model,
-			&a.IsComplex, &a.IsHighPerformance, &a.IsTailwheel,
+			&a.IsComplex, &a.IsHighPerformance, &a.IsTailwheel, &a.IsMultiPilot,
 			&a.Notes, &a.IsActive, &a.AircraftClass,
 			&a.DefaultDepartureICAO, &a.DefaultArrivalICAO,
 			&a.CreatedAt, &a.UpdatedAt,
@@ -157,16 +159,18 @@ const aircraftUpdateQuery = `
 	UPDATE aircraft
 	SET registration = $1, type = $2, make = $3, model = $4,
 	    is_complex = $5, is_high_performance = $6,
-	    is_tailwheel = $7, notes = $8, is_active = $9, aircraft_class = $10,
-	    default_departure_icao = $11, default_arrival_icao = $12,
-	    updated_at = $13
-	WHERE id = $14
+	    is_tailwheel = $7, is_multi_pilot = $8,
+	    notes = $9, is_active = $10, aircraft_class = $11,
+	    default_departure_icao = $12, default_arrival_icao = $13,
+	    updated_at = $14
+	WHERE id = $15
 `
 
 func aircraftUpdateArgs(aircraft *models.Aircraft, now time.Time) []any {
 	return []any{
 		aircraft.Registration, aircraft.Type, aircraft.Make, aircraft.Model,
 		aircraft.IsComplex, aircraft.IsHighPerformance, aircraft.IsTailwheel,
+		aircraft.IsMultiPilot,
 		aircraft.Notes, aircraft.IsActive, aircraft.AircraftClass,
 		aircraft.DefaultDepartureICAO, aircraft.DefaultArrivalICAO,
 		now, aircraft.ID,
@@ -276,7 +280,7 @@ func (r *aircraftRepository) GetStatsByUserID(ctx context.Context, userID uuid.U
 		       MIN(date),
 		       MAX(date)
 		FROM flights
-		WHERE user_id = $1 AND NOT is_simulator
+		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger
 		GROUP BY aircraft_reg
 		ORDER BY aircraft_reg ASC
 	`
@@ -311,7 +315,7 @@ func (r *aircraftRepository) GetTypeStatsByUserID(ctx context.Context, userID uu
 		       MIN(date),
 		       MAX(date)
 		FROM flights
-		WHERE user_id = $1 AND NOT is_simulator
+		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger
 		GROUP BY aircraft_type
 		ORDER BY aircraft_type ASC
 	`
@@ -341,7 +345,7 @@ func (r *aircraftRepository) GetRecencyRowsByUserID(ctx context.Context, userID 
 		SELECT aircraft_reg, aircraft_type, date,
 		       COALESCE(SUM(landings_day + landings_night), 0)
 		FROM flights
-		WHERE user_id = $1 AND NOT is_simulator AND date >= CURRENT_DATE - INTERVAL '90 days'
+		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND date >= CURRENT_DATE - INTERVAL '90 days'
 		GROUP BY aircraft_reg, aircraft_type, date
 		ORDER BY date DESC
 	`

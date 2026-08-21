@@ -11,6 +11,7 @@ var (
 	ErrNegativeLandings        = errors.New("landings cannot be negative")
 	ErrInvalidFunctionTime     = errors.New("PIC, co-pilot and dual time together exceed total time")
 	ErrInvalidDualGivenTime    = errors.New("instructor time exceeds total time")
+	ErrPassengerFunctionTime   = errors.New("a passenger flight logs no flight time")
 
 	// FSTD session validation errors
 	ErrFSTDTypeRequired = errors.New("fstdType is required for a simulator session")

@@ -97,11 +97,15 @@ A class/type rating attached to a license. `ClassType` is an enum:
 
 `ExpiryDate` drives both notifications and the currency engine's expiry-anchored windows.
 
-### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36)
+### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65)
 
 A user's aircraft: registration, type, make, model, and a class (e.g. `SEP_LAND`) that
 links flights in that aircraft to the right currency bucket. Equipment flags capture
-complex/high-performance/tailwheel characteristics. `Registration` is stored in the
+complex/high-performance/tailwheel characteristics. `IsMultiPilot` (migration 65) records
+that the type is certificated for a minimum crew of two pilots; it is what makes co-pilot
+and multi-pilot time loggable, and `aircraft_class` cannot stand in for it because that
+column is free-form and describes engines and land/sea rather than required crew (see
+[DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time)). `Registration` is stored in the
 canonical notation of its state of registry (`pkg/registration`) — the same normalisation
 `Flight.AircraftReg` gets, since the two are joined by this string. See
 [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
@@ -200,8 +204,19 @@ are **integer minutes**):
   `FSTDType`, `SimulatedFlightTime` (the session duration). On a session every
   flight-time column is 0 and `AircraftReg`, the route and the block times are empty —
   a training device is not flown between places and its time is never summed with flight
-  time. Aggregate queries carry a `NOT is_simulator` predicate; migration 64 also adds
-  the partial indexes those queries use.
+  time. Migration 64 also adds the partial indexes the aggregate queries use.
+- **Passenger flight** (migration 65): `IsPassenger` marks a flight the user was carried
+  on rather than crewed — another person is pilot-in-command and the operation carries no
+  co-pilot seat the user may occupy. The route, block times and `Distance` survive as the
+  record of the trip; `TotalTime` and every pilot-function, landing and instrument column
+  are 0. Derived on save from the crew list and the aircraft's `IsMultiPilot`, never sent
+  by clients. `SICTimeOverride` (migration 65) marks a co-pilot time the pilot declared,
+  distinguishing it from one derivation wrote, so `POST /flights/recalculate` can correct
+  its own earlier output. See
+  [DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time).
+- **Excluded from aggregates**: every aggregate query carries
+  `NOT is_simulator AND NOT is_passenger` — the SQL counterpart of
+  `flightrules.CountsAsFlightTime`.
 - **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`).
 - **Free text**: `Remarks`.
 

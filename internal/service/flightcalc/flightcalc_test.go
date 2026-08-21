@@ -6,9 +6,21 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 )
 
 func strPtr(s string) *string { return &s }
+
+// multiPilotAircraft is a type certificated for a minimum crew of two, the
+// only kind on which co-pilot and multi-pilot time may be derived.
+func multiPilotAircraft() *flightrules.AircraftFacts {
+	return &flightrules.AircraftFacts{Registration: "D-AIBC", IsMultiPilot: true}
+}
+
+// singlePilotAircraft is the fleet entry for the C172 baseFlight is flown in.
+func singlePilotAircraft() *flightrules.AircraftFacts {
+	return &flightrules.AircraftFacts{Registration: "D-EFGH"}
+}
 
 func baseFlight() *models.Flight {
 	return &models.Flight{
@@ -33,7 +45,7 @@ func baseFlight() *models.Flight {
 func TestSoloTime_PIC(t *testing.T) {
 	f := baseFlight()
 	// No instructor = PIC = solo
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.SoloTime != f.TotalTime {
 		t.Errorf("expected soloTime=%v when PIC, got %v", f.TotalTime, f.SoloTime)
 	}
@@ -45,7 +57,7 @@ func TestSoloTime_Dual(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Instructor", Role: models.CrewRoleInstructor},
 	}
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.SoloTime != 0 {
 		t.Errorf("expected soloTime=0 when dual, got %v", f.SoloTime)
 	}
@@ -58,7 +70,7 @@ func TestSoloTime_WithPassenger_NotSolo(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Passenger", Role: models.CrewRolePassenger},
 	}
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if !f.IsPIC {
 		t.Error("expected IsPIC=true with only a passenger on board")
 	}
@@ -73,7 +85,7 @@ func TestSoloTime_SelfListedOnly_StillSolo(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Test User", Role: models.CrewRolePIC},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.SoloTime != f.TotalTime {
 		t.Errorf("expected soloTime=%v when only self listed, got %v", f.TotalTime, f.SoloTime)
 	}
@@ -81,7 +93,7 @@ func TestSoloTime_SelfListedOnly_StillSolo(t *testing.T) {
 
 func TestCrossCountryTime_DifferentAirports(t *testing.T) {
 	f := baseFlight()
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.CrossCountryTime != f.TotalTime {
 		t.Errorf("expected crossCountryTime=%v, got %v", f.TotalTime, f.CrossCountryTime)
 	}
@@ -91,7 +103,7 @@ func TestCrossCountryTime_SameAirport(t *testing.T) {
 	f := baseFlight()
 	f.DepartureICAO = strPtr("EDDF")
 	f.ArrivalICAO = strPtr("EDDF")
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.CrossCountryTime != 0 {
 		t.Errorf("expected crossCountryTime=0 for same airport, got %v", f.CrossCountryTime)
 	}
@@ -101,7 +113,7 @@ func TestCrossCountryTime_NilAirports(t *testing.T) {
 	f := baseFlight()
 	f.DepartureICAO = nil
 	f.ArrivalICAO = nil
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.CrossCountryTime != 0 {
 		t.Errorf("expected crossCountryTime=0, got %v", f.CrossCountryTime)
 	}
@@ -114,7 +126,7 @@ func TestAllLandings_Sum(t *testing.T) {
 	f.LandingsNightOverride = true
 	f.LandingsDay = 3
 	f.LandingsNight = 2
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.AllLandings != 5 {
 		t.Errorf("expected allLandings=5, got %d", f.AllLandings)
 	}
@@ -140,7 +152,7 @@ func TestTakeoffOverride_Respected(t *testing.T) {
 	f.TakeoffsNight = 1
 	f.TakeoffsDayOverride = true
 	f.TakeoffsNightOverride = true
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.TakeoffsDay != 2 || f.TakeoffsNight != 1 {
 		t.Errorf("overridden takeoffs modified: day=%d night=%d", f.TakeoffsDay, f.TakeoffsNight)
 	}
@@ -153,7 +165,7 @@ func TestLandingSplit_NoArrivalTime_DefaultsToDay(t *testing.T) {
 	f.AllLandings = 3
 	f.LandingsDay = 0
 	f.LandingsNight = 0
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.AllLandings != 3 {
 		t.Errorf("expected allLandings=3 when arrivalTime is nil, got %d", f.AllLandings)
 	}
@@ -169,7 +181,7 @@ func TestLandingSplit_UnknownAirport_DefaultsToDay(t *testing.T) {
 	f.AllLandings = 5
 	f.LandingsDay = 0
 	f.LandingsNight = 0
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.AllLandings != 5 {
 		t.Errorf("expected allLandings=5 for unknown airport, got %d", f.AllLandings)
 	}
@@ -184,7 +196,7 @@ func TestLandingOverride_Respected(t *testing.T) {
 	f.LandingsNight = 3
 	f.LandingsDayOverride = true
 	f.LandingsNightOverride = true
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.LandingsDay != 5 || f.LandingsNight != 3 {
 		t.Errorf("overridden landings modified: day=%d night=%d", f.LandingsDay, f.LandingsNight)
 	}
@@ -244,7 +256,7 @@ func TestSICTime_OtherPICSelfSIC_UserIsSIC(t *testing.T) {
 		{Name: "Captain Smith", Role: models.CrewRolePIC},
 		{Name: "Test User", Role: models.CrewRoleSIC},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", multiPilotAircraft())
 	if f.IsPIC {
 		t.Error("expected IsPIC=false when someone else is PIC")
 	}
@@ -265,18 +277,22 @@ func TestSICTime_OtherPICSelfSIC_UserIsSIC(t *testing.T) {
 	}
 }
 
-// A third-party PIC alone (user not listed) also makes the user the
+// A third-party PIC alone on a multi-pilot aircraft makes the user the
 // co-pilot — there is only one PIC per flight.
-func TestSICTime_OtherPICOnly_UserIsSIC(t *testing.T) {
+func TestSICTime_OtherPICOnly_MultiPilotAircraft_UserIsSIC(t *testing.T) {
 	f := baseFlight()
+	f.AircraftReg = "D-AIBC"
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Captain Smith", Role: models.CrewRolePIC},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", multiPilotAircraft())
+	if f.IsPassenger {
+		t.Fatal("IsPassenger = true, want false on a multi-pilot aircraft")
+	}
 	if f.IsPIC || f.PICTime != 0 {
 		t.Errorf("IsPIC=%v PICTime=%d, want false/0 with third-party PIC", f.IsPIC, f.PICTime)
 	}
-	if f.SICTime != f.TotalTime {
+	if f.SICTime != f.TotalTime || f.TotalTime == 0 {
 		t.Errorf("SICTime = %d, want %d", f.SICTime, f.TotalTime)
 	}
 	if f.MultiPilotTime != f.TotalTime {
@@ -284,16 +300,52 @@ func TestSICTime_OtherPICOnly_UserIsSIC(t *testing.T) {
 	}
 }
 
+// The same crew in a single-pilot aircraft carries no co-pilot seat, so the
+// user was carried as a passenger and logs nothing.
+func TestSICTime_OtherPICOnly_SinglePilotAircraft_UserIsPassenger(t *testing.T) {
+	f := baseFlight()
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Captain Smith", Role: models.CrewRolePIC},
+	}
+	ApplyAutoCalculations(f, "Test User", singlePilotAircraft())
+	if !f.IsPassenger {
+		t.Fatal("IsPassenger = false, want true — a C172 has no co-pilot seat to log")
+	}
+	if f.TotalTime != 0 || f.SICTime != 0 || f.PICTime != 0 || f.MultiPilotTime != 0 {
+		t.Errorf("total=%d sic=%d pic=%d mp=%d, want all 0",
+			f.TotalTime, f.SICTime, f.PICTime, f.MultiPilotTime)
+	}
+	if f.OffBlockTime == nil || f.DepartureICAO == nil {
+		t.Error("route and block times must survive as the record of the trip")
+	}
+}
+
+// An aircraft absent from the fleet is treated as single-pilot: derivation
+// never invents co-pilot time for an aircraft it knows nothing about.
+func TestSICTime_OtherPICOnly_UnknownAircraft_UserIsPassenger(t *testing.T) {
+	f := baseFlight()
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Captain Smith", Role: models.CrewRolePIC},
+	}
+	ApplyAutoCalculations(f, "Test User", nil)
+	if !f.IsPassenger {
+		t.Error("IsPassenger = false, want true for an unknown aircraft")
+	}
+}
+
 // Empty userName: a PIC crew member is conservatively treated as a third
-// party (consistent with Instructor/Examiner handling).
+// party (consistent with Instructor/Examiner handling), and the SIC entry
+// cannot be matched to the user, so a multi-pilot aircraft is what makes the
+// co-pilot seat loggable.
 func TestSICTime_OtherPIC_EmptyUserName_UserIsSIC(t *testing.T) {
 	f := baseFlight()
+	f.AircraftReg = "D-AIBC"
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Captain Smith", Role: models.CrewRolePIC},
 		{Name: "Test User", Role: models.CrewRoleSIC},
 	}
-	ApplyAutoCalculations(f, "")
-	if f.PICTime != 0 || f.SICTime != f.TotalTime {
+	ApplyAutoCalculations(f, "", multiPilotAircraft())
+	if f.PICTime != 0 || f.SICTime != f.TotalTime || f.TotalTime == 0 {
 		t.Errorf("PICTime=%d SICTime=%d, want 0/%d", f.PICTime, f.SICTime, f.TotalTime)
 	}
 }
@@ -304,7 +356,7 @@ func TestSICTime_SelfListedAsPIC_UserIsPIC(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Test User", Role: models.CrewRolePIC},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if !f.IsPIC || f.PICTime != f.TotalTime {
 		t.Errorf("IsPIC=%v PICTime=%d, want true/%d", f.IsPIC, f.PICTime, f.TotalTime)
 	}
@@ -320,7 +372,7 @@ func TestMultiPilotTime_UserPICWithSICCrew(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "F/O Jones", Role: models.CrewRoleSIC},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", multiPilotAircraft())
 	if !f.IsPIC || f.PICTime != f.TotalTime {
 		t.Errorf("IsPIC=%v PICTime=%d, want true/%d", f.IsPIC, f.PICTime, f.TotalTime)
 	}
@@ -332,16 +384,18 @@ func TestMultiPilotTime_UserPICWithSICCrew(t *testing.T) {
 	}
 }
 
-// A manually entered multi-pilot value survives (e.g. augmented crew logs a
-// fraction of block time).
+// A declared multi-pilot value survives (e.g. augmented crew logs a fraction
+// of block time). The handlers set the override flag when the client sends
+// multiPilotTime.
 func TestMultiPilotTime_ManualValuePreserved(t *testing.T) {
 	f := baseFlight()
 	f.MultiPilotTime = 60
+	f.MultiPilotTimeOverride = true
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Captain Smith", Role: models.CrewRolePIC},
 		{Name: "Test User", Role: models.CrewRoleSIC},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", multiPilotAircraft())
 	if f.MultiPilotTime != 60 {
 		t.Errorf("MultiPilotTime = %d, want 60 (manual value)", f.MultiPilotTime)
 	}
@@ -354,20 +408,32 @@ func TestMultiPilotTime_StaleValueZeroedWithCrew(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Passenger", Role: models.CrewRolePassenger},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.MultiPilotTime != 0 {
 		t.Errorf("MultiPilotTime = %d, want 0 (no multi-pilot indicator)", f.MultiPilotTime)
 	}
 }
 
-// No crew at all: manual multi-pilot value is kept (user-declared MP
-// aircraft without crew entries).
+// No crew at all: a declared multi-pilot value is kept.
 func TestMultiPilotTime_ManualValueKeptWithoutCrew(t *testing.T) {
 	f := baseFlight()
 	f.MultiPilotTime = 90
-	ApplyAutoCalculations(f, "Test User")
+	f.MultiPilotTimeOverride = true
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.MultiPilotTime != 90 {
-		t.Errorf("MultiPilotTime = %d, want 90 (no crew context)", f.MultiPilotTime)
+		t.Errorf("MultiPilotTime = %d, want 90 (declared)", f.MultiPilotTime)
+	}
+}
+
+// An undeclared multi-pilot value that derivation wrote is re-derived, which
+// is what lets POST /flights/recalculate correct a C172 that was wrongly
+// bucketed into the multi-pilot column.
+func TestMultiPilotTime_UndeclaredValueIsRederived(t *testing.T) {
+	f := baseFlight()
+	f.MultiPilotTime = 90
+	ApplyAutoCalculations(f, "Test User", singlePilotAircraft())
+	if f.MultiPilotTime != 0 {
+		t.Errorf("MultiPilotTime = %d, want 0 on a single-pilot aircraft", f.MultiPilotTime)
 	}
 }
 
@@ -379,7 +445,7 @@ func TestSICTime_InstructorOutranksSIC(t *testing.T) {
 		{Name: "Jane Instructor", Role: models.CrewRoleInstructor},
 		{Name: "Test User", Role: models.CrewRoleSIC},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if !f.IsDual || f.DualTime != f.TotalTime {
 		t.Errorf("IsDual=%v DualTime=%d, want true/%d", f.IsDual, f.DualTime, f.TotalTime)
 	}
@@ -391,7 +457,7 @@ func TestSICTime_InstructorOutranksSIC(t *testing.T) {
 func TestSICTime_NoCrew(t *testing.T) {
 	f := baseFlight()
 	f.SICTime = 0
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	// No crew = PIC, SIC stays 0
 	if f.SICTime != 0 {
 		t.Errorf("SICTime = %d, want 0 (no crew)", f.SICTime)
@@ -404,7 +470,7 @@ func TestDualGivenTime_WithStudentCrew_IsDualGiving(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Student Pilot", Role: models.CrewRoleStudent},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.DualGivenTime != f.TotalTime {
 		t.Errorf("DualGivenTime = %d, expected %d", f.DualGivenTime, f.TotalTime)
 	}
@@ -423,7 +489,7 @@ func TestDualGivenTime_SelfListedAsInstructor_IsDualGiving(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "  test user  ", Role: models.CrewRoleInstructor},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.DualGivenTime != f.TotalTime {
 		t.Errorf("DualGivenTime = %d, expected %d", f.DualGivenTime, f.TotalTime)
 	}
@@ -440,7 +506,7 @@ func TestDualGivenTime_ThirdPartyInstructor_IsDualReceived(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Jane Instructor", Role: models.CrewRoleInstructor},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.DualGivenTime != 0 {
 		t.Errorf("DualGivenTime = %d, expected 0 when third-party instructor on board", f.DualGivenTime)
 	}
@@ -464,7 +530,7 @@ func TestDualGivenTime_ThirdPartyInstructorWithStudent_PrefersDualReceived(t *te
 		{Name: "Jane Instructor", Role: models.CrewRoleInstructor},
 		{Name: "Other Student", Role: models.CrewRoleStudent},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.DualGivenTime != 0 {
 		t.Errorf("DualGivenTime = %d, expected 0", f.DualGivenTime)
 	}
@@ -480,7 +546,7 @@ func TestExamFlight_ThirdPartyExaminer_IsDualReceived(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "DPE Prüfer", Role: models.CrewRoleExaminer},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.IsPIC {
 		t.Error("expected IsPIC=false with third-party examiner")
 	}
@@ -507,7 +573,7 @@ func TestExamFlight_SelfExaminer_IsPIC(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Test User", Role: models.CrewRoleExaminer},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if !f.IsPIC {
 		t.Error("expected IsPIC=true when user is the listed examiner")
 	}
@@ -522,7 +588,7 @@ func TestExamFlight_SelfExaminer_IsPIC(t *testing.T) {
 func TestDualGivenTime_NoCrew(t *testing.T) {
 	f := baseFlight()
 	f.DualGivenTime = 0
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.DualGivenTime != 0 {
 		t.Errorf("DualGivenTime = %d, expected 0", f.DualGivenTime)
 	}
@@ -534,7 +600,7 @@ func TestDualGivenTime_WithPassengerOnly(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Passenger", Role: models.CrewRolePassenger},
 	}
-	ApplyAutoCalculations(f, "Test User")
+	ApplyAutoCalculations(f, "Test User", nil)
 	if f.DualGivenTime != 0 {
 		t.Errorf("DualGivenTime = %d, expected 0", f.DualGivenTime)
 	}
@@ -547,7 +613,7 @@ func TestDualGivenTime_EmptyUserName_TreatsInstructorAsThirdParty(t *testing.T) 
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Test User", Role: models.CrewRoleInstructor},
 	}
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.DualGivenTime != 0 {
 		t.Errorf("DualGivenTime = %d, expected 0 (no user context)", f.DualGivenTime)
 	}
@@ -584,7 +650,7 @@ func TestDualGivenTime_SelfInstructor_NameVariants(t *testing.T) {
 			f.CrewMembers = []models.FlightCrewMember{
 				{Name: tc.crewName, Role: models.CrewRoleInstructor},
 			}
-			ApplyAutoCalculations(f, profile)
+			ApplyAutoCalculations(f, profile, nil)
 
 			gotGiven := f.DualGivenTime == f.TotalTime
 			if gotGiven != tc.wantGiven {
@@ -606,7 +672,7 @@ func TestDualGivenTime_SelfInstructor_NameVariants(t *testing.T) {
 
 func TestPICDual_NoCrew_IsPIC(t *testing.T) {
 	f := baseFlight()
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if !f.IsPIC {
 		t.Error("expected IsPIC=true with no crew")
 	}
@@ -623,7 +689,7 @@ func TestPICDual_InstructorOnBoard_IsDual(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "CFI Smith", Role: models.CrewRoleInstructor},
 	}
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if f.IsPIC {
 		t.Error("expected IsPIC=false with instructor on board")
 	}
@@ -643,7 +709,7 @@ func TestPICDual_PassengerOnly_IsPIC(t *testing.T) {
 	f.CrewMembers = []models.FlightCrewMember{
 		{Name: "Jane Doe", Role: models.CrewRolePassenger},
 	}
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	if !f.IsPIC {
 		t.Error("expected IsPIC=true with passenger only")
 	}
@@ -657,7 +723,7 @@ func TestNightTime_DaytimeFlight(t *testing.T) {
 	f.DepartureTime = strPtr("10:00:00")
 	f.ArrivalTime = strPtr("12:00:00")
 	f.TotalTime = 2.0
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	// Without airport lookup, nightTime is 0
 	if f.NightTime != 0 {
 		t.Errorf("NightTime = %d, want 0 (no airport data)", f.NightTime)
@@ -670,7 +736,7 @@ func TestNightTime_NightFlight(t *testing.T) {
 	f.DepartureTime = strPtr("18:00:00")
 	f.ArrivalTime = strPtr("20:00:00")
 	f.TotalTime = 2.0
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	// Graceful: stays 0 when no airport data
 	if f.NightTime != 0 {
 		t.Errorf("NightTime = %d, want 0 (no airport data in test)", f.NightTime)
@@ -682,7 +748,7 @@ func TestNightTime_MixedFlight(t *testing.T) {
 	f.DepartureTime = strPtr("15:00:00")
 	f.ArrivalTime = strPtr("18:00:00")
 	f.TotalTime = 3.0
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 	// Graceful: stays 0 when no airport data
 	if f.NightTime != 0 {
 		t.Errorf("NightTime = %d, want 0 (no airport data in test)", f.NightTime)
@@ -989,7 +1055,7 @@ func TestApplyAutoCalculations_FullDaytimeFlight(t *testing.T) {
 		AllLandings:   1,
 	}
 
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 
 	// PIC (no crew)
 	if !f.IsPIC {
@@ -1048,7 +1114,7 @@ func TestApplyAutoCalculations_DualFlightWithInstructor(t *testing.T) {
 		},
 	}
 
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 
 	// Dual (instructor on board)
 	if f.IsPIC {
@@ -1106,7 +1172,7 @@ func TestApplyAutoCalculations_OverridesRespected(t *testing.T) {
 		TakeoffsNightOverride: true,
 	}
 
-	ApplyAutoCalculations(f, "")
+	ApplyAutoCalculations(f, "", nil)
 
 	// Override values should be preserved
 	if f.LandingsDay != 3 {

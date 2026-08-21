@@ -152,12 +152,24 @@ rules.
   `aircraftNormalized`/`aircraftConflicts` — see
   [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 - Rich data: structured approaches, crew members, endorsements, launch method for gliders.
+- Fleet facts that change derivation: `isComplex`, `isHighPerformance`, `isTailwheel` and
+  `isMultiPilot` on `/aircraft`. Changing `isMultiPilot` takes effect on the next save of a
+  flight, or across the whole logbook via `POST /flights/recalculate`.
 - FSTD sessions: `isSimulator: true` logs a simulator session (FNPT, FTD, FFS, BATD/AATD)
   instead of a flight. It records the device type and session duration, keeps the
   instrument work (approaches, holds, simulated instrument time), and carries no flight
   time, route or block times at all — training time is never summed with flying time. The
   admin dashboard reports sessions separately as `totalSimulatorSessions`. See
   [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions).
+- Co-pilot time: logged only where the operation provides a co-pilot seat — a
+  multi-pilot aircraft (`isMultiPilot` on the fleet entry), a required safety pilot
+  (`SafetyPilot` crew role), or a seat the pilot declares by listing themselves as `SIC`
+  or entering `sicTime`. Where none applies and another person is pilot-in-command, the
+  user was carried rather than crewed: the flight is stored as a passenger flight
+  (`isPassenger`), keeping its route and block times and logging no flight time. This is
+  what keeps a GA pilot from logging co-pilot time they may not log, while an airline
+  first officer's line flying is unaffected. See
+  [DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time).
 - Airport names: flight responses carry read-only `departureAirportName` /
   `arrivalAirportName`, resolved per request from the in-memory airport database
   (`internal/airports`) for display. Only the location itself is stored; the names are
@@ -375,9 +387,12 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
 - **Platform** — stats/dashboard (`admin_dashboard.go`), audit log (`AdminAuditLog`,
   migration 27), config view. `totalContacts` sits alongside the flight and aircraft
   counts: contacts accumulate on their own as crew names are logged, so it is a growth
-  number, not a configuration one. `totalFlights` counts flights only and
-  `totalSimulatorSessions` counts FSTD sessions, kept apart for the same reason the
-  logbook keeps them apart (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)). Config view also reports `registrationPrefixCount`
+  number, not a configuration one. `totalFlights` counts flights only;
+  `totalSimulatorSessions` counts FSTD sessions
+  (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)) and `totalPassengerFlights`
+  counts flights whose owner was carried rather than crewing
+  (see [DOMAIN.md](./DOMAIN.md#passenger-flights)), each kept apart for the same reason
+  the logbook keeps them apart. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than
   fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).

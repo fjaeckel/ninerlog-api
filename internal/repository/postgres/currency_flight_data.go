@@ -38,7 +38,7 @@ func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 			COALESCE(SUM(f.holds), 0) as holds
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND a.aircraft_class = $2 AND f.date >= $3
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND a.aircraft_class = $2 AND f.date >= $3
 	`
 
 	progress := &currency.Progress{}
@@ -76,7 +76,7 @@ func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 			COALESCE(SUM(approaches_count), 0) as approaches,
 			COALESCE(SUM(holds), 0) as holds
 		FROM flights
-		WHERE user_id = $1 AND NOT is_simulator AND date >= $2
+		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND date >= $2
 	`
 
 	progress := &currency.Progress{}
@@ -102,7 +102,7 @@ func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 func (p *currencyFlightDataProvider) GetLastFlightReview(ctx context.Context, userID uuid.UUID) (*time.Time, error) {
 	query := `
 		SELECT date FROM flights
-		WHERE user_id = $1 AND NOT is_simulator AND is_flight_review = true
+		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND is_flight_review = true
 		ORDER BY date DESC
 		LIMIT 1
 	`
@@ -125,7 +125,7 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 	if classType == models.ClassTypeIR {
 		query = `
 			SELECT date FROM flights
-			WHERE user_id = $1 AND NOT is_simulator AND is_proficiency_check = true AND date >= $2
+			WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND is_proficiency_check = true AND date >= $2
 			ORDER BY date DESC
 			LIMIT 1
 		`
@@ -134,7 +134,7 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 		query = `
 			SELECT f.date FROM flights f
 			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND NOT f.is_simulator AND a.aircraft_class = $2 AND f.is_proficiency_check = true AND f.date >= $3
+			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND a.aircraft_class = $2 AND f.is_proficiency_check = true AND f.date >= $3
 			ORDER BY f.date DESC
 			LIMIT 1
 		`
@@ -156,7 +156,7 @@ func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID
 	query := `
 		SELECT launch_method, COUNT(*) as launches
 		FROM flights
-		WHERE user_id = $1 AND NOT is_simulator AND date >= $2 AND launch_method IS NOT NULL AND launch_method != ''
+		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND date >= $2 AND launch_method IS NOT NULL AND launch_method != ''
 		GROUP BY launch_method
 	`
 	rows, err := p.db.QueryContext(ctx, query, userID, since)
