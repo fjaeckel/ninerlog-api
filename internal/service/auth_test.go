@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -253,17 +254,150 @@ func (m *mockRefreshTokenRepo) RevokeByTokenHash(ctx context.Context, tokenHash 
 	if !exists {
 		return repository.ErrNotFound
 	}
-	token.Revoked = true
+	revoke(token)
 	return nil
 }
 
 func (m *mockRefreshTokenRepo) RevokeAllForUser(ctx context.Context, userID uuid.UUID) error {
 	for _, token := range m.tokens {
 		if token.UserID == userID {
-			token.Revoked = true
+			revoke(token)
 		}
 	}
 	return nil
+}
+
+func (m *mockRefreshTokenRepo) MarkRotated(ctx context.Context, tokenHash string) error {
+	token, exists := m.tokens[tokenHash]
+	if !exists {
+		return repository.ErrNotFound
+	}
+	rotated := token.RotatedAt == nil
+	revoke(token)
+	if rotated {
+		now := time.Now()
+		token.RotatedAt = &now
+	}
+	return nil
+}
+
+// revoke marks a token revoked, stamping revoked_at on the first revocation.
+func revoke(token *models.RefreshToken) {
+	if token.Revoked {
+		return
+	}
+	now := time.Now()
+	token.Revoked = true
+	token.RevokedAt = &now
+}
+
+// live reports whether a token still authorises a refresh.
+func live(token *models.RefreshToken) bool {
+	return !token.Revoked && token.ExpiresAt.After(time.Now())
+}
+
+func (m *mockRefreshTokenRepo) TouchSession(ctx context.Context, sessionID uuid.UUID, at time.Time) error {
+	for _, token := range m.tokens {
+		if token.SessionID == sessionID {
+			token.LastUsedAt = at
+		}
+	}
+	return nil
+}
+
+func (m *mockRefreshTokenRepo) ListSessions(ctx context.Context, userID uuid.UUID) ([]*models.Session, error) {
+	bySession := map[uuid.UUID]*models.Session{}
+	for _, token := range m.tokens {
+		if token.UserID != userID || !live(token) {
+			continue
+		}
+		s, ok := bySession[token.SessionID]
+		if !ok {
+			bySession[token.SessionID] = &models.Session{
+				ID:          token.SessionID,
+				DeviceLabel: token.DeviceLabel,
+				IPAddress:   token.IPAddress,
+				CreatedAt:   token.CreatedAt,
+				LastUsedAt:  token.LastUsedAt,
+				ExpiresAt:   token.ExpiresAt,
+			}
+			continue
+		}
+		if token.CreatedAt.Before(s.CreatedAt) {
+			s.CreatedAt = token.CreatedAt
+		}
+		if token.LastUsedAt.After(s.LastUsedAt) {
+			s.LastUsedAt = token.LastUsedAt
+		}
+		if token.ExpiresAt.After(s.ExpiresAt) {
+			s.ExpiresAt = token.ExpiresAt
+		}
+	}
+
+	sessions := make([]*models.Session, 0, len(bySession))
+	for _, s := range bySession {
+		sessions = append(sessions, s)
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].LastUsedAt.After(sessions[j].LastUsedAt)
+	})
+	return sessions, nil
+}
+
+func (m *mockRefreshTokenRepo) RevokeSession(ctx context.Context, userID, sessionID uuid.UUID) error {
+	found := false
+	for _, token := range m.tokens {
+		if token.UserID == userID && token.SessionID == sessionID && !token.Revoked {
+			revoke(token)
+			found = true
+		}
+	}
+	if !found {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+
+func (m *mockRefreshTokenRepo) RevokeSessionsExcept(ctx context.Context, userID, keep uuid.UUID) (int64, error) {
+	revoked := map[uuid.UUID]bool{}
+	for _, token := range m.tokens {
+		if token.UserID == userID && token.SessionID != keep && !token.Revoked {
+			revoke(token)
+			revoked[token.SessionID] = true
+		}
+	}
+	return int64(len(revoked)), nil
+}
+
+func (m *mockRefreshTokenRepo) EvictOldestSessions(ctx context.Context, userID uuid.UUID, keep int) (int64, error) {
+	sessions, err := m.ListSessions(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	if keep < 0 {
+		keep = 0
+	}
+	if len(sessions) <= keep {
+		return 0, nil
+	}
+
+	var evicted int64
+	for _, s := range sessions[keep:] {
+		if err := m.RevokeSession(ctx, userID, s.ID); err == nil {
+			evicted++
+		}
+	}
+	return evicted, nil
+}
+
+func (m *mockRefreshTokenRepo) CountActiveSessions(ctx context.Context) (int64, error) {
+	sessions := map[uuid.UUID]bool{}
+	for _, token := range m.tokens {
+		if live(token) {
+			sessions[token.SessionID] = true
+		}
+	}
+	return int64(len(sessions)), nil
 }
 
 func (m *mockRefreshTokenRepo) DeleteForUser(ctx context.Context, userID uuid.UUID) error {
@@ -346,7 +480,7 @@ func setupAuthService() *service.AuthService {
 	emailVerifyRepo := newMockEmailVerificationRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	return service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerifyRepo, jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil))
+		service.NewTwoFactorService(userRepo, jwtManager, nil), service.SessionPolicy{})
 }
 
 func TestRegister(t *testing.T) {
@@ -775,7 +909,7 @@ func TestChangePassword(t *testing.T) {
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil))
+		service.NewTwoFactorService(userRepo, jwtManager, nil), service.SessionPolicy{})
 	ctx := context.Background()
 
 	// Register a user
@@ -824,7 +958,7 @@ func TestDeleteUser(t *testing.T) {
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil))
+		service.NewTwoFactorService(userRepo, jwtManager, nil), service.SessionPolicy{})
 	ctx := context.Background()
 
 	// Register a user
@@ -1012,7 +1146,7 @@ func TestUpdateUser(t *testing.T) {
 	passwordResetRepo := newMockPasswordResetRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, newMockEmailVerificationRepo(), jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil))
+		service.NewTwoFactorService(userRepo, jwtManager, nil), service.SessionPolicy{})
 	ctx := context.Background()
 
 	input := service.RegisterInput{

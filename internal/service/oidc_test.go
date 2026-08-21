@@ -160,7 +160,7 @@ func newOIDCHarness(t *testing.T, mutate func(*service.OIDCConfig)) *oidcHarness
 	jwtManager := jwt.NewManager("test-access-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	authService := service.NewAuthService(
 		users, refreshes, newMockPasswordResetRepo(), newMockEmailVerificationRepo(),
-		jwtManager, service.NewTwoFactorService(users, jwtManager, nil),
+		jwtManager, service.NewTwoFactorService(users, jwtManager, nil), service.SessionPolicy{},
 	)
 
 	cfg := service.OIDCConfig{

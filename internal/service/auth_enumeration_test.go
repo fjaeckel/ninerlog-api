@@ -18,7 +18,7 @@ func setupAuthServiceWithRepo() (*service.AuthService, *mockUserRepo) {
 	emailVerifyRepo := newMockEmailVerificationRepo()
 	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	return service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerifyRepo, jwtManager,
-		service.NewTwoFactorService(userRepo, jwtManager, nil)), userRepo
+		service.NewTwoFactorService(userRepo, jwtManager, nil), service.SessionPolicy{}), userRepo
 }
 
 const enumPassword = "Correct-Horse-Battery1"

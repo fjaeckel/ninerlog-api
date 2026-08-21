@@ -25,6 +25,11 @@ Full setup, provider recipes and migration guidance: **[OIDC.md](./OIDC.md)**.
 
 ## Token Architecture
 
+> **[SESSION_CONTRACT.md](./SESSION_CONTRACT.md) is binding on this repo and on
+> `ninerlog-frontend`.** It governs concurrent sessions, rotation, the reuse grace window and
+> what each failure status means to a client. This section summarises it; the contract wins
+> on any disagreement.
+
 | Token | Lifetime | Purpose |
 |---|---|---|
 | Access token | 15 minutes | Authenticates API requests (`Authorization: Bearer <token>`) |
@@ -38,13 +43,16 @@ All tokens are signed with **HS256**. Access and 2FA tokens use `JWT_SECRET`; re
 ```json
 {
   "user_id": "uuid",
+  "session_id": "uuid",
   "jti": "unique-token-id",
   "exp": 1234567890,
   "iat": 1234567890
 }
 ```
 
-2FA challenge tokens additionally carry `"sub": "2fa-challenge"`.
+`session_id` identifies the login the token belongs to and is preserved across rotation, so a
+session is a chain of refresh-token rows rather than a single token. It is absent on 2FA
+challenge tokens, which additionally carry `"sub": "2fa-challenge"`.
 
 ---
 
@@ -275,7 +283,9 @@ so a generated client can switch on it without probing.
 
 **Errors:** `401` invalid credentials, `403` account disabled, `429` account locked (too many failed attempts).
 
-Login deletes all prior refresh tokens for the user, enforcing a **single active session**.
+Login starts a **new session** and leaves the user's other sessions alone — see
+[Sessions](#sessions). For an account with 2FA enabled the password step issues no tokens at
+all; `POST /auth/2fa/login` starts the session once the second factor passes.
 
 **Last login** (`users.last_login_at`, exposed as `lastLoginAt` in the admin user
 list) is stamped by every path that actually hands an account a session:
@@ -310,9 +320,75 @@ POST /api/v1/auth/refresh
 }
 ```
 
-The old refresh token is **immediately revoked** (one-time use / rotation).
+The new pair stays on the **same session** — `session_id` is preserved, so refreshing never
+looks like a new device.
 
-**Errors:** `401` invalid or expired refresh token.
+**Rotation with a reuse grace.** The presented token is marked superseded, and stays usable
+for `REFRESH_REUSE_GRACE` (default `30s`):
+
+| Token presented | Result |
+|---|---|
+| Live | Rotated; a new pair is issued |
+| Superseded less than the grace ago | Accepted; a new pair is issued, and any pair already issued keeps working |
+| Superseded longer than the grace ago | **Replay** — the whole session is revoked, `401` |
+| Revoked outright (logout, password change, session revocation) | `401`, with no grace |
+
+The grace window is what lets two browser tabs (or a tab and the installed PWA) refresh at the
+same instant without evicting each other. It applies only to rotation: `rotated_at` and
+`revoked_at` are separate columns precisely so that signing out takes effect at once.
+
+**Errors:** `401` invalid, expired, revoked, or replayed refresh token. A client must treat
+**only** `401` as "the session is over" — `429`, `5xx` and network errors are transient and
+must be retried with the credentials kept. See
+[SESSION_CONTRACT.md](./SESSION_CONTRACT.md#5-what-each-failure-means-to-a-client).
+
+---
+
+### Sessions
+
+A session is one signed-in device, identified by the `session_id` carried in both tokens and
+preserved across rotation. A user may hold up to `MAX_SESSIONS_PER_USER` (default **5**) live
+sessions; signing in on a sixth device evicts the least recently used one rather than
+rejecting the login.
+
+```
+GET    /api/v1/auth/sessions             list live sessions, most recently used first
+DELETE /api/v1/auth/sessions/{sessionId} revoke one session
+DELETE /api/v1/auth/sessions             revoke every session except the caller's
+```
+
+All three require authentication.
+
+**200 OK** for the listing:
+```json
+{
+  "sessions": [
+    {
+      "id": "uuid",
+      "deviceLabel": "Safari on iPhone",
+      "ipAddress": "203.0.113.7",
+      "createdAt": "2026-08-21T09:00:00Z",
+      "lastUsedAt": "2026-08-21T11:42:00Z",
+      "expiresAt": "2026-08-28T09:00:00Z",
+      "current": true
+    }
+  ],
+  "maxSessions": 5
+}
+```
+
+`deviceLabel` is derived from the User-Agent at each refresh (`internal/service/devicelabel.go`)
+and is advisory — a client controls its own User-Agent, so the label identifies a device to its
+owner, never to the server.
+
+Revocation is scoped to the authenticated user in SQL, so a session ID alone authorises
+nothing: revoking another user's session answers `404`, exactly as an unknown ID does.
+Revoking the current session signs that device out.
+
+**Errors:** `401` not authenticated, `404` unknown session or another user's.
+
+Sessions still end **everywhere at once** on a password change, a password reset, an admin
+disabling the account, and account deletion.
 
 ---
 
@@ -607,6 +683,18 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 **401 responses:**
 - `{"error": "Authentication required"}` — missing or malformed header
 - `{"error": "Invalid or expired token"}` — token validation failed
+
+---
+
+## Session configuration
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MAX_SESSIONS_PER_USER` | `5` | Live sessions kept per user; the least recently used is evicted beyond it |
+| `REFRESH_REUSE_GRACE` | `30s` | How long a superseded refresh token stays usable |
+
+An unparseable or non-positive value falls back to the default. Both are reported by
+`GET /api/v1/admin/config`, alongside `activeSessions` on `GET /api/v1/admin/stats`.
 
 ---
 

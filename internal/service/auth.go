@@ -45,6 +45,13 @@ var (
 	// ErrTwoFactorUnavailable is returned when a 2FA-protected reset is attempted
 	// but no validator is wired.
 	ErrTwoFactorUnavailable = errors.New("two-factor verification is unavailable")
+
+	// ErrTokenReuseDetected marks a refresh token presented after its reuse
+	// grace elapsed. The session it belonged to is revoked.
+	ErrTokenReuseDetected = errors.New("refresh token reuse detected")
+	// ErrSessionNotFound marks a session that does not exist, is already
+	// revoked, or belongs to another user.
+	ErrSessionNotFound = errors.New("session not found")
 )
 
 const (
@@ -69,11 +76,12 @@ type AuthService struct {
 	emailVerificationRepo repository.EmailVerificationTokenRepository
 	jwtManager            *jwt.Manager
 	twoFactor             TwoFactorValidator
+	sessionPolicy         SessionPolicy
 }
 
 // NewAuthService constructs the service. twoFactor may be nil, in which case a
 // password reset for an account with 2FA enabled fails with
-// ErrTwoFactorUnavailable.
+// ErrTwoFactorUnavailable. Non-positive fields of policy take their defaults.
 func NewAuthService(
 	userRepo repository.UserRepository,
 	refreshTokenRepo repository.RefreshTokenRepository,
@@ -81,6 +89,7 @@ func NewAuthService(
 	emailVerificationRepo repository.EmailVerificationTokenRepository,
 	jwtManager *jwt.Manager,
 	twoFactor TwoFactorValidator,
+	policy SessionPolicy,
 ) *AuthService {
 	return &AuthService{
 		userRepo:              userRepo,
@@ -89,7 +98,13 @@ func NewAuthService(
 		emailVerificationRepo: emailVerificationRepo,
 		jwtManager:            jwtManager,
 		twoFactor:             twoFactor,
+		sessionPolicy:         policy.normalized(),
 	}
+}
+
+// SessionPolicy reports the policy the service was constructed with.
+func (s *AuthService) SessionPolicy() SessionPolicy {
+	return s.sessionPolicy
 }
 
 type RegisterInput struct {
@@ -107,6 +122,8 @@ type LoginInput struct {
 type TokenPair struct {
 	AccessToken  string
 	RefreshToken string
+	// SessionID is the session the pair belongs to.
+	SessionID uuid.UUID
 }
 
 // Register creates a new user account with EmailVerified=false, stores an
@@ -248,7 +265,7 @@ func (s *AuthService) VerifyEmail(ctx context.Context, token string) (*models.Us
 		return nil, nil, err
 	}
 
-	tokens, err := s.generateTokenPair(ctx, user.ID)
+	tokens, err := s.startSession(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -352,17 +369,14 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 		_ = s.userRepo.ResetFailedLoginAttempts(ctx, user.ID)
 	}
 
-	// For a 2FA account, Login2FA stamps the login after the second factor.
-	if !user.TwoFactorEnabled {
-		s.RecordLogin(ctx, user)
+	// For a 2FA account, Login2FA stamps the login and starts the session
+	// after the second factor.
+	if user.TwoFactorEnabled {
+		return user, nil, nil
 	}
+	s.RecordLogin(ctx, user)
 
-	// Delete existing refresh tokens: one active session per user.
-	if err := s.refreshTokenRepo.DeleteForUser(ctx, user.ID); err != nil {
-		// Best-effort; login proceeds.
-	}
-
-	tokens, err := s.generateTokenPair(ctx, user.ID)
+	tokens, err := s.startSession(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -370,18 +384,18 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 	return user, tokens, nil
 }
 
-// RefreshToken generates a new access token using a refresh token
+// RefreshToken rotates a refresh token, returning a new pair on the same
+// session. A token superseded within the policy's reuse grace is still
+// accepted; presenting one after the grace revokes the whole session and
+// returns ErrTokenReuseDetected.
 func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair, error) {
-	// Validate refresh token
-	claims, err := s.jwtManager.ValidateRefreshToken(refreshToken)
-	if err != nil {
+	if _, err := s.jwtManager.ValidateRefreshToken(refreshToken); err != nil {
 		if errors.Is(err, jwt.ErrExpiredToken) {
 			return nil, ErrTokenExpired
 		}
 		return nil, ErrInvalidToken
 	}
 
-	// Check if token exists and is not revoked
 	tokenHash := hash.HashToken(refreshToken)
 	storedToken, err := s.refreshTokenRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
@@ -391,21 +405,40 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 		return nil, err
 	}
 
-	if storedToken.Revoked {
-		return nil, ErrTokenRevoked
-	}
-
 	if storedToken.ExpiresAt.Before(time.Now()) {
 		return nil, ErrTokenExpired
 	}
 
-	// Revoke the old refresh token (rotation: old token becomes invalid immediately)
-	if err := s.refreshTokenRepo.RevokeByTokenHash(ctx, tokenHash); err != nil {
+	if storedToken.Revoked {
+		// Revoked outright — a logout, a password change, or the owner ending
+		// the session. No grace applies.
+		if storedToken.RotatedAt == nil {
+			return nil, ErrTokenRevoked
+		}
+		if !s.withinReuseGrace(storedToken) {
+			if err := s.refreshTokenRepo.RevokeSession(ctx, storedToken.UserID, storedToken.SessionID); err != nil &&
+				!errors.Is(err, repository.ErrNotFound) {
+				slog.Warn("failed to revoke session after refresh token replay",
+					"user_id", storedToken.UserID, "session_id", storedToken.SessionID, "error", err)
+			}
+			RefreshReuseDetectedTotal.Inc()
+			return nil, ErrTokenReuseDetected
+		}
+		RefreshGraceTotal.Inc()
+	} else if err := s.refreshTokenRepo.MarkRotated(ctx, tokenHash); err != nil {
 		return nil, err
 	}
 
-	// Generate new tokens
-	return s.generateTokenPair(ctx, claims.UserID)
+	return s.generateTokenPair(ctx, storedToken.UserID, storedToken.SessionID, deviceForRotation(ctx, storedToken))
+}
+
+// withinReuseGrace reports whether a rotated token was superseded recently
+// enough to still be served.
+func (s *AuthService) withinReuseGrace(token *models.RefreshToken) bool {
+	if token.RotatedAt == nil {
+		return false
+	}
+	return time.Since(*token.RotatedAt) <= s.sessionPolicy.normalized().ReuseGrace
 }
 
 // Logout revokes a refresh token
@@ -581,36 +614,52 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword, two
 	}, nil
 }
 
-// generateTokenPair creates both access and refresh tokens
-func (s *AuthService) generateTokenPair(ctx context.Context, userID uuid.UUID) (*TokenPair, error) {
-	// Generate access token
-	accessToken, err := s.jwtManager.GenerateAccessToken(userID)
+// generateTokenPair creates an access/refresh pair bound to sessionID, minting
+// a session when sessionID is uuid.Nil, and records the pair against device.
+func (s *AuthService) generateTokenPair(
+	ctx context.Context,
+	userID, sessionID uuid.UUID,
+	device DeviceInfo,
+) (*TokenPair, error) {
+	if sessionID == uuid.Nil {
+		sessionID = uuid.New()
+	}
+
+	accessToken, err := s.jwtManager.GenerateAccessToken(userID, sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Generate refresh token
-	refreshToken, err := s.jwtManager.GenerateRefreshToken(userID)
+	refreshToken, err := s.jwtManager.GenerateRefreshToken(userID, sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store refresh token
-	tokenHash := hash.HashToken(refreshToken)
+	now := time.Now()
 	storedToken := &models.RefreshToken{
-		UserID:    userID,
-		TokenHash: tokenHash,
-		ExpiresAt: time.Now().Add(s.jwtManager.GetRefreshTokenExpiry()),
-		Revoked:   false,
+		UserID:      userID,
+		TokenHash:   hash.HashToken(refreshToken),
+		ExpiresAt:   now.Add(s.jwtManager.GetRefreshTokenExpiry()),
+		Revoked:     false,
+		SessionID:   sessionID,
+		DeviceLabel: DeviceLabel(device.UserAgent),
+		UserAgent:   truncateUserAgent(device.UserAgent),
+		IPAddress:   device.IPAddress,
+		LastUsedAt:  now,
 	}
 
 	if err := s.refreshTokenRepo.Create(ctx, storedToken); err != nil {
 		return nil, err
 	}
 
+	if err := s.refreshTokenRepo.TouchSession(ctx, sessionID, now); err != nil {
+		slog.Warn("failed to stamp session last use", "session_id", sessionID, "error", err)
+	}
+
 	return &TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+		SessionID:    sessionID,
 	}, nil
 }
 
@@ -634,9 +683,10 @@ func (s *AuthService) RecordLogin(ctx context.Context, user *models.User) {
 	user.UpdatedAt = now
 }
 
-// GenerateTokensForUser generates access and refresh tokens for a user (used after 2FA verification)
+// GenerateTokensForUser starts a session for a user whose identity has already
+// been proven by another factor: the 2FA step, a passkey, or an OIDC handoff.
 func (s *AuthService) GenerateTokensForUser(ctx context.Context, userID uuid.UUID) (*TokenPair, error) {
-	return s.generateTokenPair(ctx, userID)
+	return s.startSession(ctx, userID)
 }
 
 // UpdateUser updates user information

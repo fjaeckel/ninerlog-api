@@ -331,10 +331,6 @@ func (s *OIDCService) ExchangeHandoff(ctx context.Context, handoff string) (*mod
 		return nil, nil, ErrAccountDisabled
 	}
 
-	// One active session per user, matching password login.
-	if err := s.authService.refreshTokenRepo.DeleteForUser(ctx, user.ID); err != nil {
-		slog.Warn("failed to clear refresh tokens on OIDC login", "error", err)
-	}
 	tokens, err := s.authService.GenerateTokensForUser(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err

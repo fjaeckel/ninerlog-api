@@ -143,6 +143,15 @@ type ServerInterface interface {
 	// RegisterUser Register a new user
 	// (POST /auth/register)
 	RegisterUser(c *gin.Context)
+	// RevokeOtherSessions Revoke all other sessions
+	// (DELETE /auth/sessions)
+	RevokeOtherSessions(c *gin.Context)
+	// ListSessions List active sessions
+	// (GET /auth/sessions)
+	ListSessions(c *gin.Context)
+	// RevokeSession Revoke a session
+	// (DELETE /auth/sessions/{sessionId})
+	RevokeSession(c *gin.Context, sessionId openapi_types.UUID)
 	// VerifyEmail Verify email address
 	// (POST /auth/verify-email)
 	VerifyEmail(c *gin.Context)
@@ -1299,6 +1308,57 @@ func (siw *ServerInterfaceWrapper) RegisterUser(c *gin.Context) {
 	}
 
 	siw.Handler.RegisterUser(c)
+}
+
+// RevokeOtherSessions operation middleware
+func (siw *ServerInterfaceWrapper) RevokeOtherSessions(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RevokeOtherSessions(c)
+}
+
+// ListSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListSessions(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListSessions(c)
+}
+
+// RevokeSession operation middleware
+func (siw *ServerInterfaceWrapper) RevokeSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "sessionId" -------------
+	var sessionId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionId", c.Param("sessionId"), &sessionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sessionId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RevokeSession(c, sessionId)
 }
 
 // VerifyEmail operation middleware
@@ -3691,6 +3751,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/login", wrapper.LoginUser)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.LogoutUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
+	router.DELETE(options.BaseURL+"/auth/sessions", wrapper.RevokeOtherSessions)
+	router.GET(options.BaseURL+"/auth/sessions", wrapper.ListSessions)
+	router.DELETE(options.BaseURL+"/auth/sessions/:sessionId", wrapper.RevokeSession)
 	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/password-reset-request", wrapper.RequestPasswordReset)
 	router.POST(options.BaseURL+"/auth/password-reset", wrapper.ResetPassword)

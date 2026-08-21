@@ -143,6 +143,10 @@ services:
       ADMIN_EMAIL: "admin@ninerlog-test.com"
       DISABLE_RATE_LIMIT: "true"
       MIGRATIONS_PATH: "db/migrations"
+      # Sessions — a short grace keeps the replay test fast; keep in step with
+      # refreshReuseGrace in test/e2e/auth_e2e_test.go.
+      REFRESH_REUSE_GRACE: "1s"
+      MAX_SESSIONS_PER_USER: "5"
       # SMTP — points to MailPit test server (no auth needed)
       SMTP_HOST: "mailpit"
       SMTP_PORT: "1025"

@@ -60,7 +60,7 @@ func newResetFixture(t *testing.T) *resetFixture {
 	repo := &copyingUserRepo{mockUserRepo: userRepo}
 	twoFactor := service.NewTwoFactorService(repo, jwtManager, nil)
 	auth := service.NewAuthService(repo, newMockRefreshTokenRepo(), newMockPasswordResetRepo(),
-		newMockEmailVerificationRepo(), jwtManager, twoFactor)
+		newMockEmailVerificationRepo(), jwtManager, twoFactor, service.SessionPolicy{})
 
 	f := &resetFixture{
 		auth:      auth,
@@ -237,7 +237,7 @@ func TestResetPasswordWithoutValidatorFailsClosed(t *testing.T) {
 	repo := &copyingUserRepo{mockUserRepo: userRepo}
 	// Deliberately no validator wired.
 	auth := service.NewAuthService(repo, newMockRefreshTokenRepo(), newMockPasswordResetRepo(),
-		newMockEmailVerificationRepo(), jwtManager, nil)
+		newMockEmailVerificationRepo(), jwtManager, nil, service.SessionPolicy{})
 
 	ctx := context.Background()
 	if _, _, err := auth.Register(ctx, service.RegisterInput{

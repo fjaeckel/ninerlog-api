@@ -73,7 +73,13 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
 6. Conventional Commits (`feat(flights): …`); branch from `main`.
 7. **Comments state the what, never the why** — rationale lives in commit messages and
    `docs/`. See `.claude/skills/terse-comments/SKILL.md`.
-8. **Security findings are never committed or pushed** — no audit reports, vulnerability
+8. **Sessions follow `docs/SESSION_CONTRACT.md`** — a binding cross-repo contract with
+   `ninerlog-frontend`. Concurrent sessions per user, rotation with a reuse grace, and *only*
+   a 401 meaning "signed out". Read it before touching login, refresh, token lifetimes,
+   `refresh_tokens`, or anything under `/auth/*`, and change it in the same PR as any
+   behaviour it describes. Never reintroduce single-active-session (a login deleting another
+   device's tokens).
+9. **Security findings are never committed or pushed** — no audit reports, vulnerability
    write-ups, exploit fixtures, or commit/PR text describing an unfixed weakness. Write them to
    the gitignored `security-audits/` and report privately (`SECURITY.md`, or a GitHub Security
    Advisory). Fixes get pushed; findings do not. See `.claude/skills/security-audit/SKILL.md`.

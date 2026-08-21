@@ -292,9 +292,16 @@ The spec defines the operations below, grouped by tag. This is a high-level map 
 `api-spec/openapi.yaml` for exact request/response schemas, parameters, and status codes.
 
 ### Authentication
-Registration, email verification (+ resend), login, token refresh, change/reset password,
-TOTP 2FA (setup/verify/disable/login), and WebAuthn (register/login options + verify, list
-and delete credentials).
+Registration, email verification (+ resend), login, token refresh, session management,
+change/reset password, TOTP 2FA (setup/verify/disable/login), and WebAuthn (register/login
+options + verify, list and delete credentials).
+
+Sessions are first-class: `GET /auth/sessions` lists the user's signed-in devices,
+`DELETE /auth/sessions/{sessionId}` ends one, and `DELETE /auth/sessions` ends all but the
+caller's. A user holds up to `MAX_SESSIONS_PER_USER` (default 5) concurrent sessions, and
+`POST /auth/refresh` rotates within a session rather than starting a new one. The rules that
+clients must follow — in particular that **only a 401 means the session is over** — are
+binding and live in [SESSION_CONTRACT.md](./SESSION_CONTRACT.md).
 
 `GET /auth/providers` is a public capability probe reporting which authentication mode
 the server runs in. On a deployment with `OIDC_ISSUER` set, every local-credential

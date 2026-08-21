@@ -214,7 +214,13 @@ func main() {
 	}
 
 	twoFactorService := service.NewTwoFactorService(userRepo, jwtManager, totpAEAD)
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerificationRepo, jwtManager, twoFactorService)
+	sessionPolicy := service.SessionPolicy{
+		MaxPerUser: envIntNarrow("MAX_SESSIONS_PER_USER", service.DefaultMaxSessionsPerUser),
+		ReuseGrace: envDuration("REFRESH_REUSE_GRACE", service.DefaultRefreshReuseGrace),
+	}
+	slog.Info("Session policy configured",
+		"max_per_user", sessionPolicy.MaxPerUser, "reuse_grace", sessionPolicy.ReuseGrace.String())
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, passwordResetRepo, emailVerificationRepo, jwtManager, twoFactorService, sessionPolicy)
 	licenseService := service.NewLicenseService(licenseRepo)
 	flightService := service.NewFlightService(flightRepo, flightBaselineRepo)
 	flightSessionRepo := postgres.NewFlightSessionRepository(db)
@@ -495,6 +501,9 @@ func main() {
 
 	// 15s deadline on every request context.
 	api.Use(middleware.RequestTimeoutMiddleware(15 * time.Second))
+
+	// Client details for session records.
+	api.Use(middleware.DeviceContext())
 
 	// Centralized auth middleware — all routes require auth except explicit public paths
 	api.Use(middleware.AuthMiddleware(jwtManager, []string{

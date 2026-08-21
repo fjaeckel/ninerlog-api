@@ -44,6 +44,7 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	stats.NewUsersThisWeek = adminStats.NewUsersThisWeek
 	stats.LockedAccounts = adminStats.LockedAccounts
 	stats.DisabledAccounts = adminStats.DisabledAccounts
+	stats.ActiveSessions = adminStats.ActiveSessions
 	stats.ImportsByFormat = adminStats.ImportsByFormat
 	stats.CloudBackupDestinations.ByProvider = adminStats.BackupDestinationsByProvider
 	for _, count := range adminStats.BackupDestinationsByProvider {
@@ -207,6 +208,9 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		airportsUpdatedAt = &t
 	}
 
+	sessionPolicy := h.authService.SessionPolicy()
+	reuseGrace := sessionPolicy.ReuseGrace.String()
+
 	config := generated.AdminConfig{
 		AuthMode:                     &authMode,
 		OidcIssuer:                   oidcIssuer,
@@ -221,6 +225,8 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		CorsOrigins:                  h.corsOrigins,
 		RateLimitAuth:                "10 req/min",
 		RateLimitAdmin:               "30 req/min",
+		MaxSessionsPerUser:           &sessionPolicy.MaxPerUser,
+		RefreshReuseGrace:            &reuseGrace,
 		SmtpConfigured:               smtpConfigured,
 		AdminEmailConfigured:         adminEmailConfigured,
 		CloudBackupsConfigured:       cloudBackupsConfigured,

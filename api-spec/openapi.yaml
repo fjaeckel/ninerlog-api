@@ -445,12 +445,99 @@ paths:
                     type: string
                   refreshToken:
                     type: string
-                    description: New refresh token (rotation — old token is invalidated)
+                    description: >-
+                      New refresh token. The presented token is superseded, but
+                      stays usable for a short grace window so two clients
+                      refreshing at once do not evict each other. Presenting it
+                      after the grace revokes the whole session.
                   expiresIn:
                     type: integer
                     description: Token expiry in seconds
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /auth/sessions:
+    get:
+      tags:
+        - Authentication
+      summary: List active sessions
+      description: >-
+        Lists the signed-in devices holding a live session for the
+        authenticated user, most recently used first.
+      operationId: listSessions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - sessions
+                  - maxSessions
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+                  maxSessions:
+                    type: integer
+                    description: Concurrent sessions kept per user before the least recently used is evicted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags:
+        - Authentication
+      summary: Revoke all other sessions
+      description: >-
+        Revokes every session the user holds apart from the one making the
+        request.
+      operationId: revokeOtherSessions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Other sessions revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - revoked
+                properties:
+                  revoked:
+                    type: integer
+                    description: Number of sessions revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/sessions/{sessionId}:
+    delete:
+      tags:
+        - Authentication
+      summary: Revoke a session
+      description: >-
+        Revokes one of the authenticated user's sessions. Revoking the current
+        session signs this device out.
+      operationId: revokeSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Session revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /auth/change-password:
     post:
@@ -5342,6 +5429,44 @@ components:
         user:
           $ref: '#/components/schemas/User'
 
+    Session:
+      type: object
+      description: One signed-in device holding a live session.
+      required:
+        - id
+        - deviceLabel
+        - createdAt
+        - lastUsedAt
+        - expiresAt
+        - current
+      properties:
+        id:
+          type: string
+          format: uuid
+        deviceLabel:
+          type: string
+          description: Browser and platform derived from the User-Agent
+          example: Safari on iPhone
+        ipAddress:
+          type: string
+          description: Address the session was last renewed from
+          example: 203.0.113.7
+        createdAt:
+          type: string
+          format: date-time
+          description: When the session was created by signing in
+        lastUsedAt:
+          type: string
+          format: date-time
+          description: When the session last refreshed its access token
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the session ends unless it is refreshed again
+        current:
+          type: boolean
+          description: Whether this is the session making the request
+
     AuthProviders:
       type: object
       description: >-
@@ -8623,6 +8748,7 @@ components:
         - newUsersThisWeek
         - lockedAccounts
         - disabledAccounts
+        - activeSessions
         - cloudBackupDestinations
         - importsByFormat
       properties:
@@ -8649,6 +8775,12 @@ components:
           type: integer
         disabledAccounts:
           type: integer
+        activeSessions:
+          type: integer
+          description: >-
+            Live sessions across all users. A session is live while it holds an
+            unrevoked, unexpired refresh token, so this counts signed-in
+            devices rather than users.
         cloudBackupDestinations:
           type: object
           description: Counts of user-configured cloud backup destinations.
@@ -8780,6 +8912,14 @@ components:
           type: string
           description: Auth endpoint rate limit
           example: 10 req/min
+        maxSessionsPerUser:
+          type: integer
+          description: Concurrent sessions kept per user (MAX_SESSIONS_PER_USER) before the least recently used is evicted
+          example: 5
+        refreshReuseGrace:
+          type: string
+          description: How long a rotated refresh token stays usable (REFRESH_REUSE_GRACE)
+          example: 30s
         rateLimitAdmin:
           type: string
           description: Admin endpoint rate limit

@@ -65,6 +65,9 @@ Topic-specific deep dives already in this repo:
   scaffolding).
 - **[AUTHENTICATION.md](./AUTHENTICATION.md)** — token architecture, 2FA, WebAuthn,
   lockout, rate limiting.
+- **[SESSION_CONTRACT.md](./SESSION_CONTRACT.md)** — binding contract with
+  `ninerlog-frontend` on sessions, refresh rotation, and what each failure status means
+  to a client. Read before touching anything under `/auth/*`.
 - **[OIDC.md](./OIDC.md)** — optional single sign-on: configuration, provider recipes,
   account provisioning, and what switching it on disables.
 - **[METRICS.md](./METRICS.md)** — Prometheus metrics and observability.
