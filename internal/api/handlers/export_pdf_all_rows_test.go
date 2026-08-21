@@ -95,10 +95,11 @@ func picAndSICFlights() []*models.Flight {
 	}
 }
 
-// TestExportFlightsPDF_OmitsCoPilotOnlyFlights asserts a flight logged
-// neither as PIC nor as dual never reaches the rendered logbook, in any
-// format.
-func TestExportFlightsPDF_OmitsCoPilotOnlyFlights(t *testing.T) {
+// A printed logbook covers every row the holder logged. The EASA form has a
+// CO-PILOT column (AMC1 FCL.050 col 16), and co-pilot time is part of total
+// time of flight, so a flight flown purely as co-pilot belongs on the sheet
+// and in the totals like any other.
+func TestExportFlightsPDF_PrintsEveryLoggedFlight(t *testing.T) {
 	for _, format := range []generated.ExportFlightsPDFParamsFormat{"easa", "faa", "summary"} {
 		t.Run(string(format), func(t *testing.T) {
 			f := format
@@ -106,14 +107,11 @@ func TestExportFlightsPDF_OmitsCoPilotOnlyFlights(t *testing.T) {
 			if w.Code != http.StatusOK {
 				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 			}
-			text := inflatePDFText(w.Body.Bytes())
-			if bytes.Contains([]byte(text), []byte("DESICX")) {
-				t.Error("co-pilot-only flight was rendered into the PDF")
-			}
 			if format == "summary" {
 				return
 			}
-			for _, reg := range []string{"DEPICX", "DEDUAL"} {
+			text := inflatePDFText(w.Body.Bytes())
+			for _, reg := range []string{"DEPICX", "DEDUAL", "DESICX"} {
 				if !bytes.Contains([]byte(text), []byte(reg)) {
 					t.Errorf("%s flight missing from the PDF", reg)
 				}
@@ -122,20 +120,18 @@ func TestExportFlightsPDF_OmitsCoPilotOnlyFlights(t *testing.T) {
 	}
 }
 
-// TestExportFlightsPDF_SummaryDropsCoPilotOnlyTime asserts the totals
-// summary counts only the flights the logbook pages show.
-func TestExportFlightsPDF_SummaryDropsCoPilotOnlyTime(t *testing.T) {
+// The totals summary covers the whole logbook: 90 + 60 + 120 minutes.
+func TestExportFlightsPDF_SummaryTotalsEveryFlight(t *testing.T) {
 	format := generated.ExportFlightsPDFParamsFormat("summary")
 	w := exportPDFForFlights(t, picAndSICFlights(), generated.ExportFlightsPDFParams{Format: &format})
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 	text := inflatePDFText(w.Body.Bytes())
-	// 90 + 60 logged, the 120-minute co-pilot flight excluded.
-	if !bytes.Contains([]byte(text), []byte("2:30")) {
-		t.Error("total block time should cover the PIC and dual flights only")
+	if !bytes.Contains([]byte(text), []byte("4:30")) {
+		t.Error("total block time should cover all three flights (4:30)")
 	}
-	if bytes.Contains([]byte(text), []byte("4:30")) {
-		t.Error("total block time still includes the co-pilot-only flight")
+	if bytes.Contains([]byte(text), []byte("2:30")) {
+		t.Error("total block time drops the co-pilot flight; co-pilot time is total time")
 	}
 }

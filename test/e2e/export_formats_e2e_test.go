@@ -330,10 +330,10 @@ func pdfStreamText(raw []byte) string {
 	return out.String()
 }
 
-// TestExportPDFOmitsCoPilotOnlyFlights covers the PIC/dual filter of the
-// printed logbook: a flight flown as co-pilot (a third-party PIC in the
-// crew) reaches neither the logbook sheets nor the totals summary.
-func TestExportPDFOmitsCoPilotOnlyFlights(t *testing.T) {
+// TestExportPDFPrintsCoPilotFlights covers the printed logbook's coverage: a
+// flight flown as co-pilot (a third-party PIC in the crew) reaches both the
+// logbook sheets and the totals summary, like any other logged flight.
+func TestExportPDFPrintsCoPilotFlights(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("pdf-role"), "SecurePass123!", "Amelia Earhart")
 
@@ -358,24 +358,20 @@ func TestExportPDFOmitsCoPilotOnlyFlights(t *testing.T) {
 			resp := c.GET("/exports/pdf?format=" + format + "&layout=single")
 			requireStatus(t, resp, http.StatusOK)
 			text := pdfStreamText(resp.Body)
-			if !strings.Contains(text, "D-EPIC") {
-				t.Errorf("%s PDF is missing the PIC flight", format)
-			}
-			if strings.Contains(text, "D-ESIC") {
-				t.Errorf("%s PDF renders a co-pilot-only flight", format)
+			for _, reg := range []string{"D-EPIC", "D-ESIC"} {
+				if !strings.Contains(text, reg) {
+					t.Errorf("%s PDF is missing the %s flight", format, reg)
+				}
 			}
 		})
 	}
 
-	t.Run("summary counts printed rows only", func(t *testing.T) {
+	t.Run("summary totals every flight", func(t *testing.T) {
 		resp := c.GET("/exports/pdf?format=summary")
 		requireStatus(t, resp, http.StatusOK)
 		text := pdfStreamText(resp.Body)
-		if !strings.Contains(text, "(1:30)") {
-			t.Errorf("summary should total the 1:30 PIC flight alone:\n%s", text)
-		}
-		if strings.Contains(text, "(3:30)") {
-			t.Error("summary still totals the co-pilot-only flight")
+		if !strings.Contains(text, "(3:30)") {
+			t.Errorf("summary should total both flights (3:30):\n%s", text)
 		}
 	})
 }

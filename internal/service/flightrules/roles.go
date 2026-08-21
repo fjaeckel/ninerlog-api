@@ -110,33 +110,3 @@ func IsMultiPilotOperation(flight *models.Flight, role Role) bool {
 	}
 	return false
 }
-
-// LogsPICOrDual reports whether the logbook holder logged the flight as
-// pilot-in-command (RolePIC or RoleDualGiving, both of which set IsPIC) or
-// as dual received (RoleDualReceiving). It is false for a flight flown
-// purely as co-pilot (RoleSIC) and for a flight that records no PIC, dual
-// received or dual given time at all.
-//
-// The persisted IsPIC/IsDual flags decide; the logged times are the
-// fallback for rows written before the flags existed.
-func LogsPICOrDual(f *models.Flight) bool {
-	if f == nil {
-		return false
-	}
-	if f.IsPIC || f.IsDual {
-		return true
-	}
-	return f.PICTime > 0 || f.DualTime > 0 || f.DualGivenTime > 0
-}
-
-// FilterPICOrDual returns the flights LogsPICOrDual accepts, preserving
-// order.
-func FilterPICOrDual(flights []*models.Flight) []*models.Flight {
-	out := make([]*models.Flight, 0, len(flights))
-	for _, f := range flights {
-		if LogsPICOrDual(f) {
-			out = append(out, f)
-		}
-	}
-	return out
-}

@@ -505,9 +505,6 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 	}
 	h.attachCrewMembers(c.Request.Context(), flights)
 
-	// Co-pilot-only rows stay out of the printed logbook.
-	flights = flightrules.FilterPICOrDual(flights)
-
 	classFiltered := false
 	if params.LogbookLicenseId != nil {
 		licenseID := uuid.UUID(*params.LogbookLicenseId)

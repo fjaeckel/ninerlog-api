@@ -311,10 +311,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   running totals and a signature strip. The initial-hours snapshot (below) opens
   the carried-forward balance, so the TOTAL TIME row is a career total and not
   just what NinerLog holds; the columns a snapshot cannot supply are documented
-  in `export_pdf_baseline.go` and disclosed on the printed page. Only rows the
-  holder logged as PIC (dual given included) or as dual received are printed —
-  a flight flown purely as co-pilot (SIC) is left out of every PDF format,
-  totals summary included, while CSV and JSON stay complete.
+  in `export_pdf_baseline.go` and disclosed on the printed page. Every logged row is
+  printed, co-pilot (SIC) flights included — co-pilot time is part of total time
+  of flight and the EASA layout has a CO-PILOT column for it.
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.
