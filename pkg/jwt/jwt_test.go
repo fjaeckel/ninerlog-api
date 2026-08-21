@@ -12,7 +12,7 @@ func TestGenerateAndValidateAccessToken(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	userID := uuid.New()
 
-	token, err := manager.GenerateAccessToken(userID)
+	token, err := manager.GenerateAccessToken(userID, uuid.New())
 	if err != nil {
 		t.Fatalf("GenerateAccessToken() error = %v", err)
 	}
@@ -33,7 +33,7 @@ func TestGenerateAndValidateRefreshToken(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	userID := uuid.New()
 
-	token, err := manager.GenerateRefreshToken(userID)
+	token, err := manager.GenerateRefreshToken(userID, uuid.New())
 	if err != nil {
 		t.Fatalf("GenerateRefreshToken() error = %v", err)
 	}
@@ -51,7 +51,7 @@ func TestValidateExpiredToken(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 1*time.Millisecond, 7*24*time.Hour)
 	userID := uuid.New()
 
-	token, _ := manager.GenerateAccessToken(userID)
+	token, _ := manager.GenerateAccessToken(userID, uuid.New())
 	time.Sleep(10 * time.Millisecond)
 
 	_, err := manager.ValidateAccessToken(token)
@@ -64,7 +64,7 @@ func TestValidateWithWrongSecret(t *testing.T) {
 	manager1 := NewManager("secret1", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	manager2 := NewManager("secret2", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, _ := manager1.GenerateAccessToken(uuid.New())
+	token, _ := manager1.GenerateAccessToken(uuid.New(), uuid.New())
 
 	_, err := manager2.ValidateAccessToken(token)
 	if err == nil {
@@ -108,7 +108,7 @@ func TestValidate2FAToken_RejectsRegularAccessToken(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	userID := uuid.New()
 
-	accessToken, _ := manager.GenerateAccessToken(userID)
+	accessToken, _ := manager.GenerateAccessToken(userID, uuid.New())
 
 	_, err := manager.Validate2FAToken(accessToken)
 	if err != ErrInvalidToken {
@@ -147,7 +147,7 @@ func TestValidateAccessToken_Rejects2FAToken(t *testing.T) {
 
 func TestAccessToken_HasAccessTokenType(t *testing.T) {
 	manager := NewManager("access-secret-value", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
-	token, _ := manager.GenerateAccessToken(uuid.New())
+	token, _ := manager.GenerateAccessToken(uuid.New(), uuid.New())
 	claims, err := manager.ValidateAccessToken(token)
 	if err != nil {
 		t.Fatalf("ValidateAccessToken() error = %v", err)
@@ -191,7 +191,7 @@ func TestAccessTokenCannotValidateAsRefresh(t *testing.T) {
 	manager := NewManager("access-secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	userID := uuid.New()
 
-	accessToken, _ := manager.GenerateAccessToken(userID)
+	accessToken, _ := manager.GenerateAccessToken(userID, uuid.New())
 
 	_, err := manager.ValidateRefreshToken(accessToken)
 	if err == nil {
@@ -203,7 +203,7 @@ func TestRefreshTokenCannotValidateAsAccess(t *testing.T) {
 	manager := NewManager("access-secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	userID := uuid.New()
 
-	refreshToken, _ := manager.GenerateRefreshToken(userID)
+	refreshToken, _ := manager.GenerateRefreshToken(userID, uuid.New())
 
 	_, err := manager.ValidateAccessToken(refreshToken)
 	if err == nil {
@@ -215,8 +215,8 @@ func TestTokensHaveUniqueJTI(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 	userID := uuid.New()
 
-	token1, _ := manager.GenerateAccessToken(userID)
-	token2, _ := manager.GenerateAccessToken(userID)
+	token1, _ := manager.GenerateAccessToken(userID, uuid.New())
+	token2, _ := manager.GenerateAccessToken(userID, uuid.New())
 
 	claims1, _ := manager.ValidateAccessToken(token1)
 	claims2, _ := manager.ValidateAccessToken(token2)

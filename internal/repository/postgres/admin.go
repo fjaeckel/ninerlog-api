@@ -63,6 +63,11 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 		"SELECT COUNT(*) FROM users WHERE disabled = true",
 	), &stats.DisabledAccounts)
 
+	// Live sessions across all users.
+	r.scanCount(r.db.QueryRowContext(ctx,
+		"SELECT COUNT(DISTINCT session_id) FROM refresh_tokens WHERE revoked = false AND expires_at > $1", now,
+	), &stats.ActiveSessions)
+
 	// Imports grouped by source format.
 	if formatRows, err := r.db.QueryContext(ctx,
 		"SELECT import_format::text, COUNT(*) FROM flight_imports GROUP BY import_format",

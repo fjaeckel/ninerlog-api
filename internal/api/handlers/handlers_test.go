@@ -304,9 +304,77 @@ func (m *mockRefreshTokenRepo) RevokeByTokenHash(_ context.Context, h string) er
 	}
 	return nil
 }
+func (m *mockRefreshTokenRepo) MarkRotated(_ context.Context, h string) error {
+	t, ok := m.tokens[h]
+	if !ok {
+		return repository.ErrNotFound
+	}
+	t.Revoked = true
+	if t.RotatedAt == nil {
+		now := time.Now()
+		t.RotatedAt = &now
+	}
+	return nil
+}
 func (m *mockRefreshTokenRepo) RevokeAllForUser(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockRefreshTokenRepo) DeleteForUser(_ context.Context, _ uuid.UUID) error    { return nil }
 func (m *mockRefreshTokenRepo) DeleteExpired(_ context.Context) error                 { return nil }
+func (m *mockRefreshTokenRepo) TouchSession(_ context.Context, sessionID uuid.UUID, at time.Time) error {
+	for _, t := range m.tokens {
+		if t.SessionID == sessionID {
+			t.LastUsedAt = at
+		}
+	}
+	return nil
+}
+func (m *mockRefreshTokenRepo) ListSessions(_ context.Context, userID uuid.UUID) ([]*models.Session, error) {
+	seen := map[uuid.UUID]bool{}
+	sessions := []*models.Session{}
+	for _, t := range m.tokens {
+		if t.UserID != userID || t.Revoked || seen[t.SessionID] {
+			continue
+		}
+		seen[t.SessionID] = true
+		sessions = append(sessions, &models.Session{
+			ID:          t.SessionID,
+			DeviceLabel: t.DeviceLabel,
+			IPAddress:   t.IPAddress,
+			CreatedAt:   t.CreatedAt,
+			LastUsedAt:  t.LastUsedAt,
+			ExpiresAt:   t.ExpiresAt,
+		})
+	}
+	return sessions, nil
+}
+func (m *mockRefreshTokenRepo) RevokeSession(_ context.Context, userID, sessionID uuid.UUID) error {
+	found := false
+	for _, t := range m.tokens {
+		if t.UserID == userID && t.SessionID == sessionID && !t.Revoked {
+			t.Revoked = true
+			found = true
+		}
+	}
+	if !found {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+func (m *mockRefreshTokenRepo) RevokeSessionsExcept(_ context.Context, userID, keep uuid.UUID) (int64, error) {
+	revoked := map[uuid.UUID]bool{}
+	for _, t := range m.tokens {
+		if t.UserID == userID && t.SessionID != keep && !t.Revoked {
+			t.Revoked = true
+			revoked[t.SessionID] = true
+		}
+	}
+	return int64(len(revoked)), nil
+}
+func (m *mockRefreshTokenRepo) EvictOldestSessions(_ context.Context, _ uuid.UUID, _ int) (int64, error) {
+	return 0, nil
+}
+func (m *mockRefreshTokenRepo) CountActiveSessions(_ context.Context) (int64, error) {
+	return 0, nil
+}
 
 type mockPasswordResetRepo struct{}
 
@@ -434,7 +502,7 @@ func setupTestHandler() (*APIHandler, *mockUserRepo) {
 
 	twoFactorSvc := service.NewTwoFactorService(userRepo, jwtMgr, nil)
 	authSvc := service.NewAuthService(userRepo, refreshRepo, passwordRepo, &mockEmailVerificationRepo{}, jwtMgr,
-		twoFactorSvc)
+		twoFactorSvc, service.SessionPolicy{})
 	credSvc := service.NewCredentialService(newMockCredentialRepo())
 	aircraftSvc := service.NewAircraftService(newMockAircraftRepo())
 	contactSvc := service.NewContactService(newMockContactRepo())
@@ -1041,7 +1109,7 @@ func TestGetUserIDFromContext_FromBearerToken(t *testing.T) {
 	h, _ := setupTestHandler()
 
 	userID := uuid.New()
-	token, _ := h.jwtManager.GenerateAccessToken(userID)
+	token, _ := h.jwtManager.GenerateAccessToken(userID, uuid.New())
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

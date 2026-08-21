@@ -322,3 +322,35 @@ groups:
         annotations:
           summary: "Verification reminders are not being delivered"
           description: "{{ $value | humanizePercentage }} of verification reminders failed over the last hour. Accounts will still be deleted on schedule without their final warning."
+
+  - name: ninerlog-api.sessions
+    rules:
+      # A replay is a refresh token presented after the reuse grace has passed,
+      # and it revokes the session it belonged to. A trickle is a client that
+      # slept through the grace window; a sustained rate is either a client
+      # that stopped coordinating its refreshes or a stolen token being
+      # replayed, and both cost users their sessions.
+      - alert: NinerlogApiRefreshReplaySpike
+        expr: increase(auth_refresh_reuse_detected_total{job="ninerlog-api"}[1h]) > 20
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Refresh tokens are being replayed after the grace window"
+          description: "{{ $value }} refresh replays in the last hour, each revoking a session. Check for a client that stopped sharing its in-flight refresh before assuming token theft."
+
+      # Users being signed out is the failure this whole subsystem exists to
+      # prevent, so a refresh failure rate this high means it is happening
+      # again — whatever the cause.
+      - alert: NinerlogApiTokenRefreshFailing
+        expr: |
+          sum(rate(auth_token_refresh_total{job="ninerlog-api",result!="success"}[15m]))
+          /
+          clamp_min(sum(rate(auth_token_refresh_total{job="ninerlog-api"}[15m])), 0.001)
+          > 0.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Token refreshes are failing"
+          description: "{{ $value | humanizePercentage }} of token refreshes failed over the last 15 minutes. Users are being signed out; check auth_token_refresh_total by result."

@@ -245,7 +245,14 @@ func (h *APIHandler) RefreshToken(c *gin.Context) {
 
 	tokens, err := h.authService.RefreshToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		AuthTokenRefreshTotal.WithLabelValues("invalid").Inc()
+		switch {
+		case errors.Is(err, service.ErrTokenReuseDetected):
+			AuthTokenRefreshTotal.WithLabelValues("reuse_detected").Inc()
+		case errors.Is(err, service.ErrTokenExpired):
+			AuthTokenRefreshTotal.WithLabelValues("expired").Inc()
+		default:
+			AuthTokenRefreshTotal.WithLabelValues("invalid").Inc()
+		}
 		h.sendError(c, http.StatusUnauthorized, "Invalid or expired refresh token")
 		return
 	}

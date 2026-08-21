@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAuthRegistration(t *testing.T) {
@@ -165,11 +166,21 @@ func TestAuthTokenRefresh(t *testing.T) {
 		}
 	})
 
-	t.Run("refresh already used token fails", func(t *testing.T) {
+	t.Run("refresh with a just-rotated token succeeds inside the grace window", func(t *testing.T) {
 		resp := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
-		if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("Expected 401/400, got %d", resp.StatusCode)
+		requireStatus(t, resp, http.StatusOK)
+		var graced AuthResponseBody
+		resp.JSON(&graced)
+		if graced.RefreshToken == "" {
+			t.Error("Expected a refresh token from the grace path")
 		}
+	})
+
+	t.Run("replaying a rotated token after the grace window fails", func(t *testing.T) {
+		// The e2e stack runs with REFRESH_REUSE_GRACE=1s.
+		time.Sleep(refreshReuseGrace + 500*time.Millisecond)
+		resp := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
+		assertStatus(t, resp, http.StatusUnauthorized)
 	})
 
 	t.Run("refresh invalid token fails", func(t *testing.T) {

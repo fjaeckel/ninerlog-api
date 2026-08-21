@@ -103,6 +103,30 @@ type RefreshToken struct {
 	Revoked   bool      `json:"revoked"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+
+	// SessionID is stable across rotation; every token in one session shares it.
+	SessionID   uuid.UUID  `json:"session_id"`
+	DeviceLabel string     `json:"device_label"`
+	UserAgent   string     `json:"-"`
+	IPAddress   string     `json:"-"`
+	LastUsedAt  time.Time  `json:"last_used_at"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+	// RotatedAt is set when this token was superseded by a refresh, and only
+	// then. A token revoked outright leaves it nil.
+	RotatedAt *time.Time `json:"rotated_at,omitempty"`
+}
+
+// Session is one live login, aggregated over the token chain that carries its
+// SessionID.
+type Session struct {
+	ID          uuid.UUID `json:"id"`
+	DeviceLabel string    `json:"device_label"`
+	IPAddress   string    `json:"ip_address"`
+	CreatedAt   time.Time `json:"created_at"`
+	LastUsedAt  time.Time `json:"last_used_at"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	// Current marks the session that issued the access token making the request.
+	Current bool `json:"current"`
 }
 
 // PasswordResetToken represents a password reset token

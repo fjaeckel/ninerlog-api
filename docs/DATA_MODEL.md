@@ -226,7 +226,7 @@ whenever the requested range reaches back to the snapshot's cutoff date.
 
 | Entity | Model | Migration | Purpose |
 | --- | --- | --- | --- |
-| RefreshToken | refresh token repo | 2 | Long-lived session tokens (stored hashed) |
+| RefreshToken | refresh token repo | 2, 63 | One link in a session's token chain (stored hashed); `session_id` groups the chain |
 | PasswordResetToken | — | 3 | Single-use password reset (1h) |
 | EmailVerificationToken | — | 40 | Single-use email verification (24h) |
 | WebAuthnCredential | `webauthn.go` | 37 | Registered passkeys (public key, sign count, transports) |
@@ -241,6 +241,21 @@ whenever the requested range reaches back to the snapshot's cutoff date.
 
 Token-style tables store hashes, never raw secrets. See [AUTHENTICATION.md](./AUTHENTICATION.md)
 and, for the OIDC tables, [OIDC.md](./OIDC.md).
+
+`refresh_tokens` models **sessions**, not just tokens (migration 63). A session is one
+signed-in device; rotation replaces the token but keeps the session:
+
+| Column | Purpose |
+| --- | --- |
+| `session_id` | Stable across rotation — every token minted from a login carries it. A session is live while it holds an unrevoked, unexpired row |
+| `device_label`, `user_agent`, `ip_address` | Client details captured at each write, so the profile screen can name a device. Client-supplied and therefore advisory |
+| `last_used_at` | Stamped across the whole chain on each refresh; the ordering the per-user session cap evicts by |
+| `rotated_at` | Set when a token is **superseded by a refresh**, and only then. Inside `REFRESH_REUSE_GRACE` such a token is still accepted, which is what stops two tabs refreshing at once from evicting each other |
+| `revoked_at` | Set on **any** revocation. A token revoked outright — logout, password change, session revocation — has `revoked_at` without `rotated_at` and gets no grace |
+
+`rotated_at` and `revoked_at` are deliberately separate: collapsing them would give a
+logged-out token a working grace window. The rules are binding across both repos and live in
+[SESSION_CONTRACT.md](./SESSION_CONTRACT.md).
 
 `users.verification_reminder_sent_at` (migration 56) records when the follow-up
 verification email went out. It is the clock the unverified-account reaper counts

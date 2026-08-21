@@ -134,7 +134,7 @@ func setupSignatureTestHandlerSharedRepo(t *testing.T) (h *APIHandler, userID uu
 
 	jwtMgr := jwt.NewManager("test-access", "test-refresh", 15*time.Minute, 7*24*time.Hour)
 	h = &APIHandler{
-		authService:            service.NewAuthService(userRepo, newHandlerMockRefreshTokenRepo(), &mockPasswordResetRepo{}, &mockEmailVerificationRepo{}, jwtMgr, service.NewTwoFactorService(userRepo, jwtMgr, nil)),
+		authService:            service.NewAuthService(userRepo, newHandlerMockRefreshTokenRepo(), &mockPasswordResetRepo{}, &mockEmailVerificationRepo{}, jwtMgr, service.NewTwoFactorService(userRepo, jwtMgr, nil), service.SessionPolicy{}),
 		flightService:          flightSvc,
 		flightSignatureService: sigSvc,
 		jwtManager:             jwtMgr,

@@ -47,8 +47,11 @@ below are for:
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `auth_login_attempts_total` | Counter | `result` | Login attempts. Results: `success`, `invalid_credentials`, `account_locked`, `account_disabled`, `2fa_required`, `error` |
-| `auth_token_refresh_total` | Counter | `result` | Token refresh attempts. Results: `success`, `invalid` |
+| `auth_token_refresh_total` | Counter | `result` | Token refresh attempts. Results: `success`, `expired`, `reuse_detected`, `invalid` |
 | `auth_2fa_attempts_total` | Counter | `result` | 2FA verification attempts. Results: `success`, `invalid_token`, `invalid_code` |
+| `auth_sessions_evicted_total` | Counter | — | Sessions revoked because the per-user session cap (`MAX_SESSIONS_PER_USER`) was reached |
+| `auth_refresh_grace_total` | Counter | — | Refreshes served from a superseded token inside `REFRESH_REUSE_GRACE`. A steady rate is normal (multi-tab clients); a spike suggests clients are not coordinating refreshes |
+| `auth_refresh_reuse_detected_total` | Counter | — | Refresh token replays after the grace window. Each one revoked a session — sustained non-zero values warrant investigation |
 
 ### Application Metrics
 

@@ -24,7 +24,10 @@ const (
 )
 
 type Claims struct {
-	UserID    uuid.UUID `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
+	// SessionID identifies the login the token belongs to. Zero on tokens
+	// minted before sessions existed.
+	SessionID uuid.UUID `json:"session_id,omitempty"`
 	TokenType string    `json:"token_type,omitempty"`
 	jwt.RegisteredClaims
 }
@@ -45,11 +48,12 @@ func NewManager(accessSecret, refreshSecret string, accessExpiry, refreshExpiry 
 	}
 }
 
-// GenerateAccessToken creates a new JWT access token
-func (m *Manager) GenerateAccessToken(userID uuid.UUID) (string, error) {
+// GenerateAccessToken creates a new JWT access token bound to sessionID.
+func (m *Manager) GenerateAccessToken(userID, sessionID uuid.UUID) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:    userID,
+		SessionID: sessionID,
 		TokenType: TokenTypeAccess,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.New().String(),
@@ -62,11 +66,12 @@ func (m *Manager) GenerateAccessToken(userID uuid.UUID) (string, error) {
 	return token.SignedString([]byte(m.accessSecret))
 }
 
-// GenerateRefreshToken creates a new JWT refresh token
-func (m *Manager) GenerateRefreshToken(userID uuid.UUID) (string, error) {
+// GenerateRefreshToken creates a new JWT refresh token bound to sessionID.
+func (m *Manager) GenerateRefreshToken(userID, sessionID uuid.UUID) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:    userID,
+		SessionID: sessionID,
 		TokenType: TokenTypeRefresh,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.New().String(),

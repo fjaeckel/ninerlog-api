@@ -6,6 +6,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // AuthMiddleware enforces JWT authentication on all routes except explicitly
@@ -52,6 +53,9 @@ func AuthMiddleware(jwtManager *jwt.Manager, publicPaths []string) gin.HandlerFu
 		}
 
 		c.Set("userID", claims.UserID)
+		if claims.SessionID != uuid.Nil {
+			c.Set("sessionID", claims.SessionID)
+		}
 		c.Next()
 	}
 }

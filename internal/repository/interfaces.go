@@ -99,8 +99,12 @@ type RefreshTokenRepository interface {
 	// GetByTokenHash retrieves a refresh token by its hash
 	GetByTokenHash(ctx context.Context, tokenHash string) (*models.RefreshToken, error)
 
-	// RevokeByTokenHash revokes a refresh token
+	// RevokeByTokenHash revokes a refresh token outright, with no reuse grace.
 	RevokeByTokenHash(ctx context.Context, tokenHash string) error
+
+	// MarkRotated revokes a refresh token as superseded by a refresh, making
+	// it eligible for the reuse grace window.
+	MarkRotated(ctx context.Context, tokenHash string) error
 
 	// RevokeAllForUser revokes all refresh tokens for a user
 	RevokeAllForUser(ctx context.Context, userID uuid.UUID) error
@@ -110,6 +114,28 @@ type RefreshTokenRepository interface {
 
 	// DeleteExpired deletes expired refresh tokens
 	DeleteExpired(ctx context.Context) error
+
+	// TouchSession stamps last_used_at on every token in a session.
+	TouchSession(ctx context.Context, sessionID uuid.UUID, at time.Time) error
+
+	// ListSessions returns the user's live sessions, most recently used first.
+	// A session is live when it holds at least one unrevoked, unexpired token.
+	ListSessions(ctx context.Context, userID uuid.UUID) ([]*models.Session, error)
+
+	// RevokeSession revokes every token in one session. It returns
+	// ErrNotFound when the session does not exist or belongs to another user.
+	RevokeSession(ctx context.Context, userID, sessionID uuid.UUID) error
+
+	// RevokeSessionsExcept revokes every session the user holds apart from
+	// keep, and returns how many sessions were revoked.
+	RevokeSessionsExcept(ctx context.Context, userID, keep uuid.UUID) (int64, error)
+
+	// EvictOldestSessions revokes the least recently used live sessions until
+	// at most keep remain, and returns how many were evicted.
+	EvictOldestSessions(ctx context.Context, userID uuid.UUID, keep int) (int64, error)
+
+	// CountActiveSessions counts live sessions across all users.
+	CountActiveSessions(ctx context.Context) (int64, error)
 }
 
 // LicenseRepository defines the interface for license data access

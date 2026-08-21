@@ -65,17 +65,28 @@ jobs:
 
       - name: Run E2E tests
         run: |
+          set -o pipefail
           ARGS="-v -tags=e2e -count=1 -timeout=300s"
           if [ -n "${{ inputs.test_filter }}" ]; then
             ARGS="$ARGS -run ${{ inputs.test_filter }}"
           fi
           E2E_API_URL=http://localhost:3333 \
           E2E_MAILPIT_URL=http://localhost:8025 \
-            go test $ARGS ./test/e2e/...
+            go test $ARGS ./test/e2e/... 2>&1 | tee /tmp/e2e-output.txt
 
       - name: Dump logs on failure
         if: failure()
-        run: docker compose -f docker-compose.e2e.yaml logs
+        run: docker compose -f docker-compose.e2e.yaml logs --tail=200
+
+      # Last step in the job, so the failures stay at the end of the log where
+      # a tail can reach them rather than being pushed out by container output.
+      - name: Summarise failing tests
+        if: failure()
+        run: |
+          echo "::group::Failing e2e tests"
+          grep -E '^--- FAIL|^ +--- FAIL|^ +[a-z_]+\.go:[0-9]+:' /tmp/e2e-output.txt \
+            || echo "No --- FAIL lines found; the package may have panicked or timed out."
+          echo "::endgroup::"
 
       - name: Tear down
         if: always()

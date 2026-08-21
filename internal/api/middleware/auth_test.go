@@ -81,7 +81,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	jwtMgr := newTestJWTManager()
 	userID := uuid.New()
 
-	token, err := jwtMgr.GenerateAccessToken(userID)
+	token, err := jwtMgr.GenerateAccessToken(userID, uuid.New())
 	if err != nil {
 		t.Fatalf("Failed to generate token: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestAuthMiddleware_ExpiredToken(t *testing.T) {
 	jwtMgr := jwt.NewManager("test-access-secret", "test-refresh-secret", -1*time.Second, 7*24*time.Hour)
 	userID := uuid.New()
 
-	token, err := jwtMgr.GenerateAccessToken(userID)
+	token, err := jwtMgr.GenerateAccessToken(userID, uuid.New())
 	if err != nil {
 		t.Fatalf("Failed to generate token: %v", err)
 	}

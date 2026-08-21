@@ -1633,6 +1633,11 @@ type AdminConfig struct {
 	// GoVersion Example: go1.23.0
 	GoVersion string `json:"goVersion"`
 
+	// MaxSessionsPerUser Concurrent sessions kept per user (MAX_SESSIONS_PER_USER) before the least recently used is evicted
+	//
+	// Example: 5
+	MaxSessionsPerUser *int `json:"maxSessionsPerUser,omitempty"`
+
 	// MigrationVersion Current database migration version
 	//
 	// Example: 28
@@ -1655,6 +1660,11 @@ type AdminConfig struct {
 	//
 	// Example: 10 req/min
 	RateLimitAuth string `json:"rateLimitAuth"`
+
+	// RefreshReuseGrace How long a rotated refresh token stays usable (REFRESH_REUSE_GRACE)
+	//
+	// Example: 30s
+	RefreshReuseGrace *string `json:"refreshReuseGrace,omitempty"`
 
 	// RegistrationPrefixCount Number of ICAO aircraft nationality marks in the vendored registration table
 	//
@@ -1718,6 +1728,9 @@ type AdminConfigUnverifiedCleanupDisabledReason string
 
 // AdminStats defines model for AdminStats.
 type AdminStats struct {
+	// ActiveSessions Live sessions across all users. A session is live while it holds an unrevoked, unexpired refresh token, so this counts signed-in devices rather than users.
+	ActiveSessions int `json:"activeSessions"`
+
 	// CloudBackupDestinations Counts of user-configured cloud backup destinations.
 	CloudBackupDestinations struct {
 		// ByProvider Number of destinations grouped by provider name (e.g. {"s3": 3, "sftp": 1}). Providers with zero destinations are omitted.
@@ -4923,6 +4936,32 @@ type RegistrationResponse struct {
 type ResendSignatureRequestRequest struct {
 	// InstructorEmail If supplied, updates the delivery address and sends the request email. Omit to just rotate the token/link without emailing anyone.
 	InstructorEmail *openapi_types.Email `json:"instructorEmail,omitempty"`
+}
+
+// Session One signed-in device holding a live session.
+type Session struct {
+	// CreatedAt When the session was created by signing in
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Current Whether this is the session making the request
+	Current bool `json:"current"`
+
+	// DeviceLabel Browser and platform derived from the User-Agent
+	//
+	// Example: Safari on iPhone
+	DeviceLabel string `json:"deviceLabel"`
+
+	// ExpiresAt When the session ends unless it is refreshed again
+	ExpiresAt time.Time          `json:"expiresAt"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// IpAddress Address the session was last renewed from
+	//
+	// Example: 203.0.113.7
+	IpAddress *string `json:"ipAddress,omitempty"`
+
+	// LastUsedAt When the session last refreshed its access token
+	LastUsedAt time.Time `json:"lastUsedAt"`
 }
 
 // SignatureRequestCreated A FlightSignature plus the one-time signing URL. The URL is only ever returned from the create/resend calls that generated it — it is not retrievable again afterwards, so the owner must copy/share it (or its QR code) immediately, or resend to get a fresh one.

@@ -21,6 +21,8 @@ type AdminStats struct {
 	NewUsersThisWeek int
 	LockedAccounts   int
 	DisabledAccounts int
+	// ActiveSessions counts live sessions across all users.
+	ActiveSessions int
 	// ImportsByFormat maps import_format value to import count. Never nil;
 	// formats with no imports are absent.
 	ImportsByFormat map[string]int
