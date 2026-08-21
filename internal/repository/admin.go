@@ -11,16 +11,17 @@ import (
 // AdminStats aggregates the instance-wide counters shown on the admin
 // dashboard. A counter whose query fails is reported as zero.
 type AdminStats struct {
-	TotalUsers       int
-	TotalFlights     int
-	TotalAircraft    int
-	TotalContacts    int
-	TotalCredentials int
-	TotalImports     int
-	FlightsThisMonth int
-	NewUsersThisWeek int
-	LockedAccounts   int
-	DisabledAccounts int
+	TotalUsers             int
+	TotalFlights           int
+	TotalSimulatorSessions int
+	TotalAircraft          int
+	TotalContacts          int
+	TotalCredentials       int
+	TotalImports           int
+	FlightsThisMonth       int
+	NewUsersThisWeek       int
+	LockedAccounts         int
+	DisabledAccounts       int
 	// ActiveSessions counts live sessions across all users.
 	ActiveSessions int
 	// ImportsByFormat maps import_format value to import count. Never nil;

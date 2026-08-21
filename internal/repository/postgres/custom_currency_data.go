@@ -175,7 +175,7 @@ func (p *customCurrencyDataProvider) MetricRowsByDate(ctx context.Context, userI
 // id and the window start; filter values follow.
 func buildCustomWhere(userID uuid.UUID, since time.Time, filters []models.CurrencyFilter) (string, []interface{}, error) {
 	args := []interface{}{userID, since}
-	where := []string{"f.user_id = $1", "f.date >= $2"}
+	where := []string{"f.user_id = $1", "NOT f.is_simulator", "f.date >= $2"}
 	for _, f := range filters {
 		clause, err := buildCustomFilterClause(f, &args)
 		if err != nil {

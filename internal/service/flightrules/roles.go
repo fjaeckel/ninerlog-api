@@ -44,7 +44,8 @@ const (
 // SIC makes the user the co-pilot (SIC) of a multi-pilot operation
 // (AMC1 FCL.050; FOCA GM/INFO §2.3.3). A self-listed Examiner leaves the
 // user as PIC; a self-listed PIC crew entry keeps the user as PIC and wins
-// over a simultaneous third-party PIC entry. Otherwise the user is PIC.
+// over a simultaneous third-party PIC entry. With no crew list at all, a
+// declared SICTime makes the user the co-pilot. Otherwise the user is PIC.
 //
 // When userName is empty, any Instructor, Examiner or PIC crew member is
 // treated as a third party.
@@ -89,6 +90,10 @@ func DetermineRole(flight *models.Flight, userName string) Role {
 		return RoleDualGiving
 	}
 	if (hasOtherPIC || hasSelfSIC) && !hasSelfPIC {
+		return RoleSIC
+	}
+	// Legacy/imported rows carry no crew list but declare co-pilot time.
+	if len(flight.CrewMembers) == 0 && flight.SICTime > 0 {
 		return RoleSIC
 	}
 	return RolePIC

@@ -18,6 +18,17 @@ func IsFSTDRow(f *models.Flight) bool {
 	return f.SimulatedFlightTime > 0
 }
 
+// CountsAsFlightTime reports whether a row contributes to flight totals.
+// An FSTD session never does: AMC1 FCL.050 records session time separately
+// and it may not be summed with flight time.
+//
+// This is the single source of truth for the distinction. Aggregates in
+// internal/repository/postgres carry the equivalent `NOT is_simulator`
+// predicate in SQL.
+func CountsAsFlightTime(f *models.Flight) bool {
+	return f != nil && !f.IsSimulator
+}
+
 // FSTDFields returns the (date, type, time) triple to fill into the FSTD
 // columns. dateLayout is the Go time layout used to format the date (e.g.
 // "02.01.2006" for full EASA CSV, "02.01" for the compact PDF column).

@@ -162,11 +162,20 @@ func TestEffectiveIFRTime(t *testing.T) {
 		want int
 	}{
 		{"nil", nil, 0},
-		{"explicit", &models.Flight{IFRTime: 30}, 30},
+		{"explicit", &models.Flight{IFRTime: 30, TotalTime: 60}, 30},
 		{"derived sum", &models.Flight{ActualInstrumentTime: 10, SimulatedInstrumentTime: 20, TotalTime: 60}, 30},
 		{"capped at total", &models.Flight{ActualInstrumentTime: 100, SimulatedInstrumentTime: 100, TotalTime: 60}, 60},
 		{"all zero", &models.Flight{TotalTime: 60}, 0},
 		{"explicit beats derived", &models.Flight{IFRTime: 15, ActualInstrumentTime: 30, TotalTime: 60}, 15},
+		// An explicit value above block time would violate the
+		// ifr_time <= total_time CHECK on the flights table.
+		{"explicit capped at total", &models.Flight{IFRTime: 200, TotalTime: 60}, 60},
+		// IFR is an operational condition of a flight; a device session
+		// keeps its instrument work in SimulatedInstrumentTime.
+		{"simulator session reports zero", &models.Flight{
+			IsSimulator: true, SimulatedFlightTime: 120, SimulatedInstrumentTime: 60,
+		}, 0},
+		{"simulator ignores explicit ifr", &models.Flight{IsSimulator: true, IFRTime: 45}, 0},
 	}
 	for _, tc := range cases {
 		if got := EffectiveIFRTime(tc.f); got != tc.want {

@@ -32,6 +32,11 @@ const (
 // any Instructor or Examiner crew member is treated as a third party (Dual
 // received).
 func ApplyAutoCalculations(flight *models.Flight, userName string) {
+	if flight.IsSimulator {
+		applySessionCalculations(flight)
+		return
+	}
+
 	role := determineUserRole(flight, userName)
 
 	// 0. Auto-determine PIC/Dual from crew + user role
@@ -73,6 +78,46 @@ func ApplyAutoCalculations(flight *models.Flight, userName string) {
 	// 9. IFR time: if user did not set it explicitly, derive from
 	//    Actual + Simulated instrument (capped at TotalTime).
 	flight.IFRTime = flightrules.EffectiveIFRTime(flight)
+}
+
+// applySessionCalculations normalises an FSTD session. The device is not
+// flown between places, so route, block and pilot-function fields are
+// cleared; the session duration in SimulatedFlightTime and the instrument
+// work (approaches, holds, simulated instrument time) are kept.
+func applySessionCalculations(flight *models.Flight) {
+	flight.TotalTime = 0
+	flight.IsPIC = false
+	flight.IsDual = false
+	flight.PICTime = 0
+	flight.DualTime = 0
+	flight.SICTime = 0
+	flight.DualGivenTime = 0
+	flight.MultiPilotTime = 0
+	flight.SoloTime = 0
+	flight.CrossCountryTime = 0
+	flight.NightTime = 0
+	flight.IFRTime = 0
+	flight.LandingsDay = 0
+	flight.LandingsNight = 0
+	flight.AllLandings = 0
+	flight.TakeoffsDay = 0
+	flight.TakeoffsNight = 0
+	flight.Distance = 0
+	flight.AircraftReg = ""
+	flight.DepartureICAO = nil
+	flight.ArrivalICAO = nil
+	flight.OffBlockTime = nil
+	flight.OnBlockTime = nil
+	flight.DepartureTime = nil
+	flight.ArrivalTime = nil
+	flight.Route = nil
+	flight.LaunchMethod = nil
+
+	if flight.SimulatedInstrumentTime > flight.SimulatedFlightTime {
+		flight.SimulatedInstrumentTime = flight.SimulatedFlightTime
+	}
+	// Actual instrument time requires real IMC.
+	flight.ActualInstrumentTime = 0
 }
 
 // determineUserRole is a thin wrapper over flightrules.DetermineRole.

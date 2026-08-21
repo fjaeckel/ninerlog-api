@@ -147,17 +147,17 @@ func TestImportSamples(t *testing.T) {
 			if want.Date != "" && got.Date.String() != want.Date {
 				t.Errorf("date = %q, want %q", got.Date.String(), want.Date)
 			}
-			if want.AircraftReg != "" && got.AircraftReg != want.AircraftReg {
-				t.Errorf("aircraftReg = %q, want %q", got.AircraftReg, want.AircraftReg)
+			if want.AircraftReg != "" && safeStr(got.AircraftReg) != want.AircraftReg {
+				t.Errorf("aircraftReg = %q, want %q", safeStr(got.AircraftReg), want.AircraftReg)
 			}
 			if want.AircraftType != "" && got.AircraftType != want.AircraftType {
 				t.Errorf("aircraftType = %q, want %q", got.AircraftType, want.AircraftType)
 			}
-			if want.DepartureIcao != "" && got.DepartureIcao != want.DepartureIcao {
-				t.Errorf("departureIcao = %q, want %q", got.DepartureIcao, want.DepartureIcao)
+			if want.DepartureIcao != "" && safeStr(got.DepartureIcao) != want.DepartureIcao {
+				t.Errorf("departureIcao = %q, want %q", safeStr(got.DepartureIcao), want.DepartureIcao)
 			}
-			if want.ArrivalIcao != "" && got.ArrivalIcao != want.ArrivalIcao {
-				t.Errorf("arrivalIcao = %q, want %q", got.ArrivalIcao, want.ArrivalIcao)
+			if want.ArrivalIcao != "" && safeStr(got.ArrivalIcao) != want.ArrivalIcao {
+				t.Errorf("arrivalIcao = %q, want %q", safeStr(got.ArrivalIcao), want.ArrivalIcao)
 			}
 			if want.TotalTimeMinutes > 0 {
 				// Layouts carrying block times derive the total from them;
@@ -167,8 +167,8 @@ func TestImportSamples(t *testing.T) {
 						effectiveTotalMinutes(t, got), want.TotalTimeMinutes)
 				}
 			}
-			if want.Landings > 0 && got.Landings != want.Landings {
-				t.Errorf("landings = %d, want %d", got.Landings, want.Landings)
+			if want.Landings > 0 && getIntOrDefault(got.Landings, 0) != want.Landings {
+				t.Errorf("landings = %d, want %d", getIntOrDefault(got.Landings, 0), want.Landings)
 			}
 
 			// Every row must map, not just the first — a file that imports its
@@ -370,11 +370,11 @@ func TestImportSample_WaderDropsPlaceholderMidnightTimes(t *testing.T) {
 		t.Fatalf("row errors: %+v", errs)
 	}
 
-	if got.OffBlockTime != "11:03:00" {
-		t.Errorf("offBlockTime = %q, want the recorded 11:03:00", got.OffBlockTime)
+	if safeStr(got.OffBlockTime) != "11:03:00" {
+		t.Errorf("offBlockTime = %q, want the recorded 11:03:00", safeStr(got.OffBlockTime))
 	}
-	if got.OnBlockTime != "" {
-		t.Errorf("onBlockTime = %q, want it dropped as a placeholder", got.OnBlockTime)
+	if safeStr(got.OnBlockTime) != "" {
+		t.Errorf("onBlockTime = %q, want it dropped as a placeholder", safeStr(got.OnBlockTime))
 	}
 	if got.DepartureTime != nil {
 		t.Errorf("departureTime = %q, want it dropped as a placeholder", *got.DepartureTime)
@@ -455,8 +455,8 @@ func TestImportSample_CapzlogDatedByOffBlockTimestamp(t *testing.T) {
 		t.Errorf("date = %q, want 2026-08-15 derived from the off-block timestamp", s)
 	}
 	// The clock half must still reach the block times, or the total is lost.
-	if got.OffBlockTime != "04:00:00" || got.OnBlockTime != "06:07:00" {
-		t.Errorf("block times = %q/%q, want 04:00:00/06:07:00", got.OffBlockTime, got.OnBlockTime)
+	if safeStr(got.OffBlockTime) != "04:00:00" || safeStr(got.OnBlockTime) != "06:07:00" {
+		t.Errorf("block times = %q/%q, want 04:00:00/06:07:00", safeStr(got.OffBlockTime), safeStr(got.OnBlockTime))
 	}
 	if mins := effectiveTotalMinutes(t, got); mins != 127 {
 		t.Errorf("total = %d min, want 127 (the Block column reads 2:07)", mins)
@@ -502,8 +502,8 @@ func TestImportSample_SkyDemonIsDatedAndTimed(t *testing.T) {
 		t.Errorf("date = %q, want 2025-10-11 from the departure timestamp", s)
 	}
 	// "EDOI Bienenfarm" must reduce to the code.
-	if got.DepartureIcao != "EDOI" || got.ArrivalIcao != "EDOI" {
-		t.Errorf("airports = %q → %q, want EDOI → EDOI", got.DepartureIcao, got.ArrivalIcao)
+	if safeStr(got.DepartureIcao) != "EDOI" || safeStr(got.ArrivalIcao) != "EDOI" {
+		t.Errorf("airports = %q → %q, want EDOI → EDOI", safeStr(got.DepartureIcao), safeStr(got.ArrivalIcao))
 	}
 	// SkyDemon has no total column; the total comes from the block times and
 	// must agree with its own PIC Time of 67 whole minutes.
@@ -511,7 +511,7 @@ func TestImportSample_SkyDemonIsDatedAndTimed(t *testing.T) {
 		t.Errorf("total = %d min, want 67 (PIC Time reads 67, i.e. whole minutes)", mins)
 	}
 	// SkyDemon exports "DEROQ"; the registration is canonicalised on import.
-	if got.AircraftReg != "D-EROQ" {
-		t.Errorf("aircraftReg = %q, want D-EROQ", got.AircraftReg)
+	if safeStr(got.AircraftReg) != "D-EROQ" {
+		t.Errorf("aircraftReg = %q, want D-EROQ", safeStr(got.AircraftReg))
 	}
 }

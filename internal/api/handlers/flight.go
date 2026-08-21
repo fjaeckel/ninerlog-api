@@ -178,52 +178,45 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
-	// Compute totalTime from off-block and on-block times
-	totalTime, err := calculateBlockTime(req.OffBlockTime, req.OnBlockTime)
-	if err != nil {
-		h.sendError(c, http.StatusBadRequest, "Invalid block times format")
+	if err := validateCreateShape(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// PIC/Dual will be auto-determined by ApplyAutoCalculations based on crew
-	isPic := true
-	isDual := false
-
-	// Compute picTime/dualTime from booleans
-	var picTime, dualTime int
-	if isPic {
-		picTime = totalTime
-	}
-	if isDual {
-		dualTime = totalTime
-	}
-
-	departureIcao := req.DepartureIcao
-	arrivalIcao := req.ArrivalIcao
-	offBlockTime := req.OffBlockTime
-	onBlockTime := req.OnBlockTime
-	departureTime := req.DepartureTime
-	arrivalTime := req.ArrivalTime
-
 	flight := models.Flight{
-		UserID:        userID,
-		Date:          flightDate,
-		AircraftReg:   req.AircraftReg,
-		AircraftType:  req.AircraftType,
-		DepartureICAO: &departureIcao,
-		ArrivalICAO:   &arrivalIcao,
-		OffBlockTime:  &offBlockTime,
-		OnBlockTime:   &onBlockTime,
-		DepartureTime: departureTime,
-		ArrivalTime:   arrivalTime,
-		TotalTime:     totalTime,
-		IsPIC:         isPic,
-		IsDual:        isDual,
-		PICTime:       picTime,
-		DualTime:      dualTime,
-		NightTime:     0,
-		IFRTime:       getIntOrDefault(req.IfrTime, 0),
-		AllLandings:   req.Landings,
+		UserID:       userID,
+		Date:         flightDate,
+		AircraftType: req.AircraftType,
+		IsSimulator:  isSimulatorCreate(&req),
+	}
+
+	if !flight.IsSimulator {
+		// Compute totalTime from off-block and on-block times
+		totalTime, err := calculateBlockTime(*req.OffBlockTime, *req.OnBlockTime)
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, "Invalid block times format")
+			return
+		}
+
+		departureIcao := *req.DepartureIcao
+		arrivalIcao := *req.ArrivalIcao
+		offBlockTime := *req.OffBlockTime
+		onBlockTime := *req.OnBlockTime
+
+		flight.AircraftReg = *req.AircraftReg
+		flight.DepartureICAO = &departureIcao
+		flight.ArrivalICAO = &arrivalIcao
+		flight.OffBlockTime = &offBlockTime
+		flight.OnBlockTime = &onBlockTime
+		flight.DepartureTime = req.DepartureTime
+		flight.ArrivalTime = req.ArrivalTime
+		flight.TotalTime = totalTime
+		flight.AllLandings = *req.Landings
+		flight.IFRTime = getIntOrDefault(req.IfrTime, 0)
+
+		// PIC/Dual are re-determined from crew by ApplyAutoCalculations
+		flight.IsPIC = true
+		flight.PICTime = totalTime
 	}
 
 	// Set route if provided
@@ -409,6 +402,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	}
 	if req.AircraftType != nil {
 		flight.AircraftType = *req.AircraftType
+	}
+	if req.IsSimulator != nil {
+		flight.IsSimulator = *req.IsSimulator
 	}
 	if req.IfrTime != nil {
 		flight.IFRTime = *req.IfrTime
@@ -614,6 +610,7 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		Date:             openapi_types.Date{Time: f.Date},
 		AircraftReg:      f.AircraftReg,
 		AircraftType:     f.AircraftType,
+		IsSimulator:      f.IsSimulator,
 		TotalTime:        f.TotalTime,
 		IsPic:            f.IsPIC,
 		IsDual:           f.IsDual,

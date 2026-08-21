@@ -3392,6 +3392,10 @@ paths:
         total from previous pages / total time) and a per-page certification and
         signature block, so each printed page can be individually signed.
 
+        Every logged row is rendered, co-pilot (SIC) flights included: co-pilot
+        time is part of total time of flight and the EASA layout has a CO-PILOT
+        column for it (AMC1 FCL.050 col 16).
+
         If the pilot has recorded prior experience (`PUT /users/me/baseline`),
         those hours open the balance: they are carried into the first
         "total from previous pages" row and into every running total and the
@@ -5961,6 +5965,7 @@ components:
         - date
         - aircraftReg
         - aircraftType
+        - isSimulator
         - totalTime
         - isPic
         - isDual
@@ -6193,6 +6198,17 @@ components:
           minimum: 0
           example: 0
           description: Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
+        isSimulator:
+          type: boolean
+          example: false
+          description: |
+            True when this entry is an FSTD (simulator) session rather than a flight.
+            A session carries its duration in simulatedFlightTime and zero in every
+            flight-time column — totalTime, picTime, dualTime, sicTime, dualGivenTime,
+            multiPilotTime, soloTime, crossCountryTime, nightTime and ifrTime — and
+            contributes to no flight total, statistic or currency calculation
+            (EASA AMC1 FCL.050: session time is recorded separately and is never
+            summed with flight time).
         fstdType:
           type: [string, 'null']
           example: FNPT II
@@ -6230,46 +6246,57 @@ components:
 
     FlightCreate:
       type: object
+      description: |
+        Creates either a flight or an FSTD (simulator) session.
+
+        For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
+        `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
+        omitting any of them returns 400.
+
+        For an FSTD session (`isSimulator: true`) they must be omitted — a training
+        device is not flown between places and has no block times. The session
+        requires `fstdType` and `simulatedFlightTime` instead. Session time is never
+        summed into flight time (EASA AMC1 FCL.050 Cols 20-22).
       required:
         - date
-        - aircraftReg
         - aircraftType
-        - departureIcao
-        - arrivalIcao
-        - offBlockTime
-        - onBlockTime
-        - landings
       properties:
         date:
           type: string
           format: date
           example: '2026-01-30'
+        isSimulator:
+          type: boolean
+          default: false
+          description: Marks this entry as an FSTD (simulator) session rather than a flight.
         aircraftReg:
           type: string
           example: D-EFGH
+          description: Aircraft registration. Required for a flight, rejected for an FSTD session.
         aircraftType:
           type: string
           example: C172
+          description: Aircraft type. For an FSTD session, the aircraft type the device represents.
         departureIcao:
           type: string
           maxLength: 100
           example: EDDF
-          description: Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
+          description: Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites. Required for a flight, rejected for an FSTD session.
         arrivalIcao:
           type: string
           maxLength: 100
           example: EDDH
-          description: Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
+          description: Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites. Required for a flight, rejected for an FSTD session.
         offBlockTime:
           type: string
           format: time
           example: '14:15:00'
-          description: Off-block time (chocks off / engine start) in UTC
+          description: Off-block time (chocks off / engine start) in UTC. Required for a flight, rejected for an FSTD session.
         onBlockTime:
           type: string
           format: time
           example: '16:55:00'
-          description: On-block time (chocks on / engine shutdown) in UTC
+          description: On-block time (chocks on / engine shutdown) in UTC. Required for a flight, rejected for an FSTD session.
         departureTime:
           type: string
           format: time
@@ -6282,10 +6309,10 @@ components:
           description: Landing time in UTC
         totalTime:
           type: integer
-          minimum: 1
+          minimum: 0
           example: 150
           readOnly: true
-          description: Total block time in minutes calculated from offBlockTime and onBlockTime. This field is computed by the server and should not be provided by the client.
+          description: Total block time in minutes calculated from offBlockTime and onBlockTime. Always 0 for an FSTD session. This field is computed by the server and should not be provided by the client.
         picTime:
           type: integer
           minimum: 0
@@ -6307,7 +6334,7 @@ components:
           type: integer
           minimum: 0
           example: 3
-          description: Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport.
+          description: Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport. Required for a flight, rejected for an FSTD session.
         takeoffsDay:
           type: integer
           minimum: 0
@@ -6362,12 +6389,14 @@ components:
         simulatedFlightTime:
           type: integer
           minimum: 0
+          description: FSTD session duration in minutes (EASA AMC1 FCL.050 Col 22). Required and positive when isSimulator is true.
         groundTrainingTime:
           type: integer
           minimum: 0
         actualInstrumentTime:
           type: integer
           minimum: 0
+          description: Actual instrument (IMC) time in minutes. Always 0 for an FSTD session.
         simulatedInstrumentTime:
           type: integer
           minimum: 0
@@ -6395,7 +6424,7 @@ components:
           description: Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
         fstdType:
           type: [string, 'null']
-          description: FSTD type designation (e.g., "FNPT II", "FFS A320")
+          description: FSTD type designation (e.g., "FNPT II", "FFS A320"). Required when isSimulator is true.
         approaches:
           type: array
           items:
@@ -6559,6 +6588,9 @@ components:
           type: integer
           minimum: 0
           description: Multi-pilot time in minutes
+        isSimulator:
+          type: boolean
+          description: Switches the entry between flight and FSTD session. Changing it clears the columns that do not apply to the new kind.
         fstdType:
           type: [string, 'null']
           description: FSTD type designation
@@ -8740,6 +8772,7 @@ components:
       required:
         - totalUsers
         - totalFlights
+        - totalSimulatorSessions
         - totalAircraft
         - totalContacts
         - totalCredentials
@@ -8756,6 +8789,10 @@ components:
           type: integer
         totalFlights:
           type: integer
+          description: Flights across all users. Excludes FSTD sessions, which are counted separately.
+        totalSimulatorSessions:
+          type: integer
+          description: FSTD (simulator) sessions across all users. Recorded separately from flights and never summed into flight time (EASA AMC1 FCL.050).
         totalAircraft:
           type: integer
         totalContacts:

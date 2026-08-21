@@ -185,8 +185,8 @@ func TestMapRowToFlight_ForeFlight(t *testing.T) {
 		t.Fatalf("mapRowToFlight() errors = %v", errs)
 	}
 
-	if flight.AircraftReg != "D-EABC" {
-		t.Errorf("AircraftReg = %s, want D-EABC", flight.AircraftReg)
+	if safeStr(flight.AircraftReg) != "D-EABC" {
+		t.Errorf("AircraftReg = %s, want D-EABC", safeStr(flight.AircraftReg))
 	}
 	if flight.Route == nil || *flight.Route != "EDAY FWE KLF" {
 		t.Errorf("Route = %v, want EDAY FWE KLF", flight.Route)
@@ -209,8 +209,8 @@ func TestMapRowToFlight_ForeFlight(t *testing.T) {
 	if flight.IfrTime == nil || *flight.IfrTime != 48 {
 		t.Errorf("IfrTime = %v, want 48", flight.IfrTime)
 	}
-	if flight.Landings != 3 {
-		t.Errorf("Landings = %d, want 3", flight.Landings)
+	if getIntOrDefault(flight.Landings, 0) != 3 {
+		t.Errorf("Landings = %d, want 3", getIntOrDefault(flight.Landings, 0))
 	}
 }
 

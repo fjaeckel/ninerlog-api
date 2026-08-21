@@ -116,19 +116,18 @@ func TestMultiPilotTime(t *testing.T) {
 	})
 }
 
-// TestFSTDSessions verifies FSTD type designation for simulator sessions.
+// TestFSTDSessions verifies that an FSTD session is recorded separately from
+// flights and never contributes flight time (EASA AMC1 FCL.050 Cols 20-22).
 func TestFSTDSessions(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("fstd"), "SecurePass123!", "FSTD")
 
-	t.Run("create FSTD session with type", func(t *testing.T) {
+	t.Run("session carries its duration and no flight time", func(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{
-			"date": today(), "aircraftReg": "FSTD-01", "aircraftType": "FNPT II",
-			"departureIcao": "EDDF", "arrivalIcao": "EDDF",
-			"offBlockTime": "09:00", "onBlockTime": "11:00", "landings": 0,
-			"simulatedFlightTime":     120,
+			"date": today(), "aircraftType": "PA34",
+			"isSimulator":             true,
 			"fstdType":                "FNPT II",
-			"actualInstrumentTime":    60,
+			"simulatedFlightTime":     120,
 			"simulatedInstrumentTime": 60,
 			"holds":                   2,
 			"approaches": []map[string]interface{}{
@@ -142,16 +141,117 @@ func TestFSTDSessions(t *testing.T) {
 		var f map[string]interface{}
 		r.JSON(&f)
 
+		if f["isSimulator"] != true {
+			t.Fatalf("isSimulator = %v, want true", f["isSimulator"])
+		}
 		assertStr(t, "fstdType", f["fstdType"], "FNPT II")
 		assertInt(t, "simulatedFlightTime", gi(f, "simulatedFlightTime"), 120)
-		assertInt(t, "approachesCount", gi(f, "approachesCount"), 3)
+
+		// The whole point: a session adds nothing to any flight-time column.
+		for _, field := range []string{
+			"totalTime", "picTime", "dualTime", "sicTime", "dualGivenTime",
+			"multiPilotTime", "soloTime", "crossCountryTime", "nightTime",
+			"ifrTime", "landingsDay", "landingsNight", "allLandings",
+		} {
+			assertInt(t, field+" on a session", gi(f, field), 0)
+		}
+
+		// Instrument work is training-relevant and survives.
+		assertInt(t, "simulatedInstrumentTime", gi(f, "simulatedInstrumentTime"), 60)
 		assertInt(t, "holds", gi(f, "holds"), 2)
+		assertInt(t, "approachesCount", gi(f, "approachesCount"), 3)
 		assertStr(t, "endorsements", f["endorsements"], "FSTD session completed satisfactorily")
 	})
 
-	t.Run("fstdType nullable when not sim", func(t *testing.T) {
+	t.Run("session rejects flight fields", func(t *testing.T) {
+		r := c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftType": "PA34",
+			"isSimulator":         true,
+			"fstdType":            "FNPT II",
+			"simulatedFlightTime": 120,
+			"departureIcao":       "EDDF",
+			"arrivalIcao":         "EDDF",
+			"offBlockTime":        "09:00",
+			"onBlockTime":         "11:00",
+			"landings":            0,
+		})
+		requireStatus(t, r, 400)
+	})
+
+	t.Run("session requires type and duration", func(t *testing.T) {
+		r := c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftType": "PA34", "isSimulator": true,
+		})
+		requireStatus(t, r, 400)
+
+		r = c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftType": "PA34", "isSimulator": true,
+			"fstdType": "FNPT II",
+		})
+		requireStatus(t, r, 400)
+	})
+
+	t.Run("flight still requires its route and block times", func(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{
 			"date": today(), "aircraftReg": "D-EFLY", "aircraftType": "C172",
+		})
+		requireStatus(t, r, 400)
+	})
+
+	t.Run("sessions do not move flight statistics", func(t *testing.T) {
+		c2 := NewE2EClient(t)
+		registerAndLogin(t, c2, uniqueEmail("fstdstats"), "SecurePass123!", "Stats")
+
+		r := c2.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftReg": "D-ESTA", "aircraftType": "C172",
+			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+			"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+		})
+		requireStatus(t, r, 201)
+
+		before := c2.GET("/users/me/statistics")
+		requireStatus(t, before, 200)
+		var s1 map[string]interface{}
+		before.JSON(&s1)
+
+		r = c2.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftType": "A320",
+			"isSimulator": true, "fstdType": "FFS A320", "simulatedFlightTime": 240,
+		})
+		requireStatus(t, r, 201)
+
+		after := c2.GET("/users/me/statistics")
+		requireStatus(t, after, 200)
+		var s2 map[string]interface{}
+		after.JSON(&s2)
+
+		for _, field := range []string{"totalFlights", "totalMinutes", "picMinutes", "dualMinutes", "nightMinutes", "ifrMinutes"} {
+			if gi(s1, field) != gi(s2, field) {
+				t.Errorf("%s changed from %d to %d after logging a 4-hour FFS session; "+
+					"session time must never be summed with flight time",
+					field, gi(s1, field), gi(s2, field))
+			}
+		}
+	})
+
+	t.Run("session does not appear in the fleet", func(t *testing.T) {
+		r := c.GET("/aircraft/stats")
+		if r.StatusCode != 200 {
+			t.Skipf("aircraft stats unavailable: %d", r.StatusCode)
+		}
+		var stats []map[string]interface{}
+		r.JSON(&stats)
+		for _, a := range stats {
+			reg, _ := a["registration"].(string)
+			if reg == "" || reg == "FNPT II" || reg == "FFS A320" {
+				t.Errorf("fleet contains a simulator entry: %q", reg)
+			}
+		}
+	})
+
+	t.Run("fstdType nullable on a flight", func(t *testing.T) {
+		r := c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftReg": "D-EFLZ", "aircraftType": "C172",
 			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
 			"offBlockTime": "12:00", "onBlockTime": "13:00", "landings": 1,
 		})
@@ -159,22 +259,10 @@ func TestFSTDSessions(t *testing.T) {
 		var f map[string]interface{}
 		r.JSON(&f)
 		if f["fstdType"] != nil {
-			t.Errorf("fstdType should be nil for non-sim flight, got %v", f["fstdType"])
+			t.Errorf("fstdType should be nil for a flight, got %v", f["fstdType"])
 		}
-	})
-
-	t.Run("full-flight sim designation", func(t *testing.T) {
-		r := c.POST("/flights", map[string]interface{}{
-			"date": today(), "aircraftReg": "FFS-320", "aircraftType": "FFS A320",
-			"departureIcao": "EDDF", "arrivalIcao": "EDDF",
-			"offBlockTime": "14:00", "onBlockTime": "18:00", "landings": 0,
-			"simulatedFlightTime": 240,
-			"fstdType":            "FFS A320",
-		})
-		requireStatus(t, r, 201)
-		var f map[string]interface{}
-		r.JSON(&f)
-		assertStr(t, "fstdType", f["fstdType"], "FFS A320")
-		assertInt(t, "simulatedFlightTime", gi(f, "simulatedFlightTime"), 240)
+		if f["isSimulator"] != false {
+			t.Errorf("isSimulator = %v, want false for a flight", f["isSimulator"])
+		}
 	})
 }

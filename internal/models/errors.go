@@ -9,6 +9,13 @@ var (
 	ErrInvalidIFRTime          = errors.New("IFR time exceeds total time")
 	ErrNegativeTime            = errors.New("flight times cannot be negative")
 	ErrNegativeLandings        = errors.New("landings cannot be negative")
+	ErrInvalidFunctionTime     = errors.New("PIC, co-pilot and dual time together exceed total time")
+	ErrInvalidDualGivenTime    = errors.New("instructor time exceeds total time")
+
+	// FSTD session validation errors
+	ErrFSTDTypeRequired = errors.New("fstdType is required for a simulator session")
+	ErrFSTDSessionTime  = errors.New("a simulator session requires a positive session duration")
+	ErrFSTDFlightTime   = errors.New("a simulator session cannot carry flight time")
 
 	// Aircraft validation errors
 	ErrAircraftRegistrationRequired = errors.New("aircraft registration is required")

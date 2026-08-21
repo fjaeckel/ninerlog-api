@@ -67,12 +67,17 @@ func isSelfPlaceholder(s string) bool {
 //  5. original PICName if present
 //  6. "SELF"
 //
+// An FSTD session has no pilot-in-command and returns "".
+//
 // userName is the authenticated user's display name; pass "" if unknown.
 // All exporters (CSV, PDF, future formats) MUST use this helper instead of
 // re-implementing the fallback locally.
 func DisplayPICName(f *models.Flight, userName string) string {
 	if f == nil {
 		return "SELF"
+	}
+	if f.IsSimulator {
+		return ""
 	}
 	// Resolve any known instructor/examiner first: the primary fallback when
 	// PICName is empty, and the override for a stale "Self" value.

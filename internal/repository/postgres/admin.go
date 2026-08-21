@@ -35,7 +35,8 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	}
 
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users"), &stats.TotalUsers)
-	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flights"), &stats.TotalFlights)
+	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flights WHERE NOT is_simulator"), &stats.TotalFlights)
+	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flights WHERE is_simulator"), &stats.TotalSimulatorSessions)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM aircraft"), &stats.TotalAircraft)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM contacts"), &stats.TotalContacts)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM credentials"), &stats.TotalCredentials)
@@ -44,7 +45,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	// Flights this month
 	monthStart := now.Format("2006-01") + "-01"
 	r.scanCount(r.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM flights WHERE created_at >= $1", monthStart,
+		"SELECT COUNT(*) FROM flights WHERE NOT is_simulator AND created_at >= $1", monthStart,
 	), &stats.FlightsThisMonth)
 
 	// New users this week

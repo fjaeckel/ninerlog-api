@@ -591,32 +591,36 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		// Create the flight
+		offBlock := safeStr(flight.OffBlockTime)
+		onBlock := safeStr(flight.OnBlockTime)
+
 		totalTime := 0
-		if flight.OffBlockTime != "" && flight.OnBlockTime != "" {
-			totalTime, _ = calculateBlockTime(flight.OffBlockTime, flight.OnBlockTime)
+		if offBlock != "" && onBlock != "" {
+			totalTime, _ = calculateBlockTime(offBlock, onBlock)
 		} else if flight.TotalTime != nil {
 			totalTime = *flight.TotalTime
 		}
 
 		flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
 
-		offBlock := flight.OffBlockTime
-		onBlock := flight.OnBlockTime
 		depTime := flight.DepartureTime
 		arrTime := flight.ArrivalTime
+		departureIcao := safeStr(flight.DepartureIcao)
+		arrivalIcao := safeStr(flight.ArrivalIcao)
 
 		newFlight := models.Flight{
 			UserID:                  userID,
 			Date:                    flightDate,
-			AircraftReg:             flight.AircraftReg,
+			AircraftReg:             safeStr(flight.AircraftReg),
 			AircraftType:            flight.AircraftType,
-			DepartureICAO:           &flight.DepartureIcao,
-			ArrivalICAO:             &flight.ArrivalIcao,
+			DepartureICAO:           &departureIcao,
+			ArrivalICAO:             &arrivalIcao,
 			TotalTime:               totalTime,
 			IFRTime:                 getIntOrDefault(flight.IfrTime, 0),
-			AllLandings:             flight.Landings,
+			AllLandings:             getIntOrDefault(flight.Landings, 0),
 			ActualInstrumentTime:    getIntOrDefault(flight.ActualInstrumentTime, 0),
 			SimulatedInstrumentTime: getIntOrDefault(flight.SimulatedInstrumentTime, 0),
+			IsSimulator:             isSimulatorCreate(&flight),
 		}
 		if flight.Holds != nil {
 			newFlight.Holds = *flight.Holds
@@ -669,6 +673,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			newFlight.InstructorComments = flight.InstructorComments
 		}
 		newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
+		newFlight.FSTDType = flight.FstdType
+		newFlight.SimulatedFlightTime = getIntOrDefault(flight.SimulatedFlightTime, 0)
 
 		// Build crew members from FlightCreate into model for auto-calculations
 		if flight.CrewMembers != nil {
@@ -861,8 +867,15 @@ type fieldError struct {
 // resolve the aircraft type when the source row does not provide one. When the lookup
 // has no entry, the registration is used as the type as a last-resort fallback.
 func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping, aircraftTypes map[string]string) (generated.FlightCreate, []fieldError) {
+	// The conditionally-required flight fields are optional in the schema;
+	// a mapped row always fills them, so they start non-nil here.
 	flight := generated.FlightCreate{
-		Landings: 0,
+		AircraftReg:   new(string),
+		DepartureIcao: new(string),
+		ArrivalIcao:   new(string),
+		OffBlockTime:  new(string),
+		OnBlockTime:   new(string),
+		Landings:      new(int),
 	}
 	var errs []fieldError
 
@@ -900,19 +913,19 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				flight.Date = openapi_types.Date{Time: t}
 			}
 		case "aircraftReg":
-			flight.AircraftReg = registration.Canonical(val)
+			*flight.AircraftReg = registration.Canonical(val)
 		case "aircraftType":
 			flight.AircraftType = strings.ToUpper(val)
 		case "departureIcao":
-			flight.DepartureIcao = normalizeLocation(val)
+			*flight.DepartureIcao = normalizeLocation(val)
 		case "arrivalIcao":
-			flight.ArrivalIcao = normalizeLocation(val)
+			*flight.ArrivalIcao = normalizeLocation(val)
 		case "offBlockTime":
 			captureDateFromTimestamp(val, &timestampDate)
-			flight.OffBlockTime = normalizeTime(val)
+			*flight.OffBlockTime = normalizeTime(val)
 		case "onBlockTime":
 			captureDateFromTimestamp(val, &timestampDate)
-			flight.OnBlockTime = normalizeTime(val)
+			*flight.OnBlockTime = normalizeTime(val)
 		case "departureTime":
 			captureDateFromTimestamp(val, &timestampDate)
 			s := normalizeTime(val)
@@ -976,13 +989,13 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			flight.Route = &val
 		case "landingsDay":
 			if n, err := strconv.Atoi(val); err == nil {
-				flight.Landings += n
+				*flight.Landings += n
 			} else {
 				errs = append(errs, fieldError{"landingsDay", fmt.Sprintf("Invalid number '%s'", val)})
 			}
 		case "landingsNight":
 			if n, err := strconv.Atoi(val); err == nil {
-				flight.Landings += n
+				*flight.Landings += n
 			} else {
 				errs = append(errs, fieldError{"landingsNight", fmt.Sprintf("Invalid number '%s'", val)})
 			}
@@ -1002,6 +1015,16 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			flight.InstructorName = &instructorName
 		case "instructorComments":
 			flight.InstructorComments = &val
+		case "fstdType":
+			if t := strings.TrimSpace(val); t != "" {
+				flight.FstdType = &t
+			}
+		case "simulatedFlightTime":
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+				flight.SimulatedFlightTime = &mins
+			} else {
+				errs = append(errs, fieldError{"simulatedFlightTime", fmt.Sprintf("Invalid duration '%s'", val)})
+			}
 		case "dualGivenTime":
 			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
 				flight.DualGivenTime = &mins
@@ -1038,11 +1061,11 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	// back to the file's explicit total — the same number. Not doing it costs a
 	// corrupted logbook.
 	const placeholderMidnight = "00:00:00"
-	if flight.OffBlockTime == placeholderMidnight {
-		flight.OffBlockTime = ""
+	if *flight.OffBlockTime == placeholderMidnight {
+		*flight.OffBlockTime = ""
 	}
-	if flight.OnBlockTime == placeholderMidnight {
-		flight.OnBlockTime = ""
+	if *flight.OnBlockTime == placeholderMidnight {
+		*flight.OnBlockTime = ""
 	}
 	if flight.DepartureTime != nil && *flight.DepartureTime == placeholderMidnight {
 		flight.DepartureTime = nil
@@ -1087,21 +1110,21 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	// MyFlightbook's Landings beside FS Day/Night) count touch-and-go landings
 	// only in the total, so taking the larger keeps them instead of silently
 	// dropping them — while a file that only has the split is unaffected.
-	if landingsTotal > flight.Landings {
-		flight.Landings = landingsTotal
+	if landingsTotal > *flight.Landings {
+		*flight.Landings = landingsTotal
 	}
 
 	// Derive the airports from the route when the source has no separate
 	// departure and arrival columns. MyFlightbook stores the whole sector as a
 	// single "KSFO KOAK" route string, and the flight would otherwise fail
 	// validation on two required fields the file does in fact contain.
-	if flight.Route != nil && (flight.DepartureIcao == "" || flight.ArrivalIcao == "") {
+	if flight.Route != nil && (*flight.DepartureIcao == "" || *flight.ArrivalIcao == "") {
 		if dep, arr := splitRouteEndpoints(*flight.Route); dep != "" {
-			if flight.DepartureIcao == "" {
-				flight.DepartureIcao = dep
+			if *flight.DepartureIcao == "" {
+				*flight.DepartureIcao = dep
 			}
-			if flight.ArrivalIcao == "" {
-				flight.ArrivalIcao = arr
+			if *flight.ArrivalIcao == "" {
+				*flight.ArrivalIcao = arr
 			}
 		}
 	}
@@ -1122,29 +1145,29 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	if flight.Date.IsZero() {
 		errs = append(errs, fieldError{"date", "Date is required"})
 	}
-	if flight.AircraftReg == "" {
+	if *flight.AircraftReg == "" {
 		errs = append(errs, fieldError{"aircraftReg", "Aircraft registration is required"})
 	}
 	if flight.AircraftType == "" {
 		// Try to resolve the type from the user's aircraft fleet by registration.
-		if flight.AircraftReg != "" && aircraftTypes != nil {
-			if t, ok := aircraftTypes[registration.Canonical(flight.AircraftReg)]; ok && t != "" {
+		if *flight.AircraftReg != "" && aircraftTypes != nil {
+			if t, ok := aircraftTypes[registration.Canonical(*flight.AircraftReg)]; ok && t != "" {
 				flight.AircraftType = t
 			}
 		}
 		if flight.AircraftType == "" {
 			// Last-resort fallback: use registration as type so the import does not fail.
-			if flight.AircraftReg != "" {
-				flight.AircraftType = flight.AircraftReg
+			if *flight.AircraftReg != "" {
+				flight.AircraftType = *flight.AircraftReg
 			} else {
 				errs = append(errs, fieldError{"aircraftType", "Aircraft type is required"})
 			}
 		}
 	}
-	if flight.DepartureIcao == "" {
+	if *flight.DepartureIcao == "" {
 		errs = append(errs, fieldError{"departureIcao", "Departure ICAO is required"})
 	}
-	if flight.ArrivalIcao == "" {
+	if *flight.ArrivalIcao == "" {
 		errs = append(errs, fieldError{"arrivalIcao", "Arrival ICAO is required"})
 	}
 
@@ -1186,8 +1209,8 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 			ifrTotal += *flight.SimulatedInstrumentTime
 		}
 		totalCap := 0
-		if flight.OffBlockTime != "" && flight.OnBlockTime != "" {
-			if m, err := calculateBlockTime(flight.OffBlockTime, flight.OnBlockTime); err == nil {
+		if *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
+			if m, err := calculateBlockTime(*flight.OffBlockTime, *flight.OnBlockTime); err == nil {
 				totalCap = m
 			}
 		}
@@ -1200,6 +1223,14 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		if ifrTotal > 0 {
 			flight.IfrTime = &ifrTotal
 		}
+	}
+
+	// An FSTD designation with a session duration marks the row as a device
+	// session; the session calculations clear its flight fields.
+	if flight.FstdType != nil && strings.TrimSpace(*flight.FstdType) != "" &&
+		flight.SimulatedFlightTime != nil && *flight.SimulatedFlightTime > 0 {
+		isSim := true
+		flight.IsSimulator = &isSim
 	}
 
 	return flight, errs
@@ -1487,13 +1518,14 @@ func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *op
 		if e.Date.Format("2006-01-02") != flight.Date.String() {
 			continue
 		}
-		if !strings.EqualFold(e.AircraftReg, flight.AircraftReg) {
+		if !strings.EqualFold(e.AircraftReg, safeStr(flight.AircraftReg)) {
 			continue
 		}
-		depMatch := (e.DepartureICAO != nil && strings.EqualFold(*e.DepartureICAO, flight.DepartureIcao)) ||
-			(e.DepartureICAO == nil && flight.DepartureIcao == "")
-		arrMatch := (e.ArrivalICAO != nil && strings.EqualFold(*e.ArrivalICAO, flight.ArrivalIcao)) ||
-			(e.ArrivalICAO == nil && flight.ArrivalIcao == "")
+		dep, arr := safeStr(flight.DepartureIcao), safeStr(flight.ArrivalIcao)
+		depMatch := (e.DepartureICAO != nil && strings.EqualFold(*e.DepartureICAO, dep)) ||
+			(e.DepartureICAO == nil && dep == "")
+		arrMatch := (e.ArrivalICAO != nil && strings.EqualFold(*e.ArrivalICAO, arr)) ||
+			(e.ArrivalICAO == nil && arr == "")
 		if !depMatch || !arrMatch {
 			continue
 		}

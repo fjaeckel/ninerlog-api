@@ -87,6 +87,11 @@ type Flight struct {
 	// FSTD type designation (EASA AMC1 FCL.050 Col 22, FAA §61.51(b)(1)(iv))
 	FSTDType *string `json:"fstdType,omitempty"`
 
+	// IsSimulator marks the row as an FSTD session rather than a flight.
+	// Session duration lives in SimulatedFlightTime; TotalTime is 0 and the
+	// row contributes nothing to flight totals.
+	IsSimulator bool `json:"isSimulator"`
+
 	// Instrument tracking
 	ActualInstrumentTime    int             `json:"actualInstrumentTime"`
 	SimulatedInstrumentTime int             `json:"simulatedInstrumentTime"`
@@ -118,20 +123,40 @@ type Flight struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// IsValid checks if all required fields are set
+// IsValid checks if all required fields are set. An FSTD session identifies
+// the device instead of an aircraft, so it carries no registration and no
+// block time.
 func (f *Flight) IsValid() bool {
-	return f.UserID != uuid.Nil &&
-		!f.Date.IsZero() &&
-		f.AircraftReg != "" &&
-		f.AircraftType != "" &&
-		f.TotalTime > 0
+	if f.UserID == uuid.Nil || f.Date.IsZero() || f.AircraftType == "" {
+		return false
+	}
+	if f.IsSimulator {
+		return f.FSTDType != nil && *f.FSTDType != "" && f.SimulatedFlightTime > 0
+	}
+	return f.AircraftReg != "" && f.TotalTime > 0
 }
 
-// ValidateTimeDistribution checks if time distribution is valid
+// ValidateTimeDistribution checks that the recorded times are coherent.
+//
+// TotalTime is block time (EASA AMC1 FCL.050 Col 9). The pilot function
+// columns decompose it: PIC + co-pilot + dual received must not exceed it.
+// Instructor time (DualGivenTime) overlays the function time rather than
+// adding to it — an instructor logs it alongside PIC time, or alone when
+// the student acts as PIC — so it is bounded by TotalTime only.
 func (f *Flight) ValidateTimeDistribution() error {
+	if f.IsSimulator {
+		return f.validateSessionTimes()
+	}
+
 	// isPic and isDual are mutually exclusive
 	if f.IsPIC && f.IsDual {
 		return ErrInvalidTimeDistribution
+	}
+
+	// All times must be non-negative
+	if f.TotalTime < 0 || f.NightTime < 0 || f.IFRTime < 0 ||
+		f.PICTime < 0 || f.DualTime < 0 || f.SICTime < 0 || f.DualGivenTime < 0 {
+		return ErrNegativeTime
 	}
 
 	// Night time should not exceed total time
@@ -144,9 +169,14 @@ func (f *Flight) ValidateTimeDistribution() error {
 		return ErrInvalidIFRTime
 	}
 
-	// All times must be non-negative
-	if f.TotalTime < 0 || f.NightTime < 0 || f.IFRTime < 0 {
-		return ErrNegativeTime
+	// Pilot function time decomposes total time
+	if f.PICTime+f.SICTime+f.DualTime > f.TotalTime {
+		return ErrInvalidFunctionTime
+	}
+
+	// Instructor time overlays the function time it is flown under
+	if f.DualGivenTime > f.TotalTime {
+		return ErrInvalidDualGivenTime
 	}
 
 	// Landings must be non-negative
@@ -154,6 +184,27 @@ func (f *Flight) ValidateTimeDistribution() error {
 		return ErrNegativeLandings
 	}
 
+	return nil
+}
+
+// validateSessionTimes enforces the FSTD invariants: a session carries a
+// positive duration in SimulatedFlightTime and nothing in any flight-time
+// column (AMC1 FCL.050 — session time is never summed with flight time).
+func (f *Flight) validateSessionTimes() error {
+	if f.FSTDType == nil || *f.FSTDType == "" {
+		return ErrFSTDTypeRequired
+	}
+	if f.SimulatedFlightTime <= 0 {
+		return ErrFSTDSessionTime
+	}
+	if f.TotalTime != 0 || f.PICTime != 0 || f.DualTime != 0 || f.SICTime != 0 ||
+		f.DualGivenTime != 0 || f.MultiPilotTime != 0 || f.SoloTime != 0 ||
+		f.CrossCountryTime != 0 || f.NightTime != 0 || f.IFRTime != 0 {
+		return ErrFSTDFlightTime
+	}
+	if f.SimulatedInstrumentTime > f.SimulatedFlightTime {
+		return ErrInvalidIFRTime
+	}
 	return nil
 }
 
