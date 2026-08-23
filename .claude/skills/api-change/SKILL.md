@@ -9,6 +9,28 @@ description: The OpenAPI-first workflow for this repo. Use whenever adding, remo
 route registration are generated from it. Never hand-write request/response structs or routing
 tables, and never hand-edit `internal/api/generated/`.
 
+## Two rules with no exceptions
+
+**Every route is in the spec.** Not "every REST endpoint", not "every route worth
+documenting" — every route. The frontend and the iOS app both generate their client from this
+file, so a route that is not in it cannot be called by either: the feature ships, the server
+serves it, and no app can reach it. Custom currency rules lived that way for three migrations
+and only the web client could use them, by hand-written code the iOS app never had.
+
+Shape is not an excuse. A browser redirect (`/auth/oidc/authorize`), a file download, an
+endpoint "only the web app uses" — all of them are operations with a method, a path, parameters
+and responses, and all of them belong in the spec. Declare a redirect with its `302` and a
+`Location` header; declare a download with its content type.
+
+**Every route is under `/api/v1`.** Registering on the bare engine puts an endpoint outside
+auth, rate limiting, the request timeout, idempotency and the device context, all of which are
+middleware on the `/api/v1` group. Only `/health` and `/metrics` are outside it, because they
+are operational surfaces for a probe and a scraper rather than client API — they are listed
+with that reason in `scripts/check-routes.py`.
+
+`make route-check` enforces both, and CI runs it. When it fails, the fix is to add the
+operation to the spec — never to add the route to the allow-list.
+
 ## The loop
 
 1. **Edit `api-spec/openapi.yaml`** first — path, schema, parameters, status codes, tag, and
@@ -24,6 +46,16 @@ tables, and never hand-edit `internal/api/generated/`.
    `cd ../ninerlog-frontend && bash scripts/generate-api-client.sh`.
 6. **Tests** — unit tests for the service, e2e coverage in `test/e2e/` for the endpoint.
 7. **Docs** — `docs/API.md` and `docs/FEATURES.md` in the same PR (see the `docs-sync` skill).
+8. **`make route-check`** — confirms the route is declared and correctly mounted.
+
+## Naming schemas
+
+Schema names share one namespace, and a duplicate key does not fail loudly: PyYAML keeps the
+last definition and `oapi-codegen` rejects the file with a line number rather than a name.
+`CurrencyRequirement` was already taken by the regulatory currency response when the custom
+rule schemas arrived, so those became `CustomCurrencyWindow`, `CustomCurrencyFilter` and
+`CustomCurrencyThreshold`. Before adding a schema, grep for the name; prefix it with its
+feature when the bare word is something another feature could plausibly want.
 
 ## Generator gotchas
 
@@ -46,12 +78,14 @@ api := router.Group("/api/v1")
 api.Use(middleware.AuthMiddlewareWithState(jwtManager, /* public path allow-list */, authService.AccessTokenState))
 api.Use(middleware.RateLimitByPath(authRateLimit, /* /auth paths */))
 generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{...})
-handlers.RegisterReportsRoutes(api, apiHandler, db)   // custom, not in the spec
-handlers.RegisterFlightUtilRoutes(api, apiHandler)    // custom, not in the spec
 ```
 
+That single generated call is the whole route table. There are no `handlers.Register*Routes`
+helpers any more, and adding one back is the mistake this skill exists to prevent — a new
+endpoint is a spec entry plus a method on `APIHandler`, never a manual registration.
+
 - Endpoints are **authenticated by default**. A public endpoint must be added to the allow-list
-  passed to `AuthMiddleware` *and* reflected in the spec.
+  passed to `AuthMiddleware` *and* declared `security: []` in the spec.
 - `/auth/*` and `/admin/*` get stricter rate limits; admin endpoints additionally require an
   admin caller (`ADMIN_EMAIL`).
 - JSON field names are `camelCase`. Ownership violations return 403. List endpoints that can

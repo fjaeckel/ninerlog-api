@@ -43,6 +43,20 @@ jobs:
       - name: Check Grafana dashboards against declared metrics
         run: python3 scripts/check-dashboards.py
 
+  routes:
+    name: Route Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # A route registered by hand and never added to the spec is invisible to
+      # every generated client, so the feature exists but no app can reach it.
+      - name: Check registered routes against the OpenAPI spec
+        run: python3 scripts/check-routes.py
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest

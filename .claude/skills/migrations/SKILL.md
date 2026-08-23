@@ -48,3 +48,8 @@ Never edit a migration that has already been merged — add a new one.
   There is no hand-maintained combined schema to keep in sync — a new migration is picked
   up automatically.
 - Update `docs/DATA_MODEL.md` in the same PR.
+- **A new table must be classified for export.** If it accumulates user rows, add it to the
+  backup payload and the restore path; if it does not, exempt it with a stated reason. The
+  classification lives in `internal/service/cloudbackup/coverage_test.go` and the test fails
+  until the table appears in one list or the other — see
+  `.claude/skills/user-data-portability/SKILL.md`.

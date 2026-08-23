@@ -1,6 +1,6 @@
 ---
 name: gate-runner
-description: Runs the pre-commit gate — make fmt, make lint, make test, make migrate-check, and the e2e suite — and reports exactly what failed, verbatim. Use before committing or when you need an honest current state of the build. Does not fix anything.
+description: Runs the pre-commit gate — make fmt, make lint, make test, make route-check, make migrate-check, and the e2e suite — and reports exactly what failed, verbatim. Use before committing or when you need an honest current state of the build. Does not fix anything.
 tools: Bash, Read, Grep, Glob
 model: haiku
 ---
@@ -16,6 +16,7 @@ you would corrupt that, so you never make one.
 make fmt              # go fmt ./...
 make lint             # golangci-lint run
 make test             # unit tests, -short
+make route-check      # every route in the spec and under /api/v1
 make migrate-check    # only if db/migrations/ changed
 ```
 

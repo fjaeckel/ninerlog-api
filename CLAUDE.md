@@ -27,6 +27,7 @@ make test-e2e            # test DB + go test -tags=e2e ./test/e2e/...
 make test-e2e-full       # full Docker stack e2e (scripts/run-e2e-tests.sh)
 make migrate-create NAME=add_foo
 make migrate-check       # duplicate versions / missing up-down pairs
+make route-check         # every registered route is in the spec and under /api/v1
 ```
 
 Details on tiers, build tags, and running a single test: `.claude/skills/testing/SKILL.md`.
@@ -49,14 +50,19 @@ Strict layering: **handler → service → repository → models**.
 
 `/api/v1` sits behind `AuthMiddleware` (JWT, public-path allow-list, per-request session
 state) and `RateLimitByPath`.
-Most routes come from `generated.RegisterHandlersWithOptions`; reports and flight utilities are
-registered manually in `main.go` and are **not** in the OpenAPI spec.
+All routes come from `generated.RegisterHandlersWithOptions` — nothing is registered by hand.
 Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
 
 ## Rules that always apply
 
-1. **OpenAPI-first** — `api-spec/openapi.yaml` is the single source of truth; never hand-edit
-   `internal/api/generated/`. See `.claude/skills/api-change/SKILL.md`.
+1. **OpenAPI-first, and every route is in the spec** — `api-spec/openapi.yaml` is the single
+   source of truth; never hand-edit `internal/api/generated/`. **Every** route is declared
+   there and served under `/api/v1`; there is no such thing as an endpoint registered by hand
+   on a gin group and left out of the spec, whatever its shape — a browser redirect and a
+   JSON API are both operations. A route outside the spec does not exist to the frontend or
+   the iOS app, because both generate their client from it. `make route-check` enforces both
+   halves; only `/health` and `/metrics` sit outside `/api/v1`, listed with their reason in
+   `scripts/check-routes.py`. See `.claude/skills/api-change/SKILL.md`.
 2. **Docs in the same PR** as the behaviour change. See `.claude/skills/docs-sync/SKILL.md`.
 3. **Tests must be green before committing** (`make fmt`, `make lint`, `make test`,
    `bash scripts/run-e2e-tests.sh`). Never weaken or skip a test to hide a regression — file a
@@ -71,16 +77,24 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
    dependency, cache or limiter must ship its metric, `docs/METRICS.md` row, Grafana panel
    and (where a human should act) an alert rule — see
    `.claude/skills/metrics-dashboards/SKILL.md`.
-6. Conventional Commits (`feat(flights): …`); branch from `main`.
-7. **Comments state the what, never the why** — rationale lives in commit messages and
+6. **Everything a user owns is in the export and the import.** A table that accumulates user
+   rows ships in the `GET /exports/json` payload and is restored by `POST /imports/json` in
+   the same PR that adds it — a pilot must be able to take their logbook to another
+   installation and get all of it back. One definition of the payload
+   (`cloudbackup.Payload`) serves the manual export and cloud backup runs alike; the
+   classification test in `internal/service/cloudbackup/coverage_test.go` fails on any new
+   table until it is either exported or exempted with a stated reason. See
+   `.claude/skills/user-data-portability/SKILL.md`.
+7. Conventional Commits (`feat(flights): …`); branch from `main`.
+8. **Comments state the what, never the why** — rationale lives in commit messages and
    `docs/`. See `.claude/skills/terse-comments/SKILL.md`.
-8. **Sessions follow `docs/SESSION_CONTRACT.md`** — a binding cross-repo contract with
+9. **Sessions follow `docs/SESSION_CONTRACT.md`** — a binding cross-repo contract with
    `ninerlog-frontend`. Concurrent sessions per user, rotation with a reuse grace, and *only*
    a 401 meaning "signed out". Read it before touching login, refresh, token lifetimes,
    `refresh_tokens`, or anything under `/auth/*`, and change it in the same PR as any
    behaviour it describes. Never reintroduce single-active-session (a login deleting another
    device's tokens).
-9. **Security findings are never committed or pushed** — no audit reports, vulnerability
+10. **Security findings are never committed or pushed** — no audit reports, vulnerability
    write-ups, exploit fixtures, or commit/PR text describing an unfixed weakness. Write them to
    the gitignored `security-audits/` and report privately (`SECURITY.md`, or a GitHub Security
    Advisory). Fixes get pushed; findings do not. See `.claude/skills/security-audit/SKILL.md`.

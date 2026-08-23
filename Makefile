@@ -1,4 +1,4 @@
-.PHONY: help generate test test-short test-integration test-e2e verify-multi-replica coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check prefix-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
+.PHONY: help generate test test-short test-integration test-e2e verify-multi-replica coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check route-check prefix-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
 
 # Default target
 .DEFAULT_GOAL := help
@@ -110,6 +110,9 @@ migrate-check: ## Verify migrations have no duplicate versions or missing up/dow
 
 dashboard-check: ## Verify Grafana dashboards and declared metrics match in both directions
 	@python3 scripts/check-dashboards.py
+
+route-check: ## Verify every registered route is in the OpenAPI spec and under /api/v1
+	@python3 scripts/check-routes.py
 
 prefix-check: ## Compare the vendored aircraft nationality mark table against upstream (override with SOURCE=<url>)
 	@python3 scripts/check-registration-prefixes.py --url "$(SOURCE)"

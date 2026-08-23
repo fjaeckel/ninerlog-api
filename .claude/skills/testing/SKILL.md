@@ -57,8 +57,12 @@ Do not test third-party libraries or generated code (`internal/api/generated/`).
 make fmt
 make lint
 make test
+make route-check
 bash scripts/run-e2e-tests.sh
 ```
+
+Add `make migrate-check` when `db/migrations/` changed and `make dashboard-check` when a metric
+or dashboard did.
 
 All must be green. If you find a regression, **do not** work around it in the test — fix it, or
 file a GitHub issue documenting it. Never mark work complete without a green run.
