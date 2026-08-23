@@ -7,13 +7,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/google/uuid"
 )
 
@@ -36,6 +39,12 @@ type DefaultJSONBuilder struct {
 	Licenses    *service.LicenseService
 	Credentials *service.CredentialService
 	ClassRating *service.ClassRatingService
+	// Contacts, CustomCurrency and Notifications back the payload sections of
+	// the same name. A nil service omits its section rather than failing the
+	// backup.
+	Contacts       *service.ContactService
+	CustomCurrency *currency.CustomService
+	Notifications  *service.NotificationService
 	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
 	AttachCrew func(ctx context.Context, flights []*models.Flight)
@@ -51,31 +60,25 @@ type DefaultJSONBuilder struct {
 	Now func() time.Time
 }
 
-type licenseWithRatings struct {
-	License      *models.License       `json:"license"`
-	ClassRatings []*models.ClassRating `json:"classRatings"`
-}
-
-// payload is the wire layout of one backup. Field order matches the legacy
-// ExportDataJSON output.
-type payload struct {
-	ExportedAt  string               `json:"exportedAt"`
-	Version     string               `json:"version"`
-	Format      string               `json:"format"`
-	Flights     []*models.Flight     `json:"flights"`
-	Aircraft    []*models.Aircraft   `json:"aircraft"`
-	Licenses    []licenseWithRatings `json:"licenses"`
-	Credentials []*models.Credential `json:"credentials"`
-}
-
 // BuildJSON gathers the user's data, serialises it to gzipped JSON, and
 // returns a reader along with metadata for the BackupRun audit log.
 func (b *DefaultJSONBuilder) BuildJSON(ctx context.Context, userID uuid.UUID) (io.ReadCloser, BuildMetadata, error) {
+	p, err := b.Gather(ctx, userID)
+	if err != nil {
+		return nil, BuildMetadata{}, err
+	}
+	return serialisePayload(p)
+}
+
+// Gather collects every section of a user's backup in canonical order. It is
+// the single definition of what a backup contains: GET /exports/json writes
+// the result directly, a cloud backup run gzips it.
+func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payload, error) {
 	now := b.now()
 
 	flights, err := b.Flights.ListFlights(ctx, userID, nil)
 	if err != nil {
-		return nil, BuildMetadata{}, fmt.Errorf("list flights: %w", err)
+		return Payload{}, fmt.Errorf("list flights: %w", err)
 	}
 	if b.AttachCrew != nil {
 		b.AttachCrew(ctx, flights)
@@ -88,7 +91,7 @@ func (b *DefaultJSONBuilder) BuildJSON(ctx context.Context, userID uuid.UUID) (i
 
 	aircraft, err := b.Aircraft.ListAircraft(ctx, userID)
 	if err != nil {
-		return nil, BuildMetadata{}, fmt.Errorf("list aircraft: %w", err)
+		return Payload{}, fmt.Errorf("list aircraft: %w", err)
 	}
 	sort.SliceStable(aircraft, func(i, j int) bool {
 		return aircraft[i].Registration < aircraft[j].Registration
@@ -96,22 +99,22 @@ func (b *DefaultJSONBuilder) BuildJSON(ctx context.Context, userID uuid.UUID) (i
 
 	licenses, err := b.Licenses.ListLicenses(ctx, userID)
 	if err != nil {
-		return nil, BuildMetadata{}, fmt.Errorf("list licenses: %w", err)
+		return Payload{}, fmt.Errorf("list licenses: %w", err)
 	}
 	sort.SliceStable(licenses, func(i, j int) bool {
 		return licenses[i].ID.String() < licenses[j].ID.String()
 	})
 
-	licensesWithRatings := make([]licenseWithRatings, 0, len(licenses))
+	licensesWithRatings := make([]LicenseWithRatings, 0, len(licenses))
 	for _, lic := range licenses {
 		ratings, rerr := b.ClassRating.ListClassRatings(ctx, lic.ID, userID)
 		if rerr != nil {
-			return nil, BuildMetadata{}, fmt.Errorf("list class ratings: %w", rerr)
+			return Payload{}, fmt.Errorf("list class ratings: %w", rerr)
 		}
 		sort.SliceStable(ratings, func(i, j int) bool {
 			return ratings[i].ID.String() < ratings[j].ID.String()
 		})
-		licensesWithRatings = append(licensesWithRatings, licenseWithRatings{
+		licensesWithRatings = append(licensesWithRatings, LicenseWithRatings{
 			License:      lic,
 			ClassRatings: ratings,
 		})
@@ -119,37 +122,103 @@ func (b *DefaultJSONBuilder) BuildJSON(ctx context.Context, userID uuid.UUID) (i
 
 	credentials, err := b.Credentials.ListCredentials(ctx, userID)
 	if err != nil {
-		return nil, BuildMetadata{}, fmt.Errorf("list credentials: %w", err)
+		return Payload{}, fmt.Errorf("list credentials: %w", err)
 	}
 	sort.SliceStable(credentials, func(i, j int) bool {
 		return credentials[i].ID.String() < credentials[j].ID.String()
 	})
 
-	return buildPayload(now, b.versionOrDefault(), b.formatOrDefault(), flights, aircraft, licensesWithRatings, credentials, len(licenses))
-}
-
-// buildPayload serialises the gathered data into the canonical gzipped JSON
-// shape and returns both the reader and the audit metadata.
-func buildPayload(
-	now time.Time,
-	version string,
-	format string,
-	flights []*models.Flight,
-	aircraft []*models.Aircraft,
-	licenses []licenseWithRatings,
-	credentials []*models.Credential,
-	licenseCount int,
-) (io.ReadCloser, BuildMetadata, error) {
-	p := payload{
-		ExportedAt:  now.Format(time.RFC3339),
-		Version:     version,
-		Format:      format,
-		Flights:     flights,
-		Aircraft:    aircraft,
-		Licenses:    licenses,
-		Credentials: credentials,
+	contacts, err := b.gatherContacts(ctx, userID)
+	if err != nil {
+		return Payload{}, err
 	}
 
+	rules, err := b.gatherCustomCurrencyRules(ctx, userID)
+	if err != nil {
+		return Payload{}, err
+	}
+
+	prefs, err := b.gatherNotificationPreferences(ctx, userID)
+	if err != nil {
+		return Payload{}, err
+	}
+
+	return Payload{
+		ExportedAt:              now.Format(time.RFC3339),
+		Version:                 b.versionOrDefault(),
+		Format:                  b.formatOrDefault(),
+		Flights:                 flights,
+		Aircraft:                aircraft,
+		Licenses:                licensesWithRatings,
+		Credentials:             credentials,
+		Contacts:                contacts,
+		CustomCurrencyRules:     rules,
+		NotificationPreferences: prefs,
+		FlightBaseline:          NewFlightBaseline(b.gatherBaseline(ctx, userID)),
+	}, nil
+}
+
+// gatherContacts returns the user's address book, sorted by id.
+func (b *DefaultJSONBuilder) gatherContacts(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error) {
+	if b.Contacts == nil {
+		return nil, nil
+	}
+	contacts, err := b.Contacts.ListContacts(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list contacts: %w", err)
+	}
+	sort.SliceStable(contacts, func(i, j int) bool {
+		return contacts[i].ID.String() < contacts[j].ID.String()
+	})
+	return contacts, nil
+}
+
+// gatherCustomCurrencyRules returns the portable half of each rule, sorted by
+// name so the fingerprint is stable.
+func (b *DefaultJSONBuilder) gatherCustomCurrencyRules(ctx context.Context, userID uuid.UUID) ([]CustomCurrencyRule, error) {
+	if b.CustomCurrency == nil {
+		return nil, nil
+	}
+	stored, err := b.CustomCurrency.List(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list custom currency rules: %w", err)
+	}
+	rules := make([]CustomCurrencyRule, 0, len(stored))
+	for _, s := range stored {
+		rules = append(rules, NewCustomCurrencyRule(s.Rule))
+	}
+	sort.SliceStable(rules, func(i, j int) bool { return rules[i].Name < rules[j].Name })
+	return rules, nil
+}
+
+// gatherNotificationPreferences returns the user's notification settings.
+func (b *DefaultJSONBuilder) gatherNotificationPreferences(ctx context.Context, userID uuid.UUID) (*NotificationPreferences, error) {
+	if b.Notifications == nil {
+		return nil, nil
+	}
+	prefs, err := b.Notifications.GetPreferences(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get notification preferences: %w", err)
+	}
+	return NewNotificationPreferences(prefs), nil
+}
+
+// gatherBaseline returns the user's carried-forward hours snapshot, or nil if
+// they have none. A missing baseline is the normal case, not an error.
+func (b *DefaultJSONBuilder) gatherBaseline(ctx context.Context, userID uuid.UUID) *models.FlightBaseline {
+	baseline, err := b.Flights.GetBaseline(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	return baseline
+}
+
+// serialisePayload writes the gathered data as gzipped JSON and returns both
+// the reader and the audit metadata.
+func serialisePayload(p Payload) (io.ReadCloser, BuildMetadata, error) {
 	// Fingerprint excludes exportedAt.
 	fp := p
 	fp.ExportedAt = ""
@@ -178,13 +247,17 @@ func buildPayload(
 		return nil, BuildMetadata{}, fmt.Errorf("gzip close: %w", err)
 	}
 
+	now, err := time.Parse(time.RFC3339, p.ExportedAt)
+	if err != nil {
+		return nil, BuildMetadata{}, fmt.Errorf("parse exportedAt: %w", err)
+	}
 	meta := BuildMetadata{
 		SHA256:          hexSum,
 		SizeBytes:       int64(gzBuf.Len()),
-		FlightCount:     len(flights),
-		AircraftCount:   len(aircraft),
-		LicenseCount:    licenseCount,
-		CredentialCount: len(credentials),
+		FlightCount:     len(p.Flights),
+		AircraftCount:   len(p.Aircraft),
+		LicenseCount:    len(p.Licenses),
+		CredentialCount: len(p.Credentials),
 		ContentType:     "application/gzip",
 		Filename:        fmt.Sprintf("ninerlog-backup-%s.json.gz", now.UTC().Format("2006-01-02T15-04-05Z")),
 	}

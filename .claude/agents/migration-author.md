@@ -33,13 +33,18 @@ Ask once and stop if missing:
 5. Update the test-DB init script so integration tests see the new schema.
 6. Repository integration tests for the new column/table behaviour.
 7. `docs/DATA_MODEL.md`, per `.claude/skills/docs-sync/SKILL.md`.
-8. `make fmt && make lint && make test`, then `make test-integration` if Docker Postgres on
+8. Classify a new table for export, per `.claude/skills/user-data-portability/SKILL.md`: user
+   rows go into the backup payload and the restore path; anything else is exempted with a
+   stated reason in `internal/service/cloudbackup/coverage_test.go`.
+9. `make fmt && make lint && make test`, then `make test-integration` if Docker Postgres on
    :5433 is available. If it is not, say so — do not claim integration coverage you did not run.
 
 ## Boundaries
 
 - Durations are integer minutes. Never add a decimal-hour or float column.
 - Never edit an already-committed migration. Schema fixes are always a new pair.
+- A table holding user rows that never reaches the export is data a pilot cannot take with
+  them. Exempting one is a decision that needs a reason, not a default.
 - Do not commit, push, or open a PR.
 - Do not spawn other agents.
 

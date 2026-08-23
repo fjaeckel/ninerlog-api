@@ -37,11 +37,14 @@ If the caller has not given you all of these, ask once and stop — do not inven
    Cover the happy path, each validation failure, and the ownership-denied case.
 7. Docs, per `.claude/skills/docs-sync/SKILL.md` — at minimum `docs/API.md`, plus `docs/DOMAIN.md`
    if you introduced a rule and `docs/FEATURES.md` if this is user-visible.
-8. `make fmt && make lint && make test` until green.
+8. `make fmt && make lint && make test && make route-check` until green.
 
 ## Boundaries
 
 - Durations are integer minutes everywhere. Never add a float duration field.
+- Every route goes in `api-spec/openapi.yaml` and under `/api/v1`. Never register a route by
+  hand on a gin group — not for a redirect, not for a download, not for an endpoint only one
+  client uses. `make route-check` will reject it.
 - If the spec you were given conflicts with an existing domain invariant, stop and report the
   conflict rather than picking a side.
 - Do not weaken, skip, or delete an existing test to get green. If one fails for a reason

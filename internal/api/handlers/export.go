@@ -12,6 +12,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/gin-gonic/gin"
@@ -392,6 +393,24 @@ func fmtHM(v int) string {
 }
 
 // ExportDataJSON implements GET /exports/json
+// BackupPayloadBuilder composes the services that make up a backup payload.
+// GET /exports/json and every cloud backup run share it, so the two can never
+// carry different sets of a user's data.
+func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
+	return &cloudbackup.DefaultJSONBuilder{
+		Flights:        h.flightService,
+		Aircraft:       h.aircraftService,
+		Licenses:       h.licenseService,
+		Credentials:    h.credentialService,
+		ClassRating:    h.classRatingService,
+		Contacts:       h.contactService,
+		CustomCurrency: h.customCurrencyService,
+		Notifications:  h.notificationService,
+		AttachCrew:     h.AttachCrewMembers,
+	}
+}
+
+// ExportDataJSON implements GET /exports/json.
 func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
@@ -399,40 +418,11 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 		return
 	}
 
-	// Gather all user data.
-	flights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
-	h.attachCrewMembers(c.Request.Context(), flights)
-	sortFlightsChronological(flights)
-	aircraft, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
-	licenses, _ := h.licenseService.ListLicenses(c.Request.Context(), userID)
-	credentials, _ := h.credentialService.ListCredentials(c.Request.Context(), userID)
-
-	// Class ratings per license.
-	type licenseWithRatings struct {
-		License      interface{}   `json:"license"`
-		ClassRatings []interface{} `json:"classRatings"`
-	}
-	var licensesWithRatings []licenseWithRatings
-	for _, lic := range licenses {
-		ratings, _ := h.classRatingService.ListClassRatings(c.Request.Context(), lic.ID, userID)
-		var ratingInterfaces []interface{}
-		for _, r := range ratings {
-			ratingInterfaces = append(ratingInterfaces, r)
-		}
-		licensesWithRatings = append(licensesWithRatings, licenseWithRatings{
-			License:      lic,
-			ClassRatings: ratingInterfaces,
-		})
-	}
-
-	backup := map[string]interface{}{
-		"exportedAt":  time.Now().UTC().Format(time.RFC3339),
-		"version":     "1.0",
-		"format":      "NinerLog JSON Backup",
-		"flights":     flights,
-		"aircraft":    aircraft,
-		"licenses":    licensesWithRatings,
-		"credentials": credentials,
+	backup, err := h.BackupPayloadBuilder().Gather(c.Request.Context(), userID)
+	if err != nil {
+		slog.Error("json export gather error", "error", err)
+		h.sendError(c, http.StatusInternalServerError, "Failed to build export")
+		return
 	}
 
 	c.Header("Content-Type", "application/json")

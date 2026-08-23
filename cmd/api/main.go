@@ -258,7 +258,6 @@ func main() {
 	customCurrencyRepo := postgres.NewCustomCurrencyRuleRepository(db)
 	customCurrencyEvaluator := currency.NewCustomEvaluator(postgres.NewCustomCurrencyDataProvider(db))
 	customCurrencyService := currency.NewCustomService(customCurrencyRepo, customCurrencyEvaluator)
-	customCurrencyHandler := handlers.NewCustomCurrencyHandler(customCurrencyService)
 
 	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService, customCurrencyService)
 
@@ -340,6 +339,7 @@ func main() {
 
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetOIDCService(oidcService)
+	apiHandler.SetCustomCurrencyService(customCurrencyService)
 	// Repositories the handler uses directly (admin console, reports, import
 	// history, announcements, bulk wipes) — no raw *sql.DB reaches a handler.
 	apiHandler.SetAdminRepository(postgres.NewAdminRepository(db))
@@ -383,14 +383,9 @@ func main() {
 		registry.Register(s3.New())
 		registry.Register(sftp.New())
 		registry.Register(webdav.New())
-		builder := &cloudbackup.DefaultJSONBuilder{
-			Flights:     flightService,
-			Aircraft:    aircraftService,
-			Licenses:    licenseService,
-			Credentials: credentialService,
-			ClassRating: classRatingService,
-			AttachCrew:  apiHandler.AttachCrewMembers,
-		}
+		// Same builder as GET /exports/json, so a cloud backup and a manual
+		// export always carry the same sections.
+		builder := apiHandler.BackupPayloadBuilder()
 		backupSvc, err := cloudbackup.New(cloudbackup.Options{
 			DestinationRepo: backupDestRepo,
 			RunRepo:         backupRunRepo,
@@ -658,16 +653,6 @@ func main() {
 			c.JSON(statusCode, gin.H{"error": "Invalid request parameters"})
 		},
 	})
-
-	// Register flight utility routes
-	handlers.RegisterFlightUtilRoutes(api, apiHandler)
-
-	// Register custom currency rule routes (not in OpenAPI spec)
-	handlers.RegisterCustomCurrencyRoutes(api, customCurrencyHandler)
-
-	// OIDC authorize/callback browser redirects, registered manually and
-	// unconditionally; they answer 503 when OIDC is off.
-	handlers.RegisterOIDCRoutes(api, apiHandler)
 
 	slog.Info("Routes registered from OpenAPI specification")
 

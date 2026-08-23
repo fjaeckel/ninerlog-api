@@ -5,14 +5,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/gin-gonic/gin"
 )
 
-// TestRegisterCustomCurrencyRoutes asserts the route tree (mixing param
-// segment ":id" with static siblings "preview"/"shared") registers without a
-// panic, and that an unauthenticated request is rejected.
-func TestRegisterCustomCurrencyRoutes(t *testing.T) {
+// TestCustomCurrencyRouteTree asserts the generated route tree (mixing the
+// param segment "{ruleId}" with static siblings "preview"/"shared") registers
+// without a panic, and that an unauthenticated request is rejected.
+func TestCustomCurrencyRouteTree(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	defer func() {
@@ -21,12 +22,12 @@ func TestRegisterCustomCurrencyRoutes(t *testing.T) {
 		}
 	}()
 
-	h := NewCustomCurrencyHandler(&currency.CustomService{})
+	h := &APIHandler{customCurrencyService: &currency.CustomService{}}
 	router := gin.New()
 	api := router.Group("/api/v1")
-	RegisterCustomCurrencyRoutes(api, h)
+	generated.RegisterHandlers(api, h)
 
-	// No userID in context -> handler must respond 401 before touching the service.
+	// No userID in context and no bearer token -> 401 before touching the service.
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/custom-currency", nil)
 	router.ServeHTTP(w, req)

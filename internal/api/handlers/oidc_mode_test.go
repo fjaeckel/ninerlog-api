@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
@@ -294,8 +295,8 @@ func TestOIDCEndpointsReport503WhenNotConfigured(t *testing.T) {
 		name   string
 		invoke func(*gin.Context)
 	}{
-		{"authorize", h.OIDCAuthorize},
-		{"callback", h.OIDCCallback},
+		{"authorize", func(c *gin.Context) { h.AuthorizeOidc(c, generated.AuthorizeOidcParams{}) }},
+		{"callback", func(c *gin.Context) { h.OidcCallback(c, generated.OidcCallbackParams{}) }},
 		{"exchange", h.ExchangeOidcCode},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

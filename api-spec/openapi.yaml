@@ -68,6 +68,10 @@ tags:
     description: Hour totals and analytics
   - name: Currency
     description: Currency status checks
+  - name: Custom Currency
+    description: >-
+      User-authored currency rules — a declarative window/filters/requirements
+      document evaluated against the user's flights, with opt-in sharing by token
   - name: Credentials
     description: Medicals, language proficiency, and security clearances
   - name: Maps
@@ -119,6 +123,109 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthProviders'
+
+  /auth/oidc/authorize:
+    get:
+      tags:
+        - Authentication
+      summary: Start an OIDC login (browser redirect)
+      description: |
+        A browser redirect endpoint, not a JSON API: open it in a system browser
+        or web-auth session rather than calling it from a generated client. It
+        mints the state, nonce and PKCE verifier, plants a short-lived
+        browser-binding cookie, and answers `302` to the provider's
+        authorization URL.
+
+        `native=1` finishes the login at the native redirect URI instead of the
+        web frontend; both URLs are advertised by `GET /auth/providers`.
+      operationId: authorizeOidc
+      security: []
+      parameters:
+        - name: native
+          in: query
+          required: false
+          description: >-
+            Finish the login at the app's native redirect URI. Any affirmative
+            value (`1`, `true`, `yes`) selects native mode.
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the identity provider
+          headers:
+            Location:
+              description: The provider's authorization URL
+              schema:
+                type: string
+            Set-Cookie:
+              description: Short-lived browser-binding cookie for this login attempt
+              schema:
+                type: string
+        '500':
+          description: The login could not be started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: OIDC is not configured on this server, or the provider is unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/oidc/callback:
+    get:
+      tags:
+        - Authentication
+      summary: OIDC provider redirect target (browser redirect)
+      description: |
+        Where the identity provider sends the browser back. A browser redirect
+        endpoint, not a JSON API — clients never call it directly.
+
+        On success it redirects to the frontend (or the native redirect URI)
+        with a single-use `oidc_code` parameter to be posted to
+        `/auth/oidc/exchange`. Every failure also ends in a redirect, carrying
+        an `oidc_error` code instead — consent denied, an invalid or expired
+        state, a missing email claim, an email already held by a local account,
+        or a disabled account.
+      operationId: oidcCallback
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          description: Authorization code issued by the provider
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          description: Opaque state minted by /auth/oidc/authorize
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          description: Error code reported by the provider (for example `access_denied`)
+          schema:
+            type: string
+      responses:
+        '302':
+          description: >-
+            Redirect back to the frontend or native redirect URI, carrying
+            either `oidc_code` or `oidc_error`
+          headers:
+            Location:
+              description: Frontend or native redirect URI
+              schema:
+                type: string
+        '503':
+          description: OIDC is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/oidc/exchange:
     post:
@@ -1686,6 +1793,317 @@ paths:
                 $ref: '#/components/schemas/CurrencyStatusResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /custom-currency:
+    get:
+      tags: [Custom Currency]
+      summary: List the caller's custom currency rules
+      description: |
+        Returns every rule the caller owns, each bundled with its current
+        evaluation. Disabled rules are listed but evaluated as `unknown`.
+      operationId: listCustomCurrencyRules
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's rules, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomCurrencyRuleWithStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Custom Currency]
+      summary: Create a custom currency rule
+      description: |
+        Creates a rule owned by the caller and returns it with a first
+        evaluation. An account may hold at most 200 rules.
+      operationId: createCustomCurrencyRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomCurrencyRuleInput'
+      responses:
+        '201':
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyRuleWithStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /custom-currency/preview:
+    post:
+      tags: [Custom Currency]
+      summary: Evaluate an unsaved rule definition
+      description: |
+        Evaluates a definition against the caller's flights without storing it,
+        so a rule can be tried out while it is being written. Subject to the
+        `expensive` rate limit (15/min).
+      operationId: previewCustomCurrencyRule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomCurrencyPreviewRequest'
+      responses:
+        '200':
+          description: Evaluation of the submitted definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyEvaluation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /custom-currency/shared/{shareToken}:
+    get:
+      tags: [Custom Currency]
+      summary: Read a shared rule by its share token
+      description: |
+        Returns the read-only projection of a rule whose owner has enabled
+        sharing. Owner identity is omitted. Requires authentication, but the
+        caller need not own the rule.
+      operationId: getSharedCustomCurrencyRule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyShareToken'
+      responses:
+        '200':
+          description: The shared rule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedCustomCurrencyRule'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /custom-currency/shared/{shareToken}/import:
+    post:
+      tags: [Custom Currency]
+      summary: Import a shared rule into the caller's account
+      description: |
+        Copies a shared rule into the caller's own rules. The copy records the
+        source rule in `importedFrom` and is not itself shared.
+      operationId: importSharedCustomCurrencyRule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyShareToken'
+      responses:
+        '201':
+          description: The imported copy, with its first evaluation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyRuleWithStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /custom-currency/{ruleId}:
+    get:
+      tags: [Custom Currency]
+      summary: Get one custom currency rule
+      operationId: getCustomCurrencyRule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyRuleId'
+      responses:
+        '200':
+          description: The rule and its current evaluation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyRuleWithStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Custom Currency]
+      summary: Replace a custom currency rule
+      description: Replaces the rule's metadata and definition; sharing state is untouched.
+      operationId: updateCustomCurrencyRule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyRuleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomCurrencyRuleInput'
+      responses:
+        '200':
+          description: The updated rule and its re-evaluation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyRuleWithStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Custom Currency]
+      summary: Delete a custom currency rule
+      description: |
+        Deletes the rule permanently. Copies other users imported from it are
+        kept; their `importedFrom` is cleared.
+      operationId: deleteCustomCurrencyRule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyRuleId'
+      responses:
+        '204':
+          description: Rule deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /custom-currency/{ruleId}/share:
+    post:
+      tags: [Custom Currency]
+      summary: Enable sharing for a rule
+      description: |
+        Turns on sharing and mints a share token if the rule does not have one.
+        The token is stable across disable/enable cycles.
+      operationId: enableCustomCurrencyRuleShare
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyRuleId'
+      responses:
+        '200':
+          description: The rule, now carrying a share token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Custom Currency]
+      summary: Disable sharing for a rule
+      description: Stops serving the rule at its share token. Existing imports are unaffected.
+      operationId: disableCustomCurrencyRuleShare
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyRuleId'
+      responses:
+        '200':
+          description: The rule, no longer shared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /custom-currency/{ruleId}/enabled:
+    put:
+      tags: [Custom Currency]
+      summary: Pause or resume a rule
+      description: |
+        A disabled rule is kept and listed but not evaluated and not surfaced as
+        active currency.
+      operationId: setCustomCurrencyRuleEnabled
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyRuleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomCurrencyEnabledRequest'
+      responses:
+        '200':
+          description: The rule and its evaluation after the change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyRuleWithStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /custom-currency/{ruleId}/notify:
+    put:
+      tags: [Custom Currency]
+      summary: Opt a rule in or out of expiry notifications
+      description: |
+        Per-rule opt-in. Mail is only sent when the rule is enabled and the user
+        has email notifications switched on.
+      operationId: setCustomCurrencyRuleNotify
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomCurrencyRuleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomCurrencyNotifyRequest'
+      responses:
+        '200':
+          description: The rule and its evaluation after the change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCurrencyRuleWithStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /licenses/{licenseId}/ratings:
     get:
@@ -3304,7 +3722,14 @@ paths:
     get:
       tags: [Export]
       summary: Export full data backup as JSON
-      description: Export all user data (flights, aircraft, licenses, class ratings, credentials) as a JSON backup file
+      description: |
+        Exports everything the user owns as a JSON backup file: flights (with
+        crew), aircraft, licences and class ratings, credentials, contacts,
+        custom currency rules, notification preferences and the carried-forward
+        hours baseline.
+
+        This is the same payload a cloud backup run writes, and
+        `POST /imports/json` restores every section of it.
       operationId: exportDataJSON
       security:
         - bearerAuth: []
@@ -3324,14 +3749,23 @@ paths:
       summary: Restore a NinerLog JSON backup
       description: |
         Restore a previously exported NinerLog JSON backup into the authenticated
-        user's account. Recreates aircraft, licenses, class ratings, credentials,
-        flights and crew members from the backup. New UUIDs are assigned so the
-        backup can be restored into any NinerLog installation (including the one
-        it was exported from).
+        user's account. Recreates every section the backup carries: aircraft,
+        licences, class ratings, credentials, flights and crew members,
+        contacts, custom currency rules, notification preferences and the
+        carried-forward hours baseline. New UUIDs are assigned so the backup can
+        be restored into any NinerLog installation (including the one it was
+        exported from).
 
         This is an additive operation — it does not modify or delete existing
-        data. Aircraft whose registration already exists for the user are
-        skipped (and the existing aircraft is referenced by imported flights).
+        data, with two exceptions that are single-row settings rather than
+        collections: notification preferences and the flight baseline replace
+        whatever the account currently has.
+
+        Aircraft whose registration already exists for the user are skipped (and
+        the existing aircraft is referenced by imported flights); contacts whose
+        name the account already holds are skipped the same way. Custom currency
+        rules are revalidated on restore and count against the per-account
+        limit; a rule's sharing state is never carried over.
       operationId: importDataJSON
       security:
         - bearerAuth: []
@@ -3368,6 +3802,18 @@ paths:
                   type: array
                   items:
                     type: object
+                contacts:
+                  type: array
+                  items:
+                    type: object
+                customCurrencyRules:
+                  type: array
+                  items:
+                    type: object
+                notificationPreferences:
+                  type: object
+                flightBaseline:
+                  type: object
       responses:
         '200':
           description: Restore summary with per-entity counts
@@ -5184,6 +5630,25 @@ components:
         type: string
         format: date-time
         example: '2026-08-05T10:08:45.123456Z'
+
+    CustomCurrencyRuleId:
+      name: ruleId
+      in: path
+      required: true
+      description: Custom currency rule UUID
+      schema:
+        type: string
+        format: uuid
+        example: 880e8400-e29b-41d4-a716-446655440003
+
+    CustomCurrencyShareToken:
+      name: shareToken
+      in: path
+      required: true
+      description: Opaque share token minted when sharing was enabled for a rule
+      schema:
+        type: string
+        maxLength: 64
 
   schemas:
     User:
@@ -8057,6 +8522,7 @@ components:
         - current
         - required
         - unit
+        - message
       properties:
         name:
           type: string
@@ -8662,7 +9128,12 @@ components:
         - credentialsImported
         - flightsImported
         - crewMembersImported
+        - contactsImported
+        - contactsSkipped
         - contactsCreated
+        - customCurrencyRulesImported
+        - notificationPreferencesImported
+        - flightBaselineImported
       properties:
         aircraftImported:
           type: integer
@@ -8687,14 +9158,34 @@ components:
         crewMembersImported:
           type: integer
           example: 11
+        contactsImported:
+          type: integer
+          description: Contacts restored from the backup's own contacts section
+          example: 12
+        contactsSkipped:
+          type: integer
+          description: Contacts skipped because this account already holds that name
+          example: 2
         contactsCreated:
           type: integer
           description: >-
             Contacts created because a crew name in the backup matched none of
-            this account's contacts. Contacts are not carried in the backup
-            format, so a restore into an empty account creates one per distinct
-            crew name.
+            this account's contacts — counted after the backup's own contacts
+            have been restored, so it covers only crew names with no contact
+            record of their own.
           example: 5
+        customCurrencyRulesImported:
+          type: integer
+          description: >-
+            User-authored currency rules restored. Sharing state is never
+            carried over: a restored rule is private until shared again.
+          example: 3
+        notificationPreferencesImported:
+          type: boolean
+          description: Whether the backup carried notification preferences that were applied
+        flightBaselineImported:
+          type: boolean
+          description: Whether the backup carried a carried-forward hours baseline that was applied
 
     PaginatedImports:
       type: object
@@ -10439,6 +10930,318 @@ components:
         distanceNm:
           type: number
           format: double
+
+    CustomCurrencyWindow:
+      type: object
+      description: >-
+        Rolling lookback anchored at the moment of evaluation: only flights on
+        or after (now − amount × unit) count.
+      required:
+        - amount
+        - unit
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          example: 90
+        unit:
+          type: string
+          enum: [days, weeks, months, years]
+          example: days
+
+    CustomCurrencyFilter:
+      type: object
+      description: |
+        Narrows the set of flights a rule counts. `op` determines how
+        `value`/`values` are read: `eq` matches one value, `in` matches any of
+        `values`, and `is_true` tests a boolean or derived field and ignores
+        both. Filters combine with logical AND.
+      required:
+        - field
+        - op
+      properties:
+        field:
+          type: string
+          enum:
+            - aircraft_class
+            - aircraft_type
+            - aircraft_registration
+            - launch_method
+            - aircraft_complex
+            - aircraft_high_performance
+            - aircraft_tailwheel
+            - is_pic
+            - is_dual
+            - has_night
+            - has_ifr
+            - is_cross_country
+          example: aircraft_class
+        op:
+          type: string
+          enum: [eq, in, is_true]
+          example: eq
+        value:
+          type: string
+          maxLength: 100
+          description: The value to match when `op` is `eq`
+          example: SEP_LAND
+        values:
+          type: array
+          maxItems: 50
+          description: The values to match when `op` is `in`
+          items:
+            type: string
+            maxLength: 100
+
+    CustomCurrencyThreshold:
+      type: object
+      description: >-
+        A single "at least N" threshold on an aggregated metric over the
+        filtered, windowed flight set. Requirements combine with logical AND.
+      required:
+        - metric
+        - min
+      properties:
+        metric:
+          type: string
+          description: |
+            Time metrics (`unit` applies): `total_time`, `pic_time`,
+            `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
+            Count metrics (`unit` ignored): `flights`, `landings`,
+            `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
+            `night_takeoffs`, `approaches`, `holds`.
+          enum:
+            - total_time
+            - pic_time
+            - dual_time
+            - night_time
+            - ifr_time
+            - cross_country_time
+            - flights
+            - landings
+            - day_landings
+            - night_landings
+            - takeoffs
+            - day_takeoffs
+            - night_takeoffs
+            - approaches
+            - holds
+          example: landings
+        min:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+          description: The threshold the metric must reach
+          example: 3
+        unit:
+          type: string
+          enum: [hours, minutes]
+          description: >-
+            How `min` is expressed, for time metrics only. Defaults to hours.
+            Rejected on count metrics.
+        label:
+          type: string
+          maxLength: 80
+          description: Optional display label for this requirement
+          example: 3 landings in 90 days
+
+    CustomCurrencyRuleBody:
+      type: object
+      description: >-
+        The declarative rule document: a lookback window, filters selecting
+        which flights count, and requirements measured against the aggregated
+        flight metrics.
+      required:
+        - window
+        - requirements
+      properties:
+        window:
+          $ref: '#/components/schemas/CustomCurrencyWindow'
+        filters:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/CustomCurrencyFilter'
+        requirements:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/CustomCurrencyThreshold'
+
+    CustomCurrencyRule:
+      type: object
+      description: >-
+        A stored, user-authored currency definition. Rules are private by
+        default; enabling sharing exposes a read-only copy at a share token that
+        other users can import.
+      required:
+        - id
+        - userId
+        - name
+        - definition
+        - enabled
+        - notify
+        - isShared
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 120
+          example: Night landings
+        description:
+          type: string
+          maxLength: 2000
+        emoji:
+          type: string
+          maxLength: 16
+          example: 🌙
+        definition:
+          $ref: '#/components/schemas/CustomCurrencyRuleBody'
+        enabled:
+          type: boolean
+          description: A paused rule is kept and listed but not evaluated.
+        notify:
+          type: boolean
+          description: Per-rule opt-in to expiry and lapse notification emails.
+        isShared:
+          type: boolean
+        shareToken:
+          type: string
+          maxLength: 64
+          description: Present once sharing has been enabled at least once.
+        importedFrom:
+          type: string
+          format: uuid
+          description: The source rule this one was imported from, when applicable.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CustomCurrencyEvaluation:
+      type: object
+      description: The result of evaluating a rule definition against the caller's flights.
+      required:
+        - status
+        - windowLabel
+        - requirements
+        - evaluatedAt
+      properties:
+        status:
+          type: string
+          enum: [current, expiring, expired, unknown]
+        windowLabel:
+          type: string
+          example: last 90 days
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurrencyRequirement'
+        expiresOn:
+          type: string
+          format: date
+          description: >-
+            The last date the rule stays current assuming no further flights.
+            Set only when the rule is currently met and a lapse date is
+            computable.
+        evaluatedAt:
+          type: string
+          format: date-time
+
+    CustomCurrencyRuleWithStatus:
+      type: object
+      description: >-
+        A stored rule bundled with its current evaluation — the rule carries the
+        definition for editing, the evaluation carries status and progress for
+        display.
+      required:
+        - rule
+        - evaluation
+      properties:
+        rule:
+          $ref: '#/components/schemas/CustomCurrencyRule'
+        evaluation:
+          $ref: '#/components/schemas/CustomCurrencyEvaluation'
+
+    SharedCustomCurrencyRule:
+      type: object
+      description: Read-only projection of a shared rule. Owner identity is omitted.
+      required:
+        - name
+        - definition
+        - shareToken
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+        emoji:
+          type: string
+          maxLength: 16
+        definition:
+          $ref: '#/components/schemas/CustomCurrencyRuleBody'
+        shareToken:
+          type: string
+          maxLength: 64
+
+    CustomCurrencyRuleInput:
+      type: object
+      description: Writable fields of a custom currency rule.
+      required:
+        - name
+        - definition
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          example: Night landings
+        description:
+          type: string
+          maxLength: 2000
+        emoji:
+          type: string
+          maxLength: 16
+          example: 🌙
+        definition:
+          $ref: '#/components/schemas/CustomCurrencyRuleBody'
+
+    CustomCurrencyPreviewRequest:
+      type: object
+      required:
+        - definition
+      properties:
+        definition:
+          $ref: '#/components/schemas/CustomCurrencyRuleBody'
+
+    CustomCurrencyEnabledRequest:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+
+    CustomCurrencyNotifyRequest:
+      type: object
+      required:
+        - notify
+      properties:
+        notify:
+          type: boolean
 
     Error:
       type: object

@@ -31,7 +31,11 @@ func TestOIDCCallbackRedirectsNativeLoginToTheAppScheme(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodGet,
 				"/api/v1/auth/oidc/callback?error=access_denied&state="+tc.state, nil)
 
-			h.OIDCCallback(c)
+			providerErr := "access_denied"
+			h.OidcCallback(c, generated.OidcCallbackParams{
+				Error: &providerErr,
+				State: &tc.state,
+			})
 
 			if w.Code != http.StatusFound {
 				t.Fatalf("status = %d, want 302", w.Code)

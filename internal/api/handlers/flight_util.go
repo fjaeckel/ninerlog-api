@@ -11,11 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// RegisterFlightUtilRoutes registers utility routes for flights
-func RegisterFlightUtilRoutes(api *gin.RouterGroup, h *APIHandler) {
-	// Routes now registered via generated interface
-}
-
 // RecalculateFlights recalculates all auto-computed fields for every flight
 func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 	userID, err := h.getUserIDFromContext(c)

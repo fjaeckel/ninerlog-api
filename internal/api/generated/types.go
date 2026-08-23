@@ -408,6 +408,198 @@ func (e CrewRole) Valid() bool {
 	}
 }
 
+// Defines values for CustomCurrencyEvaluationStatus.
+const (
+	CustomCurrencyEvaluationStatusCurrent  CustomCurrencyEvaluationStatus = "current"
+	CustomCurrencyEvaluationStatusExpired  CustomCurrencyEvaluationStatus = "expired"
+	CustomCurrencyEvaluationStatusExpiring CustomCurrencyEvaluationStatus = "expiring"
+	CustomCurrencyEvaluationStatusUnknown  CustomCurrencyEvaluationStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the CustomCurrencyEvaluationStatus enum.
+func (e CustomCurrencyEvaluationStatus) Valid() bool {
+	switch e {
+	case CustomCurrencyEvaluationStatusCurrent:
+		return true
+	case CustomCurrencyEvaluationStatusExpired:
+		return true
+	case CustomCurrencyEvaluationStatusExpiring:
+		return true
+	case CustomCurrencyEvaluationStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomCurrencyFilterField.
+const (
+	CustomCurrencyFilterFieldAircraftClass           CustomCurrencyFilterField = "aircraft_class"
+	CustomCurrencyFilterFieldAircraftComplex         CustomCurrencyFilterField = "aircraft_complex"
+	CustomCurrencyFilterFieldAircraftHighPerformance CustomCurrencyFilterField = "aircraft_high_performance"
+	CustomCurrencyFilterFieldAircraftRegistration    CustomCurrencyFilterField = "aircraft_registration"
+	CustomCurrencyFilterFieldAircraftTailwheel       CustomCurrencyFilterField = "aircraft_tailwheel"
+	CustomCurrencyFilterFieldAircraftType            CustomCurrencyFilterField = "aircraft_type"
+	CustomCurrencyFilterFieldHasIfr                  CustomCurrencyFilterField = "has_ifr"
+	CustomCurrencyFilterFieldHasNight                CustomCurrencyFilterField = "has_night"
+	CustomCurrencyFilterFieldIsCrossCountry          CustomCurrencyFilterField = "is_cross_country"
+	CustomCurrencyFilterFieldIsDual                  CustomCurrencyFilterField = "is_dual"
+	CustomCurrencyFilterFieldIsPic                   CustomCurrencyFilterField = "is_pic"
+	CustomCurrencyFilterFieldLaunchMethod            CustomCurrencyFilterField = "launch_method"
+)
+
+// Valid indicates whether the value is a known member of the CustomCurrencyFilterField enum.
+func (e CustomCurrencyFilterField) Valid() bool {
+	switch e {
+	case CustomCurrencyFilterFieldAircraftClass:
+		return true
+	case CustomCurrencyFilterFieldAircraftComplex:
+		return true
+	case CustomCurrencyFilterFieldAircraftHighPerformance:
+		return true
+	case CustomCurrencyFilterFieldAircraftRegistration:
+		return true
+	case CustomCurrencyFilterFieldAircraftTailwheel:
+		return true
+	case CustomCurrencyFilterFieldAircraftType:
+		return true
+	case CustomCurrencyFilterFieldHasIfr:
+		return true
+	case CustomCurrencyFilterFieldHasNight:
+		return true
+	case CustomCurrencyFilterFieldIsCrossCountry:
+		return true
+	case CustomCurrencyFilterFieldIsDual:
+		return true
+	case CustomCurrencyFilterFieldIsPic:
+		return true
+	case CustomCurrencyFilterFieldLaunchMethod:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomCurrencyFilterOp.
+const (
+	Eq     CustomCurrencyFilterOp = "eq"
+	In     CustomCurrencyFilterOp = "in"
+	IsTrue CustomCurrencyFilterOp = "is_true"
+)
+
+// Valid indicates whether the value is a known member of the CustomCurrencyFilterOp enum.
+func (e CustomCurrencyFilterOp) Valid() bool {
+	switch e {
+	case Eq:
+		return true
+	case In:
+		return true
+	case IsTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomCurrencyThresholdMetric.
+const (
+	CustomCurrencyThresholdMetricApproaches       CustomCurrencyThresholdMetric = "approaches"
+	CustomCurrencyThresholdMetricCrossCountryTime CustomCurrencyThresholdMetric = "cross_country_time"
+	CustomCurrencyThresholdMetricDayLandings      CustomCurrencyThresholdMetric = "day_landings"
+	CustomCurrencyThresholdMetricDayTakeoffs      CustomCurrencyThresholdMetric = "day_takeoffs"
+	CustomCurrencyThresholdMetricDualTime         CustomCurrencyThresholdMetric = "dual_time"
+	CustomCurrencyThresholdMetricFlights          CustomCurrencyThresholdMetric = "flights"
+	CustomCurrencyThresholdMetricHolds            CustomCurrencyThresholdMetric = "holds"
+	CustomCurrencyThresholdMetricIfrTime          CustomCurrencyThresholdMetric = "ifr_time"
+	CustomCurrencyThresholdMetricLandings         CustomCurrencyThresholdMetric = "landings"
+	CustomCurrencyThresholdMetricNightLandings    CustomCurrencyThresholdMetric = "night_landings"
+	CustomCurrencyThresholdMetricNightTakeoffs    CustomCurrencyThresholdMetric = "night_takeoffs"
+	CustomCurrencyThresholdMetricNightTime        CustomCurrencyThresholdMetric = "night_time"
+	CustomCurrencyThresholdMetricPicTime          CustomCurrencyThresholdMetric = "pic_time"
+	CustomCurrencyThresholdMetricTakeoffs         CustomCurrencyThresholdMetric = "takeoffs"
+	CustomCurrencyThresholdMetricTotalTime        CustomCurrencyThresholdMetric = "total_time"
+)
+
+// Valid indicates whether the value is a known member of the CustomCurrencyThresholdMetric enum.
+func (e CustomCurrencyThresholdMetric) Valid() bool {
+	switch e {
+	case CustomCurrencyThresholdMetricApproaches:
+		return true
+	case CustomCurrencyThresholdMetricCrossCountryTime:
+		return true
+	case CustomCurrencyThresholdMetricDayLandings:
+		return true
+	case CustomCurrencyThresholdMetricDayTakeoffs:
+		return true
+	case CustomCurrencyThresholdMetricDualTime:
+		return true
+	case CustomCurrencyThresholdMetricFlights:
+		return true
+	case CustomCurrencyThresholdMetricHolds:
+		return true
+	case CustomCurrencyThresholdMetricIfrTime:
+		return true
+	case CustomCurrencyThresholdMetricLandings:
+		return true
+	case CustomCurrencyThresholdMetricNightLandings:
+		return true
+	case CustomCurrencyThresholdMetricNightTakeoffs:
+		return true
+	case CustomCurrencyThresholdMetricNightTime:
+		return true
+	case CustomCurrencyThresholdMetricPicTime:
+		return true
+	case CustomCurrencyThresholdMetricTakeoffs:
+		return true
+	case CustomCurrencyThresholdMetricTotalTime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomCurrencyThresholdUnit.
+const (
+	Hours   CustomCurrencyThresholdUnit = "hours"
+	Minutes CustomCurrencyThresholdUnit = "minutes"
+)
+
+// Valid indicates whether the value is a known member of the CustomCurrencyThresholdUnit enum.
+func (e CustomCurrencyThresholdUnit) Valid() bool {
+	switch e {
+	case Hours:
+		return true
+	case Minutes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomCurrencyWindowUnit.
+const (
+	Days   CustomCurrencyWindowUnit = "days"
+	Months CustomCurrencyWindowUnit = "months"
+	Weeks  CustomCurrencyWindowUnit = "weeks"
+	Years  CustomCurrencyWindowUnit = "years"
+)
+
+// Valid indicates whether the value is a known member of the CustomCurrencyWindowUnit enum.
+func (e CustomCurrencyWindowUnit) Valid() bool {
+	switch e {
+	case Days:
+		return true
+	case Months:
+		return true
+	case Weeks:
+		return true
+	case Years:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeletionEntity.
 const (
 	DeletionEntityAircraft   DeletionEntity = "aircraft"
@@ -3149,7 +3341,7 @@ type CurrencyRequirement struct {
 	Current float32 `json:"current"`
 
 	// Message Human-readable progress description
-	Message *string `json:"message,omitempty"`
+	Message string `json:"message"`
 
 	// Met Whether this requirement is currently satisfied
 	Met bool `json:"met"`
@@ -3174,6 +3366,176 @@ type CurrencyStatusResponse struct {
 	// Ratings Tier 1: Rating/license currency — determines whether the pilot can fly at all in each class
 	Ratings []ClassRatingCurrency `json:"ratings"`
 }
+
+// CustomCurrencyEnabledRequest defines model for CustomCurrencyEnabledRequest.
+type CustomCurrencyEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// CustomCurrencyEvaluation The result of evaluating a rule definition against the caller's flights.
+type CustomCurrencyEvaluation struct {
+	EvaluatedAt time.Time `json:"evaluatedAt"`
+
+	// ExpiresOn The last date the rule stays current assuming no further flights. Set only when the rule is currently met and a lapse date is computable.
+	ExpiresOn    *openapi_types.Date            `json:"expiresOn,omitempty"`
+	Requirements []CurrencyRequirement          `json:"requirements"`
+	Status       CustomCurrencyEvaluationStatus `json:"status"`
+
+	// WindowLabel Example: last 90 days
+	WindowLabel string `json:"windowLabel"`
+}
+
+// CustomCurrencyEvaluationStatus defines model for CustomCurrencyEvaluation.Status.
+type CustomCurrencyEvaluationStatus string
+
+// CustomCurrencyFilter Narrows the set of flights a rule counts. `op` determines how
+// `value`/`values` are read: `eq` matches one value, `in` matches any of
+// `values`, and `is_true` tests a boolean or derived field and ignores
+// both. Filters combine with logical AND.
+type CustomCurrencyFilter struct {
+	// Field Example: aircraft_class
+	Field CustomCurrencyFilterField `json:"field"`
+
+	// Op Example: eq
+	Op CustomCurrencyFilterOp `json:"op"`
+
+	// Value The value to match when `op` is `eq`
+	//
+	// Example: SEP_LAND
+	Value *string `json:"value,omitempty"`
+
+	// Values The values to match when `op` is `in`
+	Values *[]string `json:"values,omitempty"`
+}
+
+// CustomCurrencyFilterField Example: aircraft_class
+type CustomCurrencyFilterField string
+
+// CustomCurrencyFilterOp Example: eq
+type CustomCurrencyFilterOp string
+
+// CustomCurrencyNotifyRequest defines model for CustomCurrencyNotifyRequest.
+type CustomCurrencyNotifyRequest struct {
+	Notify bool `json:"notify"`
+}
+
+// CustomCurrencyPreviewRequest defines model for CustomCurrencyPreviewRequest.
+type CustomCurrencyPreviewRequest struct {
+	// Definition The declarative rule document: a lookback window, filters selecting which flights count, and requirements measured against the aggregated flight metrics.
+	Definition CustomCurrencyRuleBody `json:"definition"`
+}
+
+// CustomCurrencyRule A stored, user-authored currency definition. Rules are private by default; enabling sharing exposes a read-only copy at a share token that other users can import.
+type CustomCurrencyRule struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Definition The declarative rule document: a lookback window, filters selecting which flights count, and requirements measured against the aggregated flight metrics.
+	Definition  CustomCurrencyRuleBody `json:"definition"`
+	Description *string                `json:"description,omitempty"`
+
+	// Emoji Example: 🌙
+	Emoji *string `json:"emoji,omitempty"`
+
+	// Enabled A paused rule is kept and listed but not evaluated.
+	Enabled bool               `json:"enabled"`
+	Id      openapi_types.UUID `json:"id"`
+
+	// ImportedFrom The source rule this one was imported from, when applicable.
+	ImportedFrom *openapi_types.UUID `json:"importedFrom,omitempty"`
+	IsShared     bool                `json:"isShared"`
+
+	// Name Example: Night landings
+	Name string `json:"name"`
+
+	// Notify Per-rule opt-in to expiry and lapse notification emails.
+	Notify bool `json:"notify"`
+
+	// ShareToken Present once sharing has been enabled at least once.
+	ShareToken *string            `json:"shareToken,omitempty"`
+	UpdatedAt  time.Time          `json:"updatedAt"`
+	UserId     openapi_types.UUID `json:"userId"`
+}
+
+// CustomCurrencyRuleBody The declarative rule document: a lookback window, filters selecting which flights count, and requirements measured against the aggregated flight metrics.
+type CustomCurrencyRuleBody struct {
+	Filters      *[]CustomCurrencyFilter   `json:"filters,omitempty"`
+	Requirements []CustomCurrencyThreshold `json:"requirements"`
+
+	// Window Rolling lookback anchored at the moment of evaluation: only flights on or after (now − amount × unit) count.
+	Window CustomCurrencyWindow `json:"window"`
+}
+
+// CustomCurrencyRuleInput Writable fields of a custom currency rule.
+type CustomCurrencyRuleInput struct {
+	// Definition The declarative rule document: a lookback window, filters selecting which flights count, and requirements measured against the aggregated flight metrics.
+	Definition  CustomCurrencyRuleBody `json:"definition"`
+	Description *string                `json:"description,omitempty"`
+
+	// Emoji Example: 🌙
+	Emoji *string `json:"emoji,omitempty"`
+
+	// Name Example: Night landings
+	Name string `json:"name"`
+}
+
+// CustomCurrencyRuleWithStatus A stored rule bundled with its current evaluation — the rule carries the definition for editing, the evaluation carries status and progress for display.
+type CustomCurrencyRuleWithStatus struct {
+	// Evaluation The result of evaluating a rule definition against the caller's flights.
+	Evaluation CustomCurrencyEvaluation `json:"evaluation"`
+
+	// Rule A stored, user-authored currency definition. Rules are private by default; enabling sharing exposes a read-only copy at a share token that other users can import.
+	Rule CustomCurrencyRule `json:"rule"`
+}
+
+// CustomCurrencyThreshold A single "at least N" threshold on an aggregated metric over the filtered, windowed flight set. Requirements combine with logical AND.
+type CustomCurrencyThreshold struct {
+	// Label Optional display label for this requirement
+	//
+	// Example: 3 landings in 90 days
+	Label *string `json:"label,omitempty"`
+
+	// Metric Time metrics (`unit` applies): `total_time`, `pic_time`,
+	// `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
+	// Count metrics (`unit` ignored): `flights`, `landings`,
+	// `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
+	// `night_takeoffs`, `approaches`, `holds`.
+	//
+	//
+	// Example: landings
+	Metric CustomCurrencyThresholdMetric `json:"metric"`
+
+	// Min The threshold the metric must reach
+	//
+	// Example: 3
+	Min float64 `json:"min"`
+
+	// Unit How `min` is expressed, for time metrics only. Defaults to hours. Rejected on count metrics.
+	Unit *CustomCurrencyThresholdUnit `json:"unit,omitempty"`
+}
+
+// CustomCurrencyThresholdMetric Time metrics (`unit` applies): `total_time`, `pic_time`,
+// `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
+// Count metrics (`unit` ignored): `flights`, `landings`,
+// `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
+// `night_takeoffs`, `approaches`, `holds`.
+//
+// Example: landings
+type CustomCurrencyThresholdMetric string
+
+// CustomCurrencyThresholdUnit How `min` is expressed, for time metrics only. Defaults to hours. Rejected on count metrics.
+type CustomCurrencyThresholdUnit string
+
+// CustomCurrencyWindow Rolling lookback anchored at the moment of evaluation: only flights on or after (now − amount × unit) count.
+type CustomCurrencyWindow struct {
+	// Amount Example: 90
+	Amount int `json:"amount"`
+
+	// Unit Example: days
+	Unit CustomCurrencyWindowUnit `json:"unit"`
+}
+
+// CustomCurrencyWindowUnit Example: days
+type CustomCurrencyWindowUnit string
 
 // Deletion defines model for Deletion.
 type Deletion struct {
@@ -4285,10 +4647,20 @@ type ImportJSONResult struct {
 	// ClassRatingsImported Example: 4
 	ClassRatingsImported int `json:"classRatingsImported"`
 
-	// ContactsCreated Contacts created because a crew name in the backup matched none of this account's contacts. Contacts are not carried in the backup format, so a restore into an empty account creates one per distinct crew name.
+	// ContactsCreated Contacts created because a crew name in the backup matched none of this account's contacts — counted after the backup's own contacts have been restored, so it covers only crew names with no contact record of their own.
 	//
 	// Example: 5
 	ContactsCreated int `json:"contactsCreated"`
+
+	// ContactsImported Contacts restored from the backup's own contacts section
+	//
+	// Example: 12
+	ContactsImported int `json:"contactsImported"`
+
+	// ContactsSkipped Contacts skipped because this account already holds that name
+	//
+	// Example: 2
+	ContactsSkipped int `json:"contactsSkipped"`
 
 	// CredentialsImported Example: 2
 	CredentialsImported int `json:"credentialsImported"`
@@ -4296,11 +4668,22 @@ type ImportJSONResult struct {
 	// CrewMembersImported Example: 11
 	CrewMembersImported int `json:"crewMembersImported"`
 
+	// CustomCurrencyRulesImported User-authored currency rules restored. Sharing state is never carried over: a restored rule is private until shared again.
+	//
+	// Example: 3
+	CustomCurrencyRulesImported int `json:"customCurrencyRulesImported"`
+
+	// FlightBaselineImported Whether the backup carried a carried-forward hours baseline that was applied
+	FlightBaselineImported bool `json:"flightBaselineImported"`
+
 	// FlightsImported Example: 27
 	FlightsImported int `json:"flightsImported"`
 
 	// LicensesImported Example: 2
 	LicensesImported int `json:"licensesImported"`
+
+	// NotificationPreferencesImported Whether the backup carried notification preferences that were applied
+	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
 }
 
 // ImportPreviewFlight defines model for ImportPreviewFlight.
@@ -5045,6 +5428,16 @@ type Session struct {
 	LastUsedAt time.Time `json:"lastUsedAt"`
 }
 
+// SharedCustomCurrencyRule Read-only projection of a shared rule. Owner identity is omitted.
+type SharedCustomCurrencyRule struct {
+	// Definition The declarative rule document: a lookback window, filters selecting which flights count, and requirements measured against the aggregated flight metrics.
+	Definition  CustomCurrencyRuleBody `json:"definition"`
+	Description *string                `json:"description,omitempty"`
+	Emoji       *string                `json:"emoji,omitempty"`
+	Name        string                 `json:"name"`
+	ShareToken  string                 `json:"shareToken"`
+}
+
 // SignatureRequestCreated A FlightSignature plus the one-time signing URL. The URL is only ever returned from the create/resend calls that generated it — it is not retrievable again afterwards, so the owner must copy/share it (or its QR code) immediately, or resend to get a fresh one.
 type SignatureRequestCreated struct {
 	CreatedAt                  time.Time            `json:"createdAt"`
@@ -5412,6 +5805,12 @@ type BackupDestinationId = openapi_types.UUID
 // CredentialId Example: 880e8400-e29b-41d4-a716-446655440003
 type CredentialId = openapi_types.UUID
 
+// CustomCurrencyRuleId Example: 880e8400-e29b-41d4-a716-446655440003
+type CustomCurrencyRuleId = openapi_types.UUID
+
+// CustomCurrencyShareToken defines model for CustomCurrencyShareToken.
+type CustomCurrencyShareToken = string
+
 // DocumentFileId Example: aa0e8400-e29b-41d4-a716-446655440009
 type DocumentFileId = openapi_types.UUID
 
@@ -5580,6 +5979,24 @@ type LoginUser200JSONResponseBody struct {
 // LogoutUserJSONBody defines parameters for LogoutUser.
 type LogoutUserJSONBody struct {
 	RefreshToken string `json:"refreshToken"`
+}
+
+// AuthorizeOidcParams defines parameters for AuthorizeOidc.
+type AuthorizeOidcParams struct {
+	// Native Finish the login at the app's native redirect URI. Any affirmative value (`1`, `true`, `yes`) selects native mode.
+	Native *string `form:"native,omitempty" json:"native,omitempty"`
+}
+
+// OidcCallbackParams defines parameters for OidcCallback.
+type OidcCallbackParams struct {
+	// Code Authorization code issued by the provider
+	Code *string `form:"code,omitempty" json:"code,omitempty"`
+
+	// State Opaque state minted by /auth/oidc/authorize
+	State *string `form:"state,omitempty" json:"state,omitempty"`
+
+	// Error Error code reported by the provider (for example `access_denied`)
+	Error *string `form:"error,omitempty" json:"error,omitempty"`
 }
 
 // ExchangeOidcCodeJSONBody defines parameters for ExchangeOidcCode.
@@ -5850,15 +6267,19 @@ type ListImportsParams struct {
 
 // ImportDataJSONJSONBody defines parameters for ImportDataJSON.
 type ImportDataJSONJSONBody struct {
-	Aircraft    *[]map[string]interface{} `json:"aircraft,omitempty"`
-	Credentials *[]map[string]interface{} `json:"credentials,omitempty"`
-	ExportedAt  *time.Time                `json:"exportedAt,omitempty"`
-	Flights     *[]map[string]interface{} `json:"flights,omitempty"`
+	Aircraft            *[]map[string]interface{} `json:"aircraft,omitempty"`
+	Contacts            *[]map[string]interface{} `json:"contacts,omitempty"`
+	Credentials         *[]map[string]interface{} `json:"credentials,omitempty"`
+	CustomCurrencyRules *[]map[string]interface{} `json:"customCurrencyRules,omitempty"`
+	ExportedAt          *time.Time                `json:"exportedAt,omitempty"`
+	FlightBaseline      *map[string]interface{}   `json:"flightBaseline,omitempty"`
+	Flights             *[]map[string]interface{} `json:"flights,omitempty"`
 
 	// Format Example: NinerLog JSON Backup
-	Format   string                    `json:"format"`
-	Licenses *[]map[string]interface{} `json:"licenses,omitempty"`
-	Version  *string                   `json:"version,omitempty"`
+	Format                  string                    `json:"format"`
+	Licenses                *[]map[string]interface{} `json:"licenses,omitempty"`
+	NotificationPreferences *map[string]interface{}   `json:"notificationPreferences,omitempty"`
+	Version                 *string                   `json:"version,omitempty"`
 }
 
 // UploadImportFileMultipartBody defines parameters for UploadImportFile.
@@ -6083,6 +6504,21 @@ type UpdateCredentialJSONRequestBody = CredentialUpdate
 
 // UploadCredentialFileMultipartRequestBody defines body for UploadCredentialFile for multipart/form-data ContentType.
 type UploadCredentialFileMultipartRequestBody = DocumentFileUpload
+
+// CreateCustomCurrencyRuleJSONRequestBody defines body for CreateCustomCurrencyRule for application/json ContentType.
+type CreateCustomCurrencyRuleJSONRequestBody = CustomCurrencyRuleInput
+
+// PreviewCustomCurrencyRuleJSONRequestBody defines body for PreviewCustomCurrencyRule for application/json ContentType.
+type PreviewCustomCurrencyRuleJSONRequestBody = CustomCurrencyPreviewRequest
+
+// UpdateCustomCurrencyRuleJSONRequestBody defines body for UpdateCustomCurrencyRule for application/json ContentType.
+type UpdateCustomCurrencyRuleJSONRequestBody = CustomCurrencyRuleInput
+
+// SetCustomCurrencyRuleEnabledJSONRequestBody defines body for SetCustomCurrencyRuleEnabled for application/json ContentType.
+type SetCustomCurrencyRuleEnabledJSONRequestBody = CustomCurrencyEnabledRequest
+
+// SetCustomCurrencyRuleNotifyJSONRequestBody defines body for SetCustomCurrencyRuleNotify for application/json ContentType.
+type SetCustomCurrencyRuleNotifyJSONRequestBody = CustomCurrencyNotifyRequest
 
 // RecordFlightSessionEventJSONRequestBody defines body for RecordFlightSessionEvent for application/json ContentType.
 type RecordFlightSessionEventJSONRequestBody = FlightSessionEvent

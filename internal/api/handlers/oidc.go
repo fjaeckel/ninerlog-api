@@ -75,25 +75,17 @@ func (h *APIHandler) GetAuthProviders(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// RegisterOIDCRoutes registers the two browser-facing OIDC endpoints, wired
-// manually; the JSON endpoints of the flow (/auth/providers and
-// /auth/oidc/exchange) come from the OpenAPI spec.
-func RegisterOIDCRoutes(rg *gin.RouterGroup, h *APIHandler) {
-	rg.GET("/auth/oidc/authorize", h.OIDCAuthorize)
-	rg.GET("/auth/oidc/callback", h.OIDCCallback)
-}
-
-// OIDCAuthorize implements GET /auth/oidc/authorize.
+// AuthorizeOidc implements GET /auth/oidc/authorize.
 //
 // Starts a login: mints the state, nonce and PKCE verifier, plants the
 // browser-binding cookie, and redirects to the provider. `native=1` finishes
 // the login at the native redirect URI instead of the web frontend.
-func (h *APIHandler) OIDCAuthorize(c *gin.Context) {
+func (h *APIHandler) AuthorizeOidc(c *gin.Context, params generated.AuthorizeOidcParams) {
 	if !h.requireOIDC(c) {
 		return
 	}
 
-	native := isAffirmative(c.Query("native"))
+	native := params.Native != nil && isAffirmative(*params.Native)
 	auth, err := h.oidcService.BeginLogin(c.Request.Context(), native)
 	if err != nil {
 		OIDCLoginAttemptsTotal.WithLabelValues("authorize_failed").Inc()
@@ -115,11 +107,11 @@ func (h *APIHandler) OIDCAuthorize(c *gin.Context) {
 	c.Redirect(http.StatusFound, auth.AuthorizationURL)
 }
 
-// OIDCCallback implements GET /auth/oidc/callback.
+// OidcCallback implements GET /auth/oidc/callback.
 //
 // The provider sends the browser here. Every failure ends in a redirect back
 // to the frontend carrying a short error code, not a JSON error page.
-func (h *APIHandler) OIDCCallback(c *gin.Context) {
+func (h *APIHandler) OidcCallback(c *gin.Context, params generated.OidcCallbackParams) {
 	if !h.requireOIDC(c) {
 		return
 	}
@@ -128,18 +120,18 @@ func (h *APIHandler) OIDCCallback(c *gin.Context) {
 	browserToken, _ := c.Cookie(oidcStateCookie)
 	h.clearOIDCStateCookie(c)
 
-	native := service.IsNativeOIDCState(c.Query("state"))
+	native := service.IsNativeOIDCState(safeStr(params.State))
 
 	// The provider reports user-facing failures (consent denied, and so on) as
 	// query parameters rather than a non-2xx status.
-	if providerErr := c.Query("error"); providerErr != "" {
+	if providerErr := safeStr(params.Error); providerErr != "" {
 		OIDCLoginAttemptsTotal.WithLabelValues("provider_error").Inc()
 		h.redirectOIDCError(c, native, "provider_error")
 		return
 	}
 
 	handoff, err := h.oidcService.CompleteCallback(c.Request.Context(),
-		c.Query("code"), c.Query("state"), browserToken)
+		safeStr(params.Code), safeStr(params.State), browserToken)
 	if err != nil {
 		h.redirectOIDCError(c, native, oidcErrorCode(err))
 		return

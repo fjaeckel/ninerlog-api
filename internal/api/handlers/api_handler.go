@@ -62,6 +62,9 @@ type APIHandler struct {
 	// updateChecker is nil until wired in cmd/api/main.go; GET /admin/update
 	// then reports the check as disabled.
 	updateChecker *updatecheck.Checker
+	// customCurrencyService is wired in cmd/api/main.go via
+	// SetCustomCurrencyService.
+	customCurrencyService *currency.CustomService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface
