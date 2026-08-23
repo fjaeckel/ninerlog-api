@@ -6,11 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterCurrencyRoutes registers the currency status endpoint
-func RegisterCurrencyRoutes(api *gin.RouterGroup, h *APIHandler) {
-	api.GET("/currency", h.GetAllCurrencyStatus)
-}
-
 // GetAllCurrencyStatus returns currency status for all class ratings across all licenses
 func (h *APIHandler) GetAllCurrencyStatus(c *gin.Context) {
 	userID, err := h.getUserIDFromContext(c)

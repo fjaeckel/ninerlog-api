@@ -112,9 +112,11 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 9. **Build the Gin router**: install the global middleware chain, configure trusted
    proxies and forwarded-IP headers, set CORS, expose `/health` and (optionally)
    `/metrics`.
-10. **Register routes**: the OpenAPI-generated routes under `/api/v1`, plus a few custom
-    routes not in the spec (reports, flight utilities, and the OIDC browser redirects,
-    which are navigations rather than JSON operations).
+10. **Register routes**: one call to `generated.RegisterHandlersWithOptions` under
+    `/api/v1`. Every route the server has is declared in `api-spec/openapi.yaml` and
+    registered from it — including the OIDC browser redirects, which are navigations rather
+    than JSON operations but are still declared, with their `302` and `Location` header.
+    Nothing is registered by hand; `make route-check` enforces that.
 11. **Start background workers**: the notification background checker, the airport
     database refresher (`AIRPORT_REFRESH_INTERVAL`, default 24h), the release update
     check (`UPDATE_CHECK_INTERVAL`, default 24h), the import-session reaper, the

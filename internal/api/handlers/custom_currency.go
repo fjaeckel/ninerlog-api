@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
@@ -12,33 +13,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// CustomCurrencyHandler serves the user-authored currency rule endpoints. It is
-// self-contained (its own service + auth) and registered on the authenticated
-// /api group, so every route already has a validated userID in context.
-type CustomCurrencyHandler struct {
-	service *currency.CustomService
-}
-
-// NewCustomCurrencyHandler creates the handler.
-func NewCustomCurrencyHandler(service *currency.CustomService) *CustomCurrencyHandler {
-	return &CustomCurrencyHandler{service: service}
-}
-
-// RegisterCustomCurrencyRoutes wires the custom currency routes onto the group.
-func RegisterCustomCurrencyRoutes(api *gin.RouterGroup, h *CustomCurrencyHandler) {
-	g := api.Group("/custom-currency")
-	g.GET("", h.List)
-	g.POST("", h.Create)
-	g.POST("/preview", h.Preview)
-	g.GET("/shared/:token", h.GetShared)
-	g.POST("/shared/:token/import", h.Import)
-	g.GET("/:id", h.Get)
-	g.PUT("/:id", h.Update)
-	g.DELETE("/:id", h.Delete)
-	g.POST("/:id/share", h.EnableShare)
-	g.DELETE("/:id/share", h.DisableShare)
-	g.PUT("/:id/enabled", h.SetEnabled)
-	g.PUT("/:id/notify", h.SetNotify)
+// SetCustomCurrencyService wires the user-authored currency rule service.
+func (h *APIHandler) SetCustomCurrencyService(s *currency.CustomService) {
+	h.customCurrencyService = s
 }
 
 // customRuleRequest is the create/update payload.
@@ -63,25 +40,21 @@ func (r customRuleRequest) toInput() currency.CustomRuleInput {
 	}
 }
 
-// userID reads the authenticated user set by AuthMiddleware. Returns false and
-// writes a 401 if it is missing.
-func (h *CustomCurrencyHandler) userID(c *gin.Context) (uuid.UUID, bool) {
-	v, ok := c.Get("userID")
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+// customCurrencyUser reads the authenticated user set by AuthMiddleware.
+// Returns false and writes a 401 if it is missing.
+func (h *APIHandler) customCurrencyUser(c *gin.Context) (uuid.UUID, bool) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return uuid.Nil, false
 	}
-	id, ok := v.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return uuid.Nil, false
-	}
-	return id, true
+	return userID, true
 }
 
-// respondError maps service errors to HTTP responses. Validation errors surface
-// their message; not-found is 404; everything else is a generic 500.
-func (h *CustomCurrencyHandler) respondError(c *gin.Context, err error) {
+// respondCustomCurrencyError maps service errors to HTTP responses. Validation
+// errors surface their message; not-found is 404; everything else is a generic
+// 500.
+func (h *APIHandler) respondCustomCurrencyError(c *gin.Context, err error) {
 	switch {
 	case currency.IsValidationError(err):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -93,50 +66,37 @@ func (h *CustomCurrencyHandler) respondError(c *gin.Context, err error) {
 	}
 }
 
-func (h *CustomCurrencyHandler) parseID(c *gin.Context) (uuid.UUID, bool) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid rule id"})
-		return uuid.Nil, false
-	}
-	return id, true
-}
-
-// List handles GET /custom-currency.
-func (h *CustomCurrencyHandler) List(c *gin.Context) {
-	userID, ok := h.userID(c)
+// ListCustomCurrencyRules implements GET /custom-currency.
+func (h *APIHandler) ListCustomCurrencyRules(c *gin.Context) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
-	rules, err := h.service.List(c.Request.Context(), userID)
+	rules, err := h.customCurrencyService.List(c.Request.Context(), userID)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, rules)
 }
 
-// Get handles GET /custom-currency/:id.
-func (h *CustomCurrencyHandler) Get(c *gin.Context) {
-	userID, ok := h.userID(c)
+// GetCustomCurrencyRule implements GET /custom-currency/{ruleId}.
+func (h *APIHandler) GetCustomCurrencyRule(c *gin.Context, ruleID generated.CustomCurrencyRuleId) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
-	id, ok := h.parseID(c)
-	if !ok {
-		return
-	}
-	rule, err := h.service.Get(c.Request.Context(), userID, id)
+	rule, err := h.customCurrencyService.Get(c.Request.Context(), userID, ruleID)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, rule)
 }
 
-// Create handles POST /custom-currency.
-func (h *CustomCurrencyHandler) Create(c *gin.Context) {
-	userID, ok := h.userID(c)
+// CreateCustomCurrencyRule implements POST /custom-currency.
+func (h *APIHandler) CreateCustomCurrencyRule(c *gin.Context) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
@@ -145,21 +105,17 @@ func (h *CustomCurrencyHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	rule, err := h.service.Create(c.Request.Context(), userID, req.toInput())
+	rule, err := h.customCurrencyService.Create(c.Request.Context(), userID, req.toInput())
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, rule)
 }
 
-// Update handles PUT /custom-currency/:id.
-func (h *CustomCurrencyHandler) Update(c *gin.Context) {
-	userID, ok := h.userID(c)
-	if !ok {
-		return
-	}
-	id, ok := h.parseID(c)
+// UpdateCustomCurrencyRule implements PUT /custom-currency/{ruleId}.
+func (h *APIHandler) UpdateCustomCurrencyRule(c *gin.Context, ruleID generated.CustomCurrencyRuleId) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
@@ -168,34 +124,30 @@ func (h *CustomCurrencyHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	rule, err := h.service.Update(c.Request.Context(), userID, id, req.toInput())
+	rule, err := h.customCurrencyService.Update(c.Request.Context(), userID, ruleID, req.toInput())
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, rule)
 }
 
-// Delete handles DELETE /custom-currency/:id.
-func (h *CustomCurrencyHandler) Delete(c *gin.Context) {
-	userID, ok := h.userID(c)
+// DeleteCustomCurrencyRule implements DELETE /custom-currency/{ruleId}.
+func (h *APIHandler) DeleteCustomCurrencyRule(c *gin.Context, ruleID generated.CustomCurrencyRuleId) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
-	id, ok := h.parseID(c)
-	if !ok {
-		return
-	}
-	if err := h.service.Delete(c.Request.Context(), userID, id); err != nil {
-		h.respondError(c, err)
+	if err := h.customCurrencyService.Delete(c.Request.Context(), userID, ruleID); err != nil {
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-// Preview handles POST /custom-currency/preview.
-func (h *CustomCurrencyHandler) Preview(c *gin.Context) {
-	userID, ok := h.userID(c)
+// PreviewCustomCurrencyRule implements POST /custom-currency/preview.
+func (h *APIHandler) PreviewCustomCurrencyRule(c *gin.Context) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
@@ -204,48 +156,41 @@ func (h *CustomCurrencyHandler) Preview(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	result, err := h.service.Preview(c.Request.Context(), userID, req.Definition)
+	result, err := h.customCurrencyService.Preview(c.Request.Context(), userID, req.Definition)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
 }
 
-// EnableShare handles POST /custom-currency/:id/share.
-func (h *CustomCurrencyHandler) EnableShare(c *gin.Context) {
-	h.setShare(c, true)
+// EnableCustomCurrencyRuleShare implements POST /custom-currency/{ruleId}/share.
+func (h *APIHandler) EnableCustomCurrencyRuleShare(c *gin.Context, ruleID generated.CustomCurrencyRuleId) {
+	h.setCustomCurrencyShare(c, ruleID, true)
 }
 
-// DisableShare handles DELETE /custom-currency/:id/share.
-func (h *CustomCurrencyHandler) DisableShare(c *gin.Context) {
-	h.setShare(c, false)
+// DisableCustomCurrencyRuleShare implements DELETE /custom-currency/{ruleId}/share.
+func (h *APIHandler) DisableCustomCurrencyRuleShare(c *gin.Context, ruleID generated.CustomCurrencyRuleId) {
+	h.setCustomCurrencyShare(c, ruleID, false)
 }
 
-func (h *CustomCurrencyHandler) setShare(c *gin.Context, shared bool) {
-	userID, ok := h.userID(c)
+func (h *APIHandler) setCustomCurrencyShare(c *gin.Context, ruleID uuid.UUID, shared bool) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
-	id, ok := h.parseID(c)
-	if !ok {
-		return
-	}
-	rule, err := h.service.SetShared(c.Request.Context(), userID, id, shared)
+	rule, err := h.customCurrencyService.SetShared(c.Request.Context(), userID, ruleID, shared)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, rule)
 }
 
-// SetEnabled handles PUT /custom-currency/:id/enabled — pause or resume a rule.
-func (h *CustomCurrencyHandler) SetEnabled(c *gin.Context) {
-	userID, ok := h.userID(c)
-	if !ok {
-		return
-	}
-	id, ok := h.parseID(c)
+// SetCustomCurrencyRuleEnabled implements PUT /custom-currency/{ruleId}/enabled
+// — pause or resume a rule.
+func (h *APIHandler) SetCustomCurrencyRuleEnabled(c *gin.Context, ruleID generated.CustomCurrencyRuleId) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
@@ -256,22 +201,18 @@ func (h *CustomCurrencyHandler) SetEnabled(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	rule, err := h.service.SetEnabled(c.Request.Context(), userID, id, req.Enabled)
+	rule, err := h.customCurrencyService.SetEnabled(c.Request.Context(), userID, ruleID, req.Enabled)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, rule)
 }
 
-// SetNotify handles PUT /custom-currency/:id/notify — opt a rule in/out of
-// expiry notifications.
-func (h *CustomCurrencyHandler) SetNotify(c *gin.Context) {
-	userID, ok := h.userID(c)
-	if !ok {
-		return
-	}
-	id, ok := h.parseID(c)
+// SetCustomCurrencyRuleNotify implements PUT /custom-currency/{ruleId}/notify —
+// opt a rule in/out of expiry notifications.
+func (h *APIHandler) SetCustomCurrencyRuleNotify(c *gin.Context, ruleID generated.CustomCurrencyRuleId) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
@@ -282,36 +223,38 @@ func (h *CustomCurrencyHandler) SetNotify(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	rule, err := h.service.SetNotify(c.Request.Context(), userID, id, req.Notify)
+	rule, err := h.customCurrencyService.SetNotify(c.Request.Context(), userID, ruleID, req.Notify)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, rule)
 }
 
-// GetShared handles GET /custom-currency/shared/:token — a read-only preview.
-func (h *CustomCurrencyHandler) GetShared(c *gin.Context) {
-	if _, ok := h.userID(c); !ok {
+// GetSharedCustomCurrencyRule implements GET /custom-currency/shared/{shareToken}
+// — a read-only preview.
+func (h *APIHandler) GetSharedCustomCurrencyRule(c *gin.Context, shareToken generated.CustomCurrencyShareToken) {
+	if _, ok := h.customCurrencyUser(c); !ok {
 		return
 	}
-	view, err := h.service.GetShared(c.Request.Context(), c.Param("token"))
+	view, err := h.customCurrencyService.GetShared(c.Request.Context(), shareToken)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, view)
 }
 
-// Import handles POST /custom-currency/shared/:token/import.
-func (h *CustomCurrencyHandler) Import(c *gin.Context) {
-	userID, ok := h.userID(c)
+// ImportSharedCustomCurrencyRule implements
+// POST /custom-currency/shared/{shareToken}/import.
+func (h *APIHandler) ImportSharedCustomCurrencyRule(c *gin.Context, shareToken generated.CustomCurrencyShareToken) {
+	userID, ok := h.customCurrencyUser(c)
 	if !ok {
 		return
 	}
-	rule, err := h.service.Import(c.Request.Context(), userID, c.Param("token"))
+	rule, err := h.customCurrencyService.Import(c.Request.Context(), userID, shareToken)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondCustomCurrencyError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, rule)

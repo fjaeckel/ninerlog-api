@@ -357,8 +357,10 @@ func TestExportContactsVCardEmpty(t *testing.T) {
 	}
 }
 
-// Restoring a backup rebuilds the address book by re-linking crew names.
-func TestBackupRestoreRebuildsContacts(t *testing.T) {
+// A backup carries the address book, so a restore recreates contacts from the
+// contacts section and the crew linker finds them by name rather than
+// inventing bare ones. Either way the destination ends up with both.
+func TestBackupRestoreRestoresContacts(t *testing.T) {
 	source := NewE2EClient(t)
 	registerAndLogin(t, source, uniqueEmail("cnt-restore-src"), "SecurePass123!", "RestoreSrc")
 	createFlightWithCrew(t, source, "D-ERST", []map[string]interface{}{
@@ -377,15 +379,68 @@ func TestBackupRestoreRebuildsContacts(t *testing.T) {
 	r = dest.POST("/imports/json", backup)
 	requireStatus(t, r, 200)
 	var summary struct {
-		FlightsImported int `json:"flightsImported"`
-		ContactsCreated int `json:"contactsCreated"`
+		FlightsImported  int `json:"flightsImported"`
+		ContactsImported int `json:"contactsImported"`
+		ContactsCreated  int `json:"contactsCreated"`
 	}
 	r.JSON(&summary)
 	if summary.FlightsImported != 1 {
 		t.Fatalf("flightsImported = %d, want 1", summary.FlightsImported)
 	}
+	if summary.ContactsImported != 2 {
+		t.Errorf("contactsImported = %d, want 2", summary.ContactsImported)
+	}
+	// The linker matched both names against the contacts just restored, so it
+	// had nothing left to create.
+	if summary.ContactsCreated != 0 {
+		t.Errorf("contactsCreated = %d, want 0 — the restored contacts should have been matched", summary.ContactsCreated)
+	}
+
+	if contacts := listContacts(t, dest); len(contacts) != 2 {
+		t.Errorf("restored account has %d contacts, want 2: %+v", len(contacts), contacts)
+	}
+}
+
+// A backup written before the contacts section existed carries crew names and
+// nothing else, and must still rebuild the address book from them.
+func TestBackupRestoreRebuildsContactsFromLegacyBackup(t *testing.T) {
+	source := NewE2EClient(t)
+	registerAndLogin(t, source, uniqueEmail("cnt-legacy-src"), "SecurePass123!", "LegacySrc")
+	createFlightWithCrew(t, source, "D-ELEG", []map[string]interface{}{
+		{"name": "Hans Müller", "role": "Instructor"},
+		{"name": "Erika Koch", "role": "Passenger"},
+	})
+
+	r := source.GET("/exports/json")
+	requireStatus(t, r, 200)
+	var backup map[string]interface{}
+	r.JSON(&backup)
+
+	// Age the backup: drop the sections a pre-contacts export never had.
+	delete(backup, "contacts")
+	delete(backup, "customCurrencyRules")
+	delete(backup, "notificationPreferences")
+	delete(backup, "flightBaseline")
+
+	dest := NewE2EClient(t)
+	registerAndLogin(t, dest, uniqueEmail("cnt-legacy-dst"), "SecurePass123!", "LegacyDst")
+
+	r = dest.POST("/imports/json", backup)
+	requireStatus(t, r, 200)
+	var summary struct {
+		FlightsImported  int `json:"flightsImported"`
+		ContactsImported int `json:"contactsImported"`
+		ContactsCreated  int `json:"contactsCreated"`
+	}
+	r.JSON(&summary)
+	if summary.FlightsImported != 1 {
+		t.Fatalf("flightsImported = %d, want 1", summary.FlightsImported)
+	}
+	if summary.ContactsImported != 0 {
+		t.Errorf("contactsImported = %d, want 0 — a legacy backup carries no contacts section", summary.ContactsImported)
+	}
 	if summary.ContactsCreated != 2 {
-		t.Errorf("contactsCreated = %d, want 2", summary.ContactsCreated)
+		t.Errorf("contactsCreated = %d, want 2 — crew names must rebuild the address book", summary.ContactsCreated)
 	}
 
 	if contacts := listContacts(t, dest); len(contacts) != 2 {

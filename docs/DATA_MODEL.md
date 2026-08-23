@@ -248,6 +248,20 @@ and totals reflect a pilot's full history without entering every historical flig
 Applied by `GET /users/me/statistics` and by the `totals` of `GET /reports/analytics`
 whenever the requested range reaches back to the snapshot's cutoff date.
 
+### CustomCurrencyRule (`internal/models/custom_currency.go`, migrations 46, 47, 48)
+
+A user-authored currency definition. The rule body — a rolling `window`, optional `filters`
+and one or more `requirements` — is stored as JSONB in `definition` and validated against a
+controlled vocabulary of metrics, filter fields and operators (`ValidFilterFields`,
+`TimeMetrics`, `CountMetrics`) rather than being free-form. `enabled` (migration 47) pauses a
+rule without deleting it; `notify` (migration 48) is a per-rule opt-in to expiry mail.
+
+Sharing is opt-in: `is_shared` with a unique `share_token` exposes a read-only projection that
+another user can import, and `imported_from` records the source rule (`ON DELETE SET NULL`, so
+deleting the original leaves the copy intact). The token is unique per installation, which is
+why the JSON export deliberately omits sharing state — a restored rule is private until shared
+again.
+
 ## Auth, session, and notification tables
 
 | Entity | Model | Migration | Purpose |

@@ -31,11 +31,19 @@ func TestBuildPayloadGzipRoundTrip(t *testing.T) {
 	flights := []*models.Flight{makeFlight(t, "2024-01-01", "08:00:00")}
 	aircraft := []*models.Aircraft{{ID: uuid.New(), Registration: "D-ABCD"}}
 	credentials := []*models.Credential{}
-	licenses := []licenseWithRatings{}
+	licenses := []LicenseWithRatings{}
 
-	r, meta, err := buildPayload(now, "1.0", "NinerLog JSON Backup", flights, aircraft, licenses, credentials, 0)
+	r, meta, err := serialisePayload(Payload{
+		ExportedAt:  now.Format(time.RFC3339),
+		Version:     "1.0",
+		Format:      "NinerLog JSON Backup",
+		Flights:     flights,
+		Aircraft:    aircraft,
+		Licenses:    licenses,
+		Credentials: credentials,
+	})
 	if err != nil {
-		t.Fatalf("buildPayload: %v", err)
+		t.Fatalf("serialisePayload: %v", err)
 	}
 	defer r.Close()
 	body, err := io.ReadAll(r)
@@ -83,15 +91,25 @@ func TestBuildPayloadSHA256IgnoresExportedAt(t *testing.T) {
 	flights := []*models.Flight{makeFlight(t, "2024-01-01", "08:00:00")}
 	aircraft := []*models.Aircraft{{ID: uuid.New(), Registration: "D-ABCD"}}
 
-	_, meta1, err := buildPayload(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		"1.0", "NinerLog JSON Backup", flights, aircraft, nil, nil, 0)
+	_, meta1, err := serialisePayload(Payload{
+		ExportedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		Version:    "1.0",
+		Format:     "NinerLog JSON Backup",
+		Flights:    flights,
+		Aircraft:   aircraft,
+	})
 	if err != nil {
-		t.Fatalf("buildPayload 1: %v", err)
+		t.Fatalf("serialisePayload 1: %v", err)
 	}
-	_, meta2, err := buildPayload(time.Date(2024, 6, 6, 12, 0, 0, 0, time.UTC),
-		"1.0", "NinerLog JSON Backup", flights, aircraft, nil, nil, 0)
+	_, meta2, err := serialisePayload(Payload{
+		ExportedAt: time.Date(2024, 6, 6, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		Version:    "1.0",
+		Format:     "NinerLog JSON Backup",
+		Flights:    flights,
+		Aircraft:   aircraft,
+	})
 	if err != nil {
-		t.Fatalf("buildPayload 2: %v", err)
+		t.Fatalf("serialisePayload 2: %v", err)
 	}
 	if meta1.SHA256 != meta2.SHA256 {
 		t.Errorf("hash should ignore exportedAt: %s vs %s", meta1.SHA256, meta2.SHA256)
@@ -103,8 +121,8 @@ func TestBuildPayloadSHA256ChangesWhenDataChanges(t *testing.T) {
 	flights1 := []*models.Flight{makeFlight(t, "2024-01-01", "08:00:00")}
 	flights2 := []*models.Flight{makeFlight(t, "2024-01-01", "09:00:00")}
 
-	_, m1, _ := buildPayload(now, "1.0", "x", flights1, nil, nil, nil, 0)
-	_, m2, _ := buildPayload(now, "1.0", "x", flights2, nil, nil, nil, 0)
+	_, m1, _ := serialisePayload(Payload{ExportedAt: now.Format(time.RFC3339), Version: "1.0", Format: "x", Flights: flights1})
+	_, m2, _ := serialisePayload(Payload{ExportedAt: now.Format(time.RFC3339), Version: "1.0", Format: "x", Flights: flights2})
 	if m1.SHA256 == m2.SHA256 {
 		t.Errorf("hash should differ when payload differs")
 	}

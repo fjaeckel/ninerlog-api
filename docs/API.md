@@ -60,17 +60,19 @@ api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q
 api.Use(middleware.RateLimitByPath(authRateLimit, /* /auth paths */))
 api.Use(middleware.RateLimitByPath(adminRateLimit, /* /admin paths */))
 generated.RegisterHandlersWithOptions(api, apiHandler, generated.GinServerOptions{...})
-handlers.RegisterFlightUtilRoutes(api, apiHandler)    // custom, not in OpenAPI spec
-handlers.RegisterOIDCRoutes(api, apiHandler)          // browser redirects, not in the spec
 ```
 
-A small number of routes (some reports and flight utilities) are registered manually
-rather than through the generated code; they are still served under `/api/v1`.
+That generated call is the entire route table. **Every** route is declared in
+`api-spec/openapi.yaml` and served under `/api/v1` — including the ones that are not JSON
+APIs, such as the browser-facing OIDC redirects (`GET /auth/oidc/authorize`,
+`GET /auth/oidc/callback`), which are declared with their `302` and `Location` header. The
+frontend and the iOS app both generate their client from the spec, so a route missing from it
+is a feature no app can reach.
 
-The two browser-facing OIDC endpoints are manual for a different reason: they are
-302 redirects driven by top-level navigation, not JSON operations a generated client
-would ever call. The JSON half of that flow (`GET /auth/providers`,
-`POST /auth/oidc/exchange`) is in the spec and generated normally.
+`make route-check` (`scripts/check-routes.py`, also a CI job) enforces this: it resolves every
+route registered outside `internal/api/generated/` and fails if one is absent from the spec or
+mounted outside `/api/v1`. Only `GET /health` and `GET /metrics` sit outside, and they are
+listed there with the reason.
 
 ## Base path, versioning, and non-API routes
 
@@ -309,8 +311,8 @@ binding and live in [SESSION_CONTRACT.md](./SESSION_CONTRACT.md).
 `GET /auth/providers` is a public capability probe reporting which authentication mode
 the server runs in. On a deployment with `OIDC_ISSUER` set, every local-credential
 operation in this group answers **503** and the OIDC endpoints take over —
-`GET /auth/oidc/authorize`, `GET /auth/oidc/callback` (both redirects, not in the spec)
-and `POST /auth/oidc/exchange`. `POST /auth/refresh` and `POST /auth/logout` behave the
+`GET /auth/oidc/authorize`, `GET /auth/oidc/callback` (both 302 redirects, opened in a
+system browser rather than called from a generated client) and `POST /auth/oidc/exchange`. `POST /auth/refresh` and `POST /auth/logout` behave the
 same in both modes. See [OIDC.md](./OIDC.md).
 
 ### Users
@@ -426,6 +428,30 @@ hide the affected UI rather than discovering the `403` by trying.
 ### Currency
 `GET /currency` (all ratings) and `GET /licenses/{id}/currency`.
 
+### Custom Currency
+User-authored currency rules under `/custom-currency` — a rule is a declarative document (a
+rolling `window`, optional `filters` selecting which flights count, and `requirements`
+measured against aggregated flight metrics, all combined with AND) evaluated against the
+user's flights by the same engine that runs the regulatory rules.
+
+- `GET`/`POST /custom-currency` — list (each rule bundled with its current evaluation) and
+  create. An account holds at most 200 rules.
+- `GET`/`PUT`/`DELETE /custom-currency/{ruleId}` — read, replace, remove.
+- `POST /custom-currency/preview` — evaluate an unsaved definition while it is being written.
+  Under the `expensive` rate limit.
+- `PUT /custom-currency/{ruleId}/enabled` — pause or resume. A paused rule is kept and listed
+  but not evaluated and not surfaced as active currency.
+- `PUT /custom-currency/{ruleId}/notify` — per-rule opt-in to expiry/lapse emails. Mail is
+  only sent when the rule is enabled and the user has email notifications on.
+- `POST`/`DELETE /custom-currency/{ruleId}/share` — enable or disable sharing. Enabling mints
+  a share token (stable across disable/enable cycles).
+- `GET /custom-currency/shared/{shareToken}` — the read-only projection of a shared rule,
+  owner identity omitted. `POST /custom-currency/shared/{shareToken}/import` copies it into
+  the caller's account, recording provenance in `importedFrom`.
+
+Rules are stored server-side per user (`custom_currency_rules`), so they are available on
+every device the pilot signs in on, and they travel in the JSON export.
+
 ### Maps & Reports
 Airport lookup/search, route and airport statistics, trends, and stats-by-class, plus
 the downloadable airport pack:
@@ -468,6 +494,24 @@ confirm and backup restore. So:
 ### Import / Export
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
 history) and export to CSV, JSON, PDF, and vCard.
+
+`GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, licences and
+class ratings, credentials, contacts, custom currency rules, notification preferences and the
+carried-forward hours baseline. It is the same payload a cloud backup run writes
+(`cloudbackup.Payload` is the single definition of both), and `POST /imports/json` restores
+every section of it.
+
+Restores are additive — nothing existing is deleted, aircraft are skipped when the
+registration already exists and contacts when the name does — with two exceptions that are
+single-row settings rather than collections: notification preferences and the flight baseline
+replace what the account currently has. All IDs are regenerated, so a backup restores into any
+installation including the one it came from. A custom currency rule's sharing state is never
+carried over: a restored rule is private until shared again.
+
+Anything a user owns belongs in this payload. `internal/service/cloudbackup/coverage_test.go`
+classifies every table in `db/migrations` as either exported (naming its payload section) or
+exempt (with the reason — credentials, installation-bound records, operator content, and
+transient state), and fails on any table that is neither.
 
 `GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,
 email, phone, notes, the contact's logged crew roles as `CATEGORIES`, and a stable `UID`

@@ -125,6 +125,12 @@ type ServerInterface interface {
 	// LogoutUser Log out
 	// (POST /auth/logout)
 	LogoutUser(c *gin.Context)
+	// AuthorizeOidc Start an OIDC login (browser redirect)
+	// (GET /auth/oidc/authorize)
+	AuthorizeOidc(c *gin.Context, params AuthorizeOidcParams)
+	// OidcCallback OIDC provider redirect target (browser redirect)
+	// (GET /auth/oidc/callback)
+	OidcCallback(c *gin.Context, params OidcCallbackParams)
 	// ExchangeOidcCode Exchange an OIDC handoff code for tokens
 	// (POST /auth/oidc/exchange)
 	ExchangeOidcCode(c *gin.Context)
@@ -254,6 +260,42 @@ type ServerInterface interface {
 	// GetAllCurrencyStatus Get currency status for all class ratings
 	// (GET /currency)
 	GetAllCurrencyStatus(c *gin.Context)
+	// ListCustomCurrencyRules List the caller's custom currency rules
+	// (GET /custom-currency)
+	ListCustomCurrencyRules(c *gin.Context)
+	// CreateCustomCurrencyRule Create a custom currency rule
+	// (POST /custom-currency)
+	CreateCustomCurrencyRule(c *gin.Context)
+	// PreviewCustomCurrencyRule Evaluate an unsaved rule definition
+	// (POST /custom-currency/preview)
+	PreviewCustomCurrencyRule(c *gin.Context)
+	// GetSharedCustomCurrencyRule Read a shared rule by its share token
+	// (GET /custom-currency/shared/{shareToken})
+	GetSharedCustomCurrencyRule(c *gin.Context, shareToken CustomCurrencyShareToken)
+	// ImportSharedCustomCurrencyRule Import a shared rule into the caller's account
+	// (POST /custom-currency/shared/{shareToken}/import)
+	ImportSharedCustomCurrencyRule(c *gin.Context, shareToken CustomCurrencyShareToken)
+	// DeleteCustomCurrencyRule Delete a custom currency rule
+	// (DELETE /custom-currency/{ruleId})
+	DeleteCustomCurrencyRule(c *gin.Context, ruleId CustomCurrencyRuleId)
+	// GetCustomCurrencyRule Get one custom currency rule
+	// (GET /custom-currency/{ruleId})
+	GetCustomCurrencyRule(c *gin.Context, ruleId CustomCurrencyRuleId)
+	// UpdateCustomCurrencyRule Replace a custom currency rule
+	// (PUT /custom-currency/{ruleId})
+	UpdateCustomCurrencyRule(c *gin.Context, ruleId CustomCurrencyRuleId)
+	// SetCustomCurrencyRuleEnabled Pause or resume a rule
+	// (PUT /custom-currency/{ruleId}/enabled)
+	SetCustomCurrencyRuleEnabled(c *gin.Context, ruleId CustomCurrencyRuleId)
+	// SetCustomCurrencyRuleNotify Opt a rule in or out of expiry notifications
+	// (PUT /custom-currency/{ruleId}/notify)
+	SetCustomCurrencyRuleNotify(c *gin.Context, ruleId CustomCurrencyRuleId)
+	// DisableCustomCurrencyRuleShare Disable sharing for a rule
+	// (DELETE /custom-currency/{ruleId}/share)
+	DisableCustomCurrencyRuleShare(c *gin.Context, ruleId CustomCurrencyRuleId)
+	// EnableCustomCurrencyRuleShare Enable sharing for a rule
+	// (POST /custom-currency/{ruleId}/share)
+	EnableCustomCurrencyRuleShare(c *gin.Context, ruleId CustomCurrencyRuleId)
 	// ExportFlightsCSV Export flights as CSV
 	// (GET /exports/csv)
 	ExportFlightsCSV(c *gin.Context, params ExportFlightsCSVParams)
@@ -1232,6 +1274,76 @@ func (siw *ServerInterfaceWrapper) LogoutUser(c *gin.Context) {
 	siw.Handler.LogoutUser(c)
 }
 
+// AuthorizeOidc operation middleware
+func (siw *ServerInterfaceWrapper) AuthorizeOidc(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AuthorizeOidcParams
+
+	// ------------- Optional query parameter "native" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "native", c.Request.URL.Query(), &params.Native, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter native: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AuthorizeOidc(c, params)
+}
+
+// OidcCallback operation middleware
+func (siw *ServerInterfaceWrapper) OidcCallback(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params OidcCallbackParams
+
+	// ------------- Optional query parameter "code" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "code", c.Request.URL.Query(), &params.Code, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter code: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", c.Request.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter state: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "error" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "error", c.Request.URL.Query(), &params.Error, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter error: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.OidcCallback(c, params)
+}
+
 // ExchangeOidcCode operation middleware
 func (siw *ServerInterfaceWrapper) ExchangeOidcCode(c *gin.Context) {
 
@@ -2104,6 +2216,270 @@ func (siw *ServerInterfaceWrapper) GetAllCurrencyStatus(c *gin.Context) {
 	}
 
 	siw.Handler.GetAllCurrencyStatus(c)
+}
+
+// ListCustomCurrencyRules operation middleware
+func (siw *ServerInterfaceWrapper) ListCustomCurrencyRules(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListCustomCurrencyRules(c)
+}
+
+// CreateCustomCurrencyRule operation middleware
+func (siw *ServerInterfaceWrapper) CreateCustomCurrencyRule(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateCustomCurrencyRule(c)
+}
+
+// PreviewCustomCurrencyRule operation middleware
+func (siw *ServerInterfaceWrapper) PreviewCustomCurrencyRule(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PreviewCustomCurrencyRule(c)
+}
+
+// GetSharedCustomCurrencyRule operation middleware
+func (siw *ServerInterfaceWrapper) GetSharedCustomCurrencyRule(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "shareToken" -------------
+	var shareToken CustomCurrencyShareToken
+
+	err = runtime.BindStyledParameterWithOptions("simple", "shareToken", c.Param("shareToken"), &shareToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter shareToken: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSharedCustomCurrencyRule(c, shareToken)
+}
+
+// ImportSharedCustomCurrencyRule operation middleware
+func (siw *ServerInterfaceWrapper) ImportSharedCustomCurrencyRule(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "shareToken" -------------
+	var shareToken CustomCurrencyShareToken
+
+	err = runtime.BindStyledParameterWithOptions("simple", "shareToken", c.Param("shareToken"), &shareToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter shareToken: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ImportSharedCustomCurrencyRule(c, shareToken)
+}
+
+// DeleteCustomCurrencyRule operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCustomCurrencyRule(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId CustomCurrencyRuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", c.Param("ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ruleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteCustomCurrencyRule(c, ruleId)
+}
+
+// GetCustomCurrencyRule operation middleware
+func (siw *ServerInterfaceWrapper) GetCustomCurrencyRule(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId CustomCurrencyRuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", c.Param("ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ruleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCustomCurrencyRule(c, ruleId)
+}
+
+// UpdateCustomCurrencyRule operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCustomCurrencyRule(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId CustomCurrencyRuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", c.Param("ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ruleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateCustomCurrencyRule(c, ruleId)
+}
+
+// SetCustomCurrencyRuleEnabled operation middleware
+func (siw *ServerInterfaceWrapper) SetCustomCurrencyRuleEnabled(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId CustomCurrencyRuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", c.Param("ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ruleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SetCustomCurrencyRuleEnabled(c, ruleId)
+}
+
+// SetCustomCurrencyRuleNotify operation middleware
+func (siw *ServerInterfaceWrapper) SetCustomCurrencyRuleNotify(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId CustomCurrencyRuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", c.Param("ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ruleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SetCustomCurrencyRuleNotify(c, ruleId)
+}
+
+// DisableCustomCurrencyRuleShare operation middleware
+func (siw *ServerInterfaceWrapper) DisableCustomCurrencyRuleShare(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId CustomCurrencyRuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", c.Param("ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ruleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DisableCustomCurrencyRuleShare(c, ruleId)
+}
+
+// EnableCustomCurrencyRuleShare operation middleware
+func (siw *ServerInterfaceWrapper) EnableCustomCurrencyRuleShare(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId CustomCurrencyRuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", c.Param("ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ruleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.EnableCustomCurrencyRuleShare(c, ruleId)
 }
 
 // ExportFlightsCSV operation middleware
@@ -3744,6 +4120,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/auth/providers", wrapper.GetAuthProviders)
+	router.GET(options.BaseURL+"/auth/oidc/authorize", wrapper.AuthorizeOidc)
+	router.GET(options.BaseURL+"/auth/oidc/callback", wrapper.OidcCallback)
 	router.POST(options.BaseURL+"/auth/oidc/exchange", wrapper.ExchangeOidcCode)
 	router.POST(options.BaseURL+"/auth/register", wrapper.RegisterUser)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.VerifyEmail)
@@ -3789,6 +4167,18 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/licenses/:licenseId/statistics", wrapper.GetLicenseStatistics)
 	router.GET(options.BaseURL+"/licenses/:licenseId/currency", wrapper.GetLicenseCurrency)
 	router.GET(options.BaseURL+"/currency", wrapper.GetAllCurrencyStatus)
+	router.GET(options.BaseURL+"/custom-currency", wrapper.ListCustomCurrencyRules)
+	router.POST(options.BaseURL+"/custom-currency", wrapper.CreateCustomCurrencyRule)
+	router.POST(options.BaseURL+"/custom-currency/preview", wrapper.PreviewCustomCurrencyRule)
+	router.GET(options.BaseURL+"/custom-currency/shared/:shareToken", wrapper.GetSharedCustomCurrencyRule)
+	router.POST(options.BaseURL+"/custom-currency/shared/:shareToken/import", wrapper.ImportSharedCustomCurrencyRule)
+	router.DELETE(options.BaseURL+"/custom-currency/:ruleId", wrapper.DeleteCustomCurrencyRule)
+	router.GET(options.BaseURL+"/custom-currency/:ruleId", wrapper.GetCustomCurrencyRule)
+	router.PUT(options.BaseURL+"/custom-currency/:ruleId", wrapper.UpdateCustomCurrencyRule)
+	router.DELETE(options.BaseURL+"/custom-currency/:ruleId/share", wrapper.DisableCustomCurrencyRuleShare)
+	router.POST(options.BaseURL+"/custom-currency/:ruleId/share", wrapper.EnableCustomCurrencyRuleShare)
+	router.PUT(options.BaseURL+"/custom-currency/:ruleId/enabled", wrapper.SetCustomCurrencyRuleEnabled)
+	router.PUT(options.BaseURL+"/custom-currency/:ruleId/notify", wrapper.SetCustomCurrencyRuleNotify)
 	router.GET(options.BaseURL+"/licenses/:licenseId/ratings", wrapper.ListClassRatings)
 	router.POST(options.BaseURL+"/licenses/:licenseId/ratings", wrapper.CreateClassRating)
 	router.DELETE(options.BaseURL+"/licenses/:licenseId/ratings/:ratingId", wrapper.DeleteClassRating)

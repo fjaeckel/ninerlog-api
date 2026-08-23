@@ -183,13 +183,22 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 `internal/api/handlers/currency.go`). Full design in
 [DOMAIN.md](./DOMAIN.md#currency-engine).
 
+- **Custom currency rules** (`/custom-currency`, `internal/service/currency/custom*.go`,
+  `internal/api/handlers/custom_currency.go`) — a pilot writes their own rule as a
+  declarative document: a rolling window, filters selecting which flights count, and
+  "at least N" requirements over aggregated flight metrics, combined with AND. The engine
+  evaluates it exactly as it does a regulatory rule; the difference is that the rule is user
+  data (`custom_currency_rules`, definition stored as JSONB) rather than hardcoded regulation.
+  Rules can be paused, opted into expiry emails per rule, and shared read-only by token for
+  another pilot to import as their own copy. Because they are stored server-side, they follow
+  the pilot to every device they sign in on, and they travel in the JSON export.
+
 ## Statistics, reports & maps
 
 - **Statistics** — hour totals and breakdowns per user/license (`reports.go`,
   `admin_dashboard.go`, service aggregation).
 - **Reports** — `GET /reports/analytics` backs the whole Reports page from one request
-  (`reports_analytics.go`); trends and stats-by-class live in `reports.go`. Some report
-  routes are registered manually via `RegisterReportsRoutes` (not generated from the spec).
+  (`reports_analytics.go`); trends and stats-by-class live in `reports.go`.
 - **Initial hours** — a per-user snapshot of pre-existing experience (`FlightBaseline`).
   It is added to the totals of both the statistics endpoint and the Reports analytics
   totals whenever the requested range reaches back to its cutoff date, so the dashboard
@@ -338,6 +347,14 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.
+- **Full backup / restore** (`GET /exports/json`, `POST /imports/json`) — everything the
+  pilot owns in one document: flights with crew, aircraft, licences and class ratings,
+  credentials, contacts, custom currency rules, notification preferences and the
+  carried-forward hours baseline. `cloudbackup.Payload` is the single definition of that
+  shape, shared with cloud backup runs, so a manual export and a scheduled backup always
+  carry the same data. Restores are additive and regenerate all IDs, so a backup moves
+  between installations; `internal/service/cloudbackup/coverage_test.go` fails the build if a
+  new table holding user rows is left out.
 
 ## Notifications
 
@@ -376,7 +393,9 @@ back up their data to their own storage on a schedule.
   count. Credentials are **AES-256-GCM encrypted** at rest (`pkg/cryptoutil`); the key
   comes from the environment, never the database.
 - **Runs** (`runner.go`, `BackupRun`) — execute a backup, record outcome, enforce
-  retention; `jsonbuilder.go` serializes the user's data set.
+  retention; `jsonbuilder.go` gathers the user's data set into `cloudbackup.Payload` — the
+  same payload `GET /exports/json` writes — and gzips it. A SHA-256 over the payload
+  (excluding `exportedAt`) skips a run whose data has not changed.
 - **Scheduler** (`scheduler.go`) — a goroutine that triggers due backups; manual runs via
   `POST /backups/destinations/{id}/run`, connectivity check via `…/test`.
 - **HTTP**: `internal/api/handlers/backup.go` (list providers, manage destinations,

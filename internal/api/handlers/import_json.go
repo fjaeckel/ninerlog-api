@@ -2,15 +2,20 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
+	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // importJSONBackup is the wire shape produced by GET /exports/json. It mirrors
@@ -18,13 +23,17 @@ import (
 // plus per-entity arrays. License entries embed their class ratings so the
 // importer can wire them up to the freshly-minted license IDs.
 type importJSONBackup struct {
-	Format      string                `json:"format"`
-	Version     string                `json:"version"`
-	ExportedAt  string                `json:"exportedAt"`
-	Flights     []models.Flight       `json:"flights"`
-	Aircraft    []models.Aircraft     `json:"aircraft"`
-	Licenses    []importLicenseBundle `json:"licenses"`
-	Credentials []models.Credential   `json:"credentials"`
+	Format                  string                               `json:"format"`
+	Version                 string                               `json:"version"`
+	ExportedAt              string                               `json:"exportedAt"`
+	Flights                 []models.Flight                      `json:"flights"`
+	Aircraft                []models.Aircraft                    `json:"aircraft"`
+	Licenses                []importLicenseBundle                `json:"licenses"`
+	Credentials             []models.Credential                  `json:"credentials"`
+	Contacts                []models.Contact                     `json:"contacts"`
+	CustomCurrencyRules     []cloudbackup.CustomCurrencyRule     `json:"customCurrencyRules"`
+	NotificationPreferences *cloudbackup.NotificationPreferences `json:"notificationPreferences"`
+	FlightBaseline          *cloudbackup.FlightBaseline          `json:"flightBaseline"`
 }
 
 type importLicenseBundle struct {
@@ -48,10 +57,21 @@ type importJSONSummary struct {
 	CredentialsImported  int `json:"credentialsImported"`
 	FlightsImported      int `json:"flightsImported"`
 	CrewMembersImported  int `json:"crewMembersImported"`
+	// ContactsImported counts address-book entries restored from the backup's
+	// own contacts section; ContactsSkipped counts those whose name the
+	// destination account already holds.
+	ContactsImported int `json:"contactsImported"`
+	ContactsSkipped  int `json:"contactsSkipped"`
 	// ContactsCreated counts address-book entries created for a crew name in
 	// the backup matching none of the destination account's contacts.
-	// Contacts are not carried in the backup format.
 	ContactsCreated int `json:"contactsCreated"`
+	// CustomCurrencyRulesImported counts user-authored currency rules
+	// restored; sharing state is not carried in the backup.
+	CustomCurrencyRulesImported int `json:"customCurrencyRulesImported"`
+	// NotificationPreferencesImported and FlightBaselineImported report
+	// whether those single-row settings were present and restored.
+	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
+	FlightBaselineImported          bool `json:"flightBaselineImported"`
 }
 
 // ImportDataJSON implements POST /imports/json. It restores a NinerLog JSON
@@ -102,12 +122,42 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			fmt.Sprintf("Backup contains too many credentials (%d, max %d)", n, maxRestoreEntities))
 		return
 	}
+	if n := len(body.Contacts); n > maxRestoreEntities {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many contacts (%d, max %d)", n, maxRestoreEntities))
+		return
+	}
+	if n := len(body.CustomCurrencyRules); n > maxRestoreEntities {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many custom currency rules (%d, max %d)", n, maxRestoreEntities))
+		return
+	}
 
 	ctx := c.Request.Context()
 	summary := importJSONSummary{}
 	// One linker for the whole restore so a crew name is looked up once, not
 	// once per flight it appears on.
 	crewLinker := h.contactService.NewCrewLinker(userID)
+
+	// --- Contacts ---
+	// Restored before flights so the crew linker below matches a crew name
+	// against the contact this backup carries rather than creating a bare one.
+	for _, contact := range body.Contacts {
+		newC := contact
+		newC.ID = uuid.New()
+		newC.UserID = userID
+		newC.CreatedAt = time.Time{}
+		newC.UpdatedAt = time.Time{}
+		if err := h.contactService.CreateContact(ctx, &newC); err != nil {
+			if errors.Is(err, service.ErrContactNameExists) {
+				summary.ContactsSkipped++
+				continue
+			}
+			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to import contact %q: %v", contact.Name, err))
+			return
+		}
+		summary.ContactsImported++
+	}
 
 	// --- Aircraft ---
 	// Build registration → existing ID map so duplicates are skipped and
@@ -226,6 +276,60 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 	}
 
 	summary.ContactsCreated = crewLinker.Created()
+
+	// --- Custom currency rules ---
+	// Recreated through the service so each definition is revalidated and the
+	// per-account quota applies. Sharing is never carried over.
+	for _, rule := range body.CustomCurrencyRules {
+		created, err := h.customCurrencyService.Create(ctx, userID, currency.CustomRuleInput{
+			Name:        rule.Name,
+			Description: rule.Description,
+			Emoji:       rule.Emoji,
+			Definition:  rule.Definition,
+		})
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to import custom currency rule %q: %v", rule.Name, err))
+			return
+		}
+		if !rule.Enabled {
+			if _, err := h.customCurrencyService.SetEnabled(ctx, userID, created.Rule.ID, false); err != nil {
+				h.sendError(c, http.StatusInternalServerError, fmt.Sprintf("Failed to restore paused state for rule %q: %v", rule.Name, err))
+				return
+			}
+		}
+		if rule.Notify {
+			if _, err := h.customCurrencyService.SetNotify(ctx, userID, created.Rule.ID, true); err != nil {
+				h.sendError(c, http.StatusInternalServerError, fmt.Sprintf("Failed to restore notification opt-in for rule %q: %v", rule.Name, err))
+				return
+			}
+		}
+		summary.CustomCurrencyRulesImported++
+	}
+
+	// --- Notification preferences ---
+	if p := body.NotificationPreferences; p != nil {
+		prefs := &models.NotificationPreferences{
+			UserID:            userID,
+			EmailEnabled:      p.EmailEnabled,
+			EnabledCategories: pq.StringArray(p.EnabledCategories),
+			WarningDays:       pq.Int64Array(p.WarningDays),
+			CheckHour:         p.CheckHour,
+		}
+		if err := h.notificationService.UpdatePreferences(ctx, prefs); err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to import notification preferences")
+			return
+		}
+		summary.NotificationPreferencesImported = true
+	}
+
+	// --- Flight baseline ---
+	if b := body.FlightBaseline; b != nil {
+		if err := h.flightService.UpsertBaseline(ctx, b.ToModel(userID)); err != nil {
+			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to import flight baseline: %v", err))
+			return
+		}
+		summary.FlightBaselineImported = true
+	}
 
 	c.JSON(http.StatusOK, summary)
 }
