@@ -3341,7 +3341,7 @@ type CurrencyRequirement struct {
 	Current float32 `json:"current"`
 
 	// Message Human-readable progress description
-	Message *string `json:"message,omitempty"`
+	Message string `json:"message"`
 
 	// Met Whether this requirement is currently satisfied
 	Met bool `json:"met"`
