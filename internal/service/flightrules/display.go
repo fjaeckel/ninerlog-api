@@ -216,3 +216,45 @@ func RowTimes(f *models.Flight, acClass string) (spSE, spME, mp int) {
 		return f.TotalTime, 0, 0
 	}
 }
+
+// PICColumnTime returns the minutes for the PIC column of the paper layouts:
+// PIC plus PICUS plus SPIC (EASA AMC1 FCL.050 — supervised PIC time is
+// entered in the PIC column, with the breakdown annotated in remarks by
+// CombinedRemarks).
+func PICColumnTime(f *models.Flight) int {
+	if f == nil {
+		return 0
+	}
+	return f.PICTime + f.PICUSTime + f.SPICTime
+}
+
+// CoPilotColumnTime returns the minutes for the co-pilot (SIC) column of the
+// paper layouts: SIC plus cruise relief co-pilot time, with the breakdown
+// annotated in remarks by CombinedRemarks.
+func CoPilotColumnTime(f *models.Flight) int {
+	if f == nil {
+		return 0
+	}
+	return f.SICTime + f.ReliefTime
+}
+
+// FAASICColumnTime returns the minutes for the SIC column of the FAA
+// layouts: SIC plus PICUS plus cruise relief — time in a required co-pilot
+// seat is SIC time under 14 CFR §61.51(f), whatever Part-FCL calls it. The
+// breakdown is annotated in remarks by CombinedRemarks.
+func FAASICColumnTime(f *models.Flight) int {
+	if f == nil {
+		return 0
+	}
+	return f.SICTime + f.PICUSTime + f.ReliefTime
+}
+
+// FAADualColumnTime returns the minutes for the dual-received column of the
+// FAA layouts: dual received plus SPIC (supervised student flying with an
+// instructor on board), annotated in remarks by CombinedRemarks.
+func FAADualColumnTime(f *models.Flight) int {
+	if f == nil {
+		return 0
+	}
+	return f.DualTime + f.SPICTime
+}

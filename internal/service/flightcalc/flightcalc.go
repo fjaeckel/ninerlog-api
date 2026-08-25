@@ -109,6 +109,10 @@ func applySessionCalculations(flight *models.Flight) {
 	flight.SICTime = 0
 	flight.DualGivenTime = 0
 	flight.MultiPilotTime = 0
+	flight.PICUSTime = 0
+	flight.SPICTime = 0
+	flight.ExaminerTime = 0
+	flight.ReliefTime = 0
 	flight.SoloTime = 0
 	flight.CrossCountryTime = 0
 	flight.NightTime = 0
@@ -148,6 +152,10 @@ func applyPassengerCalculations(flight *models.Flight) {
 	flight.SICTime = 0
 	flight.DualGivenTime = 0
 	flight.MultiPilotTime = 0
+	flight.PICUSTime = 0
+	flight.SPICTime = 0
+	flight.ExaminerTime = 0
+	flight.ReliefTime = 0
 	flight.SoloTime = 0
 	flight.CrossCountryTime = 0
 	flight.NightTime = 0
@@ -193,17 +201,35 @@ func determineUserRole(flight *models.Flight, userName string, aircraft *flightr
 	return flightrules.DetermineRole(flight, userName, aircraft)
 }
 
+// declaredFunctionTime returns the pilot-declared function minutes — PICUS,
+// SPIC and cruise relief — that carve out of the derived function time for
+// the resolved role. Examiner time overlays and is not part of the carve.
+func declaredFunctionTime(flight *models.Flight) int {
+	return flight.PICUSTime + flight.SPICTime + flight.ReliefTime
+}
+
+// derivedFunctionMinutes returns the block time left for the derived function
+// column after the declared function times are carved out, floored at zero.
+func derivedFunctionMinutes(flight *models.Flight) int {
+	m := flight.TotalTime - declaredFunctionTime(flight)
+	if m < 0 {
+		return 0
+	}
+	return m
+}
+
 // calculatePICDual sets PIC/Dual flags and times based on the resolved user
 // role. A user giving instruction is also PIC of the flight. A user flying
 // as co-pilot (SIC) on a multi-pilot operation logs neither PIC nor Dual —
 // only the designated PIC logs PIC time (AMC1 FCL.050). A passenger logs no
-// pilot function time at all.
+// pilot function time at all. Declared PICUS/SPIC/relief minutes are carved
+// out of the derived column so the function times still decompose TotalTime.
 func calculatePICDual(flight *models.Flight, role userPilotRole) {
 	switch role {
 	case roleDualReceiving:
 		flight.IsPIC = false
 		flight.IsDual = true
-		flight.DualTime = flight.TotalTime
+		flight.DualTime = derivedFunctionMinutes(flight)
 		flight.PICTime = 0
 	case roleSIC:
 		flight.IsPIC = false
@@ -214,7 +240,7 @@ func calculatePICDual(flight *models.Flight, role userPilotRole) {
 		// rolePIC and roleDualGiving — user is PIC.
 		flight.IsPIC = true
 		flight.IsDual = false
-		flight.PICTime = flight.TotalTime
+		flight.PICTime = derivedFunctionMinutes(flight)
 		flight.DualTime = 0
 	}
 }
@@ -291,9 +317,14 @@ func calculateNightTime(flight *models.Flight) {
 // occupant of the aircraft (FCL.050 / FOCA GM/INFO §1.6: solo flight time
 // means flight time during which the pilot is the sole occupant). Any crew
 // member other than the user themselves — passenger, co-pilot, safety
-// pilot — means the flight is not solo.
+// pilot — means the flight is not solo, as does any declared PICUS, SPIC,
+// examiner or relief time (each implies another pilot on board).
 func calculateSoloTime(flight *models.Flight, userName string) {
 	if !flight.IsPIC || flight.IsDual {
+		flight.SoloTime = 0
+		return
+	}
+	if flight.PICUSTime > 0 || flight.SPICTime > 0 || flight.ExaminerTime > 0 || flight.ReliefTime > 0 {
 		flight.SoloTime = 0
 		return
 	}
@@ -452,6 +483,8 @@ func parseTimeOfDay(date time.Time, timeStr string) (time.Time, error) {
 // SIC — someone else is the designated PIC and the user occupies a co-pilot
 // seat the operation provides (AMC1 FCL.050). A co-pilot time the pilot
 // declared is left as entered; in every other case the time is zeroed.
+// Declared PICUS/SPIC/relief minutes are carved out of the derived value, so
+// a full-sector PICUS entry leaves zero co-pilot time.
 func calculateSICTime(flight *models.Flight, role userPilotRole) {
 	if role != roleSIC {
 		flight.SICTime = 0
@@ -460,7 +493,7 @@ func calculateSICTime(flight *models.Flight, role userPilotRole) {
 	if flight.SICTimeOverride {
 		return
 	}
-	flight.SICTime = flight.TotalTime
+	flight.SICTime = derivedFunctionMinutes(flight)
 }
 
 // calculateMultiPilotTime fills the multi-pilot column (EASA AMC1 FCL.050

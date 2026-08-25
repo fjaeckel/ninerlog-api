@@ -46,7 +46,7 @@ done
 # Record the final version the way golang-migrate does, so `m.Up()` in the API
 # is a no-op rather than an attempt to replay everything.
 last="${migrations[-1]}"
-version="$(basename "$last" | sed 's/^0*\([0-9]\+\)_.*/\1/')"
+version="$(basename "$last" | sed -E 's/^0*([0-9]+)_.*/\1/')"
 $PSQL_CMD -v ON_ERROR_STOP=1 -q <<SQL
 CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BOOLEAN NOT NULL);
 DELETE FROM schema_migrations;

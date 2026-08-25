@@ -244,6 +244,10 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	flight.SICTime = getIntOrDefault(req.SicTime, 0)
 	flight.SICTimeOverride = req.SicTime != nil
 	flight.DualGivenTime = getIntOrDefault(req.DualGivenTime, 0)
+	flight.PICUSTime = getIntOrDefault(req.PicusTime, 0)
+	flight.SPICTime = getIntOrDefault(req.SpicTime, 0)
+	flight.ExaminerTime = getIntOrDefault(req.ExaminerTime, 0)
+	flight.ReliefTime = getIntOrDefault(req.ReliefTime, 0)
 	flight.SimulatedFlightTime = getIntOrDefault(req.SimulatedFlightTime, 0)
 	flight.GroundTrainingTime = getIntOrDefault(req.GroundTrainingTime, 0)
 	flight.ActualInstrumentTime = getIntOrDefault(req.ActualInstrumentTime, 0)
@@ -441,6 +445,18 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	}
 	if req.DualGivenTime != nil {
 		flight.DualGivenTime = *req.DualGivenTime
+	}
+	if req.PicusTime != nil {
+		flight.PICUSTime = *req.PicusTime
+	}
+	if req.SpicTime != nil {
+		flight.SPICTime = *req.SpicTime
+	}
+	if req.ExaminerTime != nil {
+		flight.ExaminerTime = *req.ExaminerTime
+	}
+	if req.ReliefTime != nil {
+		flight.ReliefTime = *req.ReliefTime
 	}
 	if req.SimulatedFlightTime != nil {
 		flight.SimulatedFlightTime = *req.SimulatedFlightTime
@@ -673,6 +689,10 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 	flight.InstructorComments = f.InstructorComments
 	flight.SicTime = ptrInt(f.SICTime)
 	flight.DualGivenTime = ptrInt(f.DualGivenTime)
+	flight.PicusTime = ptrInt(f.PICUSTime)
+	flight.SpicTime = ptrInt(f.SPICTime)
+	flight.ExaminerTime = ptrInt(f.ExaminerTime)
+	flight.ReliefTime = ptrInt(f.ReliefTime)
 	flight.SimulatedFlightTime = ptrInt(f.SimulatedFlightTime)
 	flight.GroundTrainingTime = ptrInt(f.GroundTrainingTime)
 	flight.ActualInstrumentTime = ptrInt(f.ActualInstrumentTime)

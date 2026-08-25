@@ -38,12 +38,17 @@ to it:
 | Column | Field | Counts toward total time |
 | --- | --- | --- |
 | PIC | `PICTime` | yes |
+| PIC under supervision (PICUS) | `PICUSTime` | yes |
+| Student PIC (SPIC) | `SPICTime` | yes |
 | Co-pilot (SIC) | `SICTime` | yes |
 | Dual received | `DualTime` | yes |
+| Cruise relief co-pilot | `ReliefTime` | yes |
 | Instructor (dual given) | `DualGivenTime` | no — it *overlays* the others |
+| Examiner | `ExaminerTime` | no — it *overlays* the others |
 
-So the invariant is `PICTime + SICTime + DualTime <= TotalTime`, enforced by
-`ValidateTimeDistribution()`. Two consequences are easy to get wrong:
+So the invariant is
+`PICTime + PICUSTime + SPICTime + SICTime + DualTime + ReliefTime <= TotalTime`, enforced
+by `ValidateTimeDistribution()`. Two consequences are easy to get wrong:
 
 - **Co-pilot time counts in full.** An airline first officer's 10-hour sector is 10 hours
   of total time, 10 hours of co-pilot time and zero PIC time, and all 10 count toward the
@@ -60,6 +65,32 @@ When a row declares `SICTime` but carries no crew list — typical of imported l
 `flightrules.DetermineRole` resolves the user to co-pilot so `PICTime` is not also claimed
 for the same minutes. Whether the time may be logged at all is a separate question, covered
 next.
+
+### Declared function times: PICUS, SPIC, examiner, relief
+
+`PICUSTime` (PIC under supervision, EASA FCL.030 — the time a first officer logs toward
+unfreezing an ATPL), `SPICTime` (student pilot-in-command on an integrated course),
+`ExaminerTime` (conducting a check) and `ReliefTime` (cruise relief co-pilot on an
+augmented crew) are **declared by the pilot and never auto-derived** — the server cannot
+know that a sector was flown as pilot flying under supervision, or that the PIC
+countersigned it. They are kept distinct from `PICTime` and `SICTime` in storage,
+statistics and analytics, because a pilot needs "actual PIC" and "PICUS" as separate
+totals.
+
+Because PICUS, SPIC and relief are function times, derivation carves them out of the
+derived column for the resolved role (`flightcalc.derivedFunctionMinutes`): a first
+officer who declares a full sector as PICUS logs zero co-pilot time for it, and a partial
+relief declaration leaves the remainder as co-pilot time. Examiner time overlays function
+time exactly like `DualGivenTime` and is bounded by `TotalTime` alone. Declaring any of
+the three carved times also declares the crew seat (`flightrules.HasDeclaredFunctionTime`
+feeds `MayLogCoPilotTime` and `DetermineRole`), and any declared function time suppresses
+solo time — each implies another pilot on board.
+
+On the paper-layout exports (EASA/FAA CSV and PDF) the declared times fold into the
+conventional columns — PICUS and SPIC into the PIC column per AMC1 FCL.050 (for FAA
+layouts, into SIC and dual respectively per 14 CFR §61.51(f)), relief into the co-pilot
+column — with the breakdown annotated in remarks by `flightrules.CombinedRemarks`
+(`[PICUS 2:05]`). The standard CSV, JSON export and API keep the four as separate fields.
 
 ## Who may log co-pilot time
 
@@ -135,7 +166,8 @@ NinerLog stores a session as a `flights` row with `IsSimulator = true`. That row
 
 - carries its duration in `SimulatedFlightTime` and `FSTDType` for the device designation;
 - has **zero** in every flight-time column — `TotalTime`, `PICTime`, `DualTime`, `SICTime`,
-  `DualGivenTime`, `MultiPilotTime`, `SoloTime`, `CrossCountryTime`, `NightTime`, `IFRTime`
+  `DualGivenTime`, `MultiPilotTime`, `PICUSTime`, `SPICTime`, `ExaminerTime`, `ReliefTime`,
+  `SoloTime`, `CrossCountryTime`, `NightTime`, `IFRTime`
   — and zero landings, takeoffs and distance;
 - has no `AircraftReg`, no departure/arrival and no block times. A device is not flown
   between places and has nothing to record off- and on-block, which is why those fields are
@@ -214,8 +246,10 @@ Validation is layered:
      `SimulatedFlightTime` (see [FSTD sessions](#fstd-simulator-sessions)), and a
      passenger flight needs only a registration.
    - `ValidateTimeDistribution()` — function-time consistency: component times must not
-     exceed total time, `PICTime + SICTime + DualTime <= TotalTime`, PIC/dual logic must
-     be coherent, and a session or passenger flight must carry no flight time at all.
+     exceed total time,
+     `PICTime + PICUSTime + SPICTime + SICTime + DualTime + ReliefTime <= TotalTime`
+     (instructor and examiner time overlay instead), PIC/dual logic must be coherent, and
+     a session or passenger flight must carry no flight time at all.
 2. **Text-field limits** (`internal/models/validation.go`) — enforces maximum lengths on
    free-text fields (registration, type, remarks, notes, …) to prevent abuse and oversized
    payloads.

@@ -61,6 +61,10 @@ func (h *APIHandler) PutMyBaseline(c *gin.Context) {
 		IFRMinutes:          derefInt(req.IfrMinutes),
 		SoloMinutes:         derefInt(req.SoloMinutes),
 		CrossCountryMinutes: derefInt(req.CrossCountryMinutes),
+		PICUSMinutes:        derefInt(req.PicusMinutes),
+		SPICMinutes:         derefInt(req.SpicMinutes),
+		ExaminerMinutes:     derefInt(req.ExaminerMinutes),
+		ReliefMinutes:       derefInt(req.ReliefMinutes),
 		LandingsDay:         derefInt(req.LandingsDay),
 		LandingsNight:       derefInt(req.LandingsNight),
 		Notes:               trimmedNotes(req.Notes),
@@ -128,6 +132,10 @@ func baselineToGenerated(b *models.FlightBaseline) generated.FlightBaseline {
 	ifrMinutes := b.IFRMinutes
 	soloMinutes := b.SoloMinutes
 	crossCountryMinutes := b.CrossCountryMinutes
+	picusMinutes := b.PICUSMinutes
+	spicMinutes := b.SPICMinutes
+	examinerMinutes := b.ExaminerMinutes
+	reliefMinutes := b.ReliefMinutes
 	landingsDay := b.LandingsDay
 	landingsNight := b.LandingsNight
 
@@ -147,6 +155,10 @@ func baselineToGenerated(b *models.FlightBaseline) generated.FlightBaseline {
 		IfrMinutes:          &ifrMinutes,
 		SoloMinutes:         &soloMinutes,
 		CrossCountryMinutes: &crossCountryMinutes,
+		PicusMinutes:        &picusMinutes,
+		SpicMinutes:         &spicMinutes,
+		ExaminerMinutes:     &examinerMinutes,
+		ReliefMinutes:       &reliefMinutes,
 		LandingsDay:         &landingsDay,
 		LandingsNight:       &landingsNight,
 		Notes:               b.Notes,
@@ -166,6 +178,10 @@ func baselineContribution(b *models.FlightBaseline) *generated.StatisticsBaselin
 	multiPilotMinutes := b.MultiPilotMinutes
 	soloMinutes := b.SoloMinutes
 	crossCountryMinutes := b.CrossCountryMinutes
+	picusMinutes := b.PICUSMinutes
+	spicMinutes := b.SPICMinutes
+	examinerMinutes := b.ExaminerMinutes
+	reliefMinutes := b.ReliefMinutes
 	return &generated.StatisticsBaselineContribution{
 		BaselineDate:        openapi_types.Date{Time: b.BaselineDate},
 		TotalFlights:        b.TotalFlights,
@@ -179,6 +195,10 @@ func baselineContribution(b *models.FlightBaseline) *generated.StatisticsBaselin
 		IfrMinutes:          b.IFRMinutes,
 		SoloMinutes:         &soloMinutes,
 		CrossCountryMinutes: &crossCountryMinutes,
+		PicusMinutes:        &picusMinutes,
+		SpicMinutes:         &spicMinutes,
+		ExaminerMinutes:     &examinerMinutes,
+		ReliefMinutes:       &reliefMinutes,
 		LandingsDay:         b.LandingsDay,
 		LandingsNight:       b.LandingsNight,
 	}

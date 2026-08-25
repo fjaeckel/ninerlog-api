@@ -7,6 +7,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"time"
 )
 
@@ -264,6 +265,10 @@ func (r *reportsRepository) Totals(ctx context.Context, userID uuid.UUID, months
 			COALESCE(SUM(f.sic_time), 0),
 			COALESCE(SUM(f.dual_time), 0),
 			COALESCE(SUM(f.dual_given_time), 0),
+			COALESCE(SUM(f.picus_time), 0),
+			COALESCE(SUM(f.spic_time), 0),
+			COALESCE(SUM(f.examiner_time), 0),
+			COALESCE(SUM(f.relief_time), 0),
 			COALESCE(SUM(f.solo_time), 0),
 			COALESCE(SUM(f.night_time), 0),
 			COALESCE(SUM(f.ifr_time), 0),
@@ -288,7 +293,8 @@ func (r *reportsRepository) Totals(ctx context.Context, userID uuid.UUID, months
 		s.args...,
 	).Scan(
 		&t.TotalFlights, &t.TotalMinutes, &t.PicMinutes, &t.SicMinutes, &t.DualMinutes,
-		&t.DualGivenMinutes, &t.SoloMinutes, &t.NightMinutes, &t.IfrMinutes,
+		&t.DualGivenMinutes, &t.PicusMinutes, &t.SpicMinutes, &t.ExaminerMinutes,
+		&t.ReliefMinutes, &t.SoloMinutes, &t.NightMinutes, &t.IfrMinutes,
 		&t.ActualInstrumentMinutes, &t.SimulatedInstrumentMinutes, &t.CrossCountryMinutes,
 		&t.MultiPilotMinutes, &t.SimulatedFlightMinutes, &t.GroundTrainingMinutes,
 		&t.LandingsDay, &t.LandingsNight, &t.TakeoffsDay, &t.TakeoffsNight,
@@ -647,20 +653,50 @@ func (r *reportsRepository) ByInstructor(ctx context.Context, userID uuid.UUID, 
 		return nil, err
 	}
 	defer rows.Close()
-	return scanAnalyticsPersonRows(rows, false)
+	return scanAnalyticsPersonRows(rows)
 }
 
 func (r *reportsRepository) ByCrew(ctx context.Context, userID uuid.UUID, months, limit int) ([]*repository.AnalyticsPersonRow, error) {
 	s := newReportScope(userID, months)
 	args, limitPh := s.withLimit(limit)
+	// One row per person, never per (name, role): entries linked to the same
+	// contact are one person, and entries that never got linked still fold in
+	// by trimmed case-insensitive name — first onto the contact holding that
+	// name (contact names are unique per user, case-insensitively), then onto
+	// each other. The inner rollup is per person-and-role so the outer one
+	// can order each person's roles by time together and surface the
+	// most-flown one as Role. The display name and the sort both prefer the
+	// most recent spelling and the busiest role, so a renamed or re-cased
+	// crew entry settles on what the pilot wrote last.
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT TRIM(cm.name), cm.role::text, COUNT(*),
-			COALESCE(SUM(f.total_time), 0), MAX(f.date)
-		FROM flight_crew_members cm
-		JOIN flights f ON f.id = cm.flight_id
-		WHERE f.user_id = $1 AND TRIM(COALESCE(cm.name, '')) <> ''`+s.filter+`
-		GROUP BY TRIM(cm.name), cm.role
-		ORDER BY 4 DESC, 3 DESC
+		WITH per_role AS (
+			SELECT
+				COALESCE(cm.contact_id::text, c.id::text, 'name:' || LOWER(TRIM(cm.name))) AS person_key,
+				MAX(COALESCE(cm.contact_id::text, c.id::text)) AS contact_id,
+				cm.role::text AS role,
+				(ARRAY_AGG(TRIM(cm.name) ORDER BY f.date DESC))[1] AS name,
+				COUNT(*) AS flights,
+				COALESCE(SUM(f.total_time), 0) AS minutes,
+				MAX(f.date) AS last_date
+			FROM flight_crew_members cm
+			JOIN flights f ON f.id = cm.flight_id
+			LEFT JOIN contacts c
+				ON c.user_id = f.user_id
+				AND LOWER(TRIM(c.name)) = LOWER(TRIM(cm.name))
+			WHERE f.user_id = $1 AND TRIM(COALESCE(cm.name, '')) <> ''`+s.filter+`
+			GROUP BY 1, cm.role
+		)
+		SELECT
+			(ARRAY_AGG(name ORDER BY last_date DESC))[1],
+			MAX(contact_id),
+			(ARRAY_AGG(role ORDER BY minutes DESC))[1],
+			ARRAY_AGG(role ORDER BY minutes DESC),
+			COALESCE(SUM(flights), 0)::int,
+			COALESCE(SUM(minutes), 0)::int,
+			MAX(last_date)
+		FROM per_role
+		GROUP BY person_key
+		ORDER BY 6 DESC, 5 DESC
 		LIMIT `+limitPh,
 		args...,
 	)
@@ -668,27 +704,40 @@ func (r *reportsRepository) ByCrew(ctx context.Context, userID uuid.UUID, months
 		return nil, err
 	}
 	defer rows.Close()
-	return scanAnalyticsPersonRows(rows, true)
-}
-
-func scanAnalyticsPersonRows(rows *sql.Rows, withRole bool) ([]*repository.AnalyticsPersonRow, error) {
 	out := []*repository.AnalyticsPersonRow{}
 	for rows.Next() {
 		p := &repository.AnalyticsPersonRow{}
-		var role sql.NullString
+		var contactID, role sql.NullString
+		var roles pq.StringArray
 		var last sql.NullTime
-		var err error
-		if withRole {
-			err = rows.Scan(&p.Name, &role, &p.Flights, &p.TotalMinutes, &last)
-		} else {
-			err = rows.Scan(&p.Name, &p.Flights, &p.TotalMinutes, &last)
-		}
-		if err != nil {
+		if err := rows.Scan(&p.Name, &contactID, &role, &roles, &p.Flights, &p.TotalMinutes, &last); err != nil {
 			return nil, err
+		}
+		if contactID.Valid && contactID.String != "" {
+			v := contactID.String
+			p.ContactID = &v
 		}
 		if role.Valid && role.String != "" {
 			v := role.String
 			p.Role = &v
+		}
+		p.Roles = []string(roles)
+		if last.Valid {
+			l := last.Time
+			p.LastFlightDate = &l
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func scanAnalyticsPersonRows(rows *sql.Rows) ([]*repository.AnalyticsPersonRow, error) {
+	out := []*repository.AnalyticsPersonRow{}
+	for rows.Next() {
+		p := &repository.AnalyticsPersonRow{}
+		var last sql.NullTime
+		if err := rows.Scan(&p.Name, &p.Flights, &p.TotalMinutes, &last); err != nil {
+			return nil, err
 		}
 		if last.Valid {
 			l := last.Time

@@ -173,7 +173,7 @@ flight update, spreadsheet import, backup restore) runs the crew names through
 than of which entry point the pilot used. `POST /contacts` is for filling in email and
 phone, and returns 409 on a name that already exists rather than creating a second row.
 
-### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63)
+### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63, 66)
 
 The central record. It holds **two kinds of row**, told apart by `IsSimulator`: a flight,
 and an FSTD (simulator) session. See
@@ -189,6 +189,11 @@ are **integer minutes**):
   `IFRTime`, `SoloTime`, `CrossCountryTime`, `SICTime`, `DualGivenTime`,
   `SimulatedFlightTime`, `GroundTrainingTime`, `MultiPilotTime` (EASA AMC1 FCL.050 col 10),
   `ActualInstrumentTime`, `SimulatedInstrumentTime`.
+- **Declared function times** (migration 66, minutes, never auto-derived): `PICUSTime`
+  (PIC under supervision), `SPICTime` (student PIC), `ExaminerTime`, `ReliefTime` (cruise
+  relief co-pilot). PICUS/SPIC/relief join the function-time sum and are carved out of the
+  derived PIC/SIC/dual time; examiner time overlays like `DualGivenTime`. See
+  [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
 - **Booleans**: `IsPIC`, `IsDual`.
 - **Takeoffs/landings**: `LandingsDay`, `LandingsNight`, `AllLandings` (auto),
   `TakeoffsDay`, `TakeoffsNight` (auto from sunset/sunrise at departure).
@@ -222,7 +227,7 @@ are **integer minutes**):
 
 Validation: `IsValid()` checks required fields — which differ by row kind;
 `ValidateTimeDistribution()` enforces function-time consistency, including
-`PICTime + SICTime + DualTime <= TotalTime` (see
+`PICTime + PICUSTime + SPICTime + SICTime + DualTime + ReliefTime <= TotalTime` (see
 [DOMAIN.md](./DOMAIN.md#flight-validation)).
 
 ### FlightCrewMember (migration 15)
@@ -241,12 +246,14 @@ PIC-of-record resolution read. Two consequences:
 - Deleting a contact sets `contact_id` to NULL and leaves `name` untouched, so no logbook
   content is lost. Deleting is therefore always permitted.
 
-### FlightBaseline (`internal/models/flight_baseline.go`, migration 38)
+### FlightBaseline (`internal/models/flight_baseline.go`, migrations 38, 66)
 
 Pre-existing totals carried over from a paper logbook or another system, so statistics
 and totals reflect a pilot's full history without entering every historical flight.
 Applied by `GET /users/me/statistics` and by the `totals` of `GET /reports/analytics`
-whenever the requested range reaches back to the snapshot's cutoff date.
+whenever the requested range reaches back to the snapshot's cutoff date. Migration 66
+adds the carried-forward declared function times (`picus_minutes`, `spic_minutes`,
+`examiner_minutes`, `relief_minutes`).
 
 ### CustomCurrencyRule (`internal/models/custom_currency.go`, migrations 46, 47, 48)
 

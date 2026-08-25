@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 )
 
 // RemarkFlag is an optional inline marker appended to a flight's remarks
@@ -18,9 +19,12 @@ const (
 )
 
 // CombinedRemarks returns the user-facing combined Remarks + Endorsements
-// string, optionally suffixed with FAA-style inline flags ([IPC] / [FR] /
-// [PC]). Empty endorsements/remarks are skipped; the separator between a
-// non-empty remark and a non-empty endorsement is " | ".
+// string, suffixed with the declared-function-time annotations the paper
+// layouts require ([PICUS h:mm] / [SPIC h:mm] / [Examiner h:mm] /
+// [Relief h:mm] — the PIC and co-pilot columns fold these times in, per
+// PICColumnTime and CoPilotColumnTime), and optionally with FAA-style inline
+// flags ([IPC] / [FR] / [PC]). Empty endorsements/remarks are skipped; the
+// separator between a non-empty remark and a non-empty endorsement is " | ".
 //
 // Flag suffixes are only added when the corresponding boolean on `flight`
 // is true AND the flag was requested by the caller. Most callers pass all
@@ -39,6 +43,19 @@ func CombinedRemarks(f *models.Flight, flags ...RemarkFlag) string {
 		}
 		out += *f.Endorsements
 	}
+	addTime := func(minutes int, label string) {
+		if minutes <= 0 {
+			return
+		}
+		if out != "" {
+			out += " "
+		}
+		out += "[" + label + " " + duration.FormatColonHM(minutes) + "]"
+	}
+	addTime(f.PICUSTime, "PICUS")
+	addTime(f.SPICTime, "SPIC")
+	addTime(f.ExaminerTime, "Examiner")
+	addTime(f.ReliefTime, "Relief")
 	addFlag := func(active bool, label string) {
 		if !active {
 			return

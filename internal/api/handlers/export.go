@@ -164,6 +164,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 		"FlightReview", "IPC",
 		"IFRTime", "Remarks",
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
+		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
 	}
 	csvWrite(w, headers)
 
@@ -257,6 +258,10 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 			prefs.formatDecimal(f.MultiPilotTime),
 			fstdType,
 			endorsements,
+			prefs.formatDecimal(f.PICUSTime),
+			prefs.formatDecimal(f.SPICTime),
+			prefs.formatDecimal(f.ExaminerTime),
+			prefs.formatDecimal(f.ReliefTime),
 		}
 		csvWrite(w, row)
 	}
@@ -314,7 +319,7 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, us
 			picName,
 			fmt.Sprintf("%d", f.LandingsDay), fmt.Sprintf("%d", f.LandingsNight),
 			fmtHM(f.NightTime), fmtHM(flightrules.EffectiveIFRTime(f)),
-			fmtHM(f.PICTime), fmtHM(f.SICTime), fmtHM(f.DualTime), fmtHM(f.DualGivenTime),
+			fmtHM(flightrules.PICColumnTime(f)), fmtHM(flightrules.CoPilotColumnTime(f)), fmtHM(f.DualTime), fmtHM(f.DualGivenTime),
 			fstdDate, fstdType, fstdTime,
 			remarksAndEndorsements,
 		}
@@ -347,8 +352,8 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 			dep, arr,
 			duration.FormatDecimal(f.SoloTime),
 			duration.FormatDecimal(f.PICTime),
-			duration.FormatDecimal(f.SICTime),
-			duration.FormatDecimal(f.DualTime),
+			duration.FormatDecimal(flightrules.FAASICColumnTime(f)),
+			duration.FormatDecimal(flightrules.FAADualColumnTime(f)),
 			duration.FormatDecimal(f.DualGivenTime),
 			duration.FormatDecimal(f.ActualInstrumentTime),
 			duration.FormatDecimal(f.SimulatedInstrumentTime),

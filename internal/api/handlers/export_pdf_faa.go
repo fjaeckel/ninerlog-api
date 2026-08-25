@@ -84,8 +84,8 @@ type faaTotals struct {
 func (t *faaTotals) add(f *models.Flight) {
 	t.solo += f.SoloTime
 	t.pic += f.PICTime
-	t.sic += f.SICTime
-	t.dual += f.DualTime
+	t.sic += flightrules.FAASICColumnTime(f)
+	t.dual += flightrules.FAADualColumnTime(f)
 	t.instr += f.DualGivenTime
 	t.act += f.ActualInstrumentTime
 	t.sim += f.SimulatedInstrumentTime
@@ -106,8 +106,8 @@ func (t *faaTotals) addBaseline(b *models.FlightBaseline) {
 	}
 	t.solo += b.SoloMinutes
 	t.pic += b.PICMinutes
-	t.sic += b.SICMinutes
-	t.dual += b.DualMinutes
+	t.sic += b.SICMinutes + b.PICUSMinutes + b.ReliefMinutes
+	t.dual += b.DualMinutes + b.SPICMinutes
 	t.instr += b.DualGivenMinutes
 	t.xc += b.CrossCountryMinutes
 	t.night += b.NightMinutes
@@ -236,8 +236,8 @@ func renderFAASpread(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 				f.Date.Format("01/02/06"),
 				faaDec(f.SoloTime),
 				faaDec(f.PICTime),
-				faaDec(f.SICTime),
-				faaDec(f.DualTime),
+				faaDec(flightrules.FAASICColumnTime(f)),
+				faaDec(flightrules.FAADualColumnTime(f)),
 				faaDec(f.DualGivenTime),
 				faaDec(f.ActualInstrumentTime),
 				faaDec(f.SimulatedInstrumentTime),
@@ -307,8 +307,8 @@ func renderFAASingle(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 				safeStr(f.DepartureICAO), safeStr(f.ArrivalICAO),
 				faaDec(f.SoloTime),
 				faaDec(f.PICTime),
-				faaDec(f.SICTime),
-				faaDec(f.DualTime),
+				faaDec(flightrules.FAASICColumnTime(f)),
+				faaDec(flightrules.FAADualColumnTime(f)),
 				faaDec(f.DualGivenTime),
 				faaDec(f.ActualInstrumentTime),
 				faaDec(f.SimulatedInstrumentTime),

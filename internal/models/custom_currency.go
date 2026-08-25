@@ -99,6 +99,10 @@ var ValidWindowUnits = map[string]bool{
 var TimeMetrics = map[string]bool{
 	"total_time":         true,
 	"pic_time":           true,
+	"picus_time":         true,
+	"spic_time":          true,
+	"examiner_time":      true,
+	"relief_time":        true,
 	"dual_time":          true,
 	"night_time":         true,
 	"ifr_time":           true,

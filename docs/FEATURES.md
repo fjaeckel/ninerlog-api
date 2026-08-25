@@ -170,6 +170,17 @@ rules.
   what keeps a GA pilot from logging co-pilot time they may not log, while an airline
   first officer's line flying is unaffected. See
   [DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time).
+- Declared function times: `picusTime` (PIC under supervision, the time an airline first
+  officer logs toward unfreezing an ATPL), `spicTime` (student PIC), `examinerTime` and
+  `reliefTime` (cruise relief co-pilot). Declared by the pilot, never auto-calculated,
+  kept distinct from PIC and SIC time in statistics and analytics, and carved out of the
+  derived function time so nothing is double-counted. The carried-forward baseline takes
+  the same four as `picusMinutes`/`spicMinutes`/`examinerMinutes`/`reliefMinutes`, custom
+  currency rules can target them (`picus_time`, `spic_time`, `examiner_time`,
+  `relief_time`), and the logbook query language filters on them (`picusTime>0`). On the
+  EASA/FAA paper-layout exports they fold into the conventional columns with a remarks
+  annotation. See
+  [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
 - Airport names: flight responses carry read-only `departureAirportName` /
   `arrivalAirportName`, resolved per request from the in-memory airport database
   (`internal/airports`) for display. Only the location itself is stored; the names are

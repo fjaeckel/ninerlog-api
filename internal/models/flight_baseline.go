@@ -19,6 +19,10 @@ type FlightBaseline struct {
 	SICMinutes          int
 	DualMinutes         int
 	DualGivenMinutes    int
+	PICUSMinutes        int
+	SPICMinutes         int
+	ExaminerMinutes     int
+	ReliefMinutes       int
 	MultiPilotMinutes   int
 	NightMinutes        int
 	IFRMinutes          int
@@ -50,6 +54,10 @@ func (b *FlightBaseline) Validate() error {
 		b.SICMinutes,
 		b.DualMinutes,
 		b.DualGivenMinutes,
+		b.PICUSMinutes,
+		b.SPICMinutes,
+		b.ExaminerMinutes,
+		b.ReliefMinutes,
 		b.MultiPilotMinutes,
 		b.NightMinutes,
 		b.IFRMinutes,

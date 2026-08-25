@@ -86,6 +86,12 @@ type Flight struct {
 	GroundTrainingTime  int `json:"groundTrainingTime"`
 	MultiPilotTime      int `json:"multiPilotTime"` // EASA AMC1 FCL.050 Col 10
 
+	// Declared pilot function times, never auto-derived
+	PICUSTime    int `json:"picusTime"`    // PIC under supervision (EASA FCL.030, Part-FCL "PICUS")
+	SPICTime     int `json:"spicTime"`     // Student pilot-in-command (EASA integrated course)
+	ExaminerTime int `json:"examinerTime"` // Time conducting a check; overlays function time like DualGivenTime
+	ReliefTime   int `json:"reliefTime"`   // Cruise relief co-pilot time (augmented crew)
+
 	// FSTD type designation (EASA AMC1 FCL.050 Col 22, FAA §61.51(b)(1)(iv))
 	FSTDType *string `json:"fstdType,omitempty"`
 
@@ -150,10 +156,11 @@ func (f *Flight) IsValid() bool {
 // ValidateTimeDistribution checks that the recorded times are coherent.
 //
 // TotalTime is block time (EASA AMC1 FCL.050 Col 9). The pilot function
-// columns decompose it: PIC + co-pilot + dual received must not exceed it.
-// Instructor time (DualGivenTime) overlays the function time rather than
-// adding to it — an instructor logs it alongside PIC time, or alone when
-// the student acts as PIC — so it is bounded by TotalTime only.
+// columns decompose it: PIC + PICUS + SPIC + co-pilot + dual received +
+// cruise relief must not exceed it. Instructor time (DualGivenTime) and
+// examiner time overlay the function time rather than adding to it — an
+// instructor logs it alongside PIC time, or alone when the student acts as
+// PIC — so each is bounded by TotalTime only.
 func (f *Flight) ValidateTimeDistribution() error {
 	if f.IsSimulator {
 		return f.validateSessionTimes()
@@ -166,7 +173,8 @@ func (f *Flight) ValidateTimeDistribution() error {
 
 	// All times must be non-negative
 	if f.TotalTime < 0 || f.NightTime < 0 || f.IFRTime < 0 ||
-		f.PICTime < 0 || f.DualTime < 0 || f.SICTime < 0 || f.DualGivenTime < 0 {
+		f.PICTime < 0 || f.DualTime < 0 || f.SICTime < 0 || f.DualGivenTime < 0 ||
+		f.PICUSTime < 0 || f.SPICTime < 0 || f.ExaminerTime < 0 || f.ReliefTime < 0 {
 		return ErrNegativeTime
 	}
 
@@ -181,7 +189,7 @@ func (f *Flight) ValidateTimeDistribution() error {
 	}
 
 	// Pilot function time decomposes total time
-	if f.PICTime+f.SICTime+f.DualTime > f.TotalTime {
+	if f.PICTime+f.PICUSTime+f.SPICTime+f.SICTime+f.DualTime+f.ReliefTime > f.TotalTime {
 		return ErrInvalidFunctionTime
 	}
 
@@ -190,10 +198,16 @@ func (f *Flight) ValidateTimeDistribution() error {
 		return ErrInvalidDualGivenTime
 	}
 
+	// Examiner time overlays the function time it is flown under
+	if f.ExaminerTime > f.TotalTime {
+		return ErrInvalidExaminerTime
+	}
+
 	// A passenger is not a crew member and logs no flight time
 	if f.IsPassenger && (f.TotalTime != 0 || f.PICTime != 0 || f.SICTime != 0 ||
 		f.DualTime != 0 || f.DualGivenTime != 0 || f.MultiPilotTime != 0 ||
-		f.SoloTime != 0) {
+		f.SoloTime != 0 || f.PICUSTime != 0 || f.SPICTime != 0 ||
+		f.ExaminerTime != 0 || f.ReliefTime != 0) {
 		return ErrPassengerFunctionTime
 	}
 
@@ -217,7 +231,8 @@ func (f *Flight) validateSessionTimes() error {
 	}
 	if f.TotalTime != 0 || f.PICTime != 0 || f.DualTime != 0 || f.SICTime != 0 ||
 		f.DualGivenTime != 0 || f.MultiPilotTime != 0 || f.SoloTime != 0 ||
-		f.CrossCountryTime != 0 || f.NightTime != 0 || f.IFRTime != 0 {
+		f.CrossCountryTime != 0 || f.NightTime != 0 || f.IFRTime != 0 ||
+		f.PICUSTime != 0 || f.SPICTime != 0 || f.ExaminerTime != 0 || f.ReliefTime != 0 {
 		return ErrFSTDFlightTime
 	}
 	if f.SimulatedInstrumentTime > f.SimulatedFlightTime {
@@ -240,6 +255,10 @@ type FlightStatistics struct {
 	LandingsNight       int
 	SICMinutes          int
 	DualGivenMinutes    int
+	PICUSMinutes        int
+	SPICMinutes         int
+	ExaminerMinutes     int
+	ReliefMinutes       int
 }
 
 // CurrencyData holds landing/flight counts for currency calculation
