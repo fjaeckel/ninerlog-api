@@ -1,6 +1,6 @@
 module github.com/fjaeckel/ninerlog-api
 
-go 1.26.7
+go 1.27.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
