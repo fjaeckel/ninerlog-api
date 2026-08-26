@@ -164,24 +164,27 @@ func downscaleNRGBA(src image.Image, maxW, maxH int) *image.NRGBA {
 			}
 			a := sa / count
 			i := dst.PixOffset(x, y)
-			dst.Pix[i+3] = uint8(a >> 8)
+			dst.Pix[i+3] = to8(a)
 			if a == 0 {
 				continue
 			}
 			// RGBA() is alpha-premultiplied; un-premultiply the average.
-			unpre := func(v uint64) uint8 {
-				c := v / count * 0xffff / a
-				if c > 0xffff {
-					c = 0xffff
-				}
-				return uint8(c >> 8)
-			}
+			unpre := func(v uint64) uint8 { return to8(v / count * 0xffff / a) }
 			dst.Pix[i] = unpre(sr)
 			dst.Pix[i+1] = unpre(sg)
 			dst.Pix[i+2] = unpre(sb)
 		}
 	}
 	return dst
+}
+
+// to8 narrows a 16-bit colour channel to 8 bits, clamping input above the
+// channel maximum.
+func to8(v uint64) uint8 {
+	if v > 0xffff {
+		v = 0xffff
+	}
+	return uint8(v >> 8)
 }
 
 // drawEndorsement fills a signed flight's remarks cell, which the caller has
