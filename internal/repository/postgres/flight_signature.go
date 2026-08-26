@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type flightSignatureRepository struct {
@@ -116,6 +117,27 @@ func (r *flightSignatureRepository) GetByID(ctx context.Context, id uuid.UUID) (
 		return nil, err
 	}
 	return s, nil
+}
+
+func (r *flightSignatureRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*models.FlightSignature, error) {
+	out := make(map[uuid.UUID]*models.FlightSignature, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	query := `SELECT ` + flightSignatureColumns + ` FROM flight_signatures WHERE id = ANY($1)`
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		s, err := scanFlightSignature(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[s.ID] = s
+	}
+	return out, rows.Err()
 }
 
 func (r *flightSignatureRepository) GetByTokenHash(ctx context.Context, tokenHash string) (*models.FlightSignature, error) {

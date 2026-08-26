@@ -199,7 +199,7 @@ func easaSingleTotCells(t easaTotals) []string {
 	}
 }
 
-func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c *gin.Context, userID uuid.UUID, layout string, b *models.FlightBaseline) *fpdf.Fpdf {
+func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c *gin.Context, userID uuid.UUID, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature) *fpdf.Fpdf {
 	aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
 	regToClass := make(map[string]string)
 	for _, ac := range aircraftList {
@@ -208,14 +208,16 @@ func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c 
 		}
 	}
 	userName := h.getUserNameFromContext(c)
-	return renderEASA(flights, g, regToClass, userName, layout, b)
+	return renderEASA(flights, g, regToClass, userName, layout, b, sigs)
 }
 
 // renderEASA performs the actual EASA PDF rendering. Extracted so tests can
-// invoke it without a full APIHandler.
-func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]string, userName, layout string, b *models.FlightBaseline) *fpdf.Fpdf {
+// invoke it without a full APIHandler. `sigs` carries the instructor sign-off
+// of each signed flight, keyed by flight ID.
+func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]string, userName, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature) *fpdf.Fpdf {
 	d := newDoc(g, easaRegulation, userName, certEASA)
 	d.note = baselineFooterNote(b)
+	d.sigs = sigs
 	if layout == layoutSingle {
 		renderEASASingle(d, flights, regToClass, userName, b)
 	} else {
@@ -274,7 +276,7 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 				fmtDec(f.TotalTime),
 				rd.picName,
 			}
-			d.drawDataRow(leftW, cells, easaLeftAlign, i)
+			d.drawDataRow(leftW, cells, easaLeftAlign, i, f.ID)
 		}
 		d.drawTotalsRow(leftW, 7, "TOTAL THIS PAGE", easaLeftTotCells(pt), easaLeftAlign, false)
 		d.drawTotalsRow(leftW, 7, "TOTAL FROM PREVIOUS PAGES", easaLeftTotCells(cum), easaLeftAlign, false)
@@ -297,7 +299,7 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 				rd.fstdDate, rd.fstdType, rd.fstdTime,
 				rd.remarks,
 			}
-			d.drawDataRow(rightW, cells, easaRightAlign, i)
+			d.drawDataRow(rightW, cells, easaRightAlign, i, f.ID)
 		}
 		d.drawTotalsRow(rightW, 1, "TOTAL THIS PAGE", easaRightTotCells(pt), easaRightAlign, false)
 		d.drawTotalsRow(rightW, 1, "FROM PREV PAGES", easaRightTotCells(cum), easaRightAlign, false)
@@ -356,7 +358,7 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 				rd.fstdType, rd.fstdTime,
 				rd.remarks,
 			}
-			d.drawDataRow(colW, cells, easaSingleAlign, i)
+			d.drawDataRow(colW, cells, easaSingleAlign, i, f.ID)
 			pt.add(rd)
 		}
 

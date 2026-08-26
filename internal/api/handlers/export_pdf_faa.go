@@ -6,6 +6,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/go-pdf/fpdf"
+	"github.com/google/uuid"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,9 +152,12 @@ func faaRemarks(f *models.Flight, max int) string {
 	return truncRunes(flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview), max)
 }
 
-func generateFAAPDF(flights []*models.Flight, g pageGeometry, userName, layout string, b *models.FlightBaseline) *fpdf.Fpdf {
+// generateFAAPDF renders the FAA layouts. `sigs` carries the instructor
+// sign-off of each signed flight, keyed by flight ID.
+func generateFAAPDF(flights []*models.Flight, g pageGeometry, userName, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature) *fpdf.Fpdf {
 	d := newDoc(g, faaRegulation, userName, certFAA)
 	d.note = baselineFooterNote(b)
+	d.sigs = sigs
 	if layout == layoutSingle {
 		renderFAASingle(d, flights, b)
 	} else {
@@ -211,7 +215,7 @@ func renderFAASpread(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 				faaDec(f.TotalTime),
 				faaRemarks(f, 64),
 			}
-			d.drawDataRow(leftW, cells, faaLeftAlign, i)
+			d.drawDataRow(leftW, cells, faaLeftAlign, i, f.ID)
 		}
 		leftCells := func(t faaTotals) []string {
 			return []string{
@@ -245,7 +249,7 @@ func renderFAASpread(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 				faaDec(f.NightTime),
 				faaDec(f.TotalTime),
 			}
-			d.drawDataRow(rightW, cells, faaRightAlign, i)
+			d.drawDataRow(rightW, cells, faaRightAlign, i, f.ID)
 		}
 		rightCells := func(t faaTotals) []string {
 			return []string{
@@ -321,7 +325,7 @@ func renderFAASingle(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 				faaDec(f.TotalTime),
 				faaRemarks(f, 58),
 			}
-			d.drawDataRow(colW, cells, faaSingleAlign, i)
+			d.drawDataRow(colW, cells, faaSingleAlign, i, f.ID)
 			pt.add(f)
 		}
 

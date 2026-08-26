@@ -329,8 +329,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   the crew names are re-linked by name against the destination account's address book and
   created where they are new, reported as `contactsCreated` in the restore summary.
 - **Export** (`export.go`, `export_pdf.go`, `export_pdf_easa.go`,
-  `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_crew.go`,
-  `export_vcard.go`) — CSV, JSON, PDF (rendered with `go-pdf/fpdf`) and vCard.
+  `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_pdf_signature.go`,
+  `export_crew.go`, `export_vcard.go`) — CSV, JSON, PDF (rendered with
+  `go-pdf/fpdf`) and vCard.
   PDF logbooks come in EASA AMC1 FCL.050 and FAA 14 CFR § 61.51 layouts, each as
   a book-style two-page spread (default) or a condensed single-page landscape
   layout, in A4/A5/Letter. Every page carries per-page / carried-forward /
@@ -343,7 +344,11 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   flight time at all are the exception: a leg the pilot was carried on as a
   passenger is left out of every PDF format, because it would print an empty row
   and total nothing. An FSTD session still prints, in the FSTD columns. CSV and
-  JSON carry both.
+  JSON carry both. A flight locked by a completed instructor signature prints that
+  sign-off in its remarks column — the captured ink, the signer's name and their
+  credential number — so a printed logbook carries its endorsements the way a paper
+  one does; `export_pdf_signature.go` holds the block's layout ladder and the raster
+  bounds it embeds within.
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.

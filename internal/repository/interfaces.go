@@ -252,6 +252,10 @@ type FlightSignatureRepository interface {
 	// GetByID retrieves a signature by ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*models.FlightSignature, error)
 
+	// GetByIDs batch-loads signatures, keyed by signature ID. IDs with no
+	// row are absent from the map.
+	GetByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*models.FlightSignature, error)
+
 	// GetByTokenHash retrieves a signature by its hashed token. Returns
 	// ErrNotFound if no row has this hash, regardless of status.
 	GetByTokenHash(ctx context.Context, tokenHash string) (*models.FlightSignature, error)

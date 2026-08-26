@@ -63,6 +63,17 @@ func (m *mockFlightSignatureRepoH) GetByID(ctx context.Context, id uuid.UUID) (*
 	return &cp, nil
 }
 
+func (m *mockFlightSignatureRepoH) GetByIDs(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]*models.FlightSignature, error) {
+	out := make(map[uuid.UUID]*models.FlightSignature, len(ids))
+	for _, id := range ids {
+		if sig, ok := m.byID[id]; ok {
+			cp := *sig
+			out[id] = &cp
+		}
+	}
+	return out, nil
+}
+
 func (m *mockFlightSignatureRepoH) GetByTokenHash(ctx context.Context, tokenHash string) (*models.FlightSignature, error) {
 	id, ok := m.byToken[tokenHash]
 	if !ok {

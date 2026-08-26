@@ -540,6 +540,20 @@ is part of total time of flight, and the EASA layout has a CO-PILOT column for i
 (AMC1 FCL.050 col 16), so the sheets and the totals summary both cover the whole
 logbook.
 
+**Instructor sign-offs print with the flight they attest.** A flight locked by a
+completed `FlightSignature` renders an endorsement block in the right-hand part of
+its REMARKS AND ENDORSEMENTS cell: the instructor's captured ink, their name, and
+`No. <credential> · <signed date>`, on a tinted panel with a gold edge marker; the
+remark text keeps the space to its left. The block adapts to the column it is in —
+a narrow layout drops the credential line, then abbreviates the given names
+("Katrin Vogelsang" → "K. Vogelsang"), and where ink and name cannot both fit the
+name wins, because an unattributed mark tells an inspector nothing. Voiding a
+signature unlocks the flight and removes the block from the next export. The ink is
+re-encoded down to print resolution and embedded once per signature; a raster that
+cannot be decoded, or that exceeds the per-document embedding budget, costs the
+image and not the signer's details. The `summary` format has no flight rows and so
+carries no endorsements.
+
 Every logbook page carries the three-row totals block (TOTAL THIS PAGE /
 TOTAL FROM PREVIOUS PAGES / TOTAL TIME) and a certification + signature strip
 ("I certify that the entries in this log are true[.and correct.]" with

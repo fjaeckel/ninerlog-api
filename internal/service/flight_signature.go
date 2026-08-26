@@ -301,6 +301,34 @@ func (s *FlightSignatureService) List(ctx context.Context, flightID, userID uuid
 	return s.sigRepo.ListByFlightID(ctx, flightID)
 }
 
+// ListSignedForFlights resolves the completed signature locking each of the
+// given flights, keyed by flight ID. Flights with no lock, and rows the
+// caller does not own, are absent from the map. Used by the exporters to
+// render instructor endorsements alongside the flight they attest.
+func (s *FlightSignatureService) ListSignedForFlights(ctx context.Context, userID uuid.UUID, flights []*models.Flight) (map[uuid.UUID]*models.FlightSignature, error) {
+	out := make(map[uuid.UUID]*models.FlightSignature)
+	ids := make([]uuid.UUID, 0, len(flights))
+	for _, f := range flights {
+		if f != nil && f.UserID == userID && f.SignatureID != nil {
+			ids = append(ids, *f.SignatureID)
+		}
+	}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	byID, err := s.sigRepo.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, sig := range byID {
+		if sig.UserID != userID || sig.Status != models.SignatureStatusCompleted {
+			continue
+		}
+		out[sig.FlightID] = sig
+	}
+	return out, nil
+}
+
 // Get returns a single signature the caller owns.
 func (s *FlightSignatureService) Get(ctx context.Context, flightID, userID, signatureID uuid.UUID) (*models.FlightSignature, error) {
 	return s.getOwnedSignature(ctx, flightID, userID, signatureID)
