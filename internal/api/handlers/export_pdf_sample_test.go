@@ -8,6 +8,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/go-pdf/fpdf"
+	"github.com/google/uuid"
 )
 
 // TestGenerateSamplePDFs is a manual sample-generator. Skipped unless
@@ -18,6 +19,9 @@ func TestGenerateSamplePDFs(t *testing.T) {
 	}
 
 	flights := buildSamplePDFFlights(45)
+	// Every fourth row carries an instructor sign-off so the endorsement
+	// block can be reviewed at every column width.
+	sigs := buildSampleSignatures(flights, 4)
 
 	// Samples carry prior experience so the carried-forward opening balance,
 	// the footer disclosure and the summary note are all visible for review.
@@ -50,25 +54,36 @@ func TestGenerateSamplePDFs(t *testing.T) {
 		fmtName  string
 		layout   string
 		pageSize string
+		// rowsPerPage exercises the dynamic row-height path; 0 leaves the
+		// page-size default.
+		rowsPerPage int
 	}{
-		{"easa", "spread", "a4"},
-		{"easa", "spread", "a5"},
-		{"easa", "spread", "letter"},
-		{"easa", "single", "a4"},
-		{"easa", "single", "a5"},
-		{"easa", "single", "letter"},
-		{"faa", "spread", "a4"},
-		{"faa", "spread", "a5"},
-		{"faa", "spread", "letter"},
-		{"faa", "single", "a4"},
-		{"faa", "single", "a5"},
-		{"faa", "single", "letter"},
-		{"summary", "", "a4"},
+		{"easa", "spread", "a4", 0},
+		{"easa", "spread", "a5", 0},
+		{"easa", "spread", "letter", 0},
+		{"easa", "single", "a4", 0},
+		{"easa", "single", "a5", 0},
+		{"easa", "single", "letter", 0},
+		{"faa", "spread", "a4", 0},
+		{"faa", "spread", "a5", 0},
+		{"faa", "spread", "letter", 0},
+		{"faa", "single", "a4", 0},
+		{"faa", "single", "a5", 0},
+		{"faa", "single", "letter", 0},
+		{"summary", "", "a4", 0},
+		// Densest legible sheet: the endorsement block at minimum row height.
+		{"easa", "single", "a4", 60},
+		{"faa", "spread", "a4", 60},
 	}
 
 	for _, c := range cases {
 		geom := geometryFor(c.pageSize)
 		path := fmt.Sprintf("%s/sample_%s_%s_%s.pdf", outDir, c.fmtName, c.layout, c.pageSize)
+		if c.rowsPerPage > 0 {
+			geom = geom.withRowsPerPage(c.rowsPerPage)
+			path = fmt.Sprintf("%s/sample_%s_%s_%s_%drows.pdf",
+				outDir, c.fmtName, c.layout, c.pageSize, c.rowsPerPage)
+		}
 		if c.fmtName == "summary" {
 			path = fmt.Sprintf("%s/sample_summary_%s.pdf", outDir, c.pageSize)
 		}
@@ -79,11 +94,11 @@ func TestGenerateSamplePDFs(t *testing.T) {
 		var doc *fpdf.Fpdf
 		switch c.fmtName {
 		case "faa":
-			doc = generateFAAPDF(flights, geom, "Sample Pilot", c.layout, sampleBaseline)
+			doc = generateFAAPDF(flights, geom, "Sample Pilot", c.layout, sampleBaseline, sigs)
 		case "summary":
 			doc = generateSummaryPDF(flights, geom, "Sample Pilot", sampleBaseline)
 		case "easa":
-			doc = renderEASA(flights, geom, map[string]string{}, "Sample Pilot", c.layout, sampleBaseline)
+			doc = renderEASA(flights, geom, map[string]string{}, "Sample Pilot", c.layout, sampleBaseline, sigs)
 		}
 		if err := doc.Output(f); err != nil {
 			t.Fatal(err)
@@ -126,6 +141,7 @@ func buildSamplePDFFlights(n int) []*models.Flight {
 			simT = 60
 		}
 		f := &models.Flight{
+			ID:                      uuid.New(),
 			Date:                    date,
 			AircraftReg:             regs[i%len(regs)],
 			AircraftType:            types[i%len(types)],

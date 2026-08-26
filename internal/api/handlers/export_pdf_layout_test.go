@@ -30,16 +30,16 @@ func TestPDFLayoutPageCounts(t *testing.T) {
 			render    func() int
 		}{
 			{"easa spread", batches*2 + 3, func() int {
-				return renderEASA(flights, g, nil, "Test Pilot", layoutSpread, nil).PageCount()
+				return renderEASA(flights, g, nil, "Test Pilot", layoutSpread, nil, nil).PageCount()
 			}},
 			{"easa single", batches + 1, func() int {
-				return renderEASA(flights, g, nil, "Test Pilot", layoutSingle, nil).PageCount()
+				return renderEASA(flights, g, nil, "Test Pilot", layoutSingle, nil, nil).PageCount()
 			}},
 			{"faa spread", batches*2 + 3, func() int {
-				return generateFAAPDF(flights, g, "Test Pilot", layoutSpread, nil).PageCount()
+				return generateFAAPDF(flights, g, "Test Pilot", layoutSpread, nil, nil).PageCount()
 			}},
 			{"faa single", batches + 1, func() int {
-				return generateFAAPDF(flights, g, "Test Pilot", layoutSingle, nil).PageCount()
+				return generateFAAPDF(flights, g, "Test Pilot", layoutSingle, nil, nil).PageCount()
 			}},
 			{"summary", 1, func() int {
 				return generateSummaryPDF(flights, g, "Test Pilot", nil).PageCount()
@@ -93,10 +93,10 @@ func TestWithRowsPerPage(t *testing.T) {
 func TestPDFLayoutEmptyLogbook(t *testing.T) {
 	g := geometryFor("a4")
 	for name, doc := range map[string]interface{ PageCount() int }{
-		"easa spread": renderEASA(nil, g, nil, "", layoutSpread, nil),
-		"easa single": renderEASA(nil, g, nil, "", layoutSingle, nil),
-		"faa spread":  generateFAAPDF(nil, g, "", layoutSpread, nil),
-		"faa single":  generateFAAPDF(nil, g, "", layoutSingle, nil),
+		"easa spread": renderEASA(nil, g, nil, "", layoutSpread, nil, nil),
+		"easa single": renderEASA(nil, g, nil, "", layoutSingle, nil, nil),
+		"faa spread":  generateFAAPDF(nil, g, "", layoutSpread, nil, nil),
+		"faa single":  generateFAAPDF(nil, g, "", layoutSingle, nil, nil),
 		"summary":     generateSummaryPDF(nil, g, "", nil),
 	} {
 		if got := doc.PageCount(); got != 1 {
@@ -113,14 +113,14 @@ func TestPDFOutputIsValid(t *testing.T) {
 	for name, render := range map[string]func() *bytes.Buffer{
 		"easa spread": func() *bytes.Buffer {
 			var b bytes.Buffer
-			if err := renderEASA(flights, g, nil, "Test Pilot", layoutSpread, nil).Output(&b); err != nil {
+			if err := renderEASA(flights, g, nil, "Test Pilot", layoutSpread, nil, nil).Output(&b); err != nil {
 				t.Fatal(err)
 			}
 			return &b
 		},
 		"faa single": func() *bytes.Buffer {
 			var b bytes.Buffer
-			if err := generateFAAPDF(flights, g, "Test Pilot", layoutSingle, nil).Output(&b); err != nil {
+			if err := generateFAAPDF(flights, g, "Test Pilot", layoutSingle, nil, nil).Output(&b); err != nil {
 				t.Fatal(err)
 			}
 			return &b

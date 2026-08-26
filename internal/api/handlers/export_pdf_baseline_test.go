@@ -197,11 +197,11 @@ func TestBaselineReachesLogbookBalances(t *testing.T) {
 	// accounts for exactly one occurrence, so two or more proves the figure
 	// reached a sheet's "previous pages" and "total time" rows.
 	for _, layout := range []string{layoutSpread, layoutSingle} {
-		got := strings.Count(renderedText(t, renderEASA(flights, g, nil, "Test Pilot", layout, b)), "61:11")
+		got := strings.Count(renderedText(t, renderEASA(flights, g, nil, "Test Pilot", layout, b, nil)), "61:11")
 		if got < 2 {
 			t.Errorf("easa %s: found %d occurrences of the carried-forward co-pilot time, want >= 2", layout, got)
 		}
-		if control := strings.Count(renderedText(t, renderEASA(flights, g, nil, "Test Pilot", layout, nil)), "61:11"); control != 0 {
+		if control := strings.Count(renderedText(t, renderEASA(flights, g, nil, "Test Pilot", layout, nil, nil)), "61:11"); control != 0 {
 			t.Errorf("easa %s: control render without a baseline already contains the figure %d times", layout, control)
 		}
 	}
@@ -209,10 +209,10 @@ func TestBaselineReachesLogbookBalances(t *testing.T) {
 	// FAA sheets print decimal hours, which the summary page never does, so
 	// "61.2" can only have come from a logbook page.
 	for _, layout := range []string{layoutSpread, layoutSingle} {
-		if got := strings.Count(renderedText(t, generateFAAPDF(flights, g, "Test Pilot", layout, b)), "61.2"); got == 0 {
+		if got := strings.Count(renderedText(t, generateFAAPDF(flights, g, "Test Pilot", layout, b, nil)), "61.2"); got == 0 {
 			t.Errorf("faa %s: carried-forward co-pilot time never reached a logbook page", layout)
 		}
-		if control := strings.Count(renderedText(t, generateFAAPDF(flights, g, "Test Pilot", layout, nil)), "61.2"); control != 0 {
+		if control := strings.Count(renderedText(t, generateFAAPDF(flights, g, "Test Pilot", layout, nil, nil)), "61.2"); control != 0 {
 			t.Errorf("faa %s: control render without a baseline already contains the figure %d times", layout, control)
 		}
 	}
@@ -228,16 +228,16 @@ func TestBaselineDoesNotChangePagination(t *testing.T) {
 		g := geometryFor(size)
 		cases := map[string]func(*models.FlightBaseline) int{
 			"easa spread": func(b *models.FlightBaseline) int {
-				return renderEASA(flights, g, nil, "Test Pilot", layoutSpread, b).PageCount()
+				return renderEASA(flights, g, nil, "Test Pilot", layoutSpread, b, nil).PageCount()
 			},
 			"easa single": func(b *models.FlightBaseline) int {
-				return renderEASA(flights, g, nil, "Test Pilot", layoutSingle, b).PageCount()
+				return renderEASA(flights, g, nil, "Test Pilot", layoutSingle, b, nil).PageCount()
 			},
 			"faa spread": func(b *models.FlightBaseline) int {
-				return generateFAAPDF(flights, g, "Test Pilot", layoutSpread, b).PageCount()
+				return generateFAAPDF(flights, g, "Test Pilot", layoutSpread, b, nil).PageCount()
 			},
 			"faa single": func(b *models.FlightBaseline) int {
-				return generateFAAPDF(flights, g, "Test Pilot", layoutSingle, b).PageCount()
+				return generateFAAPDF(flights, g, "Test Pilot", layoutSingle, b, nil).PageCount()
 			},
 			"summary": func(b *models.FlightBaseline) int {
 				return generateSummaryPDF(flights, g, "Test Pilot", b).PageCount()
@@ -258,10 +258,10 @@ func TestBaselineEmptyLogbook(t *testing.T) {
 	b := testBaseline()
 
 	for name, doc := range map[string]*fpdf.Fpdf{
-		"easa spread": renderEASA(nil, g, nil, "", layoutSpread, b),
-		"easa single": renderEASA(nil, g, nil, "", layoutSingle, b),
-		"faa spread":  generateFAAPDF(nil, g, "", layoutSpread, b),
-		"faa single":  generateFAAPDF(nil, g, "", layoutSingle, b),
+		"easa spread": renderEASA(nil, g, nil, "", layoutSpread, b, nil),
+		"easa single": renderEASA(nil, g, nil, "", layoutSingle, b, nil),
+		"faa spread":  generateFAAPDF(nil, g, "", layoutSpread, b, nil),
+		"faa single":  generateFAAPDF(nil, g, "", layoutSingle, b, nil),
 		"summary":     generateSummaryPDF(nil, g, "", b),
 	} {
 		if got := doc.PageCount(); got != 1 {

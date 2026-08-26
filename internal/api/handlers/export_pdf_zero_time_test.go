@@ -117,10 +117,10 @@ func TestPassengerLegsExcludedFromTotals(t *testing.T) {
 		render func([]*models.Flight) int
 	}{
 		{"easa single", func(fs []*models.Flight) int {
-			return renderEASA(fs, g, nil, "Test Pilot", layoutSingle, nil).PageCount()
+			return renderEASA(fs, g, nil, "Test Pilot", layoutSingle, nil, nil).PageCount()
 		}},
 		{"faa spread", func(fs []*models.Flight) int {
-			return generateFAAPDF(fs, g, "Test Pilot", layoutSpread, nil).PageCount()
+			return generateFAAPDF(fs, g, "Test Pilot", layoutSpread, nil, nil).PageCount()
 		}},
 	} {
 		if got, want := tc.render(kept), tc.render(logged); got != want {

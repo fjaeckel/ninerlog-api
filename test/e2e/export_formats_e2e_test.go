@@ -6,6 +6,9 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"net/http"
 	"strings"
@@ -328,6 +331,100 @@ func pdfStreamText(raw []byte) string {
 		out.Write(data)
 	}
 	return out.String()
+}
+
+// testSignaturePNG returns a small valid PNG standing in for an instructor's
+// captured ink.
+func testSignaturePNG() []byte {
+	img := image.NewNRGBA(image.Rect(0, 0, 240, 80))
+	for x := 10; x < 230; x++ {
+		for dy := -2; dy <= 2; dy++ {
+			img.Set(x, 40+dy+x%9, color.NRGBA{20, 20, 40, 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+// TestExportPDFRendersInstructorEndorsement covers the printed logbook's
+// sign-off surface: a completed instructor signature prints in the remarks
+// column of the flight it attests — the ink as an embedded image, the
+// signer's name and credential number beside it — and disappears again once
+// the signature is voided.
+func TestExportPDFRendersInstructorEndorsement(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("pdf-sign"), "SecurePass123!", "PDFSign")
+
+	resp := c.POST("/flights", map[string]interface{}{
+		"date": pastDate(2), "aircraftReg": "D-ESGN", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+		"isDual": true, "remarks": "Circuits and bumps",
+	})
+	requireStatus(t, resp, http.StatusCreated)
+	var flight struct {
+		ID string `json:"id"`
+	}
+	if err := resp.JSON(&flight); err != nil {
+		t.Fatalf("decode flight: %v", err)
+	}
+
+	exportPDF := func(t *testing.T, format string) []byte {
+		t.Helper()
+		r := c.GET("/exports/pdf?format=" + format)
+		requireStatus(t, r, http.StatusOK)
+		return r.Body
+	}
+
+	// Nothing of the instructor appears before the flight is signed.
+	if strings.Contains(pdfStreamText(exportPDF(t, "easa")), "Wilbur Wright") {
+		t.Fatal("unsigned flight already prints an instructor")
+	}
+
+	resp = c.POST("/flights/"+flight.ID+"/signatures/live", map[string]interface{}{
+		"signerName":       "Wilbur Wright",
+		"credentialNumber": "US.CFI.1903",
+		"signatureImage":   testSignaturePNG(),
+	})
+	requireStatus(t, resp, http.StatusCreated)
+	var sig struct {
+		ID string `json:"id"`
+	}
+	if err := resp.JSON(&sig); err != nil {
+		t.Fatalf("decode signature: %v", err)
+	}
+
+	for _, format := range []string{"easa", "faa"} {
+		t.Run(format, func(t *testing.T) {
+			body := exportPDF(t, format)
+			text := pdfStreamText(body)
+			for _, want := range []string{"Wilbur Wright", "US.CFI.1903"} {
+				if !strings.Contains(text, want) {
+					t.Errorf("%s PDF does not print %q in the remarks column", format, want)
+				}
+			}
+			if !bytes.Contains(body, []byte("/Subtype /Image")) {
+				t.Errorf("%s PDF embeds no signature image", format)
+			}
+		})
+	}
+
+	t.Run("voided signature stops printing", func(t *testing.T) {
+		requireStatus(t, c.POST("/flights/"+flight.ID+"/signatures/"+sig.ID+"/void", map[string]interface{}{
+			"reason": "Signed against the wrong flight",
+		}), http.StatusOK)
+
+		body := exportPDF(t, "easa")
+		if strings.Contains(pdfStreamText(body), "Wilbur Wright") {
+			t.Error("voided signature still prints an instructor")
+		}
+		if bytes.Contains(body, []byte("/Subtype /Image")) {
+			t.Error("voided signature still embeds its ink")
+		}
+	})
 }
 
 // TestExportPDFPrintsCoPilotFlights covers the printed logbook's coverage: a

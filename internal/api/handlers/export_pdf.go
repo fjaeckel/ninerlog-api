@@ -200,6 +200,12 @@ type pdfDoc struct {
 	generated  string // render timestamp for the footer
 	cert       string // certification wording for the signature blocks
 	note       string // footer disclosure, e.g. carried-forward prior experience
+
+	// Instructor sign-offs rendered in the remarks column, keyed by flight
+	// ID, with the per-document raster cache and embedding budget they use.
+	sigs     map[uuid.UUID]*models.FlightSignature
+	sigInks  map[uuid.UUID]sigInk
+	sigBytes int
 }
 
 func newDoc(g pageGeometry, regulation, holder, cert string) *pdfDoc {
@@ -374,8 +380,11 @@ func (d *pdfDoc) drawHeader(widths []float64, groups []colGroup, sub []string) {
 	pdf.SetXY(x0, y0+2*g.headerH)
 }
 
-// drawDataRow draws one zebra-striped data row.
-func (d *pdfDoc) drawDataRow(widths []float64, cells, align []string, rowIdx int) {
+// drawDataRow draws one zebra-striped data row. A flight whose sign-off is
+// held in d.sigs gets its last column — the remarks column in every layout
+// that renders one — split between the remark text and the instructor's
+// endorsement block.
+func (d *pdfDoc) drawDataRow(widths []float64, cells, align []string, rowIdx int, flightID uuid.UUID) {
 	g, pdf := d.g, d.pdf
 	zebra := rowIdx%2 == 1
 	if zebra {
@@ -384,6 +393,12 @@ func (d *pdfDoc) drawDataRow(widths []float64, cells, align []string, rowIdx int
 	setText(pdf, [3]int{0, 0, 0})
 	setDraw(pdf, colBorder)
 	pdf.SetLineWidth(0.15)
+
+	last := len(widths) - 1
+	sig := d.sigs[flightID]
+	endorsed := sig != nil && last >= 0 && last < len(align) && align[last] == "L" &&
+		sigZoneWidth(widths[last]) > 0
+	x0, y0 := pdf.GetX(), pdf.GetY()
 
 	for i, w := range widths {
 		val := ""
@@ -394,9 +409,29 @@ func (d *pdfDoc) drawDataRow(widths []float64, cells, align []string, rowIdx int
 		if i < len(align) {
 			a = align[i]
 		}
+		if endorsed && i == last {
+			// Contents come from drawEndorsement, over the empty cell.
+			pdf.CellFormat(w, g.rowH, "", "1", 0, a, zebra, 0, "")
+			continue
+		}
 		pdf.CellFormat(w, g.rowH, d.tr(val), "1", 0, a, zebra, 0, "")
 	}
 	pdf.Ln(-1)
+
+	if endorsed {
+		xLast := x0
+		for i := 0; i < last; i++ {
+			xLast += widths[i]
+		}
+		val := ""
+		if last < len(cells) {
+			val = cells[last]
+		}
+		// drawEndorsement leaves the cursor wherever its last cell ended.
+		nx, ny := pdf.GetX(), pdf.GetY()
+		d.drawEndorsement(xLast, y0, widths[last], g.rowH, val, sig)
+		pdf.SetXY(nx, ny)
+	}
 }
 
 // drawTotalsRow draws one bold totals row. The first `span` columns merge
@@ -576,14 +611,25 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 	}
 	userName := h.getUserNameFromContext(c)
 
+	// Instructor sign-offs print in the remarks column of the flight they
+	// attest; a lookup failure costs the endorsements, not the export.
+	var sigs map[uuid.UUID]*models.FlightSignature
+	if h.flightSignatureService != nil {
+		sigs, err = h.flightSignatureService.ListSignedForFlights(c.Request.Context(), userID, flights)
+		if err != nil {
+			slog.Warn("pdf export: failed to load instructor signatures", "error", err)
+			sigs = nil
+		}
+	}
+
 	var pdf *fpdf.Fpdf
 	switch format {
 	case "faa":
-		pdf = generateFAAPDF(flights, geom, userName, layout, baseline)
+		pdf = generateFAAPDF(flights, geom, userName, layout, baseline, sigs)
 	case "summary":
 		pdf = generateSummaryPDF(flights, geom, userName, baseline)
 	default:
-		pdf = generateEASAPDF(flights, geom, h, c, userID, layout, baseline)
+		pdf = generateEASAPDF(flights, geom, h, c, userID, layout, baseline, sigs)
 	}
 	name := fmt.Sprintf("ninerlog_%s_%s_%s_%s.pdf",
 		format, layout, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02"))
