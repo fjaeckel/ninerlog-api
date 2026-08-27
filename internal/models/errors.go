@@ -9,8 +9,9 @@ var (
 	ErrInvalidIFRTime          = errors.New("IFR time exceeds total time")
 	ErrNegativeTime            = errors.New("flight times cannot be negative")
 	ErrNegativeLandings        = errors.New("landings cannot be negative")
-	ErrInvalidFunctionTime     = errors.New("PIC, co-pilot and dual time together exceed total time")
+	ErrInvalidFunctionTime     = errors.New("pilot function times together exceed total time")
 	ErrInvalidDualGivenTime    = errors.New("instructor time exceeds total time")
+	ErrInvalidExaminerTime     = errors.New("examiner time exceeds total time")
 	ErrPassengerFunctionTime   = errors.New("a passenger flight logs no flight time")
 
 	// FSTD session validation errors

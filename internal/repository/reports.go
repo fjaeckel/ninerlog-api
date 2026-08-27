@@ -77,6 +77,10 @@ type AnalyticsTotals struct {
 	SicMinutes                 int
 	DualMinutes                int
 	DualGivenMinutes           int
+	PicusMinutes               int
+	SpicMinutes                int
+	ExaminerMinutes            int
+	ReliefMinutes              int
 	SoloMinutes                int
 	NightMinutes               int
 	IfrMinutes                 int
@@ -175,11 +179,17 @@ type AnalyticsRouteRow struct {
 }
 
 // AnalyticsPersonRow is a per-person rollup (instructor or crew member).
-// Role is set only for crew rows; TotalMinutes is dual time for instructors
-// and block time for crew, mirroring what each view displays.
+// Role, Roles and ContactID are set only for crew rows; TotalMinutes is dual
+// time for instructors and block time for crew, mirroring what each view
+// displays.
 type AnalyticsPersonRow struct {
-	Name           string
-	Role           *string
+	Name string
+	// Role is the role the person most flies as, by time.
+	Role *string
+	// Roles is every role the person has held, most time first.
+	Roles []string
+	// ContactID is the contact the person's crew entries link to, if any.
+	ContactID      *string
 	Flights        int
 	TotalMinutes   int
 	LastFlightDate *time.Time
@@ -261,7 +271,9 @@ type ReportsRepository interface {
 	// ByInstructor returns the top `limit` instructors by dual time received.
 	ByInstructor(ctx context.Context, userID uuid.UUID, months, limit int) ([]*AnalyticsPersonRow, error)
 
-	// ByCrew returns the top `limit` (crew member, role) pairs by block time.
+	// ByCrew returns the top `limit` crew members by block time — one row
+	// per person. Entries linked to the same contact are one person; unlinked
+	// entries fold by trimmed, case-insensitive name.
 	ByCrew(ctx context.Context, userID uuid.UUID, months, limit int) ([]*AnalyticsPersonRow, error)
 
 	// ApproachTypes counts structured approach entries by type, most first.

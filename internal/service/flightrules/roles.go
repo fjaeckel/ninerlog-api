@@ -84,7 +84,18 @@ func mayLogCoPilotTime(flight *models.Flight, crew crewComposition, aircraft *Ai
 	if aircraft.IsMultiPilotAircraft() || crew.selfSafetyPilot || crew.selfSIC {
 		return true
 	}
+	if HasDeclaredFunctionTime(flight) {
+		return true
+	}
 	return flight.SICTimeOverride && flight.SICTime > 0
+}
+
+// HasDeclaredFunctionTime reports whether the pilot declared any PICUS, SPIC
+// or cruise relief minutes on the flight. Each names a pilot-flying (or
+// relief) seat the operation provides, so it declares the seat the same way
+// an entered co-pilot time does.
+func HasDeclaredFunctionTime(f *models.Flight) bool {
+	return f.PICUSTime > 0 || f.SPICTime > 0 || f.ReliefTime > 0
 }
 
 // crewComposition is the crew list reduced to the facts the rules read.
@@ -175,8 +186,10 @@ func DetermineRole(flight *models.Flight, userName string, aircraft *AircraftFac
 	if crew.selfSafetyPilot && !crew.selfPIC {
 		return RoleSIC
 	}
-	// Legacy/imported rows carry no crew list but declare co-pilot time.
-	if crew.empty && flight.SICTimeOverride && flight.SICTime > 0 {
+	// Legacy/imported rows carry no crew list but declare co-pilot time; a
+	// declared PICUS/SPIC/relief time likewise places the user in a
+	// supervised or relief seat rather than as PIC.
+	if crew.empty && ((flight.SICTimeOverride && flight.SICTime > 0) || HasDeclaredFunctionTime(flight)) {
 		return RoleSIC
 	}
 	return RolePIC

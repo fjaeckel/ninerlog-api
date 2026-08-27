@@ -377,6 +377,19 @@ explicitly declares the co-pilot seat and is honoured on any aircraft. Mark the 
 with `isMultiPilot` (on `POST`/`PATCH /aircraft`) and re-run `POST /flights/recalculate` to
 re-derive existing flights. See [DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time).
 
+Create and update accept the declared function times `picusTime` (PIC under supervision),
+`spicTime` (student PIC), `examinerTime` and `reliefTime`, all integer minutes. They are
+never auto-calculated; a declared PICUS/SPIC/relief value carves out of the derived
+PIC/SIC/dual time, and the function times together must not exceed `totalTime`
+(`examinerTime` overlays and is bounded by `totalTime` alone) — a violation is a 400.
+Declaring any of them also declares the crew seat, so a PICUS sector on any aircraft is
+never stored as a passenger flight. The four appear on flight responses, in
+`GET /users/me/baseline` (`picusMinutes`, `spicMinutes`, `examinerMinutes`,
+`reliefMinutes`), in `GET /users/me/statistics` and the per-license statistics, in the
+`totals` of `GET /reports/analytics`, as custom-currency metrics
+and as logbook query fields. See
+[DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
+
 ### Credentials
 CRUD on `/credentials` (medicals, language proficiency, clearances, and the German radio
 certificates `RADIO_BZF2`/`RADIO_BZF1`/`RADIO_AZF`). `GET /credentials` accepts

@@ -29,6 +29,7 @@ func baselineApplies(b *models.FlightBaseline) bool {
 		b.TotalFlights, b.TotalMinutes, b.PICMinutes, b.SICMinutes,
 		b.DualMinutes, b.DualGivenMinutes, b.MultiPilotMinutes,
 		b.NightMinutes, b.IFRMinutes, b.SoloMinutes, b.CrossCountryMinutes,
+		b.PICUSMinutes, b.SPICMinutes, b.ExaminerMinutes, b.ReliefMinutes,
 		b.LandingsDay, b.LandingsNight,
 	} {
 		if v != 0 {

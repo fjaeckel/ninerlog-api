@@ -75,8 +75,9 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 			actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 			launch_method,
 			pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
-			is_simulator, is_passenger, sic_time_override, multi_pilot_time_override
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54)
+			is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
+			picus_time, spic_time, examiner_time, relief_time
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -136,6 +137,10 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 		flight.IsPassenger,
 		flight.SICTimeOverride,
 		flight.MultiPilotTimeOverride,
+		flight.PICUSTime,
+		flight.SPICTime,
+		flight.ExaminerTime,
+		flight.ReliefTime,
 	).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
 }
 
@@ -156,7 +161,8 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 		       launch_method,
 		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
-		       signature_id, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override
+		       signature_id, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
+		       picus_time, spic_time, examiner_time, relief_time
 		FROM flights
 		WHERE id = $1
 	`
@@ -223,6 +229,10 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.IsPassenger,
 		&flight.SICTimeOverride,
 		&flight.MultiPilotTimeOverride,
+		&flight.PICUSTime,
+		&flight.SPICTime,
+		&flight.ExaminerTime,
+		&flight.ReliefTime,
 	)
 
 	if err == sql.ErrNoRows {
@@ -285,8 +295,9 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		    pic_name = $45, multi_pilot_time = $46, fstd_type = $47, approaches = $48, endorsements = $49,
 		    is_simulator = $50, is_passenger = $51,
 		    sic_time_override = $52, multi_pilot_time_override = $53,
-		    updated_at = $54
-		WHERE id = $55
+		    picus_time = $54, spic_time = $55, examiner_time = $56, relief_time = $57,
+		    updated_at = $58
+		WHERE id = $59
 	`
 
 	result, err := r.db.ExecContext(
@@ -344,6 +355,10 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		flight.IsPassenger,
 		flight.SICTimeOverride,
 		flight.MultiPilotTimeOverride,
+		flight.PICUSTime,
+		flight.SPICTime,
+		flight.ExaminerTime,
+		flight.ReliefTime,
 		time.Now(),
 		flight.ID,
 	)
@@ -478,7 +493,11 @@ func (r *flightRepository) GetStatsByUserID(ctx context.Context, userID uuid.UUI
 			COALESCE(SUM(landings_day), 0) as landings_day,
 			COALESCE(SUM(landings_night), 0) as landings_night,
 			COALESCE(SUM(sic_time), 0) as sic_minutes,
-			COALESCE(SUM(dual_given_time), 0) as dual_given_minutes
+			COALESCE(SUM(dual_given_time), 0) as dual_given_minutes,
+			COALESCE(SUM(picus_time), 0) as picus_minutes,
+			COALESCE(SUM(spic_time), 0) as spic_minutes,
+			COALESCE(SUM(examiner_time), 0) as examiner_minutes,
+			COALESCE(SUM(relief_time), 0) as relief_minutes
 		FROM flights
 		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger
 	`
@@ -509,6 +528,10 @@ func (r *flightRepository) GetStatsByUserID(ctx context.Context, userID uuid.UUI
 		&stats.LandingsNight,
 		&stats.SICMinutes,
 		&stats.DualGivenMinutes,
+		&stats.PICUSMinutes,
+		&stats.SPICMinutes,
+		&stats.ExaminerMinutes,
+		&stats.ReliefMinutes,
 	)
 	if err != nil {
 		return nil, err
@@ -557,7 +580,8 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		       actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
 		       launch_method,
 		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
-		       signature_id, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override
+		       signature_id, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
+		       picus_time, spic_time, examiner_time, relief_time
 		FROM flights
 		WHERE ` + baseCondition
 
@@ -735,6 +759,10 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.IsPassenger,
 			&flight.SICTimeOverride,
 			&flight.MultiPilotTimeOverride,
+			&flight.PICUSTime,
+			&flight.SPICTime,
+			&flight.ExaminerTime,
+			&flight.ReliefTime,
 		)
 		if err != nil {
 			return nil, err

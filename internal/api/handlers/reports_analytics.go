@@ -200,6 +200,10 @@ func (h *APIHandler) analyticsTotals(ctx context.Context, userID uuid.UUID, mont
 	t.SicMinutes = row.SicMinutes
 	t.DualMinutes = row.DualMinutes
 	t.DualGivenMinutes = row.DualGivenMinutes
+	t.PicusMinutes = row.PicusMinutes
+	t.SpicMinutes = row.SpicMinutes
+	t.ExaminerMinutes = row.ExaminerMinutes
+	t.ReliefMinutes = row.ReliefMinutes
 	t.SoloMinutes = row.SoloMinutes
 	t.NightMinutes = row.NightMinutes
 	t.IfrMinutes = row.IfrMinutes
@@ -306,6 +310,10 @@ func addBaselineToTotals(t *generated.AnalyticsTotals, b *models.FlightBaseline)
 	t.SicMinutes += b.SICMinutes
 	t.DualMinutes += b.DualMinutes
 	t.DualGivenMinutes += b.DualGivenMinutes
+	t.PicusMinutes += b.PICUSMinutes
+	t.SpicMinutes += b.SPICMinutes
+	t.ExaminerMinutes += b.ExaminerMinutes
+	t.ReliefMinutes += b.ReliefMinutes
 	t.MultiPilotMinutes += b.MultiPilotMinutes
 	t.SoloMinutes += b.SoloMinutes
 	t.NightMinutes += b.NightMinutes
@@ -478,6 +486,15 @@ func (h *APIHandler) analyticsPeople(ctx context.Context, userID uuid.UUID, mont
 		}
 		if row.Role != nil && *row.Role != "" {
 			r.Role = strPtr(*row.Role)
+		}
+		if len(row.Roles) > 0 {
+			roles := append([]string(nil), row.Roles...)
+			r.Roles = &roles
+		}
+		if row.ContactID != nil {
+			if id, err := uuid.Parse(*row.ContactID); err == nil {
+				r.ContactId = &id
+			}
 		}
 		if row.LastFlightDate != nil {
 			r.LastFlightDate = strPtr(row.LastFlightDate.Format(isoDate))

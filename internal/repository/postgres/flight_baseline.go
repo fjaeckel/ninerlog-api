@@ -24,6 +24,7 @@ const flightBaselineColumns = `
 	pic_minutes, sic_minutes, dual_minutes, dual_given_minutes,
 	multi_pilot_minutes, night_minutes, ifr_minutes, solo_minutes,
 	cross_country_minutes, landings_day, landings_night,
+	picus_minutes, spic_minutes, examiner_minutes, relief_minutes,
 	notes, created_at, updated_at
 `
 
@@ -45,6 +46,10 @@ func scanFlightBaseline(row interface{ Scan(...interface{}) error }) (*models.Fl
 		&b.CrossCountryMinutes,
 		&b.LandingsDay,
 		&b.LandingsNight,
+		&b.PICUSMinutes,
+		&b.SPICMinutes,
+		&b.ExaminerMinutes,
+		&b.ReliefMinutes,
 		&b.Notes,
 		&b.CreatedAt,
 		&b.UpdatedAt,
@@ -73,9 +78,10 @@ func (r *flightBaselineRepository) Upsert(ctx context.Context, b *models.FlightB
 			user_id, baseline_date, total_flights, total_minutes,
 			pic_minutes, sic_minutes, dual_minutes, dual_given_minutes,
 			multi_pilot_minutes, night_minutes, ifr_minutes, solo_minutes,
-			cross_country_minutes, landings_day, landings_night, notes
+			cross_country_minutes, landings_day, landings_night,
+			picus_minutes, spic_minutes, examiner_minutes, relief_minutes, notes
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
 		)
 		ON CONFLICT (user_id) DO UPDATE SET
 			baseline_date = EXCLUDED.baseline_date,
@@ -92,6 +98,10 @@ func (r *flightBaselineRepository) Upsert(ctx context.Context, b *models.FlightB
 			cross_country_minutes = EXCLUDED.cross_country_minutes,
 			landings_day = EXCLUDED.landings_day,
 			landings_night = EXCLUDED.landings_night,
+			picus_minutes = EXCLUDED.picus_minutes,
+			spic_minutes = EXCLUDED.spic_minutes,
+			examiner_minutes = EXCLUDED.examiner_minutes,
+			relief_minutes = EXCLUDED.relief_minutes,
 			notes = EXCLUDED.notes
 		RETURNING created_at, updated_at
 	`
@@ -111,6 +121,10 @@ func (r *flightBaselineRepository) Upsert(ctx context.Context, b *models.FlightB
 		b.CrossCountryMinutes,
 		b.LandingsDay,
 		b.LandingsNight,
+		b.PICUSMinutes,
+		b.SPICMinutes,
+		b.ExaminerMinutes,
+		b.ReliefMinutes,
 		b.Notes,
 	).Scan(&b.CreatedAt, &b.UpdatedAt)
 }

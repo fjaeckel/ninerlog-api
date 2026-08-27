@@ -663,11 +663,12 @@ func generateSummaryPDF(flights []*models.Flight, g pageGeometry, userName strin
 
 // summaryTotals are the career figures reported on the totals summary page.
 type summaryTotals struct {
-	flights                    int
-	total, pic, sic            int
-	dual, dualGiven, solo      int
-	night, ifr, xc, multiPilot int
-	ldgDay, ldgNight           int
+	flights                       int
+	total, pic, sic               int
+	dual, dualGiven, solo         int
+	night, ifr, xc, multiPilot    int
+	picus, spic, examiner, relief int
+	ldgDay, ldgNight              int
 }
 
 // computeSummaryTotals aggregates every logged flight plus the prior
@@ -687,6 +688,10 @@ func computeSummaryTotals(flights []*models.Flight, b *models.FlightBaseline) su
 		t.ifr += flightrules.EffectiveIFRTime(f)
 		t.xc += f.CrossCountryTime
 		t.multiPilot += f.MultiPilotTime
+		t.picus += f.PICUSTime
+		t.spic += f.SPICTime
+		t.examiner += f.ExaminerTime
+		t.relief += f.ReliefTime
 		t.ldgDay += f.LandingsDay
 		t.ldgNight += f.LandingsNight
 	}
@@ -702,6 +707,10 @@ func computeSummaryTotals(flights []*models.Flight, b *models.FlightBaseline) su
 		t.ifr += b.IFRMinutes
 		t.xc += b.CrossCountryMinutes
 		t.multiPilot += b.MultiPilotMinutes
+		t.picus += b.PICUSMinutes
+		t.spic += b.SPICMinutes
+		t.examiner += b.ExaminerMinutes
+		t.relief += b.ReliefMinutes
 		t.ldgDay += b.LandingsDay
 		t.ldgNight += b.LandingsNight
 	}
@@ -731,6 +740,22 @@ func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBa
 		{"Dual Received", fmtDec(t.dual)},
 		{"Dual / Instruction Given", fmtDec(t.dualGiven)},
 		{"Solo Time", fmtDec(t.solo)},
+	}
+	// Declared function times appear only when the pilot has logged any.
+	for _, extra := range []struct {
+		minutes int
+		label   string
+	}{
+		{t.picus, "PICUS (PIC under Supervision)"},
+		{t.spic, "SPIC (Student PIC)"},
+		{t.examiner, "Examiner Time"},
+		{t.relief, "Cruise Relief Time"},
+	} {
+		if extra.minutes > 0 {
+			rows = append(rows, struct{ label, value string }{extra.label, fmtDec(extra.minutes)})
+		}
+	}
+	rows = append(rows, []struct{ label, value string }{
 		{"Night Time", fmtDec(t.night)},
 		{"IFR Time", fmtDec(t.ifr)},
 		{"Cross-Country Time", fmtDec(t.xc)},
@@ -738,7 +763,7 @@ func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBa
 		{"Day Landings", fmt.Sprintf("%d", t.ldgDay)},
 		{"Night Landings", fmt.Sprintf("%d", t.ldgNight)},
 		{"Total Landings", fmt.Sprintf("%d", t.ldgDay+t.ldgNight)},
-	}
+	}...)
 	// Lead with the carried-forward block.
 	if baselineApplies(b) {
 		rows = append([]struct{ label, value string }{

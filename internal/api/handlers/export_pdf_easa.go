@@ -133,8 +133,8 @@ func (t *easaTotals) add(rd easaRow) {
 	t.ldgN += f.LandingsNight
 	t.night += f.NightTime
 	t.ifr += rd.ifr
-	t.pic += f.PICTime
-	t.sic += f.SICTime
+	t.pic += flightrules.PICColumnTime(f)
+	t.sic += flightrules.CoPilotColumnTime(f)
 	t.dual += f.DualTime
 	t.instr += f.DualGivenTime
 	t.fstd += easaFSTDTotal(f)
@@ -168,8 +168,8 @@ func (t *easaTotals) addBaseline(b *models.FlightBaseline) {
 	t.ldgN += b.LandingsNight
 	t.night += b.NightMinutes
 	t.ifr += b.IFRMinutes
-	t.pic += b.PICMinutes
-	t.sic += b.SICMinutes
+	t.pic += b.PICMinutes + b.PICUSMinutes + b.SPICMinutes
+	t.sic += b.SICMinutes + b.ReliefMinutes
 	t.dual += b.DualMinutes
 	t.instr += b.DualGivenMinutes
 }
@@ -294,7 +294,7 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 				fmt.Sprintf("%d", f.LandingsDay),
 				fmt.Sprintf("%d", f.LandingsNight),
 				fmtDec(f.NightTime), fmtDec(rd.ifr),
-				fmtDec(f.PICTime), fmtDec(f.SICTime),
+				fmtDec(flightrules.PICColumnTime(f)), fmtDec(flightrules.CoPilotColumnTime(f)),
 				fmtDec(f.DualTime), fmtDec(f.DualGivenTime),
 				rd.fstdDate, rd.fstdType, rd.fstdTime,
 				rd.remarks,
@@ -353,7 +353,7 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 				fmt.Sprintf("%d", f.LandingsDay),
 				fmt.Sprintf("%d", f.LandingsNight),
 				fmtDec(f.NightTime), fmtDec(rd.ifr),
-				fmtDec(f.PICTime), fmtDec(f.SICTime),
+				fmtDec(flightrules.PICColumnTime(f)), fmtDec(flightrules.CoPilotColumnTime(f)),
 				fmtDec(f.DualTime), fmtDec(f.DualGivenTime),
 				rd.fstdType, rd.fstdTime,
 				rd.remarks,

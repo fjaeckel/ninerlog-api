@@ -75,6 +75,10 @@ type FlightBaseline struct {
 	IFRMinutes          int       `json:"ifrMinutes"`
 	SoloMinutes         int       `json:"soloMinutes"`
 	CrossCountryMinutes int       `json:"crossCountryMinutes"`
+	PICUSMinutes        int       `json:"picusMinutes"`
+	SPICMinutes         int       `json:"spicMinutes"`
+	ExaminerMinutes     int       `json:"examinerMinutes"`
+	ReliefMinutes       int       `json:"reliefMinutes"`
 	LandingsDay         int       `json:"landingsDay"`
 	LandingsNight       int       `json:"landingsNight"`
 	Notes               *string   `json:"notes,omitempty"`
@@ -124,6 +128,10 @@ func NewFlightBaseline(b *models.FlightBaseline) *FlightBaseline {
 		IFRMinutes:          b.IFRMinutes,
 		SoloMinutes:         b.SoloMinutes,
 		CrossCountryMinutes: b.CrossCountryMinutes,
+		PICUSMinutes:        b.PICUSMinutes,
+		SPICMinutes:         b.SPICMinutes,
+		ExaminerMinutes:     b.ExaminerMinutes,
+		ReliefMinutes:       b.ReliefMinutes,
 		LandingsDay:         b.LandingsDay,
 		LandingsNight:       b.LandingsNight,
 		Notes:               b.Notes,
@@ -146,6 +154,10 @@ func (b FlightBaseline) ToModel(userID uuid.UUID) *models.FlightBaseline {
 		IFRMinutes:          b.IFRMinutes,
 		SoloMinutes:         b.SoloMinutes,
 		CrossCountryMinutes: b.CrossCountryMinutes,
+		PICUSMinutes:        b.PICUSMinutes,
+		SPICMinutes:         b.SPICMinutes,
+		ExaminerMinutes:     b.ExaminerMinutes,
+		ReliefMinutes:       b.ReliefMinutes,
 		LandingsDay:         b.LandingsDay,
 		LandingsNight:       b.LandingsNight,
 		Notes:               b.Notes,

@@ -196,6 +196,10 @@ func (s *FlightService) GetStatsByUserID(ctx context.Context, userID uuid.UUID, 
 	stats.IFRMinutes += baseline.IFRMinutes
 	stats.SoloMinutes += baseline.SoloMinutes
 	stats.CrossCountryMinutes += baseline.CrossCountryMinutes
+	stats.PICUSMinutes += baseline.PICUSMinutes
+	stats.SPICMinutes += baseline.SPICMinutes
+	stats.ExaminerMinutes += baseline.ExaminerMinutes
+	stats.ReliefMinutes += baseline.ReliefMinutes
 	stats.LandingsDay += baseline.LandingsDay
 	stats.LandingsNight += baseline.LandingsNight
 

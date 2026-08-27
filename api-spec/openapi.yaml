@@ -2761,7 +2761,9 @@ paths:
             departureTime (takeoffTime); arrivalTime (landingTime); totalTime
             (total); picTime; dualTime; nightTime (night); ifrTime (ifr);
             soloTime (solo); crossCountryTime (xc, crossCountry); sicTime;
-            dualGivenTime (dualGiven); simulatedFlightTime (simTime);
+            picusTime (picus); spicTime (spic); examinerTime (examiner);
+            reliefTime (relief); dualGivenTime (dualGiven);
+            simulatedFlightTime (simTime);
             groundTrainingTime; actualInstrumentTime; simulatedInstrumentTime
             (hoodTime); multiPilotTime; landings; landingsDay; landingsNight;
             takeoffsDay; takeoffsNight; holds; approaches; approachType;
@@ -5769,7 +5771,11 @@ components:
         - ifrTime
         - crossCountryTime
         - sicTime
+        - picusTime
+        - spicTime
+        - reliefTime
         - dualGivenTime
+        - examinerTime
         - multiPilotTime
         - soloTime
         - simulatedFlightTime
@@ -6685,6 +6691,26 @@ components:
           minimum: 0
           example: 0
           description: Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
+        picusTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: PIC under supervision (PICUS) time in minutes (EASA FCL.030, Part-FCL). Declared by the pilot, never auto-calculated; carved out of the derived function time. Counts toward PIC experience requirements (e.g. unfreezing an ATPL) but is kept distinct from PIC and SIC time.
+        spicTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Student pilot-in-command (SPIC) time in minutes (EASA integrated course). Declared by the pilot, never auto-calculated; carved out of the derived function time.
+        examinerTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Time conducting a check as examiner, in minutes. Overlays the pilot function time like dualGivenTime; bounded by totalTime only.
+        reliefTime:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Cruise relief co-pilot time in minutes (augmented crew). Declared by the pilot, never auto-calculated; carved out of the derived function time.
         isSimulator:
           type: boolean
           example: false
@@ -6885,6 +6911,22 @@ components:
         dualGivenTime:
           type: integer
           minimum: 0
+        picusTime:
+          type: integer
+          minimum: 0
+          description: PIC under supervision time in minutes. Carved out of the derived function time; the declared function times together with the derived ones must not exceed totalTime.
+        spicTime:
+          type: integer
+          minimum: 0
+          description: Student pilot-in-command time in minutes. Carved out of the derived function time.
+        examinerTime:
+          type: integer
+          minimum: 0
+          description: Time conducting a check as examiner, in minutes. Overlays function time; bounded by totalTime.
+        reliefTime:
+          type: integer
+          minimum: 0
+          description: Cruise relief co-pilot time in minutes. Carved out of the derived function time.
         simulatedFlightTime:
           type: integer
           minimum: 0
@@ -7045,6 +7087,22 @@ components:
         dualGivenTime:
           type: integer
           minimum: 0
+        picusTime:
+          type: integer
+          minimum: 0
+          description: PIC under supervision time in minutes. Carved out of the derived function time.
+        spicTime:
+          type: integer
+          minimum: 0
+          description: Student pilot-in-command time in minutes. Carved out of the derived function time.
+        examinerTime:
+          type: integer
+          minimum: 0
+          description: Time conducting a check as examiner, in minutes. Overlays function time; bounded by totalTime.
+        reliefTime:
+          type: integer
+          minimum: 0
+          description: Cruise relief co-pilot time in minutes. Carved out of the derived function time.
         simulatedFlightTime:
           type: integer
           minimum: 0
@@ -7167,6 +7225,30 @@ components:
           type: integer
           example: 7200
           description: Total solo time in minutes
+        sicMinutes:
+          type: integer
+          example: 4800
+          description: Total co-pilot (SIC) block time in minutes
+        dualGivenMinutes:
+          type: integer
+          example: 600
+          description: Total instruction given in minutes
+        picusMinutes:
+          type: integer
+          example: 3600
+          description: Total PIC under supervision (PICUS) time in minutes
+        spicMinutes:
+          type: integer
+          example: 0
+          description: Total student pilot-in-command (SPIC) time in minutes
+        examinerMinutes:
+          type: integer
+          example: 0
+          description: Total examiner time in minutes
+        reliefMinutes:
+          type: integer
+          example: 0
+          description: Total cruise relief co-pilot time in minutes
         crossCountryMinutes:
           type: integer
           example: 12000
@@ -7217,6 +7299,14 @@ components:
         soloMinutes:
           type: integer
         crossCountryMinutes:
+          type: integer
+        picusMinutes:
+          type: integer
+        spicMinutes:
+          type: integer
+        examinerMinutes:
+          type: integer
+        reliefMinutes:
           type: integer
         landingsDay:
           type: integer
@@ -7283,6 +7373,26 @@ components:
           type: integer
           minimum: 0
           default: 0
+        picusMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Carried-forward PIC under supervision (PICUS) time in minutes
+        spicMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Carried-forward student pilot-in-command (SPIC) time in minutes
+        examinerMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Carried-forward examiner time in minutes
+        reliefMinutes:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Carried-forward cruise relief co-pilot time in minutes
         landingsDay:
           type: integer
           minimum: 0
@@ -10396,7 +10506,10 @@ components:
             $ref: '#/components/schemas/AnalyticsPersonRow'
         byCrew:
           type: array
-          description: Time flown alongside each logged crew member.
+          description: |
+            Time flown alongside each logged crew member — one row per person,
+            not per role. Crew entries linked to the same contact are one
+            person; unlinked entries fold by trimmed, case-insensitive name.
           items:
             $ref: '#/components/schemas/AnalyticsPersonRow'
         approachTypes:
@@ -10473,6 +10586,10 @@ components:
         - sicMinutes
         - dualMinutes
         - dualGivenMinutes
+        - picusMinutes
+        - spicMinutes
+        - examinerMinutes
+        - reliefMinutes
         - soloMinutes
         - nightMinutes
         - ifrMinutes
@@ -10511,6 +10628,18 @@ components:
         dualGivenMinutes:
           type: integer
           description: Instruction given as an instructor.
+        picusMinutes:
+          type: integer
+          description: PIC under supervision (PICUS) time.
+        spicMinutes:
+          type: integer
+          description: Student pilot-in-command (SPIC) time.
+        examinerMinutes:
+          type: integer
+          description: Time conducting checks as examiner.
+        reliefMinutes:
+          type: integer
+          description: Cruise relief co-pilot time.
         soloMinutes:
           type: integer
         nightMinutes:
@@ -10808,7 +10937,22 @@ components:
         role:
           type: [string, 'null']
           example: PIC
-          description: Crew role, for byCrew rows only.
+          description: |
+            The role this person most flies with you as (by time), for byCrew
+            rows only.
+        roles:
+          type: array
+          items:
+            type: string
+          description: |
+            Every role this person has held across the logbook, most time
+            first. byCrew rows only.
+        contactId:
+          type: [string, 'null']
+          format: uuid
+          description: |
+            The contact the person's crew entries are linked to, when they are
+            linked to one. byCrew rows only.
         flights:
           type: integer
         totalMinutes:
@@ -11007,6 +11151,7 @@ components:
           type: string
           description: |
             Time metrics (`unit` applies): `total_time`, `pic_time`,
+            `picus_time`, `spic_time`, `examiner_time`, `relief_time`,
             `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
             Count metrics (`unit` ignored): `flights`, `landings`,
             `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
@@ -11014,6 +11159,10 @@ components:
           enum:
             - total_time
             - pic_time
+            - picus_time
+            - spic_time
+            - examiner_time
+            - relief_time
             - dual_time
             - night_time
             - ifr_time

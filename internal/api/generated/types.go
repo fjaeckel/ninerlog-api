@@ -508,6 +508,7 @@ const (
 	CustomCurrencyThresholdMetricDayLandings      CustomCurrencyThresholdMetric = "day_landings"
 	CustomCurrencyThresholdMetricDayTakeoffs      CustomCurrencyThresholdMetric = "day_takeoffs"
 	CustomCurrencyThresholdMetricDualTime         CustomCurrencyThresholdMetric = "dual_time"
+	CustomCurrencyThresholdMetricExaminerTime     CustomCurrencyThresholdMetric = "examiner_time"
 	CustomCurrencyThresholdMetricFlights          CustomCurrencyThresholdMetric = "flights"
 	CustomCurrencyThresholdMetricHolds            CustomCurrencyThresholdMetric = "holds"
 	CustomCurrencyThresholdMetricIfrTime          CustomCurrencyThresholdMetric = "ifr_time"
@@ -516,6 +517,9 @@ const (
 	CustomCurrencyThresholdMetricNightTakeoffs    CustomCurrencyThresholdMetric = "night_takeoffs"
 	CustomCurrencyThresholdMetricNightTime        CustomCurrencyThresholdMetric = "night_time"
 	CustomCurrencyThresholdMetricPicTime          CustomCurrencyThresholdMetric = "pic_time"
+	CustomCurrencyThresholdMetricPicusTime        CustomCurrencyThresholdMetric = "picus_time"
+	CustomCurrencyThresholdMetricReliefTime       CustomCurrencyThresholdMetric = "relief_time"
+	CustomCurrencyThresholdMetricSpicTime         CustomCurrencyThresholdMetric = "spic_time"
 	CustomCurrencyThresholdMetricTakeoffs         CustomCurrencyThresholdMetric = "takeoffs"
 	CustomCurrencyThresholdMetricTotalTime        CustomCurrencyThresholdMetric = "total_time"
 )
@@ -533,6 +537,8 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 		return true
 	case CustomCurrencyThresholdMetricDualTime:
 		return true
+	case CustomCurrencyThresholdMetricExaminerTime:
+		return true
 	case CustomCurrencyThresholdMetricFlights:
 		return true
 	case CustomCurrencyThresholdMetricHolds:
@@ -548,6 +554,12 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 	case CustomCurrencyThresholdMetricNightTime:
 		return true
 	case CustomCurrencyThresholdMetricPicTime:
+		return true
+	case CustomCurrencyThresholdMetricPicusTime:
+		return true
+	case CustomCurrencyThresholdMetricReliefTime:
+		return true
+	case CustomCurrencyThresholdMetricSpicTime:
 		return true
 	case CustomCurrencyThresholdMetricTakeoffs:
 		return true
@@ -731,6 +743,7 @@ const (
 	FlightListColumnCrossCountryTime    FlightListColumn = "crossCountryTime"
 	FlightListColumnDualGivenTime       FlightListColumn = "dualGivenTime"
 	FlightListColumnDualTime            FlightListColumn = "dualTime"
+	FlightListColumnExaminerTime        FlightListColumn = "examinerTime"
 	FlightListColumnFunction            FlightListColumn = "function"
 	FlightListColumnIfrTime             FlightListColumn = "ifrTime"
 	FlightListColumnLandings            FlightListColumn = "landings"
@@ -738,10 +751,13 @@ const (
 	FlightListColumnNightTime           FlightListColumn = "nightTime"
 	FlightListColumnOffOnBlock          FlightListColumn = "offOnBlock"
 	FlightListColumnPicTime             FlightListColumn = "picTime"
+	FlightListColumnPicusTime           FlightListColumn = "picusTime"
+	FlightListColumnReliefTime          FlightListColumn = "reliefTime"
 	FlightListColumnRemarks             FlightListColumn = "remarks"
 	FlightListColumnSicTime             FlightListColumn = "sicTime"
 	FlightListColumnSimulatedFlightTime FlightListColumn = "simulatedFlightTime"
 	FlightListColumnSoloTime            FlightListColumn = "soloTime"
+	FlightListColumnSpicTime            FlightListColumn = "spicTime"
 )
 
 // Valid indicates whether the value is a known member of the FlightListColumn enum.
@@ -752,6 +768,8 @@ func (e FlightListColumn) Valid() bool {
 	case FlightListColumnDualGivenTime:
 		return true
 	case FlightListColumnDualTime:
+		return true
+	case FlightListColumnExaminerTime:
 		return true
 	case FlightListColumnFunction:
 		return true
@@ -767,6 +785,10 @@ func (e FlightListColumn) Valid() bool {
 		return true
 	case FlightListColumnPicTime:
 		return true
+	case FlightListColumnPicusTime:
+		return true
+	case FlightListColumnReliefTime:
+		return true
 	case FlightListColumnRemarks:
 		return true
 	case FlightListColumnSicTime:
@@ -774,6 +796,8 @@ func (e FlightListColumn) Valid() bool {
 	case FlightListColumnSimulatedFlightTime:
 		return true
 	case FlightListColumnSoloTime:
+		return true
+	case FlightListColumnSpicTime:
 		return true
 	default:
 		return false
@@ -2500,17 +2524,26 @@ type AnalyticsMonthPoint struct {
 
 // AnalyticsPersonRow defines model for AnalyticsPersonRow.
 type AnalyticsPersonRow struct {
-	Flights        int     `json:"flights"`
-	LastFlightDate *string `json:"lastFlightDate,omitempty"`
+	// ContactId The contact the person's crew entries are linked to, when they are
+	// linked to one. byCrew rows only.
+	ContactId      *openapi_types.UUID `json:"contactId,omitempty"`
+	Flights        int                 `json:"flights"`
+	LastFlightDate *string             `json:"lastFlightDate,omitempty"`
 
 	// Name Example: J. Smith
 	Name string `json:"name"`
 
-	// Role Crew role, for byCrew rows only.
+	// Role The role this person most flies with you as (by time), for byCrew
+	// rows only.
+	//
 	//
 	// Example: PIC
-	Role         *string `json:"role,omitempty"`
-	TotalMinutes int     `json:"totalMinutes"`
+	Role *string `json:"role,omitempty"`
+
+	// Roles Every role this person has held across the logbook, most time
+	// first. byCrew rows only.
+	Roles        *[]string `json:"roles,omitempty"`
+	TotalMinutes int       `json:"totalMinutes"`
 }
 
 // AnalyticsRange defines model for AnalyticsRange.
@@ -2617,6 +2650,9 @@ type AnalyticsTotals struct {
 	// DualMinutes Dual instruction received.
 	DualMinutes int `json:"dualMinutes"`
 
+	// ExaminerMinutes Time conducting checks as examiner.
+	ExaminerMinutes int `json:"examinerMinutes"`
+
 	// FirstFlightDate Example: 2024-03-02
 	FirstFlightDate *string `json:"firstFlightDate,omitempty"`
 
@@ -2634,7 +2670,13 @@ type AnalyticsTotals struct {
 	MultiPilotMinutes int `json:"multiPilotMinutes"`
 	NightMinutes      int `json:"nightMinutes"`
 	PicMinutes        int `json:"picMinutes"`
-	SicMinutes        int `json:"sicMinutes"`
+
+	// PicusMinutes PIC under supervision (PICUS) time.
+	PicusMinutes int `json:"picusMinutes"`
+
+	// ReliefMinutes Cruise relief co-pilot time.
+	ReliefMinutes int `json:"reliefMinutes"`
+	SicMinutes    int `json:"sicMinutes"`
 
 	// SimulatedFlightMinutes FSTD/simulator time. Not included in totalMinutes.
 	SimulatedFlightMinutes int `json:"simulatedFlightMinutes"`
@@ -2642,8 +2684,11 @@ type AnalyticsTotals struct {
 	// SimulatedInstrumentMinutes Hood/simulated instrument time in an aircraft.
 	SimulatedInstrumentMinutes int `json:"simulatedInstrumentMinutes"`
 	SoloMinutes                int `json:"soloMinutes"`
-	TakeoffsDay                int `json:"takeoffsDay"`
-	TakeoffsNight              int `json:"takeoffsNight"`
+
+	// SpicMinutes Student pilot-in-command (SPIC) time.
+	SpicMinutes   int `json:"spicMinutes"`
+	TakeoffsDay   int `json:"takeoffsDay"`
+	TakeoffsNight int `json:"takeoffsNight"`
 
 	// TotalFlights Example: 214
 	TotalFlights int `json:"totalFlights"`
@@ -3495,6 +3540,7 @@ type CustomCurrencyThreshold struct {
 	Label *string `json:"label,omitempty"`
 
 	// Metric Time metrics (`unit` applies): `total_time`, `pic_time`,
+	// `picus_time`, `spic_time`, `examiner_time`, `relief_time`,
 	// `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
 	// Count metrics (`unit` ignored): `flights`, `landings`,
 	// `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
@@ -3514,6 +3560,7 @@ type CustomCurrencyThreshold struct {
 }
 
 // CustomCurrencyThresholdMetric Time metrics (`unit` applies): `total_time`, `pic_time`,
+// `picus_time`, `spic_time`, `examiner_time`, `relief_time`,
 // `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
 // Count metrics (`unit` ignored): `flights`, `landings`,
 // `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
@@ -3838,6 +3885,11 @@ type Flight struct {
 	// Example: Skill test passed
 	Endorsements *string `json:"endorsements,omitempty"`
 
+	// ExaminerTime Time conducting a check as examiner, in minutes. Overlays the pilot function time like dualGivenTime; bounded by totalTime only.
+	//
+	// Example: 0
+	ExaminerTime *int `json:"examinerTime,omitempty"`
+
 	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320", "FTD Level 5", "BATD", "AATD"). Required by EASA AMC1 FCL.050 Col 22 and FAA §61.51(b)(1)(iv).
 	//
 	// Example: FNPT II
@@ -3962,6 +4014,16 @@ type Flight struct {
 	// Example: 150
 	PicTime int `json:"picTime"`
 
+	// PicusTime PIC under supervision (PICUS) time in minutes (EASA FCL.030, Part-FCL). Declared by the pilot, never auto-calculated; carved out of the derived function time. Counts toward PIC experience requirements (e.g. unfreezing an ATPL) but is kept distinct from PIC and SIC time.
+	//
+	// Example: 0
+	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReliefTime Cruise relief co-pilot time in minutes (augmented crew). Declared by the pilot, never auto-calculated; carved out of the derived function time.
+	//
+	// Example: 0
+	ReliefTime *int `json:"reliefTime,omitempty"`
+
 	// Remarks Free text notes
 	//
 	// Example: Training flight - touch and go practice
@@ -3997,6 +4059,11 @@ type Flight struct {
 	//
 	// Example: 90
 	SoloTime int `json:"soloTime"`
+
+	// SpicTime Student pilot-in-command (SPIC) time in minutes (EASA integrated course). Declared by the pilot, never auto-calculated; carved out of the derived function time.
+	//
+	// Example: 0
+	SpicTime *int `json:"spicTime,omitempty"`
 
 	// TakeoffsDay Number of day takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
 	//
@@ -4044,7 +4111,9 @@ type FlightAnalytics struct {
 	ByClass    []AnalyticsGroupRow   `json:"byClass"`
 	ByCountry  []AnalyticsCountryRow `json:"byCountry"`
 
-	// ByCrew Time flown alongside each logged crew member.
+	// ByCrew Time flown alongside each logged crew member — one row per person,
+	// not per role. Crew entries linked to the same contact are one
+	// person; unlinked entries fold by trimmed, case-insensitive name.
 	ByCrew []AnalyticsPersonRow `json:"byCrew"`
 
 	// ByInstructor Dual received, grouped by the instructor named on the flight.
@@ -4089,6 +4158,9 @@ type FlightBaseline struct {
 	// DualMinutes Dual instruction received in minutes
 	DualMinutes *int `json:"dualMinutes,omitempty"`
 
+	// ExaminerMinutes Carried-forward examiner time in minutes
+	ExaminerMinutes *int `json:"examinerMinutes,omitempty"`
+
 	// IfrMinutes Total IFR / instrument time in minutes
 	IfrMinutes        *int `json:"ifrMinutes,omitempty"`
 	LandingsDay       *int `json:"landingsDay,omitempty"`
@@ -4097,11 +4169,20 @@ type FlightBaseline struct {
 	NightMinutes      *int `json:"nightMinutes,omitempty"`
 
 	// Notes Optional free-form context (e.g. "From paper logbook 1998-2010").
-	Notes        *string `json:"notes,omitempty"`
-	PicMinutes   *int    `json:"picMinutes,omitempty"`
-	SicMinutes   *int    `json:"sicMinutes,omitempty"`
-	SoloMinutes  *int    `json:"soloMinutes,omitempty"`
-	TotalFlights *int    `json:"totalFlights,omitempty"`
+	Notes      *string `json:"notes,omitempty"`
+	PicMinutes *int    `json:"picMinutes,omitempty"`
+
+	// PicusMinutes Carried-forward PIC under supervision (PICUS) time in minutes
+	PicusMinutes *int `json:"picusMinutes,omitempty"`
+
+	// ReliefMinutes Carried-forward cruise relief co-pilot time in minutes
+	ReliefMinutes *int `json:"reliefMinutes,omitempty"`
+	SicMinutes    *int `json:"sicMinutes,omitempty"`
+	SoloMinutes   *int `json:"soloMinutes,omitempty"`
+
+	// SpicMinutes Carried-forward student pilot-in-command (SPIC) time in minutes
+	SpicMinutes  *int `json:"spicMinutes,omitempty"`
+	TotalFlights *int `json:"totalFlights,omitempty"`
 
 	// TotalMinutes Total block time in minutes
 	TotalMinutes *int       `json:"totalMinutes,omitempty"`
@@ -4120,6 +4201,9 @@ type FlightBaselineInput struct {
 	// DualMinutes Dual instruction received in minutes
 	DualMinutes *int `json:"dualMinutes,omitempty"`
 
+	// ExaminerMinutes Carried-forward examiner time in minutes
+	ExaminerMinutes *int `json:"examinerMinutes,omitempty"`
+
 	// IfrMinutes Total IFR / instrument time in minutes
 	IfrMinutes        *int `json:"ifrMinutes,omitempty"`
 	LandingsDay       *int `json:"landingsDay,omitempty"`
@@ -4128,11 +4212,20 @@ type FlightBaselineInput struct {
 	NightMinutes      *int `json:"nightMinutes,omitempty"`
 
 	// Notes Optional free-form context (e.g. "From paper logbook 1998-2010").
-	Notes        *string `json:"notes,omitempty"`
-	PicMinutes   *int    `json:"picMinutes,omitempty"`
-	SicMinutes   *int    `json:"sicMinutes,omitempty"`
-	SoloMinutes  *int    `json:"soloMinutes,omitempty"`
-	TotalFlights *int    `json:"totalFlights,omitempty"`
+	Notes      *string `json:"notes,omitempty"`
+	PicMinutes *int    `json:"picMinutes,omitempty"`
+
+	// PicusMinutes Carried-forward PIC under supervision (PICUS) time in minutes
+	PicusMinutes *int `json:"picusMinutes,omitempty"`
+
+	// ReliefMinutes Carried-forward cruise relief co-pilot time in minutes
+	ReliefMinutes *int `json:"reliefMinutes,omitempty"`
+	SicMinutes    *int `json:"sicMinutes,omitempty"`
+	SoloMinutes   *int `json:"soloMinutes,omitempty"`
+
+	// SpicMinutes Carried-forward student pilot-in-command (SPIC) time in minutes
+	SpicMinutes  *int `json:"spicMinutes,omitempty"`
+	TotalFlights *int `json:"totalFlights,omitempty"`
 
 	// TotalMinutes Total block time in minutes
 	TotalMinutes *int `json:"totalMinutes,omitempty"`
@@ -4210,6 +4303,9 @@ type FlightCreate struct {
 	// Endorsements Instructor endorsements, skill test references
 	Endorsements *string `json:"endorsements,omitempty"`
 
+	// ExaminerTime Time conducting a check as examiner, in minutes. Overlays function time; bounded by totalTime.
+	ExaminerTime *int `json:"examinerTime,omitempty"`
+
 	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320"). Required when isSimulator is true.
 	FstdType           *string `json:"fstdType,omitempty"`
 	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
@@ -4253,6 +4349,12 @@ type FlightCreate struct {
 	// Example: 150
 	PicTime *int `json:"picTime,omitempty"`
 
+	// PicusTime PIC under supervision time in minutes. Carved out of the derived function time; the declared function times together with the derived ones must not exceed totalTime.
+	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReliefTime Cruise relief co-pilot time in minutes. Carved out of the derived function time.
+	ReliefTime *int `json:"reliefTime,omitempty"`
+
 	// Remarks Example: Training flight - touch and go practice
 	Remarks *string `json:"remarks,omitempty"`
 
@@ -4268,6 +4370,9 @@ type FlightCreate struct {
 
 	// SoloTime Solo time in minutes. Auto-calculated by the server.
 	SoloTime *int `json:"soloTime,omitempty"`
+
+	// SpicTime Student pilot-in-command time in minutes. Carved out of the derived function time.
+	SpicTime *int `json:"spicTime,omitempty"`
 
 	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
 	//
@@ -4487,6 +4592,9 @@ type FlightUpdate struct {
 	// Endorsements Instructor endorsements, skill test references
 	Endorsements nullable.Nullable[string] `json:"endorsements,omitempty"`
 
+	// ExaminerTime Time conducting a check as examiner, in minutes. Overlays function time; bounded by totalTime.
+	ExaminerTime *int `json:"examinerTime,omitempty"`
+
 	// FstdType FSTD type designation
 	FstdType           nullable.Nullable[string] `json:"fstdType,omitempty"`
 	GroundTrainingTime *int                      `json:"groundTrainingTime,omitempty"`
@@ -4516,13 +4624,22 @@ type FlightUpdate struct {
 
 	// PicName Name of the PIC
 	PicName nullable.Nullable[string] `json:"picName,omitempty"`
-	Remarks nullable.Nullable[string] `json:"remarks,omitempty"`
+
+	// PicusTime PIC under supervision time in minutes. Carved out of the derived function time.
+	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReliefTime Cruise relief co-pilot time in minutes. Carved out of the derived function time.
+	ReliefTime *int                      `json:"reliefTime,omitempty"`
+	Remarks    nullable.Nullable[string] `json:"remarks,omitempty"`
 
 	// Route Route waypoints as comma-separated ICAO codes
 	Route                   nullable.Nullable[string] `json:"route,omitempty"`
 	SicTime                 *int                      `json:"sicTime,omitempty"`
 	SimulatedFlightTime     *int                      `json:"simulatedFlightTime,omitempty"`
 	SimulatedInstrumentTime *int                      `json:"simulatedInstrumentTime,omitempty"`
+
+	// SpicTime Student pilot-in-command time in minutes. Carved out of the derived function time.
+	SpicTime *int `json:"spicTime,omitempty"`
 
 	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
 	TakeoffsDay *int `json:"takeoffsDay,omitempty"`
@@ -5480,10 +5597,20 @@ type Statistics struct {
 	// Example: 12000
 	CrossCountryMinutes *int `json:"crossCountryMinutes,omitempty"`
 
+	// DualGivenMinutes Total instruction given in minutes
+	//
+	// Example: 600
+	DualGivenMinutes *int `json:"dualGivenMinutes,omitempty"`
+
 	// DualMinutes Total dual instruction block time in minutes
 	//
 	// Example: 2730
 	DualMinutes int `json:"dualMinutes"`
+
+	// ExaminerMinutes Total examiner time in minutes
+	//
+	// Example: 0
+	ExaminerMinutes *int `json:"examinerMinutes,omitempty"`
 
 	// IfrMinutes Total IFR block time in minutes
 	//
@@ -5513,10 +5640,30 @@ type Statistics struct {
 	// Example: 19200
 	PicMinutes int `json:"picMinutes"`
 
+	// PicusMinutes Total PIC under supervision (PICUS) time in minutes
+	//
+	// Example: 3600
+	PicusMinutes *int `json:"picusMinutes,omitempty"`
+
+	// ReliefMinutes Total cruise relief co-pilot time in minutes
+	//
+	// Example: 0
+	ReliefMinutes *int `json:"reliefMinutes,omitempty"`
+
+	// SicMinutes Total co-pilot (SIC) block time in minutes
+	//
+	// Example: 4800
+	SicMinutes *int `json:"sicMinutes,omitempty"`
+
 	// SoloMinutes Total solo time in minutes
 	//
 	// Example: 7200
 	SoloMinutes *int `json:"soloMinutes,omitempty"`
+
+	// SpicMinutes Total student pilot-in-command (SPIC) time in minutes
+	//
+	// Example: 0
+	SpicMinutes *int `json:"spicMinutes,omitempty"`
 
 	// TotalFlights Total number of flights
 	//
@@ -5535,14 +5682,18 @@ type StatisticsBaselineContribution struct {
 	CrossCountryMinutes *int               `json:"crossCountryMinutes,omitempty"`
 	DualGivenMinutes    *int               `json:"dualGivenMinutes,omitempty"`
 	DualMinutes         int                `json:"dualMinutes"`
+	ExaminerMinutes     *int               `json:"examinerMinutes,omitempty"`
 	IfrMinutes          int                `json:"ifrMinutes"`
 	LandingsDay         int                `json:"landingsDay"`
 	LandingsNight       int                `json:"landingsNight"`
 	MultiPilotMinutes   *int               `json:"multiPilotMinutes,omitempty"`
 	NightMinutes        int                `json:"nightMinutes"`
 	PicMinutes          int                `json:"picMinutes"`
+	PicusMinutes        *int               `json:"picusMinutes,omitempty"`
+	ReliefMinutes       *int               `json:"reliefMinutes,omitempty"`
 	SicMinutes          *int               `json:"sicMinutes,omitempty"`
 	SoloMinutes         *int               `json:"soloMinutes,omitempty"`
+	SpicMinutes         *int               `json:"spicMinutes,omitempty"`
 	TotalFlights        int                `json:"totalFlights"`
 	TotalMinutes        int                `json:"totalMinutes"`
 }
@@ -6215,7 +6366,9 @@ type ListFlightsParams struct {
 	// departureTime (takeoffTime); arrivalTime (landingTime); totalTime
 	// (total); picTime; dualTime; nightTime (night); ifrTime (ifr);
 	// soloTime (solo); crossCountryTime (xc, crossCountry); sicTime;
-	// dualGivenTime (dualGiven); simulatedFlightTime (simTime);
+	// picusTime (picus); spicTime (spic); examinerTime (examiner);
+	// reliefTime (relief); dualGivenTime (dualGiven);
+	// simulatedFlightTime (simTime);
 	// groundTrainingTime; actualInstrumentTime; simulatedInstrumentTime
 	// (hoodTime); multiPilotTime; landings; landingsDay; landingsNight;
 	// takeoffsDay; takeoffsNight; holds; approaches; approachType;
