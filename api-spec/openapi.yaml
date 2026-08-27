@@ -7225,6 +7225,30 @@ components:
           type: integer
           example: 7200
           description: Total solo time in minutes
+        sicMinutes:
+          type: integer
+          example: 4800
+          description: Total co-pilot (SIC) block time in minutes
+        dualGivenMinutes:
+          type: integer
+          example: 600
+          description: Total instruction given in minutes
+        picusMinutes:
+          type: integer
+          example: 3600
+          description: Total PIC under supervision (PICUS) time in minutes
+        spicMinutes:
+          type: integer
+          example: 0
+          description: Total student pilot-in-command (SPIC) time in minutes
+        examinerMinutes:
+          type: integer
+          example: 0
+          description: Total examiner time in minutes
+        reliefMinutes:
+          type: integer
+          example: 0
+          description: Total cruise relief co-pilot time in minutes
         crossCountryMinutes:
           type: integer
           example: 12000

@@ -5597,10 +5597,20 @@ type Statistics struct {
 	// Example: 12000
 	CrossCountryMinutes *int `json:"crossCountryMinutes,omitempty"`
 
+	// DualGivenMinutes Total instruction given in minutes
+	//
+	// Example: 600
+	DualGivenMinutes *int `json:"dualGivenMinutes,omitempty"`
+
 	// DualMinutes Total dual instruction block time in minutes
 	//
 	// Example: 2730
 	DualMinutes int `json:"dualMinutes"`
+
+	// ExaminerMinutes Total examiner time in minutes
+	//
+	// Example: 0
+	ExaminerMinutes *int `json:"examinerMinutes,omitempty"`
 
 	// IfrMinutes Total IFR block time in minutes
 	//
@@ -5630,10 +5640,30 @@ type Statistics struct {
 	// Example: 19200
 	PicMinutes int `json:"picMinutes"`
 
+	// PicusMinutes Total PIC under supervision (PICUS) time in minutes
+	//
+	// Example: 3600
+	PicusMinutes *int `json:"picusMinutes,omitempty"`
+
+	// ReliefMinutes Total cruise relief co-pilot time in minutes
+	//
+	// Example: 0
+	ReliefMinutes *int `json:"reliefMinutes,omitempty"`
+
+	// SicMinutes Total co-pilot (SIC) block time in minutes
+	//
+	// Example: 4800
+	SicMinutes *int `json:"sicMinutes,omitempty"`
+
 	// SoloMinutes Total solo time in minutes
 	//
 	// Example: 7200
 	SoloMinutes *int `json:"soloMinutes,omitempty"`
+
+	// SpicMinutes Total student pilot-in-command (SPIC) time in minutes
+	//
+	// Example: 0
+	SpicMinutes *int `json:"spicMinutes,omitempty"`
 
 	// TotalFlights Total number of flights
 	//

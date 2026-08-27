@@ -147,6 +147,19 @@ func TestFunctionTimes(t *testing.T) {
 		}
 	})
 
+	t.Run("user statistics report the function times", func(t *testing.T) {
+		resp := c.GET("/users/me/statistics")
+		requireStatus(t, resp, http.StatusOK)
+		var s map[string]interface{}
+		resp.JSON(&s)
+		if gi(s, "picusMinutes") < 90 {
+			t.Errorf("picusMinutes = %d, want >= 90", gi(s, "picusMinutes"))
+		}
+		if gi(s, "reliefMinutes") < 30 {
+			t.Errorf("reliefMinutes = %d, want >= 30", gi(s, "reliefMinutes"))
+		}
+	})
+
 	t.Run("standard CSV export carries the function time columns", func(t *testing.T) {
 		resp := c.GET("/exports/csv")
 		requireStatus(t, resp, http.StatusOK)

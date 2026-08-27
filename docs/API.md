@@ -385,7 +385,8 @@ PIC/SIC/dual time, and the function times together must not exceed `totalTime`
 Declaring any of them also declares the crew seat, so a PICUS sector on any aircraft is
 never stored as a passenger flight. The four appear on flight responses, in
 `GET /users/me/baseline` (`picusMinutes`, `spicMinutes`, `examinerMinutes`,
-`reliefMinutes`), in the `totals` of `GET /reports/analytics`, as custom-currency metrics
+`reliefMinutes`), in `GET /users/me/statistics` and the per-license statistics, in the
+`totals` of `GET /reports/analytics`, as custom-currency metrics
 and as logbook query fields. See
 [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
 
