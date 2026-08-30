@@ -3049,8 +3049,17 @@ type ClassRatingCurrency struct {
 	// LicenseType Type from the parent license
 	LicenseType *string `json:"licenseType,omitempty"`
 
-	// Message Human-readable status message
+	// Message DEPRECATED — English (German for UL) fallback text. Render messageKey with messageParams instead.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	Message *string `json:"message,omitempty"`
+
+	// MessageKey Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
+	//
+	// Example: rating.revalidation_current
+	MessageKey *string `json:"messageKey,omitempty"`
+
+	// MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	MessageParams *MessageParams `json:"messageParams,omitempty"`
 
 	// Progress Progress metrics toward currency requirements (authority-specific)
 	Progress *struct {
@@ -3095,6 +3104,14 @@ type ClassRatingCurrency struct {
 
 	// Requirements Per-requirement breakdown showing progress toward each currency requirement
 	Requirements *[]CurrencyRequirement `json:"requirements,omitempty"`
+
+	// RuleDescription Regulatory reference for the rule that was applied
+	RuleDescription *string `json:"ruleDescription,omitempty"`
+
+	// RuleDescriptionKey Stable key for the applied rule, for client-side localisation of ruleDescription
+	//
+	// Example: easa_sep_tmg
+	RuleDescriptionKey *string `json:"ruleDescriptionKey,omitempty"`
 
 	// Status Currency status:
 	// - current: All requirements met
@@ -3385,14 +3402,29 @@ type CurrencyRequirement struct {
 	// Current Current progress value
 	Current float32 `json:"current"`
 
-	// Message Human-readable progress description
+	// Message DEPRECATED — English fallback text. Render messageKey instead.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	Message string `json:"message"`
+
+	// MessageKey Stable key for the progress text. `requirement.progress` (the common case) is rendered by the client from current/required/unit.
+	//
+	// Example: requirement.progress
+	MessageKey *string `json:"messageKey,omitempty"`
+
+	// MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	MessageParams *MessageParams `json:"messageParams,omitempty"`
 
 	// Met Whether this requirement is currently satisfied
 	Met bool `json:"met"`
 
-	// Name Requirement name (e.g., "Day Currency", "PIC Hours", "Refresher Training")
+	// Name DEPRECATED for regulatory requirements — English (German for UL) fallback for nameKey. Still authoritative for custom currency rules, whose names are author-supplied user data and carry no nameKey.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	Name string `json:"name"`
+
+	// NameKey Stable key for the requirement name, for client-side localisation. Absent on custom currency rules, where `name` is user data and must be rendered as-is.
+	//
+	// Example: requirement.refresher_training
+	NameKey *string `json:"nameKey,omitempty"`
 
 	// Required Required value to meet this requirement
 	Required float32 `json:"required"`
@@ -4431,8 +4463,17 @@ type FlightReviewStatus struct {
 	// LastCompleted Date of most recent flight review
 	LastCompleted *openapi_types.Date `json:"lastCompleted,omitempty"`
 
-	// Message Human-readable flight review status message
+	// Message DEPRECATED — English fallback text. Render messageKey with messageParams instead.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	Message string `json:"message"`
+
+	// MessageKey Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
+	//
+	// Example: flight_review.current
+	MessageKey *string `json:"messageKey,omitempty"`
+
+	// MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	MessageParams *MessageParams `json:"messageParams,omitempty"`
 
 	// Status Flight review currency status
 	Status FlightReviewStatusStatus `json:"status"`
@@ -5138,8 +5179,14 @@ type LaunchMethodCurrency struct {
 	// Launches Number of launches with this method in evaluation period
 	Launches int `json:"launches"`
 
-	// Message Human-readable progress message
+	// Message DEPRECATED — English fallback text. Render messageKey from launches/required/method instead.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	Message *string `json:"message,omitempty"`
+
+	// MessageKey Always `launch_method.progress`; the client renders launches/required/method.
+	//
+	// Example: launch_method.progress
+	MessageKey *string `json:"messageKey,omitempty"`
 
 	// Met Whether the requirement is met
 	Met bool `json:"met"`
@@ -5211,6 +5258,24 @@ type LicenseCreate struct {
 	// RegulatoryAuthority Example: EASA
 	RegulatoryAuthority     string `json:"regulatoryAuthority"`
 	RequiresSeparateLogbook *bool  `json:"requiresSeparateLogbook,omitempty"`
+}
+
+// MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+type MessageParams struct {
+	// Date A date the message refers to that is not the object's own expiry — a proficiency check, a flight review completion, or a window opening
+	//
+	// Example: 2026-01-15
+	Date *openapi_types.Date `json:"date,omitempty"`
+
+	// Days Days until expiry, for countdown keys
+	//
+	// Example: 42
+	Days *int `json:"days,omitempty"`
+
+	// Needed Outstanding count for a shortfall key (landings, launches)
+	//
+	// Example: 2
+	Needed *int `json:"needed,omitempty"`
 }
 
 // NotificationCategory Notification category for granular control:
@@ -5419,6 +5484,11 @@ type PassengerCurrency struct {
 	// - OTHER: Other rating type
 	ClassType ClassType `json:"classType"`
 
+	// DayExpiresOn Last date the day requirement stays met if the pilot does not fly again — the oldest landing still needed to reach dayRequired, plus 90 days (inclusive). Absent when the day requirement is not currently met.
+	//
+	// Example: 2026-11-15
+	DayExpiresOn *openapi_types.Date `json:"dayExpiresOn,omitempty"`
+
 	// DayLandings Number of landings in the preceding 90 days
 	DayLandings int `json:"dayLandings"`
 
@@ -5430,8 +5500,22 @@ type PassengerCurrency struct {
 	// DayStatus Day passenger currency status
 	DayStatus PassengerCurrencyDayStatus `json:"dayStatus"`
 
-	// Message Human-readable passenger currency status message
+	// Message DEPRECATED — English (German for UL) fallback text. Render messageKey with messageParams instead; this field is removed once the web and iOS clients have adopted the keys.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	Message *string `json:"message,omitempty"`
+
+	// MessageKey Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md. Not an enum — an unrecognised key should fall back to `message`.
+	//
+	// Example: pax.current_day_night
+	MessageKey *string `json:"messageKey,omitempty"`
+
+	// MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	MessageParams *MessageParams `json:"messageParams,omitempty"`
+
+	// NightExpiresOn Last date the night requirement stays met if the pilot does not fly again. Absent when the night requirement is not met, not applicable (no night privilege) or waived (EASA IR holders under FCL.060(b)(2)(ii)).
+	//
+	// Example: 2026-10-02
+	NightExpiresOn *openapi_types.Date `json:"nightExpiresOn,omitempty"`
 
 	// NightLandings Number of night landings in the preceding 90 days
 	NightLandings int `json:"nightLandings"`
@@ -5467,6 +5551,11 @@ type PassengerCurrency struct {
 	//
 	// Example: 3 takeoffs & landings in same type/class within preceding 90 days to carry passengers (EASA FCL.060(b))
 	RuleDescription *string `json:"ruleDescription,omitempty"`
+
+	// RuleDescriptionKey Stable key for the passenger currency rule, for client-side localisation of ruleDescription
+	//
+	// Example: easa_pax
+	RuleDescriptionKey *string `json:"ruleDescriptionKey,omitempty"`
 }
 
 // PassengerCurrencyDayStatus Day passenger currency status

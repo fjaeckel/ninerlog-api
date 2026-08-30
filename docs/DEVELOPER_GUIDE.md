@@ -68,6 +68,9 @@ Topic-specific deep dives already in this repo:
 - **[SESSION_CONTRACT.md](./SESSION_CONTRACT.md)** — binding contract with
   `ninerlog-frontend` on sessions, refresh rotation, and what each failure status means
   to a client. Read before touching anything under `/auth/*`.
+- **[CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md)** — binding contract with
+  `ninerlog-frontend` and `ninerlog-ios` on currency message keys and their params.
+  Read before adding or changing anything the currency engine says to a pilot.
 - **[OIDC.md](./OIDC.md)** — optional single sign-on: configuration, provider recipes,
   account provisioning, and what switching it on disables.
 - **[METRICS.md](./METRICS.md)** — Prometheus metrics and observability.

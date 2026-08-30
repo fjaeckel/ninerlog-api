@@ -5,6 +5,7 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -14,6 +15,15 @@ import (
 // pastMonth returns a date string N months ago.
 func pastMonth(months int) string {
 	return time.Now().AddDate(0, -months, 0).Format("2006-01-02")
+}
+
+// plusDays shifts a YYYY-MM-DD date string by n days.
+func plusDays(date string, n int) string {
+	d, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		panic(err)
+	}
+	return d.AddDate(0, 0, n).Format("2006-01-02")
 }
 
 // setupCurrencyUser registers a user and returns the client.
@@ -1207,6 +1217,84 @@ func TestEASA_PassengerCurrency_Current(t *testing.T) {
 		t.Fatal("Passenger currency not found")
 	}
 	assertStr(t, "dayStatus", pc["dayStatus"], "current")
+	// The oldest of the three landings (day −50) is the one that lapses first.
+	assertStr(t, "dayExpiresOn", pc["dayExpiresOn"], plusDays(pastDate(50), 90))
+	// Day-only flights: FCL.060(b)(2)(i) night recency is unmet without an IR.
+	assertStr(t, "messageKey", pc["messageKey"], "pax.day_current_night_not")
+}
+
+// TestCurrency_EveryResultCarriesAMessageKey — no card in the payload may rely
+// on the deprecated English text (docs/CURRENCY_MESSAGES.md).
+func TestCurrency_EveryResultCarriesAMessageKey(t *testing.T) {
+	c := setupCurrencyUser(t, "msgkeys")
+	createAircraftCur(t, c, "D-EMSG", "C172", "SEP_LAND")
+
+	licID := createLicenseCur(t, c, "EASA", "PPL")
+	expiry := futureDate(365)
+	createRatingCur(t, c, licID, "SEP_LAND", &expiry)
+	createFlightCur(t, c, map[string]interface{}{
+		"date": pastDate(5), "aircraftReg": "D-EMSG", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:00", "landings": 4,
+	})
+
+	result := getCurrencyStatus(t, c)
+
+	for _, r := range result["ratings"].([]interface{}) {
+		rc := r.(map[string]interface{})
+		if key, _ := rc["messageKey"].(string); key == "" {
+			t.Errorf("rating %v has no messageKey (message %q)", rc["classType"], rc["message"])
+		}
+		reqs, _ := rc["requirements"].([]interface{})
+		for _, rq := range reqs {
+			req := rq.(map[string]interface{})
+			if key, _ := req["nameKey"].(string); key == "" {
+				t.Errorf("requirement %q has no nameKey", req["name"])
+			}
+			if key, _ := req["messageKey"].(string); key == "" {
+				t.Errorf("requirement %q has no messageKey", req["name"])
+			}
+		}
+	}
+	for _, p := range result["passengerCurrency"].([]interface{}) {
+		pc := p.(map[string]interface{})
+		if key, _ := pc["messageKey"].(string); key == "" {
+			t.Errorf("passenger currency %v has no messageKey (message %q)", pc["classType"], pc["message"])
+		}
+	}
+}
+
+// TestEASA_PassengerCurrency_ExpiryIgnoresSurplusLandings — with more landings
+// than required, the third most recent one sets the expiry.
+func TestEASA_PassengerCurrency_ExpiryIgnoresSurplusLandings(t *testing.T) {
+	c := setupCurrencyUser(t, "easa-pax-exp-date")
+	createAircraftCur(t, c, "D-EPXD", "C172", "SEP_LAND")
+
+	licID := createLicenseCur(t, c, "EASA", "PPL")
+	expiry := futureDate(365)
+	createRatingCur(t, c, licID, "SEP_LAND", &expiry)
+
+	for _, ago := range []int{3, 17, 40, 65, 88} {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(ago), "aircraftReg": "D-EPXD", "aircraftType": "C172",
+			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+			"offBlockTime": "08:00", "onBlockTime": "09:00",
+			"landings": 1,
+		})
+	}
+
+	result := getCurrencyStatus(t, c)
+	pc := findPaxCur(result, "SEP_LAND")
+	if pc == nil {
+		t.Fatal("Passenger currency not found")
+	}
+	assertStr(t, "dayStatus", pc["dayStatus"], "current")
+	// Third most recent landing is day −40; the two older ones do not extend it.
+	want := plusDays(pastDate(40), 90)
+	assertStr(t, "dayExpiresOn", pc["dayExpiresOn"], want)
+	if msg, _ := pc["message"].(string); !strings.Contains(msg, want) {
+		t.Errorf("message = %q, want it to name the expiry %s", msg, want)
+	}
 }
 
 // TestEASA_PassengerCurrency_Expired — < 3 landings in 90 days.
@@ -1233,6 +1321,9 @@ func TestEASA_PassengerCurrency_Expired(t *testing.T) {
 		t.Fatal("Passenger currency not found")
 	}
 	assertStr(t, "dayStatus", pc["dayStatus"], "expired")
+	if _, ok := pc["dayExpiresOn"]; ok {
+		t.Errorf("dayExpiresOn = %v, want absent when the requirement is unmet", pc["dayExpiresOn"])
+	}
 }
 
 // TestEASA_PassengerCurrency_OldFlightsDontCount — flights > 90 days don't count.

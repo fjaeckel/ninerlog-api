@@ -64,8 +64,10 @@ func metricVal(p *Progress, m metric) int {
 
 // reqSpec is the declarative definition of a single currency requirement.
 // msgFmt must contain exactly one %d verb, which receives the current value.
+// name and msgFmt are the deprecated fallbacks for nameKey.
 type reqSpec struct {
 	name      string
+	nameKey   string
 	metric    metric
 	threshold int
 	unit      string
@@ -76,12 +78,14 @@ type reqSpec struct {
 func buildReq(p *Progress, s reqSpec) Requirement {
 	cur := metricVal(p, s.metric)
 	return Requirement{
-		Name:     s.name,
-		Met:      cur >= s.threshold,
-		Current:  float64(cur),
-		Required: float64(s.threshold),
-		Unit:     s.unit,
-		Message:  fmt.Sprintf(s.msgFmt, cur),
+		Name:       s.name,
+		NameKey:    s.nameKey,
+		Met:        cur >= s.threshold,
+		Current:    float64(cur),
+		Required:   float64(s.threshold),
+		Unit:       s.unit,
+		Message:    fmt.Sprintf(s.msgFmt, cur),
+		MessageKey: MsgRequirementProgress,
 	}
 }
 

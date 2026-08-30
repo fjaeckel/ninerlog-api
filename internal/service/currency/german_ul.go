@@ -45,9 +45,9 @@ var germanULRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
-		{name: "Flugzeit", metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 Minuten Flugzeit"},
-		{name: "Starts & Landungen", metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 Starts & Landungen"},
-		{name: "Übungsflug mit Fluglehrer", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 Minuten mit Fluglehrer"},
+		{name: "Flugzeit", nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 Minuten Flugzeit"},
+		{name: "Starts & Landungen", nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 Starts & Landungen"},
+		{name: "Übungsflug mit Fluglehrer", nameKey: ReqKeyRefresherTraining, metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 Minuten mit Fluglehrer"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
@@ -55,7 +55,7 @@ var germanULRule = ratingRule{
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("UL %s — Flugerfahrung konnte nicht ermittelt werden", rating.ClassType)
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil, fmt.Sprintf("UL %s — Flugerfahrung konnte nicht ermittelt werden", rating.ClassType))
 			return
 		}
 		rt.result.Progress = progress
@@ -64,10 +64,10 @@ var germanULRule = ratingRule{
 
 		if !allReqsMet(reqs) {
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("UL %s — Flugerfahrungsanforderungen nicht vollständig erfüllt (LuftPersV §45)", rating.ClassType)
+			rt.result.setMsg(MsgRatingRecencyNotMet, nil, fmt.Sprintf("UL %s — Flugerfahrungsanforderungen nicht vollständig erfüllt (LuftPersV §45)", rating.ClassType))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.Message = fmt.Sprintf("UL %s — alle Anforderungen erfüllt (LuftPersV §45)", rating.ClassType)
+			rt.result.setMsg(MsgRatingRecencyCurrent, nil, fmt.Sprintf("UL %s — alle Anforderungen erfüllt (LuftPersV §45)", rating.ClassType))
 		}
 	},
 }
@@ -75,7 +75,7 @@ var germanULRule = ratingRule{
 // EvaluatePassengerCurrency evaluates German UL passenger-carrying recency.
 // The assessment is informational only.
 func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, _ []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
-	since := time.Now().AddDate(0, 0, -90)
+	since := paxWindowStart(time.Now())
 
 	result := PassengerCurrency{
 		ClassType:           classType,
@@ -87,25 +87,31 @@ func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, class
 		RuleDescriptionKey:  "ul_pax",
 	}
 
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, classType, since)
+	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown
-		result.Message = fmt.Sprintf("UL %s — Passagier-Flugerfahrung konnte nicht ermittelt werden", classType)
+		result.setMsg(MsgPaxEvaluationFailed, nil, fmt.Sprintf("UL %s — Passagier-Flugerfahrung konnte nicht ermittelt werden", classType))
 		return result
 	}
 
-	result.DayLandings = progress.Landings
+	landings, _ := paxTotals(days)
+	result.DayLandings = landings
 	result.NightLandings = 0
 	result.NightStatus = StatusUnknown // Night not applicable
+	result.DayExpiresOn = paxExpiryString(paxExpiryDate(days, result.DayRequired, allLandings))
 
-	if progress.Landings >= 3 {
+	if landings >= 3 {
 		result.DayStatus = StatusCurrent
-		result.Message = fmt.Sprintf("UL %s — Passagierberechtigung: Flugerfahrung erfüllt (Passagierberechtigung muss separat nachgewiesen werden)", classType)
+		result.setMsg(MsgPaxCurrentPrivilegeSeparat, nil, fmt.Sprintf("UL %s — Passagierberechtigung: Flugerfahrung erfüllt (Passagierberechtigung muss separat nachgewiesen werden)", classType))
 	} else {
 		result.DayStatus = StatusExpired
-		needed := 3 - progress.Landings
-		result.Message = fmt.Sprintf("UL %s — %d weitere Starts & Landungen erforderlich für Passagierflüge", classType, needed)
+		needed := 3 - landings
+		result.setMsg(MsgPaxNotCurrent, msgNeeded(needed), fmt.Sprintf("UL %s — %d weitere Starts & Landungen erforderlich für Passagierflüge", classType, needed))
+	}
+
+	if result.DayExpiresOn != nil {
+		result.Message += fmt.Sprintf(" — Flugerfahrung gültig bis %s", *result.DayExpiresOn)
 	}
 
 	return result

@@ -314,6 +314,9 @@ interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL
 - `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
 - `GetLastProficiencyCheck(userID, classType, since)` — most recent proficiency check.
 - `GetLaunchCounts(userID, since)` — per-launch-method counts for glider (SPL) currency.
+- `GetLandingDaysByAircraftClass(userID, classType, since)` — one row per flown date with
+  its day and night landing counts, newest date first. Used for passenger currency, which
+  needs *when* each landing was flown, not just how many there were.
 
 This separation keeps the *regulatory* logic (what to count and over which window) in the
 evaluators, and the *data* logic (how to query) in one place.
@@ -331,8 +334,28 @@ rating is a `Status` (`internal/service/currency/types.go`):
 | `expired` | Requirements not met / past expiry |
 | `unknown` | Insufficient data to determine |
 
-The response also carries human-readable requirement progress (e.g. "2 / 3 landings"),
-so the UI can show exactly what remains.
+The response also carries per-requirement progress, so the UI can show exactly what
+remains. Every user-facing string is emitted as a stable **message key** plus its params
+rather than as English prose — see [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md), the
+cross-repo contract with the web and iOS clients. The `message` / `name` text fields are
+deprecated fallbacks kept only until both clients render keys.
+
+### Passenger currency expiry (`dayExpiresOn` / `nightExpiresOn`)
+
+The 90-day passenger window (`internal/service/currency/passenger_expiry.go`) is anchored
+to the **date**, not the clock: it opens at midnight UTC 90 days before today, so the same
+logbook yields the same answer at 08:00 and at 23:00. A landing flown on day *D* therefore
+counts through day *D + 90* inclusive.
+
+`PassengerCurrency` reports when each requirement lapses if the pilot never flies again.
+Walking the flown dates newest-first and accumulating landings, the date that first brings
+the running total up to the requirement is the one whose departure from the window ends
+currency; the expiry is that date + 90 days, and it is the **last day the pilot is still
+current**. Landings beyond the requirement do not extend it — with five landings and a
+requirement of three, the third-most-recent one is the binding date. Day and night are
+computed separately (night landings count toward both), so night currency usually expires
+first. An expiry is omitted when the requirement is unmet (nothing to lapse), inapplicable
+(no night privilege), or waived (EASA IR holders under FCL.060(b)(2)(ii)).
 
 ### Regulatory differences (EASA vs FAA)
 
