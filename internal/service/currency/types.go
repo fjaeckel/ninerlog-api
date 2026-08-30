@@ -33,10 +33,7 @@ type ClassRatingCurrency struct {
 	// once now >= WindowOpensAt; while false, flight experience does not
 	// yet count toward this rating's revalidation and Requirements is
 	// suppressed.
-	WindowOpen bool `json:"windowOpen"`
-	// Message is the deprecated English fallback for MessageKey. Clients should
-	// render MessageKey with MessageParams instead.
-	Message              string                 `json:"message"`
+	WindowOpen           bool                   `json:"windowOpen"`
 	MessageKey           string                 `json:"messageKey"`
 	MessageParams        *MessageParams         `json:"messageParams,omitempty"`
 	RuleDescription      string                 `json:"ruleDescription,omitempty"`
@@ -65,16 +62,14 @@ type Progress struct {
 
 // Requirement represents a single currency requirement with progress
 type Requirement struct {
-	// Name is the deprecated English (or German, for UL) fallback for NameKey.
-	Name     string  `json:"name"`
-	NameKey  string  `json:"nameKey"`
-	Met      bool    `json:"met"`
-	Current  float64 `json:"current"`
-	Required float64 `json:"required"`
-	Unit     string  `json:"unit"`
-	// Message is the deprecated English fallback for MessageKey. The common
-	// case carries no params — clients render current/required/unit.
-	Message       string         `json:"message"`
+	// Name is set only for custom currency rules, where it is author-supplied
+	// user data. Regulatory requirements carry NameKey instead.
+	Name          string         `json:"name,omitempty"`
+	NameKey       string         `json:"nameKey,omitempty"`
+	Met           bool           `json:"met"`
+	Current       float64        `json:"current"`
+	Required      float64        `json:"required"`
+	Unit          string         `json:"unit"`
 	MessageKey    string         `json:"messageKey"`
 	MessageParams *MessageParams `json:"messageParams,omitempty"`
 }
@@ -112,9 +107,7 @@ type PassengerCurrency struct {
 	DayExpiresOn *string `json:"dayExpiresOn,omitempty"`
 	// NightExpiresOn is the same for the night requirement. Omitted when the
 	// requirement is not met, not applicable, or waived (EASA IR holders).
-	NightExpiresOn *string `json:"nightExpiresOn,omitempty"`
-	// Message is the deprecated English fallback for MessageKey.
-	Message            string              `json:"message"`
+	NightExpiresOn     *string             `json:"nightExpiresOn,omitempty"`
 	MessageKey         string              `json:"messageKey"`
 	MessageParams      *MessageParams      `json:"messageParams,omitempty"`
 	RuleDescription    string              `json:"ruleDescription"`
@@ -132,11 +125,9 @@ type PassengerPrivilege struct {
 
 // FlightReviewStatus tracks FAA §61.56 flight review currency (24 calendar months).
 type FlightReviewStatus struct {
-	LastCompleted *string `json:"lastCompleted,omitempty"`
-	ExpiresOn     *string `json:"expiresOn,omitempty"`
-	Status        Status  `json:"status"`
-	// Message is the deprecated English fallback for MessageKey.
-	Message       string         `json:"message"`
+	LastCompleted *string        `json:"lastCompleted,omitempty"`
+	ExpiresOn     *string        `json:"expiresOn,omitempty"`
+	Status        Status         `json:"status"`
 	MessageKey    string         `json:"messageKey"`
 	MessageParams *MessageParams `json:"messageParams,omitempty"`
 }
@@ -144,12 +135,9 @@ type FlightReviewStatus struct {
 // LaunchMethodCurrency tracks SPL launch method currency per FCL.140.S(b)(1).
 // 5 launches per method (winch, aerotow, self-launch) in rolling 24 months.
 type LaunchMethodCurrency struct {
-	Method   string `json:"method"`
-	Launches int    `json:"launches"`
-	Required int    `json:"required"`
-	Met      bool   `json:"met"`
-	// Message is the deprecated English fallback for MessageKey; the client
-	// renders launches/required/method itself.
-	Message    string `json:"message"`
+	Method     string `json:"method"`
+	Launches   int    `json:"launches"`
+	Required   int    `json:"required"`
+	Met        bool   `json:"met"`
 	MessageKey string `json:"messageKey"`
 }

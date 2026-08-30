@@ -3049,10 +3049,6 @@ type ClassRatingCurrency struct {
 	// LicenseType Type from the parent license
 	LicenseType *string `json:"licenseType,omitempty"`
 
-	// Message DEPRECATED — English (German for UL) fallback text. Render messageKey with messageParams instead.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Message *string `json:"message,omitempty"`
-
 	// MessageKey Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
 	//
 	// Example: rating.revalidation_current
@@ -3402,14 +3398,10 @@ type CurrencyRequirement struct {
 	// Current Current progress value
 	Current float32 `json:"current"`
 
-	// Message DEPRECATED — English fallback text. Render messageKey instead.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Message *string `json:"message,omitempty"`
-
 	// MessageKey Stable key for the progress text. `requirement.progress` (the common case) is rendered by the client from current/required/unit.
 	//
 	// Example: requirement.progress
-	MessageKey *string `json:"messageKey,omitempty"`
+	MessageKey string `json:"messageKey"`
 
 	// MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
 	MessageParams *MessageParams `json:"messageParams,omitempty"`
@@ -3417,8 +3409,7 @@ type CurrencyRequirement struct {
 	// Met Whether this requirement is currently satisfied
 	Met bool `json:"met"`
 
-	// Name DEPRECATED for regulatory requirements — English (German for UL) fallback for nameKey. Still authoritative for custom currency rules, whose names are author-supplied user data and carry no nameKey.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	// Name Author-supplied requirement name. Present only for custom currency rules, where the name is user data; regulatory requirements carry nameKey instead.
 	Name *string `json:"name,omitempty"`
 
 	// NameKey Stable key for the requirement name, for client-side localisation. Absent on custom currency rules, where `name` is user data and must be rendered as-is.
@@ -4463,10 +4454,6 @@ type FlightReviewStatus struct {
 	// LastCompleted Date of most recent flight review
 	LastCompleted *openapi_types.Date `json:"lastCompleted,omitempty"`
 
-	// Message DEPRECATED — English fallback text. Render messageKey with messageParams instead.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Message *string `json:"message,omitempty"`
-
 	// MessageKey Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
 	//
 	// Example: flight_review.current
@@ -5179,10 +5166,6 @@ type LaunchMethodCurrency struct {
 	// Launches Number of launches with this method in evaluation period
 	Launches int `json:"launches"`
 
-	// Message DEPRECATED — English fallback text. Render messageKey from launches/required/method instead.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Message *string `json:"message,omitempty"`
-
 	// MessageKey Always `launch_method.progress`; the client renders launches/required/method.
 	//
 	// Example: launch_method.progress
@@ -5499,10 +5482,6 @@ type PassengerCurrency struct {
 
 	// DayStatus Day passenger currency status
 	DayStatus PassengerCurrencyDayStatus `json:"dayStatus"`
-
-	// Message DEPRECATED — English (German for UL) fallback text. Render messageKey with messageParams instead; this field is removed once the web and iOS clients have adopted the keys.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Message *string `json:"message,omitempty"`
 
 	// MessageKey Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md. Not an enum — an unrecognised key should fall back to `message`.
 	//

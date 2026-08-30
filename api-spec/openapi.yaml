@@ -8485,13 +8485,6 @@ components:
             Absent when the night requirement is not met, not applicable (no night
             privilege) or waived (EASA IR holders under FCL.060(b)(2)(ii)).
           example: "2026-10-02"
-        message:
-          type: string
-          deprecated: true
-          description: >-
-            DEPRECATED — English (German for UL) fallback text. Render messageKey with
-            messageParams instead; this field is removed once the web and iOS clients
-            have adopted the keys.
         messageKey:
           type: string
           description: >-
@@ -8538,10 +8531,6 @@ components:
           type: string
           enum: [current, expiring, expired, unknown]
           description: Flight review currency status
-        message:
-          type: string
-          deprecated: true
-          description: DEPRECATED — English fallback text. Render messageKey with messageParams instead.
         messageKey:
           type: string
           description: Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
@@ -8603,12 +8592,6 @@ components:
             today does not yet count toward this rating's revalidation, so
             `requirements` is omitted and `status` stays `current` until the
             window opens.
-        message:
-          type: string
-          deprecated: true
-          description: >-
-            DEPRECATED — English (German for UL) fallback text. Render messageKey with
-            messageParams instead.
         messageKey:
           type: string
           description: Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
@@ -8696,10 +8679,6 @@ components:
         met:
           type: boolean
           description: Whether the requirement is met
-        message:
-          type: string
-          deprecated: true
-          description: DEPRECATED — English fallback text. Render messageKey from launches/required/method instead.
         messageKey:
           type: string
           description: Always `launch_method.progress`; the client renders launches/required/method.
@@ -8712,14 +8691,13 @@ components:
         - current
         - required
         - unit
+        - messageKey
       properties:
         name:
           type: string
-          deprecated: true
           description: >-
-            DEPRECATED for regulatory requirements — English (German for UL) fallback for
-            nameKey. Still authoritative for custom currency rules, whose names are
-            author-supplied user data and carry no nameKey.
+            Author-supplied requirement name. Present only for custom currency rules,
+            where the name is user data; regulatory requirements carry nameKey instead.
         nameKey:
           type: string
           description: >-
@@ -8740,10 +8718,6 @@ components:
         unit:
           type: string
           description: Unit of measurement (e.g., "landings", "hours", "flights")
-        message:
-          type: string
-          deprecated: true
-          description: DEPRECATED — English fallback text. Render messageKey instead.
         messageKey:
           type: string
           description: >-

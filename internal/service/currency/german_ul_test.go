@@ -29,7 +29,7 @@ func TestGermanUL_Current(t *testing.T) {
 	}
 	for _, req := range result.Requirements {
 		if !req.Met {
-			t.Errorf("Requirement %q not met", req.Name)
+			t.Errorf("Requirement %q not met", req.NameKey)
 		}
 	}
 }
@@ -292,7 +292,7 @@ func TestGermanUL_ZeroActivity(t *testing.T) {
 	// All 3 requirements should be not met
 	for _, req := range result.Requirements {
 		if req.Met {
-			t.Errorf("Requirement %q should NOT be met with zero activity", req.Name)
+			t.Errorf("Requirement %q should NOT be met with zero activity", req.NameKey)
 		}
 	}
 }

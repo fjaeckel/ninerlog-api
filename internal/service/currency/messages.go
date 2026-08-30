@@ -2,12 +2,11 @@ package currency
 
 // Message keys for client-side localisation. Every user-facing string the
 // currency engine produces is emitted as one of these stable keys plus the
-// params the key needs; the English text that accompanies them is a deprecated
-// fallback for clients that have not adopted the keys yet.
+// params the key needs.
 //
 // Keys are plain strings, not an enum, so that adding one is not a breaking
-// change for generated clients — an unknown key falls back to the accompanying
-// text. The catalogue is the cross-repo contract in docs/CURRENCY_MESSAGES.md.
+// change for generated clients. The catalogue is the cross-repo contract in
+// docs/CURRENCY_MESSAGES.md.
 //
 // Params that are already fields on the enclosing object (classType,
 // regulatoryAuthority, licenseType, expiryDate, current/required/unit) are
@@ -123,24 +122,20 @@ func msgDaysDate(d int, date string) *MessageParams {
 	return &MessageParams{Days: &d, Date: &date}
 }
 
-// setMsg records the localisation key, its params, and the deprecated English
-// fallback together so the two cannot drift apart.
-func (r *ClassRatingCurrency) setMsg(key string, params *MessageParams, fallback string) {
+// setMsg records the localisation key and its params.
+func (r *ClassRatingCurrency) setMsg(key string, params *MessageParams) {
 	r.MessageKey = key
 	r.MessageParams = params
-	r.Message = fallback
 }
 
-// setMsg records key, params and deprecated fallback for a passenger currency.
-func (p *PassengerCurrency) setMsg(key string, params *MessageParams, fallback string) {
+// setMsg records the localisation key and its params for a passenger currency.
+func (p *PassengerCurrency) setMsg(key string, params *MessageParams) {
 	p.MessageKey = key
 	p.MessageParams = params
-	p.Message = fallback
 }
 
-// setMsg records key, params and deprecated fallback for a flight review.
-func (f *FlightReviewStatus) setMsg(key string, params *MessageParams, fallback string) {
+// setMsg records the localisation key and its params for a flight review.
+func (f *FlightReviewStatus) setMsg(key string, params *MessageParams) {
 	f.MessageKey = key
 	f.MessageParams = params
-	f.Message = fallback
 }

@@ -16,8 +16,13 @@ that statement needs. The server keeps deciding *what* is true — that is the r
 logic, and it must not be duplicated in TypeScript and Swift where it would drift. The
 client decides *how to say it*.
 
-`message` still carries the old English text during the deprecation window. It is
-marked `deprecated` in the spec and will be removed once both clients render keys.
+The `message` and `name` text fields are **gone**. Clients render keys; there is no
+English fallback in the payload. The one exception is `CurrencyRequirement.name` on
+custom currency rules, which is pilot-authored user data.
+
+Server-sent notification emails render the same catalogue per locale in
+`pkg/email/currency_messages.go`, chosen by the user's `PreferredLocale` — before this,
+a German email template interpolated the API's English sentence.
 
 ## Deprecating a field
 
@@ -44,7 +49,7 @@ a type that has quietly become a lie.
 ## Rules
 
 1. **Keys are plain strings, not an enum.** Adding a key is not a breaking change.
-   A client that meets an unrecognised key falls back to `message`.
+   A client that meets an unrecognised key should render its own generic wording.
 2. **Params never repeat fields the object already carries.** `classType`,
    `regulatoryAuthority`, `licenseType`, `expiryDate`, `current`/`required`/`unit`,
    `launches`/`method`, `dayExpiresOn`/`nightExpiresOn` are all fields; the client
@@ -136,4 +141,6 @@ render them yourself. See [DOMAIN.md](./DOMAIN.md#passenger-currency-expiry-daye
    `TestEveryRatingResultCarriesAKey` fails on any emitted key not in the catalogue.
 3. Add a row here.
 4. Add the string to `ninerlog-frontend/src/i18n/locales/{en,de}/currency.json` under
-   `messages.` and to the iOS catalogue. Until then it renders its English fallback.
+   `messages.`, to the iOS catalogue, and — if the key can reach a notification email —
+   to both maps in `pkg/email/currency_messages.go`, which
+   `TestCurrencyMessageCataloguesMatch` keeps in step.

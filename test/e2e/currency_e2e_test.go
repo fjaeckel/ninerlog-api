@@ -1243,23 +1243,29 @@ func TestCurrency_EveryResultCarriesAMessageKey(t *testing.T) {
 	for _, r := range result["ratings"].([]interface{}) {
 		rc := r.(map[string]interface{})
 		if key, _ := rc["messageKey"].(string); key == "" {
-			t.Errorf("rating %v has no messageKey (message %q)", rc["classType"], rc["message"])
+			t.Errorf("rating %v has no messageKey", rc["classType"])
+		}
+		if _, ok := rc["message"]; ok {
+			t.Errorf("rating %v still carries deprecated message text", rc["classType"])
 		}
 		reqs, _ := rc["requirements"].([]interface{})
 		for _, rq := range reqs {
 			req := rq.(map[string]interface{})
 			if key, _ := req["nameKey"].(string); key == "" {
-				t.Errorf("requirement %q has no nameKey", req["name"])
+				t.Errorf("requirement %v has no nameKey", req)
 			}
 			if key, _ := req["messageKey"].(string); key == "" {
-				t.Errorf("requirement %q has no messageKey", req["name"])
+				t.Errorf("requirement %v has no messageKey", req)
 			}
 		}
 	}
 	for _, p := range result["passengerCurrency"].([]interface{}) {
 		pc := p.(map[string]interface{})
 		if key, _ := pc["messageKey"].(string); key == "" {
-			t.Errorf("passenger currency %v has no messageKey (message %q)", pc["classType"], pc["message"])
+			t.Errorf("passenger currency %v has no messageKey", pc["classType"])
+		}
+		if _, ok := pc["message"]; ok {
+			t.Errorf("passenger currency %v still carries deprecated message text", pc["classType"])
 		}
 	}
 }
