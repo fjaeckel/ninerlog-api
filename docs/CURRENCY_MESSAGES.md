@@ -46,6 +46,21 @@ TypeScript hides this failure rather than avoiding it — `openapi-typescript` e
 required property, but nothing validates at runtime, so the web client keeps working with
 a type that has quietly become a lie.
 
+## Removed fields
+
+Clients still rendering these must drop the code; the API no longer sends them.
+
+| Field | Replaced by |
+| --- | --- |
+| `message` on rating / passenger / flight-review / requirement / launch-method results | `messageKey` + `messageParams` |
+| `name` on regulatory requirements | `nameKey` (custom-rule `name` stays — it is user data) |
+| `passengerPrivilege` on `PassengerCurrency` | nothing — no code path ever populated it, so no response content changes |
+
+`passengerPrivilege` is called out because the web client renders it today. The branch
+was unreachable, so deleting that markup changes nothing a user sees, but it should go
+with the rest — along with any test fixture that supplies the field, since such a
+fixture keeps passing while covering a surface the API cannot produce.
+
 ## Rules
 
 1. **Keys are plain strings, not an enum.** Adding a key is not a breaking change.
