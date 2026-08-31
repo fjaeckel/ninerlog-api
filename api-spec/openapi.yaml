@@ -8502,17 +8502,6 @@ components:
           type: string
           description: Stable key for the passenger currency rule, for client-side localisation of ruleDescription
           example: "easa_pax"
-        passengerPrivilege:
-          type: object
-          description: Informational — whether the pilot meets additional requirements to carry passengers (LAPL 10h PIC, SPL 30 launches, etc.)
-          properties:
-            eligible:
-              type: boolean
-              description: Whether the pilot is eligible to carry passengers (based on total PIC hours/launches since license issue)
-            message:
-              type: string
-              description: Human-readable explanation of passenger privilege status
-              example: "Eligible to carry passengers (10h PIC completed)"
 
     FlightReviewStatus:
       type: object
@@ -9569,7 +9558,11 @@ components:
       properties:
         id:
           type: string
-          description: Unique identifier (UUID for admin announcements, string key for hints)
+          description: >-
+            Unique identifier: a UUID for operator-authored announcements, a stable string
+            key for hints. A hint's id doubles as its client-side localisation key —
+            `message` is the English source text, to be used as a fallback. Operator
+            announcements carry author-written text in `message` and are never translated.
         message:
           type: string
           example: Scheduled maintenance on Tuesday 8pm-10pm UTC

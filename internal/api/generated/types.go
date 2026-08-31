@@ -2721,7 +2721,7 @@ type Announcement struct {
 	// ExpiresAt When this announcement auto-expires (null = permanent until deleted)
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 
-	// Id Unique identifier (UUID for admin announcements, string key for hints)
+	// Id Unique identifier: a UUID for operator-authored announcements, a stable string key for hints. A hint's id doubles as its client-side localisation key — `message` is the English source text, to be used as a fallback. Operator announcements carry author-written text in `message` and are never translated.
 	Id string `json:"id"`
 
 	// Message Example: Scheduled maintenance on Tuesday 8pm-10pm UTC
@@ -5511,17 +5511,6 @@ type PassengerCurrency struct {
 
 	// NightStatus Night passenger currency status
 	NightStatus PassengerCurrencyNightStatus `json:"nightStatus"`
-
-	// PassengerPrivilege Informational — whether the pilot meets additional requirements to carry passengers (LAPL 10h PIC, SPL 30 launches, etc.)
-	PassengerPrivilege *struct {
-		// Eligible Whether the pilot is eligible to carry passengers (based on total PIC hours/launches since license issue)
-		Eligible *bool `json:"eligible,omitempty"`
-
-		// Message Human-readable explanation of passenger privilege status
-		//
-		// Example: Eligible to carry passengers (10h PIC completed)
-		Message *string `json:"message,omitempty"`
-	} `json:"passengerPrivilege,omitempty"`
 
 	// RegulatoryAuthority Authority that defines the passenger currency rules
 	RegulatoryAuthority string `json:"regulatoryAuthority"`

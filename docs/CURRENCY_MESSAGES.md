@@ -58,7 +58,10 @@ a type that has quietly become a lie.
    all report `rating.recency_current`; which regulation to cite comes from
    `ruleDescriptionKey`.
 4. **User data is never keyed.** Custom currency rule requirement names are written by
-   the pilot and are returned in `name` with no `nameKey`. Render them as-is.
+   the pilot and are returned in `name` with no `nameKey`. Render them as-is. The same
+   split applies outside currency: the hints from `GET /announcements` carry stable string
+   `id`s that double as localisation keys, while operator-authored announcements carry
+   author-written text in `message` and are never translated.
 5. `unknown` status is not self-explanatory — the key disambiguates
    `rating.no_expiry_date` (the user must enter data), `rating.evaluation_failed`
    (backend problem, retry) and `rating.ir_not_applicable` (structurally N/A).

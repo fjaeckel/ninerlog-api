@@ -232,40 +232,6 @@ func TestService_GermanUL_Integration(t *testing.T) {
 	}
 }
 
-// ── Passenger Privilege Tests ───────────────────────────────────────────
-
-func TestPassengerPrivilege_Fields(t *testing.T) {
-	priv := &PassengerPrivilege{
-		Eligible: true,
-		Message:  "Eligible to carry 1 passenger (10h PIC completed — LAPL(A) FCL.140.A(b))",
-	}
-	if !priv.Eligible {
-		t.Error("Eligible should be true")
-	}
-	if priv.Message == "" {
-		t.Error("Message should not be empty")
-	}
-}
-
-func TestPassengerCurrency_WithPrivilege(t *testing.T) {
-	pax := PassengerCurrency{
-		ClassType:      models.ClassTypeSEPLand,
-		DayStatus:      StatusCurrent,
-		NightStatus:    StatusUnknown,
-		NightPrivilege: false,
-		PassengerPrivilege: &PassengerPrivilege{
-			Eligible: false,
-			Message:  "Need 10h PIC after license issue — currently 5h (LAPL(A) FCL.140.A(b))",
-		},
-	}
-	if pax.PassengerPrivilege == nil {
-		t.Fatal("PassengerPrivilege should not be nil")
-	}
-	if pax.PassengerPrivilege.Eligible {
-		t.Error("Should not be eligible")
-	}
-}
-
 // ── HasNightPrivilege for UL Authorities ─────────────────────────────────
 
 func TestHasNightPrivilege_ULAuthorities(t *testing.T) {

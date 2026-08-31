@@ -107,20 +107,11 @@ type PassengerCurrency struct {
 	DayExpiresOn *string `json:"dayExpiresOn,omitempty"`
 	// NightExpiresOn is the same for the night requirement. Omitted when the
 	// requirement is not met, not applicable, or waived (EASA IR holders).
-	NightExpiresOn     *string             `json:"nightExpiresOn,omitempty"`
-	MessageKey         string              `json:"messageKey"`
-	MessageParams      *MessageParams      `json:"messageParams,omitempty"`
-	RuleDescription    string              `json:"ruleDescription"`
-	RuleDescriptionKey string              `json:"ruleDescriptionKey,omitempty"`
-	PassengerPrivilege *PassengerPrivilege `json:"passengerPrivilege,omitempty"`
-}
-
-// PassengerPrivilege holds informational passenger-carrying privilege status.
-// Some license types (LAPL, SPL, UL) require additional experience before
-// the pilot can carry passengers at all — separate from 90-day recency.
-type PassengerPrivilege struct {
-	Eligible bool   `json:"eligible"`
-	Message  string `json:"message"`
+	NightExpiresOn     *string        `json:"nightExpiresOn,omitempty"`
+	MessageKey         string         `json:"messageKey"`
+	MessageParams      *MessageParams `json:"messageParams,omitempty"`
+	RuleDescription    string         `json:"ruleDescription"`
+	RuleDescriptionKey string         `json:"ruleDescriptionKey,omitempty"`
 }
 
 // FlightReviewStatus tracks FAA §61.56 flight review currency (24 calendar months).
