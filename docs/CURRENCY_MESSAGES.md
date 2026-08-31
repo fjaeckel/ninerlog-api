@@ -19,6 +19,28 @@ client decides *how to say it*.
 `message` still carries the old English text during the deprecation window. It is
 marked `deprecated` in the spec and will be removed once both clients render keys.
 
+## Deprecating a field
+
+A deprecated field is made **optional in the spec at the moment it is deprecated**, while
+the server keeps sending it. It is not left required until the PR that removes it.
+
+This is not a formality. `swift-openapi-generator` maps a required field to a
+non-optional `Swift.String`, and `Decodable` treats an absent required key as a fatal
+error — not a nil. A client generated while the field is still `required` therefore stops
+decoding the *entire* response the moment the server drops the field, even if that client
+never reads it. The whole currency screen fails, not one label.
+
+So a deprecation window that only migrates *rendering* protects nothing on iOS. The
+client must also be generated against a schema that already tolerates the field's
+absence. Marking it optional up front is what buys the window its value: clients
+generated during the window keep working across the removal with no second regeneration,
+which matters because App Store review latency means an older build is always still in
+the field.
+
+TypeScript hides this failure rather than avoiding it — `openapi-typescript` emits a
+required property, but nothing validates at runtime, so the web client keeps working with
+a type that has quietly become a lie.
+
 ## Rules
 
 1. **Keys are plain strings, not an enum.** Adding a key is not a breaking change.

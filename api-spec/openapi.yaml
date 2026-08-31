@@ -8525,7 +8525,6 @@ components:
       type: object
       required:
         - status
-        - message
       properties:
         lastCompleted:
           type: [string, 'null']
@@ -8709,12 +8708,10 @@ components:
     CurrencyRequirement:
       type: object
       required:
-        - name
         - met
         - current
         - required
         - unit
-        - message
       properties:
         name:
           type: string

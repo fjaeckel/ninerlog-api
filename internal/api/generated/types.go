@@ -3404,7 +3404,7 @@ type CurrencyRequirement struct {
 
 	// Message DEPRECATED — English fallback text. Render messageKey instead.
 	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Message string `json:"message"`
+	Message *string `json:"message,omitempty"`
 
 	// MessageKey Stable key for the progress text. `requirement.progress` (the common case) is rendered by the client from current/required/unit.
 	//
@@ -3419,7 +3419,7 @@ type CurrencyRequirement struct {
 
 	// Name DEPRECATED for regulatory requirements — English (German for UL) fallback for nameKey. Still authoritative for custom currency rules, whose names are author-supplied user data and carry no nameKey.
 	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Name string `json:"name"`
+	Name *string `json:"name,omitempty"`
 
 	// NameKey Stable key for the requirement name, for client-side localisation. Absent on custom currency rules, where `name` is user data and must be rendered as-is.
 	//
@@ -4465,7 +4465,7 @@ type FlightReviewStatus struct {
 
 	// Message DEPRECATED — English fallback text. Render messageKey with messageParams instead.
 	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Message string `json:"message"`
+	Message *string `json:"message,omitempty"`
 
 	// MessageKey Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
 	//
