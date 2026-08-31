@@ -35,18 +35,18 @@ var otherExpiryRule = ratingRule{
 			expStr := *rt.result.ExpiryDate
 			if rating.IsExpired() {
 				rt.result.Status = StatusExpired
-				rt.result.Message = fmt.Sprintf("%s rating expired on %s", rating.ClassType, expStr)
+				rt.result.setMsg(MsgRatingExpired, nil, fmt.Sprintf("%s rating expired on %s", rating.ClassType, expStr))
 			} else if rating.IsExpiringSoon(90) {
 				daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
 				rt.result.Status = StatusExpiring
-				rt.result.Message = fmt.Sprintf("%s rating expires in %d days (%s)", rating.ClassType, daysLeft, expStr)
+				rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft), fmt.Sprintf("%s rating expires in %d days (%s)", rating.ClassType, daysLeft, expStr))
 			} else {
 				rt.result.Status = StatusCurrent
-				rt.result.Message = fmt.Sprintf("%s rating valid until %s", rating.ClassType, expStr)
+				rt.result.setMsg(MsgRatingValidUntil, nil, fmt.Sprintf("%s rating valid until %s", rating.ClassType, expStr))
 			}
 		} else {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("%s rating — no expiry date set (manual tracking)", rating.ClassType)
+			rt.result.setMsg(MsgRatingNoExpiryDateManual, nil, fmt.Sprintf("%s rating — no expiry date set (manual tracking)", rating.ClassType))
 		}
 	},
 }

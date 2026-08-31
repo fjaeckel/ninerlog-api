@@ -18,6 +18,8 @@ type mockFlightDataProvider struct {
 	lastFlightReview     *time.Time
 	lastProficiencyCheck *time.Time
 	launchCounts         map[string]int
+	landingDays          map[models.ClassType][]LandingDay
+	landingDaysErr       error
 }
 
 func newMockFlightDataProvider() *mockFlightDataProvider {
@@ -46,6 +48,39 @@ func (m *mockFlightDataProvider) GetLastFlightReview(_ context.Context, _ uuid.U
 
 func (m *mockFlightDataProvider) GetLastProficiencyCheck(_ context.Context, _ uuid.UUID, _ models.ClassType, _ time.Time) (*time.Time, error) {
 	return m.lastProficiencyCheck, nil
+}
+
+// GetLandingDaysByAircraftClass returns explicitly configured landing days,
+// otherwise synthesises a single yesterday-dated entry from progressByClass so
+// that count-only fixtures keep working.
+func (m *mockFlightDataProvider) GetLandingDaysByAircraftClass(_ context.Context, _ uuid.UUID, classType models.ClassType, since time.Time) ([]LandingDay, error) {
+	if m.landingDaysErr != nil {
+		return nil, m.landingDaysErr
+	}
+	if days, ok := m.landingDays[classType]; ok {
+		var inWindow []LandingDay
+		for _, d := range days {
+			if !d.Date.Before(since) {
+				inWindow = append(inWindow, d)
+			}
+		}
+		return inWindow, nil
+	}
+	p, ok := m.progressByClass[classType]
+	if !ok || p.Landings+p.NightLandings == 0 {
+		return nil, nil
+	}
+	return []LandingDay{{
+		Date:          truncateDay(time.Now().AddDate(0, 0, -1)),
+		DayLandings:   p.Landings - p.NightLandings,
+		NightLandings: p.NightLandings,
+	}}, nil
+}
+
+// truncateDay reduces a time to midnight UTC on its own date.
+func truncateDay(t time.Time) time.Time {
+	u := t.UTC()
+	return time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 func (m *mockFlightDataProvider) GetLaunchCounts(_ context.Context, _ uuid.UUID, _ time.Time) (map[string]int, error) {

@@ -33,8 +33,12 @@ type ClassRatingCurrency struct {
 	// once now >= WindowOpensAt; while false, flight experience does not
 	// yet count toward this rating's revalidation and Requirements is
 	// suppressed.
-	WindowOpen           bool                   `json:"windowOpen"`
+	WindowOpen bool `json:"windowOpen"`
+	// Message is the deprecated English fallback for MessageKey. Clients should
+	// render MessageKey with MessageParams instead.
 	Message              string                 `json:"message"`
+	MessageKey           string                 `json:"messageKey"`
+	MessageParams        *MessageParams         `json:"messageParams,omitempty"`
 	RuleDescription      string                 `json:"ruleDescription,omitempty"`
 	RuleDescriptionKey   string                 `json:"ruleDescriptionKey,omitempty"`
 	Progress             *Progress              `json:"progress,omitempty"`
@@ -61,12 +65,18 @@ type Progress struct {
 
 // Requirement represents a single currency requirement with progress
 type Requirement struct {
+	// Name is the deprecated English (or German, for UL) fallback for NameKey.
 	Name     string  `json:"name"`
+	NameKey  string  `json:"nameKey"`
 	Met      bool    `json:"met"`
 	Current  float64 `json:"current"`
 	Required float64 `json:"required"`
 	Unit     string  `json:"unit"`
-	Message  string  `json:"message"`
+	// Message is the deprecated English fallback for MessageKey. The common
+	// case carries no params — clients render current/required/unit.
+	Message       string         `json:"message"`
+	MessageKey    string         `json:"messageKey"`
+	MessageParams *MessageParams `json:"messageParams,omitempty"`
 }
 
 // CurrencyStatusResponse is the full response from the currency endpoint.
@@ -87,19 +97,29 @@ type CurrencyStatusResponse struct {
 // EASA: FCL.060(b) — 3 T&L in preceding 90 days in same type/class.
 // FAA: §61.57(a)/(b) — 3 T&L day / 3 full-stop night T&L in 90 days.
 type PassengerCurrency struct {
-	ClassType           models.ClassType    `json:"classType"`
-	RegulatoryAuthority string              `json:"regulatoryAuthority"`
-	DayStatus           Status              `json:"dayStatus"`
-	NightStatus         Status              `json:"nightStatus"`
-	DayLandings         int                 `json:"dayLandings"`
-	NightLandings       int                 `json:"nightLandings"`
-	DayRequired         int                 `json:"dayRequired"`
-	NightRequired       int                 `json:"nightRequired"`
-	NightPrivilege      bool                `json:"nightPrivilege"`
-	Message             string              `json:"message"`
-	RuleDescription     string              `json:"ruleDescription"`
-	RuleDescriptionKey  string              `json:"ruleDescriptionKey,omitempty"`
-	PassengerPrivilege  *PassengerPrivilege `json:"passengerPrivilege,omitempty"`
+	ClassType           models.ClassType `json:"classType"`
+	RegulatoryAuthority string           `json:"regulatoryAuthority"`
+	DayStatus           Status           `json:"dayStatus"`
+	NightStatus         Status           `json:"nightStatus"`
+	DayLandings         int              `json:"dayLandings"`
+	NightLandings       int              `json:"nightLandings"`
+	DayRequired         int              `json:"dayRequired"`
+	NightRequired       int              `json:"nightRequired"`
+	NightPrivilege      bool             `json:"nightPrivilege"`
+	// DayExpiresOn is the last date the day requirement stays met with no
+	// further flying — the oldest qualifying landing plus 90 days. Omitted
+	// when the requirement is not currently met.
+	DayExpiresOn *string `json:"dayExpiresOn,omitempty"`
+	// NightExpiresOn is the same for the night requirement. Omitted when the
+	// requirement is not met, not applicable, or waived (EASA IR holders).
+	NightExpiresOn *string `json:"nightExpiresOn,omitempty"`
+	// Message is the deprecated English fallback for MessageKey.
+	Message            string              `json:"message"`
+	MessageKey         string              `json:"messageKey"`
+	MessageParams      *MessageParams      `json:"messageParams,omitempty"`
+	RuleDescription    string              `json:"ruleDescription"`
+	RuleDescriptionKey string              `json:"ruleDescriptionKey,omitempty"`
+	PassengerPrivilege *PassengerPrivilege `json:"passengerPrivilege,omitempty"`
 }
 
 // PassengerPrivilege holds informational passenger-carrying privilege status.
@@ -115,7 +135,10 @@ type FlightReviewStatus struct {
 	LastCompleted *string `json:"lastCompleted,omitempty"`
 	ExpiresOn     *string `json:"expiresOn,omitempty"`
 	Status        Status  `json:"status"`
-	Message       string  `json:"message"`
+	// Message is the deprecated English fallback for MessageKey.
+	Message       string         `json:"message"`
+	MessageKey    string         `json:"messageKey"`
+	MessageParams *MessageParams `json:"messageParams,omitempty"`
 }
 
 // LaunchMethodCurrency tracks SPL launch method currency per FCL.140.S(b)(1).
@@ -125,5 +148,8 @@ type LaunchMethodCurrency struct {
 	Launches int    `json:"launches"`
 	Required int    `json:"required"`
 	Met      bool   `json:"met"`
-	Message  string `json:"message"`
+	// Message is the deprecated English fallback for MessageKey; the client
+	// renders launches/required/method itself.
+	Message    string `json:"message"`
+	MessageKey string `json:"messageKey"`
 }

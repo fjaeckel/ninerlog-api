@@ -269,13 +269,15 @@ func buildCustomRequirement(r models.CurrencyRequirement, raw int64) Requirement
 	}
 
 	met := current >= r.Min
+	// Name is author-supplied user data and stays unkeyed — it is not translatable.
 	return Requirement{
-		Name:     name,
-		Met:      met,
-		Current:  current,
-		Required: r.Min,
-		Unit:     unit,
-		Message:  fmt.Sprintf("%s / %s %s", formatAmount(current), formatAmount(r.Min), unit),
+		Name:       name,
+		Met:        met,
+		Current:    current,
+		Required:   r.Min,
+		Unit:       unit,
+		Message:    fmt.Sprintf("%s / %s %s", formatAmount(current), formatAmount(r.Min), unit),
+		MessageKey: MsgRequirementProgress,
 	}
 }
 

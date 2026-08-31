@@ -8405,6 +8405,27 @@ components:
         flightReview:
           $ref: '#/components/schemas/FlightReviewStatus'
 
+    MessageParams:
+      type: object
+      description: >-
+        Variable parts of a localised message that are not already fields on the
+        enclosing object. Which fields are present is determined by messageKey;
+        see docs/CURRENCY_MESSAGES.md for the per-key contract.
+      properties:
+        days:
+          type: integer
+          description: Days until expiry, for countdown keys
+          example: 42
+        needed:
+          type: integer
+          description: Outstanding count for a shortfall key (landings, launches)
+          example: 2
+        date:
+          type: string
+          format: date
+          description: A date the message refers to that is not the object's own expiry — a proficiency check, a flight review completion, or a window opening
+          example: "2026-01-15"
+
     PassengerCurrency:
       type: object
       required:
@@ -8448,13 +8469,46 @@ components:
           type: boolean
           description: Whether this license type has night flying privileges. false for Sport, Recreational, Glider (FAA), SPL, LAPL (EASA), UL.
           example: true
+        dayExpiresOn:
+          type: [string, 'null']
+          format: date
+          description: >-
+            Last date the day requirement stays met if the pilot does not fly again — the
+            oldest landing still needed to reach dayRequired, plus 90 days (inclusive).
+            Absent when the day requirement is not currently met.
+          example: "2026-11-15"
+        nightExpiresOn:
+          type: [string, 'null']
+          format: date
+          description: >-
+            Last date the night requirement stays met if the pilot does not fly again.
+            Absent when the night requirement is not met, not applicable (no night
+            privilege) or waived (EASA IR holders under FCL.060(b)(2)(ii)).
+          example: "2026-10-02"
         message:
           type: string
-          description: Human-readable passenger currency status message
+          deprecated: true
+          description: >-
+            DEPRECATED — English (German for UL) fallback text. Render messageKey with
+            messageParams instead; this field is removed once the web and iOS clients
+            have adopted the keys.
+        messageKey:
+          type: string
+          description: >-
+            Stable key identifying which statement is true, for client-side localisation.
+            Catalogued in docs/CURRENCY_MESSAGES.md. Not an enum — an unrecognised key
+            should fall back to `message`.
+          example: "pax.current_day_night"
+        messageParams:
+          $ref: '#/components/schemas/MessageParams'
         ruleDescription:
           type: string
           description: Regulatory reference for the passenger currency rule
           example: "3 takeoffs & landings in same type/class within preceding 90 days to carry passengers (EASA FCL.060(b))"
+        ruleDescriptionKey:
+          type: string
+          description: Stable key for the passenger currency rule, for client-side localisation of ruleDescription
+          example: "easa_pax"
         passengerPrivilege:
           type: object
           description: Informational — whether the pilot meets additional requirements to carry passengers (LAPL 10h PIC, SPL 30 launches, etc.)
@@ -8471,7 +8525,6 @@ components:
       type: object
       required:
         - status
-        - message
       properties:
         lastCompleted:
           type: [string, 'null']
@@ -8487,7 +8540,14 @@ components:
           description: Flight review currency status
         message:
           type: string
-          description: Human-readable flight review status message
+          deprecated: true
+          description: DEPRECATED — English fallback text. Render messageKey with messageParams instead.
+        messageKey:
+          type: string
+          description: Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
+          example: "flight_review.current"
+        messageParams:
+          $ref: '#/components/schemas/MessageParams'
 
     ClassRatingCurrency:
       type: object
@@ -8545,7 +8605,23 @@ components:
             window opens.
         message:
           type: string
-          description: Human-readable status message
+          deprecated: true
+          description: >-
+            DEPRECATED — English (German for UL) fallback text. Render messageKey with
+            messageParams instead.
+        messageKey:
+          type: string
+          description: Stable key identifying which statement is true, for client-side localisation. Catalogued in docs/CURRENCY_MESSAGES.md.
+          example: "rating.revalidation_current"
+        messageParams:
+          $ref: '#/components/schemas/MessageParams'
+        ruleDescription:
+          type: string
+          description: Regulatory reference for the rule that was applied
+        ruleDescriptionKey:
+          type: string
+          description: Stable key for the applied rule, for client-side localisation of ruleDescription
+          example: "easa_sep_tmg"
         progress:
           type: object
           description: Progress metrics toward currency requirements (authority-specific)
@@ -8622,21 +8698,34 @@ components:
           description: Whether the requirement is met
         message:
           type: string
-          description: Human-readable progress message
+          deprecated: true
+          description: DEPRECATED — English fallback text. Render messageKey from launches/required/method instead.
+        messageKey:
+          type: string
+          description: Always `launch_method.progress`; the client renders launches/required/method.
+          example: "launch_method.progress"
 
     CurrencyRequirement:
       type: object
       required:
-        - name
         - met
         - current
         - required
         - unit
-        - message
       properties:
         name:
           type: string
-          description: Requirement name (e.g., "Day Currency", "PIC Hours", "Refresher Training")
+          deprecated: true
+          description: >-
+            DEPRECATED for regulatory requirements — English (German for UL) fallback for
+            nameKey. Still authoritative for custom currency rules, whose names are
+            author-supplied user data and carry no nameKey.
+        nameKey:
+          type: string
+          description: >-
+            Stable key for the requirement name, for client-side localisation. Absent on
+            custom currency rules, where `name` is user data and must be rendered as-is.
+          example: "requirement.refresher_training"
         met:
           type: boolean
           description: Whether this requirement is currently satisfied
@@ -8653,7 +8742,16 @@ components:
           description: Unit of measurement (e.g., "landings", "hours", "flights")
         message:
           type: string
-          description: Human-readable progress description
+          deprecated: true
+          description: DEPRECATED — English fallback text. Render messageKey instead.
+        messageKey:
+          type: string
+          description: >-
+            Stable key for the progress text. `requirement.progress` (the common case)
+            is rendered by the client from current/required/unit.
+          example: "requirement.progress"
+        messageParams:
+          $ref: '#/components/schemas/MessageParams'
 
     # ── Class Rating schemas ─────────────────────────────────────────────
 

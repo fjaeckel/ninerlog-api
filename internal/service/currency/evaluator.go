@@ -8,6 +8,13 @@ import (
 	"github.com/google/uuid"
 )
 
+// LandingDay holds the landings a user flew on one date in one aircraft class.
+type LandingDay struct {
+	Date          time.Time
+	DayLandings   int
+	NightLandings int
+}
+
 // FlightDataProvider provides aggregated flight data for currency evaluation
 type FlightDataProvider interface {
 	// GetProgressByAircraftClass returns aggregated flight stats for a user's flights
@@ -28,6 +35,11 @@ type FlightDataProvider interface {
 	// GetLaunchCounts returns per-launch-method counts for SPL currency (FCL.140.S(b)(1)).
 	// Groups flights by launch_method and returns a map of method → launch count.
 	GetLaunchCounts(ctx context.Context, userID uuid.UUID, since time.Time) (map[string]int, error)
+
+	// GetLandingDaysByAircraftClass returns per-date landing counts for a user's
+	// flights on aircraft of the given class since the given date, newest date
+	// first. Dates with no landings are omitted.
+	GetLandingDaysByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) ([]LandingDay, error)
 }
 
 // Evaluator evaluates currency for a class rating based on the regulatory authority

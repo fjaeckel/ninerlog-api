@@ -79,16 +79,16 @@ var easaSEPTMGRule = ratingRule{
 	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
-		{name: "Total Time", metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes in class"},
-		{name: "PIC Time", metric: mPICMinutes, threshold: 360, unit: "minutes", msgFmt: "%d / 360 PIC minutes"},
-		{name: "Takeoffs & Landings", metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings"},
-		{name: "Refresher Training", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor"},
+		{name: "Total Time", nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes in class"},
+		{name: "PIC Time", nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 360, unit: "minutes", msgFmt: "%d / 360 PIC minutes"},
+		{name: "Takeoffs & Landings", nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings"},
+		{name: "Refresher Training", nameKey: ReqKeyRefresherTraining, metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
 		if rating.ExpiryDate == nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
+			rt.result.setMsg(MsgRatingNoExpiryDate, nil, fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType))
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
@@ -100,7 +100,7 @@ var easaSEPTMGRule = ratingRule{
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("EASA %s — unable to evaluate currency", rating.ClassType)
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil, fmt.Sprintf("EASA %s — unable to evaluate currency", rating.ClassType))
 			return
 		}
 		rt.result.Progress = progress
@@ -110,17 +110,17 @@ var easaSEPTMGRule = ratingRule{
 
 		if rating.IsExpired() {
 			rt.result.Status = StatusExpired
-			rt.result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate)
+			rt.result.setMsg(MsgRatingExpired, nil, fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate))
 		} else if !allMet {
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("EASA %s — revalidation requirements not fully met", rating.ClassType)
+			rt.result.setMsg(MsgRatingRevalidationNotMet, nil, fmt.Sprintf("EASA %s — revalidation requirements not fully met", rating.ClassType))
 		} else if rating.IsExpiringSoon(90) {
 			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("EASA %s expires in %d days — requirements met", rating.ClassType, daysLeft)
+			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft), fmt.Sprintf("EASA %s expires in %d days — requirements met", rating.ClassType, daysLeft))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.Message = fmt.Sprintf("EASA %s current — all revalidation requirements met", rating.ClassType)
+			rt.result.setMsg(MsgRatingRevalidationCurrent, nil, fmt.Sprintf("EASA %s current — all revalidation requirements met", rating.ClassType))
 		}
 	},
 }
@@ -137,14 +137,14 @@ var easaMEPSETRule = ratingRule{
 	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
-		{name: "Route Sectors", metric: mFlights, threshold: 10, unit: "flights", msgFmt: "%d / 10 route sectors"},
-		{name: "Refresher Training", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor"},
+		{name: "Route Sectors", nameKey: ReqKeyRouteSectors, metric: mFlights, threshold: 10, unit: "flights", msgFmt: "%d / 10 route sectors"},
+		{name: "Refresher Training", nameKey: ReqKeyRefresherTraining, metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
 		if rating.ExpiryDate == nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
+			rt.result.setMsg(MsgRatingNoExpiryDate, nil, fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType))
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
@@ -156,7 +156,7 @@ var easaMEPSETRule = ratingRule{
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("EASA %s — unable to evaluate currency", rating.ClassType)
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil, fmt.Sprintf("EASA %s — unable to evaluate currency", rating.ClassType))
 			return
 		}
 		rt.result.Progress = progress
@@ -167,13 +167,17 @@ var easaMEPSETRule = ratingRule{
 		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, rating.ClassType, since)
 		hasProfCheck := profCheckDate != nil
 		reqProfCheck := Requirement{
-			Name: "Proficiency Check", Met: hasProfCheck,
+			Name: "Proficiency Check", NameKey: ReqKeyProficiencyCheck, Met: hasProfCheck,
 			Current: 0, Required: 1, Unit: "check",
-			Message: "Not completed in validity period",
+			Message:    "Not completed in validity period",
+			MessageKey: MsgRequirementProfCheckMissing,
 		}
 		if hasProfCheck {
+			checked := profCheckDate.Format("2006-01-02")
 			reqProfCheck.Current = 1
-			reqProfCheck.Message = fmt.Sprintf("Proficiency check completed %s", profCheckDate.Format("2006-01-02"))
+			reqProfCheck.Message = fmt.Sprintf("Proficiency check completed %s", checked)
+			reqProfCheck.MessageKey = MsgRequirementProfCheckCompleted
+			reqProfCheck.MessageParams = msgDate(checked)
 		}
 
 		rt.result.Requirements = []Requirement{reqSectors, reqInstructor, reqProfCheck}
@@ -183,17 +187,17 @@ var easaMEPSETRule = ratingRule{
 
 		if rating.IsExpired() {
 			rt.result.Status = StatusExpired
-			rt.result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate)
+			rt.result.setMsg(MsgRatingExpired, nil, fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate))
 		} else if !allMet {
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("EASA %s — revalidation requirements not fully met (proficiency check may apply)", rating.ClassType)
+			rt.result.setMsg(MsgRatingRevalidationNotMetProfCheck, nil, fmt.Sprintf("EASA %s — revalidation requirements not fully met (proficiency check may apply)", rating.ClassType))
 		} else if rating.IsExpiringSoon(90) {
 			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("EASA %s expires in %d days — requirements met", rating.ClassType, daysLeft)
+			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft), fmt.Sprintf("EASA %s expires in %d days — requirements met", rating.ClassType, daysLeft))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.Message = fmt.Sprintf("EASA %s current — all revalidation requirements met", rating.ClassType)
+			rt.result.setMsg(MsgRatingRevalidationCurrent, nil, fmt.Sprintf("EASA %s current — all revalidation requirements met", rating.ClassType))
 		}
 	},
 }
@@ -207,13 +211,13 @@ var easaIRRule = ratingRule{
 	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
 	scope:       scopeAll,
 	baseReqs: []reqSpec{
-		{name: "IFR Time", metric: mIFRMinutes, threshold: 600, unit: "minutes", msgFmt: "%d / 600 IFR minutes"},
+		{name: "IFR Time", nameKey: ReqKeyIFRTime, metric: mIFRMinutes, threshold: 600, unit: "minutes", msgFmt: "%d / 600 IFR minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
 		if rating.ExpiryDate == nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = "EASA IR — no expiry date set"
+			rt.result.setMsg(MsgRatingNoExpiryDate, nil, "EASA IR — no expiry date set")
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
@@ -225,7 +229,7 @@ var easaIRRule = ratingRule{
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = "EASA IR — unable to evaluate currency"
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil, "EASA IR — unable to evaluate currency")
 			return
 		}
 		rt.result.Progress = progress
@@ -235,13 +239,17 @@ var easaIRRule = ratingRule{
 		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, models.ClassTypeIR, since)
 		hasProfCheck := profCheckDate != nil
 		reqProfCheck := Requirement{
-			Name: "Proficiency Check", Met: hasProfCheck,
+			Name: "Proficiency Check", NameKey: ReqKeyProficiencyCheck, Met: hasProfCheck,
 			Current: 0, Required: 1, Unit: "check",
-			Message: "Annual proficiency check not completed in validity period",
+			Message:    "Annual proficiency check not completed in validity period",
+			MessageKey: MsgRequirementProfCheckMissing,
 		}
 		if hasProfCheck {
+			checked := profCheckDate.Format("2006-01-02")
 			reqProfCheck.Current = 1
-			reqProfCheck.Message = fmt.Sprintf("Proficiency check completed %s", profCheckDate.Format("2006-01-02"))
+			reqProfCheck.Message = fmt.Sprintf("Proficiency check completed %s", checked)
+			reqProfCheck.MessageKey = MsgRequirementProfCheckCompleted
+			reqProfCheck.MessageParams = msgDate(checked)
 		}
 
 		rt.result.Requirements = []Requirement{reqIFRHours, reqProfCheck}
@@ -250,23 +258,23 @@ var easaIRRule = ratingRule{
 
 		if rating.IsExpired() {
 			rt.result.Status = StatusExpired
-			rt.result.Message = fmt.Sprintf("EASA IR expired on %s", *rt.result.ExpiryDate)
+			rt.result.setMsg(MsgRatingExpired, nil, fmt.Sprintf("EASA IR expired on %s", *rt.result.ExpiryDate))
 		} else if !allMet {
 			rt.result.Status = StatusExpiring
 			if !reqIFRHours.Met && !hasProfCheck {
-				rt.result.Message = "EASA IR — IFR hours and proficiency check not met"
+				rt.result.setMsg(MsgRatingIRHoursAndCheckNotMet, nil, "EASA IR — IFR hours and proficiency check not met")
 			} else if !reqIFRHours.Met {
-				rt.result.Message = "EASA IR — IFR hour requirement not met"
+				rt.result.setMsg(MsgRatingIRHoursNotMet, nil, "EASA IR — IFR hour requirement not met")
 			} else {
-				rt.result.Message = "EASA IR — annual proficiency check not completed"
+				rt.result.setMsg(MsgRatingIRCheckNotMet, nil, "EASA IR — annual proficiency check not completed")
 			}
 		} else if rating.IsExpiringSoon(90) {
 			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("EASA IR expires in %d days — requirements met", daysLeft)
+			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft), fmt.Sprintf("EASA IR expires in %d days — requirements met", daysLeft))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.Message = "EASA IR current — all requirements met"
+			rt.result.setMsg(MsgRatingRevalidationCurrent, nil, "EASA IR current — all requirements met")
 		}
 	},
 }
@@ -280,19 +288,19 @@ var easaExpiryOnlyRule = ratingRule{
 		rating := rt.rating
 		if rating.ExpiryDate == nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType)
+			rt.result.setMsg(MsgRatingNoExpiryDate, nil, fmt.Sprintf("EASA %s — no expiry date set", rating.ClassType))
 			return
 		}
 		if rating.IsExpired() {
 			rt.result.Status = StatusExpired
-			rt.result.Message = fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate)
+			rt.result.setMsg(MsgRatingExpired, nil, fmt.Sprintf("EASA %s expired on %s", rating.ClassType, *rt.result.ExpiryDate))
 		} else if rating.IsExpiringSoon(90) {
 			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("EASA %s expires in %d days", rating.ClassType, daysLeft)
+			rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft), fmt.Sprintf("EASA %s expires in %d days", rating.ClassType, daysLeft))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.Message = fmt.Sprintf("EASA %s valid until %s", rating.ClassType, *rt.result.ExpiryDate)
+			rt.result.setMsg(MsgRatingValidUntil, nil, fmt.Sprintf("EASA %s valid until %s", rating.ClassType, *rt.result.ExpiryDate))
 		}
 	},
 }
@@ -310,9 +318,9 @@ var easaLAPLRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
-		{name: "Flight Time", metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes in last 24 months"},
-		{name: "Takeoffs & Landings", metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings in last 24 months"},
-		{name: "Training Flight", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor in last 24 months"},
+		{name: "Flight Time", nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes in last 24 months"},
+		{name: "Takeoffs & Landings", nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings in last 24 months"},
+		{name: "Training Flight", nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes with instructor in last 24 months"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
@@ -320,7 +328,7 @@ var easaLAPLRule = ratingRule{
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("EASA LAPL %s — unable to evaluate recency", rating.ClassType)
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil, fmt.Sprintf("EASA LAPL %s — unable to evaluate recency", rating.ClassType))
 			return
 		}
 		rt.result.Progress = progress
@@ -329,10 +337,10 @@ var easaLAPLRule = ratingRule{
 
 		if !allReqsMet(reqs) {
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("EASA LAPL %s — recency requirements not fully met (FCL.140.A)", rating.ClassType)
+			rt.result.setMsg(MsgRatingRecencyNotMet, nil, fmt.Sprintf("EASA LAPL %s — recency requirements not fully met (FCL.140.A)", rating.ClassType))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.Message = fmt.Sprintf("EASA LAPL %s — current (FCL.140.A)", rating.ClassType)
+			rt.result.setMsg(MsgRatingRecencyCurrent, nil, fmt.Sprintf("EASA LAPL %s — current (FCL.140.A)", rating.ClassType))
 		}
 	},
 }
@@ -350,9 +358,9 @@ var easaSPLRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
-		{name: "PIC Flight Time", metric: mPICMinutes, threshold: 300, unit: "minutes", msgFmt: "%d / 300 PIC minutes in last 24 months"},
-		{name: "Launches", metric: mLandings, threshold: 15, unit: "launches", msgFmt: "%d / 15 launches in last 24 months"},
-		{name: "Training Flights", metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes training flights in last 24 months"},
+		{name: "PIC Flight Time", nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 300, unit: "minutes", msgFmt: "%d / 300 PIC minutes in last 24 months"},
+		{name: "Launches", nameKey: ReqKeyLaunches, metric: mLandings, threshold: 15, unit: "launches", msgFmt: "%d / 15 launches in last 24 months"},
+		{name: "Training Flights", nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 minutes training flights in last 24 months"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
@@ -361,7 +369,7 @@ var easaSPLRule = ratingRule{
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = fmt.Sprintf("EASA SPL %s — unable to evaluate recency", rating.ClassType)
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil, fmt.Sprintf("EASA SPL %s — unable to evaluate recency", rating.ClassType))
 			return
 		}
 		rt.result.Progress = progress
@@ -375,11 +383,12 @@ var easaSPLRule = ratingRule{
 			count := launchCounts[method]
 			if count > 0 || launchCounts[method] > 0 {
 				launchMethodCurrency = append(launchMethodCurrency, LaunchMethodCurrency{
-					Method:   method,
-					Launches: count,
-					Required: 5,
-					Met:      count >= 5,
-					Message:  fmt.Sprintf("%d / 5 %s launches in last 24 months", count, method),
+					Method:     method,
+					Launches:   count,
+					Required:   5,
+					Met:        count >= 5,
+					Message:    fmt.Sprintf("%d / 5 %s launches in last 24 months", count, method),
+					MessageKey: MsgLaunchMethodProgress,
 				})
 			}
 		}
@@ -387,10 +396,10 @@ var easaSPLRule = ratingRule{
 
 		if !allMet {
 			rt.result.Status = StatusExpiring
-			rt.result.Message = fmt.Sprintf("EASA SPL %s — recency requirements not fully met (FCL.140.S)", rating.ClassType)
+			rt.result.setMsg(MsgRatingRecencyNotMet, nil, fmt.Sprintf("EASA SPL %s — recency requirements not fully met (FCL.140.S)", rating.ClassType))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.Message = fmt.Sprintf("EASA SPL %s — current (FCL.140.S)", rating.ClassType)
+			rt.result.setMsg(MsgRatingRecencyCurrent, nil, fmt.Sprintf("EASA SPL %s — current (FCL.140.S)", rating.ClassType))
 		}
 	},
 }
@@ -407,15 +416,15 @@ var easaSPLTMGRule = ratingRule{
 	scope:         scopeByClassOverride,
 	classOverride: models.ClassTypeTMG,
 	baseReqs: []reqSpec{
-		{name: "TMG Flight Time", metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes on TMG in last 24 months"},
-		{name: "TMG Takeoffs & Landings", metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings on TMG in last 24 months"},
+		{name: "TMG Flight Time", nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 minutes on TMG in last 24 months"},
+		{name: "TMG Takeoffs & Landings", nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 takeoffs & landings on TMG in last 24 months"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rt.since = rt.rule.window.rollingSince(time.Now())
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.Message = "EASA SPL TMG — unable to evaluate recency"
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil, "EASA SPL TMG — unable to evaluate recency")
 			return
 		}
 		rt.result.Progress = progress
@@ -424,10 +433,10 @@ var easaSPLTMGRule = ratingRule{
 
 		if !allReqsMet(reqs) {
 			rt.result.Status = StatusExpiring
-			rt.result.Message = "EASA SPL TMG — recency requirements not fully met (FCL.140.S(b)(2))"
+			rt.result.setMsg(MsgRatingRecencyNotMet, nil, "EASA SPL TMG — recency requirements not fully met (FCL.140.S(b)(2))")
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.Message = "EASA SPL TMG — current (FCL.140.S(b)(2))"
+			rt.result.setMsg(MsgRatingRecencyCurrent, nil, "EASA SPL TMG — current (FCL.140.S(b)(2))")
 		}
 	},
 }
@@ -448,10 +457,10 @@ func applyClosedWindow(rating *models.ClassRating, since *time.Time, result Clas
 	}
 	result.WindowOpen = false
 	result.Status = StatusCurrent
-	result.Message = fmt.Sprintf(
+	result.setMsg(MsgRatingWindowNotOpen, msgDate(windowStr), fmt.Sprintf(
 		"EASA %s — recently revalidated; experience window opens %s",
 		rating.ClassType, windowStr,
-	)
+	))
 	return result, true
 }
 
@@ -466,7 +475,7 @@ func applyClosedWindow(rating *models.ClassRating, since *time.Time, result Clas
 //	(i)  at least 1 takeoff, approach and landing at night in the preceding 90 days, OR
 //	(ii) holds an IR — in which case no night-landing recency is required.
 func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
-	since := time.Now().AddDate(0, 0, -90)
+	since := paxWindowStart(time.Now())
 
 	hasNightPrivilege := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority)
 	hasValidIR := hasValidIRRating(peerRatings)
@@ -486,19 +495,24 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 		result.NightRequired = 0
 	}
 
-	progress, err := dp.GetProgressByAircraftClass(ctx, license.UserID, classType, since)
+	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown
-		result.Message = fmt.Sprintf("EASA %s — unable to evaluate passenger currency", classType)
+		result.setMsg(MsgPaxEvaluationFailed, nil, fmt.Sprintf("EASA %s — unable to evaluate passenger currency", classType))
 		return result
 	}
 
-	result.DayLandings = progress.Landings
-	result.NightLandings = progress.NightLandings
+	landings, nightCount := paxTotals(days)
+	result.DayLandings = landings
+	result.NightLandings = nightCount
+	result.DayExpiresOn = paxExpiryString(paxExpiryDate(days, result.DayRequired, allLandings))
+	if hasNightPrivilege {
+		result.NightExpiresOn = paxExpiryString(paxExpiryDate(days, result.NightRequired, nightLandings))
+	}
 
 	// Day passenger currency — FCL.060(b)(1)
-	if progress.Landings >= 3 {
+	if landings >= 3 {
 		result.DayStatus = StatusCurrent
 	} else {
 		result.DayStatus = StatusExpired
@@ -512,7 +526,7 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 	case hasValidIR:
 		// FCL.060(b)(2)(ii): holding an IR exempts the night-landing requirement.
 		result.NightStatus = StatusCurrent
-	case progress.NightLandings >= 1:
+	case nightCount >= 1:
 		result.NightStatus = StatusCurrent
 	default:
 		result.NightStatus = StatusExpired
@@ -521,17 +535,19 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 	// Summary message
 	switch {
 	case result.DayStatus != StatusCurrent:
-		needed := 3 - progress.Landings
-		result.Message = fmt.Sprintf("EASA %s — not current for passengers (need %d more landing%s in 90 days)", classType, needed, plural(needed))
+		needed := 3 - landings
+		result.setMsg(MsgPaxNotCurrent, msgNeeded(needed), fmt.Sprintf("EASA %s — not current for passengers (need %d more landing%s in 90 days)", classType, needed, plural(needed)))
 	case !hasNightPrivilege:
-		result.Message = fmt.Sprintf("EASA %s — passenger current for day (night not applicable for %s)", classType, license.LicenseType)
+		result.setMsg(MsgPaxCurrentDayNoNight, nil, fmt.Sprintf("EASA %s — passenger current for day (night not applicable for %s)", classType, license.LicenseType))
 	case hasValidIR:
-		result.Message = fmt.Sprintf("EASA %s — passenger current for day and night (night requirement waived under FCL.060(b)(2)(ii) — IR holder)", classType)
+		result.setMsg(MsgPaxCurrentDayNightIRWaived, nil, fmt.Sprintf("EASA %s — passenger current for day and night (night requirement waived under FCL.060(b)(2)(ii) — IR holder)", classType))
 	case result.NightStatus == StatusCurrent:
-		result.Message = fmt.Sprintf("EASA %s — passenger current (day and night)", classType)
+		result.setMsg(MsgPaxCurrentDayNight, nil, fmt.Sprintf("EASA %s — passenger current (day and night)", classType))
 	default:
-		result.Message = fmt.Sprintf("EASA %s — day passenger current, night not current (need 1 night landing in 90 days, or hold an IR)", classType)
+		result.setMsg(MsgPaxDayCurrentNightNot, msgNeeded(1), fmt.Sprintf("EASA %s — day passenger current, night not current (need 1 night landing in 90 days, or hold an IR)", classType))
 	}
+
+	result.Message += paxExpiryNote(result.DayExpiresOn, result.NightExpiresOn)
 
 	return result
 }
