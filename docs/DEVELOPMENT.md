@@ -127,10 +127,11 @@ See [PACKAGES.md](./PACKAGES.md) for a package-by-package reference.
 
 GitHub Actions workflows live in `.github/workflows/`:
 
-- **ci.yml** — unit tests, integration tests, and linting on push/PR.
+- **ci.yml** — migration, dashboard, route and generated-code checks, unit tests, integration
+  tests on push/PR, and the Docker image publish on push to `main` and on tags.
 - **e2e.yml** — manual end-to-end suite against the Docker stack.
-- **generate-server.yml** — regenerates server types when the spec or generator changes,
-  verifies the build, and commits regenerated code.
+- **generate-server.yml** — manual/dispatch-only. Regenerates server types and opens a pull
+  request; it never pushes to `main`.
 - **performance.yml** — Go benchmarks and k6 load tests (manual / labelled PRs).
 - **security-audit.yml** — `govulncheck` and `gosec` on push/PR and a weekly schedule.
 

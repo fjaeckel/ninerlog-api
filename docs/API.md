@@ -27,6 +27,25 @@ flowchart TD
   (because `oapi-codegen` does not support some 3.1 constructs such as
   `type: [string, 'null']`), then runs `oapi-codegen`.
 - **Never hand-edit files in `internal/api/generated/`.** Change the spec and regenerate.
+- The generator is pinned (`OAPI_CODEGEN_VERSION` in `scripts/generate-server-types.sh`).
+  Bump it in its own PR, with the regenerated output committed alongside it.
+
+### The generated-code gate
+
+`internal/api/generated/` is committed, and CI's **Generated Code Check** regenerates it and
+fails the PR on any difference. A spec change therefore ships with its regenerated code in the
+same commit, and the Docker image published from `main` is always built from a tree whose
+generated code matches its spec.
+
+`spec.go` embeds the spec as base64 over a raw DEFLATE stream, and that compression is not
+reproducible across platforms: the same spec, the same Go version and the same `oapi-codegen`
+version produce different bytes on `linux/amd64` than on `darwin/arm64`. `types.go` and
+`server.go` are byte-identical across both. So `scripts/generate-server-types.sh` decodes the
+existing `spec.go` (via `scripts/spec-blob.py`) and keeps it whenever the spec it encodes is
+unchanged — regeneration is a no-op unless the spec actually changed, on any platform.
+
+Note that the embedded spec is pruned to what is reachable from `paths:`; a component schema
+that nothing references does not appear in it, and adding one produces no diff.
 
 ### Keeping the frontend in sync
 
