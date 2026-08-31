@@ -28,10 +28,11 @@ type CustomCurrencyParams struct {
 }
 
 type RevalidationParams struct {
-	UserName    string
-	LicenseType string
-	ClassType   string
-	Message     string
+	UserName      string
+	LicenseType   string
+	ClassType     string
+	MessageKey    string
+	MessageParams CurrencyMessageParams
 }
 
 type PassengerCurrencyParams struct {
@@ -50,8 +51,9 @@ type FlightReviewExpiryParams struct {
 }
 
 type FlightReviewRequiredParams struct {
-	UserName string
-	Message  string
+	UserName      string
+	MessageKey    string
+	MessageParams CurrencyMessageParams
 }
 
 type VerifyEmailParams struct {

@@ -2,7 +2,6 @@ package currency
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -45,17 +44,16 @@ var germanULRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
-		{name: "Flugzeit", nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes", msgFmt: "%d / 720 Minuten Flugzeit"},
-		{name: "Starts & Landungen", nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings", msgFmt: "%d / 12 Starts & Landungen"},
-		{name: "Übungsflug mit Fluglehrer", nameKey: ReqKeyRefresherTraining, metric: mInstructorMinutes, threshold: 60, unit: "minutes", msgFmt: "%d / 60 Minuten mit Fluglehrer"},
+		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
+		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
+		{nameKey: ReqKeyRefresherTraining, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rating := rt.rating
 		rt.since = rt.rule.window.rollingSince(time.Now())
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.setMsg(MsgRatingEvaluationFailed, nil, fmt.Sprintf("UL %s — Flugerfahrung konnte nicht ermittelt werden", rating.ClassType))
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
 		rt.result.Progress = progress
@@ -64,10 +62,10 @@ var germanULRule = ratingRule{
 
 		if !allReqsMet(reqs) {
 			rt.result.Status = StatusExpiring
-			rt.result.setMsg(MsgRatingRecencyNotMet, nil, fmt.Sprintf("UL %s — Flugerfahrungsanforderungen nicht vollständig erfüllt (LuftPersV §45)", rating.ClassType))
+			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingRecencyCurrent, nil, fmt.Sprintf("UL %s — alle Anforderungen erfüllt (LuftPersV §45)", rating.ClassType))
+			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
 		}
 	},
 }
@@ -91,7 +89,7 @@ func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, class
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown
-		result.setMsg(MsgPaxEvaluationFailed, nil, fmt.Sprintf("UL %s — Passagier-Flugerfahrung konnte nicht ermittelt werden", classType))
+		result.setMsg(MsgPaxEvaluationFailed, nil)
 		return result
 	}
 
@@ -103,15 +101,11 @@ func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, class
 
 	if landings >= 3 {
 		result.DayStatus = StatusCurrent
-		result.setMsg(MsgPaxCurrentPrivilegeSeparat, nil, fmt.Sprintf("UL %s — Passagierberechtigung: Flugerfahrung erfüllt (Passagierberechtigung muss separat nachgewiesen werden)", classType))
+		result.setMsg(MsgPaxCurrentPrivilegeSeparat, nil)
 	} else {
 		result.DayStatus = StatusExpired
 		needed := 3 - landings
-		result.setMsg(MsgPaxNotCurrent, msgNeeded(needed), fmt.Sprintf("UL %s — %d weitere Starts & Landungen erforderlich für Passagierflüge", classType, needed))
-	}
-
-	if result.DayExpiresOn != nil {
-		result.Message += fmt.Sprintf(" — Flugerfahrung gültig bis %s", *result.DayExpiresOn)
+		result.setMsg(MsgPaxNotCurrent, msgNeeded(needed))
 	}
 
 	return result

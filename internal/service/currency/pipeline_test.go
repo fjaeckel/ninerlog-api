@@ -93,7 +93,7 @@ func TestFullPipeline_EASAMultiRating(t *testing.T) {
 	}
 	for _, req := range sepResult.Requirements {
 		if !req.Met {
-			t.Errorf("SEP requirement %q not met (current=%.0f, required=%.0f)", req.Name, req.Current, req.Required)
+			t.Errorf("SEP requirement %q not met (current=%.0f, required=%.0f)", req.NameKey, req.Current, req.Required)
 		}
 	}
 	if sepResult.Progress == nil {
@@ -113,8 +113,8 @@ func TestFullPipeline_EASAMultiRating(t *testing.T) {
 	if len(irResult.Requirements) != 2 {
 		t.Errorf("IR requirements count = %d, want 2 (IFR hours + proficiency check)", len(irResult.Requirements))
 	}
-	if irResult.Requirements[0].Name != "IFR Time" {
-		t.Errorf("IR requirement name = %s, want IFR Time", irResult.Requirements[0].Name)
+	if irResult.Requirements[0].NameKey != ReqKeyIFRTime {
+		t.Errorf("IR requirement name = %s, want IFR Time", irResult.Requirements[0].NameKey)
 	}
 	if !irResult.Requirements[0].Met {
 		t.Error("IR IFR Time requirement should be met")

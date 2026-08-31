@@ -464,7 +464,6 @@ func TestPassengerCurrency_Fields(t *testing.T) {
 		NightLandings:       1,
 		DayRequired:         3,
 		NightRequired:       3,
-		Message:             "test",
 		RuleDescription:     "FCL.060(b)",
 	}
 
@@ -483,7 +482,6 @@ func TestFlightReviewStatus_Fields(t *testing.T) {
 		LastCompleted: &completed,
 		ExpiresOn:     &expires,
 		Status:        StatusCurrent,
-		Message:       "Flight review current",
 	}
 
 	if review.Status != StatusCurrent {
@@ -702,8 +700,8 @@ func TestFAA_GliderCurrency_Current(t *testing.T) {
 	if len(result.Requirements) != 1 {
 		t.Fatalf("Expected 1 requirement (launches), got %d", len(result.Requirements))
 	}
-	if result.Requirements[0].Name != "Launches & Landings" {
-		t.Errorf("Requirement name = %s, want 'Launches & Landings'", result.Requirements[0].Name)
+	if result.Requirements[0].NameKey != ReqKeyLaunchesAndLanding {
+		t.Errorf("Requirement name = %s, want 'Launches & Landings'", result.Requirements[0].NameKey)
 	}
 }
 

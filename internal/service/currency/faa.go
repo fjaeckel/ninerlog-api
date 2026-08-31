@@ -2,7 +2,6 @@ package currency
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -62,16 +61,15 @@ var faaPassengerRatingRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, days: 90},
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
-		{name: "Day Passenger Currency", nameKey: ReqKeyDayLandings, metric: mLandings, threshold: 3, unit: "landings", msgFmt: "%d / 3 takeoffs & landings in 90 days"},
-		{name: "Night Passenger Currency", nameKey: ReqKeyNightLandings, metric: mNightLandings, threshold: 3, unit: "landings", msgFmt: "%d / 3 night full-stop landings in 90 days"},
+		{nameKey: ReqKeyDayLandings, metric: mLandings, threshold: 3, unit: "landings"},
+		{nameKey: ReqKeyNightLandings, metric: mNightLandings, threshold: 3, unit: "landings"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rating := rt.rating
 		rt.since = rt.rule.window.rollingSince(time.Now())
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.setMsg(MsgRatingEvaluationFailed, nil, fmt.Sprintf("FAA %s — unable to evaluate currency", rating.ClassType))
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
 		rt.result.Progress = progress
@@ -87,14 +85,14 @@ var faaPassengerRatingRule = ratingRule{
 		if !dayReq.Met {
 			rt.result.Status = StatusExpired
 			needed := 3 - progress.Landings
-			rt.result.setMsg(MsgRatingPaxNotCurrent, msgNeeded(needed), fmt.Sprintf("FAA %s — not current for passengers (need %d more landing%s)", rating.ClassType, needed, plural(needed)))
+			rt.result.setMsg(MsgRatingPaxNotCurrent, msgNeeded(needed))
 		} else if !nightReq.Met {
 			rt.result.Status = StatusExpiring
 			needed := 3 - progress.NightLandings
-			rt.result.setMsg(MsgRatingPaxDayCurrentNightNo, msgNeeded(needed), fmt.Sprintf("FAA %s — day current, night not current (need %d more night landing%s)", rating.ClassType, needed, plural(needed)))
+			rt.result.setMsg(MsgRatingPaxDayCurrentNightNo, msgNeeded(needed))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingPaxCurrentDayNight, nil, fmt.Sprintf("FAA %s — current for day and night passengers", rating.ClassType))
+			rt.result.setMsg(MsgRatingPaxCurrentDayNight, nil)
 		}
 	},
 }
@@ -111,8 +109,8 @@ var faaInstrumentRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, months: 6},
 	scope:       scopeAll,
 	baseReqs: []reqSpec{
-		{name: "Instrument Approaches", nameKey: ReqKeyApproaches, metric: mApproaches, threshold: 6, unit: "approaches", msgFmt: "%d / 6 instrument approaches in 6 months"},
-		{name: "Holding Procedures", nameKey: ReqKeyHolds, metric: mHolds, threshold: 1, unit: "holds", msgFmt: "%d / 1 holding procedure in 6 months"},
+		{nameKey: ReqKeyApproaches, metric: mApproaches, threshold: 6, unit: "approaches"},
+		{nameKey: ReqKeyHolds, metric: mHolds, threshold: 1, unit: "holds"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
@@ -120,7 +118,7 @@ var faaInstrumentRule = ratingRule{
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.setMsg(MsgRatingEvaluationFailed, nil, "FAA IR — unable to evaluate currency")
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
 		rt.result.Progress = progress
@@ -133,10 +131,10 @@ var faaInstrumentRule = ratingRule{
 
 		if rating.ExpiryDate != nil && rating.IsExpired() {
 			rt.result.Status = StatusExpired
-			rt.result.setMsg(MsgRatingExpired, nil, fmt.Sprintf("FAA IR expired on %s", *rt.result.ExpiryDate))
+			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if allMet {
 			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingIRCurrent, nil, "FAA IR — instrument currency requirements met")
+			rt.result.setMsg(MsgRatingIRCurrent, nil)
 		} else {
 			// Check 12-month grace period: §61.57(c)/(d)
 			// 0-6 months: current (checked above)
@@ -147,12 +145,12 @@ var faaInstrumentRule = ratingRule{
 			if err12 == nil && (progress12.Approaches >= 6 && progress12.Holds >= 1) {
 				// Met within 12 months but not within 6 — lapsed but recoverable
 				rt.result.Status = StatusExpiring
-				rt.result.setMsg(MsgRatingIRLapsedSafetyPilot, nil, "FAA IR — instrument currency lapsed (6+ months), can regain by practice with safety pilot (§61.57(c))")
+				rt.result.setMsg(MsgRatingIRLapsedSafetyPilot, nil)
 				rt.result.RuleDescription = "Instrument currency lapsed past 6 months. Can regain within 12 months by completing 6 approaches + holding with safety pilot. After 12 months, IPC required (14 CFR 61.57(c)/(d))"
 			} else {
 				// Not met within 12 months either — IPC required
 				rt.result.Status = StatusExpired
-				rt.result.setMsg(MsgRatingIRExpiredIPC, nil, "FAA IR — instrument currency expired (>12 months without required experience), IPC required (§61.57(d))")
+				rt.result.setMsg(MsgRatingIRExpiredIPC, nil)
 				rt.result.RuleDescription = "Instrument currency expired. Instrument Proficiency Check (IPC) required to regain currency (14 CFR 61.57(d))"
 			}
 		}
@@ -171,15 +169,14 @@ var faaGliderRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, days: 90},
 	scope:       scopeByClass,
 	baseReqs: []reqSpec{
-		{name: "Launches & Landings", nameKey: ReqKeyLaunchesAndLanding, metric: mLandings, threshold: 3, unit: "launches", msgFmt: "%d / 3 launches & landings in 90 days"},
+		{nameKey: ReqKeyLaunchesAndLanding, metric: mLandings, threshold: 3, unit: "launches"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rating := rt.rating
 		rt.since = rt.rule.window.rollingSince(time.Now())
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
-			rt.result.setMsg(MsgRatingEvaluationFailed, nil, fmt.Sprintf("FAA %s (Glider) — unable to evaluate currency", rating.ClassType))
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
 		rt.result.Progress = progress
@@ -192,10 +189,10 @@ var faaGliderRule = ratingRule{
 		if !launchReq.Met {
 			rt.result.Status = StatusExpired
 			needed := 3 - progress.Landings
-			rt.result.setMsg(MsgRatingGliderNotCurrent, msgNeeded(needed), fmt.Sprintf("FAA Glider — not current (need %d more launch%s)", needed, plural(needed)))
+			rt.result.setMsg(MsgRatingGliderNotCurrent, msgNeeded(needed))
 		} else {
 			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingGliderCurrent, nil, "FAA Glider — current for passengers")
+			rt.result.setMsg(MsgRatingGliderCurrent, nil)
 		}
 	},
 }
@@ -208,7 +205,7 @@ var faaSuppressedIRRule = ratingRule{
 	scope:       scopeAll,
 	finalize: func(_ context.Context, rt *ratingRuntime) {
 		rt.result.Status = StatusUnknown
-		rt.result.setMsg(MsgRatingIRNotApplicable, nil, fmt.Sprintf("FAA %s — instrument currency not applicable for %s Pilot (§61.315)", rt.rating.ClassType, rt.license.LicenseType))
+		rt.result.setMsg(MsgRatingIRNotApplicable, nil)
 	},
 }
 
@@ -230,13 +227,6 @@ func HasNightPrivilege(licenseType, authority string) bool {
 	default:
 		return true // PPL, CPL, ATPL, FAA Private/Commercial/ATP
 	}
-}
-
-func plural(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
 }
 
 // EvaluatePassengerCurrency evaluates FAA §61.57(a)/(b) as Tier 2 passenger
@@ -265,7 +255,7 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown
-		result.setMsg(MsgPaxEvaluationFailed, nil, fmt.Sprintf("FAA %s — unable to evaluate passenger currency", classType))
+		result.setMsg(MsgPaxEvaluationFailed, nil)
 		return result
 	}
 
@@ -285,10 +275,10 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 		// Night not applicable — mark as N/A (unknown = not evaluated)
 		result.NightStatus = StatusUnknown
 		if result.DayStatus == StatusCurrent {
-			result.setMsg(MsgPaxCurrentDayNoNight, nil, fmt.Sprintf("FAA %s — current for day passengers (night not applicable for %s)", classType, license.LicenseType))
+			result.setMsg(MsgPaxCurrentDayNoNight, nil)
 		} else {
 			needed := 3 - landings
-			result.setMsg(MsgPaxNotCurrent, msgNeeded(needed), fmt.Sprintf("FAA %s — not current for passengers (need %d more landing%s)", classType, needed, plural(needed)))
+			result.setMsg(MsgPaxNotCurrent, msgNeeded(needed))
 		}
 	} else {
 		if nightCount >= 3 {
@@ -298,17 +288,15 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 		}
 
 		if result.DayStatus == StatusCurrent && result.NightStatus == StatusCurrent {
-			result.setMsg(MsgPaxCurrentDayNight, nil, fmt.Sprintf("FAA %s — current for day and night passengers", classType))
+			result.setMsg(MsgPaxCurrentDayNight, nil)
 		} else if result.DayStatus == StatusCurrent {
 			needed := 3 - nightCount
-			result.setMsg(MsgPaxDayCurrentNightNot, msgNeeded(needed), fmt.Sprintf("FAA %s — day current, night not current (need %d more night landing%s)", classType, needed, plural(needed)))
+			result.setMsg(MsgPaxDayCurrentNightNot, msgNeeded(needed))
 		} else {
 			needed := 3 - landings
-			result.setMsg(MsgPaxNotCurrent, msgNeeded(needed), fmt.Sprintf("FAA %s — not current for passengers (need %d more landing%s)", classType, needed, plural(needed)))
+			result.setMsg(MsgPaxNotCurrent, msgNeeded(needed))
 		}
 	}
-
-	result.Message += paxExpiryNote(result.DayExpiresOn, result.NightExpiresOn)
 
 	return result
 }
@@ -321,7 +309,6 @@ func (e *FAAEvaluator) EvaluateFlightReview(ctx context.Context, userID uuid.UUI
 	if err != nil {
 		return &FlightReviewStatus{
 			Status:     StatusUnknown,
-			Message:    "Unable to determine flight review status",
 			MessageKey: MsgFlightReviewEvaluationFailed,
 		}
 	}
@@ -329,7 +316,6 @@ func (e *FAAEvaluator) EvaluateFlightReview(ctx context.Context, userID uuid.UUI
 	if lastReview == nil {
 		return &FlightReviewStatus{
 			Status:     StatusExpired,
-			Message:    "No flight review on record — required every 24 calendar months (14 CFR 61.56)",
 			MessageKey: MsgFlightReviewNoneOnRecord,
 		}
 	}
@@ -358,13 +344,13 @@ func faaFlightReviewStatus(now, lastReview time.Time) *FlightReviewStatus {
 
 	if !now.Before(validUntil) {
 		result.Status = StatusExpired
-		result.setMsg(MsgFlightReviewExpired, msgDate(completedStr), fmt.Sprintf("Flight review expired — last completed %s (14 CFR 61.56)", completedStr))
+		result.setMsg(MsgFlightReviewExpired, msgDate(completedStr))
 	} else if daysUntilExpiry <= 90 {
 		result.Status = StatusExpiring
-		result.setMsg(MsgFlightReviewExpiring, msgDaysDate(daysUntilExpiry, completedStr), fmt.Sprintf("Flight review expires in %d days — last completed %s (14 CFR 61.56)", daysUntilExpiry, completedStr))
+		result.setMsg(MsgFlightReviewExpiring, msgDaysDate(daysUntilExpiry, completedStr))
 	} else {
 		result.Status = StatusCurrent
-		result.setMsg(MsgFlightReviewCurrent, msgDate(completedStr), fmt.Sprintf("Flight review current — completed %s, valid until %s (14 CFR 61.56)", completedStr, expiresStr))
+		result.setMsg(MsgFlightReviewCurrent, msgDate(completedStr))
 	}
 
 	return result

@@ -3,7 +3,6 @@ package currency
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -137,28 +136,6 @@ func TestPaxExpiryDate_LastDayInclusive(t *testing.T) {
 	}
 }
 
-func TestPaxExpiryNote(t *testing.T) {
-	a, b := "2026-11-15", "2026-10-02"
-	tests := []struct {
-		name       string
-		day, night *string
-		want       string
-	}{
-		{name: "neither", want: ""},
-		{name: "day only", day: &a, want: " — day expires 2026-11-15"},
-		{name: "night only", night: &b, want: " — night expires 2026-10-02"},
-		{name: "both", day: &a, night: &b, want: " — day expires 2026-11-15, night expires 2026-10-02"},
-		{name: "same date collapses", day: &a, night: &a, want: " — expires 2026-11-15"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := paxExpiryNote(tt.day, tt.night); got != tt.want {
-				t.Errorf("paxExpiryNote = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 // ── Evaluator-level expiry ──────────────────────────────────────────────
 
 func TestEASA_PassengerCurrency_ExpiryDates(t *testing.T) {
@@ -186,9 +163,6 @@ func TestEASA_PassengerCurrency_ExpiryDates(t *testing.T) {
 	// FCL.060(b)(2)(i) needs one night landing — the one on day −20.
 	if want := dayStr(20 - paxWindowDays); result.NightExpiresOn == nil || *result.NightExpiresOn != want {
 		t.Errorf("NightExpiresOn = %v, want %s", result.NightExpiresOn, want)
-	}
-	if !strings.Contains(result.Message, *result.DayExpiresOn) {
-		t.Errorf("Message = %q, want it to name the day expiry %s", result.Message, *result.DayExpiresOn)
 	}
 }
 
@@ -251,9 +225,6 @@ func TestPassengerCurrency_NotCurrentHasNoExpiry(t *testing.T) {
 	if result.DayExpiresOn != nil {
 		t.Errorf("DayExpiresOn = %s, want nil", *result.DayExpiresOn)
 	}
-	if strings.Contains(result.Message, "expires") {
-		t.Errorf("Message = %q, want no expiry note", result.Message)
-	}
 }
 
 // TestPassengerCurrency_OutOfWindowLandingsIgnored — landings older than the
@@ -303,9 +274,6 @@ func TestFAA_PassengerCurrency_ExpiryDates(t *testing.T) {
 	}
 	if result.NightExpiresOn == nil || *result.NightExpiresOn != want {
 		t.Errorf("NightExpiresOn = %v, want %s", result.NightExpiresOn, want)
-	}
-	if !strings.Contains(result.Message, " — expires "+want) {
-		t.Errorf("Message = %q, want a collapsed expiry note for %s", result.Message, want)
 	}
 }
 
@@ -367,9 +335,6 @@ func TestGermanUL_PassengerCurrency_ExpiryDate(t *testing.T) {
 	want := dayStr(55 - paxWindowDays)
 	if result.DayExpiresOn == nil || *result.DayExpiresOn != want {
 		t.Errorf("DayExpiresOn = %v, want %s", result.DayExpiresOn, want)
-	}
-	if !strings.Contains(result.Message, "gültig bis "+want) {
-		t.Errorf("Message = %q, want it to name %s", result.Message, want)
 	}
 	if result.NightExpiresOn != nil {
 		t.Errorf("NightExpiresOn = %s, want nil (UL has no night flying)", *result.NightExpiresOn)

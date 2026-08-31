@@ -30,7 +30,7 @@ func TestEASA_LAPL_Current(t *testing.T) {
 	}
 	// Verify PIC Hours is NOT a requirement
 	for _, req := range result.Requirements {
-		if req.Name == "PIC Time" {
+		if req.NameKey == ReqKeyPICTime {
 			t.Error("LAPL should NOT have PIC Hours requirement (FCL.140.A has no PIC requirement)")
 		}
 	}
@@ -109,7 +109,7 @@ func TestEASA_SPL_Current(t *testing.T) {
 	// Verify "Launches" requirement exists (not "Takeoffs & Landings")
 	found := false
 	for _, req := range result.Requirements {
-		if req.Name == "Launches" {
+		if req.NameKey == ReqKeyLaunches {
 			found = true
 		}
 	}
@@ -300,7 +300,7 @@ func TestEASA_Dispatch_SPL_UsesFCL140S(t *testing.T) {
 	// SPL should have "Launches" requirement (not "Takeoffs & Landings")
 	found := false
 	for _, req := range result.Requirements {
-		if req.Name == "Launches" {
+		if req.NameKey == ReqKeyLaunches {
 			found = true
 		}
 	}

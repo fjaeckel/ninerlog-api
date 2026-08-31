@@ -337,8 +337,8 @@ rating is a `Status` (`internal/service/currency/types.go`):
 The response also carries per-requirement progress, so the UI can show exactly what
 remains. Every user-facing string is emitted as a stable **message key** plus its params
 rather than as English prose — see [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md), the
-cross-repo contract with the web and iOS clients. The `message` / `name` text fields are
-deprecated fallbacks kept only until both clients render keys.
+cross-repo contract with the web and iOS clients. The payload carries no English prose:
+`name` survives only on custom currency rules, where it is pilot-authored user data.
 
 ### Passenger currency expiry (`dayExpiresOn` / `nightExpiresOn`)
 
