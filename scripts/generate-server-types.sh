@@ -1,8 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 # Generate Go server types from OpenAPI spec
 # Usage: ./scripts/generate-server-types.sh [path-to-openapi.yaml]
+
+# Generator version used for every regeneration, local and CI.
+OAPI_CODEGEN_VERSION="v2.8.0"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -35,15 +38,24 @@ sed -E \
 # Ensure Go bin directory is in PATH
 export PATH="$PATH:$(go env GOPATH)/bin"
 
-# Check if oapi-codegen is installed
-if ! command -v oapi-codegen &> /dev/null; then
-    echo "Installing oapi-codegen..."
-    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+# Install the pinned generator unless it is already the version on PATH
+INSTALLED_VERSION="$(oapi-codegen -version 2>/dev/null | tail -1)"
+if [ "$INSTALLED_VERSION" != "$OAPI_CODEGEN_VERSION" ]; then
+    echo "Installing oapi-codegen $OAPI_CODEGEN_VERSION (found: ${INSTALLED_VERSION:-none})..."
+    go install "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$OAPI_CODEGEN_VERSION"
 fi
 
 # Output directory
 OUTPUT_DIR="$PROJECT_ROOT/internal/api/generated"
 mkdir -p "$OUTPUT_DIR"
+
+# The compressed blob in spec.go is not reproducible across platforms, so the
+# previous copy is kept and restored when the spec it encodes is unchanged.
+PREVIOUS_SPEC_GO=""
+if [ -f "$OUTPUT_DIR/spec.go" ]; then
+    PREVIOUS_SPEC_GO=$(mktemp /tmp/spec-go-XXXXXX.go)
+    cp "$OUTPUT_DIR/spec.go" "$PREVIOUS_SPEC_GO"
+fi
 
 echo "Cleaning output directory..."
 rm -f "$OUTPUT_DIR"/*.go
@@ -62,6 +74,15 @@ echo "Generating request/response helpers..."
 oapi-codegen -package generated -generate spec \
     -o "$OUTPUT_DIR/spec.go" \
     "$TEMP_SPEC"
+
+if [ -n "$PREVIOUS_SPEC_GO" ]; then
+    if diff -q <(python3 "$SCRIPT_DIR/spec-blob.py" "$PREVIOUS_SPEC_GO") \
+               <(python3 "$SCRIPT_DIR/spec-blob.py" "$OUTPUT_DIR/spec.go") >/dev/null 2>&1; then
+        echo "Embedded spec unchanged, keeping the existing spec.go"
+        cp "$PREVIOUS_SPEC_GO" "$OUTPUT_DIR/spec.go"
+    fi
+    rm -f "$PREVIOUS_SPEC_GO"
+fi
 
 echo "Adding package documentation..."
 cat > "$OUTPUT_DIR/doc.go" << 'EOF'
