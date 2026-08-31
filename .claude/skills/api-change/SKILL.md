@@ -66,6 +66,15 @@ feature when the bare word is something another feature could plausibly want.
   there rather than dumbing down the spec.
 - The script wipes `internal/api/generated/*.go` before regenerating, so any manual edit there
   is silently lost.
+- The generator version is pinned in `scripts/generate-server-types.sh`
+  (`OAPI_CODEGEN_VERSION`). It is installed on demand; do not rely on whatever `oapi-codegen`
+  happens to be on `PATH`.
+- **Commit the regenerated code in the same commit as the spec change.** CI's *Generated Code
+  Check* regenerates and fails the PR on any difference, and the Docker publish depends on it.
+- `spec.go`'s compressed blob is not reproducible across platforms. The script decodes the
+  existing file (`scripts/spec-blob.py`) and keeps it when the spec it encodes is unchanged, so
+  a regeneration that changes nothing produces no diff. Never work around a `spec.go` diff by
+  hand — if it changed, the spec changed.
 - `internal/api/generated/generate.go` carries the `//go:generate` directive, so
   `go generate ./...` works too.
 
