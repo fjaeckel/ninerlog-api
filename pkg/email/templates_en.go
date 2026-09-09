@@ -31,7 +31,8 @@ var enTemplates = templateSet{
 		body := fmt.Sprintf(`<h2>Currency Revalidation Warning</h2>
 <p>Hi %s,</p>
 <p>Your <strong>%s %s</strong> rating currency needs attention: %s</p>
-<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.LicenseType), html.EscapeString(p.ClassType), html.EscapeString(p.Message))
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.LicenseType), html.EscapeString(p.ClassType),
+			html.EscapeString(renderCurrencyMessage(currencyMessagesEN, p.MessageKey, p.MessageParams)))
 		return subject, body
 	},
 
@@ -78,7 +79,8 @@ var enTemplates = templateSet{
 <p>Hi %s,</p>
 <p>%s</p>
 <p>Complete a flight review (14 CFR §61.56) to regain flying privileges.</p>
-<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Message))
+<p>— NinerLog</p>`, html.EscapeString(p.UserName),
+			html.EscapeString(renderCurrencyMessage(currencyMessagesEN, p.MessageKey, p.MessageParams)))
 		return subject, body
 	},
 

@@ -5,7 +5,6 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 )
@@ -145,12 +144,12 @@ func findPaxCurByAuth(result map[string]interface{}, classType, authority string
 	return nil
 }
 
-// getReq finds a requirement by name in a rating currency.
-func getReq(rc map[string]interface{}, name string) map[string]interface{} {
+// getReq finds a requirement by its localisation key in a rating currency.
+func getReq(rc map[string]interface{}, nameKey string) map[string]interface{} {
 	reqs := rc["requirements"].([]interface{})
 	for _, r := range reqs {
 		req := r.(map[string]interface{})
-		if req["name"].(string) == name {
+		if key, _ := req["nameKey"].(string); key == nameKey {
 			return req
 		}
 	}
@@ -294,7 +293,7 @@ func TestEASA_SEP_FullyCurrent(t *testing.T) {
 	assertStr(t, "status", rc["status"], "current")
 
 	// Verify individual requirements
-	reqTotal := getReq(rc, "Total Time")
+	reqTotal := getReq(rc, "requirement.total_time")
 	if reqTotal == nil {
 		t.Fatal("Total Time requirement not found")
 	}
@@ -303,7 +302,7 @@ func TestEASA_SEP_FullyCurrent(t *testing.T) {
 		t.Errorf("Total minutes should be >= 720, got %.0f", gf(reqTotal, "current"))
 	}
 
-	reqPIC := getReq(rc, "PIC Time")
+	reqPIC := getReq(rc, "requirement.pic_time")
 	if reqPIC == nil {
 		t.Fatal("PIC Time requirement not found")
 	}
@@ -312,13 +311,13 @@ func TestEASA_SEP_FullyCurrent(t *testing.T) {
 		t.Errorf("PIC minutes should be >= 360, got %.0f", gf(reqPIC, "current"))
 	}
 
-	reqLandings := getReq(rc, "Takeoffs & Landings")
+	reqLandings := getReq(rc, "requirement.landings")
 	if reqLandings == nil {
 		t.Fatal("Takeoffs & Landings requirement not found")
 	}
 	assertBool(t, "landingsMet", gb(reqLandings, "met"), true)
 
-	reqInstr := getReq(rc, "Refresher Training")
+	reqInstr := getReq(rc, "requirement.refresher_training")
 	if reqInstr == nil {
 		t.Fatal("Refresher Training requirement not found")
 	}
@@ -406,7 +405,7 @@ func TestEASA_SEP_InsufficientPIC(t *testing.T) {
 	}
 	assertStr(t, "status", rc["status"], "expiring")
 
-	reqPIC := getReq(rc, "PIC Time")
+	reqPIC := getReq(rc, "requirement.pic_time")
 	if reqPIC == nil {
 		t.Fatal("PIC Time requirement not found")
 	}
@@ -463,7 +462,7 @@ func TestEASA_SEP_InsufficientLandings(t *testing.T) {
 	}
 	assertStr(t, "status", rc["status"], "expiring")
 
-	reqLandings := getReq(rc, "Takeoffs & Landings")
+	reqLandings := getReq(rc, "requirement.landings")
 	if reqLandings == nil {
 		t.Fatal("Takeoffs & Landings requirement not found")
 	}
@@ -496,7 +495,7 @@ func TestEASA_SEP_NoInstructorTime(t *testing.T) {
 	}
 	assertStr(t, "status", rc["status"], "expiring")
 
-	reqInstr := getReq(rc, "Refresher Training")
+	reqInstr := getReq(rc, "requirement.refresher_training")
 	if reqInstr == nil {
 		t.Fatal("Refresher Training requirement not found")
 	}
@@ -920,7 +919,7 @@ func TestEASA_LAPL_NoPICRequired(t *testing.T) {
 	assertStr(t, "status", rc["status"], "current")
 
 	// Verify no PIC Time requirement exists
-	reqPIC := getReq(rc, "PIC Time")
+	reqPIC := getReq(rc, "requirement.pic_time")
 	if reqPIC != nil {
 		t.Errorf("REGRESSION: LAPL(A) should NOT have a PIC Time requirement (FCL.140.A)")
 	}
@@ -1243,23 +1242,29 @@ func TestCurrency_EveryResultCarriesAMessageKey(t *testing.T) {
 	for _, r := range result["ratings"].([]interface{}) {
 		rc := r.(map[string]interface{})
 		if key, _ := rc["messageKey"].(string); key == "" {
-			t.Errorf("rating %v has no messageKey (message %q)", rc["classType"], rc["message"])
+			t.Errorf("rating %v has no messageKey", rc["classType"])
+		}
+		if _, ok := rc["message"]; ok {
+			t.Errorf("rating %v still carries deprecated message text", rc["classType"])
 		}
 		reqs, _ := rc["requirements"].([]interface{})
 		for _, rq := range reqs {
 			req := rq.(map[string]interface{})
 			if key, _ := req["nameKey"].(string); key == "" {
-				t.Errorf("requirement %q has no nameKey", req["name"])
+				t.Errorf("requirement %v has no nameKey", req)
 			}
 			if key, _ := req["messageKey"].(string); key == "" {
-				t.Errorf("requirement %q has no messageKey", req["name"])
+				t.Errorf("requirement %v has no messageKey", req)
 			}
 		}
 	}
 	for _, p := range result["passengerCurrency"].([]interface{}) {
 		pc := p.(map[string]interface{})
 		if key, _ := pc["messageKey"].(string); key == "" {
-			t.Errorf("passenger currency %v has no messageKey (message %q)", pc["classType"], pc["message"])
+			t.Errorf("passenger currency %v has no messageKey", pc["classType"])
+		}
+		if _, ok := pc["message"]; ok {
+			t.Errorf("passenger currency %v still carries deprecated message text", pc["classType"])
 		}
 	}
 }
@@ -1290,11 +1295,7 @@ func TestEASA_PassengerCurrency_ExpiryIgnoresSurplusLandings(t *testing.T) {
 	}
 	assertStr(t, "dayStatus", pc["dayStatus"], "current")
 	// Third most recent landing is day −40; the two older ones do not extend it.
-	want := plusDays(pastDate(40), 90)
-	assertStr(t, "dayExpiresOn", pc["dayExpiresOn"], want)
-	if msg, _ := pc["message"].(string); !strings.Contains(msg, want) {
-		t.Errorf("message = %q, want it to name the expiry %s", msg, want)
-	}
+	assertStr(t, "dayExpiresOn", pc["dayExpiresOn"], plusDays(pastDate(40), 90))
 }
 
 // TestEASA_PassengerCurrency_Expired — < 3 landings in 90 days.

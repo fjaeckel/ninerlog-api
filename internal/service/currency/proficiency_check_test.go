@@ -115,7 +115,7 @@ func TestEASA_MEP_ProfCheckRequirement_InResponse(t *testing.T) {
 	// Find proficiency check requirement
 	found := false
 	for _, req := range result.Requirements {
-		if req.Name == "Proficiency Check" {
+		if req.NameKey == ReqKeyProficiencyCheck {
 			found = true
 			if req.Met {
 				t.Error("Proficiency check should NOT be met when not set on mock")
@@ -140,7 +140,7 @@ func TestEASA_IR_ProfCheckRequirement_Met(t *testing.T) {
 	result := eval.Evaluate(context.Background(), rating, license, dp)
 
 	for _, req := range result.Requirements {
-		if req.Name == "Proficiency Check" {
+		if req.NameKey == ReqKeyProficiencyCheck {
 			if !req.Met {
 				t.Error("Proficiency check should be met")
 			}

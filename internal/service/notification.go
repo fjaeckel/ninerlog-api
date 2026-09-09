@@ -308,10 +308,11 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 		}
 
 		subject, body := tmpl.Revalidation(email.RevalidationParams{
-			UserName:    userName,
-			LicenseType: rating.LicenseType,
-			ClassType:   string(rating.ClassType),
-			Message:     rating.Message,
+			UserName:      userName,
+			LicenseType:   rating.LicenseType,
+			ClassType:     string(rating.ClassType),
+			MessageKey:    rating.MessageKey,
+			MessageParams: emailParams(rating.MessageParams),
 		})
 
 		if err := s.emailSender.SendMessage(ctx, email.Message{
@@ -460,8 +461,9 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 
 	tmplFR := email.Templates(user.PreferredLocale)
 	subject, body := tmplFR.FlightReviewRequired(email.FlightReviewRequiredParams{
-		UserName: userName,
-		Message:  fr.Message,
+		UserName:      userName,
+		MessageKey:    fr.MessageKey,
+		MessageParams: emailParams(fr.MessageParams),
 	})
 
 	if err := s.emailSender.SendMessage(ctx, email.Message{
@@ -634,4 +636,12 @@ func formatDateForUser(t time.Time, dateFormat string) string {
 	default:
 		return t.Format("02.01.2006")
 	}
+}
+
+// emailParams adapts currency message params for the email templates.
+func emailParams(p *currency.MessageParams) email.CurrencyMessageParams {
+	if p == nil {
+		return email.CurrencyMessageParams{}
+	}
+	return email.CurrencyMessageParams{Days: p.Days, Needed: p.Needed, Date: p.Date}
 }

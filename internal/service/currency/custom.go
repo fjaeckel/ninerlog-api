@@ -276,7 +276,6 @@ func buildCustomRequirement(r models.CurrencyRequirement, raw int64) Requirement
 		Current:    current,
 		Required:   r.Min,
 		Unit:       unit,
-		Message:    fmt.Sprintf("%s / %s %s", formatAmount(current), formatAmount(r.Min), unit),
 		MessageKey: MsgRequirementProgress,
 	}
 }

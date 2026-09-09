@@ -96,14 +96,14 @@ func TestRevalidation_English(t *testing.T) {
 		UserName:    "Dana",
 		LicenseType: "PPL",
 		ClassType:   "SEP",
-		Message:     "Need 12 hours and 12 takeoffs/landings",
+		MessageKey:  "rating.revalidation_not_met",
 	})
 
 	if !strings.Contains(subj, "revalidation") {
 		t.Errorf("Subject should contain 'revalidation', got %q", subj)
 	}
-	if !strings.Contains(body, "Need 12 hours") {
-		t.Errorf("Body should contain message, got %q", body)
+	if !strings.Contains(body, "revalidation requirements are not fully met") {
+		t.Errorf("Body should contain the rendered message, got %q", body)
 	}
 }
 
@@ -167,8 +167,9 @@ func TestFlightReviewExpiry_English(t *testing.T) {
 func TestFlightReviewRequired_English(t *testing.T) {
 	ts := Templates("en")
 	subj, body := ts.FlightReviewRequired(FlightReviewRequiredParams{
-		UserName: "Grace",
-		Message:  "Your flight review has expired.",
+		UserName:      "Grace",
+		MessageKey:    "flight_review.expired",
+		MessageParams: CurrencyMessageParams{Date: strPtr("2026-01-15")},
 	})
 
 	if !strings.Contains(subj, "required") {
@@ -177,8 +178,8 @@ func TestFlightReviewRequired_English(t *testing.T) {
 	if !strings.Contains(body, "Grace") {
 		t.Errorf("Body should contain user name, got %q", body)
 	}
-	if !strings.Contains(body, "Your flight review has expired.") {
-		t.Errorf("Body should contain message, got %q", body)
+	if !strings.Contains(body, "flight review has expired") || !strings.Contains(body, "2026-01-15") {
+		t.Errorf("Body should contain the rendered message, got %q", body)
 	}
 }
 
@@ -201,8 +202,9 @@ func TestFlightReviewExpiry_German(t *testing.T) {
 func TestFlightReviewRequired_German(t *testing.T) {
 	ts := Templates("de")
 	subj, body := ts.FlightReviewRequired(FlightReviewRequiredParams{
-		UserName: "Inge",
-		Message:  "Ihre Flugüberprüfung ist abgelaufen.",
+		UserName:      "Inge",
+		MessageKey:    "flight_review.expired",
+		MessageParams: CurrencyMessageParams{Date: strPtr("2026-01-15")},
 	})
 
 	if !strings.Contains(subj, "erforderlich") {
@@ -219,7 +221,7 @@ func TestRevalidation_German(t *testing.T) {
 		UserName:    "Karl",
 		LicenseType: "PPL",
 		ClassType:   "SEP",
-		Message:     "12 Stunden und 12 Starts/Landungen erforderlich",
+		MessageKey:  "rating.revalidation_not_met",
 	})
 
 	if !strings.Contains(subj, "Verlängerung") {
@@ -276,10 +278,10 @@ func TestTemplates_HTMLEscapesUserInput(t *testing.T) {
 		bodies := map[string]string{}
 		_, bodies["CredentialExpiry"] = ts.CredentialExpiry(CredentialExpiryParams{UserName: payload, CredentialType: payload, ExpiryDate: payload})
 		_, bodies["RatingExpiry"] = ts.RatingExpiry(RatingExpiryParams{UserName: payload, LicenseType: payload, ClassType: payload, ExpiryDate: payload})
-		_, bodies["Revalidation"] = ts.Revalidation(RevalidationParams{UserName: payload, LicenseType: payload, ClassType: payload, Message: payload})
+		_, bodies["Revalidation"] = ts.Revalidation(RevalidationParams{UserName: payload, LicenseType: payload, ClassType: payload, MessageKey: payload})
 		_, bodies["PassengerCurrency"] = ts.PassengerCurrency(PassengerCurrencyParams{UserName: payload, ClassType: payload, Period: "day"})
 		_, bodies["FlightReviewExpiry"] = ts.FlightReviewExpiry(FlightReviewExpiryParams{UserName: payload, ExpiryDate: payload})
-		_, bodies["FlightReviewRequired"] = ts.FlightReviewRequired(FlightReviewRequiredParams{UserName: payload, Message: payload})
+		_, bodies["FlightReviewRequired"] = ts.FlightReviewRequired(FlightReviewRequiredParams{UserName: payload, MessageKey: payload})
 		_, bodies["VerifyEmail"] = ts.VerifyEmail(VerifyEmailParams{UserName: payload, Link: payload})
 
 		for name, body := range bodies {
@@ -331,5 +333,55 @@ func TestCustomCurrency_EscapesMaliciousRuleName(t *testing.T) {
 				t.Errorf("[%s expiring=%v] subject must not contain CR/LF", locale, expiring)
 			}
 		}
+	}
+}
+
+func strPtr(s string) *string { return &s }
+
+// TestCurrencyMessagesAreLocalised pins the bug the message-key contract fixes:
+// a German template must not render an English currency sentence.
+func TestCurrencyMessagesAreLocalised(t *testing.T) {
+	en := renderCurrencyMessage(currencyMessagesEN, "rating.revalidation_not_met", CurrencyMessageParams{})
+	de := renderCurrencyMessage(currencyMessagesDE, "rating.revalidation_not_met", CurrencyMessageParams{})
+	if en == de {
+		t.Errorf("English and German render identically: %q", en)
+	}
+	if !strings.Contains(de, "Verlängerungsanforderungen") {
+		t.Errorf("German rendering = %q, want German prose", de)
+	}
+}
+
+// TestCurrencyMessageCataloguesMatch keeps the two locales in step.
+func TestCurrencyMessageCataloguesMatch(t *testing.T) {
+	for key := range currencyMessagesEN {
+		if _, ok := currencyMessagesDE[key]; !ok {
+			t.Errorf("key %q missing from the German catalogue", key)
+		}
+	}
+	for key := range currencyMessagesDE {
+		if _, ok := currencyMessagesEN[key]; !ok {
+			t.Errorf("key %q missing from the English catalogue", key)
+		}
+	}
+}
+
+// TestCurrencyMessageParamsInterpolate checks the positional param contract.
+func TestCurrencyMessageParamsInterpolate(t *testing.T) {
+	days := 42
+	got := renderCurrencyMessage(currencyMessagesEN, "rating.expiring", CurrencyMessageParams{Days: &days})
+	if !strings.Contains(got, "42") {
+		t.Errorf("rendering = %q, want it to interpolate days", got)
+	}
+	needed := 2
+	got = renderCurrencyMessage(currencyMessagesEN, "rating.pax_not_current", CurrencyMessageParams{Needed: &needed})
+	if !strings.Contains(got, "2") {
+		t.Errorf("rendering = %q, want it to interpolate needed", got)
+	}
+}
+
+// TestUnknownCurrencyKeyIsVisible — a missing translation renders the key, not blank.
+func TestUnknownCurrencyKeyIsVisible(t *testing.T) {
+	if got := renderCurrencyMessage(currencyMessagesEN, "rating.does_not_exist", CurrencyMessageParams{}); got != "rating.does_not_exist" {
+		t.Errorf("unknown key rendered as %q", got)
 	}
 }

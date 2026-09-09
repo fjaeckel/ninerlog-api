@@ -78,18 +78,18 @@ var allClassTypes = []models.ClassType{
 func checkKeys(t *testing.T, label string, r ClassRatingCurrency) {
 	t.Helper()
 	if r.MessageKey == "" {
-		t.Errorf("%s: MessageKey empty (message %q)", label, r.Message)
+		t.Errorf("%s: MessageKey empty", label)
 	} else if !knownMessageKeys[r.MessageKey] {
 		t.Errorf("%s: MessageKey %q not in catalogue", label, r.MessageKey)
 	}
 	for i, req := range r.Requirements {
 		if req.NameKey == "" {
-			t.Errorf("%s: requirement[%d] %q has no NameKey", label, i, req.Name)
+			t.Errorf("%s: requirement[%d] has no NameKey", label, i)
 		} else if !knownNameKeys[req.NameKey] {
 			t.Errorf("%s: requirement[%d] NameKey %q not in catalogue", label, i, req.NameKey)
 		}
 		if req.MessageKey == "" {
-			t.Errorf("%s: requirement[%d] %q has no MessageKey", label, i, req.Name)
+			t.Errorf("%s: requirement[%d] has no MessageKey", label, i)
 		} else if !knownMessageKeys[req.MessageKey] {
 			t.Errorf("%s: requirement[%d] MessageKey %q not in catalogue", label, i, req.MessageKey)
 		}
@@ -178,7 +178,7 @@ func TestEveryPassengerResultCarriesAKey(t *testing.T) {
 					res := paxEval.EvaluatePassengerCurrency(ctx, ct, license, peers, dp)
 					label := strings.Join([]string{ec.authority, ec.licenseType, string(ct)}, "/")
 					if res.MessageKey == "" {
-						t.Errorf("%s (landings=%d, ir=%v): MessageKey empty (message %q)", label, landings, withIR, res.Message)
+						t.Errorf("%s (landings=%d, ir=%v): MessageKey empty", label, landings, withIR)
 					} else if !knownMessageKeys[res.MessageKey] {
 						t.Errorf("%s: MessageKey %q not in catalogue", label, res.MessageKey)
 					}
@@ -202,7 +202,7 @@ func TestFlightReviewCarriesAKey(t *testing.T) {
 		}
 		res := eval.EvaluateFlightReview(ctx, uuid.New(), dp)
 		if res.MessageKey == "" {
-			t.Errorf("flight review %s: MessageKey empty (message %q)", name, res.Message)
+			t.Errorf("flight review %s: MessageKey empty", name)
 		} else if !knownMessageKeys[res.MessageKey] {
 			t.Errorf("flight review %s: MessageKey %q not in catalogue", name, res.MessageKey)
 		}

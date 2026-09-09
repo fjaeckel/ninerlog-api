@@ -1,7 +1,6 @@
 package currency
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -62,20 +61,4 @@ func paxExpiryString(t *time.Time) *string {
 	}
 	s := t.Format("2006-01-02")
 	return &s
-}
-
-// paxExpiryNote renders the trailing expiry note appended to a passenger
-// currency message. Empty when neither expiry is known.
-func paxExpiryNote(day, night *string) string {
-	switch {
-	case day != nil && night != nil && *day == *night:
-		return fmt.Sprintf(" — expires %s", *day)
-	case day != nil && night != nil:
-		return fmt.Sprintf(" — day expires %s, night expires %s", *day, *night)
-	case day != nil:
-		return fmt.Sprintf(" — day expires %s", *day)
-	case night != nil:
-		return fmt.Sprintf(" — night expires %s", *night)
-	}
-	return ""
 }

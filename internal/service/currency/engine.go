@@ -2,7 +2,6 @@ package currency
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -63,28 +62,22 @@ func metricVal(p *Progress, m metric) int {
 }
 
 // reqSpec is the declarative definition of a single currency requirement.
-// msgFmt must contain exactly one %d verb, which receives the current value.
-// name and msgFmt are the deprecated fallbacks for nameKey.
 type reqSpec struct {
-	name      string
 	nameKey   string
 	metric    metric
 	threshold int
 	unit      string
-	msgFmt    string
 }
 
 // buildReq materializes a reqSpec against an aggregated Progress row.
 func buildReq(p *Progress, s reqSpec) Requirement {
 	cur := metricVal(p, s.metric)
 	return Requirement{
-		Name:       s.name,
 		NameKey:    s.nameKey,
 		Met:        cur >= s.threshold,
 		Current:    float64(cur),
 		Required:   float64(s.threshold),
 		Unit:       s.unit,
-		Message:    fmt.Sprintf(s.msgFmt, cur),
 		MessageKey: MsgRequirementProgress,
 	}
 }

@@ -2,7 +2,6 @@ package currency
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -32,21 +31,20 @@ var otherExpiryRule = ratingRule{
 	finalize: func(_ context.Context, rt *ratingRuntime) {
 		rating := rt.rating
 		if rating.ExpiryDate != nil {
-			expStr := *rt.result.ExpiryDate
 			if rating.IsExpired() {
 				rt.result.Status = StatusExpired
-				rt.result.setMsg(MsgRatingExpired, nil, fmt.Sprintf("%s rating expired on %s", rating.ClassType, expStr))
+				rt.result.setMsg(MsgRatingExpired, nil)
 			} else if rating.IsExpiringSoon(90) {
 				daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
 				rt.result.Status = StatusExpiring
-				rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft), fmt.Sprintf("%s rating expires in %d days (%s)", rating.ClassType, daysLeft, expStr))
+				rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft))
 			} else {
 				rt.result.Status = StatusCurrent
-				rt.result.setMsg(MsgRatingValidUntil, nil, fmt.Sprintf("%s rating valid until %s", rating.ClassType, expStr))
+				rt.result.setMsg(MsgRatingValidUntil, nil)
 			}
 		} else {
 			rt.result.Status = StatusUnknown
-			rt.result.setMsg(MsgRatingNoExpiryDateManual, nil, fmt.Sprintf("%s rating — no expiry date set (manual tracking)", rating.ClassType))
+			rt.result.setMsg(MsgRatingNoExpiryDateManual, nil)
 		}
 	},
 }

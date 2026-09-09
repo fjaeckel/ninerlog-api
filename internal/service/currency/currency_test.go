@@ -163,7 +163,6 @@ func (e *mockEvaluator) Evaluate(_ context.Context, rating *models.ClassRating, 
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
 		Status:              e.status,
-		Message:             "mock evaluation",
 	}
 }
 
@@ -376,7 +375,7 @@ func TestEASA_SEP_AllRequirementsMet_Current(t *testing.T) {
 	}
 	for _, req := range result.Requirements {
 		if !req.Met {
-			t.Errorf("Requirement %q should be met", req.Name)
+			t.Errorf("Requirement %q should be met", req.NameKey)
 		}
 	}
 }
@@ -396,7 +395,7 @@ func TestEASA_SEP_InsufficientPIC_Expiring(t *testing.T) {
 		t.Errorf("Status = %s, want expiring", result.Status)
 	}
 	for _, req := range result.Requirements {
-		if req.Name == "PIC Time" && req.Met {
+		if req.NameKey == ReqKeyPICTime && req.Met {
 			t.Error("PIC Hours should NOT be met")
 		}
 	}
@@ -655,7 +654,7 @@ func TestFAA_Passenger_AllCurrent(t *testing.T) {
 	}
 	for _, req := range result.Requirements {
 		if !req.Met {
-			t.Errorf("Requirement %q should be met", req.Name)
+			t.Errorf("Requirement %q should be met", req.NameKey)
 		}
 	}
 }
@@ -675,10 +674,10 @@ func TestFAA_Passenger_DayCurrentNightNot(t *testing.T) {
 		t.Errorf("Status = %s, want expiring (day only)", result.Status)
 	}
 	for _, req := range result.Requirements {
-		if req.Name == "Day Passenger Currency" && !req.Met {
+		if req.NameKey == ReqKeyDayLandings && !req.Met {
 			t.Error("Day currency should be met")
 		}
-		if req.Name == "Night Passenger Currency" && req.Met {
+		if req.NameKey == ReqKeyNightLandings && req.Met {
 			t.Error("Night currency should NOT be met")
 		}
 	}
@@ -746,7 +745,7 @@ func TestFAA_IR_Current(t *testing.T) {
 	}
 	for _, req := range result.Requirements {
 		if !req.Met {
-			t.Errorf("Requirement %q should be met", req.Name)
+			t.Errorf("Requirement %q should be met", req.NameKey)
 		}
 	}
 }
@@ -766,10 +765,10 @@ func TestFAA_IR_InsufficientIFR(t *testing.T) {
 	}
 	// Both approaches and holds should be not met
 	for _, req := range result.Requirements {
-		if req.Name == "Instrument Approaches" && req.Met {
+		if req.NameKey == ReqKeyApproaches && req.Met {
 			t.Error("Approaches requirement should NOT be met")
 		}
-		if req.Name == "Holding Procedures" && req.Met {
+		if req.NameKey == ReqKeyHolds && req.Met {
 			t.Error("Holds requirement should NOT be met")
 		}
 	}

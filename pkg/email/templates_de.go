@@ -31,7 +31,8 @@ var deTemplates = templateSet{
 		body := fmt.Sprintf(`<h2>Verlängerungswarnung</h2>
 <p>Hallo %s,</p>
 <p>Ihre <strong>%s %s</strong> Berechtigungsgültigkeit erfordert Aufmerksamkeit: %s</p>
-<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.LicenseType), html.EscapeString(p.ClassType), html.EscapeString(p.Message))
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.LicenseType), html.EscapeString(p.ClassType),
+			html.EscapeString(renderCurrencyMessage(currencyMessagesDE, p.MessageKey, p.MessageParams)))
 		return subject, body
 	},
 
@@ -82,7 +83,8 @@ var deTemplates = templateSet{
 <p>Hallo %s,</p>
 <p>%s</p>
 <p>Absolvieren Sie eine Flugüberprüfung (14 CFR §61.56), um Ihre Flugberechtigung wiederzuerlangen.</p>
-<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(p.Message))
+<p>— NinerLog</p>`, html.EscapeString(p.UserName),
+			html.EscapeString(renderCurrencyMessage(currencyMessagesDE, p.MessageKey, p.MessageParams)))
 		return subject, body
 	},
 
