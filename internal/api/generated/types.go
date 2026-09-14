@@ -4745,6 +4745,10 @@ type ImportColumnMapping struct {
 
 	// TargetField Target flight log field for column mapping.
 	//
+	// A `nightTime` or `crossCountryTime` column is stored as the pilot's
+	// own value with the matching override flag set (capped at block time)
+	// instead of being re-derived.
+	//
 	// Landings can be mapped either as a day/night split (`landingsDay` +
 	// `landingsNight`, which are summed) or as a single `landingsTotal`
 	// column. When a file carries both — as ForeFlight and MyFlightbook do —
@@ -4791,6 +4795,10 @@ type ImportConfirmRequest struct {
 }
 
 // ImportField Target flight log field for column mapping.
+//
+// A `nightTime` or `crossCountryTime` column is stored as the pilot's
+// own value with the matching override flag set (capped at block time)
+// instead of being re-derived.
 //
 // Landings can be mapped either as a day/night split (`landingsDay` +
 // `landingsNight`, which are summed) or as a single `landingsTotal`
