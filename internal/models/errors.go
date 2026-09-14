@@ -7,6 +7,7 @@ var (
 	ErrInvalidTimeDistribution = errors.New("PIC and dual time are mutually exclusive")
 	ErrInvalidNightTime        = errors.New("night time exceeds total time")
 	ErrInvalidIFRTime          = errors.New("IFR time exceeds total time")
+	ErrInvalidCrossCountryTime = errors.New("cross-country time exceeds total time")
 	ErrNegativeTime            = errors.New("flight times cannot be negative")
 	ErrNegativeLandings        = errors.New("landings cannot be negative")
 	ErrInvalidFunctionTime     = errors.New("pilot function times together exceed total time")

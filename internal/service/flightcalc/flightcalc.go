@@ -59,7 +59,9 @@ func ApplyAutoCalculations(flight *models.Flight, userName string, aircraft *fli
 	calculatePICDual(flight, role)
 
 	// 1. Night time — auto-calculate from departure/arrival times + sunset/sunrise
-	calculateNightTime(flight)
+	if !flight.NightTimeOverride {
+		calculateNightTime(flight)
+	}
 
 	// 2. Landing day/night split from total landings
 	if !flight.LandingsDayOverride && !flight.LandingsNightOverride {
@@ -71,7 +73,9 @@ func ApplyAutoCalculations(flight *models.Flight, userName string, aircraft *fli
 	calculateSoloTime(flight, userName)
 
 	// 4. Cross-country time
-	calculateCrossCountryTime(flight)
+	if !flight.CrossCountryTimeOverride {
+		calculateCrossCountryTime(flight)
+	}
 
 	// 5. Distance from airport coordinates
 	calculateDistance(flight)

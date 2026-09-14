@@ -17,3 +17,21 @@ func applyNullable[T any](dst **T, n nullable.Nullable[T]) {
 	v, _ := n.Get()
 	*dst = &v
 }
+
+// applyOverride applies an optional, nullable request field to an
+// auto-calculated value and its override flag: omitted leaves both untouched;
+// JSON null zeroes the value and clears the flag so the next calculation
+// derives it; a number sets the value and the flag.
+func applyOverride(dst *int, override *bool, n nullable.Nullable[int]) {
+	if !n.IsSpecified() {
+		return
+	}
+	if n.IsNull() {
+		*dst = 0
+		*override = false
+		return
+	}
+	v, _ := n.Get()
+	*dst = v
+	*override = true
+}

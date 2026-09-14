@@ -171,8 +171,8 @@ var faaColumns = map[string]Field{
 	"solo":          FieldIgnore,
 	"pic":           FieldIsPic,
 	"sic":           FieldIgnore,
-	"xc":            FieldIgnore,
-	"cross country": FieldIgnore,
+	"xc":            FieldCrossCountryTime,
+	"cross country": FieldCrossCountryTime,
 
 	"dual rcvd":         FieldIsDual,
 	"dual received":     FieldIsDual,
@@ -310,7 +310,7 @@ var foreFlightTemplate = register(&Template{
 
 		"sic":             FieldIgnore,
 		"solo":            FieldIgnore,
-		"crosscountry":    FieldIgnore,
+		"crosscountry":    FieldCrossCountryTime,
 		"distance":        FieldIgnore,
 		"daytakeoffs":     FieldIgnore,
 		"nighttakeoffs":   FieldIgnore,
@@ -426,7 +426,7 @@ var logTenTemplate = register(&Template{
 		"approach 6": FieldIgnore,
 		"simulator":  FieldIgnore,
 		"ground":     FieldIgnore,
-		"xc":         FieldIgnore,
+		"xc":         FieldCrossCountryTime,
 
 		// Longer spellings LogTen's other exporters emit.
 		"actual instrument":        FieldActualInstrumentTime,
@@ -447,7 +447,7 @@ var logTenTemplate = register(&Template{
 		"pic":                      FieldIsPic,
 		"sic":                      FieldIgnore,
 		"solo":                     FieldIgnore,
-		"cross country":            FieldIgnore,
+		"cross country":            FieldCrossCountryTime,
 		"day takeoffs":             FieldIgnore,
 		"night takeoffs":           FieldIgnore,
 
@@ -482,7 +482,7 @@ var logTenTemplate = register(&Template{
 		"flight_pic":                        FieldIsPic,
 		"flight_sic":                        FieldIgnore,
 		"flight_solo":                       FieldIgnore,
-		"flight_crosscountry":               FieldIgnore,
+		"flight_crosscountry":               FieldCrossCountryTime,
 	}),
 	// Only spellings LogTen is alone in using. The obvious candidates —
 	// "dual rcvd", "sim inst", "day ldg" — are shared verbatim with the FAA
@@ -864,7 +864,7 @@ var waderTemplate = register(&Template{
 		"examinertime":         FieldIgnore,
 		"simtraineetime":       FieldIgnore,
 		"simtrainertime":       FieldIgnore,
-		"crosscountrytime":     FieldIgnore,
+		"crosscountrytime":     FieldCrossCountryTime,
 		"relieftime":           FieldIgnore,
 		"daytakeoffs":          FieldIgnore,
 		"nighttakeoffs":        FieldIgnore,

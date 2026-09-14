@@ -233,6 +233,14 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.TakeoffsNight = *req.TakeoffsNight
 		flight.TakeoffsNightOverride = true
 	}
+	if req.NightTime != nil {
+		flight.NightTime = *req.NightTime
+		flight.NightTimeOverride = true
+	}
+	if req.CrossCountryTime != nil {
+		flight.CrossCountryTime = *req.CrossCountryTime
+		flight.CrossCountryTimeOverride = true
+	}
 
 	if req.Remarks != nil {
 		flight.Remarks = req.Remarks
@@ -427,22 +435,15 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	applyNullable(&flight.ArrivalTime, req.ArrivalTime)
 	applyNullable(&flight.Remarks, req.Remarks)
 	applyNullable(&flight.Route, req.Route)
-	if req.TakeoffsDay != nil {
-		flight.TakeoffsDay = *req.TakeoffsDay
-		flight.TakeoffsDayOverride = true
-	}
-	if req.TakeoffsNight != nil {
-		flight.TakeoffsNight = *req.TakeoffsNight
-		flight.TakeoffsNightOverride = true
-	}
+	applyOverride(&flight.TakeoffsDay, &flight.TakeoffsDayOverride, req.TakeoffsDay)
+	applyOverride(&flight.TakeoffsNight, &flight.TakeoffsNightOverride, req.TakeoffsNight)
+	applyOverride(&flight.NightTime, &flight.NightTimeOverride, req.NightTime)
+	applyOverride(&flight.CrossCountryTime, &flight.CrossCountryTimeOverride, req.CrossCountryTime)
 
 	// New fields
 	applyNullable(&flight.InstructorName, req.InstructorName)
 	applyNullable(&flight.InstructorComments, req.InstructorComments)
-	if req.SicTime != nil {
-		flight.SICTime = *req.SicTime
-		flight.SICTimeOverride = true
-	}
+	applyOverride(&flight.SICTime, &flight.SICTimeOverride, req.SicTime)
 	if req.DualGivenTime != nil {
 		flight.DualGivenTime = *req.DualGivenTime
 	}
@@ -488,10 +489,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	applyNullable(&flight.LaunchMethod, req.LaunchMethod)
 	// Phase 6c fields
 	applyNullable(&flight.PICName, req.PicName)
-	if req.MultiPilotTime != nil {
-		flight.MultiPilotTime = *req.MultiPilotTime
-		flight.MultiPilotTimeOverride = true
-	}
+	applyOverride(&flight.MultiPilotTime, &flight.MultiPilotTimeOverride, req.MultiPilotTime)
 	applyNullable(&flight.FSTDType, req.FstdType)
 	applyNullable(&flight.Endorsements, req.Endorsements)
 	if req.Approaches != nil {
@@ -651,6 +649,15 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		TakeoffsNight:    f.TakeoffsNight,
 		CreatedAt:        f.CreatedAt,
 		UpdatedAt:        f.UpdatedAt,
+
+		NightTimeOverride:        f.NightTimeOverride,
+		CrossCountryTimeOverride: f.CrossCountryTimeOverride,
+		TakeoffsDayOverride:      f.TakeoffsDayOverride,
+		TakeoffsNightOverride:    f.TakeoffsNightOverride,
+		LandingsDayOverride:      f.LandingsDayOverride,
+		LandingsNightOverride:    f.LandingsNightOverride,
+		SicTimeOverride:          f.SICTimeOverride,
+		MultiPilotTimeOverride:   f.MultiPilotTimeOverride,
 	}
 
 	if f.DepartureICAO != nil {

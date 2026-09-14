@@ -198,8 +198,11 @@ are **integer minutes**):
 - **Takeoffs/landings**: `LandingsDay`, `LandingsNight`, `AllLandings` (auto),
   `TakeoffsDay`, `TakeoffsNight` (auto from sunset/sunrise at departure).
 - **Auto-calculated**: `SoloTime`, `CrossCountryTime`, `Distance` (NM, from airport
-  coordinates). Each auto field has an `*Override` flag (not serialized) so a manual edit
-  is preserved against re-calculation.
+  coordinates). `NightTime`, `CrossCountryTime`, the takeoff/landing splits, `SICTime` and
+  `MultiPilotTime` each carry an `*Override` flag (`night_time_override` and
+  `cross_country_time_override` from migration 67) so a manual edit is preserved against
+  re-calculation. The flags are serialised in the backup payload and reported on every
+  flight response; see [DOMAIN.md](./DOMAIN.md#manual-overrides).
 - **Instrument/IPC**: `Holds`, `ApproachesCount`, `Approaches` (structured
   `ApproachEntry{Type, Airport, Runway}` per FAA §61.51(g)(3)), `IsIPC`,
   `IsFlightReview`, `IsProficiencyCheck`.

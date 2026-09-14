@@ -362,7 +362,12 @@ fleet list, an aircraft picker — must page until `pagination.page` reaches
 
 ### Flights
 CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
-(re-run auto-calculations respecting overrides). `aircraftReg` is normalised the same way
+(re-run auto-calculations respecting overrides). `nightTime`, `crossCountryTime`,
+`takeoffsDay`, `takeoffsNight`, `sicTime` and `multiPilotTime` are auto-calculated unless
+the request carries them: a number stores that value and sets the matching
+`*Override` flag, JSON `null` on `PUT` clears the flag so the server derives the value
+again, and an omitted field changes nothing. Every flight response reports the eight
+override flags. `aircraftReg` is normalised the same way
 as `registration` on create/update. `POST /flights/recalculate` also canonicalises the
 user's whole fleet first and reports the outcome as `aircraftNormalized` and
 `aircraftConflicts`. Flight responses include the read-only
