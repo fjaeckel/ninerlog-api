@@ -38,8 +38,8 @@ import (
 
 // roundTripSourceFlight is the flight every round trip starts from. It
 // deliberately exercises the fields that are easy to lose: block times, an
-// explicit day/night landing split, instrument time, an instructor, and a
-// registration/type pair.
+// explicit day/night landing split, night and cross-country time, instrument
+// time, an instructor, and a registration/type pair.
 func roundTripSourceFlight() *models.Flight {
 	dep, arr := "EDDF", "EDDM"
 	off, on := "08:15:00", "09:45:00"
@@ -62,7 +62,8 @@ func roundTripSourceFlight() *models.Flight {
 		LandingsDay:             2,
 		LandingsNight:           1,
 		AllLandings:             3,
-		NightTime:               0,
+		NightTime:               20,
+		CrossCountryTime:        60,
 		IFRTime:                 30,
 		ActualInstrumentTime:    18,
 		SimulatedInstrumentTime: 12,
@@ -188,6 +189,24 @@ func TestExportImportRoundTrip(t *testing.T) {
 
 					if got.Remarks == nil || !strings.Contains(*got.Remarks, "Round trip check") {
 						t.Errorf("remarks = %v, want them to survive", got.Remarks)
+					}
+
+					// Night and cross-country are the pilot's values: they must
+					// come back for the importer to store as overrides. Decimal
+					// cells round to 0.1h, so allow half a step.
+					if got.NightTime == nil {
+						t.Errorf("nightTime was not mapped from our own %s export", layout.name)
+					} else if diff := abs(*got.NightTime - src.NightTime); diff > 3 {
+						t.Errorf("nightTime = %d min, want %d ±3", *got.NightTime, src.NightTime)
+					}
+					// The EASA layout follows AMC1 FCL.050, which has no
+					// cross-country column, so only the other two carry it.
+					if layout.name != "easa" {
+						if got.CrossCountryTime == nil {
+							t.Errorf("crossCountryTime was not mapped from our own %s export", layout.name)
+						} else if diff := abs(*got.CrossCountryTime - src.CrossCountryTime); diff > 3 {
+							t.Errorf("crossCountryTime = %d min, want %d ±3", *got.CrossCountryTime, src.CrossCountryTime)
+						}
 					}
 				})
 			}

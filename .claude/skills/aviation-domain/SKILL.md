@@ -27,9 +27,11 @@ landings, solo time, cross-country time, great-circle distance, and normalises c
 IFR/FSTD/remarks via helpers in `internal/service/flightrules/`.
 
 Every auto-calculated takeoff/landing field has a companion `*Override` boolean (e.g.
-`LandingsDayOverride`), set when the pilot edits the value by hand. **Any code that recalculates
-— including `POST /flights/recalculate` — must respect the override flags** and not clobber
-manual entries.
+`LandingsDayOverride`), as do `SICTime`, `MultiPilotTime`, `NightTime` and `CrossCountryTime`;
+a flag is set when the pilot sends the value and cleared when `PUT` sends it as JSON `null`
+(`handlers.applyOverride`). **Any code that recalculates — including
+`POST /flights/recalculate` — must respect the override flags** and not clobber manual
+entries. The flags are serialised in the backup payload and reported on every flight response.
 
 Day/night classification uses `flightrules.IsNightAt(t, lat, lon)`, backed by sunrise/sunset
 from `pkg/solar` and airport coordinates from the in-memory `internal/airports` database (loaded

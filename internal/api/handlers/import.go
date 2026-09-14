@@ -676,6 +676,16 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			newFlight.InstructorComments = flight.InstructorComments
 		}
 		newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
+		// An imported night or cross-country value is stored as an override,
+		// capped at block time.
+		if flight.NightTime != nil {
+			newFlight.NightTime = min(*flight.NightTime, totalTime)
+			newFlight.NightTimeOverride = true
+		}
+		if flight.CrossCountryTime != nil {
+			newFlight.CrossCountryTime = min(*flight.CrossCountryTime, totalTime)
+			newFlight.CrossCountryTimeOverride = true
+		}
 		newFlight.FSTDType = flight.FstdType
 		newFlight.SimulatedFlightTime = getIntOrDefault(flight.SimulatedFlightTime, 0)
 
@@ -951,7 +961,17 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				dualReceivedVal = float64(mins)
 			}
 		case "nightTime":
-			// Auto-calculated from solar data; ignore imported value
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+				flight.NightTime = &mins
+			} else {
+				errs = append(errs, fieldError{"nightTime", fmt.Sprintf("Invalid duration '%s'", val)})
+			}
+		case "crossCountryTime":
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+				flight.CrossCountryTime = &mins
+			} else {
+				errs = append(errs, fieldError{"crossCountryTime", fmt.Sprintf("Invalid duration '%s'", val)})
+			}
 		case "ifrTime":
 			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
 				flight.IfrTime = &mins

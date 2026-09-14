@@ -926,6 +926,7 @@ const (
 	ImportFieldApproachesCount         ImportField = "approachesCount"
 	ImportFieldArrivalIcao             ImportField = "arrivalIcao"
 	ImportFieldArrivalTime             ImportField = "arrivalTime"
+	ImportFieldCrossCountryTime        ImportField = "crossCountryTime"
 	ImportFieldDate                    ImportField = "date"
 	ImportFieldDepartureIcao           ImportField = "departureIcao"
 	ImportFieldDepartureTime           ImportField = "departureTime"
@@ -971,6 +972,8 @@ func (e ImportField) Valid() bool {
 	case ImportFieldArrivalIcao:
 		return true
 	case ImportFieldArrivalTime:
+		return true
+	case ImportFieldCrossCountryTime:
 		return true
 	case ImportFieldDate:
 		return true
@@ -3865,10 +3868,15 @@ type Flight struct {
 	// CrewMembers People on board this flight with their roles
 	CrewMembers *[]FlightCrewMember `json:"crewMembers,omitempty"`
 
-	// CrossCountryTime Cross-country time in minutes. Auto-calculated when departure ≠ arrival.
+	// CrossCountryTime Cross-country time in minutes. Auto-calculated as the full block time when departure ≠ arrival unless crossCountryTimeOverride is true.
 	//
 	// Example: 150
 	CrossCountryTime int `json:"crossCountryTime"`
+
+	// CrossCountryTimeOverride True when crossCountryTime was entered by the pilot. Recalculation keeps the entered value. Send crossCountryTime: null on update to return to auto-calculation.
+	//
+	// Example: false
+	CrossCountryTimeOverride bool `json:"crossCountryTimeOverride"`
 
 	// Date Example: 2026-01-30
 	Date openapi_types.Date `json:"date"`
@@ -3997,10 +4005,20 @@ type Flight struct {
 	// Example: 3
 	LandingsDay int `json:"landingsDay"`
 
+	// LandingsDayOverride True when landingsDay was entered by the pilot rather than auto-calculated.
+	//
+	// Example: false
+	LandingsDayOverride bool `json:"landingsDayOverride"`
+
 	// LandingsNight Number of night landings. Auto-calculated from sunset/sunrise at arrival airport.
 	//
 	// Example: 1
 	LandingsNight int `json:"landingsNight"`
+
+	// LandingsNightOverride True when landingsNight was entered by the pilot rather than auto-calculated.
+	//
+	// Example: false
+	LandingsNightOverride bool `json:"landingsNightOverride"`
 
 	// LaunchMethod Launch method for glider/SPL flights (winch, aerotow, or self-launch)
 	//
@@ -4012,10 +4030,20 @@ type Flight struct {
 	// Example: 0
 	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
 
-	// NightTime Night block time in minutes. Auto-calculated from departure/arrival times and airport sunset/sunrise data.
+	// MultiPilotTimeOverride True when multiPilotTime was declared by the pilot rather than derived from the crew list.
+	//
+	// Example: false
+	MultiPilotTimeOverride bool `json:"multiPilotTimeOverride"`
+
+	// NightTime Night block time in minutes. Auto-calculated from the block times and civil twilight at the departure location unless nightTimeOverride is true.
 	//
 	// Example: 30
 	NightTime int `json:"nightTime"`
+
+	// NightTimeOverride True when nightTime was entered by the pilot. Recalculation keeps the entered value. Send nightTime: null on update to return to auto-calculation.
+	//
+	// Example: false
+	NightTimeOverride bool `json:"nightTimeOverride"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
 	//
@@ -4062,6 +4090,11 @@ type Flight struct {
 	// Example: 0
 	SicTime *int `json:"sicTime,omitempty"`
 
+	// SicTimeOverride True when sicTime was declared by the pilot rather than derived from the crew list.
+	//
+	// Example: false
+	SicTimeOverride bool `json:"sicTimeOverride"`
+
 	// SignatureId Present iff the flight is locked by a completed, non-voided
 	// instructor signature. Void the signature (see
 	// /flights/{flightId}/signatures/{signatureId}/void) to unlock it
@@ -4093,10 +4126,20 @@ type Flight struct {
 	// Example: 3
 	TakeoffsDay int `json:"takeoffsDay"`
 
+	// TakeoffsDayOverride True when takeoffsDay was entered by the pilot rather than auto-calculated.
+	//
+	// Example: false
+	TakeoffsDayOverride bool `json:"takeoffsDayOverride"`
+
 	// TakeoffsNight Number of night takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
 	//
 	// Example: 1
 	TakeoffsNight int `json:"takeoffsNight"`
+
+	// TakeoffsNightOverride True when takeoffsNight was entered by the pilot rather than auto-calculated.
+	//
+	// Example: false
+	TakeoffsNightOverride bool `json:"takeoffsNightOverride"`
 
 	// TotalTime Total block time in minutes (off-block to on-block)
 	//
@@ -4298,7 +4341,7 @@ type FlightCreate struct {
 	// CrewMembers People on board this flight
 	CrewMembers *[]FlightCrewMemberInput `json:"crewMembers,omitempty"`
 
-	// CrossCountryTime Cross-country time in minutes. Auto-calculated by the server.
+	// CrossCountryTime Cross-country time in minutes. Provide to override auto-calculation (full block time when departure ≠ arrival); omit to auto-calculate. Cannot exceed total time.
 	CrossCountryTime *int `json:"crossCountryTime,omitempty"`
 
 	// Date Example: 2026-01-30
@@ -4353,6 +4396,9 @@ type FlightCreate struct {
 
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
 	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
+
+	// NightTime Night time in minutes. Provide to override auto-calculation from civil twilight; omit to auto-calculate. Cannot exceed total time.
+	NightTime *int `json:"nightTime,omitempty"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Required for a flight, rejected for an FSTD session.
 	//
@@ -4609,9 +4655,12 @@ type FlightUpdate struct {
 	ArrivalTime nullable.Nullable[string] `json:"arrivalTime,omitempty"`
 
 	// CrewMembers People on board this flight
-	CrewMembers   *[]FlightCrewMemberInput  `json:"crewMembers,omitempty"`
-	Date          *openapi_types.Date       `json:"date,omitempty"`
-	DepartureIcao nullable.Nullable[string] `json:"departureIcao,omitempty"`
+	CrewMembers *[]FlightCrewMemberInput `json:"crewMembers,omitempty"`
+
+	// CrossCountryTime Cross-country time in minutes. A number overrides auto-calculation; null returns the field to auto-calculation. Cannot exceed total time.
+	CrossCountryTime nullable.Nullable[int]    `json:"crossCountryTime,omitempty"`
+	Date             *openapi_types.Date       `json:"date,omitempty"`
+	DepartureIcao    nullable.Nullable[string] `json:"departureIcao,omitempty"`
 
 	// DepartureTime Takeoff time in UTC
 	DepartureTime nullable.Nullable[string] `json:"departureTime,omitempty"`
@@ -4641,8 +4690,11 @@ type FlightUpdate struct {
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod nullable.Nullable[string] `json:"launchMethod,omitempty"`
 
-	// MultiPilotTime Multi-pilot time in minutes
-	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
+	// MultiPilotTime Multi-pilot time in minutes. A number declares the time; null returns the field to derivation from the crew list and aircraft.
+	MultiPilotTime nullable.Nullable[int] `json:"multiPilotTime,omitempty"`
+
+	// NightTime Night time in minutes. A number overrides auto-calculation; null returns the field to auto-calculation. Cannot exceed total time.
+	NightTime nullable.Nullable[int] `json:"nightTime,omitempty"`
 
 	// OffBlockTime Off-block time (chocks off / engine start) in UTC
 	OffBlockTime nullable.Nullable[string] `json:"offBlockTime,omitempty"`
@@ -4661,20 +4713,22 @@ type FlightUpdate struct {
 	Remarks    nullable.Nullable[string] `json:"remarks,omitempty"`
 
 	// Route Route waypoints as comma-separated ICAO codes
-	Route                   nullable.Nullable[string] `json:"route,omitempty"`
-	SicTime                 *int                      `json:"sicTime,omitempty"`
-	SimulatedFlightTime     *int                      `json:"simulatedFlightTime,omitempty"`
-	SimulatedInstrumentTime *int                      `json:"simulatedInstrumentTime,omitempty"`
+	Route nullable.Nullable[string] `json:"route,omitempty"`
+
+	// SicTime Co-pilot time in minutes. A number declares the time; null returns the field to derivation from the crew list.
+	SicTime                 nullable.Nullable[int] `json:"sicTime,omitempty"`
+	SimulatedFlightTime     *int                   `json:"simulatedFlightTime,omitempty"`
+	SimulatedInstrumentTime *int                   `json:"simulatedInstrumentTime,omitempty"`
 
 	// SpicTime Student pilot-in-command time in minutes. Carved out of the derived function time.
 	SpicTime *int `json:"spicTime,omitempty"`
 
-	// TakeoffsDay Number of day takeoffs. Provide to override auto-calculation.
-	TakeoffsDay *int `json:"takeoffsDay,omitempty"`
+	// TakeoffsDay Number of day takeoffs. A number overrides auto-calculation; null returns the field to auto-calculation.
+	TakeoffsDay nullable.Nullable[int] `json:"takeoffsDay,omitempty"`
 
-	// TakeoffsNight Number of night takeoffs. Provide to override auto-calculation.
-	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
-	TotalTime     *int `json:"totalTime,omitempty"`
+	// TakeoffsNight Number of night takeoffs. A number overrides auto-calculation; null returns the field to auto-calculation.
+	TakeoffsNight nullable.Nullable[int] `json:"takeoffsNight,omitempty"`
+	TotalTime     *int                   `json:"totalTime,omitempty"`
 }
 
 // ImportColumnMapping defines model for ImportColumnMapping.
@@ -4690,6 +4744,10 @@ type ImportColumnMapping struct {
 	SourceColumn string `json:"sourceColumn"`
 
 	// TargetField Target flight log field for column mapping.
+	//
+	// A `nightTime` or `crossCountryTime` column is stored as the pilot's
+	// own value with the matching override flag set (capped at block time)
+	// instead of being re-derived.
 	//
 	// Landings can be mapped either as a day/night split (`landingsDay` +
 	// `landingsNight`, which are summed) or as a single `landingsTotal`
@@ -4737,6 +4795,10 @@ type ImportConfirmRequest struct {
 }
 
 // ImportField Target flight log field for column mapping.
+//
+// A `nightTime` or `crossCountryTime` column is stored as the pilot's
+// own value with the matching override flag set (capped at block time)
+// instead of being re-derived.
 //
 // Landings can be mapped either as a day/night split (`landingsDay` +
 // `landingsNight`, which are summed) or as a single `landingsTotal`

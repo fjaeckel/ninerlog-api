@@ -214,7 +214,8 @@ have to compute them by hand. The entry point is
 - **Total landings** — `AllLandings = LandingsDay + LandingsNight`.
 - **Solo time** — derived when the flight is neither dual nor flown as PIC with other
   crew.
-- **Cross-country time** — derived when departure ≠ arrival airport.
+- **Cross-country time** — derived as the whole block time when departure ≠ arrival
+  airport; see [Manual overrides](#manual-overrides) for why a pilot may replace it.
 - **Distance** — great-circle distance (nautical miles) from airport coordinates in the
   in-memory airport database (`internal/airports`).
 - **Pilot role** — `flightrules.DetermineRole(flight, userName, aircraft)` resolves the
@@ -230,11 +231,29 @@ have to compute them by hand. The entry point is
 ### Manual overrides
 
 Every auto-calculated takeoff/landing field has an `*Override` boolean (e.g.
-`LandingsDayOverride`), as do `SICTime` and `MultiPilotTime`. When a pilot edits the value
-manually, the override flag is set so recalculation does not clobber the manual entry. The
-`POST /flights/recalculate` endpoint re-runs auto-calculations across a pilot's flights
-while respecting overrides. The flags are not serialised: the handlers set them when the
-request carries the corresponding field.
+`LandingsDayOverride`), as do `SICTime`, `MultiPilotTime`, `NightTime` and
+`CrossCountryTime`. When a pilot edits the value manually, the override flag is set so
+recalculation does not clobber the manual entry. The `POST /flights/recalculate` endpoint
+re-runs auto-calculations across a pilot's flights while respecting overrides.
+
+The handlers set a flag when the request carries the corresponding field with a number,
+and clear it when `PUT /flights/{id}` carries the field as JSON `null` — the next
+calculation then rewrites the value. An omitted field leaves both value and flag alone.
+Each flight response reports every flag (`nightTimeOverride`, `crossCountryTimeOverride`,
+`takeoffsDayOverride`, `takeoffsNightOverride`, `landingsDayOverride`,
+`landingsNightOverride`, `sicTimeOverride`, `multiPilotTimeOverride`) so a client can show
+which values are the pilot's and offer a way back to the derived one. The flags travel in
+the JSON export and cloud backup and are restored by `POST /imports/json`.
+
+Night time and cross-country time carry overrides because no derivation matches every
+rulebook: night is derived from civil twilight at the departure location over block time,
+and cross-country as the whole block time when departure ≠ arrival. FAA 14 CFR 61.1(b)
+counts cross-country only with a landing more than 50 NM from departure (no landing needed
+for ATP experience); EASA FCL.010 counts any pre-planned route flown with navigation,
+including one returning to the departure aerodrome. A value the pilot enters is bounded by
+`TotalTime` (`ErrInvalidNightTime`, `ErrInvalidCrossCountryTime`). A night or cross-country
+column in a CSV import is taken as the pilot's record and stored as an override, capped at
+block time.
 
 ## Flight validation
 

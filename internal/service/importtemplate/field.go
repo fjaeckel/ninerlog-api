@@ -30,6 +30,7 @@ const (
 
 	FieldTotalTime               Field = "totalTime"
 	FieldNightTime               Field = "nightTime"
+	FieldCrossCountryTime        Field = "crossCountryTime"
 	FieldIFRTime                 Field = "ifrTime"
 	FieldActualInstrumentTime    Field = "actualInstrumentTime"
 	FieldSimulatedInstrumentTime Field = "simulatedInstrumentTime"

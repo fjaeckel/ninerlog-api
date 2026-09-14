@@ -6474,6 +6474,14 @@ components:
         - allLandings
         - takeoffsDay
         - takeoffsNight
+        - nightTimeOverride
+        - crossCountryTimeOverride
+        - takeoffsDayOverride
+        - takeoffsNightOverride
+        - landingsDayOverride
+        - landingsNightOverride
+        - sicTimeOverride
+        - multiPilotTimeOverride
         - createdAt
         - updatedAt
       properties:
@@ -6564,7 +6572,17 @@ components:
           type: integer
           minimum: 0
           example: 30
-          description: Night block time in minutes. Auto-calculated from departure/arrival times and airport sunset/sunrise data.
+          description: >-
+            Night block time in minutes. Auto-calculated from the block times and
+            civil twilight at the departure location unless nightTimeOverride is
+            true.
+        nightTimeOverride:
+          type: boolean
+          example: false
+          description: >-
+            True when nightTime was entered by the pilot. Recalculation keeps the
+            entered value. Send nightTime: null on update to return to
+            auto-calculation.
         ifrTime:
           type: integer
           minimum: 0
@@ -6608,7 +6626,40 @@ components:
           type: integer
           minimum: 0
           example: 150
-          description: Cross-country time in minutes. Auto-calculated when departure ≠ arrival.
+          description: >-
+            Cross-country time in minutes. Auto-calculated as the full block time
+            when departure ≠ arrival unless crossCountryTimeOverride is true.
+        crossCountryTimeOverride:
+          type: boolean
+          example: false
+          description: >-
+            True when crossCountryTime was entered by the pilot. Recalculation
+            keeps the entered value. Send crossCountryTime: null on update to
+            return to auto-calculation.
+        takeoffsDayOverride:
+          type: boolean
+          example: false
+          description: True when takeoffsDay was entered by the pilot rather than auto-calculated.
+        takeoffsNightOverride:
+          type: boolean
+          example: false
+          description: True when takeoffsNight was entered by the pilot rather than auto-calculated.
+        landingsDayOverride:
+          type: boolean
+          example: false
+          description: True when landingsDay was entered by the pilot rather than auto-calculated.
+        landingsNightOverride:
+          type: boolean
+          example: false
+          description: True when landingsNight was entered by the pilot rather than auto-calculated.
+        sicTimeOverride:
+          type: boolean
+          example: false
+          description: True when sicTime was declared by the pilot rather than derived from the crew list.
+        multiPilotTimeOverride:
+          type: boolean
+          example: false
+          description: True when multiPilotTime was declared by the pilot rather than derived from the crew list.
         distance:
           type: number
           format: float
@@ -6880,11 +6931,19 @@ components:
           minimum: 0
           readOnly: true
           description: Solo time in minutes. Auto-calculated by the server.
+        nightTime:
+          type: integer
+          minimum: 0
+          description: >-
+            Night time in minutes. Provide to override auto-calculation from
+            civil twilight; omit to auto-calculate. Cannot exceed total time.
         crossCountryTime:
           type: integer
           minimum: 0
-          readOnly: true
-          description: Cross-country time in minutes. Auto-calculated by the server.
+          description: >-
+            Cross-country time in minutes. Provide to override auto-calculation
+            (full block time when departure ≠ arrival); omit to auto-calculate.
+            Cannot exceed total time.
         distance:
           type: number
           format: float
@@ -7046,13 +7105,37 @@ components:
           minimum: 0
           description: Total number of landings
         takeoffsDay:
-          type: integer
+          type: [integer, 'null']
           minimum: 0
-          description: Number of day takeoffs. Provide to override auto-calculation.
+          description: Number of day takeoffs. A number overrides auto-calculation; null returns the field to auto-calculation.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         takeoffsNight:
-          type: integer
+          type: [integer, 'null']
           minimum: 0
-          description: Number of night takeoffs. Provide to override auto-calculation.
+          description: Number of night takeoffs. A number overrides auto-calculation; null returns the field to auto-calculation.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        nightTime:
+          type: [integer, 'null']
+          minimum: 0
+          description: Night time in minutes. A number overrides auto-calculation; null returns the field to auto-calculation. Cannot exceed total time.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        crossCountryTime:
+          type: [integer, 'null']
+          minimum: 0
+          description: Cross-country time in minutes. A number overrides auto-calculation; null returns the field to auto-calculation. Cannot exceed total time.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         route:
           type: [string, 'null']
           maxLength: 500
@@ -7082,8 +7165,13 @@ components:
             path: github.com/oapi-codegen/nullable
           x-go-type-skip-optional-pointer: true
         sicTime:
-          type: integer
+          type: [integer, 'null']
           minimum: 0
+          description: Co-pilot time in minutes. A number declares the time; null returns the field to derivation from the crew list.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         dualGivenTime:
           type: integer
           minimum: 0
@@ -7142,9 +7230,13 @@ components:
             path: github.com/oapi-codegen/nullable
           x-go-type-skip-optional-pointer: true
         multiPilotTime:
-          type: integer
+          type: [integer, 'null']
           minimum: 0
-          description: Multi-pilot time in minutes
+          description: Multi-pilot time in minutes. A number declares the time; null returns the field to derivation from the crew list and aircraft.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         isSimulator:
           type: boolean
           description: Switches the entry between flight and FSTD session. Changing it clears the columns that do not apply to the new kind.
@@ -8871,6 +8963,7 @@ components:
         - isPic
         - isDual
         - nightTime
+        - crossCountryTime
         - ifrTime
         - landingsDay
         - landingsNight
@@ -8895,6 +8988,10 @@ components:
         - ignore
       description: |
         Target flight log field for column mapping.
+
+        A `nightTime` or `crossCountryTime` column is stored as the pilot's
+        own value with the matching override flag set (capped at block time)
+        instead of being re-derived.
 
         Landings can be mapped either as a day/night split (`landingsDay` +
         `landingsNight`, which are summed) or as a single `landingsTotal`

@@ -266,7 +266,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   exist to absorb format differences: a `landingsTotal` column is reconciled against the
   day/night split by taking the larger (so touch-and-goes counted only in a total column
   survive), and departure/arrival are derived from the first and last waypoint of the
-  route when the source has no separate airport columns, as MyFlightbook does.
+  route when the source has no separate airport columns, as MyFlightbook does. A night or
+  cross-country column is imported as the pilot's own value and stored with its override
+  flag set (capped at block time), so a logbook brought from another product keeps the
+  night and cross-country hours it was signed with instead of having them re-derived.
 
   Adding a logbook means adding a `Template` in `importtemplate/sources.go`, the matching
   `ImportFormat` member in `api-spec/openapi.yaml`, and the value in the `import_format`

@@ -1214,3 +1214,62 @@ func TestHaversine_Poles(t *testing.T) {
 		t.Errorf("Pole-to-pole distance = %.1f, want ~10800 NM", dist)
 	}
 }
+
+func TestApplyAutoCalculations_NightAndCrossCountryOverridesRespected(t *testing.T) {
+	setupAirportData(t)
+	// Summer midday EDDF→EDDH: derivation yields night 0, cross-country 120.
+	base := func() *models.Flight {
+		return &models.Flight{
+			Date:          time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC),
+			AircraftReg:   "D-EFGH",
+			AircraftType:  "C172",
+			DepartureICAO: strPtr("EDDF"),
+			ArrivalICAO:   strPtr("EDDH"),
+			OffBlockTime:  strPtr("10:00:00"),
+			OnBlockTime:   strPtr("12:00:00"),
+			TotalTime:     120,
+			IsPIC:         true,
+			PICTime:       120,
+		}
+	}
+
+	derived := base()
+	ApplyAutoCalculations(derived, "", nil)
+	if derived.NightTime != 0 || derived.CrossCountryTime != 120 {
+		t.Fatalf("derived night=%d xc=%d, want 0/120", derived.NightTime, derived.CrossCountryTime)
+	}
+	if derived.NightTimeOverride || derived.CrossCountryTimeOverride {
+		t.Errorf("derivation must not set override flags")
+	}
+
+	overridden := base()
+	overridden.NightTime = 45
+	overridden.NightTimeOverride = true
+	overridden.CrossCountryTime = 30
+	overridden.CrossCountryTimeOverride = true
+	ApplyAutoCalculations(overridden, "", nil)
+	if overridden.NightTime != 45 {
+		t.Errorf("NightTime = %d, want 45 (overridden)", overridden.NightTime)
+	}
+	if overridden.CrossCountryTime != 30 {
+		t.Errorf("CrossCountryTime = %d, want 30 (overridden)", overridden.CrossCountryTime)
+	}
+
+	// Cleared flags return the fields to derivation on the next run.
+	overridden.NightTimeOverride = false
+	overridden.CrossCountryTimeOverride = false
+	ApplyAutoCalculations(overridden, "", nil)
+	if overridden.NightTime != 0 || overridden.CrossCountryTime != 120 {
+		t.Errorf("after clearing flags night=%d xc=%d, want 0/120", overridden.NightTime, overridden.CrossCountryTime)
+	}
+
+	// Local flight with a cross-country override: kept, not zeroed.
+	local := base()
+	local.ArrivalICAO = strPtr("EDDF")
+	local.CrossCountryTime = 90
+	local.CrossCountryTimeOverride = true
+	ApplyAutoCalculations(local, "", nil)
+	if local.CrossCountryTime != 90 {
+		t.Errorf("local CrossCountryTime = %d, want 90 (overridden)", local.CrossCountryTime)
+	}
+}

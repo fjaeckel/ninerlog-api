@@ -64,13 +64,16 @@ type Flight struct {
 	CrossCountryTime int     `json:"crossCountryTime"` // Auto-calculated when departure ≠ arrival
 	Distance         float64 `json:"distance"`         // Auto-calculated from airport coordinates (NM)
 
-	// Manual override flags
-	TakeoffsDayOverride    bool `json:"-"` // When true, takeoffsDay is not auto-calculated
-	TakeoffsNightOverride  bool `json:"-"` // When true, takeoffsNight is not auto-calculated
-	LandingsDayOverride    bool `json:"-"` // When true, landingsDay is not auto-calculated
-	LandingsNightOverride  bool `json:"-"` // When true, landingsNight is not auto-calculated
-	SICTimeOverride        bool `json:"-"` // When true, sicTime was declared by the pilot rather than derived
-	MultiPilotTimeOverride bool `json:"-"` // When true, multiPilotTime was declared by the pilot rather than derived
+	// Manual override flags: when true, the field is not auto-calculated.
+	// Serialised so a backup restores them.
+	TakeoffsDayOverride      bool `json:"takeoffsDayOverride,omitempty"`
+	TakeoffsNightOverride    bool `json:"takeoffsNightOverride,omitempty"`
+	LandingsDayOverride      bool `json:"landingsDayOverride,omitempty"`
+	LandingsNightOverride    bool `json:"landingsNightOverride,omitempty"`
+	SICTimeOverride          bool `json:"sicTimeOverride,omitempty"`
+	MultiPilotTimeOverride   bool `json:"multiPilotTimeOverride,omitempty"`
+	NightTimeOverride        bool `json:"nightTimeOverride,omitempty"`
+	CrossCountryTimeOverride bool `json:"crossCountryTimeOverride,omitempty"`
 
 	// Instructor & comments
 	InstructorName     *string `json:"instructorName,omitempty"`
@@ -172,7 +175,7 @@ func (f *Flight) ValidateTimeDistribution() error {
 	}
 
 	// All times must be non-negative
-	if f.TotalTime < 0 || f.NightTime < 0 || f.IFRTime < 0 ||
+	if f.TotalTime < 0 || f.NightTime < 0 || f.IFRTime < 0 || f.CrossCountryTime < 0 ||
 		f.PICTime < 0 || f.DualTime < 0 || f.SICTime < 0 || f.DualGivenTime < 0 ||
 		f.PICUSTime < 0 || f.SPICTime < 0 || f.ExaminerTime < 0 || f.ReliefTime < 0 {
 		return ErrNegativeTime
@@ -186,6 +189,11 @@ func (f *Flight) ValidateTimeDistribution() error {
 	// IFR time should not exceed total time
 	if f.IFRTime > f.TotalTime {
 		return ErrInvalidIFRTime
+	}
+
+	// Cross-country time should not exceed total time
+	if f.CrossCountryTime > f.TotalTime {
+		return ErrInvalidCrossCountryTime
 	}
 
 	// Pilot function time decomposes total time
