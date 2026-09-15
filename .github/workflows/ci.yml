@@ -57,6 +57,51 @@ jobs:
       - name: Check registered routes against the OpenAPI spec
         run: python3 scripts/check-routes.py
 
+  licenses:
+    name: Licence Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.0'
+          cache: true
+
+      # A file copied out of the repository carries no licence unless the file
+      # itself does.
+      - name: Check every Go file carries the licence header
+        run: python3 scripts/check-license-headers.py
+
+      # The binary is AGPL-3.0-only; a dependency under an incompatible licence
+      # cannot be distributed with it.
+      - name: Check dependency licences against the allow-list
+        run: ./scripts/check-dependency-licenses.sh
+
+  dco:
+    name: DCO Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Every contribution is certified under the Developer Certificate of
+      # Origin and licensed AGPL-3.0-only (see DCO and CONTRIBUTING.md).
+      - name: Check every commit is signed off
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: ./scripts/check-dco.sh "${BASE_SHA}..${HEAD_SHA}"
+
   generated:
     name: Generated Code Check
     runs-on: ubuntu-latest
@@ -140,7 +185,7 @@ jobs:
 
   publish:
     name: Publish Docker Image
-    needs: [migrations, generated, unit-tests, integration-tests]
+    needs: [migrations, licenses, generated, unit-tests, integration-tests]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 20

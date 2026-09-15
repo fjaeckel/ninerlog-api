@@ -1,4 +1,4 @@
-.PHONY: help generate test test-short test-integration test-e2e verify-multi-replica coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check route-check prefix-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
+.PHONY: help generate test test-short test-integration test-e2e verify-multi-replica coverage lint fmt build run bench test-perf test-perf-seed profile profile-pprof profile-explain migrate-check dashboard-check route-check prefix-check license-check license-headers dco-check migrate-up migrate-down migrate-create sqlc-generate docker-up docker-down clean
 
 # Default target
 .DEFAULT_GOAL := help
@@ -10,6 +10,8 @@ COVERAGE_FILE=coverage.out
 COVERAGE_HTML=coverage.html
 # Upstream list for `make prefix-check`; see docs/AIRCRAFT_REGISTRATIONS.md.
 SOURCE?=https://en.wikipedia.org/w/index.php?title=List_of_aircraft_registration_prefixes&action=raw
+# Base ref for `make dco-check`.
+BASE?=origin/main
 
 help: ## Show this help message
 	@echo "NinerLog API - Available commands:"
@@ -116,6 +118,16 @@ route-check: ## Verify every registered route is in the OpenAPI spec and under /
 
 prefix-check: ## Compare the vendored aircraft nationality mark table against upstream (override with SOURCE=<url>)
 	@python3 scripts/check-registration-prefixes.py --url "$(SOURCE)"
+
+license-check: ## Verify Go source headers and that every dependency licence is AGPL-3.0 compatible
+	@python3 scripts/check-license-headers.py
+	@./scripts/check-dependency-licenses.sh
+
+license-headers: ## Insert the licence header into Go files that lack it
+	@python3 scripts/check-license-headers.py --fix
+
+dco-check: ## Verify every commit since BASE (default origin/main) carries a Signed-off-by trailer
+	@./scripts/check-dco.sh "$(BASE)..HEAD"
 
 migrate-up: ## Apply database migrations
 	@echo "Running database migrations..."

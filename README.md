@@ -135,6 +135,7 @@ Full developer documentation lives in [`docs/`](docs/README.md). Start with the
 - [Authentication](docs/AUTHENTICATION.md) — tokens, 2FA, WebAuthn
 - [OIDC Single Sign-On](docs/OIDC.md) — optional external identity provider
 - [Metrics](docs/METRICS.md) · [Performance](docs/PERFORMANCE.md) · [Running Tests](docs/RUNNING_TESTS.md)
+- [Licensing](docs/LICENSING.md) — AGPL obligations, dependency policy, source headers, contribution terms
 - [API Specification](api-spec/openapi.yaml) — OpenAPI 3.1 spec (source of truth)
 
 ## Running NinerLog
@@ -159,4 +160,15 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-This project is licensed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
+NinerLog API is free software under the [GNU Affero General Public License v3.0](LICENSE)
+(`AGPL-3.0-only`). You may run, study, modify and redistribute it. A modified version,
+including one you only run as a service, must be released under the same licence and
+must offer its users its source: every deployment reports its version, licence and
+source location at `GET /api/v1/about`, and an operator running modified code sets
+`SOURCE_URL` to where that code is published.
+
+Contributions are accepted under the same licence with a [DCO](DCO) sign-off
+(`git commit -s`); there is no contributor licence agreement and no copyright assignment,
+so the project cannot be relicensed without every contributor's agreement. Dependency
+licences, source headers and the checks that enforce all of this are described in
+[docs/LICENSING.md](docs/LICENSING.md).

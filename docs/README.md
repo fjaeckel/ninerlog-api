@@ -27,6 +27,7 @@ Developer documentation for the NinerLog API backend. Start with the
 | [METRICS.md](./METRICS.md) | Prometheus metrics and observability |
 | [PERFORMANCE.md](./PERFORMANCE.md) | Performance budgets, benchmarks, profiling |
 | [RUNNING_TESTS.md](./RUNNING_TESTS.md) | Running unit/integration/e2e tests |
+| [LICENSING.md](./LICENSING.md) | AGPL-3.0 obligations, the dependency licence allow-list, source headers, contribution terms (DCO) |
 
 ## Keeping docs accurate
 

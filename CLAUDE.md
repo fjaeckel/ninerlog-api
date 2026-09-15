@@ -98,6 +98,12 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
    write-ups, exploit fixtures, or commit/PR text describing an unfixed weakness. Write them to
    the gitignored `security-audits/` and report privately (`SECURITY.md`, or a GitHub Security
    Advisory). Fixes get pushed; findings do not. See `.claude/skills/security-audit/SKILL.md`.
+11. **The project is AGPL-3.0-only and stays that way.** Every new Go file starts with the
+   two-line licence header (`make license-headers`), every dependency must be on the
+   allow-list in `scripts/check-dependency-licenses.sh` (`make license-check`), and every
+   commit is signed off under the DCO (`git commit -s`; CI rejects unsigned commits). Never
+   add a licence exception, weaken a licence check, or change `LICENSE` — see
+   `docs/LICENSING.md`.
 
 ## Delegation
 

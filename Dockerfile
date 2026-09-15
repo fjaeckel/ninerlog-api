@@ -13,6 +13,9 @@ RUN go mod download
 # Copy source code (includes pre-generated types in internal/api/generated/)
 COPY . .
 
+# Verify dependency licences and export their notices for the runtime image.
+RUN ./scripts/check-dependency-licenses.sh --save /build/third_party/licenses
+
 # Build the application (TARGETARCH is set automatically by Docker Buildx).
 # VERSION is stamped into the binary and reported by /admin/update and app_info.
 ARG TARGETARCH
@@ -40,6 +43,10 @@ COPY --from=builder /build/ninerlog-api /app/ninerlog-api
 
 # Copy migrations (if they exist)
 COPY --from=builder /build/db/migrations /app/db/migrations
+
+# Licence of this program and the notices of every dependency linked into it
+COPY --from=builder /build/LICENSE /app/LICENSE
+COPY --from=builder /build/third_party/licenses /app/licenses
 
 # Change ownership
 RUN chown -R appuser:appuser /app
