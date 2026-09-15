@@ -76,6 +76,9 @@ Topic-specific deep dives already in this repo:
 - **[METRICS.md](./METRICS.md)** — Prometheus metrics and observability.
 - **[PERFORMANCE.md](./PERFORMANCE.md)** — performance budgets, benchmarks, profiling.
 - **[RUNNING_TESTS.md](./RUNNING_TESTS.md)** — how to run unit/integration/e2e tests.
+- **[LICENSING.md](./LICENSING.md)** — the AGPL-3.0-only licence and what it asks of
+  operators, the dependency licence allow-list, source file headers, and the DCO
+  contribution terms.
 
 ## Core concepts and how they relate
 

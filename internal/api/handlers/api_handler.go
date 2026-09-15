@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package handlers
 
 import (
@@ -62,6 +65,9 @@ type APIHandler struct {
 	// updateChecker is nil until wired in cmd/api/main.go; GET /admin/update
 	// then reports the check as disabled.
 	updateChecker *updatecheck.Checker
+	// sourceURL is the source offer reported by GET /about (SOURCE_URL);
+	// empty means DefaultSourceURL.
+	sourceURL string
 	// customCurrencyService is wired in cmd/api/main.go via
 	// SetCustomCurrencyService.
 	customCurrencyService *currency.CustomService

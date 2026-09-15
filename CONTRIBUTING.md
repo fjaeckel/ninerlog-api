@@ -167,6 +167,7 @@ Before committing, **all** of these must pass:
 ```bash
 make lint              # golangci-lint
 make fmt               # go fmt
+make license-check     # Licence headers and dependency licences
 go test ./...          # Unit tests
 bash scripts/run-e2e-tests.sh   # E2E tests
 ```
@@ -195,14 +196,36 @@ docs(api): update OpenAPI spec for export endpoint
 | `chore` | Maintenance tasks |
 | `perf` | Performance improvement |
 
+## Licensing of Contributions
+
+NinerLog API is licensed under the GNU Affero General Public License v3.0
+(`AGPL-3.0-only`, see [LICENSE](LICENSE)). Contributions are accepted on
+**inbound = outbound** terms:
+
+- By submitting a change you license it under `AGPL-3.0-only`, the same licence
+  as the project. There is no contributor licence agreement and no copyright
+  assignment; you keep the copyright in what you write.
+- Every commit certifies the [Developer Certificate of Origin](DCO) with a
+  `Signed-off-by` trailer whose email matches the author. Use `git commit -s`,
+  or `git rebase --signoff origin/main` to repair a branch. CI rejects a pull
+  request with an unsigned commit (`make dco-check` runs the same check locally).
+- Every new Go file starts with the two-line licence header
+  (`make license-headers` inserts it), and every dependency you add must carry
+  a licence on the allow-list in `scripts/check-dependency-licenses.sh`
+  (`make license-check`).
+
+The full policy, including what an operator running modified code owes under
+section 13 of the AGPL, is in [docs/LICENSING.md](docs/LICENSING.md).
+
 ## Pull Request Process
 
 1. Branch from `main` using `feature/`, `fix/`, or `docs/` prefix
 2. Ensure all tests pass (`make test-all`)
-3. Ensure linting passes (`make lint`)
+3. Ensure linting and the licence checks pass (`make lint`, `make license-check`)
 4. Update the OpenAPI spec if the API surface changed
-5. Open a PR with a clear title following conventional commits
-6. Address review feedback
+5. Sign off every commit (`git commit -s`)
+6. Open a PR with a clear title following conventional commits
+7. Address review feedback
 
 ## Security
 

@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package flightrules is the single source of truth for "who/what counts
 // as PIC, Dual, FI, Night, IFR, MP/SP …" across the codebase.
 //

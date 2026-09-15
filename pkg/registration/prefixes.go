@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package registration
 
 // Nationality mark table, vendored from ICAO's published marks.

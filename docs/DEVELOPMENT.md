@@ -42,6 +42,9 @@ check `GET /health`.
 | `make bench` | Go benchmarks |
 | `make test-perf` / `make test-perf-seed` | k6 performance tests / seed data |
 | `make profile` / `profile-pprof` / `profile-explain` | Profiling (pprof + `EXPLAIN ANALYZE`) |
+| `make license-check` | Licence header on every Go file, and every dependency licence on the allow-list (`scripts/check-dependency-licenses.sh`) |
+| `make license-headers` | Insert the licence header into Go files that lack it |
+| `make dco-check` (`BASE=origin/main`) | Every commit since `BASE` carries a `Signed-off-by` trailer |
 | `make migrate-up` / `migrate-down` | Apply / roll back migrations manually |
 | `make migrate-create NAME=...` | Scaffold a new migration pair |
 | `make docker-up` / `docker-down` / `docker-logs` | Manage the local Docker stack |
@@ -88,8 +91,10 @@ Before committing or pushing:
 
 1. `make fmt`
 2. `make lint`
-3. `make test` (unit) — must be green
-4. `make test-e2e` (e2e) — must be green
+3. `make license-check`
+4. `make test` (unit) — must be green
+5. `make test-e2e` (e2e) — must be green
+6. Every commit signed off (`git commit -s`; `make dco-check` verifies the branch)
 
 Do not push with failing tests. If you discover a regression, **document it as a GitHub
 issue** rather than working around it in tests.
@@ -127,8 +132,10 @@ See [PACKAGES.md](./PACKAGES.md) for a package-by-package reference.
 
 GitHub Actions workflows live in `.github/workflows/`:
 
-- **ci.yml** — migration, dashboard, route and generated-code checks, unit tests, integration
-  tests on push/PR, and the Docker image publish on push to `main` and on tags.
+- **ci.yml** — migration, dashboard, route, licence and generated-code checks, unit tests,
+  integration tests on push/PR, the DCO sign-off check on PRs, and the Docker image publish
+  on push to `main` and on tags. The image build also exports every dependency's licence
+  notice into `/app/licenses/` (see [LICENSING.md](./LICENSING.md)).
 - **e2e.yml** — manual end-to-end suite against the Docker stack.
 - **generate-server.yml** — manual/dispatch-only. Regenerates server types and opens a pull
   request; it never pushes to `main`.

@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package logging configures application-wide structured logging.
 //
 // All log output is JSON on stdout via log/slog. Setup installs the

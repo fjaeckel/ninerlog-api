@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package webdav implements the cloud backup provider contract against any
 // RFC 4918 compliant WebDAV server (Nextcloud, ownCloud, mailbox.org, Box,
 // Apache mod_dav, …) using the studio-b12/gowebdav client.

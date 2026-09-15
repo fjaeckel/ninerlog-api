@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package cryptoutil provides symmetric encryption for per-user secrets at
 // rest: AES-256-GCM with a 96-bit random nonce, ciphertext and nonce returned
 // as separate byte slices, 32-byte keys decoded from base64.

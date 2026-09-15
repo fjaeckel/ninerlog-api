@@ -1782,6 +1782,39 @@ func (e UpdateCurrentUserJSONBodyTimeDisplayFormat) Valid() bool {
 	}
 }
 
+// About Identity of the running server: its version, the licence it is distributed under, and where its corresponding source can be obtained.
+type About struct {
+	// Commit Commit this binary was built from. Absent when unknown.
+	//
+	// Example: 4f2c1ab9d3e5c6178b0a2d4e6f8091a2b3c4d5e6
+	Commit *string `json:"commit,omitempty"`
+
+	// License SPDX identifier of the licence this program is distributed under
+	//
+	// Example: AGPL-3.0-only
+	License string `json:"license"`
+
+	// LicenseUrl Full text of the licence
+	//
+	// Example: https://www.gnu.org/licenses/agpl-3.0.html
+	LicenseUrl string `json:"licenseUrl"`
+
+	// Name Program name
+	//
+	// Example: NinerLog API
+	Name string `json:"name"`
+
+	// SourceUrl Where the complete corresponding source of the running version can be obtained (SOURCE_URL). A modified deployment publishes its own source and points this at it.
+	//
+	// Example: https://github.com/fjaeckel/ninerlog-api
+	SourceUrl string `json:"sourceUrl"`
+
+	// Version Version this binary was stamped with at build time, falling back to APP_VERSION. `dev` for an unstamped build.
+	//
+	// Example: v1.3.4
+	Version string `json:"version"`
+}
+
 // AdminAuditLogEntry defines model for AdminAuditLogEntry.
 type AdminAuditLogEntry struct {
 	// Action The admin action performed
@@ -1902,6 +1935,11 @@ type AdminConfig struct {
 
 	// SmtpConfigured Whether SMTP is configured
 	SmtpConfigured bool `json:"smtpConfigured"`
+
+	// SourceUrl Where GET /about tells users the corresponding source can be obtained (SOURCE_URL)
+	//
+	// Example: https://github.com/fjaeckel/ninerlog-api
+	SourceUrl *string `json:"sourceUrl,omitempty"`
 
 	// UnverifiedCleanupDisabledReason Why the cleanup is not running, absent when it is. `oidc_mode` is not
 	// configurable: with an identity provider in charge, an unverified

@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package updatecheck reports whether a newer NinerLog build has been
 // published. A component carrying a semantic version is compared against the
 // newest GitHub release of its repository; one carrying only a build commit —

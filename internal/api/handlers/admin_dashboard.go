@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package handlers
 
 import (
@@ -267,6 +270,8 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		interval := h.updateChecker.Interval().String()
 		config.UpdateCheckInterval = &interval
 	}
+	sourceURL := h.effectiveSourceURL()
+	config.SourceUrl = &sourceURL
 
 	c.JSON(http.StatusOK, config)
 }

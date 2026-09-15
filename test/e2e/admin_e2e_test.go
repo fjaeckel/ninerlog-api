@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //go:build e2e
 
 package e2e_test
@@ -83,6 +86,9 @@ func TestAdminEndpoints(t *testing.T) {
 		}
 		if _, ok := cfg["updateCheckEnabled"]; !ok {
 			t.Error("Expected updateCheckEnabled field")
+		}
+		if _, ok := cfg["sourceUrl"]; !ok {
+			t.Error("Expected sourceUrl field")
 		}
 	})
 
