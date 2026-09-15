@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package sftp implements the cloud backup provider contract against any
 // SSH server with SFTP enabled (OpenSSH, Dropbear, atmoz/sftp, hosting
 // providers offering SFTP-only accounts, etc.) using golang.org/x/crypto/ssh

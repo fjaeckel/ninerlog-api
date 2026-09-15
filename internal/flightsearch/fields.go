@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package flightsearch implements the flight logbook search query language.
 //
 // A query is a boolean expression over tagged field conditions and free-text

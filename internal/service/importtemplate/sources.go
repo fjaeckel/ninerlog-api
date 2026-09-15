@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package importtemplate
 
 // This file is the catalogue. Everything here is data — adding support for

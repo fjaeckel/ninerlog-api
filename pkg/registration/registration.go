@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package registration normalises aircraft registrations to the canonical
 // notation of their state of registry, looked up in the nationality mark
 // table in prefixes.go.

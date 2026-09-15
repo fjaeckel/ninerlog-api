@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package airports keeps an in-memory database of the world's airports,
 // merged from two upstream datasets and refreshed on a timer.
 //

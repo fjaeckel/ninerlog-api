@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //go:build e2e
 
 // Tests that every notification email type is sent with correct subject and body content.

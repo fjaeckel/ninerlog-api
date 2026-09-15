@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package duration provides helpers for converting between flight time representations.
 // All internal storage uses integer minutes.
 package duration

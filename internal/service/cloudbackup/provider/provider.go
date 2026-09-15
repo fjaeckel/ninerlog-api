@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package provider defines the contract every cloud backup provider plugin
 // must satisfy. "Config" is non-secret and returned in plain text on GET;
 // "credentials" are secret, encrypted at rest, accepted only on create/update

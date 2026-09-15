@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package solar provides a thin wrapper around github.com/mstephenholl/go-solar
 // for computing sunrise/sunset and determining whether a given UTC instant is
 // during daytime or nighttime.

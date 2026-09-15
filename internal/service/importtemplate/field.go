@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package importtemplate holds the catalogue of known pilot-logbook export
 // formats and the logic that recognises one from a file's header row.
 //

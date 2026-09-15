@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package s3 implements the cloud backup provider contract against
 // Amazon S3 and S3-compatible object stores (MinIO, Backblaze B2, Cloudflare
 // R2, Wasabi, etc.) using the minio-go client.

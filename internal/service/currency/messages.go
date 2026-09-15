@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package currency
 
 // Message keys for client-side localisation. Every user-facing string the

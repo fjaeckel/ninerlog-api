@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package email
 
 // LocalizedTemplates provides email subject/body templates per locale.

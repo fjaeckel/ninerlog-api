@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package cloudbackup is the user-facing service for cloud backup
 // destinations. It owns:
 //   - building the JSON backup payload (a stable, ordered representation of

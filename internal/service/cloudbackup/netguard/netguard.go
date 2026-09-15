@@ -1,3 +1,6 @@
+// Copyright (C) The NinerLog Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package netguard restricts the network destinations the cloud-backup
 // subsystem is allowed to connect to (SSRF mitigation). The guard is applied
 // as a net.Dialer Control hook, which runs against the concrete IP that will
