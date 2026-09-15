@@ -38,15 +38,19 @@ case "${1:-}" in
 esac
 
 export PATH="$PATH:$(go env GOPATH)/bin"
-# go-licenses tells the standard library apart from modules by GOROOT.
-export GOROOT="$(go env GOROOT)"
 
-installed="$(go version -m "$(command -v go-licenses 2>/dev/null || echo /nonexistent)" 2>/dev/null \
-    | awk '$1 == "mod" && $2 == "github.com/google/go-licenses" { print $3 }')"
+installed=""
+if bin="$(command -v go-licenses 2>/dev/null)"; then
+    installed="$(go version -m "$bin" 2>/dev/null \
+        | awk '$1 == "mod" && $2 == "github.com/google/go-licenses" { print $3 }' || true)"
+fi
 if [ "$installed" != "$GO_LICENSES_VERSION" ]; then
     echo "Installing go-licenses $GO_LICENSES_VERSION (found: ${installed:-none})..."
     go install "github.com/google/go-licenses@$GO_LICENSES_VERSION"
 fi
+
+# go-licenses tells the standard library apart from modules by GOROOT.
+export GOROOT="$(go env GOROOT)"
 
 LOG="$(mktemp)"
 trap 'rm -f "$LOG"' EXIT
