@@ -111,8 +111,9 @@ listed there with the reason.
   that cannot be read answers `503` rather than being mistaken for a revocation. See
   [SESSION_CONTRACT.md](./SESSION_CONTRACT.md).
 - **Public allow-list** — auth endpoints (register, login, refresh, password reset, email
-  verification) and a few read-only lookups (airport search/lookup, public announcements)
-  are exempt from auth via the allow-list passed to the middleware.
+  verification), a few read-only lookups (airport search/lookup, public announcements) and
+  the `GET /about` source offer are exempt from auth via the allow-list passed to the
+  middleware.
 - **Rate limiting** — layered, and all of it skipped when `DISABLE_RATE_LIMIT=true`:
   | Limiter | Budget | Applies to | Keyed by |
   |---|---|---|---|
@@ -314,6 +315,13 @@ nothing: there is no client left to inform. See [DATA_MODEL.md](./DATA_MODEL.md)
 
 The spec defines the operations below, grouped by tag. This is a high-level map — consult
 `api-spec/openapi.yaml` for exact request/response schemas, parameters, and status codes.
+
+### System
+`GET /about` — unauthenticated. Reports `name`, `version`, `commit` (absent when the build
+is unstamped), `license` (`AGPL-3.0-only`), `licenseUrl` and `sourceUrl`. The source link is
+the AGPL section 13 offer: an operator running modified code publishes it and sets
+`SOURCE_URL`; an unmodified deployment reports the upstream repository. Clients show the
+link wherever they show the version. See [LICENSING.md](./LICENSING.md).
 
 ### Authentication
 Registration, email verification (+ resend), login, token refresh, session management,
@@ -655,6 +663,9 @@ commit, or nothing looked up yet. A commit reported for the first time is `unkno
 until the comparison lands, a moment later. Deployments that set
 `UPDATE_CHECK_ENABLED=false` make no outbound request and report
 `checkEnabled: false`.
+
+`GET /admin/config` also reports `sourceUrl`, the effective source offer that
+`GET /about` shows every user (`SOURCE_URL`, defaulting to the upstream repository).
 
 ### Backups
 List providers, manage destinations (CRUD), test/run a destination, and inspect run

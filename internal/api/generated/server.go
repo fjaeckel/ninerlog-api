@@ -14,6 +14,9 @@ import (
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAbout What this server is and where its source code lives
+	// (GET /about)
+	GetAbout(c *gin.Context)
 	// CreateAnnouncement Create a system announcement
 	// (POST /admin/announcements)
 	CreateAnnouncement(c *gin.Context)
@@ -498,6 +501,19 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// GetAbout operation middleware
+func (siw *ServerInterfaceWrapper) GetAbout(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAbout(c)
+}
 
 // CreateAnnouncement operation middleware
 func (siw *ServerInterfaceWrapper) CreateAnnouncement(c *gin.Context) {
@@ -4119,6 +4135,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.GET(options.BaseURL+"/about", wrapper.GetAbout)
 	router.GET(options.BaseURL+"/auth/providers", wrapper.GetAuthProviders)
 	router.GET(options.BaseURL+"/auth/oidc/authorize", wrapper.AuthorizeOidc)
 	router.GET(options.BaseURL+"/auth/oidc/callback", wrapper.OidcCallback)

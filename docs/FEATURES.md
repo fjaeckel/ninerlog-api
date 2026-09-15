@@ -437,7 +437,8 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   the logbook keeps them apart. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than
-  fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).
+  fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)) — and
+  `sourceUrl`, the source offer `GET /about` shows every user (`SOURCE_URL`).
 - **Maintenance** — cleanup expired tokens, SMTP test, manually trigger the notification
   check.
 - **Update availability** — `GET /admin/update` reports what each component is running
@@ -456,6 +457,11 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
 - **Health** — `GET /health` (used by the Docker healthcheck).
 - **Metrics** — `GET /metrics` (Prometheus), plus a DB-stats collector. See
   [METRICS.md](./METRICS.md).
+- **Source offer** — `GET /about` (unauthenticated) reports the running version and
+  commit, the licence (`AGPL-3.0-only`) and where the corresponding source can be
+  obtained. An operator running modified code publishes it and sets `SOURCE_URL`; the
+  Docker image also carries `/app/LICENSE` and every dependency's notice under
+  `/app/licenses/`. See [LICENSING.md](./LICENSING.md).
 - **Release check** — a daily background lookup of the newest published release per
   component (`internal/updatecheck`), surfaced in the admin console and as
   `app_update_available`. Opt out with `UPDATE_CHECK_ENABLED=false`.

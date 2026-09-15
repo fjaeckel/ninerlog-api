@@ -94,8 +94,36 @@ tags:
     description: Incremental synchronisation for offline-capable clients
   - name: Documents
     description: Reference photos/scans attached to a licence or credential (optional feature; see GET /features)
+  - name: System
+    description: What this server is — its version, its licence, and where its source code can be obtained
 
 paths:
+  /about:
+    get:
+      tags:
+        - System
+      summary: What this server is and where its source code lives
+      description: |
+        Unauthenticated. Reports the running version and commit, the licence
+        this program is distributed under, and the URL where its complete
+        corresponding source can be obtained.
+
+        The source link is how a deployment meets section 13 of the GNU
+        AGPL: anyone who runs a modified version for others over a network
+        must offer them its source. An operator running modified code
+        publishes that code and sets `SOURCE_URL` to where it lives; an
+        unmodified deployment leaves the default, which is the upstream
+        repository. Clients show the link wherever they show the version.
+      operationId: getAbout
+      security: []
+      responses:
+        '200':
+          description: Version, licence and source location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/About'
+
   /auth/providers:
     get:
       tags:
@@ -5949,6 +5977,50 @@ components:
           type: boolean
           description: Whether this is the session making the request
 
+    About:
+      type: object
+      description: >-
+        Identity of the running server: its version, the licence it is
+        distributed under, and where its corresponding source can be obtained.
+      required:
+        - name
+        - version
+        - license
+        - licenseUrl
+        - sourceUrl
+      properties:
+        name:
+          type: string
+          description: Program name
+          example: NinerLog API
+        version:
+          type: string
+          description: >-
+            Version this binary was stamped with at build time, falling back
+            to APP_VERSION. `dev` for an unstamped build.
+          example: v1.3.4
+        commit:
+          type: string
+          description: Commit this binary was built from. Absent when unknown.
+          example: 4f2c1ab9d3e5c6178b0a2d4e6f8091a2b3c4d5e6
+        license:
+          type: string
+          description: SPDX identifier of the licence this program is distributed under
+          example: AGPL-3.0-only
+        licenseUrl:
+          type: string
+          format: uri
+          description: Full text of the licence
+          example: https://www.gnu.org/licenses/agpl-3.0.html
+        sourceUrl:
+          type: string
+          format: uri
+          description: >-
+            Where the complete corresponding source of the running version can
+            be obtained (SOURCE_URL). A modified deployment publishes its own
+            source and points this at it.
+          example: https://github.com/fjaeckel/ninerlog-api
+
     AuthProviders:
       type: object
       description: >-
@@ -9710,6 +9782,11 @@ components:
           type: string
           description: How often the release check runs. Absent when the check is disabled.
           example: 24h0m0s
+        sourceUrl:
+          type: string
+          format: uri
+          description: Where GET /about tells users the corresponding source can be obtained (SOURCE_URL)
+          example: https://github.com/fjaeckel/ninerlog-api
         goVersion:
           type: string
           example: go1.23.0

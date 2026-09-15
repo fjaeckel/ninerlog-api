@@ -87,6 +87,9 @@ func TestAdminEndpoints(t *testing.T) {
 		if _, ok := cfg["updateCheckEnabled"]; !ok {
 			t.Error("Expected updateCheckEnabled field")
 		}
+		if _, ok := cfg["sourceUrl"]; !ok {
+			t.Error("Expected sourceUrl field")
+		}
 	})
 
 	t.Run("admin update status", func(t *testing.T) {

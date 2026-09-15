@@ -369,6 +369,13 @@ func main() {
 	apiHandler.SetStartedAt(startedAt)
 	apiHandler.SetCORSOrigins(corsOrigins)
 
+	// Source offer reported by GET /about (SOURCE_URL, default upstream).
+	sourceURL, err := sourceURLFromEnv()
+	if err != nil {
+		fatal("invalid SOURCE_URL", "error", err)
+	}
+	apiHandler.SetSourceURL(sourceURL)
+
 	// Release check against GitHub (UPDATE_CHECK_ENABLED=false opts out).
 	updateChecker := updatecheck.New(updatecheck.FromEnv())
 	apiHandler.SetUpdateChecker(updateChecker)
@@ -505,6 +512,7 @@ func main() {
 
 	// Centralized auth middleware — all routes require auth except explicit public paths
 	api.Use(middleware.AuthMiddlewareWithState(jwtManager, []string{
+		"/about",
 		"/auth/register",
 		"/auth/login",
 		"/auth/providers",

@@ -270,6 +270,8 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		interval := h.updateChecker.Interval().String()
 		config.UpdateCheckInterval = &interval
 	}
+	sourceURL := h.effectiveSourceURL()
+	config.SourceUrl = &sourceURL
 
 	c.JSON(http.StatusOK, config)
 }
