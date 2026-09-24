@@ -119,30 +119,108 @@ func TestGliderClass_CaseInsensitiveAircraftClass(t *testing.T) {
 	assertStr(t, "status", rc["status"], "current")
 }
 
-// TestEASA_UltralightClass_Current — ULTRALIGHT rating under EASA uses LuftPersV §45.
-func TestEASA_UltralightClass_Current(t *testing.T) {
-	c := setupCurrencyUser(t, "easa-ul-cls")
+// TestUltralightClass_GermanAuthorityOnly — LuftPersV §45 applies to ULTRALIGHT only under LBA/DULV/DAeC.
+func TestUltralightClass_GermanAuthorityOnly(t *testing.T) {
+	c := setupCurrencyUser(t, "ul-cls-auth")
 	createAircraftCur(t, c, "D-MULC", "C42", "ULTRALIGHT")
 
-	licID := createLicenseCur(t, c, "EASA", "UL")
-	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
-
+	easaID := createLicenseCur(t, c, "EASA", "UL")
+	createRatingCur(t, c, easaID, "ULTRALIGHT", strPtr(plusDays(pastDate(0), 365)))
 	createULFlightsCur(t, c, "D-MULC")
 
 	result := getCurrencyStatus(t, c)
-	rc := findRatingCur(result, "ULTRALIGHT")
+	rc := findRatingCurByAuth(result, "ULTRALIGHT", "EASA")
 	if rc == nil {
-		t.Fatal("ULTRALIGHT rating currency not found")
+		t.Fatal("EASA ULTRALIGHT rating currency not found")
+	}
+	if key, _ := rc["ruleDescriptionKey"].(string); key != "" {
+		t.Errorf("EASA ULTRALIGHT ruleDescriptionKey = %q, want expiry-only", key)
+	}
+	if pc := findPaxCurByAuth(result, "ULTRALIGHT", "EASA"); pc != nil {
+		t.Error("EASA ULTRALIGHT passenger currency present, want none")
+	}
+
+	dulvID := createLicenseCur(t, c, "DULV", "UL")
+	createRatingCur(t, c, dulvID, "ULTRALIGHT", nil)
+
+	result = getCurrencyStatus(t, c)
+	rc = findRatingCurByAuth(result, "ULTRALIGHT", "DULV")
+	if rc == nil {
+		t.Fatal("DULV ULTRALIGHT rating currency not found")
 	}
 	assertStr(t, "status", rc["status"], "current")
 	assertStr(t, "ruleDescriptionKey", rc["ruleDescriptionKey"], "ul_luftpersv")
-
-	pc := findPaxCur(result, "ULTRALIGHT")
+	pc := findPaxCurByAuth(result, "ULTRALIGHT", "DULV")
 	if pc == nil {
-		t.Fatal("ULTRALIGHT passenger currency not found")
+		t.Fatal("DULV ULTRALIGHT passenger currency not found")
 	}
 	assertStr(t, "ruleDescriptionKey", pc["ruleDescriptionKey"], "ul_pax")
-	assertBool(t, "nightPrivilege", gb(pc, "nightPrivilege"), false)
+}
+
+// TestTowedFlights_ExcludedFromPoweredClass — winch/aerotow flights on a SEP_LAND aircraft don't count toward a PPL SEP rating.
+func TestTowedFlights_ExcludedFromPoweredClass(t *testing.T) {
+	c := setupCurrencyUser(t, "towed-sep")
+	createAircraftCur(t, c, "D-0TOW", "ASK21", "SEP_LAND")
+	createAircraftCur(t, c, "D-ETOW", "C172", "SEP_LAND")
+
+	licID := createLicenseCur(t, c, "EASA", "PPL")
+	createRatingCur(t, c, licID, "SEP_LAND", strPtr(plusDays(pastDate(0), 180)))
+
+	createGliderFlightsCur(t, c, "D-0TOW")
+	createFlightCur(t, c, map[string]interface{}{
+		"date": pastDate(4), "aircraftReg": "D-ETOW", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:00",
+		"landings": 1,
+	})
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "SEP_LAND")
+	if rc == nil {
+		t.Fatal("SEP_LAND rating currency not found")
+	}
+	progress, _ := rc["progress"].(map[string]interface{})
+	assertInt(t, "progress.flights", gi(progress, "flights"), 1)
+	assertInt(t, "progress.landings", gi(progress, "landings"), 1)
+
+	pc := findPaxCur(result, "SEP_LAND")
+	if pc == nil {
+		t.Fatal("SEP_LAND passenger currency not found")
+	}
+	assertInt(t, "dayLandings", gi(pc, "dayLandings"), 1)
+}
+
+// TestLaunchCounts_FilteredByClass — launches on other classes don't appear in a GLIDER rating's launch-method currency.
+func TestLaunchCounts_FilteredByClass(t *testing.T) {
+	c := setupCurrencyUser(t, "launch-cls")
+	createAircraftCur(t, c, "D-5816", "ASK21", "GLIDER")
+	createAircraftCur(t, c, "D-MLCH", "C42", "ULTRALIGHT")
+
+	licID := createLicenseCur(t, c, "EASA", "SPL")
+	createRatingCur(t, c, licID, "GLIDER", nil)
+
+	createGliderFlightsCur(t, c, "D-5816")
+	for i := 0; i < 3; i++ {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(20 + i), "aircraftReg": "D-MLCH", "aircraftType": "C42",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"offBlockTime": "08:00", "onBlockTime": "08:30",
+			"landings": 1, "launchMethod": "aerotow",
+		})
+	}
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "GLIDER")
+	if rc == nil {
+		t.Fatal("GLIDER rating currency not found")
+	}
+	methods, _ := rc["launchMethodCurrency"].([]interface{})
+	if len(methods) != 1 {
+		t.Fatalf("launchMethodCurrency = %v, want winch only", methods)
+	}
+	m, _ := methods[0].(map[string]interface{})
+	assertStr(t, "method", m["method"], "winch")
+	assertInt(t, "launches", gi(m, "launches"), 15)
 }
 
 // TestGliderAndUltralight_SeparateRatings — glider and UL flights each count only toward their own rating.

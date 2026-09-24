@@ -20,15 +20,21 @@ type mockFlightDataProvider struct {
 	launchCounts         map[string]int
 	landingDays          map[models.ClassType][]LandingDay
 	landingDaysErr       error
+	includeTowed         map[models.ClassType]bool
+	launchClass          models.ClassType
 }
 
 func newMockFlightDataProvider() *mockFlightDataProvider {
 	return &mockFlightDataProvider{
 		progressByClass: make(map[models.ClassType]*Progress),
+		includeTowed:    make(map[models.ClassType]bool),
 	}
 }
 
-func (m *mockFlightDataProvider) GetProgressByAircraftClass(_ context.Context, _ uuid.UUID, classType models.ClassType, _ time.Time) (*Progress, error) {
+func (m *mockFlightDataProvider) GetProgressByAircraftClass(_ context.Context, _ uuid.UUID, classType models.ClassType, includeTowed bool, _ time.Time) (*Progress, error) {
+	if m.includeTowed != nil {
+		m.includeTowed[classType] = includeTowed
+	}
 	if p, ok := m.progressByClass[classType]; ok {
 		return p, nil
 	}
@@ -53,7 +59,10 @@ func (m *mockFlightDataProvider) GetLastProficiencyCheck(_ context.Context, _ uu
 // GetLandingDaysByAircraftClass returns explicitly configured landing days,
 // otherwise synthesises a single yesterday-dated entry from progressByClass so
 // that count-only fixtures keep working.
-func (m *mockFlightDataProvider) GetLandingDaysByAircraftClass(_ context.Context, _ uuid.UUID, classType models.ClassType, since time.Time) ([]LandingDay, error) {
+func (m *mockFlightDataProvider) GetLandingDaysByAircraftClass(_ context.Context, _ uuid.UUID, classType models.ClassType, includeTowed bool, since time.Time) ([]LandingDay, error) {
+	if m.includeTowed != nil {
+		m.includeTowed[classType] = includeTowed
+	}
 	if m.landingDaysErr != nil {
 		return nil, m.landingDaysErr
 	}
@@ -83,7 +92,8 @@ func truncateDay(t time.Time) time.Time {
 	return time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC)
 }
 
-func (m *mockFlightDataProvider) GetLaunchCounts(_ context.Context, _ uuid.UUID, _ time.Time) (map[string]int, error) {
+func (m *mockFlightDataProvider) GetLaunchCounts(_ context.Context, _ uuid.UUID, classType models.ClassType, _ time.Time) (map[string]int, error) {
+	m.launchClass = classType
 	if m.launchCounts != nil {
 		return m.launchCounts, nil
 	}
