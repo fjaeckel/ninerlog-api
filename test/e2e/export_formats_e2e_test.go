@@ -79,6 +79,26 @@ func TestExportCSVFormats(t *testing.T) {
 		}
 	})
 
+	t.Run("weblogbook uses Web Logbook header and value formats", func(t *testing.T) {
+		resp := c.GET("/exports/csv?format=weblogbook")
+		requireStatus(t, resp, http.StatusOK)
+		lines := strings.Split(strings.TrimSpace(string(resp.Body)), "\n")
+		wantHeader := "Date,Departure Place,Departure Time,Arrival Place,Arrival Time,Aircraft Model,Aircraft Reg," +
+			"Time SE,Time ME,Time MCC,Time Total,Landings Day,Landings Night,Time Night,Time IFR,Time PIC," +
+			"Time CoPilot,Time Dual,Time Instructor,SIM Type,SIM Time,PIC Name,Remarks,Tags"
+		if lines[0] != wantHeader {
+			t.Errorf("header = %q, want %q", lines[0], wantHeader)
+		}
+		if len(lines) != 4 {
+			t.Fatalf("got %d lines, want header + 3 flights", len(lines))
+		}
+		for _, want := range []string{",EDNY,0800,EDDS,0930,C172,D-ECSV,1:30,", ",Self,Endorsement "} {
+			if !strings.Contains(lines[1], want) {
+				t.Errorf("row %q does not contain %q", lines[1], want)
+			}
+		}
+	})
+
 	t.Run("format=standard same as no param", func(t *testing.T) {
 		r1 := c.GET("/exports/csv")
 		requireStatus(t, r1, http.StatusOK)

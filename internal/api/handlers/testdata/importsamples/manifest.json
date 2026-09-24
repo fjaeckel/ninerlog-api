@@ -67,6 +67,22 @@
       }
     },
     {
+      "file": "ninerlog-weblogbook.csv",
+      "expectTemplate": "WEB_LOGBOOK_CSV",
+      "provenance": "generated",
+      "notes": "Frozen output of writeWebLogbookCSV — the header row of Web Logbook's own CSV export, DD/MM/YYYY dates, bare HHMM block times, H:MM durations, 'Self' as the owner's PIC name. The same header Web Logbook itself writes, so it also stands in for a Web Logbook export.",
+      "expectRows": 2,
+      "expectFirstRow": {
+        "date": "2025-06-14",
+        "aircraftReg": "D-EABC",
+        "aircraftType": "C172",
+        "departureIcao": "EDDF",
+        "arrivalIcao": "EDDM",
+        "totalTimeMinutes": 90,
+        "landings": 2
+      }
+    },
+    {
       "file": "foreflight.csv",
       "expectTemplate": "FOREFLIGHT_CSV",
       "provenance": "synthetic",

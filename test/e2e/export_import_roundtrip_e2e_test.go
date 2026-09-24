@@ -51,6 +51,7 @@ func roundTripCases() []roundTripCase {
 		{"standard", "NINERLOG_CSV", 0},
 		{"easa", "EASA_CSV", 0},
 		{"faa", "FAA_CSV", 3},
+		{"weblogbook", "WEB_LOGBOOK_CSV", 0},
 	} {
 		for _, dateFmt := range []string{"DD.MM.YYYY", "MM/DD/YYYY", "YYYY-MM-DD"} {
 			for _, decimal := range []string{"dot", "comma"} {
@@ -207,7 +208,7 @@ func TestExportImportRoundTrip_EveryLayoutAndPreference(t *testing.T) {
 // make with their own export, so duplicate detection has to hold across the
 // export/import boundary for every layout.
 func TestExportImportRoundTrip_ReimportIntoSameAccountIsDeduplicated(t *testing.T) {
-	for _, layout := range []string{"standard", "easa", "faa"} {
+	for _, layout := range []string{"standard", "easa", "faa", "weblogbook"} {
 		t.Run(layout, func(t *testing.T) {
 			c := NewE2EClient(t)
 			registerAndLogin(t, c, uniqueEmail("roundtrip-dedup"), "SecurePass123!", "Dedup")

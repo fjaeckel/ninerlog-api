@@ -1179,6 +1179,7 @@ const (
 	VEREINSFLIEGERCSV         ImportFormat = "VEREINSFLIEGER_CSV"
 	VEREINSFLIEGEREXTENDEDCSV ImportFormat = "VEREINSFLIEGER_EXTENDED_CSV"
 	WADERCSV                  ImportFormat = "WADER_CSV"
+	WEBLOGBOOKCSV             ImportFormat = "WEB_LOGBOOK_CSV"
 	XLS                       ImportFormat = "XLS"
 	XLSX                      ImportFormat = "XLSX"
 )
@@ -1211,6 +1212,8 @@ func (e ImportFormat) Valid() bool {
 	case VEREINSFLIEGEREXTENDEDCSV:
 		return true
 	case WADERCSV:
+		return true
+	case WEBLOGBOOKCSV:
 		return true
 	case XLS:
 		return true
@@ -1670,9 +1673,10 @@ func (e RegisterUserJSONBodyPreferredLocale) Valid() bool {
 
 // Defines values for ExportFlightsCSVParamsFormat.
 const (
-	ExportFlightsCSVParamsFormatEasa     ExportFlightsCSVParamsFormat = "easa"
-	ExportFlightsCSVParamsFormatFaa      ExportFlightsCSVParamsFormat = "faa"
-	ExportFlightsCSVParamsFormatStandard ExportFlightsCSVParamsFormat = "standard"
+	ExportFlightsCSVParamsFormatEasa       ExportFlightsCSVParamsFormat = "easa"
+	ExportFlightsCSVParamsFormatFaa        ExportFlightsCSVParamsFormat = "faa"
+	ExportFlightsCSVParamsFormatStandard   ExportFlightsCSVParamsFormat = "standard"
+	ExportFlightsCSVParamsFormatWeblogbook ExportFlightsCSVParamsFormat = "weblogbook"
 )
 
 // Valid indicates whether the value is a known member of the ExportFlightsCSVParamsFormat enum.
@@ -1683,6 +1687,8 @@ func (e ExportFlightsCSVParamsFormat) Valid() bool {
 	case ExportFlightsCSVParamsFormatFaa:
 		return true
 	case ExportFlightsCSVParamsFormatStandard:
+		return true
+	case ExportFlightsCSVParamsFormatWeblogbook:
 		return true
 	default:
 		return false
@@ -5170,6 +5176,7 @@ type ImportField string
 // - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 // - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 // - SKYDEMON_CSV: SkyDemon logbook export
+// - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
 // - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 // - FAA_CSV: generic FAA/ASA column layout
 // - XLS: Microsoft Excel 97-2003 workbook
@@ -5387,6 +5394,7 @@ type ImportResult struct {
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
@@ -5469,6 +5477,7 @@ type ImportTemplate struct {
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
@@ -5537,6 +5546,7 @@ type ImportUploadResponse struct {
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - SKYDEMON_CSV: SkyDemon logbook export
+	// - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
@@ -6744,7 +6754,7 @@ type ListCredentialsParams struct {
 
 // ExportFlightsCSVParams defines parameters for ExportFlightsCSV.
 type ExportFlightsCSVParams struct {
-	// Format CSV column format — easa, faa, or standard (ForeFlight-compatible default)
+	// Format CSV column format — easa, faa, weblogbook (Web Logbook import), or standard (ForeFlight-compatible default)
 	Format *ExportFlightsCSVParamsFormat `form:"format,omitempty" json:"format,omitempty"`
 }
 
