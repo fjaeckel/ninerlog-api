@@ -1061,19 +1061,19 @@ var skyDemonTemplate = register(&Template{
 	Priority:         12,
 })
 
-// webLogbookTemplate is Web Logbook's logbook CSV export, also written by
+// webLogbookTemplate is the logbook CSV export of vsimakhin/web-logbook, also written by
 // NinerLog's "weblogbook" CSV layout: DD/MM/YYYY dates, HHMM block times, H:MM
 // durations.
 var webLogbookTemplate = register(&Template{
 	ID:          "WEB_LOGBOOK_CSV",
-	Name:        "Web Logbook",
-	Vendor:      "Web Logbook (open source)",
+	Name:        "vsimakhin/web-logbook",
+	Vendor:      "vsimakhin/web-logbook (open source)",
 	Website:     "https://github.com/vsimakhin/web-logbook",
-	Description: "Web Logbook's logbook CSV export. It follows the EASA column layout; single-/multi-engine and co-pilot splits are recalculated here, and simulator sessions (SIM Type/SIM Time) and tags are not imported.",
+	Description: "The logbook CSV export of vsimakhin/web-logbook. It follows the EASA column layout; single-/multi-engine and co-pilot splits are recalculated here, and simulator sessions (SIM Type/SIM Time) and tags are not imported.",
 	Confidence:  ConfidenceExact,
 	Regions:     []string{"EASA"},
 	ExportSteps: []string{
-		"Open Web Logbook and go to the Logbook page.",
+		"Open vsimakhin/web-logbook and go to the Logbook page.",
 		"Use the CSV export button in the table toolbar.",
 		"Upload the downloaded file here.",
 	},

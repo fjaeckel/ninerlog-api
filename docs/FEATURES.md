@@ -262,7 +262,7 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   import screen can list supported logbooks and how to export from each.
 
   Covered today: ForeFlight, LogTen Pro, MyFlightbook, capzlog.aero, FLYLOG.io, Wader,
-  Vereinsflieger (both the standard and the extended club export), SkyDemon, Web Logbook, the
+  Vereinsflieger (both the standard and the extended club export), SkyDemon, vsimakhin/web-logbook, the
   generic EASA (AMC1 FCL.050) and FAA column layouts, and NinerLog's own CSV export. One vendor may
   need more than one template: Vereinsflieger's two exports differ by three columns out of
   sixteen and share every other alias, so they are told apart by the columns only one of
@@ -299,7 +299,7 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   regress: a pilot moving between installations, restoring an archived export, or splitting a
   logbook across accounts depends on it. All four export layouts round-trip, each detected as
   its own template — standard → `NINERLOG_CSV`, EASA → `EASA_CSV`, FAA → `FAA_CSV`,
-  Web Logbook → `WEB_LOGBOOK_CSV`.
+  vsimakhin/web-logbook → `WEB_LOGBOOK_CSV`.
 
   Two levels of coverage, both mandatory:
   `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers
@@ -310,23 +310,23 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   backfilled, and re-importing an export into the account it came from is deduplicated rather
   than doubling the logbook.
 
-  Total time survives exactly where the layout carries block times (standard, EASA, Web
-  Logbook); the FAA
+  Total time survives exactly where the layout carries block times (standard, EASA,
+  vsimakhin/web-logbook); the FAA
   layout has no time-of-day columns, so its total goes through a decimal-hours cell rounded to
   0.1h and is asserted within ±3 minutes. Only the standard layout honours the user's
   date-format and decimal-separator preferences — EASA and FAA hardcode their regulatory
-  conventions (`export.go:326`, `export.go:362`), and Web Logbook hardcodes its importer's
+  conventions (`export.go:326`, `export.go:362`), and vsimakhin/web-logbook hardcodes its importer's
   storage formats — but the full matrix is run against every layout so that wiring a
   preference in later lands on existing coverage.
-- **Web Logbook export** (`GET /exports/csv?format=weblogbook`,
+- **vsimakhin/web-logbook export** (`GET /exports/csv?format=weblogbook`,
   `export_weblogbook.go`) — for pilots moving to the open-source
-  [Web Logbook](https://github.com/vsimakhin/web-logbook). It writes the exact header row of
-  Web Logbook's own CSV export, so its import screen's "Apply Web Logbook Mapping" button maps
-  every column in one click. Values are written in Web Logbook's storage formats regardless of
+  [vsimakhin/web-logbook](https://github.com/vsimakhin/web-logbook). It writes the exact header row
+  of its own CSV export, so its import screen's "Apply Web Logbook Mapping" button maps
+  every column in one click. Values are written in vsimakhin/web-logbook's storage formats regardless of
   user preferences, because its importer stores them verbatim: DD/MM/YYYY dates, HHMM block
   times, H:MM durations (never decimal hours) and `Self` for the owner as PIC. Columns follow
   the EASA layout (SE/ME/MCC from the piloting-category rule, PICUS/SPIC folded into PIC and
-  relief into co-pilot with the breakdown in remarks); FSTD sessions become Web Logbook
+  relief into co-pilot with the breakdown in remarks); FSTD sessions become vsimakhin/web-logbook
   simulator records, and IPC / flight review / proficiency check / passenger flags become tags.
 - **Import samples** (`internal/api/handlers/testdata/importsamples/`) — real and generated
   export files run through the whole pipeline and checked against `manifest.json`. This is the

@@ -70,7 +70,7 @@
       "file": "ninerlog-weblogbook.csv",
       "expectTemplate": "WEB_LOGBOOK_CSV",
       "provenance": "generated",
-      "notes": "Frozen output of writeWebLogbookCSV — the header row of Web Logbook's own CSV export, DD/MM/YYYY dates, bare HHMM block times, H:MM durations, 'Self' as the owner's PIC name. The same header Web Logbook itself writes, so it also stands in for a Web Logbook export.",
+      "notes": "Frozen output of writeWebLogbookCSV — the header row of vsimakhin/web-logbook's own CSV export, DD/MM/YYYY dates, bare HHMM block times, H:MM durations, 'Self' as the owner's PIC name. The same header vsimakhin/web-logbook itself writes, so it also stands in for one of its exports.",
       "expectRows": 2,
       "expectFirstRow": {
         "date": "2025-06-14",

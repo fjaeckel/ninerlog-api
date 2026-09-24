@@ -10,8 +10,8 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
-// writeWebLogbookRows runs the Web Logbook writer and returns its rows keyed by
-// header, so assertions read like the column names Web Logbook maps on.
+// writeWebLogbookRows runs the vsimakhin/web-logbook writer and returns its rows keyed by
+// header, so assertions read like the column names vsimakhin/web-logbook maps on.
 func writeWebLogbookRows(t *testing.T, flights []*models.Flight) []map[string]string {
 	t.Helper()
 	var buf bytes.Buffer
@@ -33,7 +33,7 @@ func writeWebLogbookRows(t *testing.T, flights []*models.Flight) []map[string]st
 	return rows
 }
 
-// Web Logbook's "Apply Web Logbook Mapping" profile matches these names
+// vsimakhin/web-logbook's "Apply Web Logbook Mapping" profile matches these names
 // verbatim; a renamed or reordered column silently drops out of the one-click
 // mapping.
 func TestWebLogbookCSV_HeaderMatchesWebLogbookExport(t *testing.T) {
@@ -50,7 +50,7 @@ func TestWebLogbookCSV_HeaderMatchesWebLogbookExport(t *testing.T) {
 	}
 }
 
-// Web Logbook's importer passes values through unconverted, so they must
+// vsimakhin/web-logbook's importer passes values through unconverted, so they must
 // already be in its storage formats whatever the user's display preferences.
 func TestWebLogbookCSV_FlightUsesWebLogbookFormats(t *testing.T) {
 	f := roundTripSourceFlight()
@@ -101,7 +101,7 @@ func TestWebLogbookCSV_FlightUsesWebLogbookFormats(t *testing.T) {
 	}
 }
 
-// An FSTD session becomes a Web Logbook simulator record: no places, so its
+// An FSTD session becomes a vsimakhin/web-logbook simulator record: no places, so its
 // duplicate check and totals treat it as a sim session rather than a flight.
 func TestWebLogbookCSV_SimulatorSession(t *testing.T) {
 	dep := "EDDF"
