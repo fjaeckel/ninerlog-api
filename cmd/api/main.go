@@ -433,7 +433,7 @@ func main() {
 		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", middleware.HeaderIdempotencyKey},
-		ExposeHeaders:    []string{"Content-Length", middleware.HeaderIdempotencyReplayed, "Retry-After", handlers.HeaderCrewEntriesRenamed},
+		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", middleware.HeaderIdempotencyReplayed, "Retry-After", handlers.HeaderCrewEntriesRenamed},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
