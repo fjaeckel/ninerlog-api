@@ -10772,6 +10772,7 @@ components:
         - actualInstrumentMinutes
         - simulatedInstrumentMinutes
         - crossCountryMinutes
+        - crossCountryPicMinutes
         - multiPilotMinutes
         - simulatedFlightMinutes
         - groundTrainingMinutes
@@ -10829,6 +10830,12 @@ components:
           description: Hood/simulated instrument time in an aircraft.
         crossCountryMinutes:
           type: integer
+        crossCountryPicMinutes:
+          type: integer
+          description: |
+            Cross-country time flown as PIC — per flight the smaller of PIC and
+            cross-country time, summed. Logged flights only; the initial-hours
+            snapshot does not record this split.
         multiPilotMinutes:
           type: integer
           description: EASA AMC1 FCL.050 column 10.

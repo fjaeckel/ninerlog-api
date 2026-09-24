@@ -87,6 +87,7 @@ type AnalyticsTotals struct {
 	ActualInstrumentMinutes    int
 	SimulatedInstrumentMinutes int
 	CrossCountryMinutes        int
+	CrossCountryPicMinutes     int
 	MultiPilotMinutes          int
 	SimulatedFlightMinutes     int
 	GroundTrainingMinutes      int
