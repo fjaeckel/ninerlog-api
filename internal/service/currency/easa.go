@@ -27,6 +27,20 @@ func (e *EASAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating
 	return evalRatingRule(ctx, easaSelectRule(rating, license), rating, license, dataProvider)
 }
 
+// isEASALAPLA reports whether licenseType is an EASA LAPL for aeroplanes
+// ("LAPL" or "LAPL(A)", case-insensitive).
+func isEASALAPLA(licenseType string) bool {
+	lt := strings.ToUpper(strings.TrimSpace(licenseType))
+	return lt == "LAPL" || lt == "LAPL(A)"
+}
+
+// isEASASailplane reports whether licenseType is an EASA sailplane licence
+// ("SPL" or "LAPL(S)", case-insensitive).
+func isEASASailplane(licenseType string) bool {
+	lt := strings.ToUpper(strings.TrimSpace(licenseType))
+	return lt == "SPL" || lt == "LAPL(S)"
+}
+
 // easaSelectRule dispatches a (license type, class type) pair to its rule.
 // License-type-aware: LAPL/SPL use recency regulations (FCL.140.x) while
 // PPL/CPL/ATPL use revalidation regulations (FCL.740.A). IR is always
@@ -48,12 +62,12 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 	}
 
 	// LAPL uses FCL.140.A (rolling 24 months from now, no PIC requirement)
-	if lt == "LAPL" || lt == "LAPL(A)" {
+	if isEASALAPLA(lt) {
 		return &easaLAPLRule
 	}
 
 	// SPL/LAPL(S) uses FCL.140.S (rolling 24 months, launches not landings)
-	if lt == "SPL" || lt == "LAPL(S)" {
+	if isEASASailplane(lt) {
 		if rating.ClassType == models.ClassTypeTMG {
 			return &easaSPLTMGRule
 		}

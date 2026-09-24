@@ -5577,7 +5577,7 @@ type PassengerCurrency struct {
 	// NightLandings Number of night landings in the preceding 90 days
 	NightLandings int `json:"nightLandings"`
 
-	// NightPrivilege Whether this license type has night flying privileges. false for Sport, Recreational, Glider (FAA), SPL, LAPL (EASA), UL.
+	// NightPrivilege Whether this license type has night flying privileges. false for Sport, Recreational, Glider (FAA), SPL, LAPL(S), LAPL, LAPL(A) (EASA, case-insensitive), UL.
 	//
 	// Example: true
 	NightPrivilege *bool `json:"nightPrivilege,omitempty"`

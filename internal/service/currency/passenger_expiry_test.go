@@ -207,6 +207,30 @@ func TestEASA_PassengerCurrency_NoNightPrivilegeHasNoNightExpiry(t *testing.T) {
 	}
 }
 
+// TestEASA_PassengerCurrency_LAPLANoNightPrivilege — "LAPL(A)" has no night
+// privilege under FCL.060(b)(2), in any letter case.
+func TestEASA_PassengerCurrency_LAPLANoNightPrivilege(t *testing.T) {
+	for _, lt := range []string{"LAPL(A)", "lapl(a)"} {
+		t.Run(lt, func(t *testing.T) {
+			eval := NewEASAEvaluator()
+			dp := newMockFlightDataProvider()
+			dp.landingDays = map[models.ClassType][]LandingDay{
+				models.ClassTypeSEPLand: {{Date: day(3), DayLandings: 3, NightLandings: 3}},
+			}
+
+			license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: lt}
+			result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
+
+			if result.NightPrivilege {
+				t.Error("NightPrivilege = true, want false")
+			}
+			if result.NightExpiresOn != nil {
+				t.Errorf("NightExpiresOn = %s, want nil (no night privilege)", *result.NightExpiresOn)
+			}
+		})
+	}
+}
+
 // TestPassengerCurrency_NotCurrentHasNoExpiry — an unmet requirement has
 // nothing to expire.
 func TestPassengerCurrency_NotCurrentHasNoExpiry(t *testing.T) {

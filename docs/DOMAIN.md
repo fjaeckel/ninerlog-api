@@ -380,6 +380,14 @@ computed separately (night landings count toward both), so night currency usuall
 first. An expiry is omitted when the requirement is unmet (nothing to lapse), inapplicable
 (no night privilege), or waived (EASA IR holders under FCL.060(b)(2)(ii)).
 
+Licence types without night privilege (`HasNightPrivilege` in `faa.go`) report
+`nightPrivilege: false` and are not evaluated for night passenger currency: FAA Sport,
+Recreational and Glider; EASA `LAPL` / `LAPL(A)` and `SPL` / `LAPL(S)`; and every German UL
+authority (LBA, DULV, DAeC). Licence types are matched case-insensitively, and the EASA
+spellings are shared with the rating dispatch in `easaSelectRule` (`isEASALAPLA`,
+`isEASASailplane`), so a LAPL or SPL gets both its FCL.140 recency rule and its night
+restriction from the same check.
+
 ### Regulatory differences (EASA vs FAA)
 
 The two main rule sets differ substantially, which is why each has its own evaluator:

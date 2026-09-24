@@ -218,9 +218,9 @@ func HasNightPrivilege(licenseType, authority string) bool {
 	switch {
 	case auth == "FAA" && (lt == "SPORT" || lt == "RECREATIONAL" || lt == "GLIDER"):
 		return false
-	case auth == "EASA" && (lt == "SPL" || lt == "LAPL(S)"):
+	case auth == "EASA" && isEASASailplane(lt):
 		return false
-	case auth == "EASA" && lt == "LAPL":
+	case auth == "EASA" && isEASALAPLA(lt):
 		return false // LAPL requires separate night rating extension
 	case auth == "LBA" || auth == "DULV" || auth == "DAEC":
 		return false // German UL — no night flying
