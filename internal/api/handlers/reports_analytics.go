@@ -210,6 +210,7 @@ func (h *APIHandler) analyticsTotals(ctx context.Context, userID uuid.UUID, mont
 	t.ActualInstrumentMinutes = row.ActualInstrumentMinutes
 	t.SimulatedInstrumentMinutes = row.SimulatedInstrumentMinutes
 	t.CrossCountryMinutes = row.CrossCountryMinutes
+	t.CrossCountryPicMinutes = row.CrossCountryPicMinutes
 	t.MultiPilotMinutes = row.MultiPilotMinutes
 	t.SimulatedFlightMinutes = row.SimulatedFlightMinutes
 	t.GroundTrainingMinutes = row.GroundTrainingMinutes

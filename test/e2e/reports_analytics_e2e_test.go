@@ -24,6 +24,8 @@ type analyticsResponse struct {
 		DualMinutes           int     `json:"dualMinutes"`
 		NightMinutes          int     `json:"nightMinutes"`
 		IFRMinutes            int     `json:"ifrMinutes"`
+		CrossCountryMinutes   int     `json:"crossCountryMinutes"`
+		CrossCountryPicMin    int     `json:"crossCountryPicMinutes"`
 		LandingsDay           int     `json:"landingsDay"`
 		LandingsNight         int     `json:"landingsNight"`
 		Approaches            int     `json:"approaches"`
@@ -440,6 +442,54 @@ func TestReportsAnalyticsTotalsAndBreakdowns(t *testing.T) {
 	if a.Records.BusiestDay == nil || a.Records.BusiestDayFlights != 1 {
 		t.Errorf("Expected a busiest day with 1 flight, got %v / %d",
 			a.Records.BusiestDay, a.Records.BusiestDayFlights)
+	}
+}
+
+func TestReportsAnalyticsCrossCountryPIC(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("analytics-xcpic"), "SecurePass123!", "XC PIC")
+
+	flights := []map[string]interface{}{
+		{
+			// 90 min PIC cross-country.
+			"date": pastDate(3), "aircraftReg": "D-EAAA", "aircraftType": "C172",
+			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+			"offBlockTime": "08:00", "onBlockTime": "09:30",
+			"totalTime": 90, "picTime": 90, "landings": 1,
+		},
+		{
+			// 60 min dual cross-country.
+			"date": pastDate(4), "aircraftReg": "D-EAAA", "aircraftType": "C172",
+			"departureIcao": "EDDS", "arrivalIcao": "EDNY",
+			"offBlockTime": "10:00", "onBlockTime": "11:00",
+			"totalTime": 60, "dualTime": 60, "landings": 1,
+			"instructorName": "M. Keller",
+			"crewMembers": []map[string]string{
+				{"name": "M. Keller", "role": "Instructor"},
+			},
+		},
+		{
+			// 30 min PIC local.
+			"date": pastDate(5), "aircraftReg": "D-EAAA", "aircraftType": "C172",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"offBlockTime": "12:00", "onBlockTime": "12:30",
+			"totalTime": 30, "picTime": 30, "landings": 3,
+		},
+	}
+	for i, f := range flights {
+		resp := c.POST("/flights", f)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("Failed to create flight %d: status %d, body %s",
+				i, resp.StatusCode, string(resp.Body))
+		}
+	}
+
+	a := getAnalytics(t, c, "?months=0")
+	if want := 90 + 60; a.Totals.CrossCountryMinutes != want {
+		t.Errorf("Expected %d cross-country minutes, got %d", want, a.Totals.CrossCountryMinutes)
+	}
+	if a.Totals.CrossCountryPicMin != 90 {
+		t.Errorf("Expected 90 cross-country PIC minutes, got %d", a.Totals.CrossCountryPicMin)
 	}
 }
 
