@@ -24,19 +24,20 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/service` | Domain services: `auth.go`, `flight.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `notification.go` (+ `notification_metrics.go`), `twofactor.go`, `webauthn.go`, `oidc.go` (+ `oidc_config.go`), `idempotency.go`, `deletion.go` (tombstone feed + reaper). Each takes repository interfaces + `pkg` utilities. |
+| `internal/service` | Domain services: `auth.go`, `flight.go`, `license.go`, `class_rating.go`, `aircraft.go`, `credential.go`, `contact.go`, `notification.go` (+ `notification_metrics.go`), `twofactor.go`, `webauthn.go`, `oidc.go` (+ `oidc_config.go`), `idempotency.go`, `deletion.go` (tombstone feed + reaper), `logbook_scope.go` (`LogbookScope` — licence → allowed-registrations resolution, shared by `GET /flights?logbookLicenseId` and custom reports). Each takes repository interfaces + `pkg` utilities. |
 | `internal/service/currency` | The currency engine: `Evaluator`/`Registry`/`FlightDataProvider` (`evaluator.go`), `Service` (`service.go`), authority evaluators (`easa.go`, `faa.go`, `german_ul.go`, `other.go`), and shared logic (`engine.go`, `types.go`). The PostgreSQL implementations of `FlightDataProvider` and `CustomFlightDataProvider` live in `internal/repository/postgres` (`currency_flight_data.go`, `custom_currency_data.go`). See [DOMAIN.md](./DOMAIN.md#currency-engine). |
 | `internal/service/flightcalc` | `ApplyAutoCalculations(flight, userName)` — the single entry point that derives flight fields. |
 | `internal/service/flightrules` | Composable flight rules used by `flightcalc`: `night.go` (day/night via solar), `crew.go`, `roles.go`, `names.go`, `ifr.go`, `fstd.go`, `remarks.go`, `display.go`. |
 | `internal/service/importtemplate` | The logbook-import template catalogue: `field.go` (import-field constants), `template.go` (the `Template` type + registry), `sources.go` (the templates themselves — ForeFlight, LogTen Pro, MyFlightbook, capzlog.aero, FLYLOG.io, Wader, Vereinsflieger standard + extended, SkyDemon, generic EASA/FAA, NinerLog), `detect.go` (header normalisation, scored detection, mapping suggestion). Pure data + lookup; imports no generated types, so the handler converts at the edge. |
 | `internal/service/cloudbackup` | Cloud backup orchestration: `service.go`, `destinations.go`, `runner.go`, `scheduler.go`, `jsonbuilder.go`. |
 | `internal/service/cloudbackup/provider` | Pluggable storage `Provider` interface + registry, with `s3/`, `sftp/`, and `webdav/` implementations. |
+| `internal/service/customreport` | Custom reports: validation and normalisation of a saved definition, per-account quota, window resolution (`lastMonths`/`yearToDate`/`range`/`all`), and result assembly — gap-filled chronological keys for time groupings, ranked-and-limited keys otherwise (`service.go`). |
 
 ### Data layer
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/repository` | Repository **interfaces** (`interfaces.go`) — e.g. `UserRepository`, `FlightRepository`, `LicenseRepository`, `ClassRating`, `Credential`, `Aircraft`, `Contact`, `FlightCrew`, `Notification`, `RefreshToken`, `PasswordResetToken`, `EmailVerificationToken`, `WebAuthnCredential`/`WebAuthnSession`, `BackupDestination`/`BackupRun`, `FlightBaseline`, `Idempotency`, `Deletion` (read-and-sweep over trigger-written tombstones), plus the direct-access interfaces `Admin`, `Announcement`, `FlightImport`, `Reports` (analytics/trends/map aggregates) and `UserContent` (transactional account-content wipe). |
+| `internal/repository` | Repository **interfaces** (`interfaces.go`) — e.g. `UserRepository`, `FlightRepository`, `LicenseRepository`, `ClassRating`, `Credential`, `Aircraft`, `Contact`, `FlightCrew`, `Notification`, `RefreshToken`, `PasswordResetToken`, `EmailVerificationToken`, `WebAuthnCredential`/`WebAuthnSession`, `BackupDestination`/`BackupRun`, `FlightBaseline`, `Idempotency`, `Deletion` (read-and-sweep over trigger-written tombstones), `CustomReport` (CRUD, reordering, and CTE-based aggregation over `flights`), plus the direct-access interfaces `Admin`, `Announcement`, `FlightImport`, `Reports` (analytics/trends/map aggregates) and `UserContent` (transactional account-content wipe). |
 | `internal/repository/postgres` | PostgreSQL implementations of those interfaces (one file per entity). Parameterized SQL only; returns domain models. |
 
 ### Supporting

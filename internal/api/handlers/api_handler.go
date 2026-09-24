@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
+	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
 	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
@@ -65,6 +66,9 @@ type APIHandler struct {
 	// customCurrencyService is wired in cmd/api/main.go via
 	// SetCustomCurrencyService.
 	customCurrencyService *currency.CustomService
+	// customReportService is wired in cmd/api/main.go via
+	// SetCustomReportService.
+	customReportService *customreport.Service
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

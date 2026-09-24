@@ -43,6 +43,71 @@ func appendRegistrationFilter(query string, args []interface{}, argNum int, opts
 	return query, args, argNum
 }
 
+// appendFlightFilters appends every FlightQueryOptions filter to a query over
+// the flights table, starting at placeholder argNum. Shared by the list, count
+// and custom report paths.
+func appendFlightFilters(query string, args []interface{}, argNum int, opts *repository.FlightQueryOptions) (string, []interface{}, int) {
+	if opts != nil {
+		if opts.StartDate != nil {
+			query += fmt.Sprintf(" AND date >= $%d", argNum)
+			args = append(args, *opts.StartDate)
+			argNum++
+		}
+		if opts.EndDate != nil {
+			query += fmt.Sprintf(" AND date <= $%d", argNum)
+			args = append(args, *opts.EndDate)
+			argNum++
+		}
+		if opts.UpdatedSince != nil {
+			query += fmt.Sprintf(" AND updated_at > $%d", argNum)
+			args = append(args, *opts.UpdatedSince)
+			argNum++
+		}
+		if opts.AircraftReg != nil {
+			query += fmt.Sprintf(" AND UPPER(aircraft_reg) = UPPER($%d)", argNum)
+			args = append(args, *opts.AircraftReg)
+			argNum++
+		}
+		if opts.DepartureICAO != nil {
+			query += fmt.Sprintf(" AND UPPER(departure_icao) = UPPER($%d)", argNum)
+			args = append(args, *opts.DepartureICAO)
+			argNum++
+		}
+		if opts.ArrivalICAO != nil {
+			query += fmt.Sprintf(" AND UPPER(arrival_icao) = UPPER($%d)", argNum)
+			args = append(args, *opts.ArrivalICAO)
+			argNum++
+		}
+		if opts.IsPIC != nil {
+			query += fmt.Sprintf(" AND is_pic = $%d", argNum)
+			args = append(args, *opts.IsPIC)
+			argNum++
+		}
+		if opts.IsDual != nil {
+			query += fmt.Sprintf(" AND is_dual = $%d", argNum)
+			args = append(args, *opts.IsDual)
+			argNum++
+		}
+		if opts.Search != nil && *opts.Search != "" {
+			searchPattern := "%" + *opts.Search + "%"
+			query += fmt.Sprintf(
+				" AND (UPPER(aircraft_reg) LIKE UPPER($%d) OR UPPER(aircraft_type) LIKE UPPER($%d) OR UPPER(departure_icao) LIKE UPPER($%d) OR UPPER(arrival_icao) LIKE UPPER($%d) OR UPPER(COALESCE(remarks, '')) LIKE UPPER($%d))",
+				argNum, argNum, argNum, argNum, argNum,
+			)
+			args = append(args, searchPattern)
+			argNum++
+		}
+		if opts.Query != nil {
+			cond, condArgs := opts.Query.Compile(argNum)
+			query += " AND " + cond
+			args = append(args, condArgs...)
+			argNum += len(condArgs)
+		}
+	}
+
+	return appendRegistrationFilter(query, args, argNum, opts)
+}
+
 // timeToString converts a *time.Time (from a PostgreSQL TIME column) to a *string in HH:MM:SS format.
 func timeToString(t *time.Time) *string {
 	if t == nil {
@@ -423,65 +488,7 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 	args := []interface{}{userID}
 	argNum := 2
 
-	if opts != nil {
-		if opts.StartDate != nil {
-			query += fmt.Sprintf(" AND date >= $%d", argNum)
-			args = append(args, *opts.StartDate)
-			argNum++
-		}
-		if opts.EndDate != nil {
-			query += fmt.Sprintf(" AND date <= $%d", argNum)
-			args = append(args, *opts.EndDate)
-			argNum++
-		}
-		if opts.UpdatedSince != nil {
-			query += fmt.Sprintf(" AND updated_at > $%d", argNum)
-			args = append(args, *opts.UpdatedSince)
-			argNum++
-		}
-		if opts.AircraftReg != nil {
-			query += fmt.Sprintf(" AND UPPER(aircraft_reg) = UPPER($%d)", argNum)
-			args = append(args, *opts.AircraftReg)
-			argNum++
-		}
-		if opts.DepartureICAO != nil {
-			query += fmt.Sprintf(" AND UPPER(departure_icao) = UPPER($%d)", argNum)
-			args = append(args, *opts.DepartureICAO)
-			argNum++
-		}
-		if opts.ArrivalICAO != nil {
-			query += fmt.Sprintf(" AND UPPER(arrival_icao) = UPPER($%d)", argNum)
-			args = append(args, *opts.ArrivalICAO)
-			argNum++
-		}
-		if opts.IsPIC != nil {
-			query += fmt.Sprintf(" AND is_pic = $%d", argNum)
-			args = append(args, *opts.IsPIC)
-			argNum++
-		}
-		if opts.IsDual != nil {
-			query += fmt.Sprintf(" AND is_dual = $%d", argNum)
-			args = append(args, *opts.IsDual)
-			argNum++
-		}
-		if opts.Search != nil && *opts.Search != "" {
-			searchPattern := "%" + *opts.Search + "%"
-			query += fmt.Sprintf(
-				" AND (UPPER(aircraft_reg) LIKE UPPER($%d) OR UPPER(aircraft_type) LIKE UPPER($%d) OR UPPER(departure_icao) LIKE UPPER($%d) OR UPPER(arrival_icao) LIKE UPPER($%d) OR UPPER(COALESCE(remarks, '')) LIKE UPPER($%d))",
-				argNum, argNum, argNum, argNum, argNum,
-			)
-			args = append(args, searchPattern)
-			argNum++
-		}
-		if opts.Query != nil {
-			cond, condArgs := opts.Query.Compile(argNum)
-			query += " AND " + cond
-			args = append(args, condArgs...)
-			argNum += len(condArgs)
-		}
-	}
-
-	query, args, _ = appendRegistrationFilter(query, args, argNum, opts)
+	query, args, _ = appendFlightFilters(query, args, argNum, opts)
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
@@ -598,65 +605,7 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 	args := []interface{}{baseValue}
 	argNum := 2
 
-	if opts != nil {
-		if opts.StartDate != nil {
-			query += fmt.Sprintf(" AND date >= $%d", argNum)
-			args = append(args, *opts.StartDate)
-			argNum++
-		}
-		if opts.EndDate != nil {
-			query += fmt.Sprintf(" AND date <= $%d", argNum)
-			args = append(args, *opts.EndDate)
-			argNum++
-		}
-		if opts.UpdatedSince != nil {
-			query += fmt.Sprintf(" AND updated_at > $%d", argNum)
-			args = append(args, *opts.UpdatedSince)
-			argNum++
-		}
-		if opts.AircraftReg != nil {
-			query += fmt.Sprintf(" AND UPPER(aircraft_reg) = UPPER($%d)", argNum)
-			args = append(args, *opts.AircraftReg)
-			argNum++
-		}
-		if opts.DepartureICAO != nil {
-			query += fmt.Sprintf(" AND UPPER(departure_icao) = UPPER($%d)", argNum)
-			args = append(args, *opts.DepartureICAO)
-			argNum++
-		}
-		if opts.ArrivalICAO != nil {
-			query += fmt.Sprintf(" AND UPPER(arrival_icao) = UPPER($%d)", argNum)
-			args = append(args, *opts.ArrivalICAO)
-			argNum++
-		}
-		if opts.IsPIC != nil {
-			query += fmt.Sprintf(" AND is_pic = $%d", argNum)
-			args = append(args, *opts.IsPIC)
-			argNum++
-		}
-		if opts.IsDual != nil {
-			query += fmt.Sprintf(" AND is_dual = $%d", argNum)
-			args = append(args, *opts.IsDual)
-			argNum++
-		}
-		if opts.Search != nil && *opts.Search != "" {
-			searchPattern := "%" + *opts.Search + "%"
-			query += fmt.Sprintf(
-				" AND (UPPER(aircraft_reg) LIKE UPPER($%d) OR UPPER(aircraft_type) LIKE UPPER($%d) OR UPPER(departure_icao) LIKE UPPER($%d) OR UPPER(arrival_icao) LIKE UPPER($%d) OR UPPER(COALESCE(remarks, '')) LIKE UPPER($%d))",
-				argNum, argNum, argNum, argNum, argNum,
-			)
-			args = append(args, searchPattern)
-			argNum++
-		}
-		if opts.Query != nil {
-			cond, condArgs := opts.Query.Compile(argNum)
-			query += " AND " + cond
-			args = append(args, condArgs...)
-			argNum += len(condArgs)
-		}
-	}
-
-	query, args, argNum = appendRegistrationFilter(query, args, argNum, opts)
+	query, args, argNum = appendFlightFilters(query, args, argNum, opts)
 
 	// Sorting — map camelCase API field names to snake_case DB columns
 	sortColumn := "date"

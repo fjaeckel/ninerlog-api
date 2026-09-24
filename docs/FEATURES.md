@@ -216,6 +216,20 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `admin_dashboard.go`, service aggregation).
 - **Reports** — `GET /reports/analytics` backs the whole Reports page from one request
   (`reports_analytics.go`); trends and stats-by-class live in `reports.go`.
+- **Custom reports** (`/reports/custom`, `internal/service/customreport`,
+  `internal/api/handlers/custom_report*.go`) — a pilot saves a flight filter plus a grouping
+  (`month`, `year`, `dayOfWeek`, `aircraftType`, `registration`, `departure`, `arrival`,
+  `route`) and one of nine metrics as a named report (`custom_reports`, definition stored as
+  JSONB, up to 100 per account), and re-runs it on demand or exports it alone as CSV or PDF
+  (`custom_report_export.go`; the PDF adds a filter summary and a bar chart, the CSV
+  neutralises formula-leading cells). Time groupings are gap-filled and chronological;
+  the others are ranked by the chosen metric and capped (default 20, max 100). Aggregation
+  reuses the `NOT is_simulator AND NOT is_passenger` flight-time rule everywhere else in the
+  app applies (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)); a `logbookLicenseId`
+  filter reuses the same licence → allowed-registrations resolution
+  (`internal/service/logbook_scope.go`) as `GET /flights?logbookLicenseId`. Reports are
+  stored server-side per user, so they follow the pilot to every device and travel in the
+  JSON export.
 - **Initial hours** — a per-user snapshot of pre-existing experience (`FlightBaseline`).
   It is added to the totals of both the statistics endpoint and the Reports analytics
   totals whenever the requested range reaches back to its cutoff date, so the dashboard
@@ -374,12 +388,14 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   re-importing updates the existing cards.
 - **Full backup / restore** (`GET /exports/json`, `POST /imports/json`) — everything the
   pilot owns in one document: flights with crew, aircraft, licences and class ratings,
-  credentials, contacts, custom currency rules, notification preferences and the
-  carried-forward hours baseline. `cloudbackup.Payload` is the single definition of that
+  credentials, contacts, custom currency rules, custom reports, notification preferences and
+  the carried-forward hours baseline. `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
   carry the same data. Restores are additive and regenerate all IDs, so a backup moves
-  between installations; `internal/service/cloudbackup/coverage_test.go` fails the build if a
-  new table holding user rows is left out.
+  between installations; a custom report scoped to a licence is re-pointed at that licence's
+  restored copy, or loses the scope if the backup does not carry it.
+  `internal/service/cloudbackup/coverage_test.go` fails the build if a new table holding
+  user rows is left out.
 
 ## Notifications
 
@@ -440,7 +456,8 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)) and `totalPassengerFlights`
   counts flights whose owner was carried rather than crewing
   (see [DOMAIN.md](./DOMAIN.md#passenger-flights)), each kept apart for the same reason
-  the logbook keeps them apart. Config view also reports `registrationPrefixCount`
+  the logbook keeps them apart. `totalCustomReports` counts saved custom reports across all
+  users. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than
   fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).

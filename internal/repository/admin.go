@@ -25,6 +25,8 @@ type AdminStats struct {
 	DisabledAccounts       int
 	// ActiveSessions counts live sessions across all users.
 	ActiveSessions int
+	// TotalCustomReports counts saved custom reports across all users.
+	TotalCustomReports int
 	// ImportsByFormat maps import_format value to import count. Never nil;
 	// formats with no imports are absent.
 	ImportsByFormat map[string]int

@@ -52,6 +52,9 @@ func TestAdminEndpoints(t *testing.T) {
 		if s["totalContacts"] == nil {
 			t.Error("Expected totalContacts")
 		}
+		if s["totalCustomReports"] == nil {
+			t.Error("Expected totalCustomReports")
+		}
 		cbd, ok := s["cloudBackupDestinations"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("Expected cloudBackupDestinations object, got %T", s["cloudBackupDestinations"])

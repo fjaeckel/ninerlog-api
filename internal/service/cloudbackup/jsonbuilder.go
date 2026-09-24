@@ -17,6 +17,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
+	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
 	"github.com/google/uuid"
 )
 
@@ -39,11 +40,12 @@ type DefaultJSONBuilder struct {
 	Licenses    *service.LicenseService
 	Credentials *service.CredentialService
 	ClassRating *service.ClassRatingService
-	// Contacts, CustomCurrency and Notifications back the payload sections of
-	// the same name. A nil service omits its section rather than failing the
-	// backup.
+	// Contacts, CustomCurrency, CustomReports and Notifications back the
+	// payload sections of the same name. A nil service omits its section
+	// rather than failing the backup.
 	Contacts       *service.ContactService
 	CustomCurrency *currency.CustomService
+	CustomReports  *customreport.Service
 	Notifications  *service.NotificationService
 	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
@@ -138,6 +140,11 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		return Payload{}, err
 	}
 
+	reports, err := b.gatherCustomReports(ctx, userID)
+	if err != nil {
+		return Payload{}, err
+	}
+
 	prefs, err := b.gatherNotificationPreferences(ctx, userID)
 	if err != nil {
 		return Payload{}, err
@@ -153,6 +160,7 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		Credentials:             credentials,
 		Contacts:                contacts,
 		CustomCurrencyRules:     rules,
+		CustomReports:           reports,
 		NotificationPreferences: prefs,
 		FlightBaseline:          NewFlightBaseline(b.gatherBaseline(ctx, userID)),
 	}, nil
@@ -189,6 +197,23 @@ func (b *DefaultJSONBuilder) gatherCustomCurrencyRules(ctx context.Context, user
 	}
 	sort.SliceStable(rules, func(i, j int) bool { return rules[i].Name < rules[j].Name })
 	return rules, nil
+}
+
+// gatherCustomReports returns the portable half of each report in display
+// order.
+func (b *DefaultJSONBuilder) gatherCustomReports(ctx context.Context, userID uuid.UUID) ([]CustomReport, error) {
+	if b.CustomReports == nil {
+		return nil, nil
+	}
+	stored, err := b.CustomReports.List(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list custom reports: %w", err)
+	}
+	reports := make([]CustomReport, 0, len(stored))
+	for _, r := range stored {
+		reports = append(reports, CustomReport{Name: r.Name, Definition: r.Definition})
+	}
+	return reports, nil
 }
 
 // gatherNotificationPreferences returns the user's notification settings.

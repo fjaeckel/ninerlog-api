@@ -571,3 +571,28 @@ type DeletionRepository interface {
 	// number deleted.
 	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
 }
+
+// CustomReportGroup is one aggregated group of a custom report query.
+type CustomReportGroup struct {
+	Key    string
+	Totals models.CustomReportTotals
+}
+
+// CustomReportRepository defines data access for saved custom reports.
+type CustomReportRepository interface {
+	// Create inserts a report positioned after the user's existing reports.
+	Create(ctx context.Context, report *models.CustomReport) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.CustomReport, error)
+	// ListByUserID returns the user's reports ordered by position, then creation.
+	ListByUserID(ctx context.Context, userID uuid.UUID) ([]*models.CustomReport, error)
+	CountByUserID(ctx context.Context, userID uuid.UUID) (int, error)
+	// Update writes name and definition. Returns ErrNotFound when absent.
+	Update(ctx context.Context, report *models.CustomReport) error
+	// Delete returns ErrNotFound when absent.
+	Delete(ctx context.Context, id uuid.UUID) error
+	// SetPositions assigns position i to ids[i] for the user's reports.
+	SetPositions(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) error
+	// Aggregate groups the user's flights matching opts by groupBy (a
+	// models.ReportGroup* value). Pagination and sorting in opts are ignored.
+	Aggregate(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions, groupBy string) ([]CustomReportGroup, error)
+}

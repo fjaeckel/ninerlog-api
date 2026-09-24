@@ -3727,8 +3727,8 @@ paths:
       description: |
         Exports everything the user owns as a JSON backup file: flights (with
         crew), aircraft, licences and class ratings, credentials, contacts,
-        custom currency rules, notification preferences and the carried-forward
-        hours baseline.
+        custom currency rules, custom reports, notification preferences and the
+        carried-forward hours baseline.
 
         This is the same payload a cloud backup run writes, and
         `POST /imports/json` restores every section of it.
@@ -3753,8 +3753,8 @@ paths:
         Restore a previously exported NinerLog JSON backup into the authenticated
         user's account. Recreates every section the backup carries: aircraft,
         licences, class ratings, credentials, flights and crew members,
-        contacts, custom currency rules, notification preferences and the
-        carried-forward hours baseline. New UUIDs are assigned so the backup can
+        contacts, custom currency rules, custom reports, notification
+        preferences and the carried-forward hours baseline. New UUIDs are assigned so the backup can
         be restored into any NinerLog installation (including the one it was
         exported from).
 
@@ -3767,7 +3767,10 @@ paths:
         the existing aircraft is referenced by imported flights); contacts whose
         name the account already holds are skipped the same way. Custom currency
         rules are revalidated on restore and count against the per-account
-        limit; a rule's sharing state is never carried over.
+        limit; a rule's sharing state is never carried over. Custom reports are
+        revalidated the same way and appended after existing ones; a report
+        scoped to a licence is re-pointed at that licence's restored copy, and
+        loses the licence scope if the backup does not carry the licence.
       operationId: importDataJSON
       security:
         - bearerAuth: []
@@ -4098,6 +4101,248 @@ paths:
           $ref: '#/components/responses/Unauthorized'
 
   # ── Contacts ──
+
+  /reports/custom:
+    get:
+      tags: [Reports]
+      summary: List the caller's custom reports
+      description: |
+        Returns every saved custom report the caller owns, in display order
+        (`position`, then creation time). Results are not included; fetch them
+        per report from `/reports/custom/{reportId}/result`.
+      operationId: listCustomReports
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's custom reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Reports]
+      summary: Save a custom report
+      description: |
+        Saves a flight filter plus a grouping and a metric as a named report,
+        appended after the caller's existing reports. An account may hold at
+        most 100 custom reports.
+      operationId: createCustomReport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomReportInput'
+      responses:
+        '201':
+          description: Report saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/custom/preview:
+    post:
+      tags: [Reports]
+      summary: Evaluate an unsaved custom report definition
+      description: |
+        Runs a definition against the caller's flights without storing it, so
+        a report can be tried out while it is being built. Subject to the
+        `expensive` rate limit (15/min).
+      operationId: previewCustomReport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomReportPreviewRequest'
+      responses:
+        '200':
+          description: Result of the submitted definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomReportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/custom/order:
+    put:
+      tags: [Reports]
+      summary: Reorder the caller's custom reports
+      description: |
+        Sets the display order of the caller's custom reports. `reportIds` must
+        list every report the caller owns exactly once.
+      operationId: reorderCustomReports
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomReportOrderRequest'
+      responses:
+        '200':
+          description: The caller's custom reports in their new order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/custom/{reportId}:
+    get:
+      tags: [Reports]
+      summary: Get a custom report
+      operationId: getCustomReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomReportId'
+      responses:
+        '200':
+          description: The report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Reports]
+      summary: Update a custom report
+      description: Replaces the report's name and definition. Its position is kept.
+      operationId: updateCustomReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomReportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomReportInput'
+      responses:
+        '200':
+          description: Report updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Reports]
+      summary: Delete a custom report
+      operationId: deleteCustomReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomReportId'
+      responses:
+        '204':
+          description: Report deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reports/custom/{reportId}/result:
+    get:
+      tags: [Reports]
+      summary: Evaluate a saved custom report
+      description: |
+        Aggregates the caller's flights matching the report's filter, grouped
+        by `groupBy`. Every row carries all metrics; `value` repeats the
+        report's chosen `metric` for charting. Time metrics count only rows
+        that are flight time (FSTD sessions and passenger flights are
+        excluded); `fstdTime` sums FSTD session time separately.
+      operationId: getCustomReportResult
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomReportId'
+      responses:
+        '200':
+          description: The report's current result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomReportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reports/custom/{reportId}/export:
+    get:
+      tags: [Reports]
+      summary: Export a saved custom report as CSV or PDF
+      description: |
+        Downloads one report on its own: CSV carries one row per group with
+        every metric (durations as H:MM) plus a totals row; PDF carries the
+        filter summary, a bar chart of the report's metric, and the same
+        table. Subject to the `expensive` rate limit (15/min).
+      operationId: exportCustomReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomReportId'
+        - name: format
+          in: query
+          required: true
+          description: File format
+          schema:
+            type: string
+            enum: [csv, pdf]
+      responses:
+        '200':
+          description: File download
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /contacts:
     get:
@@ -5642,6 +5887,16 @@ components:
         type: string
         format: uuid
         example: 880e8400-e29b-41d4-a716-446655440003
+
+    CustomReportId:
+      name: reportId
+      in: path
+      required: true
+      description: Custom report UUID
+      schema:
+        type: string
+        format: uuid
+        example: 990e8400-e29b-41d4-a716-446655440004
 
     CustomCurrencyShareToken:
       name: shareToken
@@ -9414,6 +9669,7 @@ components:
         - contactsSkipped
         - contactsCreated
         - customCurrencyRulesImported
+        - customReportsImported
         - notificationPreferencesImported
         - flightBaselineImported
       properties:
@@ -9462,6 +9718,12 @@ components:
             User-authored currency rules restored. Sharing state is never
             carried over: a restored rule is private until shared again.
           example: 3
+        customReportsImported:
+          type: integer
+          description: >-
+            Saved custom reports restored, appended after the account's
+            existing reports.
+          example: 2
         notificationPreferencesImported:
           type: boolean
           description: Whether the backup carried notification preferences that were applied
@@ -9590,6 +9852,7 @@ components:
         - lockedAccounts
         - disabledAccounts
         - activeSessions
+        - totalCustomReports
         - cloudBackupDestinations
         - importsByFormat
       properties:
@@ -9629,6 +9892,9 @@ components:
             Live sessions across all users. A session is live while it holds an
             unrevoked, unexpired refresh token, so this counts signed-in
             devices rather than users.
+        totalCustomReports:
+          type: integer
+          description: Saved custom reports across all users.
         cloudBackupDestinations:
           type: object
           description: Counts of user-configured cloud backup destinations.
@@ -11521,6 +11787,279 @@ components:
         shareToken:
           type: string
           maxLength: 64
+
+    CustomReportGroupBy:
+      type: string
+      description: |
+        Dimension the report groups flights by. `month` keys are `YYYY-MM`,
+        `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
+        to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
+        gap-filled across the report window; the others are ranked by `value`.
+      enum: [month, year, dayOfWeek, aircraftType, registration, departure, arrival, route]
+
+    CustomReportMetric:
+      type: string
+      description: |
+        Metric charted by a report. Durations are integer minutes.
+      enum: [flights, totalTime, picTime, dualTime, dualGivenTime, nightTime, ifrTime, crossCountryTime, fstdTime, landings]
+
+    CustomReportWindow:
+      type: object
+      description: |
+        Date window. `all` has no bound; `lastMonths` covers the current
+        calendar month and the `months - 1` before it; `yearToDate` starts on
+        1 January of the current year; `range` uses `startDate` and/or
+        `endDate` (inclusive, either may be omitted). Relative windows are
+        resolved in UTC each time the report runs.
+      required:
+        - kind
+      properties:
+        kind:
+          type: string
+          enum: [all, lastMonths, yearToDate, range]
+        months:
+          type: integer
+          minimum: 1
+          maximum: 120
+          description: Required when `kind` is `lastMonths`
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+
+    CustomReportFilter:
+      type: object
+      description: |
+        Flight filter, using the same semantics as the matching `GET /flights`
+        query parameters. `role` corresponds to `isPic=true` / `isDual=true`.
+      properties:
+        q:
+          type: string
+          maxLength: 1000
+          description: Advanced search query, as `GET /flights?q=`
+        aircraftReg:
+          type: string
+          maxLength: 20
+        departureIcao:
+          type: string
+          maxLength: 10
+        arrivalIcao:
+          type: string
+          maxLength: 10
+        role:
+          type: string
+          enum: [pic, dual]
+        logbookLicenseId:
+          type: string
+          format: uuid
+          description: Restrict to aircraft whose class matches the licence's class ratings
+
+    CustomReportDefinition:
+      type: object
+      required:
+        - filter
+        - window
+        - groupBy
+        - metric
+      properties:
+        filter:
+          $ref: '#/components/schemas/CustomReportFilter'
+        window:
+          $ref: '#/components/schemas/CustomReportWindow'
+        groupBy:
+          $ref: '#/components/schemas/CustomReportGroupBy'
+        metric:
+          $ref: '#/components/schemas/CustomReportMetric'
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: |
+            Maximum number of groups returned for ranked groupings (default
+            20). Ignored for time groupings.
+
+    CustomReport:
+      type: object
+      required:
+        - id
+        - name
+        - definition
+        - position
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        definition:
+          $ref: '#/components/schemas/CustomReportDefinition'
+        position:
+          type: integer
+          description: Display order, ascending
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CustomReportInput:
+      type: object
+      required:
+        - name
+        - definition
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          example: Night hours by aircraft
+        definition:
+          $ref: '#/components/schemas/CustomReportDefinition'
+
+    CustomReportPreviewRequest:
+      type: object
+      required:
+        - definition
+      properties:
+        definition:
+          $ref: '#/components/schemas/CustomReportDefinition'
+
+    CustomReportOrderRequest:
+      type: object
+      required:
+        - reportIds
+      properties:
+        reportIds:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+
+    CustomReportTotals:
+      type: object
+      description: Aggregates of one group, or of every matching flight. Durations in minutes.
+      required:
+        - flights
+        - totalTime
+        - picTime
+        - dualTime
+        - dualGivenTime
+        - nightTime
+        - ifrTime
+        - crossCountryTime
+        - fstdTime
+        - landings
+      properties:
+        flights:
+          type: integer
+          description: Matching entries that count as flight time
+        totalTime:
+          type: integer
+        picTime:
+          type: integer
+        dualTime:
+          type: integer
+        dualGivenTime:
+          type: integer
+        nightTime:
+          type: integer
+        ifrTime:
+          type: integer
+        crossCountryTime:
+          type: integer
+        fstdTime:
+          type: integer
+          description: FSTD session time of matching simulator entries
+        landings:
+          type: integer
+
+    CustomReportRow:
+      type: object
+      required:
+        - key
+        - label
+        - value
+        - flights
+        - totalTime
+        - picTime
+        - dualTime
+        - dualGivenTime
+        - nightTime
+        - ifrTime
+        - crossCountryTime
+        - fstdTime
+        - landings
+      properties:
+        key:
+          type: string
+          description: Group key (see `CustomReportGroupBy`); empty when the flights carry no value for the dimension
+        label:
+          type: string
+          description: English display label for the key
+        value:
+          type: integer
+          description: The report's `metric` for this group
+        flights:
+          type: integer
+        totalTime:
+          type: integer
+        picTime:
+          type: integer
+        dualTime:
+          type: integer
+        dualGivenTime:
+          type: integer
+        nightTime:
+          type: integer
+        ifrTime:
+          type: integer
+        crossCountryTime:
+          type: integer
+        fstdTime:
+          type: integer
+        landings:
+          type: integer
+
+    CustomReportResult:
+      type: object
+      required:
+        - groupBy
+        - metric
+        - rows
+        - totals
+        - otherGroups
+        - generatedAt
+      properties:
+        groupBy:
+          $ref: '#/components/schemas/CustomReportGroupBy'
+        metric:
+          $ref: '#/components/schemas/CustomReportMetric'
+        startDate:
+          type: string
+          format: date
+          description: Resolved window start; absent when unbounded
+        endDate:
+          type: string
+          format: date
+          description: Resolved window end; absent when unbounded
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomReportRow'
+        totals:
+          $ref: '#/components/schemas/CustomReportTotals'
+        otherGroups:
+          type: integer
+          description: Groups left out by `limit`; they still count toward `totals`
+        generatedAt:
+          type: string
+          format: date-time
 
     CustomCurrencyRuleInput:
       type: object

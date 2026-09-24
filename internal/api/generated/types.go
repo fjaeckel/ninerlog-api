@@ -618,6 +618,126 @@ func (e CustomCurrencyWindowUnit) Valid() bool {
 	}
 }
 
+// Defines values for CustomReportFilterRole.
+const (
+	Dual CustomReportFilterRole = "dual"
+	Pic  CustomReportFilterRole = "pic"
+)
+
+// Valid indicates whether the value is a known member of the CustomReportFilterRole enum.
+func (e CustomReportFilterRole) Valid() bool {
+	switch e {
+	case Dual:
+		return true
+	case Pic:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomReportGroupBy.
+const (
+	CustomReportGroupByAircraftType CustomReportGroupBy = "aircraftType"
+	CustomReportGroupByArrival      CustomReportGroupBy = "arrival"
+	CustomReportGroupByDayOfWeek    CustomReportGroupBy = "dayOfWeek"
+	CustomReportGroupByDeparture    CustomReportGroupBy = "departure"
+	CustomReportGroupByMonth        CustomReportGroupBy = "month"
+	CustomReportGroupByRegistration CustomReportGroupBy = "registration"
+	CustomReportGroupByRoute        CustomReportGroupBy = "route"
+	CustomReportGroupByYear         CustomReportGroupBy = "year"
+)
+
+// Valid indicates whether the value is a known member of the CustomReportGroupBy enum.
+func (e CustomReportGroupBy) Valid() bool {
+	switch e {
+	case CustomReportGroupByAircraftType:
+		return true
+	case CustomReportGroupByArrival:
+		return true
+	case CustomReportGroupByDayOfWeek:
+		return true
+	case CustomReportGroupByDeparture:
+		return true
+	case CustomReportGroupByMonth:
+		return true
+	case CustomReportGroupByRegistration:
+		return true
+	case CustomReportGroupByRoute:
+		return true
+	case CustomReportGroupByYear:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomReportMetric.
+const (
+	CustomReportMetricCrossCountryTime CustomReportMetric = "crossCountryTime"
+	CustomReportMetricDualGivenTime    CustomReportMetric = "dualGivenTime"
+	CustomReportMetricDualTime         CustomReportMetric = "dualTime"
+	CustomReportMetricFlights          CustomReportMetric = "flights"
+	CustomReportMetricFstdTime         CustomReportMetric = "fstdTime"
+	CustomReportMetricIfrTime          CustomReportMetric = "ifrTime"
+	CustomReportMetricLandings         CustomReportMetric = "landings"
+	CustomReportMetricNightTime        CustomReportMetric = "nightTime"
+	CustomReportMetricPicTime          CustomReportMetric = "picTime"
+	CustomReportMetricTotalTime        CustomReportMetric = "totalTime"
+)
+
+// Valid indicates whether the value is a known member of the CustomReportMetric enum.
+func (e CustomReportMetric) Valid() bool {
+	switch e {
+	case CustomReportMetricCrossCountryTime:
+		return true
+	case CustomReportMetricDualGivenTime:
+		return true
+	case CustomReportMetricDualTime:
+		return true
+	case CustomReportMetricFlights:
+		return true
+	case CustomReportMetricFstdTime:
+		return true
+	case CustomReportMetricIfrTime:
+		return true
+	case CustomReportMetricLandings:
+		return true
+	case CustomReportMetricNightTime:
+		return true
+	case CustomReportMetricPicTime:
+		return true
+	case CustomReportMetricTotalTime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomReportWindowKind.
+const (
+	All        CustomReportWindowKind = "all"
+	LastMonths CustomReportWindowKind = "lastMonths"
+	Range      CustomReportWindowKind = "range"
+	YearToDate CustomReportWindowKind = "yearToDate"
+)
+
+// Valid indicates whether the value is a known member of the CustomReportWindowKind enum.
+func (e CustomReportWindowKind) Valid() bool {
+	switch e {
+	case All:
+		return true
+	case LastMonths:
+		return true
+	case Range:
+		return true
+	case YearToDate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeletionEntity.
 const (
 	DeletionEntityAircraft   DeletionEntity = "aircraft"
@@ -1668,6 +1788,24 @@ func (e ListFlightsParamsSortOrder) Valid() bool {
 	}
 }
 
+// Defines values for ExportCustomReportParamsFormat.
+const (
+	Csv ExportCustomReportParamsFormat = "csv"
+	Pdf ExportCustomReportParamsFormat = "pdf"
+)
+
+// Valid indicates whether the value is a known member of the ExportCustomReportParamsFormat enum.
+func (e ExportCustomReportParamsFormat) Valid() bool {
+	switch e {
+	case Csv:
+		return true
+	case Pdf:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListDeletionsParamsEntity.
 const (
 	ListDeletionsParamsEntityAircraft   ListDeletionsParamsEntity = "aircraft"
@@ -1980,6 +2118,9 @@ type AdminStats struct {
 	// TotalContacts Contacts across all users. Grows on its own as flights are logged, since crew names are turned into contacts automatically.
 	TotalContacts    int `json:"totalContacts"`
 	TotalCredentials int `json:"totalCredentials"`
+
+	// TotalCustomReports Saved custom reports across all users.
+	TotalCustomReports int `json:"totalCustomReports"`
 
 	// TotalFlights Flights across all users. Excludes FSTD sessions and passenger flights, which are counted separately.
 	TotalFlights int `json:"totalFlights"`
@@ -3633,6 +3774,174 @@ type CustomCurrencyWindow struct {
 // CustomCurrencyWindowUnit Example: days
 type CustomCurrencyWindowUnit string
 
+// CustomReport defines model for CustomReport.
+type CustomReport struct {
+	CreatedAt  time.Time              `json:"createdAt"`
+	Definition CustomReportDefinition `json:"definition"`
+	Id         openapi_types.UUID     `json:"id"`
+	Name       string                 `json:"name"`
+
+	// Position Display order, ascending
+	Position  int       `json:"position"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// CustomReportDefinition defines model for CustomReportDefinition.
+type CustomReportDefinition struct {
+	// Filter Flight filter, using the same semantics as the matching `GET /flights`
+	// query parameters. `role` corresponds to `isPic=true` / `isDual=true`.
+	Filter CustomReportFilter `json:"filter"`
+
+	// GroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
+	// `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
+	// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
+	// gap-filled across the report window; the others are ranked by `value`.
+	GroupBy CustomReportGroupBy `json:"groupBy"`
+
+	// Limit Maximum number of groups returned for ranked groupings (default
+	// 20). Ignored for time groupings.
+	Limit *int `json:"limit,omitempty"`
+
+	// Metric Metric charted by a report. Durations are integer minutes.
+	Metric CustomReportMetric `json:"metric"`
+
+	// Window Date window. `all` has no bound; `lastMonths` covers the current
+	// calendar month and the `months - 1` before it; `yearToDate` starts on
+	// 1 January of the current year; `range` uses `startDate` and/or
+	// `endDate` (inclusive, either may be omitted). Relative windows are
+	// resolved in UTC each time the report runs.
+	Window CustomReportWindow `json:"window"`
+}
+
+// CustomReportFilter Flight filter, using the same semantics as the matching `GET /flights`
+// query parameters. `role` corresponds to `isPic=true` / `isDual=true`.
+type CustomReportFilter struct {
+	AircraftReg   *string `json:"aircraftReg,omitempty"`
+	ArrivalIcao   *string `json:"arrivalIcao,omitempty"`
+	DepartureIcao *string `json:"departureIcao,omitempty"`
+
+	// LogbookLicenseId Restrict to aircraft whose class matches the licence's class ratings
+	LogbookLicenseId *openapi_types.UUID `json:"logbookLicenseId,omitempty"`
+
+	// Q Advanced search query, as `GET /flights?q=`
+	Q    *string                 `json:"q,omitempty"`
+	Role *CustomReportFilterRole `json:"role,omitempty"`
+}
+
+// CustomReportFilterRole defines model for CustomReportFilter.Role.
+type CustomReportFilterRole string
+
+// CustomReportGroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
+// `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
+// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
+// gap-filled across the report window; the others are ranked by `value`.
+type CustomReportGroupBy string
+
+// CustomReportInput defines model for CustomReportInput.
+type CustomReportInput struct {
+	Definition CustomReportDefinition `json:"definition"`
+
+	// Name Example: Night hours by aircraft
+	Name string `json:"name"`
+}
+
+// CustomReportMetric Metric charted by a report. Durations are integer minutes.
+type CustomReportMetric string
+
+// CustomReportOrderRequest defines model for CustomReportOrderRequest.
+type CustomReportOrderRequest struct {
+	ReportIds []openapi_types.UUID `json:"reportIds"`
+}
+
+// CustomReportPreviewRequest defines model for CustomReportPreviewRequest.
+type CustomReportPreviewRequest struct {
+	Definition CustomReportDefinition `json:"definition"`
+}
+
+// CustomReportResult defines model for CustomReportResult.
+type CustomReportResult struct {
+	// EndDate Resolved window end; absent when unbounded
+	EndDate     *openapi_types.Date `json:"endDate,omitempty"`
+	GeneratedAt time.Time           `json:"generatedAt"`
+
+	// GroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
+	// `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
+	// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
+	// gap-filled across the report window; the others are ranked by `value`.
+	GroupBy CustomReportGroupBy `json:"groupBy"`
+
+	// Metric Metric charted by a report. Durations are integer minutes.
+	Metric CustomReportMetric `json:"metric"`
+
+	// OtherGroups Groups left out by `limit`; they still count toward `totals`
+	OtherGroups int               `json:"otherGroups"`
+	Rows        []CustomReportRow `json:"rows"`
+
+	// StartDate Resolved window start; absent when unbounded
+	StartDate *openapi_types.Date `json:"startDate,omitempty"`
+
+	// Totals Aggregates of one group, or of every matching flight. Durations in minutes.
+	Totals CustomReportTotals `json:"totals"`
+}
+
+// CustomReportRow defines model for CustomReportRow.
+type CustomReportRow struct {
+	CrossCountryTime int `json:"crossCountryTime"`
+	DualGivenTime    int `json:"dualGivenTime"`
+	DualTime         int `json:"dualTime"`
+	Flights          int `json:"flights"`
+	FstdTime         int `json:"fstdTime"`
+	IfrTime          int `json:"ifrTime"`
+
+	// Key Group key (see `CustomReportGroupBy`); empty when the flights carry no value for the dimension
+	Key string `json:"key"`
+
+	// Label English display label for the key
+	Label     string `json:"label"`
+	Landings  int    `json:"landings"`
+	NightTime int    `json:"nightTime"`
+	PicTime   int    `json:"picTime"`
+	TotalTime int    `json:"totalTime"`
+
+	// Value The report's `metric` for this group
+	Value int `json:"value"`
+}
+
+// CustomReportTotals Aggregates of one group, or of every matching flight. Durations in minutes.
+type CustomReportTotals struct {
+	CrossCountryTime int `json:"crossCountryTime"`
+	DualGivenTime    int `json:"dualGivenTime"`
+	DualTime         int `json:"dualTime"`
+
+	// Flights Matching entries that count as flight time
+	Flights int `json:"flights"`
+
+	// FstdTime FSTD session time of matching simulator entries
+	FstdTime  int `json:"fstdTime"`
+	IfrTime   int `json:"ifrTime"`
+	Landings  int `json:"landings"`
+	NightTime int `json:"nightTime"`
+	PicTime   int `json:"picTime"`
+	TotalTime int `json:"totalTime"`
+}
+
+// CustomReportWindow Date window. `all` has no bound; `lastMonths` covers the current
+// calendar month and the `months - 1` before it; `yearToDate` starts on
+// 1 January of the current year; `range` uses `startDate` and/or
+// `endDate` (inclusive, either may be omitted). Relative windows are
+// resolved in UTC each time the report runs.
+type CustomReportWindow struct {
+	EndDate *openapi_types.Date    `json:"endDate,omitempty"`
+	Kind    CustomReportWindowKind `json:"kind"`
+
+	// Months Required when `kind` is `lastMonths`
+	Months    *int                `json:"months,omitempty"`
+	StartDate *openapi_types.Date `json:"startDate,omitempty"`
+}
+
+// CustomReportWindowKind defines model for CustomReportWindow.Kind.
+type CustomReportWindowKind string
+
 // Deletion defines model for Deletion.
 type Deletion struct {
 	// DeletedAt When the record was deleted
@@ -4903,6 +5212,11 @@ type ImportJSONResult struct {
 	// Example: 3
 	CustomCurrencyRulesImported int `json:"customCurrencyRulesImported"`
 
+	// CustomReportsImported Saved custom reports restored, appended after the account's existing reports.
+	//
+	// Example: 2
+	CustomReportsImported int `json:"customReportsImported"`
+
 	// FlightBaselineImported Whether the backup carried a carried-forward hours baseline that was applied
 	FlightBaselineImported bool `json:"flightBaselineImported"`
 
@@ -6106,6 +6420,9 @@ type CustomCurrencyRuleId = openapi_types.UUID
 // CustomCurrencyShareToken defines model for CustomCurrencyShareToken.
 type CustomCurrencyShareToken = string
 
+// CustomReportId Example: 990e8400-e29b-41d4-a716-446655440004
+type CustomReportId = openapi_types.UUID
+
 // DocumentFileId Example: aa0e8400-e29b-41d4-a716-446655440009
 type DocumentFileId = openapi_types.UUID
 
@@ -6620,6 +6937,15 @@ type GetFlightAnalyticsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ExportCustomReportParams defines parameters for ExportCustomReport.
+type ExportCustomReportParams struct {
+	// Format File format
+	Format ExportCustomReportParamsFormat `form:"format" json:"format"`
+}
+
+// ExportCustomReportParamsFormat defines parameters for ExportCustomReport.
+type ExportCustomReportParamsFormat string
+
 // GetStatsByClassParams defines parameters for GetStatsByClass.
 type GetStatsByClassParams struct {
 	// Months Number of months to include (default 12, 0 = all time)
@@ -6864,6 +7190,18 @@ type CreateClassRatingJSONRequestBody = ClassRatingCreate
 
 // UpdateClassRatingJSONRequestBody defines body for UpdateClassRating for application/json ContentType.
 type UpdateClassRatingJSONRequestBody = ClassRatingUpdate
+
+// CreateCustomReportJSONRequestBody defines body for CreateCustomReport for application/json ContentType.
+type CreateCustomReportJSONRequestBody = CustomReportInput
+
+// ReorderCustomReportsJSONRequestBody defines body for ReorderCustomReports for application/json ContentType.
+type ReorderCustomReportsJSONRequestBody = CustomReportOrderRequest
+
+// PreviewCustomReportJSONRequestBody defines body for PreviewCustomReport for application/json ContentType.
+type PreviewCustomReportJSONRequestBody = CustomReportPreviewRequest
+
+// UpdateCustomReportJSONRequestBody defines body for UpdateCustomReport for application/json ContentType.
+type UpdateCustomReportJSONRequestBody = CustomReportInput
 
 // CompletePublicSignatureJSONRequestBody defines body for CompletePublicSignature for application/json ContentType.
 type CompletePublicSignatureJSONRequestBody = CompleteSignatureRequest

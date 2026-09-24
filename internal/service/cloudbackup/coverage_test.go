@@ -32,6 +32,7 @@ var exported = map[string]string{
 	"credentials":              "Credentials",
 	"contacts":                 "Contacts",
 	"custom_currency_rules":    "CustomCurrencyRules",
+	"custom_reports":           "CustomReports",
 	"notification_preferences": "NotificationPreferences",
 	"flight_baselines":         "FlightBaseline",
 }

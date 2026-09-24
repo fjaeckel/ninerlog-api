@@ -24,6 +24,7 @@ type Payload struct {
 	Credentials         []*models.Credential `json:"credentials"`
 	Contacts            []*models.Contact    `json:"contacts"`
 	CustomCurrencyRules []CustomCurrencyRule `json:"customCurrencyRules"`
+	CustomReports       []CustomReport       `json:"customReports"`
 	// NotificationPreferences and FlightBaseline are single-row settings and
 	// are omitted when the user has none.
 	NotificationPreferences *NotificationPreferences `json:"notificationPreferences,omitempty"`
@@ -48,6 +49,13 @@ type CustomCurrencyRule struct {
 	Definition  models.CustomCurrencyRuleBody `json:"definition"`
 	Enabled     bool                          `json:"enabled"`
 	Notify      bool                          `json:"notify"`
+}
+
+// CustomReport is the portable half of a saved custom report, in display
+// order. A licence-scoped report names the licence by its id in this backup.
+type CustomReport struct {
+	Name       string                        `json:"name"`
+	Definition models.CustomReportDefinition `json:"definition"`
 }
 
 // NotificationPreferences is the portable half of a user's notification

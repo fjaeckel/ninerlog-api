@@ -437,6 +437,33 @@ type ServerInterface interface {
 	// GetFlightAnalytics Get full logbook analytics
 	// (GET /reports/analytics)
 	GetFlightAnalytics(c *gin.Context, params GetFlightAnalyticsParams)
+	// ListCustomReports List the caller's custom reports
+	// (GET /reports/custom)
+	ListCustomReports(c *gin.Context)
+	// CreateCustomReport Save a custom report
+	// (POST /reports/custom)
+	CreateCustomReport(c *gin.Context)
+	// ReorderCustomReports Reorder the caller's custom reports
+	// (PUT /reports/custom/order)
+	ReorderCustomReports(c *gin.Context)
+	// PreviewCustomReport Evaluate an unsaved custom report definition
+	// (POST /reports/custom/preview)
+	PreviewCustomReport(c *gin.Context)
+	// DeleteCustomReport Delete a custom report
+	// (DELETE /reports/custom/{reportId})
+	DeleteCustomReport(c *gin.Context, reportId CustomReportId)
+	// GetCustomReport Get a custom report
+	// (GET /reports/custom/{reportId})
+	GetCustomReport(c *gin.Context, reportId CustomReportId)
+	// UpdateCustomReport Update a custom report
+	// (PUT /reports/custom/{reportId})
+	UpdateCustomReport(c *gin.Context, reportId CustomReportId)
+	// ExportCustomReport Export a saved custom report as CSV or PDF
+	// (GET /reports/custom/{reportId}/export)
+	ExportCustomReport(c *gin.Context, reportId CustomReportId, params ExportCustomReportParams)
+	// GetCustomReportResult Evaluate a saved custom report
+	// (GET /reports/custom/{reportId}/result)
+	GetCustomReportResult(c *gin.Context, reportId CustomReportId)
 	// GetFlightRoutes Get flight routes for map
 	// (GET /reports/routes)
 	GetFlightRoutes(c *gin.Context)
@@ -3737,6 +3764,194 @@ func (siw *ServerInterfaceWrapper) GetFlightAnalytics(c *gin.Context) {
 	siw.Handler.GetFlightAnalytics(c, params)
 }
 
+// ListCustomReports operation middleware
+func (siw *ServerInterfaceWrapper) ListCustomReports(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListCustomReports(c)
+}
+
+// CreateCustomReport operation middleware
+func (siw *ServerInterfaceWrapper) CreateCustomReport(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateCustomReport(c)
+}
+
+// ReorderCustomReports operation middleware
+func (siw *ServerInterfaceWrapper) ReorderCustomReports(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReorderCustomReports(c)
+}
+
+// PreviewCustomReport operation middleware
+func (siw *ServerInterfaceWrapper) PreviewCustomReport(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PreviewCustomReport(c)
+}
+
+// DeleteCustomReport operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCustomReport(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId CustomReportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", c.Param("reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reportId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteCustomReport(c, reportId)
+}
+
+// GetCustomReport operation middleware
+func (siw *ServerInterfaceWrapper) GetCustomReport(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId CustomReportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", c.Param("reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reportId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCustomReport(c, reportId)
+}
+
+// UpdateCustomReport operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCustomReport(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId CustomReportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", c.Param("reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reportId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateCustomReport(c, reportId)
+}
+
+// ExportCustomReport operation middleware
+func (siw *ServerInterfaceWrapper) ExportCustomReport(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId CustomReportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", c.Param("reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reportId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportCustomReportParams
+
+	// ------------- Required query parameter "format" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "format", c.Request.URL.Query(), &params.Format, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter format: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportCustomReport(c, reportId, params)
+}
+
+// GetCustomReportResult operation middleware
+func (siw *ServerInterfaceWrapper) GetCustomReportResult(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId CustomReportId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", c.Param("reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reportId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCustomReportResult(c, reportId)
+}
+
 // GetFlightRoutes operation middleware
 func (siw *ServerInterfaceWrapper) GetFlightRoutes(c *gin.Context) {
 
@@ -4234,6 +4449,15 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/reports/trends", wrapper.GetFlightTrends)
 	router.GET(options.BaseURL+"/reports/stats-by-class", wrapper.GetStatsByClass)
 	router.GET(options.BaseURL+"/reports/analytics", wrapper.GetFlightAnalytics)
+	router.GET(options.BaseURL+"/reports/custom", wrapper.ListCustomReports)
+	router.POST(options.BaseURL+"/reports/custom", wrapper.CreateCustomReport)
+	router.POST(options.BaseURL+"/reports/custom/preview", wrapper.PreviewCustomReport)
+	router.PUT(options.BaseURL+"/reports/custom/order", wrapper.ReorderCustomReports)
+	router.DELETE(options.BaseURL+"/reports/custom/:reportId", wrapper.DeleteCustomReport)
+	router.GET(options.BaseURL+"/reports/custom/:reportId", wrapper.GetCustomReport)
+	router.PUT(options.BaseURL+"/reports/custom/:reportId", wrapper.UpdateCustomReport)
+	router.GET(options.BaseURL+"/reports/custom/:reportId/result", wrapper.GetCustomReportResult)
+	router.GET(options.BaseURL+"/reports/custom/:reportId/export", wrapper.ExportCustomReport)
 	router.GET(options.BaseURL+"/contacts", wrapper.ListContacts)
 	router.POST(options.BaseURL+"/contacts", wrapper.CreateContact)
 	router.GET(options.BaseURL+"/contacts/search", wrapper.SearchContacts)

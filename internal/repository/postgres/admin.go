@@ -42,6 +42,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM contacts"), &stats.TotalContacts)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM credentials"), &stats.TotalCredentials)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flight_imports"), &stats.TotalImports)
+	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM custom_reports"), &stats.TotalCustomReports)
 
 	// Flights this month
 	monthStart := now.Format("2006-01") + "-01"

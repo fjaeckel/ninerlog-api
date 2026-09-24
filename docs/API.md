@@ -118,7 +118,7 @@ listed there with the reason.
   |---|---|---|---|
   | `general` | 120/min | every `/api/v1` route | user ID (IP when unauthenticated) |
   | `search` | `SEARCH_RATE_LIMIT_PER_MINUTE`, default 60/min | `GET /flights` **with** a `q` parameter | user ID |
-  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/imports/*`, and **writes** to `/…/files*` | user ID |
+  | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/reports/custom/preview`, `/reports/custom/{id}/export`, `/imports/*`, and **writes** to `/…/files*` | user ID |
   | `file_read` | `FILE_READ_RATE_LIMIT_PER_MINUTE`, default 90/min | **reads** of `/…/files*` | user ID |
   | `auth` | 10/min | login, register, refresh, password reset, 2FA, WebAuthn | client IP |
   | `admin` | 30/min | `/admin/*` and user state changes | client IP |
@@ -512,6 +512,42 @@ yearly series, breakdowns, patterns, records), scoped by `months` (0 = all time)
 the snapshot's cutoff date, so they agree with `GET /users/me/statistics`; the contribution
 is reported separately as `baseline`. Per-month, per-aircraft and per-airport breakdowns
 cover logged flights only — there is nothing to attribute a snapshot to.
+
+### Custom Reports
+User-defined flight reports under `/reports/custom` — a flight filter (`CustomReportFilter`,
+the same semantics as the matching `GET /flights` query parameters) plus a `groupBy`
+dimension and one `metric`, saved and re-run on demand. An account holds at most 100.
+
+- `GET`/`POST /reports/custom` — list, in display order (`position`, then creation time),
+  and create.
+- `POST /reports/custom/preview` — evaluate an unsaved definition while it is being built.
+  Under the `expensive` rate limit.
+- `PUT /reports/custom/order` — set display order; `reportIds` must list every owned report
+  exactly once.
+- `GET`/`PUT`/`DELETE /reports/custom/{reportId}` — read, replace (position is kept), remove.
+- `GET /reports/custom/{reportId}/result` — evaluate a saved report.
+- `GET /reports/custom/{reportId}/export?format=csv|pdf` — download one report on its own:
+  CSV carries one row per group plus a totals row; PDF adds a filter summary and a bar chart
+  of the report's metric. Under the `expensive` rate limit.
+
+`groupBy` is either a time dimension (`month`, `year`, `dayOfWeek`) — chronological,
+gap-filled across the window, and always covering all 7 weekdays for `dayOfWeek` — or a
+ranked dimension (`aircraftType`, `registration`, `departure`, `arrival`, `route`) — sorted
+by the report's `metric` descending, then by key, and capped at `limit` (default 20, max
+100; groups left out are reported as `otherGroups` but still counted in `totals`). The
+`window.kind` values are `all`, `lastMonths` (the current calendar month plus `months - 1`
+before it), `yearToDate` and `range`; relative windows are resolved in UTC on every run, so
+`startDate`/`endDate` in the result can shift between calls to the same saved report.
+
+Every row and the `totals` carry every metric regardless of the report's chosen one;
+`value` just repeats that metric for charting. Duration metrics count only flights that are
+flight time — FSTD sessions and passenger flights are excluded, the same rule as elsewhere
+(see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)) — except `fstdTime`, which sums FSTD
+session time separately.
+
+Reports are stored server-side per user (`custom_reports`), so they travel in the JSON
+export; a licence-scoped report is re-pointed at the restored licence or loses the scope
+if the backup does not carry it.
 
 ### Contacts
 CRUD and search on `/contacts` (reusable crew/instructor records). `GET /contacts`

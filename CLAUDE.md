@@ -43,7 +43,7 @@ Strict layering: **handler → service → repository → models**.
   bind/validate, call a service, map sentinel errors to status codes. Never touches SQL.
 - `internal/service` — all business logic, ownership checks, validation. Never imports Gin
   (services are reused by background jobs). Sub-engines: `currency/`, `flightcalc/`,
-  `flightrules/`, `cloudbackup/`, `customfield/`.
+  `flightrules/`, `cloudbackup/`, `customreport/`.
 - `internal/repository` (interfaces) + `internal/repository/postgres` (hand-written
   parameterized SQL, `lib/pq`). No sqlc/pgx despite older docs; `make sqlc-generate` is inactive.
 - `pkg/` — `jwt`, `hash`, `duration`, `cryptoutil`, `email`, `solar`.

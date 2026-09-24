@@ -189,6 +189,13 @@ totals, the fleet list and — deliberately — the currency engine. FAA §61.57
 instrument recency in an FSTD; crediting it is a separate change, and until then the
 conservative answer is that a session never establishes currency.
 
+Custom reports (`/reports/custom`) select flights with the same filter as `GET /flights`,
+then apply this rule in the aggregate: every duration metric and `flights`/`landings` count
+only rows where
+`NOT is_simulator AND NOT is_passenger`. The one exception is `fstdTime`, which sums
+`simulated_flight_time` across the matching simulator rows on its own — so a report can
+show flight hours and FSTD hours side by side without summing them, matching AMC1 FCL.050.
+
 In exports, sessions populate the FSTD block of the EASA layouts
 (`flightrules.IsFSTDRow`, `FSTDFields`) and contribute 0 to the TOTAL TIME column, which is
 what the paper form requires.
