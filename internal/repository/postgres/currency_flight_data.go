@@ -22,7 +22,7 @@ func NewCurrencyFlightDataProvider(db *sql.DB) currency.FlightDataProvider {
 	return &currencyFlightDataProvider{db: db}
 }
 
-func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (*currency.Progress, error) {
+func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, includeTowed bool, since time.Time) (*currency.Progress, error) {
 	query := `
 		SELECT
 			COUNT(*) as flights,
@@ -38,11 +38,12 @@ func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 			COALESCE(SUM(f.holds), 0) as holds
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND a.aircraft_class = $2 AND f.date >= $3
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
+			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow'))
 	`
 
 	progress := &currency.Progress{}
-	err := p.db.QueryRowContext(ctx, query, userID, string(classType), since).Scan(
+	err := p.db.QueryRowContext(ctx, query, userID, string(classType), since, includeTowed).Scan(
 		&progress.Flights,
 		&progress.TotalMinutes,
 		&progress.PICMinutes,
@@ -134,7 +135,8 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 		query = `
 			SELECT f.date FROM flights f
 			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND a.aircraft_class = $2 AND f.is_proficiency_check = true AND f.date >= $3
+			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.is_proficiency_check = true AND f.date >= $3
+				AND COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow')
 			ORDER BY f.date DESC
 			LIMIT 1
 		`
@@ -152,7 +154,7 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 	return &checkDate, nil
 }
 
-func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) ([]currency.LandingDay, error) {
+func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, includeTowed bool, since time.Time) ([]currency.LandingDay, error) {
 	query := `
 		SELECT
 			f.date,
@@ -160,13 +162,14 @@ func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.C
 			COALESCE(SUM(f.landings_night), 0) as night_landings
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND a.aircraft_class = $2 AND f.date >= $3
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
+			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow'))
 		GROUP BY f.date
 		HAVING SUM(f.landings_day + f.landings_night) > 0
 		ORDER BY f.date DESC
 	`
 
-	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since)
+	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since, includeTowed)
 	if err != nil {
 		return nil, err
 	}
@@ -184,14 +187,16 @@ func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.C
 	return days, rows.Err()
 }
 
-func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID uuid.UUID, since time.Time) (map[string]int, error) {
+func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (map[string]int, error) {
 	query := `
-		SELECT launch_method, COUNT(*) as launches
-		FROM flights
-		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND date >= $2 AND launch_method IS NOT NULL AND launch_method != ''
-		GROUP BY launch_method
+		SELECT f.launch_method, COUNT(*) as launches
+		FROM flights f
+		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
+			AND f.launch_method IS NOT NULL AND f.launch_method != ''
+		GROUP BY f.launch_method
 	`
-	rows, err := p.db.QueryContext(ctx, query, userID, since)
+	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since)
 	if err != nil {
 		return nil, err
 	}

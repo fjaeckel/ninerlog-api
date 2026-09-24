@@ -94,6 +94,8 @@ A class/type rating attached to a license. `ClassType` is an enum:
 | `TMG` | Touring Motor Glider |
 | `IR` | Instrument Rating |
 | `OTHER` | Anything else |
+| `GLIDER` | Sailplane / glider (migration 68) |
+| `ULTRALIGHT` | Ultralight / microlight (migration 68) |
 
 `ExpiryDate` drives both notifications and the currency engine's expiry-anchored windows.
 

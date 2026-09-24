@@ -149,6 +149,7 @@ type ratingRule struct {
 	window        windowSpec
 	scope         progressScope
 	classOverride models.ClassType
+	countsTowed   bool
 	baseReqs      []reqSpec
 	finalize      func(ctx context.Context, rt *ratingRuntime)
 }
@@ -171,10 +172,16 @@ func (rt *ratingRuntime) fetchProgress(ctx context.Context) (*Progress, error) {
 	case scopeAll:
 		return rt.dp.GetProgressAll(ctx, rt.license.UserID, rt.since)
 	case scopeByClassOverride:
-		return rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.rule.classOverride, rt.since)
+		return rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.rule.classOverride, false, rt.since)
 	default:
-		return rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.rating.ClassType, rt.since)
+		includeTowed := includeTowedFlights(rt.rating.ClassType, rt.rule.countsTowed)
+		return rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.rating.ClassType, includeTowed, rt.since)
 	}
+}
+
+// includeTowedFlights reports whether winch and aerotow launches count toward a class.
+func includeTowedFlights(classType models.ClassType, sailplane bool) bool {
+	return sailplane || classType == models.ClassTypeGlider
 }
 
 // evalRatingRule is the engine entry point: it builds the base result shell

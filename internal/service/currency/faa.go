@@ -34,6 +34,8 @@ func faaSelectRule(rating *models.ClassRating, license *models.License) *ratingR
 	lt := strings.ToUpper(license.LicenseType)
 
 	switch rating.ClassType {
+	case models.ClassTypeUL:
+		return &otherExpiryRule
 	case models.ClassTypeIR:
 		// Sport Pilot cannot fly IFR — skip IR evaluation
 		if lt == "SPORT" || lt == "RECREATIONAL" {
@@ -42,7 +44,7 @@ func faaSelectRule(rating *models.ClassRating, license *models.License) *ratingR
 		return &faaInstrumentRule
 	default:
 		// Glider uses launches instead of landings
-		if lt == "GLIDER" {
+		if lt == "GLIDER" || rating.ClassType == models.ClassTypeGlider {
 			return &faaGliderRule
 		}
 		return &faaPassengerRatingRule
@@ -168,6 +170,7 @@ var faaGliderRule = ratingRule{
 	description: "Requires 3 takeoffs & landings in preceding 90 days in same category/class for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57)",
 	window:      windowSpec{kind: windowRollingNow, days: 90},
 	scope:       scopeByClass,
+	countsTowed: true,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyLaunchesAndLanding, metric: mLandings, threshold: 3, unit: "launches"},
 	},
@@ -251,7 +254,7 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 		result.RuleDescription = "3 takeoffs & landings in preceding 90 days for day passenger currency (14 CFR 61.57(a)) — night not applicable for " + license.LicenseType
 	}
 
-	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, since)
+	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, strings.EqualFold(license.LicenseType, "GLIDER")), since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown

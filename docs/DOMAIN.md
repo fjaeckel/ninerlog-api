@@ -327,13 +327,28 @@ Evaluators never write SQL. They request aggregates through the `FlightDataProvi
 interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL in
 `internal/repository/postgres/currency_flight_data.go`:
 
-- `GetProgressByAircraftClass(userID, classType, since)` — summed times/landings for a
-  class since a date.
+- `GetProgressByAircraftClass(userID, classType, includeTowed, since)` — summed
+  times/landings for a class since a date.
+
+A flight belongs to a class rating when its aircraft's free-text `aircraft_class`, trimmed
+and upper-cased, equals the rating's `ClassType`. An aircraft classed `GLIDER` counts only
+toward a `GLIDER` rating, never toward `OTHER`.
+
+Flights launched by winch or aerotow are towed launches: they count only toward a `GLIDER`
+rating or a rule for a sailplane licence (EASA `SPL`/`LAPL(S)`, FAA `GLIDER`), never toward
+a powered class, its proficiency check or its passenger currency — even when the glider is
+classed `SEP_LAND`. Self-launches are not towed.
+
+Aircraft between categories are classed by the licence they are flown under: UL sailplanes
+and UL motorgliders `ULTRALIGHT`, sailplanes including self-launching ones `GLIDER`, touring
+motor gliders `TMG`.
 - `GetProgressAll(userID, since)` — same, across all classes.
 - `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
-- `GetLastProficiencyCheck(userID, classType, since)` — most recent proficiency check.
-- `GetLaunchCounts(userID, since)` — per-launch-method counts for glider (SPL) currency.
-- `GetLandingDaysByAircraftClass(userID, classType, since)` — one row per flown date with
+- `GetLastProficiencyCheck(userID, classType, since)` — most recent proficiency check,
+  excluding towed launches.
+- `GetLaunchCounts(userID, classType, since)` — per-launch-method counts on a class for
+  glider (SPL) currency.
+- `GetLandingDaysByAircraftClass(userID, classType, includeTowed, since)` — one row per flown date with
   its day and night landing counts, newest date first. Used for passenger currency, which
   needs *when* each landing was flown, not just how many there were.
 
@@ -400,6 +415,18 @@ The two main rule sets differ substantially, which is why each has its own evalu
 authority strings via `RegisterMulti`. `OtherEvaluator` is the safe fallback for any
 authority without a dedicated implementation — it performs an expiry-only check so the
 system degrades gracefully rather than failing.
+
+`GLIDER` and `ULTRALIGHT` class ratings select their rule from the class, not the license
+type:
+
+| Class | LBA / DULV / DAeC | EASA / unknown authority | FAA |
+| --- | --- | --- | --- |
+| `GLIDER` | FCL.140.S (`easaSPLRule`) | FCL.140.S (`easaSPLRule`) | §61.57 glider launches (`faaGliderRule`) |
+| `ULTRALIGHT` | LuftPersV §45 (`germanULRule`) + UL passenger currency | expiry only, no passenger currency | expiry only, no passenger currency |
+
+Ultralights are national law, so only the German UL authorities carry a recency rule for them.
+
+Passenger currency for a `GLIDER` rating never reports night privilege.
 
 ### Extending the engine
 

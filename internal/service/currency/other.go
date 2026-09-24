@@ -8,7 +8,7 @@ import (
 )
 
 // OtherEvaluator handles authorities without specific currency rules.
-// It only tracks expiry — no auto-calculated currency.
+// It tracks expiry only, except for GLIDER class ratings.
 type OtherEvaluator struct{}
 
 func NewOtherEvaluator() *OtherEvaluator {
@@ -20,7 +20,17 @@ func (e *OtherEvaluator) Authority() string {
 }
 
 func (e *OtherEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating, license *models.License, dataProvider FlightDataProvider) ClassRatingCurrency {
-	return evalRatingRule(ctx, &otherExpiryRule, rating, license, dataProvider)
+	return evalRatingRule(ctx, otherSelectRule(rating), rating, license, dataProvider)
+}
+
+// otherSelectRule returns the glider recency rule for GLIDER, expiry-only otherwise.
+func otherSelectRule(rating *models.ClassRating) *ratingRule {
+	switch rating.ClassType {
+	case models.ClassTypeGlider:
+		return &easaSPLRule
+	default:
+		return &otherExpiryRule
+	}
 }
 
 // otherExpiryRule — expiry-only tracking for unrecognized authorities.

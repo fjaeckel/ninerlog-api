@@ -34,6 +34,9 @@ func (e *GermanULEvaluator) Authorities() []string {
 }
 
 func (e *GermanULEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating, license *models.License, dp FlightDataProvider) ClassRatingCurrency {
+	if rating.ClassType == models.ClassTypeGlider {
+		return evalRatingRule(ctx, &easaSPLRule, rating, license, dp)
+	}
 	return evalRatingRule(ctx, &germanULRule, rating, license, dp)
 }
 
@@ -85,7 +88,7 @@ func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, class
 		RuleDescriptionKey:  "ul_pax",
 	}
 
-	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, since)
+	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, false), since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown

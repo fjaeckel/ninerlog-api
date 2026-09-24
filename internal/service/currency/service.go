@@ -75,8 +75,11 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 			ratings = append(ratings, result)
 
 			// Tier 2: Passenger currency (if evaluator supports it).
-			// IR ratings are skipped.
+			// IR ratings, and ULTRALIGHT outside the German UL evaluator, are skipped.
 			if cr.ClassType == models.ClassTypeIR {
+				continue
+			}
+			if _, germanUL := eval.(*GermanULEvaluator); cr.ClassType == models.ClassTypeUL && !germanUL {
 				continue
 			}
 			passengerKey := string(cr.ClassType) + ":" + license.RegulatoryAuthority
