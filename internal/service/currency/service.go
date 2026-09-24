@@ -71,7 +71,12 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 
 		for _, cr := range classRatings {
 			// Tier 1: Rating currency
-			result := eval.Evaluate(ctx, cr, license, s.flightData)
+			var result ClassRatingCurrency
+			if pe, ok := eval.(PeerAwareEvaluator); ok {
+				result = pe.EvaluateWithPeers(ctx, cr, license, classRatings, s.flightData)
+			} else {
+				result = eval.Evaluate(ctx, cr, license, s.flightData)
+			}
 			ratings = append(ratings, result)
 
 			// Tier 2: Passenger currency (if evaluator supports it).

@@ -24,7 +24,12 @@ func (e *EASAEvaluator) Authority() string {
 }
 
 func (e *EASAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating, license *models.License, dataProvider FlightDataProvider) ClassRatingCurrency {
-	return evalRatingRule(ctx, easaSelectRule(rating, license), rating, license, dataProvider)
+	return e.EvaluateWithPeers(ctx, rating, license, nil, dataProvider)
+}
+
+// EvaluateWithPeers evaluates a rating given the other class ratings on its license.
+func (e *EASAEvaluator) EvaluateWithPeers(ctx context.Context, rating *models.ClassRating, license *models.License, peerRatings []*models.ClassRating, dataProvider FlightDataProvider) ClassRatingCurrency {
+	return evalRatingRuleWithPeers(ctx, easaSelectRule(rating, license), rating, license, peerRatings, dataProvider)
 }
 
 // isEASALAPLA reports whether licenseType is an EASA LAPL for aeroplanes
@@ -61,7 +66,7 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 		return &easaExpiryOnlyRule
 	}
 
-	// LAPL uses FCL.140.A (rolling 24 months from now, no PIC requirement)
+	// LAPL uses FCL.140.A (rolling 24 months from now, aeroplanes and TMG pooled)
 	if isEASALAPLA(lt) {
 		return &easaLAPLRule
 	}
@@ -93,12 +98,14 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 //   - 12 takeoffs and 12 landings
 //   - 1 hour refresher training with instructor (dual received)
 //
-// All within the 12 months preceding the expiry date of the rating.
+// All within the 12 months preceding the expiry date of the rating. With both
+// SEP(land) and TMG ratings on the license, flights in either class count.
 var easaSEPTMGRule = ratingRule{
 	displayKey:  "easa_sep_tmg",
-	description: "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within the 12 months preceding the expiry date (EASA FCL.740.A(b)(1))",
+	description: "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within the 12 months preceding the expiry date; holders of both SEP(land) and TMG ratings may combine flights in either class (EASA FCL.740.A(b)(1))",
 	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
-	scope:       scopeByClass,
+	scope:       scopeClassGroup,
+	classGroup:  easaSEPTMGClasses,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 360, unit: "minutes"},
@@ -185,7 +192,7 @@ var easaMEPSETRule = ratingRule{
 		reqSectors := reqs[0]
 		reqInstructor := reqs[1]
 
-		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, rating.ClassType, since)
+		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, rt.classes, since)
 		hasProfCheck := profCheckDate != nil
 		reqProfCheck := Requirement{
 			NameKey: ReqKeyProficiencyCheck, Met: hasProfCheck,
@@ -254,7 +261,7 @@ var easaIRRule = ratingRule{
 		reqs := buildReqs(progress, rt.rule.baseReqs)
 		reqIFRHours := reqs[0]
 
-		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, models.ClassTypeIR, since)
+		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeIR}, since)
 		hasProfCheck := profCheckDate != nil
 		reqProfCheck := Requirement{
 			NameKey: ReqKeyProficiencyCheck, Met: hasProfCheck,
@@ -320,18 +327,21 @@ var easaExpiryOnlyRule = ratingRule{
 	},
 }
 
-// easaLAPLRule — EASA FCL.140.A(a) recency for LAPL(A):
+// easaLAPLRule — EASA FCL.140.A recency for LAPL(A), on aeroplanes and TMG pooled:
 //   - 12 hours flight time (as PIC, dual, or solo under supervision)
 //   - 12 takeoffs & landings
 //   - 1 hour dual instruction
 //   - NO PIC hour requirement (key difference from FCL.740.A)
+//   - OR a LAPL(A) proficiency check (FCL.140.A(a)(2))
+//   - with both SEP(land) and SEP(sea) ratings: 1 hour and 6 landings in each (FCL.140.A(b))
 //
 // Lookback: rolling 24 months from NOW.
 var easaLAPLRule = ratingRule{
 	displayKey:  "easa_lapl",
-	description: "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor within the last 24 months (EASA FCL.140.A)",
+	description: "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor on aeroplanes or TMG within the last 24 months, or a LAPL(A) proficiency check; holders of SEP(land) and SEP(sea) need 1h and 6 takeoffs & landings in each (EASA FCL.140.A)",
 	window:      windowSpec{kind: windowRollingNow, years: 2},
-	scope:       scopeByClass,
+	scope:       scopeClassGroup,
+	classGroup:  easaLAPLClasses,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
@@ -347,9 +357,33 @@ var easaLAPLRule = ratingRule{
 		}
 		rt.result.Progress = progress
 		reqs := buildReqs(progress, rt.rule.baseReqs)
-		rt.result.Requirements = reqs
 
-		if !allReqsMet(reqs) {
+		if hasClass(rt.peers, models.ClassTypeSEPLand) && hasClass(rt.peers, models.ClassTypeSEPSea) {
+			split, err := easaLAPLLandSeaReqs(ctx, rt)
+			if err != nil {
+				rt.result.Status = StatusUnknown
+				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+				return
+			}
+			reqs = append(reqs, split...)
+		}
+		allMetByExperience := allReqsMet(reqs)
+
+		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, rt.classes, rt.since)
+		hasProfCheck := profCheckDate != nil
+		reqProfCheck := Requirement{
+			NameKey: ReqKeyProficiencyCheck, Met: hasProfCheck,
+			Current: 0, Required: 1, Unit: "check",
+			MessageKey: MsgRequirementProfCheckMissing,
+		}
+		if hasProfCheck {
+			reqProfCheck.Current = 1
+			reqProfCheck.MessageKey = MsgRequirementProfCheckCompleted
+			reqProfCheck.MessageParams = msgDate(profCheckDate.Format("2006-01-02"))
+		}
+		rt.result.Requirements = append(reqs, reqProfCheck)
+
+		if !allMetByExperience && !hasProfCheck {
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
 		} else {
@@ -357,6 +391,30 @@ var easaLAPLRule = ratingRule{
 			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
 		}
 	},
+}
+
+// easaLAPLLandSeaReqs returns the per-class FCL.140.A(b) minimums for SEP(land) and SEP(sea).
+func easaLAPLLandSeaReqs(ctx context.Context, rt *ratingRuntime) ([]Requirement, error) {
+	classes := []struct {
+		ct       models.ClassType
+		timeKey  string
+		landsKey string
+	}{
+		{models.ClassTypeSEPLand, ReqKeySEPLandTime, ReqKeySEPLandLandings},
+		{models.ClassTypeSEPSea, ReqKeySEPSeaTime, ReqKeySEPSeaLandings},
+	}
+	var reqs []Requirement
+	for _, c := range classes {
+		p, err := rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, []models.ClassType{c.ct}, false, rt.since)
+		if err != nil {
+			return nil, err
+		}
+		reqs = append(reqs, buildReqs(p, []reqSpec{
+			{nameKey: c.timeKey, metric: mTotalMinutes, threshold: 60, unit: "minutes"},
+			{nameKey: c.landsKey, metric: mLandings, threshold: 6, unit: "landings"},
+		})...)
+	}
+	return reqs, nil
 }
 
 // easaSPLRule — EASA FCL.140.S(a) recency for SPL/LAPL(S):

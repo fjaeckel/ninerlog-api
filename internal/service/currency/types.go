@@ -41,6 +41,9 @@ type ClassRatingCurrency struct {
 	Progress             *Progress              `json:"progress,omitempty"`
 	Requirements         []Requirement          `json:"requirements,omitempty"`
 	LaunchMethodCurrency []LaunchMethodCurrency `json:"launchMethodCurrency,omitempty"`
+	// CountedClasses lists the aircraft classes whose flights count toward
+	// this rating, when that is more than the rating's own class.
+	CountedClasses []models.ClassType `json:"countedClasses,omitempty"`
 }
 
 // Progress holds progress metrics toward currency requirements (all times in minutes)

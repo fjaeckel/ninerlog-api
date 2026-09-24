@@ -138,6 +138,8 @@ const (
 	scopeByClassOverride
 	// scopeAll aggregates flights across all aircraft classes (IR rules).
 	scopeAll
+	// scopeClassGroup aggregates flights on the classes returned by classGroup.
+	scopeClassGroup
 )
 
 // ratingRule is the declarative definition of a Tier-1 rating-currency rule.
@@ -150,6 +152,7 @@ type ratingRule struct {
 	scope         progressScope
 	classOverride models.ClassType
 	countsTowed   bool
+	classGroup    func(rating *models.ClassRating, peers []*models.ClassRating) []models.ClassType
 	baseReqs      []reqSpec
 	finalize      func(ctx context.Context, rt *ratingRuntime)
 }
@@ -160,6 +163,8 @@ type ratingRuntime struct {
 	rule     *ratingRule
 	rating   *models.ClassRating
 	license  *models.License
+	peers    []*models.ClassRating
+	classes  []models.ClassType
 	dp       FlightDataProvider
 	result   *ClassRatingCurrency
 	progress *Progress
@@ -168,14 +173,24 @@ type ratingRuntime struct {
 
 // fetchProgress aggregates flight data for the runtime's window and scope.
 func (rt *ratingRuntime) fetchProgress(ctx context.Context) (*Progress, error) {
-	switch rt.rule.scope {
-	case scopeAll:
+	if rt.rule.scope == scopeAll {
 		return rt.dp.GetProgressAll(ctx, rt.license.UserID, rt.since)
+	}
+	includeTowed := rt.rule.scope != scopeByClassOverride && includeTowedFlights(rt.rating.ClassType, rt.rule.countsTowed)
+	return rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.classes, includeTowed, rt.since)
+}
+
+// resolveClasses returns the aircraft classes a rule counts for a rating; nil means all classes.
+func resolveClasses(rule *ratingRule, rating *models.ClassRating, peers []*models.ClassRating) []models.ClassType {
+	switch rule.scope {
+	case scopeAll:
+		return nil
 	case scopeByClassOverride:
-		return rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.rule.classOverride, false, rt.since)
+		return []models.ClassType{rule.classOverride}
+	case scopeClassGroup:
+		return rule.classGroup(rating, peers)
 	default:
-		includeTowed := includeTowedFlights(rt.rating.ClassType, rt.rule.countsTowed)
-		return rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.rating.ClassType, includeTowed, rt.since)
+		return []models.ClassType{rating.ClassType}
 	}
 }
 
@@ -189,6 +204,11 @@ func includeTowedFlights(classType models.ClassType, sailplane bool) bool {
 // finalize strategy, which resolves the window, fetches data, builds the
 // requirement breakdown, and sets the status + message.
 func evalRatingRule(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, dp FlightDataProvider) ClassRatingCurrency {
+	return evalRatingRuleWithPeers(ctx, rule, rating, license, nil, dp)
+}
+
+// evalRatingRuleWithPeers is evalRatingRule with the other class ratings on the license.
+func evalRatingRuleWithPeers(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
 	result := ClassRatingCurrency{
 		ClassRatingID:       rating.ID,
 		ClassType:           rating.ClassType,
@@ -203,7 +223,12 @@ func evalRatingRule(ctx context.Context, rule *ratingRule, rating *models.ClassR
 		result.ExpiryDate = &expStr
 	}
 
-	rt := &ratingRuntime{rule: rule, rating: rating, license: license, dp: dp, result: &result}
+	classes := resolveClasses(rule, rating, peers)
+	if len(classes) > 1 {
+		result.CountedClasses = classes
+	}
+
+	rt := &ratingRuntime{rule: rule, rating: rating, license: license, peers: peers, classes: classes, dp: dp, result: &result}
 	rule.finalize(ctx, rt)
 	return result
 }

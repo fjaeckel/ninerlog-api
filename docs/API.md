@@ -465,6 +465,10 @@ hide the affected UI rather than discovering the `403` by trying.
 ### Currency
 `GET /currency` (all ratings) and `GET /licenses/{id}/currency`.
 
+Each `ClassRatingCurrency` in `GET /currency` carries `countedClasses` when flights on more
+than the rating's own class count toward it (EASA LAPL(A) and SEP(land)+TMG pooling — see
+[DOMAIN.md](./DOMAIN.md#credited-classes)); the field is absent otherwise.
+
 ### Custom Currency
 User-authored currency rules under `/custom-currency` — a rule is a declarative document (a
 rolling `window`, optional `filters` selecting which flights count, and `requirements`

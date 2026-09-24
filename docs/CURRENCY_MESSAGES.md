@@ -141,7 +141,12 @@ render them yourself. See [DOMAIN.md](./DOMAIN.md#passenger-currency-expiry-daye
 `nameKey` is one of: `requirement.total_time`, `.pic_time`, `.ifr_time`, `.landings`,
 `.day_landings`, `.night_landings`, `.refresher_training`, `.training_flight`,
 `.proficiency_check`, `.approaches`, `.holds`, `.route_sectors`, `.launches`,
-`.launches_and_landings`. Absent on custom rules — see rule 4.
+`.launches_and_landings`, `.sep_land_time`, `.sep_land_landings`, `.sep_sea_time`,
+`.sep_sea_landings`. Absent on custom rules — see rule 4.
+
+The four `sep_*` keys are the per-class minimums of EASA FCL.140.A(b), present only on a
+LAPL license holding both SEP(land) and SEP(sea) ratings. LAPL results also carry a
+`.proficiency_check` requirement: the FCL.140.A(a)(2) alternative to the experience rows.
 
 | `messageKey` | Params | Meaning |
 | --- | --- | --- |

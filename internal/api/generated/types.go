@@ -3054,6 +3054,15 @@ type ClassRatingCurrency struct {
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType ClassType `json:"classType"`
 
+	// CountedClasses Aircraft classes whose flights count toward this rating, present only when that is more
+	// than the rating's own class — EASA LAPL(A) pools every aeroplane class and TMG
+	// (FCL.140.A); a license holding both SEP_LAND and TMG ratings pools those two
+	// (FCL.740.A(b)(1)).
+	//
+	//
+	// Example: ["SEP_LAND","TMG"]
+	CountedClasses *[]ClassType `json:"countedClasses,omitempty"`
+
 	// ExpiryDate Class rating expiry date
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
 
