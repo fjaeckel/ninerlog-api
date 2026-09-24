@@ -782,7 +782,13 @@ func TestHasNightPrivilege(t *testing.T) {
 		{"ATPL", "EASA", true},
 		{"SPL", "EASA", false},
 		{"LAPL", "EASA", false},
+		{"LAPL(A)", "EASA", false},
+		{"lapl(a)", "EASA", false},
+		{"Lapl", "easa", false},
 		{"LAPL(S)", "EASA", false},
+		{"lapl(s)", "EASA", false},
+		{"spl", "EASA", false},
+		{"LAPL(A)", "FAA", true},
 		{"UL", "LBA", false},
 		{"UL", "DULV", false},
 		{"UL", "DAeC", false},
@@ -793,6 +799,35 @@ func TestHasNightPrivilege(t *testing.T) {
 			got := HasNightPrivilege(tt.licenseType, tt.authority)
 			if got != tt.expected {
 				t.Errorf("HasNightPrivilege(%q, %q) = %v, want %v", tt.licenseType, tt.authority, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestEASALicenceTypeSpellings(t *testing.T) {
+	tests := []struct {
+		licenseType string
+		lapla       bool
+		sailplane   bool
+	}{
+		{"LAPL", true, false},
+		{"LAPL(A)", true, false},
+		{"lapl(a)", true, false},
+		{" LAPL(A) ", true, false},
+		{"SPL", false, true},
+		{"LAPL(S)", false, true},
+		{"Lapl(s)", false, true},
+		{"PPL", false, false},
+		{"LAPL(H)", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.licenseType, func(t *testing.T) {
+			if got := isEASALAPLA(tt.licenseType); got != tt.lapla {
+				t.Errorf("isEASALAPLA(%q) = %v, want %v", tt.licenseType, got, tt.lapla)
+			}
+			if got := isEASASailplane(tt.licenseType); got != tt.sailplane {
+				t.Errorf("isEASASailplane(%q) = %v, want %v", tt.licenseType, got, tt.sailplane)
 			}
 		})
 	}

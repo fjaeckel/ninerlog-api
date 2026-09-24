@@ -996,6 +996,34 @@ func TestEASA_LAPL_NoNightPrivilege(t *testing.T) {
 	assertBool(t, "nightPrivilege", gb(pc, "nightPrivilege"), false)
 }
 
+// TestEASA_LAPLA_NoNightPrivilege — "LAPL(A)" spelling, in any case, has no night privilege.
+func TestEASA_LAPLA_NoNightPrivilege(t *testing.T) {
+	for i, lt := range []string{"LAPL(A)", "lapl(a)"} {
+		t.Run(lt, func(t *testing.T) {
+			c := setupCurrencyUser(t, fmt.Sprintf("easa-lapla-nonight-%d", i))
+			reg := fmt.Sprintf("D-ELA%d", i)
+			createAircraftCur(t, c, reg, "C172", "SEP_LAND")
+
+			licID := createLicenseCur(t, c, "EASA", lt)
+			createRatingCur(t, c, licID, "SEP_LAND", nil)
+
+			createFlightCur(t, c, map[string]interface{}{
+				"date": pastDate(5), "aircraftReg": reg, "aircraftType": "C172",
+				"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+				"offBlockTime": "08:00", "onBlockTime": "09:00",
+				"landings": 3,
+			})
+
+			result := getCurrencyStatus(t, c)
+			pc := findPaxCur(result, "SEP_LAND")
+			if pc == nil {
+				t.Fatal("Passenger currency not found")
+			}
+			assertBool(t, "nightPrivilege", gb(pc, "nightPrivilege"), false)
+		})
+	}
+}
+
 // ─── EASA SPL — FCL.140.S ───────────────────────────────────────────────────
 
 // TestEASA_SPL_Current — 5h PIC + 15 launches + 2 training flights in 24mo.
