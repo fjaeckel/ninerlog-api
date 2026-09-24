@@ -8,6 +8,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // currencyFlightDataProvider implements currency.FlightDataProvider — the
@@ -22,7 +23,7 @@ func NewCurrencyFlightDataProvider(db *sql.DB) currency.FlightDataProvider {
 	return &currencyFlightDataProvider{db: db}
 }
 
-func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, includeTowed bool, since time.Time) (*currency.Progress, error) {
+func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Context, userID uuid.UUID, classTypes []models.ClassType, includeTowed bool, since time.Time) (*currency.Progress, error) {
 	query := `
 		SELECT
 			COUNT(*) as flights,
@@ -38,12 +39,12 @@ func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 			COALESCE(SUM(f.holds), 0) as holds
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = ANY($2) AND f.date >= $3
 			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow'))
 	`
 
 	progress := &currency.Progress{}
-	err := p.db.QueryRowContext(ctx, query, userID, string(classType), since, includeTowed).Scan(
+	err := p.db.QueryRowContext(ctx, query, userID, classTypeArray(classTypes), since, includeTowed).Scan(
 		&progress.Flights,
 		&progress.TotalMinutes,
 		&progress.PICMinutes,
@@ -118,12 +119,12 @@ func (p *currencyFlightDataProvider) GetLastFlightReview(ctx context.Context, us
 	return &reviewDate, nil
 }
 
-func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (*time.Time, error) {
+func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context, userID uuid.UUID, classTypes []models.ClassType, since time.Time) (*time.Time, error) {
 	var query string
 	var args []interface{}
 
 	// IR skips the aircraft-class filter (FCL.625.A is cross-class).
-	if classType == models.ClassTypeIR {
+	if len(classTypes) == 1 && classTypes[0] == models.ClassTypeIR {
 		query = `
 			SELECT date FROM flights
 			WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND is_proficiency_check = true AND date >= $2
@@ -135,12 +136,12 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 		query = `
 			SELECT f.date FROM flights f
 			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.is_proficiency_check = true AND f.date >= $3
+			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = ANY($2) AND f.is_proficiency_check = true AND f.date >= $3
 				AND COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow')
 			ORDER BY f.date DESC
 			LIMIT 1
 		`
-		args = []interface{}{userID, string(classType), since}
+		args = []interface{}{userID, classTypeArray(classTypes), since}
 	}
 
 	var checkDate time.Time
@@ -212,4 +213,13 @@ func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID
 		counts[method] = count
 	}
 	return counts, rows.Err()
+}
+
+// classTypeArray converts class types to a Postgres text array.
+func classTypeArray(classTypes []models.ClassType) interface{} {
+	out := make([]string, len(classTypes))
+	for i, ct := range classTypes {
+		out[i] = string(ct)
+	}
+	return pq.Array(out)
 }

@@ -22,6 +22,9 @@ type mockFlightDataProvider struct {
 	landingDaysErr       error
 	includeTowed         map[models.ClassType]bool
 	launchClass          models.ClassType
+	progressErr          error
+	lastClasses          []models.ClassType
+	lastProfCheckClasses []models.ClassType
 }
 
 func newMockFlightDataProvider() *mockFlightDataProvider {
@@ -31,14 +34,42 @@ func newMockFlightDataProvider() *mockFlightDataProvider {
 	}
 }
 
-func (m *mockFlightDataProvider) GetProgressByAircraftClass(_ context.Context, _ uuid.UUID, classType models.ClassType, includeTowed bool, _ time.Time) (*Progress, error) {
+// GetProgressByAircraftClass records includeTowed per class and sums progressByClass over the requested classes.
+func (m *mockFlightDataProvider) GetProgressByAircraftClass(_ context.Context, _ uuid.UUID, classTypes []models.ClassType, includeTowed bool, _ time.Time) (*Progress, error) {
 	if m.includeTowed != nil {
-		m.includeTowed[classType] = includeTowed
+		for _, ct := range classTypes {
+			m.includeTowed[ct] = includeTowed
+		}
 	}
-	if p, ok := m.progressByClass[classType]; ok {
-		return p, nil
+	if m.progressErr != nil {
+		return nil, m.progressErr
 	}
-	return &Progress{}, nil
+	m.lastClasses = classTypes
+	if len(classTypes) == 1 {
+		if p, ok := m.progressByClass[classTypes[0]]; ok {
+			return p, nil
+		}
+		return &Progress{}, nil
+	}
+	sum := &Progress{}
+	for _, ct := range classTypes {
+		p, ok := m.progressByClass[ct]
+		if !ok {
+			continue
+		}
+		sum.Flights += p.Flights
+		sum.TotalMinutes += p.TotalMinutes
+		sum.PICMinutes += p.PICMinutes
+		sum.IFRMinutes += p.IFRMinutes
+		sum.InstructorMinutes += p.InstructorMinutes
+		sum.NightMinutes += p.NightMinutes
+		sum.Landings += p.Landings
+		sum.DayLandings += p.DayLandings
+		sum.NightLandings += p.NightLandings
+		sum.Approaches += p.Approaches
+		sum.Holds += p.Holds
+	}
+	return sum, nil
 }
 
 func (m *mockFlightDataProvider) GetProgressAll(_ context.Context, _ uuid.UUID, _ time.Time) (*Progress, error) {
@@ -52,7 +83,8 @@ func (m *mockFlightDataProvider) GetLastFlightReview(_ context.Context, _ uuid.U
 	return m.lastFlightReview, nil
 }
 
-func (m *mockFlightDataProvider) GetLastProficiencyCheck(_ context.Context, _ uuid.UUID, _ models.ClassType, _ time.Time) (*time.Time, error) {
+func (m *mockFlightDataProvider) GetLastProficiencyCheck(_ context.Context, _ uuid.UUID, classTypes []models.ClassType, _ time.Time) (*time.Time, error) {
+	m.lastProfCheckClasses = classTypes
 	return m.lastProficiencyCheck, nil
 }
 

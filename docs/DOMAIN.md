@@ -318,6 +318,7 @@ additionally implement optional interfaces:
 | Interface | Method | Regulatory basis |
 | --- | --- | --- |
 | `Evaluator` (required) | `Evaluate(...)` | Tier 1 — rating currency (can I fly this class at all?) |
+| `PeerAwareEvaluator` | `EvaluateWithPeers(...)` | Tier 1 with the license's other class ratings; `EvaluateAll` prefers it over `Evaluate` |
 | `PassengerCurrencyEvaluator` | `EvaluatePassengerCurrency(...)` | Tier 2 — passenger carriage (EASA FCL.060(b), FAA §61.57(a)/(b)) |
 | `FlightReviewEvaluator` | `EvaluateFlightReview(...)` | FAA §61.56 flight review (24 calendar months) |
 
@@ -327,12 +328,20 @@ Evaluators never write SQL. They request aggregates through the `FlightDataProvi
 interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL in
 `internal/repository/postgres/currency_flight_data.go`:
 
-- `GetProgressByAircraftClass(userID, classType, includeTowed, since)` — summed
-  times/landings for a class since a date.
+- `GetProgressByAircraftClass(userID, classTypes, includeTowed, since)` — summed
+  times/landings for flights on any of the given classes since a date.
+- `GetProgressAll(userID, since)` — same, across all classes.
+- `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
+- `GetLastProficiencyCheck(userID, classTypes, since)` — most recent proficiency check on
+  any of the given classes (`[IR]` matches every class), excluding towed launches.
+- `GetLaunchCounts(userID, classType, since)` — per-launch-method counts on a class for
+  glider (SPL) currency.
+- `GetLandingDaysByAircraftClass(userID, classType, includeTowed, since)` — one row per flown date with
+  its day and night landing counts, newest date first. Used for passenger currency, which
+  needs *when* each landing was flown, not just how many there were.
 
-A flight belongs to a class rating when its aircraft's free-text `aircraft_class`, trimmed
-and upper-cased, equals the rating's `ClassType`. An aircraft classed `GLIDER` counts only
-toward a `GLIDER` rating, never toward `OTHER`.
+This separation keeps the *regulatory* logic (what to count and over which window) in the
+evaluators, and the *data* logic (how to query) in one place.
 
 Flights launched by winch or aerotow are towed launches: they count only toward a `GLIDER`
 rating or a rule for a sailplane licence (EASA `SPL`/`LAPL(S)`, FAA `GLIDER`), never toward
@@ -342,18 +351,36 @@ classed `SEP_LAND`. Self-launches are not towed.
 Aircraft between categories are classed by the licence they are flown under: UL sailplanes
 and UL motorgliders `ULTRALIGHT`, sailplanes including self-launching ones `GLIDER`, touring
 motor gliders `TMG`.
-- `GetProgressAll(userID, since)` — same, across all classes.
-- `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
-- `GetLastProficiencyCheck(userID, classType, since)` — most recent proficiency check,
-  excluding towed launches.
-- `GetLaunchCounts(userID, classType, since)` — per-launch-method counts on a class for
-  glider (SPL) currency.
-- `GetLandingDaysByAircraftClass(userID, classType, includeTowed, since)` — one row per flown date with
-  its day and night landing counts, newest date first. Used for passenger currency, which
-  needs *when* each landing was flown, not just how many there were.
 
-This separation keeps the *regulatory* logic (what to count and over which window) in the
-evaluators, and the *data* logic (how to query) in one place.
+### Credited classes
+
+A flight belongs to an aircraft class when its aircraft's free-text `aircraft_class`,
+trimmed and upper-cased, equals that class. Each rating rule declares which classes it
+counts (the rule's `scope`, resolved by `resolveClasses` in `engine.go`); by default that is
+the rating's own `ClassType`, so an aircraft classed `GLIDER` counts only toward a `GLIDER`
+rating, never toward `OTHER`. Two EASA rules count more than one class
+(`internal/service/currency/credited_classes.go`):
+
+| Rule | Classes counted | Condition |
+| --- | --- | --- |
+| LAPL(A) recency, FCL.140.A(a) (`easaLAPLRule`) | `SEP_LAND`, `SEP_SEA`, `MEP_LAND`, `MEP_SEA`, `SET_LAND`, `SET_SEA`, `TMG` | Always — the rule counts experience "as pilots of aeroplanes or TMGs". `GLIDER` and `ULTRALIGHT` are not aeroplanes. |
+| SEP/TMG revalidation, FCL.740.A(b)(1) (`easaSEPTMGRule`) | `SEP_LAND`, `TMG` | Only for a `SEP_LAND` or `TMG` rating on a license that holds both. `SEP_SEA` is never pooled. |
+
+The pool applies to the rule's experience totals and to its proficiency-check lookup, and
+never includes towed launches (neither rule counts towed flights). The
+evaluator needs the license's other ratings for the condition, so `EASAEvaluator`
+implements `PeerAwareEvaluator` and `Service.EvaluateAll` passes them in. A pooled result
+lists the counted classes in `ClassRatingCurrency.countedClasses`; it is absent when only the
+rating's own class counts.
+
+LAPL(A) recency (FCL.140.A) is also met by a LAPL(A) proficiency check on any pooled class
+within the 24 months (`requirement.proficiency_check`), as an alternative to the experience
+requirements. A LAPL license holding both `SEP_LAND` and `SEP_SEA` ratings must, in
+addition to the pooled totals, show at least 1 h and 6 landings in each of the two classes
+(FCL.140.A(b); `requirement.sep_land_time`, `.sep_land_landings`, `.sep_sea_time`,
+`.sep_sea_landings`).
+
+Passenger currency (FCL.060(b)) is never pooled: it requires "the same type or class".
 
 ### Time windows and status
 

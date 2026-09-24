@@ -24,9 +24,12 @@ func TestEASA_LAPL_Current(t *testing.T) {
 	if result.Status != StatusCurrent {
 		t.Errorf("LAPL status = %s, want current", result.Status)
 	}
-	// LAPL should have 3 requirements (no PIC hour requirement)
-	if len(result.Requirements) != 3 {
-		t.Fatalf("Expected 3 requirements for LAPL, got %d", len(result.Requirements))
+	// LAPL has 3 experience requirements plus the proficiency-check alternative (no PIC hour requirement)
+	if len(result.Requirements) != 4 {
+		t.Fatalf("Expected 4 requirements for LAPL, got %d", len(result.Requirements))
+	}
+	if result.Requirements[3].NameKey != ReqKeyProficiencyCheck {
+		t.Errorf("last LAPL requirement = %s, want %s", result.Requirements[3].NameKey, ReqKeyProficiencyCheck)
 	}
 	// Verify PIC Hours is NOT a requirement
 	for _, req := range result.Requirements {
@@ -280,9 +283,9 @@ func TestEASA_Dispatch_LAPL_UsesFCL140A(t *testing.T) {
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "LAPL"}
 
 	result := eval.Evaluate(context.Background(), rating, license, dp)
-	// LAPL should have 3 requirements (NO PIC hours — FCL.140.A)
-	if len(result.Requirements) != 3 {
-		t.Errorf("LAPL should have 3 requirements (FCL.140.A), got %d", len(result.Requirements))
+	// LAPL has 4 requirements: time, landings, training flight, proficiency check (NO PIC hours — FCL.140.A)
+	if len(result.Requirements) != 4 {
+		t.Errorf("LAPL should have 4 requirements (FCL.140.A), got %d", len(result.Requirements))
 	}
 }
 

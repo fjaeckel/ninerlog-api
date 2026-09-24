@@ -90,6 +90,10 @@ const (
 	ReqKeyRouteSectors       = "requirement.route_sectors"
 	ReqKeyLaunches           = "requirement.launches"
 	ReqKeyLaunchesAndLanding = "requirement.launches_and_landings"
+	ReqKeySEPLandTime        = "requirement.sep_land_time"
+	ReqKeySEPLandLandings    = "requirement.sep_land_landings"
+	ReqKeySEPSeaTime         = "requirement.sep_sea_time"
+	ReqKeySEPSeaLandings     = "requirement.sep_sea_landings"
 )
 
 // Launch method key (LaunchMethodCurrency.MessageKey).

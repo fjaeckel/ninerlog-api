@@ -194,6 +194,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 `internal/api/handlers/currency.go`). Full design in
 [DOMAIN.md](./DOMAIN.md#currency-engine).
 
+- **Cross-class crediting** — EASA LAPL(A) recency counts flights on every aeroplane class
+  and TMG together (FCL.140.A), and accepts a LAPL(A) proficiency check instead; a PPL/CPL/ATPL
+  holding both SEP(land) and TMG ratings revalidates both from flights in either class
+  (FCL.740.A(b)(1)). No custom rule is needed. The rating result lists the pooled classes in
+  `countedClasses`. Details in [DOMAIN.md](./DOMAIN.md#credited-classes).
+
 - **Custom currency rules** (`/custom-currency`, `internal/service/currency/custom*.go`,
   `internal/api/handlers/custom_currency.go`) — a pilot writes their own rule as a
   declarative document: a rolling window, filters selecting which flights count, and

@@ -49,8 +49,13 @@ privileges and carry passengers?
   registration).
 - Optional interfaces layer on extra questions: `PassengerCurrencyEvaluator`
   (EASA FCL.060(b), FAA §61.57) and `FlightReviewEvaluator` (FAA §61.56, 24 calendar months).
+  `PeerAwareEvaluator` (EASA) receives the license's other class ratings.
+- **Which aircraft classes count toward a rating is declared by the rule**, not assumed to be
+  the rating's own class: EASA LAPL(A) pools every aeroplane class and TMG (FCL.140.A), and
+  SEP(land)+TMG pool under FCL.740.A(b)(1) when both ratings are held. Passenger currency is
+  never pooled. See `credited_classes.go` and DOMAIN.md "Credited classes".
 - **Evaluators never write SQL.** They pull aggregates through the `FlightDataProvider`
-  interface (`evaluator.go`, PostgreSQL impl in `flight_data.go`):
+  interface (`evaluator.go`, PostgreSQL impl in `postgres/currency_flight_data.go`):
   `GetProgressByAircraftClass`, `GetProgressAll`, `GetLastFlightReview`,
   `GetLastProficiencyCheck`, `GetLaunchCounts`. Need new data? Extend the interface, not the
   evaluator.
