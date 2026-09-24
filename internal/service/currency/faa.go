@@ -42,7 +42,7 @@ func faaSelectRule(rating *models.ClassRating, license *models.License) *ratingR
 		return &faaInstrumentRule
 	default:
 		// Glider uses launches instead of landings
-		if lt == "GLIDER" {
+		if lt == "GLIDER" || rating.ClassType == models.ClassTypeGlider {
 			return &faaGliderRule
 		}
 		return &faaPassengerRatingRule

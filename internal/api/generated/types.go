@@ -281,20 +281,24 @@ func (e ClassRatingCurrencyStatus) Valid() bool {
 
 // Defines values for ClassType.
 const (
-	ClassTypeIR      ClassType = "IR"
-	ClassTypeMEPLAND ClassType = "MEP_LAND"
-	ClassTypeMEPSEA  ClassType = "MEP_SEA"
-	ClassTypeOTHER   ClassType = "OTHER"
-	ClassTypeSEPLAND ClassType = "SEP_LAND"
-	ClassTypeSEPSEA  ClassType = "SEP_SEA"
-	ClassTypeSETLAND ClassType = "SET_LAND"
-	ClassTypeSETSEA  ClassType = "SET_SEA"
-	ClassTypeTMG     ClassType = "TMG"
+	ClassTypeGLIDER     ClassType = "GLIDER"
+	ClassTypeIR         ClassType = "IR"
+	ClassTypeMEPLAND    ClassType = "MEP_LAND"
+	ClassTypeMEPSEA     ClassType = "MEP_SEA"
+	ClassTypeOTHER      ClassType = "OTHER"
+	ClassTypeSEPLAND    ClassType = "SEP_LAND"
+	ClassTypeSEPSEA     ClassType = "SEP_SEA"
+	ClassTypeSETLAND    ClassType = "SET_LAND"
+	ClassTypeSETSEA     ClassType = "SET_SEA"
+	ClassTypeTMG        ClassType = "TMG"
+	ClassTypeULTRALIGHT ClassType = "ULTRALIGHT"
 )
 
 // Valid indicates whether the value is a known member of the ClassType enum.
 func (e ClassType) Valid() bool {
 	switch e {
+	case ClassTypeGLIDER:
+		return true
 	case ClassTypeIR:
 		return true
 	case ClassTypeMEPLAND:
@@ -312,6 +316,8 @@ func (e ClassType) Valid() bool {
 	case ClassTypeSETSEA:
 		return true
 	case ClassTypeTMG:
+		return true
+	case ClassTypeULTRALIGHT:
 		return true
 	default:
 		return false
@@ -2034,7 +2040,7 @@ type AdminUser struct {
 
 // Aircraft defines model for Aircraft.
 type Aircraft struct {
-	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
 	//
 	// Example: SEP_LAND
 	AircraftClass *string `json:"aircraftClass,omitempty"`
@@ -2114,7 +2120,7 @@ type Aircraft struct {
 
 // AircraftCreate defines model for AircraftCreate.
 type AircraftCreate struct {
-	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
 	//
 	// Example: SEP_LAND
 	AircraftClass *string `json:"aircraftClass,omitempty"`
@@ -2265,7 +2271,7 @@ type AircraftTypeStats struct {
 
 // AircraftUpdate defines model for AircraftUpdate.
 type AircraftUpdate struct {
-	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
 	//
 	// Example: SEP_LAND
 	AircraftClass nullable.Nullable[string] `json:"aircraftClass,omitempty"`
@@ -2996,6 +3002,8 @@ type ClassRating struct {
 	// - TMG: Touring Motor Glider
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
+	// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType ClassType `json:"classType"`
 	CreatedAt time.Time `json:"createdAt"`
 
@@ -3023,6 +3031,8 @@ type ClassRatingCreate struct {
 	// - TMG: Touring Motor Glider
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
+	// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType  ClassType           `json:"classType"`
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
 	IssueDate  openapi_types.Date  `json:"issueDate"`
@@ -3040,6 +3050,8 @@ type ClassRatingCurrency struct {
 	// - TMG: Touring Motor Glider
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
+	// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType ClassType `json:"classType"`
 
 	// ExpiryDate Class rating expiry date
@@ -3156,6 +3168,8 @@ type ClassRatingUpdate struct {
 // - TMG: Touring Motor Glider
 // - IR: Instrument Rating
 // - OTHER: Other rating type
+// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 type ClassType string
 
 // CompleteSignatureRequest defines model for CompleteSignatureRequest.
@@ -5527,6 +5541,8 @@ type PassengerCurrency struct {
 	// - TMG: Touring Motor Glider
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
+	// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType ClassType `json:"classType"`
 
 	// DayExpiresOn Last date the day requirement stays met if the pilot does not fly again — the oldest landing still needed to reach dayRequired, plus 90 days (inclusive). Absent when the day requirement is not currently met.

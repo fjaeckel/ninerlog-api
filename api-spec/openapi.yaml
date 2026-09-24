@@ -6181,7 +6181,7 @@ components:
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
-          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
         notes:
           type: [string, 'null']
           example: Club aircraft, requires checkout
@@ -6260,7 +6260,7 @@ components:
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
-          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
         notes:
           type: [string, 'null']
           example: Club aircraft, requires checkout
@@ -6306,7 +6306,7 @@ components:
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
-          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, or any custom value)
+          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
           x-go-type: nullable.Nullable[string]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -8822,6 +8822,8 @@ components:
         - TMG
         - IR
         - OTHER
+        - GLIDER
+        - ULTRALIGHT
       description: |
         Aircraft class rating type:
         - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
@@ -8830,6 +8832,8 @@ components:
         - TMG: Touring Motor Glider
         - IR: Instrument Rating
         - OTHER: Other rating type
+        - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+        - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 
     ClassRating:
       type: object

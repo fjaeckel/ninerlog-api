@@ -19,6 +19,8 @@ const (
 	ClassTypeTMG     ClassType = "TMG"
 	ClassTypeIR      ClassType = "IR"
 	ClassTypeOther   ClassType = "OTHER"
+	ClassTypeGlider  ClassType = "GLIDER"
+	ClassTypeUL      ClassType = "ULTRALIGHT"
 )
 
 // ValidClassTypes returns all valid class types
@@ -28,6 +30,7 @@ func ValidClassTypes() []ClassType {
 		ClassTypeMEPLand, ClassTypeMEPSea,
 		ClassTypeSETLand, ClassTypeSETSea,
 		ClassTypeTMG, ClassTypeIR, ClassTypeOther,
+		ClassTypeGlider, ClassTypeUL,
 	}
 }
 

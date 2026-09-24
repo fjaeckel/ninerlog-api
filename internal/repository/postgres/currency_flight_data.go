@@ -38,7 +38,7 @@ func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 			COALESCE(SUM(f.holds), 0) as holds
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND a.aircraft_class = $2 AND f.date >= $3
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
 	`
 
 	progress := &currency.Progress{}
@@ -134,7 +134,7 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 		query = `
 			SELECT f.date FROM flights f
 			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND a.aircraft_class = $2 AND f.is_proficiency_check = true AND f.date >= $3
+			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.is_proficiency_check = true AND f.date >= $3
 			ORDER BY f.date DESC
 			LIMIT 1
 		`
@@ -160,7 +160,7 @@ func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.C
 			COALESCE(SUM(f.landings_night), 0) as night_landings
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND a.aircraft_class = $2 AND f.date >= $3
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
 		GROUP BY f.date
 		HAVING SUM(f.landings_day + f.landings_night) > 0
 		ORDER BY f.date DESC

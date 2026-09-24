@@ -329,6 +329,10 @@ interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL
 
 - `GetProgressByAircraftClass(userID, classType, since)` — summed times/landings for a
   class since a date.
+
+A flight belongs to a class rating when its aircraft's free-text `aircraft_class`, trimmed
+and upper-cased, equals the rating's `ClassType`. An aircraft classed `GLIDER` counts only
+toward a `GLIDER` rating, never toward `OTHER`.
 - `GetProgressAll(userID, since)` — same, across all classes.
 - `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
 - `GetLastProficiencyCheck(userID, classType, since)` — most recent proficiency check.
@@ -392,6 +396,16 @@ The two main rule sets differ substantially, which is why each has its own evalu
 authority strings via `RegisterMulti`. `OtherEvaluator` is the safe fallback for any
 authority without a dedicated implementation — it performs an expiry-only check so the
 system degrades gracefully rather than failing.
+
+`GLIDER` and `ULTRALIGHT` class ratings select their rule from the class, not the license
+type or authority:
+
+| Class | EASA / German UL / other authority | FAA |
+| --- | --- | --- |
+| `GLIDER` | FCL.140.S (`easaSPLRule`) | §61.57 glider launches (`faaGliderRule`) |
+| `ULTRALIGHT` | LuftPersV §45 (`germanULRule`); passenger currency uses the UL rule | unchanged |
+
+Passenger currency for a `GLIDER` rating never reports night privilege.
 
 ### Extending the engine
 

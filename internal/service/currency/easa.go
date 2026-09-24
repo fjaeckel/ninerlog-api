@@ -39,6 +39,14 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 		return &easaIRRule
 	}
 
+	// Glider and ultralight classes use their own recency rules regardless of license type
+	switch rating.ClassType {
+	case models.ClassTypeGlider:
+		return &easaSPLRule
+	case models.ClassTypeUL:
+		return &germanULRule
+	}
+
 	// LAPL uses FCL.140.A (rolling 24 months from now, no PIC requirement)
 	if lt == "LAPL" || lt == "LAPL(A)" {
 		return &easaLAPLRule
@@ -462,9 +470,13 @@ func applyClosedWindow(rating *models.ClassRating, since *time.Time, result Clas
 //	(i)  at least 1 takeoff, approach and landing at night in the preceding 90 days, OR
 //	(ii) holds an IR — in which case no night-landing recency is required.
 func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
+	if classType == models.ClassTypeUL {
+		return (&GermanULEvaluator{}).EvaluatePassengerCurrency(ctx, classType, license, peerRatings, dp)
+	}
+
 	since := paxWindowStart(time.Now())
 
-	hasNightPrivilege := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority)
+	hasNightPrivilege := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority) && classType != models.ClassTypeGlider
 	hasValidIR := hasValidIRRating(peerRatings)
 
 	result := PassengerCurrency{
