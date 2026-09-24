@@ -12,6 +12,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
+	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ type importJSONBackup struct {
 	Credentials             []models.Credential                  `json:"credentials"`
 	Contacts                []models.Contact                     `json:"contacts"`
 	CustomCurrencyRules     []cloudbackup.CustomCurrencyRule     `json:"customCurrencyRules"`
+	CustomReports           []cloudbackup.CustomReport           `json:"customReports"`
 	NotificationPreferences *cloudbackup.NotificationPreferences `json:"notificationPreferences"`
 	FlightBaseline          *cloudbackup.FlightBaseline          `json:"flightBaseline"`
 }
@@ -68,6 +70,8 @@ type importJSONSummary struct {
 	// CustomCurrencyRulesImported counts user-authored currency rules
 	// restored; sharing state is not carried in the backup.
 	CustomCurrencyRulesImported int `json:"customCurrencyRulesImported"`
+	// CustomReportsImported counts saved custom reports restored.
+	CustomReportsImported int `json:"customReportsImported"`
 	// NotificationPreferencesImported and FlightBaselineImported report
 	// whether those single-row settings were present and restored.
 	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
@@ -132,6 +136,11 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			fmt.Sprintf("Backup contains too many custom currency rules (%d, max %d)", n, maxRestoreEntities))
 		return
 	}
+	if n := len(body.CustomReports); n > maxRestoreEntities {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many custom reports (%d, max %d)", n, maxRestoreEntities))
+		return
+	}
 
 	ctx := c.Request.Context()
 	summary := importJSONSummary{}
@@ -192,6 +201,7 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 
 	// --- Licenses + class ratings ---
 	// Class ratings reference licenses by ID; we remap old → new on the fly.
+	licenseIDs := make(map[uuid.UUID]uuid.UUID, len(body.Licenses))
 	for _, bundle := range body.Licenses {
 		lic := bundle.License
 		lic.ID = uuid.New()
@@ -202,6 +212,7 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to import license %q: %v", bundle.License.LicenseNumber, err))
 			return
 		}
+		licenseIDs[bundle.License.ID] = lic.ID
 		summary.LicensesImported++
 
 		for _, cr := range bundle.ClassRatings {
@@ -304,6 +315,25 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			}
 		}
 		summary.CustomCurrencyRulesImported++
+	}
+
+	// --- Custom reports ---
+	// Recreated through the service, in backup order; licence scopes follow
+	// the restored licence or are dropped.
+	for _, rep := range body.CustomReports {
+		def := rep.Definition
+		if id := def.Filter.LogbookLicenseID; id != nil {
+			if newID, ok := licenseIDs[*id]; ok {
+				def.Filter.LogbookLicenseID = &newID
+			} else {
+				def.Filter.LogbookLicenseID = nil
+			}
+		}
+		if _, err := h.customReportService.Create(ctx, userID, customreport.Input{Name: rep.Name, Definition: def}); err != nil {
+			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to import custom report %q: %v", rep.Name, err))
+			return
+		}
+		summary.CustomReportsImported++
 	}
 
 	// --- Notification preferences ---

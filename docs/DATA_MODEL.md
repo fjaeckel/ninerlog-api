@@ -274,6 +274,18 @@ deleting the original leaves the copy intact). The token is unique per installat
 why the JSON export deliberately omits sharing state — a restored rule is private until shared
 again.
 
+### CustomReport (`internal/models/custom_report.go`, migration 69)
+
+A user-saved flight filter (`CustomReportFilter`, mirroring the `GET /flights` query
+parameters) plus a `groupBy` dimension and a `metric`, stored as JSONB in `definition` and
+validated against a controlled vocabulary (`ReportGroupings`, `ReportMetrics`) rather than
+free-form. `name` is at most 120 runes; an account holds at most 100 reports
+(`customreport.MaxReportsPerUser`). `position` (index `(user_id, position)`) is the display
+order set by `PUT /reports/custom/order`; new reports are appended after the highest existing
+`position`. Aggregation runs as a single `GROUP BY` CTE over `flights`
+(`internal/repository/postgres/custom_report.go`) reusing `appendFlightFilters`, the same
+filter builder `GET /flights` uses.
+
 ## Auth, session, and notification tables
 
 | Entity | Model | Migration | Purpose |

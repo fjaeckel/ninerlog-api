@@ -93,29 +93,10 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		opts.SortOrder = string(*params.SortOrder)
 	}
 
-	// Logbook filtering: if logbookLicenseId is set, restrict to flights on
-	// aircraft whose class matches the license's class ratings, applied at
-	// the SQL level via opts.
+	// Logbook filtering; an unknown or foreign licence leaves the list unfiltered.
 	if params.LogbookLicenseId != nil {
-		licenseID := uuid.UUID(*params.LogbookLicenseId)
-		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
-		if err == nil && len(classRatings) > 0 {
-			// Build set of allowed class types
-			allowedClasses := make(map[string]bool)
-			for _, cr := range classRatings {
-				allowedClasses[string(cr.ClassType)] = true
-			}
-			// Collect registrations of aircraft whose class is allowed
-			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
-			regs := make([]string, 0, len(aircraftList))
-			for _, ac := range aircraftList {
-				if ac.AircraftClass != nil && allowedClasses[*ac.AircraftClass] {
-					regs = append(regs, registration.Canonical(ac.Registration))
-				}
-			}
-			opts.FilterByRegistrations = true
-			opts.AircraftRegistrations = regs
-		}
+		_ = service.NewLogbookScope(h.classRatingService, h.aircraftService).
+			Apply(c.Request.Context(), userID, uuid.UUID(*params.LogbookLicenseId), opts)
 	}
 
 	// Get total count for pagination

@@ -27,6 +27,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/sftp"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/webdav"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
+	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
 	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
@@ -340,6 +341,10 @@ func main() {
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetOIDCService(oidcService)
 	apiHandler.SetCustomCurrencyService(customCurrencyService)
+	apiHandler.SetCustomReportService(customreport.NewService(
+		postgres.NewCustomReportRepository(db),
+		service.NewLogbookScope(classRatingService, aircraftService),
+	))
 	// Repositories the handler uses directly (admin console, reports, import
 	// history, announcements, bulk wipes) — no raw *sql.DB reaches a handler.
 	apiHandler.SetAdminRepository(postgres.NewAdminRepository(db))
@@ -428,7 +433,7 @@ func main() {
 		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", middleware.HeaderIdempotencyKey},
-		ExposeHeaders:    []string{"Content-Length", middleware.HeaderIdempotencyReplayed, "Retry-After", handlers.HeaderCrewEntriesRenamed},
+		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", middleware.HeaderIdempotencyReplayed, "Retry-After", handlers.HeaderCrewEntriesRenamed},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
@@ -535,6 +540,8 @@ func main() {
 		api.Use(middleware.RateLimitByPath(expensiveRateLimit,
 			"/exports/pdf",
 			"/custom-currency/preview",
+			"/reports/custom/preview",
+			"/export", // /reports/custom/{reportId}/export
 		))
 		// GET /imports/templates is exempt: it serves a static catalogue and is
 		// read every time the import screen opens, so it must not spend the
