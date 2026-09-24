@@ -3670,17 +3670,17 @@ paths:
     get:
       tags: [Export]
       summary: Export flights as CSV
-      description: Export all flight data as a CSV file. Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), and standard (ForeFlight-compatible) formats.
+      description: Export all flight data as a CSV file. Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of Web Logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats.
       operationId: exportFlightsCSV
       security:
         - bearerAuth: []
       parameters:
         - name: format
           in: query
-          description: CSV column format — easa, faa, or standard (ForeFlight-compatible default)
+          description: CSV column format — easa, faa, weblogbook (Web Logbook import), or standard (ForeFlight-compatible default)
           schema:
             type: string
-            enum: [easa, faa, standard]
+            enum: [easa, faa, standard, weblogbook]
             default: standard
       responses:
         '200':
@@ -9190,6 +9190,7 @@ components:
         - VEREINSFLIEGER_CSV
         - VEREINSFLIEGER_EXTENDED_CSV
         - SKYDEMON_CSV
+        - WEB_LOGBOOK_CSV
         - EASA_CSV
         - FAA_CSV
         - XLS
@@ -9211,6 +9212,7 @@ components:
         - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
         - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
         - SKYDEMON_CSV: SkyDemon logbook export
+        - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
         - EASA_CSV: generic EASA AMC1 FCL.050 column layout
         - FAA_CSV: generic FAA/ASA column layout
         - XLS: Microsoft Excel 97-2003 workbook

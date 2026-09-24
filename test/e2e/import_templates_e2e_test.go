@@ -73,7 +73,7 @@ func TestImportTemplates_Catalogue(t *testing.T) {
 	for _, want := range []string{
 		"FOREFLIGHT_CSV", "LOGTEN_CSV", "MYFLIGHTBOOK_CSV", "CAPZLOG_CSV",
 		"FLYLOG_CSV", "WADER_CSV", "VEREINSFLIEGER_CSV", "VEREINSFLIEGER_EXTENDED_CSV",
-		"SKYDEMON_CSV", "EASA_CSV", "FAA_CSV", "NINERLOG_CSV", "CSV",
+		"SKYDEMON_CSV", "WEB_LOGBOOK_CSV", "EASA_CSV", "FAA_CSV", "NINERLOG_CSV", "CSV",
 	} {
 		if !byID[want] {
 			t.Errorf("catalogue is missing %s", want)

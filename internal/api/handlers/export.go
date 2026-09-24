@@ -142,6 +142,8 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 		writeEASACSV(w, flights, prefs, userName)
 	case "faa":
 		writeFAACSV(w, flights, prefs)
+	case "weblogbook":
+		writeWebLogbookCSV(w, flights, userName)
 	default:
 		writeStandardCSV(w, flights, prefs)
 	}

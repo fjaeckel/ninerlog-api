@@ -1061,6 +1061,56 @@ var skyDemonTemplate = register(&Template{
 	Priority:         12,
 })
 
+// webLogbookTemplate is Web Logbook's logbook CSV export, also written by
+// NinerLog's "weblogbook" CSV layout: DD/MM/YYYY dates, HHMM block times, H:MM
+// durations.
+var webLogbookTemplate = register(&Template{
+	ID:          "WEB_LOGBOOK_CSV",
+	Name:        "Web Logbook",
+	Vendor:      "Web Logbook (open source)",
+	Website:     "https://github.com/vsimakhin/web-logbook",
+	Description: "Web Logbook's logbook CSV export. It follows the EASA column layout; single-/multi-engine and co-pilot splits are recalculated here, and simulator sessions (SIM Type/SIM Time) and tags are not imported.",
+	Confidence:  ConfidenceExact,
+	Regions:     []string{"EASA"},
+	ExportSteps: []string{
+		"Open Web Logbook and go to the Logbook page.",
+		"Use the CSV export button in the table toolbar.",
+		"Upload the downloaded file here.",
+	},
+	DateFormat: "02/01/2006",
+	Columns: merge(coreColumns, map[string]Field{
+		"departure place": FieldDepartureIcao,
+		"departure time":  FieldOffBlockTime,
+		"arrival place":   FieldArrivalIcao,
+		"arrival time":    FieldOnBlockTime,
+		"aircraft model":  FieldAircraftType,
+		"aircraft reg":    FieldAircraftReg,
+		"time total":      FieldTotalTime,
+		"landings day":    FieldLandingsDay,
+		"landings night":  FieldLandingsNight,
+		"time night":      FieldNightTime,
+		"time ifr":        FieldIFRTime,
+		"time pic":        FieldIsPic,
+		"time dual":       FieldIsDual,
+		"time instructor": FieldDualGivenTime,
+		"pic name":        FieldPerson1,
+
+		"time se":      FieldIgnore,
+		"time me":      FieldIgnore,
+		"time mcc":     FieldIgnore,
+		"time copilot": FieldIgnore,
+		"sim type":     FieldIgnore,
+		"sim time":     FieldIgnore,
+		"tags":         FieldIgnore,
+	}),
+	Signature: []string{
+		"time se", "time me", "time mcc", "time total", "time copilot",
+		"time instructor", "sim type", "sim time", "aircraft model",
+	},
+	MinSignatureHits: 5,
+	Priority:         12,
+})
+
 var easaTemplate = register(&Template{
 	ID:          "EASA_CSV",
 	Name:        "EASA logbook (AMC1 FCL.050)",
