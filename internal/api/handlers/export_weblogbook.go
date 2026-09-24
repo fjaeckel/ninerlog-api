@@ -9,7 +9,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 )
 
-// webLogbookHeaders is the header row of Web Logbook's logbook CSV export
+// webLogbookHeaders is the header row of vsimakhin/web-logbook's logbook CSV export
 // (vsimakhin/web-logbook, app/ui/src/components/UIElements/CSVExportButton.jsx).
 var webLogbookHeaders = []string{
 	"Date",
@@ -23,10 +23,10 @@ var webLogbookHeaders = []string{
 	"PIC Name", "Remarks", "Tags",
 }
 
-// webLogbookSelf is the PIC name Web Logbook uses for the logbook owner.
+// webLogbookSelf is the PIC name vsimakhin/web-logbook uses for the logbook owner.
 const webLogbookSelf = "Self"
 
-// writeWebLogbookCSV writes flights in Web Logbook's CSV layout and storage
+// writeWebLogbookCSV writes flights in vsimakhin/web-logbook's CSV layout and storage
 // formats: DD/MM/YYYY dates, HHMM block times, H:MM durations. Columns follow
 // the EASA layout; FSTD sessions are written as simulator rows with only the
 // date, SIM Type, SIM Time, remarks and tags filled.
@@ -94,13 +94,13 @@ func writeWebLogbookCSV(w *csv.Writer, flights []*models.Flight, userName string
 	}
 }
 
-// webLogbookClock converts a stored "HH:MM[:SS]" clock time to Web Logbook's
+// webLogbookClock converts a stored "HH:MM[:SS]" clock time to vsimakhin/web-logbook's
 // "HHMM" form.
 func webLogbookClock(s *string) string {
 	return strings.Replace(fmtTimeCSV(s), ":", "", 1)
 }
 
-// webLogbookTags returns the flight's check and passenger flags as Web Logbook
+// webLogbookTags returns the flight's check and passenger flags as vsimakhin/web-logbook
 // tags, comma-separated.
 func webLogbookTags(f *models.Flight) string {
 	var tags []string

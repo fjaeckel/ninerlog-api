@@ -5176,7 +5176,7 @@ type ImportField string
 // - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 // - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 // - SKYDEMON_CSV: SkyDemon logbook export
-// - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
+// - WEB_LOGBOOK_CSV: vsimakhin/web-logbook logbook CSV export, also written by NinerLog's weblogbook CSV layout
 // - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 // - FAA_CSV: generic FAA/ASA column layout
 // - XLS: Microsoft Excel 97-2003 workbook
@@ -5394,7 +5394,7 @@ type ImportResult struct {
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - SKYDEMON_CSV: SkyDemon logbook export
-	// - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
+	// - WEB_LOGBOOK_CSV: vsimakhin/web-logbook logbook CSV export, also written by NinerLog's weblogbook CSV layout
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
@@ -5477,7 +5477,7 @@ type ImportTemplate struct {
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - SKYDEMON_CSV: SkyDemon logbook export
-	// - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
+	// - WEB_LOGBOOK_CSV: vsimakhin/web-logbook logbook CSV export, also written by NinerLog's weblogbook CSV layout
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
@@ -5546,7 +5546,7 @@ type ImportUploadResponse struct {
 	// - VEREINSFLIEGER_CSV: Vereinsflieger club flight list, standard export (German headers, airborne times only)
 	// - VEREINSFLIEGER_EXTENDED_CSV: Vereinsflieger club flight list, extended export (adds off-block/on-block and block minutes)
 	// - SKYDEMON_CSV: SkyDemon logbook export
-	// - WEB_LOGBOOK_CSV: Web Logbook (vsimakhin/web-logbook) logbook CSV export, also written by NinerLog's weblogbook CSV layout
+	// - WEB_LOGBOOK_CSV: vsimakhin/web-logbook logbook CSV export, also written by NinerLog's weblogbook CSV layout
 	// - EASA_CSV: generic EASA AMC1 FCL.050 column layout
 	// - FAA_CSV: generic FAA/ASA column layout
 	// - XLS: Microsoft Excel 97-2003 workbook
@@ -6754,7 +6754,7 @@ type ListCredentialsParams struct {
 
 // ExportFlightsCSVParams defines parameters for ExportFlightsCSV.
 type ExportFlightsCSVParams struct {
-	// Format CSV column format — easa, faa, weblogbook (Web Logbook import), or standard (ForeFlight-compatible default)
+	// Format CSV column format — easa, faa, weblogbook (vsimakhin/web-logbook import), or standard (ForeFlight-compatible default)
 	Format *ExportFlightsCSVParamsFormat `form:"format,omitempty" json:"format,omitempty"`
 }
 

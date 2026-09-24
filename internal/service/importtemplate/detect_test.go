@@ -74,7 +74,7 @@ var (
 	// logbook. Note the three unnamed columns, and that there is no date
 	// column and no total-time column at all — both are derived from the
 	// departure/arrival timestamps.
-	// Web Logbook's own logbook CSV export, which NinerLog's weblogbook layout
+	// vsimakhin/web-logbook's own logbook CSV export, which NinerLog's weblogbook layout
 	// also writes.
 	webLogbookHeaders = strings.Split("Date,Departure Place,Departure Time,Arrival Place,Arrival Time,Aircraft Model,Aircraft Reg,Time SE,Time ME,Time MCC,Time Total,Landings Day,Landings Night,Time Night,Time IFR,Time PIC,Time CoPilot,Time Dual,Time Instructor,SIM Type,SIM Time,PIC Name,Remarks,Tags", ",")
 	skyDemonHeaders   = strings.Split("Departure Time,Departure Place,Arrival Time,Arrival Place,Aircraft Reg,Aircraft Type,PIC Name,PIC Time,Dual Time,Night Time,IFR Time,Instructor Time,,,,Day Landings,Night Landings,Comments", ",")
@@ -99,7 +99,7 @@ func TestDetectIdentifiesEachSource(t *testing.T) {
 		{"Vereinsflieger (extended)", vereinsfliegerExtendedHeaders, "VEREINSFLIEGER_EXTENDED_CSV"},
 		{"Wader", waderHeaders, "WADER_CSV"},
 		{"SkyDemon", skyDemonHeaders, "SKYDEMON_CSV"},
-		{"Web Logbook", webLogbookHeaders, "WEB_LOGBOOK_CSV"},
+		{"vsimakhin web-logbook", webLogbookHeaders, "WEB_LOGBOOK_CSV"},
 	}
 
 	for _, tc := range tests {

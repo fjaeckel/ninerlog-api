@@ -79,7 +79,7 @@ func TestExportCSVFormats(t *testing.T) {
 		}
 	})
 
-	t.Run("weblogbook uses Web Logbook header and value formats", func(t *testing.T) {
+	t.Run("weblogbook uses vsimakhin web-logbook header and value formats", func(t *testing.T) {
 		resp := c.GET("/exports/csv?format=weblogbook")
 		requireStatus(t, resp, http.StatusOK)
 		lines := strings.Split(strings.TrimSpace(string(resp.Body)), "\n")

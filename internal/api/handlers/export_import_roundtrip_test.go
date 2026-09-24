@@ -27,7 +27,7 @@ import (
 // layout hardcodes DD.MM.YYYY dates and H:MM durations, and the FAA layout
 // hardcodes MM/DD/YYYY, because in both cases the convention is part of the
 // regulatory format rather than a user choice (export.go:326, export.go:362).
-// The Web Logbook layout hardcodes DD/MM/YYYY and H:MM because that importer
+// The vsimakhin/web-logbook layout hardcodes DD/MM/YYYY and H:MM because that importer
 // stores the values verbatim (export_weblogbook.go).
 // The matrix is still run in full against every layout: the redundant
 // combinations cost nothing, and they mean that if a preference is ever wired
@@ -204,7 +204,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 					} else if diff := abs(*got.NightTime - src.NightTime); diff > 3 {
 						t.Errorf("nightTime = %d min, want %d ±3", *got.NightTime, src.NightTime)
 					}
-					// The EASA and Web Logbook layouts follow AMC1 FCL.050,
+					// The EASA and vsimakhin/web-logbook layouts follow AMC1 FCL.050,
 					// which has no cross-country column, so only the other two
 					// carry it.
 					if layout.name != "easa" && layout.name != "weblogbook" {
