@@ -2781,6 +2781,11 @@ type AnalyticsTotals struct {
 	Approaches              int `json:"approaches"`
 	CrossCountryMinutes     int `json:"crossCountryMinutes"`
 
+	// CrossCountryPicMinutes Cross-country time flown as PIC — per flight the smaller of PIC and
+	// cross-country time, summed. Logged flights only; the initial-hours
+	// snapshot does not record this split.
+	CrossCountryPicMinutes int `json:"crossCountryPicMinutes"`
+
 	// DistanceNm Great-circle distance summed over all flights with known departure and arrival airports.
 	//
 	// Example: 18422.5
