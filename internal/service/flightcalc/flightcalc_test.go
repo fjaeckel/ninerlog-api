@@ -498,6 +498,55 @@ func TestDualGivenTime_SelfListedAsInstructor_IsDualGiving(t *testing.T) {
 	}
 }
 
+// A student listing themselves with the Student role is not instructing.
+func TestDualGivenTime_SelfListedAsStudent_IsNotDualGiving(t *testing.T) {
+	f := baseFlight()
+	f.DualGivenTime = 90
+	f.CrewMembers = []models.FlightCrewMember{
+		{Name: "Test User", Role: models.CrewRoleStudent},
+	}
+	ApplyAutoCalculations(f, "Test User", nil)
+	if f.DualGivenTime != 0 {
+		t.Errorf("DualGivenTime = %d, expected 0 for self-listed student", f.DualGivenTime)
+	}
+	if !f.IsPIC || f.PICTime != f.TotalTime {
+		t.Errorf("IsPIC=%v PICTime=%d, expected PIC for the whole flight", f.IsPIC, f.PICTime)
+	}
+	if f.SoloTime != f.TotalTime {
+		t.Errorf("SoloTime = %d, expected %d", f.SoloTime, f.TotalTime)
+	}
+}
+
+func TestDualGivenTime_SelfListedAsStudent_WithFunctionTime(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		spic  int
+		picus int
+	}{
+		{"SPIC", 90, 0},
+		{"PICUS", 0, 90},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := baseFlight()
+			f.SPICTime = tc.spic
+			f.PICUSTime = tc.picus
+			f.CrewMembers = []models.FlightCrewMember{
+				{Name: "Test User", Role: models.CrewRoleStudent},
+			}
+			ApplyAutoCalculations(f, "Test User", nil)
+			if f.DualGivenTime != 0 {
+				t.Errorf("DualGivenTime = %d, expected 0", f.DualGivenTime)
+			}
+			if f.PICTime != 0 {
+				t.Errorf("PICTime = %d, expected 0 (carved out by declared %s)", f.PICTime, tc.name)
+			}
+			if f.SPICTime != tc.spic || f.PICUSTime != tc.picus {
+				t.Errorf("SPIC=%d PICUS=%d, expected declared values kept", f.SPICTime, f.PICUSTime)
+			}
+		})
+	}
+}
+
 // With the user's name set, a third-party Instructor must produce Dual
 // received and zero Dual given.
 func TestDualGivenTime_ThirdPartyInstructor_IsDualReceived(t *testing.T) {

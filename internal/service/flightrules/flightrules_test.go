@@ -222,6 +222,39 @@ func TestDetermineRole(t *testing.T) {
 	}
 }
 
+func TestDetermineRole_Student(t *testing.T) {
+	other := &models.Flight{
+		CrewMembers: []models.FlightCrewMember{
+			{Name: "Stu Dent", Role: models.CrewRoleStudent},
+		},
+	}
+	if got := DetermineRole(other, "Amelia Earhart", nil); got != RoleDualGiving {
+		t.Errorf("third-party student = %v, want RoleDualGiving", got)
+	}
+	if got := DetermineRole(other, "", nil); got != RoleDualGiving {
+		t.Errorf("student with empty userName = %v, want RoleDualGiving", got)
+	}
+
+	self := &models.Flight{
+		CrewMembers: []models.FlightCrewMember{
+			{Name: "Earhart, Amelia", Role: models.CrewRoleStudent},
+		},
+	}
+	if got := DetermineRole(self, "Amelia Earhart", nil); got != RolePIC {
+		t.Errorf("self-student = %v, want RolePIC", got)
+	}
+
+	selfWithInstructor := &models.Flight{
+		CrewMembers: []models.FlightCrewMember{
+			{Name: "Amelia Earhart", Role: models.CrewRoleStudent},
+			{Name: "CFI Mueller", Role: models.CrewRoleInstructor},
+		},
+	}
+	if got := DetermineRole(selfWithInstructor, "Amelia Earhart", nil); got != RoleDualReceiving {
+		t.Errorf("self-student with third-party instructor = %v, want RoleDualReceiving", got)
+	}
+}
+
 // A check ride with a third-party Examiner on board must be Dual received,
 // not PIC (NfL 2021-2-602 §4.2.2 no. 4).
 func TestDetermineRole_Examiner(t *testing.T) {

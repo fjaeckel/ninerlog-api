@@ -37,9 +37,9 @@ const (
 	// user instruction, or a third-party Examiner is conducting a check
 	// ride (Dual received).
 	RoleDualReceiving
-	// RoleDualGiving: the user is acting as instructor — either a Student
-	// is on board, or the user themselves is listed with the Instructor
-	// role (Dual given / FI).
+	// RoleDualGiving: the user is acting as instructor — either a
+	// third-party Student is on board, or the user themselves is listed
+	// with the Instructor role (Dual given / FI).
 	RoleDualGiving
 	// RoleSIC: the user is co-pilot on a multi-pilot operation — another
 	// person is listed with the PIC role, or the user themselves is listed
@@ -103,7 +103,7 @@ type crewComposition struct {
 	otherInstructor bool
 	selfInstructor  bool
 	otherExaminer   bool
-	student         bool
+	otherStudent    bool
 	otherPIC        bool
 	selfPIC         bool
 	selfSIC         bool
@@ -112,8 +112,8 @@ type crewComposition struct {
 }
 
 // classifyCrew reduces a flight's crew list relative to the user's display
-// name. When userName is empty, any Instructor, Examiner or PIC crew member
-// is treated as a third party.
+// name. When userName is empty, any Instructor, Examiner, Student or PIC crew
+// member is treated as a third party.
 func classifyCrew(flight *models.Flight, userName string) crewComposition {
 	c := crewComposition{empty: len(flight.CrewMembers) == 0}
 	isSelf := func(name string) bool {
@@ -132,7 +132,9 @@ func classifyCrew(flight *models.Flight, userName string) crewComposition {
 				c.otherExaminer = true
 			}
 		case models.CrewRoleStudent:
-			c.student = true
+			if !isSelf(m.Name) {
+				c.otherStudent = true
+			}
 		case models.CrewRolePIC:
 			if isSelf(m.Name) {
 				c.selfPIC = true
@@ -158,11 +160,11 @@ func classifyCrew(flight *models.Flight, userName string) crewComposition {
 //
 // Precedence: a third-party Instructor or Examiner (name ≠ user) makes the
 // user a Dual receiver, regardless of any Student also being present
-// (NfL 2021-2-602 §4.2.2 no. 4; EASA AMC1 FCL.050). A Student or self-listed
-// Instructor makes the user a Dual giver. A third-party PIC or a self-listed
-// SIC makes the user the co-pilot (SIC) — but only where the operation
-// permits co-pilot time (MayLogCoPilotTime); otherwise the user is carried
-// as a passenger. A self-listed Examiner leaves the user as PIC; a
+// (NfL 2021-2-602 §4.2.2 no. 4; EASA AMC1 FCL.050). A third-party Student or
+// self-listed Instructor makes the user a Dual giver; a self-listed Student
+// does not. A third-party PIC or a self-listed SIC makes the user the
+// co-pilot (SIC) — but only where the operation permits co-pilot time
+// (MayLogCoPilotTime); otherwise the user is carried as a passenger. A self-listed Examiner leaves the user as PIC; a
 // self-listed PIC crew entry keeps the user as PIC and wins over a
 // simultaneous third-party PIC entry. With no crew list at all, a declared
 // SICTime makes the user the co-pilot. Otherwise the user is PIC.
@@ -172,7 +174,7 @@ func DetermineRole(flight *models.Flight, userName string, aircraft *AircraftFac
 	if crew.otherInstructor || crew.otherExaminer {
 		return RoleDualReceiving
 	}
-	if crew.selfInstructor || crew.student {
+	if crew.selfInstructor || crew.otherStudent {
 		return RoleDualGiving
 	}
 	if (crew.otherPIC || crew.selfSIC) && !crew.selfPIC {
