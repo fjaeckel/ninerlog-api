@@ -12,6 +12,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
@@ -107,13 +108,39 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 		return
 	}
 
-	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, nil)
+	opts := &repository.FlightQueryOptions{}
+	if err := h.applyFlightFilters(c.Request.Context(), userID, flightFilterParams{
+		StartDate:        params.StartDate,
+		EndDate:          params.EndDate,
+		AircraftReg:      params.AircraftReg,
+		DepartureIcao:    params.DepartureIcao,
+		ArrivalIcao:      params.ArrivalIcao,
+		IsPic:            params.IsPic,
+		IsDual:           params.IsDual,
+		Search:           params.Search,
+		Q:                params.Q,
+		LogbookLicenseId: params.LogbookLicenseId,
+	}, opts); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid search query: "+err.Error())
+		return
+	}
+	if params.SortBy != nil {
+		opts.SortBy = string(*params.SortBy)
+		opts.SortOrder = "desc"
+		if params.SortOrder != nil {
+			opts.SortOrder = string(*params.SortOrder)
+		}
+	}
+
+	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, opts)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
 	h.attachCrewMembers(c.Request.Context(), flights)
-	sortFlightsChronological(flights)
+	if params.SortBy == nil {
+		sortFlightsChronological(flights)
+	}
 
 	prefs := exportPrefs{DateFormat: "DD.MM.YYYY", DecimalSeparator: "dot"}
 	userName := ""
@@ -137,15 +164,28 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 		format = string(*params.Format)
 	}
 
+	totals := params.Totals != nil && *params.Totals
 	switch format {
 	case "easa":
 		writeEASACSV(w, flights, prefs, userName)
+		if totals {
+			csvWrite(w, easaCSVTotals(flights))
+		}
 	case "faa":
 		writeFAACSV(w, flights, prefs)
+		if totals {
+			csvWrite(w, faaCSVTotals(flights))
+		}
 	case "weblogbook":
 		writeWebLogbookCSV(w, flights, userName)
+		if totals {
+			csvWrite(w, webLogbookCSVTotals(flights))
+		}
 	default:
 		writeStandardCSV(w, flights, prefs)
+		if totals {
+			csvWrite(w, standardCSVTotals(flights, prefs))
+		}
 	}
 
 	w.Flush()

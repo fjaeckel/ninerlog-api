@@ -556,3 +556,63 @@ func TestExportPDFExcludesPassengerFlights(t *testing.T) {
 		}
 	})
 }
+
+// TestExportCSVSearchWithTotals verifies the CSV export honours the GET /flights
+// filters across page boundaries and appends a totals row on request.
+func TestExportCSVSearchWithTotals(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("csv-search"), "SecurePass123!", "CSVSearch")
+
+	for i := 0; i < 25; i++ {
+		requireStatus(t, c.POST("/flights", map[string]interface{}{
+			"date": pastDate(i), "aircraftReg": "D-EMAT", "aircraftType": "C172",
+			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+			"offBlockTime": "08:00", "onBlockTime": "09:00", "landings": 1,
+		}), http.StatusCreated)
+	}
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": pastDate(1), "aircraftReg": "D-EOTH", "aircraftType": "PA28",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "10:00", "landings": 1,
+	}), http.StatusCreated)
+
+	t.Run("q filter exports every match with totals", func(t *testing.T) {
+		resp := c.GET("/exports/csv?q=reg:D-EMAT&totals=true")
+		requireStatus(t, resp, http.StatusOK)
+		lines := strings.Split(strings.TrimSpace(string(resp.Body)), "\n")
+		if len(lines) != 27 {
+			t.Fatalf("got %d lines, want header + 25 flights + totals", len(lines))
+		}
+		if strings.Contains(string(resp.Body), "D-EOTH") {
+			t.Error("non-matching flight exported")
+		}
+		last := lines[len(lines)-1]
+		if !strings.HasPrefix(last, "Total (25 flights)") || !strings.Contains(last, "25,0h") {
+			t.Errorf("unexpected totals row: %s", last)
+		}
+	})
+
+	t.Run("aircraftReg filter and EASA format", func(t *testing.T) {
+		resp := c.GET("/exports/csv?format=easa&aircraftReg=D-EOTH&totals=true")
+		requireStatus(t, resp, http.StatusOK)
+		lines := strings.Split(strings.TrimSpace(string(resp.Body)), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("got %d lines, want header + 1 flight + totals", len(lines))
+		}
+		if !strings.HasPrefix(lines[2], "Total (1 flights)") || !strings.Contains(lines[2], "2:00") {
+			t.Errorf("unexpected totals row: %s", lines[2])
+		}
+	})
+
+	t.Run("no totals row by default", func(t *testing.T) {
+		resp := c.GET("/exports/csv")
+		requireStatus(t, resp, http.StatusOK)
+		if strings.Contains(string(resp.Body), "Total (") {
+			t.Error("totals row present without totals=true")
+		}
+	})
+
+	t.Run("invalid query is rejected", func(t *testing.T) {
+		requireStatus(t, c.GET("/exports/csv?q=%28reg%3AD-EMAT"), http.StatusBadRequest)
+	})
+}

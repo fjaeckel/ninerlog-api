@@ -1695,6 +1695,45 @@ func (e ExportFlightsCSVParamsFormat) Valid() bool {
 	}
 }
 
+// Defines values for ExportFlightsCSVParamsSortBy.
+const (
+	ExportFlightsCSVParamsSortByCreatedAt ExportFlightsCSVParamsSortBy = "createdAt"
+	ExportFlightsCSVParamsSortByDate      ExportFlightsCSVParamsSortBy = "date"
+	ExportFlightsCSVParamsSortByTotalTime ExportFlightsCSVParamsSortBy = "totalTime"
+)
+
+// Valid indicates whether the value is a known member of the ExportFlightsCSVParamsSortBy enum.
+func (e ExportFlightsCSVParamsSortBy) Valid() bool {
+	switch e {
+	case ExportFlightsCSVParamsSortByCreatedAt:
+		return true
+	case ExportFlightsCSVParamsSortByDate:
+		return true
+	case ExportFlightsCSVParamsSortByTotalTime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportFlightsCSVParamsSortOrder.
+const (
+	ExportFlightsCSVParamsSortOrderAsc  ExportFlightsCSVParamsSortOrder = "asc"
+	ExportFlightsCSVParamsSortOrderDesc ExportFlightsCSVParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ExportFlightsCSVParamsSortOrder enum.
+func (e ExportFlightsCSVParamsSortOrder) Valid() bool {
+	switch e {
+	case ExportFlightsCSVParamsSortOrderAsc:
+		return true
+	case ExportFlightsCSVParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExportFlightsPDFParamsFormat.
 const (
 	ExportFlightsPDFParamsFormatEasa    ExportFlightsPDFParamsFormat = "easa"
@@ -1778,16 +1817,16 @@ func (e ListFlightsParamsSortBy) Valid() bool {
 
 // Defines values for ListFlightsParamsSortOrder.
 const (
-	Asc  ListFlightsParamsSortOrder = "asc"
-	Desc ListFlightsParamsSortOrder = "desc"
+	ListFlightsParamsSortOrderAsc  ListFlightsParamsSortOrder = "asc"
+	ListFlightsParamsSortOrderDesc ListFlightsParamsSortOrder = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListFlightsParamsSortOrder enum.
 func (e ListFlightsParamsSortOrder) Valid() bool {
 	switch e {
-	case Asc:
+	case ListFlightsParamsSortOrderAsc:
 		return true
-	case Desc:
+	case ListFlightsParamsSortOrderDesc:
 		return true
 	default:
 		return false
@@ -6756,10 +6795,58 @@ type ListCredentialsParams struct {
 type ExportFlightsCSVParams struct {
 	// Format CSV column format — easa, faa, weblogbook (vsimakhin/web-logbook import), or standard (ForeFlight-compatible default)
 	Format *ExportFlightsCSVParamsFormat `form:"format,omitempty" json:"format,omitempty"`
+
+	// StartDate Only flights on or after this date, as `GET /flights`
+	StartDate *openapi_types.Date `form:"startDate,omitempty" json:"startDate,omitempty"`
+
+	// EndDate Only flights on or before this date, as `GET /flights`
+	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
+
+	// AircraftReg Aircraft registration filter, as `GET /flights`
+	AircraftReg *string `form:"aircraftReg,omitempty" json:"aircraftReg,omitempty"`
+
+	// DepartureIcao Departure location filter, as `GET /flights`
+	DepartureIcao *string `form:"departureIcao,omitempty" json:"departureIcao,omitempty"`
+
+	// ArrivalIcao Arrival location filter, as `GET /flights`
+	ArrivalIcao *string `form:"arrivalIcao,omitempty" json:"arrivalIcao,omitempty"`
+
+	// IsPic PIC flights only, as `GET /flights`
+	IsPic *bool `form:"isPic,omitempty" json:"isPic,omitempty"`
+
+	// IsDual Dual instruction flights only, as `GET /flights`
+	IsDual *bool `form:"isDual,omitempty" json:"isDual,omitempty"`
+
+	// Search Free-text search, as `GET /flights`
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Q Advanced search query, same syntax as `GET /flights?q=`. An invalid query returns 400.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// SortBy Sort field, as `GET /flights`. When omitted, rows are chronological (oldest first).
+	SortBy *ExportFlightsCSVParamsSortBy `form:"sortBy,omitempty" json:"sortBy,omitempty"`
+
+	// SortOrder Sort order for `sortBy`
+	SortOrder *ExportFlightsCSVParamsSortOrder `form:"sortOrder,omitempty" json:"sortOrder,omitempty"`
+
+	// LogbookLicenseId Separate-logbook license filter, as `GET /flights`
+	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
+
+	// Totals Append a totals row after the last flight: the flight count and the
+	// sum of every time, count and distance column, in the row format.
+	// The totals row is not a flight, so a file exported with it is not
+	// meant for re-import.
+	Totals *bool `form:"totals,omitempty" json:"totals,omitempty"`
 }
 
 // ExportFlightsCSVParamsFormat defines parameters for ExportFlightsCSV.
 type ExportFlightsCSVParamsFormat string
+
+// ExportFlightsCSVParamsSortBy defines parameters for ExportFlightsCSV.
+type ExportFlightsCSVParamsSortBy string
+
+// ExportFlightsCSVParamsSortOrder defines parameters for ExportFlightsCSV.
+type ExportFlightsCSVParamsSortOrder string
 
 // ExportFlightsPDFParams defines parameters for ExportFlightsPDF.
 type ExportFlightsPDFParams struct {

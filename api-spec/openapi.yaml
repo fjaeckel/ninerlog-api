@@ -3670,7 +3670,7 @@ paths:
     get:
       tags: [Export]
       summary: Export flights as CSV
-      description: Export all flight data as a CSV file. Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats.
+      description: Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats.
       operationId: exportFlightsCSV
       security:
         - bearerAuth: []
@@ -3682,6 +3682,85 @@ paths:
             type: string
             enum: [easa, faa, standard, weblogbook]
             default: standard
+        - name: startDate
+          in: query
+          description: Only flights on or after this date, as `GET /flights`
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: Only flights on or before this date, as `GET /flights`
+          schema:
+            type: string
+            format: date
+        - name: aircraftReg
+          in: query
+          description: Aircraft registration filter, as `GET /flights`
+          schema:
+            type: string
+        - name: departureIcao
+          in: query
+          description: Departure location filter, as `GET /flights`
+          schema:
+            type: string
+            maxLength: 100
+        - name: arrivalIcao
+          in: query
+          description: Arrival location filter, as `GET /flights`
+          schema:
+            type: string
+            maxLength: 100
+        - name: isPic
+          in: query
+          description: PIC flights only, as `GET /flights`
+          schema:
+            type: boolean
+        - name: isDual
+          in: query
+          description: Dual instruction flights only, as `GET /flights`
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          description: Free-text search, as `GET /flights`
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Advanced search query, same syntax as `GET /flights?q=`. An invalid query returns 400.
+          schema:
+            type: string
+            maxLength: 1000
+        - name: sortBy
+          in: query
+          description: Sort field, as `GET /flights`. When omitted, rows are chronological (oldest first).
+          schema:
+            type: string
+            enum: [date, totalTime, createdAt]
+        - name: sortOrder
+          in: query
+          description: Sort order for `sortBy`
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: logbookLicenseId
+          in: query
+          description: Separate-logbook license filter, as `GET /flights`
+          schema:
+            type: string
+            format: uuid
+        - name: totals
+          in: query
+          description: |
+            Append a totals row after the last flight: the flight count and the
+            sum of every time, count and distance column, in the row format.
+            The totals row is not a flight, so a file exported with it is not
+            meant for re-import.
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: CSV file download
@@ -3690,6 +3769,8 @@ paths:
               schema:
                 type: string
                 format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 

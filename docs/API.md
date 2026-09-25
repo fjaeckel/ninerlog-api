@@ -592,6 +592,15 @@ classifies every table in `db/migrations` as either exported (naming its payload
 exempt (with the reason — credentials, installation-bound records, operator content, and
 transient state), and fails on any table that is neither.
 
+`GET /exports/csv` writes flights in the standard (ForeFlight-compatible), EASA, FAA or
+vsimakhin/web-logbook column layout (`format`). Without filters it exports the whole logbook in
+chronological order. It also accepts every `GET /flights` filter — `q`, `search`, `startDate`,
+`endDate`, `aircraftReg`, `departureIcao`, `arrivalIcao`, `isPic`, `isDual`,
+`logbookLicenseId` — and `sortBy`/`sortOrder`, and exports *every* matching flight: there is no
+pagination. An invalid `q` returns 400. `totals=true` appends one totals row after the last
+flight: `Total (N flights)` in the first column and the sum of every time, count and distance
+column in that layout's format. A file with a totals row is a report, not an import source.
+
 `GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,
 email, phone, notes, the contact's logged crew roles as `CATEGORIES`, and a stable `UID`
 so a re-import updates existing cards instead of duplicating them.

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -22,6 +23,54 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// flightFilterParams are the GET /flights filters, shared by the list and the CSV export.
+type flightFilterParams struct {
+	StartDate        *openapi_types.Date
+	EndDate          *openapi_types.Date
+	AircraftReg      *string
+	DepartureIcao    *string
+	ArrivalIcao      *string
+	IsPic            *bool
+	IsDual           *bool
+	Search           *string
+	Q                *string
+	LogbookLicenseId *openapi_types.UUID
+}
+
+// applyFlightFilters sets p on opts. Returns the parse error of an invalid q.
+func (h *APIHandler) applyFlightFilters(ctx context.Context, userID uuid.UUID, p flightFilterParams, opts *repository.FlightQueryOptions) error {
+	if p.StartDate != nil {
+		t := p.StartDate.Time
+		opts.StartDate = &t
+	}
+	if p.EndDate != nil {
+		t := p.EndDate.Time
+		opts.EndDate = &t
+	}
+	if p.AircraftReg != nil {
+		reg := registration.Canonical(*p.AircraftReg)
+		opts.AircraftReg = &reg
+	}
+	opts.DepartureICAO = p.DepartureIcao
+	opts.ArrivalICAO = p.ArrivalIcao
+	opts.IsPIC = p.IsPic
+	opts.IsDual = p.IsDual
+	opts.Search = p.Search
+	if p.Q != nil && strings.TrimSpace(*p.Q) != "" {
+		query, err := flightsearch.Parse(*p.Q)
+		if err != nil {
+			return err
+		}
+		opts.Query = query
+	}
+	// Logbook filtering; an unknown or foreign licence leaves the list unfiltered.
+	if p.LogbookLicenseId != nil {
+		_ = service.NewLogbookScope(h.classRatingService, h.aircraftService).
+			Apply(ctx, userID, uuid.UUID(*p.LogbookLicenseId), opts)
+	}
+	return nil
+}
+
 // ListFlights implements GET /flights
 // (GET /flights)
 func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsParams) {
@@ -38,44 +87,24 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		SortBy:    "date",
 		SortOrder: "desc",
 	}
-	if params.StartDate != nil {
-		t := params.StartDate.Time
-		opts.StartDate = &t
-	}
-	if params.EndDate != nil {
-		t := params.EndDate.Time
-		opts.EndDate = &t
-	}
-	if params.AircraftReg != nil {
-		reg := registration.Canonical(*params.AircraftReg)
-		opts.AircraftReg = &reg
-	}
-	if params.DepartureIcao != nil {
-		opts.DepartureICAO = params.DepartureIcao
-	}
-	if params.ArrivalIcao != nil {
-		opts.ArrivalICAO = params.ArrivalIcao
-	}
-	if params.IsPic != nil {
-		opts.IsPIC = params.IsPic
-	}
-	if params.IsDual != nil {
-		opts.IsDual = params.IsDual
-	}
-	if params.Search != nil {
-		opts.Search = params.Search
-	}
 	if since := deltaWatermark(params.UpdatedSince); since != nil {
 		t := *since
 		opts.UpdatedSince = &t
 	}
-	if params.Q != nil && strings.TrimSpace(*params.Q) != "" {
-		query, err := flightsearch.Parse(*params.Q)
-		if err != nil {
-			h.sendError(c, http.StatusBadRequest, "Invalid search query: "+err.Error())
-			return
-		}
-		opts.Query = query
+	if err := h.applyFlightFilters(c.Request.Context(), userID, flightFilterParams{
+		StartDate:        params.StartDate,
+		EndDate:          params.EndDate,
+		AircraftReg:      params.AircraftReg,
+		DepartureIcao:    params.DepartureIcao,
+		ArrivalIcao:      params.ArrivalIcao,
+		IsPic:            params.IsPic,
+		IsDual:           params.IsDual,
+		Search:           params.Search,
+		Q:                params.Q,
+		LogbookLicenseId: params.LogbookLicenseId,
+	}, opts); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid search query: "+err.Error())
+		return
 	}
 	if params.Page != nil && *params.Page > 0 {
 		opts.Page = *params.Page
@@ -91,12 +120,6 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	}
 	if params.SortOrder != nil {
 		opts.SortOrder = string(*params.SortOrder)
-	}
-
-	// Logbook filtering; an unknown or foreign licence leaves the list unfiltered.
-	if params.LogbookLicenseId != nil {
-		_ = service.NewLogbookScope(h.classRatingService, h.aircraftService).
-			Apply(c.Request.Context(), userID, uuid.UUID(*params.LogbookLicenseId), opts)
 	}
 
 	// Get total count for pagination
