@@ -229,7 +229,11 @@ have to compute them by hand. The entry point is
   user to PIC, dual received, dual given, co-pilot or passenger. `aircraft` is the fleet
   entry for the registration flown (`flightrules.AircraftFacts`), resolved by the caller
   via `service.AircraftFactsFor`; `nil` means the registration has no fleet entry. See
-  [Who may log co-pilot time](#who-may-log-co-pilot-time).
+  [Who may log co-pilot time](#who-may-log-co-pilot-time). Dual given is resolved from a
+  self-listed `Instructor` or a third-party `Student`; a pilot listing themselves as
+  `Student` (e.g. a supervised solo with `SPICTime`/`PICUSTime`) stays PIC and logs no
+  dual given. With an empty `userName`, every `Student` entry counts as third party.
+  Rows saved before this rule are corrected by `POST /flights/recalculate`.
 - **Crew / roles / names / IFR / FSTD / remarks / display** — additional helpers in
   `flightrules/` (`crew.go`, `roles.go`, `names.go`, `ifr.go`, `fstd.go`, `remarks.go`,
   `display.go`) normalise crew roles, instructor/PIC names, instrument fields, simulator

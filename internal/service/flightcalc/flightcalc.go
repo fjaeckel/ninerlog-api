@@ -518,9 +518,9 @@ func calculateMultiPilotTime(flight *models.Flight, role userPilotRole, aircraft
 }
 
 // calculateDualGivenTime sets dual given time when the user is acting as
-// instructor: a Student is on board OR the user themselves is listed with the
-// Instructor role. In all other cases the time is zeroed when crew context
-// exists.
+// instructor: a third-party Student is on board OR the user themselves is
+// listed with the Instructor role. In all other cases the time is zeroed when
+// crew context exists.
 func calculateDualGivenTime(flight *models.Flight, role userPilotRole) {
 	if role == roleDualGiving {
 		flight.DualGivenTime = flight.TotalTime

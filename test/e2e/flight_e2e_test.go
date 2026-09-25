@@ -173,6 +173,28 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r.JSON(&f)
 		t.Logf("dualGivenTime: %.2f", gf(f, "dualGivenTime"))
 	})
+
+	t.Run("self-listed Student logs no dualGiven", func(t *testing.T) {
+		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-ESTU", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "11:00", "onBlockTime": "12:30", "landings": 3, "crewMembers": []map[string]interface{}{{"name": "PDS", "role": "Student"}}})
+		requireStatus(t, r, 201)
+		var f map[string]interface{}
+		r.JSON(&f)
+		assertFloat(t, "dualGivenTime", gf(f, "dualGivenTime"), 0, 0)
+		assertBool(t, "isPic", gb(f, "isPic"), true)
+		assertFloat(t, "picTime", gf(f, "picTime"), 90, 0)
+	})
+
+	for _, fn := range []string{"spicTime", "picusTime"} {
+		t.Run("self-listed Student with "+fn+" logs no dualGiven", func(t *testing.T) {
+			r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-ESTU", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "13:00", "onBlockTime": "14:30", "landings": 3, "crewMembers": []map[string]interface{}{{"name": "PDS", "role": "Student"}}, fn: 90})
+			requireStatus(t, r, 201)
+			var f map[string]interface{}
+			r.JSON(&f)
+			assertFloat(t, "dualGivenTime", gf(f, "dualGivenTime"), 0, 0)
+			assertFloat(t, fn, gf(f, fn), 90, 0)
+			assertFloat(t, "picTime", gf(f, "picTime"), 0, 0)
+		})
+	}
 }
 
 func TestFlightXCDistance(t *testing.T) {
