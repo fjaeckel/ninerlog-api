@@ -315,9 +315,14 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   layout has no time-of-day columns, so its total goes through a decimal-hours cell rounded to
   0.1h and is asserted within ±3 minutes. Only the standard layout honours the user's
   date-format and decimal-separator preferences — EASA and FAA hardcode their regulatory
-  conventions (`export.go:326`, `export.go:362`), and vsimakhin/web-logbook hardcodes its importer's
+  conventions (`export.go:356`, `export.go:392`), and vsimakhin/web-logbook hardcodes its importer's
   storage formats — but the full matrix is run against every layout so that wiring a
   preference in later lands on existing coverage.
+- **Search export** (`GET /exports/csv` with `GET /flights` filters and `totals=true`) — the
+  Flights page's "Export as CSV" button exports every flight matching the current search,
+  filters, logbook and sort, regardless of the page shown, with a totals row (flight count and
+  the sum of every time, count and distance column) at the bottom. Totals are opt-in, so the
+  default export keeps the round-trip guarantee above.
 - **vsimakhin/web-logbook export** (`GET /exports/csv?format=weblogbook`,
   `export_weblogbook.go`) — for pilots moving to the open-source
   [vsimakhin/web-logbook](https://github.com/vsimakhin/web-logbook). It writes the exact header row
