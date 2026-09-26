@@ -68,6 +68,9 @@ func TestAdminEndpoints(t *testing.T) {
 		if ff, ok := s["flightFiles"].(map[string]interface{}); !ok || ff["count"] == nil || ff["totalBytes"] == nil {
 			t.Errorf("Expected flightFiles.{count,totalBytes}, got %v", s["flightFiles"])
 		}
+		if _, ok := s["weglideLinks"].(float64); !ok {
+			t.Errorf("Expected weglideLinks count, got %v", s["weglideLinks"])
+		}
 		cbd, ok := s["cloudBackupDestinations"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("Expected cloudBackupDestinations object, got %T", s["cloudBackupDestinations"])
@@ -133,6 +136,20 @@ func TestAdminEndpoints(t *testing.T) {
 		}
 		if _, ok := cfg["updateCheckEnabled"]; !ok {
 			t.Error("Expected updateCheckEnabled field")
+		}
+		linkOn, ok := cfg["weglideLinkEnabled"].(bool)
+		if !ok {
+			t.Errorf("Expected weglideLinkEnabled boolean, got %v", cfg["weglideLinkEnabled"])
+		}
+		if linkOn != (cfg["cloudBackupsConfigured"] == true) {
+			t.Errorf("weglideLinkEnabled %v should follow BACKUP_CREDENTIALS_KEY (cloudBackupsConfigured %v)", linkOn, cfg["cloudBackupsConfigured"])
+		}
+		syncOn, ok := cfg["weglideSyncEnabled"].(bool)
+		if !ok {
+			t.Errorf("Expected weglideSyncEnabled boolean, got %v", cfg["weglideSyncEnabled"])
+		}
+		if _, hasInterval := cfg["weglideSyncInterval"]; hasInterval != syncOn {
+			t.Errorf("weglideSyncInterval present = %v, sync enabled = %v", hasInterval, syncOn)
 		}
 	})
 

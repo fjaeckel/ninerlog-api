@@ -208,6 +208,14 @@ rules.
   file is stored with the flight, downloadable from `/flights/{id}/files`, and part of the
   JSON backup. Serves sailplane pilots who fly with a logger (Petra, scenario P2).
   See [SAILPLANES.md](./SAILPLANES.md#igc-import).
+- WeGlide link: the pilot pastes their own free WeGlide API key (`PUT /integrations/weglide`,
+  stored encrypted, never returned) and `POST /integrations/weglide/sync` imports their
+  WeGlide flights through the IGC import path — oldest first, skipping files already
+  stored, stopping before WeGlide's 60 requests per day and reporting what is left. An
+  operator can let a daily background sync run for every linked pilot
+  (`WEGLIDE_SYNC_ENABLED=true`). Needs `BACKUP_CREDENTIALS_KEY`. The key is not in the JSON
+  export; the imported flights and files are. Serves Petra (P4 job 1, WeGlide in her
+  tools). See [SAILPLANES.md](./SAILPLANES.md#weglide-link).
 - Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
@@ -576,7 +584,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   between installations; a custom report scoped to a licence is re-pointed at that licence's
   restored copy, or loses the scope if the backup does not carry it.
   `internal/service/cloudbackup/coverage_test.go` fails the build if a new table holding
-  user rows is left out.
+  user rows is left out. The WeGlide link (`weglide_links`) is exempt: it holds the pilot's
+  API key, encrypted with this installation's key, so after a move the pilot links WeGlide
+  again.
 
 ## Notifications
 
@@ -645,7 +655,9 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   users; `aircraftReminders` reports `total` and `overdue` aircraft reminders across all
   users; `licencePrivileges` reports the `total` and the count per kind (`byKind`) of licence
   privileges across all users; `flightFiles` reports the `count` and `totalBytes` of stored
-  IGC files across all users. `pilotProfiles` reports how many users switched the pilot profile to show
+  IGC files across all users; `weglideLinks` counts users with a linked WeGlide account.
+  Config view reports `weglideLinkEnabled`, `weglideSyncEnabled` and, when the scheduled
+  sync runs, `weglideSyncInterval`. `pilotProfiles` reports how many users switched the pilot profile to show
   everything and, per discipline, how many set it explicitly on, off or as a training goal. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than
@@ -671,6 +683,10 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
 - **Release check** — a daily background lookup of the newest published release per
   component (`internal/updatecheck`), surfaced in the admin console and as
   `app_update_available`. Opt out with `UPDATE_CHECK_ENABLED=false`.
+- **WeGlide sync** — `weglide_requests_total{status}`, `weglide_sync_runs_total{result}`
+  and `weglide_sync_flights_imported_total` with their panels on the operational
+  dashboard, plus a warning alert when WeGlide's responses stop matching the client. See
+  [METRICS.md](./METRICS.md#weglide-metrics).
 - **Profiling** — optional pprof server when `PPROF_ENABLED=true`. See
   [PERFORMANCE.md](./PERFORMANCE.md).
 - **Structured logging, panic recovery, security headers, CORS, rate limiting** — see the

@@ -268,6 +268,25 @@ groups:
           summary: "Release check has not succeeded in days"
           description: "The last successful release lookup was {{ $value | humanizeDuration }} ago (expected daily). Update notices are no longer trustworthy."
 
+  - name: ninerlog-api.weglide
+    rules:
+      # bad_response: WeGlide answered in a shape internal/weglide cannot read.
+      - alert: NinerlogApiWeGlideResponsesUnexpected
+        expr: |
+          (
+            sum(rate(weglide_requests_total{job="ninerlog-api",status="bad_response"}[6h]))
+            /
+            clamp_min(sum(rate(weglide_requests_total{job="ninerlog-api"}[6h])), 1e-9)
+          ) > 0.5
+          and
+          sum(increase(weglide_requests_total{job="ninerlog-api",status="bad_response"}[6h])) >= 5
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Most WeGlide responses are not understood"
+          description: "{{ $value | humanizePercentage }} of WeGlide requests over 6h returned a response the client cannot read. WeGlide's API has likely changed; WeGlide sync is not importing flights."
+
   - name: ninerlog-api.auth
     rules:
       # A surge in failed logins relative to successes suggests credential

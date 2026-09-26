@@ -678,3 +678,39 @@ type DisciplineEvidenceSource interface {
 	// and ultralight kind in one query.
 	GetDisciplineFlightGroups(ctx context.Context, userID uuid.UUID) ([]models.DisciplineFlightGroup, error)
 }
+
+// WeGlideLinkRepository stores a user's WeGlide link. Every method is scoped
+// by the owning user; days are UTC dates.
+type WeGlideLinkRepository interface {
+	// Get returns the user's link, or ErrNotFound.
+	Get(ctx context.Context, userID uuid.UUID) (*models.WeGlideLink, error)
+
+	// Upsert stores the encrypted key and WeGlide user ID. A new row counts
+	// one request on day; an existing row keeps its request count, and its
+	// sync state when weglideUserID is unchanged.
+	Upsert(ctx context.Context, userID uuid.UUID, apiKeyEncrypted []byte, weglideUserID string, day time.Time) error
+
+	// Delete removes the link. Deleting a missing link is not an error.
+	Delete(ctx context.Context, userID uuid.UUID) error
+
+	// TakeRequest atomically counts one request on day unless limit
+	// requests are already counted. Returns the count after the call and
+	// whether a request was granted; ErrNotFound when there is no link.
+	TakeRequest(ctx context.Context, userID uuid.UUID, day time.Time, limit int) (int, bool, error)
+
+	// ExhaustRequests sets the count on day to limit.
+	ExhaustRequests(ctx context.Context, userID uuid.UUID, day time.Time, limit int) error
+
+	// RecordSync stores the latest run's status and error, and sets
+	// last_sync_at to completedAt when it is non-nil.
+	RecordSync(ctx context.Context, userID uuid.UUID, status string, syncErr *string, completedAt *time.Time) error
+
+	// ListDueForSync returns up to limit users whose last complete sync is
+	// missing or older than before and who counted no request on day,
+	// least recently synced first.
+	ListDueForSync(ctx context.Context, before, day time.Time, limit int) ([]uuid.UUID, error)
+
+	// ImportedFlightFilenames returns the filenames of the user's flight
+	// files that start with prefix.
+	ImportedFlightFilenames(ctx context.Context, userID uuid.UUID, prefix string) ([]string, error)
+}

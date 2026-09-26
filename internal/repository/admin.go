@@ -38,6 +38,8 @@ type AdminStats struct {
 	// total size across all users.
 	FlightFiles     int
 	FlightFileBytes int64
+	// WeGlideLinks counts users with a linked WeGlide account.
+	WeGlideLinks int
 	// ImportsByFormat maps import_format value to import count. Never nil;
 	// formats with no imports are absent.
 	ImportsByFormat map[string]int
