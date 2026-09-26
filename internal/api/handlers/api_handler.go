@@ -78,6 +78,9 @@ type APIHandler struct {
 	// pilotProfileService is wired in cmd/api/main.go via
 	// SetPilotProfileService.
 	pilotProfileService *pilotprofile.Service
+	// soaringSeasonService is wired in cmd/api/main.go via
+	// SetSoaringSeasonService.
+	soaringSeasonService *service.SoaringSeasonService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

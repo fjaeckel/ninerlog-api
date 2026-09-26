@@ -175,6 +175,36 @@ number). An imported launch count is stored as the pilot's value. They are logbo
 fields (`launches`, `outlanding`, `towflight`, `releaseHeight`), and `is_outlanding` and
 `is_tow_flight` are custom-currency filters beside the `launches` metric.
 
+## Statistics
+
+Soaring statistics count **soaring flights**: flights whose aircraft (matched by
+registration in the pilot's fleet) is classed `GLIDER`, is an `ULTRALIGHT` of kind
+`SAILPLANE`, or is classed `TMG` when the flight has a launch method. FSTD sessions and
+passenger flights never count, and neither do flights on a registration missing from the
+fleet. The rule is one SQL predicate (`soaringFlightSQL`,
+`internal/repository/postgres/soaring.go`) shared by both surfaces below, so they agree.
+
+- `GET /reports/soaring-season?year=YYYY` — the dashboard season card: one calendar year
+  (UTC, default the current year, 1900 to next year, else 400) with flights, launches,
+  launches per method (`winch`, `aerotow`, `selfLaunch`, `car`, `bungee`, and
+  `unspecified` for soaring flights without a method), total and average minutes,
+  outlandings, the longest flight by total time, and the five departure places with the
+  most soaring flights. A year without soaring flights is all zeros, not an error.
+- Custom reports (`/reports/custom`) take the metrics `launches` (the launch count of
+  soaring flights only, so a pilot's aeroplane take-offs never read as launches),
+  `outlandings` and `towFlights` (flights marked `isOutlanding` / `isTowFlight`, any
+  aircraft), and the groupings `launchMethod`, `aircraftClass` and `ulKind`. CSV and PDF
+  exports add a soaring column only when the report charts it or its total is not zero.
+
+Launches read `Flight.launches` exactly as the currency engine does (`launchCountSQL`: the
+stored count, else the take-offs, at least one).
+
+The longest flight is by total time. Neither surface uses `flights.distance`: it is the
+great-circle distance between departure and arrival airports, 0 for a local or
+out-and-return soaring flight and unknown for an outlanding field, so it says nothing about
+the distance flown. A soaring distance metric waits for a flown or task distance (IGC
+import, WP-27).
+
 ## Recency (SFCL.160)
 
 ### (a) Sailplanes, excluding TMGs

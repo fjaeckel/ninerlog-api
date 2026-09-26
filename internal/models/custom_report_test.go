@@ -49,6 +49,14 @@ func TestCustomReportDefinitionValidate(t *testing.T) {
 		{"icao control char", func(d *CustomReportDefinition) { d.Filter.DepartureICAO = strp("ED\nF") }, "invalid characters"},
 		{"bad role", func(d *CustomReportDefinition) { d.Filter.Role = strp("sic") }, "invalid role"},
 		{"pic role", func(d *CustomReportDefinition) { d.Filter.Role = strp("pic") }, ""},
+		{"launches metric", func(d *CustomReportDefinition) { d.Metric = "launches" }, ""},
+		{"outlandings metric", func(d *CustomReportDefinition) { d.Metric = "outlandings" }, ""},
+		{"towFlights metric", func(d *CustomReportDefinition) { d.Metric = "towFlights" }, ""},
+		{"distance metric", func(d *CustomReportDefinition) { d.Metric = "distanceKm" }, "invalid metric"},
+		{"launchMethod groupBy", func(d *CustomReportDefinition) { d.GroupBy = ReportGroupLaunchMethod }, ""},
+		{"aircraftClass groupBy", func(d *CustomReportDefinition) { d.GroupBy = ReportGroupAircraftClass }, ""},
+		{"ulKind groupBy", func(d *CustomReportDefinition) { d.GroupBy = ReportGroupULKind }, ""},
+		{"launch_method groupBy", func(d *CustomReportDefinition) { d.GroupBy = "launch_method" }, "invalid groupBy"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -109,7 +117,8 @@ func TestCustomReportDefinitionJSONBRoundTrip(t *testing.T) {
 
 func TestCustomReportTotalsMetric(t *testing.T) {
 	tot := CustomReportTotals{Flights: 1, TotalTime: 2, PicTime: 3, DualTime: 4, DualGivenTime: 5,
-		NightTime: 6, IfrTime: 7, CrossCountryTime: 8, FstdTime: 9, Landings: 10}
+		NightTime: 6, IfrTime: 7, CrossCountryTime: 8, FstdTime: 9, Landings: 10,
+		Launches: 11, Outlandings: 12, TowFlights: 13}
 	for i, m := range ReportMetrics {
 		if got := tot.Metric(m); got != i+1 {
 			t.Errorf("Metric(%s) = %d, want %d", m, got, i+1)
@@ -118,6 +127,40 @@ func TestCustomReportTotalsMetric(t *testing.T) {
 	sum := tot
 	sum.Add(tot)
 	if sum.Landings != 20 || sum.FstdTime != 18 {
+		t.Errorf("Add = %+v", sum)
+	}
+}
+
+func TestCustomReportSoaringMetrics(t *testing.T) {
+	tot := CustomReportTotals{Flights: 3, Launches: 7, Outlandings: 1, TowFlights: 2}
+	tests := []struct {
+		metric       string
+		want         int
+		wantDuration bool
+		wantSoaring  bool
+	}{
+		{"launches", 7, false, true},
+		{"outlandings", 1, false, true},
+		{"towFlights", 2, false, true},
+		{"flights", 3, false, false},
+		{"totalTime", 0, true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.metric, func(t *testing.T) {
+			if got := tot.Metric(tt.metric); got != tt.want {
+				t.Errorf("Metric = %d, want %d", got, tt.want)
+			}
+			if got := IsDurationMetric(tt.metric); got != tt.wantDuration {
+				t.Errorf("IsDurationMetric = %v, want %v", got, tt.wantDuration)
+			}
+			if got := IsSoaringMetric(tt.metric); got != tt.wantSoaring {
+				t.Errorf("IsSoaringMetric = %v, want %v", got, tt.wantSoaring)
+			}
+		})
+	}
+	sum := tot
+	sum.Add(tot)
+	if sum.Launches != 14 || sum.Outlandings != 2 || sum.TowFlights != 4 {
 		t.Errorf("Add = %+v", sum)
 	}
 }

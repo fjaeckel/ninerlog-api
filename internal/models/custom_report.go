@@ -58,26 +58,39 @@ const (
 
 // Custom report groupings.
 const (
-	ReportGroupMonth        = "month"
-	ReportGroupYear         = "year"
-	ReportGroupDayOfWeek    = "dayOfWeek"
-	ReportGroupAircraftType = "aircraftType"
-	ReportGroupRegistration = "registration"
-	ReportGroupDeparture    = "departure"
-	ReportGroupArrival      = "arrival"
-	ReportGroupRoute        = "route"
+	ReportGroupMonth         = "month"
+	ReportGroupYear          = "year"
+	ReportGroupDayOfWeek     = "dayOfWeek"
+	ReportGroupAircraftType  = "aircraftType"
+	ReportGroupRegistration  = "registration"
+	ReportGroupDeparture     = "departure"
+	ReportGroupArrival       = "arrival"
+	ReportGroupRoute         = "route"
+	ReportGroupLaunchMethod  = "launchMethod"
+	ReportGroupAircraftClass = "aircraftClass"
+	ReportGroupULKind        = "ulKind"
 )
 
 // ReportGroupings lists every valid groupBy value.
 var ReportGroupings = []string{
 	ReportGroupMonth, ReportGroupYear, ReportGroupDayOfWeek, ReportGroupAircraftType,
 	ReportGroupRegistration, ReportGroupDeparture, ReportGroupArrival, ReportGroupRoute,
+	ReportGroupLaunchMethod, ReportGroupAircraftClass, ReportGroupULKind,
 }
 
 // ReportMetrics lists every valid metric value, in table column order.
 var ReportMetrics = []string{
 	"flights", "totalTime", "picTime", "dualTime", "dualGivenTime",
 	"nightTime", "ifrTime", "crossCountryTime", "fstdTime", "landings",
+	"launches", "outlandings", "towFlights",
+}
+
+// ReportSoaringMetrics lists the metrics that are soaring or towing counts.
+var ReportSoaringMetrics = []string{"launches", "outlandings", "towFlights"}
+
+// IsSoaringMetric reports whether metric is one of ReportSoaringMetrics.
+func IsSoaringMetric(metric string) bool {
+	return contains(ReportSoaringMetrics, metric)
 }
 
 // IsTimeGrouping reports whether groupBy is chronological rather than ranked.
@@ -87,7 +100,7 @@ func IsTimeGrouping(groupBy string) bool {
 
 // IsDurationMetric reports whether metric is measured in minutes.
 func IsDurationMetric(metric string) bool {
-	return metric != "flights" && metric != "landings"
+	return metric != "flights" && metric != "landings" && !IsSoaringMetric(metric)
 }
 
 // Custom report limits.
@@ -248,6 +261,9 @@ type CustomReportTotals struct {
 	CrossCountryTime int `json:"crossCountryTime"`
 	FstdTime         int `json:"fstdTime"`
 	Landings         int `json:"landings"`
+	Launches         int `json:"launches"`
+	Outlandings      int `json:"outlandings"`
+	TowFlights       int `json:"towFlights"`
 }
 
 // Metric returns the named metric; unknown names return 0.
@@ -273,6 +289,12 @@ func (t CustomReportTotals) Metric(name string) int {
 		return t.FstdTime
 	case "landings":
 		return t.Landings
+	case "launches":
+		return t.Launches
+	case "outlandings":
+		return t.Outlandings
+	case "towFlights":
+		return t.TowFlights
 	}
 	return 0
 }
@@ -289,6 +311,9 @@ func (t *CustomReportTotals) Add(o CustomReportTotals) {
 	t.CrossCountryTime += o.CrossCountryTime
 	t.FstdTime += o.FstdTime
 	t.Landings += o.Landings
+	t.Launches += o.Launches
+	t.Outlandings += o.Outlandings
+	t.TowFlights += o.TowFlights
 }
 
 // CustomReportRow is one group of a report result.

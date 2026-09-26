@@ -298,6 +298,24 @@ func resolveWindow(w models.CustomReportWindow, now time.Time) (start, end *time
 
 var weekdays = []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 
+var launchMethodLabels = map[string]string{
+	models.LaunchMethodWinch:      "Winch",
+	models.LaunchMethodAerotow:    "Aerotow",
+	models.LaunchMethodSelfLaunch: "Self-launch",
+	models.LaunchMethodCar:        "Car tow",
+	models.LaunchMethodBungee:     "Bungee",
+}
+
+var ulKindLabels = map[string]string{
+	string(models.ULKindThreeAxis):            "Three-axis",
+	string(models.ULKindThreeAxisMotorglider): "Three-axis motor glider",
+	string(models.ULKindWeightShift):          "Weight-shift",
+	string(models.ULKindGyroplane):            "Gyroplane",
+	string(models.ULKindHelicopter):           "Helicopter",
+	string(models.ULKindPoweredParaglider):    "Powered paraglider",
+	string(models.ULKindSailplane):            "Sailplane",
+}
+
 // Label returns the English display label of a group key.
 func Label(groupBy, key string) string {
 	if key == "" {
@@ -317,6 +335,14 @@ func Label(groupBy, key string) string {
 		return airports.DisplayName(key)
 	case models.ReportGroupRoute:
 		return routeLabel(key)
+	case models.ReportGroupLaunchMethod:
+		if l, ok := launchMethodLabels[key]; ok {
+			return l
+		}
+	case models.ReportGroupULKind:
+		if l, ok := ulKindLabels[key]; ok {
+			return l
+		}
 	}
 	return key
 }
