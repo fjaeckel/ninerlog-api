@@ -1179,6 +1179,10 @@ paths:
                   type: string
                   enum: [DD.MM.YYYY, MM/DD/YYYY, YYYY-MM-DD]
                   description: Preferred date display format
+                clockFormat:
+                  type: string
+                  enum: [24h, 12h]
+                  description: Preferred clock format for times of day
                 decimalSeparator:
                   type: string
                   enum: [comma, dot]
@@ -6041,6 +6045,12 @@ components:
           default: DD.MM.YYYY
           example: DD.MM.YYYY
           description: User's preferred date display format.
+        clockFormat:
+          type: string
+          enum: [24h, 12h]
+          default: 24h
+          example: 24h
+          description: User's preferred clock format for times of day (block and takeoff/landing times). "24h" for 14:30, "12h" for 2:30 PM. Stored values are always 24-hour UTC.
         decimalSeparator:
           type: string
           enum: [comma, dot]

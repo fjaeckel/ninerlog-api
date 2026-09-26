@@ -25,7 +25,8 @@ Conversion and formatting live in `pkg/duration`:
 Block/event times of day (`OffBlockTime`, `OnBlockTime`, `DepartureTime`, `ArrivalTime`)
 are stored as `HH:MM:SS` strings in **UTC**, because they are wall-clock instants, not
 durations. Per-user display preferences (`TimeDisplayFormat`, `DateFormat`,
-`DecimalSeparator`) control how values are rendered for that pilot.
+`ClockFormat`, `DecimalSeparator`) control how values are rendered for that pilot;
+`ClockFormat` affects display only — stored and exported times stay 24-hour.
 
 ## Total time and pilot function time
 

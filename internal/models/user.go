@@ -23,6 +23,7 @@ type User struct {
 	LastLoginAt         *time.Time     `json:"lastLoginAt,omitempty"`
 	TimeDisplayFormat   string         `json:"timeDisplayFormat"`
 	DateFormat          string         `json:"dateFormat"`
+	ClockFormat         string         `json:"clockFormat"`
 	DecimalSeparator    string         `json:"decimalSeparator"`
 	PreferredLocale     string         `json:"preferredLocale"`
 	// Informational 90-day recency indicator preferences (FCL.060(b)-style)
@@ -41,6 +42,12 @@ type User struct {
 // HasPassword reports whether the account has a usable local password.
 // OIDC-provisioned accounts have none and cannot authenticate locally.
 func (u *User) HasPassword() bool { return u.PasswordHash != "" }
+
+// Clock formats for times of day.
+const (
+	ClockFormat24h = "24h"
+	ClockFormat12h = "12h"
+)
 
 // Flight list column modes.
 const (
