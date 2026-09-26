@@ -51,6 +51,10 @@ type restorePlan struct {
 	baseline *models.FlightBaseline
 	profile  *models.PilotProfile
 
+	// flightFiles name their flight by its id in the backup until applied.
+	flightFiles        []*models.FlightFile
+	flightFilesSkipped int
+
 	logbook *service.PreparedLogbook
 
 	warnings warningList
@@ -111,6 +115,9 @@ func buildRestorePlan(userID uuid.UUID, p *Payload) (*restorePlan, error) {
 	}
 	pl.planSettings(p)
 	if err := pl.planPilotProfile(p); err != nil {
+		return nil, err
+	}
+	if err := pl.planFlightFiles(p); err != nil {
 		return nil, err
 	}
 	if err := pl.planLogbook(p); err != nil {
@@ -472,4 +479,42 @@ func restoredCreatedAt(backup, flightDate, now time.Time) time.Time {
 		return now
 	}
 	return backup
+}
+
+// planFlightFiles decodes and revalidates the backup's flight files. A file
+// whose flight the backup does not carry, of an unknown kind, beyond
+// models.MaxFlightFilesPerFlight or repeating a file of its flight is skipped;
+// undecodable or invalid content is an invalid entry.
+func (pl *restorePlan) planFlightFiles(p *Payload) error {
+	flights := make(map[uuid.UUID]bool, len(pl.flightBackupIDs))
+	for _, id := range pl.flightBackupIDs {
+		if id != uuid.Nil {
+			flights[id] = true
+		}
+	}
+	perFlight := make(map[uuid.UUID]int)
+	seen := make(map[string]bool)
+	for i, src := range p.FlightFiles {
+		if !flights[src.FlightID] || src.Kind != string(models.FlightFileKindIGC) || perFlight[src.FlightID] >= models.MaxFlightFilesPerFlight {
+			pl.flightFilesSkipped++
+			continue
+		}
+		data, err := src.Decode()
+		if err != nil {
+			return invalidEntry("flightFiles", i, err)
+		}
+		file, err := service.PrepareRestoredFlightFile(pl.userID, src.FlightID, src.Filename, data)
+		if err != nil {
+			return invalidEntry("flightFiles", i, err)
+		}
+		key := src.FlightID.String() + ":" + file.SHA256
+		if seen[key] {
+			pl.flightFilesSkipped++
+			continue
+		}
+		seen[key] = true
+		perFlight[src.FlightID]++
+		pl.flightFiles = append(pl.flightFiles, file)
+	}
+	return nil
 }

@@ -40,6 +40,7 @@ var exported = map[string]string{
 	"logbook_mode_events":      "LogbookMode.Events",
 	"logbook_certifications":   "LogbookCertifications",
 	"flight_revisions":         "FlightRevisions",
+	"flight_files":             "FlightFiles",
 }
 
 // exempt maps a table to the reason its rows are not part of a user's backup.

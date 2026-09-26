@@ -237,6 +237,15 @@ func (t *restoreTx) InsertLicencePrivilege(ctx context.Context, privilege *model
 	return (&LicencePrivilegeRepository{db: t.tx}).Create(ctx, privilege)
 }
 
+func (t *restoreTx) InsertFlightFile(ctx context.Context, file *models.FlightFile) error {
+	return t.tx.QueryRowContext(ctx, `
+		INSERT INTO flight_files (user_id, flight_id, kind, filename, content, size_bytes, sha256)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, created_at`,
+		file.UserID, file.FlightID, string(file.Kind), file.Filename, file.Content, file.SizeBytes, file.SHA256,
+	).Scan(&file.ID, &file.CreatedAt)
+}
+
 func (t *restoreTx) InsertCredential(ctx context.Context, credential *models.Credential) error {
 	return (&credentialRepository{tx: t.tx}).Create(ctx, credential)
 }

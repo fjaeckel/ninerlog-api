@@ -23,6 +23,7 @@ flowchart TD
     License --> ClassRating
     License --> LicencePrivilege
     Flight --> FlightCrewMember
+    Flight --> FlightFile
 
     subgraph auth["Auth / session side tables (owned by User)"]
         direction LR
@@ -335,6 +336,24 @@ Four tables, all `user_id`-scoped with `ON DELETE CASCADE`, plus one transient t
 
 `flight_signatures.signed_fields_hash` (nullable) holds the SHA-256 of the flight fields the
 signature attested.
+
+### FlightFile (`internal/models/flight_file.go`, migration 83)
+
+A flight recorder file stored with a flight (`flight_files`). Deleting the flight or the
+user cascades it away.
+
+- `kind` is `IGC`, the only kind; `filename` is the uploaded basename, sanitised and 1–255
+  characters, display only and never used to build a path.
+- `content BYTEA` holds the bytes verbatim, as `document_files` does, and only the download
+  and export queries read it. `size_bytes` (1 B–5 MB, CHECK) and `sha256` (hex, CHECK) are
+  derived from it on upload.
+- `UNIQUE (flight_id, sha256)` keeps one copy per flight; the service also refuses a file
+  the account already stores on another flight (lookups by `(user_id, sha256)`).
+- At most 5 files per flight, counted and inserted in one transaction holding
+  `SELECT … FOR UPDATE` on the flight row, which also proves the flight belongs to the user.
+- Exported in the JSON backup as `flightFiles` (gzip, base64) and restored onto the restored
+  flight. Nothing derived from the file (take-off, launch method, distance) is stored here;
+  the flight carries what the import wrote into it.
 
 ### FlightBaseline (`internal/models/flight_baseline.go`, migrations 38, 66)
 

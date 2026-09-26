@@ -345,6 +345,12 @@ type ServerInterface interface {
 	//
 	// Deprecated: this operation has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	DeleteAllFlights(c *gin.Context)
+	// ImportIgcFlight Import an IGC file as a flight, or attach it to one
+	// (POST /flights/igc)
+	ImportIgcFlight(c *gin.Context)
+	// PreviewIgcFlight Analyse an IGC file without storing it
+	// (POST /flights/igc/preview)
+	PreviewIgcFlight(c *gin.Context)
 	// RecalculateFlights Recalculate all flights
 	// (POST /flights/recalculate)
 	RecalculateFlights(c *gin.Context)
@@ -360,6 +366,15 @@ type ServerInterface interface {
 	// UpdateFlight Update flight
 	// (PUT /flights/{flightId})
 	UpdateFlight(c *gin.Context, flightId FlightId)
+	// ListFlightFiles List a flight's recorder files
+	// (GET /flights/{flightId}/files)
+	ListFlightFiles(c *gin.Context, flightId FlightId)
+	// DeleteFlightFile Delete a flight recorder file
+	// (DELETE /flights/{flightId}/files/{fileId})
+	DeleteFlightFile(c *gin.Context, flightId FlightId, fileId FlightFileId)
+	// GetFlightFile Download a flight recorder file
+	// (GET /flights/{flightId}/files/{fileId})
+	GetFlightFile(c *gin.Context, flightId FlightId, fileId FlightFileId)
 	// ListFlightRevisions List a flight's revision history
 	// (GET /flights/{flightId}/revisions)
 	ListFlightRevisions(c *gin.Context, flightId FlightId)
@@ -3122,6 +3137,32 @@ func (siw *ServerInterfaceWrapper) DeleteAllFlights(c *gin.Context) {
 	siw.Handler.DeleteAllFlights(c)
 }
 
+// ImportIgcFlight operation middleware
+func (siw *ServerInterfaceWrapper) ImportIgcFlight(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ImportIgcFlight(c)
+}
+
+// PreviewIgcFlight operation middleware
+func (siw *ServerInterfaceWrapper) PreviewIgcFlight(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PreviewIgcFlight(c)
+}
+
 // RecalculateFlights operation middleware
 func (siw *ServerInterfaceWrapper) RecalculateFlights(c *gin.Context) {
 
@@ -3232,6 +3273,99 @@ func (siw *ServerInterfaceWrapper) UpdateFlight(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateFlight(c, flightId)
+}
+
+// ListFlightFiles operation middleware
+func (siw *ServerInterfaceWrapper) ListFlightFiles(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListFlightFiles(c, flightId)
+}
+
+// DeleteFlightFile operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFlightFile(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "fileId" -------------
+	var fileId FlightFileId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "fileId", c.Param("fileId"), &fileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter fileId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteFlightFile(c, flightId, fileId)
+}
+
+// GetFlightFile operation middleware
+func (siw *ServerInterfaceWrapper) GetFlightFile(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "fileId" -------------
+	var fileId FlightFileId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "fileId", c.Param("fileId"), &fileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter fileId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFlightFile(c, flightId, fileId)
 }
 
 // ListFlightRevisions operation middleware
@@ -5084,6 +5218,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/logbook/mode", wrapper.UpdateLogbookMode)
 	router.GET(options.BaseURL+"/logbook/certifications", wrapper.ListLogbookCertifications)
 	router.POST(options.BaseURL+"/logbook/certifications", wrapper.CreateLogbookCertification)
+	router.GET(options.BaseURL+"/flights/:flightId/files", wrapper.ListFlightFiles)
+	router.DELETE(options.BaseURL+"/flights/:flightId/files/:fileId", wrapper.DeleteFlightFile)
+	router.GET(options.BaseURL+"/flights/:flightId/files/:fileId", wrapper.GetFlightFile)
 	router.GET(options.BaseURL+"/flights/:flightId/signatures", wrapper.ListFlightSignatures)
 	router.POST(options.BaseURL+"/flights/:flightId/signatures", wrapper.CreateSignatureRequest)
 	router.POST(options.BaseURL+"/flights/:flightId/signatures/live", wrapper.SignFlightLive)
@@ -5135,6 +5272,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/users/me/data", wrapper.ExportUserData)
 	router.POST(options.BaseURL+"/users/me/data", wrapper.RestoreUserData)
 	router.POST(options.BaseURL+"/flights/batch", wrapper.CreateFlightBatch)
+	router.POST(options.BaseURL+"/flights/igc/preview", wrapper.PreviewIgcFlight)
+	router.POST(options.BaseURL+"/flights/igc", wrapper.ImportIgcFlight)
 	router.POST(options.BaseURL+"/flights/recalculate", wrapper.RecalculateFlights)
 	router.DELETE(options.BaseURL+"/flight-sessions/current", wrapper.DiscardCurrentFlightSession)
 	router.GET(options.BaseURL+"/flight-sessions/current", wrapper.GetCurrentFlightSession)

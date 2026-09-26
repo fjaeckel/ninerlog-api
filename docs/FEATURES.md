@@ -196,6 +196,15 @@ rules.
   log a series of launches on one row), an outlanding flag that stops cross-country time
   being derived, a tow-flight flag for tug pilots and the release height in metres. See
   [SAILPLANES.md](./SAILPLANES.md#launches-and-series-entries).
+- IGC import: `POST /flights/igc/preview` reads an IGC flight recorder file and reports
+  take-off and landing, flight time, launch method (winch, aerotow, self-launch from
+  ENL/MOP) with a confidence, release height, maximum altitude, free and out-and-return
+  distance, departure and arrival airports and whether the glider landed out, plus a
+  matching flight already in the logbook. `POST /flights/igc` creates the flight from the
+  file (auto-creating the glider in the fleet) or attaches the file to a named flight; the
+  file is stored with the flight, downloadable from `/flights/{id}/files`, and part of the
+  JSON backup. Serves sailplane pilots who fly with a logger (Petra, scenario P2).
+  See [SAILPLANES.md](./SAILPLANES.md#igc-import).
 - Bulk: `DELETE /users/me/data?scope=flights` (`user_data.go`); `DELETE /flights/delete-all` is a deprecated alias.
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
@@ -636,8 +645,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `GET /exports/json` and `POST /imports/json` are deprecated aliases) — everything the
   pilot owns in one document: flights with crew, aircraft, licences with
   their class ratings and privileges, credentials, contacts, custom currency rules, custom reports, notification preferences,
-  the carried-forward hours baseline, the pilot profile's intents, and the strict logbook
-  mode with its flight revisions, mode switches and certifications. `cloudbackup.Payload` is the single definition of that
+  the carried-forward hours baseline, the pilot profile's intents, the strict logbook
+  mode with its flight revisions, mode switches and certifications, and the IGC files
+  stored with flights (gzipped, base64). `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
   carry the same data. A restore is one transaction: all of it or none. It needs an empty
   account (`409 account_not_empty` otherwise, so restoring twice never doubles the logbook),
@@ -742,7 +752,8 @@ Admin-only endpoints (caller must be an admin — the `users.is_admin` flag or t
   users. `strictLogbookUsers`, `flightRevisions`, `flightCorrections`, `voidedFlights` and
   `logbookCertifications` count strict-mode users and their audit trail rows (counts only,
   never contents). `licencePrivileges` reports the `total` and the count
-  per kind (`byKind`) of licence privileges across all users. `pilotProfiles` reports how many users switched the pilot profile to show
+  per kind (`byKind`) of licence privileges across all users. `flightFiles` reports the `count` and
+  `totalBytes` of stored IGC files across all users. `pilotProfiles` reports how many users switched the pilot profile to show
   everything and, per discipline, how many set it explicitly on, off or as a training goal. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than

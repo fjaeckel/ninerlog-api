@@ -95,6 +95,8 @@ type RestoreResult struct {
 	LicensesImported                int              `json:"licensesImported"`
 	ClassRatingsImported            int              `json:"classRatingsImported"`
 	LicencePrivilegesImported       int              `json:"licencePrivilegesImported"`
+	FlightFilesImported             int              `json:"flightFilesImported"`
+	FlightFilesSkipped              int              `json:"flightFilesSkipped"`
 	CredentialsImported             int              `json:"credentialsImported"`
 	FlightsImported                 int              `json:"flightsImported"`
 	CrewMembersImported             int              `json:"crewMembersImported"`
@@ -195,6 +197,7 @@ func checkEnvelope(p *Payload) error {
 		n, limit int
 	}{
 		{"flights", len(p.Flights), MaxRestoreFlights},
+		{"flightFiles", len(p.FlightFiles), MaxRestoreFlights},
 		{"contacts", len(p.Contacts), MaxRestoreContacts},
 		{"aircraft", len(p.Aircraft), MaxRestoreEntities},
 		{"licenses", len(p.Licenses), MaxRestoreEntities},
@@ -323,6 +326,12 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 	if err := tx.InsertCrewMembers(ctx, pl.crew); err != nil {
 		return nil, fmt.Errorf("insert crew members: %w", err)
 	}
+	for i, file := range pl.flightFiles {
+		file.FlightID = flightIDs[file.FlightID]
+		if err := tx.InsertFlightFile(ctx, file); err != nil {
+			return nil, fmt.Errorf("insert flight file %d: %w", i, err)
+		}
+	}
 
 	for i, rule := range pl.rules {
 		if err := tx.InsertCustomCurrencyRule(ctx, rule); err != nil {
@@ -375,6 +384,8 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		LicensesImported:                len(pl.licenses),
 		ClassRatingsImported:            ratings,
 		LicencePrivilegesImported:       privileges,
+		FlightFilesImported:             len(pl.flightFiles),
+		FlightFilesSkipped:              pl.flightFilesSkipped,
 		CredentialsImported:             len(pl.credentials),
 		FlightsImported:                 len(pl.flights),
 		CrewMembersImported:             len(pl.crew),

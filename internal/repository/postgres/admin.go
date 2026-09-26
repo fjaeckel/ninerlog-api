@@ -54,6 +54,12 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flight_revisions WHERE kind = 'delete'"), &stats.VoidedFlights)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM logbook_certifications"), &stats.LogbookCertifications)
 	r.scanGroupedCounts(ctx, "SELECT kind, COUNT(*) FROM licence_privileges GROUP BY kind", stats.LicencePrivilegesByKind)
+	if err := r.db.QueryRowContext(ctx,
+		"SELECT COUNT(*), COALESCE(SUM(size_bytes), 0) FROM flight_files",
+	).Scan(&stats.FlightFiles, &stats.FlightFileBytes); err != nil {
+		slog.Error("admin stats: flight_files query failed", "error", err)
+		stats.FlightFiles, stats.FlightFileBytes = 0, 0
+	}
 
 	// Flights this month
 	monthStart := now.Format("2006-01") + "-01"

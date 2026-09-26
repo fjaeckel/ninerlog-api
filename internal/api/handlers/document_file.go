@@ -258,6 +258,8 @@ func (h *APIHandler) GetFeatures(c *gin.Context) {
 	features.DocumentFiles.MaxBytes = models.MaxDocumentFileBytes
 	features.DocumentFiles.MaxPerDocument = models.MaxDocumentFilesPerSubject
 	features.DocumentFiles.AllowedContentTypes = models.AllowedDocumentFileContentTypes
+	features.FlightFiles.MaxBytes = models.MaxFlightFileBytes
+	features.FlightFiles.MaxPerFlight = models.MaxFlightFilesPerFlight
 
 	c.JSON(http.StatusOK, features)
 }
