@@ -223,6 +223,9 @@ type FlightQueryOptions struct {
 	// FilterByRegistrations=true matches no flights. Applied at the SQL level.
 	FilterByRegistrations bool
 	AircraftRegistrations []string
+	// UntowedAircraftRegistrations also match under FilterByRegistrations,
+	// for flights without a towed launch (models.TowedLaunchMethods).
+	UntowedAircraftRegistrations []string
 }
 
 // FlightSessionRepository defines the interface for in-progress flight

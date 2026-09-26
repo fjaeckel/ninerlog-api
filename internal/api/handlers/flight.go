@@ -65,8 +65,7 @@ func (h *APIHandler) applyFlightFilters(ctx context.Context, userID uuid.UUID, p
 	}
 	// Logbook filtering; an unknown or foreign licence leaves the list unfiltered.
 	if p.LogbookLicenseId != nil {
-		_ = service.NewLogbookScope(h.classRatingService, h.aircraftService).
-			Apply(ctx, userID, uuid.UUID(*p.LogbookLicenseId), opts)
+		_ = h.logbookScope().Apply(ctx, userID, uuid.UUID(*p.LogbookLicenseId), opts)
 	}
 	return nil
 }

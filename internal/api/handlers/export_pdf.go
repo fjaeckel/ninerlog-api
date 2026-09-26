@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/gin-gonic/gin"
 	"github.com/go-pdf/fpdf"
@@ -521,6 +522,27 @@ func dropEmptyRows(flights []*models.Flight) []*models.Flight {
 	return out
 }
 
+// filterLogbookFlights returns the flights in lb, with credited flights
+// copied and their remarks prefixed with flightrules.CreditedLabel.
+func filterLogbookFlights(flights []*models.Flight, lb *service.Logbook) []*models.Flight {
+	out := make([]*models.Flight, 0, len(flights))
+	for _, f := range flights {
+		switch lb.Classify(f) {
+		case service.LogbookNative:
+			out = append(out, f)
+		case service.LogbookCredited:
+			marked := *f
+			remarks := flightrules.CreditedLabel
+			if f.Remarks != nil && strings.TrimSpace(*f.Remarks) != "" {
+				remarks += " " + *f.Remarks
+			}
+			marked.Remarks = &remarks
+			out = append(out, &marked)
+		}
+	}
+	return out
+}
+
 // ExportFlightsPDF implements GET /exports/pdf
 func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFlightsPDFParams) {
 	userID, err := h.getUserIDFromContext(c)
@@ -554,29 +576,10 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 
 	classFiltered := false
 	if params.LogbookLicenseId != nil {
-		licenseID := uuid.UUID(*params.LogbookLicenseId)
-		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
-		if err == nil && len(classRatings) > 0 {
+		lb, err := h.logbookScope().Resolve(c.Request.Context(), userID, uuid.UUID(*params.LogbookLicenseId))
+		if err == nil && lb != nil {
 			classFiltered = true
-			allowedClasses := make(map[string]bool)
-			for _, cr := range classRatings {
-				allowedClasses[string(cr.ClassType)] = true
-			}
-			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
-			regToClass := make(map[string]string)
-			for _, ac := range aircraftList {
-				if ac.AircraftClass != nil {
-					regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
-				}
-			}
-			var filtered []*models.Flight
-			for _, f := range flights {
-				acClass := regToClass[strings.ToUpper(f.AircraftReg)]
-				if acClass != "" && allowedClasses[acClass] {
-					filtered = append(filtered, f)
-				}
-			}
-			flights = filtered
+			flights = filterLogbookFlights(flights, lb)
 		}
 	}
 

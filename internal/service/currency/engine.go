@@ -170,8 +170,17 @@ type ratingRule struct {
 	// ulCredit returns the ultralight flights the rule counts beside its
 	// classes, or nil for none.
 	ulCredit func(rating *models.ClassRating, classes []models.ClassType) *ulCredit
-	baseReqs []reqSpec
-	finalize func(ctx context.Context, rt *ratingRuntime)
+	// extraCredit returns the classes and ultralight kinds the rule's
+	// finalize counts beside its classes and ulCredit, or nil for none.
+	extraCredit func(rating *models.ClassRating) *extraCredit
+	baseReqs    []reqSpec
+	finalize    func(ctx context.Context, rt *ratingRuntime)
+}
+
+// extraCredit declares classes and ultralight kinds a rule's finalize fetches itself.
+type extraCredit struct {
+	classes []models.ClassType
+	ulKinds []models.ULKind
 }
 
 // ulCredit declares ultralight flights a rule counts beside its classes.

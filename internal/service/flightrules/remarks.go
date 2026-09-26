@@ -7,6 +7,10 @@ import (
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 )
 
+// CreditedLabel marks a flight in a licence logbook that is credited toward
+// the licence's ratings from another class.
+const CreditedLabel = "[Credited]"
+
 // RemarkFlag is an optional inline marker appended to a flight's remarks
 // when present (FAA logbook convention). Order matches FAA convention:
 // [IPC], then [FR] (Flight Review), then [PC] (Proficiency Check).

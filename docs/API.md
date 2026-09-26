@@ -632,7 +632,12 @@ so a re-import updates existing cards instead of duplicating them.
   height — and, for dense layouts, the body font — scales dynamically to fill
   the page: fewer rows print larger and airier, more rows denser. Clamped to
   what stays legible on the chosen page size; ignored for `summary`.
-- `logbookLicenseId` — restrict flights to the aircraft classes of one licence.
+- `logbookLicenseId` — restrict flights to one licence's logbook: flights on its rated
+  classes (and, for a UL rating with a kind, on ultralights of that kind), plus flights
+  credited toward its ratings from other classes. A credited flight prints `[Credited]` at
+  the start of its remarks, and a towed launch is never credited toward a powered rating.
+  `GET /flights` and `GET /exports/csv` apply the same scope. See
+  [DOMAIN.md](./DOMAIN.md#licence-logbooks).
 
 **Every logged row is printed**, co-pilot (SIC) flights included. Co-pilot time
 is part of total time of flight, and the EASA layout has a CO-PILOT column for it

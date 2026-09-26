@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -44,8 +45,17 @@ const progressSelect = `
 // $3, with an MTOM of at least $4 kg when $4 is not 0.
 const ulKindFilter = `upper(trim(a.aircraft_class)) = 'ULTRALIGHT' AND (a.ul_kind = ANY($2) OR ($3 AND a.ul_kind IS NULL)) AND ($4 = 0 OR a.mtom_kg >= $4)`
 
-// towedLaunches lists the launch methods that do not count toward powered classes.
-const towedLaunches = `('winch', 'aerotow', 'car', 'bungee')`
+// towedLaunches is the SQL list of models.TowedLaunchMethods.
+var towedLaunches = sqlStringList(models.TowedLaunchMethods())
+
+// sqlStringList renders constant strings as a parenthesised SQL literal list.
+func sqlStringList(values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = "'" + strings.ReplaceAll(v, "'", "''") + "'"
+	}
+	return "(" + strings.Join(quoted, ", ") + ")"
+}
 
 // scanProgress runs a query selecting progressSelect.
 func (p *currencyFlightDataProvider) scanProgress(ctx context.Context, query string, args ...interface{}) (*currency.Progress, error) {

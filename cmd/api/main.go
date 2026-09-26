@@ -343,7 +343,7 @@ func main() {
 	apiHandler.SetCustomCurrencyService(customCurrencyService)
 	apiHandler.SetCustomReportService(customreport.NewService(
 		postgres.NewCustomReportRepository(db),
-		service.NewLogbookScope(classRatingService, aircraftService),
+		service.NewLogbookScope(licenseService, classRatingService, aircraftService, currencyService),
 	))
 	// Repositories the handler uses directly (admin console, reports, import
 	// history, announcements, bulk wipes) — no raw *sql.DB reaches a handler.

@@ -7279,7 +7279,8 @@ type ExportFlightsCSVParamsSortOrder string
 
 // ExportFlightsPDFParams defines parameters for ExportFlightsPDF.
 type ExportFlightsPDFParams struct {
-	// LogbookLicenseId Filter flights for a specific logbook license
+	// LogbookLicenseId Separate-logbook license filter, as `GET /flights`. Flights credited toward the
+	// license from another class print `[Credited]` at the start of their remarks.
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
 
 	// Format PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 / ASA-Jeppesen columns), or summary (simplified totals)
@@ -7386,7 +7387,11 @@ type ListFlightsParams struct {
 	// SortOrder Sort order
 	SortOrder *ListFlightsParamsSortOrder `form:"sortOrder,omitempty" json:"sortOrder,omitempty"`
 
-	// LogbookLicenseId Filter flights for a separate-logbook license. Only returns flights on aircraft whose class matches the license's class ratings.
+	// LogbookLicenseId Filter flights for a separate-logbook license: flights on aircraft of the license's
+	// class ratings (aircraft class compared trimmed and case-insensitively; an ULTRALIGHT
+	// rating with a kind admits only ultralights of a kind it covers), plus flights the
+	// currency engine credits toward those ratings from other classes, except towed
+	// launches credited toward a powered rating.
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
 
 	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.

@@ -29,18 +29,31 @@ func appendRegistrationFilter(query string, args []interface{}, argNum int, opts
 	if opts == nil || !opts.FilterByRegistrations {
 		return query, args, argNum
 	}
-	if len(opts.AircraftRegistrations) == 0 {
+	if len(opts.AircraftRegistrations) == 0 && len(opts.UntowedAircraftRegistrations) == 0 {
 		// An empty registration list matches no flights.
 		return query + " AND 1=0", args, argNum
 	}
-	placeholders := make([]string, 0, len(opts.AircraftRegistrations))
-	for _, reg := range opts.AircraftRegistrations {
-		placeholders = append(placeholders, fmt.Sprintf("$%d", argNum))
-		args = append(args, reg)
-		argNum++
+	inList := func(regs []string) string {
+		placeholders := make([]string, 0, len(regs))
+		for _, reg := range regs {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", argNum))
+			args = append(args, reg)
+			argNum++
+		}
+		return "UPPER(aircraft_reg) IN (" + strings.Join(placeholders, ", ") + ")"
 	}
-	query += " AND UPPER(aircraft_reg) IN (" + strings.Join(placeholders, ", ") + ")"
-	return query, args, argNum
+	var terms []string
+	if len(opts.AircraftRegistrations) > 0 {
+		terms = append(terms, inList(opts.AircraftRegistrations))
+	}
+	if len(opts.UntowedAircraftRegistrations) > 0 {
+		terms = append(terms, "("+inList(opts.UntowedAircraftRegistrations)+
+			" AND COALESCE(launch_method, '') NOT IN "+towedLaunches+")")
+	}
+	if len(terms) == 1 {
+		return query + " AND " + terms[0], args, argNum
+	}
+	return query + " AND (" + strings.Join(terms, " OR ") + ")", args, argNum
 }
 
 // appendFlightFilters appends every FlightQueryOptions filter to a query over

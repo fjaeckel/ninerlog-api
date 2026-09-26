@@ -2813,7 +2813,12 @@ paths:
             default: desc
         - name: logbookLicenseId
           in: query
-          description: Filter flights for a separate-logbook license. Only returns flights on aircraft whose class matches the license's class ratings.
+          description: |
+            Filter flights for a separate-logbook license: flights on aircraft of the license's
+            class ratings (aircraft class compared trimmed and case-insensitively; an ULTRALIGHT
+            rating with a kind admits only ultralights of a kind it covers), plus flights the
+            currency engine credits toward those ratings from other classes, except towed
+            launches credited toward a powered rating.
           schema:
             type: string
             format: uuid
@@ -3948,7 +3953,9 @@ paths:
       parameters:
         - name: logbookLicenseId
           in: query
-          description: Filter flights for a specific logbook license
+          description: |
+            Separate-logbook license filter, as `GET /flights`. Flights credited toward the
+            license from another class print `[Credited]` at the start of their remarks.
           schema:
             type: string
             format: uuid
