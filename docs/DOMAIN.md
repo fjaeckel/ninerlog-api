@@ -794,6 +794,31 @@ license type:
 Ultralight licences are national law, so only the German UL authorities carry a recency rule for
 them. EASA rules credit ultralight time without evaluating an `ULTRALIGHT` rating.
 
+**Save-time warnings.** Some rules are reported, not enforced: the record is saved and the
+create/update response carries `warnings` (`service/save_warnings.go`; codes in
+[API.md](./API.md#save-warnings)). Each check is a function in `flightChecks` or
+`aircraftChecks`; a new check is one function and one entry in the list.
+
+| Code | Fires when | Severity |
+| --- | --- | --- |
+| `ul_night_flight` | a flight on an `ULTRALIGHT` aircraft in the pilot's fleet, of any kind, logs night time or night landings (no night privilege, LuftPersV §44(2); §45a passenger recency is day-only) | warning |
+| `ul_mtom_exceeds_600` | an `ULTRALIGHT` aircraft's `maxTakeoffMassKg` is above 600 kg, the German UL class limit | warning |
+| `ul_120kg_class` | an `ULTRALIGHT` aircraft's `maxTakeoffMassKg` is at most 120 kg: it may be a single-seat 120 kg class aircraft, which needs no medical | info |
+
+The night check reads the aircraft by registration from the fleet: a flight on an aircraft
+the fleet does not hold, a simulator session and any non-`ULTRALIGHT` flight never warn. The
+120 kg class is defined by empty mass and seats, which the aircraft record does not hold, so
+`ul_120kg_class` is a hint only. The 472.5 kg class and the §45(1) medical rule (a medical
+above the 120 kg class) are not evaluated.
+
+**Powered paragliders without a registration.** A German Motorschirm carries no
+registration. An `ULTRALIGHT` aircraft of kind `POWERED_PARAGLIDER` may therefore use a name
+in its `registration` (`PPG-Viper`); the name is stored uppercased and trimmed and never
+rewritten into a nationality notation. A flight whose `aircraftReg` names such an aircraft
+keeps the name, so it joins the aircraft like any registration and counts toward the
+powered-paraglider rule. See
+[AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md#powered-paraglider-names).
+
 Passenger currency for a `GLIDER` rating never reports night privilege. For `GLIDER`, and for
 `TMG` on an `SPL` or `LAPL(S)` license, it counts only flights with PIC time
 (SFCL.160(e)), under `ruleDescriptionKey` `easa_spl_pax` or `easa_spl_tmg_pax`.

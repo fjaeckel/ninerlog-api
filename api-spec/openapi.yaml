@@ -6868,11 +6868,20 @@ components:
             ICAO table and the hyphen inserted, moved or removed to suit
             (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`).
             A registration whose nationality mark is not recognised is stored uppercased
-            and trimmed, but otherwise unchanged.
+            and trimmed, but otherwise unchanged. An ULTRALIGHT of kind `POWERED_PARAGLIDER`
+            may carry a name in place of a registration (`PPG-Viper`); it is stored
+            uppercased and trimmed and never rewritten into a nationality notation.
         type:
           type: string
           example: C172
           description: Aircraft type designation (e.g., C172, PA28, ASK21)
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/SaveWarning'
+          description: >-
+            Checks the saved aircraft triggered. Present only on create and update
+            responses, and only when a check fired; the aircraft is saved either way.
         make:
           type: string
           example: Cessna
@@ -7459,11 +7468,20 @@ components:
         aircraftReg:
           type: string
           example: D-EFGH
-          description: Aircraft registration
+          description: >-
+            Aircraft registration, or the name of a powered paraglider in the pilot's
+            fleet (kept as the aircraft stores it).
         aircraftType:
           type: string
           example: C172
           description: Aircraft type
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/SaveWarning'
+          description: >-
+            Checks the saved flight triggered. Present only on create, update and batch
+            responses, and only when a check fired; the flight is saved either way.
         departureIcao:
           type: [string, 'null']
           maxLength: 100
@@ -8101,6 +8119,49 @@ components:
           type: [string, 'null']
           maxLength: 2000
           description: Remarks for this leg; replaces the template's remarks.
+
+    SaveWarningCode:
+      type: string
+      enum:
+        - ul_night_flight
+        - ul_mtom_exceeds_600
+        - ul_120kg_class
+      description: >-
+        `ul_night_flight`: a flight on an ULTRALIGHT aircraft logs night time or night
+        landings; German UL have no night privilege (LuftPersV §44(2), §45a).
+        `ul_mtom_exceeds_600`: an ULTRALIGHT aircraft's MTOM is above the 600 kg German UL
+        class limit. `ul_120kg_class` (info): an ULTRALIGHT aircraft with an MTOM of at
+        most 120 kg may fall in the single-seat 120 kg class.
+
+    SaveWarningSeverity:
+      type: string
+      enum:
+        - warning
+        - info
+
+    SaveWarning:
+      type: object
+      required:
+        - code
+        - severity
+        - params
+      properties:
+        code:
+          $ref: '#/components/schemas/SaveWarningCode'
+        severity:
+          $ref: '#/components/schemas/SaveWarningSeverity'
+        params:
+          type: object
+          additionalProperties: true
+          description: >-
+            Values for the message. `ul_night_flight`: `nightTime` (minutes),
+            `landingsNight`, `registration`, `ulKind` (when set). `ul_mtom_exceeds_600`
+            and `ul_120kg_class`: `mtomKg`, `limitKg`.
+          example:
+            nightTime: 25
+            landingsNight: 1
+            registration: D-MXYZ
+            ulKind: THREE_AXIS
 
     FlightBatchResult:
       type: object

@@ -288,7 +288,10 @@ Frontend half open.
   (`metrics-dashboards`), plus an admin count and export/import.
 - Closes M-job 3.
 
-**WP-31. UL logging fit** (api + fe)
+**WP-31. UL logging fit** (api + fe) — API half **implemented**: powered-paraglider names in
+place of a registration, save warnings `ul_night_flight`, `ul_mtom_exceeds_600` and
+`ul_120kg_class` (API.md "Save warnings"). The 472.5 kg class and the §45(1) medical rule are
+not evaluated.
 
 - Registration optional for UL `POWERED_PARAGLIDER`, keyed to a named aircraft instead.
 - A warning (not a rejection) when a German-UL flight has night time.

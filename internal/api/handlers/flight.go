@@ -186,7 +186,9 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	if len(flight.CrewMembers) > 0 {
 		h.persistCrewMembers(c, userID, flight)
 	}
-	c.JSON(http.StatusCreated, convertToGeneratedFlight(flight))
+	out := convertToGeneratedFlight(flight)
+	out.Warnings = convertToGeneratedWarnings(h.flightService.CheckFlights(c.Request.Context(), userID, []*models.Flight{flight})[0])
+	c.JSON(http.StatusCreated, out)
 }
 
 // flightFromCreate builds the flight a create body describes and applies the
@@ -598,7 +600,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		h.persistCrewMembers(c, userID, flight)
 	}
 
-	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))
+	out := convertToGeneratedFlight(flight)
+	out.Warnings = convertToGeneratedWarnings(h.flightService.CheckFlights(c.Request.Context(), userID, []*models.Flight{flight})[0])
+	c.JSON(http.StatusOK, out)
 }
 
 // DeleteFlight implements DELETE /flights/{flightId}

@@ -816,3 +816,51 @@ func TestCreateAircraftWithCustomClass(t *testing.T) {
 		t.Error("Expected aircraft class ULTRALIGHT")
 	}
 }
+
+func TestAircraftService_PoweredParagliderName(t *testing.T) {
+	userID := uuid.New()
+	ul := string(models.ClassTypeUL)
+	sep := string(models.ClassTypeSEPLand)
+	ppg := models.ULKindPoweredParaglider
+	trike := models.ULKindWeightShift
+	tests := []struct {
+		name  string
+		class *string
+		kind  *models.ULKind
+		raw   string
+		want  string
+	}{
+		{"S2 paraglider name is stored cleaned", &ul, &ppg, "PPG-Viper", "PPG-VIPER"},
+		{"S2 paraglider name shaped like a registration is not rewritten", &ul, &ppg, "Apco", "APCO"},
+		{"S2 paraglider name with spaces is collapsed", &ul, &ppg, "  My   Paramotor ", "MY PARAMOTOR"},
+		{"weight-shift registration is canonicalised", &ul, &trike, "dmtrk", "D-MTRK"},
+		{"A2 SEP registration is canonicalised", &sep, nil, "deabc", "D-EABC"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newMockAircraftRepo()
+			svc := service.NewAircraftService(repo)
+			ac := &models.Aircraft{UserID: userID, Registration: tt.raw, Type: "PPG", Make: "Ozone", Model: "Viper", AircraftClass: tt.class, ULKind: tt.kind}
+			if err := svc.CreateAircraft(context.Background(), ac); err != nil {
+				t.Fatalf("CreateAircraft: %v", err)
+			}
+			got, err := svc.GetAircraft(context.Background(), ac.ID, userID)
+			if err != nil {
+				t.Fatalf("GetAircraft: %v", err)
+			}
+			if got.Registration != tt.want {
+				t.Errorf("stored registration = %q, want %q", got.Registration, tt.want)
+			}
+			if len(svc.CheckAircraft(got)) != 0 {
+				t.Errorf("unexpected warnings %v", svc.CheckAircraft(got))
+			}
+			if _, err := svc.UpdateAircraft(context.Background(), got, userID, false); err != nil {
+				t.Fatalf("UpdateAircraft: %v", err)
+			}
+			again, _ := svc.GetAircraft(context.Background(), ac.ID, userID)
+			if again.Registration != tt.want {
+				t.Errorf("registration after update = %q, want %q", again.Registration, tt.want)
+			}
+		})
+	}
+}

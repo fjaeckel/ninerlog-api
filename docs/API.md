@@ -369,7 +369,10 @@ see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md). `ulKind` is kept o
 (`Invalid ultralight kind`). Class ratings take the same `ulKind` on `POST` and `PATCH
 /licenses/{id}/ratings`, without the aircraft-only `THREE_AXIS_MOTORGLIDER`.
 `maxTakeoffMassKg` (1–1,000,000, nullable) records the aircraft's MTOM; out of range is a `400`
-(`Invalid maximum take-off mass`).
+(`Invalid maximum take-off mass`). An `ULTRALIGHT` aircraft of kind `POWERED_PARAGLIDER` may
+carry a name as its `registration`; it is uppercased and trimmed but never rewritten.
+`POST` and `PATCH` responses carry `warnings` for `ul_mtom_exceeds_600` and `ul_120kg_class`
+(see [Save warnings](#save-warnings)).
 
 #### Aircraft reminders
 Dated items on an aircraft — `ANNUAL_INSPECTION` (Jahresnachprüfung), `INSURANCE`,
@@ -407,7 +410,10 @@ CRUD on `/flights`, plus `POST /flights/batch`, `DELETE /flights/delete-all` and
 value and sets the matching `*Override` flag, JSON `null` on `PUT` clears the flag so the
 server derives the value again, and an omitted field changes nothing. Every flight response
 reports the nine override flags. `aircraftReg` is normalised the same way
-as `registration` on create/update. `POST /flights/recalculate` also canonicalises the
+as `registration` on create/update; a value naming a powered paraglider in the pilot's fleet
+keeps that name. `POST /flights`, `PUT /flights/{id}` and every leg of `POST /flights/batch`
+carry `warnings` when a save-time check fires (`ul_night_flight`, see
+[Save warnings](#save-warnings)). `POST /flights/recalculate` also canonicalises the
 user's whole fleet first and reports the outcome as `aircraftNormalized` and
 `aircraftConflicts`. Flight responses include the read-only
 `departureAirportName` / `arrivalAirportName`, resolved per request from the airport
@@ -474,6 +480,24 @@ never stored as a passenger flight. The four appear on flight responses, in
 `totals` of `GET /reports/analytics`, as custom-currency metrics
 and as logbook query fields. See
 [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
+
+### Save warnings
+
+Some rules are reported rather than enforced. The record is saved as sent, and the create or
+update response of that record carries an optional `warnings` array of `SaveWarning`:
+`code` (a `SaveWarningCode`), `severity` (`warning` or `info`) and `params` (values for the
+message). The field is absent when no check fired, and never present on `GET`, lists or
+delta sync: it describes the save, not the record. Clients show the message and keep the
+record; nothing needs to be resent.
+
+| Code | Severity | Returned by | `params` |
+| --- | --- | --- | --- |
+| `ul_night_flight` | warning | `POST /flights`, `PUT /flights/{id}`, each leg of `POST /flights/batch` | `nightTime` (minutes), `landingsNight`, `registration`, `ulKind` (when the aircraft has one) |
+| `ul_mtom_exceeds_600` | warning | `POST /aircraft`, `PATCH /aircraft/{id}` | `mtomKg`, `limitKg` (600) |
+| `ul_120kg_class` | info | `POST /aircraft`, `PATCH /aircraft/{id}` | `mtomKg`, `limitKg` (120) |
+
+When each fires: [DOMAIN.md](./DOMAIN.md#ultralights). Imports, flight sessions and
+`POST /flights/recalculate` save without reporting warnings.
 
 ### Credentials
 CRUD on `/credentials` (medicals, language proficiency, clearances, and the German radio

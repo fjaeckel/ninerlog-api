@@ -42,7 +42,7 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		flights = append(flights, flight)
 	}
 
-	if err := h.flightService.ValidateFlightBatch(flights); err != nil {
+	if err := h.flightService.ValidateFlightBatch(c.Request.Context(), flights); err != nil {
 		h.sendBatchError(c, err)
 		return
 	}
@@ -63,9 +63,12 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		return
 	}
 
+	warnings := h.flightService.CheckFlights(c.Request.Context(), userID, flights)
 	out := make([]generated.Flight, 0, len(flights))
-	for _, f := range flights {
-		out = append(out, convertToGeneratedFlight(f))
+	for i, f := range flights {
+		g := convertToGeneratedFlight(f)
+		g.Warnings = convertToGeneratedWarnings(warnings[i])
+		out = append(out, g)
 	}
 	c.JSON(http.StatusCreated, generated.FlightBatchResult{Flights: out})
 }

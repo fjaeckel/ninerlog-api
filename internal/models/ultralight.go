@@ -1,6 +1,10 @@
 package models
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
+)
 
 // ULKind is the kind of an ultralight (German "Luftsportgeräteart").
 type ULKind string
@@ -89,4 +93,19 @@ func containsULKind(kinds []ULKind, k ULKind) bool {
 		}
 	}
 	return false
+}
+
+// IsPoweredParaglider reports whether a is an ULTRALIGHT of kind
+// POWERED_PARAGLIDER.
+func (a *Aircraft) IsPoweredParaglider() bool {
+	return a != nil && IsULClass(a.AircraftClass) && a.ULKind != nil && *a.ULKind == ULKindPoweredParaglider
+}
+
+// CanonicalRegistration returns raw normalised for storage on a: cleaned only
+// for a powered paraglider, canonicalised by registration.Canonical otherwise.
+func (a *Aircraft) CanonicalRegistration(raw string) string {
+	if a.IsPoweredParaglider() {
+		return registration.Clean(raw)
+	}
+	return registration.Canonical(raw)
 }

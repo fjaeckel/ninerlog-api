@@ -262,7 +262,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   (the pilot is asked to set it), and flights on a UL with no kind count only for a pilot
   whose UL ratings are all of one kind — otherwise the rating reports them as unclassified.
   UL sailplane and UL motorglider PIC hours count toward SPL recency
-  (AMC1 SFCL.160). Details in [DOMAIN.md](./DOMAIN.md#ultralights).
+  (AMC1 SFCL.160). A powered paraglider needs no registration: its aircraft takes a name
+  (`PPG-Viper`) that is never rewritten, and its flights log under that name. Night time or
+  night landings on a UL flight save with a `ul_night_flight` warning (no night privilege),
+  and an aircraft's MTOM above 600 kg or at most 120 kg is flagged on save
+  (`ul_mtom_exceeds_600`, `ul_120kg_class`). Serves Sabine (S2) and Mehmet (M4) in
+  [PERSONAS.md](./PERSONAS.md). Details in [DOMAIN.md](./DOMAIN.md#ultralights).
 - **Gyroplanes (GPL)** — a `GYROPLANE` class rating follows FCL.240.G; ultralight gyroplanes of
   at least 450 kg MTOM count toward its time and landings (FCL.035(a)(5)); passenger carriage
   needs 10h PIC after licence issue. See [DOMAIN.md](./DOMAIN.md#gyroplanes-gpl).

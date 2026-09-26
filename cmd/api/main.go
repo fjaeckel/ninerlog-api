@@ -230,6 +230,7 @@ func main() {
 	credentialService := service.NewCredentialService(credentialRepo)
 	aircraftRepo := postgres.NewAircraftRepository(db)
 	aircraftService := service.NewAircraftService(aircraftRepo)
+	flightService.SetAircraftRepository(aircraftRepo)
 	notifRepo := postgres.NewNotificationRepository(db)
 	smtpConfig := email.LoadSMTPConfig()
 	emailSender := email.NewSender(smtpConfig)

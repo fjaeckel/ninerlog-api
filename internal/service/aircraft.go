@@ -7,7 +7,6 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
-	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/google/uuid"
 )
 
@@ -35,7 +34,7 @@ func NewAircraftService(aircraftRepo repository.AircraftRepository) *AircraftSer
 }
 
 func (s *AircraftService) CreateAircraft(ctx context.Context, aircraft *models.Aircraft) error {
-	aircraft.Registration = registration.Canonical(aircraft.Registration)
+	aircraft.Registration = aircraft.CanonicalRegistration(aircraft.Registration)
 	if err := aircraft.Validate(); err != nil {
 		return err
 	}
@@ -105,7 +104,7 @@ func (s *AircraftService) ListAircraftPage(ctx context.Context, userID uuid.UUID
 // Flights also follow when the only change is canonicalising the stored
 // registration (DEABC → D-EABC), whatever renameFlights says.
 func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.Aircraft, userID uuid.UUID, renameFlights bool) (int, error) {
-	aircraft.Registration = registration.Canonical(aircraft.Registration)
+	aircraft.Registration = aircraft.CanonicalRegistration(aircraft.Registration)
 
 	existing, err := s.aircraftRepo.GetByID(ctx, aircraft.ID)
 	if err != nil {
@@ -129,7 +128,7 @@ func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.A
 
 	flightsUpdated := 0
 	changed := existing.Registration != aircraft.Registration
-	canonicalisation := changed && registration.Canonical(existing.Registration) == aircraft.Registration
+	canonicalisation := changed && aircraft.CanonicalRegistration(existing.Registration) == aircraft.Registration
 	if changed && (renameFlights || canonicalisation) {
 		flightsUpdated, err = s.aircraftRepo.UpdateWithFlightRename(ctx, aircraft, existing.Registration)
 	} else {
