@@ -87,6 +87,32 @@ func TestUserProfile(t *testing.T) {
 		}
 	})
 
+	t.Run("clockFormat defaults to 24h and updates to 12h", func(t *testing.T) {
+		c2 := NewE2EClient(t)
+		registerAndLogin(t, c2, uniqueEmail("clock-fmt"), "SecurePass123!", "Clock Format")
+		resp := c2.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["clockFormat"] != "24h" {
+			t.Errorf("Expected default clockFormat '24h', got %v", u["clockFormat"])
+		}
+
+		resp = c2.PATCH("/users/me", map[string]string{"clockFormat": "12h"})
+		requireStatus(t, resp, http.StatusOK)
+		resp.JSON(&u)
+		if u["clockFormat"] != "12h" {
+			t.Errorf("Expected clockFormat '12h', got %v", u["clockFormat"])
+		}
+
+		resp = c2.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		resp.JSON(&u)
+		if u["clockFormat"] != "12h" {
+			t.Errorf("Expected persisted clockFormat '12h', got %v", u["clockFormat"])
+		}
+	})
+
 	t.Run("recency preferences default and update", func(t *testing.T) {
 		c2 := NewE2EClient(t)
 		registerAndLogin(t, c2, uniqueEmail("recency-pref"), "SecurePass123!", "Recency Pref")

@@ -340,7 +340,7 @@ same in both modes. See [OIDC.md](./OIDC.md).
 In OIDC mode `PATCH /users/me` refuses `name` and `email` with 403 (the provider owns
 them) and `DELETE /users/me` confirms with `confirmEmail` instead of `password`.
 `PATCH /users/me` also carries the display preferences (`timeDisplayFormat`, `dateFormat`,
-`decimalSeparator`, `preferredLocale`, the recency toggles, and `flightListColumnMode` /
+`clockFormat`, `decimalSeparator`, `preferredLocale`, the recency toggles, and `flightListColumnMode` /
 `flightListColumns` for the flights-list columns). An unrecognised value for any of these
 is ignored rather than rejected, and the response always echoes what was stored.
 

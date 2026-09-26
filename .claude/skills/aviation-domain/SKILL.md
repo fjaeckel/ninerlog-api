@@ -17,7 +17,7 @@ convert with `pkg/duration` (`MinutesToDecimalHours`, `DecimalHoursToMinutes`, `
 
 Times **of day** are different: `OffBlockTime`, `OnBlockTime`, `DepartureTime`, `ArrivalTime`
 are `HH:MM:SS` strings in **UTC** (wall-clock instants, not durations). Per-user display
-preferences (`TimeDisplayFormat`, `DateFormat`, `DecimalSeparator`) control rendering.
+preferences (`TimeDisplayFormat`, `DateFormat`, `ClockFormat`, `DecimalSeparator`) control rendering.
 
 ## Auto-calculation and overrides
 

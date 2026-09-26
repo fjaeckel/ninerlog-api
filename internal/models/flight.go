@@ -53,8 +53,8 @@ type Flight struct {
 	AllLandings   int `json:"allLandings"` // Auto-calculated: day + night
 
 	// Takeoffs
-	TakeoffsDay   int `json:"takeoffsDay"`   // Auto-calculated from sunset/sunrise at departure (with manual override)
-	TakeoffsNight int `json:"takeoffsNight"` // Auto-calculated from sunset/sunrise at departure (with manual override)
+	TakeoffsDay   int `json:"takeoffsDay"`   // Auto: one per landing, day/night by sunset/sunrise at departure (with manual override)
+	TakeoffsNight int `json:"takeoffsNight"` // Auto: one per landing, day/night by sunset/sunrise at departure (with manual override)
 
 	// Route
 	Route *string `json:"route,omitempty"` // Comma-separated ICAO waypoints

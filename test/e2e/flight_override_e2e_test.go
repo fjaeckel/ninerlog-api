@@ -214,3 +214,40 @@ func TestImportCSV_NightAndCrossCountryKept(t *testing.T) {
 	assertBool(t, "imported nightTimeOverride", gb(f, "nightTimeOverride"), true)
 	assertBool(t, "imported crossCountryTimeOverride", gb(f, "crossCountryTimeOverride"), true)
 }
+
+func TestFlightTakeoffsFollowLandings(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("flt-takeoffs"), "SecurePass123!", "Takeoffs")
+
+	var fid string
+
+	t.Run("create with several landings derives as many takeoffs", func(t *testing.T) {
+		r := c.POST("/flights", overrideFlightBody(map[string]interface{}{"landings": 3}))
+		requireStatus(t, r, http.StatusCreated)
+		var f map[string]interface{}
+		r.JSON(&f)
+		fid = f["id"].(string)
+		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 3)
+		assertInt(t, "takeoffsNight", gi(f, "takeoffsNight"), 0)
+		assertBool(t, "takeoffsDayOverride", gb(f, "takeoffsDayOverride"), false)
+	})
+
+	t.Run("changing landings re-derives takeoffs", func(t *testing.T) {
+		r := c.PUT("/flights/"+fid, map[string]interface{}{"landings": 5})
+		requireStatus(t, r, http.StatusOK)
+		var f map[string]interface{}
+		r.JSON(&f)
+		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 5)
+	})
+
+	t.Run("clearing an override re-derives from landings, not the old value", func(t *testing.T) {
+		r := c.PUT("/flights/"+fid, map[string]interface{}{"takeoffsDay": 2})
+		requireStatus(t, r, http.StatusOK)
+		r = c.PUT("/flights/"+fid, map[string]interface{}{"takeoffsDay": nil})
+		requireStatus(t, r, http.StatusOK)
+		var f map[string]interface{}
+		r.JSON(&f)
+		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 5)
+		assertBool(t, "takeoffsDayOverride", gb(f, "takeoffsDayOverride"), false)
+	})
+}

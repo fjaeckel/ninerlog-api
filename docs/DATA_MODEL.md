@@ -57,7 +57,7 @@ The account holder. Notable fields:
   not by a token refresh. See
   [AUTHENTICATION.md](AUTHENTICATION.md#login).
 - Display preferences: `TimeDisplayFormat` (`HH:MM` vs decimal hours), `DateFormat`,
-  `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`).
+  `ClockFormat` (`24h` | `12h` for times of day; default `24h`), `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`).
 - Recency indicators: `RecencyPerModel`, `RecencyPerRegistration` — which informational
   90-day landing recency views the client shows.
 - Flights-list columns: `FlightListColumnMode` (`auto` | `custom`) and
@@ -198,7 +198,7 @@ are **integer minutes**):
   [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
 - **Booleans**: `IsPIC`, `IsDual`.
 - **Takeoffs/landings**: `LandingsDay`, `LandingsNight`, `AllLandings` (auto),
-  `TakeoffsDay`, `TakeoffsNight` (auto from sunset/sunrise at departure).
+  `TakeoffsDay`, `TakeoffsNight` (auto: one per landing, split by sunset/sunrise at departure).
 - **Auto-calculated**: `SoloTime`, `CrossCountryTime`, `Distance` (NM, from airport
   coordinates). `NightTime`, `CrossCountryTime`, the takeoff/landing splits, `SICTime` and
   `MultiPilotTime` each carry an `*Override` flag (`night_time_override` and

@@ -98,6 +98,12 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 			user.DateFormat = df
 		}
 	}
+	if req.ClockFormat != nil {
+		cf := string(*req.ClockFormat)
+		if cf == models.ClockFormat24h || cf == models.ClockFormat12h {
+			user.ClockFormat = cf
+		}
+	}
 	if req.DecimalSeparator != nil {
 		ds := string(*req.DecimalSeparator)
 		if ds == "comma" || ds == "dot" {

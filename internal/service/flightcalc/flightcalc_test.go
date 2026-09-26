@@ -1054,6 +1054,69 @@ func TestTakeoffSplit_WithAirportData_NightTakeoff(t *testing.T) {
 	}
 }
 
+func TestTakeoffSplit_FollowsLandingCount(t *testing.T) {
+	setupAirportData(t)
+	f := baseFlight()
+	f.Date = time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)
+	f.OffBlockTime = strPtr("10:00:00")
+	f.AllLandings = 4
+	calculateTakeoffSplit(f)
+	if f.TakeoffsDay != 4 || f.TakeoffsNight != 0 {
+		t.Errorf("takeoffs day=%d night=%d, want 4/0", f.TakeoffsDay, f.TakeoffsNight)
+	}
+}
+
+func TestTakeoffSplit_IgnoresStaleStoredValue(t *testing.T) {
+	setupAirportData(t)
+	f := baseFlight()
+	f.Date = time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)
+	f.OffBlockTime = strPtr("10:00:00")
+	f.TakeoffsDay = 1
+	f.AllLandings = 3
+	calculateTakeoffSplit(f)
+	if f.TakeoffsDay != 3 || f.TakeoffsNight != 0 {
+		t.Errorf("takeoffs day=%d night=%d, want 3/0", f.TakeoffsDay, f.TakeoffsNight)
+	}
+
+	f.AllLandings = 1
+	calculateTakeoffSplit(f)
+	if f.TakeoffsDay != 1 {
+		t.Errorf("TakeoffsDay = %d after landings reduced to 1, want 1", f.TakeoffsDay)
+	}
+}
+
+func TestTakeoffSplit_NoDepartureDefaultsToDay(t *testing.T) {
+	f := baseFlight()
+	f.DepartureICAO = nil
+	f.TakeoffsNight = 2
+	f.AllLandings = 3
+	calculateTakeoffSplit(f)
+	if f.TakeoffsDay != 3 || f.TakeoffsNight != 0 {
+		t.Errorf("takeoffs day=%d night=%d, want 3/0", f.TakeoffsDay, f.TakeoffsNight)
+	}
+}
+
+func TestTakeoffSplit_NoLandingsClearsTakeoffs(t *testing.T) {
+	f := baseFlight()
+	f.TakeoffsDay = 2
+	f.AllLandings = 0
+	calculateTakeoffSplit(f)
+	if f.TakeoffsDay != 0 || f.TakeoffsNight != 0 {
+		t.Errorf("takeoffs day=%d night=%d, want 0/0", f.TakeoffsDay, f.TakeoffsNight)
+	}
+}
+
+func TestApplyAutoCalculations_TakeoffsMatchLandings(t *testing.T) {
+	f := baseFlight()
+	f.LandingsDay = 0
+	f.LandingsNight = 0
+	f.AllLandings = 5
+	ApplyAutoCalculations(f, "", singlePilotAircraft())
+	if got := f.TakeoffsDay + f.TakeoffsNight; got != 5 {
+		t.Errorf("total takeoffs = %d, want 5", got)
+	}
+}
+
 func TestLandingSplit_WithAirportData_DayLanding(t *testing.T) {
 	setupAirportData(t)
 	f := baseFlight()

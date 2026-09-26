@@ -194,6 +194,11 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 	tdf := generated.UserTimeDisplayFormat(user.TimeDisplayFormat)
 	locale := generated.UserPreferredLocale(user.PreferredLocale)
 	df := generated.UserDateFormat(user.DateFormat)
+	clockFormat := user.ClockFormat
+	if clockFormat == "" {
+		clockFormat = models.ClockFormat24h
+	}
+	cf := generated.UserClockFormat(clockFormat)
 	ds := generated.UserDecimalSeparator(user.DecimalSeparator)
 	recencyPerModel := user.RecencyPerModel
 	recencyPerRegistration := user.RecencyPerRegistration
@@ -212,6 +217,7 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 		IsAdmin:                &isAdmin,
 		TimeDisplayFormat:      &tdf,
 		DateFormat:             &df,
+		ClockFormat:            &cf,
 		DecimalSeparator:       &ds,
 		PreferredLocale:        &locale,
 		RecencyPerModel:        &recencyPerModel,

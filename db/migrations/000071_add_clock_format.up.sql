@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN clock_format VARCHAR(3) NOT NULL DEFAULT '24h';
