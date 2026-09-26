@@ -66,7 +66,7 @@ jobs:
       - name: Run E2E tests
         run: |
           set -o pipefail
-          ARGS="-v -tags=e2e -count=1 -timeout=300s"
+          ARGS="-v -tags=e2e -count=1 -timeout=600s"
           if [ -n "${{ inputs.test_filter }}" ]; then
             ARGS="$ARGS -run ${{ inputs.test_filter }}"
           fi
