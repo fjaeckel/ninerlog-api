@@ -176,6 +176,77 @@ number). An imported launch count is stored as the pilot's value. They are logbo
 fields (`launches`, `outlanding`, `towflight`, `releaseHeight`), and `is_outlanding` and
 `is_tow_flight` are custom-currency filters beside the `launches` metric.
 
+### IGC import
+
+`POST /flights/igc/preview` analyses an FAI IGC flight recorder file without storing it;
+`POST /flights/igc` stores it with a flight, either one the pilot names (`flightId`) or one
+created from the file through the same path as `POST /flights`. The file is kept verbatim
+(`flight_files`, decision D4), can be downloaded again from
+`GET /flights/{id}/files/{fileId}`, and travels in the JSON backup.
+
+**Parser** (`pkg/igc`, pure, no I/O). Reads the A record (logger manufacturer and serial),
+the H records `DTE` (both `HFDTE150708` and `HFDTEDATE:150708,01`), `PLT`, `GTY`, `GID`
+(registration) and `CID`, the first I record (the `ENL` and `MOP` extensions by byte
+offset), B fixes (time, latitude, longitude, validity, pressure and GNSS altitude) and E
+events. Lines may end in CRLF, LF or CR; unknown records are ignored; malformed and
+out-of-order fixes are skipped and counted. A fix more than 12 hours earlier than the one
+before it is on the next UTC day, so a file crossing midnight UTC keeps its order. Every
+input is bounded: 5 MB, 200,000 fixes, 4,096 bytes per line, 1,000 events, 64 extensions,
+100 runes per header value. A control character other than tab, a file that does not start
+with an A record, one without a valid date, or one without a valid fix is rejected with a
+typed `*igc.ParseError` naming the reason and line, which the API returns as a 400.
+
+**Analysis** (`igc.Analyze`). Only valid (`A`) fixes with a position count. The altitude is
+GNSS when more than half the valid fixes carry one, else pressure altitude.
+
+| Fact | Rule |
+| --- | --- |
+| Ground speed | Distance to the latest fix at least 4 s earlier, over the elapsed time |
+| Take-off | Start of the first run above 25 km/h that lasts 20 s |
+| Landing | Start of the first run below 5 km/h, at least 20 s after take-off, that lasts 60 s or reaches the end of the file; without one the last fix, and `landingDetected` is false |
+| Flight time | Take-off to landing, rounded to minutes as `POST /flights` rounds clock times |
+| Self-launch | The file declares ENL or MOP and the larger of the two is at least 500 (of 999) for 30 s, starting within 2 min of take-off. Release is the start of the first 30 s with the engine below 500; an engine that never stops gives no release height. Confidence 0.9, or 0.75 without an engine stop |
+| Winch | Top of the climb within 90 s of take-off gains 250–700 m (150–900 m at lower confidence) at a mean of at least 4 m/s, and over the next 30 s the climb rate falls below half of that. Release is the top. Confidence 0.85, or 0.6 outside 250–700 m |
+| Aerotow | From 1 min after take-off, the first fix after which the glider turns 200° within 30 s (circling) or sinks at a mean below −0.3 m/s over 20 s ends the tow; release is the highest fix up to there. The tow must last 2 min, gain 200 m and climb at 1–6 m/s. Confidence 0.75 for at least 3 min and 300 m, else 0.7 |
+| Unknown | None of the above; confidence 0 and no release height |
+| Release height | Altitude at release minus altitude at take-off, whole metres |
+| Maximum altitude | Highest altitude between take-off and landing (metres MSL) |
+| Free distance | Largest great-circle distance from the take-off point to any fix in flight, km |
+| Out-and-return distance | Twice the free distance: an approximation that assumes the pilot turned at the farthest point and flew back toward the start. It is not a scored task distance |
+
+The checks run in the order self-launch, winch, aerotow. A self-launching sailplane
+recorded without ENL or MOP climbs like an aerotow and is reported as one; a powerful tug
+climbing above 6 m/s is reported as unknown.
+
+**Places and outlanding.** Take-off and landing are named by the airport within 3 km in the
+airport database (`internal/airports`), else by coordinates (`50.49889N 9.95389E`, used as
+the flight's `departureIcao`/`arrivalIcao` text). A landing is an **outlanding** when it was
+detected, lies more than 3 km from the take-off point and more than 3 km from every known
+airport. Landing back at an unlisted home field is therefore not an outlanding, and with
+the airport database unavailable no landing is one.
+
+**Matching.** The preview's `matchingFlightId` is a flight of the pilot on the take-off's
+UTC date, on the same registration (canonical notation), whose take-off/landing (else
+block) span overlaps the file; a flight on that date and glider without a complete time
+pair matches when no overlapping flight does.
+
+**Creating the flight.** The aircraft is the `HFGIDGLIDERID` registration; a file without
+one can only be attached to an existing flight. A registration missing from the fleet is
+created with the header's glider type as type, make and model, and the class the importers
+infer (`models.InferImportedAircraftClass`: `D-[0-9]{4}` and every other registration
+`GLIDER`, `D-M…` `ULTRALIGHT`). The flight gets the take-off UTC date, take-off and landing
+times (no block times, so total time is take-off to landing), departure and arrival, one
+landing, the outlanding flag, and the launch method with its release height when the method
+is detected and `models.LaunchMethodApplies` to the aircraft. Launches follow from the
+take-off as for any flight. Attaching (`flightId`) never changes the flight.
+
+**Storage and limits.** A flight holds at most 5 files of at most 5 MB; the same file (by
+SHA-256) is stored once per account, so a second import of it is a 409 naming the flight
+that holds it. Files are listed as metadata and downloaded as `application/octet-stream`
+with `Content-Disposition: attachment`. The JSON backup carries each file gzipped and
+base64-encoded under `flightFiles`, keyed by its flight's id in the backup; a restore
+revalidates it as IGC and attaches it to the restored flight.
+
 ### Printed logbook
 
 `GET /exports/pdf?format=sailplane` prints an AMC1 SFCL.050 logbook, one landscape page per
@@ -233,8 +304,9 @@ stored count, else the take-offs, at least one).
 The longest flight is by total time. Neither surface uses `flights.distance`: it is the
 great-circle distance between departure and arrival airports, 0 for a local or
 out-and-return soaring flight and unknown for an outlanding field, so it says nothing about
-the distance flown. A soaring distance metric waits for a flown or task distance (IGC
-import, WP-27).
+the distance flown. IGC import (WP-27) computes free and out-and-return distance for a
+file but does not store them on the flight, so a soaring distance metric still waits for a
+stored flown or task distance.
 
 ## Recency (SFCL.160)
 

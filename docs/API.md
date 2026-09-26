@@ -502,6 +502,35 @@ never stored as a passenger flight. The four appear on flight responses, in
 and as logbook query fields. See
 [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
 
+#### IGC files
+FAI IGC flight recorder files, parsed, analysed and stored with a flight:
+
+| Method | Path |
+| --- | --- |
+| `POST` | `/flights/igc/preview` — `multipart/form-data` with a `file` part; returns the analysed flight, stores nothing |
+| `POST` | `/flights/igc` — `file` part plus an optional `flightId` field; 201 `{flight, fileId, summary}` |
+| `GET` | `/flights/{flightId}/files` — metadata (`kind`, `filename`, `sizeBytes`, `sha256`, `createdAt`) |
+| `GET` | `/flights/{flightId}/files/{fileId}` — the stored bytes, `application/octet-stream`, `Content-Disposition: attachment` |
+| `DELETE` | `/flights/{flightId}/files/{fileId}` — 204; the flight is unchanged |
+
+- The preview (and `summary`) reports the UTC date, take-off and landing times,
+  `landingDetected`, `durationMinutes`, `launchMethod` (`winch`, `aerotow`, `self-launch`,
+  `unknown`) with `launchMethodConfidence` (0–1), `releaseHeightM`, `maxAltitudeM`,
+  `freeDistanceKm`, `outAndReturnDistanceKm` (twice the free distance), `outlanding`,
+  `departure`/`arrival` (`icao` and `name` of the airport within 3 km, always `lat`/`lon`),
+  the header's `gliderRegistration`, `gliderType` and `pilot`, and `matchingFlightId` — a
+  flight of the caller on the same date and glider whose times overlap the file.
+- Without `flightId`, `POST /flights/igc` creates the flight through the same path as
+  `POST /flights` and auto-creates a missing aircraft; a file without a registration is a
+  400. With `flightId` it only attaches the file; another user's or a missing flight is 404.
+- **At most 5 MB and 5 files per flight**; oversized files get 413. A file that is not IGC
+  text, has no date, no valid fixes or no take-off gets 400 with the reason (`not a valid IGC
+  file: line 2: …`). The same file stored again anywhere in the account, or a flight at its
+  cap, gets 409.
+- The two POSTs share the `expensive` rate-limit bucket; the `/files` paths are limited like
+  licence and credential files (reads `file_read`, deletes `expensive`).
+- Detection thresholds and the outlanding rule: [SAILPLANES.md](./SAILPLANES.md#igc-import).
+
 ### Save warnings
 
 Some rules are reported rather than enforced. The record is saved as sent, and the create or
@@ -565,7 +594,8 @@ Reference photos, scans and PDFs attached to a licence or a credential:
 ### Features
 `GET /features` — capability probe for optional features an operator can disable, with the
 limits a client needs before uploading (`documentFiles.enabled`, `maxBytes`,
-`maxPerDocument`, `allowedContentTypes`). Clients should call this once after sign-in and
+`maxPerDocument`, `allowedContentTypes`; `flightFiles.maxBytes`, `maxPerFlight` for IGC
+files, which have no off switch). Clients should call this once after sign-in and
 hide the affected UI rather than discovering the `403` by trying.
 
 ### Currency
@@ -786,8 +816,10 @@ history) and export to CSV, JSON, PDF, and vCard.
 
 `GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, aircraft
 reminders, licences with their class ratings and privileges (`licenses[].privileges`), credentials, contacts, custom currency rules, custom
-reports, notification preferences, the carried-forward hours baseline and the pilot profile
-(mode, intents and acknowledgements; never the derived evidence). It is the same payload a cloud backup run writes
+reports, notification preferences, the carried-forward hours baseline, the pilot profile
+(mode, intents and acknowledgements; never the derived evidence) and flight recorder files
+(`flightFiles`: each IGC file gzipped and base64-encoded, keyed by its flight's id in the
+backup). It is the same payload a cloud backup run writes
 (`cloudbackup.Payload` is the single definition of both), and `POST /imports/json` restores
 every section of it.
 
@@ -803,7 +835,11 @@ restored aircraft, or to the existing aircraft of the same registration when tha
 skipped; a reminder whose aircraft cannot be resolved, or that matches one already on the
 aircraft by kind, label and due date, is skipped and counted in `aircraftRemindersSkipped`.
 Licence privileges are revalidated and attached to their restored licence
-(`licencePrivilegesImported`); an invalid one is a 400.
+(`licencePrivilegesImported`); an invalid one is a 400. Flight files are decoded (at most
+5 MB each, checked against their SHA-256), revalidated as IGC and attached to the restored
+flight (`flightFilesImported`); one whose flight the backup does not carry, or whose content
+the account already stores, is skipped (`flightFilesSkipped`); corrupt or invalid content is
+a 400.
 
 Anything a user owns belongs in this payload. `internal/service/cloudbackup/coverage_test.go`
 classifies every table in `db/migrations` as either exported (naming its payload section) or
@@ -914,7 +950,8 @@ A `logbookLicenseId`-filtered export covers only part of the logbook, so the
 career-wide snapshot is deliberately left out of it.
 
 ### Admin
-User management (list, disable/enable, unlock, reset 2FA, delete), platform stats (including how pilots override the pilot profile: `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` counts, and `licencePrivileges.{total, byKind}`),
+User management (list, disable/enable, unlock, reset 2FA, delete), platform stats (including how pilots override the pilot profile: `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` counts, `licencePrivileges.{total, byKind}` and
+`flightFiles.{count, totalBytes}`),
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,
 unverified-account sweep), email deliverability, and announcements.
 

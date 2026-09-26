@@ -385,6 +385,8 @@ func main() {
 	documentFileService := service.NewDocumentFileService(
 		postgres.NewDocumentFileRepository(db), licenseRepo, credentialRepo, documentFilesEnabled)
 	apiHandler.SetDocumentFileService(documentFileService)
+	flightFileService := service.NewFlightFileService(postgres.NewFlightFileRepository(db), flightRepo)
+	apiHandler.SetFlightFileService(flightFileService)
 
 	startedAt := time.Now()
 	apiHandler.SetStartedAt(startedAt)
@@ -561,6 +563,8 @@ func main() {
 			"/custom-currency/preview",
 			"/reports/custom/preview",
 			"/export", // /reports/custom/{reportId}/export
+			"/flights/igc",
+			"/flights/igc/preview",
 		))
 		// GET /imports/templates is exempt: it serves a static catalogue and is
 		// read every time the import screen opens, so it must not spend the
@@ -619,7 +623,7 @@ func main() {
 		signRateLimit := middleware.NewRateLimitMiddleware("sign", 20, 1*time.Minute)
 		api.Use(middleware.RateLimitByPathPrefix(signRateLimit, "/sign/"))
 
-		// Licence/credential files: uploads share the "expensive" budget;
+		// Licence, credential and flight files: uploads share the "expensive" budget;
 		// reads get their own per-user bucket, tunable via
 		// FILE_READ_RATE_LIMIT_PER_MINUTE.
 		fileReadRateLimit := middleware.NewUserRateLimitMiddleware(

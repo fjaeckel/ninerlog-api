@@ -1,6 +1,14 @@
 package cloudbackup
 
 import (
+	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -34,6 +42,8 @@ type Payload struct {
 	FlightBaseline          *FlightBaseline          `json:"flightBaseline,omitempty"`
 	// PilotProfile is a single-row setting, omitted when the user has none.
 	PilotProfile *PilotProfile `json:"pilotProfile,omitempty"`
+	// FlightFiles name their flight by its id in this backup.
+	FlightFiles []FlightFile `json:"flightFiles"`
 }
 
 // LicenseWithRatings pairs a licence with its class ratings and privileges so
@@ -208,4 +218,85 @@ func (p PilotProfile) ToModel(userID uuid.UUID) *models.PilotProfile {
 		}
 	}
 	return out
+}
+
+// FlightFileEncodingGzipBase64 is the only content encoding FlightFile uses.
+const FlightFileEncodingGzipBase64 = "gzip+base64"
+
+// ErrInvalidFlightFileContent is returned by FlightFile.Decode for content
+// that does not decode, exceeds models.MaxFlightFileBytes or does not match
+// its SHA-256.
+var ErrInvalidFlightFileContent = errors.New("invalid flight file content")
+
+// FlightFile is the portable half of a flight recorder file: its flight's id
+// in this backup, its metadata and its content gzipped and base64-encoded.
+type FlightFile struct {
+	FlightID        uuid.UUID `json:"flightId"`
+	Kind            string    `json:"kind"`
+	Filename        string    `json:"filename"`
+	SizeBytes       int       `json:"sizeBytes"`
+	SHA256          string    `json:"sha256"`
+	ContentEncoding string    `json:"contentEncoding"`
+	Content         string    `json:"content"`
+}
+
+// NewFlightFile projects a stored file, content included, onto its portable
+// half.
+func NewFlightFile(f *models.FlightFile) (FlightFile, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	if _, err := gz.Write(f.Content); err != nil {
+		return FlightFile{}, fmt.Errorf("gzip flight file: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return FlightFile{}, fmt.Errorf("gzip flight file: %w", err)
+	}
+	return FlightFile{
+		FlightID:        f.FlightID,
+		Kind:            string(f.Kind),
+		Filename:        f.Filename,
+		SizeBytes:       f.SizeBytes,
+		SHA256:          f.SHA256,
+		ContentEncoding: FlightFileEncodingGzipBase64,
+		Content:         base64.StdEncoding.EncodeToString(buf.Bytes()),
+	}, nil
+}
+
+// Decode returns the file's content. It accepts plain base64 when
+// ContentEncoding is "base64", reads at most models.MaxFlightFileBytes, and
+// checks SHA256 when set.
+func (f FlightFile) Decode() ([]byte, error) {
+	if len(f.Content) > base64.StdEncoding.EncodedLen(models.MaxFlightFileBytes) {
+		return nil, ErrInvalidFlightFileContent
+	}
+	raw, err := base64.StdEncoding.DecodeString(f.Content)
+	if err != nil {
+		return nil, ErrInvalidFlightFileContent
+	}
+	var data []byte
+	switch f.ContentEncoding {
+	case FlightFileEncodingGzipBase64:
+		gz, err := gzip.NewReader(bytes.NewReader(raw))
+		if err != nil {
+			return nil, ErrInvalidFlightFileContent
+		}
+		data, err = io.ReadAll(io.LimitReader(gz, models.MaxFlightFileBytes+1))
+		if err != nil {
+			return nil, ErrInvalidFlightFileContent
+		}
+	case "base64":
+		data = raw
+	default:
+		return nil, ErrInvalidFlightFileContent
+	}
+	if len(data) == 0 || len(data) > models.MaxFlightFileBytes {
+		return nil, ErrInvalidFlightFileContent
+	}
+	if f.SHA256 != "" {
+		sum := sha256.Sum256(data)
+		if hex.EncodeToString(sum[:]) != f.SHA256 {
+			return nil, ErrInvalidFlightFileContent
+		}
+	}
+	return data, nil
 }

@@ -357,6 +357,28 @@ two fleet entries and two sets of statistics. Full design, the table-maintenance
 and the `POST /flights/recalculate` migration path are in
 [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 
+## IGC flight recorder files
+
+An IGC file is evidence of one flight. The rules that turn it into a logbook entry, with
+their thresholds, are in [SAILPLANES.md](./SAILPLANES.md#igc-import); the invariants are:
+
+- **Times are UTC and minutes are integers.** Take-off and landing become `departureTime`/
+  `arrivalTime` (`HH:MM:SS`); total time is their span rounded to minutes exactly as for any
+  flight with a take-off/landing pair (D3). The flight is dated by the take-off's UTC date,
+  so a flight that crosses midnight UTC keeps the date it started on.
+- **A launch method is written only when detected and applicable.** `unknown` writes none,
+  and none is written on an aircraft whose class does not carry one
+  (`models.LaunchMethodApplies`), so a towed-launch file on a powered aircraft never feeds
+  launch recency.
+- **Outlanding means away from the take-off point and from every known airport**, both by
+  more than 3 km, and is never claimed while the airport database is unavailable.
+- **The file is stored, not re-read.** What the import derived is written into the flight
+  once; later edits to the flight are the pilot's, and attaching a file to an existing
+  flight changes nothing on it. Ownership is checked through the flight in the service
+  (`FlightFileService`), and a flight another user owns answers 404, like a missing one.
+- **One file, one flight per account.** The same content (SHA-256) is refused a second
+  time, which is what stops a re-import from duplicating a flight.
+
 ## Aircraft reminders
 
 Aircraft reminders are the aircraft side of staying legal to fly (PERSONAS.md, Mehmet job 3):

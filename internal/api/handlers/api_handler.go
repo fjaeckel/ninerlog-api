@@ -60,6 +60,8 @@ type APIHandler struct {
 	// documentFileService is nil only if the subsystem was never wired up;
 	// the operator-facing off switch lives inside the service itself.
 	documentFileService *service.DocumentFileService
+	// flightFileService is wired in cmd/api/main.go via SetFlightFileService.
+	flightFileService *service.FlightFileService
 	// emailDeliveryService and unverifiedAccountService are nil until wired in
 	// cmd/api/main.go; the admin endpoints that use them answer 503 when nil.
 	emailDeliveryService     *service.EmailDeliveryService

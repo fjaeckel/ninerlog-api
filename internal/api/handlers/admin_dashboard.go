@@ -57,6 +57,8 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	for _, count := range stats.LicencePrivileges.ByKind {
 		stats.LicencePrivileges.Total += count
 	}
+	stats.FlightFiles.Count = adminStats.FlightFiles
+	stats.FlightFiles.TotalBytes = adminStats.FlightFileBytes
 	stats.ImportsByFormat = adminStats.ImportsByFormat
 	stats.CloudBackupDestinations.ByProvider = adminStats.BackupDestinationsByProvider
 	for _, count := range adminStats.BackupDestinationsByProvider {

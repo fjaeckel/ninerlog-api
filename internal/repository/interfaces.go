@@ -334,6 +334,34 @@ type CredentialRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
+// FlightFileRepository stores flight recorder files attached to a flight.
+// Every method is scoped by the owning user.
+type FlightFileRepository interface {
+	// Create inserts the file only if the flight belongs to file.UserID and
+	// carries fewer than maxPerFlight files. Returns ErrNotFound for a
+	// missing or foreign flight, ErrFlightFileLimit at the cap and
+	// ErrDuplicate when the flight already carries a file with the same
+	// SHA-256.
+	Create(ctx context.Context, file *models.FlightFile, maxPerFlight int) error
+
+	// ListByFlight returns a flight's files, oldest first, without content.
+	ListByFlight(ctx context.Context, userID, flightID uuid.UUID) ([]*models.FlightFile, error)
+
+	// GetWithContent returns one file including its content.
+	GetWithContent(ctx context.Context, userID, flightID, fileID uuid.UUID) (*models.FlightFile, error)
+
+	// Delete removes one file.
+	Delete(ctx context.Context, userID, flightID, fileID uuid.UUID) error
+
+	// ListBySHA256 returns the user's files with the given digest, without
+	// content.
+	ListBySHA256(ctx context.Context, userID uuid.UUID, sha256 string) ([]*models.FlightFile, error)
+
+	// ListByUserWithContent returns every file of the user including its
+	// content, ordered by flight and creation time.
+	ListByUserWithContent(ctx context.Context, userID uuid.UUID) ([]*models.FlightFile, error)
+}
+
 // DocumentFileRepository stores reference photos attached to a licence or a
 // credential. Every method is scoped by the owning user and subject.
 type DocumentFileRepository interface {

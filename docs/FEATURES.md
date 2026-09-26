@@ -199,6 +199,15 @@ rules.
   log a series of launches on one row), an outlanding flag that stops cross-country time
   being derived, a tow-flight flag for tug pilots and the release height in metres. See
   [SAILPLANES.md](./SAILPLANES.md#launches-and-series-entries).
+- IGC import: `POST /flights/igc/preview` reads an IGC flight recorder file and reports
+  take-off and landing, flight time, launch method (winch, aerotow, self-launch from
+  ENL/MOP) with a confidence, release height, maximum altitude, free and out-and-return
+  distance, departure and arrival airports and whether the glider landed out, plus a
+  matching flight already in the logbook. `POST /flights/igc` creates the flight from the
+  file (auto-creating the glider in the fleet) or attaches the file to a named flight; the
+  file is stored with the flight, downloadable from `/flights/{id}/files`, and part of the
+  JSON backup. Serves sailplane pilots who fly with a logger (Petra, scenario P2).
+  See [SAILPLANES.md](./SAILPLANES.md#igc-import).
 - Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
@@ -560,7 +569,8 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Full backup / restore** (`GET /exports/json`, `POST /imports/json`) — everything the
   pilot owns in one document: flights with crew, aircraft and their reminders, licences with
   their class ratings and privileges, credentials, contacts, custom currency rules, custom reports, notification
-  preferences, the carried-forward hours baseline and the pilot profile's intents. `cloudbackup.Payload` is the single definition of that
+  preferences, the carried-forward hours baseline, the pilot profile's intents and the IGC
+  files stored with flights (gzipped, base64). `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
   carry the same data. Restores are additive and regenerate all IDs, so a backup moves
   between installations; a custom report scoped to a licence is re-pointed at that licence's
@@ -634,7 +644,8 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   the logbook keeps them apart. `totalCustomReports` counts saved custom reports across all
   users; `aircraftReminders` reports `total` and `overdue` aircraft reminders across all
   users; `licencePrivileges` reports the `total` and the count per kind (`byKind`) of licence
-  privileges across all users. `pilotProfiles` reports how many users switched the pilot profile to show
+  privileges across all users; `flightFiles` reports the `count` and `totalBytes` of stored
+  IGC files across all users. `pilotProfiles` reports how many users switched the pilot profile to show
   everything and, per discipline, how many set it explicitly on, off or as a training goal. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than

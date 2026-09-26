@@ -247,7 +247,12 @@ initial training counts are reported as not tracked. Frontend half open.
 - Each gets an evaluator in the registry and a docs row in `SAILPLANES.md`.
 - Closes Petra's P-jobs 3 and 4.
 
-**WP-27. IGC import** (api + fe; needs D4)
+**WP-27. IGC import** (api + fe; needs D4) — **API half implemented** (migration 78
+`flight_files`, `pkg/igc` parser and analysis, `POST /flights/igc/preview`,
+`POST /flights/igc`, `/flights/{id}/files`, `flightFiles` in the JSON backup, admin count
+`flightFiles`); rules in [SAILPLANES.md](../SAILPLANES.md#igc-import). Distances are
+reported, not stored on the flight, and task distance (a declared C-record task) is not
+computed: free and out-and-return (twice the free distance) only. Frontend half open.
 
 - Parse the H, B and E records and ENL.
 - Derive take-off and landing times, launch method (winch: steep climb to 300–600 m within
