@@ -59,6 +59,12 @@ func TestAdminEndpoints(t *testing.T) {
 		if !ok || rem["total"] == nil || rem["overdue"] == nil {
 			t.Errorf("Expected aircraftReminders.{total,overdue}, got %v", s["aircraftReminders"])
 		}
+		lp, ok := s["licencePrivileges"].(map[string]interface{})
+		if !ok || lp["total"] == nil {
+			t.Errorf("Expected licencePrivileges.total, got %v", s["licencePrivileges"])
+		} else if _, ok := lp["byKind"].(map[string]interface{}); !ok {
+			t.Errorf("Expected licencePrivileges.byKind map, got %T", lp["byKind"])
+		}
 		cbd, ok := s["cloudBackupDestinations"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("Expected cloudBackupDestinations object, got %T", s["cloudBackupDestinations"])

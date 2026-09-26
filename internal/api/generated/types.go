@@ -1749,6 +1749,57 @@ func (e ImportTemplateRegions) Valid() bool {
 	}
 }
 
+// Defines values for LicencePrivilegeKind.
+const (
+	AEROBATICADVANCED   LicencePrivilegeKind = "AEROBATIC_ADVANCED"
+	AEROBATICBASIC      LicencePrivilegeKind = "AEROBATIC_BASIC"
+	BANNERTOWING        LicencePrivilegeKind = "BANNER_TOWING"
+	BIS                 LicencePrivilegeKind = "BI_S"
+	CLOUDFLYING         LicencePrivilegeKind = "CLOUD_FLYING"
+	FES                 LicencePrivilegeKind = "FE_S"
+	FIS                 LicencePrivilegeKind = "FI_S"
+	LAUNCHMETHODTRAINED LicencePrivilegeKind = "LAUNCH_METHOD_TRAINED"
+	SAILPLANETOWING     LicencePrivilegeKind = "SAILPLANE_TOWING"
+	TMGNIGHT            LicencePrivilegeKind = "TMG_NIGHT"
+	ULPASSENGERAUTH     LicencePrivilegeKind = "UL_PASSENGER_AUTH"
+	ULTOWING            LicencePrivilegeKind = "UL_TOWING"
+	ULTYPEBRIEFING      LicencePrivilegeKind = "UL_TYPE_BRIEFING"
+)
+
+// Valid indicates whether the value is a known member of the LicencePrivilegeKind enum.
+func (e LicencePrivilegeKind) Valid() bool {
+	switch e {
+	case AEROBATICADVANCED:
+		return true
+	case AEROBATICBASIC:
+		return true
+	case BANNERTOWING:
+		return true
+	case BIS:
+		return true
+	case CLOUDFLYING:
+		return true
+	case FES:
+		return true
+	case FIS:
+		return true
+	case LAUNCHMETHODTRAINED:
+		return true
+	case SAILPLANETOWING:
+		return true
+	case TMGNIGHT:
+		return true
+	case ULPASSENGERAUTH:
+		return true
+	case ULTOWING:
+		return true
+	case ULTYPEBRIEFING:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NotificationCategory.
 const (
 	NotificationCategoryAircraftReminder     NotificationCategory = "aircraft_reminder"
@@ -1902,6 +1953,30 @@ func (e PilotProfileUpdateMode) Valid() bool {
 	case PilotProfileUpdateModeAdaptive:
 		return true
 	case PilotProfileUpdateModeEverything:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrivilegeCurrencyStatus.
+const (
+	PrivilegeCurrencyStatusCurrent PrivilegeCurrencyStatus = "current"
+	PrivilegeCurrencyStatusExpired PrivilegeCurrencyStatus = "expired"
+	PrivilegeCurrencyStatusLapsed  PrivilegeCurrencyStatus = "lapsed"
+	PrivilegeCurrencyStatusUnknown PrivilegeCurrencyStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the PrivilegeCurrencyStatus enum.
+func (e PrivilegeCurrencyStatus) Valid() bool {
+	switch e {
+	case PrivilegeCurrencyStatusCurrent:
+		return true
+	case PrivilegeCurrencyStatusExpired:
+		return true
+	case PrivilegeCurrencyStatusLapsed:
+		return true
+	case PrivilegeCurrencyStatusUnknown:
 		return true
 	default:
 		return false
@@ -2883,9 +2958,18 @@ type AdminStats struct {
 	// ImportsByFormat Completed imports grouped by the detected source format, i.e. which logbook pilots are migrating from. Keys are ImportFormat values; formats nobody has imported are omitted.
 	//
 	// Example: {"CSV":2,"FOREFLIGHT_CSV":12,"MYFLIGHTBOOK_CSV":4}
-	ImportsByFormat  map[string]int `json:"importsByFormat"`
-	LockedAccounts   int            `json:"lockedAccounts"`
-	NewUsersThisWeek int            `json:"newUsersThisWeek"`
+	ImportsByFormat map[string]int `json:"importsByFormat"`
+
+	// LicencePrivileges Licence privileges across all users.
+	LicencePrivileges struct {
+		// ByKind Privileges grouped by kind. Kinds nobody has recorded are omitted.
+		//
+		// Example: {"SAILPLANE_TOWING":2,"UL_PASSENGER_AUTH":5}
+		ByKind map[string]int `json:"byKind"`
+		Total  int            `json:"total"`
+	} `json:"licencePrivileges"`
+	LockedAccounts   int `json:"lockedAccounts"`
+	NewUsersThisWeek int `json:"newUsersThisWeek"`
 
 	// PilotProfiles How pilots override the adaptive pilot profile.
 	PilotProfiles struct {
@@ -4263,7 +4347,8 @@ type ClassRatingCurrency struct {
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
 
 	// LaunchMethodCurrency Launch method recency per SFCL.155(c) — 5 launches per method in 24 months, 2 for bungee.
-	// Lists every method the pilot has ever logged on the rating's class; TMG take-offs count
+	// Lists every method the pilot has ever logged on the rating's class, and every method
+	// with a LAUNCH_METHOD_TRAINED privilege on the rating's licence; TMG take-offs count
 	// toward self-launch.
 	LaunchMethodCurrency *[]LaunchMethodCurrency `json:"launchMethodCurrency,omitempty"`
 	LicenseId            openapi_types.UUID      `json:"licenseId"`
@@ -4739,6 +4824,11 @@ type CurrencyStatusResponse struct {
 
 	// PassengerCurrency Tier 2: Passenger currency — determines whether the pilot can carry passengers (rolling from now, separate from rating validity)
 	PassengerCurrency []PassengerCurrency `json:"passengerCurrency"`
+
+	// Privileges Currency of each privilege recorded on the pilot's licences
+	// (`/licenses/{licenseId}/privileges`), in licence order, then kind. Absent when
+	// the pilot has recorded none. See docs/SAILPLANES.md "Privileges".
+	Privileges *[]PrivilegeCurrency `json:"privileges,omitempty"`
 
 	// Ratings Tier 1: Rating/license currency — determines whether the pilot can fly at all in each class
 	Ratings []ClassRatingCurrency `json:"ratings"`
@@ -6653,6 +6743,11 @@ type ImportJSONResult struct {
 	// FlightsImported Example: 27
 	FlightsImported int `json:"flightsImported"`
 
+	// LicencePrivilegesImported Licence privileges restored onto their restored licences
+	//
+	// Example: 2
+	LicencePrivilegesImported int `json:"licencePrivilegesImported"`
+
 	// LicensesImported Example: 2
 	LicensesImported int `json:"licensesImported"`
 
@@ -7036,10 +7131,98 @@ type LaunchMethodCurrency struct {
 	// Example: 5
 	Required int `json:"required"`
 
+	// Trained Whether the pilot has recorded a LAUNCH_METHOD_TRAINED privilege for this method on
+	// the rating's licence (SFCL.155(a)). A method with such a privilege is listed even
+	// when never logged.
+	Trained *bool `json:"trained,omitempty"`
+
 	// ValidUntil When met, the last date the method stays met if the pilot does not fly again. Omitted when unmet.
 	//
 	// Example: 2027-04-12
 	ValidUntil *openapi_types.Date `json:"validUntil,omitempty"`
+}
+
+// LicencePrivilege defines model for LicencePrivilege.
+type LicencePrivilege struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Detail Launch method (LAUNCH_METHOD_TRAINED), ultralight kind (UL_TOWING) or aircraft type (UL_TYPE_BRIEFING); free text for other kinds
+	//
+	// Example: aerotow
+	Detail *string `json:"detail,omitempty"`
+
+	// ExpiresOn Last day the privilege is valid; absent when it does not expire
+	ExpiresOn *openapi_types.Date `json:"expiresOn,omitempty"`
+	Id        openapi_types.UUID  `json:"id"`
+	IssuedOn  *openapi_types.Date `json:"issuedOn,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind      LicencePrivilegeKind `json:"kind"`
+	LicenseId openapi_types.UUID   `json:"licenseId"`
+	Notes     *string              `json:"notes,omitempty"`
+	UpdatedAt time.Time            `json:"updatedAt"`
+}
+
+// LicencePrivilegeCreate defines model for LicencePrivilegeCreate.
+type LicencePrivilegeCreate struct {
+	// Detail Required for LAUNCH_METHOD_TRAINED (a launch method), UL_TOWING (an ultralight kind) and UL_TYPE_BRIEFING (the aircraft type)
+	Detail    *string             `json:"detail,omitempty"`
+	ExpiresOn *openapi_types.Date `json:"expiresOn,omitempty"`
+	IssuedOn  *openapi_types.Date `json:"issuedOn,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind  LicencePrivilegeKind `json:"kind"`
+	Notes *string              `json:"notes,omitempty"`
+}
+
+// LicencePrivilegeKind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+// - BANNER_TOWING: banner towing (SFCL.205)
+// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+type LicencePrivilegeKind string
+
+// LicencePrivilegeUpdate defines model for LicencePrivilegeUpdate.
+type LicencePrivilegeUpdate struct {
+	Detail    nullable.Nullable[string]             `json:"detail,omitempty"`
+	ExpiresOn nullable.Nullable[openapi_types.Date] `json:"expiresOn,omitempty"`
+	IssuedOn  nullable.Nullable[openapi_types.Date] `json:"issuedOn,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind  *LicencePrivilegeKind     `json:"kind,omitempty"`
+	Notes nullable.Nullable[string] `json:"notes,omitempty"`
 }
 
 // License defines model for License.
@@ -7392,6 +7575,12 @@ type PassengerCurrency struct {
 	// RegulatoryAuthority Authority that defines the passenger currency rules
 	RegulatoryAuthority string `json:"regulatoryAuthority"`
 
+	// Requirements Informational prerequisites of carrying passengers that do not change `dayStatus`:
+	// on SPL sailplane and TMG passenger currency the SFCL.115(a)(2) experience since
+	// licence issue; on a German ultralight entry without a recorded passenger
+	// authorisation, progress toward it (LuftPersV §84a). Absent otherwise.
+	Requirements *[]CurrencyRequirement `json:"requirements,omitempty"`
+
 	// RuleDescription Regulatory reference for the passenger currency rule
 	//
 	// Example: 3 takeoffs & landings in same type/class within preceding 90 days to carry passengers (EASA FCL.060(b))
@@ -7448,6 +7637,58 @@ type PilotProfileUpdate struct {
 
 // PilotProfileUpdateMode defines model for PilotProfileUpdate.Mode.
 type PilotProfileUpdateMode string
+
+// PrivilegeCurrency defines model for PrivilegeCurrency.
+type PrivilegeCurrency struct {
+	// Detail The privilege's detail (launch method, ultralight kind, aircraft type)
+	Detail *string `json:"detail,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind      LicencePrivilegeKind `json:"kind"`
+	LicenseId openapi_types.UUID   `json:"licenseId"`
+
+	// MessageKey Stable key for client-side localisation; catalogued in docs/CURRENCY_MESSAGES.md.
+	//
+	// Example: privilege.recency_current
+	MessageKey string `json:"messageKey"`
+
+	// MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	MessageParams *MessageParams     `json:"messageParams,omitempty"`
+	PrivilegeId   openapi_types.UUID `json:"privilegeId"`
+
+	// Requirements Recency rows of the privilege. A row whose `messageKey` is
+	// `requirement.untracked` is informational: NinerLog cannot count it and it never
+	// changes `status`.
+	Requirements *[]CurrencyRequirement `json:"requirements,omitempty"`
+
+	// RuleDescriptionKey Stable key for the applied rule (e.g. `sfcl_205_towing`, `faa_61_69_towing`)
+	//
+	// Example: sfcl_205_towing
+	RuleDescriptionKey *string `json:"ruleDescriptionKey,omitempty"`
+
+	// Status - current: valid, and any recency rule of the privilege is met
+	// - lapsed: a rolling recency rule (SFCL.205, SFCL.215, SFCL.360, 14 CFR 61.69,
+	//   DULV towing) is not met; the privilege is not exercisable until it is restored
+	// - expired: past the privilege's `expiresOn`
+	// - unknown: flight data could not be read
+	Status PrivilegeCurrencyStatus `json:"status"`
+}
+
+// PrivilegeCurrencyStatus - current: valid, and any recency rule of the privilege is met
+//   - lapsed: a rolling recency rule (SFCL.205, SFCL.215, SFCL.360, 14 CFR 61.69,
+//     DULV towing) is not met; the privilege is not exercisable until it is restored
+//   - expired: past the privilege's `expiresOn`
+//   - unknown: flight data could not be read
+type PrivilegeCurrencyStatus string
 
 // PublicSignatureInfo Deliberately minimal — no owner PII beyond the flight's own logged details.
 type PublicSignatureInfo struct {
@@ -8099,6 +8340,9 @@ type ImportId = openapi_types.UUID
 
 // LicenseId Example: 550e8400-e29b-41d4-a716-446655440000
 type LicenseId = openapi_types.UUID
+
+// PrivilegeId defines model for PrivilegeId.
+type PrivilegeId = openapi_types.UUID
 
 // ReminderId defines model for ReminderId.
 type ReminderId = openapi_types.UUID
@@ -8950,6 +9194,12 @@ type UpdateLicenseJSONRequestBody UpdateLicenseJSONBody
 
 // UploadLicenseFileMultipartRequestBody defines body for UploadLicenseFile for multipart/form-data ContentType.
 type UploadLicenseFileMultipartRequestBody = DocumentFileUpload
+
+// CreateLicencePrivilegeJSONRequestBody defines body for CreateLicencePrivilege for application/json ContentType.
+type CreateLicencePrivilegeJSONRequestBody = LicencePrivilegeCreate
+
+// UpdateLicencePrivilegeJSONRequestBody defines body for UpdateLicencePrivilege for application/json ContentType.
+type UpdateLicencePrivilegeJSONRequestBody = LicencePrivilegeUpdate
 
 // CreateClassRatingJSONRequestBody defines body for CreateClassRating for application/json ContentType.
 type CreateClassRatingJSONRequestBody = ClassRatingCreate

@@ -440,6 +440,18 @@ type ServerInterface interface {
 	// GetLicenseFile Download a licence reference image
 	// (GET /licenses/{licenseId}/files/{fileId})
 	GetLicenseFile(c *gin.Context, licenseId LicenseId, fileId DocumentFileId)
+	// ListLicencePrivileges List privileges recorded on a licence
+	// (GET /licenses/{licenseId}/privileges)
+	ListLicencePrivileges(c *gin.Context, licenseId LicenseId)
+	// CreateLicencePrivilege Record a privilege on a licence
+	// (POST /licenses/{licenseId}/privileges)
+	CreateLicencePrivilege(c *gin.Context, licenseId LicenseId)
+	// DeleteLicencePrivilege Delete a licence privilege
+	// (DELETE /licenses/{licenseId}/privileges/{privilegeId})
+	DeleteLicencePrivilege(c *gin.Context, licenseId LicenseId, privilegeId PrivilegeId)
+	// UpdateLicencePrivilege Update a licence privilege
+	// (PATCH /licenses/{licenseId}/privileges/{privilegeId})
+	UpdateLicencePrivilege(c *gin.Context, licenseId LicenseId, privilegeId PrivilegeId)
 	// ListClassRatings List class ratings for a license
 	// (GET /licenses/{licenseId}/ratings)
 	ListClassRatings(c *gin.Context, licenseId LicenseId)
@@ -3926,6 +3938,124 @@ func (siw *ServerInterfaceWrapper) GetLicenseFile(c *gin.Context) {
 	siw.Handler.GetLicenseFile(c, licenseId, fileId)
 }
 
+// ListLicencePrivileges operation middleware
+func (siw *ServerInterfaceWrapper) ListLicencePrivileges(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListLicencePrivileges(c, licenseId)
+}
+
+// CreateLicencePrivilege operation middleware
+func (siw *ServerInterfaceWrapper) CreateLicencePrivilege(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateLicencePrivilege(c, licenseId)
+}
+
+// DeleteLicencePrivilege operation middleware
+func (siw *ServerInterfaceWrapper) DeleteLicencePrivilege(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "privilegeId" -------------
+	var privilegeId PrivilegeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "privilegeId", c.Param("privilegeId"), &privilegeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter privilegeId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteLicencePrivilege(c, licenseId, privilegeId)
+}
+
+// UpdateLicencePrivilege operation middleware
+func (siw *ServerInterfaceWrapper) UpdateLicencePrivilege(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "privilegeId" -------------
+	var privilegeId PrivilegeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "privilegeId", c.Param("privilegeId"), &privilegeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter privilegeId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateLicencePrivilege(c, licenseId, privilegeId)
+}
+
 // ListClassRatings operation middleware
 func (siw *ServerInterfaceWrapper) ListClassRatings(c *gin.Context) {
 
@@ -4826,6 +4956,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/licenses/:licenseId/ratings", wrapper.CreateClassRating)
 	router.DELETE(options.BaseURL+"/licenses/:licenseId/ratings/:ratingId", wrapper.DeleteClassRating)
 	router.PATCH(options.BaseURL+"/licenses/:licenseId/ratings/:ratingId", wrapper.UpdateClassRating)
+	router.GET(options.BaseURL+"/licenses/:licenseId/privileges", wrapper.ListLicencePrivileges)
+	router.POST(options.BaseURL+"/licenses/:licenseId/privileges", wrapper.CreateLicencePrivilege)
+	router.DELETE(options.BaseURL+"/licenses/:licenseId/privileges/:privilegeId", wrapper.DeleteLicencePrivilege)
+	router.PATCH(options.BaseURL+"/licenses/:licenseId/privileges/:privilegeId", wrapper.UpdateLicencePrivilege)
 	router.GET(options.BaseURL+"/credentials", wrapper.ListCredentials)
 	router.POST(options.BaseURL+"/credentials", wrapper.CreateCredential)
 	router.DELETE(options.BaseURL+"/credentials/:credentialId", wrapper.DeleteCredential)

@@ -1,6 +1,8 @@
 package currency
 
 import (
+	"time"
+
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
 )
@@ -119,6 +121,26 @@ type CurrencyStatusResponse struct {
 
 	// Flight review status (FAA §61.56) — per-pilot, not per-rating
 	FlightReview *FlightReviewStatus `json:"flightReview,omitempty"`
+
+	// Privileges holds the currency of each licence privilege, absent when none are recorded.
+	Privileges []PrivilegeCurrency `json:"privileges,omitempty"`
+}
+
+// PrivilegeCurrency is the currency of one licence privilege.
+type PrivilegeCurrency struct {
+	PrivilegeID        uuid.UUID                   `json:"privilegeId"`
+	LicenseID          uuid.UUID                   `json:"licenseId"`
+	Kind               models.LicencePrivilegeKind `json:"kind"`
+	Detail             *string                     `json:"detail,omitempty"`
+	Status             Status                      `json:"status"`
+	MessageKey         string                      `json:"messageKey"`
+	MessageParams      *MessageParams              `json:"messageParams,omitempty"`
+	Requirements       []Requirement               `json:"requirements,omitempty"`
+	RuleDescriptionKey string                      `json:"ruleDescriptionKey,omitempty"`
+	// ExpiresOn is the privilege's expiry date; not serialised.
+	ExpiresOn *time.Time `json:"-"`
+	// LicenseType is the licence's type; not serialised.
+	LicenseType string `json:"-"`
 }
 
 // PassengerCurrency holds passenger-carrying currency for one class type.
@@ -147,6 +169,9 @@ type PassengerCurrency struct {
 	MessageParams      *MessageParams `json:"messageParams,omitempty"`
 	RuleDescription    string         `json:"ruleDescription"`
 	RuleDescriptionKey string         `json:"ruleDescriptionKey,omitempty"`
+	// Requirements lists informational passenger prerequisites that never
+	// change DayStatus.
+	Requirements []Requirement `json:"requirements,omitempty"`
 }
 
 // FlightReviewStatus tracks FAA §61.56 flight review currency (24 calendar months).
@@ -161,10 +186,13 @@ type FlightReviewStatus struct {
 // LaunchMethodCurrency tracks launch method recency per SFCL.155(c): 5 launches
 // per method (2 for bungee) in the rolling 24 months.
 type LaunchMethodCurrency struct {
-	Method     string `json:"method"`
-	Launches   int    `json:"launches"`
-	Required   int    `json:"required"`
-	Met        bool   `json:"met"`
+	Method   string `json:"method"`
+	Launches int    `json:"launches"`
+	Required int    `json:"required"`
+	Met      bool   `json:"met"`
+	// Trained is true when a LAUNCH_METHOD_TRAINED privilege for the method is
+	// on the rating's licence.
+	Trained    bool   `json:"trained"`
 	MessageKey string `json:"messageKey"`
 	// ValidUntil is the last date a met method stays met with no further flying.
 	ValidUntil *string `json:"validUntil,omitempty"`

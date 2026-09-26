@@ -22,6 +22,7 @@ flowchart TD
     User --> FlightBaseline
     User --> PilotProfile
     License --> ClassRating
+    License --> LicencePrivilege
     Flight --> FlightCrewMember
 
     subgraph auth["Auth / session side tables (owned by User)"]
@@ -107,6 +108,23 @@ rating covers — `THREE_AXIS`, `WEIGHT_SHIFT`, `GYROPLANE`, `HELICOPTER`, `POWE
 or `SAILPLANE` — and is cleared on any other class. A German UL rating with NULL is not
 evaluated (`rating.ul_kind_required`). See
 [DOMAIN.md](./DOMAIN.md#ultralights).
+
+### LicencePrivilege (`internal/models/licence_privilege.go`, migration 77)
+
+A rating, endorsement or authorisation on a licence beside its class ratings. `user_id` and
+`license_id` both cascade, so deleting the licence or the account removes its privileges.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `kind` | `TEXT` | CHECK: `SAILPLANE_TOWING`, `BANNER_TOWING`, `CLOUD_FLYING`, `AEROBATIC_BASIC`, `AEROBATIC_ADVANCED`, `TMG_NIGHT`, `FI_S`, `BI_S`, `FE_S`, `UL_PASSENGER_AUTH`, `UL_TOWING`, `UL_TYPE_BRIEFING`, `LAUNCH_METHOD_TRAINED` |
+| `detail` | `TEXT NULL` | ≤ 100 chars; the launch method (`LAUNCH_METHOD_TRAINED`), ultralight kind (`UL_TOWING`) or aircraft type (`UL_TYPE_BRIEFING`), each required for its kind (enforced in `Validate`) |
+| `issued_on` | `DATE NULL` | |
+| `expires_on` | `DATE NULL` | not before `issued_on` (constraint `licence_privileges_dates`) |
+| `notes` | `TEXT NULL` | ≤ 1000 chars |
+
+Indexed on `user_id` (the currency read) and `license_id`. Exported inside the licence entry of
+the JSON backup (`licenses[].privileges`). Evaluated by the currency engine; see
+[SAILPLANES.md](./SAILPLANES.md#privileges).
 
 ### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65, 72, 73)
 

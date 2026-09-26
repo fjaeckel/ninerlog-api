@@ -52,6 +52,8 @@ type DefaultJSONBuilder struct {
 	PilotProfiles *pilotprofile.Service
 	// AircraftReminders backs the aircraftReminders section; nil omits it.
 	AircraftReminders *service.AircraftReminderService
+	// Privileges backs licenses[].privileges; nil omits them.
+	Privileges *service.LicencePrivilegeService
 	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
 	AttachCrew func(ctx context.Context, flights []*models.Flight)
@@ -121,9 +123,14 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		sort.SliceStable(ratings, func(i, j int) bool {
 			return ratings[i].ID.String() < ratings[j].ID.String()
 		})
+		privileges, perr := b.gatherPrivileges(ctx, userID, lic.ID)
+		if perr != nil {
+			return Payload{}, perr
+		}
 		licensesWithRatings = append(licensesWithRatings, LicenseWithRatings{
 			License:      lic,
 			ClassRatings: ratings,
+			Privileges:   privileges,
 		})
 	}
 
@@ -257,6 +264,21 @@ func (b *DefaultJSONBuilder) gatherAircraftReminders(ctx context.Context, userID
 		return reminders[i].ID.String() < reminders[j].ID.String()
 	})
 	return reminders, nil
+}
+
+// gatherPrivileges returns a licence's privileges, sorted by id.
+func (b *DefaultJSONBuilder) gatherPrivileges(ctx context.Context, userID, licenseID uuid.UUID) ([]*models.LicencePrivilege, error) {
+	if b.Privileges == nil {
+		return nil, nil
+	}
+	privileges, err := b.Privileges.List(ctx, userID, licenseID)
+	if err != nil {
+		return nil, fmt.Errorf("list licence privileges: %w", err)
+	}
+	sort.SliceStable(privileges, func(i, j int) bool {
+		return privileges[i].ID.String() < privileges[j].ID.String()
+	})
+	return privileges, nil
 }
 
 // gatherNotificationPreferences returns the user's notification settings.

@@ -451,6 +451,13 @@ When the provider supports them, `Service.EvaluateAll` answers every read of one
 from a per-request cache of those rows (`dailyCache`), which is what makes the forward
 projection below affordable.
 
+The provider may also implement `PrivilegeDataProvider` (`privileges.go`,
+`currency_privilege_data.go`): `GetActivityDays(userID, ActivityQuery, since)` returns
+per-date flights, PIC, IFR and instruction-given minutes, launches, flights with at least
+two landings and distance for the flights a query selects (classes or ultralight kinds, tow
+flights, IFR, PIC, dual given or received, cross-country, a launch method). The privilege
+rules use it; without it they report `unknown`.
+
 This separation keeps the *regulatory* logic (what to count and over which window) in the
 evaluators, and the *data* logic (how to query) in one place.
 
@@ -804,8 +811,27 @@ of the same kind, so it is evaluated per rating kind (`HolderAwareEvaluator`) an
 `PassengerCurrency.ulKind`; SEP/TMG landings do not count. Take-offs are the flight's logged
 take-offs, at least one per flight; `dayLandings` reports the smaller of the two counts, and
 `dayExpiresOn` is the earlier of the dates on which the third take-off and the third landing
-leave the window. The passenger rating itself (§84a) is proved separately and not tracked.
-Ultralights have no night privilege (§44(2)).
+leave the window. Ultralights have no night privilege (§44(2)).
+
+Carrying passengers also needs the passenger authorisation (LuftPersV §84a), recorded as a
+`UL_PASSENGER_AUTH` licence privilege. With a current one on the licence, a met §45a entry
+is `current` with `pax.current_day_no_night_privilege`. Without one, a met entry reports
+`dayStatus` `unknown` with `pax.ul_authorisation_missing` (the experience fields and
+`dayExpiresOn` stay), and an unmet one keeps `expired` with `pax.not_current`. Either way
+the entry then carries the progress toward the authorisation in `requirements`,
+informational and all time: `requirement.ul_xc_flights` (5 cross-country flights with an
+instructor), `requirement.ul_xc_landing_flights` (2 of them with an intermediate landing,
+read as at least two landings) and `requirement.ul_xc_distance` (200 km in total, from the
+flights' departure-to-arrival `distance`), counted on flights of the entry's kind with dual
+and cross-country time. A round trip with an intermediate landing has no departure-to-arrival
+distance, so the distance row undercounts it. When the privileges cannot be read the entry
+is left as the evaluator produced it. The passenger email is not sent for
+`pax.ul_authorisation_missing`.
+
+Two more ultralight privileges: `UL_TOWING` (DULV Schleppberechtigung, `detail` the kind)
+reports `dulv_ul_towing` — 10 tows in 24 months, the take-offs of `isTowFlight` flights on
+ultralights of that kind — and `UL_TYPE_BRIEFING` (Einweisung, `detail` the aircraft type)
+is a record with an optional expiry. See [Licence privileges](#licence-privileges).
 
 `GLIDER`, `ULTRALIGHT` and `GYROPLANE` class ratings select their rule from the class, not the
 license type:
@@ -851,6 +877,33 @@ Passenger currency for a `GLIDER` rating never reports night privilege. For `GLI
 The sailplane rules — what counts toward SFCL.160(a) and (b), the proficiency-check
 alternative, per-method launch recency (SFCL.155(c)), the SFCL.160(c) exemption, the Annex I
 hour credit and the known gaps — are described in [SAILPLANES.md](./SAILPLANES.md).
+
+### Licence privileges
+
+A licence carries privileges beside its class ratings (`licence_privileges`, migration 77;
+`/licenses/{licenseId}/privileges`): towing, cloud flying, aerobatics, TMG night, FI(S),
+BI(S), FE(S), trained launch methods, the German UL passenger authorisation, UL towing and
+UL type briefings. `models.LicencePrivilege.Validate` holds the kind rules: a
+`LAUNCH_METHOD_TRAINED` `detail` is a launch method (lower-cased), a `UL_TOWING` `detail` an
+ultralight rating kind (upper-cased), a `UL_TYPE_BRIEFING` `detail` the aircraft type
+(required, at most 100 characters); `expiresOn` is not before `issuedOn`; notes at most 1000
+characters. `LicencePrivilegeService` answers 404 (`ErrLicenseNotFound`,
+`ErrLicencePrivilegeNotFound`) for another user's licence or privilege, or a privilege on a
+different licence.
+
+`Service.EvaluateAll` reads the user's privileges once (`PrivilegeLister`, wired with
+`SetPrivilegeSource`) and:
+
+- evaluates each into `CurrencyStatusResponse.privileges` (`EvaluatePrivilege`, one rule per
+  kind in `privileges.go`, flights read through the optional `PrivilegeDataProvider`
+  (`GetActivityDays`: per-date counts of the flights an `ActivityQuery` selects));
+- marks and adds trained launch methods on the SFCL.160(a) rating;
+- adds the SFCL.115(a)(2) rows and the TMG night privilege to SPL passenger currency, and
+  the §84a authorisation to German ultralight passenger currency.
+
+A privilege never changes a class rating's status. Without a source, or when the read
+fails, the response carries no `privileges` and the ratings and passenger currency are the
+evaluators' own. The rules per kind are in [SAILPLANES.md](./SAILPLANES.md#privileges).
 
 ### Gyroplanes (GPL)
 

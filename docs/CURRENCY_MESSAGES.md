@@ -146,15 +146,45 @@ Clients may drop their strings.
 | --- | --- | --- |
 | `pax.evaluation_failed` | — | Flight data could not be read |
 | `pax.not_current` | `needed` | Day requirement short by `needed` landings (German UL §45a: take-offs and landings, `dayLandings` is the smaller count) |
-| `pax.current_day_no_night_privilege` | — | Day met; this licence has no night privilege |
+| `pax.current_day_no_night_privilege` | — | Day met; this licence has no night privilege (German UL: and the §84a passenger authorisation is recorded) |
 | `pax.current_day_night_ir_waived` | — | Day met; night waived for IR holders (FCL.060(b)(2)(ii)) |
 | `pax.current_day_night` | — | Day and night both met |
 | `pax.day_current_night_not` | `needed` | Day met, night short by `needed` |
-| `pax.current_day_privilege_separate` | — | UL: experience met, but the passenger endorsement is proved separately |
+| `pax.current_day_privilege_separate` | — | UL: experience met, but the passenger endorsement is proved separately. Sent only when the licence privileges could not be read |
+| `pax.ul_authorisation_missing` | — | German UL: §45a experience met, but no current `UL_PASSENGER_AUTH` privilege (LuftPersV §84a) is recorded on the licence. `dayStatus` `unknown`; `requirements` shows the progress toward the authorisation |
 | `pax.gpl_experience_not_met` | `needed` | GPL: `needed` more minutes as PIC on gyroplanes since licence issue before passengers may be carried (FCL.205.G(a)(2)) |
+
+`PassengerCurrency.requirements` holds informational rows that never change `dayStatus`: the
+SFCL.115(a)(2) prerequisites on `easa_spl_pax` and `easa_spl_tmg_pax`, and progress toward
+the §84a authorisation on a German UL entry without one (see the name keys below).
 
 Expiry dates are **not** in the message — read `dayExpiresOn` / `nightExpiresOn` and
 render them yourself. See [DOMAIN.md](./DOMAIN.md#passenger-currency-expiry-dayexpireson--nightexpireson).
+
+## `PrivilegeCurrency.messageKey`
+
+`CurrencyStatusResponse.privileges[]` reports each licence privilege
+([SAILPLANES.md](./SAILPLANES.md#privileges)). `status` is `current`, `lapsed`, `expired` or
+`unknown`. `messageParams.date` is the privilege's expiry date, absent when it has none; it
+is sent with every key but `privilege.evaluation_failed`.
+
+| Key | Status | Meaning |
+| --- | --- | --- |
+| `privilege.valid` | `current` | Valid; the kind has no recency rule |
+| `privilege.recency_current` | `current` | Valid and its recency rule is met |
+| `privilege.recency_not_met` | `lapsed` | Its recency rule is not met; the unmet rows carry the remedy |
+| `privilege.expired` | `expired` | Past its expiry date |
+| `privilege.evaluation_failed` | `unknown` | Flight data could not be read |
+
+| `ruleDescriptionKey` | Rule |
+| --- | --- |
+| `privilege_expiry` | Expiry only (aerobatics, TMG night, BI(S), FE(S), UL passenger authorisation, UL type briefing) |
+| `sfcl_155_launch_method` | SFCL.155(a) trained launch method; no recency of its own |
+| `sfcl_205_towing`, `sfcl_205_banner_towing` | SFCL.205(c): 5 tows in 24 months |
+| `faa_61_69_towing` | 14 CFR 61.69(a)(5): 3 tows or 3 aerotows as glider PIC in 24 calendar months |
+| `sfcl_215_cloud_flying` | SFCL.215: 1 h or 5 flights in 24 months |
+| `sfcl_360_fi_s` | SFCL.360: 30 h or 60 launches of instruction in 3 years |
+| `dulv_ul_towing` | DULV towing authorisation: 10 tows in 24 months per kind |
 
 ## `FlightReviewStatus.messageKey`
 
@@ -199,14 +229,38 @@ The sailplane rules (see [SAILPLANES.md](./SAILPLANES.md)) use these keys:
 | `requirement.flight_review` | FAA §61.56(a) | `review` | The latest flight review, met while it is current or expiring |
 | `requirement.training_flights` | FAA §61.56(b) | `flights` | Instructional glider flights in the flight review period (needs 3); the alternative to the flight review row |
 
+Privilege and passenger-prerequisite rows use these keys:
+
+| `nameKey` | Rule | `unit` | Meaning |
+| --- | --- | --- | --- |
+| `requirement.tows` | SFCL.205(c), 61.69, DULV | `tows` | Tows flown as tug pilot (needs 5, 3 or 10) |
+| `requirement.towed_glider_flights` | 61.69(a)(5)(ii) | `flights` | Aerotows as PIC of a glider; the alternative to `requirement.tows` |
+| `requirement.cloud_flying_time` | SFCL.215 | `minutes` | IFR time as PIC on sailplanes (needs 60) |
+| `requirement.cloud_flying_flights` | SFCL.215 | `flights` | Sailplane flights as PIC with IFR time (needs 5); the alternative to the time row |
+| `requirement.instruction_time` | SFCL.360 | `minutes` | Instruction given on sailplanes including TMGs (needs 1800) |
+| `requirement.instruction_launches` | SFCL.360 | `launches` | Launches of flights with instruction given (needs 60); the alternative to the time row |
+| `requirement.fi_refresher` | SFCL.360 | `training` | FI(S) refresher training; always `requirement.untracked` |
+| `requirement.pax_prerequisite_time` | SFCL.115(a)(2) | `minutes` | PIC time on sailplanes including TMGs since licence issue (needs 600) |
+| `requirement.pax_prerequisite_launches` | SFCL.115(a)(2) | `launches` | Launches as PIC since licence issue (needs 30); the alternative to the time row |
+| `requirement.pax_competence_flight` | SFCL.115(a)(2) | `flight` | Passenger-competence training flight; always `requirement.untracked` |
+| `requirement.ul_xc_flights` | LuftPersV §84a | `flights` | Cross-country flights with an instructor on the kind (needs 5) |
+| `requirement.ul_xc_landing_flights` | LuftPersV §84a | `flights` | Of those, flights with an intermediate landing (needs 2) |
+| `requirement.ul_xc_distance` | LuftPersV §84a | `km` | Their total distance (needs 200) |
+
+Where a rule accepts either of two rows, the privilege is met when one is; the other stays
+unmet with its remedy.
+
 | `messageKey` | Params | Meaning |
 | --- | --- | --- |
 | `requirement.progress` | — | The common case: render `current` / `required` `unit` |
 | `requirement.prof_check_completed` | `date` | Proficiency check, or FAA flight review, completed on `date` |
 | `requirement.prof_check_missing` | — | Not completed in the validity period |
+| `requirement.untracked` | — | Informational: NinerLog cannot count this requirement. `met` is false, `current` 0, `required` 1; it never changes a status and carries no remedy |
 
 `LaunchMethodCurrency.messageKey` is always `launch_method.progress`; render
 `launches` / `required` for `method` (`winch`, `car`, `aerotow`, `self-launch`, `bungee`).
+`trained` is true when the pilot recorded a `LAUNCH_METHOD_TRAINED` privilege for the
+method (SFCL.155(a)); such a method is listed even at `0` launches.
 
 ## `validUntil`
 
@@ -233,6 +287,10 @@ is not current.
 | `remedy.training_flight` | `requirement.training_flight`, `requirement.tmg_training_flight` | — | Fly one flight of at least 1 h with an instructor |
 | `remedy.proficiency_check` | `requirement.proficiency_check` | — | Take a proficiency check with an examiner. The row only exists where the rule accepts one (the FCL.625.A IR check is mandatory rather than an alternative) |
 | `remedy.launch_method_dual` | `LaunchMethodCurrency` | `method`, `missing` | SFCL.155(d): fly `missing` launches with `method` dual or as supervised solo |
+| `remedy.privilege_with_instructor` | SFCL.205 and SFCL.215 privilege rows | `missing`, `unit` | Fly `missing` more `unit` (`tows`, `minutes`, `flights`) dual or under the supervision of an instructor |
+
+`remedy.fly_more` also appears on privilege and passenger-prerequisite rows, with the units
+`tows` and `km` besides those above.
 
 The FAA §61.56 flight review row has no remedy. Custom rules carry none.
 

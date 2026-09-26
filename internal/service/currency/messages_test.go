@@ -41,6 +41,12 @@ var knownMessageKeys = map[string]bool{
 	RemedyProficiencyCheck: true, RemedyLaunchMethodDual: true,
 	MsgReadinessLaunchMethodCurrent: true, MsgReadinessCredentialValid: true,
 	MsgReadinessCredentialExpired: true,
+	MsgPaxULAuthorisationMissing:  true,
+	MsgPrivilegeValid:             true, MsgPrivilegeExpired: true,
+	MsgPrivilegeRecencyCurrent: true, MsgPrivilegeRecencyNotMet: true,
+	MsgPrivilegeEvaluationFailed:  true,
+	MsgRequirementUntracked:       true,
+	RemedyPrivilegeWithInstructor: true,
 }
 
 var knownNameKeys = map[string]bool{
@@ -51,6 +57,11 @@ var knownNameKeys = map[string]bool{
 	ReqKeyRouteSectors: true, ReqKeyLaunches: true,
 	ReqKeyFlightTime: true, ReqKeyTrainingFlights: true, ReqKeyTMGTime: true,
 	ReqKeyTMGLandings: true, ReqKeyTMGTrainingFlight: true, ReqKeyFlightReview: true,
+	ReqKeyTows: true, ReqKeyTowedGliderFlights: true, ReqKeyCloudFlyingTime: true,
+	ReqKeyCloudFlyingFlights: true, ReqKeyInstructionTime: true, ReqKeyInstructionLaunches: true,
+	ReqKeyFIRefresher: true, ReqKeyPaxPrerequisiteTime: true, ReqKeyPaxPrerequisiteLaunches: true,
+	ReqKeyPaxCompetenceFlight: true, ReqKeyULXCFlights: true, ReqKeyULXCLandingFlights: true,
+	ReqKeyULXCDistance: true,
 }
 
 // evaluatorCase is one (authority, licenseType) pair to sweep.

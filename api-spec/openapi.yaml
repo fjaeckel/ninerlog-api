@@ -2328,6 +2328,126 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /licenses/{licenseId}/privileges:
+    get:
+      tags: [Licenses]
+      summary: List privileges recorded on a licence
+      description: |
+        Ratings, endorsements and authorisations recorded on one of the caller's
+        licences beside its class ratings: sailplane and banner towing (SFCL.205,
+        FAA 14 CFR 61.69), cloud flying (SFCL.215), aerobatics, TMG night, FI(S),
+        BI(S) and FE(S), trained launch methods (SFCL.155(a)), the German UL
+        passenger authorisation (LuftPersV §84a), UL towing and UL type briefing
+        (Einweisung). Ordered by kind, then detail. A licence that does not exist
+        or belongs to another user answers 404. Currency for each privilege is in
+        `GET /currency` (`privileges`).
+      operationId: listLicencePrivileges
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      responses:
+        '200':
+          description: Privileges on the licence
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LicencePrivilege'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags: [Licenses]
+      summary: Record a privilege on a licence
+      description: |
+        `detail` depends on `kind`: LAUNCH_METHOD_TRAINED requires a launch method
+        (winch, car, aerotow, self-launch, bungee; case-insensitive), UL_TOWING an
+        ultralight kind (THREE_AXIS, WEIGHT_SHIFT, GYROPLANE, HELICOPTER,
+        POWERED_PARAGLIDER, SAILPLANE; case-insensitive) and UL_TYPE_BRIEFING the
+        aircraft type (at most 100 characters). Other kinds accept an optional
+        detail of at most 100 characters. `expiresOn` must not be before
+        `issuedOn`. Any violation answers 400.
+      operationId: createLicencePrivilege
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LicencePrivilegeCreate'
+      responses:
+        '201':
+          description: Privilege recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicencePrivilege'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /licenses/{licenseId}/privileges/{privilegeId}:
+    patch:
+      tags: [Licenses]
+      summary: Update a licence privilege
+      description: |
+        Partial update. Omitted fields are unchanged; `detail`, `issuedOn`,
+        `expiresOn` and `notes` are cleared by sending null. The result is
+        revalidated with the rules of `POST`. A privilege that does not exist,
+        belongs to another user or is on another licence answers 404.
+      operationId: updateLicencePrivilege
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+        - $ref: '#/components/parameters/PrivilegeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LicencePrivilegeUpdate'
+      responses:
+        '200':
+          description: Privilege updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicencePrivilege'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Licenses]
+      summary: Delete a licence privilege
+      operationId: deleteLicencePrivilege
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicenseId'
+        - $ref: '#/components/parameters/PrivilegeId'
+      responses:
+        '204':
+          description: Privilege deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /credentials:
     get:
       tags:
@@ -4119,8 +4239,8 @@ paths:
       summary: Export full data backup as JSON
       description: |
         Exports everything the user owns as a JSON backup file: flights (with
-        crew), aircraft, aircraft reminders, licences and class ratings,
-        credentials, contacts, custom currency rules, custom reports,
+        crew), aircraft, aircraft reminders, licences with their class ratings
+        and privileges, credentials, contacts, custom currency rules, custom reports,
         notification preferences, the carried-forward hours baseline and the
         pilot profile (mode and discipline intents; evidence is derived and not
         exported).
@@ -4147,7 +4267,7 @@ paths:
       description: |
         Restore a previously exported NinerLog JSON backup into the authenticated
         user's account. Recreates every section the backup carries: aircraft,
-        aircraft reminders, licences, class ratings, credentials, flights and crew members,
+        aircraft reminders, licences, class ratings, licence privileges, credentials, flights and crew members,
         contacts, custom currency rules, custom reports, notification
         preferences, the carried-forward hours baseline and the pilot profile. Flights keep their
         glider facts (launches and their override flag, outlanding, tow flight, release height);
@@ -4173,6 +4293,8 @@ paths:
         aircraft with the same registration when that aircraft was skipped; a
         reminder whose aircraft the backup does not carry is skipped, as is one
         identical (kind, label, due date) to a reminder already on the aircraft.
+        Licence privileges travel inside their licence entry (`licenses[].privileges`)
+        and are revalidated and attached to the restored licence.
       operationId: importDataJSON
       security:
         - bearerAuth: []
@@ -6319,6 +6441,14 @@ components:
         format: uuid
         example: 770e8400-e29b-41d4-a716-446655440002
 
+    PrivilegeId:
+      name: privilegeId
+      in: path
+      required: true
+      description: Licence privilege UUID
+      schema:
+        type: string
+        format: uuid
     ReminderId:
       name: reminderId
       in: path
@@ -7054,6 +7184,115 @@ components:
           type: string
           format: date-time
           example: '2026-02-01T14:30:00Z'
+
+    LicencePrivilegeKind:
+      type: string
+      enum: [SAILPLANE_TOWING, BANNER_TOWING, CLOUD_FLYING, AEROBATIC_BASIC, AEROBATIC_ADVANCED, TMG_NIGHT, FI_S, BI_S, FE_S, UL_PASSENGER_AUTH, UL_TOWING, UL_TYPE_BRIEFING, LAUNCH_METHOD_TRAINED]
+      description: |
+        - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+        - BANNER_TOWING: banner towing (SFCL.205)
+        - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+        - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+        - TMG_NIGHT: night flying in a TMG (SFCL.210)
+        - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+        - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+        - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+        - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+        - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+
+    LicencePrivilege:
+      type: object
+      required:
+        - id
+        - licenseId
+        - kind
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        licenseId:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/LicencePrivilegeKind'
+        detail:
+          type: string
+          maxLength: 100
+          description: Launch method (LAUNCH_METHOD_TRAINED), ultralight kind (UL_TOWING) or aircraft type (UL_TYPE_BRIEFING); free text for other kinds
+          example: aerotow
+        issuedOn:
+          type: string
+          format: date
+        expiresOn:
+          type: string
+          format: date
+          description: Last day the privilege is valid; absent when it does not expire
+        notes:
+          type: string
+          maxLength: 1000
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LicencePrivilegeCreate:
+      type: object
+      required:
+        - kind
+      properties:
+        kind:
+          $ref: '#/components/schemas/LicencePrivilegeKind'
+        detail:
+          type: string
+          maxLength: 100
+          description: Required for LAUNCH_METHOD_TRAINED (a launch method), UL_TOWING (an ultralight kind) and UL_TYPE_BRIEFING (the aircraft type)
+        issuedOn:
+          type: string
+          format: date
+        expiresOn:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 1000
+
+    LicencePrivilegeUpdate:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/LicencePrivilegeKind'
+        detail:
+          type: [string, 'null']
+          maxLength: 100
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        issuedOn:
+          type: [string, 'null']
+          format: date
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        expiresOn:
+          type: [string, 'null']
+          format: date
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
 
     AircraftReminderKind:
       type: string
@@ -9865,6 +10104,62 @@ components:
             $ref: '#/components/schemas/PassengerCurrency'
         flightReview:
           $ref: '#/components/schemas/FlightReviewStatus'
+        privileges:
+          type: array
+          description: |
+            Currency of each privilege recorded on the pilot's licences
+            (`/licenses/{licenseId}/privileges`), in licence order, then kind. Absent when
+            the pilot has recorded none. See docs/SAILPLANES.md "Privileges".
+          items:
+            $ref: '#/components/schemas/PrivilegeCurrency'
+
+    PrivilegeCurrency:
+      type: object
+      required:
+        - privilegeId
+        - licenseId
+        - kind
+        - status
+        - messageKey
+      properties:
+        privilegeId:
+          type: string
+          format: uuid
+        licenseId:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/LicencePrivilegeKind'
+        detail:
+          type: string
+          description: The privilege's detail (launch method, ultralight kind, aircraft type)
+        status:
+          type: string
+          enum: [current, lapsed, expired, unknown]
+          description: |
+            - current: valid, and any recency rule of the privilege is met
+            - lapsed: a rolling recency rule (SFCL.205, SFCL.215, SFCL.360, 14 CFR 61.69,
+              DULV towing) is not met; the privilege is not exercisable until it is restored
+            - expired: past the privilege's `expiresOn`
+            - unknown: flight data could not be read
+        messageKey:
+          type: string
+          description: Stable key for client-side localisation; catalogued in docs/CURRENCY_MESSAGES.md.
+          example: "privilege.recency_current"
+        messageParams:
+          $ref: '#/components/schemas/MessageParams'
+        requirements:
+          type: array
+          description: |
+            Recency rows of the privilege. A row whose `messageKey` is
+            `requirement.untracked` is informational: NinerLog cannot count it and it never
+            changes `status`.
+          items:
+            $ref: '#/components/schemas/CurrencyRequirement'
+        ruleDescriptionKey:
+          type: string
+          description: Stable key for the applied rule (e.g. `sfcl_205_towing`, `faa_61_69_towing`)
+          example: "sfcl_205_towing"
 
     MessageParams:
       type: object
@@ -9984,6 +10279,15 @@ components:
           type: string
           description: Stable key for the passenger currency rule, for client-side localisation of ruleDescription
           example: "easa_pax"
+        requirements:
+          type: array
+          description: |
+            Informational prerequisites of carrying passengers that do not change `dayStatus`:
+            on SPL sailplane and TMG passenger currency the SFCL.115(a)(2) experience since
+            licence issue; on a German ultralight entry without a recorded passenger
+            authorisation, progress toward it (LuftPersV §84a). Absent otherwise.
+          items:
+            $ref: '#/components/schemas/CurrencyRequirement'
 
     FlightReviewStatus:
       type: object
@@ -10143,7 +10447,8 @@ components:
           type: array
           description: |
             Launch method recency per SFCL.155(c) — 5 launches per method in 24 months, 2 for bungee.
-            Lists every method the pilot has ever logged on the rating's class; TMG take-offs count
+            Lists every method the pilot has ever logged on the rating's class, and every method
+            with a LAUNCH_METHOD_TRAINED privilege on the rating's licence; TMG take-offs count
             toward self-launch.
           items:
             $ref: '#/components/schemas/LaunchMethodCurrency'
@@ -10213,6 +10518,12 @@ components:
         met:
           type: boolean
           description: Whether the requirement is met
+        trained:
+          type: boolean
+          description: |
+            Whether the pilot has recorded a LAUNCH_METHOD_TRAINED privilege for this method on
+            the rating's licence (SFCL.155(a)). A method with such a privilege is listed even
+            when never logged.
         messageKey:
           type: string
           description: Always `launch_method.progress`; the client renders launches/required/method.
@@ -11013,6 +11324,7 @@ components:
         - customReportsImported
         - aircraftRemindersImported
         - aircraftRemindersSkipped
+        - licencePrivilegesImported
         - notificationPreferencesImported
         - flightBaselineImported
         - pilotProfileImported
@@ -11078,6 +11390,10 @@ components:
             Aircraft reminders skipped because their aircraft is not in the
             backup or an identical reminder already exists on the aircraft
           example: 0
+        licencePrivilegesImported:
+          type: integer
+          description: Licence privileges restored onto their restored licences
+          example: 2
         notificationPreferencesImported:
           type: boolean
           description: Whether the backup carried notification preferences that were applied
@@ -11211,6 +11527,7 @@ components:
         - activeSessions
         - totalCustomReports
         - aircraftReminders
+        - licencePrivileges
         - cloudBackupDestinations
         - importsByFormat
         - pilotProfiles
@@ -11266,6 +11583,23 @@ components:
             overdue:
               type: integer
               description: Reminders whose due date is before today (UTC).
+        licencePrivileges:
+          type: object
+          description: Licence privileges across all users.
+          required:
+            - total
+            - byKind
+          properties:
+            total:
+              type: integer
+            byKind:
+              type: object
+              additionalProperties:
+                type: integer
+              description: Privileges grouped by kind. Kinds nobody has recorded are omitted.
+              example:
+                SAILPLANE_TOWING: 2
+                UL_PASSENGER_AUTH: 5
         cloudBackupDestinations:
           type: object
           description: Counts of user-configured cloud backup destinations.

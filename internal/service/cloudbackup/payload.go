@@ -36,11 +36,13 @@ type Payload struct {
 	PilotProfile *PilotProfile `json:"pilotProfile,omitempty"`
 }
 
-// LicenseWithRatings pairs a licence with its class ratings so a restore can
-// wire ratings to freshly minted licence IDs.
+// LicenseWithRatings pairs a licence with its class ratings and privileges so
+// a restore can wire them to freshly minted licence IDs.
 type LicenseWithRatings struct {
 	License      *models.License       `json:"license"`
 	ClassRatings []*models.ClassRating `json:"classRatings"`
+	// Privileges is omitted when the licence has none.
+	Privileges []*models.LicencePrivilege `json:"privileges,omitempty"`
 }
 
 // CustomCurrencyRule is the portable half of a user-authored currency rule.
