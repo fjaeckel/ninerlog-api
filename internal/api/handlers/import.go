@@ -1250,15 +1250,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 		if flight.SimulatedInstrumentTime != nil {
 			ifrTotal += *flight.SimulatedInstrumentTime
 		}
-		totalCap := 0
-		if *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
-			if m, err := calculateBlockTime(*flight.OffBlockTime, *flight.OnBlockTime); err == nil {
-				totalCap = m
-			}
-		}
-		if totalCap == 0 && flight.TotalTime != nil {
-			totalCap = *flight.TotalTime
-		}
+		totalCap := importTotalMinutes(flight)
 		if totalCap > 0 && ifrTotal > totalCap {
 			ifrTotal = totalCap
 		}
@@ -1295,12 +1287,7 @@ func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras
 	offBlock := safeStr(flight.OffBlockTime)
 	onBlock := safeStr(flight.OnBlockTime)
 
-	totalTime := 0
-	if offBlock != "" && onBlock != "" {
-		totalTime, _ = calculateBlockTime(offBlock, onBlock)
-	} else if flight.TotalTime != nil {
-		totalTime = *flight.TotalTime
-	}
+	totalTime := importTotalMinutes(flight)
 
 	flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
 
@@ -1469,6 +1456,26 @@ func sessionAuxColumns(session *uploadSession) map[string]importtemplate.AuxFiel
 		return nil
 	}
 	return tpl.AuxColumns(session.columns)
+}
+
+// importTotalMinutes returns an imported row's total time: the block span
+// when both block times parse, otherwise the row's total-time cell, otherwise
+// the take-off to landing span. Returns 0 when none is usable.
+func importTotalMinutes(f generated.FlightCreate) int {
+	if off, on := safeStr(f.OffBlockTime), safeStr(f.OnBlockTime); off != "" && on != "" {
+		if m, err := models.ClockSpanMinutes(off, on); err == nil {
+			return m
+		}
+	}
+	if f.TotalTime != nil {
+		return *f.TotalTime
+	}
+	if to, ldg := safeStr(f.DepartureTime), safeStr(f.ArrivalTime); to != "" && ldg != "" {
+		if m, err := models.ClockSpanMinutes(to, ldg); err == nil {
+			return m
+		}
+	}
+	return 0
 }
 
 // captureDateFromTimestamp records the date half of a time cell that carries a

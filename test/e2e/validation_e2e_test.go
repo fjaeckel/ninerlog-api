@@ -363,3 +363,68 @@ func TestExportContentVerification(t *testing.T) {
 		}
 	})
 }
+
+func TestFlightTimePairValidation(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("tm-rej"), "SecurePass123!", "Reject")
+
+	t.Run("take-off and landing without block times accepted", func(t *testing.T) {
+		r := c.POST("/flights", timeModelFlight(map[string]interface{}{
+			"departureTime": "08:10", "arrivalTime": "08:50",
+		}))
+		requireStatus(t, r, http.StatusCreated)
+	})
+
+	t.Run("block times without take-off and landing accepted", func(t *testing.T) {
+		r := c.POST("/flights", timeModelFlight(map[string]interface{}{
+			"offBlockTime": "08:00", "onBlockTime": "09:00",
+		}))
+		requireStatus(t, r, http.StatusCreated)
+	})
+
+	for _, field := range []string{"departureIcao", "arrivalIcao", "aircraftReg", "landings"} {
+		t.Run("missing "+field+" still rejected", func(t *testing.T) {
+			body := timeModelFlight(map[string]interface{}{"departureTime": "08:10", "arrivalTime": "08:50"})
+			delete(body, field)
+			r := c.POST("/flights", body)
+			assertStatus(t, r, http.StatusBadRequest)
+			assertErrorContains(t, r, "are required for a flight")
+		})
+	}
+
+	cases := []struct {
+		name  string
+		extra map[string]interface{}
+		want  string
+	}{
+		{"no times", map[string]interface{}{}, "offBlockTime and onBlockTime, or departureTime and arrivalTime, are required"},
+		{"lone off-block", map[string]interface{}{"offBlockTime": "08:00"}, "offBlockTime requires onBlockTime"},
+		{"lone on-block", map[string]interface{}{"onBlockTime": "09:00"}, "onBlockTime requires offBlockTime"},
+		{"lone take-off", map[string]interface{}{"departureTime": "08:10"}, "departureTime requires arrivalTime"},
+		{"lone landing", map[string]interface{}{"arrivalTime": "08:50"}, "arrivalTime requires departureTime"},
+		{"off-block with landing", map[string]interface{}{"offBlockTime": "08:00", "arrivalTime": "08:50"}, "offBlockTime requires onBlockTime"},
+		{"bad take-off format", map[string]interface{}{"departureTime": "nope", "arrivalTime": "08:50"}, "Invalid take-off/landing times format"},
+		{"identical take-off and landing", map[string]interface{}{"departureTime": "08:50", "arrivalTime": "08:50"}, "Invalid take-off/landing times format"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := c.POST("/flights", timeModelFlight(tc.extra))
+			assertStatus(t, r, http.StatusBadRequest)
+			assertErrorContains(t, r, tc.want)
+		})
+	}
+
+	t.Run("simulator session unchanged", func(t *testing.T) {
+		r := c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftType": "A320", "isSimulator": true,
+			"fstdType": "FFS A320", "simulatedFlightTime": 120,
+		})
+		requireStatus(t, r, http.StatusCreated)
+
+		r = c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftType": "A320", "isSimulator": true,
+			"fstdType": "FFS A320", "simulatedFlightTime": 120, "offBlockTime": "08:00",
+		})
+		assertStatus(t, r, http.StatusBadRequest)
+	})
+}

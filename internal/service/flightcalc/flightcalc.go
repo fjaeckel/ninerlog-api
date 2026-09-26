@@ -43,9 +43,9 @@ func ApplyAutoCalculations(flight *models.Flight, userName string, aircraft *fli
 		return
 	}
 
-	// A zero total is recovered from the block times; a non-zero one is kept.
+	// A zero total is recovered from the time pair; a non-zero one is kept.
 	if flight.TotalTime == 0 {
-		flight.TotalTime = blockMinutes(flight)
+		flight.TotalTime = pairMinutes(flight)
 	}
 
 	role := determineUserRole(flight, userName, aircraft)
@@ -179,18 +179,19 @@ func applyPassengerCalculations(flight *models.Flight) {
 	calculateDistance(flight)
 }
 
-// blockMinutes returns the off-block to on-block duration in minutes, or 0
-// when either block time is absent or unparseable. Times after midnight are
-// treated as the following day.
-func blockMinutes(flight *models.Flight) int {
-	if flight.OffBlockTime == nil || flight.OnBlockTime == nil {
+// pairMinutes returns the duration in minutes of the flight's time pair
+// (models.FlightClocks.Pair), or 0 when no pair is complete or parseable.
+// Times after midnight are treated as the following day.
+func pairMinutes(flight *models.Flight) int {
+	start, end, _, ok := models.ClocksOf(flight).Pair()
+	if !ok {
 		return 0
 	}
-	off, err := parseTimeOfDay(flight.Date, *flight.OffBlockTime)
+	off, err := parseTimeOfDay(flight.Date, start)
 	if err != nil {
 		return 0
 	}
-	on, err := parseTimeOfDay(flight.Date, *flight.OnBlockTime)
+	on, err := parseTimeOfDay(flight.Date, end)
 	if err != nil {
 		return 0
 	}
@@ -249,11 +250,11 @@ func calculatePICDual(flight *models.Flight, role userPilotRole) {
 	}
 }
 
-// calculateNightTime computes night time from the flight's off-block /
-// on-block times and the civil twilight boundaries at the departure airport.
-// Per ICAO / EASA, night is the period between the end of evening civil
-// twilight and the beginning of morning civil twilight. Block times are used
-// exclusively (not takeoff/landing times).
+// calculateNightTime computes night time over the flight's time pair
+// (off-block to on-block, else take-off to landing) against the civil
+// twilight boundaries at the departure airport. Per ICAO / EASA, night is the
+// period between the end of evening civil twilight and the beginning of
+// morning civil twilight.
 func calculateNightTime(flight *models.Flight) {
 	dep := normalizeICAO(flight.DepartureICAO)
 	if dep == "" {
@@ -266,10 +267,13 @@ func calculateNightTime(flight *models.Flight) {
 	}
 
 	in := instantsOf(flight)
-	if in.offBlock.IsZero() || in.onBlock.IsZero() {
+	depTime, arrTime := in.offBlock, in.onBlock
+	if depTime.IsZero() || arrTime.IsZero() {
+		depTime, arrTime = in.takeoff, in.landing
+	}
+	if depTime.IsZero() || arrTime.IsZero() {
 		return
 	}
-	depTime, arrTime := in.offBlock, in.onBlock
 
 	totalMinutes := arrTime.Sub(depTime).Minutes()
 	if totalMinutes <= 0 {

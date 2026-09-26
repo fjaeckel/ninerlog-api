@@ -341,8 +341,9 @@ func writeEASACSVWith(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 	for _, f := range flights {
 		dep := exportPlace(f.DepartureICAO)
 		arr := exportPlace(f.ArrivalICAO)
-		depTime := fmtTimeCSV(f.OffBlockTime)
-		arrTime := fmtTimeCSV(f.OnBlockTime)
+		depClock, arrClock := logbookClocks(f)
+		depTime := fmtTimeCSV(depClock)
+		arrTime := fmtTimeCSV(arrClock)
 		picName := flightrules.DisplayPICName(f, userName)
 
 		// SP-SE / SP-ME / MP from the centralised rule; acClass is empty
@@ -436,6 +437,13 @@ func exportPlace(s *string) string {
 		return ""
 	}
 	return airports.DisplayName(*s)
+}
+
+// logbookClocks returns the departure and arrival clock times a logbook row
+// prints (models.FlightClocks.LogbookClocks).
+func logbookClocks(f *models.Flight) (departure, arrival *string) {
+	d, a := models.ClocksOf(f).LogbookClocks()
+	return &d, &a
 }
 
 func fmtTimeCSV(s *string) string {
