@@ -2,7 +2,8 @@
 
 What NinerLog needs to know about gliders, self-launching sailplanes and touring motor
 gliders (TMGs): how to classify the aircraft, which EASA rules apply to their flights, and
-how the currency engine implements each point. The general engine design is in
+how the currency engine implements each point. FAA gliders are covered in
+[FAA gliders](#faa-gliders-14-cfr-part-61). The general engine design is in
 [DOMAIN.md](./DOMAIN.md#currency-engine).
 
 Source: Commission Implementing Regulation (EU) 2018/1976, Annex III (Part-SFCL), added by
@@ -216,3 +217,64 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
   not tracked.
 - "Solo under the supervision of an FI(S)" logged without PIC time (e.g. a student's SPIC
   column) is not counted toward the hour requirements.
+
+## FAA gliders (14 CFR Part 61)
+
+A glider rating under FAA rules has no recency rule of its own. Whether the pilot may act
+as PIC depends on the §61.56 flight review; whether they may carry passengers depends on
+§61.57(a). The two are reported separately, like every other FAA rating.
+
+### §61.56 flight review
+
+> (a) … a flight review consists of a minimum of 1 hour of flight training and 1 hour of
+> ground training. … (b) Glider pilots may substitute a minimum of three instructional
+> flights in a glider, each of which includes a flight to traffic pattern altitude, in lieu
+> of the 1 hour of flight training required in paragraph (a) of this section.
+
+A flight review is valid until the end of the 24th calendar month after the month it was
+completed in (§61.56(c)).
+
+### §61.57(a) passengers
+
+> … no person may act as a pilot in command of an aircraft carrying passengers … unless
+> that person has made at least three takeoffs and three landings within the preceding 90
+> days, and— (i) The person acted as the sole manipulator of the flight controls; and
+> (ii) The required takeoffs and landings were performed in an aircraft of the same
+> category, class, and type (if a type rating is required).
+
+§61.57(a) governs passengers only. It does not decide whether a glider pilot may fly solo.
+Night passenger currency (§61.57(b)) does not apply to gliders.
+
+### How NinerLog implements it
+
+Code: `internal/service/currency/faa.go` (`faaGliderRule`, `EvaluatePassengerCurrency`,
+`EvaluateFlightReview`). The glider rule applies to a `GLIDER` rating on any FAA licence
+and to every rating on an FAA `GLIDER` licence.
+
+| Rule | Where | Measured as | Classes |
+| --- | --- | --- | --- |
+| §61.56(a) | rating, `requirement.flight_review` | the latest flight flagged `isFlightReview`, on any class | all |
+| §61.56(b) | rating, `requirement.training_flights` ≥ 3 | flights with dual time since the first day of the calendar month 24 months ago | `GLIDER`, towed launches included |
+| §61.57(a) | passenger currency, `faa_glider` | landing days of flights with PIC time in the last 90 days | the rating's class, towed launches included |
+| §61.56 (per pilot) | `flightReview` | the latest `isFlightReview` flight | all |
+
+- The rating is `current` when the flight review is current or the §61.56(b) row is met;
+  otherwise it takes the flight review's status (`expiring`, `expired`), or `expired` with
+  `flight_review.none_on_record` when no review is logged. Its `ruleDescriptionKey` is
+  `faa_flight_review`; see [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md) for the keys.
+- Landings in the last 90 days never change the rating status.
+- "Sole manipulator of the controls" is approximated by PIC time: dual flights do not count
+  toward passenger currency.
+- Passenger currency for `GLIDER` never reports night privilege, on any FAA licence.
+- The top-level `flightReview` is per pilot and ignores the §61.56(b) alternative; a glider
+  rating can therefore be `current` while `flightReview` is `expired`.
+
+### Known gaps
+
+- The §61.56(b) alternative is inferred from dual flights only. The 1 hour of ground
+  training, the flight to traffic pattern altitude and the instructor's endorsement are not
+  recorded, and the alternative carries no expiry date.
+- The alternative counts all three flights in the window, so a set of flights straddling
+  its start is not recognised.
+- §61.69 glider and unpowered ultralight towing recency (three tows or three flights as
+  PIC of a towed glider in 24 calendar months) is not tracked.

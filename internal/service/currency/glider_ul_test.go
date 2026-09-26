@@ -26,6 +26,7 @@ func TestGliderULClass_RuleSelection(t *testing.T) {
 		{"EASA SPL TMG unchanged", "EASA", "SPL", models.ClassTypeTMG, &easaSPLTMGRule},
 		{"EASA PPL other unchanged", "EASA", "PPL", models.ClassTypeOther, &easaExpiryOnlyRule},
 		{"FAA private glider", "FAA", "PRIVATE", models.ClassTypeGlider, &faaGliderRule},
+		{"FAA glider licence legacy SEP rating", "FAA", "GLIDER", models.ClassTypeSEPLand, &faaGliderRule},
 		{"FAA private SEP unchanged", "FAA", "PRIVATE", models.ClassTypeSEPLand, &faaPassengerRatingRule},
 		{"FAA ultralight", "FAA", "PRIVATE", models.ClassTypeUL, &otherExpiryRule},
 		{"unknown authority glider", "", "SPL", models.ClassTypeGlider, &easaSPLRule},
@@ -152,7 +153,8 @@ func TestTowedFlights_IncludedOnlyForSailplaneRules(t *testing.T) {
 		{"EASA SPL legacy SEP", NewEASAEvaluator(), "SPL", models.ClassTypeSEPLand, true},
 		{"EASA PPL glider", NewEASAEvaluator(), "PPL", models.ClassTypeGlider, true},
 		{"FAA private SEP", NewFAAEvaluator(), "PRIVATE", models.ClassTypeSEPLand, false},
-		{"FAA glider licence", NewFAAEvaluator(), "GLIDER", models.ClassTypeSEPLand, true},
+		{"FAA glider licence", NewFAAEvaluator(), "GLIDER", models.ClassTypeGlider, true},
+		{"FAA private glider rating", NewFAAEvaluator(), "PRIVATE", models.ClassTypeGlider, true},
 		{"German UL", NewGermanULEvaluator(), "UL", models.ClassTypeUL, false},
 	}
 	for _, tt := range tests {
