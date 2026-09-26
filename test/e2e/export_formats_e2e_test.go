@@ -771,3 +771,177 @@ func TestExportPDFLicenceLogbook(t *testing.T) {
 		}
 	})
 }
+
+// TestExportDisciplineLogbooks covers the sailplane and ultralight PDF
+// layouts, their selection by licence, the standard CSV class columns and the
+// per-kind ultralight split of the stats-by-class report.
+func TestExportDisciplineLogbooks(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("pdf-discipline"), "SecurePass123!", "Lena Mehmet")
+
+	for _, ac := range []map[string]interface{}{
+		{"registration": "D-1234", "type": "ASK21", "make": "Schleicher", "model": "ASK 21", "aircraftClass": "GLIDER"},
+		{"registration": "D-MXYZ", "type": "C42", "make": "Comco Ikarus", "model": "C42", "aircraftClass": "ULTRALIGHT", "ulKind": "THREE_AXIS"},
+		{"registration": "D-MTRK", "type": "TRIKE", "make": "Air Creation", "model": "Tanarg", "aircraftClass": "ULTRALIGHT", "ulKind": "WEIGHT_SHIFT"},
+	} {
+		requireStatus(t, c.POST("/aircraft", ac), http.StatusCreated)
+	}
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": pastDate(3), "aircraftReg": "D-1234", "aircraftType": "ASK21",
+		"departureIcao": "EDST", "arrivalIcao": "EDST",
+		"departureTime": "10:00", "arrivalTime": "10:08", "landings": 1,
+		"launchMethod": "winch", "isOutlanding": true, "releaseHeightM": 400,
+		"remarks": "Thermik",
+	}), http.StatusCreated)
+	for _, f := range []struct {
+		reg, typ string
+		days     int
+	}{{"D-MXYZ", "C42", 2}, {"D-MXYZ", "C42", 1}, {"D-MTRK", "TRIKE", 1}} {
+		requireStatus(t, c.POST("/flights", map[string]interface{}{
+			"date": pastDate(f.days), "aircraftReg": f.reg, "aircraftType": f.typ,
+			"departureIcao": "UL-Platz Musterstadt", "arrivalIcao": "UL-Platz Musterstadt",
+			"offBlockTime": "09:00", "onBlockTime": "10:00", "landings": 2,
+		}), http.StatusCreated)
+	}
+	addLicence := func(authority, typ string, rating map[string]interface{}) string {
+		t.Helper()
+		resp := c.POST("/licenses", map[string]interface{}{
+			"regulatoryAuthority": authority, "licenseType": typ,
+			"licenseNumber": fmt.Sprintf("%s-%s-%d", authority, typ, time.Now().UnixNano()),
+			"issueDate":     "2020-01-01", "issuingAuthority": authority,
+		})
+		requireStatus(t, resp, http.StatusCreated)
+		var lic map[string]interface{}
+		resp.JSON(&lic)
+		id := lic["id"].(string)
+		rating["issueDate"] = "2020-01-01"
+		requireStatus(t, c.POST(fmt.Sprintf("/licenses/%s/ratings", id), rating), http.StatusCreated)
+		return id
+	}
+	spl := addLicence("EASA", "SPL", map[string]interface{}{"classType": "GLIDER"})
+	ul := addLicence("DULV", "UL", map[string]interface{}{"classType": "ULTRALIGHT", "ulKind": "THREE_AXIS"})
+
+	pdf := func(t *testing.T, query string) (string, string) {
+		t.Helper()
+		resp := c.GET("/exports/pdf?" + query)
+		requireStatus(t, resp, http.StatusOK)
+		return pdfStreamText(resp.Body), resp.Headers.Get("Content-Disposition")
+	}
+	check := func(t *testing.T, text string, want, absent []string) {
+		t.Helper()
+		for _, w := range want {
+			if !strings.Contains(text, w) {
+				t.Errorf("PDF lacks %q", w)
+			}
+		}
+		for _, a := range absent {
+			if strings.Contains(text, a) {
+				t.Errorf("PDF contains %q", a)
+			}
+		}
+	}
+
+	t.Run("L5 SPL licence logbook prints the sailplane layout", func(t *testing.T) {
+		text, disp := pdf(t, "logbookLicenseId="+spl)
+		check(t, text,
+			[]string{"Part-SFCL", "(METHOD)", "(LAUNCHES)", "(Winch)", "(10:00)", "(10:08)", "Thermik [Outlanding] [Release 400 m]"},
+			[]string{"MULTI-PILOT", "SINGLE-PILOT", "IFR", "[Launch: winch]", "D-MXYZ"})
+		if !strings.Contains(disp, "ninerlog_sailplane_") {
+			t.Errorf("Content-Disposition = %q", disp)
+		}
+	})
+
+	t.Run("L5 sailplane layout selectable by hand", func(t *testing.T) {
+		text, _ := pdf(t, "format=sailplane")
+		check(t, text, []string{"Part-SFCL", "(LAUNCHES)", "(D-1234)", "(D-MXYZ)"}, []string{"MULTI-PILOT"})
+	})
+
+	t.Run("A2 easa keeps the launch marker for the SPL licence when asked", func(t *testing.T) {
+		text, _ := pdf(t, "format=easa&layout=single&logbookLicenseId="+spl)
+		check(t, text, []string{"MULTI-PILOT", "[Launch: winch]"}, []string{"Part-SFCL"})
+	})
+
+	t.Run("M DULV licence logbook prints the ultralight layout with kind", func(t *testing.T) {
+		text, disp := pdf(t, "logbookLicenseId="+ul)
+		check(t, text,
+			[]string{"(UL KIND)", "(Three-axis)", "(D-MXYZ)", "(UL-Platz Musterstadt)"},
+			[]string{"MULTI-PILOT", "IFR", "NIGHT", "D-MTRK", "D-1234"})
+		if !strings.Contains(disp, "ninerlog_ultralight_") {
+			t.Errorf("Content-Disposition = %q", disp)
+		}
+	})
+
+	t.Run("A2 no licence and no format stays EASA", func(t *testing.T) {
+		text, _ := pdf(t, "layout=single")
+		check(t, text, []string{"MULTI-PILOT", "FCL.050"}, []string{"Part-SFCL", "UL KIND"})
+	})
+
+	t.Run("M standard CSV carries aircraft class and UL kind", func(t *testing.T) {
+		resp := c.GET("/exports/csv")
+		requireStatus(t, resp, http.StatusOK)
+		lines := strings.Split(strings.TrimSpace(string(resp.Body)), "\n")
+		if !strings.HasSuffix(strings.TrimSpace(lines[0]), ",AircraftClass,ULKind") {
+			t.Fatalf("header = %q", lines[0])
+		}
+		seen := map[string]bool{}
+		for _, l := range lines[1:] {
+			l = strings.TrimSpace(l)
+			switch {
+			case strings.Contains(l, "D-MXYZ"):
+				seen["mxyz"] = strings.HasSuffix(l, ",ULTRALIGHT,THREE_AXIS")
+			case strings.Contains(l, "D-MTRK"):
+				seen["mtrk"] = strings.HasSuffix(l, ",ULTRALIGHT,WEIGHT_SHIFT")
+			case strings.Contains(l, "D-1234"):
+				seen["glider"] = strings.HasSuffix(l, ",GLIDER,")
+			}
+		}
+		for _, k := range []string{"mxyz", "mtrk", "glider"} {
+			if !seen[k] {
+				t.Errorf("%s row lacks its class/kind cells:\n%s", k, resp.Body)
+			}
+		}
+	})
+
+	t.Run("S1 stats-by-class splits ultralight time by kind", func(t *testing.T) {
+		resp := c.GET("/reports/stats-by-class?months=0")
+		requireStatus(t, resp, http.StatusOK)
+		var r struct {
+			ByClass []struct {
+				Class    string `json:"class"`
+				Minutes  int    `json:"minutes"`
+				ByULKind []struct {
+					ULKind  *string `json:"ulKind"`
+					Flights int     `json:"flights"`
+					Minutes int     `json:"minutes"`
+				} `json:"byUlKind"`
+			} `json:"byClass"`
+		}
+		if err := resp.JSON(&r); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, row := range r.ByClass {
+			switch row.Class {
+			case "ULTRALIGHT":
+				found = true
+				if row.Minutes != 180 || len(row.ByULKind) != 2 {
+					t.Fatalf("ULTRALIGHT row = %+v", row)
+				}
+				first, second := row.ByULKind[0], row.ByULKind[1]
+				if first.ULKind == nil || *first.ULKind != "THREE_AXIS" || first.Minutes != 120 || first.Flights != 2 {
+					t.Errorf("first kind = %+v", first)
+				}
+				if second.ULKind == nil || *second.ULKind != "WEIGHT_SHIFT" || second.Minutes != 60 {
+					t.Errorf("second kind = %+v", second)
+				}
+			default:
+				if row.ByULKind != nil {
+					t.Errorf("%s carries a UL kind split", row.Class)
+				}
+			}
+		}
+		if !found {
+			t.Error("no ULTRALIGHT row")
+		}
+	})
+}

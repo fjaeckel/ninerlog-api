@@ -35,9 +35,9 @@ func TestExport_TimeModelClocks(t *testing.T) {
 			"Dep Time", "Arr Time", [][2]string{{"10:05", "10:47"}, {"08:00", "09:30"}}},
 		{"weblogbook", func(w *csv.Writer) { writeWebLogbookCSV(w, flights, "Pilot") },
 			"Departure Time", "Arrival Time", [][2]string{{"1005", "1047"}, {"0800", "0930"}}},
-		{"standard keeps block columns empty", func(w *csv.Writer) { writeStandardCSV(w, flights, exportPrefs{}) },
+		{"standard keeps block columns empty", func(w *csv.Writer) { writeStandardCSV(w, flights, exportPrefs{}, nil) },
 			"TimeOut", "TimeIn", [][2]string{{"", ""}, {"08:00:00", "09:30:00"}}},
-		{"standard take-off/landing columns", func(w *csv.Writer) { writeStandardCSV(w, flights, exportPrefs{}) },
+		{"standard take-off/landing columns", func(w *csv.Writer) { writeStandardCSV(w, flights, exportPrefs{}, nil) },
 			"TimeOff", "TimeOn", [][2]string{{"10:05:00", "10:47:00"}, {"08:10:00", "09:20:00"}}},
 	}
 	for _, tt := range tests {

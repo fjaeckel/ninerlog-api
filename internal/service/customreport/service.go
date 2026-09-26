@@ -331,10 +331,6 @@ func Label(groupBy, key string) string {
 		if _, err := fmt.Sscanf(key, "%d", &d); err == nil && d >= 1 && d <= 7 {
 			return weekdays[d-1]
 		}
-	case models.ReportGroupDeparture, models.ReportGroupArrival:
-		return airports.DisplayName(key)
-	case models.ReportGroupRoute:
-		return routeLabel(key)
 	case models.ReportGroupLaunchMethod:
 		if l, ok := launchMethodLabels[key]; ok {
 			return l
@@ -343,6 +339,10 @@ func Label(groupBy, key string) string {
 		if l, ok := ulKindLabels[key]; ok {
 			return l
 		}
+	case models.ReportGroupDeparture, models.ReportGroupArrival:
+		return airports.DisplayName(key)
+	case models.ReportGroupRoute:
+		return routeLabel(key)
 	}
 	return key
 }

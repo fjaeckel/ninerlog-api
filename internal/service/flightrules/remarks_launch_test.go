@@ -62,3 +62,28 @@ func TestLaunchRemarkRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func TestSailplaneRemarks(t *testing.T) {
+	s := func(v string) *string { return &v }
+	h := func(v int) *int { return &v }
+	tests := []struct {
+		name string
+		f    *models.Flight
+		want string
+	}{
+		{"L5 launch method has its own column", &models.Flight{Remarks: s("Thermik"), LaunchMethod: s("winch")}, "Thermik"},
+		{"outlanding marker", &models.Flight{Remarks: s("Feld bei Aalen"), IsOutlanding: true}, "Feld bei Aalen [Outlanding]"},
+		{"release height", &models.Flight{LaunchMethod: s("aerotow"), ReleaseHeightM: h(600)}, "[Release 600 m]"},
+		{"function time, outlanding, release", &models.Flight{SPICTime: 12, IsOutlanding: true, ReleaseHeightM: h(400)}, "[SPIC 0:12] [Outlanding] [Release 400 m]"},
+		{"endorsement kept", &models.Flight{Endorsements: s("FI(S) Hans"), LaunchMethod: s("winch")}, "FI(S) Hans"},
+		{"empty", &models.Flight{}, ""},
+		{"nil", nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SailplaneRemarks(tt.f); got != tt.want {
+				t.Errorf("SailplaneRemarks = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

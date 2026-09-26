@@ -57,7 +57,7 @@ func TestStandardCSV_KeepsLocalIdentifier(t *testing.T) {
 	flights := []*models.Flight{{ID: uuid.New(), Date: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
 		AircraftReg: "D-MABC", AircraftType: "C42", TotalTime: 60, DepartureICAO: &dep, ArrivalICAO: &arr}}
 	records := renderCSV(t, func(w *csv.Writer) {
-		writeStandardCSV(w, flights, exportPrefs{DateFormat: "YYYY-MM-DD", DecimalSeparator: "dot"})
+		writeStandardCSV(w, flights, exportPrefs{DateFormat: "YYYY-MM-DD", DecimalSeparator: "dot"}, nil)
 	})
 
 	for col, want := range map[string]string{"From": "DE-0249", "To": "US-0002"} {

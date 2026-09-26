@@ -224,12 +224,12 @@ func TestStrictExportCSVColumns(t *testing.T) {
 	marks := &csvCorrections{lastCorrectedAt: map[uuid.UUID]time.Time{flights[1].ID: corrected}, prefs: prefs}
 
 	write := map[string]func(w *csv.Writer, m *csvCorrections){
-		"standard": func(w *csv.Writer, m *csvCorrections) { writeStandardCSVWith(w, flights, prefs, m) },
+		"standard": func(w *csv.Writer, m *csvCorrections) { writeStandardCSVWith(w, flights, prefs, nil, m) },
 		"easa":     func(w *csv.Writer, m *csvCorrections) { writeEASACSVWith(w, flights, prefs, "Pilot", m) },
 		"faa":      func(w *csv.Writer, m *csvCorrections) { writeFAACSVWith(w, flights, prefs, m) },
 	}
 	plainWriters := map[string]func(w *csv.Writer){
-		"standard": func(w *csv.Writer) { writeStandardCSV(w, flights, prefs) },
+		"standard": func(w *csv.Writer) { writeStandardCSV(w, flights, prefs, nil) },
 		"easa":     func(w *csv.Writer) { writeEASACSV(w, flights, prefs, "Pilot") },
 		"faa":      func(w *csv.Writer) { writeFAACSV(w, flights, prefs) },
 	}

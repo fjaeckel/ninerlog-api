@@ -112,23 +112,36 @@ func (h *APIHandler) GetStatsByClass(c *gin.Context, params generated.GetStatsBy
 	}
 
 	type ClassStat struct {
-		Class       string `json:"class"`
-		Flights     int    `json:"flights"`
-		Minutes     int    `json:"minutes"`
-		PICMinutes  int    `json:"picMinutes"`
-		DualMinutes int    `json:"dualMinutes"`
-		Landings    int    `json:"landings"`
+		Class       string                      `json:"class"`
+		Flights     int                         `json:"flights"`
+		Minutes     int                         `json:"minutes"`
+		PICMinutes  int                         `json:"picMinutes"`
+		DualMinutes int                         `json:"dualMinutes"`
+		Landings    int                         `json:"landings"`
+		ByULKind    []generated.ClassStatULKind `json:"byUlKind,omitempty"`
 	}
 	var byClass []ClassStat
 	for _, row := range classRows {
-		byClass = append(byClass, ClassStat{
+		cs := ClassStat{
 			Class:       row.Class,
 			Flights:     row.Flights,
 			Minutes:     row.Minutes,
 			PICMinutes:  row.PICMinutes,
 			DualMinutes: row.DualMinutes,
 			Landings:    row.Landings,
-		})
+		}
+		for _, k := range row.ULKinds {
+			item := generated.ClassStatULKind{
+				Flights: k.Flights, Minutes: k.Minutes,
+				PicMinutes: k.PICMinutes, DualMinutes: k.DualMinutes, Landings: k.Landings,
+			}
+			if k.ULKind != nil {
+				v := generated.ClassStatULKindUlKind(*k.ULKind)
+				item.UlKind = &v
+			}
+			cs.ByULKind = append(cs.ByULKind, item)
+		}
+		byClass = append(byClass, cs)
 	}
 	if byClass == nil {
 		byClass = []ClassStat{}
