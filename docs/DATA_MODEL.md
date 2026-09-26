@@ -333,6 +333,10 @@ user cascades it away.
   the account already stores on another flight (lookups by `(user_id, sha256)`).
 - At most 5 files per flight, counted and inserted in one transaction holding
   `SELECT … FOR UPDATE` on the flight row, which also proves the flight belongs to the user.
+- Unlike `document_files` (scans of licences and credentials, exempt from the JSON backup),
+  flight files travel in it (`FlightFiles`, gzip + base64): an IGC file is the evidence behind
+  a logged flight, small (at most 5 MB, usually well under 1 MB), and a logbook moved to
+  another installation without it would lose the flight's recorded track.
 - Exported in the JSON backup as `flightFiles` (gzip, base64) and restored onto the restored
   flight. Nothing derived from the file (take-off, launch method, distance) is stored here;
   the flight carries what the import wrote into it.
