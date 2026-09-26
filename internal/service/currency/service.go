@@ -88,12 +88,17 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 				continue
 			}
 			passengerKey := string(cr.ClassType) + ":" + license.RegulatoryAuthority
+			if cr.ClassType == models.ClassTypeUL {
+				passengerKey += ":" + string(ratingULKind(cr))
+			}
 			if seenPassengerClasses[passengerKey] {
 				continue
 			}
 			seenPassengerClasses[passengerKey] = true
 
-			if paxEval, ok := eval.(PassengerCurrencyEvaluator); ok {
+			if paxEval, ok := eval.(RatingPassengerCurrencyEvaluator); ok {
+				passengerCurrency = append(passengerCurrency, paxEval.EvaluateRatingPassengerCurrency(ctx, cr, license, classRatings, s.flightData))
+			} else if paxEval, ok := eval.(PassengerCurrencyEvaluator); ok {
 				pax := paxEval.EvaluatePassengerCurrency(ctx, cr.ClassType, license, classRatings, s.flightData)
 				passengerCurrency = append(passengerCurrency, pax)
 			}

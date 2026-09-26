@@ -165,8 +165,22 @@ type ratingRule struct {
 	classOverride models.ClassType
 	countsTowed   bool
 	classGroup    func(rating *models.ClassRating, peers []*models.ClassRating) []models.ClassType
-	baseReqs      []reqSpec
-	finalize      func(ctx context.Context, rt *ratingRuntime)
+	// classesNoDual drops dual time on the rule's classes from the total.
+	classesNoDual bool
+	// ulCredit returns the ultralight flights the rule counts beside its
+	// classes, or nil for none.
+	ulCredit func(rating *models.ClassRating, classes []models.ClassType) *ulCredit
+	baseReqs []reqSpec
+	finalize func(ctx context.Context, rt *ratingRuntime)
+}
+
+// ulCredit declares ultralight flights a rule counts beside its classes.
+type ulCredit struct {
+	sel ULSelector
+	// native marks the rating's own aircraft: their dual time and proficiency
+	// checks count. Otherwise only time and landings are credited.
+	native      bool
+	countsTowed bool
 }
 
 // ratingRuntime carries the per-evaluation state threaded through the engine
@@ -177,19 +191,84 @@ type ratingRuntime struct {
 	license  *models.License
 	peers    []*models.ClassRating
 	classes  []models.ClassType
+	ul       *ulCredit
 	dp       FlightDataProvider
 	result   *ClassRatingCurrency
 	progress *Progress
 	since    time.Time
 }
 
-// fetchProgress aggregates flight data for the runtime's window and scope.
+// fetchProgress aggregates flight data for the runtime's window and scope,
+// adding the rule's ultralight credit.
 func (rt *ratingRuntime) fetchProgress(ctx context.Context) (*Progress, error) {
 	if rt.rule.scope == scopeAll {
 		return rt.dp.GetProgressAll(ctx, rt.license.UserID, rt.since)
 	}
-	includeTowed := rt.rule.scope != scopeByClassOverride && includeTowedFlights(rt.rating.ClassType, rt.rule.countsTowed)
-	return rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.classes, includeTowed, rt.since)
+	total := &Progress{}
+	if len(rt.classes) > 0 {
+		includeTowed := rt.rule.scope != scopeByClassOverride && includeTowedFlights(rt.rating.ClassType, rt.rule.countsTowed)
+		p, err := rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, rt.classes, includeTowed, rt.since)
+		if err != nil {
+			return nil, err
+		}
+		addProgress(total, p, !rt.rule.classesNoDual)
+	}
+	if rt.ul != nil {
+		p, err := rt.dp.GetProgressByULKind(ctx, rt.license.UserID, rt.ul.sel, rt.ul.countsTowed, rt.since)
+		if err != nil {
+			return nil, err
+		}
+		addProgress(total, p, rt.ul.native)
+	}
+	return total, nil
+}
+
+// addProgress adds p to total, with p's dual time only when withDual is true.
+func addProgress(total, p *Progress, withDual bool) {
+	if p == nil {
+		return
+	}
+	total.Flights += p.Flights
+	total.TotalMinutes += p.TotalMinutes
+	total.PICMinutes += p.PICMinutes
+	total.IFRMinutes += p.IFRMinutes
+	if withDual {
+		total.InstructorMinutes += p.InstructorMinutes
+	}
+	total.NightMinutes += p.NightMinutes
+	total.Landings += p.Landings
+	total.DayLandings += p.DayLandings
+	total.NightLandings += p.NightLandings
+	total.Approaches += p.Approaches
+	total.Holds += p.Holds
+	total.Launches += p.Launches
+	if withDual {
+		total.TrainingFlights += p.TrainingFlights
+		total.LongestTrainingFlightMinutes = max(total.LongestTrainingFlightMinutes, p.LongestTrainingFlightMinutes)
+	}
+}
+
+// lastProficiencyCheck returns the latest proficiency check in the window on
+// the rule's classes or its native ultralights.
+func (rt *ratingRuntime) lastProficiencyCheck(ctx context.Context) (*time.Time, error) {
+	var latest *time.Time
+	if len(rt.classes) > 0 {
+		d, err := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, rt.classes, rt.since)
+		if err != nil {
+			return nil, err
+		}
+		latest = d
+	}
+	if rt.ul != nil && rt.ul.native {
+		d, err := rt.dp.GetLastProficiencyCheckByULKind(ctx, rt.license.UserID, rt.ul.sel, rt.since)
+		if err != nil {
+			return nil, err
+		}
+		if d != nil && (latest == nil || d.After(*latest)) {
+			latest = d
+		}
+	}
+	return latest, nil
 }
 
 // resolveClasses returns the aircraft classes a rule counts for a rating; nil means all classes.
@@ -239,8 +318,15 @@ func evalRatingRuleWithPeers(ctx context.Context, rule *ratingRule, rating *mode
 	if len(classes) > 1 {
 		result.CountedClasses = classes
 	}
+	var ul *ulCredit
+	if rule.ulCredit != nil {
+		ul = rule.ulCredit(rating, classes)
+	}
+	if ul != nil {
+		result.CreditedULKinds = ul.sel.Kinds
+	}
 
-	rt := &ratingRuntime{rule: rule, rating: rating, license: license, peers: peers, classes: classes, dp: dp, result: &result}
+	rt := &ratingRuntime{rule: rule, rating: rating, license: license, peers: peers, classes: classes, ul: ul, dp: dp, result: &result}
 	rule.finalize(ctx, rt)
 	return result
 }

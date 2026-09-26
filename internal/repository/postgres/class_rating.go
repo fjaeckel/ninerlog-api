@@ -21,24 +21,24 @@ func NewClassRatingRepository(db *sql.DB) *ClassRatingRepository {
 
 func (r *ClassRatingRepository) Create(ctx context.Context, cr *models.ClassRating) error {
 	query := `
-		INSERT INTO class_ratings (id, license_id, class_type, issue_date, expiry_date, notes, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO class_ratings (id, license_id, class_type, ul_kind, issue_date, expiry_date, notes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	cr.ID = uuid.New()
 	now := time.Now()
 	cr.CreatedAt = now
 	cr.UpdatedAt = now
 	_, err := r.db.ExecContext(ctx, query,
-		cr.ID, cr.LicenseID, cr.ClassType, cr.IssueDate, cr.ExpiryDate, cr.Notes, cr.CreatedAt, cr.UpdatedAt,
+		cr.ID, cr.LicenseID, cr.ClassType, cr.ULKind, cr.IssueDate, cr.ExpiryDate, cr.Notes, cr.CreatedAt, cr.UpdatedAt,
 	)
 	return err
 }
 
 func (r *ClassRatingRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.ClassRating, error) {
-	query := `SELECT id, license_id, class_type, issue_date, expiry_date, notes, created_at, updated_at FROM class_ratings WHERE id = $1`
+	query := `SELECT id, license_id, class_type, ul_kind, issue_date, expiry_date, notes, created_at, updated_at FROM class_ratings WHERE id = $1`
 	cr := &models.ClassRating{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&cr.ID, &cr.LicenseID, &cr.ClassType, &cr.IssueDate, &cr.ExpiryDate, &cr.Notes, &cr.CreatedAt, &cr.UpdatedAt,
+		&cr.ID, &cr.LicenseID, &cr.ClassType, &cr.ULKind, &cr.IssueDate, &cr.ExpiryDate, &cr.Notes, &cr.CreatedAt, &cr.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
@@ -50,7 +50,7 @@ func (r *ClassRatingRepository) GetByID(ctx context.Context, id uuid.UUID) (*mod
 }
 
 func (r *ClassRatingRepository) GetByLicenseID(ctx context.Context, licenseID uuid.UUID) ([]*models.ClassRating, error) {
-	query := `SELECT id, license_id, class_type, issue_date, expiry_date, notes, created_at, updated_at FROM class_ratings WHERE license_id = $1 ORDER BY class_type`
+	query := `SELECT id, license_id, class_type, ul_kind, issue_date, expiry_date, notes, created_at, updated_at FROM class_ratings WHERE license_id = $1 ORDER BY class_type`
 	rows, err := r.db.QueryContext(ctx, query, licenseID)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (r *ClassRatingRepository) GetByLicenseID(ctx context.Context, licenseID uu
 	var ratings []*models.ClassRating
 	for rows.Next() {
 		cr := &models.ClassRating{}
-		if err := rows.Scan(&cr.ID, &cr.LicenseID, &cr.ClassType, &cr.IssueDate, &cr.ExpiryDate, &cr.Notes, &cr.CreatedAt, &cr.UpdatedAt); err != nil {
+		if err := rows.Scan(&cr.ID, &cr.LicenseID, &cr.ClassType, &cr.ULKind, &cr.IssueDate, &cr.ExpiryDate, &cr.Notes, &cr.CreatedAt, &cr.UpdatedAt); err != nil {
 			return nil, err
 		}
 		ratings = append(ratings, cr)
@@ -68,9 +68,9 @@ func (r *ClassRatingRepository) GetByLicenseID(ctx context.Context, licenseID uu
 }
 
 func (r *ClassRatingRepository) Update(ctx context.Context, cr *models.ClassRating) error {
-	query := `UPDATE class_ratings SET issue_date = $1, expiry_date = $2, notes = $3, updated_at = $4 WHERE id = $5`
+	query := `UPDATE class_ratings SET issue_date = $1, expiry_date = $2, notes = $3, ul_kind = $4, updated_at = $5 WHERE id = $6`
 	cr.UpdatedAt = time.Now()
-	result, err := r.db.ExecContext(ctx, query, cr.IssueDate, cr.ExpiryDate, cr.Notes, cr.UpdatedAt, cr.ID)
+	result, err := r.db.ExecContext(ctx, query, cr.IssueDate, cr.ExpiryDate, cr.Notes, cr.ULKind, cr.UpdatedAt, cr.ID)
 	if err != nil {
 		return err
 	}

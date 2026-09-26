@@ -51,6 +51,72 @@ func (e AdminConfigUnverifiedCleanupDisabledReason) Valid() bool {
 	}
 }
 
+// Defines values for AircraftUlKind.
+const (
+	AircraftUlKindGYROPLANE            AircraftUlKind = "GYROPLANE"
+	AircraftUlKindHELICOPTER           AircraftUlKind = "HELICOPTER"
+	AircraftUlKindPOWEREDPARAGLIDER    AircraftUlKind = "POWERED_PARAGLIDER"
+	AircraftUlKindSAILPLANE            AircraftUlKind = "SAILPLANE"
+	AircraftUlKindTHREEAXIS            AircraftUlKind = "THREE_AXIS"
+	AircraftUlKindTHREEAXISMOTORGLIDER AircraftUlKind = "THREE_AXIS_MOTORGLIDER"
+	AircraftUlKindWEIGHTSHIFT          AircraftUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the AircraftUlKind enum.
+func (e AircraftUlKind) Valid() bool {
+	switch e {
+	case AircraftUlKindGYROPLANE:
+		return true
+	case AircraftUlKindHELICOPTER:
+		return true
+	case AircraftUlKindPOWEREDPARAGLIDER:
+		return true
+	case AircraftUlKindSAILPLANE:
+		return true
+	case AircraftUlKindTHREEAXIS:
+		return true
+	case AircraftUlKindTHREEAXISMOTORGLIDER:
+		return true
+	case AircraftUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AircraftCreateUlKind.
+const (
+	AircraftCreateUlKindGYROPLANE            AircraftCreateUlKind = "GYROPLANE"
+	AircraftCreateUlKindHELICOPTER           AircraftCreateUlKind = "HELICOPTER"
+	AircraftCreateUlKindPOWEREDPARAGLIDER    AircraftCreateUlKind = "POWERED_PARAGLIDER"
+	AircraftCreateUlKindSAILPLANE            AircraftCreateUlKind = "SAILPLANE"
+	AircraftCreateUlKindTHREEAXIS            AircraftCreateUlKind = "THREE_AXIS"
+	AircraftCreateUlKindTHREEAXISMOTORGLIDER AircraftCreateUlKind = "THREE_AXIS_MOTORGLIDER"
+	AircraftCreateUlKindWEIGHTSHIFT          AircraftCreateUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the AircraftCreateUlKind enum.
+func (e AircraftCreateUlKind) Valid() bool {
+	switch e {
+	case AircraftCreateUlKindGYROPLANE:
+		return true
+	case AircraftCreateUlKindHELICOPTER:
+		return true
+	case AircraftCreateUlKindPOWEREDPARAGLIDER:
+		return true
+	case AircraftCreateUlKindSAILPLANE:
+		return true
+	case AircraftCreateUlKindTHREEAXIS:
+		return true
+	case AircraftCreateUlKindTHREEAXISMOTORGLIDER:
+		return true
+	case AircraftCreateUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnnouncementSeverity.
 const (
 	AnnouncementSeverityCritical AnnouncementSeverity = "critical"
@@ -249,6 +315,99 @@ func (e BackupStatus) Valid() bool {
 	case BackupStatusError:
 		return true
 	case BackupStatusPaused:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ClassRatingUlKind.
+const (
+	ClassRatingUlKindGYROPLANE         ClassRatingUlKind = "GYROPLANE"
+	ClassRatingUlKindHELICOPTER        ClassRatingUlKind = "HELICOPTER"
+	ClassRatingUlKindPOWEREDPARAGLIDER ClassRatingUlKind = "POWERED_PARAGLIDER"
+	ClassRatingUlKindSAILPLANE         ClassRatingUlKind = "SAILPLANE"
+	ClassRatingUlKindTHREEAXIS         ClassRatingUlKind = "THREE_AXIS"
+	ClassRatingUlKindWEIGHTSHIFT       ClassRatingUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ClassRatingUlKind enum.
+func (e ClassRatingUlKind) Valid() bool {
+	switch e {
+	case ClassRatingUlKindGYROPLANE:
+		return true
+	case ClassRatingUlKindHELICOPTER:
+		return true
+	case ClassRatingUlKindPOWEREDPARAGLIDER:
+		return true
+	case ClassRatingUlKindSAILPLANE:
+		return true
+	case ClassRatingUlKindTHREEAXIS:
+		return true
+	case ClassRatingUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ClassRatingCreateUlKind.
+const (
+	ClassRatingCreateUlKindGYROPLANE         ClassRatingCreateUlKind = "GYROPLANE"
+	ClassRatingCreateUlKindHELICOPTER        ClassRatingCreateUlKind = "HELICOPTER"
+	ClassRatingCreateUlKindPOWEREDPARAGLIDER ClassRatingCreateUlKind = "POWERED_PARAGLIDER"
+	ClassRatingCreateUlKindSAILPLANE         ClassRatingCreateUlKind = "SAILPLANE"
+	ClassRatingCreateUlKindTHREEAXIS         ClassRatingCreateUlKind = "THREE_AXIS"
+	ClassRatingCreateUlKindWEIGHTSHIFT       ClassRatingCreateUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ClassRatingCreateUlKind enum.
+func (e ClassRatingCreateUlKind) Valid() bool {
+	switch e {
+	case ClassRatingCreateUlKindGYROPLANE:
+		return true
+	case ClassRatingCreateUlKindHELICOPTER:
+		return true
+	case ClassRatingCreateUlKindPOWEREDPARAGLIDER:
+		return true
+	case ClassRatingCreateUlKindSAILPLANE:
+		return true
+	case ClassRatingCreateUlKindTHREEAXIS:
+		return true
+	case ClassRatingCreateUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ClassRatingCurrencyCreditedUltralightKinds.
+const (
+	ClassRatingCurrencyCreditedUltralightKindsGYROPLANE            ClassRatingCurrencyCreditedUltralightKinds = "GYROPLANE"
+	ClassRatingCurrencyCreditedUltralightKindsHELICOPTER           ClassRatingCurrencyCreditedUltralightKinds = "HELICOPTER"
+	ClassRatingCurrencyCreditedUltralightKindsPOWEREDPARAGLIDER    ClassRatingCurrencyCreditedUltralightKinds = "POWERED_PARAGLIDER"
+	ClassRatingCurrencyCreditedUltralightKindsSAILPLANE            ClassRatingCurrencyCreditedUltralightKinds = "SAILPLANE"
+	ClassRatingCurrencyCreditedUltralightKindsTHREEAXIS            ClassRatingCurrencyCreditedUltralightKinds = "THREE_AXIS"
+	ClassRatingCurrencyCreditedUltralightKindsTHREEAXISMOTORGLIDER ClassRatingCurrencyCreditedUltralightKinds = "THREE_AXIS_MOTORGLIDER"
+	ClassRatingCurrencyCreditedUltralightKindsWEIGHTSHIFT          ClassRatingCurrencyCreditedUltralightKinds = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ClassRatingCurrencyCreditedUltralightKinds enum.
+func (e ClassRatingCurrencyCreditedUltralightKinds) Valid() bool {
+	switch e {
+	case ClassRatingCurrencyCreditedUltralightKindsGYROPLANE:
+		return true
+	case ClassRatingCurrencyCreditedUltralightKindsHELICOPTER:
+		return true
+	case ClassRatingCurrencyCreditedUltralightKindsPOWEREDPARAGLIDER:
+		return true
+	case ClassRatingCurrencyCreditedUltralightKindsSAILPLANE:
+		return true
+	case ClassRatingCurrencyCreditedUltralightKindsTHREEAXIS:
+		return true
+	case ClassRatingCurrencyCreditedUltralightKindsTHREEAXISMOTORGLIDER:
+		return true
+	case ClassRatingCurrencyCreditedUltralightKindsWEIGHTSHIFT:
 		return true
 	default:
 		return false
@@ -1404,6 +1563,36 @@ func (e PassengerCurrencyNightStatus) Valid() bool {
 	}
 }
 
+// Defines values for PassengerCurrencyUlKind.
+const (
+	PassengerCurrencyUlKindGYROPLANE         PassengerCurrencyUlKind = "GYROPLANE"
+	PassengerCurrencyUlKindHELICOPTER        PassengerCurrencyUlKind = "HELICOPTER"
+	PassengerCurrencyUlKindPOWEREDPARAGLIDER PassengerCurrencyUlKind = "POWERED_PARAGLIDER"
+	PassengerCurrencyUlKindSAILPLANE         PassengerCurrencyUlKind = "SAILPLANE"
+	PassengerCurrencyUlKindTHREEAXIS         PassengerCurrencyUlKind = "THREE_AXIS"
+	PassengerCurrencyUlKindWEIGHTSHIFT       PassengerCurrencyUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the PassengerCurrencyUlKind enum.
+func (e PassengerCurrencyUlKind) Valid() bool {
+	switch e {
+	case PassengerCurrencyUlKindGYROPLANE:
+		return true
+	case PassengerCurrencyUlKindHELICOPTER:
+		return true
+	case PassengerCurrencyUlKindPOWEREDPARAGLIDER:
+		return true
+	case PassengerCurrencyUlKindSAILPLANE:
+		return true
+	case PassengerCurrencyUlKindTHREEAXIS:
+		return true
+	case PassengerCurrencyUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PublicSignatureInfoStatus.
 const (
 	PublicSignatureInfoStatusPending PublicSignatureInfoStatus = "pending"
@@ -2345,12 +2534,43 @@ type Aircraft struct {
 	// Example: C172
 	Type string `json:"type"`
 
+	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+	// - WEIGHT_SHIFT: weight-shift controlled trike
+	// - GYROPLANE: ultralight gyroplane
+	// - HELICOPTER: ultralight helicopter
+	// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+	// - SAILPLANE: ultralight sailplane
+	// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+	//
+	//
+	// Example: THREE_AXIS
+	UlKind *AircraftUlKind `json:"ulKind,omitempty"`
+
 	// UpdatedAt Example: 2026-02-01T14:30:00Z
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
 	UserId openapi_types.UUID `json:"userId"`
 }
+
+// AircraftUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+// ULTRALIGHT and cleared otherwise; null means unspecified.
+// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+// - WEIGHT_SHIFT: weight-shift controlled trike
+// - GYROPLANE: ultralight gyroplane
+// - HELICOPTER: ultralight helicopter
+// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+// - SAILPLANE: ultralight sailplane
+// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+//
+// Example: THREE_AXIS
+type AircraftUlKind string
 
 // AircraftCreate defines model for AircraftCreate.
 type AircraftCreate struct {
@@ -2405,7 +2625,38 @@ type AircraftCreate struct {
 	//
 	// Example: C172
 	Type string `json:"type"`
+
+	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+	// - WEIGHT_SHIFT: weight-shift controlled trike
+	// - GYROPLANE: ultralight gyroplane
+	// - HELICOPTER: ultralight helicopter
+	// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+	// - SAILPLANE: ultralight sailplane
+	// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+	//
+	//
+	// Example: THREE_AXIS
+	UlKind *AircraftCreateUlKind `json:"ulKind,omitempty"`
 }
+
+// AircraftCreateUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+// ULTRALIGHT and cleared otherwise; null means unspecified.
+// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+// - WEIGHT_SHIFT: weight-shift controlled trike
+// - GYROPLANE: ultralight gyroplane
+// - HELICOPTER: ultralight helicopter
+// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+// - SAILPLANE: ultralight sailplane
+// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+//
+// Example: THREE_AXIS
+type AircraftCreateUlKind string
 
 // AircraftStats defines model for AircraftStats.
 type AircraftStats struct {
@@ -2556,6 +2807,22 @@ type AircraftUpdate struct {
 
 	// Type Example: C172
 	Type *string `json:"type,omitempty"`
+
+	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+	// - WEIGHT_SHIFT: weight-shift controlled trike
+	// - GYROPLANE: ultralight gyroplane
+	// - HELICOPTER: ultralight helicopter
+	// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+	// - SAILPLANE: ultralight sailplane
+	// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+	//
+	//
+	// Example: THREE_AXIS
+	UlKind nullable.Nullable[string] `json:"ulKind,omitempty"`
 }
 
 // Airport defines model for Airport.
@@ -3242,7 +3509,7 @@ type ClassRating struct {
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
 	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
-	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
 	ClassType ClassType `json:"classType"`
 	CreatedAt time.Time `json:"createdAt"`
 
@@ -3257,9 +3524,26 @@ type ClassRating struct {
 	LicenseId openapi_types.UUID `json:"licenseId"`
 
 	// Notes Optional notes about this rating
-	Notes     *string   `json:"notes,omitempty"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Notes *string `json:"notes,omitempty"`
+
+	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
+	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
+	//
+	//
+	// Example: THREE_AXIS
+	UlKind    *ClassRatingUlKind `json:"ulKind,omitempty"`
+	UpdatedAt time.Time          `json:"updatedAt"`
 }
+
+// ClassRatingUlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
+// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
+// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
+//
+// Example: THREE_AXIS
+type ClassRatingUlKind string
 
 // ClassRatingCreate defines model for ClassRatingCreate.
 type ClassRatingCreate struct {
@@ -3271,12 +3555,24 @@ type ClassRatingCreate struct {
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
 	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
-	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
 	ClassType  ClassType           `json:"classType"`
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
 	IssueDate  openapi_types.Date  `json:"issueDate"`
 	Notes      *string             `json:"notes,omitempty"`
+
+	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
+	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
+	UlKind *ClassRatingCreateUlKind `json:"ulKind,omitempty"`
 }
+
+// ClassRatingCreateUlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
+// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
+// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
+type ClassRatingCreateUlKind string
 
 // ClassRatingCurrency defines model for ClassRatingCurrency.
 type ClassRatingCurrency struct {
@@ -3290,7 +3586,7 @@ type ClassRatingCurrency struct {
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
 	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
-	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
 	ClassType ClassType `json:"classType"`
 
 	// CountedClasses Aircraft classes whose flights count toward this rating, present only when that is more
@@ -3302,6 +3598,15 @@ type ClassRatingCurrency struct {
 	//
 	// Example: ["SEP_LAND","TMG"]
 	CountedClasses *[]ClassType `json:"countedClasses,omitempty"`
+
+	// CreditedUltralightKinds Ultralight kinds whose flights also count toward this rating, present only when any do.
+	// EASA LAPL(A) recency and SEP/TMG revalidation credit THREE_AXIS (as SEP_LAND) and
+	// THREE_AXIS_MOTORGLIDER (as TMG) hours and landings, never their dual time
+	// (FCL.035(a)(4)). A German ultralight rating lists the kinds it covers.
+	//
+	//
+	// Example: ["THREE_AXIS"]
+	CreditedUltralightKinds *[]ClassRatingCurrencyCreditedUltralightKinds `json:"creditedUltralightKinds,omitempty"`
 
 	// ExpiryDate Class rating expiry date
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
@@ -3407,6 +3712,9 @@ type ClassRatingCurrency struct {
 	WindowOpensAt *openapi_types.Date `json:"windowOpensAt,omitempty"`
 }
 
+// ClassRatingCurrencyCreditedUltralightKinds defines model for ClassRatingCurrency.CreditedUltralightKinds.
+type ClassRatingCurrencyCreditedUltralightKinds string
+
 // ClassRatingCurrencyStatus Currency status:
 // - current: All requirements met
 // - expiring: Rating expiry approaching (within 90 days)
@@ -3419,6 +3727,12 @@ type ClassRatingUpdate struct {
 	ExpiryDate nullable.Nullable[openapi_types.Date] `json:"expiryDate,omitempty"`
 	IssueDate  *openapi_types.Date                   `json:"issueDate,omitempty"`
 	Notes      nullable.Nullable[string]             `json:"notes,omitempty"`
+
+	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
+	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
+	UlKind nullable.Nullable[string] `json:"ulKind,omitempty"`
 }
 
 // ClassType Aircraft class rating type:
@@ -3429,7 +3743,7 @@ type ClassRatingUpdate struct {
 // - IR: Instrument Rating
 // - OTHER: Other rating type
 // - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
-// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
+// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
 type ClassType string
 
 // CompleteSignatureRequest defines model for CompleteSignatureRequest.
@@ -5979,7 +6293,7 @@ type PassengerCurrency struct {
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
 	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
-	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
 	ClassType ClassType `json:"classType"`
 
 	// DayExpiresOn Last date the day requirement stays met if the pilot does not fly again — the oldest landing still needed to reach dayRequired, plus 90 days (inclusive). Absent when the day requirement is not currently met.
@@ -6039,6 +6353,11 @@ type PassengerCurrency struct {
 	//
 	// Example: easa_pax
 	RuleDescriptionKey *string `json:"ruleDescriptionKey,omitempty"`
+
+	// UlKind Ultralight kind this entry covers, present only for a German ULTRALIGHT rating.
+	// LuftPersV §45a passenger recency counts landings in an ultralight of the same kind,
+	// so there is one entry per kind.
+	UlKind *PassengerCurrencyUlKind `json:"ulKind,omitempty"`
 }
 
 // PassengerCurrencyDayStatus Day passenger currency status
@@ -6046,6 +6365,11 @@ type PassengerCurrencyDayStatus string
 
 // PassengerCurrencyNightStatus Night passenger currency status
 type PassengerCurrencyNightStatus string
+
+// PassengerCurrencyUlKind Ultralight kind this entry covers, present only for a German ULTRALIGHT rating.
+// LuftPersV §45a passenger recency counts landings in an ultralight of the same kind,
+// so there is one entry per kind.
+type PassengerCurrencyUlKind string
 
 // PublicSignatureInfo Deliberately minimal — no owner PII beyond the flight's own logged details.
 type PublicSignatureInfo struct {

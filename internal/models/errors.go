@@ -25,5 +25,6 @@ var (
 	ErrAircraftTypeRequired         = errors.New("aircraft type is required")
 	ErrAircraftMakeRequired         = errors.New("aircraft make is required")
 	ErrAircraftModelRequired        = errors.New("aircraft model is required")
+	ErrInvalidULKind                = errors.New("invalid ultralight kind")
 	ErrAircraftInvalidEngineType    = errors.New("invalid engine type")
 )

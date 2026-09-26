@@ -35,3 +35,29 @@ func hasClass(ratings []*models.ClassRating, ct models.ClassType) bool {
 	}
 	return false
 }
+
+// easaAnnexICredit returns the ultralights credited toward the rule's classes
+// under FCL.035(a)(4): THREE_AXIS as SEP_LAND and THREE_AXIS_MOTORGLIDER as
+// TMG, time and landings only.
+func easaAnnexICredit(_ *models.ClassRating, classes []models.ClassType) *ulCredit {
+	var kinds []models.ULKind
+	for _, k := range models.ValidAircraftULKinds() {
+		if ct, ok := k.PartFCLClass(); ok && containsClass(classes, ct) {
+			kinds = append(kinds, k)
+		}
+	}
+	if len(kinds) == 0 {
+		return nil
+	}
+	return &ulCredit{sel: ULSelector{Kinds: kinds}}
+}
+
+// containsClass reports whether classes contains ct.
+func containsClass(classes []models.ClassType, ct models.ClassType) bool {
+	for _, c := range classes {
+		if c == ct {
+			return true
+		}
+	}
+	return false
+}

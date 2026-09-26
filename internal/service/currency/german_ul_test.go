@@ -3,6 +3,7 @@ package currency
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
@@ -10,91 +11,250 @@ import (
 
 // ── German UL Evaluator Tests (LuftPersV §45) ──────────────────────────
 
-func TestGermanUL_Current(t *testing.T) {
-	eval := NewGermanULEvaluator()
-	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120, Flights: 12,
+func ulKindPtr(k models.ULKind) *models.ULKind { return &k }
+
+func ulRating(kind *models.ULKind) *models.ClassRating {
+	return &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeUL, ULKind: kind, LicenseID: uuid.New()}
+}
+
+func ulLicense(rating *models.ClassRating, authority string) *models.License {
+	return &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: authority, LicenseType: "UL"}
+}
+
+func reqByKey(reqs []Requirement, key string) *Requirement {
+	for i := range reqs {
+		if reqs[i].NameKey == key {
+			return &reqs[i]
+		}
 	}
+	return nil
+}
 
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "LBA", LicenseType: "UL"}
+func TestGermanUL_ThreeAxis_Current(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	dp.progressByUL = map[models.ULKind]*Progress{
+		models.ULKindThreeAxis: {TotalMinutes: 900, PICMinutes: 600, Landings: 20, InstructorMinutes: 120, Flights: 12},
+	}
+	rating := ulRating(ulKindPtr(models.ULKindThreeAxis))
 
-	result := eval.Evaluate(context.Background(), rating, license, dp)
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "LBA"), dp)
 	if result.Status != StatusCurrent {
 		t.Errorf("Status = %s, want current", result.Status)
 	}
-	if len(result.Requirements) != 3 {
-		t.Fatalf("Expected 3 requirements, got %d", len(result.Requirements))
+	if result.RuleDescriptionKey != "ul_luftpersv" {
+		t.Errorf("RuleDescriptionKey = %q, want ul_luftpersv", result.RuleDescriptionKey)
+	}
+	for _, key := range []string{ReqKeyTotalTime, ReqKeyPICTime, ReqKeyLandings, ReqKeyTrainingFlight} {
+		if r := reqByKey(result.Requirements, key); r == nil || !r.Met {
+			t.Errorf("requirement %q = %+v, want met", key, r)
+		}
+	}
+	if r := reqByKey(result.Requirements, ReqKeyProficiencyCheck); r == nil || r.Met {
+		t.Errorf("proficiency check = %+v, want listed and not met", r)
+	}
+	if len(result.CountedClasses) != 2 {
+		t.Errorf("CountedClasses = %v, want [SEP_LAND TMG]", result.CountedClasses)
+	}
+	if len(result.CreditedULKinds) != 2 {
+		t.Errorf("CreditedULKinds = %v, want [THREE_AXIS THREE_AXIS_MOTORGLIDER]", result.CreditedULKinds)
+	}
+}
+
+func TestGermanUL_UnsetKindIsThreeAxis(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	rating := ulRating(nil)
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "DULV"), dp)
+	if result.RuleDescriptionKey != "ul_luftpersv" {
+		t.Errorf("RuleDescriptionKey = %q, want ul_luftpersv", result.RuleDescriptionKey)
+	}
+	if dp.lastULSel == nil || !dp.lastULSel.IncludeUnspecified {
+		t.Errorf("UL selector = %+v, want unspecified aircraft included", dp.lastULSel)
+	}
+}
+
+func TestGermanUL_ThreeAxis_PICRequired(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	dp.progressByUL = map[models.ULKind]*Progress{
+		models.ULKindThreeAxis: {TotalMinutes: 900, PICMinutes: 300, Landings: 20, InstructorMinutes: 120},
+	}
+	rating := ulRating(ulKindPtr(models.ULKindThreeAxis))
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "LBA"), dp)
+	if result.Status != StatusExpiring {
+		t.Errorf("Status = %s, want expiring (5h PIC < 6h)", result.Status)
+	}
+}
+
+func TestGermanUL_ThreeAxis_SEPAndTMGTimeCounts(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 480, PICMinutes: 480, Landings: 8, InstructorMinutes: 300}
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 120, PICMinutes: 120, Landings: 2}
+	dp.progressByUL = map[models.ULKind]*Progress{
+		models.ULKindThreeAxisMotorglider: {TotalMinutes: 120, Landings: 2, InstructorMinutes: 60},
+	}
+	rating := ulRating(ulKindPtr(models.ULKindThreeAxis))
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "LBA"), dp)
+	if result.Status != StatusCurrent {
+		t.Errorf("Status = %s, want current", result.Status)
+	}
+	if result.Progress.TotalMinutes != 720 || result.Progress.Landings != 12 {
+		t.Errorf("Progress = %+v, want 720 min and 12 landings pooled", result.Progress)
+	}
+	if result.Progress.InstructorMinutes != 60 {
+		t.Errorf("InstructorMinutes = %d, want 60 (SEP/TMG dual excluded)", result.Progress.InstructorMinutes)
+	}
+}
+
+func TestGermanUL_ThreeAxis_DualOnSEPDoesNotCount(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 900, PICMinutes: 600, Landings: 20, InstructorMinutes: 120}
+	rating := ulRating(ulKindPtr(models.ULKindThreeAxis))
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "LBA"), dp)
+	if result.Status != StatusExpiring {
+		t.Errorf("Status = %s, want expiring (training flight must be on a UL)", result.Status)
+	}
+	if r := reqByKey(result.Requirements, ReqKeyTrainingFlight); r == nil || r.Met {
+		t.Errorf("training flight = %+v, want not met", r)
+	}
+}
+
+func TestGermanUL_ProficiencyCheckReplacesExperience(t *testing.T) {
+	check := time.Now().AddDate(0, -3, 0)
+	dp := newMockFlightDataProvider()
+	dp.ulProfCheck = &check
+	rating := ulRating(ulKindPtr(models.ULKindThreeAxis))
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "LBA"), dp)
+	if result.Status != StatusCurrent {
+		t.Errorf("Status = %s, want current (proficiency check)", result.Status)
+	}
+	if r := reqByKey(result.Requirements, ReqKeyProficiencyCheck); r == nil || !r.Met {
+		t.Errorf("proficiency check = %+v, want met", r)
+	}
+}
+
+func TestGermanUL_ProficiencyCheckOnSEPCountsForThreeAxis(t *testing.T) {
+	check := time.Now().AddDate(0, -1, 0)
+	dp := newMockFlightDataProvider()
+	dp.lastProficiencyCheck = &check
+	rating := ulRating(ulKindPtr(models.ULKindThreeAxis))
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "LBA"), dp)
+	if result.Status != StatusCurrent {
+		t.Errorf("Status = %s, want current (check in SEP/TMG, §45(3))", result.Status)
+	}
+}
+
+func TestGermanUL_Gyroplane_OnlyGyroTimeCounts(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 900, PICMinutes: 900, Landings: 30, InstructorMinutes: 120}
+	dp.progressByUL = map[models.ULKind]*Progress{
+		models.ULKindThreeAxis: {TotalMinutes: 900, PICMinutes: 900, Landings: 30, InstructorMinutes: 120},
+		models.ULKindGyroplane: {TotalMinutes: 240, PICMinutes: 240, Landings: 4},
+	}
+	rating := ulRating(ulKindPtr(models.ULKindGyroplane))
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "DULV"), dp)
+	if result.RuleDescriptionKey != "ul_gyroplane" {
+		t.Errorf("RuleDescriptionKey = %q, want ul_gyroplane", result.RuleDescriptionKey)
+	}
+	if result.Progress.TotalMinutes != 240 {
+		t.Errorf("TotalMinutes = %d, want 240 (gyroplane only)", result.Progress.TotalMinutes)
+	}
+	if result.Status != StatusExpiring {
+		t.Errorf("Status = %s, want expiring", result.Status)
+	}
+	if result.CountedClasses != nil {
+		t.Errorf("CountedClasses = %v, want none", result.CountedClasses)
+	}
+}
+
+func TestGermanUL_KindRules(t *testing.T) {
+	tests := []struct {
+		name      string
+		kind      models.ULKind
+		authority string
+		progress  Progress
+		wantKey   string
+		wantReqs  int
+		want      Status
+	}{
+		{"helicopter current", models.ULKindHelicopter, "DULV", Progress{TotalMinutes: 360, Landings: 6, InstructorMinutes: 60}, "ul_luftpersv_helicopter", 4, StatusCurrent},
+		{"helicopter short", models.ULKindHelicopter, "DULV", Progress{TotalMinutes: 300, Landings: 6, InstructorMinutes: 60}, "ul_luftpersv_helicopter", 4, StatusExpiring},
+		{"trike DULV PIC", models.ULKindWeightShift, "DULV", Progress{TotalMinutes: 900, PICMinutes: 720}, "ul_trike_dulv", 1, StatusCurrent},
+		{"trike LBA dual only", models.ULKindWeightShift, "LBA", Progress{TotalMinutes: 900, PICMinutes: 0, Landings: 20}, "ul_trike_dulv", 1, StatusExpiring},
+		{"trike DAeC", models.ULKindWeightShift, "DAeC", Progress{TotalMinutes: 720, Landings: 12}, "ul_trike_daec", 2, StatusCurrent},
+		{"powered paraglider", models.ULKindPoweredParaglider, "DULV", Progress{Landings: 30}, "ul_powered_paraglider", 1, StatusCurrent},
+		{"powered paraglider short", models.ULKindPoweredParaglider, "DULV", Progress{Landings: 29}, "ul_powered_paraglider", 1, StatusExpiring},
+		{"UL sailplane", models.ULKindSailplane, "DAeC", Progress{Landings: 5}, "ul_sailplane", 1, StatusCurrent},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dp := newMockFlightDataProvider()
+			p := tt.progress
+			dp.progressByUL = map[models.ULKind]*Progress{tt.kind: &p}
+			rating := ulRating(ulKindPtr(tt.kind))
+
+			result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, tt.authority), dp)
+			if result.RuleDescriptionKey != tt.wantKey {
+				t.Errorf("RuleDescriptionKey = %q, want %q", result.RuleDescriptionKey, tt.wantKey)
+			}
+			if len(result.Requirements) != tt.wantReqs {
+				t.Errorf("requirements = %d, want %d", len(result.Requirements), tt.wantReqs)
+			}
+			if result.Status != tt.want {
+				t.Errorf("Status = %s, want %s", result.Status, tt.want)
+			}
+		})
+	}
+}
+
+func TestGermanUL_SailplaneCountsTowedLaunches(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	rating := ulRating(ulKindPtr(models.ULKindSailplane))
+	NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "DAeC"), dp)
+	if !dp.lastULTowed {
+		t.Error("UL sailplane recency should count winch and aerotow launches")
+	}
+}
+
+func TestGermanUL_NonULRatingDelegatesToEASA(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New(), ExpiryDate: futureDate(6)}
+	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "LBA", LicenseType: "PPL"}
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, license, dp)
+	if result.RuleDescriptionKey != "easa_sep_tmg" {
+		t.Errorf("RuleDescriptionKey = %q, want easa_sep_tmg", result.RuleDescriptionKey)
+	}
+}
+
+func TestGermanUL_ZeroActivity(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	rating := ulRating(ulKindPtr(models.ULKindThreeAxis))
+
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "LBA"), dp)
+	if result.Status != StatusExpiring {
+		t.Errorf("Status = %s, want expiring (zero activity)", result.Status)
 	}
 	for _, req := range result.Requirements {
-		if !req.Met {
-			t.Errorf("Requirement %q not met", req.NameKey)
+		if req.Met {
+			t.Errorf("Requirement %q should NOT be met with zero activity", req.NameKey)
 		}
 	}
 }
 
-func TestGermanUL_InsufficientHours(t *testing.T) {
-	eval := NewGermanULEvaluator()
+func TestGermanUL_EvaluationFailed(t *testing.T) {
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalMinutes: 300, Landings: 20, InstructorMinutes: 120,
-	}
+	dp.progressErr = context.DeadlineExceeded
+	rating := ulRating(ulKindPtr(models.ULKindGyroplane))
 
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "DULV", LicenseType: "UL"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
-	if result.Status != StatusExpiring {
-		t.Errorf("Status = %s, want expiring (insufficient hours)", result.Status)
-	}
-}
-
-func TestGermanUL_InsufficientLandings(t *testing.T) {
-	eval := NewGermanULEvaluator()
-	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalMinutes: 900, Landings: 5, InstructorMinutes: 120,
-	}
-
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "DAeC", LicenseType: "UL"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
-	if result.Status != StatusExpiring {
-		t.Errorf("Status = %s, want expiring (insufficient landings)", result.Status)
-	}
-}
-
-func TestGermanUL_NoInstructorMinutes(t *testing.T) {
-	eval := NewGermanULEvaluator()
-	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalMinutes: 900, Landings: 20, InstructorMinutes: 0,
-	}
-
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "LBA", LicenseType: "UL"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
-	if result.Status != StatusExpiring {
-		t.Errorf("Status = %s, want expiring (no instructor)", result.Status)
-	}
-}
-
-func TestGermanUL_RuleDescription(t *testing.T) {
-	eval := NewGermanULEvaluator()
-	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120,
-	}
-
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "LBA", LicenseType: "UL"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
-	if result.RuleDescription == "" {
-		t.Error("RuleDescription should not be empty")
+	result := NewGermanULEvaluator().Evaluate(context.Background(), rating, ulLicense(rating, "LBA"), dp)
+	if result.Status != StatusUnknown || result.MessageKey != MsgRatingEvaluationFailed {
+		t.Errorf("Status = %s, MessageKey = %s, want unknown / evaluation failed", result.Status, result.MessageKey)
 	}
 }
 
@@ -106,18 +266,14 @@ func TestGermanUL_Authorities(t *testing.T) {
 	}
 }
 
-// ── German UL Passenger Currency Tests ──────────────────────────────────
+// ── German UL Passenger Currency Tests (§45a) ───────────────────────────
 
 func TestGermanUL_PassengerCurrency_Current(t *testing.T) {
-	eval := NewGermanULEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		Landings: 5, NightLandings: 0,
-	}
+	dp.progressByClass[models.ClassTypeUL] = &Progress{Landings: 5}
+	rating := ulRating(nil)
 
-	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "LBA", LicenseType: "UL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
-
+	result := NewGermanULEvaluator().EvaluateRatingPassengerCurrency(context.Background(), rating, ulLicense(rating, "LBA"), nil, dp)
 	if result.DayStatus != StatusCurrent {
 		t.Errorf("DayStatus = %s, want current", result.DayStatus)
 	}
@@ -127,20 +283,46 @@ func TestGermanUL_PassengerCurrency_Current(t *testing.T) {
 	if result.NightRequired != 0 {
 		t.Errorf("NightRequired = %d, want 0", result.NightRequired)
 	}
+	if result.ULKind == nil || *result.ULKind != models.ULKindThreeAxis {
+		t.Errorf("ULKind = %v, want THREE_AXIS", result.ULKind)
+	}
+}
+
+func TestGermanUL_PassengerCurrency_SameKindOnly(t *testing.T) {
+	yesterday := truncateDay(time.Now().AddDate(0, 0, -1))
+	dp := newMockFlightDataProvider()
+	dp.landingDaysByUL = map[models.ULKind][]LandingDay{
+		models.ULKindThreeAxis: {{Date: yesterday, DayLandings: 5}},
+		models.ULKindGyroplane: {{Date: yesterday, DayLandings: 1}},
+	}
+	rating := ulRating(ulKindPtr(models.ULKindGyroplane))
+
+	result := NewGermanULEvaluator().EvaluateRatingPassengerCurrency(context.Background(), rating, ulLicense(rating, "DULV"), nil, dp)
+	if result.DayStatus != StatusExpired || result.DayLandings != 1 {
+		t.Errorf("DayStatus = %s, landings = %d, want expired with 1 gyroplane landing", result.DayStatus, result.DayLandings)
+	}
 }
 
 func TestGermanUL_PassengerCurrency_NotCurrent(t *testing.T) {
-	eval := NewGermanULEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		Landings: 1,
-	}
+	dp.progressByClass[models.ClassTypeUL] = &Progress{Landings: 1}
 
 	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "DULV", LicenseType: "UL"}
-	result := eval.EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
-
+	result := NewGermanULEvaluator().EvaluatePassengerCurrency(context.Background(), models.ClassTypeUL, license, nil, dp)
 	if result.DayStatus != StatusExpired {
 		t.Errorf("DayStatus = %s, want expired", result.DayStatus)
+	}
+}
+
+func TestGermanUL_PassengerCurrency_NonULDelegatesToEASA(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "LBA", LicenseType: "PPL"}
+	result := NewGermanULEvaluator().EvaluatePassengerCurrency(context.Background(), models.ClassTypeSEPLand, license, nil, dp)
+	if result.RuleDescriptionKey == "ul_pax" {
+		t.Errorf("SEP_LAND passenger currency on an LBA PPL used the UL rule")
+	}
+	if result.ULKind != nil {
+		t.Errorf("ULKind = %v, want nil", result.ULKind)
 	}
 }
 
@@ -180,34 +362,34 @@ func TestRegistryRegisterMulti_DoesNotAffectOthers(t *testing.T) {
 
 // ── Service Integration with German UL ──────────────────────────────────
 
-func TestService_GermanUL_Integration(t *testing.T) {
-	licRepo := newMockLicenseRepo()
-	crRepo := newMockCRRepo()
-	dp := newMockFlightDataProvider()
-
+func newULService(licRepo *mockLicenseRepo, crRepo *mockCRRepo, dp *mockFlightDataProvider) *Service {
 	reg := NewRegistry()
 	reg.Register(NewEASAEvaluator())
 	reg.Register(NewFAAEvaluator())
 	ulEval := NewGermanULEvaluator()
 	reg.RegisterMulti(ulEval, ulEval.Authorities()...)
+	return NewService(reg, licRepo, crRepo, dp)
+}
+
+func TestService_GermanUL_Integration(t *testing.T) {
+	licRepo := newMockLicenseRepo()
+	crRepo := newMockCRRepo()
+	dp := newMockFlightDataProvider()
 
 	userID := uuid.New()
 	lic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: "DULV", LicenseType: "UL"}
 	licRepo.licenses[lic.ID] = lic
 	crRepo.ratings[lic.ID] = []*models.ClassRating{
-		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeSEPLand},
+		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeUL},
 	}
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120, Flights: 12,
+	dp.progressByClass[models.ClassTypeUL] = &Progress{
+		TotalMinutes: 900, PICMinutes: 600, Landings: 20, InstructorMinutes: 120, Flights: 12,
 	}
 
-	svc := NewService(reg, licRepo, crRepo, dp)
-	result, err := svc.EvaluateAll(context.Background(), userID)
+	result, err := newULService(licRepo, crRepo, dp).EvaluateAll(context.Background(), userID)
 	if err != nil {
 		t.Fatalf("EvaluateAll() error = %v", err)
 	}
-
-	// Tier 1: UL rating currency
 	if len(result.Ratings) != 1 {
 		t.Fatalf("Expected 1 rating, got %d", len(result.Ratings))
 	}
@@ -217,18 +399,36 @@ func TestService_GermanUL_Integration(t *testing.T) {
 	if result.Ratings[0].RegulatoryAuthority != "DULV" {
 		t.Errorf("Authority = %s, want DULV", result.Ratings[0].RegulatoryAuthority)
 	}
-
-	// Tier 2: UL passenger currency
 	if len(result.PassengerCurrency) != 1 {
 		t.Fatalf("Expected 1 passenger currency, got %d", len(result.PassengerCurrency))
 	}
 	if result.PassengerCurrency[0].NightPrivilege {
 		t.Error("UL passenger currency should have NightPrivilege=false")
 	}
-
-	// No flight review for UL
 	if result.FlightReview != nil {
 		t.Error("UL should not have flight review")
+	}
+}
+
+func TestService_GermanUL_PassengerPerKind(t *testing.T) {
+	licRepo := newMockLicenseRepo()
+	crRepo := newMockCRRepo()
+	dp := newMockFlightDataProvider()
+
+	userID := uuid.New()
+	lic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: "DULV", LicenseType: "UL"}
+	licRepo.licenses[lic.ID] = lic
+	crRepo.ratings[lic.ID] = []*models.ClassRating{
+		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeUL, ULKind: ulKindPtr(models.ULKindThreeAxis)},
+		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeUL, ULKind: ulKindPtr(models.ULKindGyroplane)},
+	}
+
+	result, err := newULService(licRepo, crRepo, dp).EvaluateAll(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("EvaluateAll() error = %v", err)
+	}
+	if len(result.PassengerCurrency) != 2 {
+		t.Fatalf("Expected one passenger currency per UL kind, got %d", len(result.PassengerCurrency))
 	}
 }
 
@@ -242,27 +442,6 @@ func TestHasNightPrivilege_ULAuthorities(t *testing.T) {
 	}
 }
 
-// ── German UL with zero activity ────────────────────────────────────────
-
-func TestGermanUL_ZeroActivity(t *testing.T) {
-	eval := NewGermanULEvaluator()
-	dp := newMockFlightDataProvider()
-
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "LBA", LicenseType: "UL"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
-	if result.Status != StatusExpiring {
-		t.Errorf("Status = %s, want expiring (zero activity)", result.Status)
-	}
-	// All 3 requirements should be not met
-	for _, req := range result.Requirements {
-		if req.Met {
-			t.Errorf("Requirement %q should NOT be met with zero activity", req.NameKey)
-		}
-	}
-}
-
 // ── Mixed Authorities with UL ───────────────────────────────────────────
 
 func TestService_MixedAuthorities_WithUL(t *testing.T) {
@@ -270,49 +449,36 @@ func TestService_MixedAuthorities_WithUL(t *testing.T) {
 	crRepo := newMockCRRepo()
 	dp := newMockFlightDataProvider()
 
-	reg := NewRegistry()
-	reg.Register(NewEASAEvaluator())
-	ulEval := NewGermanULEvaluator()
-	reg.RegisterMulti(ulEval, ulEval.Authorities()...)
-
 	userID := uuid.New()
 
-	// EASA PPL
 	easaLic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: "EASA", LicenseType: "PPL"}
 	licRepo.licenses[easaLic.ID] = easaLic
 	crRepo.ratings[easaLic.ID] = []*models.ClassRating{
 		{ID: uuid.New(), LicenseID: easaLic.ID, ClassType: models.ClassTypeSEPLand, ExpiryDate: futureDate(12)},
 	}
 
-	// German UL
 	ulLic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: "LBA", LicenseType: "UL"}
 	licRepo.licenses[ulLic.ID] = ulLic
 	crRepo.ratings[ulLic.ID] = []*models.ClassRating{
-		{ID: uuid.New(), LicenseID: ulLic.ID, ClassType: models.ClassTypeSEPLand},
+		{ID: uuid.New(), LicenseID: ulLic.ID, ClassType: models.ClassTypeUL},
 	}
 
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
 		TotalMinutes: 900, PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
 		NightLandings: 5,
 	}
+	dp.progressByClass[models.ClassTypeUL] = &Progress{Landings: 4}
 
-	svc := NewService(reg, licRepo, crRepo, dp)
-	result, err := svc.EvaluateAll(context.Background(), userID)
+	result, err := newULService(licRepo, crRepo, dp).EvaluateAll(context.Background(), userID)
 	if err != nil {
 		t.Fatalf("EvaluateAll() error = %v", err)
 	}
-
-	// Should have 2 ratings (EASA SEP + UL SEP)
 	if len(result.Ratings) != 2 {
 		t.Fatalf("Expected 2 ratings, got %d", len(result.Ratings))
 	}
-
-	// Should have 2 passenger currency entries (EASA:SEP_LAND + LBA:SEP_LAND)
 	if len(result.PassengerCurrency) != 2 {
 		t.Fatalf("Expected 2 passenger currency entries, got %d", len(result.PassengerCurrency))
 	}
-
-	// Verify one has night privilege (EASA PPL) and one doesn't (UL)
 	nightCount := 0
 	for _, pax := range result.PassengerCurrency {
 		if pax.NightPrivilege {

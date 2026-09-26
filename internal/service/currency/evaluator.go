@@ -43,6 +43,25 @@ type FlightDataProvider interface {
 	// first. Dates with no landings are omitted. Towed launches are included only
 	// when includeTowed is true; picOnly keeps only flights with PIC time.
 	GetLandingDaysByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, includeTowed, picOnly bool, since time.Time) ([]LandingDay, error)
+
+	// GetProgressByULKind returns aggregated flight stats for a user's flights on
+	// ULTRALIGHT aircraft of any of the given kinds, and of no kind when
+	// includeUnspecified is true, since the given date.
+	GetProgressByULKind(ctx context.Context, userID uuid.UUID, sel ULSelector, includeTowed bool, since time.Time) (*Progress, error)
+
+	// GetLastProficiencyCheckByULKind is GetLastProficiencyCheck on ULTRALIGHT
+	// aircraft matching sel.
+	GetLastProficiencyCheckByULKind(ctx context.Context, userID uuid.UUID, sel ULSelector, since time.Time) (*time.Time, error)
+
+	// GetLandingDaysByULKind is GetLandingDaysByAircraftClass on ULTRALIGHT
+	// aircraft matching sel.
+	GetLandingDaysByULKind(ctx context.Context, userID uuid.UUID, sel ULSelector, includeTowed bool, since time.Time) ([]LandingDay, error)
+}
+
+// ULSelector selects ULTRALIGHT aircraft by kind.
+type ULSelector struct {
+	Kinds              []models.ULKind
+	IncludeUnspecified bool
 }
 
 // Evaluator evaluates currency for a class rating based on the regulatory authority
@@ -62,6 +81,13 @@ type Evaluator interface {
 // FCL.060(b)(2)(ii) IR detection).
 type PassengerCurrencyEvaluator interface {
 	EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency
+}
+
+// RatingPassengerCurrencyEvaluator is an optional interface for evaluators
+// whose passenger currency depends on the rating itself, not only its class.
+// The service prefers it over PassengerCurrencyEvaluator.
+type RatingPassengerCurrencyEvaluator interface {
+	EvaluateRatingPassengerCurrency(ctx context.Context, rating *models.ClassRating, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency
 }
 
 // PeerAwareEvaluator is an optional interface for evaluators whose rating

@@ -82,7 +82,7 @@ A pilot license such as EASA PPL or FAA CPL. Key fields: `RegulatoryAuthority`
 (e.g. `EASA`, `FAA`), `LicenseType`, `LicenseNumber`, `IssueDate`, `IssuingAuthority`,
 `RequiresSeparateLogbook`. A user may hold several licenses.
 
-### ClassRating (`internal/models/class_rating.go`, migration 20)
+### ClassRating (`internal/models/class_rating.go`, migrations 20, 68, 72)
 
 A class/type rating attached to a license. `ClassType` is an enum:
 
@@ -99,7 +99,12 @@ A class/type rating attached to a license. `ClassType` is an enum:
 
 `ExpiryDate` drives both notifications and the currency engine's expiry-anchored windows.
 
-### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65)
+`ul_kind` (migration 72, nullable, CHECK-constrained) is the ultralight kind an `ULTRALIGHT`
+rating covers — `THREE_AXIS`, `WEIGHT_SHIFT`, `GYROPLANE`, `HELICOPTER`, `POWERED_PARAGLIDER`
+or `SAILPLANE` — and is cleared on any other class. NULL is evaluated as `THREE_AXIS`. See
+[DOMAIN.md](./DOMAIN.md#ultralights).
+
+### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65, 72)
 
 A user's aircraft: registration, type, make, model, and a class (e.g. `SEP_LAND`) that
 links flights in that aircraft to the right currency bucket. Equipment flags capture
@@ -111,6 +116,11 @@ column is free-form and describes engines and land/sea rather than required crew
 canonical notation of its state of registry (`pkg/registration`) — the same normalisation
 `Flight.AircraftReg` gets, since the two are joined by this string. See
 [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
+
+`ul_kind` (migration 72, nullable, CHECK-constrained) is the ultralight kind of an aircraft
+classed `ULTRALIGHT` — the rating kinds plus `THREE_AXIS_MOTORGLIDER` — and is cleared when the
+class is anything else. It decides which ultralight flights count toward German UL ratings and
+EASA SEP/TMG crediting (FCL.035(a)(4)); see [DOMAIN.md](./DOMAIN.md#ultralights).
 
 ### Credential (`internal/models/credential.go`, migration 9)
 

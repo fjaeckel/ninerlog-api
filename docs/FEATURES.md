@@ -76,7 +76,8 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
 - **Class ratings** (`internal/service/class_rating.go`) — nested under a license;
   `ClassType` enum and `ExpiryDate` drive currency and notifications.
 - **Aircraft** (`internal/service/aircraft.go`) — the pilot's aircraft; the aircraft class
-  links flights to the correct currency bucket.
+  links flights to the correct currency bucket, and an ultralight's kind decides what its
+  flights are credited toward.
 - **Credentials** (`internal/service/credential.go`) — medicals, language proficiency,
   security clearances, German radio certificates (BZF II / BZF I / AZF); expiry feeds
   notifications.
@@ -199,6 +200,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   holding both SEP(land) and TMG ratings revalidates both from flights in either class
   (FCL.740.A(b)(1)). No custom rule is needed. The rating result lists the pooled classes in
   `countedClasses`. Details in [DOMAIN.md](./DOMAIN.md#credited-classes).
+- **Ultralights** — an `ULTRALIGHT` aircraft or rating carries its kind (three-axis, UL
+  motorglider, trike, gyroplane, UL helicopter, powered paraglider, UL sailplane). Three-axis
+  UL time and landings count toward EASA SEP/TMG revalidation and LAPL(A) recency, the
+  instructor flight does not (FCL.035(a)(4)); German UL recency and passenger recency are
+  evaluated per kind (LuftPersV §45, §45a), with SEP(land)/TMG time counting toward
+  three-axis recency. Details in [DOMAIN.md](./DOMAIN.md#ultralights).
 
 - **Sailplanes and TMGs** — a `GLIDER` rating follows Part-SFCL recency (SFCL.160(a)): 5 h
   on sailplanes including TMGs, 15 launches and 2 training flights with an instructor on

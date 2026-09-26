@@ -1,6 +1,9 @@
 package handlers
 
-import "github.com/oapi-codegen/nullable"
+import (
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/oapi-codegen/nullable"
+)
 
 // applyNullable implements JSON Merge Patch (RFC 7386) semantics for a single
 // optional, nullable request field: if the field was omitted, dst is left
@@ -34,4 +37,18 @@ func applyOverride(dst *int, override *bool, n nullable.Nullable[int]) {
 	v, _ := n.Get()
 	*dst = v
 	*override = true
+}
+
+// applyNullableULKind applies an optional, nullable ultralight kind field.
+func applyNullableULKind(dst **models.ULKind, n nullable.Nullable[string]) {
+	if !n.IsSpecified() {
+		return
+	}
+	if n.IsNull() {
+		*dst = nil
+		return
+	}
+	v, _ := n.Get()
+	k := models.ULKind(v)
+	*dst = &k
 }

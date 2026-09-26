@@ -2092,13 +2092,14 @@ func TestFAA_ATPSameAsPrivate(t *testing.T) {
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// TestGermanUL_DULV_Current — 12h + 12 T&L + 1h instructor in rolling 24mo.
+// TestGermanUL_DULV_Current — three-axis UL: 12h incl. 6h PIC + 12 T&L + 1h instructor in rolling 24mo.
+// The UL is classed ULTRALIGHT; a UL rated SEP_LAND is evaluated under EASA rules.
 func TestGermanUL_DULV_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-dulv-cur")
-	createAircraftCur(t, c, "D-MULV", "C42", "SEP_LAND")
+	createAircraftCur(t, c, "D-MULV", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, licID, "SEP_LAND", nil)
+	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
 
 	for i := 0; i < 11; i++ {
 		createFlightCur(t, c, map[string]interface{}{
@@ -2117,9 +2118,9 @@ func TestGermanUL_DULV_Current(t *testing.T) {
 	})
 
 	result := getCurrencyStatus(t, c)
-	rc := findRatingCur(result, "SEP_LAND")
+	rc := findRatingCur(result, "ULTRALIGHT")
 	if rc == nil {
-		t.Fatal("German UL (DULV) SEP_LAND rating currency not found")
+		t.Fatal("German UL (DULV) ULTRALIGHT rating currency not found")
 	}
 	assertStr(t, "status", rc["status"], "current")
 }
@@ -2127,10 +2128,10 @@ func TestGermanUL_DULV_Current(t *testing.T) {
 // TestGermanUL_DAeC_Current — same rules via DAeC authority.
 func TestGermanUL_DAeC_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-daec-cur")
-	createAircraftCur(t, c, "D-MAEC", "C42", "SEP_LAND")
+	createAircraftCur(t, c, "D-MAEC", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DAeC", "UL")
-	createRatingCur(t, c, licID, "SEP_LAND", nil)
+	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
 
 	for i := 0; i < 11; i++ {
 		createFlightCur(t, c, map[string]interface{}{
@@ -2149,9 +2150,9 @@ func TestGermanUL_DAeC_Current(t *testing.T) {
 	})
 
 	result := getCurrencyStatus(t, c)
-	rc := findRatingCur(result, "SEP_LAND")
+	rc := findRatingCur(result, "ULTRALIGHT")
 	if rc == nil {
-		t.Fatal("German UL (DAeC) SEP_LAND rating currency not found")
+		t.Fatal("German UL (DAeC) ULTRALIGHT rating currency not found")
 	}
 	assertStr(t, "status", rc["status"], "current")
 }
@@ -2159,10 +2160,10 @@ func TestGermanUL_DAeC_Current(t *testing.T) {
 // TestGermanUL_NoNightPrivilege — German UL has no night flying.
 func TestGermanUL_NoNightPrivilege(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-nonight")
-	createAircraftCur(t, c, "D-MULN", "C42", "SEP_LAND")
+	createAircraftCur(t, c, "D-MULN", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, licID, "SEP_LAND", nil)
+	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
 
 	createFlightCur(t, c, map[string]interface{}{
 		"date": pastDate(5), "aircraftReg": "D-MULN", "aircraftType": "C42",
@@ -2172,7 +2173,7 @@ func TestGermanUL_NoNightPrivilege(t *testing.T) {
 	})
 
 	result := getCurrencyStatus(t, c)
-	pc := findPaxCur(result, "SEP_LAND")
+	pc := findPaxCur(result, "ULTRALIGHT")
 	if pc == nil {
 		t.Fatal("German UL passenger currency not found")
 	}

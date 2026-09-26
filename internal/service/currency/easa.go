@@ -100,12 +100,15 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 //
 // All within the 12 months preceding the expiry date of the rating. With both
 // SEP(land) and TMG ratings on the license, flights in either class count.
+// THREE_AXIS ultralights count as SEP(land) and THREE_AXIS_MOTORGLIDER as TMG
+// toward time and landings, not the refresher (FCL.035(a)(4)).
 var easaSEPTMGRule = ratingRule{
 	displayKey:  "easa_sep_tmg",
-	description: "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within the 12 months preceding the expiry date; holders of both SEP(land) and TMG ratings may combine flights in either class (EASA FCL.740.A(b)(1))",
+	description: "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within the 12 months preceding the expiry date; holders of both SEP(land) and TMG ratings may combine flights in either class (EASA FCL.740.A(b)(1)); three-axis ultralight time and landings count, the refresher does not (FCL.035(a)(4))",
 	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
 	scope:       scopeClassGroup,
 	classGroup:  easaSEPTMGClasses,
+	ulCredit:    easaAnnexICredit,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 360, unit: "minutes"},
@@ -334,14 +337,17 @@ var easaExpiryOnlyRule = ratingRule{
 //   - NO PIC hour requirement (key difference from FCL.740.A)
 //   - OR a LAPL(A) proficiency check (FCL.140.A(a)(2))
 //   - with both SEP(land) and SEP(sea) ratings: 1 hour and 6 landings in each (FCL.140.A(b))
+//   - THREE_AXIS and THREE_AXIS_MOTORGLIDER ultralights count toward time and
+//     landings, not the training flight (FCL.035(a)(4))
 //
 // Lookback: rolling 24 months from NOW.
 var easaLAPLRule = ratingRule{
 	displayKey:  "easa_lapl",
-	description: "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor on aeroplanes or TMG within the last 24 months, or a LAPL(A) proficiency check; holders of SEP(land) and SEP(sea) need 1h and 6 takeoffs & landings in each (EASA FCL.140.A)",
+	description: "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor on aeroplanes or TMG within the last 24 months, or a LAPL(A) proficiency check; holders of SEP(land) and SEP(sea) need 1h and 6 takeoffs & landings in each (EASA FCL.140.A); three-axis ultralight time and landings count, the training flight does not (FCL.035(a)(4))",
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeClassGroup,
 	classGroup:  easaLAPLClasses,
+	ulCredit:    easaAnnexICredit,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},

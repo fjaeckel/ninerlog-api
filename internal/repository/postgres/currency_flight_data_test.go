@@ -8,6 +8,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -89,6 +90,73 @@ func TestGetLastProficiencyCheck_IRIgnoresClass(t *testing.T) {
 	}
 	if got != nil {
 		t.Errorf("date = %v, want nil", got)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations: %v", err)
+	}
+}
+
+func TestGetProgressByULKind_BindsKindsAndUnspecified(t *testing.T) {
+	p, mock, done := newCurrencyDataProvider(t)
+	defer done()
+
+	userID := uuid.New()
+	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta("(a.ul_kind = ANY($2) OR ($3 AND a.ul_kind IS NULL)) AND f.date >= $4")).
+		WithArgs(userID, pq.Array([]string{"THREE_AXIS"}), true, since, false).
+		WillReturnRows(sqlmock.NewRows(progressColumns).AddRow(2, 180, 180, 0, 60, 0, 4, 4, 0, 0, 0, 4, 1, 60))
+
+	got, err := p.GetProgressByULKind(context.Background(), userID, currency.ULSelector{Kinds: []models.ULKind{models.ULKindThreeAxis}, IncludeUnspecified: true}, false, since)
+	if err != nil {
+		t.Fatalf("GetProgressByULKind: %v", err)
+	}
+	if got.TotalMinutes != 180 || got.Landings != 4 {
+		t.Errorf("progress = %+v", got)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations: %v", err)
+	}
+}
+
+func TestGetLastProficiencyCheckByULKind(t *testing.T) {
+	p, mock, done := newCurrencyDataProvider(t)
+	defer done()
+
+	userID := uuid.New()
+	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta("a.ul_kind IS NULL)) AND f.is_proficiency_check = true")).
+		WithArgs(userID, pq.Array([]string{"GYROPLANE"}), false, since).
+		WillReturnRows(sqlmock.NewRows([]string{"date"}))
+
+	got, err := p.GetLastProficiencyCheckByULKind(context.Background(), userID, currency.ULSelector{Kinds: []models.ULKind{models.ULKindGyroplane}}, since)
+	if err != nil {
+		t.Fatalf("GetLastProficiencyCheckByULKind: %v", err)
+	}
+	if got != nil {
+		t.Errorf("date = %v, want nil", got)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations: %v", err)
+	}
+}
+
+func TestGetLandingDaysByULKind(t *testing.T) {
+	p, mock, done := newCurrencyDataProvider(t)
+	defer done()
+
+	userID := uuid.New()
+	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	day := time.Date(2025, 3, 2, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta("a.ul_kind IS NULL)) AND f.date >= $4")).
+		WithArgs(userID, pq.Array([]string{"SAILPLANE"}), true, since, true).
+		WillReturnRows(sqlmock.NewRows([]string{"date", "day_landings", "night_landings"}).AddRow(day, 3, 0))
+
+	got, err := p.GetLandingDaysByULKind(context.Background(), userID, currency.ULSelector{Kinds: []models.ULKind{models.ULKindSailplane}, IncludeUnspecified: true}, true, since)
+	if err != nil {
+		t.Fatalf("GetLandingDaysByULKind: %v", err)
+	}
+	if len(got) != 1 || got[0].DayLandings != 3 || !got[0].Date.Equal(day) {
+		t.Errorf("days = %+v", got)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("expectations: %v", err)

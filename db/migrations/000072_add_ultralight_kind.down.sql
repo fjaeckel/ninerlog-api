@@ -1,0 +1,2 @@
+ALTER TABLE class_ratings DROP COLUMN IF EXISTS ul_kind;
+ALTER TABLE aircraft DROP COLUMN IF EXISTS ul_kind;

@@ -27,6 +27,14 @@ type mockFlightDataProvider struct {
 	lastProfCheckClasses []models.ClassType
 	picOnly              map[models.ClassType]bool
 	launchCountsAllTime  map[string]int
+	// progressByUL is keyed by kind; "" holds aircraft of no kind and falls
+	// back to progressByClass[ULTRALIGHT].
+	progressByUL    map[models.ULKind]*Progress
+	ulProfCheck     *time.Time
+	landingDaysByUL map[models.ULKind][]LandingDay
+	lastULSel       *ULSelector
+	lastULTowed     bool
+	lastULProfCheck *ULSelector
 }
 
 func newMockFlightDataProvider() *mockFlightDataProvider {
@@ -125,6 +133,73 @@ func (m *mockFlightDataProvider) GetLandingDaysByAircraftClass(_ context.Context
 		DayLandings:   p.Landings - p.NightLandings,
 		NightLandings: p.NightLandings,
 	}}, nil
+}
+
+// ulProgress returns the configured progress for kind k ("" = no kind).
+func (m *mockFlightDataProvider) ulProgress(k models.ULKind) *Progress {
+	if p, ok := m.progressByUL[k]; ok {
+		return p
+	}
+	if k == "" {
+		return m.progressByClass[models.ClassTypeUL]
+	}
+	return nil
+}
+
+// ulKeys returns the progressByUL keys sel selects.
+func ulKeys(sel ULSelector) []models.ULKind {
+	keys := append([]models.ULKind{}, sel.Kinds...)
+	if sel.IncludeUnspecified {
+		keys = append(keys, "")
+	}
+	return keys
+}
+
+func (m *mockFlightDataProvider) GetProgressByULKind(_ context.Context, _ uuid.UUID, sel ULSelector, includeTowed bool, _ time.Time) (*Progress, error) {
+	m.lastULSel = &sel
+	m.lastULTowed = includeTowed
+	if m.progressErr != nil {
+		return nil, m.progressErr
+	}
+	sum := &Progress{}
+	for _, k := range ulKeys(sel) {
+		addProgress(sum, m.ulProgress(k), true)
+	}
+	return sum, nil
+}
+
+func (m *mockFlightDataProvider) GetLastProficiencyCheckByULKind(_ context.Context, _ uuid.UUID, sel ULSelector, _ time.Time) (*time.Time, error) {
+	m.lastULProfCheck = &sel
+	return m.ulProfCheck, nil
+}
+
+func (m *mockFlightDataProvider) GetLandingDaysByULKind(ctx context.Context, userID uuid.UUID, sel ULSelector, includeTowed bool, since time.Time) ([]LandingDay, error) {
+	m.lastULSel = &sel
+	m.lastULTowed = includeTowed
+	if m.landingDaysErr != nil {
+		return nil, m.landingDaysErr
+	}
+	var out []LandingDay
+	for _, k := range ulKeys(sel) {
+		days, ok := m.landingDaysByUL[k]
+		if !ok {
+			if k != "" {
+				continue
+			}
+			d, err := m.GetLandingDaysByAircraftClass(ctx, userID, models.ClassTypeUL, includeTowed, false, since)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, d...)
+			continue
+		}
+		for _, d := range days {
+			if !d.Date.Before(since) {
+				out = append(out, d)
+			}
+		}
+	}
+	return out, nil
 }
 
 // truncateDay reduces a time to midnight UTC on its own date.
