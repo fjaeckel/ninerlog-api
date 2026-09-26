@@ -1,6 +1,7 @@
 package flightrules
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -36,6 +37,36 @@ const (
 // is true AND the flag was requested by the caller. Most callers pass all
 // three flags and let the model state decide.
 func CombinedRemarks(f *models.Flight, flags ...RemarkFlag) string {
+	return combinedRemarks(f, true, flags...)
+}
+
+// SailplaneRemarks returns CombinedRemarks without the launch marker, followed
+// by "[Outlanding]" when the flight ended in an outlanding and "[Release <n> m]"
+// when a release height is set.
+func SailplaneRemarks(f *models.Flight) string {
+	if f == nil {
+		return ""
+	}
+	out := combinedRemarks(f, false)
+	add := func(s string) {
+		if out != "" {
+			out += " "
+		}
+		out += s
+	}
+	if f.IsOutlanding {
+		add(OutlandingLabel)
+	}
+	if f.ReleaseHeightM != nil {
+		add(fmt.Sprintf("[Release %d m]", *f.ReleaseHeightM))
+	}
+	return out
+}
+
+// OutlandingLabel marks a flight that ended in an outlanding (Außenlandung).
+const OutlandingLabel = "[Outlanding]"
+
+func combinedRemarks(f *models.Flight, withLaunch bool, flags ...RemarkFlag) string {
 	if f == nil {
 		return ""
 	}
@@ -62,7 +93,7 @@ func CombinedRemarks(f *models.Flight, flags ...RemarkFlag) string {
 	addTime(f.SPICTime, "SPIC")
 	addTime(f.ExaminerTime, "Examiner")
 	addTime(f.ReliefTime, "Relief")
-	if marker := LaunchRemark(f.LaunchMethod); marker != "" {
+	if marker := LaunchRemark(f.LaunchMethod); withLaunch && marker != "" {
 		if out != "" {
 			out += " "
 		}

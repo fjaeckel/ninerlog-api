@@ -551,6 +551,31 @@ Everything else goes to SE: `SEP*`, single-engine turbine `SET*`, `TMG`, `GLIDER
 `ULTRALIGHT`, `GYROPLANE`, and an unknown or missing class. Time logged as multi-pilot goes
 to the MULTI-PILOT column instead.
 
+### Printed logbook layouts
+
+`GET /exports/pdf` prints the logbook in one of four column layouts (`format`): `easa`
+(AMC1 FCL.050), `faa` (14 CFR § 61.51), `sailplane` (AMC1 SFCL.050, see
+[SAILPLANES.md](./SAILPLANES.md#printed-logbook)) and `ultralight`. The pilot's choice
+wins. Without one, a licence-scoped export picks the licence's layout with
+`service.LogbookFormatForLicence`, from `models.ClassifyLicence`:
+
+| Licence | Layout |
+| --- | --- |
+| Ultralight: a licence type naming UL, or a DULV/DAeC regulatory or issuing authority | `ultralight` |
+| SPL, LAPL(S), FAA glider | `sailplane` |
+| Anything else, and no licence | `easa` |
+
+The ultralight layout prints date, registration, type, UL kind, departure and arrival
+place and time, flight time, landings (day + night), PIC (with PICUS/SPIC), dual and
+instruction-given time, and remarks (`flightrules.CombinedRemarks`, so a credited flight
+keeps its `[Credited]` marker). The UL kind column prints the aircraft's kind in English
+(`Three-axis`, `Weight-shift`, `Powered paraglider`, …), `UL` for an ultralight with no
+kind, and the normalized class (`SEP LAND`, `TMG`) for a credited flight on another class.
+Its totals summary splits flight time by that column. There is no passenger-count
+column: a flight does not record how many passengers it carried. Neither discipline
+layout has IFR, night, multi-pilot, SE/ME or FSTD columns; like every PDF they are in
+English.
+
 ### Time windows and status
 
 Evaluators compute over either a **rolling** window (e.g. last 90 days from now) or an

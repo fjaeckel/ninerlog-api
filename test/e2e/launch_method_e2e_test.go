@@ -186,8 +186,8 @@ func TestExportImportRoundTrip_LaunchMethod(t *testing.T) {
 				if col < 0 || records[1][col] != "winch" {
 					t.Errorf("standard CSV LaunchMethod column %d = %v, want winch", col, records[1])
 				}
-				if tail := strings.Join(header[max(col, 0):], ","); tail != "LaunchMethod,Launches,Outlanding,TowFlight,ReleaseHeightM" {
-					t.Errorf("standard CSV header ends %q, want LaunchMethod followed by the glider facts", tail)
+				if tail := strings.Join(header[max(col, 0):], ","); tail != "LaunchMethod,Launches,Outlanding,TowFlight,ReleaseHeightM,AircraftClass,ULKind" {
+					t.Errorf("standard CSV header ends %q, want LaunchMethod followed by the glider facts and the aircraft class", tail)
 				}
 			} else if !strings.Contains(string(exp.Body), "Thermik [Launch: winch]") {
 				t.Errorf("%s CSV remarks do not carry the launch method:\n%s", layout, exp.Body)

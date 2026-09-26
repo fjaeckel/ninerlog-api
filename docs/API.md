@@ -640,6 +640,11 @@ every device the pilot signs in on, and they travel in the JSON export.
 Airport lookup/search, route and airport statistics, trends, and stats-by-class, plus
 the downloadable airport pack:
 
+- `GET /reports/stats-by-class` — per-class rollups (`byClass`), most minutes first. The
+  `ULTRALIGHT` row keeps its class key and totals and adds `byUlKind`: the same figures per
+  UL kind, most minutes first, with `ulKind: null` for ultralights with no kind set. Other
+  rows have no `byUlKind`.
+
 - `GET /airports/pack` — the complete merged airport database as a gzip-compressed JSON
   envelope `{etag, generatedAt, count, airports}` with `airports` sorted by ICAO code,
   for clients that need offline nearest-airport matching (the iOS Share Extension).
@@ -767,7 +772,10 @@ pagination. An invalid `q` returns 400. `totals=true` appends one totals row aft
 flight: `Total (N flights)` in the first column and the sum of every time, count and distance
 column in that layout's format. A file with a totals row is a report, not an import source.
 The standard layout ends with `LaunchMethod`, `Launches`, `Outlanding`, `TowFlight` and
-`ReleaseHeightM`; the other layouts have no launch column and append `[Launch: <method>]` to
+`ReleaseHeightM`, then `AircraftClass` (normalized, e.g. `ULTRALIGHT`) and `ULKind` from the
+fleet aircraft of the flight's registration — both blank for a registration not in the
+fleet, `ULKind` blank for anything but a kinded ultralight. Import does not read the two
+class columns. The other layouts have no launch column and append `[Launch: <method>]` to
 the remarks cell, as the PDFs do. `POST /imports/confirm` reads either back into
 `launchMethod`, and maps the glider-fact columns to the `launches`, `isOutlanding`,
 `isTowFlight` and `releaseHeightM` import fields (also from German `Starts` and
@@ -780,14 +788,23 @@ so a re-import updates existing cards instead of duplicating them.
 `GET /exports/pdf` renders the logbook as a print-ready PDF:
 
 - `format` — `easa` (AMC1 FCL.050 columns, times in h:mm), `faa`
-  (14 CFR § 61.51 / ASA-Jeppesen columns, decimal hours), or `summary`
-  (grand totals only). Default `easa`.
+  (14 CFR § 61.51 / ASA-Jeppesen columns, decimal hours), `sailplane`
+  (AMC1 SFCL.050: take-off/landing, flight time, launch method, launches,
+  PIC/dual/FI(S); see [SAILPLANES.md](./SAILPLANES.md#printed-logbook)),
+  `ultralight` (registration, type, UL kind, departure/arrival, flight time,
+  landings, PIC/dual/instruction given; see
+  [DOMAIN.md](./DOMAIN.md#printed-logbook-layouts)), or `summary` (grand totals
+  only). Omitted, it is `easa`, except with `logbookLicenseId`: `sailplane` for an
+  SPL, LAPL(S) or FAA glider licence and `ultralight` for an ultralight licence.
+  The sailplane and ultralight layouts have no IFR, night or multi-pilot
+  columns.
 - `layout` — `spread` (default) is a book-style two-page spread (left + right
   facing pages) for double-sided printing; intentionally-blank filler pages
   (one at the start, one before the totals summary) keep each spread on facing
   pages when printed duplex. `single` condenses all columns onto one landscape
   page per batch of flights, designed for single-page A4 landscape printing.
-  Ignored for `summary`.
+  Ignored for `summary`, `sailplane` and `ultralight`, which always print one page
+  per batch.
 - `page_size` — `a4` (default), `a5`, or `letter`; always landscape.
 - `rows_per_page` — optional flight-row count per logbook page (5–60). Row
   height — and, for dense layouts, the body font — scales dynamically to fill

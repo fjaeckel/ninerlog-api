@@ -269,7 +269,7 @@ func TestWriteStandardCSV_LaunchMethodColumn(t *testing.T) {
 			col = i
 		}
 	}
-	if want := []string{"LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM"}; col < 0 || !slices.Equal(header[col:], want) {
+	if want := []string{"LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM", "AircraftClass", "ULKind"}; col < 0 || !slices.Equal(header[col:], want) {
 		t.Fatalf("header ends %v, want %v", header[max(col, 0):], want)
 	}
 	if records[1][col] != "winch" || records[2][col] != "" {

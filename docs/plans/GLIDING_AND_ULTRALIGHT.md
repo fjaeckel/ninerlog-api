@@ -177,10 +177,13 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-22. Sailplane logbook PDF** (api)
 
-- An AMC1 SFCL.050 layout: launches and launch-method columns, PIC/dual/FI(S) time, time from
-  take-off to landing, and no multi-pilot/IFR/night columns.
-- Selected automatically by the licence-scoped export for SPL/LAPL(S), and selectable by hand.
-- Golden-file test.
+- API — **implemented**: `GET /exports/pdf?format=sailplane`, an AMC1 SFCL.050 layout with
+  launches and launch-method columns, PIC/dual/FI(S) time, take-off to landing, outlanding
+  and release height in the remarks, and no multi-pilot/IFR/night columns or `[Launch: …]`
+  marker. The licence-scoped export picks it for SPL/LAPL(S)/FAA glider licences when no
+  `format` is given. See [SAILPLANES.md](../SAILPLANES.md#printed-logbook).
+- FE: offer the layout in the PDF export dialog (and default to it for a sailplane logbook).
+- Text-extraction test (`export_pdf_discipline_test.go`) and e2e.
 - Closes L5.
 
 **WP-23. Batch circuits and "log another"** (api + fe; needs D2)
@@ -318,8 +321,16 @@ not evaluated.
 Custom-report group-by UL kind (`ulKind`) is implemented with WP-28.
 
 - UL kind in CSV, stats-by-class breakdowns and custom-report group-by.
+  - API — **implemented** for CSV and stats-by-class: the standard CSV ends with
+    `AircraftClass` and `ULKind`; `GET /reports/stats-by-class` keeps one `ULTRALIGHT` row and
+    adds its per-kind split as `byUlKind` (additive, so current clients are unaffected).
+    Custom-report group-by is separate work.
 - A UL PDF layout: kind and passengers columns, no IFR/MP. Chosen automatically for UL
   licences.
+  - API — **implemented**: `GET /exports/pdf?format=ultralight`, picked for UL licences. No
+    passengers column: a flight does not record a passenger count. See
+    [DOMAIN.md](../DOMAIN.md#printed-logbook-layouts).
+- FE: render `byUlKind` under the ultralight bar, and offer the UL layout in the export dialog.
 - Closes M and S reporting.
 
 **WP-34. German copy pass** (fe, `i18n-sync`)

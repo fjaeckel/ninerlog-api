@@ -3982,7 +3982,7 @@ paths:
       tags: [Export]
       summary: Export flights as CSV
       description: >-
-        Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats. The standard layout ends with `LaunchMethod`, `Launches`, `Outlanding`, `TowFlight` and `ReleaseHeightM` columns; the easa, faa and weblogbook layouts have no launch-method column and carry it in their remarks cell as `[Launch: winch]`, which `POST /imports/confirm` reads back.
+        Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats. The standard layout ends with `LaunchMethod`, `Launches`, `Outlanding`, `TowFlight` and `ReleaseHeightM` columns, then `AircraftClass` and `ULKind` taken from the fleet aircraft of the flight's registration (blank when the registration is not in the fleet; `ULKind` only for an `ULTRALIGHT` aircraft); the easa, faa and weblogbook layouts have no launch-method column and carry it in their remarks cell as `[Launch: winch]`, which `POST /imports/confirm` reads back.
       operationId: exportFlightsCSV
       security:
         - bearerAuth: []
@@ -4255,6 +4255,17 @@ paths:
         time is part of total time of flight and the EASA layout has a CO-PILOT
         column for it (AMC1 FCL.050 col 16).
 
+        The `sailplane` format is an AMC1 SFCL.050 layout: date, aircraft type and
+        registration, take-off place and time, landing place and time, flight time
+        (total time), launch method, launches, PIC / dual / FI(S) time, and remarks
+        and endorsements, which carry `[Outlanding]` and `[Release <n> m]`. It has no
+        single-/multi-pilot, night or IFR columns and no `[Launch: …]` remarks marker.
+        The `ultralight` format has date, registration and type, UL kind, departure and
+        arrival place and time, flight time, landings, PIC / dual / instruction-given
+        time, and remarks. Both render one landscape page per batch of flights (the
+        `layout` parameter does not apply) with the same three-row totals block and a
+        discipline-specific totals summary page.
+
         If the pilot has recorded prior experience (`PUT /users/me/baseline`),
         those hours open the balance: they are carried into the first
         "total from previous pages" row and into every running total and the
@@ -4279,11 +4290,16 @@ paths:
             format: uuid
         - name: format
           in: query
-          description: PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 / ASA-Jeppesen columns), or summary (simplified totals)
+          description: >-
+            PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 /
+            ASA-Jeppesen columns), sailplane (AMC1 SFCL.050 columns), ultralight
+            (UL columns), or summary (simplified totals). Omitted, it is easa,
+            except with `logbookLicenseId`: sailplane for an SPL, LAPL(S) or FAA
+            glider licence, ultralight for an ultralight licence (a DULV/DAeC
+            licence or a licence type naming UL), easa otherwise.
           schema:
             type: string
-            enum: [easa, faa, summary]
-            default: easa
+            enum: [easa, faa, summary, sailplane, ultralight]
         - name: page_size
           in: query
           description: Page size for the generated PDF. All sizes are rendered in landscape orientation.
@@ -4300,7 +4316,8 @@ paths:
             the start, one before the totals summary) keep each spread on facing
             pages when printed duplex. `single` renders all columns on one
             landscape page per batch of flights — designed for single-page A4
-            landscape printing. Ignored for the summary format.
+            landscape printing. Ignored for the summary, sailplane and ultralight
+            formats.
           schema:
             type: string
             enum: [spread, single]
@@ -4425,6 +4442,15 @@ paths:
                           type: integer
                         landings:
                           type: integer
+                        byUlKind:
+                          type: array
+                          description: >-
+                            Present only on the `ULTRALIGHT` row: the same figures split by
+                            the aircraft's UL kind, most minutes first. `ulKind` is null for
+                            flights on an ultralight with no kind set. The row's own figures
+                            stay the sum of its kinds.
+                          items:
+                            $ref: '#/components/schemas/ClassStatULKind'
                   byCategory:
                     type: array
                     description: PIC and Dual time grouped by aircraft category (e.g. tailwheel, complex, high-performance). Only categories with flights are included.
@@ -6413,6 +6439,23 @@ components:
         maxLength: 64
 
   schemas:
+    ClassStatULKind:
+      type: object
+      required: [ulKind, flights, minutes, picMinutes, dualMinutes, landings]
+      properties:
+        ulKind:
+          type: [string, 'null']
+          enum: [THREE_AXIS, THREE_AXIS_MOTORGLIDER, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE, 'null']
+        flights:
+          type: integer
+        minutes:
+          type: integer
+        picMinutes:
+          type: integer
+        dualMinutes:
+          type: integer
+        landings:
+          type: integer
     User:
       type: object
       required:

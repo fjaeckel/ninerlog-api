@@ -301,7 +301,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Statistics** — hour totals and breakdowns per user/license (`reports.go`,
   `admin_dashboard.go`, service aggregation).
 - **Reports** — `GET /reports/analytics` backs the whole Reports page from one request
-  (`reports_analytics.go`); trends and stats-by-class live in `reports.go`.
+  (`reports_analytics.go`); trends and stats-by-class live in `reports.go`. Stats-by-class
+  splits its `ULTRALIGHT` row by UL kind (`byUlKind`), so trike and three-axis hours are
+  never shown as one pool; the standard CSV export carries `AircraftClass` and `ULKind`
+  columns for the same reason.
 - **Custom reports** (`/reports/custom`, `internal/service/customreport`,
   `internal/api/handlers/custom_report*.go`) — a pilot saves a flight filter plus a grouping
   (`month`, `year`, `dayOfWeek`, `aircraftType`, `registration`, `departure`, `arrival`,
@@ -492,12 +495,18 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   the crew names are re-linked by name against the destination account's address book and
   created where they are new, reported as `contactsCreated` in the restore summary.
 - **Export** (`export.go`, `export_pdf.go`, `export_pdf_easa.go`,
-  `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_pdf_signature.go`,
-  `export_crew.go`, `export_vcard.go`) — CSV, JSON, PDF (rendered with
-  `go-pdf/fpdf`) and vCard.
+  `export_pdf_faa.go`, `export_pdf_discipline.go`, `export_pdf_baseline.go`,
+  `export_pdf_signature.go`, `export_crew.go`, `export_vcard.go`) — CSV, JSON, PDF
+  (rendered with `go-pdf/fpdf`) and vCard.
   PDF logbooks come in EASA AMC1 FCL.050 and FAA 14 CFR § 61.51 layouts, each as
   a book-style two-page spread (default) or a condensed single-page landscape
-  layout, in A4/A5/Letter. Every page carries per-page / carried-forward /
+  layout, in A4/A5/Letter. Glider and ultralight pilots get their own one-page
+  layouts: `sailplane` (AMC1 SFCL.050 — take-off/landing, flight time, launch
+  method, launches, PIC/dual/FI(S), outlanding and release height in the remarks) and
+  `ultralight` (registration, type, UL kind, flight time, landings,
+  PIC/dual/instruction given), neither with IFR, night or multi-pilot columns. A
+  licence logbook export picks them by itself for an SPL/LAPL(S)/FAA glider or an
+  ultralight licence (see [DOMAIN.md](./DOMAIN.md#printed-logbook-layouts)). Every page carries per-page / carried-forward /
   running totals and a signature strip. The initial-hours snapshot (below) opens
   the carried-forward balance, so the TOTAL TIME row is a career total and not
   just what NinerLog holds; the columns a snapshot cannot supply are documented
