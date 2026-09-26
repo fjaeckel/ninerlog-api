@@ -124,7 +124,7 @@ var easaSEPTMGRule = ratingRule{
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
-		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+		if r, closed := applyClosedWindow(nowFrom(ctx), &since, *rt.result); closed {
 			*rt.result = r
 			return
 		}
@@ -140,14 +140,14 @@ var easaSEPTMGRule = ratingRule{
 		rt.result.Requirements = reqs
 		allMet := allReqsMet(reqs)
 
-		if rating.IsExpired() {
+		if rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if !allMet {
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationNotMet, nil)
-		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+		} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+			daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -180,7 +180,7 @@ var easaMEPSETRule = ratingRule{
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
-		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+		if r, closed := applyClosedWindow(nowFrom(ctx), &since, *rt.result); closed {
 			*rt.result = r
 			return
 		}
@@ -214,14 +214,14 @@ var easaMEPSETRule = ratingRule{
 		allMetByExperience := reqSectors.Met && reqInstructor.Met
 		allMet := allMetByExperience || hasProfCheck
 
-		if rating.IsExpired() {
+		if rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if !allMet {
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationNotMetProfCheck, nil)
-		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+		} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+			daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -250,7 +250,7 @@ var easaIRRule = ratingRule{
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
-		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+		if r, closed := applyClosedWindow(nowFrom(ctx), &since, *rt.result); closed {
 			*rt.result = r
 			return
 		}
@@ -282,7 +282,7 @@ var easaIRRule = ratingRule{
 
 		allMet := reqIFRHours.Met && hasProfCheck
 
-		if rating.IsExpired() {
+		if rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if !allMet {
@@ -294,8 +294,8 @@ var easaIRRule = ratingRule{
 			} else {
 				rt.result.setMsg(MsgRatingIRCheckNotMet, nil)
 			}
-		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+		} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+			daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -310,18 +310,18 @@ var easaExpiryOnlyRule = ratingRule{
 	displayKey:  "",
 	description: "EASA class rating — currency tracked by expiry date",
 	scope:       scopeByClass,
-	finalize: func(_ context.Context, rt *ratingRuntime) {
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
 		if rating.ExpiryDate == nil {
 			rt.result.Status = StatusUnknown
 			rt.result.setMsg(MsgRatingNoExpiryDate, nil)
 			return
 		}
-		if rating.IsExpired() {
+		if rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
-		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+		} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+			daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft))
 		} else {
@@ -355,7 +355,7 @@ var easaLAPLRule = ratingRule{
 		{nameKey: ReqKeyTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -439,7 +439,7 @@ var easaSPLRule = ratingRule{
 		{nameKey: ReqKeyTrainingFlights, metric: mTrainingFlights, threshold: 2, unit: "flights"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		sailplane, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -590,7 +590,7 @@ var easaSPLTMGRule = ratingRule{
 		{nameKey: ReqKeyTMGTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		tmg, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -645,10 +645,10 @@ var easaSPLTMGRule = ratingRule{
 // revalidated" message and returns (result, true).
 //
 // `since` must be the 12-month look-back anchor (rating.ExpiryDate − 12mo).
-func applyClosedWindow(rating *models.ClassRating, since *time.Time, result ClassRatingCurrency) (ClassRatingCurrency, bool) {
+func applyClosedWindow(now time.Time, since *time.Time, result ClassRatingCurrency) (ClassRatingCurrency, bool) {
 	windowStr := since.Format("2006-01-02")
 	result.WindowOpensAt = &windowStr
-	if !time.Now().Before(*since) {
+	if !now.Before(*since) {
 		result.WindowOpen = true
 		return result, false
 	}
@@ -669,7 +669,7 @@ func applyClosedWindow(rating *models.ClassRating, since *time.Time, result Clas
 //	(i)  at least 1 takeoff, approach and landing at night in the preceding 90 days, OR
 //	(ii) holds an IR — in which case no night-landing recency is required.
 func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
-	since := paxWindowStart(time.Now())
+	since := paxWindowStart(nowFrom(ctx))
 
 	hasNightPrivilege := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority) && classType != models.ClassTypeGlider
 	hasValidIR := hasValidIRRating(peerRatings)
@@ -797,5 +797,6 @@ func hasValidIRRating(ratings []*models.ClassRating) bool {
 func applySFCLTMGExemption(result *ClassRatingCurrency) {
 	result.Status = StatusCurrent
 	result.Requirements = nil
+	result.ValidUntil = nil
 	result.setMsg(MsgRatingSFCLTMGExempt, nil)
 }

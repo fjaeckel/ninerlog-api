@@ -1872,6 +1872,90 @@ func (e PublicSignatureInfoStatus) Valid() bool {
 	}
 }
 
+// Defines values for ReadinessItemKind.
+const (
+	ReadinessItemKindCredential   ReadinessItemKind = "credential"
+	ReadinessItemKindLaunchMethod ReadinessItemKind = "launch_method"
+	ReadinessItemKindPassengers   ReadinessItemKind = "passengers"
+	ReadinessItemKindRating       ReadinessItemKind = "rating"
+)
+
+// Valid indicates whether the value is a known member of the ReadinessItemKind enum.
+func (e ReadinessItemKind) Valid() bool {
+	switch e {
+	case ReadinessItemKindCredential:
+		return true
+	case ReadinessItemKindLaunchMethod:
+		return true
+	case ReadinessItemKindPassengers:
+		return true
+	case ReadinessItemKindRating:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReadinessItemStatus.
+const (
+	ReadinessItemStatusCurrent  ReadinessItemStatus = "current"
+	ReadinessItemStatusExpired  ReadinessItemStatus = "expired"
+	ReadinessItemStatusExpiring ReadinessItemStatus = "expiring"
+	ReadinessItemStatusLapsed   ReadinessItemStatus = "lapsed"
+	ReadinessItemStatusUnknown  ReadinessItemStatus = "unknown"
+	ReadinessItemStatusValid    ReadinessItemStatus = "valid"
+)
+
+// Valid indicates whether the value is a known member of the ReadinessItemStatus enum.
+func (e ReadinessItemStatus) Valid() bool {
+	switch e {
+	case ReadinessItemStatusCurrent:
+		return true
+	case ReadinessItemStatusExpired:
+		return true
+	case ReadinessItemStatusExpiring:
+		return true
+	case ReadinessItemStatusLapsed:
+		return true
+	case ReadinessItemStatusUnknown:
+		return true
+	case ReadinessItemStatusValid:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReadinessItemUlKind.
+const (
+	ReadinessItemUlKindGYROPLANE         ReadinessItemUlKind = "GYROPLANE"
+	ReadinessItemUlKindHELICOPTER        ReadinessItemUlKind = "HELICOPTER"
+	ReadinessItemUlKindPOWEREDPARAGLIDER ReadinessItemUlKind = "POWERED_PARAGLIDER"
+	ReadinessItemUlKindSAILPLANE         ReadinessItemUlKind = "SAILPLANE"
+	ReadinessItemUlKindTHREEAXIS         ReadinessItemUlKind = "THREE_AXIS"
+	ReadinessItemUlKindWEIGHTSHIFT       ReadinessItemUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ReadinessItemUlKind enum.
+func (e ReadinessItemUlKind) Valid() bool {
+	switch e {
+	case ReadinessItemUlKindGYROPLANE:
+		return true
+	case ReadinessItemUlKindHELICOPTER:
+		return true
+	case ReadinessItemUlKindPOWEREDPARAGLIDER:
+		return true
+	case ReadinessItemUlKindSAILPLANE:
+		return true
+	case ReadinessItemUlKindTHREEAXIS:
+		return true
+	case ReadinessItemUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SignatureRequestCreatedMethod.
 const (
 	SignatureRequestCreatedMethodDeferred SignatureRequestCreatedMethod = "deferred"
@@ -4181,6 +4265,16 @@ type ClassRatingCurrency struct {
 	// Example: 3
 	UnclassifiedFlights *int `json:"unclassifiedFlights,omitempty"`
 
+	// ValidUntil For a `current` result of a rolling-window rule (LAPL FCL.140.A, SPL SFCL.160,
+	// GPL FCL.240.G, German UL LuftPersV §45, FAA 14 CFR 61.57), the last date it stays
+	// current if the pilot does not fly again — the latest date on which any accepted
+	// alternative (the experience rows, or a proficiency check) is still met. Omitted
+	// otherwise, and for expiry-anchored rules, where `expiryDate` governs.
+	//
+	//
+	// Example: 2027-05-31
+	ValidUntil *openapi_types.Date `json:"validUntil,omitempty"`
+
 	// WindowOpen Only meaningful when `windowOpensAt` is set. True if the
 	// revalidation experience window is currently open
 	// (now >= windowOpensAt). When false, flight experience accrued
@@ -4500,11 +4594,31 @@ type CurrencyRequirement struct {
 	// Example: requirement.refresher_training
 	NameKey *string `json:"nameKey,omitempty"`
 
+	// RemedyKey When unmet, what restores it: `remedy.fly_more`, `remedy.training_flight` or
+	// `remedy.proficiency_check`. Omitted when met, on custom rules and on the FAA flight
+	// review row. See docs/CURRENCY_MESSAGES.md.
+	//
+	//
+	// Example: remedy.fly_more
+	RemedyKey *string `json:"remedyKey,omitempty"`
+
+	// RemedyParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	RemedyParams *MessageParams `json:"remedyParams,omitempty"`
+
 	// Required Required value to meet this requirement
 	Required float32 `json:"required"`
 
 	// Unit Unit of measurement (e.g., "landings", "hours", "flights")
 	Unit string `json:"unit"`
+
+	// ValidUntil For a met requirement of a rolling-window rule, the last date it stays met if the
+	// pilot does not fly again: the day before enough of the counted flights leave the
+	// window for the total to drop below `required`. Omitted when unmet, on custom rules
+	// and on expiry-anchored rules (FCL.740.A, FCL.625.A).
+	//
+	//
+	// Example: 2027-05-31
+	ValidUntil *openapi_types.Date `json:"validUntil,omitempty"`
 }
 
 // CurrencyStatusResponse defines model for CurrencyStatusResponse.
@@ -6759,10 +6873,23 @@ type LaunchMethodCurrency struct {
 	// Example: winch
 	Method string `json:"method"`
 
+	// RemedyKey When unmet, `remedy.launch_method_dual` (SFCL.155(d)); see docs/CURRENCY_MESSAGES.md.
+	//
+	// Example: remedy.launch_method_dual
+	RemedyKey *string `json:"remedyKey,omitempty"`
+
+	// RemedyParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	RemedyParams *MessageParams `json:"remedyParams,omitempty"`
+
 	// Required Required number of launches (5, or 2 for bungee)
 	//
 	// Example: 5
 	Required int `json:"required"`
+
+	// ValidUntil When met, the last date the method stays met if the pilot does not fly again. Omitted when unmet.
+	//
+	// Example: 2027-04-12
+	ValidUntil *openapi_types.Date `json:"validUntil,omitempty"`
 }
 
 // License defines model for License.
@@ -6835,10 +6962,25 @@ type MessageParams struct {
 	// Example: 42
 	Days *int `json:"days,omitempty"`
 
+	// Method Launch method a remedy key refers to
+	//
+	// Example: aerotow
+	Method *string `json:"method,omitempty"`
+
+	// Missing Outstanding amount a remedy key asks for, in `unit`
+	//
+	// Example: 2
+	Missing *int `json:"missing,omitempty"`
+
 	// Needed Outstanding count for a shortfall key (landings, launches)
 	//
 	// Example: 2
 	Needed *int `json:"needed,omitempty"`
+
+	// Unit Unit of `missing` (minutes, landings, launches, flights, approaches, holds)
+	//
+	// Example: launches
+	Unit *string `json:"unit,omitempty"`
 }
 
 // NotificationCategory Notification category for granular control:
@@ -7178,6 +7320,78 @@ type PublicSignatureInfo struct {
 
 // PublicSignatureInfoStatus Always "pending" on a 200 response; any other state is reported via 404/410 instead.
 type PublicSignatureInfoStatus string
+
+// ReadinessItem defines model for ReadinessItem.
+type ReadinessItem struct {
+	// ClassRatingId The rating answered (kind rating) or the rating the launch method belongs to
+	ClassRatingId *openapi_types.UUID `json:"classRatingId,omitempty"`
+
+	// ClassType Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
+	// - GYROPLANE: Gyroplane (EASA GPL, FCL.240.G recency)
+	ClassType *ClassType `json:"classType,omitempty"`
+
+	// CredentialId The medical certificate answered (kind credential)
+	CredentialId *openapi_types.UUID `json:"credentialId,omitempty"`
+	Kind         ReadinessItemKind   `json:"kind"`
+
+	// LaunchMethod Launch method (kind launch_method)
+	//
+	// Example: aerotow
+	LaunchMethod *string             `json:"launchMethod,omitempty"`
+	LicenseId    *openapi_types.UUID `json:"licenseId,omitempty"`
+
+	// Params Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	Params *MessageParams `json:"params,omitempty"`
+
+	// Ready Whether the privilege may be exercised on the date
+	Ready bool `json:"ready"`
+
+	// ReasonKey Message key explaining the answer — a rating, passenger or remedy key, or a
+	// `readiness.*` key. Catalogued in docs/CURRENCY_MESSAGES.md.
+	//
+	//
+	// Example: remedy.launch_method_dual
+	ReasonKey string `json:"reasonKey"`
+
+	// Status A rating's currency status on the date; `current` or `lapsed` for a launch
+	// method; the day passenger status for passengers; `valid` or `expired` for a
+	// credential.
+	Status ReadinessItemStatus `json:"status"`
+
+	// UlKind Ultralight kind of the rating or passenger entry
+	UlKind *ReadinessItemUlKind `json:"ulKind,omitempty"`
+}
+
+// ReadinessItemKind defines model for ReadinessItem.Kind.
+type ReadinessItemKind string
+
+// ReadinessItemStatus A rating's currency status on the date; `current` or `lapsed` for a launch
+// method; the day passenger status for passengers; `valid` or `expired` for a
+// credential.
+type ReadinessItemStatus string
+
+// ReadinessItemUlKind Ultralight kind of the rating or passenger entry
+type ReadinessItemUlKind string
+
+// ReadinessReport defines model for ReadinessReport.
+type ReadinessReport struct {
+	// AircraftReg Registration of the aircraft the answer is restricted to, as stored
+	AircraftReg *string `json:"aircraftReg,omitempty"`
+
+	// Date The date answered for
+	Date openapi_types.Date `json:"date"`
+
+	// Items Ratings first, then launch methods, passengers and medical certificates
+	Items []ReadinessItem `json:"items"`
+}
 
 // RegistrationResponse defines model for RegistrationResponse.
 type RegistrationResponse struct {
@@ -7980,6 +8194,18 @@ type ListCredentialsParams struct {
 	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
 	// Deletions are not reported: a removed record simply stops appearing.
 	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
+}
+
+// GetCurrencyReadinessParams defines parameters for GetCurrencyReadiness.
+type GetCurrencyReadinessParams struct {
+	// Date Date to answer for, from today to 366 days ahead (UTC). Defaults to today.
+	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
+
+	// AircraftReg Registration of one of the caller's aircraft; restricts the answer to it.
+	AircraftReg *string `form:"aircraftReg,omitempty" json:"aircraftReg,omitempty"`
+
+	// Passengers Include passenger currency.
+	Passengers *bool `form:"passengers,omitempty" json:"passengers,omitempty"`
 }
 
 // ExportFlightsCSVParams defines parameters for ExportFlightsCSV.

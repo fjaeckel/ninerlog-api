@@ -278,6 +278,9 @@ type ServerInterface interface {
 	// GetAllCurrencyStatus Get currency status for all class ratings
 	// (GET /currency)
 	GetAllCurrencyStatus(c *gin.Context)
+	// GetCurrencyReadiness Answer "may I fly on this date?"
+	// (GET /currency/readiness)
+	GetCurrencyReadiness(c *gin.Context, params GetCurrencyReadinessParams)
 	// ListCustomCurrencyRules List the caller's custom currency rules
 	// (GET /custom-currency)
 	ListCustomCurrencyRules(c *gin.Context)
@@ -2449,6 +2452,49 @@ func (siw *ServerInterfaceWrapper) GetAllCurrencyStatus(c *gin.Context) {
 	}
 
 	siw.Handler.GetAllCurrencyStatus(c)
+}
+
+// GetCurrencyReadiness operation middleware
+func (siw *ServerInterfaceWrapper) GetCurrencyReadiness(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCurrencyReadinessParams
+
+	// ------------- Optional query parameter "date" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", c.Request.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter date: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "aircraftReg" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "aircraftReg", c.Request.URL.Query(), &params.AircraftReg, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftReg: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "passengers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "passengers", c.Request.URL.Query(), &params.Passengers, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter passengers: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCurrencyReadiness(c, params)
 }
 
 // ListCustomCurrencyRules operation middleware
@@ -4733,6 +4779,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/licenses/:licenseId/statistics", wrapper.GetLicenseStatistics)
 	router.GET(options.BaseURL+"/licenses/:licenseId/currency", wrapper.GetLicenseCurrency)
 	router.GET(options.BaseURL+"/currency", wrapper.GetAllCurrencyStatus)
+	router.GET(options.BaseURL+"/currency/readiness", wrapper.GetCurrencyReadiness)
 	router.GET(options.BaseURL+"/custom-currency", wrapper.ListCustomCurrencyRules)
 	router.POST(options.BaseURL+"/custom-currency", wrapper.CreateCustomCurrencyRule)
 	router.POST(options.BaseURL+"/custom-currency/preview", wrapper.PreviewCustomCurrencyRule)

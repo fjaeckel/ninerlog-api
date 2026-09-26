@@ -2,7 +2,6 @@ package currency
 
 import (
 	"context"
-	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
@@ -38,14 +37,14 @@ var otherExpiryRule = ratingRule{
 	displayKey:  "",
 	description: "No auto-calculated rules — currency tracked by class rating expiry date only",
 	scope:       scopeByClass,
-	finalize: func(_ context.Context, rt *ratingRuntime) {
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
 		if rating.ExpiryDate != nil {
-			if rating.IsExpired() {
+			if rating.IsExpiredAt(nowFrom(ctx)) {
 				rt.result.Status = StatusExpired
 				rt.result.setMsg(MsgRatingExpired, nil)
-			} else if rating.IsExpiringSoon(90) {
-				daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+				daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 				rt.result.Status = StatusExpiring
 				rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft))
 			} else {

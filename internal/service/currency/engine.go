@@ -342,11 +342,25 @@ func evalRatingRuleWithPeers(ctx context.Context, rule *ratingRule, rating *mode
 }
 
 // evalRatingRuleForHolder is evalRatingRuleWithPeers with every class rating
-// the user holds across licences.
+// the user holds across licences. It adds remedies to unmet rows and, when dp
+// is a dailyCache, validUntil dates to rolling-window results.
 func evalRatingRuleForHolder(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
+	result := evalRatingRuleOnce(ctx, rule, rating, license, peers, held, dp)
+	if cache, ok := dp.(*dailyCache); ok {
+		projectValidUntil(ctx, rule.window, &result, cache, func(at context.Context) ClassRatingCurrency {
+			return evalRatingRuleOnce(at, rule, rating, license, peers, held, dp)
+		})
+	}
+	annotateRemedies(&result)
+	return result
+}
+
+// evalRatingRuleOnce runs rule for rating at the context's instant.
+func evalRatingRuleOnce(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
 	result := ClassRatingCurrency{
 		ClassRatingID:       rating.ID,
 		ClassType:           rating.ClassType,
+		ULKind:              rating.ULKind,
 		LicenseID:           rating.LicenseID,
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
@@ -379,7 +393,7 @@ func evalRatingRuleForHolder(ctx context.Context, rule *ratingRule, rating *mode
 // rule; withCheck adds a proficiency check that replaces the experience.
 func recencyFinalize(withCheck bool) func(ctx context.Context, rt *ratingRuntime) {
 	return func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown

@@ -2,6 +2,7 @@ package currency
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -234,11 +235,12 @@ func TestEASA_SPL_LaunchMethodCurrency(t *testing.T) {
 	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
 	want := []LaunchMethodCurrency{
 		{Method: "winch", Launches: 8, Required: 5, Met: true, MessageKey: MsgLaunchMethodProgress},
-		{Method: "aerotow", Launches: 0, Required: 5, Met: false, MessageKey: MsgLaunchMethodProgress},
+		{Method: "aerotow", Launches: 0, Required: 5, Met: false, MessageKey: MsgLaunchMethodProgress,
+			RemedyKey: RemedyLaunchMethodDual, RemedyParams: &MessageParams{Method: ptr("aerotow"), Missing: ptr(5)}},
 		{Method: "self-launch", Launches: 5, Required: 5, Met: true, MessageKey: MsgLaunchMethodProgress},
 		{Method: "bungee", Launches: 2, Required: 2, Met: true, MessageKey: MsgLaunchMethodProgress},
 	}
-	if !slices.Equal(result.LaunchMethodCurrency, want) {
+	if !reflect.DeepEqual(result.LaunchMethodCurrency, want) {
 		t.Errorf("launch methods =\n%+v\nwant\n%+v", result.LaunchMethodCurrency, want)
 	}
 	if result.Status != StatusCurrent {
