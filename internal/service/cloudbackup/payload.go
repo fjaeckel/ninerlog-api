@@ -25,6 +25,9 @@ type Payload struct {
 	Contacts            []*models.Contact    `json:"contacts"`
 	CustomCurrencyRules []CustomCurrencyRule `json:"customCurrencyRules"`
 	CustomReports       []CustomReport       `json:"customReports"`
+	// AircraftReminders name their aircraft by id and registration in this
+	// backup.
+	AircraftReminders []*models.AircraftReminder `json:"aircraftReminders"`
 	// NotificationPreferences and FlightBaseline are single-row settings and
 	// are omitted when the user has none.
 	NotificationPreferences *NotificationPreferences `json:"notificationPreferences,omitempty"`

@@ -316,8 +316,8 @@ func TestGetPreferences(t *testing.T) {
 	if prefs.CheckHour != 8 {
 		t.Errorf("CheckHour = %d, want 8", prefs.CheckHour)
 	}
-	if len(prefs.EnabledCategories) != 10 {
-		t.Errorf("EnabledCategories length = %d, want 10", len(prefs.EnabledCategories))
+	if len(prefs.EnabledCategories) != len(models.AllNotificationCategories) {
+		t.Errorf("EnabledCategories length = %d, want %d", len(prefs.EnabledCategories), len(models.AllNotificationCategories))
 	}
 }
 

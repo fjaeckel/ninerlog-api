@@ -47,6 +47,8 @@ type DefaultJSONBuilder struct {
 	CustomCurrency *currency.CustomService
 	CustomReports  *customreport.Service
 	Notifications  *service.NotificationService
+	// AircraftReminders backs the aircraftReminders section; nil omits it.
+	AircraftReminders *service.AircraftReminderService
 	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
 	AttachCrew func(ctx context.Context, flights []*models.Flight)
@@ -150,6 +152,11 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		return Payload{}, err
 	}
 
+	reminders, err := b.gatherAircraftReminders(ctx, userID)
+	if err != nil {
+		return Payload{}, err
+	}
+
 	return Payload{
 		ExportedAt:              now.Format(time.RFC3339),
 		Version:                 b.versionOrDefault(),
@@ -161,6 +168,7 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		Contacts:                contacts,
 		CustomCurrencyRules:     rules,
 		CustomReports:           reports,
+		AircraftReminders:       reminders,
 		NotificationPreferences: prefs,
 		FlightBaseline:          NewFlightBaseline(b.gatherBaseline(ctx, userID)),
 	}, nil
@@ -214,6 +222,21 @@ func (b *DefaultJSONBuilder) gatherCustomReports(ctx context.Context, userID uui
 		reports = append(reports, CustomReport{Name: r.Name, Definition: r.Definition})
 	}
 	return reports, nil
+}
+
+// gatherAircraftReminders returns the user's aircraft reminders, sorted by id.
+func (b *DefaultJSONBuilder) gatherAircraftReminders(ctx context.Context, userID uuid.UUID) ([]*models.AircraftReminder, error) {
+	if b.AircraftReminders == nil {
+		return nil, nil
+	}
+	reminders, err := b.AircraftReminders.ListAll(ctx, userID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("list aircraft reminders: %w", err)
+	}
+	sort.SliceStable(reminders, func(i, j int) bool {
+		return reminders[i].ID.String() < reminders[j].ID.String()
+	})
+	return reminders, nil
 }
 
 // gatherNotificationPreferences returns the user's notification settings.

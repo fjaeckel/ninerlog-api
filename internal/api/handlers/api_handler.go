@@ -69,6 +69,9 @@ type APIHandler struct {
 	// customReportService is wired in cmd/api/main.go via
 	// SetCustomReportService.
 	customReportService *customreport.Service
+	// aircraftReminderService is wired in cmd/api/main.go via
+	// SetAircraftReminderService.
+	aircraftReminderService *service.AircraftReminderService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

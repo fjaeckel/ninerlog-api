@@ -259,7 +259,12 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 ### Wave 3: ultralight experience
 
-**WP-30. Aircraft reminders** (api + fe; `migration-author`)
+**WP-30. Aircraft reminders** (api + fe; `migration-author`) — **API half implemented**
+(migration 75, `/aircraft/{id}/reminders`, `/aircraft-reminders`, notification category
+`aircraft_reminder`, backup/restore, admin count); semantics in
+[DOMAIN.md](../DOMAIN.md#aircraft-reminders). No job was added (the existing notification
+checker carries it), so no new metric. Attaching documents to aircraft is not part of it.
+Frontend half open.
 
 - An `aircraft_reminders` table. Types:
   - Jahresnachprüfung (12 months)

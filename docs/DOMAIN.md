@@ -307,6 +307,31 @@ two fleet entries and two sets of statistics. Full design, the table-maintenance
 and the `POST /flights/recalculate` migration path are in
 [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 
+## Aircraft reminders
+
+Aircraft reminders are the aircraft side of staying legal to fly (PERSONAS.md, Mehmet job 3):
+the annual inspection — for German gliders and ultralights the DAeC/DULV Jahresnachprüfung,
+every 12 months — insurance, the ballistic rescue system's repack and its rocket's expiry
+(both on manufacturer intervals), the ARC and the ELT battery, plus custom labelled items.
+They are not currency: nothing in the currency engine reads them.
+
+- **Dates are calendar dates.** `status` and `daysUntilDue` compare `due_date` with today in
+  UTC: `overdue` when the date has passed, `due_soon` from 30 days out up to and including
+  the due date, `ok` otherwise.
+- **Completing** (`POST …/complete`) records `doneOn` (default today, UTC) as `last_done_on`.
+  With `interval_months` the next due date is `doneOn + interval_months` calendar months,
+  counted from the completion date rather than the old due date, and clamped to the month
+  end (31 January + 1 month = 28/29 February; 29 February + 12 months = 28 February).
+  Without an interval the due date is left for the pilot to set.
+- **Intervals are suggestions, not rules.** The API accepts any interval of 1–240 months;
+  offering 12 months for an annual inspection, or the manufacturer's figure for a repack,
+  is the client's job.
+- **Ownership** follows aircraft conventions: a reminder is reachable only through its own
+  aircraft, and a foreign or mismatched aircraft/reminder pair is a 404.
+- **Notifications** (category `aircraft_reminder`, on by default) reuse the credential-expiry
+  mechanism: one email per warning-day threshold per due date, plus one overdue email per
+  due date. Moving the due date — by completing or editing — re-arms both.
+
 ## Currency engine
 
 **Currency** answers the regulator's question: *given recent flying, is this pilot
@@ -645,7 +670,8 @@ authority that reuses existing aggregates.
 
 - Flights feed currency, statistics, reports, maps, and exports.
 - Class-rating and credential expiry dates feed both the currency engine and the
-  notification system (see [FEATURES.md](./FEATURES.md#notifications)).
+  notification system (see [FEATURES.md](./FEATURES.md#notifications)); aircraft reminder
+  due dates feed only the notification system.
 - The HTTP surface for currency is `GET /currency` and `GET /licenses/{id}/currency`
   (see [API.md](./API.md)).
 

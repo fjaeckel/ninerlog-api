@@ -77,6 +77,9 @@ type ServerInterface interface {
 	// CreateAircraft Add aircraft
 	// (POST /aircraft)
 	CreateAircraft(c *gin.Context)
+	// ListAllAircraftReminders List reminders across all aircraft
+	// (GET /aircraft-reminders)
+	ListAllAircraftReminders(c *gin.Context, params ListAllAircraftRemindersParams)
 	// GetAircraftStats Get per-aircraft flight statistics
 	// (GET /aircraft/stats)
 	GetAircraftStats(c *gin.Context)
@@ -89,6 +92,21 @@ type ServerInterface interface {
 	// UpdateAircraft Update aircraft
 	// (PATCH /aircraft/{aircraftId})
 	UpdateAircraft(c *gin.Context, aircraftId AircraftId)
+	// ListAircraftReminders List reminders for an aircraft
+	// (GET /aircraft/{aircraftId}/reminders)
+	ListAircraftReminders(c *gin.Context, aircraftId AircraftId)
+	// CreateAircraftReminder Add a reminder to an aircraft
+	// (POST /aircraft/{aircraftId}/reminders)
+	CreateAircraftReminder(c *gin.Context, aircraftId AircraftId)
+	// DeleteAircraftReminder Delete an aircraft reminder
+	// (DELETE /aircraft/{aircraftId}/reminders/{reminderId})
+	DeleteAircraftReminder(c *gin.Context, aircraftId AircraftId, reminderId ReminderId)
+	// UpdateAircraftReminder Update an aircraft reminder
+	// (PATCH /aircraft/{aircraftId}/reminders/{reminderId})
+	UpdateAircraftReminder(c *gin.Context, aircraftId AircraftId, reminderId ReminderId)
+	// CompleteAircraftReminder Mark an aircraft reminder done
+	// (POST /aircraft/{aircraftId}/reminders/{reminderId}/complete)
+	CompleteAircraftReminder(c *gin.Context, aircraftId AircraftId, reminderId ReminderId)
 	// GetAirportPack Download the airport database pack
 	// (GET /airports/pack)
 	GetAirportPack(c *gin.Context)
@@ -1023,6 +1041,33 @@ func (siw *ServerInterfaceWrapper) CreateAircraft(c *gin.Context) {
 	siw.Handler.CreateAircraft(c)
 }
 
+// ListAllAircraftReminders operation middleware
+func (siw *ServerInterfaceWrapper) ListAllAircraftReminders(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAllAircraftRemindersParams
+
+	// ------------- Optional query parameter "dueWithinDays" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "dueWithinDays", c.Request.URL.Query(), &params.DueWithinDays, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter dueWithinDays: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAllAircraftReminders(c, params)
+}
+
 // GetAircraftStats operation middleware
 func (siw *ServerInterfaceWrapper) GetAircraftStats(c *gin.Context) {
 
@@ -1109,6 +1154,158 @@ func (siw *ServerInterfaceWrapper) UpdateAircraft(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAircraft(c, aircraftId)
+}
+
+// ListAircraftReminders operation middleware
+func (siw *ServerInterfaceWrapper) ListAircraftReminders(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "aircraftId" -------------
+	var aircraftId AircraftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aircraftId", c.Param("aircraftId"), &aircraftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAircraftReminders(c, aircraftId)
+}
+
+// CreateAircraftReminder operation middleware
+func (siw *ServerInterfaceWrapper) CreateAircraftReminder(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "aircraftId" -------------
+	var aircraftId AircraftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aircraftId", c.Param("aircraftId"), &aircraftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAircraftReminder(c, aircraftId)
+}
+
+// DeleteAircraftReminder operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAircraftReminder(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "aircraftId" -------------
+	var aircraftId AircraftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aircraftId", c.Param("aircraftId"), &aircraftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "reminderId" -------------
+	var reminderId ReminderId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reminderId", c.Param("reminderId"), &reminderId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reminderId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAircraftReminder(c, aircraftId, reminderId)
+}
+
+// UpdateAircraftReminder operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAircraftReminder(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "aircraftId" -------------
+	var aircraftId AircraftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aircraftId", c.Param("aircraftId"), &aircraftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "reminderId" -------------
+	var reminderId ReminderId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reminderId", c.Param("reminderId"), &reminderId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reminderId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAircraftReminder(c, aircraftId, reminderId)
+}
+
+// CompleteAircraftReminder operation middleware
+func (siw *ServerInterfaceWrapper) CompleteAircraftReminder(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "aircraftId" -------------
+	var aircraftId AircraftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "aircraftId", c.Param("aircraftId"), &aircraftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "reminderId" -------------
+	var reminderId ReminderId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reminderId", c.Param("reminderId"), &reminderId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reminderId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CompleteAircraftReminder(c, aircraftId, reminderId)
 }
 
 // GetAirportPack operation middleware
@@ -4518,6 +4715,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/aircraft/:aircraftId", wrapper.DeleteAircraft)
 	router.GET(options.BaseURL+"/aircraft/:aircraftId", wrapper.GetAircraft)
 	router.PATCH(options.BaseURL+"/aircraft/:aircraftId", wrapper.UpdateAircraft)
+	router.GET(options.BaseURL+"/aircraft/:aircraftId/reminders", wrapper.ListAircraftReminders)
+	router.POST(options.BaseURL+"/aircraft/:aircraftId/reminders", wrapper.CreateAircraftReminder)
+	router.DELETE(options.BaseURL+"/aircraft/:aircraftId/reminders/:reminderId", wrapper.DeleteAircraftReminder)
+	router.PATCH(options.BaseURL+"/aircraft/:aircraftId/reminders/:reminderId", wrapper.UpdateAircraftReminder)
+	router.POST(options.BaseURL+"/aircraft/:aircraftId/reminders/:reminderId/complete", wrapper.CompleteAircraftReminder)
+	router.GET(options.BaseURL+"/aircraft-reminders", wrapper.ListAllAircraftReminders)
 	router.GET(options.BaseURL+"/flights", wrapper.ListFlights)
 	router.POST(options.BaseURL+"/flights", wrapper.CreateFlight)
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)

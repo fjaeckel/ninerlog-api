@@ -359,6 +359,27 @@ see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md). `ulKind` is kept o
 `maxTakeoffMassKg` (1–1,000,000, nullable) records the aircraft's MTOM; out of range is a `400`
 (`Invalid maximum take-off mass`).
 
+#### Aircraft reminders
+Dated items on an aircraft — `ANNUAL_INSPECTION` (Jahresnachprüfung), `INSURANCE`,
+`RESCUE_SYSTEM_REPACK`, `RESCUE_ROCKET_EXPIRY`, `ARC`, `ELT_BATTERY` and `CUSTOM` (which
+requires a `label`, max 100 chars).
+
+| Method & path | Result |
+| --- | --- |
+| `GET /aircraft/{aircraftId}/reminders` | the aircraft's reminders, ordered by `dueDate` |
+| `POST /aircraft/{aircraftId}/reminders` | `201` with the reminder |
+| `PATCH /aircraft/{aircraftId}/reminders/{reminderId}` | partial update; `null` clears `label`, `intervalMonths`, `lastDoneOn`, `notes` |
+| `DELETE /aircraft/{aircraftId}/reminders/{reminderId}` | `204` |
+| `POST /aircraft/{aircraftId}/reminders/{reminderId}/complete` | body `{doneOn?}` (default today, UTC); returns the reminder |
+| `GET /aircraft-reminders?dueWithinDays=N` | all of the caller's reminders across aircraft, by `dueDate`; `N` (0–3650) keeps those due within N days, overdue included |
+
+Every response carries `aircraftRegistration`, `status` (`ok` / `due_soon` within 30 days,
+today included / `overdue`) and `daysUntilDue` (negative when overdue), computed against
+today in UTC. `intervalMonths` is 1–240, `notes` max 1000 chars; a violation is a `400`, as is
+a `dueWithinDays` outside 0–3650. An aircraft or reminder that does not exist, belongs to
+another user, or (for a reminder) sits on another aircraft is a `404`, never a `403`.
+Completion semantics are in [DOMAIN.md](./DOMAIN.md#aircraft-reminders).
+
 `pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
 rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
 `registration ASC` and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
@@ -590,9 +611,9 @@ confirm and backup restore. So:
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
 history) and export to CSV, JSON, PDF, and vCard.
 
-`GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, licences and
-class ratings, credentials, contacts, custom currency rules, notification preferences and the
-carried-forward hours baseline. It is the same payload a cloud backup run writes
+`GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, aircraft
+reminders, licences and class ratings, credentials, contacts, custom currency rules, custom
+reports, notification preferences and the carried-forward hours baseline. It is the same payload a cloud backup run writes
 (`cloudbackup.Payload` is the single definition of both), and `POST /imports/json` restores
 every section of it.
 
@@ -601,7 +622,10 @@ registration already exists and contacts when the name does — with two excepti
 single-row settings rather than collections: notification preferences and the flight baseline
 replace what the account currently has. All IDs are regenerated, so a backup restores into any
 installation including the one it came from. A custom currency rule's sharing state is never
-carried over: a restored rule is private until shared again.
+carried over: a restored rule is private until shared again. Aircraft reminders attach to the
+restored aircraft, or to the existing aircraft of the same registration when that one was
+skipped; a reminder whose aircraft cannot be resolved, or that matches one already on the
+aircraft by kind, label and due date, is skipped and counted in `aircraftRemindersSkipped`.
 
 Anything a user owns belongs in this payload. `internal/service/cloudbackup/coverage_test.go`
 classifies every table in `db/migrations` as either exported (naming its payload section) or

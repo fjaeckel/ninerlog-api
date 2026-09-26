@@ -25,6 +25,8 @@ const (
 	// NotifCategoryCustomCurrency labels custom currency rule notifications;
 	// opt-in is per-rule (custom_currency_rules.notify).
 	NotifCategoryCustomCurrency NotificationCategory = "currency_custom"
+	// NotifCategoryAircraftReminder labels due-soon and overdue aircraft reminders.
+	NotifCategoryAircraftReminder NotificationCategory = "aircraft_reminder"
 )
 
 // AllNotificationCategories is the default set of all categories (all enabled)
@@ -39,6 +41,7 @@ var AllNotificationCategories = pq.StringArray{
 	string(NotifCategoryCurrencyInstrument),
 	string(NotifCategoryCurrencyFlightReview),
 	string(NotifCategoryCurrencyRevalidation),
+	string(NotifCategoryAircraftReminder),
 }
 
 // NotificationPreferences holds a user's notification settings

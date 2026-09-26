@@ -15,6 +15,7 @@ flowchart TD
     User((User))
     User --> License
     User --> Aircraft
+    Aircraft --> AircraftReminder
     User --> Credential
     User --> Contact
     User --> Flight
@@ -128,6 +129,26 @@ EASA SEP/TMG crediting (FCL.035(a)(4)); see [DOMAIN.md](./DOMAIN.md#ultralights)
 kilograms. FCL.035(a)(5) credits an `ULTRALIGHT` gyroplane of at least 450 kg toward GPL
 recency; see [DOMAIN.md](./DOMAIN.md#gyroplanes-gpl). Migration 73 also normalises free-text
 `GYROPLANE`, `GYROCOPTER` and `TRAGSCHRAUBER` aircraft classes to `GYROPLANE`.
+
+### AircraftReminder (`internal/models/aircraft_reminder.go`, migration 75)
+
+A dated item on one of the user's aircraft. `user_id` and `aircraft_id` both cascade, so
+deleting the aircraft or the account removes its reminders.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `kind` | `TEXT` | CHECK: `ANNUAL_INSPECTION`, `INSURANCE`, `RESCUE_SYSTEM_REPACK`, `RESCUE_ROCKET_EXPIRY`, `ARC`, `ELT_BATTERY`, `CUSTOM` |
+| `label` | `TEXT NULL` | ≤ 100 chars; required (non-blank) when `kind = 'CUSTOM'` (constraint `aircraft_reminders_custom_label`) |
+| `due_date` | `DATE` | |
+| `interval_months` | `INTEGER NULL` | 1–240; rolls `due_date` forward on completion |
+| `last_done_on` | `DATE NULL` | set by `POST …/complete` |
+| `notes` | `TEXT NULL` | ≤ 1000 chars |
+
+Indexed on `(user_id, due_date)` for the cross-fleet list and the notification check, and on
+`aircraft_id`. `status` and `daysUntilDue` in the API are computed, not stored; the
+registration is joined from `aircraft`. Migration 75 also adds `aircraft_reminder` to the
+`notification_preferences.enabled_categories` default and to every existing row. See
+[DOMAIN.md](./DOMAIN.md#aircraft-reminders).
 
 ### Credential (`internal/models/credential.go`, migration 9)
 
@@ -318,8 +339,8 @@ filter builder `GET /flights` uses.
 | OIDCHandoffCode | `oidc.go` | 52 | Single-use code bridging the provider redirect to the SPA's token request, keyed by `sha256(code)` |
 | EmailDeliveryEvent | `email_delivery.go` | 56 | Append-only log of send attempts: recipient, message type, SMTP outcome and reply code. `user_id` is `ON DELETE SET NULL` so a bounce history outlives the account it belonged to |
 | EmailSuppression | `email_delivery.go` | 56 | Addresses that refused mail permanently; keyed by lower-cased address. Consulted before every send |
-| NotificationPreference | `notification.go` | 10, 33 | Per-category opt-in + warning windows |
-| NotificationLog | `notification.go` | 10, 33 | Sent-notification history (dedup) |
+| NotificationPreference | `notification.go` | 10, 33, 75 | Per-category opt-in + warning windows |
+| NotificationLog | `notification.go` | 10, 33 | Sent-notification history (dedup). `days_before_expiry = -1` marks an overdue aircraft-reminder notice |
 
 Token-style tables store hashes, never raw secrets. See [AUTHENTICATION.md](./AUTHENTICATION.md)
 and, for the OIDC tables, [OIDC.md](./OIDC.md).

@@ -21,6 +21,12 @@ type customCurrencyLister interface {
 	List(ctx context.Context, userID uuid.UUID) ([]currency.CustomRuleWithStatus, error)
 }
 
+// aircraftReminderLister lists a user's aircraft reminders across aircraft.
+// Satisfied by *AircraftReminderService.
+type aircraftReminderLister interface {
+	ListAll(ctx context.Context, userID uuid.UUID, dueWithinDays *int) ([]*models.AircraftReminder, error)
+}
+
 type NotificationService struct {
 	notifRepo       repository.NotificationRepository
 	credentialRepo  repository.CredentialRepository
@@ -30,6 +36,7 @@ type NotificationService struct {
 	emailSender     *email.Sender
 	currencyService *currency.Service
 	customService   customCurrencyLister
+	reminders       aircraftReminderLister
 }
 
 func NewNotificationService(
@@ -52,6 +59,12 @@ func NewNotificationService(
 		currencyService: currencyService,
 		customService:   customService,
 	}
+}
+
+// SetAircraftReminderSource wires the aircraft reminder lister; nil turns
+// aircraft reminder notices off.
+func (s *NotificationService) SetAircraftReminderSource(r aircraftReminderLister) {
+	s.reminders = r
 }
 
 // GetPreferences returns notification preferences for a user
@@ -94,6 +107,7 @@ func (s *NotificationService) TriggerCheck(ctx context.Context) {
 		s.checkCredentialExpiry(ctx, prefs, user.Email, user.Name)
 		s.checkCurrencyNotifications(ctx, prefs, user.Email, user.Name)
 		s.checkCustomCurrencyNotifications(ctx, prefs, user.Email, user.Name)
+		s.checkAircraftReminders(ctx, prefs, user.Email, user.Name)
 	}
 }
 
@@ -169,6 +183,9 @@ func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 
 		// Check user-authored custom currency rules (per-rule opt-in)
 		s.checkCustomCurrencyNotifications(ctx, prefs, user.Email, user.Name)
+
+		// Check due-soon and overdue aircraft reminders
+		s.checkAircraftReminders(ctx, prefs, user.Email, user.Name)
 	}
 
 	NotificationLastSuccessTimestampSeconds.SetToCurrentTime()
@@ -577,6 +594,75 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 				Subject:          &subject,
 			})
 		}
+	}
+}
+
+// overdueReminderKey is the days_before_expiry dedup key of an overdue
+// aircraft reminder notice.
+const overdueReminderKey = -1
+
+// checkAircraftReminders emails for aircraft reminders that fall within a
+// warning day (one notice per threshold per due date) or are overdue (one
+// notice per due date).
+func (s *NotificationService) checkAircraftReminders(ctx context.Context, prefs *models.NotificationPreferences, userEmail, userName string) {
+	if s.reminders == nil || !prefs.IsCategoryEnabled(models.NotifCategoryAircraftReminder) {
+		return
+	}
+	reminders, err := s.reminders.ListAll(ctx, prefs.UserID, nil)
+	if err != nil || len(reminders) == 0 {
+		return
+	}
+	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	tmpl := email.Templates(user.PreferredLocale)
+	today := models.DateOnly(time.Now().UTC())
+	category := models.NotifCategoryAircraftReminder
+
+	for _, rem := range reminders {
+		due := rem.DueDate
+		days := rem.DaysUntilDue(today)
+		label := ""
+		if rem.Label != nil {
+			label = *rem.Label
+		}
+		params := email.AircraftReminderParams{
+			UserName:      userName,
+			Registration:  rem.AircraftRegistration,
+			Kind:          string(rem.Kind),
+			Label:         label,
+			DueDate:       formatDateForUser(due, user.DateFormat),
+			DaysRemaining: days,
+			Overdue:       days < 0,
+		}
+		subject, body := tmpl.AircraftReminder(params)
+		if days >= 0 {
+			s.sendWarningForDays(ctx, prefs, category, rem.ID, "aircraft_reminder", days, &due, subject, body, userEmail)
+			continue
+		}
+
+		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(category), rem.ID, overdueReminderKey, &due)
+		if err != nil || sent {
+			continue
+		}
+		if err := s.emailSender.SendMessage(ctx, email.Message{
+			To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
+		}); err != nil {
+			slog.Error("Failed to send aircraft reminder overdue email", "error", err)
+			continue
+		}
+		NotificationsSentTotal.WithLabelValues(string(category)).Inc()
+		key := overdueReminderKey
+		_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
+			UserID:              prefs.UserID,
+			NotificationType:    string(category),
+			ReferenceID:         &rem.ID,
+			ReferenceType:       strPtr("aircraft_reminder"),
+			DaysBeforeExpiry:    &key,
+			ExpiryReferenceDate: &due,
+			Subject:             &subject,
+		})
 	}
 }
 
