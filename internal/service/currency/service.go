@@ -22,6 +22,7 @@ type Service struct {
 	classRatingRepo ClassRatingRepo
 	flightData      FlightDataProvider
 	fallback        Evaluator
+	privileges      PrivilegeLister
 }
 
 // NewService creates a new currency service
@@ -84,6 +85,7 @@ func (s *Service) evaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 		heldRatings = append(heldRatings, classRatings...)
 	}
 	partFCLTMG := s.holdsPartFCLTMG(licenses, ratingsByLicense)
+	privs, privilegesLoaded := s.loadPrivileges(ctx, userID)
 
 	for _, license := range licenses {
 		classRatings, ok := ratingsByLicense[license.ID]
@@ -108,6 +110,9 @@ func (s *Service) evaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 			if partFCLTMG && result.RuleDescriptionKey == easaSPLTMGRule.displayKey {
 				applySFCLTMGExemption(&result)
 			}
+			if privilegesLoaded && result.RuleDescriptionKey == easaSPLRule.displayKey {
+				s.applyTrainedLaunchMethods(ctx, &result, license, privs[license.ID], dp)
+			}
 			ratings = append(ratings, result)
 
 			// Tier 2: Passenger currency (if evaluator supports it).
@@ -128,14 +133,20 @@ func (s *Service) evaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 			}
 			seenPassengerClasses[passengerKey] = true
 
+			var pax PassengerCurrency
 			if holderAware {
-				passengerCurrency = append(passengerCurrency, holderEval.EvaluateRatingPassengerCurrencyForHolder(ctx, cr, license, classRatings, heldRatings, dp))
+				pax = holderEval.EvaluateRatingPassengerCurrencyForHolder(ctx, cr, license, classRatings, heldRatings, dp)
 			} else if paxEval, ok := eval.(RatingPassengerCurrencyEvaluator); ok {
-				passengerCurrency = append(passengerCurrency, paxEval.EvaluateRatingPassengerCurrency(ctx, cr, license, classRatings, dp))
+				pax = paxEval.EvaluateRatingPassengerCurrency(ctx, cr, license, classRatings, dp)
 			} else if paxEval, ok := eval.(PassengerCurrencyEvaluator); ok {
-				pax := paxEval.EvaluatePassengerCurrency(ctx, cr.ClassType, license, classRatings, dp)
-				passengerCurrency = append(passengerCurrency, pax)
+				pax = paxEval.EvaluatePassengerCurrency(ctx, cr.ClassType, license, classRatings, dp)
+			} else {
+				continue
 			}
+			if privilegesLoaded {
+				s.applyPassengerPrivileges(ctx, &pax, license, privs[license.ID], dp)
+			}
+			passengerCurrency = append(passengerCurrency, pax)
 		}
 
 		// Flight review (FAA §61.56) — evaluate once per authority, not per rating
@@ -154,11 +165,15 @@ func (s *Service) evaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 		passengerCurrency = []PassengerCurrency{}
 	}
 
-	return &CurrencyStatusResponse{
+	resp := &CurrencyStatusResponse{
 		Ratings:           ratings,
 		PassengerCurrency: passengerCurrency,
 		FlightReview:      flightReview,
-	}, nil
+	}
+	if privilegesLoaded {
+		resp.Privileges = s.evaluatePrivileges(ctx, licenses, privs)
+	}
+	return resp, nil
 }
 
 // evaluatorFor returns the evaluator for a license's authority.

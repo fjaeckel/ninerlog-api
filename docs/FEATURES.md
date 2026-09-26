@@ -77,6 +77,12 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   may hold several licenses across authorities.
 - **Class ratings** (`internal/service/class_rating.go`) — nested under a license;
   `ClassType` enum and `ExpiryDate` drive currency and notifications.
+- **Licence privileges** (`internal/service/licence_privilege.go`,
+  `/licenses/{id}/privileges`) — ratings and authorisations beside the class ratings:
+  sailplane and banner towing, cloud flying, aerobatics, TMG night, FI(S), BI(S), FE(S),
+  launch methods trained for, the German UL passenger authorisation (§84a), UL towing per
+  kind and UL type briefings (Einweisung) per aircraft type, each with optional issue and
+  expiry dates and notes. Their currency is on `GET /currency`.
 - **Aircraft** (`internal/service/aircraft.go`) — the pilot's aircraft; the aircraft class
   links flights to the correct currency bucket, and an ultralight's kind decides what its
   flights are credited toward.
@@ -302,6 +308,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   series entry counts every launch in it. Launch recency is reported per method
   (SFCL.155(c)), with TMG take-offs counting toward self-launch.
   Details in [SAILPLANES.md](./SAILPLANES.md).
+- **Privileges** — each licence privilege is evaluated next to the ratings: SFCL.205 towing
+  (5 tows in 24 months, from tow flights), FAA §61.69 tow recency, SFCL.215 cloud flying
+  (1 h or 5 flights, from IFR time on gliders), SFCL.360 FI(S) instruction (30 h or 60
+  launches in 3 years, with the refresher shown as not tracked), DULV UL towing (10 tows
+  per kind), and expiry for the rest, with `validUntil` and remedies. Launch methods the
+  pilot is trained for are marked on the glider rating and shown even before the first
+  launch; SPL passenger currency shows the SFCL.115(a)(2) prerequisites and, with a TMG
+  night privilege, night passengers in a TMG (SFCL.160(e)(2)); German UL passenger
+  currency is only current with the §84a authorisation recorded, and shows the progress
+  toward it otherwise. Privileges with an expiry date get the rating-expiry email. Details
+  in [SAILPLANES.md](./SAILPLANES.md#privileges).
 - **FAA gliders** — an FAA glider rating is current on the §61.56 flight review, or on three
   instructional glider flights in the same 24 calendar months (§61.56(b)). §61.57(a) is shown
   as passenger currency only, counting landings as PIC, with no night requirement on any FAA
@@ -607,8 +624,8 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   re-importing updates the existing cards.
 - **Full backup / restore** (`GET /users/me/data`, `POST /users/me/data`; the old
   `GET /exports/json` and `POST /imports/json` are deprecated aliases) — everything the
-  pilot owns in one document: flights with crew, aircraft, licences and class ratings,
-  credentials, contacts, custom currency rules, custom reports, notification preferences,
+  pilot owns in one document: flights with crew, aircraft, licences with
+  their class ratings and privileges, credentials, contacts, custom currency rules, custom reports, notification preferences,
   the carried-forward hours baseline, the pilot profile's intents, and the strict logbook
   mode with its flight revisions, mode switches and certifications. `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
@@ -714,7 +731,8 @@ Admin-only endpoints (caller must be an admin — the `users.is_admin` flag or t
   the logbook keeps them apart. `totalCustomReports` counts saved custom reports across all
   users. `strictLogbookUsers`, `flightRevisions`, `flightCorrections`, `voidedFlights` and
   `logbookCertifications` count strict-mode users and their audit trail rows (counts only,
-  never contents). `pilotProfiles` reports how many users switched the pilot profile to show
+  never contents). `licencePrivileges` reports the `total` and the count
+  per kind (`byKind`) of licence privileges across all users. `pilotProfiles` reports how many users switched the pilot profile to show
   everything and, per discipline, how many set it explicitly on, off or as a training goal. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than

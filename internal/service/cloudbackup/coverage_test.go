@@ -29,6 +29,7 @@ var exported = map[string]string{
 	"aircraft":                 "Aircraft",
 	"licenses":                 "Licenses[].License",
 	"class_ratings":            "Licenses[].ClassRatings",
+	"licence_privileges":       "Licenses[].Privileges",
 	"credentials":              "Credentials",
 	"contacts":                 "Contacts",
 	"custom_currency_rules":    "CustomCurrencyRules",

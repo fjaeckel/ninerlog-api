@@ -19,9 +19,10 @@ import (
 const maxCrewNameLen = 255
 
 type plannedLicense struct {
-	oldID   uuid.UUID
-	license *models.License
-	ratings []*models.ClassRating
+	oldID      uuid.UUID
+	license    *models.License
+	ratings    []*models.ClassRating
+	privileges []*models.LicencePrivilege
 }
 
 // restorePlan is a payload turned into rows ready to insert for one user.
@@ -181,6 +182,18 @@ func (pl *restorePlan) planLicenses(p *Payload) error {
 				return invalidEntry("licenses", i, fmt.Errorf("class rating %d: %w", j, err))
 			}
 			planned.ratings = append(planned.ratings, &cr)
+		}
+		for j, src := range bundle.Privileges {
+			if src == nil {
+				return invalidEntry("licenses", i, fmt.Errorf("privilege %d is empty", j))
+			}
+			lp := *src
+			lp.ID = uuid.Nil
+			lp.UserID = pl.userID
+			if err := lp.Validate(); err != nil {
+				return invalidEntry("licenses", i, fmt.Errorf("privilege %d: %w", j, err))
+			}
+			planned.privileges = append(planned.privileges, &lp)
 		}
 		pl.licenses = append(pl.licenses, planned)
 	}

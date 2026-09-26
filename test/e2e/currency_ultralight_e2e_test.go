@@ -576,8 +576,13 @@ func TestGermanUL_PassengersNeedTakeoffsAndLandings(t *testing.T) {
 			"landings": 1,
 		})
 		pc := paxByKind(getCurrencyStatus(t, c))["THREE_AXIS"]
-		assertStr(t, "dayStatus", pc["dayStatus"], "current")
+		assertStr(t, "dayStatus without authorisation", pc["dayStatus"], "unknown")
+		assertStr(t, "messageKey without authorisation", pc["messageKey"], "pax.ul_authorisation_missing")
 		assertInt(t, "dayLandings", gi(pc, "dayLandings"), 3)
 		assertStr(t, "dayExpiresOn", pc["dayExpiresOn"], plusDays(pastDate(10), 90))
+
+		requireStatus(t, c.POST("/licenses/"+licID+"/privileges", map[string]interface{}{"kind": "UL_PASSENGER_AUTH"}), http.StatusCreated)
+		pc = paxByKind(getCurrencyStatus(t, c))["THREE_AXIS"]
+		assertStr(t, "dayStatus", pc["dayStatus"], "current")
 	})
 }

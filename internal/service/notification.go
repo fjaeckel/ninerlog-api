@@ -341,6 +341,35 @@ func (s *NotificationService) checkCurrencyNotifications(ctx context.Context, pr
 	if currencyStatus.FlightReview != nil {
 		s.checkFlightReviewNotification(ctx, prefs, *currencyStatus.FlightReview, user)
 	}
+
+	for _, p := range currencyStatus.Privileges {
+		s.checkPrivilegeExpiry(ctx, prefs, p, user)
+	}
+}
+
+// checkPrivilegeExpiry sends the rating expiry warning for a licence
+// privilege with an expiry date.
+func (s *NotificationService) checkPrivilegeExpiry(ctx context.Context, prefs *models.NotificationPreferences, p currency.PrivilegeCurrency, user *models.User) {
+	if p.ExpiresOn == nil || !prefs.IsCategoryEnabled(models.NotifCategoryRatingExpiry) {
+		return
+	}
+	name := string(p.Kind)
+	if p.Detail != nil {
+		name += " (" + *p.Detail + ")"
+	}
+	expiry := models.CalendarDate(*p.ExpiresOn)
+	days := models.DaysUntilExpiry(expiry, s.now())
+	subject, body := email.Templates(user.PreferredLocale).RatingExpiry(email.RatingExpiryParams{
+		UserName:      user.Name,
+		LicenseType:   p.LicenseType,
+		ClassType:     name,
+		ExpiryDate:    formatDateForUser(expiry, user.DateFormat),
+		DaysRemaining: days,
+	})
+	logNotifyError(user, s.sendWarning(ctx, prefs, user, notice{
+		category: models.NotifCategoryRatingExpiry, refID: p.PrivilegeID, refType: "licence_privilege", date: expiry,
+		subject: subject, body: body, metric: string(models.NotifCategoryRatingExpiry),
+	}, days))
 }
 
 func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *models.NotificationPreferences, rating currency.ClassRatingCurrency, user *models.User) {
@@ -412,7 +441,7 @@ func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs 
 	}
 	tmpl := email.Templates(user.PreferredLocale)
 
-	if pax.DayStatus == currency.StatusExpired && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
+	if pax.DayStatus == currency.StatusExpired && pax.MessageKey != currency.MsgPaxULAuthorisationMissing && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
 		subject, body := tmpl.PassengerCurrency(email.PassengerCurrencyParams{
 			UserName:  user.Name,
 			ClassType: string(pax.ClassType),

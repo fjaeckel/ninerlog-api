@@ -202,6 +202,11 @@ func TestReadiness(t *testing.T) {
 		createULRatingCur(t, c, licID, "WEIGHT_SHIFT")
 		createULFlightsCur(t, c, "D-MXYZ")
 
+		unauthorised := readinessItems(getReadiness(t, c, url.Values{"aircraftReg": {"D-MXYZ"}, "passengers": {"true"}}), "passengers")["THREE_AXIS"]
+		assertBool(t, "UL passengers ready without §84a authorisation", gb(unauthorised, "ready"), false)
+		assertStr(t, "reasonKey without §84a authorisation", unauthorised["reasonKey"], "pax.ul_authorisation_missing")
+		requireStatus(t, c.POST("/licenses/"+licID+"/privileges", map[string]interface{}{"kind": "UL_PASSENGER_AUTH"}), http.StatusCreated)
+
 		report := getReadiness(t, c, url.Values{"aircraftReg": {"D-MXYZ"}, "passengers": {"true"}})
 		ratings := readinessItems(report, "rating")
 		if len(ratings) != 1 || ratings["THREE_AXIS"] == nil {

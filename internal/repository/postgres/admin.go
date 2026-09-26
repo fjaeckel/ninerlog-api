@@ -36,6 +36,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 		ImportsByFormat:              map[string]int{},
 		BackupDestinationsByProvider: map[string]int{},
 		PilotProfileOverrides:        map[string]map[string]int{},
+		LicencePrivilegesByKind:      map[string]int{},
 	}
 
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users"), &stats.TotalUsers)
@@ -52,6 +53,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flight_revisions WHERE is_correction"), &stats.FlightCorrections)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flight_revisions WHERE kind = 'delete'"), &stats.VoidedFlights)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM logbook_certifications"), &stats.LogbookCertifications)
+	r.scanGroupedCounts(ctx, "SELECT kind, COUNT(*) FROM licence_privileges GROUP BY kind", stats.LicencePrivilegesByKind)
 
 	// Flights this month
 	monthStart := now.Format("2006-01") + "-01"
@@ -468,5 +470,25 @@ func (r *adminRepository) scanPilotProfileOverrides(ctx context.Context, overrid
 			overrides[discipline] = map[string]int{}
 		}
 		overrides[discipline][intent] = count
+	}
+}
+
+// scanGroupedCounts fills dest from a (key, count) query, logging and leaving
+// dest partial on error.
+func (r *adminRepository) scanGroupedCounts(ctx context.Context, query string, dest map[string]int) {
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		slog.Error("admin stats: grouped count query failed", "error", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		var count int
+		if err := rows.Scan(&key, &count); err != nil {
+			slog.Error("admin stats: grouped count scan failed", "error", err)
+			continue
+		}
+		dest[key] = count
 	}
 }

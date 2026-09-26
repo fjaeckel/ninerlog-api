@@ -233,6 +233,10 @@ func (t *restoreTx) InsertClassRating(ctx context.Context, rating *models.ClassR
 	return (&ClassRatingRepository{tx: t.tx}).Create(ctx, rating)
 }
 
+func (t *restoreTx) InsertLicencePrivilege(ctx context.Context, privilege *models.LicencePrivilege) error {
+	return (&LicencePrivilegeRepository{db: t.tx}).Create(ctx, privilege)
+}
+
 func (t *restoreTx) InsertCredential(ctx context.Context, credential *models.Credential) error {
 	return (&credentialRepository{tx: t.tx}).Create(ctx, credential)
 }

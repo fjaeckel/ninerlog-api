@@ -94,6 +94,7 @@ type RestoreResult struct {
 	AircraftSkipped                 int              `json:"aircraftSkipped"`
 	LicensesImported                int              `json:"licensesImported"`
 	ClassRatingsImported            int              `json:"classRatingsImported"`
+	LicencePrivilegesImported       int              `json:"licencePrivilegesImported"`
 	CredentialsImported             int              `json:"credentialsImported"`
 	FlightsImported                 int              `json:"flightsImported"`
 	CrewMembersImported             int              `json:"crewMembersImported"`
@@ -285,6 +286,7 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 
 	licenseIDs := make(map[uuid.UUID]uuid.UUID, len(pl.licenses))
 	ratings := 0
+	privileges := 0
 	for i, l := range pl.licenses {
 		if err := tx.InsertLicense(ctx, l.license); err != nil {
 			return nil, fmt.Errorf("insert license %d: %w", i, err)
@@ -296,6 +298,13 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 				return nil, fmt.Errorf("insert class rating %d of license %d: %w", j, i, err)
 			}
 			ratings++
+		}
+		for j, lp := range l.privileges {
+			lp.LicenseID = l.license.ID
+			if err := tx.InsertLicencePrivilege(ctx, lp); err != nil {
+				return nil, fmt.Errorf("insert privilege %d of license %d: %w", j, i, err)
+			}
+			privileges++
 		}
 	}
 
@@ -365,6 +374,7 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		AircraftSkipped:                 pl.aircraftSkipped,
 		LicensesImported:                len(pl.licenses),
 		ClassRatingsImported:            ratings,
+		LicencePrivilegesImported:       privileges,
 		CredentialsImported:             len(pl.credentials),
 		FlightsImported:                 len(pl.flights),
 		CrewMembersImported:             len(pl.crew),

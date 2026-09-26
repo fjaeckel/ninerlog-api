@@ -509,6 +509,7 @@ func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 		Logbook:        h.logbookService,
 		PilotProfiles:  h.pilotProfileService,
 		AttachCrew:     h.AttachCrewMembers,
+		Privileges:     h.licencePrivilegeService,
 	}
 }
 

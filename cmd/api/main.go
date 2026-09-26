@@ -266,6 +266,9 @@ func main() {
 	ulEval := currency.NewGermanULEvaluator()
 	currencyRegistry.RegisterMulti(ulEval, ulEval.Authorities()...)
 	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
+	licencePrivilegeRepo := postgres.NewLicencePrivilegeRepository(db)
+	currencyService.SetPrivilegeSource(licencePrivilegeRepo)
+	licencePrivilegeService := service.NewLicencePrivilegeService(licencePrivilegeRepo, licenseRepo)
 
 	// Custom (user-authored) currency rules
 	customCurrencyRepo := postgres.NewCustomCurrencyRuleRepository(db)
@@ -366,6 +369,7 @@ func main() {
 		postgres.NewDisciplineEvidenceSource(db),
 		licenseRepo, classRatingRepo, aircraftRepo,
 	))
+	apiHandler.SetLicencePrivilegeService(licencePrivilegeService)
 	apiHandler.SetCustomReportService(customreport.NewService(
 		postgres.NewCustomReportRepository(db),
 		service.NewLogbookScope(licenseService, classRatingService, aircraftService, currencyService),
