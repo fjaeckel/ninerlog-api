@@ -83,7 +83,7 @@ func (h *APIHandler) RecordFlightSessionEvent(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, models.ErrNoOpenFlightSession):
-			h.sendError(c, http.StatusNotFound, "No open flight session — record an offblock event first")
+			h.sendError(c, http.StatusNotFound, "No open flight session — record an offblock or takeoff event first")
 		case errors.Is(err, service.ErrInvalidSessionEvent):
 			h.sendError(c, http.StatusBadRequest, "Invalid event type")
 		case errors.Is(err, models.ErrInvalidFlightSessionData):
@@ -93,7 +93,9 @@ func (h *APIHandler) RecordFlightSessionEvent(c *gin.Context) {
 		case errors.Is(err, models.ErrFlightSessionTooLong):
 			h.sendError(c, http.StatusBadRequest, "Session exceeds 24 hours — discard it and log the flight manually")
 		case errors.Is(err, models.ErrFlightSessionMissingReg):
-			h.sendError(c, http.StatusBadRequest, "Aircraft registration is required to complete the flight — resend onblock with aircraftReg")
+			h.sendError(c, http.StatusBadRequest, "Aircraft registration is required to complete the flight — resend onblock (or landing, for a session opened at takeoff) with aircraftReg")
+		case errors.Is(err, models.ErrFlightSessionIncomplete):
+			h.sendError(c, http.StatusBadRequest, "This session was opened at takeoff — record a landing event to complete it")
 		default:
 			h.sendError(c, http.StatusInternalServerError, "Failed to record flight session event")
 		}

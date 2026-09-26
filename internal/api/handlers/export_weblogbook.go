@@ -53,8 +53,9 @@ func writeWebLogbookCSV(w *csv.Writer, flights []*models.Flight, userName string
 
 			dep = safeStrCSV(f.DepartureICAO)
 			arr = safeStrCSV(f.ArrivalICAO)
-			depTime = webLogbookClock(f.OffBlockTime)
-			arrTime = webLogbookClock(f.OnBlockTime)
+			depClock, arrClock := logbookClocks(f)
+			depTime = webLogbookClock(depClock)
+			arrTime = webLogbookClock(arrClock)
 			acType, acReg = f.AircraftType, f.AircraftReg
 
 			seMin, meMin, mpMin := flightrules.RowTimes(f, "")

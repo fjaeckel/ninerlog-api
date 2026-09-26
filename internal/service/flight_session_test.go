@@ -186,7 +186,6 @@ func TestFlightSessionEventWithoutOpenSession(t *testing.T) {
 	svc, _, _, _ := newTestFlightSessionService(t)
 
 	for _, eventType := range []string{
-		models.FlightSessionEventTakeoff,
 		models.FlightSessionEventLanding,
 		models.FlightSessionEventOnBlock,
 	} {
@@ -441,4 +440,135 @@ func TestFlightSessionDiscard(t *testing.T) {
 	if _, err := svc.GetCurrent(context.Background(), userID); !errors.Is(err, models.ErrNoOpenFlightSession) {
 		t.Errorf("session still open after discard: %v", err)
 	}
+}
+
+func TestFlightSessionTakeoffLandingOnly(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("L3/K3 take-off and landing only: takeoff opens, landing completes", func(t *testing.T) {
+		svc, _, flightRepo, aircraftRepo := newTestFlightSessionService(t)
+		userID := uuid.New()
+		if err := aircraftRepo.Create(ctx, &models.Aircraft{UserID: userID, Registration: "D-KFAL", Type: "SF25"}); err != nil {
+			t.Fatal(err)
+		}
+
+		takeoff := time.Date(2026, 7, 4, 23, 40, 0, 0, time.UTC)
+		landing := takeoff.Add(75 * time.Minute)
+
+		session, created, err := svc.RecordEvent(ctx, userID, FlightSessionEventInput{
+			Type: models.FlightSessionEventTakeoff, OccurredAt: &takeoff,
+			AircraftReg: strPtr("D-KFAL"), ICAO: strPtr("EDDF"),
+		})
+		if err != nil {
+			t.Fatalf("takeoff: %v", err)
+		}
+		if !created || session.Status != models.FlightSessionStatusOpen || session.OffBlockAt != nil {
+			t.Fatalf("takeoff: created=%v status=%q offBlockAt=%v, want new open session without off-block", created, session.Status, session.OffBlockAt)
+		}
+
+		session, created, err = svc.RecordEvent(ctx, userID, FlightSessionEventInput{
+			Type: models.FlightSessionEventLanding, OccurredAt: &landing, ICAO: strPtr("EDDH"),
+		})
+		if err != nil {
+			t.Fatalf("landing: %v", err)
+		}
+		if created || session.Status != models.FlightSessionStatusCompleted || session.FlightID == nil {
+			t.Fatalf("landing: created=%v status=%q flightID=%v, want completed session with flight", created, session.Status, session.FlightID)
+		}
+
+		flight, err := flightRepo.GetByID(ctx, *session.FlightID)
+		if err != nil {
+			t.Fatalf("created flight not found: %v", err)
+		}
+		if flight.TotalTime != 75 {
+			t.Errorf("TotalTime = %d, want 75", flight.TotalTime)
+		}
+		if got := flight.Date.Format("2006-01-02"); got != "2026-07-04" {
+			t.Errorf("date = %s, want 2026-07-04 (UTC date of takeoff)", got)
+		}
+		if flight.OffBlockTime != nil || flight.OnBlockTime != nil {
+			t.Errorf("block times = %v/%v, want nil", flight.OffBlockTime, flight.OnBlockTime)
+		}
+		if flight.DepartureTime == nil || *flight.DepartureTime != "23:40:00" {
+			t.Errorf("DepartureTime = %v, want 23:40:00", flight.DepartureTime)
+		}
+		if flight.ArrivalTime == nil || *flight.ArrivalTime != "00:55:00" {
+			t.Errorf("ArrivalTime = %v, want 00:55:00", flight.ArrivalTime)
+		}
+		if flight.AircraftType != "SF25" {
+			t.Errorf("AircraftType = %q, want SF25", flight.AircraftType)
+		}
+	})
+
+	t.Run("onblock on a session opened at takeoff is incomplete", func(t *testing.T) {
+		svc, sessionRepo, _, _ := newTestFlightSessionService(t)
+		userID := uuid.New()
+		takeoff := time.Now().Add(-time.Hour)
+
+		if _, _, err := svc.RecordEvent(ctx, userID, FlightSessionEventInput{
+			Type: models.FlightSessionEventTakeoff, OccurredAt: &takeoff, AircraftReg: strPtr("D-KFAL"),
+		}); err != nil {
+			t.Fatalf("takeoff: %v", err)
+		}
+
+		_, _, err := svc.RecordEvent(ctx, userID, FlightSessionEventInput{Type: models.FlightSessionEventOnBlock})
+		if !errors.Is(err, models.ErrFlightSessionIncomplete) {
+			t.Errorf("onblock error = %v, want ErrFlightSessionIncomplete", err)
+		}
+		if _, err := sessionRepo.GetOpenByUserID(ctx, userID); err != nil {
+			t.Errorf("session no longer open: %v", err)
+		}
+	})
+
+	t.Run("landing without registration keeps the session open for a retry", func(t *testing.T) {
+		svc, sessionRepo, _, _ := newTestFlightSessionService(t)
+		userID := uuid.New()
+		takeoff := time.Now().Add(-time.Hour)
+		landing := takeoff.Add(30 * time.Minute)
+
+		if _, _, err := svc.RecordEvent(ctx, userID, FlightSessionEventInput{Type: models.FlightSessionEventTakeoff, OccurredAt: &takeoff}); err != nil {
+			t.Fatalf("takeoff: %v", err)
+		}
+		_, _, err := svc.RecordEvent(ctx, userID, FlightSessionEventInput{Type: models.FlightSessionEventLanding, OccurredAt: &landing})
+		if !errors.Is(err, models.ErrFlightSessionMissingReg) {
+			t.Fatalf("landing error = %v, want ErrFlightSessionMissingReg", err)
+		}
+		if _, err := sessionRepo.GetOpenByUserID(ctx, userID); err != nil {
+			t.Fatalf("session no longer open: %v", err)
+		}
+
+		session, _, err := svc.RecordEvent(ctx, userID, FlightSessionEventInput{
+			Type: models.FlightSessionEventLanding, AircraftReg: strPtr("D-KFAL"),
+		})
+		if err != nil {
+			t.Fatalf("landing retry: %v", err)
+		}
+		if session.Status != models.FlightSessionStatusCompleted {
+			t.Errorf("status = %q, want completed", session.Status)
+		}
+	})
+
+	t.Run("A2 block times unchanged: landing does not complete an offblock session", func(t *testing.T) {
+		svc, _, _, _ := newTestFlightSessionService(t)
+		userID := uuid.New()
+		offBlock := time.Now().Add(-2 * time.Hour)
+		takeoff := offBlock.Add(10 * time.Minute)
+		landing := takeoff.Add(time.Hour)
+
+		for _, step := range []FlightSessionEventInput{
+			{Type: models.FlightSessionEventOffBlock, OccurredAt: &offBlock, AircraftReg: strPtr("D-EFGH")},
+			{Type: models.FlightSessionEventTakeoff, OccurredAt: &takeoff},
+		} {
+			if _, _, err := svc.RecordEvent(ctx, userID, step); err != nil {
+				t.Fatalf("RecordEvent(%s): %v", step.Type, err)
+			}
+		}
+		session, _, err := svc.RecordEvent(ctx, userID, FlightSessionEventInput{Type: models.FlightSessionEventLanding, OccurredAt: &landing})
+		if err != nil {
+			t.Fatalf("landing: %v", err)
+		}
+		if session.Status != models.FlightSessionStatusOpen || session.FlightID != nil {
+			t.Errorf("status = %q flightID = %v, want open without flight", session.Status, session.FlightID)
+		}
+	})
 }

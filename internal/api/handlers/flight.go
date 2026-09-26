@@ -3,8 +3,6 @@ package handlers
 import (
 	"context"
 	"errors"
-	"fmt"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -195,25 +193,23 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	}
 
 	if !flight.IsSimulator {
-		// Compute totalTime from off-block and on-block times
-		totalTime, err := calculateBlockTime(*req.OffBlockTime, *req.OnBlockTime)
+		// Total time spans the block pair, else take-off to landing.
+		totalTime, source, err := createClocks(&req).TotalMinutes()
 		if err != nil {
-			h.sendError(c, http.StatusBadRequest, "Invalid block times format")
+			h.sendError(c, http.StatusBadRequest, invalidClockMessage(source))
 			return
 		}
 
 		departureIcao := *req.DepartureIcao
 		arrivalIcao := *req.ArrivalIcao
-		offBlockTime := *req.OffBlockTime
-		onBlockTime := *req.OnBlockTime
 
 		flight.AircraftReg = *req.AircraftReg
 		flight.DepartureICAO = &departureIcao
 		flight.ArrivalICAO = &arrivalIcao
-		flight.OffBlockTime = &offBlockTime
-		flight.OnBlockTime = &onBlockTime
-		flight.DepartureTime = req.DepartureTime
-		flight.ArrivalTime = req.ArrivalTime
+		flight.OffBlockTime = nonBlankClock(req.OffBlockTime)
+		flight.OnBlockTime = nonBlankClock(req.OnBlockTime)
+		flight.DepartureTime = nonBlankClock(req.DepartureTime)
+		flight.ArrivalTime = nonBlankClock(req.ArrivalTime)
 		flight.TotalTime = totalTime
 		flight.AllLandings = *req.Landings
 		flight.IFRTime = getIntOrDefault(req.IfrTime, 0)
@@ -525,26 +521,20 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 	}
 
-	// Recalculate totalTime from block times if either was updated
-	if req.OffBlockTime.IsSpecified() || req.OnBlockTime.IsSpecified() {
-		offBlock := ""
-		onBlock := ""
-		if flight.OffBlockTime != nil {
-			offBlock = *flight.OffBlockTime
+	// Recalculate totalTime when a time that bounds it was updated.
+	clocks := models.ClocksOf(flight)
+	_, _, source, hasPair := clocks.Pair()
+	blockUpdated := req.OffBlockTime.IsSpecified() || req.OnBlockTime.IsSpecified()
+	airborneUpdated := req.DepartureTime.IsSpecified() || req.ArrivalTime.IsSpecified()
+	if hasPair && (blockUpdated || (airborneUpdated && source == models.FlightTimeSourceAirborne)) {
+		totalTime, _, err := clocks.TotalMinutes()
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, invalidClockMessage(source))
+			return
 		}
-		if flight.OnBlockTime != nil {
-			onBlock = *flight.OnBlockTime
-		}
-		if offBlock != "" && onBlock != "" {
-			totalTime, err := calculateBlockTime(offBlock, onBlock)
-			if err != nil {
-				h.sendError(c, http.StatusBadRequest, "Invalid block times format")
-				return
-			}
-			flight.TotalTime = totalTime
-		}
-	} else if req.TotalTime != nil {
-		// Allow direct totalTime override only if block times are not being updated
+		flight.TotalTime = totalTime
+	} else if !blockUpdated && req.TotalTime != nil {
+		// Direct totalTime override when block times are not being updated.
 		flight.TotalTime = *req.TotalTime
 	}
 
@@ -773,34 +763,19 @@ func ptrBool(v bool) *bool {
 	return &v
 }
 
-// calculateBlockTime computes total block time in minutes from off-block and on-block time strings (HH:MM:SS).
-// Handles overnight flights (on-block before off-block crosses midnight).
-func calculateBlockTime(offBlock, onBlock string) (int, error) {
-	offT, err := time.Parse("15:04:05", offBlock)
-	if err != nil {
-		// Try HH:MM format as well
-		offT, err = time.Parse("15:04", offBlock)
-		if err != nil {
-			return 0, fmt.Errorf("invalid off-block time format: %s", offBlock)
-		}
+// invalidClockMessage returns the 400 message for an unparseable time pair.
+func invalidClockMessage(source models.FlightTimeSource) string {
+	if source == models.FlightTimeSourceAirborne {
+		return "Invalid take-off/landing times format"
 	}
-	onT, err := time.Parse("15:04:05", onBlock)
-	if err != nil {
-		onT, err = time.Parse("15:04", onBlock)
-		if err != nil {
-			return 0, fmt.Errorf("invalid on-block time format: %s", onBlock)
-		}
-	}
+	return "Invalid block times format"
+}
 
-	duration := onT.Sub(offT)
-	if duration < 0 {
-		// Overnight: add 24 hours
-		duration += 24 * time.Hour
+// nonBlankClock returns s, or nil when s is nil or blank.
+func nonBlankClock(s *string) *string {
+	if s == nil || strings.TrimSpace(*s) == "" {
+		return nil
 	}
-	if duration == 0 {
-		return 0, fmt.Errorf("off-block and on-block times cannot be identical")
-	}
-
-	minutes := int(math.Round(duration.Minutes()))
-	return minutes, nil
+	v := *s
+	return &v
 }

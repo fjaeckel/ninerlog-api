@@ -4726,7 +4726,7 @@ type Flight struct {
 	// Example: EDDF
 	DepartureIcao *string `json:"departureIcao,omitempty"`
 
-	// DepartureTime Takeoff time in UTC. Marks the beginning of airborne/flight time.
+	// DepartureTime Take-off time in UTC. Marks the beginning of airborne/flight time.
 	//
 	// Example: 14:30:00
 	DepartureTime *string `json:"departureTime,omitempty"`
@@ -4880,12 +4880,12 @@ type Flight struct {
 	// Example: false
 	NightTimeOverride bool `json:"nightTimeOverride"`
 
-	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1. Null on a flight logged with take-off and landing times only.
 	//
 	// Example: 14:15:00
 	OffBlockTime *string `json:"offBlockTime,omitempty"`
 
-	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1. Null on a flight logged with take-off and landing times only.
 	//
 	// Example: 16:55:00
 	OnBlockTime *string `json:"onBlockTime,omitempty"`
@@ -4976,7 +4976,11 @@ type Flight struct {
 	// Example: false
 	TakeoffsNightOverride bool `json:"takeoffsNightOverride"`
 
-	// TotalTime Total block time in minutes (off-block to on-block)
+	// TotalTime Total time in minutes (EASA AMC1 FCL.050 Col 9). The off-block to on-block span
+	// when both block times are set, otherwise the take-off to landing span
+	// (`departureTime` to `arrivalTime`). A span whose end is earlier than its start
+	// crosses midnight UTC. 0 for an FSTD session and for a passenger flight.
+	//
 	//
 	// Example: 150
 	TotalTime int `json:"totalTime"`
@@ -5135,8 +5139,17 @@ type FlightBaselineInput struct {
 // FlightCreate Creates either a flight or an FSTD (simulator) session.
 //
 // For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
-// `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
-// omitting any of them returns 400.
+// `arrivalIcao` and `landings` are required, plus at least one complete time pair:
+// block times (`offBlockTime` and `onBlockTime`) or take-off and landing times
+// (`departureTime` and `arrivalTime`). Both pairs may be sent. Omitting a required
+// field, sending no complete pair, or sending one half of a pair without a complete
+// pair beside it returns 400.
+//
+// `totalTime` is the block span when both block times are present, otherwise the
+// take-off to landing span. Night time, night take-offs and landings, and
+// cross-country time are derived from the same pair (block times first), so a
+// glider or ultralight flight logged with take-off and landing times only is
+// treated exactly like a block-timed one.
 //
 // For an FSTD session (`isSimulator: true`) they must be omitted — a training
 // device is not flown between places and has no block times. The session
@@ -5168,7 +5181,7 @@ type FlightCreate struct {
 	// Example: EDDH
 	ArrivalIcao *string `json:"arrivalIcao,omitempty"`
 
-	// ArrivalTime Landing time in UTC
+	// ArrivalTime Landing time in UTC. Sent together with departureTime; a flight needs this pair or offBlockTime + onBlockTime.
 	//
 	// Example: 16:45:00
 	ArrivalTime *string `json:"arrivalTime,omitempty"`
@@ -5187,7 +5200,7 @@ type FlightCreate struct {
 	// Example: EDDF
 	DepartureIcao *string `json:"departureIcao,omitempty"`
 
-	// DepartureTime Takeoff time in UTC
+	// DepartureTime Take-off time in UTC. Sent together with arrivalTime; a flight needs this pair or offBlockTime + onBlockTime.
 	//
 	// Example: 14:30:00
 	DepartureTime *string `json:"departureTime,omitempty"`
@@ -5235,12 +5248,12 @@ type FlightCreate struct {
 	// NightTime Night time in minutes. Provide to override auto-calculation from civil twilight; omit to auto-calculate. Cannot exceed total time.
 	NightTime *int `json:"nightTime,omitempty"`
 
-	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Required for a flight, rejected for an FSTD session.
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Sent together with onBlockTime; a flight needs this pair or departureTime + arrivalTime. Rejected for an FSTD session.
 	//
 	// Example: 14:15:00
 	OffBlockTime *string `json:"offBlockTime,omitempty"`
 
-	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Required for a flight, rejected for an FSTD session.
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Sent together with offBlockTime; a flight needs this pair or departureTime + arrivalTime. Rejected for an FSTD session.
 	//
 	// Example: 16:55:00
 	OnBlockTime *string `json:"onBlockTime,omitempty"`
@@ -5288,7 +5301,7 @@ type FlightCreate struct {
 	// Example: 0
 	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
 
-	// TotalTime Total block time in minutes calculated from offBlockTime and onBlockTime. Always 0 for an FSTD session. This field is computed by the server and should not be provided by the client.
+	// TotalTime Total time in minutes, computed by the server from offBlockTime to onBlockTime when both are sent, otherwise from departureTime to arrivalTime. Always 0 for an FSTD session. Not accepted from the client.
 	//
 	// Example: 150
 	TotalTime *int `json:"totalTime,omitempty"`
@@ -5410,7 +5423,7 @@ type FlightSession struct {
 	// OnBlockAt On-block instant (chocks on / engine shutdown) in UTC
 	OnBlockAt *time.Time `json:"onBlockAt,omitempty"`
 
-	// Status Session lifecycle state. `onblock` events complete the session.
+	// Status Session lifecycle state. `onblock` events complete the session; `landing` completes a session opened at `takeoff`.
 	Status FlightSessionStatus `json:"status"`
 
 	// TakeoffAt Takeoff instant in UTC
@@ -5419,7 +5432,7 @@ type FlightSession struct {
 	UserId    openapi_types.UUID `json:"userId"`
 }
 
-// FlightSessionStatus Session lifecycle state. `onblock` events complete the session.
+// FlightSessionStatus Session lifecycle state. `onblock` events complete the session; `landing` completes a session opened at `takeoff`.
 type FlightSessionStatus string
 
 // FlightSessionEvent defines model for FlightSessionEvent.
@@ -5486,7 +5499,7 @@ type FlightUpdate struct {
 	ApproachesCount      *int                      `json:"approachesCount,omitempty"`
 	ArrivalIcao          nullable.Nullable[string] `json:"arrivalIcao,omitempty"`
 
-	// ArrivalTime Landing time in UTC
+	// ArrivalTime Landing time in UTC. See departureTime for the effect on totalTime.
 	ArrivalTime nullable.Nullable[string] `json:"arrivalTime,omitempty"`
 
 	// CrewMembers People on board this flight
@@ -5497,7 +5510,7 @@ type FlightUpdate struct {
 	Date             *openapi_types.Date       `json:"date,omitempty"`
 	DepartureIcao    nullable.Nullable[string] `json:"departureIcao,omitempty"`
 
-	// DepartureTime Takeoff time in UTC
+	// DepartureTime Take-off time in UTC. On a flight without both block times, changing take-off or landing recomputes totalTime from the take-off to landing span.
 	DepartureTime nullable.Nullable[string] `json:"departureTime,omitempty"`
 	DualGivenTime *int                      `json:"dualGivenTime,omitempty"`
 
@@ -5531,10 +5544,10 @@ type FlightUpdate struct {
 	// NightTime Night time in minutes. A number overrides auto-calculation; null returns the field to auto-calculation. Cannot exceed total time.
 	NightTime nullable.Nullable[int] `json:"nightTime,omitempty"`
 
-	// OffBlockTime Off-block time (chocks off / engine start) in UTC
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Changing either block time recomputes totalTime from the block span, or from take-off to landing when the stored flight no longer has both block times.
 	OffBlockTime nullable.Nullable[string] `json:"offBlockTime,omitempty"`
 
-	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. See offBlockTime for the effect on totalTime.
 	OnBlockTime nullable.Nullable[string] `json:"onBlockTime,omitempty"`
 
 	// PicName Name of the PIC
@@ -5563,7 +5576,9 @@ type FlightUpdate struct {
 
 	// TakeoffsNight Number of night takeoffs. A number overrides auto-calculation; null returns the field to auto-calculation.
 	TakeoffsNight nullable.Nullable[int] `json:"takeoffsNight,omitempty"`
-	TotalTime     *int                   `json:"totalTime,omitempty"`
+
+	// TotalTime Total time in minutes. Applied only when the request does not change a time that totalTime is computed from.
+	TotalTime *int `json:"totalTime,omitempty"`
 }
 
 // ImportColumnMapping defines model for ImportColumnMapping.
@@ -5777,8 +5792,17 @@ type ImportPreviewFlight struct {
 	// Flight Creates either a flight or an FSTD (simulator) session.
 	//
 	// For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
-	// `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
-	// omitting any of them returns 400.
+	// `arrivalIcao` and `landings` are required, plus at least one complete time pair:
+	// block times (`offBlockTime` and `onBlockTime`) or take-off and landing times
+	// (`departureTime` and `arrivalTime`). Both pairs may be sent. Omitting a required
+	// field, sending no complete pair, or sending one half of a pair without a complete
+	// pair beside it returns 400.
+	//
+	// `totalTime` is the block span when both block times are present, otherwise the
+	// take-off to landing span. Night time, night take-offs and landings, and
+	// cross-country time are derived from the same pair (block times first), so a
+	// glider or ultralight flight logged with take-off and landing times only is
+	// treated exactly like a block-timed one.
 	//
 	// For an FSTD session (`isSimulator: true`) they must be omitted — a training
 	// device is not flown between places and has no block times. The session

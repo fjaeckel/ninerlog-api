@@ -30,8 +30,41 @@ durations. Per-user display preferences (`TimeDisplayFormat`, `DateFormat`,
 
 ## Total time and pilot function time
 
-`TotalTime` is **block time** — EASA AMC1 FCL.050 Col 9, "total time of flight". It is
-computed by the server from `OffBlockTime` and `OnBlockTime`; clients do not send it.
+`TotalTime` is the **total time of flight** — EASA AMC1 FCL.050 Col 9. It is computed by
+the server; clients do not send it. A flight carries at least one complete pair of clock
+times, and the pair decides the total:
+
+| Pair present | `TotalTime` |
+| --- | --- |
+| `OffBlockTime` + `OnBlockTime` (with or without take-off/landing) | off-block to on-block |
+| `DepartureTime` (take-off) + `ArrivalTime` (landing) only | take-off to landing |
+
+A span whose end is earlier than its start crosses midnight UTC; identical start and end
+are rejected. `POST /flights` rejects a flight with no complete pair, and a lone half of a
+pair (only `OffBlockTime`, only `DepartureTime`, …) with no complete pair beside it. FSTD
+sessions keep their own rules and carry none of these times.
+
+The rule lives in `models.FlightClocks` (`internal/models/flight_times.go`): `Pair()`
+picks the pair, `Validate()` applies the rejection rules, `TotalMinutes()` computes the
+span. Everything that reads times goes through it:
+
+- night time is computed over the same pair (`calculateNightTime`);
+- a take-off is classified day or night at `TakeoffClock()` — off-block, else take-off —
+  and a landing at `LandingClock()` — on-block, else landing;
+- a flight saved with `TotalTime` 0 (import, recalculation) recovers it from the pair;
+- the EASA CSV, EASA PDF and vsimakhin/web-logbook exports print `LogbookClocks()` in
+  their departure/arrival time columns: the block pair, else take-off and landing.
+  AMC1 FCL.050 asks for departure and arrival times, which for a sailplane are take-off
+  and landing;
+- a CSV import takes the block span, else the file's total-time column, else take-off to
+  landing (import keeps accepting rows with a lone half or no times at all when a
+  total-time column supplies the total);
+- tap-to-log: a `takeoff` event with no open session opens one, and its `landing`
+  completes it as a take-off/landing-only flight; a session opened at off-block still
+  completes at on-block.
+
+Block times keep precedence everywhere they are present, so a flight logged with block
+times derives exactly what it did before take-off/landing-only flights were accepted.
 
 The *pilot function time* columns (Cols 15–18) **decompose** that total rather than adding
 to it:
@@ -221,12 +254,12 @@ have to compute them by hand. The entry point is
   `pkg/solar`.
 - **Total landings** — `AllLandings = LandingsDay + LandingsNight`.
 - **Takeoffs** — one takeoff per landing: `TakeoffsDay + TakeoffsNight = AllLandings`,
-  all classified day or night by the off-block time at the departure airport (day when
-  departure or off-block time is missing or unknown). Re-derived from the landing count on
+  all classified day or night by the off-block time (else the take-off time) at the
+  departure airport (day when the departure or both times are missing or unknown). Re-derived from the landing count on
   every save, so a stored value is never reused.
 - **Solo time** — derived when the flight is neither dual nor flown as PIC with other
   crew.
-- **Cross-country time** — derived as the whole block time when departure ≠ arrival
+- **Cross-country time** — derived as the whole total time when departure ≠ arrival
   airport; see [Manual overrides](#manual-overrides) for why a pilot may replace it.
 - **Distance** — great-circle distance (nautical miles) from airport coordinates in the
   in-memory airport database (`internal/airports`).
@@ -262,8 +295,9 @@ which values are the pilot's and offer a way back to the derived one. The flags 
 the JSON export and cloud backup and are restored by `POST /imports/json`.
 
 Night time and cross-country time carry overrides because no derivation matches every
-rulebook: night is derived from civil twilight at the departure location over block time,
-and cross-country as the whole block time when departure ≠ arrival. FAA 14 CFR 61.1(b)
+rulebook: night is derived from civil twilight at the departure location over the flight's
+time pair (block times, else take-off to landing), and cross-country as the whole total
+time when departure ≠ arrival. FAA 14 CFR 61.1(b)
 counts cross-country only with a landing more than 50 NM from departure (no landing needed
 for ATP experience); EASA FCL.010 counts any pre-planned route flown with navigation,
 including one returning to the departure aerodrome. A value the pilot enters is bounded by
@@ -277,7 +311,7 @@ Validation is layered:
 
 1. **Model-level** (`internal/models/flight.go`):
    - `IsValid()` — required fields present. These differ by row kind: a flight needs a
-     registration and block time, a session needs `FSTDType` and a positive
+     registration and a positive total time, a session needs `FSTDType` and a positive
      `SimulatedFlightTime` (see [FSTD sessions](#fstd-simulator-sessions)), and a
      passenger flight needs only a registration.
    - `ValidateTimeDistribution()` — function-time consistency: component times must not
@@ -290,6 +324,10 @@ Validation is layered:
    payloads.
 3. **Service-level** (`internal/service/flight.go`) — ownership checks (the flight's
    aircraft/user belong to the caller) and orchestration of the above.
+
+Before these, `POST /flights` checks the request shape (`handlers/flight_kind.go`): the
+fields a flight or an FSTD session requires, and for a flight the time pair via
+`models.FlightClocks.Validate()` (`ErrFlightTimesMissing`, `ErrFlightTimePairIncomplete`).
 
 Validation failures surface as sentinel errors (e.g. `ErrInvalidFlight`,
 `ErrInvalidTimeDistribution`) that handlers map to HTTP 400.

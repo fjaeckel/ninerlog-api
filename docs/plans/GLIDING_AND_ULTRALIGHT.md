@@ -142,10 +142,15 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-20. Take-off-to-landing time model** (api + fe; needs D3)
 
-- API: a flight needs block times **or** take-off and landing times. `totalTime` comes from
-  the block span, otherwise from take-off to landing. Spec `required` changes to a `oneOf`
-  (or the handler validates). Adjust `flight_kind.go:41-43` and `flight.go:199-217`. e2e
-  covers each combination; update `validation_e2e_test.go` per `e2e-sync`.
+- API — **implemented**: a flight needs block times **or** take-off and landing times.
+  `totalTime` comes from the block span, otherwise from take-off to landing. The handler
+  validates (no `oneOf`; `FlightCreate` already carried its conditional requirements in the
+  description), through `models.FlightClocks` (`internal/models/flight_times.go`). Night
+  time, night take-off/landing, total-time recovery, CSV import, the EASA CSV/PDF and
+  web-logbook exports and tap-to-log sessions (`takeoff` opens, `landing` completes) all
+  use the same pair. e2e: `test/e2e/time_model_e2e_test.go` and
+  `TestFlightTimePairValidation` in `validation_e2e_test.go`. See DOMAIN.md
+  "Total time and pilot function time".
 - FE: when the selected aircraft is `GLIDER`, `TMG` or `ULTRALIGHT`, take-off/landing come
   first and block times fold into "More". Quick Log (`QuickLogPage.tsx`) gets the same order.
 - Closes L3 and K3.

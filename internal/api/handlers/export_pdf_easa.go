@@ -83,6 +83,7 @@ var easaSingleAlign = []string{
 // left/right page totals can never drift apart.
 type easaRow struct {
 	f                            *models.Flight
+	depClock, arrClock           *string
 	spSE, spME, mp               int
 	ifr                          int
 	fstdDate, fstdType, fstdTime string
@@ -93,6 +94,7 @@ func buildEASARows(page []*models.Flight, regToClass map[string]string, userName
 	rows := make([]easaRow, len(page))
 	for i, f := range page {
 		rd := easaRow{f: f}
+		rd.depClock, rd.arrClock = logbookClocks(f)
 		acClass := regToClass[strings.ToUpper(f.AircraftReg)]
 		rd.spSE, rd.spME, rd.mp = flightrules.RowTimes(f, acClass)
 		rd.ifr = flightrules.EffectiveIFRTime(f)
@@ -269,8 +271,8 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 			f := rd.f
 			cells := []string{
 				f.Date.Format("02.01.06"),
-				safeStr(f.DepartureICAO), fmtTime(f.OffBlockTime),
-				safeStr(f.ArrivalICAO), fmtTime(f.OnBlockTime),
+				safeStr(f.DepartureICAO), fmtTime(rd.depClock),
+				safeStr(f.ArrivalICAO), fmtTime(rd.arrClock),
 				f.AircraftType, f.AircraftReg,
 				fmtDec(rd.spSE), fmtDec(rd.spME), fmtDec(rd.mp),
 				fmtDec(f.TotalTime),
@@ -344,8 +346,8 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 			f := rd.f
 			cells := []string{
 				f.Date.Format("02.01.06"),
-				safeStr(f.DepartureICAO), fmtTime(f.OffBlockTime),
-				safeStr(f.ArrivalICAO), fmtTime(f.OnBlockTime),
+				safeStr(f.DepartureICAO), fmtTime(rd.depClock),
+				safeStr(f.ArrivalICAO), fmtTime(rd.arrClock),
 				f.AircraftType, f.AircraftReg,
 				fmtDec(rd.spSE), fmtDec(rd.spME), fmtDec(rd.mp),
 				fmtDec(f.TotalTime),

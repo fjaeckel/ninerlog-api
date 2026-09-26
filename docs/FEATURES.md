@@ -146,6 +146,13 @@ roles, IFR, FSTD, remarks). See [DOMAIN.md](./DOMAIN.md) for the calculation and
 rules.
 
 - CRUD: `POST/GET/PUT/DELETE /flights`.
+- Time model: a flight is logged with block times (off-block/on-block), with take-off and
+  landing times, or with both. Total time is the block span when present, otherwise
+  take-off to landing, so a glider, TMG or ultralight pilot who logs only take-off and
+  landing gets the same totals, night split, cross-country time, currency credit, import
+  and exports as a block-timed flight. Tap-to-log sessions follow suit: a `takeoff` event
+  with no open session opens one and the `landing` event completes it. See
+  [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
 - Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
@@ -322,6 +329,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   cross-country column is imported as the pilot's own value and stored with its override
   flag set (capped at block time), so a logbook brought from another product keeps the
   night and cross-country hours it was signed with instead of having them re-derived.
+  A row's total time is its block span when both block times parse, otherwise its
+  total-time column, otherwise its take-off to landing span — so a glider or ultralight
+  logbook with only take-off and landing columns imports without block times. In the
+  EASA CSV, EASA PDF and vsimakhin/web-logbook exports the departure/arrival time columns
+  print the block times, or take-off and landing for a flight without both block times;
+  the standard CSV keeps its four time columns separate and leaves the block ones empty.
   A launch-method column (Vereinsflieger `S.-Art` W/F/E/A/G, German `Startart`, English
   `Launch Method`) maps to `launchMethod`; an unknown code imports the flight without one.
   See [SAILPLANES.md](./SAILPLANES.md#launch-method-in-and-out).

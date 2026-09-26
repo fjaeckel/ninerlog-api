@@ -202,8 +202,11 @@ are **integer minutes**):
 - **Identity / context**: `Date`, `AircraftReg` (canonicalised the same way as
   `Aircraft.Registration` — see above), `AircraftType`, `DepartureICAO`,
   `ArrivalICAO`, `Route` (comma-separated ICAO waypoints).
-- **Block / event times** (`HH:MM:SS`, UTC): `OffBlockTime`, `OnBlockTime`,
-  `DepartureTime`, `ArrivalTime`.
+- **Block / event times** (`HH:MM:SS`, UTC, all nullable): `OffBlockTime`, `OnBlockTime`,
+  `DepartureTime` (take-off), `ArrivalTime` (landing). A flight carries at least one
+  complete pair — block times, or take-off and landing — and `TotalTime` spans the block
+  pair when present, otherwise take-off to landing (`models.FlightClocks`,
+  `internal/models/flight_times.go`). Rows imported before this rule may carry neither.
 - **Function times** (minutes): `TotalTime`, `PICTime`, `DualTime`, `NightTime`,
   `IFRTime`, `SoloTime`, `CrossCountryTime`, `SICTime`, `DualGivenTime`,
   `SimulatedFlightTime`, `GroundTrainingTime`, `MultiPilotTime` (EASA AMC1 FCL.050 col 10),
