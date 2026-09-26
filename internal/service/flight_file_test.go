@@ -449,3 +449,48 @@ func TestFlightFileListGetDelete_Ownership(t *testing.T) {
 		t.Errorf("second delete err = %v", err)
 	}
 }
+
+func TestFlightFileImportAsNewFlight(t *testing.T) {
+	withAirports(t)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	t.Run("unavailable without dependencies", func(t *testing.T) {
+		svc, _, _ := newFlightFileTestService()
+		if _, err := svc.ImportAsNewFlight(ctx, userID, "", "f.igc", igcFixture(t, "winch.igc")); !errors.Is(err, ErrIGCImportUnavailable) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	svc, _, flights := newFlightFileTestService()
+	fleet := &sessionAircraftRepo{}
+	svc.SetImportDependencies(NewFlightService(flights, nil), NewAircraftService(fleet))
+
+	t.Run("L1 Lena winch flight in D-1234 creates flight, glider and file", func(t *testing.T) {
+		got, err := svc.ImportAsNewFlight(ctx, userID, "Lena Example", "winch.igc", igcFixture(t, "winch.igc"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Flight.AircraftReg != "D-1234" || got.Flight.LaunchMethod == nil || *got.Flight.LaunchMethod != "winch" || got.File.FlightID != got.Flight.ID {
+			t.Fatalf("flight = %+v", got.Flight)
+		}
+		if len(fleet.aircraft) != 1 || fleet.aircraft[0].AircraftClass == nil || *fleet.aircraft[0].AircraftClass != string(models.ClassTypeGlider) {
+			t.Fatalf("fleet = %+v", fleet.aircraft)
+		}
+	})
+
+	t.Run("same file again is a duplicate", func(t *testing.T) {
+		_, err := svc.ImportAsNewFlight(ctx, userID, "", "again.igc", igcFixture(t, "winch.igc"))
+		var dup *IGCDuplicateError
+		if !errors.As(err, &dup) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	t.Run("file without registration", func(t *testing.T) {
+		data := bytes.Replace(igcFixture(t, "aerotow.igc"), []byte("HFGIDGLIDERID:"), []byte("HFXXXIGNORED:"), 1)
+		if _, err := svc.ImportAsNewFlight(ctx, userID, "", "noreg.igc", data); !errors.Is(err, ErrIGCNoRegistration) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+}

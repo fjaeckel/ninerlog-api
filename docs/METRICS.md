@@ -19,6 +19,8 @@ The NinerLog API exposes Prometheus metrics at `GET /metrics` (no authentication
 | `UPDATE_CHECK_FRONTEND_REPO` | `fjaeckel/ninerlog-frontend` | `owner/name` repository the frontend's releases are read from |
 | `UPDATE_CHECK_BRANCH` | `main` | Branch an untagged (`latest`) build's commit is compared against |
 | `APP_COMMIT` | unset | Commit this build came from, used only when the binary carries no build stamp |
+| `WEGLIDE_SYNC_ENABLED` | `false` | `true` runs the daily WeGlide sync for linked pilots (needs `BACKUP_CREDENTIALS_KEY`). Manual syncs emit the `weglide_*` series either way |
+| `WEGLIDE_SYNC_INTERVAL` | `24h` | How often the WeGlide sync scheduler looks for due pilots |
 
 Rate limiting is not a metrics setting, but it is what the rate-limit metrics
 below are for:
@@ -187,6 +189,27 @@ case none of these series exist.
 > and this instance has not taken it. A failing check is not urgent on its own,
 > which is why staleness (`update_check_last_success_timestamp_seconds`) rather
 > than `update_check_errors_total` is what the alert rule watches.
+
+### WeGlide Metrics
+
+The WeGlide link (`internal/weglide`, `internal/service/weglide.go`) calls WeGlide with a
+pilot's personal API key, on a manual `POST /integrations/weglide/sync` or from the daily
+scheduler (`WEGLIDE_SYNC_ENABLED=true`). Without `BACKUP_CREDENTIALS_KEY` the link does not
+exist and none of these series move.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `weglide_requests_total` | Counter | `status` | HTTP requests to WeGlide (API and IGC file host). Statuses: `ok`, `unauthorized` (401/403: key rejected), `rate_limited` (429), `not_found`, `upstream_error` (5xx), `network_error` (connect/TLS/timeout/read), `too_large` (over the 2 MB JSON or 5 MB IGC cap), `bad_response` (undecodable body, unexpected status or IGC path) |
+| `weglide_request_duration_seconds` | Histogram | — | Latency of one WeGlide request |
+| `weglide_sync_runs_total` | Counter | `result` | Sync runs, manual and scheduled. Results: `ok` (every listed flight processed), `partial` (stopped at the daily budget or with flights left), `failed` (key rejected, WeGlide unreachable, or a flight could not be stored) |
+| `weglide_sync_flights_imported_total` | Counter | — | Flights created by syncs |
+| `weglide_sync_duration_seconds` | Histogram | — | Duration of one sync run |
+| `weglide_sync_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of this instance's last complete sync of any user; absent until one completes |
+
+> `unauthorized` and `rate_limited` are one pilot's key problem, not an outage, and
+> `partial` is normal for a pilot whose backlog exceeds 60 requests a day. The alert
+> (`NinerlogApiWeGlideResponsesUnexpected`) therefore watches only `bad_response`: when
+> most answers stop matching the client, WeGlide's API has changed.
 
 ### Email Delivery Metrics
 

@@ -191,6 +191,32 @@ make test-e2e-full
 bash scripts/run-e2e-tests.sh
 ```
 
+### WeGlide e2e (fake WeGlide)
+
+`test/e2e/weglide_e2e_test.go` always checks the link's status codes that need no WeGlide
+call. Linking and syncing run only when `E2E_WEGLIDE_FAKE_ADDR` is set: the test then serves
+a fake WeGlide (API and IGC file host, two fixture flights from `pkg/igc/testdata`) on that
+address, and the API under test must have been started pointing at it:
+
+```bash
+# API process
+BACKUP_CREDENTIALS_KEY=<base64 32 bytes> \
+WEGLIDE_ALLOW_TEST_URL=true \
+WEGLIDE_API_URL=http://127.0.0.1:3499 \
+WEGLIDE_FILES_URL=http://127.0.0.1:3499/files \
+  ./bin/ninerlog-api
+# test process
+E2E_API_URL=http://localhost:3000 E2E_WEGLIDE_FAKE_ADDR=127.0.0.1:3499 \
+  go test -tags=e2e -run TestWeGlideLink ./test/e2e/...
+```
+
+`WEGLIDE_API_URL` and `WEGLIDE_FILES_URL` are test-only and ignored without
+`WEGLIDE_ALLOW_TEST_URL=true`. `docker-compose.e2e.yaml` does not set them, so
+`scripts/run-e2e-tests.sh` runs only the fake-free part. To run the rest in CI, give the
+`api` service those three variables with the host `host.docker.internal` (plus
+`extra_hosts: ["host.docker.internal:host-gateway"]`) and export
+`E2E_WEGLIDE_FAKE_ADDR=0.0.0.0:3499` to the test step.
+
 ## Running All Tests
 
 Run unit, integration, and E2E tests in sequence:

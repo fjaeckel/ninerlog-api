@@ -121,7 +121,7 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
     database refresher (`AIRPORT_REFRESH_INTERVAL`, default 24h), the release update
     check (`UPDATE_CHECK_INTERVAL`, default 24h), the import-session reaper, the
     idempotency-record reaper, the deletion-tombstone reaper, and (optionally) the
-    backup scheduler — all bound to a cancellable context.
+    WeGlide sync scheduler and the backup scheduler — all bound to a cancellable context.
 12. **Serve** with graceful shutdown that stops background workers.
 
 ### Optional / feature-flagged subsystems
@@ -132,6 +132,8 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
 | OIDC single sign-on | `OIDC_ISSUER` set | Mode switch: the provider owns all accounts, and password login, registration, email verification, password reset, TOTP and passkeys are disabled. Discovery is lazy and retried, so the provider may boot after the API. Login state and handoff codes live in Postgres with an expired-state reaper. See [OIDC.md](./OIDC.md) |
 | WebAuthn / passkeys | `WEBAUTHN_RP_ID` set and OIDC off | Relying-party id/name/origins from env; ceremony state in Postgres (`WEBAUTHN_SESSION_TTL`, `WEBAUTHN_MAX_OPEN_CEREMONIES`) plus an expired-session reaper |
 | Cloud backups | backup credentials key set | Registers S3/SFTP/WebDAV providers + scheduler |
+| WeGlide link | backup credentials key set | `/integrations/weglide*`; the key encrypts pilots' WeGlide API keys. Outbound calls go only to the fixed WeGlide hosts (`internal/weglide`); see [SAILPLANES.md](./SAILPLANES.md#weglide-link) |
+| WeGlide scheduled sync | WeGlide link on and `WEGLIDE_SYNC_ENABLED=true` | Sweeps linked pilots every `WEGLIDE_SYNC_INTERVAL` (default 24h), each at most once per UTC day |
 | pprof profiling | `PPROF_ENABLED=true` | Debug profiling server |
 | Airport DB refresh | `AIRPORT_REFRESH_INTERVAL` ≠ `off`/`0` | Refetches and re-merges both airport datasets on a timer |
 | Release update check | `UPDATE_CHECK_ENABLED` not `false` | Reads the newest published GitHub release per component on a timer and serves `GET /admin/update`; the only outbound call the API makes on its own behalf besides the airport datasets |

@@ -97,7 +97,9 @@ func setupIgcHandler(t *testing.T) (*APIHandler, *mockFlightRepo, *mockAircraftR
 	aircraft := newMockAircraftRepo()
 	h.flightService = service.NewFlightService(flights, nil)
 	h.aircraftService = service.NewAircraftService(aircraft)
-	h.SetFlightFileService(service.NewFlightFileService(&mockFlightFileRepo{files: map[uuid.UUID]*models.FlightFile{}}, flights))
+	ffs := service.NewFlightFileService(&mockFlightFileRepo{files: map[uuid.UUID]*models.FlightFile{}}, flights)
+	ffs.SetImportDependencies(h.flightService, h.aircraftService)
+	h.SetFlightFileService(ffs)
 	airports.SetTestDB(map[string]airports.AirportInfo{
 		"EDER": {Name: "Wasserkuppe", Latitude: 50.49889, Longitude: 9.95389},
 	})

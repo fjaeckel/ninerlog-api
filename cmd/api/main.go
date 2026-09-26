@@ -20,6 +20,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/handlers"
 	"github.com/fjaeckel/ninerlog-api/internal/api/middleware"
 	"github.com/fjaeckel/ninerlog-api/internal/logging"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
@@ -32,6 +33,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/pilotprofile"
 	"github.com/fjaeckel/ninerlog-api/internal/service/training"
 	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
+	"github.com/fjaeckel/ninerlog-api/internal/weglide"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
@@ -409,6 +411,7 @@ func main() {
 		postgres.NewDocumentFileRepository(db), licenseRepo, credentialRepo, documentFilesEnabled)
 	apiHandler.SetDocumentFileService(documentFileService)
 	flightFileService := service.NewFlightFileService(postgres.NewFlightFileRepository(db), flightRepo)
+	flightFileService.SetImportDependencies(flightService, aircraftService)
 	apiHandler.SetFlightFileService(flightFileService)
 
 	startedAt := time.Now()
@@ -419,13 +422,48 @@ func main() {
 	updateChecker := updatecheck.New(updatecheck.FromEnv())
 	apiHandler.SetUpdateChecker(updateChecker)
 
-	// Cloud backup service (optional — enabled only when BACKUP_CREDENTIALS_KEY is set).
-	var backupScheduler *cloudbackup.Scheduler
+	// BACKUP_CREDENTIALS_KEY encrypts stored third-party credentials: cloud
+	// backup destinations and WeGlide API keys.
+	var credentialsAEAD *cryptoutil.AEAD
 	if backupKey := os.Getenv("BACKUP_CREDENTIALS_KEY"); backupKey != "" {
-		aead, err := cryptoutil.NewFromBase64(backupKey)
+		credentialsAEAD, err = cryptoutil.NewFromBase64(backupKey)
 		if err != nil {
 			fatal("invalid BACKUP_CREDENTIALS_KEY", "error", err)
 		}
+	}
+
+	// WeGlide link (optional — needs BACKUP_CREDENTIALS_KEY). The scheduled
+	// sync runs only with WEGLIDE_SYNC_ENABLED=true.
+	var weglideService *service.WeGlideService
+	var weglideSyncInterval time.Duration
+	if credentialsAEAD != nil {
+		weglideCfg := weglide.ConfigFromEnv()
+		if weglideCfg.BaseURL != "" || weglideCfg.FilesURL != "" {
+			slog.Warn("WeGlide test URLs in use (WEGLIDE_ALLOW_TEST_URL=true); never set this in production",
+				"api", weglideCfg.BaseURL, "files", weglideCfg.FilesURL)
+		}
+		weglideCfg.MaxIGCBytes = models.MaxFlightFileBytes
+		weglideService = service.NewWeGlideService(
+			postgres.NewWeGlideLinkRepository(db), flightFileService, weglide.New(weglideCfg), credentialsAEAD,
+			func(ctx context.Context, id uuid.UUID) string {
+				if u, err := userRepo.GetByID(ctx, id); err == nil && u != nil {
+					return u.Name
+				}
+				return ""
+			})
+		if os.Getenv("WEGLIDE_SYNC_ENABLED") == "true" {
+			weglideSyncInterval = envDuration("WEGLIDE_SYNC_INTERVAL", service.DefaultWeGlideSyncInterval)
+		}
+		apiHandler.SetWeGlideService(weglideService, weglideSyncInterval)
+		slog.Info("WeGlide link enabled", "scheduledSync", weglideSyncInterval > 0)
+	} else {
+		slog.Info("WeGlide link disabled (set BACKUP_CREDENTIALS_KEY to enable)")
+	}
+
+	// Cloud backup service (optional — enabled only when BACKUP_CREDENTIALS_KEY is set).
+	var backupScheduler *cloudbackup.Scheduler
+	if credentialsAEAD != nil {
+		aead := credentialsAEAD
 		backupDestRepo := postgres.NewBackupDestinationRepository(db)
 		backupRunRepo := postgres.NewBackupRunRepository(db)
 		registry := provider.NewRegistry()
@@ -670,6 +708,10 @@ func main() {
 		api.Use(middleware.RateLimitByPathSegmentForMethods(
 			expensiveRateLimit, []string{http.MethodPost, http.MethodDelete}, "/files"))
 
+		// WeGlide link and sync call WeGlide: they share the "expensive" budget.
+		api.Use(middleware.RateLimitByPathSegmentForMethods(
+			expensiveRateLimit, []string{http.MethodPut, http.MethodPost}, "/weglide"))
+
 		// Authenticated signature actions that trigger outbound email.
 		signatureEmailRateLimit := middleware.NewRateLimitMiddleware("signature_email", 10, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(signatureEmailRateLimit,
@@ -758,6 +800,10 @@ func main() {
 	// Remind, then reap, accounts that never confirmed their address.
 	if unverifiedAccountService != nil {
 		unverifiedAccountService.Start(notifCtx)
+	}
+
+	if weglideService != nil && weglideSyncInterval > 0 {
+		weglideService.Start(notifCtx, weglideSyncInterval)
 	}
 
 	if backupScheduler != nil {

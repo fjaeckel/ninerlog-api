@@ -2844,6 +2844,27 @@ func (e VoidedFlightSource) Valid() bool {
 	}
 }
 
+// Defines values for WeGlideLinkStatusLastSyncStatus.
+const (
+	WeGlideLinkStatusLastSyncStatusFailed  WeGlideLinkStatusLastSyncStatus = "failed"
+	WeGlideLinkStatusLastSyncStatusOk      WeGlideLinkStatusLastSyncStatus = "ok"
+	WeGlideLinkStatusLastSyncStatusPartial WeGlideLinkStatusLastSyncStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the WeGlideLinkStatusLastSyncStatus enum.
+func (e WeGlideLinkStatusLastSyncStatus) Valid() bool {
+	switch e {
+	case WeGlideLinkStatusLastSyncStatusFailed:
+		return true
+	case WeGlideLinkStatusLastSyncStatusOk:
+		return true
+	case WeGlideLinkStatusLastSyncStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RestoreMode.
 const (
 	RestoreModeReplace RestoreMode = "replace"
@@ -3455,6 +3476,17 @@ type AdminConfig struct {
 	//
 	// Example: 24h0m0s
 	UpdateCheckInterval *string `json:"updateCheckInterval,omitempty"`
+
+	// WeglideLinkEnabled Whether pilots can link WeGlide (requires BACKUP_CREDENTIALS_KEY, which encrypts the keys)
+	WeglideLinkEnabled *bool `json:"weglideLinkEnabled,omitempty"`
+
+	// WeglideSyncEnabled Whether the scheduled WeGlide sync runs (WEGLIDE_SYNC_ENABLED=true and the link is enabled)
+	WeglideSyncEnabled *bool `json:"weglideSyncEnabled,omitempty"`
+
+	// WeglideSyncInterval How often the scheduled WeGlide sync sweeps (WEGLIDE_SYNC_INTERVAL). Absent when it is not running.
+	//
+	// Example: 24h0m0s
+	WeglideSyncInterval *string `json:"weglideSyncInterval,omitempty"`
 }
 
 // AdminConfigAuthMode Active authentication mode (oidc when OIDC_ISSUER is set)
@@ -3557,6 +3589,9 @@ type AdminStats struct {
 
 	// VoidedFlights Deleted flights kept as void records
 	VoidedFlights int `json:"voidedFlights"`
+
+	// WeglideLinks Users with a linked WeGlide account.
+	WeglideLinks int `json:"weglideLinks"`
 }
 
 // AdminUser defines model for AdminUser.
@@ -10133,6 +10168,50 @@ type VoidedFlight struct {
 // VoidedFlightSource defines model for VoidedFlight.Source.
 type VoidedFlightSource string
 
+// WeGlideLinkRequest defines model for WeGlideLinkRequest.
+type WeGlideLinkRequest struct {
+	// ApiKey Personal WeGlide API key (sent to WeGlide as X-API-Key)
+	ApiKey string `json:"apiKey"`
+}
+
+// WeGlideLinkStatus A pilot's WeGlide link. Never contains the API key.
+type WeGlideLinkStatus struct {
+	// LastSyncAt End of the last complete sync
+	LastSyncAt *time.Time `json:"lastSyncAt,omitempty"`
+
+	// LastSyncError Why the latest run stopped early or failed
+	LastSyncError *string `json:"lastSyncError,omitempty"`
+
+	// LastSyncStatus Result of the latest sync run
+	LastSyncStatus *WeGlideLinkStatusLastSyncStatus `json:"lastSyncStatus,omitempty"`
+	Linked         bool                             `json:"linked"`
+
+	// RequestsPerDay WeGlide's daily limit per key (60)
+	RequestsPerDay int `json:"requestsPerDay"`
+
+	// RequestsUsedToday WeGlide requests made on the current UTC day
+	RequestsUsedToday int `json:"requestsUsedToday"`
+
+	// WeglideUserId The WeGlide user the key belongs to
+	WeglideUserId *string `json:"weglideUserId,omitempty"`
+}
+
+// WeGlideLinkStatusLastSyncStatus Result of the latest sync run
+type WeGlideLinkStatusLastSyncStatus string
+
+// WeGlideSyncResult defines model for WeGlideSyncResult.
+type WeGlideSyncResult struct {
+	// Imported Flights created
+	Imported int `json:"imported"`
+
+	// Remaining Listed flights not processed in this run
+	Remaining         int `json:"remaining"`
+	RequestsUsedToday int `json:"requestsUsedToday"`
+
+	// Skipped Flights already stored (same IGC file) or whose file cannot become a flight
+	Skipped int `json:"skipped"`
+}
+
 // WebAuthnCredential defines model for WebAuthnCredential.
 type WebAuthnCredential struct {
 	// Aaguid Authenticator AAGUID as a hex/UUID string
@@ -11088,6 +11167,9 @@ type PreviewImportJSONRequestBody = ImportPreviewRequest
 
 // UploadImportFileMultipartRequestBody defines body for UploadImportFile for multipart/form-data ContentType.
 type UploadImportFileMultipartRequestBody UploadImportFileMultipartBody
+
+// LinkWeGlideJSONRequestBody defines body for LinkWeGlide for application/json ContentType.
+type LinkWeGlideJSONRequestBody = WeGlideLinkRequest
 
 // CreateLicenseJSONRequestBody defines body for CreateLicense for application/json ContentType.
 type CreateLicenseJSONRequestBody = LicenseCreate
