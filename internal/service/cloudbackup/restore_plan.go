@@ -51,6 +51,10 @@ type restorePlan struct {
 	baseline *models.FlightBaseline
 	profile  *models.PilotProfile
 
+	// reminders name their aircraft by canonical registration until applied.
+	reminders        []plannedReminder
+	remindersSkipped int
+
 	logbook *service.PreparedLogbook
 
 	warnings warningList
@@ -111,6 +115,9 @@ func buildRestorePlan(userID uuid.UUID, p *Payload) (*restorePlan, error) {
 	}
 	pl.planSettings(p)
 	if err := pl.planPilotProfile(p); err != nil {
+		return nil, err
+	}
+	if err := pl.planReminders(p); err != nil {
 		return nil, err
 	}
 	if err := pl.planLogbook(p); err != nil {
@@ -472,4 +479,61 @@ func restoredCreatedAt(backup, flightDate, now time.Time) time.Time {
 		return now
 	}
 	return backup
+}
+
+type plannedReminder struct {
+	registration string
+	reminder     *models.AircraftReminder
+}
+
+// planReminders attaches each backup aircraft reminder to the restored copy of
+// its aircraft, found by the backup aircraft's registration (or the
+// reminder's own). A reminder whose aircraft the backup does not carry, or
+// that repeats kind, label and due date on its aircraft, is skipped; an
+// invalid one is an invalid entry.
+func (pl *restorePlan) planReminders(p *Payload) error {
+	backupReg := make(map[uuid.UUID]string, len(p.Aircraft))
+	for _, a := range p.Aircraft {
+		if a != nil {
+			backupReg[a.ID] = registration.Canonical(a.Registration)
+		}
+	}
+	restored := make(map[string]bool, len(pl.aircraft))
+	for _, a := range pl.aircraft {
+		restored[a.Registration] = true
+	}
+	seen := make(map[string]bool)
+	for i, src := range p.AircraftReminders {
+		if src == nil {
+			return invalidEntry("aircraftReminders", i, nil)
+		}
+		reg, ok := backupReg[src.AircraftID]
+		if !ok {
+			reg = registration.Canonical(src.AircraftRegistration)
+		}
+		if !restored[reg] {
+			pl.remindersSkipped++
+			continue
+		}
+		r := *src
+		r.ID = uuid.Nil
+		r.UserID = pl.userID
+		r.AircraftID = uuid.Nil
+		r.AircraftRegistration = reg
+		if err := r.Validate(); err != nil {
+			return invalidEntry("aircraftReminders", i, err)
+		}
+		label := ""
+		if r.Label != nil {
+			label = *r.Label
+		}
+		key := reg + "|" + string(r.Kind) + "|" + label + "|" + models.DateOnly(r.DueDate).Format("2006-01-02")
+		if seen[key] {
+			pl.remindersSkipped++
+			continue
+		}
+		seen[key] = true
+		pl.reminders = append(pl.reminders, plannedReminder{registration: reg, reminder: &r})
+	}
+	return nil
 }

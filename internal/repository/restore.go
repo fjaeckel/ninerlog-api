@@ -86,6 +86,7 @@ type RestoreTx interface {
 	InsertLicense(ctx context.Context, license *models.License) error
 	InsertClassRating(ctx context.Context, rating *models.ClassRating) error
 	InsertLicencePrivilege(ctx context.Context, privilege *models.LicencePrivilege) error
+	InsertAircraftReminder(ctx context.Context, reminder *models.AircraftReminder) error
 	InsertCredential(ctx context.Context, credential *models.Credential) error
 	InsertCustomCurrencyRule(ctx context.Context, rule *models.CustomCurrencyRule) error
 	InsertCustomReport(ctx context.Context, report *models.CustomReport) error

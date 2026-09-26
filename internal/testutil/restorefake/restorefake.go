@@ -19,6 +19,7 @@ type State struct {
 	Ratings     []*models.ClassRating
 	Credentials []*models.Credential
 	Privileges  []*models.LicencePrivilege
+	Reminders   []*models.AircraftReminder
 	Contacts    []*models.Contact
 	Flights     []*models.Flight
 	Crew        []models.FlightCrewMember
@@ -42,6 +43,7 @@ func (s State) clone() State {
 		Ratings:     append([]*models.ClassRating(nil), s.Ratings...),
 		Credentials: append([]*models.Credential(nil), s.Credentials...),
 		Privileges:  append([]*models.LicencePrivilege(nil), s.Privileges...),
+		Reminders:   append([]*models.AircraftReminder(nil), s.Reminders...),
 		Contacts:    append([]*models.Contact(nil), s.Contacts...),
 		Flights:     append([]*models.Flight(nil), s.Flights...),
 		Crew:        append([]models.FlightCrewMember(nil), s.Crew...),
@@ -92,6 +94,7 @@ const (
 	OpLicense          = "insert_license"
 	OpClassRating      = "insert_class_rating"
 	OpPrivilege        = "insert_licence_privilege"
+	OpReminder         = "insert_aircraft_reminder"
 	OpCredential       = "insert_credential" // #nosec G101 -- an operation label, not a credential.
 	OpRule             = "insert_custom_currency_rule"
 	OpReport           = "insert_custom_report"
@@ -238,6 +241,15 @@ func (t *tx) InsertLicencePrivilege(ctx context.Context, p *models.LicencePrivil
 	}
 	ensureID(&p.ID)
 	t.store.State.Privileges = append(t.store.State.Privileges, p)
+	return nil
+}
+
+func (t *tx) InsertAircraftReminder(ctx context.Context, r *models.AircraftReminder) error {
+	if err := t.hit(OpReminder); err != nil {
+		return err
+	}
+	ensureID(&r.ID)
+	t.store.State.Reminders = append(t.store.State.Reminders, r)
 	return nil
 }
 

@@ -237,6 +237,10 @@ func (t *restoreTx) InsertLicencePrivilege(ctx context.Context, privilege *model
 	return (&LicencePrivilegeRepository{db: t.tx}).Create(ctx, privilege)
 }
 
+func (t *restoreTx) InsertAircraftReminder(ctx context.Context, reminder *models.AircraftReminder) error {
+	return (&AircraftReminderRepository{db: t.tx}).Create(ctx, reminder)
+}
+
 func (t *restoreTx) InsertCredential(ctx context.Context, credential *models.Credential) error {
 	return (&credentialRepository{tx: t.tx}).Create(ctx, credential)
 }

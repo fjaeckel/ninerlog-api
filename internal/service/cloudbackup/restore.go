@@ -95,6 +95,8 @@ type RestoreResult struct {
 	LicensesImported                int              `json:"licensesImported"`
 	ClassRatingsImported            int              `json:"classRatingsImported"`
 	LicencePrivilegesImported       int              `json:"licencePrivilegesImported"`
+	AircraftRemindersImported       int              `json:"aircraftRemindersImported"`
+	AircraftRemindersSkipped        int              `json:"aircraftRemindersSkipped"`
 	CredentialsImported             int              `json:"credentialsImported"`
 	FlightsImported                 int              `json:"flightsImported"`
 	CrewMembersImported             int              `json:"crewMembersImported"`
@@ -197,6 +199,7 @@ func checkEnvelope(p *Payload) error {
 		{"flights", len(p.Flights), MaxRestoreFlights},
 		{"contacts", len(p.Contacts), MaxRestoreContacts},
 		{"aircraft", len(p.Aircraft), MaxRestoreEntities},
+		{"aircraftReminders", len(p.AircraftReminders), MaxRestoreEntities},
 		{"licenses", len(p.Licenses), MaxRestoreEntities},
 		{"credentials", len(p.Credentials), MaxRestoreEntities},
 		{"custom currency rules", len(p.CustomCurrencyRules), MaxRestoreEntities},
@@ -281,6 +284,17 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 	for i, a := range pl.aircraft {
 		if err := tx.InsertAircraft(ctx, a); err != nil {
 			return nil, fmt.Errorf("insert aircraft %d: %w", i, err)
+		}
+	}
+
+	aircraftIDs := make(map[string]uuid.UUID, len(pl.aircraft))
+	for _, a := range pl.aircraft {
+		aircraftIDs[a.Registration] = a.ID
+	}
+	for i, r := range pl.reminders {
+		r.reminder.AircraftID = aircraftIDs[r.registration]
+		if err := tx.InsertAircraftReminder(ctx, r.reminder); err != nil {
+			return nil, fmt.Errorf("insert aircraft reminder %d: %w", i, err)
 		}
 	}
 
@@ -375,6 +389,8 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		LicensesImported:                len(pl.licenses),
 		ClassRatingsImported:            ratings,
 		LicencePrivilegesImported:       privileges,
+		AircraftRemindersImported:       len(pl.reminders),
+		AircraftRemindersSkipped:        pl.remindersSkipped,
 		CredentialsImported:             len(pl.credentials),
 		FlightsImported:                 len(pl.flights),
 		CrewMembersImported:             len(pl.crew),

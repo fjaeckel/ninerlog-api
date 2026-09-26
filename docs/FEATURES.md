@@ -86,6 +86,18 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
 - **Aircraft** (`internal/service/aircraft.go`) — the pilot's aircraft; the aircraft class
   links flights to the correct currency bucket, and an ultralight's kind decides what its
   flights are credited toward.
+- **Aircraft reminders** (`internal/service/aircraft_reminder.go`) — dated items on an
+  aircraft the pilot owns or looks after: annual inspection (the DAeC/DULV
+  Jahresnachprüfung for gliders and ultralights), insurance, rescue-system repack,
+  rescue-rocket expiry, ARC, ELT battery, or a custom labelled item. Each has a due date
+  and an optional interval in months; marking it done (`POST …/complete`) records the date
+  and, with an interval, rolls the due date forward. Every reminder reports `ok`,
+  `due_soon` (within 30 days) or `overdue`, and `GET /aircraft-reminders?dueWithinDays=N`
+  lists what is coming up across the whole fleet for the dashboard. Due-soon and overdue
+  items are emailed like credential expiries (category `aircraft_reminder`). Suggested
+  intervals are a client concern and are not enforced: annual inspection 12 months,
+  rescue-system repack and rocket expiry per the manufacturer. Serves the ultralight owner (PERSONAS.md, Mehmet job 3) and any pilot who
+  maintains their own aircraft.
 - **Pilot profile / toolkits** (`internal/service/pilotprofile`, `GET/PATCH
   /users/me/pilot-profile`) — which of the ten disciplines (aeroplane, TMG, sailplane,
   ultralight, gyroplane, helicopter, IFR, multi-crew, instructor, simulator) are relevant to
@@ -624,7 +636,7 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   re-importing updates the existing cards.
 - **Full backup / restore** (`GET /users/me/data`, `POST /users/me/data`; the old
   `GET /exports/json` and `POST /imports/json` are deprecated aliases) — everything the
-  pilot owns in one document: flights with crew, aircraft, licences with
+  pilot owns in one document: flights with crew, aircraft and their reminders, licences with
   their class ratings and privileges, credentials, contacts, custom currency rules, custom reports, notification preferences,
   the carried-forward hours baseline, the pilot profile's intents, and the strict logbook
   mode with its flight revisions, mode switches and certifications. `cloudbackup.Payload` is the single definition of that
@@ -647,13 +659,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 
 ## Notifications
 
-A background job reminds pilots before licenses/ratings/medicals expire and before
-currency lapses.
+A background job reminds pilots before licenses/ratings/medicals expire, before
+currency lapses, and when an aircraft reminder falls due.
 
 - **Categories** (`internal/models/notification.go`, `NotificationCategory`):
   `credential_medical`, `credential_language`, `credential_security`,
   `credential_other`, `rating_expiry`, `currency_passenger`, `currency_night`,
-  `currency_instrument`, `currency_flight_review`, `currency_revalidation`.
+  `currency_instrument`, `currency_flight_review`, `currency_revalidation`,
+  `aircraft_reminder`. All are on by default (migration 85 switched `aircraft_reminder` on
+  for existing preferences too). `aircraft_reminder` warns on the same warning-day
+  thresholds as credential expiries, and sends one lapse notice per due date once the date
+  has passed; completing a reminder moves its due date and re-arms both.
 - **Preferences** — per-user, per-category opt-in with configurable warning windows
   (`NotificationPreference`); every notice is recorded in `NotificationLog` for
   deduplication (see [DATA_MODEL.md](./DATA_MODEL.md#auth-session-and-notification-tables)).
@@ -731,7 +747,8 @@ Admin-only endpoints (caller must be an admin — the `users.is_admin` flag or t
   the logbook keeps them apart. `totalCustomReports` counts saved custom reports across all
   users. `strictLogbookUsers`, `flightRevisions`, `flightCorrections`, `voidedFlights` and
   `logbookCertifications` count strict-mode users and their audit trail rows (counts only,
-  never contents). `licencePrivileges` reports the `total` and the count
+  never contents). `aircraftReminders` reports `total` and `overdue` aircraft reminders across
+  all users. `licencePrivileges` reports the `total` and the count
   per kind (`byKind`) of licence privileges across all users. `pilotProfiles` reports how many users switched the pilot profile to show
   everything and, per discipline, how many set it explicitly on, off or as a training goal. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table

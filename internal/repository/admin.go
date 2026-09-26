@@ -38,6 +38,10 @@ type AdminStats struct {
 	// LicencePrivilegesByKind maps privilege kind to count across all users.
 	// Never nil; kinds nobody has recorded are absent.
 	LicencePrivilegesByKind map[string]int
+	// TotalAircraftReminders counts aircraft reminders across all users;
+	// OverdueAircraftReminders those due before today.
+	TotalAircraftReminders   int
+	OverdueAircraftReminders int
 	// ImportsByFormat maps import_format value to import count. Never nil;
 	// formats with no imports are absent.
 	ImportsByFormat map[string]int

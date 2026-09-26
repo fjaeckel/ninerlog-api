@@ -15,6 +15,7 @@ flowchart TD
     User((User))
     User --> License
     User --> Aircraft
+    Aircraft --> AircraftReminder
     User --> Credential
     User --> Contact
     User --> Flight
@@ -129,6 +130,26 @@ rating covers — `THREE_AXIS`, `WEIGHT_SHIFT`, `GYROPLANE`, `HELICOPTER`, `POWE
 or `SAILPLANE` — and is cleared on any other class. A German UL rating with NULL is not
 evaluated (`rating.ul_kind_required`). See
 [DOMAIN.md](./DOMAIN.md#ultralights).
+
+### AircraftReminder (`internal/models/aircraft_reminder.go`, migration 85)
+
+A dated item on one of the user's aircraft. `user_id` and `aircraft_id` both cascade, so
+deleting the aircraft or the account removes its reminders.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `kind` | `TEXT` | CHECK: `ANNUAL_INSPECTION`, `INSURANCE`, `RESCUE_SYSTEM_REPACK`, `RESCUE_ROCKET_EXPIRY`, `ARC`, `ELT_BATTERY`, `CUSTOM` |
+| `label` | `TEXT NULL` | ≤ 100 chars; required (non-blank) when `kind = 'CUSTOM'` (constraint `aircraft_reminders_custom_label`) |
+| `due_date` | `DATE` | |
+| `interval_months` | `INTEGER NULL` | 1–240; rolls `due_date` forward on completion |
+| `last_done_on` | `DATE NULL` | set by `POST …/complete` |
+| `notes` | `TEXT NULL` | ≤ 1000 chars |
+
+Indexed on `(user_id, due_date)` for the cross-fleet list and the notification check, and on
+`aircraft_id`. `status` and `daysUntilDue` in the API are computed, not stored; the
+registration is joined from `aircraft`. Migration 85 also adds `aircraft_reminder` to the
+`notification_preferences.enabled_categories` default and to every existing row. See
+[DOMAIN.md](./DOMAIN.md#aircraft-reminders).
 
 ### LicencePrivilege (`internal/models/licence_privilege.go`, migration 82)
 
@@ -397,7 +418,7 @@ creates one. Evidence and status are derived on every read and never stored — 
 | OIDCHandoffCode | `oidc.go` | 52 | Single-use code bridging the provider redirect to the SPA's token request, keyed by `sha256(code)` |
 | EmailDeliveryEvent | `email_delivery.go` | 56 | Append-only log of send attempts: recipient, message type, SMTP outcome and reply code. `user_id` is `ON DELETE SET NULL` so a bounce history outlives the account it belonged to |
 | EmailSuppression | `email_delivery.go` | 56 | Addresses that refused mail permanently; keyed by lower-cased address. Consulted before every send |
-| NotificationPreference | `notification.go` | 10, 33 | Per-category opt-in + warning windows |
+| NotificationPreference | `notification.go` | 10, 33, 85 | Per-category opt-in + warning windows |
 | NotificationLog | `notification.go` | 10, 33, 77 | Claimed notifications (dedup) and the sent history |
 
 Token-style tables store hashes, never raw secrets. See [AUTHENTICATION.md](./AUTHENTICATION.md)

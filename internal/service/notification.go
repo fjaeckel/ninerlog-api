@@ -24,6 +24,12 @@ type customCurrencyLister interface {
 	List(ctx context.Context, userID uuid.UUID) ([]currency.CustomRuleWithStatus, error)
 }
 
+// aircraftReminderLister lists a user's aircraft reminders across aircraft.
+// Satisfied by *AircraftReminderService.
+type aircraftReminderLister interface {
+	ListAll(ctx context.Context, userID uuid.UUID, dueWithinDays *int) ([]*models.AircraftReminder, error)
+}
+
 type NotificationService struct {
 	notifRepo       repository.NotificationRepository
 	credentialRepo  repository.CredentialRepository
@@ -34,6 +40,7 @@ type NotificationService struct {
 	currencyService *currency.Service
 	customService   customCurrencyLister
 	now             func() time.Time
+	reminders       aircraftReminderLister
 }
 
 func NewNotificationService(
@@ -57,6 +64,12 @@ func NewNotificationService(
 		customService:   customService,
 		now:             time.Now,
 	}
+}
+
+// SetAircraftReminderSource wires the aircraft reminder lister; nil turns
+// aircraft reminder notices off.
+func (s *NotificationService) SetAircraftReminderSource(r aircraftReminderLister) {
+	s.reminders = r
 }
 
 // GetPreferences returns notification preferences for a user
@@ -168,6 +181,7 @@ func (s *NotificationService) runChecks(ctx context.Context, checkHour int) bool
 		s.checkCredentialExpiry(ctx, prefs, user)
 		s.checkCurrencyNotifications(ctx, prefs, user)
 		s.checkCustomCurrencyNotifications(ctx, prefs, user)
+		s.checkAircraftReminders(ctx, prefs, user)
 	}
 	return true
 }
@@ -564,6 +578,49 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 				subject: subject, body: body, metric: string(models.NotifCategoryCustomCurrency),
 			}, item.Evaluation.LapsedOn))
 		}
+	}
+}
+
+// checkAircraftReminders emails for aircraft reminders that fall within a
+// warning day (one notice per threshold per due date) or are overdue (one
+// notice per due date).
+func (s *NotificationService) checkAircraftReminders(ctx context.Context, prefs *models.NotificationPreferences, user *models.User) {
+	if s.reminders == nil || !prefs.IsCategoryEnabled(models.NotifCategoryAircraftReminder) {
+		return
+	}
+	reminders, err := s.reminders.ListAll(ctx, prefs.UserID, nil)
+	if err != nil || len(reminders) == 0 {
+		return
+	}
+	tmpl := email.Templates(user.PreferredLocale)
+	today := models.CalendarDate(s.now())
+	category := models.NotifCategoryAircraftReminder
+
+	for _, rem := range reminders {
+		due := rem.DueDate
+		days := rem.DaysUntilDue(today)
+		label := ""
+		if rem.Label != nil {
+			label = *rem.Label
+		}
+		subject, body := tmpl.AircraftReminder(email.AircraftReminderParams{
+			UserName:      user.Name,
+			Registration:  rem.AircraftRegistration,
+			Kind:          string(rem.Kind),
+			Label:         label,
+			DueDate:       formatDateForUser(due, user.DateFormat),
+			DaysRemaining: days,
+			Overdue:       days < 0,
+		})
+		n := notice{
+			category: category, refID: rem.ID, refType: "aircraft_reminder", date: due,
+			subject: subject, body: body, metric: string(category),
+		}
+		if days >= 0 {
+			logNotifyError(user, s.sendWarning(ctx, prefs, user, n, days))
+			continue
+		}
+		logNotifyError(user, s.sendLapse(ctx, user, n, &due))
 	}
 }
 

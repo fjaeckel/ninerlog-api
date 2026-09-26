@@ -497,19 +497,20 @@ func fmtHM(v int) string {
 // carry different sets of a user's data.
 func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 	return &cloudbackup.DefaultJSONBuilder{
-		Flights:        h.flightService,
-		Aircraft:       h.aircraftService,
-		Licenses:       h.licenseService,
-		Credentials:    h.credentialService,
-		ClassRating:    h.classRatingService,
-		Contacts:       h.contactService,
-		CustomCurrency: h.customCurrencyService,
-		CustomReports:  h.customReportService,
-		Notifications:  h.notificationService,
-		Logbook:        h.logbookService,
-		PilotProfiles:  h.pilotProfileService,
-		AttachCrew:     h.AttachCrewMembers,
-		Privileges:     h.licencePrivilegeService,
+		Flights:           h.flightService,
+		Aircraft:          h.aircraftService,
+		Licenses:          h.licenseService,
+		Credentials:       h.credentialService,
+		ClassRating:       h.classRatingService,
+		Contacts:          h.contactService,
+		CustomCurrency:    h.customCurrencyService,
+		CustomReports:     h.customReportService,
+		Notifications:     h.notificationService,
+		Logbook:           h.logbookService,
+		PilotProfiles:     h.pilotProfileService,
+		AttachCrew:        h.AttachCrewMembers,
+		Privileges:        h.licencePrivilegeService,
+		AircraftReminders: h.aircraftReminderService,
 	}
 }
 

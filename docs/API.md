@@ -409,6 +409,34 @@ plus one `COUNT`, not a scan of the whole fleet. Clients that need the complete 
 fleet list, an aircraft picker — must page until `pagination.page` reaches
 `pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
 
+#### Aircraft reminders
+Dated items on an aircraft — `ANNUAL_INSPECTION` (Jahresnachprüfung), `INSURANCE`,
+`RESCUE_SYSTEM_REPACK`, `RESCUE_ROCKET_EXPIRY`, `ARC`, `ELT_BATTERY` and `CUSTOM` (which
+requires a `label`, max 100 chars).
+
+| Method & path | Result |
+| --- | --- |
+| `GET /aircraft/{aircraftId}/reminders` | the aircraft's reminders, ordered by `dueDate` |
+| `POST /aircraft/{aircraftId}/reminders` | `201` with the reminder |
+| `PATCH /aircraft/{aircraftId}/reminders/{reminderId}` | partial update; `null` clears `label`, `intervalMonths`, `lastDoneOn`, `notes` |
+| `DELETE /aircraft/{aircraftId}/reminders/{reminderId}` | `204` |
+| `POST /aircraft/{aircraftId}/reminders/{reminderId}/complete` | body `{doneOn?}` (default today, UTC); returns the reminder |
+| `GET /aircraft-reminders?dueWithinDays=N` | all of the caller's reminders across aircraft, by `dueDate`; `N` (0–3650) keeps those due within N days, overdue included |
+
+Every response carries `aircraftRegistration`, `status` (`ok` / `due_soon` within 30 days,
+today included / `overdue`) and `daysUntilDue` (negative when overdue), computed against
+today in UTC. `intervalMonths` is 1–240, `notes` max 1000 chars; a violation is a `400`, as is
+a `dueWithinDays` outside 0–3650. An aircraft or reminder that does not exist, belongs to
+another user, or (for a reminder) sits on another aircraft is a `404`, never a `403`.
+Completion semantics are in [DOMAIN.md](./DOMAIN.md#aircraft-reminders).
+
+`pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
+rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
+`registration ASC` and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
+plus one `COUNT`, not a scan of the whole fleet. Clients that need the complete fleet — the
+fleet list, an aircraft picker — must page until `pagination.page` reaches
+`pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
+
 ### Flights
 CRUD on `/flights`, plus `POST /flights/batch` and `POST /flights/recalculate`
 (re-run auto-calculations respecting overrides). Deleting every flight is
@@ -854,7 +882,7 @@ with the same modes, status codes, limits and time budget; `DELETE /flights/dele
 its `{deleted}` response. The frontend moves to the new routes in its own PR; the iOS app
 still calls the old ones, so they are not removed.
 
-**Backup content.** Flights (with crew), aircraft, licences with their class ratings and
+**Backup content.** Flights (with crew), aircraft and their reminders (`aircraftReminders`), licences with their class ratings and
 privileges (`licenses[].privileges`), credentials,
 contacts, custom currency rules, custom reports, notification preferences, the
 carried-forward hours baseline, the pilot profile (`pilotProfile`: mode, intents and
@@ -881,6 +909,10 @@ run in one database transaction, so a failure writes nothing.
   backup that carries them, in both modes (`pilotProfileImported` in the result). A pilot
   profile with an unknown mode or intent fails the restore with `400`; disciplines this
   version does not know are dropped.
+- Aircraft reminders are attached to the restored copy of their aircraft, found by
+  registration (`aircraftRemindersImported`). One whose aircraft the backup does not carry,
+  or that repeats kind, label and due date on its aircraft, is skipped
+  (`aircraftRemindersSkipped`); an invalid one fails the restore with `400`.
 - Licence privileges are attached to their restored licence (`licencePrivilegesImported`);
   one that fails validation fails the restore with `400`.
 - A flight keeps its ID when no flight, no other user's history and no
