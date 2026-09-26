@@ -144,14 +144,36 @@ func TestPilotingCategoryFor(t *testing.T) {
 		{"multi-pilot wins", &models.Flight{MultiPilotTime: 60, TotalTime: 60}, "SEP", CategoryMP},
 		{"SEP → SP-SE", &models.Flight{TotalTime: 60}, "SEP", CategorySPSE},
 		{"MEP → SP-ME", &models.Flight{TotalTime: 60}, "MEP", CategorySPME},
-		{"SET → SP-ME", &models.Flight{TotalTime: 60}, "SET", CategorySPME},
+		{"SET → SP-SE", &models.Flight{TotalTime: 60}, "SET", CategorySPSE},
+		{"SET_LAND → SP-SE", &models.Flight{TotalTime: 60}, "SET_LAND", CategorySPSE},
+		{"SET_SEA → SP-SE", &models.Flight{TotalTime: 60}, "SET_SEA", CategorySPSE},
+		{"lower-case set_land → SP-SE", &models.Flight{TotalTime: 60}, " set_land ", CategorySPSE},
+		{"SEP_LAND → SP-SE", &models.Flight{TotalTime: 60}, "SEP_LAND", CategorySPSE},
+		{"SEP_SEA → SP-SE", &models.Flight{TotalTime: 60}, "SEP_SEA", CategorySPSE},
+		{"MEP_LAND → SP-ME", &models.Flight{TotalTime: 60}, "MEP_LAND", CategorySPME},
+		{"MEP_SEA → SP-ME", &models.Flight{TotalTime: 60}, "MEP_SEA", CategorySPME},
+		{"lower-case mep_land → SP-ME", &models.Flight{TotalTime: 60}, " mep_land", CategorySPME},
 		{"MET → SP-ME", &models.Flight{TotalTime: 60}, "MET", CategorySPME},
+		{"TMG → SP-SE", &models.Flight{TotalTime: 60}, "TMG", CategorySPSE},
+		{"GLIDER → SP-SE", &models.Flight{TotalTime: 60}, "GLIDER", CategorySPSE},
+		{"ULTRALIGHT → SP-SE", &models.Flight{TotalTime: 60}, "ULTRALIGHT", CategorySPSE},
+		{"GYROPLANE → SP-SE", &models.Flight{TotalTime: 60}, "GYROPLANE", CategorySPSE},
 		{"unknown → SP-SE", &models.Flight{TotalTime: 60}, "", CategorySPSE},
 	}
 	for _, tc := range cases {
-		if got := PilotingCategoryFor(tc.f, tc.acClass); got != tc.want {
-			t.Errorf("%s: PilotingCategoryFor = %v, want %v", tc.name, got, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			if got := PilotingCategoryFor(tc.f, tc.acClass); got != tc.want {
+				t.Errorf("PilotingCategoryFor = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRowTimes_SETInSingleEngineColumn(t *testing.T) {
+	f := &models.Flight{TotalTime: 95}
+	se, me, mp := RowTimes(f, "SET_LAND")
+	if se != 95 || me != 0 || mp != 0 {
+		t.Errorf("RowTimes(SET_LAND) = (%d, %d, %d), want (95, 0, 0)", se, me, mp)
 	}
 }
 

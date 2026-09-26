@@ -258,8 +258,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   the others are ranked by the chosen metric and capped (default 20, max 100). Aggregation
   reuses the `NOT is_simulator AND NOT is_passenger` flight-time rule everywhere else in the
   app applies (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)); a `logbookLicenseId`
-  filter reuses the same licence → allowed-registrations resolution
-  (`internal/service/logbook_scope.go`) as `GET /flights?logbookLicenseId`. Reports are
+  filter reuses the same licence logbook scope
+  (`internal/service/logbook_scope.go`, [DOMAIN.md](./DOMAIN.md#licence-logbooks)) as
+  `GET /flights?logbookLicenseId`. Reports are
   stored server-side per user, so they follow the pilot to every device and travel in the
   JSON export.
 - **Initial hours** — a per-user snapshot of pre-existing experience (`FlightBaseline`).
@@ -441,7 +442,13 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   sign-off in its remarks column — the captured ink, the signer's name and their
   credential number — so a printed logbook carries its endorsements the way a paper
   one does; `export_pdf_signature.go` holds the block's layout ladder and the raster
-  bounds it embeds within.
+  bounds it embeds within. A licence logbook (`logbookLicenseId`) prints the flights on
+  the licence's rated classes, with ultralights filtered by the rating's kind. It also
+  prints flights credited toward the licence from other classes, each marked `[Credited]`:
+  SEP(land) and TMG flights in a German three-axis UL logbook, or three-axis UL flights
+  in a PPL's. A towed launch is never credited toward a powered rating. Single-engine
+  turbine (`SET*`) time goes in the SP-SE column. See
+  [DOMAIN.md](./DOMAIN.md#licence-logbooks).
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.

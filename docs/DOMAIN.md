@@ -429,6 +429,43 @@ addition to the pooled totals, show at least 1 h and 6 landings in each of the t
 
 Passenger currency (FCL.060(b)) is never pooled: it requires "the same type or class".
 
+### Licence logbooks
+
+`logbookLicenseId` on `GET /flights`, `GET /exports/csv`, `GET /exports/pdf` and custom
+reports scopes the flights to one licence's logbook. `service.LogbookScope` resolves it,
+and every caller gets the same answer. It classifies each flight by its aircraft:
+
+- **Native.** The aircraft class, trimmed and upper-cased (`models.NormalizeAircraftClass`),
+  equals the class of one of the licence's ratings. An `ULTRALIGHT` rating with a kind
+  admits only ultralights of a kind it covers (`models.AircraftKindsForRating`: a
+  three-axis rating also covers UL motorgliders). A UL with no kind does not qualify. A UL
+  rating without a kind admits every ultralight.
+- **Credited.** The aircraft is of another class that a rating's recency rule counts.
+  `currency.Service.CreditScope` reads this from the same rule the evaluator runs:
+  `resolveClasses`, the rule's non-native `ulCredit` and its `extraCredit`. Examples: SEP(land)
+  and TMG toward a German three-axis UL rating (LuftPersV §45(2)), three-axis ULs toward
+  SEP(land) (FCL.035(a)(4)), every aeroplane class and TMG toward LAPL(A) (FCL.140.A), TMG
+  and UL sailplanes toward a `GLIDER` rating (SFCL.160(a)), and UL gyroplanes of 450 kg or
+  more toward GPL (FCL.035(a)(5)). A cross-class rule (IR) credits nothing.
+- **Excluded.** Anything else, including an aircraft that is not in the fleet or has no class.
+
+A towed launch (`models.TowedLaunchMethods`: winch, aerotow, car, bungee) is credited only
+toward a rating that counts towed launches, which means a `GLIDER` rating or a UL sailplane
+rating. A winch-launched flight therefore never enters a powered licence's logbook as
+credited. On the list and CSV paths this runs in SQL:
+`FlightQueryOptions.UntowedAircraftRegistrations` admits a registration only for flights
+without a towed launch.
+
+The PDF prints `[Credited]` at the start of a credited flight's remarks. Like the other
+remark annotations (`[PICUS h:mm]`, `[IPC]`) it is in English whatever the pilot's language.
+A licence-filtered PDF omits the career-wide initial-hours baseline.
+
+The EASA SINGLE-PILOT SE and ME columns (AMC1 FCL.050 cols 7–8) split by engine count, from
+the aircraft class (`flightrules.PilotingCategoryFor`). `MEP*` and `MET*` go to ME.
+Everything else goes to SE: `SEP*`, single-engine turbine `SET*`, `TMG`, `GLIDER`,
+`ULTRALIGHT`, `GYROPLANE`, and an unknown or missing class. Time logged as multi-pilot goes
+to the MULTI-PILOT column instead.
+
 ### Time windows and status
 
 Evaluators compute over either a **rolling** window (e.g. last 90 days from now) or an
