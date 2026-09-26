@@ -1536,6 +1536,24 @@ func (e UpdateStatusLastError) Valid() bool {
 	}
 }
 
+// Defines values for UserClockFormat.
+const (
+	UserClockFormatN12h UserClockFormat = "12h"
+	UserClockFormatN24h UserClockFormat = "24h"
+)
+
+// Valid indicates whether the value is a known member of the UserClockFormat enum.
+func (e UserClockFormat) Valid() bool {
+	switch e {
+	case UserClockFormatN12h:
+		return true
+	case UserClockFormatN24h:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserDateFormat.
 const (
 	UserDateFormatDDMMYYYY UserDateFormat = "DD.MM.YYYY"
@@ -1872,6 +1890,24 @@ func (e ListDeletionsParamsEntity) Valid() bool {
 	case ListDeletionsParamsEntityFlight:
 		return true
 	case ListDeletionsParamsEntityLicense:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateCurrentUserJSONBodyClockFormat.
+const (
+	UpdateCurrentUserJSONBodyClockFormatN12h UpdateCurrentUserJSONBodyClockFormat = "12h"
+	UpdateCurrentUserJSONBodyClockFormatN24h UpdateCurrentUserJSONBodyClockFormat = "24h"
+)
+
+// Valid indicates whether the value is a known member of the UpdateCurrentUserJSONBodyClockFormat enum.
+func (e UpdateCurrentUserJSONBodyClockFormat) Valid() bool {
+	switch e {
+	case UpdateCurrentUserJSONBodyClockFormatN12h:
+		return true
+	case UpdateCurrentUserJSONBodyClockFormatN24h:
 		return true
 	default:
 		return false
@@ -6324,6 +6360,11 @@ type UpdateStatusLastError string
 
 // User defines model for User.
 type User struct {
+	// ClockFormat User's preferred clock format for times of day (block and takeoff/landing times). "24h" for 14:30, "12h" for 2:30 PM. Stored values are always 24-hour UTC.
+	//
+	// Example: 24h
+	ClockFormat *UserClockFormat `json:"clockFormat,omitempty"`
+
 	// CreatedAt Example: 2026-01-15T10:30:00Z
 	CreatedAt time.Time `json:"createdAt"`
 
@@ -6394,6 +6435,11 @@ type User struct {
 	// UpdatedAt Example: 2026-01-20T14:45:00Z
 	UpdatedAt time.Time `json:"updatedAt"`
 }
+
+// UserClockFormat User's preferred clock format for times of day (block and takeoff/landing times). "24h" for 14:30, "12h" for 2:30 PM. Stored values are always 24-hour UTC.
+//
+// Example: 24h
+type UserClockFormat string
 
 // UserDateFormat User's preferred date display format.
 //
@@ -7089,6 +7135,9 @@ type DeleteCurrentUserJSONBody struct {
 
 // UpdateCurrentUserJSONBody defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBody struct {
+	// ClockFormat Preferred clock format for times of day
+	ClockFormat *UpdateCurrentUserJSONBodyClockFormat `json:"clockFormat,omitempty"`
+
 	// CurrentPassword Current password. Required when changing the email address. The new address is marked unverified and a verification link is sent to it before it is trusted again.
 	CurrentPassword *string `json:"currentPassword,omitempty"`
 
@@ -7118,6 +7167,9 @@ type UpdateCurrentUserJSONBody struct {
 	// TimeDisplayFormat Preferred time display format
 	TimeDisplayFormat *UpdateCurrentUserJSONBodyTimeDisplayFormat `json:"timeDisplayFormat,omitempty"`
 }
+
+// UpdateCurrentUserJSONBodyClockFormat defines parameters for UpdateCurrentUser.
+type UpdateCurrentUserJSONBodyClockFormat string
 
 // UpdateCurrentUserJSONBodyDateFormat defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyDateFormat string

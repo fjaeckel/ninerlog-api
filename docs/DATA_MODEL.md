@@ -57,7 +57,7 @@ The account holder. Notable fields:
   not by a token refresh. See
   [AUTHENTICATION.md](AUTHENTICATION.md#login).
 - Display preferences: `TimeDisplayFormat` (`HH:MM` vs decimal hours), `DateFormat`,
-  `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`).
+  `ClockFormat` (`24h` | `12h` for times of day; default `24h`), `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`).
 - Recency indicators: `RecencyPerModel`, `RecencyPerRegistration` — which informational
   90-day landing recency views the client shows.
 - Flights-list columns: `FlightListColumnMode` (`auto` | `custom`) and
