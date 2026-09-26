@@ -4510,6 +4510,49 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /reports/soaring-season:
+    get:
+      tags:
+        - Reports
+      summary: Get a soaring season summary
+      description: |
+        Summarises one calendar year (1 January to 31 December) of the
+        caller's soaring flights for the dashboard season card.
+
+        A soaring flight is a flight whose aircraft (matched by registration
+        in the caller's fleet) is classed `GLIDER`, is an `ULTRALIGHT` of kind
+        `SAILPLANE`, or is classed `TMG` and the flight has a launch method.
+        FSTD sessions and passenger flights never count. Flights on
+        registrations missing from the fleet do not count.
+
+        `launches` sums each flight's stored launch count (its take-offs, at
+        least one, when none was stored). `longestFlight` is the soaring
+        flight with the most total time (latest on a tie); it never uses airport-to-airport
+        distance, which is 0 for local and out-and-return soaring. `sites`
+        lists the five departure places with the most soaring flights.
+        Durations are integer minutes. A year without soaring flights returns
+        zeros, an empty `sites` and no `longestFlight`.
+      operationId: getSoaringSeason
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          description: Calendar year (UTC). Defaults to the current year; 1900 to next year.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Soaring season summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaringSeason'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ── Contacts ──
 
   /reports/custom:
@@ -13050,20 +13093,110 @@ components:
           type: string
           maxLength: 64
 
+    SoaringSeason:
+      type: object
+      description: One calendar year of soaring flights (see `GET /reports/soaring-season`). Durations in minutes.
+      required:
+        - year
+        - flights
+        - launches
+        - launchesByMethod
+        - totalMinutes
+        - outlandings
+        - averageFlightMinutes
+        - sites
+      properties:
+        year:
+          type: integer
+        flights:
+          type: integer
+        launches:
+          type: integer
+        launchesByMethod:
+          $ref: '#/components/schemas/SoaringLaunchesByMethod'
+        totalMinutes:
+          type: integer
+        longestFlight:
+          $ref: '#/components/schemas/SoaringSeasonFlight'
+        outlandings:
+          type: integer
+          description: Soaring flights marked as an outlanding
+        averageFlightMinutes:
+          type: integer
+          description: totalMinutes / flights, rounded; 0 without flights
+        sites:
+          type: array
+          maxItems: 5
+          description: Top five departure places by soaring flights, most first
+          items:
+            $ref: '#/components/schemas/SoaringSeasonSite'
+
+    SoaringLaunchesByMethod:
+      type: object
+      description: Launches per launch method; `unspecified` counts soaring flights without one.
+      required: [winch, aerotow, selfLaunch, car, bungee, unspecified]
+      properties:
+        winch:
+          type: integer
+        aerotow:
+          type: integer
+        selfLaunch:
+          type: integer
+        car:
+          type: integer
+        bungee:
+          type: integer
+        unspecified:
+          type: integer
+
+    SoaringSeasonFlight:
+      type: object
+      required: [flightId, date, minutes, aircraftReg]
+      properties:
+        flightId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        minutes:
+          type: integer
+        aircraftReg:
+          type: [string, 'null']
+
+    SoaringSeasonSite:
+      type: object
+      required: [place, flights]
+      properties:
+        place:
+          type: string
+          description: Departure as logged (ICAO code or free-text place)
+        flights:
+          type: integer
+
     CustomReportGroupBy:
       type: string
       description: |
         Dimension the report groups flights by. `month` keys are `YYYY-MM`,
         `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
-        to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
-        gap-filled across the report window; the others are ranked by `value`.
-      enum: [month, year, dayOfWeek, aircraftType, registration, departure, arrival, route]
+        to `7`, `route` keys `DEP-ARR`. `launchMethod` keys are the stored
+        launch method (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+        `aircraftClass` and `ulKind` read the aircraft of the flight's
+        registration in the caller's fleet: `aircraftClass` keys are the
+        upper-cased class, `ulKind` keys the ultralight kind of `ULTRALIGHT`
+        aircraft. Flights without a value group under the empty key. Time
+        groupings are chronological and gap-filled across the report window;
+        the others are ranked by `value`.
+      enum: [month, year, dayOfWeek, aircraftType, registration, departure, arrival, route, launchMethod, aircraftClass, ulKind]
 
     CustomReportMetric:
       type: string
       description: |
         Metric charted by a report. Durations are integer minutes.
-      enum: [flights, totalTime, picTime, dualTime, dualGivenTime, nightTime, ifrTime, crossCountryTime, fstdTime, landings]
+        `launches` sums the launch count of soaring flights only (the scope of
+        `GET /reports/soaring-season`); `outlandings` and `towFlights` count
+        flights marked as an outlanding or a tow flight.
+      enum: [flights, totalTime, picTime, dualTime, dualGivenTime, nightTime, ifrTime, crossCountryTime, fstdTime, landings, launches, outlandings, towFlights]
 
     CustomReportWindow:
       type: object
@@ -13217,6 +13350,9 @@ components:
         - crossCountryTime
         - fstdTime
         - landings
+        - launches
+        - outlandings
+        - towFlights
       properties:
         flights:
           type: integer
@@ -13240,6 +13376,13 @@ components:
           description: FSTD session time of matching simulator entries
         landings:
           type: integer
+        launches:
+          type: integer
+          description: Launches of matching soaring flights
+        outlandings:
+          type: integer
+        towFlights:
+          type: integer
 
     CustomReportRow:
       type: object
@@ -13257,6 +13400,9 @@ components:
         - crossCountryTime
         - fstdTime
         - landings
+        - launches
+        - outlandings
+        - towFlights
       properties:
         key:
           type: string
@@ -13286,6 +13432,12 @@ components:
         fstdTime:
           type: integer
         landings:
+          type: integer
+        launches:
+          type: integer
+        outlandings:
+          type: integer
+        towFlights:
           type: integer
 
     CustomReportResult:

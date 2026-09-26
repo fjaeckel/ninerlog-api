@@ -410,6 +410,12 @@ func TestLabel(t *testing.T) {
 		{"dayOfWeek", "9", "9"},
 		{"route", "EDDF-EDDM", "EDDF-EDDM"},
 		{"registration", "", "(none)"},
+		{"launchMethod", "winch", "Winch"},
+		{"launchMethod", "self-launch", "Self-launch"},
+		{"launchMethod", "", "(none)"},
+		{"ulKind", "WEIGHT_SHIFT", "Weight-shift"},
+		{"ulKind", "POWERED_PARAGLIDER", "Powered paraglider"},
+		{"aircraftClass", "GLIDER", "GLIDER"},
 	} {
 		if got := Label(tt.by, tt.key); got != tt.want {
 			t.Errorf("Label(%s, %q) = %q, want %q", tt.by, tt.key, got, tt.want)

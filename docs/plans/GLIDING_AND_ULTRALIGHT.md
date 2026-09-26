@@ -248,7 +248,13 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 - Fuzz-test the parser; fixture files cover each launch method.
 - Closes P2.
 
-**WP-28. Soaring statistics** (api + fe)
+**WP-28. Soaring statistics** (api + fe) — **API half implemented**
+(`GET /reports/soaring-season`; custom-report metrics `launches`, `outlandings`,
+`towFlights` and groupings `launchMethod`, `aircraftClass`, `ulKind`); scope in
+[SAILPLANES.md](../SAILPLANES.md#statistics). Launches by method is the `launchMethod`
+grouping of the `launches` metric. No distance metric: `flights.distance` is
+airport-to-airport, so a distance metric waits for WP-27's task distance. Frontend half
+open.
 
 - Custom-report metrics: launches, launches by method, outlandings, distance.
 - A season card on the dashboard (`SAILPLANE` active): launches by method, hours, longest
@@ -305,6 +311,8 @@ Frontend half open.
 - Closes M-job 1.
 
 **WP-33. UL in stats and exports** (api)
+
+Custom-report group-by UL kind (`ulKind`) is implemented with WP-28.
 
 - UL kind in CSV, stats-by-class breakdowns and custom-report group-by.
 - A UL PDF layout: kind and passengers columns, no IFR/MP. Chosen automatically for UL

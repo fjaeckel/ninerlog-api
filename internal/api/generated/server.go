@@ -491,6 +491,9 @@ type ServerInterface interface {
 	// GetFlightRoutes Get flight routes for map
 	// (GET /reports/routes)
 	GetFlightRoutes(c *gin.Context)
+	// GetSoaringSeason Get a soaring season summary
+	// (GET /reports/soaring-season)
+	GetSoaringSeason(c *gin.Context, params GetSoaringSeasonParams)
 	// GetStatsByClass Get statistics by aircraft class and category
 	// (GET /reports/stats-by-class)
 	GetStatsByClass(c *gin.Context, params GetStatsByClassParams)
@@ -4334,6 +4337,33 @@ func (siw *ServerInterfaceWrapper) GetFlightRoutes(c *gin.Context) {
 	siw.Handler.GetFlightRoutes(c)
 }
 
+// GetSoaringSeason operation middleware
+func (siw *ServerInterfaceWrapper) GetSoaringSeason(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSoaringSeasonParams
+
+	// ------------- Optional query parameter "year" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "year", c.Request.URL.Query(), &params.Year, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter year: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSoaringSeason(c, params)
+}
+
 // GetStatsByClass operation middleware
 func (siw *ServerInterfaceWrapper) GetStatsByClass(c *gin.Context) {
 
@@ -4853,6 +4883,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/reports/trends", wrapper.GetFlightTrends)
 	router.GET(options.BaseURL+"/reports/stats-by-class", wrapper.GetStatsByClass)
 	router.GET(options.BaseURL+"/reports/analytics", wrapper.GetFlightAnalytics)
+	router.GET(options.BaseURL+"/reports/soaring-season", wrapper.GetSoaringSeason)
 	router.GET(options.BaseURL+"/reports/custom", wrapper.ListCustomReports)
 	router.POST(options.BaseURL+"/reports/custom", wrapper.CreateCustomReport)
 	router.POST(options.BaseURL+"/reports/custom/preview", wrapper.PreviewCustomReport)

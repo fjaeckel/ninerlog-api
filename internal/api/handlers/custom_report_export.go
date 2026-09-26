@@ -22,17 +22,36 @@ var customReportMetricTitles = map[string]string{
 	"crossCountryTime": "Cross-country",
 	"fstdTime":         "FSTD",
 	"landings":         "Landings",
+	"launches":         "Launches",
+	"outlandings":      "Outlandings",
+	"towFlights":       "Tow flights",
 }
 
 var customReportGroupTitles = map[string]string{
-	models.ReportGroupMonth:        "Month",
-	models.ReportGroupYear:         "Year",
-	models.ReportGroupDayOfWeek:    "Day of week",
-	models.ReportGroupAircraftType: "Aircraft type",
-	models.ReportGroupRegistration: "Registration",
-	models.ReportGroupDeparture:    "Departure",
-	models.ReportGroupArrival:      "Arrival",
-	models.ReportGroupRoute:        "Route",
+	models.ReportGroupMonth:         "Month",
+	models.ReportGroupYear:          "Year",
+	models.ReportGroupDayOfWeek:     "Day of week",
+	models.ReportGroupAircraftType:  "Aircraft type",
+	models.ReportGroupRegistration:  "Registration",
+	models.ReportGroupDeparture:     "Departure",
+	models.ReportGroupArrival:       "Arrival",
+	models.ReportGroupRoute:         "Route",
+	models.ReportGroupLaunchMethod:  "Launch method",
+	models.ReportGroupAircraftClass: "Aircraft class",
+	models.ReportGroupULKind:        "UL kind",
+}
+
+// exportMetrics lists the metric columns of an export: every metric except a
+// soaring metric that is zero in the totals and is not the report's metric.
+func exportMetrics(res *models.CustomReportResult) []string {
+	out := make([]string, 0, len(models.ReportMetrics))
+	for _, m := range models.ReportMetrics {
+		if models.IsSoaringMetric(m) && m != res.Metric && res.Totals.Metric(m) == 0 {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // reportHM formats minutes as H:MM, including zero.
@@ -62,21 +81,22 @@ func renderCustomReportCSV(res *models.CustomReportResult) ([]byte, error) {
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
 
+	metrics := exportMetrics(res)
 	header := []string{customReportGroupTitles[res.GroupBy]}
-	for _, m := range models.ReportMetrics {
+	for _, m := range metrics {
 		header = append(header, customReportMetricTitles[m])
 	}
 	csvWrite(w, header)
 
 	for _, r := range res.Rows {
 		rec := []string{reportRowName(res.GroupBy, r)}
-		for _, m := range models.ReportMetrics {
+		for _, m := range metrics {
 			rec = append(rec, reportCell(r.CustomReportTotals, m))
 		}
 		csvWrite(w, rec)
 	}
 	total := []string{"Total"}
-	for _, m := range models.ReportMetrics {
+	for _, m := range metrics {
 		total = append(total, reportCell(res.Totals, m))
 	}
 	csvWrite(w, total)
@@ -257,16 +277,22 @@ func renderCustomReportPDF(rep *models.CustomReport, res *models.CustomReportRes
 
 	// Table of every metric.
 	const nameW, rowH = 30.0, 5.5
-	colW := (crContent - nameW) / float64(len(models.ReportMetrics))
+	metrics := exportMetrics(res)
+	colW := (crContent - nameW) / float64(len(metrics))
 	header := func() {
 		pdf.SetFont("Helvetica", "B", 7)
 		setText(pdf, crInk)
 		setDraw(pdf, crRule)
 		pdf.CellFormat(nameW, rowH, tr(customReportGroupTitles[res.GroupBy]), "B", 0, "L", false, 0, "")
-		for _, m := range models.ReportMetrics {
+		for _, m := range metrics {
 			title := customReportMetricTitles[m]
-			if m == "crossCountryTime" {
+			switch m {
+			case "crossCountryTime":
 				title = "XC"
+			case "outlandings":
+				title = "Outl."
+			case "towFlights":
+				title = "Tows"
 			}
 			pdf.CellFormat(colW, rowH, title, "B", 0, "R", false, 0, "")
 		}
@@ -282,7 +308,7 @@ func renderCustomReportPDF(rep *models.CustomReport, res *models.CustomReportRes
 		setFill(pdf, crStripe)
 		fill := i%2 == 1
 		pdf.CellFormat(nameW, rowH, truncateToWidth(pdf, tr(reportRowName(res.GroupBy, r)), nameW-2), "", 0, "L", fill, 0, "")
-		for _, m := range models.ReportMetrics {
+		for _, m := range metrics {
 			pdf.CellFormat(colW, rowH, reportCell(r.CustomReportTotals, m), "", 0, "R", fill, 0, "")
 		}
 		pdf.Ln(-1)
@@ -292,7 +318,7 @@ func renderCustomReportPDF(rep *models.CustomReport, res *models.CustomReportRes
 	}
 	pdf.SetFont("Helvetica", "B", 7.5)
 	pdf.CellFormat(nameW, rowH, "Total", "T", 0, "L", false, 0, "")
-	for _, m := range models.ReportMetrics {
+	for _, m := range metrics {
 		pdf.CellFormat(colW, rowH, reportCell(res.Totals, m), "T", 0, "R", false, 0, "")
 	}
 	pdf.Ln(-1)

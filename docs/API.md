@@ -634,6 +634,16 @@ cover logged flights only — there is nothing to attribute a snapshot to.
 `totals.crossCountryPicMinutes` sums, per flight, the smaller of PIC and cross-country
 time; the snapshot has no such split, so it covers logged flights only too.
 
+`GET /reports/soaring-season?year=YYYY` (`getSoaringSeason`) — one calendar year of the
+caller's soaring flights for the dashboard season card: `flights`, `launches`,
+`launchesByMethod` (`winch`, `aerotow`, `selfLaunch`, `car`, `bungee`, `unspecified`),
+`totalMinutes`, `averageFlightMinutes` (rounded), `outlandings`, `longestFlight`
+(`flightId`, `date`, `minutes`, `aircraftReg`; by total time, absent when the year has no
+soaring flight) and `sites` (top five departure places, `{place, flights}`). `year`
+defaults to the current UTC year; outside 1900 to next year it is a **400**. A year without
+soaring flights answers 200 with zeros. The soaring-flight scope is in
+[SAILPLANES.md](./SAILPLANES.md#statistics).
+
 ### Custom Reports
 User-defined flight reports under `/reports/custom` — a flight filter (`CustomReportFilter`,
 the same semantics as the matching `GET /flights` query parameters) plus a `groupBy`
@@ -653,18 +663,25 @@ dimension and one `metric`, saved and re-run on demand. An account holds at most
 
 `groupBy` is either a time dimension (`month`, `year`, `dayOfWeek`) — chronological,
 gap-filled across the window, and always covering all 7 weekdays for `dayOfWeek` — or a
-ranked dimension (`aircraftType`, `registration`, `departure`, `arrival`, `route`) — sorted
+ranked dimension (`aircraftType`, `registration`, `departure`, `arrival`, `route`,
+`launchMethod`, `aircraftClass`, `ulKind`) — sorted
 by the report's `metric` descending, then by key, and capped at `limit` (default 20, max
 100; groups left out are reported as `otherGroups` but still counted in `totals`). The
 `window.kind` values are `all`, `lastMonths` (the current calendar month plus `months - 1`
 before it), `yearToDate` and `range`; relative windows are resolved in UTC on every run, so
 `startDate`/`endDate` in the result can shift between calls to the same saved report.
+`aircraftClass` and `ulKind` read the aircraft of the flight's registration in the caller's
+fleet (`ulKind` only for `ULTRALIGHT` aircraft); flights without a value group under the
+empty key, labelled `(none)`.
 
 Every row and the `totals` carry every metric regardless of the report's chosen one;
 `value` just repeats that metric for charting. Duration metrics count only flights that are
 flight time — FSTD sessions and passenger flights are excluded, the same rule as elsewhere
 (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)) — except `fstdTime`, which sums FSTD
-session time separately.
+session time separately. `launches` sums the launch count of soaring flights only (the
+scope of `GET /reports/soaring-season`); `outlandings` and `towFlights` count flights marked
+`isOutlanding` / `isTowFlight`. CSV and PDF exports carry these three columns only when the
+report charts one of them or its total is not zero.
 
 Reports are stored server-side per user (`custom_reports`), so they travel in the JSON
 export; a licence-scoped report is re-pointed at the restored licence or loses the scope

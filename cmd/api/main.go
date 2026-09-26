@@ -360,6 +360,7 @@ func main() {
 	apiHandler.SetAnnouncementRepository(postgres.NewAnnouncementRepository(db))
 	apiHandler.SetFlightImportRepository(postgres.NewFlightImportRepository(db))
 	apiHandler.SetReportsRepository(postgres.NewReportsRepository(db))
+	apiHandler.SetSoaringSeasonService(service.NewSoaringSeasonService(postgres.NewSoaringRepository(db)))
 	apiHandler.SetUserContentRepository(postgres.NewUserContentRepository(db))
 	apiHandler.SetEmailSender(emailSender)
 	flightSessionService := service.NewFlightSessionService(flightSessionRepo, aircraftRepo, flightService)
