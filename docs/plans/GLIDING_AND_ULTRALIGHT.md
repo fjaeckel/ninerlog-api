@@ -72,10 +72,10 @@ The implementers are told not to invent these. Each WP that depends on a decisio
 
 | ID | Question | Recommendation |
 | --- | --- | --- |
-| D1 | Unmet UL §45 recency: keep `expiring` (licence valid, §45(1)) or report `expired` (may not fly as PIC)? | A new status `lapsed` meaning "licence valid, privileges not exercisable"; `expired` stays reserved for a date expiry. |
-| D2 | Winch circuits: one logbook row per circuit, or one row with `launches = N`? | One row per circuit by default. A "one line" option for AMC1 FCL.050-style series entries. Both need a `launches` field separate from take-offs. |
-| D3 | Block times optional for every class, or only for gliders and ULs? | Accept either block times or take-off/landing times for every flight. Total time = block span, otherwise take-off to landing. Keeps the rule class-independent. |
-| D4 | IGC files: parse and discard, or store them as user documents? | Store them, attached to the flight, and include them in export (rule 6). They are the pilot's evidence. |
+| D1 | Unmet UL §45 recency: `expiring`, `expired`, or something else? | **Decided (2026-09-26):** a new status `lapsed`, meaning "licence valid, privileges not exercisable until recency is restored". `expired` stays reserved for a date expiry. |
+| D2 | Winch circuits: one logbook row per circuit, or one row with `launches = N`? | **Decided (2026-09-26):** one row per circuit by default, plus a "one line" option for AMC1 FCL.050-style series entries. Both need a `launches` field separate from take-offs. |
+| D3 | Block times optional for every class, or only for gliders and ULs? | **Decided (2026-09-26):** every flight accepts either block times or take-off/landing times. Total time is the block span when present, otherwise take-off to landing. |
+| D4 | IGC files: parse and discard, or store them? | **Decided (2026-09-26):** store them as documents attached to the flight, and include them in export (rule 6). |
 | D5 | OGN / WeGlide / Vereinsflieger integrations? | **Decided (2026-09-26): nothing paid.** No Vereinsflieger API (it needs a paid, per-club key). Vereinsflieger data comes in only through the free CSV export the pilot downloads, which the importer already reads (WP-21 adds `S.-Art`). WeGlide through the pilot's own free API key (WP-41). OGN is free under ODbL (WP-42). |
 | D6 | Scope for UK NPPL(M) and FAA Sport/Part 103? | After the German/EASA work is finished (wave 4). |
 
