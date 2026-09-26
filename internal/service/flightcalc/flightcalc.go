@@ -368,32 +368,26 @@ func calculateDistance(flight *models.Flight) {
 }
 
 func calculateTakeoffSplit(flight *models.Flight) {
-	total := flight.TakeoffsDay + flight.TakeoffsNight
+	// One takeoff per landing.
+	total := flight.AllLandings
+	flight.TakeoffsDay = total
+	flight.TakeoffsNight = 0
 	if total == 0 {
-		if flight.AllLandings > 0 || flight.LandingsDay > 0 || flight.LandingsNight > 0 {
-			total = 1
-		} else {
-			return
-		}
+		return
 	}
 
 	dep := normalizeICAO(flight.DepartureICAO)
 	if dep == "" || flight.OffBlockTime == nil || strings.TrimSpace(*flight.OffBlockTime) == "" {
-		if total > 0 && flight.TakeoffsDay == 0 && flight.TakeoffsNight == 0 {
-			flight.TakeoffsDay = total
-		}
 		return
 	}
 
 	depAP := airports.Lookup(dep)
 	if depAP == nil {
-		flight.TakeoffsDay = total
 		return
 	}
 
 	depTime, err := parseTimeOfDay(flight.Date, *flight.OffBlockTime)
 	if err != nil {
-		flight.TakeoffsDay = total
 		return
 	}
 

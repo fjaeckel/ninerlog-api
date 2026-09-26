@@ -219,6 +219,10 @@ have to compute them by hand. The entry point is
   day or night, and to derive `NightTime`. The astronomical computation lives in
   `pkg/solar`.
 - **Total landings** — `AllLandings = LandingsDay + LandingsNight`.
+- **Takeoffs** — one takeoff per landing: `TakeoffsDay + TakeoffsNight = AllLandings`,
+  all classified day or night by the off-block time at the departure airport (day when
+  departure or off-block time is missing or unknown). Re-derived from the landing count on
+  every save, so a stored value is never reused.
 - **Solo time** — derived when the flight is neither dual nor flown as PIC with other
   crew.
 - **Cross-country time** — derived as the whole block time when departure ≠ arrival
