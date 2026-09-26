@@ -124,7 +124,7 @@ func TestGliderClass_CaseInsensitiveAircraftClass(t *testing.T) {
 // TestUltralightClass_GermanAuthorityOnly — LuftPersV §45 applies to ULTRALIGHT only under LBA/DULV/DAeC.
 func TestUltralightClass_GermanAuthorityOnly(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-cls-auth")
-	createAircraftCur(t, c, "D-MULC", "C42", "ULTRALIGHT")
+	createULAircraftCur(t, c, "D-MULC", "THREE_AXIS")
 
 	easaID := createLicenseCur(t, c, "EASA", "UL")
 	createRatingCur(t, c, easaID, "ULTRALIGHT", strPtr(plusDays(pastDate(0), 365)))
@@ -143,7 +143,7 @@ func TestUltralightClass_GermanAuthorityOnly(t *testing.T) {
 	}
 
 	dulvID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, dulvID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, dulvID, "THREE_AXIS")
 
 	result = getCurrencyStatus(t, c)
 	rc = findRatingCurByAuth(result, "ULTRALIGHT", "DULV")
