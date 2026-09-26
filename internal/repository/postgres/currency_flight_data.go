@@ -24,6 +24,10 @@ func NewCurrencyFlightDataProvider(db *sql.DB) currency.FlightDataProvider {
 	return &currencyFlightDataProvider{db: db}
 }
 
+// launchCountSQL is a flight's launch count over flights aliased f: the stored
+// launches, else its take-offs with at least one per flight.
+const launchCountSQL = `COALESCE(f.launches, GREATEST(f.takeoffs_day + f.takeoffs_night, 1))`
+
 // progressSelect aggregates a Progress row over flights aliased f.
 const progressSelect = `
 			COUNT(*) as flights,
@@ -37,7 +41,8 @@ const progressSelect = `
 			COALESCE(SUM(f.landings_night), 0) as night_landings,
 			COALESCE(SUM(f.approaches_count), 0) as approaches,
 			COALESCE(SUM(f.holds), 0) as holds,
-			COALESCE(SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)), 0) as launches,
+			COALESCE(SUM(` + launchCountSQL + `), 0) as launches,
+			COALESCE(SUM(f.spic_time), 0) as spic_minutes,
 			COUNT(*) FILTER (WHERE f.dual_time > 0) as training_flights,
 			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes`
 
@@ -73,6 +78,7 @@ func (p *currencyFlightDataProvider) scanProgress(ctx context.Context, query str
 		&progress.Approaches,
 		&progress.Holds,
 		&progress.Launches,
+		&progress.SPICMinutes,
 		&progress.TrainingFlights,
 		&progress.LongestTrainingFlightMinutes,
 	)
@@ -257,7 +263,7 @@ func scanLandingDays(rows *sql.Rows) ([]currency.LandingDay, error) {
 
 func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (map[string]int, error) {
 	query := `
-		SELECT f.launch_method, SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)) as launches
+		SELECT f.launch_method, SUM(` + launchCountSQL + `) as launches
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3

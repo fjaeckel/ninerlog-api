@@ -208,6 +208,9 @@ func newMockNotifFlightRepo() *mockNotifFlightRepo {
 }
 
 func (m *mockNotifFlightRepo) Create(ctx context.Context, flight *models.Flight) error { return nil }
+func (m *mockNotifFlightRepo) CreateBatch(ctx context.Context, flights []*models.Flight) error {
+	return nil
+}
 func (m *mockNotifFlightRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error) {
 	return nil, repository.ErrNotFound
 }

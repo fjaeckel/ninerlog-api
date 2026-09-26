@@ -85,6 +85,9 @@ func ApplyAutoCalculations(flight *models.Flight, userName string, aircraft *fli
 		calculateTakeoffSplit(flight)
 	}
 
+	// 6b. Launches from take-offs
+	flight.DeriveLaunches()
+
 	// 7. SIC time: auto-calculated when the user is the co-pilot
 	calculateSICTime(flight, role)
 
@@ -136,6 +139,11 @@ func applySessionCalculations(flight *models.Flight) {
 	flight.ArrivalTime = nil
 	flight.Route = nil
 	flight.LaunchMethod = nil
+	flight.Launches = 0
+	flight.LaunchesOverride = false
+	flight.IsOutlanding = false
+	flight.IsTowFlight = false
+	flight.ReleaseHeightM = nil
 
 	if flight.SimulatedInstrumentTime > flight.SimulatedFlightTime {
 		flight.SimulatedInstrumentTime = flight.SimulatedFlightTime
@@ -175,6 +183,7 @@ func applyPassengerCalculations(flight *models.Flight) {
 	flight.Holds = 0
 	flight.Approaches = nil
 	flight.ApproachesCount = 0
+	flight.DeriveLaunches()
 
 	calculateDistance(flight)
 }
@@ -341,10 +350,12 @@ func calculateSoloTime(flight *models.Flight, userName string) {
 	flight.SoloTime = flight.TotalTime
 }
 
+// calculateCrossCountryTime sets cross-country time to the total time when
+// departure and arrival differ, and to zero for an outlanding.
 func calculateCrossCountryTime(flight *models.Flight) {
 	dep := normalizeICAO(flight.DepartureICAO)
 	arr := normalizeICAO(flight.ArrivalICAO)
-	if dep != "" && arr != "" && dep != arr {
+	if !flight.IsOutlanding && dep != "" && arr != "" && dep != arr {
 		flight.CrossCountryTime = flight.TotalTime
 	} else {
 		flight.CrossCountryTime = 0

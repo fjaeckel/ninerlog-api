@@ -69,8 +69,11 @@ type Progress struct {
 	Flights           int `json:"flights"`
 	Approaches        int `json:"approaches"`
 	Holds             int `json:"holds"`
-	// Launches counts takeoffs, at least one per flight.
+	// Launches counts the flights' launches; a flight stored without a launch
+	// count counts its take-offs, at least one.
 	Launches int `json:"launches"`
+	// SPICMinutes is student pilot-in-command (supervised solo) time.
+	SPICMinutes int `json:"spicMinutes"`
 	// TrainingFlights counts flights with dual time received.
 	TrainingFlights int `json:"trainingFlights"`
 	// LongestTrainingFlightMinutes is the longest total time of a flight with dual time received.

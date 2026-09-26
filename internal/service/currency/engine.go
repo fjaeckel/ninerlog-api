@@ -33,7 +33,7 @@ const (
 	mFlights
 	mApproaches
 	mHolds
-	mPICOrDualMinutes
+	mPICDualOrSupervisedMinutes
 	mLaunches
 	mTrainingFlights
 	mLongestTrainingFlight
@@ -60,8 +60,8 @@ func metricVal(p *Progress, m metric) int {
 		return p.Approaches
 	case mHolds:
 		return p.Holds
-	case mPICOrDualMinutes:
-		return p.PICMinutes + p.InstructorMinutes
+	case mPICDualOrSupervisedMinutes:
+		return p.PICMinutes + p.InstructorMinutes + p.SPICMinutes
 	case mLaunches:
 		return p.Launches
 	case mTrainingFlights:
@@ -257,6 +257,7 @@ func addProgress(total, p *Progress, withDual bool) {
 	total.IFRMinutes += p.IFRMinutes
 	if withDual {
 		total.InstructorMinutes += p.InstructorMinutes
+		total.SPICMinutes += p.SPICMinutes
 	}
 	total.NightMinutes += p.NightMinutes
 	total.Landings += p.Landings

@@ -103,7 +103,9 @@ next.
 ### Declared function times: PICUS, SPIC, examiner, relief
 
 `PICUSTime` (PIC under supervision, EASA FCL.030 — the time a first officer logs toward
-unfreezing an ATPL), `SPICTime` (student pilot-in-command on an integrated course),
+unfreezing an ATPL), `SPICTime` (student pilot-in-command on an integrated course, or a
+student glider pilot's solo flight under the supervision of an FI(S), which Part-SFCL
+counts toward the SFCL.160 hours; see [SAILPLANES.md](./SAILPLANES.md#supervised-solo)),
 `ExaminerTime` (conducting a check) and `ReliefTime` (cruise relief co-pilot on an
 augmented crew) are **declared by the pilot and never auto-derived** — the server cannot
 know that a sector was flown as pilot flying under supervision, or that the PIC
@@ -257,10 +259,18 @@ have to compute them by hand. The entry point is
   all classified day or night by the off-block time (else the take-off time) at the
   departure airport (day when the departure or both times are missing or unknown). Re-derived from the landing count on
   every save, so a stored value is never reused.
+- **Launches** — `Launches` is the take-off count (day + night), at least one per flight,
+  unless `LaunchesOverride` is set; an FSTD session or a passenger flight has none
+  (`Flight.DeriveLaunches`, run by `ApplyAutoCalculations` and again by the service on
+  every create and update, so a JSON restore without the field derives it too). A pilot
+  logging a series of launches as one row sets the count; see
+  [SAILPLANES.md](./SAILPLANES.md#launches-and-series-entries). Rows stored before the
+  column existed hold `NULL` and read as the take-off count, at least one.
 - **Solo time** — derived when the flight is neither dual nor flown as PIC with other
   crew.
 - **Cross-country time** — derived as the whole total time when departure ≠ arrival
-  airport; see [Manual overrides](#manual-overrides) for why a pilot may replace it.
+  airport, except for an outlanding (`IsOutlanding`), which derives none; see
+  [Manual overrides](#manual-overrides) for why a pilot may replace it.
 - **Distance** — great-circle distance (nautical miles) from airport coordinates in the
   in-memory airport database (`internal/airports`).
 - **Pilot role** — `flightrules.DetermineRole(flight, userName, aircraft)` resolves the
@@ -280,7 +290,7 @@ have to compute them by hand. The entry point is
 ### Manual overrides
 
 Every auto-calculated takeoff/landing field has an `*Override` boolean (e.g.
-`LandingsDayOverride`), as do `SICTime`, `MultiPilotTime`, `NightTime` and
+`LandingsDayOverride`), as do `Launches`, `SICTime`, `MultiPilotTime`, `NightTime` and
 `CrossCountryTime`. When a pilot edits the value manually, the override flag is set so
 recalculation does not clobber the manual entry. The `POST /flights/recalculate` endpoint
 re-runs auto-calculations across a pilot's flights while respecting overrides.
@@ -290,7 +300,7 @@ and clear it when `PUT /flights/{id}` carries the field as JSON `null` — the n
 calculation then rewrites the value. An omitted field leaves both value and flag alone.
 Each flight response reports every flag (`nightTimeOverride`, `crossCountryTimeOverride`,
 `takeoffsDayOverride`, `takeoffsNightOverride`, `landingsDayOverride`,
-`landingsNightOverride`, `sicTimeOverride`, `multiPilotTimeOverride`) so a client can show
+`landingsNightOverride`, `launchesOverride`, `sicTimeOverride`, `multiPilotTimeOverride`) so a client can show
 which values are the pilot's and offer a way back to the derived one. The flags travel in
 the JSON export and cloud backup and are restored by `POST /imports/json`.
 
@@ -318,7 +328,9 @@ Validation is layered:
      exceed total time,
      `PICTime + PICUSTime + SPICTime + SICTime + DualTime + ReliefTime <= TotalTime`
      (instructor and examiner time overlay instead), PIC/dual logic must be coherent, and
-     a session or passenger flight must carry no flight time at all.
+     a session or passenger flight must carry no flight time at all. It also bounds the
+     glider facts: `Launches` is not negative (`ErrNegativeLaunches`) and
+     `ReleaseHeightM` lies in 0–20000 m (`ErrInvalidReleaseHeight`).
 2. **Text-field limits** (`internal/models/validation.go`) — enforces maximum lengths on
    free-text fields (registration, type, remarks, notes, …) to prevent abuse and oversized
    payloads.
@@ -410,15 +422,17 @@ interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL
 
 - `GetProgressByAircraftClass(userID, classTypes, includeTowed, since)` — summed
   times/landings for flights on any of the given classes since a date, plus launches
-  (take-offs, at least one per flight), the number of flights with dual time and the
-  longest total time of such a flight.
+  (each flight's `launches`; a row without one counts its take-offs, at least one), SPIC
+  (supervised solo) minutes, the number of flights with dual time and the longest total
+  time of such a flight.
 - `GetProgressAll(userID, since)` — same, across all classes.
 - `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
 - `GetLastProficiencyCheck(userID, classTypes, since)` — most recent proficiency check on
   any of the given classes (`[IR]` matches every class), excluding towed launches except on
   `GLIDER`.
 - `GetLaunchCounts(userID, classType, since)` — launches per launch method on a class
-  (SFCL.155(c)); a zero `since` returns every method ever logged.
+  (SFCL.155(c)), summed from the flights' `launches` like the progress reads; a zero
+  `since` returns every method ever logged.
 - `GetLandingDaysByAircraftClass(userID, classType, includeTowed, picOnly, since)` — one row per flown date with
   its day and night landing counts, newest date first; `picOnly` keeps only flights with PIC
   time. Used for passenger currency, which needs *when* each landing was flown, not just how
@@ -426,8 +440,7 @@ interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL
 - `GetProgressByULKind`, `GetLastProficiencyCheckByULKind`, `GetLandingDaysByULKind` — the
   same three reads on `ULTRALIGHT` aircraft selected by kind (`ULSelector`: kinds, plus
   aircraft with no kind when `IncludeUnspecified`, and of at least `MinMTOMKg` kg when set).
-  `GetLandingDaysByULKind` also returns take-offs per date, at least one per flight, as
-  launches are counted.
+  `GetLandingDaysByULKind` also returns take-offs per date, at least one per flight.
 
 This separation keeps the *regulatory* logic (what to count and over which window) in the
 evaluators, and the *data* logic (how to query) in one place.

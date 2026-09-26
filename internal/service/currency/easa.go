@@ -434,7 +434,7 @@ var easaSPLRule = ratingRule{
 	countsTowed: true,
 	extraCredit: easaSPLExtraCredit,
 	baseReqs: []reqSpec{
-		{nameKey: ReqKeyFlightTime, metric: mPICOrDualMinutes, threshold: 300, unit: "minutes"},
+		{nameKey: ReqKeyFlightTime, metric: mPICDualOrSupervisedMinutes, threshold: 300, unit: "minutes"},
 		{nameKey: ReqKeyLaunches, metric: mLaunches, threshold: 15, unit: "launches"},
 		{nameKey: ReqKeyTrainingFlights, metric: mTrainingFlights, threshold: 2, unit: "flights"},
 	},
@@ -457,6 +457,7 @@ var easaSPLRule = ratingRule{
 			}
 			hours.PICMinutes += tmg.PICMinutes
 			hours.InstructorMinutes += tmg.InstructorMinutes
+			hours.SPICMinutes += tmg.SPICMinutes
 			rt.result.CountedClasses = append([]models.ClassType{rt.rating.ClassType}, extra.classes...)
 			ulMinutes, err := rt.ulHoursCredit(ctx, extra.ulKinds...)
 			if err != nil {
@@ -583,8 +584,8 @@ var easaSPLTMGRule = ratingRule{
 	classOverride: models.ClassTypeTMG,
 	extraCredit:   easaSPLTMGExtraCredit,
 	baseReqs: []reqSpec{
-		{nameKey: ReqKeyFlightTime, metric: mPICOrDualMinutes, threshold: 720, unit: "minutes"},
-		{nameKey: ReqKeyTMGTime, metric: mPICOrDualMinutes, threshold: 360, unit: "minutes"},
+		{nameKey: ReqKeyFlightTime, metric: mPICDualOrSupervisedMinutes, threshold: 720, unit: "minutes"},
+		{nameKey: ReqKeyTMGTime, metric: mPICDualOrSupervisedMinutes, threshold: 360, unit: "minutes"},
 		{nameKey: ReqKeyTMGLandings, metric: mLandings, threshold: 12, unit: "landings"},
 		{nameKey: ReqKeyTMGTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
@@ -619,6 +620,7 @@ var easaSPLTMGRule = ratingRule{
 		hours := *tmg
 		hours.PICMinutes += glider.PICMinutes + ulSailplane + ulMotorglider
 		hours.InstructorMinutes += glider.InstructorMinutes
+		hours.SPICMinutes += glider.SPICMinutes
 		tmgHours := *tmg
 		tmgHours.PICMinutes += ulMotorglider
 		rt.result.CountedClasses = append(extra.classes, rt.rule.classOverride)

@@ -207,7 +207,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 		"IFRTime", "Remarks",
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
-		"LaunchMethod",
+		"LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM",
 	}
 	csvWrite(w, headers)
 
@@ -306,6 +306,10 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 			prefs.formatDecimal(f.ExaminerTime),
 			prefs.formatDecimal(f.ReliefTime),
 			safeStrCSV(f.LaunchMethod),
+			fmt.Sprintf("%d", f.Launches),
+			fmt.Sprintf("%t", f.IsOutlanding),
+			fmt.Sprintf("%t", f.IsTowFlight),
+			optionalIntCSV(f.ReleaseHeightM),
 		}
 		csvWrite(w, row)
 	}
@@ -493,4 +497,12 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 	if err := encoder.Encode(backup); err != nil {
 		slog.Error("json export encode error", "error", err)
 	}
+}
+
+// optionalIntCSV formats v, or "" when nil.
+func optionalIntCSV(v *int) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", *v)
 }

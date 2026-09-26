@@ -3020,7 +3020,9 @@ paths:
             distance; isPic; isDual; isIpc (ipc); isFlightReview (flightReview,
             bfr); isProficiencyCheck (proficiencyCheck); signed; instructorName
             (instructor); instructorComments; picName; crew; fstdType (fstd);
-            endorsements; launchMethod (launch); createdAt; updatedAt.
+            endorsements; launchMethod (launch); launches; isOutlanding
+            (outlanding); isTowFlight (towflight); releaseHeightM (releaseHeight);
+            createdAt; updatedAt.
 
             Example: `q=(departure:EDDF OR arrival:EDDF) AND nightTime>0 NOT remarks:cancelled`
 
@@ -3926,7 +3928,7 @@ paths:
       tags: [Export]
       summary: Export flights as CSV
       description: >-
-        Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats. The standard layout ends with a `LaunchMethod` column; the easa, faa and weblogbook layouts have no launch-method column and carry it in their remarks cell as `[Launch: winch]`, which `POST /imports/confirm` reads back.
+        Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats. The standard layout ends with `LaunchMethod`, `Launches`, `Outlanding`, `TowFlight` and `ReleaseHeightM` columns; the easa, faa and weblogbook layouts have no launch-method column and carry it in their remarks cell as `[Launch: winch]`, which `POST /imports/confirm` reads back.
       operationId: exportFlightsCSV
       security:
         - bearerAuth: []
@@ -4093,7 +4095,10 @@ paths:
         user's account. Recreates every section the backup carries: aircraft,
         aircraft reminders, licences, class ratings, credentials, flights and crew members,
         contacts, custom currency rules, custom reports, notification
-        preferences, the carried-forward hours baseline and the pilot profile. New UUIDs are assigned so the backup can
+        preferences, the carried-forward hours baseline and the pilot profile. Flights keep their
+        glider facts (launches and their override flag, outlanding, tow flight, release height);
+        a flight from an older backup without a launch count gets its take-offs, at least one.
+        New UUIDs are assigned so the backup can
         be restored into any NinerLog installation (including the one it was
         exported from).
 
@@ -4956,6 +4961,45 @@ paths:
                   message:
                     type: string
                     example: All user data deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /flights/batch:
+    post:
+      tags:
+        - Flights
+      summary: Log a batch of flights
+      description: |
+        Creates one flight per leg from a shared template, for a series of circuits such as
+        winch launches at one site. Each leg is the template with the leg's fields laid over
+        it (`departureTime`, `arrivalTime`, and `landings`, `launches`, `remarks` when sent),
+        and is validated exactly like `POST /flights`: the same required fields, time pairs
+        and bounds. Legs normally carry take-off and landing times only.
+
+        All legs are stored in one transaction. When any leg is invalid the response is 400
+        with a message naming the zero-based leg index (`Leg 2: …`) and no flight is created.
+        A leg without `landings` takes the template's value, else 1.
+
+        To log a series of launches as a single logbook row instead, create one flight with
+        `launches` set; see `POST /flights`.
+      operationId: createFlightBatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightBatchCreate'
+      responses:
+        '201':
+          description: Every leg was created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightBatchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -7339,6 +7383,10 @@ components:
         - landingsNightOverride
         - sicTimeOverride
         - multiPilotTimeOverride
+        - launches
+        - launchesOverride
+        - isOutlanding
+        - isTowFlight
         - createdAt
         - updatedAt
       properties:
@@ -7594,6 +7642,34 @@ components:
           enum: [winch, aerotow, self-launch, car, bungee, 'null']
           example: winch
           description: Launch method for glider/SPL flights (winch, aerotow, self-launch, car or bungee)
+        launches:
+          type: integer
+          minimum: 0
+          example: 1
+          description: |
+            Sailplane launches on this flight (Part-SFCL SFCL.155 and SFCL.160). Derived from
+            the take-offs (day + night, at least one) unless launchesOverride is set; 0 for an
+            FSTD session or a passenger flight. A series of launches logged as one row
+            (AMC1 FCL.050 style) carries the number of launches with launchesOverride true.
+            Launch recency counts this value.
+        launchesOverride:
+          type: boolean
+          example: false
+          description: True when launches was entered by the pilot rather than derived from the take-offs.
+        isOutlanding:
+          type: boolean
+          example: false
+          description: Landing away from the planned site (Außenlandung). Cross-country time is not derived from departure and arrival for an outlanding.
+        isTowFlight:
+          type: boolean
+          example: false
+          description: The pilot flew the tug, towing a sailplane.
+        releaseHeightM:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 20000
+          example: 400
+          description: Tow or winch release height in metres.
         picName:
           type: [string, 'null']
           example: Self
@@ -7885,6 +7961,23 @@ components:
         launchMethod:
           type: [string, 'null']
           enum: [winch, aerotow, self-launch, car, bungee, 'null']
+        launches:
+          type: integer
+          minimum: 0
+          description: Number of sailplane launches. Provide to override derivation from the take-offs (launchesOverride is then true), e.g. to log a series of winch launches as one row; omit to derive.
+        isOutlanding:
+          type: boolean
+          default: false
+          description: Landing away from the planned site (Außenlandung). Cross-country time is then not derived from departure and arrival.
+        isTowFlight:
+          type: boolean
+          default: false
+          description: The pilot flew the tug, towing a sailplane.
+        releaseHeightM:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 20000
+          description: Tow or winch release height in metres. Outside 0-20000 returns 400.
         picName:
           type: [string, 'null']
           description: Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
@@ -7909,6 +8002,62 @@ components:
           items:
             $ref: '#/components/schemas/FlightCrewMemberInput'
           description: People on board this flight
+
+    FlightBatchCreate:
+      type: object
+      description: A template flight and the legs that differ from it.
+      required:
+        - template
+        - legs
+      properties:
+        template:
+          $ref: '#/components/schemas/FlightCreate'
+        legs:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/FlightBatchLeg'
+
+    FlightBatchLeg:
+      type: object
+      description: One leg of a batch; the fields sent replace the template's.
+      properties:
+        departureTime:
+          type: string
+          format: time
+          example: '10:02:00'
+          description: Take-off time in UTC.
+        arrivalTime:
+          type: string
+          format: time
+          example: '10:10:00'
+          description: Landing time in UTC.
+        landings:
+          type: integer
+          minimum: 0
+          example: 1
+          description: Landings on this leg; defaults to the template's value, else 1.
+        launches:
+          type: integer
+          minimum: 0
+          example: 1
+          description: Launches on this leg; overrides derivation from the take-offs.
+        remarks:
+          type: [string, 'null']
+          maxLength: 2000
+          description: Remarks for this leg; replaces the template's remarks.
+
+    FlightBatchResult:
+      type: object
+      required:
+        - flights
+      properties:
+        flights:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flight'
+          description: The created flights, in leg order.
 
     FlightUpdate:
       type: object
@@ -8090,6 +8239,29 @@ components:
           type: [string, 'null']
           enum: [winch, aerotow, self-launch, car, bungee]
           x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        launches:
+          type: [integer, 'null']
+          minimum: 0
+          description: Number of sailplane launches. A number overrides derivation from the take-offs; null returns the field to derivation.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        isOutlanding:
+          type: boolean
+          description: Landing away from the planned site (Außenlandung).
+        isTowFlight:
+          type: boolean
+          description: The pilot flew the tug, towing a sailplane.
+        releaseHeightM:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 20000
+          description: Tow or winch release height in metres; null clears it. Outside 0-20000 returns 400.
+          x-go-type: nullable.Nullable[int]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
           x-go-type-skip-optional-pointer: true
@@ -9733,7 +9905,10 @@ components:
               description: Number of holding procedures in the evaluation period
             launches:
               type: integer
-              description: Launches (take-offs) in class in the evaluation period, at least one per flight
+              description: Launches in class in the evaluation period (each flight's launches; a flight stored without a launch count counts its take-offs, at least one)
+            spicMinutes:
+              type: integer
+              description: Student pilot-in-command (supervised solo) time in class in minutes in the evaluation period
             trainingFlights:
               type: integer
               description: Number of flights with dual time received in class in the evaluation period
@@ -10081,6 +10256,10 @@ components:
         - person5
         - person6
         - launchMethod
+        - launches
+        - isOutlanding
+        - isTowFlight
+        - releaseHeightM
         - ignore
       description: |
         Target flight log field for column mapping.
@@ -10091,6 +10270,12 @@ components:
         Gummiseil); an unrecognised value leaves the launch method empty and
         does not fail the row. A `[Launch: <method>]` marker in a remarks
         column is read as the launch method and removed from the remarks.
+
+        `launches` is a whole number of launches, stored with the override flag set
+        (German `Starts`, English `Launches`). `isOutlanding` (`Außenlandung`,
+        `Outlanding`) and `isTowFlight` (`Tow Flight`) read true for `true`, `yes`,
+        `ja`, `x`, `1` or a positive number. `releaseHeightM` is whole metres; a
+        value outside 0-20000 is reported as a row error.
 
         Aircraft created by the import get a class from the source's aircraft
         table when it has one, otherwise from a German registration
@@ -12467,6 +12652,8 @@ components:
             - has_night
             - has_ifr
             - is_cross_country
+            - is_outlanding
+            - is_tow_flight
           example: aircraft_class
         op:
           type: string
@@ -12502,7 +12689,7 @@ components:
             `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
             Count metrics (`unit` ignored): `flights`, `landings`,
             `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
-            `night_takeoffs`, `approaches`, `holds`.
+            `night_takeoffs`, `approaches`, `holds`, `launches`.
           enum:
             - total_time
             - pic_time
@@ -12523,6 +12710,7 @@ components:
             - night_takeoffs
             - approaches
             - holds
+            - launches
           example: landings
         min:
           type: number
