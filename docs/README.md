@@ -27,6 +27,18 @@ Developer documentation for the NinerLog API backend. Start with the
 | [METRICS.md](./METRICS.md) | Prometheus metrics and observability |
 | [PERFORMANCE.md](./PERFORMANCE.md) | Performance budgets, benchmarks, profiling |
 | [RUNNING_TESTS.md](./RUNNING_TESTS.md) | Running unit/integration/e2e tests |
+| [SAILPLANES.md](./SAILPLANES.md) | Sailplanes and TMGs: classes, launch methods, Part-SFCL recency |
+| [SESSION_CONTRACT.md](./SESSION_CONTRACT.md) | Binding cross-repo session contract |
+| [PERSONAS.md](./PERSONAS.md) | Binding personas and acceptance scenarios every feature is checked against |
+
+## Plans
+
+Forward-looking, not yet implemented. Code references are as audited on the date in each file.
+
+| Document | Covers |
+| --- | --- |
+| [plans/ADAPTIVE_DISCIPLINES.md](./plans/ADAPTIVE_DISCIPLINES.md) | Pilot profile and "toolkits": showing features to the pilots whose ratings they serve |
+| [plans/GLIDING_AND_ULTRALIGHT.md](./plans/GLIDING_AND_ULTRALIGHT.md) | Audit and hand-off work packages for glider, TMG and ultralight pilots |
 
 ## Keeping docs accurate
 
