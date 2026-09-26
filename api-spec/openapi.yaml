@@ -7066,9 +7066,9 @@ components:
           description: Whether this flight was a Proficiency Check (EASA FCL.740.A MEP/SET, FCL.625.A IR, or FAA §61.58)
         launchMethod:
           type: [string, 'null']
-          enum: [winch, aerotow, self-launch, 'null']
+          enum: [winch, aerotow, self-launch, car, bungee, 'null']
           example: winch
-          description: Launch method for glider/SPL flights (winch, aerotow, or self-launch)
+          description: Launch method for glider/SPL flights (winch, aerotow, self-launch, car or bungee)
         picName:
           type: [string, 'null']
           example: Self
@@ -7350,7 +7350,7 @@ components:
           type: boolean
         launchMethod:
           type: [string, 'null']
-          enum: [winch, aerotow, self-launch, 'null']
+          enum: [winch, aerotow, self-launch, car, bungee, 'null']
         picName:
           type: [string, 'null']
           description: Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
@@ -7553,7 +7553,7 @@ components:
           type: boolean
         launchMethod:
           type: [string, 'null']
-          enum: [winch, aerotow, self-launch]
+          enum: [winch, aerotow, self-launch, car, bungee]
           x-go-type: nullable.Nullable[string]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -8999,7 +8999,7 @@ components:
             FCL.740.A SEP/TMG/MEP/SET and FCL.625.A IR), the date on which
             the 12-month experience-counting window opens (expiry − 12
             months). Omitted for rolling-window rules (LAPL FCL.140.A,
-            SPL FCL.140.S) and for expiry-only ratings.
+            SPL SFCL.160) and for expiry-only ratings.
         windowOpen:
           type: boolean
           description: |
@@ -9057,6 +9057,15 @@ components:
             holds:
               type: integer
               description: Number of holding procedures in the evaluation period
+            launches:
+              type: integer
+              description: Launches (take-offs) in class in the evaluation period, at least one per flight
+            trainingFlights:
+              type: integer
+              description: Number of flights with dual time received in class in the evaluation period
+            longestTrainingFlightMinutes:
+              type: integer
+              description: Longest total time in minutes of a flight with dual time received in class in the evaluation period
             requiredMinutes:
               type: integer
               description: Required time in minutes for currency (authority-specific)
@@ -9070,7 +9079,10 @@ components:
             $ref: '#/components/schemas/CurrencyRequirement'
         launchMethodCurrency:
           type: array
-          description: SPL launch method currency per FCL.140.S(b)(1) — 5 launches per method in 24 months
+          description: |
+            Launch method recency per SFCL.155(c) — 5 launches per method in 24 months, 2 for bungee.
+            Lists every method the pilot has ever logged on the rating's class; TMG take-offs count
+            toward self-launch.
           items:
             $ref: '#/components/schemas/LaunchMethodCurrency'
         countedClasses:
@@ -9079,7 +9091,8 @@ components:
             Aircraft classes whose flights count toward this rating, present only when that is more
             than the rating's own class — EASA LAPL(A) pools every aeroplane class and TMG
             (FCL.140.A); a license holding both SEP_LAND and TMG ratings pools those two
-            (FCL.740.A(b)(1)).
+            (FCL.740.A(b)(1)); a GLIDER rating and an SPL TMG rating count flight time on
+            GLIDER and TMG (SFCL.160(a)(1), (b)(1)).
           items:
             $ref: '#/components/schemas/ClassType'
           example: [SEP_LAND, TMG]
@@ -9094,14 +9107,14 @@ components:
       properties:
         method:
           type: string
-          description: Launch method (winch, aerotow, self-launch)
+          description: Launch method (winch, car, aerotow, self-launch, bungee)
           example: winch
         launches:
           type: integer
           description: Number of launches with this method in evaluation period
         required:
           type: integer
-          description: Required number of launches (typically 5)
+          description: Required number of launches (5, or 2 for bungee)
           example: 5
         met:
           type: boolean
@@ -9178,7 +9191,7 @@ components:
         - TMG: Touring Motor Glider
         - IR: Instrument Rating
         - OTHER: Other rating type
-        - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+        - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
         - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 
     ClassRating:

@@ -44,6 +44,8 @@ var knownNameKeys = map[string]bool{
 	ReqKeyRefresherTraining: true, ReqKeyTrainingFlight: true,
 	ReqKeyProficiencyCheck: true, ReqKeyApproaches: true, ReqKeyHolds: true,
 	ReqKeyRouteSectors: true, ReqKeyLaunches: true, ReqKeyLaunchesAndLanding: true,
+	ReqKeyFlightTime: true, ReqKeyTrainingFlights: true, ReqKeyTMGTime: true,
+	ReqKeyTMGLandings: true, ReqKeyTMGTrainingFlight: true,
 }
 
 // evaluatorCase is one (authority, licenseType) pair to sweep.

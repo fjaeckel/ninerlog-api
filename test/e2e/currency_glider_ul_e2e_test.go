@@ -48,7 +48,7 @@ func createULFlightsCur(t *testing.T, c *E2EClient, reg string) {
 	})
 }
 
-// TestEASA_GliderClass_Current — GLIDER rating counts flights on GLIDER aircraft under FCL.140.S.
+// TestEASA_GliderClass_Current — GLIDER rating counts flights on GLIDER aircraft under SFCL.160(a).
 func TestEASA_GliderClass_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "easa-glider-cls")
 	createAircraftCur(t, c, "D-5812", "ASK21", "GLIDER")
@@ -74,6 +74,8 @@ func TestEASA_GliderClass_Current(t *testing.T) {
 	assertStr(t, "ruleDescriptionKey", rc["ruleDescriptionKey"], "easa_spl")
 	progress, _ := rc["progress"].(map[string]interface{})
 	assertInt(t, "progress.landings", gi(progress, "landings"), 15)
+	assertInt(t, "progress.launches", gi(progress, "launches"), 15)
+	assertInt(t, "progress.trainingFlights", gi(progress, "trainingFlights"), 2)
 
 	pc := findPaxCur(result, "GLIDER")
 	if pc == nil {
@@ -82,7 +84,7 @@ func TestEASA_GliderClass_Current(t *testing.T) {
 	assertBool(t, "nightPrivilege", gb(pc, "nightPrivilege"), false)
 }
 
-// TestEASA_GliderClass_NonSPLLicense — GLIDER rating on a non-SPL license still uses FCL.140.S.
+// TestEASA_GliderClass_NonSPLLicense — GLIDER rating on a non-SPL license still uses SFCL.160(a).
 func TestEASA_GliderClass_NonSPLLicense(t *testing.T) {
 	c := setupCurrencyUser(t, "easa-glider-ppl")
 	createAircraftCur(t, c, "D-5813", "ASK21", "GLIDER")
@@ -249,4 +251,142 @@ func TestGliderAndUltralight_SeparateRatings(t *testing.T) {
 	assertInt(t, "ul flights", gi(up, "flights"), 12)
 	assertStr(t, "glider status", glider["status"], "current")
 	assertStr(t, "ul status", ul["status"], "current")
+}
+
+// createGliderFlightCur logs one 10-minute GLIDER flight with the given launch method.
+func createGliderFlightCur(t *testing.T, c *E2EClient, reg, method string, daysAgo int, dual bool) {
+	t.Helper()
+	f := map[string]interface{}{
+		"date": pastDate(daysAgo), "aircraftReg": reg, "aircraftType": "ASK21",
+		"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+		"offBlockTime": "14:00", "onBlockTime": "14:10",
+		"landings": 1, "launchMethod": method,
+	}
+	if dual {
+		f["crewMembers"] = []map[string]interface{}{{"name": "FI", "role": "Instructor"}}
+	}
+	createFlightCur(t, c, f)
+}
+
+// TestEASA_Glider_TrainingFlightsCountedAsFlights — SFCL.160(a)(1)(ii): two short dual circuits are two training flights.
+func TestEASA_Glider_TrainingFlightsCountedAsFlights(t *testing.T) {
+	c := setupCurrencyUser(t, "glider-train-count")
+	createAircraftCur(t, c, "D-5818", "ASK21", "GLIDER")
+	licID := createLicenseCur(t, c, "EASA", "SPL")
+	createRatingCur(t, c, licID, "GLIDER", nil)
+
+	for i := 0; i < 2; i++ {
+		createGliderFlightCur(t, c, "D-5818", "winch", 5+i, true)
+	}
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "GLIDER")
+	if rc == nil {
+		t.Fatal("GLIDER rating currency not found")
+	}
+	r := getReq(rc, "requirement.training_flights")
+	if r == nil || !gb(r, "met") || gi(r, "current") != 2 {
+		t.Errorf("training_flights = %v, want 2 met", r)
+	}
+	if r := getReq(rc, "requirement.flight_time"); r == nil || gi(r, "current") != 20 {
+		t.Errorf("flight_time = %v, want 20 minutes of dual counted", r)
+	}
+}
+
+// TestEASA_Glider_LaunchMethodRecency — SFCL.155(c): lapsed methods stay listed, bungee needs 2, TMG take-offs count toward self-launch.
+func TestEASA_Glider_LaunchMethodRecency(t *testing.T) {
+	c := setupCurrencyUser(t, "glider-launch-recency")
+	createAircraftCur(t, c, "D-5819", "ASK21", "GLIDER")
+	createAircraftCur(t, c, "D-KSLG", "SF25", "TMG")
+	licID := createLicenseCur(t, c, "EASA", "SPL")
+	createRatingCur(t, c, licID, "GLIDER", nil)
+
+	for i := 0; i < 5; i++ {
+		createGliderFlightCur(t, c, "D-5819", "winch", 10+i, false)
+	}
+	createGliderFlightCur(t, c, "D-5819", "aerotow", 800, false)
+	for i := 0; i < 2; i++ {
+		createGliderFlightCur(t, c, "D-5819", "bungee", 20+i, false)
+	}
+	createGliderFlightCur(t, c, "D-5819", "car", 30, false)
+	for i := 0; i < 2; i++ {
+		createGliderFlightCur(t, c, "D-5819", "self-launch", 40+i, false)
+	}
+	for i := 0; i < 3; i++ {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(50 + i), "aircraftReg": "D-KSLG", "aircraftType": "SF25",
+			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+			"offBlockTime": "08:00", "onBlockTime": "09:00",
+			"landings": 1,
+		})
+	}
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "GLIDER")
+	if rc == nil {
+		t.Fatal("GLIDER rating currency not found")
+	}
+	methods, _ := rc["launchMethodCurrency"].([]interface{})
+	want := []struct {
+		method             string
+		launches, required int
+		met                bool
+	}{
+		{"winch", 5, 5, true},
+		{"car", 1, 5, false},
+		{"aerotow", 0, 5, false},
+		{"self-launch", 5, 5, true},
+		{"bungee", 2, 2, true},
+	}
+	if len(methods) != len(want) {
+		t.Fatalf("launchMethodCurrency = %v, want %d methods", methods, len(want))
+	}
+	for i, w := range want {
+		m, _ := methods[i].(map[string]interface{})
+		assertStr(t, "method", m["method"], w.method)
+		assertInt(t, w.method+" launches", gi(m, "launches"), w.launches)
+		assertInt(t, w.method+" required", gi(m, "required"), w.required)
+		assertBool(t, w.method+" met", gb(m, "met"), w.met)
+	}
+}
+
+// TestEASA_Glider_PassengerCurrencyPICOnly — SFCL.160(e)(1): dual launches do not count toward passenger recency.
+func TestEASA_Glider_PassengerCurrencyPICOnly(t *testing.T) {
+	c := setupCurrencyUser(t, "glider-pax-pic")
+	createAircraftCur(t, c, "D-5820", "ASK21", "GLIDER")
+	licID := createLicenseCur(t, c, "EASA", "SPL")
+	createRatingCur(t, c, licID, "GLIDER", nil)
+
+	for i := 0; i < 3; i++ {
+		createGliderFlightCur(t, c, "D-5820", "winch", 5+i, true)
+	}
+	createGliderFlightCur(t, c, "D-5820", "winch", 9, false)
+
+	result := getCurrencyStatus(t, c)
+	pc := findPaxCur(result, "GLIDER")
+	if pc == nil {
+		t.Fatal("GLIDER passenger currency not found")
+	}
+	assertStr(t, "ruleDescriptionKey", pc["ruleDescriptionKey"], "easa_spl_pax")
+	assertInt(t, "dayLandings", gi(pc, "dayLandings"), 1)
+	assertStr(t, "dayStatus", pc["dayStatus"], "expired")
+}
+
+// TestTowedFlights_CarAndBungeeExcludedFromPoweredClass — car and bungee launches are towed like winch and aerotow.
+func TestTowedFlights_CarAndBungeeExcludedFromPoweredClass(t *testing.T) {
+	c := setupCurrencyUser(t, "towed-car-bungee")
+	createAircraftCur(t, c, "D-0CAR", "ASK21", "SEP_LAND")
+	licID := createLicenseCur(t, c, "EASA", "PPL")
+	createRatingCur(t, c, licID, "SEP_LAND", strPtr(plusDays(pastDate(0), 180)))
+
+	createGliderFlightCur(t, c, "D-0CAR", "car", 5, false)
+	createGliderFlightCur(t, c, "D-0CAR", "bungee", 6, false)
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "SEP_LAND")
+	if rc == nil {
+		t.Fatal("SEP_LAND rating currency not found")
+	}
+	progress, _ := rc["progress"].(map[string]interface{})
+	assertInt(t, "progress.flights", gi(progress, "flights"), 0)
 }

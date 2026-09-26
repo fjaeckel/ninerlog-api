@@ -55,7 +55,7 @@ func TestGliderULClass_RuleSelection(t *testing.T) {
 func TestGermanULEvaluator_GliderUsesSPLRule(t *testing.T) {
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeGlider] = &Progress{
-		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60,
+		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, Launches: 20, TrainingFlights: 2,
 	}
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeGlider, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "DAeC", LicenseType: "SPL"}
@@ -72,7 +72,7 @@ func TestGermanULEvaluator_GliderUsesSPLRule(t *testing.T) {
 func TestEASA_GliderClass_CountsGliderFlights(t *testing.T) {
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeGlider] = &Progress{
-		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60,
+		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, Launches: 20, TrainingFlights: 2,
 	}
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeGlider, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}

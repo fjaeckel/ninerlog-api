@@ -825,6 +825,8 @@ func (e EmailDeliveryEventStatus) Valid() bool {
 // Defines values for FlightLaunchMethod.
 const (
 	FlightLaunchMethodAerotow    FlightLaunchMethod = "aerotow"
+	FlightLaunchMethodBungee     FlightLaunchMethod = "bungee"
+	FlightLaunchMethodCar        FlightLaunchMethod = "car"
 	FlightLaunchMethodSelfLaunch FlightLaunchMethod = "self-launch"
 	FlightLaunchMethodWinch      FlightLaunchMethod = "winch"
 )
@@ -833,6 +835,10 @@ const (
 func (e FlightLaunchMethod) Valid() bool {
 	switch e {
 	case FlightLaunchMethodAerotow:
+		return true
+	case FlightLaunchMethodBungee:
+		return true
+	case FlightLaunchMethodCar:
 		return true
 	case FlightLaunchMethodSelfLaunch:
 		return true
@@ -846,6 +852,8 @@ func (e FlightLaunchMethod) Valid() bool {
 // Defines values for FlightCreateLaunchMethod.
 const (
 	FlightCreateLaunchMethodAerotow    FlightCreateLaunchMethod = "aerotow"
+	FlightCreateLaunchMethodBungee     FlightCreateLaunchMethod = "bungee"
+	FlightCreateLaunchMethodCar        FlightCreateLaunchMethod = "car"
 	FlightCreateLaunchMethodSelfLaunch FlightCreateLaunchMethod = "self-launch"
 	FlightCreateLaunchMethodWinch      FlightCreateLaunchMethod = "winch"
 )
@@ -854,6 +862,10 @@ const (
 func (e FlightCreateLaunchMethod) Valid() bool {
 	switch e {
 	case FlightCreateLaunchMethodAerotow:
+		return true
+	case FlightCreateLaunchMethodBungee:
+		return true
+	case FlightCreateLaunchMethodCar:
 		return true
 	case FlightCreateLaunchMethodSelfLaunch:
 		return true
@@ -3193,7 +3205,7 @@ type ClassRating struct {
 	// - TMG: Touring Motor Glider
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
-	// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType ClassType `json:"classType"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -3222,7 +3234,7 @@ type ClassRatingCreate struct {
 	// - TMG: Touring Motor Glider
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
-	// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType  ClassType           `json:"classType"`
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
@@ -3241,14 +3253,15 @@ type ClassRatingCurrency struct {
 	// - TMG: Touring Motor Glider
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
-	// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType ClassType `json:"classType"`
 
 	// CountedClasses Aircraft classes whose flights count toward this rating, present only when that is more
 	// than the rating's own class — EASA LAPL(A) pools every aeroplane class and TMG
 	// (FCL.140.A); a license holding both SEP_LAND and TMG ratings pools those two
-	// (FCL.740.A(b)(1)).
+	// (FCL.740.A(b)(1)); a GLIDER rating and an SPL TMG rating count flight time on
+	// GLIDER and TMG (SFCL.160(a)(1), (b)(1)).
 	//
 	//
 	// Example: ["SEP_LAND","TMG"]
@@ -3257,7 +3270,9 @@ type ClassRatingCurrency struct {
 	// ExpiryDate Class rating expiry date
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
 
-	// LaunchMethodCurrency SPL launch method currency per FCL.140.S(b)(1) — 5 launches per method in 24 months
+	// LaunchMethodCurrency Launch method recency per SFCL.155(c) — 5 launches per method in 24 months, 2 for bungee.
+	// Lists every method the pilot has ever logged on the rating's class; TMG take-offs count
+	// toward self-launch.
 	LaunchMethodCurrency *[]LaunchMethodCurrency `json:"launchMethodCurrency,omitempty"`
 	LicenseId            openapi_types.UUID      `json:"licenseId"`
 
@@ -3291,8 +3306,14 @@ type ClassRatingCurrency struct {
 		InstructorMinutes *int `json:"instructorMinutes,omitempty"`
 
 		// Landings Total landings in class in the evaluation period
-		Landings      *int `json:"landings,omitempty"`
-		NightLandings *int `json:"nightLandings,omitempty"`
+		Landings *int `json:"landings,omitempty"`
+
+		// Launches Launches (take-offs) in class in the evaluation period, at least one per flight
+		Launches *int `json:"launches,omitempty"`
+
+		// LongestTrainingFlightMinutes Longest total time in minutes of a flight with dual time received in class in the evaluation period
+		LongestTrainingFlightMinutes *int `json:"longestTrainingFlightMinutes,omitempty"`
+		NightLandings                *int `json:"nightLandings,omitempty"`
 
 		// NightMinutes Night time in minutes in the evaluation period
 		NightMinutes *int `json:"nightMinutes,omitempty"`
@@ -3308,6 +3329,9 @@ type ClassRatingCurrency struct {
 
 		// TotalMinutes Total time in class in minutes in the evaluation period
 		TotalMinutes *int `json:"totalMinutes,omitempty"`
+
+		// TrainingFlights Number of flights with dual time received in class in the evaluation period
+		TrainingFlights *int `json:"trainingFlights,omitempty"`
 	} `json:"progress,omitempty"`
 
 	// RegulatoryAuthority Authority from the parent license (determines which currency rules apply)
@@ -3343,7 +3367,7 @@ type ClassRatingCurrency struct {
 	// FCL.740.A SEP/TMG/MEP/SET and FCL.625.A IR), the date on which
 	// the 12-month experience-counting window opens (expiry − 12
 	// months). Omitted for rolling-window rules (LAPL FCL.140.A,
-	// SPL FCL.140.S) and for expiry-only ratings.
+	// SPL SFCL.160) and for expiry-only ratings.
 	WindowOpensAt *openapi_types.Date `json:"windowOpensAt,omitempty"`
 }
 
@@ -3368,7 +3392,7 @@ type ClassRatingUpdate struct {
 // - TMG: Touring Motor Glider
 // - IR: Instrument Rating
 // - OTHER: Other rating type
-// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 // - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 type ClassType string
 
@@ -4402,7 +4426,7 @@ type Flight struct {
 	// Example: false
 	LandingsNightOverride bool `json:"landingsNightOverride"`
 
-	// LaunchMethod Launch method for glider/SPL flights (winch, aerotow, or self-launch)
+	// LaunchMethod Launch method for glider/SPL flights (winch, aerotow, self-launch, car or bungee)
 	//
 	// Example: winch
 	LaunchMethod *FlightLaunchMethod `json:"launchMethod,omitempty"`
@@ -4535,7 +4559,7 @@ type Flight struct {
 	UserId openapi_types.UUID `json:"userId"`
 }
 
-// FlightLaunchMethod Launch method for glider/SPL flights (winch, aerotow, or self-launch)
+// FlightLaunchMethod Launch method for glider/SPL flights (winch, aerotow, self-launch, car or bungee)
 //
 // Example: winch
 type FlightLaunchMethod string
@@ -5627,12 +5651,12 @@ type LaunchMethodCurrency struct {
 	// Met Whether the requirement is met
 	Met bool `json:"met"`
 
-	// Method Launch method (winch, aerotow, self-launch)
+	// Method Launch method (winch, car, aerotow, self-launch, bungee)
 	//
 	// Example: winch
 	Method string `json:"method"`
 
-	// Required Required number of launches (typically 5)
+	// Required Required number of launches (5, or 2 for bungee)
 	//
 	// Example: 5
 	Required int `json:"required"`
@@ -5918,7 +5942,7 @@ type PassengerCurrency struct {
 	// - TMG: Touring Motor Glider
 	// - IR: Instrument Rating
 	// - OTHER: Other rating type
-	// - GLIDER: Sailplane / glider (EASA FCL.140.S recency, FAA glider launches)
+	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency)
 	ClassType ClassType `json:"classType"`
 

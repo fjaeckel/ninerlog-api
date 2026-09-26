@@ -36,11 +36,14 @@ func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 			COALESCE(SUM(f.landings_day), 0) as day_landings,
 			COALESCE(SUM(f.landings_night), 0) as night_landings,
 			COALESCE(SUM(f.approaches_count), 0) as approaches,
-			COALESCE(SUM(f.holds), 0) as holds
+			COALESCE(SUM(f.holds), 0) as holds,
+			COALESCE(SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)), 0) as launches,
+			COUNT(*) FILTER (WHERE f.dual_time > 0) as training_flights,
+			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = ANY($2) AND f.date >= $3
-			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow'))
+			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow', 'car', 'bungee'))
 	`
 
 	progress := &currency.Progress{}
@@ -56,6 +59,9 @@ func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 		&progress.NightLandings,
 		&progress.Approaches,
 		&progress.Holds,
+		&progress.Launches,
+		&progress.TrainingFlights,
+		&progress.LongestTrainingFlightMinutes,
 	)
 	if err != nil {
 		return nil, err
@@ -76,7 +82,10 @@ func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 			COALESCE(SUM(landings_day), 0) as day_landings,
 			COALESCE(SUM(landings_night), 0) as night_landings,
 			COALESCE(SUM(approaches_count), 0) as approaches,
-			COALESCE(SUM(holds), 0) as holds
+			COALESCE(SUM(holds), 0) as holds,
+			COALESCE(SUM(GREATEST(takeoffs_day + takeoffs_night, 1)), 0) as launches,
+			COUNT(*) FILTER (WHERE dual_time > 0) as training_flights,
+			COALESCE(MAX(total_time) FILTER (WHERE dual_time > 0), 0) as longest_training_flight_minutes
 		FROM flights
 		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND date >= $2
 	`
@@ -94,6 +103,9 @@ func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 		&progress.NightLandings,
 		&progress.Approaches,
 		&progress.Holds,
+		&progress.Launches,
+		&progress.TrainingFlights,
+		&progress.LongestTrainingFlightMinutes,
 	)
 	if err != nil {
 		return nil, err
@@ -137,7 +149,7 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 			SELECT f.date FROM flights f
 			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = ANY($2) AND f.is_proficiency_check = true AND f.date >= $3
-				AND COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow')
+				AND (upper(trim(a.aircraft_class)) = 'GLIDER' OR COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow', 'car', 'bungee'))
 			ORDER BY f.date DESC
 			LIMIT 1
 		`
@@ -155,7 +167,7 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 	return &checkDate, nil
 }
 
-func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, includeTowed bool, since time.Time) ([]currency.LandingDay, error) {
+func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, includeTowed, picOnly bool, since time.Time) ([]currency.LandingDay, error) {
 	query := `
 		SELECT
 			f.date,
@@ -164,13 +176,14 @@ func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.C
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
-			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow'))
+			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ('winch', 'aerotow', 'car', 'bungee'))
+			AND (NOT $5 OR f.pic_time > 0)
 		GROUP BY f.date
 		HAVING SUM(f.landings_day + f.landings_night) > 0
 		ORDER BY f.date DESC
 	`
 
-	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since, includeTowed)
+	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since, includeTowed, picOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +203,7 @@ func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.C
 
 func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (map[string]int, error) {
 	query := `
-		SELECT f.launch_method, COUNT(*) as launches
+		SELECT f.launch_method, SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)) as launches
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3

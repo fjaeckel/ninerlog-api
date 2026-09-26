@@ -227,8 +227,8 @@ Before this, `null` in a request body was silently treated as "omitted" (`*T` ca
 apart), so nullable fields could not be cleared through the API at all, and two per-field
 workarounds existed instead: sending `""` to a text field, and the literal string `"null"` for
 `Flight.launchMethod`. Both are retired now that real `null` works; `launchMethod` accepts only
-`winch`, `aerotow` or `self-launch` in the spec's `enum`, and `null` clears it like any other
-nullable field.
+`winch`, `aerotow`, `self-launch`, `car` or `bungee` in the spec's `enum`, and `null` clears it
+like any other nullable field.
 
 ## Delta sync (`updatedSince`)
 

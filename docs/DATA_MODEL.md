@@ -227,7 +227,8 @@ are **integer minutes**):
 - **Excluded from aggregates**: every aggregate query carries
   `NOT is_simulator AND NOT is_passenger` — the SQL counterpart of
   `flightrules.CountsAsFlightTime`.
-- **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`).
+- **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`, `car`, `bungee`); see
+  [SAILPLANES.md](./SAILPLANES.md).
 - **Free text**: `Remarks`.
 
 Validation: `IsValid()` checks required fields — which differ by row kind;

@@ -2,7 +2,9 @@ package currency
 
 import (
 	"context"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
@@ -89,136 +91,311 @@ func TestEASA_LAPL_RollingFromNow(t *testing.T) {
 	}
 }
 
-// ── EASA SPL FCL.140.S Tests ────────────────────────────────────────────
+// ── EASA SPL SFCL.160(a) Tests ──────────────────────────────────────────
+
+// splGlider returns a GLIDER rating on an EASA SPL.
+func splGlider() (*models.ClassRating, *models.License) {
+	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeGlider, LicenseID: uuid.New()}
+	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}
+	return rating, license
+}
 
 func TestEASA_SPL_Current(t *testing.T) {
-	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICMinutes: 480, Landings: 20, InstructorMinutes: 120, // 20 "landings" = 20 launches
+	dp.progressByClass[models.ClassTypeGlider] = &Progress{
+		PICMinutes: 240, InstructorMinutes: 60, Launches: 15, TrainingFlights: 2,
 	}
+	rating, license := splGlider()
 
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
 	if result.Status != StatusCurrent {
 		t.Errorf("SPL status = %s, want current", result.Status)
 	}
-	// SPL should have 3 requirements (PIC hours, launches, training)
-	if len(result.Requirements) != 3 {
-		t.Fatalf("Expected 3 requirements for SPL, got %d", len(result.Requirements))
+	wantKeys := []string{ReqKeyFlightTime, ReqKeyLaunches, ReqKeyTrainingFlights, ReqKeyProficiencyCheck}
+	if len(result.Requirements) != len(wantKeys) {
+		t.Fatalf("got %d requirements, want %d", len(result.Requirements), len(wantKeys))
 	}
-	// Verify "Launches" requirement exists (not "Takeoffs & Landings")
-	found := false
-	for _, req := range result.Requirements {
-		if req.NameKey == ReqKeyLaunches {
-			found = true
+	for i, k := range wantKeys {
+		if result.Requirements[i].NameKey != k {
+			t.Errorf("requirement[%d] = %s, want %s", i, result.Requirements[i].NameKey, k)
 		}
 	}
-	if !found {
-		t.Error("SPL should have 'Launches' requirement (not landings)")
+	if !dp.includeTowed[models.ClassTypeGlider] {
+		t.Error("glider progress must include towed launches")
+	}
+}
+
+func TestEASA_SPL_DualTimeCountsTowardFlightTime(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeGlider] = &Progress{
+		InstructorMinutes: 300, Launches: 20, TrainingFlights: 20,
+	}
+	rating, license := splGlider()
+
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
+	if r := findReq(result.Requirements, ReqKeyFlightTime); r == nil || !r.Met || r.Current != 300 {
+		t.Errorf("flight time requirement = %+v, want met with 300 minutes of dual", r)
+	}
+	if result.Status != StatusCurrent {
+		t.Errorf("status = %s, want current", result.Status)
+	}
+}
+
+func TestEASA_SPL_TMGHoursCountOnlyTowardFlightTime(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeGlider] = &Progress{
+		PICMinutes: 120, Launches: 10, TrainingFlights: 1,
+	}
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{
+		PICMinutes: 150, InstructorMinutes: 30, Launches: 20, TrainingFlights: 3,
+	}
+	rating, license := splGlider()
+
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
+	if r := findReq(result.Requirements, ReqKeyFlightTime); r == nil || !r.Met || r.Current != 300 {
+		t.Errorf("flight time = %+v, want 300 minutes pooled from GLIDER and TMG", r)
+	}
+	if r := findReq(result.Requirements, ReqKeyLaunches); r == nil || r.Met || r.Current != 10 {
+		t.Errorf("launches = %+v, want 10 glider launches only", r)
+	}
+	if r := findReq(result.Requirements, ReqKeyTrainingFlights); r == nil || r.Met || r.Current != 1 {
+		t.Errorf("training flights = %+v, want 1 glider training flight only", r)
+	}
+	if !slices.Equal(result.CountedClasses, []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}) {
+		t.Errorf("countedClasses = %v, want [GLIDER TMG]", result.CountedClasses)
+	}
+	if result.Status != StatusExpiring {
+		t.Errorf("status = %s, want expiring", result.Status)
+	}
+}
+
+func TestEASA_SPL_TrainingFlightsCountFlightsNotMinutes(t *testing.T) {
+	cases := []struct {
+		name    string
+		flights int
+		minutes int
+		met     bool
+	}{
+		{"two short winch circuits", 2, 16, true},
+		{"one long dual flight", 1, 120, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dp := newMockFlightDataProvider()
+			dp.progressByClass[models.ClassTypeGlider] = &Progress{
+				PICMinutes: 400, InstructorMinutes: tc.minutes, Launches: 20, TrainingFlights: tc.flights,
+			}
+			rating, license := splGlider()
+			result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
+			r := findReq(result.Requirements, ReqKeyTrainingFlights)
+			if r == nil || r.Met != tc.met || r.Unit != "flights" {
+				t.Errorf("training flights = %+v, want met=%v in flights", r, tc.met)
+			}
+		})
 	}
 }
 
 func TestEASA_SPL_InsufficientLaunches(t *testing.T) {
-	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICMinutes: 480, Landings: 10, InstructorMinutes: 120, // 10 launches < 15
+	dp.progressByClass[models.ClassTypeGlider] = &Progress{
+		PICMinutes: 480, Launches: 14, TrainingFlights: 2,
 	}
+	rating, license := splGlider()
 
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
 	if result.Status != StatusExpiring {
-		t.Errorf("SPL status = %s, want expiring (insufficient launches)", result.Status)
+		t.Errorf("SPL status = %s, want expiring (14 < 15 launches)", result.Status)
+	}
+}
+
+func TestEASA_SPL_ProficiencyCheckAlternative(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	check := time.Now().AddDate(0, -3, 0)
+	dp.lastProficiencyCheck = &check
+	rating, license := splGlider()
+
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
+	if result.Status != StatusCurrent {
+		t.Errorf("status = %s, want current via SFCL.160(a)(2) proficiency check", result.Status)
+	}
+	if !slices.Equal(dp.lastProfCheckClasses, []models.ClassType{models.ClassTypeGlider}) {
+		t.Errorf("proficiency check classes = %v, want [GLIDER]", dp.lastProfCheckClasses)
 	}
 }
 
 func TestEASA_SPL_LaunchMethodCurrency(t *testing.T) {
-	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
-	}
-	dp.launchCounts = map[string]int{
-		"winch":   8,
-		"aerotow": 3, // Below required 5
-	}
+	dp.progressByClass[models.ClassTypeGlider] = &Progress{PICMinutes: 480, Launches: 20, TrainingFlights: 2}
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{Launches: 3}
+	dp.launchCountsAllTime = map[string]int{"winch": 40, "aerotow": 12, "self-launch": 4, "bungee": 3}
+	dp.launchCounts = map[string]int{"winch": 8, "self-launch": 2, "bungee": 2}
+	rating, license := splGlider()
 
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
-	// Should have launch method currency data
-	if len(result.LaunchMethodCurrency) != 2 {
-		t.Fatalf("Expected 2 launch method entries, got %d", len(result.LaunchMethodCurrency))
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
+	want := []LaunchMethodCurrency{
+		{Method: "winch", Launches: 8, Required: 5, Met: true, MessageKey: MsgLaunchMethodProgress},
+		{Method: "aerotow", Launches: 0, Required: 5, Met: false, MessageKey: MsgLaunchMethodProgress},
+		{Method: "self-launch", Launches: 5, Required: 5, Met: true, MessageKey: MsgLaunchMethodProgress},
+		{Method: "bungee", Launches: 2, Required: 2, Met: true, MessageKey: MsgLaunchMethodProgress},
 	}
-
-	for _, lmc := range result.LaunchMethodCurrency {
-		if lmc.Method == "winch" && !lmc.Met {
-			t.Error("Winch should be met (8 >= 5)")
-		}
-		if lmc.Method == "aerotow" && lmc.Met {
-			t.Error("Aerotow should NOT be met (3 < 5)")
-		}
+	if !slices.Equal(result.LaunchMethodCurrency, want) {
+		t.Errorf("launch methods =\n%+v\nwant\n%+v", result.LaunchMethodCurrency, want)
+	}
+	if result.Status != StatusCurrent {
+		t.Errorf("status = %s, want current: a lapsed launch method does not affect SFCL.160 recency", result.Status)
 	}
 }
 
-// ── EASA SPL TMG Extension Tests ────────────────────────────────────────
-
-func TestEASA_SPL_TMG_Current(t *testing.T) {
-	eval := NewEASAEvaluator()
+func TestEASA_SPL_LaunchMethodNeverUsedIsOmitted(t *testing.T) {
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeTMG] = &Progress{
-		TotalMinutes: 900, Landings: 20,
-	}
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{Launches: 30}
+	dp.launchCountsAllTime = map[string]int{"winch": 5}
+	dp.launchCounts = map[string]int{"winch": 5}
+	rating, license := splGlider()
 
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
+	if len(result.LaunchMethodCurrency) != 1 || result.LaunchMethodCurrency[0].Method != "winch" {
+		t.Errorf("launch methods = %+v, want winch only", result.LaunchMethodCurrency)
+	}
+}
+
+// ── EASA SPL TMG SFCL.160(b) Tests ──────────────────────────────────────
+
+// splTMG returns a TMG rating on an EASA SPL.
+func splTMG() (*models.ClassRating, *models.License) {
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeTMG, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}
+	return rating, license
+}
 
-	result := eval.Evaluate(context.Background(), rating, license, dp)
+func TestEASA_SPL_TMG_Current(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{
+		PICMinutes: 300, InstructorMinutes: 60, Landings: 12, LongestTrainingFlightMinutes: 60,
+	}
+	dp.progressByClass[models.ClassTypeGlider] = &Progress{PICMinutes: 360}
+	rating, license := splTMG()
+
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
 	if result.Status != StatusCurrent {
 		t.Errorf("SPL TMG status = %s, want current", result.Status)
 	}
-	// SPL TMG should have 2 requirements (total hours + landings — NO PIC or instructor requirement)
-	if len(result.Requirements) != 2 {
-		t.Fatalf("Expected 2 requirements for SPL TMG, got %d", len(result.Requirements))
+	wantKeys := []string{ReqKeyFlightTime, ReqKeyTMGTime, ReqKeyTMGLandings, ReqKeyTMGTrainingFlight, ReqKeyProficiencyCheck}
+	if len(result.Requirements) != len(wantKeys) {
+		t.Fatalf("got %d requirements, want %d", len(result.Requirements), len(wantKeys))
+	}
+	for i, k := range wantKeys {
+		if result.Requirements[i].NameKey != k {
+			t.Errorf("requirement[%d] = %s, want %s", i, result.Requirements[i].NameKey, k)
+		}
+	}
+	if !dp.includeTowed[models.ClassTypeGlider] || dp.includeTowed[models.ClassTypeTMG] {
+		t.Errorf("includeTowed = %v, want GLIDER true and TMG false", dp.includeTowed)
+	}
+}
+
+func TestEASA_SPL_TMG_Shortfalls(t *testing.T) {
+	base := func() *Progress {
+		return &Progress{PICMinutes: 300, InstructorMinutes: 60, Landings: 12, LongestTrainingFlightMinutes: 60}
+	}
+	cases := []struct {
+		name   string
+		tmg    func(p *Progress)
+		glider int
+		unmet  string
+	}{
+		{"glider hours do not replace the 6h on TMG", func(p *Progress) { p.PICMinutes = 240 }, 600, ReqKeyTMGTime},
+		{"12h total needs sailplane hours", func(p *Progress) {}, 300, ReqKeyFlightTime},
+		{"11 take-offs and landings", func(p *Progress) { p.Landings = 11 }, 360, ReqKeyTMGLandings},
+		{"training flight shorter than 1h", func(p *Progress) { p.LongestTrainingFlightMinutes = 59 }, 360, ReqKeyTMGTrainingFlight},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dp := newMockFlightDataProvider()
+			tmg := base()
+			tc.tmg(tmg)
+			dp.progressByClass[models.ClassTypeTMG] = tmg
+			dp.progressByClass[models.ClassTypeGlider] = &Progress{PICMinutes: tc.glider}
+			rating, license := splTMG()
+
+			result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
+			if result.Status != StatusExpiring {
+				t.Errorf("status = %s, want expiring", result.Status)
+			}
+			if r := findReq(result.Requirements, tc.unmet); r == nil || r.Met {
+				t.Errorf("%s = %+v, want unmet", tc.unmet, r)
+			}
+		})
+	}
+}
+
+func TestEASA_SPL_TMG_ProficiencyCheckAlternative(t *testing.T) {
+	dp := newMockFlightDataProvider()
+	check := time.Now().AddDate(-1, 0, 0)
+	dp.lastProficiencyCheck = &check
+	rating, license := splTMG()
+
+	result := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
+	if result.Status != StatusCurrent {
+		t.Errorf("status = %s, want current via SFCL.160(b)(2) proficiency check", result.Status)
+	}
+	if !slices.Equal(dp.lastProfCheckClasses, []models.ClassType{models.ClassTypeTMG}) {
+		t.Errorf("proficiency check classes = %v, want [TMG]", dp.lastProfCheckClasses)
 	}
 }
 
 func TestEASA_SPL_TMG_VsPPL_TMG(t *testing.T) {
-	// SPL TMG and PPL TMG should produce DIFFERENT requirements
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeTMG] = &Progress{
 		TotalMinutes: 780, PICMinutes: 420, Landings: 15, InstructorMinutes: 90,
 	}
-
-	ratingID := uuid.New()
 	licenseID := uuid.New()
 	userID := uuid.New()
 
-	// PPL TMG — should use FCL.740.A (4 requirements, requires PIC hours and instructor)
-	pplRating := &models.ClassRating{ID: ratingID, ClassType: models.ClassTypeTMG, ExpiryDate: futureDate(12), LicenseID: licenseID}
+	pplRating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeTMG, ExpiryDate: futureDate(12), LicenseID: licenseID}
 	pplLicense := &models.License{ID: licenseID, UserID: userID, RegulatoryAuthority: "EASA", LicenseType: "PPL"}
 	pplResult := eval.Evaluate(context.Background(), pplRating, pplLicense, dp)
 
-	// SPL TMG — should use FCL.140.S(b)(2) (2 requirements, no PIC/instructor requirement)
-	splRating := &models.ClassRating{ID: ratingID, ClassType: models.ClassTypeTMG, LicenseID: licenseID}
+	splRating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeTMG, LicenseID: licenseID}
 	splLicense := &models.License{ID: licenseID, UserID: userID, RegulatoryAuthority: "EASA", LicenseType: "SPL"}
 	splResult := eval.Evaluate(context.Background(), splRating, splLicense, dp)
 
-	if len(pplResult.Requirements) == len(splResult.Requirements) {
-		t.Error("PPL TMG and SPL TMG should have DIFFERENT number of requirements")
+	if pplResult.RuleDescriptionKey != "easa_sep_tmg" || len(pplResult.Requirements) != 4 {
+		t.Errorf("PPL TMG = %s with %d requirements, want easa_sep_tmg with 4", pplResult.RuleDescriptionKey, len(pplResult.Requirements))
 	}
-	if len(pplResult.Requirements) != 4 {
-		t.Errorf("PPL TMG should have 4 requirements, got %d", len(pplResult.Requirements))
+	if splResult.RuleDescriptionKey != "easa_spl_tmg" || len(splResult.Requirements) != 5 {
+		t.Errorf("SPL TMG = %s with %d requirements, want easa_spl_tmg with 5", splResult.RuleDescriptionKey, len(splResult.Requirements))
 	}
-	if len(splResult.Requirements) != 2 {
-		t.Errorf("SPL TMG should have 2 requirements, got %d", len(splResult.Requirements))
+}
+
+// ── EASA SPL passenger recency SFCL.160(e) Tests ────────────────────────
+
+func TestEASA_SPL_PassengerCurrencyCountsPICOnly(t *testing.T) {
+	cases := []struct {
+		licenseType string
+		classType   models.ClassType
+		picOnly     bool
+		ruleKey     string
+	}{
+		{"SPL", models.ClassTypeGlider, true, "easa_spl_pax"},
+		{"PPL", models.ClassTypeGlider, true, "easa_spl_pax"},
+		{"SPL", models.ClassTypeTMG, true, "easa_spl_tmg_pax"},
+		{"PPL", models.ClassTypeTMG, false, "easa_pax"},
+		{"PPL", models.ClassTypeSEPLand, false, "easa_pax"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.licenseType+"/"+string(tc.classType), func(t *testing.T) {
+			dp := newMockFlightDataProvider()
+			license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: tc.licenseType}
+			pax := NewEASAEvaluator().EvaluatePassengerCurrency(context.Background(), tc.classType, license, nil, dp)
+			if dp.picOnly[tc.classType] != tc.picOnly {
+				t.Errorf("picOnly = %v, want %v", dp.picOnly[tc.classType], tc.picOnly)
+			}
+			if pax.RuleDescriptionKey != tc.ruleKey {
+				t.Errorf("rule = %s, want %s", pax.RuleDescriptionKey, tc.ruleKey)
+			}
+		})
 	}
 }
 
@@ -289,26 +466,19 @@ func TestEASA_Dispatch_LAPL_UsesFCL140A(t *testing.T) {
 	}
 }
 
-func TestEASA_Dispatch_SPL_UsesFCL140S(t *testing.T) {
+func TestEASA_Dispatch_SPL_UsesSFCL160(t *testing.T) {
 	eval := NewEASAEvaluator()
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		PICMinutes: 480, Landings: 20, InstructorMinutes: 120,
+		PICMinutes: 480, Launches: 20, TrainingFlights: 2,
 	}
 
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}
 
 	result := eval.Evaluate(context.Background(), rating, license, dp)
-	// SPL should have "Launches" requirement (not "Takeoffs & Landings")
-	found := false
-	for _, req := range result.Requirements {
-		if req.NameKey == ReqKeyLaunches {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("SPL should use FCL.140.S (launches), NOT FCL.740.A (landings)")
+	if result.RuleDescriptionKey != "easa_spl" || findReq(result.Requirements, ReqKeyLaunches) == nil {
+		t.Errorf("rule = %s, want easa_spl with a launches requirement (SFCL.160, not FCL.740.A)", result.RuleDescriptionKey)
 	}
 }
 

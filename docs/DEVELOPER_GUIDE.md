@@ -68,6 +68,9 @@ Topic-specific deep dives already in this repo:
 - **[SESSION_CONTRACT.md](./SESSION_CONTRACT.md)** — binding contract with
   `ninerlog-frontend` on sessions, refresh rotation, and what each failure status means
   to a client. Read before touching anything under `/auth/*`.
+- **[SAILPLANES.md](./SAILPLANES.md)** — gliders, self-launching sailplanes and TMGs:
+  aircraft classification, Part-SFCL launch-method and recency rules (SFCL.155, SFCL.160)
+  and how the currency engine implements them.
 - **[CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md)** — binding contract with
   `ninerlog-frontend` and `ninerlog-ios` on currency message keys and their params.
   Read before adding or changing anything the currency engine says to a pilot.
