@@ -84,6 +84,7 @@ func (p *currencyFlightDataProvider) GetDailyProgressAll(ctx context.Context, us
 		SELECT f.date,` + progressSelect + `
 		FROM flights f
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND f.date >= $2
+			AND ` + notSailplaneFlightSQL + `
 		GROUP BY f.date
 		ORDER BY f.date
 	`

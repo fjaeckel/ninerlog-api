@@ -739,6 +739,39 @@ func TestEASA_IR_Current(t *testing.T) {
 	assertStr(t, "status", rc["status"], "current")
 }
 
+// TestEASA_IR_GliderCloudFlyingNotCounted — IFR time on a glider is cloud flying and never counts toward the IR (FCL.625.A).
+func TestEASA_IR_GliderCloudFlyingNotCounted(t *testing.T) {
+	c := setupCurrencyUser(t, "easa-ir-glider")
+	createAircraftCur(t, c, "D-KXYZ", "ASG29E", "GLIDER")
+
+	licID := createLicenseCur(t, c, "EASA", "PPL")
+	irExpiry := futureDate(180)
+	createRatingCur(t, c, licID, "IR", &irExpiry)
+
+	for i := 0; i < 10; i++ {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(30 + i*10), "aircraftReg": "D-KXYZ", "aircraftType": "ASG29E",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"departureTime": "11:00", "arrivalTime": "12:30",
+			"landings": 1, "ifrTime": 65, "launchMethod": "self-launch",
+		})
+	}
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "IR")
+	if rc == nil {
+		t.Fatal("IR rating currency not found")
+	}
+	for _, r := range rc["requirements"].([]interface{}) {
+		req := r.(map[string]interface{})
+		if req["nameKey"] == "requirement.ifr_time" {
+			if cur, _ := req["current"].(float64); cur != 0 {
+				t.Errorf("IR IFR time = %v, want 0 (glider cloud flying excluded)", cur)
+			}
+		}
+	}
+}
+
 // TestEASA_IR_NoProfCheck — IFR hours met but no proficiency check → expiring.
 func TestEASA_IR_NoProfCheck(t *testing.T) {
 	c := setupCurrencyUser(t, "easa-ir-nopc")

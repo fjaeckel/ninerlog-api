@@ -154,6 +154,8 @@ func TestDerive(t *testing.T) {
 			want: map[models.Discipline]models.DisciplineStatus{models.DisciplineIFR: models.StatusActive, models.DisciplineAeroplane: models.StatusActive}},
 		{name: "IFR recent from IFR time", flights: []models.DisciplineFlightGroup{{IFRFlights: 2, LastIFR: recent}},
 			want: map[models.Discipline]models.DisciplineStatus{models.DisciplineIFR: models.StatusActive}},
+		{name: "P cloud flying on a glider is no IFR evidence", flights: []models.DisciplineFlightGroup{{AircraftClass: "GLIDER", Flights: 3, LastFlight: recent, IFRFlights: 3, LastIFR: recent}},
+			want: map[models.Discipline]models.DisciplineStatus{models.DisciplineSailplane: models.StatusActive}},
 		{name: "IFR dormant from old approaches", flights: []models.DisciplineFlightGroup{{IFRFlights: 2, LastIFR: old}},
 			want: map[models.Discipline]models.DisciplineStatus{models.DisciplineIFR: models.StatusDormant}},
 		{name: "IFR training only by goal", settings: map[models.Discipline]models.DisciplineSetting{models.DisciplineIFR: {Intent: models.IntentGoal}},

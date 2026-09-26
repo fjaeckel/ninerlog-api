@@ -355,11 +355,20 @@ func (d *derivation) addFlights(groups []models.DisciplineFlightGroup) {
 			g.Flights+g.TowedFlights > 0 {
 			d.ulKinds[*g.ULKind] = true
 		}
-		d.ifr.add(g.IFRFlights, 0, g.LastIFR)
+		if !isSailplaneGroup(g) {
+			d.ifr.add(g.IFRFlights, 0, g.LastIFR)
+		}
 		d.multiCrew.add(g.MultiCrewFlights, 0, g.LastMultiCrew)
 		d.instructing.add(g.InstructingFlights, 0, g.LastInstructing)
 		d.simulator.add(g.SimulatorSessions, 0, g.LastSimulator)
 	}
+}
+
+// isSailplaneGroup reports whether g is flown on sailplanes, whose IFR time is cloud flying.
+func isSailplaneGroup(g models.DisciplineFlightGroup) bool {
+	class := strings.ToUpper(strings.TrimSpace(g.AircraftClass))
+	return class == string(models.ClassTypeGlider) ||
+		(class == string(models.ClassTypeUL) && g.ULKind != nil && *g.ULKind == models.ULKindSailplane)
 }
 
 func plural(n int, one, many string) string {

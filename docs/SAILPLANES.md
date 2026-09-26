@@ -400,6 +400,9 @@ in [DOMAIN.md](./DOMAIN.md#ultralights).
 - **Cloud flying time is IFR time on a sailplane.** A sailplane logs no IFR time otherwise,
   so NinerLog reads `ifrTime` on a `GLIDER` flight as time exercising cloud-flying
   privileges; log cloud flying there. TMGs are excluded, as are flights without PIC time.
+- IFR time on a sailplane (`GLIDER`, or `ULTRALIGHT` of kind `SAILPLANE`) is cloud flying:
+  it never counts toward an instrument rating (FCL.625.A, §61.57(c) read all other flights) and
+  never makes the pilot profile's `IFR` discipline active.
 - **SFCL.360 instruction** is `dualGivenTime`; a flight with instruction given counts its
   launches toward the 60.
 - A met row carries `validUntil` (the date the newest counted flights reach the threshold,
