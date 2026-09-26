@@ -345,6 +345,18 @@ them) and `DELETE /users/me` confirms with `confirmEmail` instead of `password`.
 `flightListColumns` for the flights-list columns). An unrecognised value for any of these
 is ignored rather than rejected, and the response always echoes what was stored.
 
+`GET /users/me/pilot-profile` returns the pilot profile: for each of the ten disciplines
+(`AEROPLANE`, `TMG`, `SAILPLANE`, `ULTRALIGHT`, `GYROPLANE`, `HELICOPTER`, `IFR`, `MULTI_CREW`,
+`INSTRUCTOR`, `SIMULATOR`, always in that order) its `status` (`active`, `training`, `dormant`,
+`off`), the pilot's `intent` (`auto`, `on`, `off`, `goal`), the `evidence` behind it, `ulKinds`
+and `acknowledgedAt`, plus `mode` (`adaptive` or `everything`) and `pendingAcknowledgement`.
+Evidence is derived on every read (rules in
+[DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines)); a `GET` never stores anything.
+`PATCH /users/me/pilot-profile` is an idempotent merge of `mode`, `intents` (a partial map of
+discipline to intent) and `acknowledge` (disciplines), and returns the full profile. An
+unknown mode, discipline or intent is a 400 and changes nothing. Clients must treat a
+discipline value they do not know as `active`.
+
 ### Licenses
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings
 (`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
@@ -591,15 +603,18 @@ CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import an
 history) and export to CSV, JSON, PDF, and vCard.
 
 `GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, licences and
-class ratings, credentials, contacts, custom currency rules, notification preferences and the
-carried-forward hours baseline. It is the same payload a cloud backup run writes
+class ratings, credentials, contacts, custom currency rules, notification preferences, the
+carried-forward hours baseline and the pilot profile (mode, intents and acknowledgements; never
+the derived evidence). It is the same payload a cloud backup run writes
 (`cloudbackup.Payload` is the single definition of both), and `POST /imports/json` restores
 every section of it.
 
 Restores are additive — nothing existing is deleted, aircraft are skipped when the
-registration already exists and contacts when the name does — with two exceptions that are
-single-row settings rather than collections: notification preferences and the flight baseline
-replace what the account currently has. All IDs are regenerated, so a backup restores into any
+registration already exists and contacts when the name does — with three exceptions that are
+single-row settings rather than collections: notification preferences, the flight baseline and
+the pilot profile replace what the account currently has (`pilotProfileImported` in the
+summary). A pilot profile with an unknown mode or intent is a 400; disciplines this version
+does not know are dropped. All IDs are regenerated, so a backup restores into any
 installation including the one it came from. A custom currency rule's sharing state is never
 carried over: a restored rule is private until shared again.
 
@@ -692,7 +707,7 @@ A `logbookLicenseId`-filtered export covers only part of the logbook, so the
 career-wide snapshot is deliberately left out of it.
 
 ### Admin
-User management (list, disable/enable, unlock, reset 2FA, delete), platform stats,
+User management (list, disable/enable, unlock, reset 2FA, delete), platform stats (including how pilots override the pilot profile: `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` counts),
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,
 unverified-account sweep), email deliverability, and announcements.
 

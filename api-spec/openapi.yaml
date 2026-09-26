@@ -1410,6 +1410,63 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /users/me/pilot-profile:
+    get:
+      tags:
+        - Users
+      summary: Get the pilot profile (disciplines / toolkits)
+      description: |
+        Returns the authenticated user's pilot profile: for every discipline, the
+        evidence found in their licences, class ratings, fleet and flights, their
+        stated intent, and the resulting status. Evidence is computed on every read
+        and never stored; only mode, intents and acknowledgements are stored.
+        A user who never saved a profile gets mode `adaptive` and intent `auto`
+        for every discipline. The derivation rules are in docs/DOMAIN.md
+        ("Pilot profile and disciplines").
+      operationId: getPilotProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pilot profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags:
+        - Users
+      summary: Update the pilot profile
+      description: |
+        Idempotent partial merge. `mode` replaces the mode; `intents` sets the
+        intent of each named discipline and leaves the others unchanged (`auto`
+        returns a discipline to evidence-driven status); `acknowledge` records
+        that the pilot has seen each named discipline's automatic activation,
+        removing it from `pendingAcknowledgement`. An unknown mode, discipline
+        or intent returns 400. Returns the full profile.
+      operationId: updatePilotProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotProfileUpdate'
+      responses:
+        '200':
+          description: Updated pilot profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /users/me/statistics:
     get:
       tags:
@@ -3813,8 +3870,9 @@ paths:
       description: |
         Exports everything the user owns as a JSON backup file: flights (with
         crew), aircraft, licences and class ratings, credentials, contacts,
-        custom currency rules, custom reports, notification preferences and the
-        carried-forward hours baseline.
+        custom currency rules, custom reports, notification preferences, the
+        carried-forward hours baseline and the pilot profile (mode and discipline
+        intents; evidence is derived and not exported).
 
         This is the same payload a cloud backup run writes, and
         `POST /imports/json` restores every section of it.
@@ -3840,14 +3898,14 @@ paths:
         user's account. Recreates every section the backup carries: aircraft,
         licences, class ratings, credentials, flights and crew members,
         contacts, custom currency rules, custom reports, notification
-        preferences and the carried-forward hours baseline. New UUIDs are assigned so the backup can
+        preferences, the carried-forward hours baseline and the pilot profile. New UUIDs are assigned so the backup can
         be restored into any NinerLog installation (including the one it was
         exported from).
 
         This is an additive operation — it does not modify or delete existing
-        data, with two exceptions that are single-row settings rather than
-        collections: notification preferences and the flight baseline replace
-        whatever the account currently has.
+        data, with three exceptions that are single-row settings rather than
+        collections: notification preferences, the flight baseline and the
+        pilot profile replace whatever the account currently has.
 
         Aircraft whose registration already exists for the user are skipped (and
         the existing aircraft is referenced by imported flights); contacts whose
@@ -3904,6 +3962,8 @@ paths:
                 notificationPreferences:
                   type: object
                 flightBaseline:
+                  type: object
+                pilotProfile:
                   type: object
       responses:
         '200':
@@ -8020,6 +8080,129 @@ components:
           example: '2025-01-15'
           description: License expiry date if applicable
 
+    Discipline:
+      type: string
+      enum: [AEROPLANE, TMG, SAILPLANE, ULTRALIGHT, GYROPLANE, HELICOPTER, IFR, MULTI_CREW, INSTRUCTOR, SIMULATOR]
+      description: |
+        A flying discipline ("toolkit"). The enum may grow: clients must treat a
+        value they do not know as `active` (fail open).
+
+    DisciplineIntent:
+      type: string
+      enum: [auto, "on", "off", goal]
+      description: |
+        The pilot's intent for a discipline:
+        - auto: status follows the evidence
+        - on: always active
+        - off: always off, whatever the evidence
+        - goal: training toward it (training unless evidence makes it active)
+
+    DisciplineStatus:
+      type: string
+      enum: [active, training, dormant, "off"]
+      description: |
+        Resolved status, first match wins: intent off → off; intent on, recent
+        evidence, or a licence or rating with no flights before the 24-month window →
+        active; intent goal, or recent dual-only flights with no matching licence or
+        rating → training; only old flights (with or without a licence) → dormant;
+        otherwise off. Dormant disciplines are never pending acknowledgement.
+
+    ULKind:
+      type: string
+      enum: [THREE_AXIS, THREE_AXIS_MOTORGLIDER, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE]
+      description: Kind of an ultralight (German "Luftsportgeräteart").
+
+    DisciplineEvidence:
+      type: object
+      required: [source, strength, ref]
+      properties:
+        source:
+          type: string
+          enum: [LICENCE, RATING, AIRCRAFT, FLIGHTS, FLIGHTS_DUAL, FLIGHTS_INSTRUCTING]
+        strength:
+          type: string
+          enum: [strong, recent, dormant]
+          description: |
+            strong: a licence or rating. recent: a matching flight in the last 24
+            months, or an active aircraft in the fleet. dormant: matching flights,
+            all older than 24 months.
+        ref:
+          type: string
+          description: Human-readable reference, e.g. "SPL 12345", "D-1234", "14 flights, last 2026-08-02".
+          example: SPL 12345
+        refId:
+          type: [string, 'null']
+          format: uuid
+          description: Id of the licence, class rating or aircraft the evidence names.
+        lastSeen:
+          type: [string, 'null']
+          format: date
+          description: Date of the latest matching flight, for flight evidence.
+
+    DisciplineState:
+      type: object
+      required: [discipline, status, intent, evidence, ulKinds]
+      properties:
+        discipline:
+          $ref: '#/components/schemas/Discipline'
+        status:
+          $ref: '#/components/schemas/DisciplineStatus'
+        intent:
+          $ref: '#/components/schemas/DisciplineIntent'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/DisciplineEvidence'
+        ulKinds:
+          type: array
+          description: Ultralight kinds found in ratings, aircraft and flights. Empty for every discipline but ULTRALIGHT.
+          items:
+            $ref: '#/components/schemas/ULKind'
+        acknowledgedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the pilot acknowledged this discipline's automatic activation.
+
+    PilotProfile:
+      type: object
+      required: [mode, disciplines, pendingAcknowledgement]
+      properties:
+        mode:
+          type: string
+          enum: [adaptive, everything]
+          description: adaptive folds features for inactive disciplines; everything shows every feature.
+        disciplines:
+          type: array
+          description: One entry per discipline, in Discipline enum order.
+          items:
+            $ref: '#/components/schemas/DisciplineState'
+        pendingAcknowledgement:
+          type: array
+          description: Disciplines active or training by evidence alone (intent auto) whose activation the pilot has not acknowledged.
+          items:
+            $ref: '#/components/schemas/Discipline'
+
+    PilotProfileUpdate:
+      type: object
+      description: Partial, idempotent merge into the stored pilot profile.
+      properties:
+        mode:
+          type: string
+          enum: [adaptive, everything]
+        intents:
+          type: object
+          description: Intent per discipline; disciplines not named keep their intent.
+          additionalProperties:
+            $ref: '#/components/schemas/DisciplineIntent'
+          example:
+            SAILPLANE: goal
+            IFR: "off"
+        acknowledge:
+          type: array
+          description: Disciplines whose automatic activation the pilot has seen.
+          items:
+            $ref: '#/components/schemas/Discipline'
+
     NotificationPreferences:
       type: object
       required:
@@ -9952,6 +10135,7 @@ components:
         - customReportsImported
         - notificationPreferencesImported
         - flightBaselineImported
+        - pilotProfileImported
       properties:
         aircraftImported:
           type: integer
@@ -10010,6 +10194,9 @@ components:
         flightBaselineImported:
           type: boolean
           description: Whether the backup carried a carried-forward hours baseline that was applied
+        pilotProfileImported:
+          type: boolean
+          description: Whether the backup carried a pilot profile (mode and discipline intents) that was applied
 
     PaginatedImports:
       type: object
@@ -10135,6 +10322,7 @@ components:
         - totalCustomReports
         - cloudBackupDestinations
         - importsByFormat
+        - pilotProfiles
       properties:
         totalUsers:
           type: integer
@@ -10205,6 +10393,34 @@ components:
             FOREFLIGHT_CSV: 12
             MYFLIGHTBOOK_CSV: 4
             CSV: 2
+        pilotProfiles:
+          type: object
+          description: How pilots override the adaptive pilot profile.
+          required: [everythingMode, overrides]
+          properties:
+            everythingMode:
+              type: integer
+              description: Users who switched the profile to show everything.
+            overrides:
+              type: object
+              description: >-
+                Explicit intents per discipline. Disciplines nobody has overridden
+                are omitted.
+              additionalProperties:
+                $ref: '#/components/schemas/AdminPilotProfileOverrideCounts'
+              example:
+                SAILPLANE: {"on": 2, "off": 0, goal: 5}
+
+    AdminPilotProfileOverrideCounts:
+      type: object
+      required: ["on", "off", goal]
+      properties:
+        "on":
+          type: integer
+        "off":
+          type: integer
+        goal:
+          type: integer
 
     Announcement:
       type: object

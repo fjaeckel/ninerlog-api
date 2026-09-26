@@ -78,6 +78,16 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
 - **Aircraft** (`internal/service/aircraft.go`) — the pilot's aircraft; the aircraft class
   links flights to the correct currency bucket, and an ultralight's kind decides what its
   flights are credited toward.
+- **Pilot profile / toolkits** (`internal/service/pilotprofile`, `GET/PATCH
+  /users/me/pilot-profile`) — which of the ten disciplines (aeroplane, TMG, sailplane,
+  ultralight, gyroplane, helicopter, IFR, multi-crew, instructor, simulator) are relevant to
+  the pilot, derived on every read from licences, ratings, fleet and the last 24 months of
+  flights, each with the evidence that explains it. A discipline is `active`, `training`
+  (dual-only flying without the rating, or intent "training toward"), `dormant` (flown, but not
+  in the last 24 months — even with the licence) or `off`. The pilot can turn each on, off or mark it as a training
+  goal, acknowledge a toolkit that switched itself on, or switch to "show everything".
+  Clients use it to fold features that serve none of the pilot's disciplines; the API itself
+  hides nothing. Rules: [DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines).
 - **Credentials** (`internal/service/credential.go`) — medicals, language proficiency,
   security clearances, German radio certificates (BZF II / BZF I / AZF); expiry feeds
   notifications.
@@ -447,8 +457,8 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   re-importing updates the existing cards.
 - **Full backup / restore** (`GET /exports/json`, `POST /imports/json`) — everything the
   pilot owns in one document: flights with crew, aircraft, licences and class ratings,
-  credentials, contacts, custom currency rules, custom reports, notification preferences and
-  the carried-forward hours baseline. `cloudbackup.Payload` is the single definition of that
+  credentials, contacts, custom currency rules, custom reports, notification preferences,
+  the carried-forward hours baseline and the pilot profile's intents. `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
   carry the same data. Restores are additive and regenerate all IDs, so a backup moves
   between installations; a custom report scoped to a licence is re-pointed at that licence's
@@ -516,7 +526,8 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   counts flights whose owner was carried rather than crewing
   (see [DOMAIN.md](./DOMAIN.md#passenger-flights)), each kept apart for the same reason
   the logbook keeps them apart. `totalCustomReports` counts saved custom reports across all
-  users. Config view also reports `registrationPrefixCount`
+  users. `pilotProfiles` reports how many users switched the pilot profile to show
+  everything and, per discipline, how many set it explicitly on, off or as a training goal. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than
   fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).

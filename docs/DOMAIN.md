@@ -474,10 +474,11 @@ Licence types without night privilege (`HasNightPrivilege` in `faa.go`) report
 `nightPrivilege: false` and are not evaluated for night passenger currency: FAA Sport,
 Recreational and Glider; EASA `LAPL` / `LAPL(A)`, `SPL` / `LAPL(S)` and `GPL`; the German UL
 authorities DULV and DAeC; and an ultralight licence type (`UL`, `UL-…`, `Ultralight`,
-`Ultraleicht`) under LBA — an LBA-issued PPL keeps its night privilege. Licence types are matched case-insensitively, and the EASA
-spellings are shared with the rating dispatch in `easaSelectRule` (`isEASALAPLA`,
-`isEASASailplane`), so a LAPL or SPL gets both its FCL.140 recency rule and its night
-restriction from the same check. Independently of the licence type, passenger currency for
+`Ultraleicht`) under LBA — an LBA-issued PPL keeps its night privilege. Licence types are
+classified by `models.ClassifyLicence` (see [Licence classification](#licence-classification)),
+case- and whitespace-insensitively, and the EASA spellings are shared with the rating dispatch
+in `easaSelectRule` (`isEASALAPLA`, `isEASASailplane`), so a LAPL or SPL gets both its FCL.140
+recency rule and its night restriction from the same check. Independently of the licence type, passenger currency for
 the `GLIDER` class never reports night privilege — under EASA and FAA alike, so a glider
 rating on an FAA Private licence has no night requirement while that licence's SEP rating
 keeps one.
@@ -641,6 +642,131 @@ To support a new regulator:
 No changes to handlers, the data provider, or the database are required for a new
 authority that reuses existing aggregates.
 
+## Pilot profile and disciplines
+
+The pilot profile (`GET/PATCH /users/me/pilot-profile`) tells clients which flying
+disciplines ("toolkits") are relevant to a pilot, so they can fold away what is not. The
+design and the binding personas are in [plans/ADAPTIVE_DISCIPLINES.md](./plans/ADAPTIVE_DISCIPLINES.md)
+and [PERSONAS.md](./PERSONAS.md).
+
+Only the pilot's **intent** is stored (`pilot_profiles`, one row per user; no row means mode
+`adaptive` and intent `auto` everywhere, and a `GET` never creates one). **Evidence** and
+**status** are derived on every read by the pure function `pilotprofile.Derive` from the
+licences, class ratings, active fleet aircraft and one aggregate flight query
+(`DisciplineEvidenceSource.GetDisciplineFlightGroups`: flights `LEFT JOIN aircraft` on
+registration, grouped by upper-cased class and UL kind). Changing a rule therefore never needs
+a data migration.
+
+### Licence classification
+
+`models.ClassifyLicence(type, authority)` is the single classifier of free-text licence types.
+It is case- and whitespace-insensitive. Licences issued by DULV or DAeC are always `UL`; every
+other authority is classified by type alone.
+
+| Kind | Types |
+| --- | --- |
+| `UL` | `UL`, `UL …`, `UL-…`, anything containing `ULTRALIGHT` or `ULTRALEICHT`; any DULV/DAeC licence |
+| `PPL_A`, `LAPL_A`, `CPL_A`, `ATPL_A`, `MPL` | `PPL`, `PPL(A)`, `LAPL`, `LAPL(A)`, `CPL`, `CPL(A)`, `ATPL`, `ATPL(A)`, `MPL`, `MPL(A)` |
+| `SPL`, `LAPL_S` | `SPL`, `LAPL(S)` |
+| `GPL` | `GPL` |
+| `HELICOPTER` | any type ending in `(H)` (`PPL(H)`, `LAPL(H)` …) |
+| FAA kinds | `SPORT`, `RECREATIONAL`, `PRIVATE`, `COMMERCIAL`, `ATP`, `GLIDER` |
+| `IR` | `IR`, `IR(A)`, `IR(H)` |
+| `INSTRUCTOR` | `FI`, `CRI`, `IRI`, `TRI`, `SFI`, `MCCI`, `FE`, `CRE`, `IRE`, `TRE` (bare or with a suffix such as `FI(S)`), `EXAMINER`, `CFI`, `CFII`, `MEI` |
+
+Anything else is unknown and produces no evidence — never negative evidence. The currency
+helpers `isEASALAPLA`, `isEASASailplane`, `isGPL`, `isULLicenceType` and `HasNightPrivilege`
+all route through it.
+
+### Evidence
+
+- **strong** — a licence or class rating.
+- **recent** — a matching non-simulator, non-passenger flight on or after the same calendar
+  day 24 months ago, or an active aircraft in the fleet.
+- **dormant** — matching flights exist, but all are older than that.
+
+| Discipline | Strong | Recent (aircraft or flights) |
+| --- | --- | --- |
+| `AEROPLANE` | `SEP_*`/`MEP_*`/`SET_*` rating; PPL(A), LAPL(A), CPL, ATPL, MPL, FAA Sport/Recreational/Private/Commercial/ATP | class `SEP_*`/`MEP_*`/`SET_*`; UL `THREE_AXIS`¹ |
+| `TMG` | `TMG` rating (Part-FCL or SPL extension) | class `TMG`; UL `THREE_AXIS_MOTORGLIDER`¹ |
+| `SAILPLANE` | `GLIDER` rating; SPL, LAPL(S), FAA Glider | class `GLIDER`; UL `SAILPLANE`¹; any towed launch |
+| `ULTRALIGHT` | `ULTRALIGHT` rating; UL licence | class `ULTRALIGHT` (any kind) |
+| `GYROPLANE` | `GYROPLANE` rating; GPL | class `GYROPLANE`; UL `GYROPLANE`¹ |
+| `HELICOPTER` | `(H)` licence | UL `HELICOPTER`¹ |
+| `IFR` | `IR` rating; `IR` licence | flights with IFR time or approaches |
+| `MULTI_CREW` | ATPL, MPL | aircraft flagged multi-pilot; flights with multi-pilot, SIC or relief time |
+| `INSTRUCTOR` | instructor/examiner licence; `OTHER` rating whose notes classify as instructor | flights with dual-given or examiner time (`FLIGHTS_INSTRUCTING`) |
+| `SIMULATOR` | — | FSTD sessions |
+
+- ¹ An ultralight aircraft or flight feeds the discipline of its kind only for a pilot with
+  no `ULTRALIGHT` licence or rating (a PPL holder flying a C42 sees the aeroplane credit). A
+  UL-licensed pilot's ultralight flying feeds `ULTRALIGHT` alone.
+- A flight with a towed launch (winch, aerotow, car, bungee) is `SAILPLANE` evidence (and
+  `ULTRALIGHT` evidence on an ultralight), never `AEROPLANE`, `TMG` or `GYROPLANE`, whatever
+  the aircraft class says.
+- Simulator sessions and passenger flights are never flight evidence for an aircraft
+  discipline; sessions feed `SIMULATOR` only.
+- A flight on a registration that is not in the fleet, or on an unclassed aircraft, is
+  evidence only through its towed launch and its IFR, multi-crew, instructing or simulator
+  signals.
+- `ULTRALIGHT` carries `ulKinds`: every kind found on its ratings, fleet aircraft and flights,
+  in enum order. Every other discipline carries an empty list.
+- Evidence refs are human-readable: a licence is `<type> <number>` (`SPL 12345`), a rating
+  `<class> [<kind>] on <licence>` (`GLIDER on SPL 12345`), an aircraft its registration, and
+  flights `<n> flights, last <date>` (`<n> dual flights, …` for `FLIGHTS_DUAL`). Licences,
+  ratings and aircraft carry `refId`; flights carry `lastSeen`.
+
+### Status resolution
+
+First match wins:
+
+1. intent `off` → `off` (the evidence is still reported);
+2. intent `on`, or recent evidence that is not a training signal, or strong evidence with no
+   dormant flight evidence → `active`;
+3. intent `goal`, or a training signal → `training`;
+4. dormant flight evidence (with or without strong evidence) → `dormant`;
+5. nothing → `off`, with no evidence.
+
+So a licence or rating keeps a discipline active while the pilot has flown it in the last 24
+months, has a fleet aircraft for it, or has never logged a flight in it at all (a newly
+licensed pilot, or one who has not imported their history yet). When every matching flight is
+older than the window, the discipline is `dormant` — "flown, but not in 24 months" — and the
+licence stays listed as strong evidence. The same applies to `IFR`, `MULTI_CREW`, `INSTRUCTOR`
+and `SIMULATOR` with their own flight signals: an IR rating with IFR time only before the
+window is dormant, an IR rating and no IFR flight ever is active.
+
+A **training signal** exists for an aircraft discipline (`AEROPLANE` to `HELICOPTER`) when
+there is no strong evidence and every matching flight is dual received (`FLIGHTS_DUAL`) with the
+latest inside the window. It overrides the fleet aircraft that would otherwise make the
+discipline recent, so a student with the club ASK 21 in their fleet is `training`, not `active`.
+Old dual-only flights resolve `dormant`. `IFR` is `training` only through intent `goal`;
+`MULTI_CREW`, `INSTRUCTOR` and `SIMULATOR` have no training state except by intent.
+
+Consequences worth knowing:
+
+- A TMG pilot with an SPL whose glider flights all predate the window (persona Karl) resolves
+  `TMG` active and `SAILPLANE` dormant.
+- A UL pilot who also holds a PPL(A) and last flew a C172 three years ago (persona Mehmet)
+  resolves `ULTRALIGHT` active and `AEROPLANE` dormant; his C42 flights do not count as
+  aeroplane flying because he holds a UL licence. A C172 flight this year makes it active.
+- Intent `goal` does not hold a discipline in `training` once a licence or rating arrives: it
+  becomes `active` (persona Jonas, J3).
+
+### Acknowledgement
+
+`pendingAcknowledgement` lists the disciplines whose status is `active` or `training` (never
+`dormant`) while
+their intent is `auto` and `acknowledgedAt` is unset — the toolkits that turned on by evidence
+alone. `PATCH { "acknowledge": [...] }` sets `acknowledgedAt` (an existing time is kept);
+setting an explicit intent also takes a discipline off the list. Setting intent `auto`
+returns a discipline to evidence and keeps its acknowledgement.
+
+### Portability and operator view
+
+Mode, intents and acknowledgements are part of the JSON backup (`pilotProfile`) and replace
+the destination's profile on restore; derived evidence is not exported. `GET /admin/stats`
+reports `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` override counts.
+
 ## Where this connects
 
 - Flights feed currency, statistics, reports, maps, and exports.
@@ -648,6 +774,8 @@ authority that reuses existing aggregates.
   notification system (see [FEATURES.md](./FEATURES.md#notifications)).
 - The HTTP surface for currency is `GET /currency` and `GET /licenses/{id}/currency`
   (see [API.md](./API.md)).
+- Licences, ratings, aircraft and flights feed the pilot profile
+  (`GET /users/me/pilot-profile`).
 
 > When regulatory rules change, update the relevant evaluator **and** this document so
 > the described behaviour stays accurate.

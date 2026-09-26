@@ -29,6 +29,8 @@ type Payload struct {
 	// are omitted when the user has none.
 	NotificationPreferences *NotificationPreferences `json:"notificationPreferences,omitempty"`
 	FlightBaseline          *FlightBaseline          `json:"flightBaseline,omitempty"`
+	// PilotProfile is a single-row setting, omitted when the user has none.
+	PilotProfile *PilotProfile `json:"pilotProfile,omitempty"`
 }
 
 // LicenseWithRatings pairs a licence with its class ratings so a restore can
@@ -170,4 +172,35 @@ func (b FlightBaseline) ToModel(userID uuid.UUID) *models.FlightBaseline {
 		LandingsNight:       b.LandingsNight,
 		Notes:               b.Notes,
 	}
+}
+
+// PilotProfile is the portable half of a user's pilot profile: the mode and the
+// per-discipline intent and acknowledgement. Derived evidence is not carried.
+type PilotProfile struct {
+	Mode        models.PilotProfileMode                        `json:"mode"`
+	Disciplines map[models.Discipline]models.DisciplineSetting `json:"disciplines"`
+}
+
+// NewPilotProfile projects a stored pilot profile onto its portable half.
+func NewPilotProfile(p *models.PilotProfile) *PilotProfile {
+	if p == nil {
+		return nil
+	}
+	out := &PilotProfile{Mode: p.Mode, Disciplines: map[models.Discipline]models.DisciplineSetting{}}
+	for d, s := range p.Disciplines {
+		out.Disciplines[d] = s
+	}
+	return out
+}
+
+// ToModel rebuilds a storable pilot profile owned by the given user, dropping
+// disciplines this version does not know.
+func (p PilotProfile) ToModel(userID uuid.UUID) *models.PilotProfile {
+	out := &models.PilotProfile{UserID: userID, Mode: p.Mode, Disciplines: map[models.Discipline]models.DisciplineSetting{}}
+	for d, s := range p.Disciplines {
+		if d.IsValid() {
+			out.Disciplines[d] = s
+		}
+	}
+	return out
 }

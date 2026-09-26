@@ -1,6 +1,10 @@
 # Plan: adaptive disciplines ("toolkits")
 
-**Status: proposed, not implemented.** This is a forward-looking plan. Where it describes
+**Status: phases 0 and 1 implemented; phases 2 onward proposed.** Phase 0
+(`models.ClassifyLicence`) and phase 1 (migration 000074, `GET/PATCH /users/me/pilot-profile`,
+`pilotprofile.Derive`, export/import, admin stat) are in the API; the implemented derivation is
+documented in [DOMAIN.md](../DOMAIN.md#pilot-profile-and-disciplines) and wins where it is more
+precise than this plan. This is otherwise a forward-looking plan. Where it describes
 today's code, it cites `file:line` as audited on 2026-09-26; where it describes behaviour,
 that behaviour does not exist yet. The binding acceptance criteria are the personas in
 [../PERSONAS.md](../PERSONAS.md).
@@ -181,8 +185,8 @@ Each phase is one PR, handed to one implementer, with the contract above. Every 
 
 | Phase | Repo | Agent | Scope | Closes |
 | --- | --- | --- | --- | --- |
-| 0 | api | `endpoint-implementer` | `ClassifyLicence`; route the currency helpers through it. No behaviour change: every currency unit and e2e test stays green. Add table tests. | — |
-| 1 | api | `endpoint-implementer` + `migration-author` | Spec, migration, `Derive`, service, handler, export/import, admin stat, docs (`DOMAIN.md` derivation section, `API.md`, `FEATURES.md`, `DATA_MODEL.md`). e2e `pilot_profile_e2e_test.go`: one case per persona (Lena → `SAILPLANE` active; Jonas → training; Karl → `TMG` active, `SAILPLANE` dormant; Mehmet → `ULTRALIGHT[THREE_AXIS]` active, `AEROPLANE` dormant; Mark → `AEROPLANE`/`IFR`/`MULTI_CREW`/`SIMULATOR`; Ruth → nothing). Plus an export/import round trip and cross-user isolation. | J1, N1, R2 (API side) |
+| 0 (implemented) | api | `endpoint-implementer` | `ClassifyLicence`; route the currency helpers through it. No behaviour change: every currency unit and e2e test stays green. Add table tests. | — |
+| 1 (implemented) | api | `endpoint-implementer` + `migration-author` | Spec, migration, `Derive`, service, handler, export/import, admin stat, docs (`DOMAIN.md` derivation section, `API.md`, `FEATURES.md`, `DATA_MODEL.md`). e2e `pilot_profile_e2e_test.go`: one case per persona (Lena → `SAILPLANE` active; Jonas → training; Karl → `TMG` active, `SAILPLANE` dormant; Mehmet → `ULTRALIGHT[THREE_AXIS]` active, `AEROPLANE` dormant; Mark → `AEROPLANE`/`IFR`/`MULTI_CREW`/`SIMULATOR`; Ruth → nothing). Plus an export/import round trip and cross-user isolation. | J1, N1, R2 (API side) |
 | 2 | fe | implementer | Regenerate the client; hooks, registry (empty), `<Relevant>`, `<FoldDrawer>`, toast, "What I fly". **One screenshot fixture set per persona** in `scripts/screenshots/fixtures.mjs`, plus a `persona` option in `targets.mjs`. Vitest truth table for `useRelevance` (relevant / has data / everything / loading / unknown). | R2 |
 | 3a | fe | implementer | FlightForm onto the registry: launch method (`SAILPLANE`; aircraft `GLIDER` or UL `SAILPLANE`; not TMG), IFR section (`IFR`), multi-pilot/PICUS/SPIC/relief (`MULTI_CREW`), examiner (`INSTRUCTOR`), every item with `hasData`. | L3, K1, S3, A1 |
 | 3b | fe | implementer | AircraftForm flags, class pickers (relevant classes first, the rest under "More classes"), Dashboard order, Reports sections, nav (fold only, never remove), column boost. | A1, A2, S3 |

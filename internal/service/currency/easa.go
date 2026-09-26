@@ -35,15 +35,13 @@ func (e *EASAEvaluator) EvaluateWithPeers(ctx context.Context, rating *models.Cl
 // isEASALAPLA reports whether licenseType is an EASA LAPL for aeroplanes
 // ("LAPL" or "LAPL(A)", case-insensitive).
 func isEASALAPLA(licenseType string) bool {
-	lt := strings.ToUpper(strings.TrimSpace(licenseType))
-	return lt == "LAPL" || lt == "LAPL(A)"
+	return models.ClassifyLicence(licenseType, "") == models.LicenceKindLAPLA
 }
 
 // isEASASailplane reports whether licenseType is an EASA sailplane licence
 // ("SPL" or "LAPL(S)", case-insensitive).
 func isEASASailplane(licenseType string) bool {
-	lt := strings.ToUpper(strings.TrimSpace(licenseType))
-	return lt == "SPL" || lt == "LAPL(S)"
+	return models.ClassifyLicence(licenseType, "").IsEASASailplane()
 }
 
 // easaSelectRule dispatches a (license type, class type) pair to its rule.

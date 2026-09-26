@@ -930,6 +930,147 @@ func (e DeletionEntity) Valid() bool {
 	}
 }
 
+// Defines values for Discipline.
+const (
+	DisciplineAEROPLANE  Discipline = "AEROPLANE"
+	DisciplineGYROPLANE  Discipline = "GYROPLANE"
+	DisciplineHELICOPTER Discipline = "HELICOPTER"
+	DisciplineIFR        Discipline = "IFR"
+	DisciplineINSTRUCTOR Discipline = "INSTRUCTOR"
+	DisciplineMULTICREW  Discipline = "MULTI_CREW"
+	DisciplineSAILPLANE  Discipline = "SAILPLANE"
+	DisciplineSIMULATOR  Discipline = "SIMULATOR"
+	DisciplineTMG        Discipline = "TMG"
+	DisciplineULTRALIGHT Discipline = "ULTRALIGHT"
+)
+
+// Valid indicates whether the value is a known member of the Discipline enum.
+func (e Discipline) Valid() bool {
+	switch e {
+	case DisciplineAEROPLANE:
+		return true
+	case DisciplineGYROPLANE:
+		return true
+	case DisciplineHELICOPTER:
+		return true
+	case DisciplineIFR:
+		return true
+	case DisciplineINSTRUCTOR:
+		return true
+	case DisciplineMULTICREW:
+		return true
+	case DisciplineSAILPLANE:
+		return true
+	case DisciplineSIMULATOR:
+		return true
+	case DisciplineTMG:
+		return true
+	case DisciplineULTRALIGHT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DisciplineEvidenceSource.
+const (
+	AIRCRAFT           DisciplineEvidenceSource = "AIRCRAFT"
+	FLIGHTS            DisciplineEvidenceSource = "FLIGHTS"
+	FLIGHTSDUAL        DisciplineEvidenceSource = "FLIGHTS_DUAL"
+	FLIGHTSINSTRUCTING DisciplineEvidenceSource = "FLIGHTS_INSTRUCTING"
+	LICENCE            DisciplineEvidenceSource = "LICENCE"
+	RATING             DisciplineEvidenceSource = "RATING"
+)
+
+// Valid indicates whether the value is a known member of the DisciplineEvidenceSource enum.
+func (e DisciplineEvidenceSource) Valid() bool {
+	switch e {
+	case AIRCRAFT:
+		return true
+	case FLIGHTS:
+		return true
+	case FLIGHTSDUAL:
+		return true
+	case FLIGHTSINSTRUCTING:
+		return true
+	case LICENCE:
+		return true
+	case RATING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DisciplineEvidenceStrength.
+const (
+	DisciplineEvidenceStrengthDormant DisciplineEvidenceStrength = "dormant"
+	DisciplineEvidenceStrengthRecent  DisciplineEvidenceStrength = "recent"
+	DisciplineEvidenceStrengthStrong  DisciplineEvidenceStrength = "strong"
+)
+
+// Valid indicates whether the value is a known member of the DisciplineEvidenceStrength enum.
+func (e DisciplineEvidenceStrength) Valid() bool {
+	switch e {
+	case DisciplineEvidenceStrengthDormant:
+		return true
+	case DisciplineEvidenceStrengthRecent:
+		return true
+	case DisciplineEvidenceStrengthStrong:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DisciplineIntent.
+const (
+	DisciplineIntentAuto DisciplineIntent = "auto"
+	DisciplineIntentGoal DisciplineIntent = "goal"
+	DisciplineIntentOff  DisciplineIntent = "off"
+	DisciplineIntentOn   DisciplineIntent = "on"
+)
+
+// Valid indicates whether the value is a known member of the DisciplineIntent enum.
+func (e DisciplineIntent) Valid() bool {
+	switch e {
+	case DisciplineIntentAuto:
+		return true
+	case DisciplineIntentGoal:
+		return true
+	case DisciplineIntentOff:
+		return true
+	case DisciplineIntentOn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DisciplineStatus.
+const (
+	DisciplineStatusActive   DisciplineStatus = "active"
+	DisciplineStatusDormant  DisciplineStatus = "dormant"
+	DisciplineStatusOff      DisciplineStatus = "off"
+	DisciplineStatusTraining DisciplineStatus = "training"
+)
+
+// Valid indicates whether the value is a known member of the DisciplineStatus enum.
+func (e DisciplineStatus) Valid() bool {
+	switch e {
+	case DisciplineStatusActive:
+		return true
+	case DisciplineStatusDormant:
+		return true
+	case DisciplineStatusOff:
+		return true
+	case DisciplineStatusTraining:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DocumentFileContentType.
 const (
 	Applicationpdf DocumentFileContentType = "application/pdf"
@@ -1602,6 +1743,42 @@ func (e PassengerCurrencyUlKind) Valid() bool {
 	}
 }
 
+// Defines values for PilotProfileMode.
+const (
+	PilotProfileModeAdaptive   PilotProfileMode = "adaptive"
+	PilotProfileModeEverything PilotProfileMode = "everything"
+)
+
+// Valid indicates whether the value is a known member of the PilotProfileMode enum.
+func (e PilotProfileMode) Valid() bool {
+	switch e {
+	case PilotProfileModeAdaptive:
+		return true
+	case PilotProfileModeEverything:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PilotProfileUpdateMode.
+const (
+	PilotProfileUpdateModeAdaptive   PilotProfileUpdateMode = "adaptive"
+	PilotProfileUpdateModeEverything PilotProfileUpdateMode = "everything"
+)
+
+// Valid indicates whether the value is a known member of the PilotProfileUpdateMode enum.
+func (e PilotProfileUpdateMode) Valid() bool {
+	switch e {
+	case PilotProfileUpdateModeAdaptive:
+		return true
+	case PilotProfileUpdateModeEverything:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PublicSignatureInfoStatus.
 const (
 	PublicSignatureInfoStatusPending PublicSignatureInfoStatus = "pending"
@@ -1656,6 +1833,39 @@ func (e SignatureRequestCreatedStatus) Valid() bool {
 	case SignatureRequestCreatedStatusRevoked:
 		return true
 	case SignatureRequestCreatedStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ULKind.
+const (
+	ULKindGYROPLANE            ULKind = "GYROPLANE"
+	ULKindHELICOPTER           ULKind = "HELICOPTER"
+	ULKindPOWEREDPARAGLIDER    ULKind = "POWERED_PARAGLIDER"
+	ULKindSAILPLANE            ULKind = "SAILPLANE"
+	ULKindTHREEAXIS            ULKind = "THREE_AXIS"
+	ULKindTHREEAXISMOTORGLIDER ULKind = "THREE_AXIS_MOTORGLIDER"
+	ULKindWEIGHTSHIFT          ULKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ULKind enum.
+func (e ULKind) Valid() bool {
+	switch e {
+	case ULKindGYROPLANE:
+		return true
+	case ULKindHELICOPTER:
+		return true
+	case ULKindPOWEREDPARAGLIDER:
+		return true
+	case ULKindSAILPLANE:
+		return true
+	case ULKindTHREEAXIS:
+		return true
+	case ULKindTHREEAXISMOTORGLIDER:
+		return true
+	case ULKindWEIGHTSHIFT:
 		return true
 	default:
 		return false
@@ -2380,6 +2590,13 @@ type AdminConfigAuthMode string
 // an abandoned signup — so reaping is refused outright.
 type AdminConfigUnverifiedCleanupDisabledReason string
 
+// AdminPilotProfileOverrideCounts defines model for AdminPilotProfileOverrideCounts.
+type AdminPilotProfileOverrideCounts struct {
+	Goal int `json:"goal"`
+	Off  int `json:"off"`
+	On   int `json:"on"`
+}
+
 // AdminStats defines model for AdminStats.
 type AdminStats struct {
 	// ActiveSessions Live sessions across all users. A session is live while it holds an unrevoked, unexpired refresh token, so this counts signed-in devices rather than users.
@@ -2404,7 +2621,18 @@ type AdminStats struct {
 	ImportsByFormat  map[string]int `json:"importsByFormat"`
 	LockedAccounts   int            `json:"lockedAccounts"`
 	NewUsersThisWeek int            `json:"newUsersThisWeek"`
-	TotalAircraft    int            `json:"totalAircraft"`
+
+	// PilotProfiles How pilots override the adaptive pilot profile.
+	PilotProfiles struct {
+		// EverythingMode Users who switched the profile to show everything.
+		EverythingMode int `json:"everythingMode"`
+
+		// Overrides Explicit intents per discipline. Disciplines nobody has overridden are omitted.
+		//
+		// Example: {"SAILPLANE":{"goal":5,"off":0,"on":2}}
+		Overrides map[string]AdminPilotProfileOverrideCounts `json:"overrides"`
+	} `json:"pilotProfiles"`
+	TotalAircraft int `json:"totalAircraft"`
 
 	// TotalContacts Contacts across all users. Grows on its own as flights are logged, since crew names are turned into contacts automatically.
 	TotalContacts    int `json:"totalContacts"`
@@ -4505,6 +4733,80 @@ type DeletionFeed struct {
 	WatermarkExpired bool `json:"watermarkExpired"`
 }
 
+// Discipline A flying discipline ("toolkit"). The enum may grow: clients must treat a
+// value they do not know as `active` (fail open).
+type Discipline string
+
+// DisciplineEvidence defines model for DisciplineEvidence.
+type DisciplineEvidence struct {
+	// LastSeen Date of the latest matching flight, for flight evidence.
+	LastSeen *openapi_types.Date `json:"lastSeen,omitempty"`
+
+	// Ref Human-readable reference, e.g. "SPL 12345", "D-1234", "14 flights, last 2026-08-02".
+	//
+	// Example: SPL 12345
+	Ref string `json:"ref"`
+
+	// RefId Id of the licence, class rating or aircraft the evidence names.
+	RefId  *openapi_types.UUID      `json:"refId,omitempty"`
+	Source DisciplineEvidenceSource `json:"source"`
+
+	// Strength strong: a licence or rating. recent: a matching flight in the last 24
+	// months, or an active aircraft in the fleet. dormant: matching flights,
+	// all older than 24 months.
+	Strength DisciplineEvidenceStrength `json:"strength"`
+}
+
+// DisciplineEvidenceSource defines model for DisciplineEvidence.Source.
+type DisciplineEvidenceSource string
+
+// DisciplineEvidenceStrength strong: a licence or rating. recent: a matching flight in the last 24
+// months, or an active aircraft in the fleet. dormant: matching flights,
+// all older than 24 months.
+type DisciplineEvidenceStrength string
+
+// DisciplineIntent The pilot's intent for a discipline:
+// - auto: status follows the evidence
+// - on: always active
+// - off: always off, whatever the evidence
+// - goal: training toward it (training unless evidence makes it active)
+type DisciplineIntent string
+
+// DisciplineState defines model for DisciplineState.
+type DisciplineState struct {
+	// AcknowledgedAt When the pilot acknowledged this discipline's automatic activation.
+	AcknowledgedAt *time.Time `json:"acknowledgedAt,omitempty"`
+
+	// Discipline A flying discipline ("toolkit"). The enum may grow: clients must treat a
+	// value they do not know as `active` (fail open).
+	Discipline Discipline           `json:"discipline"`
+	Evidence   []DisciplineEvidence `json:"evidence"`
+
+	// Intent The pilot's intent for a discipline:
+	// - auto: status follows the evidence
+	// - on: always active
+	// - off: always off, whatever the evidence
+	// - goal: training toward it (training unless evidence makes it active)
+	Intent DisciplineIntent `json:"intent"`
+
+	// Status Resolved status, first match wins: intent off → off; intent on, recent
+	// evidence, or a licence or rating with no flights before the 24-month window →
+	// active; intent goal, or recent dual-only flights with no matching licence or
+	// rating → training; only old flights (with or without a licence) → dormant;
+	// otherwise off. Dormant disciplines are never pending acknowledgement.
+	Status DisciplineStatus `json:"status"`
+
+	// UlKinds Ultralight kinds found in ratings, aircraft and flights. Empty for every discipline but ULTRALIGHT.
+	UlKinds []ULKind `json:"ulKinds"`
+}
+
+// DisciplineStatus Resolved status, first match wins: intent off → off; intent on, recent
+// evidence, or a licence or rating with no flights before the 24-month window →
+// active; intent goal, or recent dual-only flights with no matching licence or
+// rating → training; only old flights (with or without a licence) → dormant;
+// otherwise off. Dormant disciplines are never pending acknowledgement.
+type DisciplineStatus string
+
 // DocumentFile Metadata for one reference photo attached to a licence or credential.
 // The bytes themselves are never inlined — fetch them from the image's
 // own authenticated URL.
@@ -5758,6 +6060,9 @@ type ImportJSONResult struct {
 
 	// NotificationPreferencesImported Whether the backup carried notification preferences that were applied
 	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
+
+	// PilotProfileImported Whether the backup carried a pilot profile (mode and discipline intents) that was applied
+	PilotProfileImported bool `json:"pilotProfileImported"`
 }
 
 // ImportPreviewFlight defines model for ImportPreviewFlight.
@@ -6477,6 +6782,36 @@ type PassengerCurrencyNightStatus string
 // same kind, so there is one entry per kind. A rating with no kind has no entry.
 type PassengerCurrencyUlKind string
 
+// PilotProfile defines model for PilotProfile.
+type PilotProfile struct {
+	// Disciplines One entry per discipline, in Discipline enum order.
+	Disciplines []DisciplineState `json:"disciplines"`
+
+	// Mode adaptive folds features for inactive disciplines; everything shows every feature.
+	Mode PilotProfileMode `json:"mode"`
+
+	// PendingAcknowledgement Disciplines active or training by evidence alone (intent auto) whose activation the pilot has not acknowledged.
+	PendingAcknowledgement []Discipline `json:"pendingAcknowledgement"`
+}
+
+// PilotProfileMode adaptive folds features for inactive disciplines; everything shows every feature.
+type PilotProfileMode string
+
+// PilotProfileUpdate Partial, idempotent merge into the stored pilot profile.
+type PilotProfileUpdate struct {
+	// Acknowledge Disciplines whose automatic activation the pilot has seen.
+	Acknowledge *[]Discipline `json:"acknowledge,omitempty"`
+
+	// Intents Intent per discipline; disciplines not named keep their intent.
+	//
+	// Example: {"IFR":"off","SAILPLANE":"goal"}
+	Intents *map[string]DisciplineIntent `json:"intents,omitempty"`
+	Mode    *PilotProfileUpdateMode      `json:"mode,omitempty"`
+}
+
+// PilotProfileUpdateMode defines model for PilotProfileUpdate.Mode.
+type PilotProfileUpdateMode string
+
 // PublicSignatureInfo Deliberately minimal — no owner PII beyond the flight's own logged details.
 type PublicSignatureInfo struct {
 	AircraftReg  string             `json:"aircraftReg"`
@@ -6735,6 +7070,9 @@ type TwoFactorSetup struct {
 	// Example: JBSWY3DPEHPK3PXP
 	Secret string `json:"secret"`
 }
+
+// ULKind Kind of an ultralight (German "Luftsportgeräteart").
+type ULKind string
 
 // UpdateComponent defines model for UpdateComponent.
 type UpdateComponent struct {
@@ -7495,6 +7833,7 @@ type ImportDataJSONJSONBody struct {
 	Format                  string                    `json:"format"`
 	Licenses                *[]map[string]interface{} `json:"licenses,omitempty"`
 	NotificationPreferences *map[string]interface{}   `json:"notificationPreferences,omitempty"`
+	PilotProfile            *map[string]interface{}   `json:"pilotProfile,omitempty"`
 	Version                 *string                   `json:"version,omitempty"`
 }
 
@@ -7825,6 +8164,9 @@ type PutMyBaselineJSONRequestBody = FlightBaselineInput
 
 // UpdateNotificationPreferencesJSONRequestBody defines body for UpdateNotificationPreferences for application/json ContentType.
 type UpdateNotificationPreferencesJSONRequestBody = NotificationPreferencesUpdate
+
+// UpdatePilotProfileJSONRequestBody defines body for UpdatePilotProfile for application/json ContentType.
+type UpdatePilotProfileJSONRequestBody = PilotProfileUpdate
 
 // AsAuthResponse returns the union data inside the LoginUser200JSONResponseBody as a AuthResponse
 func (t LoginUser200JSONResponseBody) AsAuthResponse() (AuthResponse, error) {
