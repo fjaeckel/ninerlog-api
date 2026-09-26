@@ -358,13 +358,14 @@ func (d *derivation) resolve(disc models.Discipline, setting models.DisciplineSe
 		evidence = d.appendTally(evidence, &d.simulator, models.EvidenceFlights, "session", "sessions")
 	default:
 		if t, ok := d.flights[disc]; ok && t.flights > 0 {
+			var ev models.DisciplineEvidence
 			if t.dual == t.flights {
-				ev := d.flightEvidence(t, models.EvidenceFlightsDual, "dual flight", "dual flights")
-				evidence = append(evidence, ev)
-				trainingSignal = aircraftDisciplines[disc] && ev.Strength == models.StrengthRecent
+				ev = d.flightEvidence(t, models.EvidenceFlightsDual, "dual flight", "dual flights")
 			} else {
-				evidence = append(evidence, d.flightEvidence(t, models.EvidenceFlights, "flight", "flights"))
+				ev = d.flightEvidence(t, models.EvidenceFlights, "flight", "flights")
 			}
+			evidence = append(evidence, ev)
+			trainingSignal = aircraftDisciplines[disc] && t.dual > 0 && ev.Strength == models.StrengthRecent
 		}
 	}
 
@@ -388,9 +389,13 @@ func (d *derivation) resolve(disc models.Discipline, setting models.DisciplineSe
 	switch {
 	case intent == models.IntentOff:
 		status = models.StatusOff
-	case intent == models.IntentOn, recent && !trainingSignal, strong && !dormant:
+	case intent == models.IntentOn, strong && !dormant:
 		status = models.StatusActive
-	case intent == models.IntentGoal, trainingSignal:
+	case intent == models.IntentGoal:
+		status = models.StatusTraining
+	case recent && !trainingSignal:
+		status = models.StatusActive
+	case trainingSignal:
 		status = models.StatusTraining
 	case dormant:
 		status = models.StatusDormant

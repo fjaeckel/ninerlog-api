@@ -183,6 +183,14 @@ func TestPilotProfile_Personas(t *testing.T) {
 		if !hasEvidence(p.state("SAILPLANE"), "FLIGHTS_DUAL", "recent") {
 			t.Errorf("SAILPLANE evidence = %+v", p.state("SAILPLANE").Evidence)
 		}
+
+		createAircraftCur(t, c, "D-2345", "ASK23", "GLIDER")
+		winchCircuits(t, c, "D-2345", 2, 1, false)
+		p = getPilotProfile(t, c)
+		assertStatuses(t, p, map[string]string{"SAILPLANE": "training"})
+		if !hasEvidence(p.state("SAILPLANE"), "FLIGHTS", "recent") {
+			t.Errorf("SAILPLANE evidence after supervised solo = %+v", p.state("SAILPLANE").Evidence)
+		}
 		if !reflect.DeepEqual(p.PendingAcknowledgement, []string{"SAILPLANE"}) {
 			t.Errorf("pending = %v, want [SAILPLANE]", p.PendingAcknowledgement)
 		}

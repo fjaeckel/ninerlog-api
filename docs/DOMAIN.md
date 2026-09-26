@@ -821,11 +821,13 @@ all route through it.
 First match wins:
 
 1. intent `off` → `off` (the evidence is still reported);
-2. intent `on`, or recent evidence that is not a training signal, or strong evidence with no
-   dormant flight evidence → `active`;
-3. intent `goal`, or a training signal → `training`;
-4. dormant flight evidence (with or without strong evidence) → `dormant`;
-5. nothing → `off`, with no evidence.
+2. intent `on`, or strong evidence with no dormant flight evidence → `active`;
+3. intent `goal` → `training` (a pilot who holds the licence is not training for it, so
+   strong evidence ranks above the goal; flight and fleet evidence rank below it);
+4. recent evidence that is not a training signal → `active`;
+5. a training signal → `training`;
+6. dormant flight evidence (with or without strong evidence) → `dormant`;
+7. nothing → `off`, with no evidence.
 
 So a licence or rating keeps a discipline active while the pilot has flown it in the last 24
 months, has a fleet aircraft for it, or has never logged a flight in it at all (a newly
@@ -836,8 +838,11 @@ and `SIMULATOR` with their own flight signals: an IR rating with IFR time only b
 window is dormant, an IR rating and no IFR flight ever is active.
 
 A **training signal** exists for an aircraft discipline (`AEROPLANE` to `HELICOPTER`) when
-there is no strong evidence and every matching flight is dual received (`FLIGHTS_DUAL`) with the
-latest inside the window. It overrides the fleet aircraft that would otherwise make the
+there is no strong evidence, at least one matching flight has dual time received and the
+latest matching flight is inside the window. Supervised solo flights are logged as PIC, so a
+student's record mixes dual and solo; any instruction received without a licence or rating is
+enough. Evidence is reported as `FLIGHTS_DUAL` when every matching flight is dual, otherwise
+`FLIGHTS`. It overrides the fleet aircraft that would otherwise make the
 discipline recent, so a student with the club ASK 21 in their fleet is `training`, not `active`.
 Old dual-only flights resolve `dormant`. `IFR` is `training` only through intent `goal`;
 `MULTI_CREW`, `INSTRUCTOR` and `SIMULATOR` have no training state except by intent.
