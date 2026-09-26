@@ -434,6 +434,7 @@ var easaSPLRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeByClass,
 	countsTowed: true,
+	extraCredit: easaSPLExtraCredit,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyFlightTime, metric: mPICOrDualMinutes, threshold: 300, unit: "minutes"},
 		{nameKey: ReqKeyLaunches, metric: mLaunches, threshold: 15, unit: "launches"},
@@ -449,8 +450,8 @@ var easaSPLRule = ratingRule{
 		}
 		hours := *sailplane
 		tmg := &Progress{}
-		if rt.rating.ClassType == models.ClassTypeGlider {
-			tmg, err = rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeTMG}, false, rt.since)
+		if extra := easaSPLExtraCredit(rt.rating); extra != nil {
+			tmg, err = rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, extra.classes, false, rt.since)
 			if err != nil {
 				rt.result.Status = StatusUnknown
 				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
@@ -458,8 +459,8 @@ var easaSPLRule = ratingRule{
 			}
 			hours.PICMinutes += tmg.PICMinutes
 			hours.InstructorMinutes += tmg.InstructorMinutes
-			rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
-			ulMinutes, err := rt.ulHoursCredit(ctx, models.ULKindSailplane, models.ULKindThreeAxisMotorglider)
+			rt.result.CountedClasses = append([]models.ClassType{rt.rating.ClassType}, extra.classes...)
+			ulMinutes, err := rt.ulHoursCredit(ctx, extra.ulKinds...)
 			if err != nil {
 				rt.result.Status = StatusUnknown
 				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
@@ -483,6 +484,27 @@ var easaSPLRule = ratingRule{
 
 		setRecencyStatus(rt.result, allMetByExperience || reqProfCheck.Met)
 	},
+}
+
+// easaSPLExtraCredit returns what SFCL.160(a)(1)(i) counts toward a GLIDER
+// rating beside sailplanes: TMG time and UL sailplane and motorglider PIC time.
+func easaSPLExtraCredit(rating *models.ClassRating) *extraCredit {
+	if rating.ClassType != models.ClassTypeGlider {
+		return nil
+	}
+	return &extraCredit{
+		classes: []models.ClassType{models.ClassTypeTMG},
+		ulKinds: []models.ULKind{models.ULKindSailplane, models.ULKindThreeAxisMotorglider},
+	}
+}
+
+// easaSPLTMGExtraCredit returns what SFCL.160(b)(1)(i) counts toward TMG
+// privileges beside TMGs: sailplane time and UL sailplane and motorglider PIC time.
+func easaSPLTMGExtraCredit(_ *models.ClassRating) *extraCredit {
+	return &extraCredit{
+		classes: []models.ClassType{models.ClassTypeGlider},
+		ulKinds: []models.ULKind{models.ULKindSailplane, models.ULKindThreeAxisMotorglider},
+	}
 }
 
 // launchMethods lists the SFCL.155 launch methods in display order.
@@ -561,6 +583,7 @@ var easaSPLTMGRule = ratingRule{
 	window:        windowSpec{kind: windowRollingNow, years: 2},
 	scope:         scopeByClassOverride,
 	classOverride: models.ClassTypeTMG,
+	extraCredit:   easaSPLTMGExtraCredit,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyFlightTime, metric: mPICOrDualMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyTMGTime, metric: mPICOrDualMinutes, threshold: 360, unit: "minutes"},
@@ -575,7 +598,8 @@ var easaSPLTMGRule = ratingRule{
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
-		glider, err := rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeGlider}, true, rt.since)
+		extra := easaSPLTMGExtraCredit(rt.rating)
+		glider, err := rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, extra.classes, true, rt.since)
 		if err != nil {
 			rt.result.Status = StatusUnknown
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
@@ -593,13 +617,13 @@ var easaSPLTMGRule = ratingRule{
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
-		rt.result.CreditedULKinds = []models.ULKind{models.ULKindSailplane, models.ULKindThreeAxisMotorglider}
+		rt.result.CreditedULKinds = extra.ulKinds
 		hours := *tmg
 		hours.PICMinutes += glider.PICMinutes + ulSailplane + ulMotorglider
 		hours.InstructorMinutes += glider.InstructorMinutes
 		tmgHours := *tmg
 		tmgHours.PICMinutes += ulMotorglider
-		rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
+		rt.result.CountedClasses = append(extra.classes, rt.rule.classOverride)
 		rt.result.Progress = tmg
 
 		reqs := []Requirement{buildReq(&hours, rt.rule.baseReqs[0]), buildReq(&tmgHours, rt.rule.baseReqs[1])}

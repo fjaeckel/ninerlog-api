@@ -64,7 +64,22 @@ func AircraftKindsForRating(k ULKind) []ULKind {
 
 // IsULClass reports whether a free-text aircraft class names ULTRALIGHT.
 func IsULClass(aircraftClass *string) bool {
-	return aircraftClass != nil && strings.ToUpper(strings.TrimSpace(*aircraftClass)) == string(ClassTypeUL)
+	return NormalizeAircraftClass(aircraftClass) == ClassTypeUL
+}
+
+// NormalizeAircraftClass returns a free-text aircraft class trimmed and
+// upper-cased, or "" when unset.
+func NormalizeAircraftClass(aircraftClass *string) ClassType {
+	if aircraftClass == nil {
+		return ""
+	}
+	return ClassType(strings.ToUpper(strings.TrimSpace(*aircraftClass)))
+}
+
+// CoversAircraftKind reports whether a rating of kind k covers an aircraft of
+// kind aircraftKind; an unset aircraft kind is never covered.
+func (k ULKind) CoversAircraftKind(aircraftKind *ULKind) bool {
+	return aircraftKind != nil && containsULKind(AircraftKindsForRating(k), *aircraftKind)
 }
 
 func containsULKind(kinds []ULKind, k ULKind) bool {

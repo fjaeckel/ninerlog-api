@@ -616,3 +616,158 @@ func TestExportCSVSearchWithTotals(t *testing.T) {
 		requireStatus(t, c.GET("/exports/csv?q=%28reg%3AD-EMAT"), http.StatusBadRequest)
 	})
 }
+
+// TestExportPDFLicenceLogbook covers the licence-filtered PDF and the web
+// logbook list: classes compared case-insensitively, ultralights filtered by
+// the rating's kind, and flights credited from other classes included and
+// marked, never for a towed launch.
+func TestExportPDFLicenceLogbook(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("pdf-logbook"), "SecurePass123!", "Mehmet Sabine")
+
+	addAircraft := func(reg, class, kind string) {
+		t.Helper()
+		body := map[string]interface{}{
+			"registration": reg, "type": "T", "make": "M", "model": "M", "aircraftClass": class,
+		}
+		if kind != "" {
+			body["ulKind"] = kind
+		}
+		requireStatus(t, c.POST("/aircraft", body), http.StatusCreated)
+	}
+	addFlight := func(reg, acType, remarks, launch string, daysAgo int) {
+		t.Helper()
+		body := map[string]interface{}{
+			"date": pastDate(daysAgo), "aircraftReg": reg, "aircraftType": acType,
+			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+			"offBlockTime": "08:00", "onBlockTime": "09:00", "landings": 1,
+		}
+		if remarks != "" {
+			body["remarks"] = remarks
+		}
+		if launch != "" {
+			body["launchMethod"] = launch
+		}
+		requireStatus(t, c.POST("/flights", body), http.StatusCreated)
+	}
+	addLicence := func(authority, typ string, ratings ...map[string]interface{}) string {
+		t.Helper()
+		resp := c.POST("/licenses", map[string]interface{}{
+			"regulatoryAuthority": authority, "licenseType": typ,
+			"licenseNumber": fmt.Sprintf("%s-%s-%d", authority, typ, time.Now().UnixNano()),
+			"issueDate":     "2020-01-01", "issuingAuthority": authority,
+		})
+		requireStatus(t, resp, http.StatusCreated)
+		var lic map[string]interface{}
+		resp.JSON(&lic)
+		id := lic["id"].(string)
+		for _, r := range ratings {
+			r["issueDate"] = "2020-01-01"
+			requireStatus(t, c.POST(fmt.Sprintf("/licenses/%s/ratings", id), r), http.StatusCreated)
+		}
+		return id
+	}
+	logbookRegs := func(t *testing.T, licID string) map[string]int {
+		t.Helper()
+		resp := c.GET(fmt.Sprintf("/flights?logbookLicenseId=%s&pageSize=100", licID))
+		requireStatus(t, resp, http.StatusOK)
+		var r struct {
+			Data []struct {
+				AircraftReg string `json:"aircraftReg"`
+			} `json:"data"`
+		}
+		if err := resp.JSON(&r); err != nil {
+			t.Fatalf("decode flights: %v", err)
+		}
+		regs := map[string]int{}
+		for _, f := range r.Data {
+			regs[f.AircraftReg]++
+		}
+		return regs
+	}
+	exportText := func(t *testing.T, licID, format string) string {
+		t.Helper()
+		resp := c.GET(fmt.Sprintf("/exports/pdf?format=%s&layout=single&logbookLicenseId=%s", format, licID))
+		requireStatus(t, resp, http.StatusOK)
+		return pdfStreamText(resp.Body)
+	}
+
+	addAircraft("D-MXYZ", "ULTRALIGHT", "THREE_AXIS")
+	addAircraft("D-MTRK", "ULTRALIGHT", "WEIGHT_SHIFT")
+	addAircraft("D-EABC", "sep_land", "")
+	addAircraft("D-KTMG", "TMG", "")
+	addAircraft("D-1234", "GLIDER", "")
+
+	addFlight("D-MXYZ", "C42", "Platzrunden", "", 1)
+	addFlight("D-MTRK", "TRIKE", "Trike local", "", 2)
+	addFlight("D-EABC", "C172", "Rundflug", "", 3)
+	addFlight("D-KTMG", "SF25", "Motorsegler", "self-launch", 4)
+	addFlight("D-KTMG", "SF25", "Towed TMG", "aerotow", 5)
+	addFlight("D-1234", "ASK21", "Winde", "winch", 6)
+
+	threeAxis := addLicence("DULV", "UL", map[string]interface{}{"classType": "ULTRALIGHT", "ulKind": "THREE_AXIS"})
+	trike := addLicence("DULV", "UL", map[string]interface{}{"classType": "ULTRALIGHT", "ulKind": "WEIGHT_SHIFT"})
+	lapl := addLicence("EASA", "LAPL(A)", map[string]interface{}{"classType": "SEP_LAND"})
+
+	t.Run("M2 three-axis UL licence prints SEP and TMG flights as credited", func(t *testing.T) {
+		for _, format := range []string{"easa", "faa"} {
+			text := exportText(t, threeAxis, format)
+			for _, want := range []string{"D-MXYZ", "[Credited] Rundflug", "[Credited] Motorsegler"} {
+				if !strings.Contains(text, want) {
+					t.Errorf("%s PDF lacks %q", format, want)
+				}
+			}
+			for _, absent := range []string{"D-MTRK", "D-1234", "Towed TMG", "[Credited] Platzrunden"} {
+				if strings.Contains(text, absent) {
+					t.Errorf("%s PDF contains %q", format, absent)
+				}
+			}
+		}
+	})
+
+	t.Run("S trike licence excludes three-axis flights", func(t *testing.T) {
+		text := exportText(t, trike, "easa")
+		if !strings.Contains(text, "D-MTRK") {
+			t.Error("PDF lacks the trike flight")
+		}
+		for _, absent := range []string{"D-MXYZ", "D-EABC", "[Credited]"} {
+			if strings.Contains(text, absent) {
+				t.Errorf("PDF contains %q", absent)
+			}
+		}
+	})
+
+	t.Run("N2 towed glider launch never credited to LAPL(A)", func(t *testing.T) {
+		text := exportText(t, lapl, "easa")
+		for _, want := range []string{"D-EABC", "[Credited] Platzrunden", "[Credited] Motorsegler"} {
+			if !strings.Contains(text, want) {
+				t.Errorf("PDF lacks %q", want)
+			}
+		}
+		for _, absent := range []string{"D-1234", "Towed TMG", "D-MTRK"} {
+			if strings.Contains(text, absent) {
+				t.Errorf("PDF contains %q", absent)
+			}
+		}
+	})
+
+	t.Run("web logbook list uses the same scope", func(t *testing.T) {
+		cases := []struct {
+			name  string
+			licID string
+			want  map[string]int
+		}{
+			{"M2 three-axis", threeAxis, map[string]int{"D-MXYZ": 1, "D-EABC": 1, "D-KTMG": 1}},
+			{"S trike", trike, map[string]int{"D-MTRK": 1}},
+			{"N2 LAPL(A)", lapl, map[string]int{"D-EABC": 1, "D-MXYZ": 1, "D-KTMG": 1}},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				got := logbookRegs(t, tc.licID)
+				if fmt.Sprint(got) != fmt.Sprint(tc.want) {
+					t.Errorf("logbook registrations = %v, want %v", got, tc.want)
+				}
+			})
+		}
+	})
+}

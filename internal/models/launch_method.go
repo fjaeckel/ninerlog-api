@@ -35,6 +35,12 @@ func IsValidLaunchMethod(m string) bool {
 	return false
 }
 
+// TowedLaunchMethods returns the launch methods that do not count toward
+// powered classes.
+func TowedLaunchMethods() []string {
+	return []string{LaunchMethodWinch, LaunchMethodAerotow, LaunchMethodCar, LaunchMethodBungee}
+}
+
 // IsTowedLaunch reports whether m is a launch by external means (winch,
 // aerotow, car or bungee).
 func IsTowedLaunch(m string) bool {
