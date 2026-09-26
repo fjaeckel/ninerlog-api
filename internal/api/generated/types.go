@@ -210,6 +210,39 @@ func (e AuthProvidersMode) Valid() bool {
 	}
 }
 
+// Defines values for BackupAircraftUlKind.
+const (
+	BackupAircraftUlKindGYROPLANE            BackupAircraftUlKind = "GYROPLANE"
+	BackupAircraftUlKindHELICOPTER           BackupAircraftUlKind = "HELICOPTER"
+	BackupAircraftUlKindPOWEREDPARAGLIDER    BackupAircraftUlKind = "POWERED_PARAGLIDER"
+	BackupAircraftUlKindSAILPLANE            BackupAircraftUlKind = "SAILPLANE"
+	BackupAircraftUlKindTHREEAXIS            BackupAircraftUlKind = "THREE_AXIS"
+	BackupAircraftUlKindTHREEAXISMOTORGLIDER BackupAircraftUlKind = "THREE_AXIS_MOTORGLIDER"
+	BackupAircraftUlKindWEIGHTSHIFT          BackupAircraftUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the BackupAircraftUlKind enum.
+func (e BackupAircraftUlKind) Valid() bool {
+	switch e {
+	case BackupAircraftUlKindGYROPLANE:
+		return true
+	case BackupAircraftUlKindHELICOPTER:
+		return true
+	case BackupAircraftUlKindPOWEREDPARAGLIDER:
+		return true
+	case BackupAircraftUlKindSAILPLANE:
+		return true
+	case BackupAircraftUlKindTHREEAXIS:
+		return true
+	case BackupAircraftUlKindTHREEAXISMOTORGLIDER:
+		return true
+	case BackupAircraftUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackupClassRatingUlKind.
 const (
 	BackupClassRatingUlKindGYROPLANE         BackupClassRatingUlKind = "GYROPLANE"
@@ -2235,6 +2268,45 @@ func (e ReadinessItemUlKind) Valid() bool {
 	}
 }
 
+// Defines values for SaveWarningCode.
+const (
+	Ul120kgClass     SaveWarningCode = "ul_120kg_class"
+	UlMtomExceeds600 SaveWarningCode = "ul_mtom_exceeds_600"
+	UlNightFlight    SaveWarningCode = "ul_night_flight"
+)
+
+// Valid indicates whether the value is a known member of the SaveWarningCode enum.
+func (e SaveWarningCode) Valid() bool {
+	switch e {
+	case Ul120kgClass:
+		return true
+	case UlMtomExceeds600:
+		return true
+	case UlNightFlight:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SaveWarningSeverity.
+const (
+	SaveWarningSeverityInfo    SaveWarningSeverity = "info"
+	SaveWarningSeverityWarning SaveWarningSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the SaveWarningSeverity enum.
+func (e SaveWarningSeverity) Valid() bool {
+	switch e {
+	case SaveWarningSeverityInfo:
+		return true
+	case SaveWarningSeverityWarning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SignatureRequestCreatedMethod.
 const (
 	SignatureRequestCreatedMethodDeferred SignatureRequestCreatedMethod = "deferred"
@@ -3375,7 +3447,7 @@ type Aircraft struct {
 	// Example: Club aircraft, requires checkout
 	Notes *string `json:"notes,omitempty"`
 
-	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged.
+	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged. An ULTRALIGHT of kind `POWERED_PARAGLIDER` may carry a name in place of a registration (`PPG-Viper`); it is stored uppercased and trimmed and never rewritten into a nationality notation.
 	//
 	// Example: D-EFGH
 	Registration string `json:"registration"`
@@ -3411,6 +3483,9 @@ type Aircraft struct {
 
 	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
 	UserId openapi_types.UUID `json:"userId"`
+
+	// Warnings Checks the saved aircraft triggered. Present only on create and update responses, and only when a check fired; the aircraft is saved either way.
+	Warnings *[]SaveWarning `json:"warnings,omitempty"`
 }
 
 // AircraftUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
@@ -4259,6 +4334,132 @@ type AuthResponse struct {
 	User         User   `json:"user"`
 }
 
+// BackupAircraft An aircraft as written to a backup; the same fields as `Aircraft` without the save-time `warnings`.
+type BackupAircraft struct {
+	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
+	//
+	// Example: SEP_LAND
+	AircraftClass *string `json:"aircraftClass,omitempty"`
+
+	// CreatedAt Example: 2026-01-15T10:00:00Z
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DefaultArrivalIcao Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+	//
+	// Example: LSZH
+	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
+
+	// DefaultDepartureIcao Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+	//
+	// Example: LSZH
+	DefaultDepartureIcao *string `json:"defaultDepartureIcao,omitempty"`
+
+	// Id Example: 770e8400-e29b-41d4-a716-446655440002
+	Id openapi_types.UUID `json:"id"`
+
+	// IsActive Whether aircraft is still active in the user's fleet
+	//
+	// Example: true
+	IsActive bool `json:"isActive"`
+
+	// IsComplex Whether aircraft has retractable gear, flaps, and constant speed propeller
+	//
+	// Example: false
+	IsComplex bool `json:"isComplex"`
+
+	// IsHighPerformance Whether aircraft has more than 200 HP
+	//
+	// Example: false
+	IsHighPerformance bool `json:"isHighPerformance"`
+
+	// IsMultiPilot Whether the type is certificated for a minimum crew of two pilots. Co-pilot time is loggable only on such an aircraft.
+	//
+	// Example: false
+	IsMultiPilot bool `json:"isMultiPilot"`
+
+	// IsTailwheel Whether aircraft has tailwheel (conventional gear)
+	//
+	// Example: false
+	IsTailwheel bool `json:"isTailwheel"`
+
+	// Make Aircraft manufacturer
+	//
+	// Example: Cessna
+	Make string `json:"make"`
+
+	// MaxTakeoffMassKg Maximum certificated take-off mass in kilograms. FCL.035(a)(5) credits an ULTRALIGHT GYROPLANE of at least 450 kg toward GPL recency.
+	//
+	// Example: 472
+	MaxTakeoffMassKg *int `json:"maxTakeoffMassKg,omitempty"`
+
+	// Model Aircraft model name
+	//
+	// Example: 172 Skyhawk
+	Model string `json:"model"`
+
+	// Notes Additional notes about the aircraft
+	//
+	// Example: Club aircraft, requires checkout
+	Notes *string `json:"notes,omitempty"`
+
+	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged. An ULTRALIGHT of kind `POWERED_PARAGLIDER` may carry a name in place of a registration (`PPG-Viper`); it is stored uppercased and trimmed and never rewritten into a nationality notation.
+	//
+	// Example: D-EFGH
+	Registration string `json:"registration"`
+
+	// Type Aircraft type designation (e.g., C172, PA28, ASK21)
+	//
+	// Example: C172
+	Type string `json:"type"`
+
+	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+	// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+	// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+	// rating the pilot holds is of one kind; otherwise they are reported in
+	// ClassRatingCurrency.unclassifiedFlights.
+	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+	// - WEIGHT_SHIFT: weight-shift controlled trike
+	// - GYROPLANE: ultralight gyroplane
+	// - HELICOPTER: ultralight helicopter
+	// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+	// - SAILPLANE: ultralight sailplane
+	// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+	// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+	// 450 kg toward GPL recency (FCL.035(a)(5)).
+	//
+	//
+	// Example: THREE_AXIS
+	UlKind *BackupAircraftUlKind `json:"ulKind,omitempty"`
+
+	// UpdatedAt Example: 2026-02-01T14:30:00Z
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
+	UserId openapi_types.UUID `json:"userId"`
+}
+
+// BackupAircraftUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+// rating the pilot holds is of one kind; otherwise they are reported in
+// ClassRatingCurrency.unclassifiedFlights.
+// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+// - WEIGHT_SHIFT: weight-shift controlled trike
+// - GYROPLANE: ultralight gyroplane
+// - HELICOPTER: ultralight helicopter
+// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+// - SAILPLANE: ultralight sailplane
+// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+// 450 kg toward GPL recency (FCL.035(a)(5)).
+//
+// Example: THREE_AXIS
+type BackupAircraftUlKind string
+
 // BackupClassRating defines model for BackupClassRating.
 type BackupClassRating struct {
 	// ClassType Aircraft class rating type:
@@ -4897,7 +5098,7 @@ type BackupLogbookModeEventTrigger string
 
 // BackupPayload A NinerLog JSON backup, as written by `GET /users/me/data` and by every cloud backup run, and as read by `POST /users/me/data`. A restore also accepts older backups that lack `version` or the later sections.
 type BackupPayload struct {
-	Aircraft            []Aircraft                 `json:"aircraft"`
+	Aircraft            []BackupAircraft           `json:"aircraft"`
 	Contacts            []Contact                  `json:"contacts"`
 	Credentials         []BackupCredential         `json:"credentials"`
 	CustomCurrencyRules []BackupCustomCurrencyRule `json:"customCurrencyRules"`
@@ -6246,7 +6447,7 @@ type Flight struct {
 	// Example: 30
 	ActualInstrumentTime *int `json:"actualInstrumentTime,omitempty"`
 
-	// AircraftReg Aircraft registration
+	// AircraftReg Aircraft registration, or the name of a powered paraglider in the pilot's fleet (kept as the aircraft stores it).
 	//
 	// Example: D-EFGH
 	AircraftReg string `json:"aircraftReg"`
@@ -6612,6 +6813,9 @@ type Flight struct {
 
 	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
 	UserId openapi_types.UUID `json:"userId"`
+
+	// Warnings Checks the saved flight triggered. Present only on create, update and batch responses, and only when a check fired; the flight is saved either way.
+	Warnings *[]SaveWarning `json:"warnings,omitempty"`
 }
 
 // FlightLaunchMethod Launch method for glider/SPL flights (winch, aerotow, self-launch, car or bungee)
@@ -8685,6 +8889,24 @@ type RestoreWarning struct {
 	// Example: customCurrencyRules
 	Section string `json:"section"`
 }
+
+// SaveWarning defines model for SaveWarning.
+type SaveWarning struct {
+	// Code `ul_night_flight`: a flight on an ULTRALIGHT aircraft logs night time or night landings; German UL have no night privilege (LuftPersV §44(2), §45a). `ul_mtom_exceeds_600`: an ULTRALIGHT aircraft's MTOM is above the 600 kg German UL class limit. `ul_120kg_class` (info): an ULTRALIGHT aircraft with an MTOM of at most 120 kg may fall in the single-seat 120 kg class.
+	Code SaveWarningCode `json:"code"`
+
+	// Params Values for the message. `ul_night_flight`: `nightTime` (minutes), `landingsNight`, `registration`, `ulKind` (when set). `ul_mtom_exceeds_600` and `ul_120kg_class`: `mtomKg`, `limitKg`.
+	//
+	// Example: {"landingsNight":1,"nightTime":25,"registration":"D-MXYZ","ulKind":"THREE_AXIS"}
+	Params   map[string]interface{} `json:"params"`
+	Severity SaveWarningSeverity    `json:"severity"`
+}
+
+// SaveWarningCode `ul_night_flight`: a flight on an ULTRALIGHT aircraft logs night time or night landings; German UL have no night privilege (LuftPersV §44(2), §45a). `ul_mtom_exceeds_600`: an ULTRALIGHT aircraft's MTOM is above the 600 kg German UL class limit. `ul_120kg_class` (info): an ULTRALIGHT aircraft with an MTOM of at most 120 kg may fall in the single-seat 120 kg class.
+type SaveWarningCode string
+
+// SaveWarningSeverity defines model for SaveWarningSeverity.
+type SaveWarningSeverity string
 
 // Session One signed-in device holding a live session.
 type Session struct {

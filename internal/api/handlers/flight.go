@@ -273,7 +273,9 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
 	}
-	c.JSON(http.StatusCreated, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))
+	out := withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c))
+	out.Warnings = convertToGeneratedWarnings(h.flightService.CheckFlights(c.Request.Context(), userID, []*models.Flight{flight})[0])
+	c.JSON(http.StatusCreated, out)
 }
 
 // flightFromCreate builds the flight a create body describes and applies the
@@ -711,7 +713,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
 	}
 
-	c.JSON(http.StatusOK, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))
+	out := withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c))
+	out.Warnings = convertToGeneratedWarnings(h.flightService.CheckFlights(c.Request.Context(), userID, []*models.Flight{flight})[0])
+	c.JSON(http.StatusOK, out)
 }
 
 // DeleteFlight implements DELETE /flights/{flightId}

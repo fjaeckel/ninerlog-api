@@ -106,6 +106,10 @@ func Normalize(raw string) Result {
 // Canonical is Normalize for callers that only want the normalised string.
 func Canonical(raw string) string { return Normalize(raw).Value }
 
+// Clean returns raw uppercased and trimmed with internal whitespace runs
+// collapsed, without matching a nationality mark.
+func Clean(raw string) string { return clean(raw) }
+
 // Lookup returns the table entry for a nationality mark.
 func Lookup(prefix string) (Entry, bool) {
 	e, ok := byPrefix[strings.ToUpper(strings.TrimSpace(prefix))]

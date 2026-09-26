@@ -68,14 +68,34 @@ turns a value it does not understand into a different value.
 `prefixes.go` explains, per entry, when a shape pattern is worth spelling out;
 most entries do not need one.
 
+## Powered-paraglider names
+
+A German powered paraglider (Motorschirm) has no registration, so the pilot names it
+instead: `PPG-Viper`, `My Paramotor`. Most names match no state's shape and pass through
+untouched, but a short one can: `Apco` has the shape of a Pakistani registration (`AP-CO`)
+and `PPG1` of a Brazilian one (`PP-G1`). Two rules keep a name a name:
+
+- An aircraft of class `ULTRALIGHT` and kind `POWERED_PARAGLIDER` is only cleaned
+  (`registration.Clean`: uppercased, trimmed, whitespace collapsed), never matched against
+  the table (`models.Aircraft.CanonicalRegistration`). `PPG-Viper` is stored as `PPG-VIPER`,
+  `Apco` as `APCO`. The fleet pass of `POST /flights/recalculate` leaves it alone too.
+- A flight's `aircraftReg` is cleaned, not canonicalised, when the cleaned value is the
+  registration of a powered paraglider in the pilot's fleet
+  (`FlightService.canonicalFlightRegistration`). Any other value is canonicalised as before,
+  so `PPG1` on a flight is `PP-G1` until an aircraft of that kind named `PPG1` exists.
+
+Create the aircraft before logging its first flight. CSV and ForeFlight imports canonicalise
+registrations before the fleet is consulted, so a short name that has a registration's shape
+is imported in the canonical spelling.
+
 ## Where normalisation happens
 
 At the service layer, so every write path is covered by one choke point:
 
 | Path | Where |
 | --- | --- |
-| `POST /aircraft`, `PATCH /aircraft/{id}` | `AircraftService.CreateAircraft` / `UpdateAircraft` |
-| `POST /flights`, `PATCH /flights/{id}`, flight sessions | `FlightService.CreateFlight` / `UpdateFlight` |
+| `POST /aircraft`, `PATCH /aircraft/{id}` | `AircraftService.CreateAircraft` / `UpdateAircraft`, by `Aircraft.CanonicalRegistration` |
+| `POST /flights`, `PUT /flights/{id}`, `POST /flights/batch`, flight sessions | `FlightService.CreateFlight` / `UpdateFlight` / `ValidateFlightBatch`, with the powered-paraglider exception above |
 | CSV / ForeFlight / JSON-backup import | the services above, plus canonical keying in `internal/api/handlers/import.go` so one aircraft spelled two ways in one file yields one fleet entry (and the class hint below) |
 | `POST /flights/recalculate` | the services above, plus a fleet pass — see below |
 

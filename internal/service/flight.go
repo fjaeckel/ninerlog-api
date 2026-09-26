@@ -29,6 +29,7 @@ type FlightService struct {
 	flightRepo   repository.FlightRepository
 	baselineRepo repository.FlightBaselineRepository
 	logbook      *LogbookService
+	aircraftRepo repository.AircraftRepository
 }
 
 func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repository.FlightBaselineRepository) *FlightService {
@@ -36,6 +37,12 @@ func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repos
 		flightRepo:   flightRepo,
 		baselineRepo: baselineRepo,
 	}
+}
+
+// SetAircraftRepository sets the fleet source for powered-paraglider name
+// resolution and CheckFlights.
+func (s *FlightService) SetAircraftRepository(repo repository.AircraftRepository) {
+	s.aircraftRepo = repo
 }
 
 // SetLogbookService attaches the strict logbook mode rules.
@@ -84,6 +91,7 @@ func (s *FlightService) CreateFlightChecked(ctx context.Context, flight *models.
 // CreateFlightWith validates the flight and writes it together with opts.Crew
 // in one transaction.
 func (s *FlightService) CreateFlightWith(ctx context.Context, flight *models.Flight, opts FlightWriteOptions) error {
+	flight.AircraftReg = s.canonicalFlightRegistration(ctx, flight.UserID, flight.AircraftReg)
 	if err := prepareFlight(flight); err != nil {
 		return err
 	}
@@ -97,10 +105,30 @@ func (s *FlightService) CreateFlightWith(ctx context.Context, flight *models.Fli
 	return s.flightRepo.CreateWithCrew(ctx, flight, crew)
 }
 
+// canonicalFlightRegistration returns raw cleaned when that names a powered
+// paraglider in userID's fleet, else registration.Canonical(raw).
+func (s *FlightService) canonicalFlightRegistration(ctx context.Context, userID uuid.UUID, raw string) string {
+	canonical := registration.Canonical(raw)
+	cleaned := registration.Clean(raw)
+	if canonical == cleaned || s.aircraftRepo == nil {
+		return canonical
+	}
+	fleet, err := s.aircraftRepo.GetByUserID(ctx, userID, nil)
+	if err != nil {
+		return canonical
+	}
+	for _, ac := range fleet {
+		if ac.IsPoweredParaglider() && ac.Registration == cleaned {
+			return cleaned
+		}
+	}
+	return canonical
+}
+
 // prepareFlight normalises a flight for storage and validates it. Every
 // create path runs it.
 func prepareFlight(flight *models.Flight) error {
-	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
+	flight.AircraftReg = registration.Clean(flight.AircraftReg)
 	models.NormalizeLaunchMethod(flight)
 	flight.DeriveLaunches()
 
@@ -141,11 +169,12 @@ func (e *FlightBatchLegError) Unwrap() error { return e.Err }
 // ValidateFlightBatch prepares every leg as CreateFlight does. Returns
 // ErrInvalidFlightBatch for a wrong leg count, or a *FlightBatchLegError for
 // the first invalid leg.
-func (s *FlightService) ValidateFlightBatch(flights []*models.Flight) error {
+func (s *FlightService) ValidateFlightBatch(ctx context.Context, flights []*models.Flight) error {
 	if len(flights) == 0 || len(flights) > MaxFlightBatchLegs {
 		return ErrInvalidFlightBatch
 	}
 	for i, f := range flights {
+		f.AircraftReg = s.canonicalFlightRegistration(ctx, f.UserID, f.AircraftReg)
 		if err := prepareFlight(f); err != nil {
 			return &FlightBatchLegError{Index: i, Err: err}
 		}
@@ -158,7 +187,7 @@ func (s *FlightService) ValidateFlightBatch(flights []*models.Flight) error {
 // transaction, running opts.BeforeWrite inside it. Nothing is stored when any
 // leg is invalid.
 func (s *FlightService) CreateFlightBatch(ctx context.Context, flights []*models.Flight, opts FlightWriteOptions) error {
-	if err := s.ValidateFlightBatch(flights); err != nil {
+	if err := s.ValidateFlightBatch(ctx, flights); err != nil {
 		return err
 	}
 	if s.logbook != nil {
@@ -218,7 +247,7 @@ func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight,
 // returns ErrCorrectionReasonRequired and writes nothing. System sources
 // (recalc, aircraft_rename, import) are never classified.
 func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Flight, userID uuid.UUID, opts FlightWriteOptions) error {
-	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
+	flight.AircraftReg = s.canonicalFlightRegistration(ctx, userID, flight.AircraftReg)
 	models.NormalizeLaunchMethod(flight)
 	flight.DeriveLaunches()
 

@@ -7,7 +7,6 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
-	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -80,7 +79,7 @@ func (h *APIHandler) normalizeFleetRegistrations(c *gin.Context, userID uuid.UUI
 		return 0, 0
 	}
 	for _, ac := range fleet {
-		if registration.Canonical(ac.Registration) == ac.Registration {
+		if ac.CanonicalRegistration(ac.Registration) == ac.Registration {
 			continue
 		}
 		if _, err := h.aircraftService.UpdateAircraft(c.Request.Context(), ac, userID, false); err != nil {

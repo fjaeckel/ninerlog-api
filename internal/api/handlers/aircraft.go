@@ -143,7 +143,9 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, convertToGeneratedAircraft(aircraft))
+	out := convertToGeneratedAircraft(aircraft)
+	out.Warnings = convertToGeneratedWarnings(h.aircraftService.CheckAircraft(aircraft))
+	c.JSON(http.StatusCreated, out)
 }
 
 // GetAircraft implements GET /aircraft/{aircraftId}
@@ -259,7 +261,9 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 		return
 	}
 
-	c.JSON(http.StatusOK, convertToGeneratedAircraft(aircraft))
+	out := convertToGeneratedAircraft(aircraft)
+	out.Warnings = convertToGeneratedWarnings(h.aircraftService.CheckAircraft(aircraft))
+	c.JSON(http.StatusOK, out)
 }
 
 // GetAircraftStats implements GET /aircraft/stats
