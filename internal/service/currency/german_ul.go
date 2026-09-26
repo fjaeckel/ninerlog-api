@@ -88,7 +88,7 @@ func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, class
 		RuleDescriptionKey:  "ul_pax",
 	}
 
-	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, false), since)
+	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, false), false, since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown

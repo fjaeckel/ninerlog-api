@@ -102,7 +102,7 @@ var Fields = []Field{
 	{Name: "crew", Type: FieldText, Description: "Crew member name"},
 	{Name: "fstdType", Aliases: []string{"fstd"}, Type: FieldText, Column: "COALESCE(fstd_type, '')", Description: "FSTD type designation"},
 	{Name: "endorsements", Type: FieldText, Column: "COALESCE(endorsements, '')", Description: "Endorsements"},
-	{Name: "launchMethod", Aliases: []string{"launch"}, Type: FieldText, Column: "COALESCE(launch_method, '')", Description: "Glider launch method (winch, aerotow, self-launch)"},
+	{Name: "launchMethod", Aliases: []string{"launch"}, Type: FieldText, Column: "COALESCE(launch_method, '')", Description: "Glider launch method (winch, aerotow, self-launch, car, bungee)"},
 	{Name: "createdAt", Type: FieldDate, Column: "created_at", Description: "Entry creation date"},
 	{Name: "updatedAt", Type: FieldDate, Column: "updated_at", Description: "Entry last-modified date"},
 }

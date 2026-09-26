@@ -345,28 +345,33 @@ interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL
 `internal/repository/postgres/currency_flight_data.go`:
 
 - `GetProgressByAircraftClass(userID, classTypes, includeTowed, since)` — summed
-  times/landings for flights on any of the given classes since a date.
+  times/landings for flights on any of the given classes since a date, plus launches
+  (take-offs, at least one per flight), the number of flights with dual time and the
+  longest total time of such a flight.
 - `GetProgressAll(userID, since)` — same, across all classes.
 - `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
 - `GetLastProficiencyCheck(userID, classTypes, since)` — most recent proficiency check on
-  any of the given classes (`[IR]` matches every class), excluding towed launches.
-- `GetLaunchCounts(userID, classType, since)` — per-launch-method counts on a class for
-  glider (SPL) currency.
-- `GetLandingDaysByAircraftClass(userID, classType, includeTowed, since)` — one row per flown date with
-  its day and night landing counts, newest date first. Used for passenger currency, which
-  needs *when* each landing was flown, not just how many there were.
+  any of the given classes (`[IR]` matches every class), excluding towed launches except on
+  `GLIDER`.
+- `GetLaunchCounts(userID, classType, since)` — launches per launch method on a class
+  (SFCL.155(c)); a zero `since` returns every method ever logged.
+- `GetLandingDaysByAircraftClass(userID, classType, includeTowed, picOnly, since)` — one row per flown date with
+  its day and night landing counts, newest date first; `picOnly` keeps only flights with PIC
+  time. Used for passenger currency, which needs *when* each landing was flown, not just how
+  many there were.
 
 This separation keeps the *regulatory* logic (what to count and over which window) in the
 evaluators, and the *data* logic (how to query) in one place.
 
-Flights launched by winch or aerotow are towed launches: they count only toward a `GLIDER`
+Flights launched by winch, car, aerotow or bungee are towed launches: they count only toward a `GLIDER`
 rating or a rule for a sailplane licence (EASA `SPL`/`LAPL(S)`, FAA `GLIDER`), never toward
 a powered class, its proficiency check or its passenger currency — even when the glider is
 classed `SEP_LAND`. Self-launches are not towed.
 
 Aircraft between categories are classed by the licence they are flown under: UL sailplanes
 and UL motorgliders `ULTRALIGHT`, sailplanes including self-launching ones `GLIDER`, touring
-motor gliders `TMG`.
+motor gliders `TMG`. See [SAILPLANES.md](./SAILPLANES.md) for telling a self-launching
+sailplane from a TMG.
 
 ### Credited classes
 
@@ -374,16 +379,18 @@ A flight belongs to an aircraft class when its aircraft's free-text `aircraft_cl
 trimmed and upper-cased, equals that class. Each rating rule declares which classes it
 counts (the rule's `scope`, resolved by `resolveClasses` in `engine.go`); by default that is
 the rating's own `ClassType`, so an aircraft classed `GLIDER` counts only toward a `GLIDER`
-rating, never toward `OTHER`. Two EASA rules count more than one class
-(`internal/service/currency/credited_classes.go`):
+rating, never toward `OTHER`. These EASA rules count more than one class
+(`internal/service/currency/credited_classes.go`, and the sailplane rules in `easa.go`):
 
 | Rule | Classes counted | Condition |
 | --- | --- | --- |
 | LAPL(A) recency, FCL.140.A(a) (`easaLAPLRule`) | `SEP_LAND`, `SEP_SEA`, `MEP_LAND`, `MEP_SEA`, `SET_LAND`, `SET_SEA`, `TMG` | Always — the rule counts experience "as pilots of aeroplanes or TMGs". `GLIDER` and `ULTRALIGHT` are not aeroplanes. |
 | SEP/TMG revalidation, FCL.740.A(b)(1) (`easaSEPTMGRule`) | `SEP_LAND`, `TMG` | Only for a `SEP_LAND` or `TMG` rating on a license that holds both. `SEP_SEA` is never pooled. |
+| Sailplane recency, SFCL.160(a)(1) (`easaSPLRule`) | `GLIDER`, `TMG` | For a `GLIDER` rating, and only for the 5 h; launches and training flights count on `GLIDER` alone. |
+| SPL TMG recency, SFCL.160(b)(1) (`easaSPLTMGRule`) | `GLIDER`, `TMG` | Only for the 12 h; the 6 h, take-offs and landings and training flight count on `TMG` alone. |
 
-The pool applies to the rule's experience totals and to its proficiency-check lookup, and
-never includes towed launches (neither rule counts towed flights). The
+For the two aeroplane rules the pool applies to the experience totals and to the
+proficiency-check lookup, and never includes towed launches. The
 evaluator needs the license's other ratings for the condition, so `EASAEvaluator`
 implements `PeerAwareEvaluator` and `Service.EvaluateAll` passes them in. A pooled result
 lists the counted classes in `ClassRatingCurrency.countedClasses`; it is absent when only the
@@ -452,7 +459,7 @@ The two main rule sets differ substantially, which is why each has its own evalu
 | Passenger carriage | FCL.060(b): 3 takeoffs/landings; night requires 1 night landing unless IR held (FCL.060(b)(2)(ii)) | §61.57(a)/(b): 3 takeoffs/landings in 90 days (day); 3 full-stop night landings for night |
 | Instrument recency | FCL.625.A revalidation | §61.57(c): rolling 6 months |
 | Flight review | Recency requirements | §61.56: every 24 calendar months |
-| Gliders | FCL.140.S — counts launches by method | §61.57(d) |
+| Gliders | SFCL.160 recency, SFCL.155 launch methods — see [SAILPLANES.md](./SAILPLANES.md) | §61.57(d) |
 
 `GermanULEvaluator` handles German ultralight rules and registers itself for the relevant
 authority strings via `RegisterMulti`. `OtherEvaluator` is the safe fallback for any
@@ -464,12 +471,18 @@ type:
 
 | Class | LBA / DULV / DAeC | EASA / unknown authority | FAA |
 | --- | --- | --- | --- |
-| `GLIDER` | FCL.140.S (`easaSPLRule`) | FCL.140.S (`easaSPLRule`) | §61.57 glider launches (`faaGliderRule`) |
+| `GLIDER` | SFCL.160(a) (`easaSPLRule`) | SFCL.160(a) (`easaSPLRule`) | §61.57 glider launches (`faaGliderRule`) |
 | `ULTRALIGHT` | LuftPersV §45 (`germanULRule`) + UL passenger currency | expiry only, no passenger currency | expiry only, no passenger currency |
 
 Ultralights are national law, so only the German UL authorities carry a recency rule for them.
 
-Passenger currency for a `GLIDER` rating never reports night privilege.
+Passenger currency for a `GLIDER` rating never reports night privilege. For `GLIDER`, and for
+`TMG` on an `SPL` or `LAPL(S)` license, it counts only flights with PIC time
+(SFCL.160(e)), under `ruleDescriptionKey` `easa_spl_pax` or `easa_spl_tmg_pax`.
+
+The sailplane rules — what counts toward SFCL.160(a) and (b), the proficiency-check
+alternative, per-method launch recency (SFCL.155(c)) and the known gaps — are described in
+[SAILPLANES.md](./SAILPLANES.md).
 
 ### Extending the engine
 

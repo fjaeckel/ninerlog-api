@@ -254,7 +254,7 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 		result.RuleDescription = "3 takeoffs & landings in preceding 90 days for day passenger currency (14 CFR 61.57(a)) — night not applicable for " + license.LicenseType
 	}
 
-	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, strings.EqualFold(license.LicenseType, "GLIDER")), since)
+	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, strings.EqualFold(license.LicenseType, "GLIDER")), false, since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown

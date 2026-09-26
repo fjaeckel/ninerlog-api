@@ -54,11 +54,27 @@ privileges and carry passengers?
   the rating's own class: EASA LAPL(A) pools every aeroplane class and TMG (FCL.140.A), and
   SEP(land)+TMG pool under FCL.740.A(b)(1) when both ratings are held. Passenger currency is
   never pooled. See `credited_classes.go` and DOMAIN.md "Credited classes".
+- **Sailplanes follow Part-SFCL, not Part-FCL Subpart S.** `FCL.140.S` is superseded; cite
+  SFCL.155 (launch methods) and SFCL.160 (recency). Before touching glider or TMG logic read
+  `docs/SAILPLANES.md`. The traps:
+  - The aircraft class decides: sailplanes, *including self-launching ones*, are `GLIDER`;
+    only touring motor gliders are `TMG`. A `D-K…` registration can be either.
+  - Every TMG is a sailplane. SFCL.160(a) counts 5 h on `GLIDER` + `TMG`, but the 15
+    launches and 2 training flights on `GLIDER` only; SFCL.160(b) counts 12 h on both, with
+    6 h, 12 take-offs and landings and a ≥1 h training flight on `TMG`.
+  - Hour requirements are PIC **or dual or supervised solo** time, not PIC alone.
+  - "Training flights" are a number of flights (`mTrainingFlights`), not dual minutes. The
+    TMG "training flight of at least one hour" is one flight (`mLongestTrainingFlight`).
+  - Each recency rule has a proficiency-check alternative.
+  - Launch recency is per method: 5 in 24 months, bungee 2; TMG take-offs count toward
+    self-launch. Winch, car, aerotow and bungee are towed and never count toward powered
+    classes.
+  - Sailplane passenger recency counts only flights with PIC time (SFCL.160(e)).
 - **Evaluators never write SQL.** They pull aggregates through the `FlightDataProvider`
   interface (`evaluator.go`, PostgreSQL impl in `postgres/currency_flight_data.go`):
   `GetProgressByAircraftClass`, `GetProgressAll`, `GetLastFlightReview`,
-  `GetLastProficiencyCheck`, `GetLaunchCounts`. Need new data? Extend the interface, not the
-  evaluator.
+  `GetLastProficiencyCheck`, `GetLaunchCounts`, `GetLandingDaysByAircraftClass`. Need new
+  data? Extend the interface, not the evaluator.
 - Users can also define custom currency rules; see the custom-currency service and handlers.
 
 ## Validation, ownership, errors

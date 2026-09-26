@@ -246,15 +246,18 @@ func TestEASA_PPL_MEP_NotPooled(t *testing.T) {
 
 // ── Unchanged rules ───────────────────────────────────────────────────
 
-func TestEASA_SPL_TMG_NotPooled(t *testing.T) {
+func TestEASA_SPL_TMG_PoolsSailplanesNotAeroplanes(t *testing.T) {
 	license, ratings := crossClassSetup("SPL", models.ClassTypeTMG, models.ClassTypeSEPLand)
 	dp := newMockFlightDataProvider()
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
 	if res.RuleDescriptionKey != "easa_spl_tmg" {
 		t.Errorf("rule = %s, want easa_spl_tmg", res.RuleDescriptionKey)
 	}
-	if res.CountedClasses != nil || !slices.Equal(dp.lastClasses, []models.ClassType{models.ClassTypeTMG}) {
-		t.Errorf("countedClasses = %v, queried = %v, want TMG only", res.CountedClasses, dp.lastClasses)
+	if !slices.Equal(res.CountedClasses, []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}) {
+		t.Errorf("countedClasses = %v, want [GLIDER TMG]", res.CountedClasses)
+	}
+	if _, queried := dp.includeTowed[models.ClassTypeSEPLand]; queried {
+		t.Error("SEP_LAND flights must not count toward SFCL.160(b)")
 	}
 }
 
@@ -265,8 +268,8 @@ func TestEASA_LAPL_GliderRatingUsesSPLRule(t *testing.T) {
 	if res.RuleDescriptionKey != "easa_spl" {
 		t.Errorf("rule = %s, want easa_spl", res.RuleDescriptionKey)
 	}
-	if res.CountedClasses != nil {
-		t.Errorf("countedClasses = %v, want nil", res.CountedClasses)
+	if !slices.Equal(res.CountedClasses, []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}) {
+		t.Errorf("countedClasses = %v, want [GLIDER TMG]", res.CountedClasses)
 	}
 }
 

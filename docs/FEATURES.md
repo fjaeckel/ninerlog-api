@@ -200,6 +200,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   (FCL.740.A(b)(1)). No custom rule is needed. The rating result lists the pooled classes in
   `countedClasses`. Details in [DOMAIN.md](./DOMAIN.md#credited-classes).
 
+- **Sailplanes and TMGs** — a `GLIDER` rating follows Part-SFCL recency (SFCL.160(a)): 5 h
+  on sailplanes including TMGs, 15 launches and 2 training flights with an instructor on
+  gliders, or a proficiency check. An SPL `TMG` rating follows SFCL.160(b). Launch recency
+  is reported per method (SFCL.155(c)), with TMG take-offs counting toward self-launch.
+  Details in [SAILPLANES.md](./SAILPLANES.md).
+
 - **Custom currency rules** (`/custom-currency`, `internal/service/currency/custom*.go`,
   `internal/api/handlers/custom_currency.go`) — a pilot writes their own rule as a
   declarative document: a rolling window, filters selecting which flights count, and

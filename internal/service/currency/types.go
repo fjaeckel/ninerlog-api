@@ -59,8 +59,14 @@ type Progress struct {
 	Flights           int `json:"flights"`
 	Approaches        int `json:"approaches"`
 	Holds             int `json:"holds"`
-	RequiredMinutes   int `json:"requiredMinutes,omitempty"`
-	RequiredLandings  int `json:"requiredLandings,omitempty"`
+	// Launches counts takeoffs, at least one per flight.
+	Launches int `json:"launches"`
+	// TrainingFlights counts flights with dual time received.
+	TrainingFlights int `json:"trainingFlights"`
+	// LongestTrainingFlightMinutes is the longest total time of a flight with dual time received.
+	LongestTrainingFlightMinutes int `json:"longestTrainingFlightMinutes"`
+	RequiredMinutes              int `json:"requiredMinutes,omitempty"`
+	RequiredLandings             int `json:"requiredLandings,omitempty"`
 }
 
 // Requirement represents a single currency requirement with progress
@@ -126,8 +132,8 @@ type FlightReviewStatus struct {
 	MessageParams *MessageParams `json:"messageParams,omitempty"`
 }
 
-// LaunchMethodCurrency tracks SPL launch method currency per FCL.140.S(b)(1).
-// 5 launches per method (winch, aerotow, self-launch) in rolling 24 months.
+// LaunchMethodCurrency tracks launch method recency per SFCL.155(c): 5 launches
+// per method (2 for bungee) in the rolling 24 months.
 type LaunchMethodCurrency struct {
 	Method     string `json:"method"`
 	Launches   int    `json:"launches"`

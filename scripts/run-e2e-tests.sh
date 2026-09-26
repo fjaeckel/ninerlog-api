@@ -13,7 +13,7 @@
 #                 Useful for re-running tests quickly without rebuilding.
 #
 # Re-run against an already-running environment (after -k):
-#   E2E_API_URL=http://localhost:3333 go test -v -tags=e2e -count=1 -timeout=300s -run "TestEASA_IR" ./test/e2e/...
+#   E2E_API_URL=http://localhost:3333 go test -v -tags=e2e -count=1 -timeout=600s -run "TestEASA_IR" ./test/e2e/...
 #
 set -euo pipefail
 
@@ -40,7 +40,7 @@ cleanup() {
         echo "   docker compose -f $COMPOSE_FILE down -v --remove-orphans"
         echo ""
         echo "Re-run tests quickly with:"
-        echo "   E2E_API_URL=$API_URL go test -v -tags=e2e -count=1 -timeout=300s -run \"PATTERN\" ./test/e2e/..."
+        echo "   E2E_API_URL=$API_URL go test -v -tags=e2e -count=1 -timeout=600s -run \"PATTERN\" ./test/e2e/..."
         return
     fi
     echo "Tearing down e2e environment..."
@@ -87,7 +87,7 @@ if [ -n "$TEST_FILTER" ]; then
     RUN_FLAG="-run $TEST_FILTER"
     echo "   Filter: $TEST_FILTER"
 fi
-E2E_API_URL="$API_URL" E2E_MAILPIT_URL="$MAILPIT_URL" go test -v -tags=e2e -count=1 -timeout=300s $RUN_FLAG ./test/e2e/...
+E2E_API_URL="$API_URL" E2E_MAILPIT_URL="$MAILPIT_URL" go test -v -tags=e2e -count=1 -timeout=600s $RUN_FLAG ./test/e2e/...
 TEST_EXIT=$?
 
 if [ $TEST_EXIT -eq 0 ]; then

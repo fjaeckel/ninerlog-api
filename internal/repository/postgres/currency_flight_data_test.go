@@ -24,6 +24,7 @@ func newCurrencyDataProvider(t *testing.T) (*currencyFlightDataProvider, sqlmock
 var progressColumns = []string{
 	"flights", "total_minutes", "pic_minutes", "ifr_minutes", "instructor_minutes", "night_minutes",
 	"landings", "day_landings", "night_landings", "approaches", "holds",
+	"launches", "training_flights", "longest_training_flight_minutes",
 }
 
 func TestGetProgressByAircraftClass_BindsClassArray(t *testing.T) {
@@ -34,13 +35,14 @@ func TestGetProgressByAircraftClass_BindsClassArray(t *testing.T) {
 	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta("upper(trim(a.aircraft_class)) = ANY($2)")).
 		WithArgs(userID, pq.Array([]string{"SEP_LAND", "TMG"}), since, false).
-		WillReturnRows(sqlmock.NewRows(progressColumns).AddRow(3, 720, 600, 0, 60, 0, 12, 12, 0, 0, 0))
+		WillReturnRows(sqlmock.NewRows(progressColumns).AddRow(3, 720, 600, 0, 60, 0, 12, 12, 0, 0, 0, 12, 1, 60))
 
 	got, err := p.GetProgressByAircraftClass(context.Background(), userID, []models.ClassType{models.ClassTypeSEPLand, models.ClassTypeTMG}, false, since)
 	if err != nil {
 		t.Fatalf("GetProgressByAircraftClass: %v", err)
 	}
-	if got.TotalMinutes != 720 || got.Landings != 12 || got.Flights != 3 {
+	if got.TotalMinutes != 720 || got.Landings != 12 || got.Flights != 3 ||
+		got.Launches != 12 || got.TrainingFlights != 1 || got.LongestTrainingFlightMinutes != 60 {
 		t.Errorf("progress = %+v", got)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

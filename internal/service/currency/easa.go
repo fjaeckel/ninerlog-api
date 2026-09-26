@@ -47,7 +47,7 @@ func isEASASailplane(licenseType string) bool {
 }
 
 // easaSelectRule dispatches a (license type, class type) pair to its rule.
-// License-type-aware: LAPL/SPL use recency regulations (FCL.140.x) while
+// License-type-aware: LAPL/SPL use recency regulations (FCL.140.A, SFCL.160) while
 // PPL/CPL/ATPL use revalidation regulations (FCL.740.A). IR is always
 // FCL.625.A regardless of license type.
 func easaSelectRule(rating *models.ClassRating, license *models.License) *ratingRule {
@@ -58,7 +58,7 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 		return &easaIRRule
 	}
 
-	// Glider uses FCL.140.S regardless of license type; ultralight is national law, expiry only
+	// Glider uses SFCL.160(a) regardless of license type; ultralight is national law, expiry only
 	switch rating.ClassType {
 	case models.ClassTypeGlider:
 		return &easaSPLRule
@@ -71,7 +71,7 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 		return &easaLAPLRule
 	}
 
-	// SPL/LAPL(S) uses FCL.140.S (rolling 24 months, launches not landings)
+	// SPL/LAPL(S) uses SFCL.160 (rolling 24 months; TMG under SFCL.160(b))
 	if isEASASailplane(lt) {
 		if rating.ClassType == models.ClassTypeTMG {
 			return &easaSPLTMGRule
@@ -417,55 +417,61 @@ func easaLAPLLandSeaReqs(ctx context.Context, rt *ratingRuntime) ([]Requirement,
 	return reqs, nil
 }
 
-// easaSPLRule — EASA FCL.140.S(a) recency for SPL/LAPL(S):
-//   - 5 hours flight time as PIC on sailplanes
-//   - 15 launches (NOT landings)
-//   - 2 training flights with instructor
+// easaSPLRule — EASA SFCL.160(a) recency for sailplanes, excluding TMGs:
+//   - 5 hours flight time as PIC, dual or supervised solo on sailplanes (GLIDER and TMG)
+//   - 15 launches on sailplanes, excluding TMGs
+//   - 2 training flights with an FI(S) on sailplanes, excluding TMGs
+//   - OR a proficiency check with an FE(S) on a sailplane, excluding TMGs (SFCL.160(a)(2))
 //
-// Lookback: rolling 24 months from NOW. Also evaluates launch method currency
-// per FCL.140.S(b)(1).
+// Lookback: rolling 24 months from NOW. Also reports launch method recency
+// per SFCL.155(c).
 var easaSPLRule = ratingRule{
 	displayKey:  "easa_spl",
-	description: "Requires 5h PIC flight time + 15 launches + 2 training flights with instructor within the last 24 months (EASA FCL.140.S)",
+	description: "Requires 5h flight time as PIC, dual or supervised solo on sailplanes including TMGs, with 15 launches and 2 training flights with an instructor on sailplanes excluding TMGs, within the last 24 months, or a proficiency check with an examiner (EASA SFCL.160(a)); each launch method needs 5 launches in 24 months, bungee 2 (SFCL.155(c))",
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeByClass,
 	countsTowed: true,
 	baseReqs: []reqSpec{
-		{nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 300, unit: "minutes"},
-		{nameKey: ReqKeyLaunches, metric: mLandings, threshold: 15, unit: "launches"},
-		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
+		{nameKey: ReqKeyFlightTime, metric: mPICOrDualMinutes, threshold: 300, unit: "minutes"},
+		{nameKey: ReqKeyLaunches, metric: mLaunches, threshold: 15, unit: "launches"},
+		{nameKey: ReqKeyTrainingFlights, metric: mTrainingFlights, threshold: 2, unit: "flights"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		since := rt.rule.window.rollingSince(time.Now())
-		rt.since = since
-		progress, err := rt.fetchProgress(ctx)
+		rt.since = rt.rule.window.rollingSince(time.Now())
+		sailplane, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
-		rt.result.Progress = progress
-		reqs := buildReqs(progress, rt.rule.baseReqs)
-		rt.result.Requirements = reqs
-		allMet := allReqsMet(reqs)
-
-		launchCounts, _ := rt.dp.GetLaunchCounts(ctx, rt.license.UserID, rt.rating.ClassType, since)
-		var launchMethodCurrency []LaunchMethodCurrency
-		for _, method := range []string{"winch", "aerotow", "self-launch"} {
-			count := launchCounts[method]
-			if count > 0 || launchCounts[method] > 0 {
-				launchMethodCurrency = append(launchMethodCurrency, LaunchMethodCurrency{
-					Method:     method,
-					Launches:   count,
-					Required:   5,
-					Met:        count >= 5,
-					MessageKey: MsgLaunchMethodProgress,
-				})
+		hours := *sailplane
+		tmg := &Progress{}
+		if rt.rating.ClassType == models.ClassTypeGlider {
+			tmg, err = rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeTMG}, false, rt.since)
+			if err != nil {
+				rt.result.Status = StatusUnknown
+				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+				return
 			}
+			hours.PICMinutes += tmg.PICMinutes
+			hours.InstructorMinutes += tmg.InstructorMinutes
+			rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
 		}
-		rt.result.LaunchMethodCurrency = launchMethodCurrency
+		rt.result.Progress = sailplane
+		reqs := []Requirement{
+			buildReq(&hours, rt.rule.baseReqs[0]),
+			buildReq(sailplane, rt.rule.baseReqs[1]),
+			buildReq(sailplane, rt.rule.baseReqs[2]),
+		}
+		allMetByExperience := allReqsMet(reqs)
 
-		if !allMet {
+		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, []models.ClassType{rt.rating.ClassType}, rt.since)
+		reqProfCheck := profCheckRequirement(profCheckDate)
+		rt.result.Requirements = append(reqs, reqProfCheck)
+
+		rt.result.LaunchMethodCurrency = easaLaunchMethodCurrency(ctx, rt, tmg.Launches)
+
+		if !allMetByExperience && !reqProfCheck.Met {
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
 		} else {
@@ -475,34 +481,117 @@ var easaSPLRule = ratingRule{
 	},
 }
 
-// easaSPLTMGRule — EASA FCL.140.S(b)(2) TMG extension for SPL:
-//   - 12 hours flight time on TMG
-//   - 12 takeoffs & landings on TMG
+// launchMethods lists the SFCL.155 launch methods in display order.
+var launchMethods = []string{"winch", "car", "aerotow", "self-launch", "bungee"}
+
+// launchMethodRequired returns the SFCL.155(c) launch count for a method.
+func launchMethodRequired(method string) int {
+	if method == "bungee" {
+		return 2
+	}
+	return 5
+}
+
+// easaLaunchMethodCurrency returns SFCL.155(c) launch recency for every method
+// the pilot has ever logged on the rating's class. TMG take-offs count toward
+// self-launch.
+func easaLaunchMethodCurrency(ctx context.Context, rt *ratingRuntime, tmgTakeoffs int) []LaunchMethodCurrency {
+	everUsed, err := rt.dp.GetLaunchCounts(ctx, rt.license.UserID, rt.rating.ClassType, time.Time{})
+	if err != nil {
+		return nil
+	}
+	inWindow, err := rt.dp.GetLaunchCounts(ctx, rt.license.UserID, rt.rating.ClassType, rt.since)
+	if err != nil {
+		return nil
+	}
+	var out []LaunchMethodCurrency
+	for _, method := range launchMethods {
+		if everUsed[method] == 0 {
+			continue
+		}
+		count := inWindow[method]
+		if method == "self-launch" {
+			count += tmgTakeoffs
+		}
+		required := launchMethodRequired(method)
+		out = append(out, LaunchMethodCurrency{
+			Method:     method,
+			Launches:   count,
+			Required:   required,
+			Met:        count >= required,
+			MessageKey: MsgLaunchMethodProgress,
+		})
+	}
+	return out
+}
+
+// profCheckRequirement builds the proficiency-check requirement from the date
+// of the most recent check in the window, nil when there is none.
+func profCheckRequirement(date *time.Time) Requirement {
+	if date == nil {
+		return Requirement{
+			NameKey: ReqKeyProficiencyCheck, Met: false,
+			Current: 0, Required: 1, Unit: "check",
+			MessageKey: MsgRequirementProfCheckMissing,
+		}
+	}
+	return Requirement{
+		NameKey: ReqKeyProficiencyCheck, Met: true,
+		Current: 1, Required: 1, Unit: "check",
+		MessageKey:    MsgRequirementProfCheckCompleted,
+		MessageParams: msgDate(date.Format("2006-01-02")),
+	}
+}
+
+// easaSPLTMGRule — EASA SFCL.160(b) recency for TMG privileges of an SPL:
+//   - 12 hours flight time as PIC, dual or supervised solo on sailplanes (GLIDER and TMG), including on TMGs:
+//   - 6 hours flight time
+//   - 12 take-offs and landings
+//   - 1 training flight of at least 1 hour total time with an instructor
+//   - OR a proficiency check with an examiner on a TMG (SFCL.160(b)(2))
 //
 // Lookback: rolling 24 months from NOW. Distinct from PPL TMG (FCL.740.A).
 var easaSPLTMGRule = ratingRule{
 	displayKey:    "easa_spl_tmg",
-	description:   "Requires 12h flight time + 12 takeoffs & landings on TMG within the last 24 months (EASA FCL.140.S(b)(2))",
+	description:   "Requires 12h flight time as PIC, dual or supervised solo on sailplanes including TMGs, with 6h, 12 take-offs & landings and a training flight of at least 1h with an instructor on TMGs, within the last 24 months, or a proficiency check with an examiner on a TMG (EASA SFCL.160(b))",
 	window:        windowSpec{kind: windowRollingNow, years: 2},
 	scope:         scopeByClassOverride,
 	classOverride: models.ClassTypeTMG,
 	baseReqs: []reqSpec{
-		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
-		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
+		{nameKey: ReqKeyFlightTime, metric: mPICOrDualMinutes, threshold: 720, unit: "minutes"},
+		{nameKey: ReqKeyTMGTime, metric: mPICOrDualMinutes, threshold: 360, unit: "minutes"},
+		{nameKey: ReqKeyTMGLandings, metric: mLandings, threshold: 12, unit: "landings"},
+		{nameKey: ReqKeyTMGTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rt.since = rt.rule.window.rollingSince(time.Now())
-		progress, err := rt.fetchProgress(ctx)
+		tmg, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
-		rt.result.Progress = progress
-		reqs := buildReqs(progress, rt.rule.baseReqs)
-		rt.result.Requirements = reqs
+		glider, err := rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeGlider}, true, rt.since)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+			return
+		}
+		hours := *tmg
+		hours.PICMinutes += glider.PICMinutes
+		hours.InstructorMinutes += glider.InstructorMinutes
+		rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
+		rt.result.Progress = tmg
 
-		if !allReqsMet(reqs) {
+		reqs := []Requirement{buildReq(&hours, rt.rule.baseReqs[0])}
+		reqs = append(reqs, buildReqs(tmg, rt.rule.baseReqs[1:])...)
+		allMetByExperience := allReqsMet(reqs)
+
+		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeTMG}, rt.since)
+		reqProfCheck := profCheckRequirement(profCheckDate)
+		rt.result.Requirements = append(reqs, reqProfCheck)
+
+		if !allMetByExperience && !reqProfCheck.Met {
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
 		} else {
@@ -558,12 +647,25 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 		RuleDescriptionKey:  "easa_pax",
 	}
 
+	// SFCL.160(e): sailplane passenger recency counts only launches or take-offs and landings as PIC.
+	picOnly := false
+	switch {
+	case classType == models.ClassTypeGlider:
+		picOnly = true
+		result.RuleDescription = "3 launches as PIC on sailplanes, excluding TMGs, within the preceding 90 days to carry passengers (EASA SFCL.160(e)(1))"
+		result.RuleDescriptionKey = "easa_spl_pax"
+	case classType == models.ClassTypeTMG && isEASASailplane(license.LicenseType):
+		picOnly = true
+		result.RuleDescription = "3 take-offs & landings as PIC on TMGs within the preceding 90 days to carry passengers in a TMG, one of them at night to carry passengers at night (EASA SFCL.160(e)(2))"
+		result.RuleDescriptionKey = "easa_spl_tmg_pax"
+	}
+
 	// FCL.060(b)(2)(ii): IR holders are exempt from the night-landing requirement.
 	if hasValidIR {
 		result.NightRequired = 0
 	}
 
-	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, isEASASailplane(license.LicenseType)), since)
+	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, isEASASailplane(license.LicenseType)), picOnly, since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown

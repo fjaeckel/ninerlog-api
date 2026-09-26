@@ -94,6 +94,11 @@ const (
 	ReqKeySEPLandLandings    = "requirement.sep_land_landings"
 	ReqKeySEPSeaTime         = "requirement.sep_sea_time"
 	ReqKeySEPSeaLandings     = "requirement.sep_sea_landings"
+	ReqKeyFlightTime         = "requirement.flight_time"
+	ReqKeyTrainingFlights    = "requirement.training_flights"
+	ReqKeyTMGTime            = "requirement.tmg_time"
+	ReqKeyTMGLandings        = "requirement.tmg_landings"
+	ReqKeyTMGTrainingFlight  = "requirement.tmg_training_flight"
 )
 
 // Launch method key (LaunchMethodCurrency.MessageKey).

@@ -18,8 +18,8 @@ type LandingDay struct {
 // FlightDataProvider provides aggregated flight data for currency evaluation
 type FlightDataProvider interface {
 	// GetProgressByAircraftClass returns aggregated flight stats for a user's flights
-	// on aircraft of any of the given classes, since the given date. Winch and
-	// aerotow launches are included only when includeTowed is true.
+	// on aircraft of any of the given classes, since the given date. Towed launches
+	// (winch, aerotow, car, bungee) are included only when includeTowed is true.
 	GetProgressByAircraftClass(ctx context.Context, userID uuid.UUID, classTypes []models.ClassType, includeTowed bool, since time.Time) (*Progress, error)
 
 	// GetProgressAll returns aggregated flight stats for all flights regardless of aircraft class
@@ -31,19 +31,18 @@ type FlightDataProvider interface {
 
 	// GetLastProficiencyCheck returns the date of the most recent flight with is_proficiency_check = true
 	// for the given user on aircraft of any of the given classes (IR matches every
-	// class), excluding winch and aerotow launches. Returns nil if none found.
+	// class), excluding towed launches on classes other than GLIDER. Returns nil if none found.
 	GetLastProficiencyCheck(ctx context.Context, userID uuid.UUID, classTypes []models.ClassType, since time.Time) (*time.Time, error)
 
-	// GetLaunchCounts returns per-launch-method counts for SPL currency (FCL.140.S(b)(1))
-	// on aircraft of the given class. Groups flights by launch_method and returns
-	// a map of method → launch count.
+	// GetLaunchCounts returns per-launch-method launch counts (SFCL.155(c)) on
+	// aircraft of the given class: method → launches, at least one per flight.
 	GetLaunchCounts(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (map[string]int, error)
 
 	// GetLandingDaysByAircraftClass returns per-date landing counts for a user's
 	// flights on aircraft of the given class since the given date, newest date
-	// first. Dates with no landings are omitted. Winch and aerotow launches are
-	// included only when includeTowed is true.
-	GetLandingDaysByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, includeTowed bool, since time.Time) ([]LandingDay, error)
+	// first. Dates with no landings are omitted. Towed launches are included only
+	// when includeTowed is true; picOnly keeps only flights with PIC time.
+	GetLandingDaysByAircraftClass(ctx context.Context, userID uuid.UUID, classType models.ClassType, includeTowed, picOnly bool, since time.Time) ([]LandingDay, error)
 }
 
 // Evaluator evaluates currency for a class rating based on the regulatory authority

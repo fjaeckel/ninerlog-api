@@ -246,7 +246,7 @@ func TestLicenseStatistics(t *testing.T) {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-//  EASA CURRENCY TESTS — FCL.740.A / FCL.140.A / FCL.140.S / FCL.625.A
+//  EASA CURRENCY TESTS — FCL.740.A / FCL.140.A / SFCL.160 / FCL.625.A
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1024,9 +1024,9 @@ func TestEASA_LAPLA_NoNightPrivilege(t *testing.T) {
 	}
 }
 
-// ─── EASA SPL — FCL.140.S ───────────────────────────────────────────────────
+// ─── EASA SPL — SFCL.160 ────────────────────────────────────────────────────
 
-// TestEASA_SPL_Current — 5h PIC + 15 launches + 2 training flights in 24mo.
+// TestEASA_SPL_Current — 5h PIC/dual + 15 launches + 2 training flights in 24mo (SFCL.160(a)).
 func TestEASA_SPL_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "easa-spl-cur")
 	createAircraftCur(t, c, "D-0SPL", "ASK21", "SEP_LAND")
@@ -1098,7 +1098,24 @@ func TestEASA_SPL_InsufficientLaunches(t *testing.T) {
 	assertStr(t, "status", rc["status"], "expiring")
 }
 
-// TestEASA_SPL_TMG_Current — FCL.140.S(b)(2): 12h + 12 T&L on TMG in 24mo.
+// createSPLTMGFlightsCur logs 1h TMG flights: pic as PIC, then dual with an instructor.
+func createSPLTMGFlightsCur(t *testing.T, c *E2EClient, reg string, pic, dual int) {
+	t.Helper()
+	for i := 0; i < pic+dual; i++ {
+		f := map[string]interface{}{
+			"date": pastDate(30 + i*15), "aircraftReg": reg, "aircraftType": "SF25",
+			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+			"offBlockTime": "08:00", "onBlockTime": "09:00",
+			"landings": 1,
+		}
+		if i >= pic {
+			f["crewMembers"] = []map[string]interface{}{{"name": "FI", "role": "Instructor"}}
+		}
+		createFlightCur(t, c, f)
+	}
+}
+
+// TestEASA_SPL_TMG_Current — SFCL.160(b): 12h incl. 6h, 12 T&L and a 1h training flight on TMG in 24mo.
 func TestEASA_SPL_TMG_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "easa-spl-tmg")
 	createAircraftCur(t, c, "D-KSTM", "SF25", "TMG")
@@ -1106,12 +1123,57 @@ func TestEASA_SPL_TMG_Current(t *testing.T) {
 	licID := createLicenseCur(t, c, "EASA", "SPL")
 	createRatingCur(t, c, licID, "TMG", nil)
 
-	for i := 0; i < 12; i++ {
+	createSPLTMGFlightsCur(t, c, "D-KSTM", 11, 1)
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "TMG")
+	if rc == nil {
+		t.Fatal("SPL TMG not found")
+	}
+	assertStr(t, "status", rc["status"], "current")
+	assertStr(t, "ruleDescriptionKey", rc["ruleDescriptionKey"], "easa_spl_tmg")
+	if r := getReq(rc, "requirement.tmg_training_flight"); r == nil || gi(r, "current") != 60 {
+		t.Errorf("tmg_training_flight = %v, want 60 minutes", r)
+	}
+}
+
+// TestEASA_SPL_TMG_NoTrainingFlight — SFCL.160(b)(1)(iii): 12h and 12 T&L without an instructor flight are not enough.
+func TestEASA_SPL_TMG_NoTrainingFlight(t *testing.T) {
+	c := setupCurrencyUser(t, "easa-spl-tmg-notrain")
+	createAircraftCur(t, c, "D-KSTN", "SF25", "TMG")
+
+	licID := createLicenseCur(t, c, "EASA", "SPL")
+	createRatingCur(t, c, licID, "TMG", nil)
+
+	createSPLTMGFlightsCur(t, c, "D-KSTN", 12, 0)
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "TMG")
+	if rc == nil {
+		t.Fatal("SPL TMG not found")
+	}
+	assertStr(t, "status", rc["status"], "expiring")
+	if r := getReq(rc, "requirement.tmg_training_flight"); r == nil || gb(r, "met") {
+		t.Errorf("tmg_training_flight = %v, want unmet", r)
+	}
+}
+
+// TestEASA_SPL_TMG_GliderHoursCount — SFCL.160(b)(1): sailplane hours count toward the 12h, only 6h must be on TMG.
+func TestEASA_SPL_TMG_GliderHoursCount(t *testing.T) {
+	c := setupCurrencyUser(t, "easa-spl-tmg-pool")
+	createAircraftCur(t, c, "D-KSTP", "SF25", "TMG")
+	createAircraftCur(t, c, "D-5817", "ASK21", "GLIDER")
+
+	licID := createLicenseCur(t, c, "EASA", "SPL")
+	createRatingCur(t, c, licID, "TMG", nil)
+
+	createSPLTMGFlightsCur(t, c, "D-KSTP", 5, 1)
+	for i := 0; i < 6; i++ {
 		createFlightCur(t, c, map[string]interface{}{
-			"date": pastDate(30 + i*15), "aircraftReg": "D-KSTM", "aircraftType": "SF25",
-			"departureIcao": "EDNY", "arrivalIcao": "EDDS",
-			"offBlockTime": "08:00", "onBlockTime": "09:00",
-			"landings": 1,
+			"date": pastDate(40 + i*10), "aircraftReg": "D-5817", "aircraftType": "ASK21",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"offBlockTime": "12:00", "onBlockTime": "13:00",
+			"landings": 1, "launchMethod": "winch",
 		})
 	}
 
@@ -1120,7 +1182,13 @@ func TestEASA_SPL_TMG_Current(t *testing.T) {
 	if rc == nil {
 		t.Fatal("SPL TMG not found")
 	}
-	assertStr(t, "status", rc["status"], "current")
+	assertStr(t, "status", rc["status"], "expiring")
+	if r := getReq(rc, "requirement.flight_time"); r == nil || gi(r, "current") != 720 || !gb(r, "met") {
+		t.Errorf("flight_time = %v, want 720 minutes met", r)
+	}
+	if r := getReq(rc, "requirement.tmg_landings"); r == nil || gb(r, "met") {
+		t.Errorf("tmg_landings = %v, want 6 of 12, unmet", r)
+	}
 }
 
 // TestEASA_SPL_NoNightPrivilege — SPL has no night flying.

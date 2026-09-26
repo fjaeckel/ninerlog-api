@@ -33,6 +33,10 @@ const (
 	mFlights
 	mApproaches
 	mHolds
+	mPICOrDualMinutes
+	mLaunches
+	mTrainingFlights
+	mLongestTrainingFlight
 )
 
 // metricVal extracts the value of a metric from an aggregated Progress row.
@@ -56,6 +60,14 @@ func metricVal(p *Progress, m metric) int {
 		return p.Approaches
 	case mHolds:
 		return p.Holds
+	case mPICOrDualMinutes:
+		return p.PICMinutes + p.InstructorMinutes
+	case mLaunches:
+		return p.Launches
+	case mTrainingFlights:
+		return p.TrainingFlights
+	case mLongestTrainingFlight:
+		return p.LongestTrainingFlightMinutes
 	default:
 		return 0
 	}
@@ -194,7 +206,7 @@ func resolveClasses(rule *ratingRule, rating *models.ClassRating, peers []*model
 	}
 }
 
-// includeTowedFlights reports whether winch and aerotow launches count toward a class.
+// includeTowedFlights reports whether towed launches (winch, aerotow, car, bungee) count toward a class.
 func includeTowedFlights(classType models.ClassType, sailplane bool) bool {
 	return sailplane || classType == models.ClassTypeGlider
 }

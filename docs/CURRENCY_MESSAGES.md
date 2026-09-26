@@ -142,11 +142,24 @@ render them yourself. See [DOMAIN.md](./DOMAIN.md#passenger-currency-expiry-daye
 `.day_landings`, `.night_landings`, `.refresher_training`, `.training_flight`,
 `.proficiency_check`, `.approaches`, `.holds`, `.route_sectors`, `.launches`,
 `.launches_and_landings`, `.sep_land_time`, `.sep_land_landings`, `.sep_sea_time`,
-`.sep_sea_landings`. Absent on custom rules — see rule 4.
+`.sep_sea_landings`, `.flight_time`, `.training_flights`, `.tmg_time`, `.tmg_landings`,
+`.tmg_training_flight`. Absent on custom rules — see rule 4.
 
 The four `sep_*` keys are the per-class minimums of EASA FCL.140.A(b), present only on a
 LAPL license holding both SEP(land) and SEP(sea) ratings. LAPL results also carry a
 `.proficiency_check` requirement: the FCL.140.A(a)(2) alternative to the experience rows.
+
+The sailplane rules (see [SAILPLANES.md](./SAILPLANES.md)) use these keys:
+
+| `nameKey` | Rule | `unit` | Meaning |
+| --- | --- | --- | --- |
+| `requirement.flight_time` | SFCL.160(a)(1), (b)(1) | `minutes` | PIC, dual or supervised solo time on sailplanes including TMGs |
+| `requirement.launches` | SFCL.160(a)(1)(i) | `launches` | Launches on sailplanes excluding TMGs |
+| `requirement.training_flights` | SFCL.160(a)(1)(ii) | `flights` | Training flights with an instructor on sailplanes excluding TMGs |
+| `requirement.tmg_time` | SFCL.160(b)(1)(i) | `minutes` | PIC, dual or supervised solo time on TMGs |
+| `requirement.tmg_landings` | SFCL.160(b)(1)(ii) | `landings` | Take-offs and landings on TMGs |
+| `requirement.tmg_training_flight` | SFCL.160(b)(1)(iii) | `minutes` | Longest training flight with an instructor on a TMG (needs 60) |
+| `requirement.proficiency_check` | SFCL.160(a)(2), (b)(2) | `check` | The alternative to the experience rows |
 
 | `messageKey` | Params | Meaning |
 | --- | --- | --- |
@@ -155,7 +168,7 @@ LAPL license holding both SEP(land) and SEP(sea) ratings. LAPL results also carr
 | `requirement.prof_check_missing` | — | Not completed in the validity period |
 
 `LaunchMethodCurrency.messageKey` is always `launch_method.progress`; render
-`launches` / `required` for `method`.
+`launches` / `required` for `method` (`winch`, `car`, `aerotow`, `self-launch`, `bungee`).
 
 ## Adding a key
 

@@ -122,7 +122,7 @@ type Flight struct {
 	Endorsements *string `json:"endorsements,omitempty"`
 
 	// SPL / Glider
-	LaunchMethod *string `json:"launchMethod,omitempty"` // winch, aerotow, self-launch
+	LaunchMethod *string `json:"launchMethod,omitempty"` // winch, aerotow, self-launch, car, bungee
 
 	// Crew members on board (populated from flight_crew_members table)
 	CrewMembers []FlightCrewMember `json:"crewMembers,omitempty"`
