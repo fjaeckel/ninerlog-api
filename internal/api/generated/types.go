@@ -866,19 +866,24 @@ func (e CustomReportFilterRole) Valid() bool {
 
 // Defines values for CustomReportGroupBy.
 const (
-	CustomReportGroupByAircraftType CustomReportGroupBy = "aircraftType"
-	CustomReportGroupByArrival      CustomReportGroupBy = "arrival"
-	CustomReportGroupByDayOfWeek    CustomReportGroupBy = "dayOfWeek"
-	CustomReportGroupByDeparture    CustomReportGroupBy = "departure"
-	CustomReportGroupByMonth        CustomReportGroupBy = "month"
-	CustomReportGroupByRegistration CustomReportGroupBy = "registration"
-	CustomReportGroupByRoute        CustomReportGroupBy = "route"
-	CustomReportGroupByYear         CustomReportGroupBy = "year"
+	CustomReportGroupByAircraftClass CustomReportGroupBy = "aircraftClass"
+	CustomReportGroupByAircraftType  CustomReportGroupBy = "aircraftType"
+	CustomReportGroupByArrival       CustomReportGroupBy = "arrival"
+	CustomReportGroupByDayOfWeek     CustomReportGroupBy = "dayOfWeek"
+	CustomReportGroupByDeparture     CustomReportGroupBy = "departure"
+	CustomReportGroupByLaunchMethod  CustomReportGroupBy = "launchMethod"
+	CustomReportGroupByMonth         CustomReportGroupBy = "month"
+	CustomReportGroupByRegistration  CustomReportGroupBy = "registration"
+	CustomReportGroupByRoute         CustomReportGroupBy = "route"
+	CustomReportGroupByUlKind        CustomReportGroupBy = "ulKind"
+	CustomReportGroupByYear          CustomReportGroupBy = "year"
 )
 
 // Valid indicates whether the value is a known member of the CustomReportGroupBy enum.
 func (e CustomReportGroupBy) Valid() bool {
 	switch e {
+	case CustomReportGroupByAircraftClass:
+		return true
 	case CustomReportGroupByAircraftType:
 		return true
 	case CustomReportGroupByArrival:
@@ -887,11 +892,15 @@ func (e CustomReportGroupBy) Valid() bool {
 		return true
 	case CustomReportGroupByDeparture:
 		return true
+	case CustomReportGroupByLaunchMethod:
+		return true
 	case CustomReportGroupByMonth:
 		return true
 	case CustomReportGroupByRegistration:
 		return true
 	case CustomReportGroupByRoute:
+		return true
+	case CustomReportGroupByUlKind:
 		return true
 	case CustomReportGroupByYear:
 		return true
@@ -909,9 +918,12 @@ const (
 	CustomReportMetricFstdTime         CustomReportMetric = "fstdTime"
 	CustomReportMetricIfrTime          CustomReportMetric = "ifrTime"
 	CustomReportMetricLandings         CustomReportMetric = "landings"
+	CustomReportMetricLaunches         CustomReportMetric = "launches"
 	CustomReportMetricNightTime        CustomReportMetric = "nightTime"
+	CustomReportMetricOutlandings      CustomReportMetric = "outlandings"
 	CustomReportMetricPicTime          CustomReportMetric = "picTime"
 	CustomReportMetricTotalTime        CustomReportMetric = "totalTime"
+	CustomReportMetricTowFlights       CustomReportMetric = "towFlights"
 )
 
 // Valid indicates whether the value is a known member of the CustomReportMetric enum.
@@ -931,11 +943,17 @@ func (e CustomReportMetric) Valid() bool {
 		return true
 	case CustomReportMetricLandings:
 		return true
+	case CustomReportMetricLaunches:
+		return true
 	case CustomReportMetricNightTime:
+		return true
+	case CustomReportMetricOutlandings:
 		return true
 	case CustomReportMetricPicTime:
 		return true
 	case CustomReportMetricTotalTime:
+		return true
+	case CustomReportMetricTowFlights:
 		return true
 	default:
 		return false
@@ -4866,8 +4884,14 @@ type CustomReportDefinition struct {
 
 	// GroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
 	// `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
-	// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
-	// gap-filled across the report window; the others are ranked by `value`.
+	// to `7`, `route` keys `DEP-ARR`. `launchMethod` keys are the stored
+	// launch method (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+	// `aircraftClass` and `ulKind` read the aircraft of the flight's
+	// registration in the caller's fleet: `aircraftClass` keys are the
+	// upper-cased class, `ulKind` keys the ultralight kind of `ULTRALIGHT`
+	// aircraft. Flights without a value group under the empty key. Time
+	// groupings are chronological and gap-filled across the report window;
+	// the others are ranked by `value`.
 	GroupBy CustomReportGroupBy `json:"groupBy"`
 
 	// Limit Maximum number of groups returned for ranked groupings (default
@@ -4875,6 +4899,9 @@ type CustomReportDefinition struct {
 	Limit *int `json:"limit,omitempty"`
 
 	// Metric Metric charted by a report. Durations are integer minutes.
+	// `launches` sums the launch count of soaring flights only (the scope of
+	// `GET /reports/soaring-season`); `outlandings` and `towFlights` count
+	// flights marked as an outlanding or a tow flight.
 	Metric CustomReportMetric `json:"metric"`
 
 	// Window Date window. `all` has no bound; `lastMonths` covers the current
@@ -4905,8 +4932,14 @@ type CustomReportFilterRole string
 
 // CustomReportGroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
 // `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
-// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
-// gap-filled across the report window; the others are ranked by `value`.
+// to `7`, `route` keys `DEP-ARR`. `launchMethod` keys are the stored
+// launch method (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+// `aircraftClass` and `ulKind` read the aircraft of the flight's
+// registration in the caller's fleet: `aircraftClass` keys are the
+// upper-cased class, `ulKind` keys the ultralight kind of `ULTRALIGHT`
+// aircraft. Flights without a value group under the empty key. Time
+// groupings are chronological and gap-filled across the report window;
+// the others are ranked by `value`.
 type CustomReportGroupBy string
 
 // CustomReportInput defines model for CustomReportInput.
@@ -4918,6 +4951,9 @@ type CustomReportInput struct {
 }
 
 // CustomReportMetric Metric charted by a report. Durations are integer minutes.
+// `launches` sums the launch count of soaring flights only (the scope of
+// `GET /reports/soaring-season`); `outlandings` and `towFlights` count
+// flights marked as an outlanding or a tow flight.
 type CustomReportMetric string
 
 // CustomReportOrderRequest defines model for CustomReportOrderRequest.
@@ -4938,11 +4974,20 @@ type CustomReportResult struct {
 
 	// GroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
 	// `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
-	// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
-	// gap-filled across the report window; the others are ranked by `value`.
+	// to `7`, `route` keys `DEP-ARR`. `launchMethod` keys are the stored
+	// launch method (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+	// `aircraftClass` and `ulKind` read the aircraft of the flight's
+	// registration in the caller's fleet: `aircraftClass` keys are the
+	// upper-cased class, `ulKind` keys the ultralight kind of `ULTRALIGHT`
+	// aircraft. Flights without a value group under the empty key. Time
+	// groupings are chronological and gap-filled across the report window;
+	// the others are ranked by `value`.
 	GroupBy CustomReportGroupBy `json:"groupBy"`
 
 	// Metric Metric charted by a report. Durations are integer minutes.
+	// `launches` sums the launch count of soaring flights only (the scope of
+	// `GET /reports/soaring-season`); `outlandings` and `towFlights` count
+	// flights marked as an outlanding or a tow flight.
 	Metric CustomReportMetric `json:"metric"`
 
 	// OtherGroups Groups left out by `limit`; they still count toward `totals`
@@ -4969,11 +5014,14 @@ type CustomReportRow struct {
 	Key string `json:"key"`
 
 	// Label English display label for the key
-	Label     string `json:"label"`
-	Landings  int    `json:"landings"`
-	NightTime int    `json:"nightTime"`
-	PicTime   int    `json:"picTime"`
-	TotalTime int    `json:"totalTime"`
+	Label       string `json:"label"`
+	Landings    int    `json:"landings"`
+	Launches    int    `json:"launches"`
+	NightTime   int    `json:"nightTime"`
+	Outlandings int    `json:"outlandings"`
+	PicTime     int    `json:"picTime"`
+	TotalTime   int    `json:"totalTime"`
+	TowFlights  int    `json:"towFlights"`
 
 	// Value The report's `metric` for this group
 	Value int `json:"value"`
@@ -4989,12 +5037,17 @@ type CustomReportTotals struct {
 	Flights int `json:"flights"`
 
 	// FstdTime FSTD session time of matching simulator entries
-	FstdTime  int `json:"fstdTime"`
-	IfrTime   int `json:"ifrTime"`
-	Landings  int `json:"landings"`
-	NightTime int `json:"nightTime"`
-	PicTime   int `json:"picTime"`
-	TotalTime int `json:"totalTime"`
+	FstdTime int `json:"fstdTime"`
+	IfrTime  int `json:"ifrTime"`
+	Landings int `json:"landings"`
+
+	// Launches Launches of matching soaring flights
+	Launches    int `json:"launches"`
+	NightTime   int `json:"nightTime"`
+	Outlandings int `json:"outlandings"`
+	PicTime     int `json:"picTime"`
+	TotalTime   int `json:"totalTime"`
+	TowFlights  int `json:"towFlights"`
 }
 
 // CustomReportWindow Date window. `all` has no bound; `lastMonths` covers the current
@@ -7544,6 +7597,52 @@ type SignatureRequestCreatedMethod string
 // SignatureRequestCreatedStatus defines model for SignatureRequestCreated.Status.
 type SignatureRequestCreatedStatus string
 
+// SoaringLaunchesByMethod Launches per launch method; `unspecified` counts soaring flights without one.
+type SoaringLaunchesByMethod struct {
+	Aerotow     int `json:"aerotow"`
+	Bungee      int `json:"bungee"`
+	Car         int `json:"car"`
+	SelfLaunch  int `json:"selfLaunch"`
+	Unspecified int `json:"unspecified"`
+	Winch       int `json:"winch"`
+}
+
+// SoaringSeason One calendar year of soaring flights (see `GET /reports/soaring-season`). Durations in minutes.
+type SoaringSeason struct {
+	// AverageFlightMinutes totalMinutes / flights, rounded; 0 without flights
+	AverageFlightMinutes int `json:"averageFlightMinutes"`
+	Flights              int `json:"flights"`
+	Launches             int `json:"launches"`
+
+	// LaunchesByMethod Launches per launch method; `unspecified` counts soaring flights without one.
+	LaunchesByMethod SoaringLaunchesByMethod `json:"launchesByMethod"`
+	LongestFlight    *SoaringSeasonFlight    `json:"longestFlight,omitempty"`
+
+	// Outlandings Soaring flights marked as an outlanding
+	Outlandings int `json:"outlandings"`
+
+	// Sites Top five departure places by soaring flights, most first
+	Sites        []SoaringSeasonSite `json:"sites"`
+	TotalMinutes int                 `json:"totalMinutes"`
+	Year         int                 `json:"year"`
+}
+
+// SoaringSeasonFlight defines model for SoaringSeasonFlight.
+type SoaringSeasonFlight struct {
+	AircraftReg *string            `json:"aircraftReg"`
+	Date        openapi_types.Date `json:"date"`
+	FlightId    openapi_types.UUID `json:"flightId"`
+	Minutes     int                `json:"minutes"`
+}
+
+// SoaringSeasonSite defines model for SoaringSeasonSite.
+type SoaringSeasonSite struct {
+	Flights int `json:"flights"`
+
+	// Place Departure as logged (ICAO code or free-text place)
+	Place string `json:"place"`
+}
+
 // Statistics defines model for Statistics.
 type Statistics struct {
 	// Baseline Present when an initial-hours snapshot was added to these totals.
@@ -8536,6 +8635,12 @@ type ExportCustomReportParams struct {
 
 // ExportCustomReportParamsFormat defines parameters for ExportCustomReport.
 type ExportCustomReportParamsFormat string
+
+// GetSoaringSeasonParams defines parameters for GetSoaringSeason.
+type GetSoaringSeasonParams struct {
+	// Year Calendar year (UTC). Defaults to the current year; 1900 to next year.
+	Year *int `form:"year,omitempty" json:"year,omitempty"`
+}
 
 // GetStatsByClassParams defines parameters for GetStatsByClass.
 type GetStatsByClassParams struct {

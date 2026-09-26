@@ -131,19 +131,28 @@ var reportGroupExpr = map[string]string{
 	models.ReportGroupArrival:      `UPPER(TRIM(COALESCE(arrival_icao, '')))`,
 	models.ReportGroupRoute: `CASE WHEN TRIM(COALESCE(departure_icao, '')) = '' AND TRIM(COALESCE(arrival_icao, '')) = '' THEN ''
 		ELSE UPPER(TRIM(COALESCE(departure_icao, ''))) || '-' || UPPER(TRIM(COALESCE(arrival_icao, ''))) END`,
+	models.ReportGroupLaunchMethod:  `LOWER(TRIM(COALESCE(launch_method, '')))`,
+	models.ReportGroupAircraftClass: `ac_class`,
+	models.ReportGroupULKind:        `CASE WHEN ac_class = 'ULTRALIGHT' THEN ac_ul_kind ELSE '' END`,
 }
 
-func (r *customReportRepository) Aggregate(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, groupBy string) ([]repository.CustomReportGroup, error) {
+// customReportAggregateSQL builds the grouped aggregate over the flights
+// matching where; the column order matches the CustomReportTotals scan.
+func customReportAggregateSQL(groupBy, where string) (string, error) {
 	expr, ok := reportGroupExpr[groupBy]
 	if !ok {
-		return nil, fmt.Errorf("unknown grouping %q", groupBy)
+		return "", fmt.Errorf("unknown grouping %q", groupBy)
 	}
-
-	where, args, _ := appendFlightFilters("user_id = $1", []interface{}{userID}, 2, opts)
-	query := `
+	return `
 		WITH scoped AS (
-			SELECT *, NOT is_simulator AND NOT is_passenger AS is_flight_time
-			FROM flights WHERE ` + where + `
+			SELECT f.*,
+				NOT f.is_simulator AND NOT f.is_passenger AS is_flight_time,
+				UPPER(TRIM(COALESCE(a.aircraft_class, ''))) AS ac_class,
+				COALESCE(a.ul_kind, '') AS ac_ul_kind,
+				` + soaringFlightSQL + ` AS is_soaring,
+				` + launchCountSQL + ` AS launch_count
+			FROM (SELECT * FROM flights WHERE ` + where + `) f
+			LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		)
 		SELECT ` + expr + ` AS k,
 			COUNT(*) FILTER (WHERE is_flight_time),
@@ -155,10 +164,21 @@ func (r *customReportRepository) Aggregate(ctx context.Context, userID uuid.UUID
 			COALESCE(SUM(ifr_time) FILTER (WHERE is_flight_time), 0),
 			COALESCE(SUM(cross_country_time) FILTER (WHERE is_flight_time), 0),
 			COALESCE(SUM(simulated_flight_time) FILTER (WHERE is_simulator), 0),
-			COALESCE(SUM(all_landings) FILTER (WHERE is_flight_time), 0)
+			COALESCE(SUM(all_landings) FILTER (WHERE is_flight_time), 0),
+			COALESCE(SUM(launch_count) FILTER (WHERE is_soaring), 0),
+			COUNT(*) FILTER (WHERE is_flight_time AND is_outlanding),
+			COUNT(*) FILTER (WHERE is_flight_time AND is_tow_flight)
 		FROM scoped
 		GROUP BY 1
-		ORDER BY 1`
+		ORDER BY 1`, nil
+}
+
+func (r *customReportRepository) Aggregate(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, groupBy string) ([]repository.CustomReportGroup, error) {
+	where, args, _ := appendFlightFilters("user_id = $1", []interface{}{userID}, 2, opts)
+	query, err := customReportAggregateSQL(groupBy, where)
+	if err != nil {
+		return nil, err
+	}
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -171,7 +191,8 @@ func (r *customReportRepository) Aggregate(ctx context.Context, userID uuid.UUID
 		var g repository.CustomReportGroup
 		t := &g.Totals
 		if err := rows.Scan(&g.Key, &t.Flights, &t.TotalTime, &t.PicTime, &t.DualTime, &t.DualGivenTime,
-			&t.NightTime, &t.IfrTime, &t.CrossCountryTime, &t.FstdTime, &t.Landings); err != nil {
+			&t.NightTime, &t.IfrTime, &t.CrossCountryTime, &t.FstdTime, &t.Landings,
+			&t.Launches, &t.Outlandings, &t.TowFlights); err != nil {
 			return nil, err
 		}
 		groups = append(groups, g)

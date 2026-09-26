@@ -305,7 +305,8 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Custom reports** (`/reports/custom`, `internal/service/customreport`,
   `internal/api/handlers/custom_report*.go`) — a pilot saves a flight filter plus a grouping
   (`month`, `year`, `dayOfWeek`, `aircraftType`, `registration`, `departure`, `arrival`,
-  `route`) and one of nine metrics as a named report (`custom_reports`, definition stored as
+  `route`, `launchMethod`, `aircraftClass`, `ulKind`) and one of thirteen metrics
+  (including the soaring counts `launches`, `outlandings` and `towFlights`) as a named report (`custom_reports`, definition stored as
   JSONB, up to 100 per account), and re-runs it on demand or exports it alone as CSV or PDF
   (`custom_report_export.go`; the PDF adds a filter summary and a bar chart, the CSV
   neutralises formula-leading cells). Time groupings are gap-filled and chronological;
@@ -317,6 +318,11 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `GET /flights?logbookLicenseId`. Reports are
   stored server-side per user, so they follow the pilot to every device and travel in the
   JSON export.
+- **Soaring season** (`GET /reports/soaring-season`, `internal/service/soaring_season.go`,
+  `internal/repository/postgres/soaring.go`) — one calendar year of glider, UL sailplane
+  and launched TMG flights for the dashboard season card: launches by method, hours,
+  average and longest flight, outlandings and the top five sites. The scope and why it
+  ignores airport-to-airport distance are in [SAILPLANES.md](./SAILPLANES.md#statistics).
 - **Initial hours** — a per-user snapshot of pre-existing experience (`FlightBaseline`).
   It is added to the totals of both the statistics endpoint and the Reports analytics
   totals whenever the requested range reaches back to its cutoff date, so the dashboard

@@ -1000,6 +1000,9 @@ reports `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` over
   (see [API.md](./API.md)).
 - Licences, ratings, aircraft and flights feed the pilot profile
   (`GET /users/me/pilot-profile`).
+- Soaring flights (glider, UL sailplane, and TMG flights with a launch method) feed the
+  soaring season summary and the custom-report `launches` metric; the scope is defined once
+  in [SAILPLANES.md](./SAILPLANES.md#statistics).
 
 > When regulatory rules change, update the relevant evaluator **and** this document so
 > the described behaviour stays accurate.
