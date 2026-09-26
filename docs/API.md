@@ -361,6 +361,26 @@ discipline value they do not know as `active`.
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings
 (`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
 
+#### Licence privileges
+Ratings, endorsements and authorisations on a licence beside its class ratings: `SAILPLANE_TOWING`,
+`BANNER_TOWING`, `CLOUD_FLYING`, `AEROBATIC_BASIC`, `AEROBATIC_ADVANCED`, `TMG_NIGHT`, `FI_S`,
+`BI_S`, `FE_S`, `UL_PASSENGER_AUTH`, `UL_TOWING`, `UL_TYPE_BRIEFING`, `LAUNCH_METHOD_TRAINED`.
+
+| Method & path | Result |
+| --- | --- |
+| `GET /licenses/{licenseId}/privileges` | the licence's privileges, by kind then detail |
+| `POST /licenses/{licenseId}/privileges` | `201` with the privilege |
+| `PATCH /licenses/{licenseId}/privileges/{privilegeId}` | partial update; `null` clears `detail`, `issuedOn`, `expiresOn`, `notes` |
+| `DELETE /licenses/{licenseId}/privileges/{privilegeId}` | `204` |
+
+Body: `kind`, `detail?` (≤ 100 chars), `issuedOn?`, `expiresOn?` (not before `issuedOn`),
+`notes?` (≤ 1000 chars). `detail` is required for `LAUNCH_METHOD_TRAINED` (a launch method,
+stored lower-case), `UL_TOWING` (an ultralight rating kind, stored upper-case) and
+`UL_TYPE_BRIEFING` (the aircraft type). A violation is a `400` naming the rule. A licence or
+privilege that does not exist, belongs to another user, or (for a privilege) sits on another
+licence is a `404`, never a `403`. Deleting the licence deletes its privileges. Their
+currency is `privileges[]` on `GET /currency`; see [SAILPLANES.md](./SAILPLANES.md#privileges).
+
 ### Aircraft
 CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`. `registration`
 is normalised on write into the canonical notation of its state of registry (`pkg/registration`);
@@ -540,6 +560,15 @@ with `rating.ul_kind_required` (see [DOMAIN.md](./DOMAIN.md#ultralights)). `stat
 ratings follow FCL.240.G, and an SPL TMG rating may carry `rating.sfcl_tmg_exempt`; see
 [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md).
 
+`GET /currency` also carries `privileges[]` (one `PrivilegeCurrency` per licence privilege:
+`privilegeId`, `licenseId`, `kind`, `detail`, `status` `current`/`lapsed`/`expired`/`unknown`,
+`messageKey`, `messageParams`, `requirements`, `ruleDescriptionKey`), absent when the pilot has
+recorded none. Launch-method rows carry `trained`, passenger entries may carry informational
+`requirements` (SFCL.115(a)(2), LuftPersV §84a), and a German UL passenger entry without a
+recorded `UL_PASSENGER_AUTH` reports `unknown` with `pax.ul_authorisation_missing` where it
+would otherwise be current. See [SAILPLANES.md](./SAILPLANES.md#privileges) and
+[DOMAIN.md](./DOMAIN.md#ultralights).
+
 **Glider flight facts.** Every flight carries `launches` (with `launchesOverride`),
 `isOutlanding`, `isTowFlight` and an optional `releaseHeightM`:
 
@@ -547,7 +576,7 @@ ratings follow FCL.240.G, and an SPL TMG rating may carry `rating.sfcl_tmg_exemp
 | --- | --- | --- |
 | `launches` | integer ≥ 0; `null` on `PUT` returns it to derivation | Derived as the take-off count (at least 1; 0 for an FSTD session or passenger flight). Launch recency (SFCL.155(c), SFCL.160(a)(1)(i)) counts it. A series of launches on one row sends the count. |
 | `isOutlanding` | boolean, default `false` | A landing away from the planned site: no cross-country time is derived from departure ≠ arrival. A `crossCountryTime` the pilot sends still wins. |
-| `isTowFlight` | boolean, default `false` | The pilot flew the tug. Stored only. |
+| `isTowFlight` | boolean, default `false` | The pilot flew the tug. Counted by the towing privileges (SFCL.205, 14 CFR 61.69, DULV). |
 | `releaseHeightM` | integer 0–20000 or `null` | Release height in metres; outside the range is a 400 (`release height must be between 0 and 20000 m`). |
 
 A negative `launches` is a 400 (`launches cannot be negative`). All four travel in the JSON
@@ -694,7 +723,7 @@ CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import an
 history) and export to CSV, JSON, PDF, and vCard.
 
 `GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, aircraft
-reminders, licences and class ratings, credentials, contacts, custom currency rules, custom
+reminders, licences with their class ratings and privileges (`licenses[].privileges`), credentials, contacts, custom currency rules, custom
 reports, notification preferences, the carried-forward hours baseline and the pilot profile
 (mode, intents and acknowledgements; never the derived evidence). It is the same payload a cloud backup run writes
 (`cloudbackup.Payload` is the single definition of both), and `POST /imports/json` restores
@@ -711,6 +740,8 @@ carried over: a restored rule is private until shared again. Aircraft reminders 
 restored aircraft, or to the existing aircraft of the same registration when that one was
 skipped; a reminder whose aircraft cannot be resolved, or that matches one already on the
 aircraft by kind, label and due date, is skipped and counted in `aircraftRemindersSkipped`.
+Licence privileges are revalidated and attached to their restored licence
+(`licencePrivilegesImported`); an invalid one is a 400.
 
 Anything a user owns belongs in this payload. `internal/service/cloudbackup/coverage_test.go`
 classifies every table in `db/migrations` as either exported (naming its payload section) or
@@ -809,7 +840,7 @@ A `logbookLicenseId`-filtered export covers only part of the logbook, so the
 career-wide snapshot is deliberately left out of it.
 
 ### Admin
-User management (list, disable/enable, unlock, reset 2FA, delete), platform stats (including how pilots override the pilot profile: `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` counts),
+User management (list, disable/enable, unlock, reset 2FA, delete), platform stats (including how pilots override the pilot profile: `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` counts, and `licencePrivileges.{total, byKind}`),
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,
 unverified-account sweep), email deliverability, and announcements.
 

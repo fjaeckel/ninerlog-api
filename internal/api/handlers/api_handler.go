@@ -78,6 +78,9 @@ type APIHandler struct {
 	// aircraftReminderService is wired in cmd/api/main.go via
 	// SetAircraftReminderService.
 	aircraftReminderService *service.AircraftReminderService
+	// licencePrivilegeService is wired in cmd/api/main.go via
+	// SetLicencePrivilegeService.
+	licencePrivilegeService *service.LicencePrivilegeService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface

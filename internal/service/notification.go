@@ -283,6 +283,36 @@ func (s *NotificationService) checkCurrencyNotifications(ctx context.Context, pr
 	if currencyStatus.FlightReview != nil {
 		s.checkFlightReviewNotification(ctx, prefs, *currencyStatus.FlightReview, userEmail, userName)
 	}
+
+	for _, p := range currencyStatus.Privileges {
+		s.checkPrivilegeExpiry(ctx, prefs, p, userEmail, userName)
+	}
+}
+
+// checkPrivilegeExpiry sends the rating expiry warning for a licence
+// privilege with an expiry date.
+func (s *NotificationService) checkPrivilegeExpiry(ctx context.Context, prefs *models.NotificationPreferences, p currency.PrivilegeCurrency, userEmail, userName string) {
+	if p.ExpiresOn == nil || !prefs.IsCategoryEnabled(models.NotifCategoryRatingExpiry) {
+		return
+	}
+	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	name := string(p.Kind)
+	if p.Detail != nil {
+		name += " (" + *p.Detail + ")"
+	}
+	expiry := *p.ExpiresOn
+	days := int(time.Until(expiry).Hours() / 24)
+	subject, body := email.Templates(user.PreferredLocale).RatingExpiry(email.RatingExpiryParams{
+		UserName:      userName,
+		LicenseType:   p.LicenseType,
+		ClassType:     name,
+		ExpiryDate:    formatDateForUser(expiry, user.DateFormat),
+		DaysRemaining: days,
+	})
+	s.sendWarningForDays(ctx, prefs, models.NotifCategoryRatingExpiry, p.PrivilegeID, "licence_privilege", days, &expiry, subject, body, userEmail)
 }
 
 func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *models.NotificationPreferences, rating currency.ClassRatingCurrency, userEmail, userName string) {
@@ -370,7 +400,7 @@ func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs 
 	tmpl := email.Templates(user.PreferredLocale)
 
 	// Day passenger currency
-	if pax.DayStatus != currency.StatusCurrent && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
+	if pax.DayStatus != currency.StatusCurrent && pax.MessageKey != currency.MsgPaxULAuthorisationMissing && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
 		// Generate a stable reference ID from class type + authority
 		refID := uuidFromString(string(pax.ClassType) + ":" + pax.RegulatoryAuthority + ":day")
 		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyPassenger), refID, 0, nil)

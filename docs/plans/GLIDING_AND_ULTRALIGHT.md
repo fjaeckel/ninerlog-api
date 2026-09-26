@@ -224,7 +224,13 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
   (tow flight: `AEROPLANE` + `SAILPLANE`).
 - Closes P1 and J2 (partly).
 
-**WP-26. Sailplane ratings and privileges** (api + fe)
+**WP-26. Sailplane ratings and privileges** (api + fe) — **API half implemented**
+(migration 77, `/licenses/{id}/privileges`, `privileges[]` on `GET /currency`, backup and
+restore inside the licence entry, admin count `licencePrivileges`); rules in
+[SAILPLANES.md](../SAILPLANES.md#privileges), keys in
+[CURRENCY_MESSAGES.md](../CURRENCY_MESSAGES.md#privilegecurrencymessagekey). Cloud-flying time
+is IFR time on `GLIDER` flights. The FI(S) refresher, the 9-year assessment and SFCL.155(a)
+initial training counts are reported as not tracked. Frontend half open.
 
 - Structured privilege records on a licence (new table, portable, with an admin count):
   - SFCL.205 sailplane or banner towing: 5 tows in 24 months, counted from `isTowFlight`
@@ -296,7 +302,11 @@ Frontend half open.
   rule above 120 kg empty mass.
 - Closes S2 and M4.
 
-**WP-32. Passenger authorisation and Einweisung** (api + fe)
+**WP-32. Passenger authorisation and Einweisung** (api + fe) — **API half implemented**
+with WP-26: `UL_PASSENGER_AUTH`, `UL_TYPE_BRIEFING` (detail: aircraft type) and `UL_TOWING`
+(detail: kind) privileges; German UL passenger currency is current only with the
+authorisation recorded (`pax.ul_authorisation_missing` otherwise) and carries the §84a
+progress rows; see [DOMAIN.md](../DOMAIN.md#ultralights). Frontend half open.
 
 - §84a DULV passenger-authorisation progress: 5 cross-country flights, 2 with landings,
   200 km in total, flown with an FI.

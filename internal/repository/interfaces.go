@@ -403,6 +403,20 @@ type AircraftReminderRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
+// LicencePrivilegeRepository persists licence privileges. Lists are ordered
+// by kind, then detail, then id.
+type LicencePrivilegeRepository interface {
+	Create(ctx context.Context, privilege *models.LicencePrivilege) error
+	// GetByID returns ErrNotFound when no privilege has the id.
+	GetByID(ctx context.Context, id uuid.UUID) (*models.LicencePrivilege, error)
+	ListByLicense(ctx context.Context, licenseID uuid.UUID) ([]*models.LicencePrivilege, error)
+	ListByUser(ctx context.Context, userID uuid.UUID) ([]*models.LicencePrivilege, error)
+	// Update writes kind, detail, dates and notes; ErrNotFound when the row is gone.
+	Update(ctx context.Context, privilege *models.LicencePrivilege) error
+	// Delete returns ErrNotFound when no privilege has the id.
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
 // NotificationRepository defines the interface for notification data access
 type NotificationRepository interface {
 	GetPreferences(ctx context.Context, userID uuid.UUID) (*models.NotificationPreferences, error)

@@ -57,6 +57,16 @@ const (
 	MsgPaxDayCurrentNightNot      = "pax.day_current_night_not"
 	MsgPaxCurrentPrivilegeSeparat = "pax.current_day_privilege_separate"
 	MsgPaxGPLExperienceNotMet     = "pax.gpl_experience_not_met"
+	MsgPaxULAuthorisationMissing  = "pax.ul_authorisation_missing"
+)
+
+// Privilege keys (PrivilegeCurrency.MessageKey).
+const (
+	MsgPrivilegeValid            = "privilege.valid"
+	MsgPrivilegeExpired          = "privilege.expired"
+	MsgPrivilegeRecencyCurrent   = "privilege.recency_current"
+	MsgPrivilegeRecencyNotMet    = "privilege.recency_not_met"
+	MsgPrivilegeEvaluationFailed = "privilege.evaluation_failed"
 )
 
 // Flight review keys (FlightReviewStatus.MessageKey).
@@ -74,6 +84,7 @@ const (
 	MsgRequirementProgress           = "requirement.progress"
 	MsgRequirementProfCheckCompleted = "requirement.prof_check_completed"
 	MsgRequirementProfCheckMissing   = "requirement.prof_check_missing"
+	MsgRequirementUntracked          = "requirement.untracked"
 )
 
 // Requirement name keys (Requirement.NameKey).
@@ -101,6 +112,20 @@ const (
 	ReqKeyTMGLandings       = "requirement.tmg_landings"
 	ReqKeyTMGTrainingFlight = "requirement.tmg_training_flight"
 	ReqKeyFlightReview      = "requirement.flight_review"
+
+	ReqKeyTows                    = "requirement.tows"
+	ReqKeyTowedGliderFlights      = "requirement.towed_glider_flights"
+	ReqKeyCloudFlyingTime         = "requirement.cloud_flying_time"
+	ReqKeyCloudFlyingFlights      = "requirement.cloud_flying_flights"
+	ReqKeyInstructionTime         = "requirement.instruction_time"
+	ReqKeyInstructionLaunches     = "requirement.instruction_launches"
+	ReqKeyFIRefresher             = "requirement.fi_refresher"
+	ReqKeyPaxPrerequisiteTime     = "requirement.pax_prerequisite_time"
+	ReqKeyPaxPrerequisiteLaunches = "requirement.pax_prerequisite_launches"
+	ReqKeyPaxCompetenceFlight     = "requirement.pax_competence_flight"
+	ReqKeyULXCFlights             = "requirement.ul_xc_flights"
+	ReqKeyULXCLandingFlights      = "requirement.ul_xc_landing_flights"
+	ReqKeyULXCDistance            = "requirement.ul_xc_distance"
 )
 
 // Launch method key (LaunchMethodCurrency.MessageKey).
@@ -112,6 +137,9 @@ const (
 	RemedyTrainingFlight   = "remedy.training_flight"
 	RemedyProficiencyCheck = "remedy.proficiency_check"
 	RemedyLaunchMethodDual = "remedy.launch_method_dual"
+	// RemedyPrivilegeWithInstructor asks for the missing amount flown dual or
+	// under the supervision of an instructor.
+	RemedyPrivilegeWithInstructor = "remedy.privilege_with_instructor"
 )
 
 // Readiness reason keys (GET /currency/readiness) with no currency counterpart.
