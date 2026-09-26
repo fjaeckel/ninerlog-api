@@ -335,6 +335,7 @@ additionally implement optional interfaces:
 | --- | --- | --- |
 | `Evaluator` (required) | `Evaluate(...)` | Tier 1 — rating currency (can I fly this class at all?) |
 | `PeerAwareEvaluator` | `EvaluateWithPeers(...)` | Tier 1 with the license's other class ratings; `EvaluateAll` prefers it over `Evaluate` |
+| `HolderAwareEvaluator` | `EvaluateForHolder(...)`, `EvaluateRatingPassengerCurrencyForHolder(...)` | Tier 1 and 2 with every class rating the user holds across licences; `EvaluateAll` prefers it over the two above (German UL: which kindless flights count) |
 | `PassengerCurrencyEvaluator` | `EvaluatePassengerCurrency(...)` | Tier 2 — passenger carriage (EASA FCL.060(b), FAA §61.57(a)/(b)) |
 | `FlightReviewEvaluator` | `EvaluateFlightReview(...)` | FAA §61.56 flight review (24 calendar months) |
 
@@ -362,6 +363,8 @@ interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL
 - `GetProgressByULKind`, `GetLastProficiencyCheckByULKind`, `GetLandingDaysByULKind` — the
   same three reads on `ULTRALIGHT` aircraft selected by kind (`ULSelector`: kinds, plus
   aircraft with no kind when `IncludeUnspecified`, and of at least `MinMTOMKg` kg when set).
+  `GetLandingDaysByULKind` also returns take-offs per date, at least one per flight, as
+  launches are counted.
 
 This separation keeps the *regulatory* logic (what to count and over which window) in the
 evaluators, and the *data* logic (how to query) in one place.
@@ -423,9 +426,14 @@ rating is a `Status` (`internal/service/currency/types.go`):
 | Status | Meaning |
 | --- | --- |
 | `current` | Requirements met / not near expiry |
-| `expiring` | Within the warning window before expiry |
-| `expired` | Requirements not met / past expiry |
-| `unknown` | Insufficient data to determine |
+| `expiring` | Within the warning window before a rating's expiry date, or an expiry-anchored revalidation rule (FCL.740.A, FCL.625.A) whose experience is not yet met |
+| `expired` | Past the rating's expiry date; FAA §61.57 currency not met |
+| `lapsed` | A rolling recency rule is not met: LAPL(A) FCL.140.A, SPL SFCL.160(a)/(b), GPL FCL.240.G, German UL LuftPersV §45. The licence stays valid, its privileges may not be exercised until recency is restored. |
+| `unknown` | Insufficient data to determine (the `messageKey` says which data) |
+
+`expired` is reserved for a date expiry: a rolling recency rule has no expiry date, so it
+reports `lapsed`, never `expired`. The notification digest treats `expiring`, `expired` and
+`lapsed` alike and sends the revalidation/recency notice once per rating.
 
 The response also carries per-requirement progress, so the UI can show exactly what
 remains. Every user-facing string is emitted as a stable **message key** plus its params
@@ -511,6 +519,11 @@ declare `ulCredit: easaAnnexICredit`, which adds `THREE_AXIS` flights where the 
 - Dual time is not. The refresher flight with an instructor must be in an aircraft authorised
   under ORA.ATO.135, which excludes Annex I category (e) ultralights, so a UL flight never meets
   the refresher or the LAPL(A) training flight. Nor does a UL proficiency check count.
+- The LAPL(A) training flight (FCL.140.A(a)(1), "one refresher training flight of at least 1
+  hour total flight time with an instructor") is one flight: `requirement.training_flight`
+  reports the longest total time of a flight with dual time and needs 60 minutes. The SEP/TMG
+  refresher of FCL.740.A(b)(1)(ii) ("1 hour of flight training") and the GPL refresher of
+  FCL.240.G stay cumulative dual minutes (`requirement.refresher_training`).
 - Only an aircraft with an explicit kind is credited. A trike, gyroplane, UL helicopter,
   powered paraglider or UL sailplane is not an aeroplane or TMG of the same class
   (Luftamt Südbayern: "nur ... in einem aerodynamisch dreiachsgesteuerten Luftsportgerät").
@@ -518,15 +531,17 @@ declare `ulCredit: easaAnnexICredit`, which adds `THREE_AXIS` flights where the 
   not among the credited requirements and never count ultralights. Nor does SEP(sea).
 
 **German ultralight recency, LuftPersV.** `GermanULEvaluator` (LBA, DULV, DAeC) evaluates an
-`ULTRALIGHT` rating by its kind; a rating with no kind is evaluated as `THREE_AXIS`. Every other
-class rating on such a licence (an LBA-issued PPL's `SEP_LAND`, say) is delegated to
+`ULTRALIGHT` rating by its kind. A rating with no kind is not evaluated: it reports `unknown`
+with `rating.ul_kind_required`, no requirements and no passenger currency, because the rule,
+the thresholds and the aircraft that count all depend on the kind (§45(4)). Every other class
+rating on such a licence (an LBA-issued PPL's `SEP_LAND`, say) is delegated to
 `EASAEvaluator`. All windows roll back from today.
 
 | Kind (rule) | Requirement | Counts | Proficiency check replaces it |
 | --- | --- | --- | --- |
-| `THREE_AXIS` (`germanULRule`, §45(2)) | 12h in 24 months incl. 6h PIC, 12 landings, 1h training flight with an instructor | three-axis UL, `SEP_LAND` and `TMG` time and landings; the training flight only on a three-axis UL | yes, in a three-axis UL, TMG or SEP (§45(3)) |
-| `HELICOPTER` (`germanULHelicopterRule`, §45(2a)) | 6h in 12 months incl. 6 landings, 1h with an instructor | UL helicopters | yes |
-| `GYROPLANE` (`germanULGyroplaneRule`, DULV) | 12h in 24 months incl. 6h PIC, 12 landings, 1h training flight | gyroplanes only | yes |
+| `THREE_AXIS` (`germanULRule`, §45(2)) | 12h in 24 months incl. 6h PIC, 12 landings, one training flight of at least 1h with an instructor | three-axis UL, `SEP_LAND` and `TMG` time and landings; the training flight only on a three-axis UL | yes, in a three-axis UL, TMG or SEP (§45(3)) |
+| `HELICOPTER` (`germanULHelicopterRule`, §45(2a)) | 6h in 12 months incl. 6 landings, one flight of at least 1h with an instructor | UL helicopters | yes |
+| `GYROPLANE` (`germanULGyroplaneRule`, DULV) | 12h in 24 months incl. 6h PIC, 12 landings, one training flight of at least 1h | gyroplanes only; the training flight only on a UL gyroplane | yes |
 | `WEIGHT_SHIFT` DULV/LBA (`germanULTrikeDULVRule`) | 12h as PIC in 24 months | trikes | no |
 | `WEIGHT_SHIFT` DAeC (`germanULTrikeDAeCRule`) | 12h and 12 landings in 24 months; the safety/performance training is not tracked | trikes | no |
 | `POWERED_PARAGLIDER` (`germanULPoweredParagliderRule`) | 30 landings in 24 months | powered paragliders | no |
@@ -534,17 +549,29 @@ class rating on such a licence (an LBA-issued PPL's `SEP_LAND`, say) is delegate
 
 Only the three-axis and helicopter rules are statute (§45(2), (2a)); the others are set by
 DULV/DAeC under §45(4), and the two associations differ for trikes, so the trike rule follows
-the licence's authority. A flight on an `ULTRALIGHT` aircraft with no kind counts toward a German
-rating of any kind, never toward EASA crediting. An unmet requirement reports `expiring`: the
-licence does not lapse (§45(1)), the privileges may not be exercised until the requirement is
-met. Landings stand in for takeoffs and landings, and dual time for the training flight, as in
-the EASA rules.
+the licence's authority. An unmet requirement reports `lapsed`: the licence does not lapse
+(§45(1)), the privileges may not be exercised until the requirement is met. Landings stand in
+for takeoffs and landings in the recency rules, as in the EASA rules.
 
-Passenger recency (§45a) is 3 takeoffs and landings in the preceding 90 days in an ultralight of
-the same kind, so it is evaluated per rating kind (`RatingPassengerCurrencyEvaluator`) and
-reported with `PassengerCurrency.ulKind`; SEP/TMG landings do not count. The passenger rating
-itself (§84a) is proved separately and not tracked. Ultralights have no night privilege
-(§44(2)).
+The training flight ("ein Übungsflug von mindestens einer Stunde", §45(2); the same for
+§45(2a) and the gyroplane rule) is one flight: `requirement.training_flight` reports the
+longest total time of a flight with dual time on the rule's own ultralights, and needs 60
+minutes. Three 20-minute dual circuits do not meet it.
+
+A flight on an `ULTRALIGHT` aircraft with no kind counts toward a German rating only when every
+`ULTRALIGHT` rating the pilot holds, across all licences, has one and the same kind. A pilot
+rated for trike and three-axis, or holding a UL rating with no kind, gets such flights counted
+for no kind, because §45a counts only flights "derselben Art" and the kind is unknown. The
+rating result then reports them in `unclassifiedFlights` so the client can ask the pilot to set
+the aircraft's kind. They never count toward EASA crediting.
+
+Passenger recency (§45a) is 3 takeoffs and 3 landings in the preceding 90 days in an ultralight
+of the same kind, so it is evaluated per rating kind (`HolderAwareEvaluator`) and reported with
+`PassengerCurrency.ulKind`; SEP/TMG landings do not count. Take-offs are the flight's logged
+take-offs, at least one per flight; `dayLandings` reports the smaller of the two counts, and
+`dayExpiresOn` is the earlier of the dates on which the third take-off and the third landing
+leave the window. The passenger rating itself (§84a) is proved separately and not tracked.
+Ultralights have no night privilege (§44(2)).
 
 `GLIDER`, `ULTRALIGHT` and `GYROPLANE` class ratings select their rule from the class, not the
 license type:

@@ -118,13 +118,13 @@ func (p *currencyFlightDataProvider) GetLandingDaysByULKind(ctx context.Context,
 		SELECT
 			f.date,
 			COALESCE(SUM(f.landings_day), 0) as day_landings,
-			COALESCE(SUM(f.landings_night), 0) as night_landings
+			COALESCE(SUM(f.landings_night), 0) as night_landings,
+			COALESCE(SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)), 0) as takeoffs
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $5
 			AND ($6 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 		GROUP BY f.date
-		HAVING SUM(f.landings_day + f.landings_night) > 0
 		ORDER BY f.date DESC
 	`
 	rows, err := p.db.QueryContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, includeTowed)
@@ -132,7 +132,16 @@ func (p *currencyFlightDataProvider) GetLandingDaysByULKind(ctx context.Context,
 		return nil, err
 	}
 	defer rows.Close()
-	return scanLandingDays(rows)
+	var days []currency.LandingDay
+	for rows.Next() {
+		var d currency.LandingDay
+		if err := rows.Scan(&d.Date, &d.DayLandings, &d.NightLandings, &d.Takeoffs); err != nil {
+			return nil, err
+		}
+		d.Date = time.Date(d.Date.Year(), d.Date.Month(), d.Date.Day(), 0, 0, 0, 0, time.UTC)
+		days = append(days, d)
+	}
+	return days, rows.Err()
 }
 
 func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID uuid.UUID, since time.Time) (*currency.Progress, error) {

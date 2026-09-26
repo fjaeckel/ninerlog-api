@@ -234,7 +234,7 @@ func TestGliderAndUltralight_SeparateRatings(t *testing.T) {
 	splID := createLicenseCur(t, c, "EASA", "SPL")
 	createRatingCur(t, c, splID, "GLIDER", nil)
 	ulID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, ulID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, ulID, "THREE_AXIS")
 
 	createGliderFlightsCur(t, c, "D-5815")
 	createULFlightsCur(t, c, "D-MSPL")

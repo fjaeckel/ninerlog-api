@@ -35,7 +35,7 @@ func TestSFCL160c_PartFCLTMGExemptsSPLTMG(t *testing.T) {
 	splTMG := createRatingCur(t, c, splID, "TMG", nil)
 
 	rc := ratingByID(getCurrencyStatus(t, c), splTMG)
-	assertStr(t, "status without Part-FCL TMG", rc["status"], "expiring")
+	assertStr(t, "status without Part-FCL TMG", rc["status"], "lapsed")
 
 	pplID := createLicenseCur(t, c, "EASA", "PPL")
 	createRatingCur(t, c, pplID, "TMG", strPtr(plusDays(pastDate(0), 200)))
@@ -93,7 +93,7 @@ func TestGPL_GyroplaneRecencyWithAnnexICredit(t *testing.T) {
 
 	requireStatus(t, c.PATCH("/aircraft/"+ul["id"].(string), map[string]interface{}{"maxTakeoffMassKg": 400}), http.StatusOK)
 	rc = ratingByID(getCurrencyStatus(t, c), ratingID)
-	assertStr(t, "status under 450 kg", rc["status"], "expiring")
+	assertStr(t, "status under 450 kg", rc["status"], "lapsed")
 }
 
 func TestAircraft_MaxTakeoffMass(t *testing.T) {

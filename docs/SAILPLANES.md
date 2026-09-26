@@ -142,7 +142,10 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
 | SFCL.160(e)(1) | passenger currency, `easa_spl_pax` | landing days of flights with PIC time | `GLIDER` |
 | SFCL.160(e)(2) | passenger currency, `easa_spl_tmg_pax` | landing days of flights with PIC time | `TMG`, SPL licence only |
 
-- Recency is met by either all experience rows or the proficiency check.
+- Recency is met by either all experience rows or the proficiency check. When neither is,
+  the rating reports status `lapsed` with `rating.recency_not_met`: the licence stays valid,
+  its privileges may not be exercised until recency is restored. `expired` is reserved for a
+  date expiry.
 - A supervised solo flight has no instructor on board, so NinerLog logs it as PIC time.
 - The glider rule applies to a `GLIDER` rating on any licence and to every non-TMG rating
   on an `SPL` or `LAPL(S)` licence; only a `GLIDER` rating pools TMG hours.

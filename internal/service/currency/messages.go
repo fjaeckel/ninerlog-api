@@ -30,6 +30,7 @@ const (
 	MsgRatingRecencyNotMet  = "rating.recency_not_met"
 	MsgRatingRecencyCurrent = "rating.recency_current"
 	MsgRatingSFCLTMGExempt  = "rating.sfcl_tmg_exempt"
+	MsgRatingULKindRequired = "rating.ul_kind_required"
 
 	MsgRatingIRHoursAndCheckNotMet = "rating.ir_hours_and_check_not_met"
 	MsgRatingIRHoursNotMet         = "rating.ir_hours_not_met"

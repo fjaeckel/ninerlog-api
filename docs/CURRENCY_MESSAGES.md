@@ -78,8 +78,27 @@ fixture keeps passing while covering a surface the API cannot produce.
    `id`s that double as localisation keys, while operator-authored announcements carry
    author-written text in `message` and are never translated.
 5. `unknown` status is not self-explanatory — the key disambiguates
-   `rating.no_expiry_date` (the user must enter data), `rating.evaluation_failed`
-   (backend problem, retry) and `rating.ir_not_applicable` (structurally N/A).
+   `rating.no_expiry_date` (the user must enter data), `rating.ul_kind_required` (the user
+   must set the ultralight kind), `rating.evaluation_failed` (backend problem, retry) and
+   `rating.ir_not_applicable` (structurally N/A).
+
+## `ClassRatingCurrency.status`
+
+| Status | Meaning | Typical keys |
+| --- | --- | --- |
+| `current` | May exercise the privileges | `rating.recency_current`, `rating.revalidation_current`, `rating.valid_until` |
+| `expiring` | Expiry date approaching, or expiry-anchored revalidation experience (FCL.740.A, FCL.625.A) not yet met | `rating.expiring`, `rating.revalidation_not_met`, `rating.revalidation_expiring_met` |
+| `expired` | Past the expiry date; FAA §61.57 currency not met | `rating.expired`, `rating.pax_not_current`, `rating.glider_not_current` |
+| `lapsed` | A rolling recency rule (LAPL, SPL, SPL TMG, GPL, German UL) is not met: the licence is valid, the privileges may not be exercised until recency is restored. There is no expiry date to count down to. | `rating.recency_not_met` |
+| `unknown` | Not determinable; see rule 5 | `rating.no_expiry_date`, `rating.ul_kind_required`, … |
+
+`lapsed` is new; a client that does not know it should render it as not current, never as
+current. `expired` stays reserved for a date expiry.
+
+`ClassRatingCurrency.unclassifiedFlights`, on a German ultralight rating, counts flights in the
+window on `ULTRALIGHT` aircraft with no kind that the rule did not count (the pilot holds UL
+ratings of more than one kind, or one with no kind). It is absent when zero. Render it as a
+prompt to set the aircraft's kind; it never changes the status.
 
 ## `ClassRatingCurrency.messageKey`
 
@@ -96,9 +115,10 @@ fixture keeps passing while covering a surface the API cannot produce.
 | `rating.revalidation_not_met_prof_check` | — | Same, and a proficiency check may substitute (FCL.740.A(b)(2)) |
 | `rating.revalidation_expiring_met` | `days` | Requirements met, expiry approaching |
 | `rating.revalidation_current` | — | Requirements met, not near expiry |
-| `rating.recency_not_met` | — | Rolling recency incomplete (LAPL, SPL, UL) |
+| `rating.recency_not_met` | — | Rolling recency incomplete (LAPL, SPL, GPL, UL); status `lapsed` |
 | `rating.recency_current` | — | Rolling recency satisfied (LAPL, SPL, GPL, UL) |
 | `rating.sfcl_tmg_exempt` | — | SPL TMG privileges need no SFCL.160(b) experience: the pilot holds Part-FCL TMG privileges (SFCL.160(c)) |
+| `rating.ul_kind_required` | — | German ultralight rating with no ultralight kind: recency (LuftPersV §45) depends on the kind, so nothing is evaluated and no passenger currency is reported. Status `unknown`; the pilot must set the rating's kind |
 | `rating.ir_hours_and_check_not_met` | — | EASA IR: neither IFR hours nor proficiency check |
 | `rating.ir_hours_not_met` | — | EASA IR: IFR hours short |
 | `rating.ir_check_not_met` | — | EASA IR: annual proficiency check missing |
@@ -117,7 +137,7 @@ fixture keeps passing while covering a surface the API cannot produce.
 | Key | Params | Meaning |
 | --- | --- | --- |
 | `pax.evaluation_failed` | — | Flight data could not be read |
-| `pax.not_current` | `needed` | Day requirement short by `needed` landings |
+| `pax.not_current` | `needed` | Day requirement short by `needed` landings (German UL §45a: take-offs and landings, `dayLandings` is the smaller count) |
 | `pax.current_day_no_night_privilege` | — | Day met; this licence has no night privilege |
 | `pax.current_day_night_ir_waived` | — | Day met; night waived for IR holders (FCL.060(b)(2)(ii)) |
 | `pax.current_day_night` | — | Day and night both met |
@@ -146,6 +166,11 @@ render them yourself. See [DOMAIN.md](./DOMAIN.md#passenger-currency-expiry-daye
 `.launches_and_landings`, `.sep_land_time`, `.sep_land_landings`, `.sep_sea_time`,
 `.sep_sea_landings`, `.flight_time`, `.training_flights`, `.tmg_time`, `.tmg_landings`,
 `.tmg_training_flight`. Absent on custom rules — see rule 4.
+
+`.training_flight` (LAPL(A) FCL.140.A(a)(1), German UL §45(2), (2a) and gyroplane) is one
+flight of at least 1 h total time with dual time: `current` is the longest such flight in
+minutes and `required` is 60. `.refresher_training` (FCL.740.A(b)(1)(ii), FCL.740.A(b)(2),
+FCL.240.G) is dual minutes summed over the window.
 
 The four `sep_*` keys are the per-class minimums of EASA FCL.140.A(b), present only on a
 LAPL license holding both SEP(land) and SEP(sea) ratings. LAPL results also carry a

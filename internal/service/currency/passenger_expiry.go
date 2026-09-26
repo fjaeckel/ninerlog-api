@@ -54,6 +54,33 @@ func paxExpiryDate(days []LandingDay, required int, count paxLandingCount) *time
 	return nil
 }
 
+// takeoffs counts take-offs.
+func takeoffs(d LandingDay) int { return d.Takeoffs }
+
+// paxTakeoffTotal sums the take-offs across every date in the window.
+func paxTakeoffTotal(days []LandingDay) int {
+	total := 0
+	for _, d := range days {
+		total += d.Takeoffs
+	}
+	return total
+}
+
+// paxExpiryDateTakeoffsAndLandings is paxExpiryDate for a requirement of
+// `required` take-offs and `required` landings: the earlier of the two expiries,
+// nil when either is unmet.
+func paxExpiryDateTakeoffsAndLandings(days []LandingDay, required int) *time.Time {
+	byLandings := paxExpiryDate(days, required, allLandings)
+	byTakeoffs := paxExpiryDate(days, required, takeoffs)
+	if byLandings == nil || byTakeoffs == nil {
+		return nil
+	}
+	if byTakeoffs.Before(*byLandings) {
+		return byTakeoffs
+	}
+	return byLandings
+}
+
 // paxExpiryString formats an expiry date as YYYY-MM-DD.
 func paxExpiryString(t *time.Time) *string {
 	if t == nil {
