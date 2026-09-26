@@ -120,6 +120,7 @@ var CountMetrics = map[string]bool{
 	"night_takeoffs": true,
 	"approaches":     true,
 	"holds":          true,
+	"launches":       true,
 }
 
 // ValidFilterFields enumerates the fields a filter may reference, mapped to the
@@ -138,6 +139,8 @@ var ValidFilterFields = map[string]map[string]bool{
 	"has_night":                 {"is_true": true},
 	"has_ifr":                   {"is_true": true},
 	"is_cross_country":          {"is_true": true},
+	"is_outlanding":             {"is_true": true},
+	"is_tow_flight":             {"is_true": true},
 }
 
 // IsTimeMetric reports whether a metric is measured in time (minutes).

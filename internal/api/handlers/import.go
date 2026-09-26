@@ -947,6 +947,24 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				lm := generated.FlightCreateLaunchMethod(m)
 				flight.LaunchMethod = &lm
 			}
+		case "launches":
+			if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+				flight.Launches = &n
+			} else {
+				errs = append(errs, fieldError{"launches", fmt.Sprintf("Invalid number '%s'", val)})
+			}
+		case "isOutlanding":
+			b := parseBoolish(val, nil)
+			flight.IsOutlanding = &b
+		case "isTowFlight":
+			b := parseBoolish(val, nil)
+			flight.IsTowFlight = &b
+		case "releaseHeightM":
+			if n, err := strconv.Atoi(val); err == nil && n >= models.MinReleaseHeightM && n <= models.MaxReleaseHeightM {
+				flight.ReleaseHeightM = &n
+			} else {
+				errs = append(errs, fieldError{"releaseHeightM", fmt.Sprintf("Invalid release height '%s'", val)})
+			}
 		case "person1", "person2", "person3", "person4", "person5", "person6":
 			slot := string(mapping.TargetField)
 			name, role := foreFlightPersonNameRole(val)
@@ -1240,6 +1258,17 @@ func importedFlight(userID uuid.UUID, flight generated.FlightCreate) models.Flig
 		lm := string(*flight.LaunchMethod)
 		newFlight.LaunchMethod = &lm
 	}
+	if flight.Launches != nil {
+		newFlight.Launches = *flight.Launches
+		newFlight.LaunchesOverride = true
+	}
+	if flight.IsOutlanding != nil {
+		newFlight.IsOutlanding = *flight.IsOutlanding
+	}
+	if flight.IsTowFlight != nil {
+		newFlight.IsTowFlight = *flight.IsTowFlight
+	}
+	newFlight.ReleaseHeightM = flight.ReleaseHeightM
 	newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
 	// An imported night or cross-country value is stored as an override,
 	// capped at block time.
@@ -1992,7 +2021,7 @@ func parseBoolish(val string, trueValue *string) bool {
 		return strings.EqualFold(val, *trueValue)
 	}
 	lower := strings.ToLower(val)
-	if lower == "true" || lower == "yes" || lower == "1" || lower == "x" || lower == "y" {
+	if lower == "true" || lower == "yes" || lower == "1" || lower == "x" || lower == "y" || lower == "ja" || lower == "j" {
 		return true
 	}
 	// If it's a float > 0, treat as true (ForeFlight PIC column)

@@ -172,31 +172,48 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
-	// Parse date
-	flightDate, err := time.Parse("2006-01-02", req.Date.String())
-	if err != nil {
-		h.sendError(c, http.StatusBadRequest, "Invalid date format")
+	flight, errMsg := h.flightFromCreate(c, userID, &req)
+	if errMsg != "" {
+		h.sendError(c, http.StatusBadRequest, errMsg)
 		return
 	}
 
-	if err := validateCreateShape(&req); err != nil {
-		h.sendError(c, http.StatusBadRequest, err.Error())
+	if err := h.flightService.CreateFlight(c.Request.Context(), flight); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
+	}
+	// Persist crew members. A new flight with no crew has nothing to clear.
+	if len(flight.CrewMembers) > 0 {
+		h.persistCrewMembers(c, userID, flight)
+	}
+	c.JSON(http.StatusCreated, convertToGeneratedFlight(flight))
+}
+
+// flightFromCreate builds the flight a create body describes and applies the
+// auto-calculations. Returns a 400 message when the body is malformed.
+func (h *APIHandler) flightFromCreate(c *gin.Context, userID uuid.UUID, req *generated.FlightCreate) (*models.Flight, string) {
+	// Parse date
+	flightDate, err := time.Parse("2006-01-02", req.Date.String())
+	if err != nil {
+		return nil, "Invalid date format"
+	}
+
+	if err := validateCreateShape(req); err != nil {
+		return nil, err.Error()
 	}
 
 	flight := models.Flight{
 		UserID:       userID,
 		Date:         flightDate,
 		AircraftType: req.AircraftType,
-		IsSimulator:  isSimulatorCreate(&req),
+		IsSimulator:  isSimulatorCreate(req),
 	}
 
 	if !flight.IsSimulator {
 		// Total time spans the block pair, else take-off to landing.
-		totalTime, source, err := createClocks(&req).TotalMinutes()
+		totalTime, source, err := createClocks(req).TotalMinutes()
 		if err != nil {
-			h.sendError(c, http.StatusBadRequest, invalidClockMessage(source))
-			return
+			return nil, invalidClockMessage(source)
 		}
 
 		departureIcao := *req.DepartureIcao
@@ -284,6 +301,17 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 			flight.LaunchMethod = &lm
 		}
 	}
+	if req.Launches != nil {
+		flight.Launches = *req.Launches
+		flight.LaunchesOverride = true
+	}
+	if req.IsOutlanding != nil {
+		flight.IsOutlanding = *req.IsOutlanding
+	}
+	if req.IsTowFlight != nil {
+		flight.IsTowFlight = *req.IsTowFlight
+	}
+	flight.ReleaseHeightM = req.ReleaseHeightM
 
 	// Phase 6c: PIC Name, Multi-Pilot Time, FSTD Type, Approaches, Endorsements
 	flight.PICName = req.PicName
@@ -335,15 +363,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.PICName = flightrules.ResolvePICNameForSave(&flight, userName)
 	}
 
-	if err := h.flightService.CreateFlight(c.Request.Context(), &flight); err != nil {
-		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
-		return
-	}
-	// Persist crew members. A new flight with no crew has nothing to clear.
-	if len(flight.CrewMembers) > 0 {
-		h.persistCrewMembers(c, userID, &flight)
-	}
-	c.JSON(http.StatusCreated, convertToGeneratedFlight(&flight))
+	return &flight, ""
 }
 
 // GetFlight implements GET /flights/{flightId}
@@ -486,6 +506,14 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.IsProficiencyCheck = *req.IsProficiencyCheck
 	}
 	applyNullable(&flight.LaunchMethod, req.LaunchMethod)
+	applyOverride(&flight.Launches, &flight.LaunchesOverride, req.Launches)
+	if req.IsOutlanding != nil {
+		flight.IsOutlanding = *req.IsOutlanding
+	}
+	if req.IsTowFlight != nil {
+		flight.IsTowFlight = *req.IsTowFlight
+	}
+	applyNullable(&flight.ReleaseHeightM, req.ReleaseHeightM)
 	// Phase 6c fields
 	applyNullable(&flight.PICName, req.PicName)
 	applyOverride(&flight.MultiPilotTime, &flight.MultiPilotTimeOverride, req.MultiPilotTime)
@@ -651,6 +679,12 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		LandingsNightOverride:    f.LandingsNightOverride,
 		SicTimeOverride:          f.SICTimeOverride,
 		MultiPilotTimeOverride:   f.MultiPilotTimeOverride,
+
+		Launches:         f.Launches,
+		LaunchesOverride: f.LaunchesOverride,
+		IsOutlanding:     f.IsOutlanding,
+		IsTowFlight:      f.IsTowFlight,
+		ReleaseHeightM:   f.ReleaseHeightM,
 	}
 
 	if f.DepartureICAO != nil {

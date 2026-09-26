@@ -379,13 +379,13 @@ fleet list, an aircraft picker — must page until `pagination.page` reaches
 `pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
 
 ### Flights
-CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
-(re-run auto-calculations respecting overrides). `nightTime`, `crossCountryTime`,
-`takeoffsDay`, `takeoffsNight`, `sicTime` and `multiPilotTime` are auto-calculated unless
-the request carries them: a number stores that value and sets the matching
-`*Override` flag, JSON `null` on `PUT` clears the flag so the server derives the value
-again, and an omitted field changes nothing. Every flight response reports the eight
-override flags. `aircraftReg` is normalised the same way
+CRUD on `/flights`, plus `POST /flights/batch`, `DELETE /flights/delete-all` and
+`POST /flights/recalculate` (re-run auto-calculations respecting overrides). `nightTime`,
+`crossCountryTime`, `takeoffsDay`, `takeoffsNight`, `launches`, `sicTime` and
+`multiPilotTime` are auto-calculated unless the request carries them: a number stores that
+value and sets the matching `*Override` flag, JSON `null` on `PUT` clears the flag so the
+server derives the value again, and an omitted field changes nothing. Every flight response
+reports the nine override flags. `aircraftReg` is normalised the same way
 as `registration` on create/update. `POST /flights/recalculate` also canonicalises the
 user's whole fleet first and reports the outcome as `aircraftNormalized` and
 `aircraftConflicts`. Flight responses include the read-only
@@ -518,6 +518,38 @@ with `rating.ul_kind_required` (see [DOMAIN.md](./DOMAIN.md#ultralights)). `stat
 `unknown`. GYROPLANE
 ratings follow FCL.240.G, and an SPL TMG rating may carry `rating.sfcl_tmg_exempt`; see
 [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md).
+
+**Glider flight facts.** Every flight carries `launches` (with `launchesOverride`),
+`isOutlanding`, `isTowFlight` and an optional `releaseHeightM`:
+
+| Field | Create / update | Effect |
+| --- | --- | --- |
+| `launches` | integer ≥ 0; `null` on `PUT` returns it to derivation | Derived as the take-off count (at least 1; 0 for an FSTD session or passenger flight). Launch recency (SFCL.155(c), SFCL.160(a)(1)(i)) counts it. A series of launches on one row sends the count. |
+| `isOutlanding` | boolean, default `false` | A landing away from the planned site: no cross-country time is derived from departure ≠ arrival. A `crossCountryTime` the pilot sends still wins. |
+| `isTowFlight` | boolean, default `false` | The pilot flew the tug. Stored only. |
+| `releaseHeightM` | integer 0–20000 or `null` | Release height in metres; outside the range is a 400 (`release height must be between 0 and 20000 m`). |
+
+A negative `launches` is a 400 (`launches cannot be negative`). All four travel in the JSON
+backup, the standard CSV layout and CSV import, and are logbook query fields (`launches`,
+`outlanding`, `towflight`, `releaseHeight`). See [SAILPLANES.md](./SAILPLANES.md#launches-and-series-entries).
+
+`POST /flights/batch` logs a series of circuits in one request: `{template, legs}`, where
+`template` is a `FlightCreate` body and each of the 1–50 `legs` carries `departureTime`,
+`arrivalTime` and optionally `landings` (default: the template's, else 1), `launches` and
+`remarks`, which replace the template's. Every leg is validated exactly like
+`POST /flights`, and all legs are stored in one transaction with their crew. It responds
+201 `{flights: [...]}` in leg order. Failures, all 400 unless noted, create nothing:
+
+| Condition | Response |
+| --- | --- |
+| no legs or more than 50 | 400 `legs must hold between 1 and 50 entries` |
+| a leg fails the create-shape or time-pair check | 400 `Leg <i>: <message as on POST /flights>` |
+| a leg fails model validation (e.g. `releaseHeightM` out of range, negative `launches`, invalid launch method) | 400 `Leg <i>: <validation error>` |
+| database error | 500 `Failed to create flights` |
+| no bearer token | 401 |
+
+`<i>` is the zero-based leg index. The endpoint carries the `general` rate limit like
+`POST /flights`, and honours `Idempotency-Key`.
 
 ### Custom Currency
 User-authored currency rules under `/custom-currency` — a rule is a declarative document (a
@@ -653,9 +685,12 @@ chronological order. It also accepts every `GET /flights` filter — `q`, `searc
 pagination. An invalid `q` returns 400. `totals=true` appends one totals row after the last
 flight: `Total (N flights)` in the first column and the sum of every time, count and distance
 column in that layout's format. A file with a totals row is a report, not an import source.
-The standard layout's last column is `LaunchMethod`; the other layouts have no launch column
-and append `[Launch: <method>]` to the remarks cell, as the PDFs do. `POST /imports/confirm`
-reads either back into `launchMethod`.
+The standard layout ends with `LaunchMethod`, `Launches`, `Outlanding`, `TowFlight` and
+`ReleaseHeightM`; the other layouts have no launch column and append `[Launch: <method>]` to
+the remarks cell, as the PDFs do. `POST /imports/confirm` reads either back into
+`launchMethod`, and maps the glider-fact columns to the `launches`, `isOutlanding`,
+`isTowFlight` and `releaseHeightM` import fields (also from German `Starts` and
+`Außenlandung`); an imported launch count is stored with its override flag set.
 
 `GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,
 email, phone, notes, the contact's logged crew roles as `CATEGORIES`, and a stable `UID`

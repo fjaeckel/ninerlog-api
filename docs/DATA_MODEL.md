@@ -193,7 +193,7 @@ flight update, spreadsheet import, backup restore) runs the crew names through
 than of which entry point the pilot used. `POST /contacts` is for filling in email and
 phone, and returns 409 on a name that already exists rather than creating a second row.
 
-### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63, 66)
+### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63, 66, 76)
 
 The central record. It holds **two kinds of row**, told apart by `IsSimulator`: a flight,
 and an FSTD (simulator) session. See
@@ -248,7 +248,13 @@ are **integer minutes**):
 - **Excluded from aggregates**: every aggregate query carries
   `NOT is_simulator AND NOT is_passenger` — the SQL counterpart of
   `flightrules.CountsAsFlightTime`.
-- **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`, `car`, `bungee`); see
+- **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+  Migration 76 adds `Launches` (`launches INT NULL`, `>= 0`) with `LaunchesOverride`
+  (`launches_override`): the launch count, derived from the take-offs (at least one) unless
+  the pilot set it; a `NULL` on rows stored before the column reads as the take-off count.
+  It also adds `IsOutlanding` (`is_outlanding`, a landing away from the planned site; no
+  cross-country time is derived), `IsTowFlight` (`is_tow_flight`, the pilot flew the tug)
+  and `ReleaseHeightM` (`release_height_m INT NULL`, 0–20000 m). See
   [SAILPLANES.md](./SAILPLANES.md).
 - **Free text**: `Remarks`.
 

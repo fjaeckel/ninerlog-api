@@ -12,7 +12,8 @@ import (
 
 // Mock flight repository
 type mockFlightRepo struct {
-	flights map[uuid.UUID]*models.Flight
+	flights        map[uuid.UUID]*models.Flight
+	createBatchErr error
 }
 
 func newMockFlightRepo() *mockFlightRepo {
@@ -26,6 +27,18 @@ func (m *mockFlightRepo) Create(ctx context.Context, flight *models.Flight) erro
 	flight.CreatedAt = time.Now()
 	flight.UpdatedAt = time.Now()
 	m.flights[flight.ID] = flight
+	return nil
+}
+
+func (m *mockFlightRepo) CreateBatch(ctx context.Context, flights []*models.Flight) error {
+	if m.createBatchErr != nil {
+		return m.createBatchErr
+	}
+	for _, f := range flights {
+		if err := m.Create(ctx, f); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

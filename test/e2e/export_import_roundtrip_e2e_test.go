@@ -332,3 +332,122 @@ func TestExportImportRoundTrip_PilotProfile(t *testing.T) {
 	}
 	assertStatus(t, dest.Do("POST", "/imports/json", bad), http.StatusBadRequest)
 }
+
+// gliderFactsFlights logs Lena's series entry and an outlanding with its release height.
+func gliderFactsFlights(t *testing.T, c *E2EClient) {
+	t.Helper()
+	createFlightCur(t, c, map[string]interface{}{
+		"date": pastDate(20), "aircraftReg": "D-1234", "aircraftType": "ASK21",
+		"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+		"departureTime": "10:00", "arrivalTime": "11:00",
+		"landings": 6, "launchMethod": "winch", "launches": 6,
+	})
+	createFlightCur(t, c, map[string]interface{}{
+		"date": pastDate(10), "aircraftReg": "D-1234", "aircraftType": "ASK21",
+		"departureIcao": "EDNY", "arrivalIcao": "Feld bei Riedlingen",
+		"departureTime": "11:00", "arrivalTime": "14:30",
+		"landings": 1, "launchMethod": "aerotow", "isOutlanding": true, "releaseHeightM": 600,
+	})
+	createFlightCur(t, c, map[string]interface{}{
+		"date": pastDate(5), "aircraftReg": "D-EXYZ", "aircraftType": "DR40",
+		"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+		"offBlockTime": "10:00", "onBlockTime": "10:15",
+		"landings": 1, "isTowFlight": true,
+	})
+}
+
+// flightsByDate returns the account's flights keyed by date.
+func flightsByDate(t *testing.T, c *E2EClient) map[string]map[string]interface{} {
+	t.Helper()
+	resp := c.GET("/flights?pageSize=100")
+	requireStatus(t, resp, http.StatusOK)
+	var page map[string]interface{}
+	resp.JSON(&page)
+	out := map[string]map[string]interface{}{}
+	data, _ := page["data"].([]interface{})
+	for _, d := range data {
+		f := d.(map[string]interface{})
+		out[f["date"].(string)] = f
+	}
+	return out
+}
+
+// assertGliderFacts checks the flights gliderFactsFlights logged.
+func assertGliderFacts(t *testing.T, flights map[string]map[string]interface{}) {
+	t.Helper()
+	if len(flights) != 3 {
+		t.Fatalf("got %d flights, want 3", len(flights))
+	}
+	series := flights[pastDate(20)]
+	assertInt(t, "series launches", gi(series, "launches"), 6)
+	assertBool(t, "series launchesOverride", gb(series, "launchesOverride"), true)
+	out := flights[pastDate(10)]
+	assertBool(t, "isOutlanding", gb(out, "isOutlanding"), true)
+	assertInt(t, "outlanding crossCountryTime", gi(out, "crossCountryTime"), 0)
+	assertInt(t, "releaseHeightM", gi(out, "releaseHeightM"), 600)
+	assertInt(t, "outlanding launches", gi(out, "launches"), 1)
+	tow := flights[pastDate(5)]
+	assertBool(t, "isTowFlight", gb(tow, "isTowFlight"), true)
+	if tow["releaseHeightM"] != nil {
+		t.Errorf("tow releaseHeightM = %v, want none", tow["releaseHeightM"])
+	}
+}
+
+func TestExportImportRoundTrip_GliderFlightFacts(t *testing.T) {
+	t.Run("JSON backup", func(t *testing.T) {
+		source := setupLena(t, "facts-json-src")
+		gliderFactsFlights(t, source)
+		backupResp := source.GET("/exports/json")
+		requireStatus(t, backupResp, http.StatusOK)
+		var backup map[string]interface{}
+		if err := json.Unmarshal(backupResp.Body, &backup); err != nil {
+			t.Fatal(err)
+		}
+
+		dest := NewE2EClient(t)
+		registerAndLogin(t, dest, uniqueEmail("facts-json-dst"), "SecurePass123!", "Facts JSON")
+		requireStatus(t, dest.Do("POST", "/imports/json", backup), http.StatusOK)
+		assertGliderFacts(t, flightsByDate(t, dest))
+	})
+
+	t.Run("backup without glider facts derives launches", func(t *testing.T) {
+		dest := NewE2EClient(t)
+		registerAndLogin(t, dest, uniqueEmail("facts-json-old"), "SecurePass123!", "Facts Old")
+		backup := map[string]interface{}{
+			"format": "NinerLog JSON Backup",
+			"flights": []map[string]interface{}{{
+				"date": pastDate(3) + "T00:00:00Z", "aircraftReg": "D-1234", "aircraftType": "ASK21",
+				"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+				"departureTime": "10:00:00", "arrivalTime": "10:08:00",
+				"totalTime": 8, "isPic": true, "picTime": 8,
+				"landingsDay": 1, "allLandings": 1, "takeoffsDay": 1, "launchMethod": "winch",
+			}},
+		}
+		requireStatus(t, dest.Do("POST", "/imports/json", backup), http.StatusOK)
+		f := flightsByDate(t, dest)[pastDate(3)]
+		assertInt(t, "launches", gi(f, "launches"), 1)
+		assertBool(t, "launchesOverride", gb(f, "launchesOverride"), false)
+		assertBool(t, "isOutlanding", gb(f, "isOutlanding"), false)
+	})
+
+	t.Run("standard CSV", func(t *testing.T) {
+		source := setupLena(t, "facts-csv-src")
+		gliderFactsFlights(t, source)
+		exportResp := source.GET("/exports/csv?format=standard")
+		requireStatus(t, exportResp, http.StatusOK)
+
+		dest := NewE2EClient(t)
+		registerAndLogin(t, dest, uniqueEmail("facts-csv-dst"), "SecurePass123!", "Facts CSV")
+		upload := uploadCSV(t, dest, "ninerlog_standard.csv", string(exportResp.Body))
+		requireStatus(t, upload, http.StatusOK)
+		var up map[string]interface{}
+		upload.JSON(&up)
+		token, _ := up["uploadToken"].(string)
+		prev := dest.POST("/imports/preview", map[string]interface{}{
+			"uploadToken": token, "mappings": up["suggestedMappings"], "skipDuplicates": false,
+		})
+		requireStatus(t, prev, http.StatusOK)
+		requireStatus(t, dest.POST("/imports/confirm", map[string]interface{}{"uploadToken": token}), http.StatusCreated)
+		assertGliderFacts(t, flightsByDate(t, dest))
+	})
+}

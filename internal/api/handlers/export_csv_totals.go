@@ -65,7 +65,19 @@ func standardCSVTotals(flights []*models.Flight, prefs exportPrefs) []string {
 		dec(func(f *models.Flight) int { return f.ExaminerTime }),
 		dec(func(f *models.Flight) int { return f.ReliefTime }),
 		"",
+		cnt(func(f *models.Flight) int { return f.Launches }),
+		cnt(func(f *models.Flight) int { return boolCount(f.IsOutlanding) }),
+		cnt(func(f *models.Flight) int { return boolCount(f.IsTowFlight) }),
+		"",
 	}
+}
+
+// boolCount returns 1 for true and 0 for false.
+func boolCount(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // fstdMinutes returns the FSTD Time minutes of f as FSTDFields fills them.

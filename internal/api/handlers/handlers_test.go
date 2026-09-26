@@ -429,6 +429,14 @@ func (m *mockFlightRepo) Create(_ context.Context, f *models.Flight) error {
 	m.flights[f.ID] = f
 	return nil
 }
+func (m *mockFlightRepo) CreateBatch(ctx context.Context, flights []*models.Flight) error {
+	for _, f := range flights {
+		if err := m.Create(ctx, f); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (m *mockFlightRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Flight, error) {
 	f, ok := m.flights[id]
 	if !ok {

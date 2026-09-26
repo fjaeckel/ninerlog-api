@@ -349,3 +349,28 @@ func TestFieldRegistryUnique(t *testing.T) {
 		}
 	}
 }
+
+func TestGliderFactFields(t *testing.T) {
+	tests := []struct {
+		query   string
+		wantSQL string
+		wantArg interface{}
+	}{
+		{"launches>=5", "COALESCE(launches, CASE WHEN is_simulator OR is_passenger THEN 0 ELSE GREATEST(takeoffs_day + takeoffs_night, 1) END) >= $1", 5},
+		{"outlanding:true", "is_outlanding", true},
+		{"isOutlanding:false", "is_outlanding", false},
+		{"towflight:true", "is_tow_flight", true},
+		{"releaseHeight>300", "release_height_m > $1", 300},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			sql, args := compile(t, tt.query)
+			if !strings.Contains(sql, tt.wantSQL) {
+				t.Errorf("SQL = %s, want it to contain %s", sql, tt.wantSQL)
+			}
+			if len(args) != 1 || args[0] != tt.wantArg {
+				t.Errorf("args = %v, want [%v]", args, tt.wantArg)
+			}
+		})
+	}
+}

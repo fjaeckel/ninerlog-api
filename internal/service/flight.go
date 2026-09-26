@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -36,8 +37,18 @@ func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repos
 
 // CreateFlight creates a new flight log entry
 func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight) error {
+	if err := prepareFlight(flight); err != nil {
+		return err
+	}
+	return s.flightRepo.Create(ctx, flight)
+}
+
+// prepareFlight normalises a flight for storage and validates it. Every
+// create path runs it.
+func prepareFlight(flight *models.Flight) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 	models.NormalizeLaunchMethod(flight)
+	flight.DeriveLaunches()
 
 	// Validate text field lengths
 	if err := models.ValidateFlightTextFields(flight); err != nil {
@@ -50,11 +61,51 @@ func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight)
 	}
 
 	// Validate time distribution
-	if err := flight.ValidateTimeDistribution(); err != nil {
+	return flight.ValidateTimeDistribution()
+}
+
+// MaxFlightBatchLegs is the largest number of legs POST /flights/batch accepts.
+const MaxFlightBatchLegs = 50
+
+// ErrInvalidFlightBatch is returned for a batch with no legs or more than
+// MaxFlightBatchLegs.
+var ErrInvalidFlightBatch = errors.New("a batch needs between 1 and 50 legs")
+
+// FlightBatchLegError reports the invalid leg of a batch by its zero-based
+// index. Err is the validation error CreateFlight returns for that leg.
+type FlightBatchLegError struct {
+	Index int
+	Err   error
+}
+
+func (e *FlightBatchLegError) Error() string {
+	return fmt.Sprintf("leg %d: %v", e.Index, e.Err)
+}
+
+func (e *FlightBatchLegError) Unwrap() error { return e.Err }
+
+// ValidateFlightBatch prepares every leg as CreateFlight does. Returns
+// ErrInvalidFlightBatch for a wrong leg count, or a *FlightBatchLegError for
+// the first invalid leg.
+func (s *FlightService) ValidateFlightBatch(flights []*models.Flight) error {
+	if len(flights) == 0 || len(flights) > MaxFlightBatchLegs {
+		return ErrInvalidFlightBatch
+	}
+	for i, f := range flights {
+		if err := prepareFlight(f); err != nil {
+			return &FlightBatchLegError{Index: i, Err: err}
+		}
+	}
+	return nil
+}
+
+// CreateFlightBatch validates every leg, then stores all of them with their
+// crew members in one transaction. Nothing is stored when any leg is invalid.
+func (s *FlightService) CreateFlightBatch(ctx context.Context, flights []*models.Flight) error {
+	if err := s.ValidateFlightBatch(flights); err != nil {
 		return err
 	}
-
-	return s.flightRepo.Create(ctx, flight)
+	return s.flightRepo.CreateBatch(ctx, flights)
 }
 
 // GetFlight retrieves a flight by ID and verifies user ownership
@@ -84,6 +135,7 @@ func (s *FlightService) ListFlights(ctx context.Context, userID uuid.UUID, opts 
 func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight, userID uuid.UUID) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 	models.NormalizeLaunchMethod(flight)
+	flight.DeriveLaunches()
 
 	// Verify ownership
 	existing, err := s.flightRepo.GetByID(ctx, flight.ID)

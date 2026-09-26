@@ -615,7 +615,9 @@ const (
 	CustomCurrencyFilterFieldHasNight                CustomCurrencyFilterField = "has_night"
 	CustomCurrencyFilterFieldIsCrossCountry          CustomCurrencyFilterField = "is_cross_country"
 	CustomCurrencyFilterFieldIsDual                  CustomCurrencyFilterField = "is_dual"
+	CustomCurrencyFilterFieldIsOutlanding            CustomCurrencyFilterField = "is_outlanding"
 	CustomCurrencyFilterFieldIsPic                   CustomCurrencyFilterField = "is_pic"
+	CustomCurrencyFilterFieldIsTowFlight             CustomCurrencyFilterField = "is_tow_flight"
 	CustomCurrencyFilterFieldLaunchMethod            CustomCurrencyFilterField = "launch_method"
 )
 
@@ -642,7 +644,11 @@ func (e CustomCurrencyFilterField) Valid() bool {
 		return true
 	case CustomCurrencyFilterFieldIsDual:
 		return true
+	case CustomCurrencyFilterFieldIsOutlanding:
+		return true
 	case CustomCurrencyFilterFieldIsPic:
+		return true
+	case CustomCurrencyFilterFieldIsTowFlight:
 		return true
 	case CustomCurrencyFilterFieldLaunchMethod:
 		return true
@@ -684,6 +690,7 @@ const (
 	CustomCurrencyThresholdMetricHolds            CustomCurrencyThresholdMetric = "holds"
 	CustomCurrencyThresholdMetricIfrTime          CustomCurrencyThresholdMetric = "ifr_time"
 	CustomCurrencyThresholdMetricLandings         CustomCurrencyThresholdMetric = "landings"
+	CustomCurrencyThresholdMetricLaunches         CustomCurrencyThresholdMetric = "launches"
 	CustomCurrencyThresholdMetricNightLandings    CustomCurrencyThresholdMetric = "night_landings"
 	CustomCurrencyThresholdMetricNightTakeoffs    CustomCurrencyThresholdMetric = "night_takeoffs"
 	CustomCurrencyThresholdMetricNightTime        CustomCurrencyThresholdMetric = "night_time"
@@ -717,6 +724,8 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 	case CustomCurrencyThresholdMetricIfrTime:
 		return true
 	case CustomCurrencyThresholdMetricLandings:
+		return true
+	case CustomCurrencyThresholdMetricLaunches:
 		return true
 	case CustomCurrencyThresholdMetricNightLandings:
 		return true
@@ -1383,11 +1392,14 @@ const (
 	ImportFieldIsDual                  ImportField = "isDual"
 	ImportFieldIsFlightReview          ImportField = "isFlightReview"
 	ImportFieldIsIpc                   ImportField = "isIpc"
+	ImportFieldIsOutlanding            ImportField = "isOutlanding"
 	ImportFieldIsPic                   ImportField = "isPic"
+	ImportFieldIsTowFlight             ImportField = "isTowFlight"
 	ImportFieldLandingsDay             ImportField = "landingsDay"
 	ImportFieldLandingsNight           ImportField = "landingsNight"
 	ImportFieldLandingsTotal           ImportField = "landingsTotal"
 	ImportFieldLaunchMethod            ImportField = "launchMethod"
+	ImportFieldLaunches                ImportField = "launches"
 	ImportFieldNightTime               ImportField = "nightTime"
 	ImportFieldOffBlockTime            ImportField = "offBlockTime"
 	ImportFieldOnBlockTime             ImportField = "onBlockTime"
@@ -1397,6 +1409,7 @@ const (
 	ImportFieldPerson4                 ImportField = "person4"
 	ImportFieldPerson5                 ImportField = "person5"
 	ImportFieldPerson6                 ImportField = "person6"
+	ImportFieldReleaseHeightM          ImportField = "releaseHeightM"
 	ImportFieldRemarks                 ImportField = "remarks"
 	ImportFieldRoute                   ImportField = "route"
 	ImportFieldSimulatedInstrumentTime ImportField = "simulatedInstrumentTime"
@@ -1444,7 +1457,11 @@ func (e ImportField) Valid() bool {
 		return true
 	case ImportFieldIsIpc:
 		return true
+	case ImportFieldIsOutlanding:
+		return true
 	case ImportFieldIsPic:
+		return true
+	case ImportFieldIsTowFlight:
 		return true
 	case ImportFieldLandingsDay:
 		return true
@@ -1453,6 +1470,8 @@ func (e ImportField) Valid() bool {
 	case ImportFieldLandingsTotal:
 		return true
 	case ImportFieldLaunchMethod:
+		return true
+	case ImportFieldLaunches:
 		return true
 	case ImportFieldNightTime:
 		return true
@@ -1471,6 +1490,8 @@ func (e ImportField) Valid() bool {
 	case ImportFieldPerson5:
 		return true
 	case ImportFieldPerson6:
+		return true
+	case ImportFieldReleaseHeightM:
 		return true
 	case ImportFieldRemarks:
 		return true
@@ -3935,7 +3956,7 @@ type ClassRatingCurrency struct {
 		// Landings Total landings in class in the evaluation period
 		Landings *int `json:"landings,omitempty"`
 
-		// Launches Launches (take-offs) in class in the evaluation period, at least one per flight
+		// Launches Launches in class in the evaluation period (each flight's launches; a flight stored without a launch count counts its take-offs, at least one)
 		Launches *int `json:"launches,omitempty"`
 
 		// LongestTrainingFlightMinutes Longest total time in minutes of a flight with dual time received in class in the evaluation period
@@ -3953,6 +3974,9 @@ type ClassRatingCurrency struct {
 
 		// RequiredMinutes Required time in minutes for currency (authority-specific)
 		RequiredMinutes *int `json:"requiredMinutes,omitempty"`
+
+		// SpicMinutes Student pilot-in-command (supervised solo) time in class in minutes in the evaluation period
+		SpicMinutes *int `json:"spicMinutes,omitempty"`
 
 		// TotalMinutes Total time in class in minutes in the evaluation period
 		TotalMinutes *int `json:"totalMinutes,omitempty"`
@@ -4465,7 +4489,7 @@ type CustomCurrencyThreshold struct {
 	// `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
 	// Count metrics (`unit` ignored): `flights`, `landings`,
 	// `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
-	// `night_takeoffs`, `approaches`, `holds`.
+	// `night_takeoffs`, `approaches`, `holds`, `launches`.
 	//
 	//
 	// Example: landings
@@ -4485,7 +4509,7 @@ type CustomCurrencyThreshold struct {
 // `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
 // Count metrics (`unit` ignored): `flights`, `landings`,
 // `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
-// `night_takeoffs`, `approaches`, `holds`.
+// `night_takeoffs`, `approaches`, `holds`, `launches`.
 //
 // Example: landings
 type CustomCurrencyThresholdMetric string
@@ -5102,6 +5126,11 @@ type Flight struct {
 	// Example: false
 	IsIpc *bool `json:"isIpc,omitempty"`
 
+	// IsOutlanding Landing away from the planned site (Außenlandung). Cross-country time is not derived from departure and arrival for an outlanding.
+	//
+	// Example: false
+	IsOutlanding bool `json:"isOutlanding"`
+
 	// IsPassenger True when the user was carried on this flight rather than crewing it.
 	// Derived on save: another person is pilot-in-command and the operation
 	// carries no co-pilot seat the user may occupy — the aircraft is not
@@ -5137,6 +5166,11 @@ type Flight struct {
 	// Example: false
 	IsSimulator bool `json:"isSimulator"`
 
+	// IsTowFlight The pilot flew the tug, towing a sailplane.
+	//
+	// Example: false
+	IsTowFlight bool `json:"isTowFlight"`
+
 	// LandingsDay Number of day landings. Auto-calculated from sunset/sunrise at arrival airport.
 	//
 	// Example: 3
@@ -5161,6 +5195,21 @@ type Flight struct {
 	//
 	// Example: winch
 	LaunchMethod *FlightLaunchMethod `json:"launchMethod,omitempty"`
+
+	// Launches Sailplane launches on this flight (Part-SFCL SFCL.155 and SFCL.160). Derived from
+	// the take-offs (day + night, at least one) unless launchesOverride is set; 0 for an
+	// FSTD session or a passenger flight. A series of launches logged as one row
+	// (AMC1 FCL.050 style) carries the number of launches with launchesOverride true.
+	// Launch recency counts this value.
+	//
+	//
+	// Example: 1
+	Launches int `json:"launches"`
+
+	// LaunchesOverride True when launches was entered by the pilot rather than derived from the take-offs.
+	//
+	// Example: false
+	LaunchesOverride bool `json:"launchesOverride"`
 
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
 	//
@@ -5206,6 +5255,11 @@ type Flight struct {
 	//
 	// Example: 0
 	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReleaseHeightM Tow or winch release height in metres.
+	//
+	// Example: 400
+	ReleaseHeightM *int `json:"releaseHeightM,omitempty"`
 
 	// ReliefTime Cruise relief co-pilot time in minutes (augmented crew). Declared by the pilot, never auto-calculated; carved out of the derived function time.
 	//
@@ -5438,6 +5492,64 @@ type FlightBaselineInput struct {
 	TotalMinutes *int `json:"totalMinutes,omitempty"`
 }
 
+// FlightBatchCreate A template flight and the legs that differ from it.
+type FlightBatchCreate struct {
+	Legs []FlightBatchLeg `json:"legs"`
+
+	// Template Creates either a flight or an FSTD (simulator) session.
+	//
+	// For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
+	// `arrivalIcao` and `landings` are required, plus at least one complete time pair:
+	// block times (`offBlockTime` and `onBlockTime`) or take-off and landing times
+	// (`departureTime` and `arrivalTime`). Both pairs may be sent. Omitting a required
+	// field, sending no complete pair, or sending one half of a pair without a complete
+	// pair beside it returns 400.
+	//
+	// `totalTime` is the block span when both block times are present, otherwise the
+	// take-off to landing span. Night time, night take-offs and landings, and
+	// cross-country time are derived from the same pair (block times first), so a
+	// glider or ultralight flight logged with take-off and landing times only is
+	// treated exactly like a block-timed one.
+	//
+	// For an FSTD session (`isSimulator: true`) they must be omitted — a training
+	// device is not flown between places and has no block times. The session
+	// requires `fstdType` and `simulatedFlightTime` instead. Session time is never
+	// summed into flight time (EASA AMC1 FCL.050 Cols 20-22).
+	Template FlightCreate `json:"template"`
+}
+
+// FlightBatchLeg One leg of a batch; the fields sent replace the template's.
+type FlightBatchLeg struct {
+	// ArrivalTime Landing time in UTC.
+	//
+	// Example: 10:10:00
+	ArrivalTime *string `json:"arrivalTime,omitempty"`
+
+	// DepartureTime Take-off time in UTC.
+	//
+	// Example: 10:02:00
+	DepartureTime *string `json:"departureTime,omitempty"`
+
+	// Landings Landings on this leg; defaults to the template's value, else 1.
+	//
+	// Example: 1
+	Landings *int `json:"landings,omitempty"`
+
+	// Launches Launches on this leg; overrides derivation from the take-offs.
+	//
+	// Example: 1
+	Launches *int `json:"launches,omitempty"`
+
+	// Remarks Remarks for this leg; replaces the template's remarks.
+	Remarks *string `json:"remarks,omitempty"`
+}
+
+// FlightBatchResult defines model for FlightBatchResult.
+type FlightBatchResult struct {
+	// Flights The created flights, in leg order.
+	Flights []Flight `json:"flights"`
+}
+
 // FlightCreate Creates either a flight or an FSTD (simulator) session.
 //
 // For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
@@ -5533,16 +5645,25 @@ type FlightCreate struct {
 	InstructorName     *string `json:"instructorName,omitempty"`
 	IsFlightReview     *bool   `json:"isFlightReview,omitempty"`
 	IsIpc              *bool   `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool   `json:"isProficiencyCheck,omitempty"`
+
+	// IsOutlanding Landing away from the planned site (Außenlandung). Cross-country time is then not derived from departure and arrival.
+	IsOutlanding       *bool `json:"isOutlanding,omitempty"`
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// IsSimulator Marks this entry as an FSTD (simulator) session rather than a flight.
 	IsSimulator *bool `json:"isSimulator,omitempty"`
+
+	// IsTowFlight The pilot flew the tug, towing a sailplane.
+	IsTowFlight *bool `json:"isTowFlight,omitempty"`
 
 	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport. Required for a flight, rejected for an FSTD session.
 	//
 	// Example: 3
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod *FlightCreateLaunchMethod `json:"launchMethod,omitempty"`
+
+	// Launches Number of sailplane launches. Provide to override derivation from the take-offs (launchesOverride is then true), e.g. to log a series of winch launches as one row; omit to derive.
+	Launches *int `json:"launches,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
 	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
@@ -5570,6 +5691,9 @@ type FlightCreate struct {
 
 	// PicusTime PIC under supervision time in minutes. Carved out of the derived function time; the declared function times together with the derived ones must not exceed totalTime.
 	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReleaseHeightM Tow or winch release height in metres. Outside 0-20000 returns 400.
+	ReleaseHeightM *int `json:"releaseHeightM,omitempty"`
 
 	// ReliefTime Cruise relief co-pilot time in minutes. Carved out of the derived function time.
 	ReliefTime *int `json:"reliefTime,omitempty"`
@@ -5831,14 +5955,23 @@ type FlightUpdate struct {
 	InstructorName     nullable.Nullable[string] `json:"instructorName,omitempty"`
 	IsFlightReview     *bool                     `json:"isFlightReview,omitempty"`
 	IsIpc              *bool                     `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool                     `json:"isProficiencyCheck,omitempty"`
+
+	// IsOutlanding Landing away from the planned site (Außenlandung).
+	IsOutlanding       *bool `json:"isOutlanding,omitempty"`
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// IsSimulator Switches the entry between flight and FSTD session. Changing it clears the columns that do not apply to the new kind.
 	IsSimulator *bool `json:"isSimulator,omitempty"`
 
+	// IsTowFlight The pilot flew the tug, towing a sailplane.
+	IsTowFlight *bool `json:"isTowFlight,omitempty"`
+
 	// Landings Total number of landings
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod nullable.Nullable[string] `json:"launchMethod,omitempty"`
+
+	// Launches Number of sailplane launches. A number overrides derivation from the take-offs; null returns the field to derivation.
+	Launches nullable.Nullable[int] `json:"launches,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes. A number declares the time; null returns the field to derivation from the crew list and aircraft.
 	MultiPilotTime nullable.Nullable[int] `json:"multiPilotTime,omitempty"`
@@ -5857,6 +5990,9 @@ type FlightUpdate struct {
 
 	// PicusTime PIC under supervision time in minutes. Carved out of the derived function time.
 	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReleaseHeightM Tow or winch release height in metres; null clears it. Outside 0-20000 returns 400.
+	ReleaseHeightM nullable.Nullable[int] `json:"releaseHeightM,omitempty"`
 
 	// ReliefTime Cruise relief co-pilot time in minutes. Carved out of the derived function time.
 	ReliefTime *int                      `json:"reliefTime,omitempty"`
@@ -5903,6 +6039,12 @@ type ImportColumnMapping struct {
 	// Gummiseil); an unrecognised value leaves the launch method empty and
 	// does not fail the row. A `[Launch: <method>]` marker in a remarks
 	// column is read as the launch method and removed from the remarks.
+	//
+	// `launches` is a whole number of launches, stored with the override flag set
+	// (German `Starts`, English `Launches`). `isOutlanding` (`Außenlandung`,
+	// `Outlanding`) and `isTowFlight` (`Tow Flight`) read true for `true`, `yes`,
+	// `ja`, `x`, `1` or a positive number. `releaseHeightM` is whole metres; a
+	// value outside 0-20000 is reported as a row error.
 	//
 	// Aircraft created by the import get a class from the source's aircraft
 	// table when it has one, otherwise from a German registration
@@ -5967,6 +6109,12 @@ type ImportConfirmRequest struct {
 // Gummiseil); an unrecognised value leaves the launch method empty and
 // does not fail the row. A `[Launch: <method>]` marker in a remarks
 // column is read as the launch method and removed from the remarks.
+//
+// `launches` is a whole number of launches, stored with the override flag set
+// (German `Starts`, English `Launches`). `isOutlanding` (`Außenlandung`,
+// `Outlanding`) and `isTowFlight` (`Tow Flight`) read true for `true`, `yes`,
+// `ja`, `x`, `1` or a positive number. `releaseHeightM` is whole metres; a
+// value outside 0-20000 is reported as a row error.
 //
 // Aircraft created by the import get a class from the source's aircraft
 // table when it has one, otherwise from a German registration
@@ -7801,7 +7949,9 @@ type ListFlightsParams struct {
 	// distance; isPic; isDual; isIpc (ipc); isFlightReview (flightReview,
 	// bfr); isProficiencyCheck (proficiencyCheck); signed; instructorName
 	// (instructor); instructorComments; picName; crew; fstdType (fstd);
-	// endorsements; launchMethod (launch); createdAt; updatedAt.
+	// endorsements; launchMethod (launch); launches; isOutlanding
+	// (outlanding); isTowFlight (towflight); releaseHeightM (releaseHeight);
+	// createdAt; updatedAt.
 	//
 	// Example: `q=(departure:EDDF OR arrival:EDDF) AND nightTime>0 NOT remarks:cancelled`
 	//
@@ -8124,6 +8274,9 @@ type RecordFlightSessionEventJSONRequestBody = FlightSessionEvent
 
 // CreateFlightJSONRequestBody defines body for CreateFlight for application/json ContentType.
 type CreateFlightJSONRequestBody = FlightCreate
+
+// CreateFlightBatchJSONRequestBody defines body for CreateFlightBatch for application/json ContentType.
+type CreateFlightBatchJSONRequestBody = FlightBatchCreate
 
 // UpdateFlightJSONRequestBody defines body for UpdateFlight for application/json ContentType.
 type UpdateFlightJSONRequestBody = FlightUpdate

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -268,8 +269,8 @@ func TestWriteStandardCSV_LaunchMethodColumn(t *testing.T) {
 			col = i
 		}
 	}
-	if col != len(header)-1 {
-		t.Fatalf("LaunchMethod column at %d, want last (%d): %v", col, len(header)-1, header)
+	if want := []string{"LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM"}; col < 0 || !slices.Equal(header[col:], want) {
+		t.Fatalf("header ends %v, want %v", header[max(col, 0):], want)
 	}
 	if records[1][col] != "winch" || records[2][col] != "" {
 		t.Errorf("launch cells = %q/%q, want winch/empty", records[1][col], records[2][col])
@@ -410,5 +411,84 @@ func TestConfirmImport_A2LaunchMethodOnlyOnSailplanes(t *testing.T) {
 		if f.Remarks != nil && strings.Contains(*f.Remarks, "[Launch:") {
 			t.Errorf("%s remarks = %q, want the marker removed", f.AircraftReg, *f.Remarks)
 		}
+	}
+}
+
+func TestMapRowToFlight_GliderFacts(t *testing.T) {
+	tests := []struct {
+		name           string
+		cells          map[string]string
+		wantLaunches   *int
+		wantOutlanding bool
+		wantTow        bool
+		wantHeight     *int
+		wantErrField   string
+	}{
+		{
+			name:         "L1 series of six launches",
+			cells:        map[string]string{"Launches": "6"},
+			wantLaunches: intPtr(6),
+		},
+		{
+			name:           "P1 outlanding and release height",
+			cells:          map[string]string{"Outlanding": "ja", "ReleaseHeightM": "450"},
+			wantOutlanding: true,
+			wantHeight:     intPtr(450),
+		},
+		{
+			name:    "tow flight",
+			cells:   map[string]string{"TowFlight": "true"},
+			wantTow: true,
+		},
+		{
+			name:         "release height above bound is a row error",
+			cells:        map[string]string{"ReleaseHeightM": "20001"},
+			wantErrField: "releaseHeightM",
+		},
+		{
+			name:         "negative launches is a row error",
+			cells:        map[string]string{"Launches": "-1"},
+			wantErrField: "launches",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := map[string]string{
+				"Date": "2026-05-09", "AircraftID": "D-1234", "AircraftType": "ASK21",
+				"From": "EDHM", "To": "EDHM", "TimeOff": "10:02", "TimeOn": "10:10", "TotalTime": "0.13",
+				"AllLandings": "1", "LaunchMethod": "winch",
+			}
+			for k, v := range tt.cells {
+				row[k] = v
+			}
+			flight, errs := mapRowToFlight(row, mappingsFor("NINERLOG_CSV", headersOf(row)), nil)
+			if tt.wantErrField != "" {
+				found := false
+				for _, e := range errs {
+					if e.field == tt.wantErrField {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("errors = %+v, want one on %s", errs, tt.wantErrField)
+				}
+				return
+			}
+			if len(errs) > 0 {
+				t.Fatalf("errors = %+v", errs)
+			}
+			if (flight.Launches == nil) != (tt.wantLaunches == nil) || (flight.Launches != nil && *flight.Launches != *tt.wantLaunches) {
+				t.Errorf("launches = %v, want %v", flight.Launches, tt.wantLaunches)
+			}
+			if (flight.IsOutlanding != nil && *flight.IsOutlanding) != tt.wantOutlanding {
+				t.Errorf("isOutlanding = %v, want %t", flight.IsOutlanding, tt.wantOutlanding)
+			}
+			if (flight.IsTowFlight != nil && *flight.IsTowFlight) != tt.wantTow {
+				t.Errorf("isTowFlight = %v, want %t", flight.IsTowFlight, tt.wantTow)
+			}
+			if (flight.ReleaseHeightM == nil) != (tt.wantHeight == nil) || (flight.ReleaseHeightM != nil && *flight.ReleaseHeightM != *tt.wantHeight) {
+				t.Errorf("releaseHeightM = %v, want %v", flight.ReleaseHeightM, tt.wantHeight)
+			}
+		})
 	}
 }

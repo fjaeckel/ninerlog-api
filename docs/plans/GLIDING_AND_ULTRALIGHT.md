@@ -185,12 +185,13 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-23. Batch circuits and "log another"** (api + fe; needs D2)
 
-- API: a nullable `launches` column (a `*Override` flag, per the `aviation-domain` skill),
-  which defaults to the take-off count and is read by launch counting
-  (`currency_flight_data.go:39,241`). Add `POST /flights/batch`: a shared template plus
-  `legs[{takeoffTime, landingTime, landings?}]`, applied atomically in one transaction,
-  returning the created flights. Every leg runs through the same service validation as a
-  single create.
+- API — **implemented** (migration 76): a nullable `launches` column with
+  `launchesOverride`, derived from the take-off count and read by every launch count in
+  the currency engine; the D2 "one line" series entry is a single flight with `launches`
+  set. `POST /flights/batch`: a `FlightCreate` template plus 1–50
+  `legs[{departureTime, arrivalTime, landings?, launches?, remarks?}]`, validated like a
+  single create and stored in one transaction; an invalid leg is a 400 naming its index.
+  See [SAILPLANES.md](../SAILPLANES.md#launches-and-series-entries).
 - FE:
   - A "Circuits" mode in the flight form: aircraft, launch method, crew and site entered once,
     then one line per circuit with take-off and landing.
@@ -212,11 +213,13 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-25. Glider flight facts** (api + fe; `migration-author` for the columns)
 
-- Flight flags `isOutlanding` and `isTowFlight`, plus `releaseHeightM`.
-- A `SUPERVISED_SOLO` crew role counted toward the SFCL.160 hour requirements (closes the known
-  gap in `SAILPLANES.md`), with FI(S)/BI signature.
-- Cross-country is no longer derived from departure ≠ arrival when `isOutlanding` is set.
-- Everything goes into export/import and CSV. Fields fold unless `SAILPLANE` or `TMG` is active
+- API — **implemented** (migration 76): flight flags `isOutlanding` and `isTowFlight`, plus
+  `releaseHeightM` (0–20000 m). Cross-country is no longer derived from departure ≠ arrival
+  when `isOutlanding` is set. All three, and `launches`, go into the JSON backup, the
+  standard CSV layout, CSV import, logbook search and custom-currency filters.
+- Supervised solo: **decided and implemented without a crew role** — it is logged as
+  `spicTime`, and SFCL.160(a)(1) and (b)(1) count PIC + dual + SPIC minutes (closes the
+  known gap in `SAILPLANES.md`). The FI(S)/BI signature uses the existing flight signatures. Fields fold unless `SAILPLANE` or `TMG` is active
   (tow flight: `AEROPLANE` + `SAILPLANE`).
 - Closes P1 and J2 (partly).
 
