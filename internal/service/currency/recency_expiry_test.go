@@ -31,6 +31,7 @@ func (d *datedFlightData) sum(classes []models.ClassType, since time.Time) *Prog
 		}
 		p := f.progress
 		p.Flights = 1
+		p.LongestTrainingFlightMinutes = p.InstructorMinutes
 		addProgress(total, &p, true)
 	}
 	return total

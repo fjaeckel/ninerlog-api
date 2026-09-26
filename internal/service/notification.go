@@ -371,8 +371,7 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 		}, daysUntilExpiry))
 	}
 
-	if (rating.Status == currency.StatusExpiring || rating.Status == currency.StatusExpired) &&
-		prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
+	if ratingRequirementsNotMet(rating.Status) && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
 		subject, body := tmpl.Revalidation(email.RevalidationParams{
 			UserName:      user.Name,
 			LicenseType:   rating.LicenseType,
@@ -392,6 +391,17 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 			err = s.sendLapse(ctx, user, n, rating.LapsedOn)
 		}
 		logNotifyError(user, err)
+	}
+}
+
+// ratingRequirementsNotMet reports whether a rating status calls for the
+// revalidation/recency notice: expiring, expired or lapsed.
+func ratingRequirementsNotMet(status currency.Status) bool {
+	switch status {
+	case currency.StatusExpiring, currency.StatusExpired, currency.StatusLapsed:
+		return true
+	default:
+		return false
 	}
 }
 

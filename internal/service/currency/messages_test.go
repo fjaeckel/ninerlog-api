@@ -20,6 +20,7 @@ var knownMessageKeys = map[string]bool{
 	MsgRatingRevalidationNotMet: true, MsgRatingRevalidationNotMetProfCheck: true,
 	MsgRatingRevalidationExpiringMet: true, MsgRatingRevalidationCurrent: true,
 	MsgRatingRecencyNotMet: true, MsgRatingRecencyCurrent: true, MsgRatingSFCLTMGExempt: true,
+	MsgRatingULKindRequired:        true,
 	MsgRatingIRHoursAndCheckNotMet: true, MsgRatingIRHoursNotMet: true,
 	MsgRatingIRCheckNotMet: true, MsgRatingIRCurrent: true,
 	MsgRatingIRLapsedSafetyPilot: true, MsgRatingIRExpiredIPC: true,
@@ -137,7 +138,7 @@ func TestEveryRatingResultCarriesAKey(t *testing.T) {
 				dp2 := newMockFlightDataProvider()
 				dp2.progressByClass[ct] = &Progress{
 					TotalMinutes: 6000, PICMinutes: 6000, IFRMinutes: 6000,
-					InstructorMinutes: 600, Landings: 40, NightLandings: 20,
+					InstructorMinutes: 600, LongestTrainingFlightMinutes: 60, Landings: 40, NightLandings: 20,
 					DayLandings: 20, Flights: 40, Approaches: 20, Holds: 10,
 				}
 				dp2.progressAll = dp2.progressByClass[ct]
@@ -245,7 +246,7 @@ func TestMessageParamsMatchKeys(t *testing.T) {
 				license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: ec.authority, LicenseType: ec.licenseType}
 				rating := &models.ClassRating{ID: uuid.New(), LicenseID: license.ID, ClassType: ct, ExpiryDate: futureDate(exp)}
 				dp := newMockFlightDataProvider()
-				dp.progressByClass[ct] = &Progress{TotalMinutes: 6000, PICMinutes: 6000, IFRMinutes: 6000, InstructorMinutes: 600, Landings: 40, NightLandings: 20, Flights: 40, Approaches: 20, Holds: 10}
+				dp.progressByClass[ct] = &Progress{TotalMinutes: 6000, PICMinutes: 6000, IFRMinutes: 6000, InstructorMinutes: 600, LongestTrainingFlightMinutes: 60, Landings: 40, NightLandings: 20, Flights: 40, Approaches: 20, Holds: 10}
 				dp.progressAll = dp.progressByClass[ct]
 				dp.lastProficiencyCheck = futureDate(0)
 				r := ec.eval.Evaluate(ctx, rating, license, dp)

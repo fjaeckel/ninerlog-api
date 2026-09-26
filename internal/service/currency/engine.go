@@ -173,8 +173,8 @@ type ratingRule struct {
 	// classesNoDual drops dual time on the rule's classes from the total.
 	classesNoDual bool
 	// ulCredit returns the ultralight flights the rule counts beside its
-	// classes, or nil for none.
-	ulCredit func(rating *models.ClassRating, classes []models.ClassType) *ulCredit
+	// classes, or nil for none; held is every class rating the user holds.
+	ulCredit func(rating *models.ClassRating, classes []models.ClassType, held []*models.ClassRating) *ulCredit
 	baseReqs []reqSpec
 	finalize func(ctx context.Context, rt *ratingRuntime)
 }
@@ -186,6 +186,9 @@ type ulCredit struct {
 	// checks count. Otherwise only time and landings are credited.
 	native      bool
 	countsTowed bool
+	// reportUnclassified reports uncounted ULTRALIGHT flights of no kind in
+	// ClassRatingCurrency.UnclassifiedFlights.
+	reportUnclassified bool
 }
 
 // ulHoursCredit returns the PIC minutes flown on ultralights of kinds since the
@@ -264,6 +267,20 @@ func addProgress(total, p *Progress, withDual bool) {
 	}
 }
 
+// countUnclassifiedUL sets UnclassifiedFlights when the rule reports
+// ULTRALIGHT flights of no kind and does not count them.
+func (rt *ratingRuntime) countUnclassifiedUL(ctx context.Context) error {
+	if rt.ul == nil || !rt.ul.reportUnclassified || rt.ul.sel.IncludeUnspecified {
+		return nil
+	}
+	p, err := rt.dp.GetProgressByULKind(ctx, rt.license.UserID, ULSelector{IncludeUnspecified: true}, rt.ul.countsTowed, rt.since)
+	if err != nil {
+		return err
+	}
+	rt.result.UnclassifiedFlights = p.Flights
+	return nil
+}
+
 // lastProficiencyCheck returns the latest proficiency check in the window on
 // the rule's classes or its native ultralights.
 func (rt *ratingRuntime) lastProficiencyCheck(ctx context.Context) (*time.Time, error) {
@@ -317,21 +334,33 @@ func evalRatingRule(ctx context.Context, rule *ratingRule, rating *models.ClassR
 // evalRatingRuleWithPeers is evalRatingRule with the other class ratings on the
 // license, adding the lapse date of a current rolling-window rule.
 func evalRatingRuleWithPeers(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
+	return evalRatingRuleForHolder(ctx, rule, rating, license, peers, peers, dp)
+}
+
+// evalRatingRuleForHolder is evalRatingRuleWithPeers with every class rating
+// the user holds across licences.
+func evalRatingRuleForHolder(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
 	now := time.Now()
-	result := evalRatingRuleAt(ctx, rule, rating, license, peers, dp, now)
+	result := evalRatingRuleAt(ctx, rule, rating, license, peers, held, dp, now)
 	if rule.window.isRolling() && result.Status == StatusCurrent {
-		result.RecencyExpiresOn = paxExpiryString(recencyLapseDate(ctx, rule, rating, license, peers, dp, now))
+		result.RecencyExpiresOn = paxExpiryString(recencyLapseDate(ctx, rule, rating, license, peers, held, dp, now))
 	}
-	if rule.window.isRolling() && (result.Status == StatusExpiring || result.Status == StatusExpired) && lapseDatesRequested(ctx) {
-		result.LapsedOn = ratingLapseDate(ctx, rule, rating, license, peers, dp, now)
+	if rule.window.isRolling() && ratingNotMet(result.Status) && lapseDatesRequested(ctx) {
+		result.LapsedOn = ratingLapseDate(ctx, rule, rating, license, peers, held, dp, now)
 	}
 	return result
+}
+
+// ratingNotMet reports whether status says the rule's requirements are not
+// met: expiring, expired or lapsed.
+func ratingNotMet(status Status) bool {
+	return status == StatusExpiring || status == StatusExpired || status == StatusLapsed
 }
 
 // evalRatingRuleAt evaluates a rule as of now: it builds the base result shell
 // (identity, authority, description, expiry) and dispatches to the rule's
 // finalize strategy.
-func evalRatingRuleAt(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers []*models.ClassRating, dp FlightDataProvider, now time.Time) ClassRatingCurrency {
+func evalRatingRuleAt(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider, now time.Time) ClassRatingCurrency {
 	result := ClassRatingCurrency{
 		ClassRatingID:       rating.ID,
 		ClassType:           rating.ClassType,
@@ -352,7 +381,7 @@ func evalRatingRuleAt(ctx context.Context, rule *ratingRule, rating *models.Clas
 	}
 	var ul *ulCredit
 	if rule.ulCredit != nil {
-		ul = rule.ulCredit(rating, classes)
+		ul = rule.ulCredit(rating, classes, held)
 	}
 	if ul != nil {
 		result.CreditedULKinds = ul.sel.Kinds
@@ -367,11 +396,11 @@ func evalRatingRuleAt(ctx context.Context, rule *ratingRule, rating *models.Clas
 // with no further flying: a binary search over the dates from today to one
 // full window ahead, evaluating the rule at midnight UTC of each. Returns nil
 // when the rule is not current today or is still current a full window ahead.
-func recencyLapseDate(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers []*models.ClassRating, dp FlightDataProvider, now time.Time) *time.Time {
+func recencyLapseDate(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider, now time.Time) *time.Time {
 	u := now.UTC()
 	today := time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC)
 	currentOn := func(d int) bool {
-		return evalRatingRuleAt(ctx, rule, rating, license, peers, dp, today.AddDate(0, 0, d)).Status == StatusCurrent
+		return evalRatingRuleAt(ctx, rule, rating, license, peers, held, dp, today.AddDate(0, 0, d)).Status == StatusCurrent
 	}
 	hi := int(today.AddDate(rule.window.years, rule.window.months, rule.window.days).Sub(today).Hours()/24) + 1
 	if !currentOn(0) || currentOn(hi) {
@@ -402,6 +431,11 @@ func recencyFinalize(withCheck bool) func(ctx context.Context, rt *ratingRuntime
 			return
 		}
 		rt.result.Progress = progress
+		if err := rt.countUnclassifiedUL(ctx); err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+			return
+		}
 		reqs := buildReqs(progress, rt.rule.baseReqs)
 		met := allReqsMet(reqs)
 
@@ -421,13 +455,14 @@ func recencyFinalize(withCheck bool) func(ctx context.Context, rt *ratingRuntime
 	}
 }
 
-// setRecencyStatus sets a recency rule's status and message.
+// setRecencyStatus sets a rolling recency rule's status and message: current
+// when met, lapsed otherwise.
 func setRecencyStatus(result *ClassRatingCurrency, met bool) {
 	if met {
 		result.Status = StatusCurrent
 		result.setMsg(MsgRatingRecencyCurrent, nil)
 	} else {
-		result.Status = StatusExpiring
+		result.Status = StatusLapsed
 		result.setMsg(MsgRatingRecencyNotMet, nil)
 	}
 }

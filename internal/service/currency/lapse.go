@@ -129,13 +129,13 @@ func paxLapseDate(history []LandingDay, required int, count paxLandingCount, wai
 // ratingLapseDate returns the first day a rolling-window rule was no longer
 // met, or nil when it was never met or dp cannot read as of a past day. The
 // rule is re-evaluated at noon UTC of each probed day.
-func ratingLapseDate(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers []*models.ClassRating, dp FlightDataProvider, now time.Time) *time.Time {
+func ratingLapseDate(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider, now time.Time) *time.Time {
 	asOf, ok := dp.(AsOfProvider)
 	if !ok {
 		return nil
 	}
 	metAt := func(day, until time.Time) (bool, error) {
-		r := evalRatingRuleAt(ctx, rule, rating, license, peers, asOf.AsOf(until), day.Add(12*time.Hour))
+		r := evalRatingRuleAt(ctx, rule, rating, license, peers, held, asOf.AsOf(until), day.Add(12*time.Hour))
 		return r.Status == StatusCurrent, nil
 	}
 	last, _ := lastCurrentDay(models.CalendarDate(now), lapseSearchFloor, metAt)

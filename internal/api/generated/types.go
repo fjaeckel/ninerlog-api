@@ -557,6 +557,7 @@ const (
 	ClassRatingCurrencyStatusCurrent  ClassRatingCurrencyStatus = "current"
 	ClassRatingCurrencyStatusExpired  ClassRatingCurrencyStatus = "expired"
 	ClassRatingCurrencyStatusExpiring ClassRatingCurrencyStatus = "expiring"
+	ClassRatingCurrencyStatusLapsed   ClassRatingCurrencyStatus = "lapsed"
 	ClassRatingCurrencyStatusUnknown  ClassRatingCurrencyStatus = "unknown"
 )
 
@@ -568,6 +569,8 @@ func (e ClassRatingCurrencyStatus) Valid() bool {
 	case ClassRatingCurrencyStatusExpired:
 		return true
 	case ClassRatingCurrencyStatusExpiring:
+		return true
+	case ClassRatingCurrencyStatusLapsed:
 		return true
 	case ClassRatingCurrencyStatusUnknown:
 		return true
@@ -3032,7 +3035,10 @@ type Aircraft struct {
 	Type string `json:"type"`
 
 	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+	// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+	// rating the pilot holds is of one kind; otherwise they are reported in
+	// ClassRatingCurrency.unclassifiedFlights.
 	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 	// - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3057,7 +3063,10 @@ type Aircraft struct {
 }
 
 // AircraftUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-// ULTRALIGHT and cleared otherwise; null means unspecified.
+// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+// rating the pilot holds is of one kind; otherwise they are reported in
+// ClassRatingCurrency.unclassifiedFlights.
 // - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 // - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 // - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3133,7 +3142,10 @@ type AircraftCreate struct {
 	Type string `json:"type"`
 
 	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+	// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+	// rating the pilot holds is of one kind; otherwise they are reported in
+	// ClassRatingCurrency.unclassifiedFlights.
 	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 	// - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3152,7 +3164,10 @@ type AircraftCreate struct {
 }
 
 // AircraftCreateUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-// ULTRALIGHT and cleared otherwise; null means unspecified.
+// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+// rating the pilot holds is of one kind; otherwise they are reported in
+// ClassRatingCurrency.unclassifiedFlights.
 // - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 // - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 // - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3324,7 +3339,10 @@ type AircraftUpdate struct {
 	Type *string `json:"type,omitempty"`
 
 	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+	// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+	// rating the pilot holds is of one kind; otherwise they are reported in
+	// ClassRatingCurrency.unclassifiedFlights.
 	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 	// - WEIGHT_SHIFT: weight-shift controlled trike
@@ -4632,8 +4650,9 @@ type ClassRating struct {
 	Notes *string `json:"notes,omitempty"`
 
 	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// otherwise. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+	// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 	//
 	//
@@ -4643,8 +4662,9 @@ type ClassRating struct {
 }
 
 // ClassRatingUlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+// otherwise. Selects the German recency rule
+// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 // THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 //
 // Example: THREE_AXIS
@@ -4668,15 +4688,17 @@ type ClassRatingCreate struct {
 	Notes      *string             `json:"notes,omitempty"`
 
 	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// otherwise. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+	// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 	UlKind *ClassRatingCreateUlKind `json:"ulKind,omitempty"`
 }
 
 // ClassRatingCreateUlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+// otherwise. Selects the German recency rule
+// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 // THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 type ClassRatingCreateUlKind string
 
@@ -4812,10 +4834,24 @@ type ClassRatingCurrency struct {
 
 	// Status Currency status:
 	// - current: All requirements met
-	// - expiring: Rating expiry approaching (within 90 days)
-	// - expired: Rating has expired or currency requirements not met
-	// - unknown: Authority not supported for auto-calculation
+	// - expiring: Expiry date approaching (within 90 days), or revalidation experience
+	//   not yet met before the expiry date (EASA FCL.740.A, FCL.625.A)
+	// - expired: Past the rating's expiry date, or an FAA 14 CFR 61.57 requirement not met
+	// - lapsed: A rolling recency rule (LAPL FCL.140.A, SPL SFCL.160, GPL FCL.240.G,
+	//   German UL LuftPersV §45) is not met. The licence stays valid; its privileges
+	//   may not be exercised until recency is restored.
+	// - unknown: Not determinable — no expiry date, no rule for the authority, flight
+	//   data unreadable, or data missing (see messageKey)
 	Status ClassRatingCurrencyStatus `json:"status"`
+
+	// UnclassifiedFlights Flights in the rule's window on ULTRALIGHT aircraft with no ultralight kind that did
+	// not count toward this German ultralight rating. They count only when every
+	// ULTRALIGHT rating the pilot holds, across all licences, is of one and the same kind.
+	// Omitted when zero. Setting the aircraft's kind makes them count.
+	//
+	//
+	// Example: 3
+	UnclassifiedFlights *int `json:"unclassifiedFlights,omitempty"`
 
 	// WindowOpen Only meaningful when `windowOpensAt` is set. True if the
 	// revalidation experience window is currently open
@@ -4837,10 +4873,15 @@ type ClassRatingCurrency struct {
 type ClassRatingCurrencyCreditedUltralightKinds string
 
 // ClassRatingCurrencyStatus Currency status:
-// - current: All requirements met
-// - expiring: Rating expiry approaching (within 90 days)
-// - expired: Rating has expired or currency requirements not met
-// - unknown: Authority not supported for auto-calculation
+//   - current: All requirements met
+//   - expiring: Expiry date approaching (within 90 days), or revalidation experience
+//     not yet met before the expiry date (EASA FCL.740.A, FCL.625.A)
+//   - expired: Past the rating's expiry date, or an FAA 14 CFR 61.57 requirement not met
+//   - lapsed: A rolling recency rule (LAPL FCL.140.A, SPL SFCL.160, GPL FCL.240.G,
+//     German UL LuftPersV §45) is not met. The licence stays valid; its privileges
+//     may not be exercised until recency is restored.
+//   - unknown: Not determinable — no expiry date, no rule for the authority, flight
+//     data unreadable, or data missing (see messageKey)
 type ClassRatingCurrencyStatus string
 
 // ClassRatingUpdate defines model for ClassRatingUpdate.
@@ -4850,8 +4891,9 @@ type ClassRatingUpdate struct {
 	Notes      nullable.Nullable[string]             `json:"notes,omitempty"`
 
 	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// otherwise. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+	// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 	UlKind nullable.Nullable[string] `json:"ulKind,omitempty"`
 }
@@ -7758,7 +7800,7 @@ type PassengerCurrency struct {
 	// Example: 2026-11-15
 	DayExpiresOn *openapi_types.Date `json:"dayExpiresOn,omitempty"`
 
-	// DayLandings Number of landings in the preceding 90 days
+	// DayLandings Number of landings in the preceding 90 days. For a German ultralight entry (ulKind set), the smaller of the take-off and landing counts (LuftPersV §45a).
 	DayLandings int `json:"dayLandings"`
 
 	// DayRequired Required landings for day passenger currency (typically 3)
@@ -7812,8 +7854,8 @@ type PassengerCurrency struct {
 	RuleDescriptionKey *string `json:"ruleDescriptionKey,omitempty"`
 
 	// UlKind Ultralight kind this entry covers, present only for a German ULTRALIGHT rating.
-	// LuftPersV §45a passenger recency counts landings in an ultralight of the same kind,
-	// so there is one entry per kind.
+	// LuftPersV §45a passenger recency counts take-offs and landings in an ultralight of the
+	// same kind, so there is one entry per kind. A rating with no kind has no entry.
 	UlKind *PassengerCurrencyUlKind `json:"ulKind,omitempty"`
 }
 
@@ -7824,8 +7866,8 @@ type PassengerCurrencyDayStatus string
 type PassengerCurrencyNightStatus string
 
 // PassengerCurrencyUlKind Ultralight kind this entry covers, present only for a German ULTRALIGHT rating.
-// LuftPersV §45a passenger recency counts landings in an ultralight of the same kind,
-// so there is one entry per kind.
+// LuftPersV §45a passenger recency counts take-offs and landings in an ultralight of the
+// same kind, so there is one entry per kind. A rating with no kind has no entry.
 type PassengerCurrencyUlKind string
 
 // PublicSignatureInfo Deliberately minimal — no owner PII beyond the flight's own logged details.

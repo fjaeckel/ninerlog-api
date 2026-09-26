@@ -96,7 +96,9 @@ Every WP's definition of done:
 
 ### Wave 0: correctness (api)
 
-**WP-01. UL recency correctness** (`endpoint-implementer`; needs D1)
+**WP-01. UL recency correctness** (`endpoint-implementer`; needs D1) — **implemented**; the
+rules are in [DOMAIN.md](../DOMAIN.md#ultralights), the `lapsed` status in
+[CURRENCY_MESSAGES.md](../CURRENCY_MESSAGES.md).
 
 - The §45(2)/(2a) training flight becomes *one* flight of at least 60 min with instructor
   (dual) time, on the rating's kind. The same fix applies to the LAPL(A) training flight

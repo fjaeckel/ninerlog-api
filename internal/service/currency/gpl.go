@@ -16,7 +16,7 @@ const gplAnnexICreditMinMTOMKg = 450
 
 // gplAnnexICredit credits UL gyroplanes of at least 450 kg toward GPL recency
 // time and landings, not the refresher (FCL.035(a)(5)).
-func gplAnnexICredit(_ *models.ClassRating, _ []models.ClassType) *ulCredit {
+func gplAnnexICredit(_ *models.ClassRating, _ []models.ClassType, _ []*models.ClassRating) *ulCredit {
 	return &ulCredit{sel: ULSelector{Kinds: []models.ULKind{models.ULKindGyroplane}, MinMTOMKg: gplAnnexICreditMinMTOMKg}}
 }
 

@@ -33,7 +33,7 @@ func findReq(reqs []Requirement, key string) *Requirement {
 func TestEASA_LAPL_TMGHoursCountTowardSEPRating(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL(A)", models.ClassTypeSEPLand, models.ClassTypeTMG)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 
 	for _, r := range ratings {
 		res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), r, license, ratings, dp)
@@ -49,7 +49,7 @@ func TestEASA_LAPL_TMGHoursCountTowardSEPRating(t *testing.T) {
 func TestEASA_LAPL_MixedSEPAndTMGHours(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL", models.ClassTypeSEPLand, models.ClassTypeTMG)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 400, Landings: 6, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 400, Landings: 6, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 320, Landings: 6}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
@@ -64,19 +64,19 @@ func TestEASA_LAPL_MixedSEPAndTMGHours(t *testing.T) {
 func TestEASA_LAPL_MixedHoursStillShort(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL", models.ClassTypeSEPLand, models.ClassTypeTMG)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 300, Landings: 6, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 300, Landings: 6, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 300, Landings: 5}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
-	if res.Status != StatusExpiring {
-		t.Errorf("status = %s, want expiring with 600 min and 11 landings", res.Status)
+	if res.Status != StatusLapsed {
+		t.Errorf("status = %s, want lapsed with 600 min and 11 landings", res.Status)
 	}
 }
 
 func TestEASA_LAPL_CountsMEPHours(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL", models.ClassTypeSEPLand)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeMEPLand] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
 	if res.Status != StatusCurrent {
@@ -87,12 +87,12 @@ func TestEASA_LAPL_CountsMEPHours(t *testing.T) {
 func TestEASA_LAPL_IgnoresGliderAndUltralightHours(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL", models.ClassTypeSEPLand)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeGlider] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60}
-	dp.progressByClass[models.ClassTypeUL] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeGlider] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
+	dp.progressByClass[models.ClassTypeUL] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
-	if res.Status != StatusExpiring {
-		t.Errorf("status = %s, want expiring — glider/UL hours are not aeroplane hours", res.Status)
+	if res.Status != StatusLapsed {
+		t.Errorf("status = %s, want lapsed — glider/UL hours are not aeroplane hours", res.Status)
 	}
 	if slices.Contains(dp.lastClasses, models.ClassTypeGlider) || slices.Contains(dp.lastClasses, models.ClassTypeUL) {
 		t.Errorf("queried classes %v include glider/UL", dp.lastClasses)
@@ -120,8 +120,8 @@ func TestEASA_LAPL_ProficiencyCheckAlternative(t *testing.T) {
 func TestEASA_LAPL_NoProficiencyCheckNoHours(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL", models.ClassTypeSEPLand)
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, newMockFlightDataProvider())
-	if res.Status != StatusExpiring {
-		t.Errorf("status = %s, want expiring", res.Status)
+	if res.Status != StatusLapsed {
+		t.Errorf("status = %s, want lapsed", res.Status)
 	}
 	req := findReq(res.Requirements, ReqKeyProficiencyCheck)
 	if req == nil || req.Met || req.MessageKey != MsgRequirementProfCheckMissing {
@@ -134,7 +134,7 @@ func TestEASA_LAPL_NoProficiencyCheckNoHours(t *testing.T) {
 func TestEASA_LAPL_LandSeaSplit_Met(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL", models.ClassTypeSEPLand, models.ClassTypeSEPSea)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 600, Landings: 6, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 600, Landings: 6, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 	dp.progressByClass[models.ClassTypeSEPSea] = &Progress{TotalMinutes: 120, Landings: 6}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
@@ -151,12 +151,12 @@ func TestEASA_LAPL_LandSeaSplit_Met(t *testing.T) {
 func TestEASA_LAPL_LandSeaSplit_SeaShort(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL", models.ClassTypeSEPLand, models.ClassTypeSEPSea)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 700, Landings: 10, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 700, Landings: 10, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 	dp.progressByClass[models.ClassTypeSEPSea] = &Progress{TotalMinutes: 30, Landings: 2}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[1], license, ratings, dp)
-	if res.Status != StatusExpiring {
-		t.Errorf("status = %s, want expiring — pooled totals met but sea minimum not", res.Status)
+	if res.Status != StatusLapsed {
+		t.Errorf("status = %s, want lapsed — pooled totals met but sea minimum not", res.Status)
 	}
 	if r := findReq(res.Requirements, ReqKeySEPSeaTime); r == nil || r.Met {
 		t.Errorf("sea time requirement = %+v, want unmet", r)
@@ -189,7 +189,7 @@ func TestEASA_LAPL_LandSeaSplit_FetchError(t *testing.T) {
 func TestEASA_PPL_SEPLandAndTMG_Pooled(t *testing.T) {
 	license, ratings := crossClassSetup("PPL", models.ClassTypeSEPLand, models.ClassTypeTMG)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 400, PICMinutes: 200, Landings: 6, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 400, PICMinutes: 200, Landings: 6, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 400, PICMinutes: 200, Landings: 6}
 
 	want := []models.ClassType{models.ClassTypeSEPLand, models.ClassTypeTMG}
@@ -207,7 +207,7 @@ func TestEASA_PPL_SEPLandAndTMG_Pooled(t *testing.T) {
 func TestEASA_PPL_SEPLandOnly_TMGNotCounted(t *testing.T) {
 	license, ratings := crossClassSetup("PPL", models.ClassTypeSEPLand)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 800, PICMinutes: 400, Landings: 12, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 800, PICMinutes: 400, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
 	if res.Status != StatusExpiring {
@@ -221,7 +221,7 @@ func TestEASA_PPL_SEPLandOnly_TMGNotCounted(t *testing.T) {
 func TestEASA_PPL_SEPSea_NotPooledWithTMG(t *testing.T) {
 	license, ratings := crossClassSetup("PPL", models.ClassTypeSEPLand, models.ClassTypeSEPSea, models.ClassTypeTMG)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 800, PICMinutes: 400, Landings: 12, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 800, PICMinutes: 400, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[1], license, ratings, dp)
 	if res.Status != StatusExpiring {
@@ -286,7 +286,7 @@ func TestService_PassesPeerRatings(t *testing.T) {
 		{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeTMG, ExpiryDate: futureDate(6)},
 	}
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 800, PICMinutes: 400, Landings: 12, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeTMG] = &Progress{TotalMinutes: 800, PICMinutes: 400, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 
 	reg := NewRegistry()
 	reg.Register(NewEASAEvaluator())

@@ -245,7 +245,7 @@ func TestGermanUL_GyroplaneCountsGyroplaneOnly(t *testing.T) {
 	if got := gf(rc["progress"].(map[string]interface{}), "totalMinutes"); got != 120 {
 		t.Errorf("totalMinutes = %v, want 120 (gyroplane only)", got)
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 
 	pc := findPaxCurByAuth(result, "ULTRALIGHT", "DULV")
 	if pc == nil {
@@ -279,7 +279,7 @@ func TestGermanUL_ThreeAxisCountsSEP(t *testing.T) {
 	if req := getReq(rc, "requirement.training_flight"); req == nil || gb(req, "met") {
 		t.Errorf("training flight = %v, want not met by SEP dual", req)
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 
 	hourFlights(t, c, "D-M3AX", 1, 2, true)
 	rc = ratingByID(getCurrencyStatus(t, c), ratingID)
@@ -342,4 +342,242 @@ func TestBackup_ULKindRoundTrips(t *testing.T) {
 		t.Fatalf("ratings = %d, want 1", len(ratings))
 	}
 	assertStr(t, "rating ulKind", ratings[0]["ulKind"], "SAILPLANE")
+}
+
+// dualFlights logs n dual flights of the given minutes with one landing each on reg.
+func dualFlights(t *testing.T, c *E2EClient, reg string, n, minutes, firstDaysAgo int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(firstDaysAgo + i), "aircraftReg": reg, "aircraftType": "UL",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"offBlockTime": "08:00", "onBlockTime": fmt.Sprintf("%02d:%02d", 8+minutes/60, minutes%60),
+			"landings":    1,
+			"crewMembers": []map[string]interface{}{{"name": "FI", "role": "Instructor"}},
+		})
+	}
+}
+
+// TestGermanUL_TrainingFlightIsOneFlight — §45(2): the training flight is one
+// flight of at least 1h with an instructor, not dual minutes summed.
+func TestGermanUL_TrainingFlightIsOneFlight(t *testing.T) {
+	c := setupCurrencyUser(t, "ul-m2-training")
+	createULAircraftCur(t, c, "D-MXYZ", "THREE_AXIS")
+	licID := createLicenseCur(t, c, "DULV", "UL")
+	ratingID := createULRatingCur(t, c, licID, "THREE_AXIS")
+
+	hourFlights(t, c, "D-MXYZ", 11, 20, false)
+
+	t.Run("M2 three 20-minute dual flights do not satisfy the training flight", func(t *testing.T) {
+		dualFlights(t, c, "D-MXYZ", 3, 20, 5)
+		rc := ratingByID(getCurrencyStatus(t, c), ratingID)
+		if rc == nil {
+			t.Fatal("three-axis rating currency not found")
+		}
+		req := getReq(rc, "requirement.training_flight")
+		if req == nil || gb(req, "met") || gi(req, "current") != 20 {
+			t.Errorf("training flight = %v, want unmet with current 20", req)
+		}
+		if req := getReq(rc, "requirement.total_time"); req == nil || !gb(req, "met") {
+			t.Errorf("total time = %v, want met", req)
+		}
+		assertStr(t, "status", rc["status"], "lapsed")
+		assertStr(t, "messageKey", rc["messageKey"], "rating.recency_not_met")
+	})
+
+	t.Run("M2 one 60-minute dual flight satisfies", func(t *testing.T) {
+		dualFlights(t, c, "D-MXYZ", 1, 60, 2)
+		rc := ratingByID(getCurrencyStatus(t, c), ratingID)
+		req := getReq(rc, "requirement.training_flight")
+		if req == nil || !gb(req, "met") || gi(req, "current") != 60 {
+			t.Errorf("training flight = %v, want met with current 60", req)
+		}
+		assertStr(t, "status", rc["status"], "current")
+	})
+}
+
+// TestEASA_LAPL_TrainingFlightIsOneFlight — FCL.140.A(a)(1): one refresher
+// training flight of at least 1h total time with an instructor.
+func TestEASA_LAPL_TrainingFlightIsOneFlight(t *testing.T) {
+	c := setupCurrencyUser(t, "lapl-training")
+	createAircraftCur(t, c, "D-ELTF", "C172", "SEP_LAND")
+	licID := createLicenseCur(t, c, "EASA", "LAPL")
+	ratingID := createRatingCur(t, c, licID, "SEP_LAND", nil)
+
+	hourFlights(t, c, "D-ELTF", 11, 20, false)
+
+	t.Run("LAPL three 20-minute dual flights do not satisfy the training flight", func(t *testing.T) {
+		dualFlights(t, c, "D-ELTF", 3, 20, 5)
+		rc := ratingByID(getCurrencyStatus(t, c), ratingID)
+		if rc == nil {
+			t.Fatal("LAPL rating currency not found")
+		}
+		if req := getReq(rc, "requirement.training_flight"); req == nil || gb(req, "met") || gi(req, "current") != 20 {
+			t.Errorf("training flight = %v, want unmet with current 20", req)
+		}
+		assertStr(t, "status", rc["status"], "lapsed")
+	})
+
+	t.Run("LAPL one 60-minute dual flight satisfies", func(t *testing.T) {
+		dualFlights(t, c, "D-ELTF", 1, 60, 2)
+		rc := ratingByID(getCurrencyStatus(t, c), ratingID)
+		if req := getReq(rc, "requirement.training_flight"); req == nil || !gb(req, "met") {
+			t.Errorf("training flight = %v, want met", req)
+		}
+		assertStr(t, "status", rc["status"], "current")
+	})
+}
+
+// TestEASA_SEP_RefresherStaysCumulative — FCL.740.A(b)(1)(ii) "1 hour of flight
+// training" may be flown over several flights.
+func TestEASA_SEP_RefresherStaysCumulative(t *testing.T) {
+	c := setupCurrencyUser(t, "sep-refresher-cum")
+	createAircraftCur(t, c, "D-ESRC", "C172", "SEP_LAND")
+	licID := createLicenseCur(t, c, "EASA", "PPL")
+	ratingID := createRatingCur(t, c, licID, "SEP_LAND", strPtr(plusDays(pastDate(0), 180)))
+
+	hourFlights(t, c, "D-ESRC", 11, 20, false)
+	dualFlights(t, c, "D-ESRC", 3, 20, 5)
+
+	rc := ratingByID(getCurrencyStatus(t, c), ratingID)
+	if rc == nil {
+		t.Fatal("SEP_LAND rating currency not found")
+	}
+	if req := getReq(rc, "requirement.refresher_training"); req == nil || !gb(req, "met") || gi(req, "current") != 60 {
+		t.Errorf("refresher = %v, want met with 60 cumulative minutes", req)
+	}
+}
+
+// paxByKind returns the passenger currency entries of German ultralight kinds.
+func paxByKind(result map[string]interface{}) map[string]map[string]interface{} {
+	out := map[string]map[string]interface{}{}
+	for _, p := range result["passengerCurrency"].([]interface{}) {
+		pc := p.(map[string]interface{})
+		if k, ok := pc["ulKind"].(string); ok {
+			out[k] = pc
+		}
+	}
+	return out
+}
+
+// TestGermanUL_KindlessFlightCountsForNeither — S1: a flight on an ultralight
+// with no kind counts for no kind when the pilot holds two, and is reported
+// as unclassified until the aircraft's kind is set.
+func TestGermanUL_KindlessFlightCountsForNeither(t *testing.T) {
+	c := setupCurrencyUser(t, "ul-s1-kindless")
+	resp := c.POST("/aircraft", map[string]interface{}{
+		"registration": "D-MTRK", "type": "Trike", "make": "Test", "model": "Test", "aircraftClass": "ULTRALIGHT",
+	})
+	requireStatus(t, resp, http.StatusCreated)
+	var ac map[string]interface{}
+	resp.JSON(&ac)
+
+	licID := createLicenseCur(t, c, "DULV", "UL")
+	trikeID := createULRatingCur(t, c, licID, "WEIGHT_SHIFT")
+	ppgID := createULRatingCur(t, c, licID, "POWERED_PARAGLIDER")
+
+	hourFlights(t, c, "D-MTRK", 12, 2, false)
+
+	t.Run("S1 kindless flight with trike and powered-paraglider ratings counts for neither", func(t *testing.T) {
+		result := getCurrencyStatus(t, c)
+		for name, id := range map[string]string{"trike": trikeID, "powered paraglider": ppgID} {
+			rc := ratingByID(result, id)
+			if rc == nil {
+				t.Fatalf("%s rating currency not found", name)
+			}
+			assertInt(t, name+" flights", gi(rc["progress"].(map[string]interface{}), "flights"), 0)
+			assertInt(t, name+" unclassifiedFlights", gi(rc, "unclassifiedFlights"), 12)
+			assertStr(t, name+" status", rc["status"], "lapsed")
+		}
+		pax := paxByKind(result)
+		for _, kind := range []string{"WEIGHT_SHIFT", "POWERED_PARAGLIDER"} {
+			if pax[kind] == nil {
+				t.Fatalf("%s passenger currency not found", kind)
+			}
+			assertInt(t, kind+" pax dayLandings", gi(pax[kind], "dayLandings"), 0)
+		}
+	})
+
+	t.Run("setting the aircraft kind counts the flights for that kind only", func(t *testing.T) {
+		requireStatus(t, c.PATCH("/aircraft/"+ac["id"].(string), map[string]interface{}{"ulKind": "WEIGHT_SHIFT"}), http.StatusOK)
+		result := getCurrencyStatus(t, c)
+		trike := ratingByID(result, trikeID)
+		assertInt(t, "trike flights", gi(trike["progress"].(map[string]interface{}), "flights"), 12)
+		if _, ok := trike["unclassifiedFlights"]; ok {
+			t.Errorf("trike unclassifiedFlights = %v, want absent", trike["unclassifiedFlights"])
+		}
+		assertStr(t, "trike status", trike["status"], "current")
+		ppg := ratingByID(result, ppgID)
+		assertInt(t, "powered paraglider flights", gi(ppg["progress"].(map[string]interface{}), "flights"), 0)
+		if _, ok := ppg["unclassifiedFlights"]; ok {
+			t.Errorf("powered paraglider unclassifiedFlights = %v, want absent", ppg["unclassifiedFlights"])
+		}
+		pax := paxByKind(result)
+		assertInt(t, "trike pax dayLandings", gi(pax["WEIGHT_SHIFT"], "dayLandings"), 12)
+		assertInt(t, "powered paraglider pax dayLandings", gi(pax["POWERED_PARAGLIDER"], "dayLandings"), 0)
+	})
+}
+
+// TestGermanUL_RatingWithoutKindIsUnknown — a UL rating with no kind is not
+// evaluated as three-axis and carries no passenger currency.
+func TestGermanUL_RatingWithoutKindIsUnknown(t *testing.T) {
+	c := setupCurrencyUser(t, "ul-no-kind")
+	createAircraftCur(t, c, "D-EUNK", "C172", "SEP_LAND")
+	licID := createLicenseCur(t, c, "DULV", "UL")
+	ratingID := createRatingCur(t, c, licID, "ULTRALIGHT", nil)
+	hourFlights(t, c, "D-EUNK", 12, 10, true)
+
+	result := getCurrencyStatus(t, c)
+	rc := ratingByID(result, ratingID)
+	if rc == nil {
+		t.Fatal("UL rating currency not found")
+	}
+	assertStr(t, "status", rc["status"], "unknown")
+	assertStr(t, "messageKey", rc["messageKey"], "rating.ul_kind_required")
+	for _, field := range []string{"requirements", "countedClasses", "creditedUltralightKinds"} {
+		if v, ok := rc[field]; ok {
+			t.Errorf("%s = %v, want absent", field, v)
+		}
+	}
+	if pc := findPaxCur(result, "ULTRALIGHT"); pc != nil {
+		t.Errorf("passenger currency = %v, want none", pc)
+	}
+}
+
+// TestGermanUL_PassengersNeedTakeoffsAndLandings — §45a: 3 take-offs and 3
+// landings in 90 days, not landings alone.
+func TestGermanUL_PassengersNeedTakeoffsAndLandings(t *testing.T) {
+	c := setupCurrencyUser(t, "ul-pax-takeoffs")
+	createULAircraftCur(t, c, "D-MPAX", "THREE_AXIS")
+	licID := createLicenseCur(t, c, "DULV", "UL")
+	createULRatingCur(t, c, licID, "THREE_AXIS")
+
+	createFlightCur(t, c, map[string]interface{}{
+		"date": pastDate(10), "aircraftReg": "D-MPAX", "aircraftType": "C42",
+		"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+		"offBlockTime": "08:00", "onBlockTime": "09:00",
+		"landings": 3, "takeoffsDay": 2,
+	})
+
+	t.Run("three landings and two take-offs is not current", func(t *testing.T) {
+		pc := paxByKind(getCurrencyStatus(t, c))["THREE_AXIS"]
+		if pc == nil {
+			t.Fatal("three-axis passenger currency not found")
+		}
+		assertStr(t, "dayStatus", pc["dayStatus"], "expired")
+		assertInt(t, "dayLandings", gi(pc, "dayLandings"), 2)
+	})
+
+	t.Run("a third take-off makes it current", func(t *testing.T) {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(5), "aircraftReg": "D-MPAX", "aircraftType": "C42",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"offBlockTime": "08:00", "onBlockTime": "08:30",
+			"landings": 1,
+		})
+		pc := paxByKind(getCurrencyStatus(t, c))["THREE_AXIS"]
+		assertStr(t, "dayStatus", pc["dayStatus"], "current")
+		assertInt(t, "dayLandings", gi(pc, "dayLandings"), 3)
+		assertStr(t, "dayExpiresOn", pc["dayExpiresOn"], plusDays(pastDate(10), 90))
+	})
 }

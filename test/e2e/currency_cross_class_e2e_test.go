@@ -109,7 +109,7 @@ func TestEASA_LAPL_GliderNotCounted(t *testing.T) {
 	if rc == nil {
 		t.Fatal("LAPL SEP_LAND not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 	if rc["recencyExpiresOn"] != nil {
 		t.Errorf("recencyExpiresOn = %v, want absent while not current", rc["recencyExpiresOn"])
 	}
@@ -159,7 +159,7 @@ func TestEASA_LAPL_LandSeaSplit(t *testing.T) {
 	if rc == nil {
 		t.Fatal("LAPL SEP_SEA not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 	for _, key := range []string{"requirement.sep_land_time", "requirement.sep_land_landings"} {
 		req := getReq(rc, key)
 		if req == nil {
