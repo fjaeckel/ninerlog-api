@@ -97,7 +97,7 @@ func NewDisciplineEvidenceSource(db *sql.DB) repository.DisciplineEvidenceSource
 }
 
 // disciplineFlightGroupsQuery aggregates flights per normalised class and UL kind.
-const disciplineFlightGroupsQuery = `
+var disciplineFlightGroupsQuery = `
 	WITH fl AS (
 		SELECT
 			f.*,
