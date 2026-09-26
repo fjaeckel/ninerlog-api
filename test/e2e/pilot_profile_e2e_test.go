@@ -452,3 +452,43 @@ func TestPilotProfile_CrossUserIsolation(t *testing.T) {
 		}
 	}
 }
+
+func TestPilotProfile_InstructorPrivilege(t *testing.T) {
+	t.Run("P4 Petra FI(S) privilege -> INSTRUCTOR active without dual-given flights", func(t *testing.T) {
+		c := setupCurrencyUser(t, "pp-petra-fis")
+		licID := createLicenceNumbered(t, c, "LBA", "SPL", "DE.SFCL.PETRA")
+		createRatingCur(t, c, licID, "GLIDER", nil)
+		p := getPilotProfile(t, c)
+		if p.state("INSTRUCTOR").Status != "off" {
+			t.Fatalf("INSTRUCTOR before the privilege = %s", p.state("INSTRUCTOR").Status)
+		}
+
+		createPrivilege(t, c, licID, map[string]interface{}{"kind": "FI_S", "expiresOn": futureDate(400)})
+		p = getPilotProfile(t, c)
+		assertStatuses(t, p, map[string]string{"SAILPLANE": "active", "INSTRUCTOR": "active"})
+		ev := p.state("INSTRUCTOR").Evidence
+		if len(ev) != 1 || ev[0].Source != "RATING" || ev[0].Strength != "strong" ||
+			ev[0].Ref != "FI(S) on SPL DE.SFCL.PETRA" || ev[0].RefID == nil {
+			t.Errorf("INSTRUCTOR evidence = %+v", ev)
+		}
+	})
+
+	t.Run("expired FI(S) privilege -> INSTRUCTOR dormant", func(t *testing.T) {
+		c := setupCurrencyUser(t, "pp-fis-expired")
+		licID := createLicenceNumbered(t, c, "LBA", "SPL", "DE.SFCL.OLD")
+		createPrivilege(t, c, licID, map[string]interface{}{"kind": "FI_S", "issuedOn": "2019-01-01", "expiresOn": "2022-01-01"})
+		p := getPilotProfile(t, c)
+		if s := p.state("INSTRUCTOR"); s.Status != "dormant" || !hasEvidence(s, "RATING", "dormant") {
+			t.Errorf("INSTRUCTOR = %+v", s)
+		}
+	})
+
+	t.Run("towing privilege is no INSTRUCTOR evidence", func(t *testing.T) {
+		c := setupCurrencyUser(t, "pp-towing")
+		licID := createLicenceNumbered(t, c, "EASA", "PPL(A)", "DE.FCL.TOW")
+		createPrivilege(t, c, licID, map[string]interface{}{"kind": "SAILPLANE_TOWING"})
+		if s := getPilotProfile(t, c).state("INSTRUCTOR"); s.Status != "off" || len(s.Evidence) != 0 {
+			t.Errorf("INSTRUCTOR = %+v", s)
+		}
+	})
+}

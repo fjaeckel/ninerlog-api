@@ -839,16 +839,16 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 
 // Defines values for CustomCurrencyThresholdUnit.
 const (
-	Hours   CustomCurrencyThresholdUnit = "hours"
-	Minutes CustomCurrencyThresholdUnit = "minutes"
+	CustomCurrencyThresholdUnitHours   CustomCurrencyThresholdUnit = "hours"
+	CustomCurrencyThresholdUnitMinutes CustomCurrencyThresholdUnit = "minutes"
 )
 
 // Valid indicates whether the value is a known member of the CustomCurrencyThresholdUnit enum.
 func (e CustomCurrencyThresholdUnit) Valid() bool {
 	switch e {
-	case Hours:
+	case CustomCurrencyThresholdUnitHours:
 		return true
-	case Minutes:
+	case CustomCurrencyThresholdUnitMinutes:
 		return true
 	default:
 		return false
@@ -2160,6 +2160,57 @@ func (e SignatureRequestCreatedStatus) Valid() bool {
 	case SignatureRequestCreatedStatusRevoked:
 		return true
 	case SignatureRequestCreatedStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainingItemUnit.
+const (
+	TrainingItemUnitFlights  TrainingItemUnit = "flights"
+	TrainingItemUnitKm       TrainingItemUnit = "km"
+	TrainingItemUnitLandings TrainingItemUnit = "landings"
+	TrainingItemUnitLaunches TrainingItemUnit = "launches"
+	TrainingItemUnitMinutes  TrainingItemUnit = "minutes"
+)
+
+// Valid indicates whether the value is a known member of the TrainingItemUnit enum.
+func (e TrainingItemUnit) Valid() bool {
+	switch e {
+	case TrainingItemUnitFlights:
+		return true
+	case TrainingItemUnitKm:
+		return true
+	case TrainingItemUnitLandings:
+		return true
+	case TrainingItemUnitLaunches:
+		return true
+	case TrainingItemUnitMinutes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainingProgrammeId.
+const (
+	SPL             TrainingProgrammeId = "SPL"
+	SPLTMGEXTENSION TrainingProgrammeId = "SPL_TMG_EXTENSION"
+	ULTHREEAXIS     TrainingProgrammeId = "UL_THREE_AXIS"
+	ULWEIGHTSHIFT   TrainingProgrammeId = "UL_WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the TrainingProgrammeId enum.
+func (e TrainingProgrammeId) Valid() bool {
+	switch e {
+	case SPL:
+		return true
+	case SPLTMGEXTENSION:
+		return true
+	case ULTHREEAXIS:
+		return true
+	case ULWEIGHTSHIFT:
 		return true
 	default:
 		return false
@@ -8049,6 +8100,78 @@ type StatisticsBaselineContribution struct {
 	TotalMinutes        int                `json:"totalMinutes"`
 }
 
+// TrainingItem defines model for TrainingItem.
+type TrainingItem struct {
+	// Current Amount logged so far in `unit`.
+	Current int `json:"current"`
+
+	// Informational The item is shown for information only and never affects `allMet`
+	// (the SFCL.130(b) credit).
+	Informational bool `json:"informational"`
+
+	// Key Requirement key (e.g. `training.spl.dual_time`), a translation key.
+	//
+	// Example: training.spl.dual_time
+	Key string `json:"key"`
+
+	// MessageKey Status message key: `training.met`, `training.not_met`,
+	// `training.cross_country_distance_unknown` (met by a cross-country
+	// flight whose distance is unknown), `training.credit_available`,
+	// `training.credit_none`.
+	//
+	//
+	// Example: training.not_met
+	MessageKey string `json:"messageKey"`
+	Met        bool   `json:"met"`
+
+	// Required Required amount in `unit`.
+	Required int              `json:"required"`
+	Unit     TrainingItemUnit `json:"unit"`
+}
+
+// TrainingItemUnit defines model for TrainingItem.Unit.
+type TrainingItemUnit string
+
+// TrainingProgramme defines model for TrainingProgramme.
+type TrainingProgramme struct {
+	// AllMet Every item that is not informational is met.
+	AllMet bool `json:"allMet"`
+
+	// Discipline A flying discipline ("toolkit"). The enum may grow: clients must treat a
+	// value they do not know as `active` (fail open).
+	Discipline Discipline `json:"discipline"`
+
+	// Id A syllabus template:
+	// - SPL: SFCL.130 sailplane pilot licence
+	// - SPL_TMG_EXTENSION: SFCL.150(b) extension of SPL privileges to TMGs
+	// - UL_THREE_AXIS: German three-axis ultralight licence, LuftPersV §42
+	// - UL_WEIGHT_SHIFT: German weight-shift ultralight licence, LuftPersV §42
+	Id    TrainingProgrammeId `json:"id"`
+	Items []TrainingItem      `json:"items"`
+
+	// LegalBasis Example: SFCL.130
+	LegalBasis string `json:"legalBasis"`
+
+	// SignedFlights Counted flights carrying a completed instructor signature. Informational;
+	// no item depends on it.
+	SignedFlights int `json:"signedFlights"`
+
+	// TitleKey Example: training.programme.spl
+	TitleKey string `json:"titleKey"`
+}
+
+// TrainingProgrammeId A syllabus template:
+// - SPL: SFCL.130 sailplane pilot licence
+// - SPL_TMG_EXTENSION: SFCL.150(b) extension of SPL privileges to TMGs
+// - UL_THREE_AXIS: German three-axis ultralight licence, LuftPersV §42
+// - UL_WEIGHT_SHIFT: German weight-shift ultralight licence, LuftPersV §42
+type TrainingProgrammeId string
+
+// TrainingProgress defines model for TrainingProgress.
+type TrainingProgress struct {
+	Programmes []TrainingProgramme `json:"programmes"`
+}
+
 // TwoFactorEnabled defines model for TwoFactorEnabled.
 type TwoFactorEnabled struct {
 	// RecoveryCodes One-time recovery codes to use if authenticator is unavailable
@@ -8967,6 +9090,12 @@ type ListDeletionsParams struct {
 
 // ListDeletionsParamsEntity defines parameters for ListDeletions.
 type ListDeletionsParamsEntity string
+
+// GetTrainingProgressParams defines parameters for GetTrainingProgress.
+type GetTrainingProgressParams struct {
+	// Programme Programmes to include whatever the pilot profile says; repeatable.
+	Programme *[]TrainingProgrammeId `form:"programme,omitempty" json:"programme,omitempty"`
+}
 
 // DeleteCurrentUserJSONBody defines parameters for DeleteCurrentUser.
 type DeleteCurrentUserJSONBody struct {

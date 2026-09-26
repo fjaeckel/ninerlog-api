@@ -1909,6 +1909,50 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /training/progress:
+    get:
+      tags:
+        - Currency
+      summary: Get training progress toward a licence
+      description: |
+        Evaluates syllabus templates against the caller's flights. The response
+        holds one programme per discipline whose pilot-profile status is
+        `training` (`SAILPLANE` → `SPL`, `TMG` → `SPL_TMG_EXTENSION`,
+        `ULTRALIGHT` → `UL_THREE_AXIS` and/or `UL_WEIGHT_SHIFT` by the
+        discipline's UL kinds) plus every programme named in `programme`,
+        each once, in the order `SPL`, `SPL_TMG_EXTENSION`, `UL_THREE_AXIS`,
+        `UL_WEIGHT_SHIFT`. A pilot with no discipline in training and no
+        `programme` gets an empty list. An unknown `programme` returns 400.
+
+        Flights count by the class of their aircraft (matched by registration
+        in the caller's fleet): `GLIDER` for `SPL`, `TMG` for the extension,
+        `ULTRALIGHT` of the kind for the UL programmes. FSTD sessions and
+        passenger flights never count. Durations are integer minutes. The
+        templates, item keys and approximations are in docs/SAILPLANES.md
+        ("Training progress") and docs/DOMAIN.md.
+      operationId: getTrainingProgress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: programme
+          in: query
+          description: Programmes to include whatever the pilot profile says; repeatable.
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/TrainingProgrammeId'
+      responses:
+        '200':
+          description: Training progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingProgress'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /custom-currency:
     get:
       tags: [Custom Currency]
@@ -9098,6 +9142,85 @@ components:
       type: string
       enum: [THREE_AXIS, THREE_AXIS_MOTORGLIDER, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE]
       description: Kind of an ultralight (German "Luftsportgeräteart").
+
+    TrainingProgrammeId:
+      type: string
+      enum: [SPL, SPL_TMG_EXTENSION, UL_THREE_AXIS, UL_WEIGHT_SHIFT]
+      description: |
+        A syllabus template:
+        - SPL: SFCL.130 sailplane pilot licence
+        - SPL_TMG_EXTENSION: SFCL.150(b) extension of SPL privileges to TMGs
+        - UL_THREE_AXIS: German three-axis ultralight licence, LuftPersV §42
+        - UL_WEIGHT_SHIFT: German weight-shift ultralight licence, LuftPersV §42
+
+    TrainingItem:
+      type: object
+      required: [key, required, current, unit, met, informational, messageKey]
+      properties:
+        key:
+          type: string
+          description: Requirement key (e.g. `training.spl.dual_time`), a translation key.
+          example: training.spl.dual_time
+        required:
+          type: integer
+          description: Required amount in `unit`.
+        current:
+          type: integer
+          description: Amount logged so far in `unit`.
+        unit:
+          type: string
+          enum: [minutes, launches, landings, flights, km]
+        met:
+          type: boolean
+        informational:
+          type: boolean
+          description: |
+            The item is shown for information only and never affects `allMet`
+            (the SFCL.130(b) credit).
+        messageKey:
+          type: string
+          description: |
+            Status message key: `training.met`, `training.not_met`,
+            `training.cross_country_distance_unknown` (met by a cross-country
+            flight whose distance is unknown), `training.credit_available`,
+            `training.credit_none`.
+          example: training.not_met
+
+    TrainingProgramme:
+      type: object
+      required: [id, discipline, titleKey, legalBasis, items, allMet, signedFlights]
+      properties:
+        id:
+          $ref: '#/components/schemas/TrainingProgrammeId'
+        discipline:
+          $ref: '#/components/schemas/Discipline'
+        titleKey:
+          type: string
+          example: training.programme.spl
+        legalBasis:
+          type: string
+          example: SFCL.130
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainingItem'
+        allMet:
+          type: boolean
+          description: Every item that is not informational is met.
+        signedFlights:
+          type: integer
+          description: |
+            Counted flights carrying a completed instructor signature. Informational;
+            no item depends on it.
+
+    TrainingProgress:
+      type: object
+      required: [programmes]
+      properties:
+        programmes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainingProgramme'
 
     DisciplineEvidence:
       type: object

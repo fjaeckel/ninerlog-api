@@ -13,6 +13,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
 	"github.com/fjaeckel/ninerlog-api/internal/service/pilotprofile"
 	"github.com/fjaeckel/ninerlog-api/internal/service/readiness"
+	"github.com/fjaeckel/ninerlog-api/internal/service/training"
 	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
@@ -75,6 +76,8 @@ type APIHandler struct {
 	// pilotProfileService is wired in cmd/api/main.go via
 	// SetPilotProfileService.
 	pilotProfileService *pilotprofile.Service
+	// trainingService is wired in cmd/api/main.go via SetTrainingService.
+	trainingService *training.Service
 	// aircraftReminderService is wired in cmd/api/main.go via
 	// SetAircraftReminderService.
 	aircraftReminderService *service.AircraftReminderService

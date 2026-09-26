@@ -521,6 +521,9 @@ type ServerInterface interface {
 	// ListDeletions List deletions since a watermark
 	// (GET /sync/deletions)
 	ListDeletions(c *gin.Context, params ListDeletionsParams)
+	// GetTrainingProgress Get training progress toward a licence
+	// (GET /training/progress)
+	GetTrainingProgress(c *gin.Context, params GetTrainingProgressParams)
 	// DeleteCurrentUser Delete current user account
 	// (DELETE /users/me)
 	DeleteCurrentUser(c *gin.Context)
@@ -4649,6 +4652,33 @@ func (siw *ServerInterfaceWrapper) ListDeletions(c *gin.Context) {
 	siw.Handler.ListDeletions(c, params)
 }
 
+// GetTrainingProgress operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainingProgress(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainingProgressParams
+
+	// ------------- Optional query parameter "programme" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "programme", c.Request.URL.Query(), &params.Programme, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter programme: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainingProgress(c, params)
+}
+
 // DeleteCurrentUser operation middleware
 func (siw *ServerInterfaceWrapper) DeleteCurrentUser(c *gin.Context) {
 
@@ -4940,6 +4970,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/licenses/:licenseId/currency", wrapper.GetLicenseCurrency)
 	router.GET(options.BaseURL+"/currency", wrapper.GetAllCurrencyStatus)
 	router.GET(options.BaseURL+"/currency/readiness", wrapper.GetCurrencyReadiness)
+	router.GET(options.BaseURL+"/training/progress", wrapper.GetTrainingProgress)
 	router.GET(options.BaseURL+"/custom-currency", wrapper.ListCustomCurrencyRules)
 	router.POST(options.BaseURL+"/custom-currency", wrapper.CreateCustomCurrencyRule)
 	router.POST(options.BaseURL+"/custom-currency/preview", wrapper.PreviewCustomCurrencyRule)

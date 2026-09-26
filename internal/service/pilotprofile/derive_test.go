@@ -41,17 +41,22 @@ func ulPlane(reg string, k models.ULKind) *models.Aircraft {
 	return a
 }
 
+func priv(l *models.License, k models.LicencePrivilegeKind, expires *time.Time) *models.LicencePrivilege {
+	return &models.LicencePrivilege{ID: uuid.New(), LicenseID: l.ID, Kind: k, ExpiresOn: expires}
+}
+
 func ulKind(k models.ULKind) *models.ULKind { return &k }
 
 type deriveCase struct {
-	name     string
-	licences []*models.License
-	ratings  []*models.ClassRating
-	fleet    []*models.Aircraft
-	flights  []models.DisciplineFlightGroup
-	settings map[models.Discipline]models.DisciplineSetting
-	want     map[models.Discipline]models.DisciplineStatus
-	ulKinds  []models.ULKind
+	name       string
+	licences   []*models.License
+	ratings    []*models.ClassRating
+	privileges []*models.LicencePrivilege
+	fleet      []*models.Aircraft
+	flights    []models.DisciplineFlightGroup
+	settings   map[models.Discipline]models.DisciplineSetting
+	want       map[models.Discipline]models.DisciplineStatus
+	ulKinds    []models.ULKind
 }
 
 func TestDerive(t *testing.T) {
@@ -167,6 +172,24 @@ func TestDerive(t *testing.T) {
 			want: map[models.Discipline]models.DisciplineStatus{models.DisciplineInstructor: models.StatusActive}},
 		{name: "INSTRUCTOR strong from rating text", licences: []*models.License{other}, ratings: []*models.ClassRating{fiRating},
 			want: map[models.Discipline]models.DisciplineStatus{models.DisciplineInstructor: models.StatusActive}},
+		{name: "P4 Petra INSTRUCTOR active from FI(S) privilege without dual given", licences: []*models.License{spl},
+			privileges: []*models.LicencePrivilege{priv(spl, models.PrivilegeFIS, nil)},
+			want:       map[models.Discipline]models.DisciplineStatus{models.DisciplineInstructor: models.StatusActive, models.DisciplineSailplane: models.StatusActive}},
+		{name: "INSTRUCTOR active from BI(S) privilege", licences: []*models.License{spl},
+			privileges: []*models.LicencePrivilege{priv(spl, models.PrivilegeBIS, nil)},
+			want:       map[models.Discipline]models.DisciplineStatus{models.DisciplineInstructor: models.StatusActive, models.DisciplineSailplane: models.StatusActive}},
+		{name: "INSTRUCTOR active from FE(S) privilege", licences: []*models.License{spl},
+			privileges: []*models.LicencePrivilege{priv(spl, models.PrivilegeFES, day(2027, 1, 1))},
+			want:       map[models.Discipline]models.DisciplineStatus{models.DisciplineInstructor: models.StatusActive, models.DisciplineSailplane: models.StatusActive}},
+		{name: "expired FI(S) privilege resolves INSTRUCTOR dormant", licences: []*models.License{spl},
+			privileges: []*models.LicencePrivilege{priv(spl, models.PrivilegeFIS, day(2025, 3, 31))},
+			want:       map[models.Discipline]models.DisciplineStatus{models.DisciplineInstructor: models.StatusDormant, models.DisciplineSailplane: models.StatusActive}},
+		{name: "expired FE(S) beside a valid FI(S) resolves INSTRUCTOR active", licences: []*models.License{spl},
+			privileges: []*models.LicencePrivilege{priv(spl, models.PrivilegeFES, day(2025, 3, 31)), priv(spl, models.PrivilegeFIS, nil)},
+			want:       map[models.Discipline]models.DisciplineStatus{models.DisciplineInstructor: models.StatusActive, models.DisciplineSailplane: models.StatusActive}},
+		{name: "towing and cloud-flying privileges give no evidence", licences: []*models.License{other},
+			privileges: []*models.LicencePrivilege{priv(other, models.PrivilegeSailplaneTowing, nil), priv(other, models.PrivilegeCloudFlying, nil)},
+			want:       nil},
 		{name: "INSTRUCTOR recent from dual given", flights: []models.DisciplineFlightGroup{{InstructingFlights: 3, LastInstructing: recent}},
 			want: map[models.Discipline]models.DisciplineStatus{models.DisciplineInstructor: models.StatusActive}},
 
@@ -247,7 +270,7 @@ func TestDerive(t *testing.T) {
 			if tc.settings != nil {
 				settings.Disciplines = tc.settings
 			}
-			states := Derive(tc.licences, tc.ratings, tc.fleet, tc.flights, settings, testNow)
+			states := Derive(tc.licences, tc.ratings, tc.privileges, tc.fleet, tc.flights, settings, testNow)
 			if len(states) != len(models.AllDisciplines()) {
 				t.Fatalf("got %d states, want %d", len(states), len(models.AllDisciplines()))
 			}
@@ -282,7 +305,7 @@ func TestDerive(t *testing.T) {
 }
 
 func TestDerive_UnknownLicenceHasNoEvidence(t *testing.T) {
-	states := Derive([]*models.License{lic("Segelflugschein alt", "LBA", "9")}, nil, nil, nil, models.DefaultPilotProfile(uuid.New()), testNow)
+	states := Derive([]*models.License{lic("Segelflugschein alt", "LBA", "9")}, nil, nil, nil, nil, models.DefaultPilotProfile(uuid.New()), testNow)
 	for _, s := range states {
 		if len(s.Evidence) != 0 {
 			t.Errorf("%s has evidence %+v", s.Discipline, s.Evidence)
@@ -305,6 +328,7 @@ func TestDerive_EvidenceRefs(t *testing.T) {
 	states := Derive(
 		[]*models.License{spl},
 		[]*models.ClassRating{rating(spl, models.ClassTypeGlider)},
+		nil,
 		[]*models.Aircraft{glider},
 		[]models.DisciplineFlightGroup{{AircraftClass: "GLIDER", Flights: 10, LastFlight: day(2026, 7, 1), TowedFlights: 4, LastTowed: day(2026, 8, 2)}},
 		models.DefaultPilotProfile(uuid.New()), testNow)
@@ -337,8 +361,20 @@ func TestDerive_EvidenceRefs(t *testing.T) {
 	}
 }
 
+func TestDerive_PrivilegeEvidenceRef(t *testing.T) {
+	spl := lic("SPL", "LBA", "12345")
+	fi := priv(spl, models.PrivilegeFIS, nil)
+	states := Derive([]*models.License{spl}, nil, []*models.LicencePrivilege{fi}, nil, nil,
+		models.DefaultPilotProfile(uuid.New()), testNow)
+	ev := stateOf(states, models.DisciplineInstructor).Evidence
+	if len(ev) != 1 || ev[0].Source != models.EvidenceRating || ev[0].Strength != models.StrengthStrong ||
+		ev[0].Ref != "FI(S) on SPL 12345" || ev[0].RefID == nil || *ev[0].RefID != fi.ID {
+		t.Errorf("evidence = %+v", ev)
+	}
+}
+
 func TestDerive_DualOnlyEvidenceSource(t *testing.T) {
-	states := Derive(nil, nil, nil,
+	states := Derive(nil, nil, nil, nil,
 		[]models.DisciplineFlightGroup{{AircraftClass: "GLIDER", TowedFlights: 3, TowedDualReceivedFlights: 3, LastTowed: day(2026, 9, 1)}},
 		models.DefaultPilotProfile(uuid.New()), testNow)
 	ev := stateOf(states, models.DisciplineSailplane).Evidence

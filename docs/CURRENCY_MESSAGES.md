@@ -320,6 +320,49 @@ The credential type is not repeated: look it up by `credentialId`. Lena's Saturd
 | `readiness.credential_valid` | `date`? | The medical certificate is valid on the date |
 | `readiness.credential_expired` | `date` | The medical certificate expired on `date`, on or before the date asked |
 
+## Training progress (`GET /training/progress`)
+
+Training programmes use their own keys, defined in `internal/service/training/templates.go`
+and never emitted by the currency engine. They carry no params: each `TrainingItem` has
+`required`, `current` and `unit` for the numbers. The rules behind each item are in
+[SAILPLANES.md](./SAILPLANES.md#training-progress) and [DOMAIN.md](./DOMAIN.md#training-progress).
+
+`TrainingProgramme.titleKey`:
+
+| Key | Programme | `legalBasis` |
+| --- | --- | --- |
+| `training.programme.spl` | `SPL` | `SFCL.130` |
+| `training.programme.spl_tmg_extension` | `SPL_TMG_EXTENSION` | `SFCL.150(b)` |
+| `training.programme.ul_three_axis` | `UL_THREE_AXIS` | `LuftPersV §42` |
+| `training.programme.ul_weight_shift` | `UL_WEIGHT_SHIFT` | `LuftPersV §42` |
+
+`TrainingItem.key` (the requirement label):
+
+| Key | Unit | Meaning |
+| --- | --- | --- |
+| `training.spl.instruction_time` | `minutes` | Flight instruction on sailplanes, dual plus supervised solo |
+| `training.spl.dual_time` | `minutes` | Dual flight instruction on sailplanes |
+| `training.spl.supervised_solo_time` | `minutes` | Supervised solo on sailplanes |
+| `training.spl.launches` | `launches` | Launches and landings on instruction flights |
+| `training.spl.cross_country` | `flights` | Solo cross-country ≥ 50 km or dual ≥ 100 km |
+| `training.spl.credit_sfcl130b` | `minutes` | Informational SFCL.130(b) credit for another licence category (max 7 h) |
+| `training.tmg.instruction_time` | `minutes` | Flight instruction on TMGs, dual plus supervised solo |
+| `training.tmg.dual_time` | `minutes` | Dual flight instruction on TMGs |
+| `training.tmg.solo_cross_country` | `flights` | Solo cross-country ≥ 150 km with a landing elsewhere |
+| `training.ul.total_time` | `minutes` | Flight training on the UL kind (dual, PIC and supervised solo) |
+| `training.ul.dual_time` | `minutes` | Dual flight training on the UL kind |
+| `training.ul.solo_time` | `minutes` | Solo (PIC or supervised solo) on the UL kind |
+
+`TrainingItem.messageKey` (the status):
+
+| Key | Meaning |
+| --- | --- |
+| `training.met` | The requirement is met |
+| `training.not_met` | The requirement is not met yet; `required - current` remains |
+| `training.cross_country_distance_unknown` | Met by a cross-country flight whose distance NinerLog could not compute; check it |
+| `training.credit_available` | Informational: `current` minutes of SFCL.130(b) credit are available |
+| `training.credit_none` | Informational: another licence is held, but no PIC time to credit |
+
 ## Adding a key
 
 1. Add the constant in `internal/service/currency/messages.go` (remedy and readiness keys

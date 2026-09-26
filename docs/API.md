@@ -355,7 +355,8 @@ Evidence is derived on every read (rules in
 `PATCH /users/me/pilot-profile` is an idempotent merge of `mode`, `intents` (a partial map of
 discipline to intent) and `acknowledge` (disciplines), and returns the full profile. An
 unknown mode, discipline or intent is a 400 and changes nothing. Clients must treat a
-discipline value they do not know as `active`.
+discipline value they do not know as `active`. Licence evidence includes `FI_S`, `BI_S` and
+`FE_S` licence privileges, reported as `INSTRUCTOR` evidence with source `RATING`.
 
 ### Licenses
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings
@@ -640,6 +641,21 @@ malformed date is `400`. `aircraftReg` restricts the answer to the ratings whose
 aircraft is `404`. Response: `ReadinessReport {date, aircraftReg?, items: ReadinessItem[]}`.
 Semantics in [DOMAIN.md](./DOMAIN.md#readiness-get-currencyreadiness), keys in
 [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md#readiness-get-currencyreadiness).
+
+`GET /training/progress?programme=` (`getTrainingProgress`) returns
+`TrainingProgress {programmes: TrainingProgramme[]}`: one programme per discipline whose
+pilot-profile status is `training` (`SAILPLANE` → `SPL`, `TMG` → `SPL_TMG_EXTENSION`,
+`ULTRALIGHT` → `UL_THREE_AXIS` / `UL_WEIGHT_SHIFT` by its `ulKinds`), plus each programme
+named in the repeatable `programme` parameter (`SPL`, `SPL_TMG_EXTENSION`, `UL_THREE_AXIS`,
+`UL_WEIGHT_SHIFT`; anything else, including lower case, is `400`). Each programme appears
+once, in that order. A `TrainingProgramme` is `{id, discipline, titleKey, legalBasis,
+items, allMet, signedFlights}`; a `TrainingItem` is `{key, required, current, unit
+(minutes|launches|landings|flights|km), met, informational, messageKey}`. `allMet` ignores
+informational items (the SFCL.130(b) credit); `signedFlights` counts the programme's flights
+with a completed instructor signature. No programme in training and no `programme` gives an
+empty list. Templates in [SAILPLANES.md](./SAILPLANES.md#training-progress) and
+[DOMAIN.md](./DOMAIN.md#training-progress), keys in
+[CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md#training-progress-get-trainingprogress).
 
 ### Custom Currency
 User-authored currency rules under `/custom-currency` — a rule is a declarative document (a

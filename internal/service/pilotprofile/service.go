@@ -16,14 +16,20 @@ type RatingLister interface {
 	GetByLicenseID(ctx context.Context, licenseID uuid.UUID) ([]*models.ClassRating, error)
 }
 
+// PrivilegeLister lists a user's licence privileges.
+type PrivilegeLister interface {
+	ListByUser(ctx context.Context, userID uuid.UUID) ([]*models.LicencePrivilege, error)
+}
+
 // Service reads and updates the caller's own pilot profile.
 type Service struct {
-	profiles repository.PilotProfileRepository
-	evidence repository.DisciplineEvidenceSource
-	licences repository.LicenseRepository
-	ratings  RatingLister
-	aircraft repository.AircraftRepository
-	now      func() time.Time
+	profiles   repository.PilotProfileRepository
+	evidence   repository.DisciplineEvidenceSource
+	licences   repository.LicenseRepository
+	ratings    RatingLister
+	aircraft   repository.AircraftRepository
+	privileges PrivilegeLister
+	now        func() time.Time
 }
 
 // NewService creates a pilot profile service.
@@ -38,6 +44,11 @@ func NewService(
 		profiles: profiles, evidence: evidence, licences: licences,
 		ratings: ratings, aircraft: aircraft, now: time.Now,
 	}
+}
+
+// SetPrivilegeSource wires the licence privileges. With none wired, privileges give no evidence.
+func (s *Service) SetPrivilegeSource(l PrivilegeLister) {
+	s.privileges = l
 }
 
 // SetClock replaces the service clock.
@@ -178,8 +189,15 @@ func (s *Service) derive(ctx context.Context, userID uuid.UUID, settings *models
 	if err != nil {
 		return nil, err
 	}
+	var privileges []*models.LicencePrivilege
+	if s.privileges != nil {
+		privileges, err = s.privileges.ListByUser(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("list licence privileges: %w", err)
+		}
+	}
 
-	states := Derive(licences, ratings, fleet, groups, settings, s.now())
+	states := Derive(licences, ratings, privileges, fleet, groups, settings, s.now())
 	return &models.DerivedPilotProfile{
 		Mode:                   settings.Mode,
 		Disciplines:            states,

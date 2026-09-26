@@ -425,6 +425,87 @@ in [DOMAIN.md](./DOMAIN.md#ultralights).
   on a sailplane is the SFCL.160 check.
 - Banner and sailplane tows share `isTowFlight`.
 
+## <a id="training-progress"></a>Training progress (SFCL.130, SFCL.150)
+
+A student's progress toward the SPL and toward the TMG extension is computed from the
+logbook by `GET /training/progress` (`internal/service/training`, templates in
+`templates.go`; flight rows from `repository.TrainingRepository`). Which programmes appear,
+and the German UL templates, are in [DOMAIN.md](./DOMAIN.md#training-progress). The
+dashboard shows them instead of an empty currency page for Jonas (J1) and for Anna while
+she converts (N1).
+
+### SFCL.130 SPL training (programme `SPL`)
+
+In summary, SFCL.130(a) requires at least 15 hours of flight instruction in sailplanes,
+excluding TMGs, including at least 10 hours of dual flight instruction, 2 hours of
+supervised solo flight time, 45 launches and landings, and one solo cross-country flight of
+at least 50 km (27 NM) or one dual cross-country flight of at least 100 km (55 NM).
+SFCL.130(b) credits an applicant who holds a licence for another category of aircraft
+(except balloons) with 10 % of their total PIC time on such aircraft, up to 7 hours; the
+credit never covers the supervised solo, launch and cross-country requirements.
+
+Counted on `GLIDER` flights only (self-launching sailplanes included; TMGs and UL sailplanes
+excluded):
+
+| Key | Required | Unit | Counts |
+| --- | --- | --- | --- |
+| `training.spl.instruction_time` | 900 | minutes | dual + supervised solo (`spicTime`) minutes |
+| `training.spl.dual_time` | 600 | minutes | dual minutes |
+| `training.spl.supervised_solo_time` | 120 | minutes | `spicTime` minutes |
+| `training.spl.launches` | 45 | launches | the `launches` of flights with dual or SPIC time |
+| `training.spl.cross_country` | 1 | flights | a qualifying cross-country flight (below) |
+| `training.spl.credit_sfcl130b` | 420 | minutes | informational: 10 % of PIC minutes on other aircraft, capped at 420 |
+
+- **Supervised solo** is `spicTime`, as for recency ([supervised solo](#supervised-solo)).
+  PIC time is not instruction and does not count toward the 15 h, the 2 h or the launches.
+- **Launches and landings** are measured as launches: every sailplane flight ends in a
+  landing, and a winch series row counts each of its launches.
+- **Cross-country** is approximated from the flight record: a flight with cross-country
+  time (departure and arrival differ, or a manual value) qualifies when its airport-to-airport
+  distance is at least 50 km for a solo flight (no dual time, PIC or SPIC time) or at least
+  100 km for a dual flight. A flight whose distance is unknown (0: an off-airport field, an
+  unknown code) qualifies too, reported with `messageKey`
+  `training.cross_country_distance_unknown` so the pilot can check it; a qualifying flight
+  with a known distance wins and reports `training.met`. Straight-line distance understates
+  a task flown around turn points, and an out-and-return has no cross-country time, so such
+  a flight does not count.
+- **SFCL.130(b) credit** is listed only for a pilot holding a licence NinerLog classifies as
+  aeroplane, gyroplane or helicopter (`models.ClassifyLicence`). Its PIC minutes are summed
+  over crewed flights on every aircraft that is not `GLIDER`, `TMG` or `ULTRALIGHT`,
+  unclassed registrations included (NinerLog has no balloon class). The item is
+  `informational`: it never reduces another item and never affects `allMet`. `messageKey` is
+  `training.credit_available`, or `training.credit_none` when there is no PIC time to credit.
+
+### SFCL.150 TMG extension (programme `SPL_TMG_EXTENSION`)
+
+In summary, SFCL.150(b) requires an SPL holder extending the privileges to TMGs to complete
+at least 6 hours of flight instruction on a TMG, including at least 4 hours of dual flight
+instruction, and one solo cross-country flight of at least 150 km (80 NM) with one
+full-stop landing at an aerodrome other than the departure aerodrome, before the skill test.
+
+Counted on `TMG` flights only:
+
+| Key | Required | Unit | Counts |
+| --- | --- | --- | --- |
+| `training.tmg.instruction_time` | 360 | minutes | dual + `spicTime` minutes |
+| `training.tmg.dual_time` | 240 | minutes | dual minutes |
+| `training.tmg.solo_cross_country` | 1 | flights | a solo flight with cross-country time and a distance of at least 150 km, or unknown |
+
+The full-stop landing elsewhere is approximated by the cross-country time (departure and
+arrival differ); a landing at an intermediate aerodrome on a round trip is not visible.
+
+### Instructor sign-off
+
+Every programme reports `signedFlights`: the counted flights locked by a completed
+instructor signature (`POST /flights/{id}/signatures/…`). It is shown for information; no
+item requires a signature.
+
+### Known gaps
+
+- Theoretical knowledge, the skill test, the minimum age and the medical are not tracked.
+- The SFCL.155(a) launch-method training is a separate record (`LAUNCH_METHOD_TRAINED`).
+- Task distance around turn points is not used for the cross-country items.
+
 ## FAA gliders (14 CFR Part 61)
 
 A glider rating under FAA rules has no recency rule of its own. Whether the pilot may act

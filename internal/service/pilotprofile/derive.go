@@ -16,10 +16,12 @@ import (
 const RecencyWindowMonths = 24
 
 // Derive resolves every discipline, in models.AllDisciplines order, from the pilot's
-// licences, class ratings, fleet, aggregated flights and stored settings at now.
+// licences, class ratings, licence privileges, fleet, aggregated flights and stored
+// settings at now.
 func Derive(
 	licences []*models.License,
 	ratings []*models.ClassRating,
+	privileges []*models.LicencePrivilege,
 	fleet []*models.Aircraft,
 	flights []models.DisciplineFlightGroup,
 	settings *models.PilotProfile,
@@ -28,6 +30,7 @@ func Derive(
 	d := newDerivation(now)
 	d.addLicences(licences)
 	d.addRatings(ratings, licences)
+	d.addPrivileges(privileges, licences)
 	d.addFleet(fleet)
 	d.addFlights(flights)
 
@@ -170,6 +173,7 @@ func (t *flightTally) add(n, dual int, last *time.Time) {
 }
 
 type derivation struct {
+	now         time.Time
 	cutoff      time.Time
 	evidence    map[models.Discipline][]models.DisciplineEvidence
 	ulKinds     map[models.ULKind]bool
@@ -182,6 +186,7 @@ type derivation struct {
 
 func newDerivation(now time.Time) *derivation {
 	return &derivation{
+		now:      now,
 		cutoff:   time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -RecencyWindowMonths, 0),
 		evidence: map[models.Discipline][]models.DisciplineEvidence{},
 		ulKinds:  map[models.ULKind]bool{},
@@ -238,6 +243,52 @@ func (d *derivation) addRatings(ratings []*models.ClassRating, licences []*model
 			Source: models.EvidenceRating, Strength: models.StrengthStrong,
 			Ref: ref, RefID: idRef(r.ID),
 		})
+	}
+}
+
+// instructorPrivilegeRefs names the instructor and examiner privileges.
+var instructorPrivilegeRefs = map[models.LicencePrivilegeKind]string{
+	models.PrivilegeFIS: "FI(S)",
+	models.PrivilegeBIS: "BI(S)",
+	models.PrivilegeFES: "FE(S)",
+}
+
+// addPrivileges adds FI(S), BI(S) and FE(S) privileges as INSTRUCTOR rating evidence:
+// strong while unexpired, dormant once expired when no unexpired one is held.
+func (d *derivation) addPrivileges(privileges []*models.LicencePrivilege, licences []*models.License) {
+	byID := make(map[uuid.UUID]*models.License, len(licences))
+	for _, l := range licences {
+		byID[l.ID] = l
+	}
+	var expired []models.DisciplineEvidence
+	held := false
+	for _, p := range privileges {
+		name, ok := instructorPrivilegeRefs[p.Kind]
+		if !ok {
+			continue
+		}
+		ref := name
+		if l, ok := byID[p.LicenseID]; ok {
+			ref += " on " + licenceRef(l)
+		}
+		ev := models.DisciplineEvidence{
+			Source: models.EvidenceRating, Strength: models.StrengthStrong,
+			Ref: ref, RefID: idRef(p.ID),
+		}
+		if p.IsExpiredOn(d.now) {
+			ev.Strength = models.StrengthDormant
+			exp := models.DateOnly(*p.ExpiresOn)
+			ev.LastSeen = &exp
+			expired = append(expired, ev)
+			continue
+		}
+		held = true
+		d.add(models.DisciplineInstructor, ev)
+	}
+	if !held {
+		for _, ev := range expired {
+			d.add(models.DisciplineInstructor, ev)
+		}
 	}
 }
 

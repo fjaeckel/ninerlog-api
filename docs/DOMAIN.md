@@ -903,7 +903,8 @@ different licence.
 
 A privilege never changes a class rating's status. Without a source, or when the read
 fails, the response carries no `privileges` and the ratings and passenger currency are the
-evaluators' own. The rules per kind are in [SAILPLANES.md](./SAILPLANES.md#privileges).
+evaluators' own. `FI_S`, `BI_S` and `FE_S` are also `INSTRUCTOR` evidence in the pilot
+profile ([Evidence](#evidence)); a failed privilege read there fails the profile read. The rules per kind are in [SAILPLANES.md](./SAILPLANES.md#privileges).
 
 ### Gyroplanes (GPL)
 
@@ -948,7 +949,7 @@ and [PERSONAS.md](./PERSONAS.md).
 Only the pilot's **intent** is stored (`pilot_profiles`, one row per user; no row means mode
 `adaptive` and intent `auto` everywhere, and a `GET` never creates one). **Evidence** and
 **status** are derived on every read by the pure function `pilotprofile.Derive` from the
-licences, class ratings, active fleet aircraft and one aggregate flight query
+licences, class ratings, licence privileges, active fleet aircraft and one aggregate flight query
 (`DisciplineEvidenceSource.GetDisciplineFlightGroups`: flights `LEFT JOIN aircraft` on
 registration, grouped by upper-cased class and UL kind). Changing a rule therefore never needs
 a data migration.
@@ -976,7 +977,7 @@ all route through it.
 
 ### Evidence
 
-- **strong** — a licence or class rating.
+- **strong** — a licence, a class rating, or an unexpired instructor privilege.
 - **recent** — a matching non-simulator, non-passenger flight on or after the same calendar
   day 24 months ago, or an active aircraft in the fleet.
 - **dormant** — matching flights exist, but all are older than that.
@@ -991,12 +992,19 @@ all route through it.
 | `HELICOPTER` | `(H)` licence | UL `HELICOPTER`¹ |
 | `IFR` | `IR` rating; `IR` licence | flights with IFR time or approaches |
 | `MULTI_CREW` | ATPL, MPL | aircraft flagged multi-pilot; flights with multi-pilot, SIC or relief time |
-| `INSTRUCTOR` | instructor/examiner licence; `OTHER` rating whose notes classify as instructor | flights with dual-given or examiner time (`FLIGHTS_INSTRUCTING`) |
+| `INSTRUCTOR` | instructor/examiner licence; `OTHER` rating whose notes classify as instructor; `FI_S`, `BI_S` or `FE_S` licence privilege² | flights with dual-given or examiner time (`FLIGHTS_INSTRUCTING`) |
 | `SIMULATOR` | — | FSTD sessions |
 
 - ¹ An ultralight aircraft or flight feeds the discipline of its kind only for a pilot with
   no `ULTRALIGHT` licence or rating (a PPL holder flying a C42 sees the aeroplane credit). A
   UL-licensed pilot's ultralight flying feeds `ULTRALIGHT` alone.
+- ² A licence privilege (`licence_privileges`, [Licence privileges](#licence-privileges))
+  of kind `FI_S`, `BI_S` or `FE_S` is reported as source `RATING` with ref
+  `FI(S) on <licence>` (`BI(S)`, `FE(S)`) and the privilege's `refId`. It is strong while
+  unexpired, so an FI(S) who has not logged instruction yet (persona Petra) resolves
+  `INSTRUCTOR` active. Past its `expiresOn` it is dormant evidence with `lastSeen` = the
+  expiry date, reported only when the pilot holds no unexpired instructor privilege: an
+  expired FE(S) beside a valid FI(S) is not listed. Other privilege kinds give no evidence.
 - A flight with a towed launch (winch, aerotow, car, bungee) is `SAILPLANE` evidence (and
   `ULTRALIGHT` evidence on an ultralight), never `AEROPLANE`, `TMG` or `GYROPLANE`, whatever
   the aircraft class says.
@@ -1052,6 +1060,46 @@ Consequences worth knowing:
   aeroplane flying because he holds a UL licence. A C172 flight this year makes it active.
 - Intent `goal` does not hold a discipline in `training` once a licence or rating arrives: it
   becomes `active` (persona Jonas, J3).
+
+### Training progress
+
+`GET /training/progress` (`internal/service/training`) evaluates syllabus templates against
+the pilot's flights. It returns a programme for each discipline whose derived status is
+`training` — `SAILPLANE` → `SPL`, `TMG` → `SPL_TMG_EXTENSION`, `ULTRALIGHT` →
+`UL_THREE_AXIS` when `ulKinds` holds `THREE_AXIS` or `THREE_AXIS_MOTORGLIDER`,
+`UL_WEIGHT_SHIFT` when it holds `WEIGHT_SHIFT` — plus every programme the client names in
+`programme`. A discipline in any other status gets no programme, so obtaining the licence
+(J3) removes it unless it is asked for. Templates, item keys and the regulation text are in
+[SAILPLANES.md](./SAILPLANES.md#training-progress) (SPL, TMG extension) and below (UL).
+
+- Flights count by the class of their fleet aircraft: `GLIDER` for `SPL`, `TMG` for the
+  extension, `ULTRALIGHT` of the programme's kinds for the UL templates (a three-axis
+  programme counts `THREE_AXIS` and `THREE_AXIS_MOTORGLIDER`, as a three-axis UL rating does).
+  FSTD sessions, passenger flights and flights on registrations not in the fleet never count.
+- **Instruction** is dual time plus supervised solo time (`spicTime`). PIC time is not
+  instruction.
+- **Solo** (cross-country and UL solo time) is a flight with no dual time and some PIC or SPIC
+  time.
+- Items are integer minutes, launches or flights. `met` is `current >= required`; `allMet`
+  ignores `informational` items.
+- `signedFlights` counts the programme's flights that carry a completed instructor signature
+  (`flights.signature_id`). No item depends on it.
+
+**German ultralights, LuftPersV §42.** The practical training for the sport pilot licence
+("Luftsportgeräteführerschein") comprises for aerodynamically controlled (three-axis)
+ultralights at least 30 hours of flight training including at least 5 hours solo, and for
+weight-shift ultralights at least 25 hours including at least 10 hours dual and 5 hours solo.
+
+| Programme | Key | Required | Counts |
+| --- | --- | --- | --- |
+| `UL_THREE_AXIS` | `training.ul.total_time` | 1800 minutes | dual + PIC + SPIC minutes |
+| `UL_THREE_AXIS` | `training.ul.solo_time` | 300 minutes | PIC + SPIC minutes |
+| `UL_WEIGHT_SHIFT` | `training.ul.total_time` | 1500 minutes | dual + PIC + SPIC minutes |
+| `UL_WEIGHT_SHIFT` | `training.ul.dual_time` | 600 minutes | dual minutes |
+| `UL_WEIGHT_SHIFT` | `training.ul.solo_time` | 300 minutes | PIC + SPIC minutes |
+
+An ultralight flight without a kind counts toward no UL programme. The theory, the flight
+test and the other §42 prerequisites are not tracked.
 
 ### Acknowledgement
 

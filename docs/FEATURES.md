@@ -93,7 +93,17 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   in the last 24 months — even with the licence) or `off`. The pilot can turn each on, off or mark it as a training
   goal, acknowledge a toolkit that switched itself on, or switch to "show everything".
   Clients use it to fold features that serve none of the pilot's disciplines; the API itself
-  hides nothing. Rules: [DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines).
+  hides nothing. An FI(S), BI(S) or FE(S) privilege on a licence makes the instructor
+  toolkit active before any instruction is logged. Rules:
+  [DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines).
+- **Training progress** (`GET /training/progress`, `internal/service/training`) — progress
+  toward the SPL (SFCL.130: 15 h instruction, 10 h dual, 2 h supervised solo, 45 launches,
+  the cross-country flight), the SPL TMG extension (SFCL.150) and the German three-axis and
+  weight-shift UL licences (LuftPersV §42), computed from the logbook. A programme appears
+  by itself while its discipline is in training (a student's dual flights, or a "training
+  toward" intent) and on request otherwise; a PPL holder converting to gliders also sees the
+  SFCL.130(b) credit for her aeroplane PIC time, and every programme counts the flights an
+  instructor has signed. Templates: [SAILPLANES.md](./SAILPLANES.md#training-progress).
 - **Aircraft reminders** (`internal/service/aircraft_reminder.go`) — dated items on an
   aircraft the pilot owns or looks after: annual inspection (the DAeC/DULV
   Jahresnachprüfung for gliders and ultralights), insurance, rescue-system repack,
