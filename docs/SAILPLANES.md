@@ -109,6 +109,19 @@ Aircraft an import creates get a class so the currency engine counts their fligh
 [Aircraft class on import](./AIRCRAFT_REGISTRATIONS.md#aircraft-class-on-import). A towed
 launch on an aircraft with no other class evidence makes it `GLIDER`.
 
+### Flight times: take-off to landing
+
+Glider flights have no block time: there is no engine start or chocks, so AMC1 SFCL.050
+records the departure and arrival times as take-off and landing. A flight is logged with
+`departureTime` (take-off) and `arrivalTime` (landing) alone; `offBlockTime` and
+`onBlockTime` stay empty. `totalTime` is then take-off to landing (block time wins only
+when both block times are present, as a TMG pilot may record them), and night time,
+night take-offs/landings, cross-country time and every recency count derive from the same
+pair. The EASA exports print take-off and landing in their departure/arrival time
+columns, an import of a take-off/landing-only logbook needs no block columns, and
+tap-to-log opens a session at `takeoff` and completes it at `landing`. See
+[DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
+
 ## Recency (SFCL.160)
 
 ### (a) Sailplanes, excluding TMGs

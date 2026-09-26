@@ -585,116 +585,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			}
 		}
 
-		// Create the flight
-		offBlock := safeStr(flight.OffBlockTime)
-		onBlock := safeStr(flight.OnBlockTime)
-
-		totalTime := 0
-		if offBlock != "" && onBlock != "" {
-			totalTime, _ = calculateBlockTime(offBlock, onBlock)
-		} else if flight.TotalTime != nil {
-			totalTime = *flight.TotalTime
-		}
-
-		flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
-
-		depTime := flight.DepartureTime
-		arrTime := flight.ArrivalTime
-		departureIcao := safeStr(flight.DepartureIcao)
-		arrivalIcao := safeStr(flight.ArrivalIcao)
-
-		newFlight := models.Flight{
-			UserID:                  userID,
-			Date:                    flightDate,
-			AircraftReg:             safeStr(flight.AircraftReg),
-			AircraftType:            flight.AircraftType,
-			DepartureICAO:           &departureIcao,
-			ArrivalICAO:             &arrivalIcao,
-			TotalTime:               totalTime,
-			IFRTime:                 getIntOrDefault(flight.IfrTime, 0),
-			AllLandings:             getIntOrDefault(flight.Landings, 0),
-			ActualInstrumentTime:    getIntOrDefault(flight.ActualInstrumentTime, 0),
-			SimulatedInstrumentTime: getIntOrDefault(flight.SimulatedInstrumentTime, 0),
-			IsSimulator:             isSimulatorCreate(&flight),
-		}
-		if flight.Holds != nil {
-			newFlight.Holds = *flight.Holds
-		}
-		if flight.ApproachesCount != nil {
-			newFlight.ApproachesCount = *flight.ApproachesCount
-		}
-		if flight.Approaches != nil {
-			for _, a := range *flight.Approaches {
-				entry := models.ApproachEntry{Type: string(a.Type)}
-				if a.Airport != nil {
-					ap := *a.Airport
-					entry.Airport = &ap
-				}
-				if a.Runway != nil {
-					rw := *a.Runway
-					entry.Runway = &rw
-				}
-				newFlight.Approaches = append(newFlight.Approaches, entry)
-			}
-		}
-		if flight.IsIpc != nil {
-			newFlight.IsIPC = *flight.IsIpc
-		}
-		if flight.IsFlightReview != nil {
-			newFlight.IsFlightReview = *flight.IsFlightReview
-		}
-		if flight.Route != nil {
-			newFlight.Route = flight.Route
-		}
-		if offBlock != "" {
-			newFlight.OffBlockTime = &offBlock
-		}
-		if onBlock != "" {
-			newFlight.OnBlockTime = &onBlock
-		}
-		if depTime != nil && *depTime != "" {
-			newFlight.DepartureTime = depTime
-		}
-		if arrTime != nil && *arrTime != "" {
-			newFlight.ArrivalTime = arrTime
-		}
-		if flight.Remarks != nil {
-			newFlight.Remarks = flight.Remarks
-		}
-		if flight.InstructorName != nil {
-			newFlight.InstructorName = flight.InstructorName
-		}
-		if flight.InstructorComments != nil {
-			newFlight.InstructorComments = flight.InstructorComments
-		}
-		if flight.LaunchMethod != nil {
-			lm := string(*flight.LaunchMethod)
-			newFlight.LaunchMethod = &lm
-		}
-		newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
-		// An imported night or cross-country value is stored as an override,
-		// capped at block time.
-		if flight.NightTime != nil {
-			newFlight.NightTime = min(*flight.NightTime, totalTime)
-			newFlight.NightTimeOverride = true
-		}
-		if flight.CrossCountryTime != nil {
-			newFlight.CrossCountryTime = min(*flight.CrossCountryTime, totalTime)
-			newFlight.CrossCountryTimeOverride = true
-		}
-		newFlight.FSTDType = flight.FstdType
-		newFlight.SimulatedFlightTime = getIntOrDefault(flight.SimulatedFlightTime, 0)
-
-		// Build crew members from FlightCreate into model for auto-calculations
-		if flight.CrewMembers != nil {
-			for _, cm := range *flight.CrewMembers {
-				member := models.FlightCrewMember{
-					Name: strings.TrimSpace(cm.Name),
-					Role: models.CrewRole(cm.Role),
-				}
-				newFlight.CrewMembers = append(newFlight.CrewMembers, member)
-			}
-		}
+		newFlight := importedFlight(userID, flight)
 
 		// Apply auto-calculations (solo, cross-country, distance, night, landing split, PIC/Dual)
 		flightcalc.ApplyAutoCalculations(&newFlight, userName, fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)])
@@ -1247,15 +1138,7 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		if flight.SimulatedInstrumentTime != nil {
 			ifrTotal += *flight.SimulatedInstrumentTime
 		}
-		totalCap := 0
-		if *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
-			if m, err := calculateBlockTime(*flight.OffBlockTime, *flight.OnBlockTime); err == nil {
-				totalCap = m
-			}
-		}
-		if totalCap == 0 && flight.TotalTime != nil {
-			totalCap = *flight.TotalTime
-		}
+		totalCap := importTotalMinutes(flight)
 		if totalCap > 0 && ifrTotal > totalCap {
 			ifrTotal = totalCap
 		}
@@ -1273,6 +1156,136 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 	}
 
 	return flight, errs
+}
+
+// importedFlight builds the flight model for a mapped import row, before
+// auto-calculation.
+func importedFlight(userID uuid.UUID, flight generated.FlightCreate) models.Flight {
+	offBlock := safeStr(flight.OffBlockTime)
+	onBlock := safeStr(flight.OnBlockTime)
+	totalTime := importTotalMinutes(flight)
+
+	flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
+
+	depTime := flight.DepartureTime
+	arrTime := flight.ArrivalTime
+	departureIcao := safeStr(flight.DepartureIcao)
+	arrivalIcao := safeStr(flight.ArrivalIcao)
+
+	newFlight := models.Flight{
+		UserID:                  userID,
+		Date:                    flightDate,
+		AircraftReg:             safeStr(flight.AircraftReg),
+		AircraftType:            flight.AircraftType,
+		DepartureICAO:           &departureIcao,
+		ArrivalICAO:             &arrivalIcao,
+		TotalTime:               totalTime,
+		IFRTime:                 getIntOrDefault(flight.IfrTime, 0),
+		AllLandings:             getIntOrDefault(flight.Landings, 0),
+		ActualInstrumentTime:    getIntOrDefault(flight.ActualInstrumentTime, 0),
+		SimulatedInstrumentTime: getIntOrDefault(flight.SimulatedInstrumentTime, 0),
+		IsSimulator:             isSimulatorCreate(&flight),
+	}
+	if flight.Holds != nil {
+		newFlight.Holds = *flight.Holds
+	}
+	if flight.ApproachesCount != nil {
+		newFlight.ApproachesCount = *flight.ApproachesCount
+	}
+	if flight.Approaches != nil {
+		for _, a := range *flight.Approaches {
+			entry := models.ApproachEntry{Type: string(a.Type)}
+			if a.Airport != nil {
+				ap := *a.Airport
+				entry.Airport = &ap
+			}
+			if a.Runway != nil {
+				rw := *a.Runway
+				entry.Runway = &rw
+			}
+			newFlight.Approaches = append(newFlight.Approaches, entry)
+		}
+	}
+	if flight.IsIpc != nil {
+		newFlight.IsIPC = *flight.IsIpc
+	}
+	if flight.IsFlightReview != nil {
+		newFlight.IsFlightReview = *flight.IsFlightReview
+	}
+	if flight.Route != nil {
+		newFlight.Route = flight.Route
+	}
+	if offBlock != "" {
+		newFlight.OffBlockTime = &offBlock
+	}
+	if onBlock != "" {
+		newFlight.OnBlockTime = &onBlock
+	}
+	if depTime != nil && *depTime != "" {
+		newFlight.DepartureTime = depTime
+	}
+	if arrTime != nil && *arrTime != "" {
+		newFlight.ArrivalTime = arrTime
+	}
+	if flight.Remarks != nil {
+		newFlight.Remarks = flight.Remarks
+	}
+	if flight.InstructorName != nil {
+		newFlight.InstructorName = flight.InstructorName
+	}
+	if flight.InstructorComments != nil {
+		newFlight.InstructorComments = flight.InstructorComments
+	}
+	if flight.LaunchMethod != nil {
+		lm := string(*flight.LaunchMethod)
+		newFlight.LaunchMethod = &lm
+	}
+	newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
+	// An imported night or cross-country value is stored as an override,
+	// capped at block time.
+	if flight.NightTime != nil {
+		newFlight.NightTime = min(*flight.NightTime, totalTime)
+		newFlight.NightTimeOverride = true
+	}
+	if flight.CrossCountryTime != nil {
+		newFlight.CrossCountryTime = min(*flight.CrossCountryTime, totalTime)
+		newFlight.CrossCountryTimeOverride = true
+	}
+	newFlight.FSTDType = flight.FstdType
+	newFlight.SimulatedFlightTime = getIntOrDefault(flight.SimulatedFlightTime, 0)
+
+	// Build crew members from FlightCreate into model for auto-calculations
+	if flight.CrewMembers != nil {
+		for _, cm := range *flight.CrewMembers {
+			member := models.FlightCrewMember{
+				Name: strings.TrimSpace(cm.Name),
+				Role: models.CrewRole(cm.Role),
+			}
+			newFlight.CrewMembers = append(newFlight.CrewMembers, member)
+		}
+	}
+
+	return newFlight
+}
+
+// importTotalMinutes returns an imported row's total time: the block span
+// when both block times parse, otherwise the row's total-time cell, otherwise
+// the take-off to landing span. Returns 0 when none is usable.
+func importTotalMinutes(f generated.FlightCreate) int {
+	if off, on := safeStr(f.OffBlockTime), safeStr(f.OnBlockTime); off != "" && on != "" {
+		if m, err := models.ClockSpanMinutes(off, on); err == nil {
+			return m
+		}
+	}
+	if f.TotalTime != nil {
+		return *f.TotalTime
+	}
+	if to, ldg := safeStr(f.DepartureTime), safeStr(f.ArrivalTime); to != "" && ldg != "" {
+		if m, err := models.ClockSpanMinutes(to, ldg); err == nil {
+			return m
+		}
+	}
+	return 0
 }
 
 // captureDateFromTimestamp records the date half of a time cell that carries a

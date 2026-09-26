@@ -29,10 +29,11 @@ var (
 	ErrFlightSessionTimeOrder   = errors.New("flight session event times are out of order")
 	ErrFlightSessionTooLong     = errors.New("flight session exceeds maximum duration")
 	ErrFlightSessionMissingReg  = errors.New("aircraft registration is required to complete a flight session")
+	ErrFlightSessionIncomplete  = errors.New("a flight session needs off-block and on-block, or take-off and landing")
 )
 
-// MaxFlightSessionDuration is the longest off-block → on-block span accepted
-// when completing a session.
+// MaxFlightSessionDuration is the longest span (FlightDuration) accepted when
+// completing a session.
 const MaxFlightSessionDuration = 24 * time.Hour
 
 // FlightSession represents an in-progress flight captured live via
@@ -84,4 +85,31 @@ func (s *FlightSession) BlockDuration() time.Duration {
 		return 0
 	}
 	return s.OnBlockAt.Sub(*s.OffBlockAt)
+}
+
+// OpenedAtTakeoff reports whether the session has no off-block instant and
+// is completed by its landing event.
+func (s *FlightSession) OpenedAtTakeoff() bool {
+	return s.OffBlockAt == nil
+}
+
+// FlightDuration returns the off-block → on-block duration when both are
+// set, otherwise the takeoff → landing duration, or 0 when neither pair is
+// complete.
+func (s *FlightSession) FlightDuration() time.Duration {
+	if s.OffBlockAt != nil && s.OnBlockAt != nil {
+		return s.BlockDuration()
+	}
+	if s.TakeoffAt == nil || s.LandingAt == nil {
+		return 0
+	}
+	return s.LandingAt.Sub(*s.TakeoffAt)
+}
+
+// StartedAt returns the earliest recorded instant: off-block, else takeoff.
+func (s *FlightSession) StartedAt() *time.Time {
+	if s.OffBlockAt != nil {
+		return s.OffBlockAt
+	}
+	return s.TakeoffAt
 }

@@ -22,8 +22,9 @@ var ErrInvalidSessionEvent = errors.New("invalid flight session event")
 const maxEventClockSkew = 5 * time.Minute
 
 // FlightSessionService manages live tap-to-log flight sessions: opening a
-// session on off-block, stamping takeoff/landing, and converting the session
-// into a regular flight log entry when the pilot goes on blocks.
+// session on off-block (or on takeoff), stamping takeoff/landing, and
+// converting the session into a regular flight log entry on on-block (or on
+// landing for a session opened at takeoff).
 type FlightSessionService struct {
 	sessionRepo   repository.FlightSessionRepository
 	aircraftRepo  repository.AircraftRepository
@@ -83,10 +84,11 @@ func (s *FlightSessionService) Discard(ctx context.Context, userID uuid.UUID) er
 }
 
 // RecordEvent applies one tap-to-log event. It returns the resulting session
-// and whether a new session was opened (offblock on a user with no open
-// session). Repeating an event type already recorded on the session is a
+// and whether a new session was opened (offblock or takeoff on a user with no
+// open session). Repeating an event type already recorded on the session is a
 // no-op returning the unchanged session. An onblock event completes the
-// session and creates the flight log entry.
+// session and creates the flight log entry; on a session opened at takeoff the
+// landing event does, and onblock returns models.ErrFlightSessionIncomplete.
 func (s *FlightSessionService) RecordEvent(ctx context.Context, userID uuid.UUID, input FlightSessionEventInput) (*models.FlightSession, bool, error) {
 	occurredAt, err := s.resolveOccurredAt(input.OccurredAt)
 	if err != nil {
@@ -105,11 +107,21 @@ func (s *FlightSessionService) RecordEvent(ctx context.Context, userID uuid.UUID
 			// Already off blocks — duplicate tap or offline retry.
 			return session, false, nil
 		}
-		return s.openSession(ctx, userID, occurredAt, input.AircraftReg, icao)
+		return s.openSession(ctx, &models.FlightSession{
+			UserID:        userID,
+			OffBlockAt:    &occurredAt,
+			AircraftReg:   normalizeReg(input.AircraftReg),
+			DepartureICAO: icao,
+		})
 
 	case models.FlightSessionEventTakeoff:
 		if session == nil {
-			return nil, false, models.ErrNoOpenFlightSession
+			return s.openSession(ctx, &models.FlightSession{
+				UserID:        userID,
+				TakeoffAt:     &occurredAt,
+				AircraftReg:   normalizeReg(input.AircraftReg),
+				DepartureICAO: icao,
+			})
 		}
 		if session.TakeoffAt != nil {
 			return session, false, nil
@@ -123,6 +135,14 @@ func (s *FlightSessionService) RecordEvent(ctx context.Context, userID uuid.UUID
 		if session == nil {
 			return nil, false, models.ErrNoOpenFlightSession
 		}
+		if session.OpenedAtTakeoff() {
+			if session.LandingAt == nil {
+				session.LandingAt = &occurredAt
+			}
+			fillIfEmpty(&session.ArrivalICAO, icao)
+			fillIfEmpty(&session.AircraftReg, normalizeReg(input.AircraftReg))
+			return s.completeSession(ctx, session, input.UserName)
+		}
 		if session.LandingAt != nil {
 			return session, false, nil
 		}
@@ -134,6 +154,9 @@ func (s *FlightSessionService) RecordEvent(ctx context.Context, userID uuid.UUID
 	case models.FlightSessionEventOnBlock:
 		if session == nil {
 			return nil, false, models.ErrNoOpenFlightSession
+		}
+		if session.OpenedAtTakeoff() {
+			return nil, false, models.ErrFlightSessionIncomplete
 		}
 		if session.OnBlockAt == nil {
 			session.OnBlockAt = &occurredAt
@@ -177,18 +200,14 @@ func (s *FlightSessionService) resolveAirport(input FlightSessionEventInput) *st
 	return nil
 }
 
-func (s *FlightSessionService) openSession(ctx context.Context, userID uuid.UUID, offBlockAt time.Time, reg *string, departureICAO *string) (*models.FlightSession, bool, error) {
-	session := &models.FlightSession{
-		UserID:        userID,
-		Status:        models.FlightSessionStatusOpen,
-		OffBlockAt:    &offBlockAt,
-		AircraftReg:   normalizeReg(reg),
-		DepartureICAO: departureICAO,
-	}
+// openSession stores session as the user's open session. On a concurrent
+// open it returns the existing session instead.
+func (s *FlightSessionService) openSession(ctx context.Context, session *models.FlightSession) (*models.FlightSession, bool, error) {
+	session.Status = models.FlightSessionStatusOpen
 	err := s.sessionRepo.Create(ctx, session)
 	if errors.Is(err, repository.ErrDuplicate) {
-		// Lost a race against a concurrent offblock — return the winner.
-		existing, getErr := s.GetCurrent(ctx, userID)
+		// Lost a race against a concurrent open — return the winner.
+		existing, getErr := s.GetCurrent(ctx, session.UserID)
 		if getErr != nil {
 			return nil, false, getErr
 		}
@@ -216,7 +235,7 @@ func (s *FlightSessionService) completeSession(ctx context.Context, session *mod
 	if err := session.ValidateEventOrder(); err != nil {
 		return nil, false, err
 	}
-	duration := session.BlockDuration()
+	duration := session.FlightDuration()
 	if duration <= 0 {
 		return nil, false, models.ErrFlightSessionTimeOrder
 	}
@@ -241,29 +260,29 @@ func (s *FlightSessionService) completeSession(ctx context.Context, session *mod
 }
 
 // buildFlight converts a finished session into a flight log entry. The
-// flight date is the UTC date of off-block; event instants become HH:MM:SS
-// strings as stored on flights. Total time is the block duration, and the
-// standard auto-calculations fill night time, landings split, distance, etc.
+// flight date is the UTC date of off-block (takeoff for a session opened at
+// takeoff); event instants become HH:MM:SS strings as stored on flights.
+// Total time is FlightDuration, and the standard auto-calculations fill night
+// time, landings split, distance, etc.
 // The pilot completes remaining details (crew, instrument time, remarks)
 // later in the normal flight edit flow.
 func (s *FlightSessionService) buildFlight(ctx context.Context, session *models.FlightSession, userName string) *models.Flight {
-	offBlock := session.OffBlockAt.UTC()
-	onBlock := session.OnBlockAt.UTC()
+	start := session.StartedAt().UTC()
 
-	totalMinutes := int(math.Round(session.BlockDuration().Minutes()))
+	totalMinutes := int(math.Round(session.FlightDuration().Minutes()))
 	if totalMinutes < 1 {
 		totalMinutes = 1
 	}
 
 	flight := &models.Flight{
 		UserID:        session.UserID,
-		Date:          time.Date(offBlock.Year(), offBlock.Month(), offBlock.Day(), 0, 0, 0, 0, time.UTC),
+		Date:          time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC),
 		AircraftReg:   *session.AircraftReg,
 		AircraftType:  s.lookupAircraftType(ctx, session.UserID, *session.AircraftReg),
 		DepartureICAO: session.DepartureICAO,
 		ArrivalICAO:   session.ArrivalICAO,
-		OffBlockTime:  timeOfDay(offBlock),
-		OnBlockTime:   timeOfDay(onBlock),
+		OffBlockTime:  timeOfDayPtr(session.OffBlockAt),
+		OnBlockTime:   timeOfDayPtr(session.OnBlockAt),
 		DepartureTime: timeOfDayPtr(session.TakeoffAt),
 		ArrivalTime:   timeOfDayPtr(session.LandingAt),
 		TotalTime:     totalMinutes,

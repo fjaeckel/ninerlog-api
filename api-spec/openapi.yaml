@@ -4859,6 +4859,10 @@ paths:
           regular flight log entry (returned via `flightId`). The created flight is prefilled
           with block/flight times, block-time-derived total time, and auto-calculated fields;
           the pilot completes the remaining details later in the normal flight edit flow.
+        - Without block times: `takeoff` with no open session opens one, and `landing` then
+          closes it and creates the flight with take-off and landing times only; its total
+          time is take-off to landing. `onblock` on such a session returns 400 — it has no
+          off-block to pair with.
 
         Each event type is recorded at most once per session: repeating an event returns the
         session unchanged, which makes offline retries safe.
@@ -4886,7 +4890,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/FlightSession'
         '201':
-          description: New session opened (offblock)
+          description: New session opened (offblock, or takeoff with no open session)
           content:
             application/json:
               schema:
@@ -4896,7 +4900,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: No open session for takeoff/landing/onblock events
+          description: No open session for landing/onblock events
           content:
             application/json:
               schema:
@@ -7032,17 +7036,17 @@ components:
           type: [string, 'null']
           format: time
           example: '14:15:00'
-          description: Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+          description: Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1. Null on a flight logged with take-off and landing times only.
         onBlockTime:
           type: [string, 'null']
           format: time
           example: '16:55:00'
-          description: On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+          description: On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1. Null on a flight logged with take-off and landing times only.
         departureTime:
           type: [string, 'null']
           format: time
           example: '14:30:00'
-          description: Takeoff time in UTC. Marks the beginning of airborne/flight time.
+          description: Take-off time in UTC. Marks the beginning of airborne/flight time.
         arrivalTime:
           type: [string, 'null']
           format: time
@@ -7052,7 +7056,11 @@ components:
           type: integer
           minimum: 0
           example: 150
-          description: Total block time in minutes (off-block to on-block)
+          description: |
+            Total time in minutes (EASA AMC1 FCL.050 Col 9). The off-block to on-block span
+            when both block times are set, otherwise the take-off to landing span
+            (`departureTime` to `arrivalTime`). A span whose end is earlier than its start
+            crosses midnight UTC. 0 for an FSTD session and for a passenger flight.
         isPic:
           type: boolean
           example: true
@@ -7329,8 +7337,17 @@ components:
         Creates either a flight or an FSTD (simulator) session.
 
         For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
-        `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
-        omitting any of them returns 400.
+        `arrivalIcao` and `landings` are required, plus at least one complete time pair:
+        block times (`offBlockTime` and `onBlockTime`) or take-off and landing times
+        (`departureTime` and `arrivalTime`). Both pairs may be sent. Omitting a required
+        field, sending no complete pair, or sending one half of a pair without a complete
+        pair beside it returns 400.
+
+        `totalTime` is the block span when both block times are present, otherwise the
+        take-off to landing span. Night time, night take-offs and landings, and
+        cross-country time are derived from the same pair (block times first), so a
+        glider or ultralight flight logged with take-off and landing times only is
+        treated exactly like a block-timed one.
 
         For an FSTD session (`isSimulator: true`) they must be omitted — a training
         device is not flown between places and has no block times. The session
@@ -7370,28 +7387,28 @@ components:
           type: string
           format: time
           example: '14:15:00'
-          description: Off-block time (chocks off / engine start) in UTC. Required for a flight, rejected for an FSTD session.
+          description: Off-block time (chocks off / engine start) in UTC. Sent together with onBlockTime; a flight needs this pair or departureTime + arrivalTime. Rejected for an FSTD session.
         onBlockTime:
           type: string
           format: time
           example: '16:55:00'
-          description: On-block time (chocks on / engine shutdown) in UTC. Required for a flight, rejected for an FSTD session.
+          description: On-block time (chocks on / engine shutdown) in UTC. Sent together with offBlockTime; a flight needs this pair or departureTime + arrivalTime. Rejected for an FSTD session.
         departureTime:
           type: string
           format: time
           example: '14:30:00'
-          description: Takeoff time in UTC
+          description: Take-off time in UTC. Sent together with arrivalTime; a flight needs this pair or offBlockTime + onBlockTime.
         arrivalTime:
           type: string
           format: time
           example: '16:45:00'
-          description: Landing time in UTC
+          description: Landing time in UTC. Sent together with departureTime; a flight needs this pair or offBlockTime + onBlockTime.
         totalTime:
           type: integer
           minimum: 0
           example: 150
           readOnly: true
-          description: Total block time in minutes calculated from offBlockTime and onBlockTime. Always 0 for an FSTD session. This field is computed by the server and should not be provided by the client.
+          description: Total time in minutes, computed by the server from offBlockTime to onBlockTime when both are sent, otherwise from departureTime to arrivalTime. Always 0 for an FSTD session. Not accepted from the client.
         picTime:
           type: integer
           minimum: 0
@@ -7568,7 +7585,7 @@ components:
         offBlockTime:
           type: [string, 'null']
           format: time
-          description: Off-block time (chocks off / engine start) in UTC
+          description: Off-block time (chocks off / engine start) in UTC. Changing either block time recomputes totalTime from the block span, or from take-off to landing when the stored flight no longer has both block times.
           x-go-type: nullable.Nullable[string]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -7576,7 +7593,7 @@ components:
         onBlockTime:
           type: [string, 'null']
           format: time
-          description: On-block time (chocks on / engine shutdown) in UTC
+          description: On-block time (chocks on / engine shutdown) in UTC. See offBlockTime for the effect on totalTime.
           x-go-type: nullable.Nullable[string]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -7584,7 +7601,7 @@ components:
         departureTime:
           type: [string, 'null']
           format: time
-          description: Takeoff time in UTC
+          description: Take-off time in UTC. On a flight without both block times, changing take-off or landing recomputes totalTime from the take-off to landing span.
           x-go-type: nullable.Nullable[string]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -7592,7 +7609,7 @@ components:
         arrivalTime:
           type: [string, 'null']
           format: time
-          description: Landing time in UTC
+          description: Landing time in UTC. See departureTime for the effect on totalTime.
           x-go-type: nullable.Nullable[string]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -7600,6 +7617,7 @@ components:
         totalTime:
           type: integer
           minimum: 1
+          description: Total time in minutes. Applied only when the request does not change a time that totalTime is computed from.
         ifrTime:
           type: integer
           minimum: 0
@@ -8727,7 +8745,7 @@ components:
         status:
           type: string
           enum: [open, completed, discarded]
-          description: Session lifecycle state. `onblock` events complete the session.
+          description: Session lifecycle state. `onblock` events complete the session; `landing` completes a session opened at `takeoff`.
         aircraftReg:
           type: [string, 'null']
           example: D-EFGH

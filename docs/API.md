@@ -401,12 +401,34 @@ rather than unconditionally required and a mismatch is a 400:
 
 | `isSimulator` | Required | Rejected |
 | --- | --- | --- |
-| absent / `false` | `aircraftReg`, `departureIcao`, `arrivalIcao`, `offBlockTime`, `onBlockTime`, `landings` | `-` |
+| absent / `false` | `aircraftReg`, `departureIcao`, `arrivalIcao`, `landings`, and a time pair (below) | `-` |
 | `true` | `fstdType`, `simulatedFlightTime` (> 0) | `aircraftReg`, `departureIcao`, `arrivalIcao`, `offBlockTime`, `onBlockTime`, `landings` |
 
-`date` and `aircraftType` are required for both. A session responds with `0` in every
-flight-time field and never contributes to statistics, reports, the fleet list or currency
-— session time is recorded separately and is never summed with flight time
+`date` and `aircraftType` are required for both.
+
+A flight needs at least one complete **time pair**: block times (`offBlockTime` +
+`onBlockTime`) or take-off and landing times (`departureTime` + `arrivalTime`). Both pairs
+may be sent. The response `totalTime` is the block span when both block times are present,
+otherwise the take-off to landing span; an end earlier than its start crosses midnight UTC.
+Night time, night take-offs/landings and cross-country time are derived from the same pair.
+Every 400 below carries its message in `error`:
+
+| Body | Result |
+| --- | --- |
+| block pair, with or without take-off/landing | 201, `totalTime` = block span |
+| take-off/landing pair only | 201, `totalTime` = take-off to landing |
+| neither pair, no time at all | 400 `offBlockTime and onBlockTime, or departureTime and arrivalTime, are required for a flight` |
+| one half of a pair and no complete pair (e.g. only `offBlockTime`) | 400 `incomplete time pair: offBlockTime requires onBlockTime; …` |
+| unparseable or identical times in the pair used | 400 `Invalid block times format` / `Invalid take-off/landing times format` |
+
+On `PUT /flights/{id}`, changing either block time recomputes `totalTime` from the stored
+flight's pair (block first, else take-off/landing); on a flight without both block times,
+changing `departureTime` or `arrivalTime` recomputes it too. A `totalTime` in the body is
+applied only when neither applies. An update that leaves the flight without a complete pair
+keeps its stored `totalTime`. See [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
+
+An FSTD session responds with `0` in every flight-time field and never contributes to
+statistics, reports, the fleet list or currency — session time is recorded separately and is never summed with flight time
 (EASA AMC1 FCL.050). See [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions).
 
 Flight responses carry a read-only `isPassenger`. It is `true` when another person is
