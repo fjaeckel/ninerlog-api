@@ -169,6 +169,14 @@ rules.
   and exports as a block-timed flight. Tap-to-log sessions follow suit: a `takeoff` event
   with no open session opens one and the `landing` event completes it. See
   [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
+- Batch circuits: `POST /flights/batch` logs a series of flights — typically winch
+  circuits at one site — from one template (aircraft, launch method, crew, site) and one
+  take-off/landing pair per leg, 1–50 legs, validated like single creates and stored
+  atomically. See [SAILPLANES.md](./SAILPLANES.md#batch-circuits).
+- Glider flight facts: a launch count (derived from the take-offs, or set by the pilot to
+  log a series of launches on one row), an outlanding flag that stops cross-country time
+  being derived, a tow-flight flag for tug pilots and the release height in metres. See
+  [SAILPLANES.md](./SAILPLANES.md#launches-and-series-entries).
 - Bulk: `DELETE /users/me/data?scope=flights` (`user_data.go`); `DELETE /flights/delete-all` is a deprecated alias.
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
@@ -271,8 +279,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 
 - **Sailplanes and TMGs** — a `GLIDER` rating follows Part-SFCL recency (SFCL.160(a)): 5 h
   on sailplanes including TMGs, 15 launches and 2 training flights with an instructor on
-  gliders, or a proficiency check. An SPL `TMG` rating follows SFCL.160(b). Launch recency
-  is reported per method (SFCL.155(c)), with TMG take-offs counting toward self-launch.
+  gliders, or a proficiency check. An SPL `TMG` rating follows SFCL.160(b). The hours count
+  PIC, dual and supervised solo (SPIC) time. Launches are the flights' launch counts, so a
+  series entry counts every launch in it. Launch recency is reported per method
+  (SFCL.155(c)), with TMG take-offs counting toward self-launch.
   Details in [SAILPLANES.md](./SAILPLANES.md).
 - **FAA gliders** — an FAA glider rating is current on the §61.56 flight review, or on three
   instructional glider flights in the same 24 calendar months (§61.56(b)). §61.57(a) is shown
@@ -390,6 +400,8 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   the standard CSV keeps its four time columns separate and leaves the block ones empty.
   A launch-method column (Vereinsflieger `S.-Art` W/F/E/A/G, German `Startart`, English
   `Launch Method`) maps to `launchMethod`; an unknown code imports the flight without one.
+  Launch-count (`Starts`, `Launches`), outlanding (`Außenlandung`, `Outlanding`), tow-flight
+  and release-height columns map to the glider flight facts.
   See [SAILPLANES.md](./SAILPLANES.md#launch-method-in-and-out).
 
   Day and night landings mapped as separate columns are stored as the file's split with
@@ -425,7 +437,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   exact name match and comes back as its identifier only when no other airport carries
   the same name (about 92% of such fields; every German one). The JSON export keeps the
   identifier as well. The launch method round-trips in all four: the standard layout's
-  `LaunchMethod` column, and a `[Launch: <method>]` remarks marker in the others.
+  `LaunchMethod` column, and a `[Launch: <method>]` remarks marker in the others. The
+  standard layout also round-trips the launch count, outlanding, tow-flight and
+  release-height columns.
 
   Two levels of coverage, both mandatory:
   `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers

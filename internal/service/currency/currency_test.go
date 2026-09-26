@@ -82,6 +82,7 @@ func (m *mockFlightDataProvider) GetProgressByAircraftClass(_ context.Context, _
 		sum.Approaches += p.Approaches
 		sum.Holds += p.Holds
 		sum.Launches += p.Launches
+		sum.SPICMinutes += p.SPICMinutes
 		sum.TrainingFlights += p.TrainingFlights
 		sum.LongestTrainingFlightMinutes = max(sum.LongestTrainingFlightMinutes, p.LongestTrainingFlightMinutes)
 	}

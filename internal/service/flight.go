@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -83,8 +84,25 @@ func (s *FlightService) CreateFlightChecked(ctx context.Context, flight *models.
 // CreateFlightWith validates the flight and writes it together with opts.Crew
 // in one transaction.
 func (s *FlightService) CreateFlightWith(ctx context.Context, flight *models.Flight, opts FlightWriteOptions) error {
+	if err := prepareFlight(flight); err != nil {
+		return err
+	}
+	if opts.BeforeWrite != nil {
+		ctx = repository.WithTxHook(ctx, opts.BeforeWrite)
+	}
+	var crew []models.FlightCrewMember
+	if opts.Crew != nil {
+		crew = *opts.Crew
+	}
+	return s.flightRepo.CreateWithCrew(ctx, flight, crew)
+}
+
+// prepareFlight normalises a flight for storage and validates it. Every
+// create path runs it.
+func prepareFlight(flight *models.Flight) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 	models.NormalizeLaunchMethod(flight)
+	flight.DeriveLaunches()
 
 	// Validate text field lengths
 	if err := models.ValidateFlightTextFields(flight); err != nil {
@@ -97,18 +115,74 @@ func (s *FlightService) CreateFlightWith(ctx context.Context, flight *models.Fli
 	}
 
 	// Validate time distribution
-	if err := flight.ValidateTimeDistribution(); err != nil {
+	return flight.ValidateTimeDistribution()
+}
+
+// MaxFlightBatchLegs is the largest number of legs POST /flights/batch accepts.
+const MaxFlightBatchLegs = 50
+
+// ErrInvalidFlightBatch is returned for a batch with no legs or more than
+// MaxFlightBatchLegs.
+var ErrInvalidFlightBatch = errors.New("a batch needs between 1 and 50 legs")
+
+// FlightBatchLegError reports the invalid leg of a batch by its zero-based
+// index. Err is the validation error CreateFlight returns for that leg.
+type FlightBatchLegError struct {
+	Index int
+	Err   error
+}
+
+func (e *FlightBatchLegError) Error() string {
+	return fmt.Sprintf("leg %d: %v", e.Index, e.Err)
+}
+
+func (e *FlightBatchLegError) Unwrap() error { return e.Err }
+
+// ValidateFlightBatch prepares every leg as CreateFlight does. Returns
+// ErrInvalidFlightBatch for a wrong leg count, or a *FlightBatchLegError for
+// the first invalid leg.
+func (s *FlightService) ValidateFlightBatch(flights []*models.Flight) error {
+	if len(flights) == 0 || len(flights) > MaxFlightBatchLegs {
+		return ErrInvalidFlightBatch
+	}
+	for i, f := range flights {
+		if err := prepareFlight(f); err != nil {
+			return &FlightBatchLegError{Index: i, Err: err}
+		}
+	}
+	return nil
+}
+
+// CreateFlightBatch validates every leg and checks its overrides against the
+// strict-mode rules, then stores all of them with their crew members in one
+// transaction, running opts.BeforeWrite inside it. Nothing is stored when any
+// leg is invalid.
+func (s *FlightService) CreateFlightBatch(ctx context.Context, flights []*models.Flight, opts FlightWriteOptions) error {
+	if err := s.ValidateFlightBatch(flights); err != nil {
 		return err
 	}
-
+	if s.logbook != nil {
+		var state *StrictState
+		for i, f := range flights {
+			if !hasOverride(f) {
+				continue
+			}
+			if state == nil {
+				loaded, err := s.logbook.LoadState(ctx, f.UserID)
+				if err != nil {
+					return err
+				}
+				state = loaded
+			}
+			if err := s.logbook.CheckDownwardOverridesWith(state, nil, f, opts.UserName, opts.Facts); err != nil {
+				return &FlightBatchLegError{Index: i, Err: err}
+			}
+		}
+	}
 	if opts.BeforeWrite != nil {
 		ctx = repository.WithTxHook(ctx, opts.BeforeWrite)
 	}
-	var crew []models.FlightCrewMember
-	if opts.Crew != nil {
-		crew = *opts.Crew
-	}
-	return s.flightRepo.CreateWithCrew(ctx, flight, crew)
+	return s.flightRepo.CreateBatch(ctx, flights)
 }
 
 // GetFlight retrieves a flight by ID and verifies user ownership
@@ -146,6 +220,7 @@ func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight,
 func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Flight, userID uuid.UUID, opts FlightWriteOptions) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 	models.NormalizeLaunchMethod(flight)
+	flight.DeriveLaunches()
 
 	// Verify ownership
 	existing, err := s.flightRepo.GetByID(ctx, flight.ID)

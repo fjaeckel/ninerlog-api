@@ -40,6 +40,16 @@ var coreColumns = map[string]Field{
 
 	"launch method": FieldLaunchMethod,
 	"launch type":   FieldLaunchMethod,
+
+	"launches":           FieldLaunches,
+	"number of launches": FieldLaunches,
+	"outlanding":         FieldIsOutlanding,
+	"out landing":        FieldIsOutlanding,
+	"tow flight":         FieldIsTowFlight,
+	"towflight":          FieldIsTowFlight,
+	"release height":     FieldReleaseHeightM,
+	"release height (m)": FieldReleaseHeightM,
+	"releaseheightm":     FieldReleaseHeightM,
 }
 
 // easaColumns is the AMC1 FCL.050 logbook layout. It is the lingua franca of
@@ -254,6 +264,10 @@ var germanColumns = map[string]Field{
 	"notizen":     FieldRemarks,
 
 	"startart":      FieldLaunchMethod,
+	"starts":        FieldLaunches,
+	"anzahl starts": FieldLaunches,
+	"außenlandung":  FieldIsOutlanding,
+	"aussenlandung": FieldIsOutlanding,
 	"flugart":       FieldIgnore,
 	"motorzeit":     FieldIgnore,
 	"motorlaufzeit": FieldIgnore,

@@ -14,6 +14,8 @@ var (
 	ErrInvalidDualGivenTime    = errors.New("instructor time exceeds total time")
 	ErrInvalidExaminerTime     = errors.New("examiner time exceeds total time")
 	ErrPassengerFunctionTime   = errors.New("a passenger flight logs no flight time")
+	ErrNegativeLaunches        = errors.New("launches cannot be negative")
+	ErrInvalidReleaseHeight    = errors.New("release height must be between 0 and 20000 m")
 
 	// FSTD session validation errors
 	ErrFSTDTypeRequired = errors.New("fstdType is required for a simulator session")

@@ -257,6 +257,7 @@ func (pl *restorePlan) planFlights(p *Payload, contactIDs map[string]uuid.UUID) 
 		f.UserID = pl.userID
 		f.SignatureID = nil
 		f.AircraftReg = registration.Canonical(f.AircraftReg)
+		models.NormalizeLaunchMethod(&f)
 		crew := f.CrewMembers
 		f.CrewMembers = nil
 

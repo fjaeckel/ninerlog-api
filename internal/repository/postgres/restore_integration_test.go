@@ -41,7 +41,7 @@ func fullFlight(userID uuid.UUID, n int) *models.Flight {
 		OffBlockTime: ptrTo("08:00:00"), OnBlockTime: ptrTo("09:00:00"),
 		DepartureTime: ptrTo("08:05:00"), ArrivalTime: ptrTo("08:55:00"),
 		TotalTime: 60, IsPIC: true, IsDual: false, PICTime: 60, DualTime: 0, NightTime: 10, IFRTime: 5,
-		LandingsDay: 2, LandingsNight: 1, AllLandings: 3, TakeoffsDay: 2, TakeoffsNight: 1,
+		LandingsDay: 2, LandingsNight: 1, AllLandings: 3, TakeoffsDay: 2, TakeoffsNight: 1, Launches: 3,
 		Route: ptrTo("EDDF,EDDM"), SoloTime: 3, CrossCountryTime: 55, Distance: 163.5,
 		TakeoffsDayOverride: true, TakeoffsNightOverride: true, LandingsDayOverride: true, LandingsNightOverride: true,
 		SICTimeOverride: true, MultiPilotTimeOverride: true, NightTimeOverride: true, CrossCountryTimeOverride: true,

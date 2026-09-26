@@ -122,6 +122,59 @@ columns, an import of a take-off/landing-only logbook needs no block columns, an
 tap-to-log opens a session at `takeoff` and completes it at `landing`. See
 [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
 
+### Launches and series entries
+
+`Flight.launches` is the number of launches a flight row records. It is derived as the
+take-off count (day + night, which is one per landing), at least one for a flight, and 0
+for an FSTD session or a passenger flight. A pilot may set it, which sets
+`launchesOverride`; `null` on `PUT` returns it to derivation. A row stored before the field
+existed has no value and counts its take-offs, at least one.
+
+Every launch count in the currency engine reads it: the 15 launches of SFCL.160(a)(1)(i)
+and the per-method SFCL.155(c) counts (`GetProgressByAircraftClass`, `GetLaunchCounts`).
+TMG take-offs toward self-launch count the TMG flights' launches the same way.
+
+Winch circuits can be logged two ways:
+
+- **One row per circuit** (the default). Each circuit is a flight with its own take-off
+  and landing, one launch each. `POST /flights/batch` logs a series of them at once; see
+  [Batch circuits](#batch-circuits).
+- **One row for the series**, as AMC1 FCL.050 allows for a series of flights on one day
+  at one site: a single flight whose take-off and landing span the series, with
+  `launches` set to the number of launches (and `landings` to the number of landings).
+  Six winch launches in one row count as six launches for SFCL.155 and SFCL.160.
+
+### Batch circuits
+
+`POST /flights/batch` takes a `template` (a full flight create body: date, aircraft,
+launch method, crew, departure and arrival, remarks …) and 1–50 `legs`. Each leg carries
+its take-off (`departureTime`) and landing (`arrivalTime`), and may carry `landings`
+(default: the template's, else 1), `launches` and `remarks`. Each leg is the template with
+the leg laid over it and is validated exactly like `POST /flights`; the legs are stored in
+one database transaction, so an invalid leg rejects the whole batch with a 400 naming the
+zero-based leg index and nothing is created. The response lists the created flights in leg
+order. Lena's six 8-minute winch circuits are one request: six flights, 48 minutes, six
+launches.
+
+### Outlandings, tow flights and release height
+
+- `isOutlanding` marks a landing away from the planned site (Außenlandung). An outlanding
+  is not a cross-country flight by virtue of its landing place, so no cross-country time
+  is derived from departure ≠ arrival; a cross-country time the pilot enters is kept.
+- `isTowFlight` marks a flight on which the pilot flew the tug, towing a sailplane. It is
+  meaningful on a powered aircraft and is not validated beyond being a boolean. It is
+  stored for SFCL.205 towing recency, which is not evaluated yet.
+- `releaseHeightM` is the tow or winch release height in whole metres, 0–20000; anything
+  else is a 400.
+
+All three, and `launches` with its override flag, travel in the JSON backup, the standard
+CSV layout (`Launches`, `Outlanding`, `TowFlight`, `ReleaseHeightM` after `LaunchMethod`)
+and CSV import (`Starts`/`Launches`, `Außenlandung`/`Outlanding`, `Tow Flight`,
+`Release Height`; a boolean reads true for `true`, `yes`, `ja`, `x`, `1` or a positive
+number). An imported launch count is stored as the pilot's value. They are logbook query
+fields (`launches`, `outlanding`, `towflight`, `releaseHeight`), and `is_outlanding` and
+`is_tow_flight` are custom-currency filters beside the `launches` metric.
+
 ## Recency (SFCL.160)
 
 ### (a) Sailplanes, excluding TMGs
@@ -188,17 +241,17 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
 
 | Rule | Requirement (`nameKey`) | Measured as | Classes |
 | --- | --- | --- | --- |
-| SFCL.160(a)(1) | `requirement.flight_time` ≥ 300 min | PIC + dual minutes | `GLIDER` + `TMG` |
-| SFCL.160(a)(1)(i) | `requirement.launches` ≥ 15 | take-offs, at least one per flight | `GLIDER` |
+| SFCL.160(a)(1) | `requirement.flight_time` ≥ 300 min | PIC + dual + SPIC minutes | `GLIDER` + `TMG` |
+| SFCL.160(a)(1)(i) | `requirement.launches` ≥ 15 | the flights' `launches` | `GLIDER` |
 | SFCL.160(a)(1)(ii) | `requirement.training_flights` ≥ 2 | flights with dual time | `GLIDER` |
 | SFCL.160(a)(2) | `requirement.proficiency_check` | a proficiency check flight in 24 months | `GLIDER` |
-| SFCL.160(b)(1) | `requirement.flight_time` ≥ 720 min | PIC + dual minutes | `GLIDER` + `TMG` |
-| SFCL.160(b)(1)(i) | `requirement.tmg_time` ≥ 360 min | PIC + dual minutes | `TMG` |
+| SFCL.160(b)(1) | `requirement.flight_time` ≥ 720 min | PIC + dual + SPIC minutes | `GLIDER` + `TMG` |
+| SFCL.160(b)(1)(i) | `requirement.tmg_time` ≥ 360 min | PIC + dual + SPIC minutes | `TMG` |
 | SFCL.160(b)(1)(ii) | `requirement.tmg_landings` ≥ 12 | landings | `TMG` |
 | SFCL.160(b)(1)(iii) | `requirement.tmg_training_flight` ≥ 60 min | longest total time of a flight with dual time | `TMG` |
 | SFCL.160(b)(2) | `requirement.proficiency_check` | a proficiency check flight in 24 months | `TMG` |
 | SFCL.160(c) | `rating.sfcl_tmg_exempt`, no requirements | the pilot holds a `TMG` rating on a Part-FCL licence | — |
-| SFCL.155(c) | `launchMethodCurrency[]` | take-offs per `launchMethod`; `self-launch` adds `TMG` take-offs | `GLIDER` (+ `TMG`) |
+| SFCL.155(c) | `launchMethodCurrency[]` | `launches` per `launchMethod`; `self-launch` adds the `TMG` flights' launches | `GLIDER` (+ `TMG`) |
 | SFCL.160(e)(1) | passenger currency, `easa_spl_pax` | landing days of flights with PIC time | `GLIDER` |
 | SFCL.160(e)(2) | passenger currency, `easa_spl_tmg_pax` | landing days of flights with PIC time | `TMG`, SPL licence only |
 
@@ -206,7 +259,12 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
   the rating reports status `lapsed` with `rating.recency_not_met`: the licence stays valid,
   its privileges may not be exercised until recency is restored. `expired` is reserved for a
   date expiry.
-- A supervised solo flight has no instructor on board, so NinerLog logs it as PIC time.
+- <a id="supervised-solo"></a>**Supervised solo.** "Solo under the supervision of an
+  FI(S)" counts toward the hours of SFCL.160(a)(1) and (b)(1). A student logs it as
+  `spicTime` (student pilot-in-command), which carves out of PIC time, and the hours rows
+  sum PIC, dual and SPIC minutes (`progress.spicMinutes`). A supervised solo logged as PIC
+  time counts as PIC time. SPIC time on `ULTRALIGHT` aircraft is not credited, like their
+  dual time.
 - The glider rule applies to a `GLIDER` rating on any licence and to every non-TMG rating
   on an `SPL` or `LAPL(S)` licence; only a `GLIDER` rating pools TMG hours.
 - `launchMethodCurrency` lists every method the pilot has ever logged on the rating's
@@ -228,8 +286,8 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
 - SFCL.160(e)(2) night passenger carriage in a TMG is not evaluated for SPL holders.
 - SFCL.155(a) initial launch-method training and SFCL.115(a)(2) passenger prerequisites are
   not tracked.
-- "Solo under the supervision of an FI(S)" logged without PIC time (e.g. a student's SPIC
-  column) is not counted toward the hour requirements.
+- SFCL.205 towing recency (5 tows in 24 months) is not evaluated; `isTowFlight` is stored
+  for it.
 
 ## FAA gliders (14 CFR Part 61)
 

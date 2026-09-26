@@ -334,6 +334,9 @@ type ServerInterface interface {
 	// CreateFlight Create flight log
 	// (POST /flights)
 	CreateFlight(c *gin.Context)
+	// CreateFlightBatch Log a batch of flights
+	// (POST /flights/batch)
+	CreateFlightBatch(c *gin.Context)
 	// DeleteAllFlights Delete all flights (deprecated)
 	// (DELETE /flights/delete-all)
 	//
@@ -3029,6 +3032,19 @@ func (siw *ServerInterfaceWrapper) CreateFlight(c *gin.Context) {
 	siw.Handler.CreateFlight(c)
 }
 
+// CreateFlightBatch operation middleware
+func (siw *ServerInterfaceWrapper) CreateFlightBatch(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateFlightBatch(c)
+}
+
 // DeleteAllFlights operation middleware
 func (siw *ServerInterfaceWrapper) DeleteAllFlights(c *gin.Context) {
 
@@ -4875,6 +4891,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/users/me/data", wrapper.DeleteAllUserData)
 	router.GET(options.BaseURL+"/users/me/data", wrapper.ExportUserData)
 	router.POST(options.BaseURL+"/users/me/data", wrapper.RestoreUserData)
+	router.POST(options.BaseURL+"/flights/batch", wrapper.CreateFlightBatch)
 	router.POST(options.BaseURL+"/flights/recalculate", wrapper.RecalculateFlights)
 	router.DELETE(options.BaseURL+"/flight-sessions/current", wrapper.DiscardCurrentFlightSession)
 	router.GET(options.BaseURL+"/flight-sessions/current", wrapper.GetCurrentFlightSession)

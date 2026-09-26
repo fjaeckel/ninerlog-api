@@ -177,6 +177,9 @@ type FlightRepository interface {
 	// CreateWithCrew creates a flight and its crew in one transaction. A
 	// failed crew insert is returned wrapping ErrCrewWrite.
 	CreateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error
+	// CreateBatch creates the flights and their crew members in one
+	// transaction; on error nothing is stored.
+	CreateBatch(ctx context.Context, flights []*models.Flight) error
 
 	// GetByID retrieves a flight by its ID
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error)

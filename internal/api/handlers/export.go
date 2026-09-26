@@ -220,7 +220,7 @@ func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportP
 		"IFRTime", "Remarks",
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
-		"LaunchMethod",
+		"LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM",
 	}
 	csvWrite(w, marks.header(headers))
 
@@ -313,6 +313,10 @@ func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportP
 			prefs.formatDecimal(f.ExaminerTime),
 			prefs.formatDecimal(f.ReliefTime),
 			safeStr(f.LaunchMethod),
+			fmt.Sprintf("%d", f.Launches),
+			fmt.Sprintf("%t", f.IsOutlanding),
+			fmt.Sprintf("%t", f.IsTowFlight),
+			optionalIntCSV(f.ReleaseHeightM),
 		}
 		csvWrite(w, marks.row(row, f))
 	}
@@ -484,4 +488,12 @@ func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 		PilotProfiles:  h.pilotProfileService,
 		AttachCrew:     h.AttachCrewMembers,
 	}
+}
+
+// optionalIntCSV formats v, or "" when nil.
+func optionalIntCSV(v *int) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", *v)
 }

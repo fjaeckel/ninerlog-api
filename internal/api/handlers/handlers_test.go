@@ -497,6 +497,26 @@ func (m *mockFlightRepo) CreateWithCrew(ctx context.Context, f *models.Flight, c
 	}
 	return nil
 }
+
+func (m *mockFlightRepo) CreateBatch(ctx context.Context, flights []*models.Flight) error {
+	rollback, err := m.runHook(ctx)
+	if err != nil {
+		return err
+	}
+	for _, f := range flights {
+		if err := m.Create(ctx, f); err != nil {
+			rollback()
+			return err
+		}
+		if m.crew != nil && len(f.CrewMembers) > 0 {
+			if err := m.crew.SetCrewMembers(ctx, f.ID, f.CrewMembers); err != nil {
+				rollback()
+				return &repository.CrewWriteError{Err: err}
+			}
+		}
+	}
+	return nil
+}
 func (m *mockFlightRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Flight, error) {
 	f, ok := m.flights[id]
 	if !ok {

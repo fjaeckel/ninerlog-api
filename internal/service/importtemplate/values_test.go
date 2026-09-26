@@ -101,3 +101,47 @@ func TestSuggestMapsLaunchMethod(t *testing.T) {
 		})
 	}
 }
+
+func TestSuggestMapsGliderFacts(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		headers  []string
+		want     map[string]Field
+	}{
+		{
+			name:     "NinerLog standard layout",
+			template: "NINERLOG_CSV",
+			headers:  []string{"Date", "AircraftID", "TotalTime", "LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM"},
+			want: map[string]Field{
+				"Launches": FieldLaunches, "Outlanding": FieldIsOutlanding,
+				"TowFlight": FieldIsTowFlight, "ReleaseHeightM": FieldReleaseHeightM,
+			},
+		},
+		{
+			name:     "German Starts and Außenlandung",
+			template: FormatGenericCSV,
+			headers:  []string{"Datum", "Kennzeichen", "Startart", "Starts", "Außenlandung", "Flugzeit"},
+			want:     map[string]Field{"Starts": FieldLaunches, "Außenlandung": FieldIsOutlanding},
+		},
+		{
+			name:     "L2 Vereinsflieger Start stays the take-off time",
+			template: "VEREINSFLIEGER_CSV",
+			headers:  vereinsfliegerHeaders,
+			want:     map[string]Field{"Start": FieldDepartureTime, "Landungen": FieldLandingsTotal},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := map[string]Field{}
+			for _, m := range ByID(tt.template).Suggest(tt.headers) {
+				got[m.SourceColumn] = m.TargetField
+			}
+			for col, field := range tt.want {
+				if got[col] != field {
+					t.Errorf("%q mapped to %q, want %q", col, got[col], field)
+				}
+			}
+		})
+	}
+}
