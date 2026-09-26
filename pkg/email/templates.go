@@ -27,6 +27,19 @@ type CustomCurrencyParams struct {
 	ExpiresOn string
 }
 
+// AircraftReminderParams drives the aircraft reminder notice. The item is
+// named by Label, or by the localised Kind when Label is empty. Overdue is
+// true when the due date has passed; DaysRemaining is then unused.
+type AircraftReminderParams struct {
+	UserName      string
+	Registration  string
+	Kind          string
+	Label         string
+	DueDate       string
+	DaysRemaining int
+	Overdue       bool
+}
+
 type RevalidationParams struct {
 	UserName      string
 	LicenseType   string
@@ -126,6 +139,7 @@ type templateSet struct {
 	RatingExpiry         func(p RatingExpiryParams) (subject, body string)
 	Revalidation         func(p RevalidationParams) (subject, body string)
 	CustomCurrency       func(p CustomCurrencyParams) (subject, body string)
+	AircraftReminder     func(p AircraftReminderParams) (subject, body string)
 	PassengerCurrency    func(p PassengerCurrencyParams) (subject, body string)
 	FlightReviewExpiry   func(p FlightReviewExpiryParams) (subject, body string)
 	FlightReviewRequired func(p FlightReviewRequiredParams) (subject, body string)
@@ -136,4 +150,35 @@ type templateSet struct {
 	TwoFactorReset       func(p TwoFactorResetParams) (subject, body string)
 	SignatureRequest     func(p SignatureRequestParams) (subject, body string)
 	SignatureCompleted   func(p SignatureCompletedParams) (subject, body string)
+}
+
+var aircraftReminderKindsEN = map[string]string{
+	"ANNUAL_INSPECTION":    "Annual inspection",
+	"INSURANCE":            "Insurance",
+	"RESCUE_SYSTEM_REPACK": "Rescue system repack",
+	"RESCUE_ROCKET_EXPIRY": "Rescue rocket expiry",
+	"ARC":                  "ARC",
+	"ELT_BATTERY":          "ELT battery",
+	"CUSTOM":               "Reminder",
+}
+
+var aircraftReminderKindsDE = map[string]string{
+	"ANNUAL_INSPECTION":    "Jahresnachprüfung",
+	"INSURANCE":            "Versicherung",
+	"RESCUE_SYSTEM_REPACK": "Rettungsgerät packen",
+	"RESCUE_ROCKET_EXPIRY": "Rettungsrakete Ablauf",
+	"ARC":                  "ARC",
+	"ELT_BATTERY":          "ELT-Batterie",
+	"CUSTOM":               "Erinnerung",
+}
+
+// aircraftReminderItem returns the label, or the kind's name in the catalogue.
+func aircraftReminderItem(names map[string]string, p AircraftReminderParams) string {
+	if p.Label != "" {
+		return p.Label
+	}
+	if name, ok := names[p.Kind]; ok {
+		return name
+	}
+	return p.Kind
 }

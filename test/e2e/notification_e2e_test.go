@@ -28,8 +28,8 @@ func TestNotificationPreferencesDefaults(t *testing.T) {
 		if !ok {
 			t.Fatalf("enabledCategories should be an array, got %T", prefs["enabledCategories"])
 		}
-		if len(categories) != 10 {
-			t.Errorf("Default enabledCategories should have 10 entries, got %d", len(categories))
+		if len(categories) != 11 {
+			t.Errorf("Default enabledCategories should have 11 entries, got %d", len(categories))
 		}
 
 		warningDays, ok := prefs["warningDays"].([]interface{})
@@ -305,8 +305,8 @@ func TestNotificationPreferencesIsolation(t *testing.T) {
 			t.Error("User2 emailEnabled should still be true (defaults)")
 		}
 		categories := prefs["enabledCategories"].([]interface{})
-		if len(categories) != 10 {
-			t.Errorf("User2 should still have 10 default categories, got %d", len(categories))
+		if len(categories) != 11 {
+			t.Errorf("User2 should still have 11 default categories, got %d", len(categories))
 		}
 		if int(prefs["checkHour"].(float64)) != 8 {
 			t.Errorf("User2 checkHour should still be 8, got %v", prefs["checkHour"])

@@ -53,6 +53,26 @@ var enTemplates = templateSet{
 		return subject, body
 	},
 
+	AircraftReminder: func(p AircraftReminderParams) (string, string) {
+		item := aircraftReminderItem(aircraftReminderKindsEN, p)
+		if p.Overdue {
+			subject := fmt.Sprintf("NinerLog: %s %s is overdue", p.Registration, item)
+			body := fmt.Sprintf(`<h2>Aircraft Reminder Overdue</h2>
+<p>Hi %s,</p>
+<p><strong>%s</strong> on <strong>%s</strong> was due on <strong>%s</strong>.</p>
+<p>Mark it done in NinerLog once it is taken care of.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(item), html.EscapeString(p.Registration), html.EscapeString(p.DueDate))
+			return subject, body
+		}
+		subject := fmt.Sprintf("NinerLog: %s %s due in %d days", p.Registration, item, p.DaysRemaining)
+		body := fmt.Sprintf(`<h2>Aircraft Reminder</h2>
+<p>Hi %s,</p>
+<p><strong>%s</strong> on <strong>%s</strong> is due on <strong>%s</strong> (%d days from now).</p>
+<p>Mark it done in NinerLog once it is taken care of.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(item), html.EscapeString(p.Registration), html.EscapeString(p.DueDate), p.DaysRemaining)
+		return subject, body
+	},
+
 	PassengerCurrency: func(p PassengerCurrencyParams) (string, string) {
 		subject := fmt.Sprintf("NinerLog: %s %s passenger currency — %d more landings needed", p.ClassType, p.Period, p.Remaining)
 		body := fmt.Sprintf(`<h2>Passenger Currency Warning</h2>

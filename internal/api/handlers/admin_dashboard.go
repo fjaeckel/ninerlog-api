@@ -48,6 +48,8 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	stats.DisabledAccounts = adminStats.DisabledAccounts
 	stats.ActiveSessions = adminStats.ActiveSessions
 	stats.TotalCustomReports = adminStats.TotalCustomReports
+	stats.AircraftReminders.Total = adminStats.TotalAircraftReminders
+	stats.AircraftReminders.Overdue = adminStats.OverdueAircraftReminders
 	stats.ImportsByFormat = adminStats.ImportsByFormat
 	stats.CloudBackupDestinations.ByProvider = adminStats.BackupDestinationsByProvider
 	for _, count := range adminStats.BackupDestinationsByProvider {

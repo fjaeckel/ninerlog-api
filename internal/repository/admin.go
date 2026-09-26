@@ -27,6 +27,10 @@ type AdminStats struct {
 	ActiveSessions int
 	// TotalCustomReports counts saved custom reports across all users.
 	TotalCustomReports int
+	// TotalAircraftReminders counts aircraft reminders across all users;
+	// OverdueAircraftReminders those due before today.
+	TotalAircraftReminders   int
+	OverdueAircraftReminders int
 	// ImportsByFormat maps import_format value to import count. Never nil;
 	// formats with no imports are absent.
 	ImportsByFormat map[string]int

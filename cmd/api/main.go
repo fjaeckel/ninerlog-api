@@ -261,6 +261,8 @@ func main() {
 	customCurrencyService := currency.NewCustomService(customCurrencyRepo, customCurrencyEvaluator)
 
 	notificationService := service.NewNotificationService(notifRepo, credentialRepo, flightRepo, licenseRepo, userRepo, emailSender, currencyService, customCurrencyService)
+	aircraftReminderService := service.NewAircraftReminderService(postgres.NewAircraftReminderRepository(db), aircraftRepo)
+	notificationService.SetAircraftReminderSource(aircraftReminderService)
 
 	// OIDC single sign-on (optional — enabled by setting OIDC_ISSUER). When
 	// configured, every local credential path (passwords, registration, email
@@ -341,6 +343,7 @@ func main() {
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetOIDCService(oidcService)
 	apiHandler.SetCustomCurrencyService(customCurrencyService)
+	apiHandler.SetAircraftReminderService(aircraftReminderService)
 	apiHandler.SetCustomReportService(customreport.NewService(
 		postgres.NewCustomReportRepository(db),
 		service.NewLogbookScope(classRatingService, aircraftService),
