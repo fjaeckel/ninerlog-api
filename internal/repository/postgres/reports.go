@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -185,6 +187,7 @@ func (r *reportsRepository) StatsByClass(ctx context.Context, userID uuid.UUID, 
 	s := newReportScope(userID, months)
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT COALESCE(a.aircraft_class, 'Unclassified') as class,
+			CASE WHEN UPPER(TRIM(a.aircraft_class)) = 'ULTRALIGHT' THEN a.ul_kind END as ul_kind,
 			COUNT(*) as flights,
 			COALESCE(SUM(f.total_time), 0) as minutes,
 			COALESCE(SUM(f.pic_time), 0) as pic_minutes,
@@ -193,23 +196,84 @@ func (r *reportsRepository) StatsByClass(ctx context.Context, userID uuid.UUID, 
 		FROM flights f
 		LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1`+s.filter+`
-		GROUP BY COALESCE(a.aircraft_class, 'Unclassified')
-		ORDER BY minutes DESC
+		GROUP BY 1, 2
 	`, s.args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var byClass []*repository.ClassStatRow
+	var parts []classKindStat
 	for rows.Next() {
-		cs := &repository.ClassStatRow{}
-		if err := rows.Scan(&cs.Class, &cs.Flights, &cs.Minutes, &cs.PICMinutes, &cs.DualMinutes, &cs.Landings); err != nil {
+		var p classKindStat
+		var kind sql.NullString
+		if err := rows.Scan(&p.Class, &kind, &p.Flights, &p.Minutes, &p.PICMinutes, &p.DualMinutes, &p.Landings); err != nil {
 			continue
 		}
-		byClass = append(byClass, cs)
+		if kind.Valid {
+			p.kind = &kind.String
+		}
+		parts = append(parts, p)
 	}
-	return byClass, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return foldClassStats(parts), nil
+}
+
+// classKindStat is one (class, UL kind) group of StatsByClass.
+type classKindStat struct {
+	repository.ClassStatRow
+	kind *string
+}
+
+// foldClassStats merges (class, UL kind) groups into one row per class, most
+// minutes first. An ULTRALIGHT row carries its per-kind split in ULKinds.
+func foldClassStats(parts []classKindStat) []*repository.ClassStatRow {
+	byClass := map[string]*repository.ClassStatRow{}
+	var out []*repository.ClassStatRow
+	for _, p := range parts {
+		row, ok := byClass[p.Class]
+		if !ok {
+			row = &repository.ClassStatRow{Class: p.Class}
+			byClass[p.Class] = row
+			out = append(out, row)
+		}
+		row.Flights += p.Flights
+		row.Minutes += p.Minutes
+		row.PICMinutes += p.PICMinutes
+		row.DualMinutes += p.DualMinutes
+		row.Landings += p.Landings
+		if models.IsULClass(&p.Class) {
+			row.ULKinds = append(row.ULKinds, &repository.ULKindStatRow{
+				ULKind: p.kind, Flights: p.Flights, Minutes: p.Minutes,
+				PICMinutes: p.PICMinutes, DualMinutes: p.DualMinutes, Landings: p.Landings,
+			})
+		}
+	}
+	for _, row := range out {
+		sort.SliceStable(row.ULKinds, func(i, j int) bool {
+			a, b := row.ULKinds[i], row.ULKinds[j]
+			if a.Minutes != b.Minutes {
+				return a.Minutes > b.Minutes
+			}
+			return ulKindKey(a.ULKind) < ulKindKey(b.ULKind)
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Minutes != out[j].Minutes {
+			return out[i].Minutes > out[j].Minutes
+		}
+		return out[i].Class < out[j].Class
+	})
+	return out
+}
+
+func ulKindKey(k *string) string {
+	if k == nil {
+		return "~"
+	}
+	return *k
 }
 
 func (r *reportsRepository) StatsByCategory(ctx context.Context, userID uuid.UUID, months int) ([]*repository.CategoryStatRow, error) {

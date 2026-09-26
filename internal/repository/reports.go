@@ -58,6 +58,20 @@ type ClassStatRow struct {
 	PICMinutes  int
 	DualMinutes int
 	Landings    int
+	// ULKinds splits an ULTRALIGHT row by UL kind, most minutes first; nil
+	// on every other class.
+	ULKinds []*ULKindStatRow
+}
+
+// ULKindStatRow is the part of an ULTRALIGHT ClassStatRow flown on one UL
+// kind; ULKind is nil for aircraft with no kind set.
+type ULKindStatRow struct {
+	ULKind      *string
+	Flights     int
+	Minutes     int
+	PICMinutes  int
+	DualMinutes int
+	Landings    int
 }
 
 // CategoryStatRow is a per-capability rollup (Tailwheel / Complex / High

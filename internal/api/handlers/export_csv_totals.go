@@ -69,6 +69,7 @@ func standardCSVTotals(flights []*models.Flight, prefs exportPrefs) []string {
 		cnt(func(f *models.Flight) int { return boolCount(f.IsOutlanding) }),
 		cnt(func(f *models.Flight) int { return boolCount(f.IsTowFlight) }),
 		"",
+		"", "",
 	}
 }
 

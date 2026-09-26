@@ -97,13 +97,14 @@ too, so a club Cessna classed `SEP_LAND` imports with no launch method and no la
 in its remarks. The preview applies the same rule. `POST`/`PUT /flights` do not: a launch
 method entered by hand is stored whatever the aircraft.
 
-Exports: the standard CSV layout ends with a `LaunchMethod` column. The EASA, FAA and
+Exports: the standard CSV layout has a `LaunchMethod` column, followed by the glider flight
+facts and the aircraft's `AircraftClass`/`ULKind`. The EASA, FAA and
 vsimakhin/web-logbook CSV layouts and the EASA and FAA PDFs have no launch column, so
 `flightrules.CombinedRemarks` appends `[Launch: <method>]` to the remarks cell after the
 function-time annotations. On import a `[Launch: <method>]` marker in a remarks column is
 read back as the launch method (a launch column wins) and removed from the remarks, so all
-four CSV layouts round-trip it. The JSON backup carries the field as is. The AMC1 SFCL.050
-sailplane PDF layout with its own launch columns is WP-22.
+four CSV layouts round-trip it. The JSON backup carries the field as is. The sailplane PDF
+has its own launch columns and prints no marker; see [Printed logbook](#printed-logbook).
 
 Aircraft an import creates get a class so the currency engine counts their flights; see
 [Aircraft class on import](./AIRCRAFT_REGISTRATIONS.md#aircraft-class-on-import). A towed
@@ -168,12 +169,42 @@ launches.
   else is a 400.
 
 All three, and `launches` with its override flag, travel in the JSON backup, the standard
-CSV layout (`Launches`, `Outlanding`, `TowFlight`, `ReleaseHeightM` after `LaunchMethod`)
-and CSV import (`Starts`/`Launches`, `Außenlandung`/`Outlanding`, `Tow Flight`,
+CSV layout (`Launches`, `Outlanding`, `TowFlight`, `ReleaseHeightM` after `LaunchMethod`),
+the sailplane PDF (outlanding and release height as remarks markers) and CSV import (`Starts`/`Launches`, `Außenlandung`/`Outlanding`, `Tow Flight`,
 `Release Height`; a boolean reads true for `true`, `yes`, `ja`, `x`, `1` or a positive
 number). An imported launch count is stored as the pilot's value. They are logbook query
 fields (`launches`, `outlanding`, `towflight`, `releaseHeight`), and `is_outlanding` and
 `is_tow_flight` are custom-currency filters beside the `launches` metric.
+
+### Printed logbook
+
+`GET /exports/pdf?format=sailplane` prints an AMC1 SFCL.050 logbook, one landscape page per
+batch of flights:
+
+| Column | Source |
+| --- | --- |
+| Date | `date` |
+| Aircraft: type, registration | `aircraftType`, `aircraftReg` |
+| Take-off: place, time | `departureIcao`, `departureTime` |
+| Landing: place, time | `arrivalIcao`, `arrivalTime` |
+| Flight time | `totalTime` (take-off to landing) |
+| Launch: method, launches | `launchMethod` (`Winch`, `Aerotow`, `Self-launch`, `Car`, `Bungee`), `launches` |
+| Pilot function time: PIC, dual, FI(S) | PIC + PICUS + SPIC, `dualTime`, `dualGivenTime` |
+| Remarks and endorsements | `flightrules.SailplaneRemarks`: remarks, endorsements, function-time annotations, `[Outlanding]`, `[Release <n> m]` |
+
+The take-off and landing columns print `departureTime`/`arrivalTime`; a flight with only
+block times prints those. There are no single-/multi-pilot, night, IFR or FSTD columns and
+no `[Launch: …]` marker. Every page ends with the three totals rows (this page, previous
+pages, total time) for flight time, launches, PIC, dual and FI(S) time, and the pilot's
+certification and signature line. A totals summary page follows: flights, flight time,
+launches in total and per method, PIC, dual, FI(S) time and outlandings. A prior-experience
+baseline opens the time balances; it has no launch count, so the launch totals cover logged
+flights only and the summary says so. Instructor sign-offs print in the remarks cell as in
+the EASA layout.
+
+The licence-scoped export (`logbookLicenseId`) picks this layout by itself for an SPL,
+LAPL(S) or FAA glider licence (`service.LogbookFormatForLicence`); an explicit `format`
+wins. The `layout` parameter (spread/single) does not apply.
 
 ## Recency (SFCL.160)
 

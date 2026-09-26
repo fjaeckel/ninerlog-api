@@ -596,9 +596,13 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		}
 	}
 
-	format := "easa"
+	format := service.LogbookFormatEASA
 	if params.Format != nil {
 		format = string(*params.Format)
+	} else if params.LogbookLicenseId != nil {
+		if lic, err := h.licenseService.GetLicense(c.Request.Context(), uuid.UUID(*params.LogbookLicenseId), userID); err == nil {
+			format = service.LogbookFormatForLicence(lic)
+		}
 	}
 	pageSize := "a4"
 	if params.PageSize != nil {
@@ -631,14 +635,20 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		pdf = generateFAAPDF(flights, geom, userName, layout, baseline, sigs)
 	case "summary":
 		pdf = generateSummaryPDF(flights, geom, userName, baseline)
+	case service.LogbookFormatSailplane:
+		pdf = renderSailplane(flights, geom, userName, baseline, sigs)
+	case service.LogbookFormatUltralight:
+		aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+		pdf = renderUltralight(flights, geom, fleetByRegistration(aircraftList), userName, baseline, sigs)
 	default:
 		pdf = generateEASAPDF(flights, geom, h, c, userID, layout, baseline, sigs)
 	}
 	name := fmt.Sprintf("ninerlog_%s_%s_%s_%s.pdf",
 		format, layout, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02"))
-	if format == "summary" {
-		name = fmt.Sprintf("ninerlog_summary_%s_%s.pdf",
-			strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02"))
+	switch format {
+	case "summary", service.LogbookFormatSailplane, service.LogbookFormatUltralight:
+		name = fmt.Sprintf("ninerlog_%s_%s_%s.pdf",
+			format, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02"))
 	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", "attachment; filename="+name)
@@ -720,22 +730,13 @@ func computeSummaryTotals(flights []*models.Flight, b *models.FlightBaseline) su
 	return t
 }
 
-func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseline) {
-	g, pdf := d.g, d.pdf
-	d.startPage("Totals Summary")
+// summaryRow is one label/value line of a totals summary page.
+type summaryRow struct{ label, value string }
 
+func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseline) {
 	t := computeSummaryTotals(flights, b)
 
-	rowH := 7.0
-	if g.sizeName == "A5" {
-		rowH = 5.2
-	}
-
-	summaryW := g.usableWidth() * 0.5
-	valW := g.usableWidth() * 0.22
-	x0 := g.marginLR + (g.usableWidth()-summaryW-valW)/2
-
-	rows := []struct{ label, value string }{
+	rows := []summaryRow{
 		{"Total Flights", fmt.Sprintf("%d", t.flights)},
 		{"Total Block Time", fmtDec(t.total)},
 		{"PIC Time", fmtDec(t.pic)},
@@ -755,10 +756,10 @@ func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBa
 		{t.relief, "Cruise Relief Time"},
 	} {
 		if extra.minutes > 0 {
-			rows = append(rows, struct{ label, value string }{extra.label, fmtDec(extra.minutes)})
+			rows = append(rows, summaryRow{extra.label, fmtDec(extra.minutes)})
 		}
 	}
-	rows = append(rows, []struct{ label, value string }{
+	rows = append(rows, []summaryRow{
 		{"Night Time", fmtDec(t.night)},
 		{"IFR Time", fmtDec(t.ifr)},
 		{"Cross-Country Time", fmtDec(t.xc)},
@@ -767,19 +768,38 @@ func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBa
 		{"Night Landings", fmt.Sprintf("%d", t.ldgNight)},
 		{"Total Landings", fmt.Sprintf("%d", t.ldgDay+t.ldgNight)},
 	}...)
-	// Lead with the carried-forward block.
-	if baselineApplies(b) {
-		rows = append([]struct{ label, value string }{
-			{"Brought Forward (prior logbooks)", fmtDecTotal(b.TotalMinutes)},
-		}, rows...)
+	drawSummaryPage(d, withBroughtForward(rows, b), baselineSummaryNote(b))
+}
+
+// withBroughtForward prepends the carried-forward row when a baseline applies.
+func withBroughtForward(rows []summaryRow, b *models.FlightBaseline) []summaryRow {
+	if !baselineApplies(b) {
+		return rows
 	}
+	return append([]summaryRow{{"Brought Forward (prior logbooks)", fmtDecTotal(b.TotalMinutes)}}, rows...)
+}
+
+// drawSummaryPage adds the totals summary page: rows as a centred table,
+// then the disclosure note, then the signature block.
+func drawSummaryPage(d *pdfDoc, rows []summaryRow, note string) {
+	g, pdf := d.g, d.pdf
+	d.startPage("Totals Summary")
+
+	rowH := 7.0
+	if g.sizeName == "A5" {
+		rowH = 5.2
+	}
+
+	summaryW := g.usableWidth() * 0.5
+	valW := g.usableWidth() * 0.22
+	x0 := g.marginLR + (g.usableWidth()-summaryW-valW)/2
 
 	// Measure the disclosure note so the table stays vertically centred.
 	noteLineH := 3.4
 	if g.sizeName == "A5" {
 		noteLineH = 2.8
 	}
-	note := d.tr(baselineSummaryNote(b))
+	note = d.tr(note)
 	noteH := 0.0
 	if note != "" {
 		pdf.SetFont("Helvetica", "I", g.fontFoot)

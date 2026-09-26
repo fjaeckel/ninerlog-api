@@ -16,6 +16,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 )
 
@@ -182,7 +183,8 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 			csvWrite(w, webLogbookCSVTotals(flights))
 		}
 	default:
-		writeStandardCSV(w, flights, prefs)
+		aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+		writeStandardCSV(w, flights, prefs, fleetByRegistration(aircraftList))
 		if totals {
 			csvWrite(w, standardCSVTotals(flights, prefs))
 		}
@@ -191,7 +193,9 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 	w.Flush()
 }
 
-func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
+// writeStandardCSV writes the standard layout; fleet maps canonical
+// registrations to the aircraft whose class and UL kind fill the last columns.
+func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, fleet map[string]*models.Aircraft) {
 	// Header row — compatible with ForeFlight import format
 	headers := []string{
 		"Date", "AircraftID", "AircraftType", "From", "To", "Route",
@@ -208,6 +212,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
 		"LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM",
+		"AircraftClass", "ULKind",
 	}
 	csvWrite(w, headers)
 
@@ -311,6 +316,8 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 			fmt.Sprintf("%t", f.IsTowFlight),
 			optionalIntCSV(f.ReleaseHeightM),
 		}
+		acClass, ulKind := aircraftClassCSV(fleet[registration.Canonical(f.AircraftReg)])
+		row = append(row, acClass, ulKind)
 		csvWrite(w, row)
 	}
 }
@@ -417,6 +424,19 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 		}
 		csvWrite(w, row)
 	}
+}
+
+// aircraftClassCSV returns the normalized class and, for an ultralight, the
+// UL kind of ac; both blank for a nil aircraft.
+func aircraftClassCSV(ac *models.Aircraft) (class, ulKind string) {
+	if ac == nil {
+		return "", ""
+	}
+	class = string(models.NormalizeAircraftClass(ac.AircraftClass))
+	if models.IsULClass(ac.AircraftClass) && ac.ULKind != nil {
+		ulKind = string(*ac.ULKind)
+	}
+	return class, ulKind
 }
 
 func safeStrCSV(s *string) string {

@@ -495,6 +495,39 @@ func (e ClassRatingCurrencyStatus) Valid() bool {
 	}
 }
 
+// Defines values for ClassStatULKindUlKind.
+const (
+	ClassStatULKindUlKindGYROPLANE            ClassStatULKindUlKind = "GYROPLANE"
+	ClassStatULKindUlKindHELICOPTER           ClassStatULKindUlKind = "HELICOPTER"
+	ClassStatULKindUlKindPOWEREDPARAGLIDER    ClassStatULKindUlKind = "POWERED_PARAGLIDER"
+	ClassStatULKindUlKindSAILPLANE            ClassStatULKindUlKind = "SAILPLANE"
+	ClassStatULKindUlKindTHREEAXIS            ClassStatULKindUlKind = "THREE_AXIS"
+	ClassStatULKindUlKindTHREEAXISMOTORGLIDER ClassStatULKindUlKind = "THREE_AXIS_MOTORGLIDER"
+	ClassStatULKindUlKindWEIGHTSHIFT          ClassStatULKindUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ClassStatULKindUlKind enum.
+func (e ClassStatULKindUlKind) Valid() bool {
+	switch e {
+	case ClassStatULKindUlKindGYROPLANE:
+		return true
+	case ClassStatULKindUlKindHELICOPTER:
+		return true
+	case ClassStatULKindUlKindPOWEREDPARAGLIDER:
+		return true
+	case ClassStatULKindUlKindSAILPLANE:
+		return true
+	case ClassStatULKindUlKindTHREEAXIS:
+		return true
+	case ClassStatULKindUlKindTHREEAXISMOTORGLIDER:
+		return true
+	case ClassStatULKindUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ClassType.
 const (
 	ClassTypeGLIDER     ClassType = "GLIDER"
@@ -2336,9 +2369,11 @@ func (e ExportFlightsCSVParamsSortOrder) Valid() bool {
 
 // Defines values for ExportFlightsPDFParamsFormat.
 const (
-	ExportFlightsPDFParamsFormatEasa    ExportFlightsPDFParamsFormat = "easa"
-	ExportFlightsPDFParamsFormatFaa     ExportFlightsPDFParamsFormat = "faa"
-	ExportFlightsPDFParamsFormatSummary ExportFlightsPDFParamsFormat = "summary"
+	ExportFlightsPDFParamsFormatEasa       ExportFlightsPDFParamsFormat = "easa"
+	ExportFlightsPDFParamsFormatFaa        ExportFlightsPDFParamsFormat = "faa"
+	ExportFlightsPDFParamsFormatSailplane  ExportFlightsPDFParamsFormat = "sailplane"
+	ExportFlightsPDFParamsFormatSummary    ExportFlightsPDFParamsFormat = "summary"
+	ExportFlightsPDFParamsFormatUltralight ExportFlightsPDFParamsFormat = "ultralight"
 )
 
 // Valid indicates whether the value is a known member of the ExportFlightsPDFParamsFormat enum.
@@ -2348,7 +2383,11 @@ func (e ExportFlightsPDFParamsFormat) Valid() bool {
 		return true
 	case ExportFlightsPDFParamsFormatFaa:
 		return true
+	case ExportFlightsPDFParamsFormatSailplane:
+		return true
 	case ExportFlightsPDFParamsFormatSummary:
+		return true
+	case ExportFlightsPDFParamsFormatUltralight:
 		return true
 	default:
 		return false
@@ -4319,6 +4358,19 @@ type ClassRatingUpdate struct {
 	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 	UlKind nullable.Nullable[string] `json:"ulKind,omitempty"`
 }
+
+// ClassStatULKind defines model for ClassStatULKind.
+type ClassStatULKind struct {
+	DualMinutes int                    `json:"dualMinutes"`
+	Flights     int                    `json:"flights"`
+	Landings    int                    `json:"landings"`
+	Minutes     int                    `json:"minutes"`
+	PicMinutes  int                    `json:"picMinutes"`
+	UlKind      *ClassStatULKindUlKind `json:"ulKind"`
+}
+
+// ClassStatULKindUlKind defines model for ClassStatULKind.UlKind.
+type ClassStatULKindUlKind string
 
 // ClassType Aircraft class rating type:
 // - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
@@ -8271,13 +8323,13 @@ type ExportFlightsPDFParams struct {
 	// license from another class print `[Credited]` at the start of their remarks.
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
 
-	// Format PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 / ASA-Jeppesen columns), or summary (simplified totals)
+	// Format PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 / ASA-Jeppesen columns), sailplane (AMC1 SFCL.050 columns), ultralight (UL columns), or summary (simplified totals). Omitted, it is easa, except with `logbookLicenseId`: sailplane for an SPL, LAPL(S) or FAA glider licence, ultralight for an ultralight licence (a DULV/DAeC licence or a licence type naming UL), easa otherwise.
 	Format *ExportFlightsPDFParamsFormat `form:"format,omitempty" json:"format,omitempty"`
 
 	// PageSize Page size for the generated PDF. All sizes are rendered in landscape orientation.
 	PageSize *ExportFlightsPDFParamsPageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
 
-	// Layout Page layout. `spread` (default) lays the logbook out as a book-style two-page spread (left + right facing pages) intended for double-sided printing, in any page size; intentionally-blank filler pages (one at the start, one before the totals summary) keep each spread on facing pages when printed duplex. `single` renders all columns on one landscape page per batch of flights — designed for single-page A4 landscape printing. Ignored for the summary format.
+	// Layout Page layout. `spread` (default) lays the logbook out as a book-style two-page spread (left + right facing pages) intended for double-sided printing, in any page size; intentionally-blank filler pages (one at the start, one before the totals summary) keep each spread on facing pages when printed duplex. `single` renders all columns on one landscape page per batch of flights — designed for single-page A4 landscape printing. Ignored for the summary, sailplane and ultralight formats.
 	Layout *ExportFlightsPDFParamsLayout `form:"layout,omitempty" json:"layout,omitempty"`
 
 	// RowsPerPage Number of flight rows per logbook page. When set, the row height — and, for dense layouts, the body font — scales dynamically so the rows fill the page: fewer rows give an airier, larger-print logbook, more rows a denser one. Values are clamped to what stays legible on the chosen page size; omitted, the row count is derived from the page size's default row height. Ignored for the summary format.

@@ -59,7 +59,7 @@ func TestCSVTotalsRows(t *testing.T) {
 		want  map[string]string
 	}{
 		{"standard", func(w *csv.Writer) {
-			writeStandardCSV(w, flights, prefs)
+			writeStandardCSV(w, flights, prefs, nil)
 			csvWrite(w, standardCSVTotals(flights, prefs))
 		}, map[string]string{
 			"Date": "Total (3 flights)", "TotalTime": "2.2h", "PIC": "1.5h", "DualReceived": "0.8h",

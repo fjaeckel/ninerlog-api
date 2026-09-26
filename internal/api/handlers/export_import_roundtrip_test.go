@@ -84,7 +84,7 @@ func exportCSV(t *testing.T, layout string, flights []*models.Flight, prefs expo
 	w := csv.NewWriter(&buf)
 	switch layout {
 	case "standard":
-		writeStandardCSV(w, flights, prefs)
+		writeStandardCSV(w, flights, prefs, nil)
 	case "easa":
 		writeEASACSV(w, flights, prefs, "Alex Rivera")
 	case "faa":
