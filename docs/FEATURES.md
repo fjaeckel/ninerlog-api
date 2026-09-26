@@ -351,6 +351,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   cross-country column is imported as the pilot's own value and stored with its override
   flag set (capped at block time), so a logbook brought from another product keeps the
   night and cross-country hours it was signed with instead of having them re-derived.
+  A launch-method column (Vereinsflieger `S.-Art` W/F/E/A/G, German `Startart`, English
+  `Launch Method`) maps to `launchMethod`; an unknown code imports the flight without one.
+  See [SAILPLANES.md](./SAILPLANES.md#launch-method-in-and-out).
 
   Day and night landings mapped as separate columns are stored as the file's split with
   both landing override flags set; landings counted only in a larger total column are
@@ -384,7 +387,8 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   EASA, FAA and web-logbook layouts write such a field's full name, which re-imports by
   exact name match and comes back as its identifier only when no other airport carries
   the same name (about 92% of such fields; every German one). The JSON export keeps the
-  identifier as well.
+  identifier as well. The launch method round-trips in all four: the standard layout's
+  `LaunchMethod` column, and a `[Launch: <method>]` remarks marker in the others.
 
   Two levels of coverage, both mandatory:
   `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers
@@ -470,7 +474,11 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   the flight rows' registration/type columns). Rows skipped as duplicates still
   contribute their aircraft, so re-importing a file backfills a fleet an earlier import
   left empty. Registrations are keyed in canonical notation while collecting them, so a
-  file that spells one aircraft two ways yields one fleet entry, not two. The confirm
+  file that spells one aircraft two ways yields one fleet entry, not two. A created aircraft
+  gets a class from the file's own class column, else from a German registration
+  (`D-1234` glider, `D-M…` ultralight), else `GLIDER` when its flights were towed — see
+  [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md#aircraft-class-on-import); an
+  existing aircraft is never reclassified. The confirm
   response reports both counts as `contactsCreated` and `aircraftCreated`.
   Restoring a JSON backup does the same: contacts are not carried in the backup format, so
   the crew names are re-linked by name against the destination account's address book and

@@ -37,6 +37,9 @@ var coreColumns = map[string]Field{
 
 	"holds": FieldHolds,
 	"hold":  FieldHolds,
+
+	"launch method": FieldLaunchMethod,
+	"launch type":   FieldLaunchMethod,
 }
 
 // easaColumns is the AMC1 FCL.050 logbook layout. It is the lingua franca of
@@ -250,7 +253,7 @@ var germanColumns = map[string]Field{
 	"bemerkungen": FieldRemarks,
 	"notizen":     FieldRemarks,
 
-	"startart":      FieldIgnore,
+	"startart":      FieldLaunchMethod,
 	"flugart":       FieldIgnore,
 	"motorzeit":     FieldIgnore,
 	"motorlaufzeit": FieldIgnore,
@@ -913,10 +916,9 @@ var vereinsfliegerColumns = map[string]Field{
 	"start":   FieldDepartureTime,
 	"landung": FieldArrivalTime,
 
-	// Known, and deliberately not imported: "S.-Art" is the glider launch
-	// method (E/F/W — self-launch, aerotow, winch) and "Abr." the billing code.
-	// Neither has a NinerLog field; listing them still earns recognition score.
-	"s.-art": FieldIgnore,
+	// "S.-Art" is the launch method code, read by ParseLaunchMethod.
+	// "Abr." is the billing code, not imported.
+	"s.-art": FieldLaunchMethod,
 	"abr.":   FieldIgnore,
 }
 

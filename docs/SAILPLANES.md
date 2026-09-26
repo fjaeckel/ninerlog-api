@@ -62,6 +62,52 @@ Winch, car, aerotow and bungee are **towed** launches: they count only toward a 
 rating or a sailplane-licence rule, never toward a powered class, its proficiency check or
 its passenger currency. Self-launches are not towed.
 
+### Launch method in and out
+
+Every write path accepts only those five values (`models.ValidateFlightTextFields`,
+`ErrInvalidLaunchMethod`); the service trims and lower-cases the value first and treats a
+blank one as none. A flight create or update with any other value is a 400, and so is a
+`POST /imports/json` restore: the restore stops at that flight with
+`Failed to import flight on <date> (<reg>): invalid launch method: <value>`, like any other
+invalid flight in a backup.
+
+CSV import maps a launch column to the `launchMethod` import field
+(`importtemplate.ParseLaunchMethod`, case-insensitive, trimmed):
+
+| Cell | Launch method |
+| --- | --- |
+| `W`, `Winde`, `Windenstart`, `winch` | `winch` |
+| `F`, `F-Schlepp`, `Flugzeugschlepp`, `aerotow` | `aerotow` |
+| `E`, `Eigenstart`, `self-launch` | `self-launch` |
+| `A`, `Autoschlepp`, `car` | `car` |
+| `G`, `Gummiseil`, `Gummiseilstart`, `bungee` | `bungee` |
+
+The single letters are Vereinsflieger's `S.-Art` codes; the generic German `Startart`
+header and English `Launch Method`/`Launch Type` headers are recognised too. Any other
+value imports the flight with no launch method; the row does not fail.
+
+An imported launch method (from a launch column or a `[Launch: …]` remarks marker) is kept
+only when `models.LaunchMethodApplies` to the flight's aircraft: the class already in the
+fleet, or for an aircraft the import creates, the class it infers. It applies to no class
+at all, `GLIDER`, `TMG`, and `ULTRALIGHT` with no kind or kind `SAILPLANE` or
+`THREE_AXIS_MOTORGLIDER`; for every other class (`SEP*`, `MEP*`, `SET*`, `GYROPLANE`, other
+ultralight kinds, `OTHER`) it is dropped. Vereinsflieger writes `E` for powered aircraft
+too, so a club Cessna classed `SEP_LAND` imports with no launch method and no launch marker
+in its remarks. The preview applies the same rule. `POST`/`PUT /flights` do not: a launch
+method entered by hand is stored whatever the aircraft.
+
+Exports: the standard CSV layout ends with a `LaunchMethod` column. The EASA, FAA and
+vsimakhin/web-logbook CSV layouts and the EASA and FAA PDFs have no launch column, so
+`flightrules.CombinedRemarks` appends `[Launch: <method>]` to the remarks cell after the
+function-time annotations. On import a `[Launch: <method>]` marker in a remarks column is
+read back as the launch method (a launch column wins) and removed from the remarks, so all
+four CSV layouts round-trip it. The JSON backup carries the field as is. The AMC1 SFCL.050
+sailplane PDF layout with its own launch columns is WP-22.
+
+Aircraft an import creates get a class so the currency engine counts their flights; see
+[Aircraft class on import](./AIRCRAFT_REGISTRATIONS.md#aircraft-class-on-import). A towed
+launch on an aircraft with no other class evidence makes it `GLIDER`.
+
 ## Recency (SFCL.160)
 
 ### (a) Sailplanes, excluding TMGs

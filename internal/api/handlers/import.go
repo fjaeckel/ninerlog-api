@@ -335,9 +335,11 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	var flights []generated.ImportPreviewFlight
 	validCount, dupCount, errCount := 0, 0, 0
 	auxColumns := sessionAuxColumns(session)
+	filterLaunch := h.importLaunchFilter(c.Request.Context(), userID, session, mappingLookup, nil)
 
 	for i, row := range session.rows {
 		flight, _, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
+		filterLaunch(&flight)
 		rowIdx := i + 1
 
 		if len(errs) > 0 {
@@ -458,6 +460,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	multiPilotRegs := collectMultiPilotRegistrations(session.rows, mappingLookup, auxColumns, isSelected)
 
 	aircraftCreated := 0
+	towedRegs := collectTowedLaunchRegs(session.rows, mappingLookup, isSelected)
 
 	// Auto-create aircraft from ForeFlight Aircraft Table if present
 	if len(session.aircraft) > 0 {
@@ -484,23 +487,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 				model_ = typeCode
 			}
 
-			// Map ForeFlight class to aircraft class
-			var aircraftClass *string
-			ffClass := strings.ToLower(strings.TrimSpace(acRow["Class"]))
-			switch ffClass {
-			case "airplane_single_engine_land":
-				c := "SEP_LAND"
-				aircraftClass = &c
-			case "airplane_single_engine_sea":
-				c := "SEP_SEA"
-				aircraftClass = &c
-			case "airplane_multi_engine_land":
-				c := "MEP_LAND"
-				aircraftClass = &c
-			case "airplane_multi_engine_sea":
-				c := "MEP_SEA"
-				aircraftClass = &c
-			}
+			aircraftClass := models.InferImportedAircraftClass(
+				models.ClassType(importtemplate.ForeFlightAircraftClass(acRow["Class"])), reg, towedRegs[reg])
 
 			newAircraft := &models.Aircraft{
 				UserID:        userID,
@@ -554,13 +542,14 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		// Make/Model are required by Aircraft.Validate but a flight row carries
 		// neither; seed them from the type code, as the ForeFlight path does.
 		newAircraft := &models.Aircraft{
-			UserID:       userID,
-			Registration: reg,
-			Type:         typeCode,
-			Make:         typeCode,
-			Model:        typeCode,
-			IsActive:     true,
-			IsMultiPilot: multiPilotRegs[reg],
+			UserID:        userID,
+			Registration:  reg,
+			Type:          typeCode,
+			Make:          typeCode,
+			Model:         typeCode,
+			IsActive:      true,
+			IsMultiPilot:  multiPilotRegs[reg],
+			AircraftClass: models.InferImportedAircraftClass("", reg, towedRegs[reg]),
 		}
 		if err := h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft); err != nil {
 			// Fleet-entry failures are non-fatal; the flights still import.
@@ -584,6 +573,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		strictState = state
 	}
 
+	filterLaunch := h.importLaunchFilter(c.Request.Context(), userID, session, mappingLookup, isSelected)
+
 	for i, row := range session.rows {
 		rowIdx := i + 1
 		if !isSelected(rowIdx) {
@@ -592,6 +583,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		flight, extras, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
+		filterLaunch(&flight)
 		if len(errs) > 0 {
 			for _, e := range errs {
 				importErrors = append(importErrors, struct {
@@ -1026,6 +1018,11 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			} else {
 				errs = append(errs, fieldError{"dualGivenTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
+		case "launchMethod":
+			if m := importtemplate.ParseLaunchMethod(val); m != "" {
+				lm := generated.FlightCreateLaunchMethod(m)
+				flight.LaunchMethod = &lm
+			}
 		case "person1", "person2", "person3", "person4", "person5", "person6":
 			slot := string(mapping.TargetField)
 			name, role := foreFlightPersonNameRole(val)
@@ -1072,6 +1069,21 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 				flight.TakeoffsDay = &n
 			} else {
 				flight.TakeoffsNight = &n
+			}
+		}
+	}
+
+	// Launch method from a "[Launch: …]" remarks marker (flightrules.LaunchRemark).
+	if flight.Remarks != nil {
+		if m, rest := flightrules.ExtractLaunchRemark(*flight.Remarks); m != "" {
+			if flight.LaunchMethod == nil {
+				lm := generated.FlightCreateLaunchMethod(m)
+				flight.LaunchMethod = &lm
+			}
+			if rest == "" {
+				flight.Remarks = nil
+			} else {
+				flight.Remarks = &rest
 			}
 		}
 	}
@@ -1361,6 +1373,10 @@ func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras
 	if flight.InstructorComments != nil {
 		newFlight.InstructorComments = flight.InstructorComments
 	}
+	if flight.LaunchMethod != nil {
+		lm := string(*flight.LaunchMethod)
+		newFlight.LaunchMethod = &lm
+	}
 	newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
 	// An imported night or cross-country value is stored as an override,
 	// capped at block time.
@@ -1554,6 +1570,60 @@ func collectAircraftFromRows(rows []map[string]string, mappings map[string]gener
 		}
 	}
 	return found
+}
+
+// importLaunchFilter returns a function that clears a flight's launch method
+// unless models.LaunchMethodApplies to its aircraft: the fleet entry when the
+// user has one, otherwise the class the import infers for it.
+func (h *APIHandler) importLaunchFilter(ctx context.Context, userID uuid.UUID, session *uploadSession, mappings map[string]generated.ImportColumnMapping, isSelected func(rowIdx int) bool) func(*generated.FlightCreate) {
+	fleet := make(map[string]*models.Aircraft)
+	if list, err := h.aircraftService.ListAircraft(ctx, userID); err == nil {
+		for _, a := range list {
+			fleet[registration.Canonical(a.Registration)] = a
+		}
+	}
+	sourceClass := make(map[string]string)
+	for _, acRow := range session.aircraft {
+		if reg := registration.Canonical(acRow["AircraftID"]); reg != "" {
+			sourceClass[reg] = importtemplate.ForeFlightAircraftClass(acRow["Class"])
+		}
+	}
+	towed := collectTowedLaunchRegs(session.rows, mappings, isSelected)
+	return func(f *generated.FlightCreate) {
+		if f.LaunchMethod == nil || f.AircraftReg == nil {
+			return
+		}
+		reg := registration.Canonical(*f.AircraftReg)
+		var class *string
+		var kind *models.ULKind
+		if a, ok := fleet[reg]; ok {
+			class, kind = a.AircraftClass, a.ULKind
+		} else {
+			class = models.InferImportedAircraftClass(models.ClassType(sourceClass[reg]), reg, towed[reg])
+		}
+		if !models.LaunchMethodApplies(class, kind) {
+			f.LaunchMethod = nil
+		}
+	}
+}
+
+// collectTowedLaunchRegs returns the registrations of the selected rows whose
+// launch method is towed (models.IsTowedLaunch).
+func collectTowedLaunchRegs(rows []map[string]string, mappings map[string]generated.ImportColumnMapping, isSelected func(rowIdx int) bool) map[string]bool {
+	towed := make(map[string]bool)
+	for i, row := range rows {
+		if isSelected != nil && !isSelected(i+1) {
+			continue
+		}
+		f, _ := mapRowToFlight(row, mappings, nil)
+		if f.LaunchMethod == nil || f.AircraftReg == nil || *f.AircraftReg == "" {
+			continue
+		}
+		if models.IsTowedLaunch(string(*f.LaunchMethod)) {
+			towed[*f.AircraftReg] = true
+		}
+	}
+	return towed
 }
 
 // parseForeFlightApproach parses a single ForeFlight Approach cell into an

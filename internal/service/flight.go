@@ -84,6 +84,7 @@ func (s *FlightService) CreateFlightChecked(ctx context.Context, flight *models.
 // in one transaction.
 func (s *FlightService) CreateFlightWith(ctx context.Context, flight *models.Flight, opts FlightWriteOptions) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
+	models.NormalizeLaunchMethod(flight)
 
 	// Validate text field lengths
 	if err := models.ValidateFlightTextFields(flight); err != nil {
@@ -144,6 +145,7 @@ func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight,
 // (recalc, aircraft_rename, import) are never classified.
 func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Flight, userID uuid.UUID, opts FlightWriteOptions) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
+	models.NormalizeLaunchMethod(flight)
 
 	// Verify ownership
 	existing, err := s.flightRepo.GetByID(ctx, flight.ID)

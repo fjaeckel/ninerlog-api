@@ -76,7 +76,7 @@ At the service layer, so every write path is covered by one choke point:
 | --- | --- |
 | `POST /aircraft`, `PATCH /aircraft/{id}` | `AircraftService.CreateAircraft` / `UpdateAircraft` |
 | `POST /flights`, `PATCH /flights/{id}`, flight sessions | `FlightService.CreateFlight` / `UpdateFlight` |
-| CSV / ForeFlight / JSON-backup import | the services above, plus canonical keying in `internal/api/handlers/import.go` so one aircraft spelled two ways in one file yields one fleet entry |
+| CSV / ForeFlight / JSON-backup import | the services above, plus canonical keying in `internal/api/handlers/import.go` so one aircraft spelled two ways in one file yields one fleet entry (and the class hint below) |
 | `POST /flights/recalculate` | the services above, plus a fleet pass — see below |
 
 Two consequences worth knowing:
@@ -89,6 +89,33 @@ Two consequences worth knowing:
 - **Signed flights are not touched.** A flight carrying a completed signature is
   locked (`ErrFlightLocked`) and keeps its original spelling, exactly as it keeps
   every other field. Void the signature to normalise it.
+
+## Aircraft class on import
+
+A registration also hints at what an aircraft is. `models.ClassFromRegistration`
+(`internal/models/aircraft_class_infer.go`) reads that hint for German registrations only,
+after normalisation:
+
+| Registration | Class | Why it stops there |
+| --- | --- | --- |
+| `D-` + four digits (`D-1234`) | `GLIDER` | Germany issues numeric marks to sailplanes only |
+| `D-M…` | `ULTRALIGHT`, no `ulKind` | the kind (three-axis, trike, gyroplane…) is not in the mark |
+| `D-K…` | none | self-launching sailplane (`GLIDER`) and touring motor glider (`TMG`) share the block; see [SAILPLANES.md](./SAILPLANES.md) |
+| anything else | none | no other state's marks are used |
+
+It is used only for aircraft a CSV or ForeFlight import creates, through
+`models.InferImportedAircraftClass`, in this order:
+
+1. the class the source file states (ForeFlight's Aircraft Table `Class`:
+   `airplane_single_engine_land/sea`, `airplane_multi_engine_land/sea`, `glider`,
+   `rotorcraft_gyroplane`; Vereinsflieger exports carry no aircraft category);
+2. `ClassFromRegistration`;
+3. `GLIDER` when a selected row on that registration has a towed launch (winch, aerotow,
+   car, bungee).
+
+Otherwise the class stays unset, which the pilot has to fill in before the aircraft's
+flights count toward a rating. An aircraft already in the fleet is never reclassified, and
+`POST /aircraft` never guesses: the heuristic serves imports, where nobody is asked.
 
 ## Fixing existing data
 
