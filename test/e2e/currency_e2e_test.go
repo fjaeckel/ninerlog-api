@@ -1890,8 +1890,8 @@ func TestFAA_RecreationalPilot_NoNightNoIR(t *testing.T) {
 
 // ─── FAA Glider ──────────────────────────────────────────────────────────────
 
-// TestFAA_Glider_Current — 3 launches & landings in 90 days.
-func TestFAA_Glider_Current(t *testing.T) {
+// TestFAA_Glider_PaxCurrencyIsNotRatingStatus — §61.57(a) makes the pilot passenger current; the rating follows the §61.56 flight review.
+func TestFAA_Glider_PaxCurrencyIsNotRatingStatus(t *testing.T) {
 	c := setupCurrencyUser(t, "faa-glider-cur")
 	createAircraftCur(t, c, "NGLDR1", "ASK21", "SEP_LAND")
 
@@ -1912,7 +1912,16 @@ func TestFAA_Glider_Current(t *testing.T) {
 	if rc == nil {
 		t.Fatal("FAA Glider not found")
 	}
-	assertStr(t, "status", rc["status"], "current")
+	assertStr(t, "status", rc["status"], "expired")
+	assertStr(t, "messageKey", rc["messageKey"], "flight_review.none_on_record")
+	assertStr(t, "ruleDescriptionKey", rc["ruleDescriptionKey"], "faa_flight_review")
+
+	pc := findPaxCurByAuth(result, "SEP_LAND", "FAA")
+	if pc == nil {
+		t.Fatal("FAA glider passenger currency not found")
+	}
+	assertStr(t, "pax dayStatus", pc["dayStatus"], "current")
+	assertInt(t, "pax dayLandings", gi(pc, "dayLandings"), 3)
 }
 
 // TestFAA_Glider_NoNightPrivilege — gliders have no night privilege.

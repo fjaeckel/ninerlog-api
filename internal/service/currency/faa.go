@@ -29,7 +29,7 @@ func (e *FAAEvaluator) Evaluate(ctx context.Context, rating *models.ClassRating,
 
 // faaSelectRule dispatches a (license type, class type) pair to its rule.
 //   - Sport/Recreational Pilot (§61.315): IR is suppressed (day VFR only)
-//   - Glider: uses launches instead of landings
+//   - Glider: §61.56 flight review, with the §61.56(b) glider alternative
 func faaSelectRule(rating *models.ClassRating, license *models.License) *ratingRule {
 	lt := strings.ToUpper(license.LicenseType)
 
@@ -43,7 +43,6 @@ func faaSelectRule(rating *models.ClassRating, license *models.License) *ratingR
 		}
 		return &faaInstrumentRule
 	default:
-		// Glider uses launches instead of landings
 		if lt == "GLIDER" || rating.ClassType == models.ClassTypeGlider {
 			return &faaGliderRule
 		}
@@ -159,23 +158,31 @@ var faaInstrumentRule = ratingRule{
 	},
 }
 
-// faaGliderRule — FAA §61.57(a) for glider category. Gliders use "launches"
-// instead of "takeoffs": 3 launches and landings in the preceding 90 days.
-// Night and IR currency are not applicable for gliders.
+// faaGliderRule — FAA §61.56 flight review as the status of a glider rating:
+//   - a flight review within the preceding 24 calendar months, OR
+//   - 3 instructional flights in a glider in the same window (§61.56(b))
 //
-// The description defaults to the passenger text and is upgraded to the
-// glider-specific text after a successful data fetch.
+// §61.57(a) passenger currency is reported by EvaluatePassengerCurrency.
 var faaGliderRule = ratingRule{
-	displayKey:  "faa_pax_day_night",
-	description: "Requires 3 takeoffs & landings in preceding 90 days in same category/class for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57)",
-	window:      windowSpec{kind: windowRollingNow, days: 90},
-	scope:       scopeByClass,
+	displayKey:  "faa_flight_review",
+	description: "Requires a flight review within the preceding 24 calendar months; for a glider, three instructional flights in a glider may replace the 1 hour of flight training (14 CFR 61.56(a)/(b)). Passenger currency (14 CFR 61.57(a)) is reported separately",
+	scope:       scopeClassGroup,
+	classGroup: func(_ *models.ClassRating, _ []*models.ClassRating) []models.ClassType {
+		return []models.ClassType{models.ClassTypeGlider}
+	},
 	countsTowed: true,
 	baseReqs: []reqSpec{
-		{nameKey: ReqKeyLaunchesAndLanding, metric: mLandings, threshold: 3, unit: "launches"},
+		{nameKey: ReqKeyTrainingFlights, metric: mTrainingFlights, threshold: 3, unit: "flights"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		now := time.Now()
+		rt.since = faaFlightReviewWindowStart(now)
+		lastReview, err := rt.dp.GetLastFlightReview(ctx, rt.license.UserID)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+			return
+		}
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -183,21 +190,55 @@ var faaGliderRule = ratingRule{
 			return
 		}
 		rt.result.Progress = progress
-		rt.result.RuleDescription = "Requires 3 launches & landings in preceding 90 days in same category (14 CFR 61.57(a)) — night and IFR not applicable for gliders"
 
-		reqs := buildReqs(progress, rt.rule.baseReqs)
-		launchReq := reqs[0]
-		rt.result.Requirements = reqs
+		var review *FlightReviewStatus
+		if lastReview != nil {
+			review = faaFlightReviewStatus(now, *lastReview)
+		}
+		reqReview := flightReviewRequirement(lastReview, review)
+		alt := buildReqs(progress, rt.rule.baseReqs)
+		rt.result.Requirements = append([]Requirement{reqReview}, alt...)
 
-		if !launchReq.Met {
-			rt.result.Status = StatusExpired
-			needed := 3 - progress.Landings
-			rt.result.setMsg(MsgRatingGliderNotCurrent, msgNeeded(needed))
-		} else {
+		switch {
+		case review != nil && review.Status == StatusCurrent:
 			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingGliderCurrent, nil)
+			rt.result.setMsg(review.MessageKey, review.MessageParams)
+		case alt[0].Met:
+			rt.result.Status = StatusCurrent
+			rt.result.setMsg(MsgRatingFlightReviewGliderAlt, nil)
+		case review != nil:
+			rt.result.Status = review.Status
+			rt.result.setMsg(review.MessageKey, review.MessageParams)
+		default:
+			rt.result.Status = StatusExpired
+			rt.result.setMsg(MsgFlightReviewNoneOnRecord, nil)
 		}
 	},
+}
+
+// faaFlightReviewWindowStart returns the first day of the earliest calendar
+// month a §61.56 flight review completed in is still valid at now.
+func faaFlightReviewWindowStart(now time.Time) time.Time {
+	return time.Date(now.Year(), now.Month()-24, 1, 0, 0, 0, 0, time.UTC)
+}
+
+// flightReviewRequirement is the §61.56 flight review row: met while the last
+// review is current or expiring.
+func flightReviewRequirement(lastReview *time.Time, review *FlightReviewStatus) Requirement {
+	req := Requirement{
+		NameKey: ReqKeyFlightReview, Required: 1, Unit: "review",
+		MessageKey: MsgRequirementProfCheckMissing,
+	}
+	if lastReview == nil {
+		return req
+	}
+	req.MessageKey = MsgRequirementProfCheckCompleted
+	req.MessageParams = msgDate(lastReview.Format("2006-01-02"))
+	if review.Status != StatusExpired {
+		req.Met = true
+		req.Current = 1
+	}
+	return req
 }
 
 // faaSuppressedIRRule — Sport/Recreational Pilot certificates have no instrument
@@ -246,7 +287,8 @@ func HasNightPrivilege(licenseType, authority string) bool {
 // currency, separate from rating currency.
 func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, _ []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
 	since := paxWindowStart(time.Now())
-	hasNight := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority)
+	sailplane := strings.EqualFold(license.LicenseType, "GLIDER") || classType == models.ClassTypeGlider
+	hasNight := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority) && classType != models.ClassTypeGlider
 
 	result := PassengerCurrency{
 		ClassType:           classType,
@@ -263,8 +305,13 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 		result.NightRequired = 0
 		result.RuleDescription = "3 takeoffs & landings in preceding 90 days for day passenger currency (14 CFR 61.57(a)) — night not applicable for " + license.LicenseType
 	}
+	if sailplane {
+		result.RuleDescription = "3 takeoffs & landings as sole manipulator of the controls in a glider in the preceding 90 days to carry passengers (14 CFR 61.57(a)) — night not applicable for gliders"
+		result.RuleDescriptionKey = "faa_glider"
+	}
 
-	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, strings.EqualFold(license.LicenseType, "GLIDER")), false, since)
+	// Sole manipulator of the controls: flights with PIC time only.
+	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, sailplane), sailplane, since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown

@@ -227,6 +227,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   gliders, or a proficiency check. An SPL `TMG` rating follows SFCL.160(b). Launch recency
   is reported per method (SFCL.155(c)), with TMG take-offs counting toward self-launch.
   Details in [SAILPLANES.md](./SAILPLANES.md).
+- **FAA gliders** — an FAA glider rating is current on the §61.56 flight review, or on three
+  instructional glider flights in the same 24 calendar months (§61.56(b)). §61.57(a) is shown
+  as passenger currency only, counting landings as PIC, with no night requirement on any FAA
+  licence. Details in [SAILPLANES.md](./SAILPLANES.md#faa-gliders-14-cfr-part-61).
 
 - **Custom currency rules** (`/custom-currency`, `internal/service/currency/custom*.go`,
   `internal/api/handlers/custom_currency.go`) — a pilot writes their own rule as a

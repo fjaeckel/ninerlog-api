@@ -683,44 +683,6 @@ func TestFAA_RecreationalPilot_IR_Suppressed(t *testing.T) {
 	}
 }
 
-func TestFAA_GliderCurrency_Current(t *testing.T) {
-	eval := NewFAAEvaluator()
-	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		Landings: 5, Flights: 5,
-	}
-
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "Glider"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
-	if result.Status != StatusCurrent {
-		t.Errorf("Status = %s, want current (glider with 5 launches)", result.Status)
-	}
-	if len(result.Requirements) != 1 {
-		t.Fatalf("Expected 1 requirement (launches), got %d", len(result.Requirements))
-	}
-	if result.Requirements[0].NameKey != ReqKeyLaunchesAndLanding {
-		t.Errorf("Requirement name = %s, want 'Launches & Landings'", result.Requirements[0].NameKey)
-	}
-}
-
-func TestFAA_GliderCurrency_NotCurrent(t *testing.T) {
-	eval := NewFAAEvaluator()
-	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{
-		Landings: 1, Flights: 1,
-	}
-
-	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeSEPLand, LicenseID: uuid.New()}
-	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "FAA", LicenseType: "Glider"}
-
-	result := eval.Evaluate(context.Background(), rating, license, dp)
-	if result.Status != StatusExpired {
-		t.Errorf("Status = %s, want expired (glider with only 1 launch)", result.Status)
-	}
-}
-
 func TestFAA_SportPilot_PassengerCurrency_NoNight(t *testing.T) {
 	eval := NewFAAEvaluator()
 	dp := newMockFlightDataProvider()

@@ -44,8 +44,7 @@ const (
 	MsgRatingPaxDayCurrentNightNo = "rating.pax_day_current_night_not"
 	MsgRatingPaxCurrentDayNight   = "rating.pax_current_day_night"
 
-	MsgRatingGliderNotCurrent = "rating.glider_not_current"
-	MsgRatingGliderCurrent    = "rating.glider_current"
+	MsgRatingFlightReviewGliderAlt = "rating.flight_review_glider_alternative"
 )
 
 // Passenger currency keys (PassengerCurrency.MessageKey).
@@ -79,29 +78,29 @@ const (
 
 // Requirement name keys (Requirement.NameKey).
 const (
-	ReqKeyTotalTime          = "requirement.total_time"
-	ReqKeyPICTime            = "requirement.pic_time"
-	ReqKeyIFRTime            = "requirement.ifr_time"
-	ReqKeyLandings           = "requirement.landings"
-	ReqKeyDayLandings        = "requirement.day_landings"
-	ReqKeyNightLandings      = "requirement.night_landings"
-	ReqKeyRefresherTraining  = "requirement.refresher_training"
-	ReqKeyTrainingFlight     = "requirement.training_flight"
-	ReqKeyProficiencyCheck   = "requirement.proficiency_check"
-	ReqKeyApproaches         = "requirement.approaches"
-	ReqKeyHolds              = "requirement.holds"
-	ReqKeyRouteSectors       = "requirement.route_sectors"
-	ReqKeyLaunches           = "requirement.launches"
-	ReqKeyLaunchesAndLanding = "requirement.launches_and_landings"
-	ReqKeySEPLandTime        = "requirement.sep_land_time"
-	ReqKeySEPLandLandings    = "requirement.sep_land_landings"
-	ReqKeySEPSeaTime         = "requirement.sep_sea_time"
-	ReqKeySEPSeaLandings     = "requirement.sep_sea_landings"
-	ReqKeyFlightTime         = "requirement.flight_time"
-	ReqKeyTrainingFlights    = "requirement.training_flights"
-	ReqKeyTMGTime            = "requirement.tmg_time"
-	ReqKeyTMGLandings        = "requirement.tmg_landings"
-	ReqKeyTMGTrainingFlight  = "requirement.tmg_training_flight"
+	ReqKeyTotalTime         = "requirement.total_time"
+	ReqKeyPICTime           = "requirement.pic_time"
+	ReqKeyIFRTime           = "requirement.ifr_time"
+	ReqKeyLandings          = "requirement.landings"
+	ReqKeyDayLandings       = "requirement.day_landings"
+	ReqKeyNightLandings     = "requirement.night_landings"
+	ReqKeyRefresherTraining = "requirement.refresher_training"
+	ReqKeyTrainingFlight    = "requirement.training_flight"
+	ReqKeyProficiencyCheck  = "requirement.proficiency_check"
+	ReqKeyApproaches        = "requirement.approaches"
+	ReqKeyHolds             = "requirement.holds"
+	ReqKeyRouteSectors      = "requirement.route_sectors"
+	ReqKeyLaunches          = "requirement.launches"
+	ReqKeySEPLandTime       = "requirement.sep_land_time"
+	ReqKeySEPLandLandings   = "requirement.sep_land_landings"
+	ReqKeySEPSeaTime        = "requirement.sep_sea_time"
+	ReqKeySEPSeaLandings    = "requirement.sep_sea_landings"
+	ReqKeyFlightTime        = "requirement.flight_time"
+	ReqKeyTrainingFlights   = "requirement.training_flights"
+	ReqKeyTMGTime           = "requirement.tmg_time"
+	ReqKeyTMGLandings       = "requirement.tmg_landings"
+	ReqKeyTMGTrainingFlight = "requirement.tmg_training_flight"
+	ReqKeyFlightReview      = "requirement.flight_review"
 )
 
 // Launch method key (LaunchMethodCurrency.MessageKey).

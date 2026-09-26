@@ -477,7 +477,10 @@ authorities DULV and DAeC; and an ultralight licence type (`UL`, `UL-…`, `Ultr
 `Ultraleicht`) under LBA — an LBA-issued PPL keeps its night privilege. Licence types are matched case-insensitively, and the EASA
 spellings are shared with the rating dispatch in `easaSelectRule` (`isEASALAPLA`,
 `isEASASailplane`), so a LAPL or SPL gets both its FCL.140 recency rule and its night
-restriction from the same check.
+restriction from the same check. Independently of the licence type, passenger currency for
+the `GLIDER` class never reports night privilege — under EASA and FAA alike, so a glider
+rating on an FAA Private licence has no night requirement while that licence's SEP rating
+keeps one.
 
 ### Regulatory differences (EASA vs FAA)
 
@@ -489,7 +492,7 @@ The two main rule sets differ substantially, which is why each has its own evalu
 | Passenger carriage | FCL.060(b): 3 takeoffs/landings; night requires 1 night landing unless IR held (FCL.060(b)(2)(ii)) | §61.57(a)/(b): 3 takeoffs/landings in 90 days (day); 3 full-stop night landings for night |
 | Instrument recency | FCL.625.A revalidation | §61.57(c): rolling 6 months |
 | Flight review | Recency requirements | §61.56: every 24 calendar months |
-| Gliders | SFCL.160 recency, SFCL.155 launch methods — see [SAILPLANES.md](./SAILPLANES.md) | §61.57(d) |
+| Gliders | SFCL.160 recency, SFCL.155 launch methods — see [SAILPLANES.md](./SAILPLANES.md) | §61.56 flight review, with the §61.56(b) three-instructional-flights alternative; §61.57(a) passengers, PIC only, no night — see [SAILPLANES.md](./SAILPLANES.md#faa-gliders-14-cfr-part-61) |
 | Gyroplanes | FCL.240.G (GPL) — see [Gyroplanes (GPL)](#gyroplanes-gpl) | class-generic §61.57 |
 
 `GermanULEvaluator` handles German ultralight rules, delegates every non-`ULTRALIGHT` rating to
@@ -590,7 +593,7 @@ license type:
 
 | Class | LBA / DULV / DAeC | EASA / unknown authority | FAA |
 | --- | --- | --- | --- |
-| `GLIDER` | SFCL.160(a) (`easaSPLRule`) | SFCL.160(a) (`easaSPLRule`) | §61.57 glider launches (`faaGliderRule`) |
+| `GLIDER` | SFCL.160(a) (`easaSPLRule`) | SFCL.160(a) (`easaSPLRule`) | §61.56 flight review or three instructional glider flights (`faaGliderRule`); §61.57(a) as passenger currency |
 | `ULTRALIGHT` | LuftPersV §45 by kind + §45a passenger currency by kind | expiry only, no passenger currency | expiry only, no passenger currency |
 | `GYROPLANE` | FCL.240.G (`easaGPLRule`, via EASA) | FCL.240.G (`easaGPLRule`); unknown authority: expiry only | §61.57 (`faaPassengerRatingRule`) |
 
