@@ -76,7 +76,7 @@ The implementers are told not to invent these. Each WP that depends on a decisio
 | D2 | Winch circuits: one logbook row per circuit, or one row with `launches = N`? | One row per circuit by default. A "one line" option for AMC1 FCL.050-style series entries. Both need a `launches` field separate from take-offs. |
 | D3 | Block times optional for every class, or only for gliders and ULs? | Accept either block times or take-off/landing times for every flight. Total time = block span, otherwise take-off to landing. Keeps the rule class-independent. |
 | D4 | IGC files: parse and discard, or store them as user documents? | Store them, attached to the flight, and include them in export (rule 6). They are the pilot's evidence. |
-| D5 | OGN / WeGlide / Vereinsflieger API integrations: now or later? | Later (wave 4). CSV and IGC first. OGN needs a privacy review (DDB no-track/no-ident flags). |
+| D5 | OGN / WeGlide / Vereinsflieger integrations? | **Decided (2026-09-26): nothing paid.** No Vereinsflieger API (it needs a paid, per-club key). Vereinsflieger data comes in only through the free CSV export the pilot downloads, which the importer already reads (WP-21 adds `S.-Art`). WeGlide through the pilot's own free API key (WP-41). OGN is free under ODbL (WP-42). |
 | D6 | Scope for UK NPPL(M) and FAA Sport/Part 103? | After the German/EASA work is finished (wave 4). |
 
 ## 3. Work packages
@@ -306,9 +306,23 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 ### Wave 4: ecosystem (after D5 and D6)
 
-- WP-40: Vereinsflieger API sync with a per-club app key.
-- WP-41: WeGlide link (personal API key, 60 requests/day).
-- WP-42: OGN auto-detected flight suggestions, respecting DDB privacy flags.
+- ~~WP-40: Vereinsflieger API sync~~ — dropped (D5: paid per-club key). The CSV import covers it.
+- WP-41: WeGlide link. The pilot pastes their own API key (Profile → Settings → Advanced →
+  API Key on weglide.org), which is free and sent as `X-API-Key`. The key allows 60 requests a
+  day, and a user can hold at most 2. It only reads the pilot's own flights and IGC files.
+  WeGlide grants OAuth only to apps with 1,000 or more users, so there is no "Sign in with
+  WeGlide". Store the key encrypted (`pkg/cryptoutil`, like backup credentials), and sync
+  at most once a day per user. The key is user-owned secret material: document it as exempt
+  from export, with the reason.
+- WP-42: OGN flight suggestions. The data is free, under ODbL, and comes from the public
+  APRS feed. OGN rules: no re-distribution of data older than 24 hours; `no-track` devices
+  are never received, and `no-ident` must not be shown. The pilot links their FLARM ID
+  per aircraft. A server-side APRS listener turns take-off and landing events into a
+  *suggestion* that expires after 24 hours. Only the times and site the pilot confirms are
+  stored, as their own flight; raw positions are never stored. The only cost is operating
+  an always-on connection, which needs a metric, a Grafana panel and an admin config flag
+  (rule 5). An opt-in env var keeps self-hosters who don't want it unaffected. Confirm the
+  24-hour interpretation with OGN before building.
 - WP-43: UK NPPL(M)/microlight "12 in 24" evaluator.
 - WP-44: FAA Sport Pilot (MOSAIC) and a Part 103 light mode.
 - WP-45: offline club-day mode for the launch point.
