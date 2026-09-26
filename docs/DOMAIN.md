@@ -1359,7 +1359,7 @@ all route through it.
 | `ULTRALIGHT` | `ULTRALIGHT` rating; UL licence | class `ULTRALIGHT` (any kind) |
 | `GYROPLANE` | `GYROPLANE` rating; GPL | class `GYROPLANE`; UL `GYROPLANE`¹ |
 | `HELICOPTER` | `(H)` licence | UL `HELICOPTER`¹ |
-| `IFR` | `IR` rating; `IR` licence | flights with IFR time or approaches |
+| `IFR` | `IR` rating; `IR` licence | flights with IFR time or approaches, except on sailplanes (their IFR time is cloud flying) |
 | `MULTI_CREW` | ATPL, MPL | aircraft flagged multi-pilot; flights with multi-pilot, SIC or relief time |
 | `INSTRUCTOR` | instructor/examiner licence; `OTHER` rating whose notes classify as instructor | flights with dual-given or examiner time (`FLIGHTS_INSTRUCTING`) |
 | `SIMULATOR` | — | FSTD sessions |

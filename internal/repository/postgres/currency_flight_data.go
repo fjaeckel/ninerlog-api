@@ -54,6 +54,13 @@ func launchCountExpr(alias string) string {
 // launchCountSQL is launchCountExpr over flights aliased f.
 var launchCountSQL = launchCountExpr("f")
 
+// notSailplaneFlightSQL excludes flights aliased f on GLIDER aircraft and UL sailplanes.
+const notSailplaneFlightSQL = `NOT EXISTS (
+			SELECT 1 FROM aircraft sa
+			WHERE sa.user_id = f.user_id AND sa.registration = f.aircraft_reg
+				AND (upper(trim(sa.aircraft_class)) = 'GLIDER'
+					OR (upper(trim(sa.aircraft_class)) = 'ULTRALIGHT' AND sa.ul_kind = 'SAILPLANE')))`
+
 // progressSelect aggregates a Progress row over flights aliased f.
 var progressSelect = `
 			COUNT(*) as flights,
@@ -196,6 +203,7 @@ func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 		FROM flights f
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND f.date >= $2
 			AND ($3::date IS NULL OR f.date <= $3::date)
+			AND ` + notSailplaneFlightSQL + `
 	`
 	return p.scanProgress(ctx, query, userID, since, p.untilArg())
 }
