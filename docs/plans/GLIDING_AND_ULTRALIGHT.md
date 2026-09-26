@@ -271,7 +271,14 @@ open.
 - Reports get a "Soaring" section that folds unless `SAILPLANE`.
 - Closes L-job 4 and P-job 2.
 
-**WP-29. Training progress** (api + fe)
+**WP-29. Training progress** (api + fe) — **API half implemented**: `GET /training/progress`
+(`internal/service/training`), templates `SPL` (SFCL.130, with the informational SFCL.130(b)
+credit), `SPL_TMG_EXTENSION` (SFCL.150(b)), `UL_THREE_AXIS` and `UL_WEIGHT_SHIFT`
+(LuftPersV §42); a programme appears while its discipline is `training` or on request.
+Instructor signatures are counted per programme (`signedFlights`), not required. Cross-country
+items approximate the distance from airport-to-airport distance
+([SAILPLANES.md](../SAILPLANES.md#training-progress)); no migration. FI(S)/BI(S)/FE(S)
+privileges now make `INSTRUCTOR` active (privileges report B7). Frontend half open.
 
 - Syllabus templates:
   - SPL (SFCL.130): 15 h, 10 h dual, 2 h supervised solo, 45 launches, cross-country

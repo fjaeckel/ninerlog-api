@@ -30,6 +30,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
 	"github.com/fjaeckel/ninerlog-api/internal/service/pilotprofile"
+	"github.com/fjaeckel/ninerlog-api/internal/service/training"
 	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
@@ -364,11 +365,14 @@ func main() {
 	apiHandler.SetLogbookService(logbookService)
 	apiHandler.SetOIDCService(oidcService)
 	apiHandler.SetCustomCurrencyService(customCurrencyService)
-	apiHandler.SetPilotProfileService(pilotprofile.NewService(
+	pilotProfileService := pilotprofile.NewService(
 		postgres.NewPilotProfileRepository(db),
 		postgres.NewDisciplineEvidenceSource(db),
 		licenseRepo, classRatingRepo, aircraftRepo,
-	))
+	)
+	pilotProfileService.SetPrivilegeSource(licencePrivilegeRepo)
+	apiHandler.SetPilotProfileService(pilotProfileService)
+	apiHandler.SetTrainingService(training.NewService(pilotProfileService, licenseRepo, postgres.NewTrainingRepository(db)))
 	apiHandler.SetLicencePrivilegeService(licencePrivilegeService)
 	apiHandler.SetCustomReportService(customreport.NewService(
 		postgres.NewCustomReportRepository(db),

@@ -247,3 +247,47 @@ func TestService_ReplaceAndSettings(t *testing.T) {
 		t.Errorf("Replace(bad intent) err = %v", err)
 	}
 }
+
+type stubPrivileges struct {
+	list []*models.LicencePrivilege
+	err  error
+}
+
+func (s stubPrivileges) ListByUser(context.Context, uuid.UUID) ([]*models.LicencePrivilege, error) {
+	return s.list, s.err
+}
+
+func TestService_PrivilegeSource(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     *stubPrivileges
+		want    models.DisciplineStatus
+		wantErr bool
+	}{
+		{name: "no source wired", src: nil, want: models.StatusOff},
+		{name: "P4 FI(S) privilege activates INSTRUCTOR", src: &stubPrivileges{list: []*models.LicencePrivilege{{ID: uuid.New(), Kind: models.PrivilegeFIS}}}, want: models.StatusActive},
+		{name: "read failure is an error", src: &stubPrivileges{err: errors.New("boom")}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userID := uuid.New()
+			svc, _ := newTestService(userID)
+			if tt.src != nil {
+				svc.SetPrivilegeSource(*tt.src)
+			}
+			p, err := svc.Get(context.Background(), userID)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := statusOf(p, models.DisciplineInstructor); got != tt.want {
+				t.Errorf("INSTRUCTOR = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}

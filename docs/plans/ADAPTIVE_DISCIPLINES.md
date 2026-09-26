@@ -67,7 +67,7 @@ Evidence strengths:
 | `HELICOPTER` | `(H)` licence type | UL `HELICOPTER` | same |
 | `IFR` | `IR` rating | IFR time or approaches logged | intent `goal` only |
 | `MULTI_CREW` | ATPL, MPL | multi-pilot aircraft; SIC, multi-pilot or relief time | — |
-| `INSTRUCTOR` | FI/CRI/FI(S)/examiner licence or rating text | dual-given or examiner time | — |
+| `INSTRUCTOR` | FI/CRI/FI(S)/examiner licence or rating text; `FI_S`/`BI_S`/`FE_S` licence privilege | dual-given or examiner time | — |
 | `SIMULATOR` | — | FSTD sessions | — |
 
 Status resolution, first match wins:
