@@ -59,6 +59,7 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	}
 	stats.FlightFiles.Count = adminStats.FlightFiles
 	stats.FlightFiles.TotalBytes = adminStats.FlightFileBytes
+	stats.WeglideLinks = adminStats.WeGlideLinks
 	stats.ImportsByFormat = adminStats.ImportsByFormat
 	stats.CloudBackupDestinations.ByProvider = adminStats.BackupDestinationsByProvider
 	for _, count := range adminStats.BackupDestinationsByProvider {
@@ -285,6 +286,15 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	if updateCheckEnabled && h.updateChecker.Interval() > 0 {
 		interval := h.updateChecker.Interval().String()
 		config.UpdateCheckInterval = &interval
+	}
+
+	weglideLinkEnabled := h.weglideService != nil
+	weglideSyncEnabled := weglideLinkEnabled && h.weglideSyncInterval > 0
+	config.WeglideLinkEnabled = &weglideLinkEnabled
+	config.WeglideSyncEnabled = &weglideSyncEnabled
+	if weglideSyncEnabled {
+		interval := h.weglideSyncInterval.String()
+		config.WeglideSyncInterval = &interval
 	}
 
 	c.JSON(http.StatusOK, config)

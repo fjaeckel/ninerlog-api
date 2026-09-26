@@ -36,6 +36,7 @@ flowchart TD
         NotificationPreference
         NotificationLog
         BackupDestination --> BackupRun
+        WeGlideLink
     end
 
     subgraph platform["Platform-wide tables"]
@@ -440,6 +441,31 @@ foreign key elsewhere in the schema still points at `users(id)`.
 | BackupRun | `backup.go` | 39 | History of backup attempts and outcomes |
 
 See [FEATURES.md](./FEATURES.md#cloud-backups).
+
+## Integration tables
+
+### WeGlideLink (`internal/models/weglide_link.go`, migration 79)
+
+A user's link to their WeGlide account (`weglide_links`), one row per user (`user_id` is the
+primary key; deleting the user cascades it away).
+
+- `api_key_encrypted BYTEA` is the 12-byte nonce followed by the AES-256-GCM ciphertext of
+  the pilot's personal WeGlide API key, sealed with `BACKUP_CREDENTIALS_KEY` (the key backup
+  destination credentials use). The API never returns it.
+- `weglide_user_id` is the WeGlide account the key belongs to, read when the key is linked.
+  Re-linking to a different WeGlide account clears the sync state.
+- `last_sync_at` is the end of the last complete sync and the listing cursor (the next sync
+  starts 30 days before it; the first covers 12 months). `last_sync_status` (`ok`,
+  `partial`, `failed`, CHECK) and `last_sync_error` (at most 500 characters, CHECK;
+  sanitised, never upstream text) describe the latest run.
+- `requests_today` / `requests_day` count WeGlide requests on one UTC date against the 60
+  per day WeGlide allows. Each request is taken by one conditional `UPDATE … RETURNING`, so
+  concurrent runs cannot overspend it.
+- Which WeGlide flights are imported is not stored here: each imported file is a
+  `flight_files` row named `weglide-<WeGlide flight id>.igc`.
+- **Exempt from the JSON export** (`coverage_test.go`): secret material bound to this
+  installation's key; after a move the pilot links WeGlide again. The imported flights and
+  their IGC files are exported.
 
 ## Platform-wide tables
 

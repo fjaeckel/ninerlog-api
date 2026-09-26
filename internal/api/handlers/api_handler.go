@@ -62,6 +62,10 @@ type APIHandler struct {
 	documentFileService *service.DocumentFileService
 	// flightFileService is wired in cmd/api/main.go via SetFlightFileService.
 	flightFileService *service.FlightFileService
+	// weglideService is nil when the WeGlide link is not configured;
+	// weglideSyncInterval is zero when the scheduled sync is off.
+	weglideService      *service.WeGlideService
+	weglideSyncInterval time.Duration
 	// emailDeliveryService and unverifiedAccountService are nil until wired in
 	// cmd/api/main.go; the admin endpoints that use them answer 503 when nil.
 	emailDeliveryService     *service.EmailDeliveryService

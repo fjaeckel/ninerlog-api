@@ -92,6 +92,8 @@ tags:
     description: Cloud backup destinations and scheduled runs (S3 and S3-compatible storage)
   - name: Sync
     description: Incremental synchronisation for offline-capable clients
+  - name: Integrations
+    description: Links to third-party services with the pilot's own credentials (WeGlide)
   - name: Documents
     description: Reference photos/scans attached to a licence or credential (optional feature; see GET /features)
 
@@ -4359,7 +4361,9 @@ paths:
         notification preferences, the carried-forward hours baseline, the
         pilot profile (mode and discipline intents; evidence is derived and not
         exported) and flight recorder files (`flightFiles`: IGC content gzipped
-        and base64-encoded, keyed by the flight's id in the backup).
+        and base64-encoded, keyed by the flight's id in the backup). A WeGlide
+        link is not exported: its API key is secret material, and the pilot links
+        WeGlide again after a restore (flights it imported are exported).
 
         This is the same payload a cloud backup run writes, and
         `POST /imports/json` restores every section of it.
@@ -6289,6 +6293,166 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ---------------- Cloud Backups -----------------------------------------
+  /integrations/weglide:
+    get:
+      tags:
+        - Integrations
+      summary: WeGlide link status
+      description: |
+        The caller's link to their WeGlide account. The API key is never returned.
+        `requestsUsedToday` counts the WeGlide requests made with the link on the current UTC
+        day, against WeGlide's limit of `requestsPerDay` (60) per key.
+      operationId: getWeGlideLink
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Link status; `linked` is false when no account is linked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeGlideLinkStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: The WeGlide link is not available on this server (BACKUP_CREDENTIALS_KEY is not set)
+    put:
+      tags:
+        - Integrations
+      summary: Link a WeGlide account
+      description: |
+        Stores the pilot's personal WeGlide API key (weglide.org: Profile → Settings →
+        Advanced → API Key), replacing a key already linked. The key is checked with one
+        WeGlide request, which counts against the daily limit, and stored encrypted. It is
+        never returned, and it is not part of `GET /exports/json`: after moving to another
+        installation the pilot links WeGlide again.
+      operationId: linkWeGlide
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeGlideLinkRequest'
+      responses:
+        '200':
+          description: Linked; the new status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeGlideLinkStatus'
+        '400':
+          description: The key is malformed or WeGlide rejected it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: The daily WeGlide request limit for this account is used up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: WeGlide could not be reached or answered unexpectedly
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: The WeGlide link is not available on this server (BACKUP_CREDENTIALS_KEY is not set)
+    delete:
+      tags:
+        - Integrations
+      summary: Unlink WeGlide
+      description: |
+        Deletes the stored key and sync state. Flights already imported stay. Unlinking when
+        nothing is linked is also 204.
+      operationId: unlinkWeGlide
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Unlinked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: The WeGlide link is not available on this server (BACKUP_CREDENTIALS_KEY is not set)
+
+  /integrations/weglide/sync:
+    post:
+      tags:
+        - Integrations
+      summary: Import flights from WeGlide now
+      description: |
+        Lists the pilot's WeGlide flights and imports each one not yet imported, oldest
+        first, by downloading its IGC file and creating a flight through the same path as
+        `POST /flights/igc` (the file is stored on the flight). A flight whose IGC file the
+        pilot already stores (same SHA-256) is skipped, as is a file that cannot become a
+        flight (no registration, no take-off).
+
+        The first sync lists the last 12 months; later ones start 30 days before the last
+        complete sync. Listing costs one WeGlide request per 100 flights and each import one
+        more; the run stops before the daily limit of 60 requests and reports what is left.
+
+        * 200: every listed flight was processed.
+        * 202: the run stopped early (daily limit, the request time limit, or a WeGlide
+          error after some progress); `remaining` flights are waiting. Sync again to
+          continue (after the daily limit: tomorrow, UTC).
+      operationId: syncWeGlide
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sync complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeGlideSyncResult'
+        '202':
+          description: Partial sync; `remaining` flights left for a later run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeGlideSyncResult'
+        '400':
+          description: WeGlide rejected the stored key; link WeGlide again
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No WeGlide account is linked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A sync is already running for this account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: The daily WeGlide request limit is used up before the flight list could be read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: WeGlide could not be reached or answered unexpectedly
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: The WeGlide link is not available on this server (BACKUP_CREDENTIALS_KEY is not set)
+
   /backups/providers:
     get:
       tags:
@@ -12022,6 +12186,71 @@ components:
             totalPages:
               type: integer
 
+    WeGlideLinkStatus:
+      type: object
+      description: A pilot's WeGlide link. Never contains the API key.
+      required:
+        - linked
+        - requestsUsedToday
+        - requestsPerDay
+      properties:
+        linked:
+          type: boolean
+        weglideUserId:
+          type: [string, 'null']
+          description: The WeGlide user the key belongs to
+        lastSyncAt:
+          type: [string, 'null']
+          format: date-time
+          description: End of the last complete sync
+        lastSyncStatus:
+          type: [string, 'null']
+          enum: [ok, partial, failed, 'null']
+          description: Result of the latest sync run
+        lastSyncError:
+          type: [string, 'null']
+          maxLength: 500
+          description: Why the latest run stopped early or failed
+        requestsUsedToday:
+          type: integer
+          minimum: 0
+          description: WeGlide requests made on the current UTC day
+        requestsPerDay:
+          type: integer
+          description: WeGlide's daily limit per key (60)
+    WeGlideLinkRequest:
+      type: object
+      required:
+        - apiKey
+      properties:
+        apiKey:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: Personal WeGlide API key (sent to WeGlide as X-API-Key)
+    WeGlideSyncResult:
+      type: object
+      required:
+        - imported
+        - skipped
+        - remaining
+        - requestsUsedToday
+      properties:
+        imported:
+          type: integer
+          minimum: 0
+          description: Flights created
+        skipped:
+          type: integer
+          minimum: 0
+          description: Flights already stored (same IGC file) or whose file cannot become a flight
+        remaining:
+          type: integer
+          minimum: 0
+          description: Listed flights not processed in this run
+        requestsUsedToday:
+          type: integer
+          minimum: 0
     AdminStats:
       type: object
       required:
@@ -12042,6 +12271,7 @@ components:
         - aircraftReminders
         - licencePrivileges
         - flightFiles
+        - weglideLinks
         - cloudBackupDestinations
         - importsByFormat
         - pilotProfiles
@@ -12126,6 +12356,9 @@ components:
             totalBytes:
               type: integer
               format: int64
+        weglideLinks:
+          type: integer
+          description: Users with a linked WeGlide account.
         cloudBackupDestinations:
           type: object
           description: Counts of user-configured cloud backup destinations.
@@ -12313,6 +12546,16 @@ components:
         documentFilesEnabled:
           type: boolean
           description: Whether licence/credential reference files are enabled (DOCUMENT_FILES_ENABLED is not "false")
+        weglideLinkEnabled:
+          type: boolean
+          description: Whether pilots can link WeGlide (requires BACKUP_CREDENTIALS_KEY, which encrypts the keys)
+        weglideSyncEnabled:
+          type: boolean
+          description: Whether the scheduled WeGlide sync runs (WEGLIDE_SYNC_ENABLED=true and the link is enabled)
+        weglideSyncInterval:
+          type: string
+          description: How often the scheduled WeGlide sync sweeps (WEGLIDE_SYNC_INTERVAL). Absent when it is not running.
+          example: 24h0m0s
         unverifiedCleanupEnabled:
           type: boolean
           description: |

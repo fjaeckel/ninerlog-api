@@ -375,6 +375,14 @@ Custom-report group-by UL kind (`ulKind`) is implemented with WP-28.
   WeGlide". Store the key encrypted (`pkg/cryptoutil`, like backup credentials), and sync
   at most once a day per user. The key is user-owned secret material: document it as exempt
   from export, with the reason.
+  - API — **implemented** (migration 79 `weglide_links`, `internal/weglide` client,
+    `GET`/`PUT`/`DELETE /integrations/weglide`, `POST /integrations/weglide/sync`, optional
+    daily sync behind `WEGLIDE_SYNC_ENABLED`, admin `weglideLinks` count and
+    `weglideLinkEnabled`/`weglideSyncEnabled`/`weglideSyncInterval`, `weglide_*` metrics,
+    panels and a `bad_response` alert). The WeGlide endpoint paths and fields are unverified
+    against the live API; see [SAILPLANES.md](../SAILPLANES.md#weglide-link). Frontend half
+    open: a settings card to paste/remove the key, a sync button showing
+    `imported`/`skipped`/`remaining` and the day's budget, and the admin fields.
 - WP-42: OGN flight suggestions. The data is free, under ODbL, and comes from the public
   APRS feed. OGN rules: no re-distribution of data older than 24 hours; `no-track` devices
   are never received, and `no-ident` must not be shown. The pilot links their FLARM ID

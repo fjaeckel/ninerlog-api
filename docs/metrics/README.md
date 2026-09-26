@@ -108,6 +108,17 @@ Full reference (including the fetch/merge internals): [`../METRICS.md`](../METRI
 | `unverified_account_reminders_total` | Counter | `result` | `sent`, `undeliverable`, `deferred`, `error` |
 | `unverified_accounts_deleted_total` | Counter | — | Accounts reaped for never confirming their address |
 
+### WeGlide link
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `weglide_requests_total` | Counter | `status` | `ok`, `unauthorized`, `rate_limited`, `not_found`, `upstream_error`, `network_error`, `too_large`, `bad_response` |
+| `weglide_request_duration_seconds` | Histogram | — | Latency of one WeGlide request |
+| `weglide_sync_runs_total` | Counter | `result` | `ok`, `partial`, `failed` |
+| `weglide_sync_flights_imported_total` | Counter | — | Flights created by syncs |
+| `weglide_sync_duration_seconds` | Histogram | — | Duration of one sync run |
+| `weglide_sync_last_success_timestamp_seconds` | Gauge | — | Last complete sync of any user |
+
 ### Go runtime (built-in collectors)
 
 `go_goroutines`, `go_gc_duration_seconds`, `go_memstats_*`,
@@ -181,7 +192,7 @@ dashboard dropdown in the top-right.
 | File | Focus |
 |------|-------|
 | [`dashboards/ninerlog-api-overview.json`](./dashboards/ninerlog-api-overview.json) | RED method: request rate, error rate, latency percentiles (global and per-route), in-flight, panics, response sizes, 4xx breakdown, rate-limit hits by limiter |
-| [`dashboards/ninerlog-operational.json`](./dashboards/ninerlog-operational.json) | Service health and version, DB pool and utilization, notification job freshness and errors, email delivery and SMTP latency, login/refresh/2FA, Go runtime, release update availability and check health |
+| [`dashboards/ninerlog-operational.json`](./dashboards/ninerlog-operational.json) | Service health and version, DB pool and utilization, notification job freshness and errors, email delivery and SMTP latency, login/refresh/2FA, Go runtime, release update availability and check health, WeGlide sync freshness, imports and upstream requests |
 | [`dashboards/ninerlog-ratelimits.json`](./dashboards/ninerlog-ratelimits.json) | **Start here to tune a limit.** Rejection ratio per limiter, search headroom and latency cost, rejections by route, and a cross-check against the 429s actually served |
 | [`dashboards/ninerlog-airports.json`](./dashboards/ninerlog-airports.json) | Airport database: snapshot age and size, reload outcomes, upstream fetch failures by source and reason, merge composition, lookup hit/miss/unavailable rates |
 | [`dashboards/ninerlog-accounts.json`](./dashboards/ninerlog-accounts.json) | Sign-in and account lifecycle: OIDC login flow by result, WebAuthn ceremonies started vs completed vs expired, verification reminders and unverified-account deletions |
@@ -212,8 +223,9 @@ rejecting more than 5% of its own traffic, flight search being throttled at all
 (a tighter 1% threshold, because search is interactive), a stale airport
 database, a failing airport source, a growing email suppression list, the
 unverified-account reaper deleting in bulk or sending its final warning into a
-void, a newer release having been published for more than a day, and the release
-check itself going stale.
+void, a newer release having been published for more than a day, the release
+check itself going stale, and most WeGlide responses no longer matching the
+client (`bad_response`), which means WeGlide changed its API.
 
 The two account alerts exist because deletion is irreversible and the affected
 user is by definition not around to complain: a spike in

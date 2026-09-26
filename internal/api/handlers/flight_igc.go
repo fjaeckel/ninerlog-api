@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +10,6 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
-	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -62,20 +60,18 @@ func (h *APIHandler) ImportIgcFlight(c *gin.Context) {
 		flightID = id
 	}
 
-	preview, err := h.flightFileService.Preview(ctx, userID, data)
-	if err != nil {
-		h.sendFlightFileError(c, err)
-		return
-	}
-
-	var flight *models.Flight
 	if flightID != uuid.Nil {
+		preview, err := h.flightFileService.Preview(ctx, userID, data)
+		if err != nil {
+			h.sendFlightFileError(c, err)
+			return
+		}
 		file, err := h.flightFileService.Attach(ctx, userID, flightID, filename, data)
 		if err != nil {
 			h.sendFlightFileError(c, err)
 			return
 		}
-		flight, err = h.flightService.GetFlight(ctx, flightID, userID)
+		flight, err := h.flightService.GetFlight(ctx, flightID, userID)
 		if err != nil {
 			h.sendFlightFileError(c, err)
 			return
@@ -84,40 +80,12 @@ func (h *APIHandler) ImportIgcFlight(c *gin.Context) {
 		return
 	}
 
-	if preview.GliderRegistration == nil {
-		h.sendFlightFileError(c, service.ErrIGCNoRegistration)
-		return
-	}
-	stored, err := h.flightFileService.StoredFlightFor(ctx, userID, data)
+	imported, err := h.flightFileService.ImportAsNewFlight(ctx, userID, h.getUserNameFromContext(c), filename, data)
 	if err != nil {
 		h.sendFlightFileError(c, err)
 		return
 	}
-	if stored != nil {
-		h.sendFlightFileError(c, &service.IGCDuplicateError{FlightID: *stored})
-		return
-	}
-
-	aircraft := h.ensureIgcAircraft(ctx, userID, *preview.GliderRegistration, preview.GliderType)
-	req := igcFlightCreate(preview, aircraft)
-	flight, errMsg := h.flightFromCreate(c, userID, &req)
-	if errMsg != "" {
-		h.sendError(c, http.StatusBadRequest, "The IGC file does not describe a valid flight: "+errMsg)
-		return
-	}
-	if err := h.flightService.CreateFlight(ctx, flight); err != nil {
-		h.sendError(c, http.StatusBadRequest, "The IGC file does not describe a valid flight")
-		return
-	}
-	file, err := h.flightFileService.Attach(ctx, userID, flight.ID, filename, data)
-	if err != nil {
-		if derr := h.flightService.DeleteFlight(ctx, flight.ID, userID); derr != nil {
-			slog.Error("igc import: failed to remove flight after file store failed", "flightId", flight.ID, "error", derr)
-		}
-		h.sendFlightFileError(c, err)
-		return
-	}
-	h.respondIgcImport(c, flight, file, preview)
+	h.respondIgcImport(c, imported.Flight, imported.File, imported.Preview)
 }
 
 func (h *APIHandler) respondIgcImport(c *gin.Context, flight *models.Flight, file *models.FlightFile, preview *service.IGCPreview) {
@@ -126,75 +94,6 @@ func (h *APIHandler) respondIgcImport(c *gin.Context, flight *models.Flight, fil
 		FileId:  openapi_types.UUID(file.ID),
 		Summary: convertIgcPreview(preview),
 	})
-}
-
-// ensureIgcAircraft returns the user's aircraft with this registration,
-// creating it as the importers do when absent. Returns nil when it can
-// neither be found nor created.
-func (h *APIHandler) ensureIgcAircraft(ctx context.Context, userID uuid.UUID, reg string, gliderType *string) *models.Aircraft {
-	fleet, err := h.aircraftService.ListAircraft(ctx, userID)
-	if err == nil {
-		for _, a := range fleet {
-			if registration.Canonical(a.Registration) == reg {
-				return a
-			}
-		}
-	}
-	typeCode := reg
-	if gliderType != nil && *gliderType != "" {
-		typeCode = *gliderType
-	}
-	a := &models.Aircraft{
-		UserID:        userID,
-		Registration:  reg,
-		Type:          typeCode,
-		Make:          typeCode,
-		Model:         typeCode,
-		IsActive:      true,
-		AircraftClass: models.InferImportedAircraftClass("", reg, true),
-	}
-	if err := h.aircraftService.CreateAircraft(ctx, a); err != nil {
-		slog.Warn("igc import: failed to create aircraft", "registration", reg, "error", err)
-		return nil
-	}
-	return a
-}
-
-// igcFlightCreate builds the POST /flights body an IGC preview describes.
-func igcFlightCreate(p *service.IGCPreview, aircraft *models.Aircraft) generated.FlightCreate {
-	reg := *p.GliderRegistration
-	aircraftType := reg
-	if aircraft != nil && aircraft.Type != "" {
-		aircraftType = aircraft.Type
-	} else if p.GliderType != nil {
-		aircraftType = *p.GliderType
-	}
-	dep, arr := p.Departure.Label(), p.Arrival.Label()
-	takeoff, landing := p.TakeoffTime, p.LandingTime
-	landings := 1
-	outlanding := p.Outlanding
-	req := generated.FlightCreate{
-		Date:          openapi_types.Date{Time: p.Date},
-		AircraftReg:   &reg,
-		AircraftType:  aircraftType,
-		DepartureIcao: &dep,
-		ArrivalIcao:   &arr,
-		DepartureTime: &takeoff,
-		ArrivalTime:   &landing,
-		Landings:      &landings,
-		IsOutlanding:  &outlanding,
-	}
-	var class *string
-	var kind *models.ULKind
-	if aircraft != nil {
-		class, kind = aircraft.AircraftClass, aircraft.ULKind
-	}
-	if p.LaunchMethod != "unknown" && models.IsValidLaunchMethod(p.LaunchMethod) && models.LaunchMethodApplies(class, kind) {
-		lm := generated.FlightCreateLaunchMethod(p.LaunchMethod)
-		req.LaunchMethod = &lm
-		req.ReleaseHeightM = p.ReleaseHeightM
-	}
-	return req
 }
 
 // ListFlightFiles implements GET /flights/{flightId}/files.
@@ -292,6 +191,7 @@ func (h *APIHandler) readIgcUpload(c *gin.Context) ([]byte, string, bool) {
 // A missing and a foreign flight share the 404.
 func (h *APIHandler) sendFlightFileError(c *gin.Context, err error) {
 	var dup *service.IGCDuplicateError
+	var invalid *service.IGCInvalidFlightError
 	switch {
 	case errors.Is(err, service.ErrFlightNotFound), errors.Is(err, service.ErrUnauthorizedFlight),
 		errors.Is(err, service.ErrFlightFileNotFound):
@@ -306,6 +206,8 @@ func (h *APIHandler) sendFlightFileError(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrFlightFileLimitReached):
 		h.sendError(c, http.StatusConflict,
 			fmt.Sprintf("This flight already has the maximum of %d files", models.MaxFlightFilesPerFlight))
+	case errors.As(err, &invalid):
+		h.sendError(c, http.StatusBadRequest, invalid.Error())
 	case errors.Is(err, service.ErrInvalidIGC), errors.Is(err, service.ErrFlightFileEmpty),
 		errors.Is(err, service.ErrIGCNoFlight), errors.Is(err, service.ErrIGCNoRegistration):
 		h.sendError(c, http.StatusBadRequest, err.Error())

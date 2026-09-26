@@ -951,7 +951,7 @@ career-wide snapshot is deliberately left out of it.
 
 ### Admin
 User management (list, disable/enable, unlock, reset 2FA, delete), platform stats (including how pilots override the pilot profile: `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` counts, `licencePrivileges.{total, byKind}` and
-`flightFiles.{count, totalBytes}`),
+`flightFiles.{count, totalBytes}` and `weglideLinks`),
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,
 unverified-account sweep), email deliverability, and announcements.
 
@@ -988,6 +988,39 @@ until the comparison lands, a moment later. Deployments that set
 ### Backups
 List providers, manage destinations (CRUD), test/run a destination, and inspect run
 history. See [FEATURES.md](./FEATURES.md#cloud-backups).
+
+### Integrations
+The pilot's own WeGlide account, linked with their personal API key (plan decision D5:
+nothing paid). Available only when `BACKUP_CREDENTIALS_KEY` is set, which encrypts the key;
+otherwise every path answers 503.
+
+| Method | Path |
+| --- | --- |
+| `GET` | `/integrations/weglide` — `{linked, weglideUserId, lastSyncAt, lastSyncStatus, lastSyncError, requestsUsedToday, requestsPerDay}`; never the key |
+| `PUT` | `/integrations/weglide` — `{apiKey}`; checks the key with one WeGlide request and stores it encrypted; 200 with the status |
+| `DELETE` | `/integrations/weglide` — 204, also when nothing is linked; imported flights stay |
+| `POST` | `/integrations/weglide/sync` — imports the pilot's WeGlide flights; 200 complete, 202 partial, body `{imported, skipped, remaining, requestsUsedToday}` |
+
+- `PUT` answers 400 for a malformed key or one WeGlide rejects, 429 when the day's WeGlide
+  requests are used up, 502 when WeGlide cannot be reached or answers unexpectedly.
+- `POST …/sync` answers 404 without a link, 409 while a sync for the same account is
+  running, 400 when WeGlide rejects the stored key, 429 when the day's budget is used up
+  before the flight list could be read, 502 when WeGlide is unreachable before any flight
+  was processed. Once flights are processed the run always answers 200 or 202. A manual
+  sync starts no further flight once less than 5 s of the 15 s request time remain, and
+  answers 202 with what is left.
+- Each flight is imported through `POST /flights/igc`'s path (same aircraft
+  auto-creation, same 5 MB cap) and its file is stored as `weglide-<WeGlide flight id>.igc`.
+  A flight whose file the pilot already stores (same SHA-256) counts as `skipped`.
+- WeGlide allows 60 requests per key and UTC day. `requestsUsedToday` counts the link
+  check, one per page of 100 listed flights and one per imported flight; the IGC download
+  from WeGlide's file host is not counted. Rules and the endpoints used:
+  [SAILPLANES.md](./SAILPLANES.md#weglide-link).
+- `PUT` and `POST …/sync` share the `expensive` rate-limit bucket (15 per minute per user);
+  `GET` and `DELETE` are under the general limiter only.
+- `lastSyncAt` is the end of the last *complete* sync; `lastSyncStatus` (`ok`, `partial`,
+  `failed`) and `lastSyncError` (at most 500 characters, never upstream text or the key)
+  describe the latest run.
 
 ### Sync
 `GET /sync/deletions` — deletions since a watermark, for offline-capable clients. See

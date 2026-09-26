@@ -425,6 +425,18 @@ type ServerInterface interface {
 	// GetImport Get import details
 	// (GET /imports/{importId})
 	GetImport(c *gin.Context, importId ImportId)
+	// UnlinkWeGlide Unlink WeGlide
+	// (DELETE /integrations/weglide)
+	UnlinkWeGlide(c *gin.Context)
+	// GetWeGlideLink WeGlide link status
+	// (GET /integrations/weglide)
+	GetWeGlideLink(c *gin.Context)
+	// LinkWeGlide Link a WeGlide account
+	// (PUT /integrations/weglide)
+	LinkWeGlide(c *gin.Context)
+	// SyncWeGlide Import flights from WeGlide now
+	// (POST /integrations/weglide/sync)
+	SyncWeGlide(c *gin.Context)
 	// ListLicenses List user's licenses
 	// (GET /licenses)
 	ListLicenses(c *gin.Context, params ListLicensesParams)
@@ -3817,6 +3829,58 @@ func (siw *ServerInterfaceWrapper) GetImport(c *gin.Context) {
 	siw.Handler.GetImport(c, importId)
 }
 
+// UnlinkWeGlide operation middleware
+func (siw *ServerInterfaceWrapper) UnlinkWeGlide(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UnlinkWeGlide(c)
+}
+
+// GetWeGlideLink operation middleware
+func (siw *ServerInterfaceWrapper) GetWeGlideLink(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetWeGlideLink(c)
+}
+
+// LinkWeGlide operation middleware
+func (siw *ServerInterfaceWrapper) LinkWeGlide(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LinkWeGlide(c)
+}
+
+// SyncWeGlide operation middleware
+func (siw *ServerInterfaceWrapper) SyncWeGlide(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SyncWeGlide(c)
+}
+
 // ListLicenses operation middleware
 func (siw *ServerInterfaceWrapper) ListLicenses(c *gin.Context) {
 
@@ -5230,6 +5294,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/announcements", wrapper.GetAnnouncements)
 	router.POST(options.BaseURL+"/admin/announcements", wrapper.CreateAnnouncement)
 	router.DELETE(options.BaseURL+"/admin/announcements/:announcementId", wrapper.DeleteAnnouncement)
+	router.DELETE(options.BaseURL+"/integrations/weglide", wrapper.UnlinkWeGlide)
+	router.GET(options.BaseURL+"/integrations/weglide", wrapper.GetWeGlideLink)
+	router.PUT(options.BaseURL+"/integrations/weglide", wrapper.LinkWeGlide)
+	router.POST(options.BaseURL+"/integrations/weglide/sync", wrapper.SyncWeGlide)
 	router.GET(options.BaseURL+"/backups/providers", wrapper.ListBackupProviders)
 	router.GET(options.BaseURL+"/backups/destinations", wrapper.ListBackupDestinations)
 	router.POST(options.BaseURL+"/backups/destinations", wrapper.CreateBackupDestination)

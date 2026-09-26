@@ -247,6 +247,71 @@ with `Content-Disposition: attachment`. The JSON backup carries each file gzippe
 base64-encoded under `flightFiles`, keyed by its flight's id in the backup; a restore
 revalidates it as IGC and attaches it to the restored flight.
 
+The creation path (`FlightFileService.ImportAsNewFlight`) lives in the service, so the
+upload endpoint and the WeGlide sync create flights identically.
+
+### <a id="weglide-link"></a>WeGlide link
+
+Plan decision D5: nothing paid. WeGlide gives OAuth only to applications with at least
+1,000 users, so there is no "sign in with WeGlide"; the pilot creates a free personal API key
+on weglide.org (Profile → Settings → Advanced → API Key; at most 2 keys per user) and pastes
+it into NinerLog. With that key WeGlide lets a user read their own flights and download
+their own IGC files, rate-limited to **60 requests per day**.
+
+**Linking.** `PUT /integrations/weglide` checks the key with `GET /v1/user/me` (one request)
+and stores it encrypted with `BACKUP_CREDENTIALS_KEY`; without that key the feature answers
+503. The key is never returned, never logged, and not part of the JSON export.
+
+**Syncing.** `POST /integrations/weglide/sync`, or the daily background sync when the
+operator sets `WEGLIDE_SYNC_ENABLED=true`:
+
+1. List the pilot's flights with a scoring date from 30 days before the last complete sync
+   (the first sync: the last 12 months), 100 per request.
+2. Drop flights already imported — each imported file is stored as
+   `weglide-<WeGlide flight id>.igc`, so this costs no request.
+3. Oldest first, fetch each flight's IGC path (`GET /v1/flightdetail/{id}`, one request),
+   download the file from WeGlide's file host (not counted) and create the flight through
+   the [IGC import](#igc-import) path: same launch detection, outlanding rule, aircraft
+   auto-creation and 5 MB cap.
+4. A file the pilot already stores (same SHA-256, e.g. uploaded by hand) is skipped, as is
+   one that cannot become a flight (no registration, no take-off) or that WeGlide has no
+   file for.
+5. Before each request one unit of the day's budget (UTC) is taken; at 60 the run stops,
+   answers 202 with `remaining`, and leaves `last_sync_at` where it was so the next run
+   picks up the same window. A 429 from WeGlide exhausts the day's budget at once. A manual
+   sync also stops, the same way, when less than 5 s of its 15 s request time remain.
+
+The background sync visits a linked user at most once per UTC day: only links whose last
+complete sync is older than 90 % of `WEGLIDE_SYNC_INTERVAL` and which made no WeGlide
+request that day are due, and every run makes at least one.
+
+**Security.** The hosts are fixed (`https://api.weglide.org`, IGC files from
+`https://weglidefiles.b-cdn.net`); no user input chooses a host, and the IGC path WeGlide
+returns must match `[A-Za-z0-9][A-Za-z0-9._/-]*` without `..` or `//` before it is appended
+to the file host. Redirects are not followed, the key goes only to the API host, each
+request has a 10 s timeout, JSON bodies are capped at 2 MB and IGC files at 5 MB. Sync
+errors shown to the pilot are fixed NinerLog text, never WeGlide's response. The URL
+overrides `WEGLIDE_API_URL` / `WEGLIDE_FILES_URL` are **test-only** and take effect only
+with `WEGLIDE_ALLOW_TEST_URL=true`; the API logs a warning at startup when they do.
+
+**Verify against the live API.** WeGlide's Swagger reference could not be read while this
+was built (`api.weglide.org` refused the build environment). The client in
+`internal/weglide` follows WeGlide's developer page and a client generated from its OpenAPI
+document; these details are unconfirmed and live only in that package:
+
+- `GET /v1/user/me` returns the key's user as an object with `id`.
+- `GET /v1/flight` accepts `user_id_in`, `scoring_date_start` (`YYYY-MM-DD`),
+  `order_by=scoring_date`, `skip`, `limit` (≤ 100) and returns a JSON array whose items
+  carry `id`, `user.id`, `scoring_date` and `takeoff_time`.
+- `GET /v1/flightdetail/{id}` carries `igc_file.file`, the path on
+  `https://weglidefiles.b-cdn.net` (documented on the developer page).
+- Whether the 60-request limit counts per key or per user, and whether the file host counts
+  against it. NinerLog counts per link, keeps the count across a key change on the same day,
+  and does not count file downloads.
+
+The `weglide_requests_total{status="bad_response"}` alert fires when WeGlide's answers stop
+matching these assumptions.
+
 ### Printed logbook
 
 `GET /exports/pdf?format=sailplane` prints an AMC1 SFCL.050 logbook, one landscape page per

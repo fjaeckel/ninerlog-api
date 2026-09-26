@@ -1324,6 +1324,303 @@
           "legendFormat": "commits behind branch"
         }
       ]
+    },
+    {
+      "title": "WeGlide Sync Freshness",
+      "type": "stat",
+      "description": "Time since this instance last completed a WeGlide sync for any user. Empty until the first complete sync; with WEGLIDE_SYNC_ENABLED=true, days mean syncs are not completing.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 68
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 172800
+              },
+              {
+                "color": "red",
+                "value": 604800
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "time() - max(weglide_sync_last_success_timestamp_seconds{job=\"$job\"})",
+          "legendFormat": "age"
+        }
+      ]
+    },
+    {
+      "title": "WeGlide Flights Imported (24h)",
+      "type": "stat",
+      "description": "Flights created from WeGlide in the last 24 hours, manual and scheduled syncs.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 68
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(weglide_sync_flights_imported_total{job=\"$job\"}[24h]))",
+          "legendFormat": "imported"
+        }
+      ]
+    },
+    {
+      "title": "WeGlide Upstream Failure Ratio (1h)",
+      "type": "stat",
+      "description": "Share of WeGlide requests that ended in upstream_error or network_error. unauthorized and rate_limited are per-pilot key problems, not outages.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 68
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.2
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(rate(weglide_requests_total{job=\"$job\",status=~\"upstream_error|network_error\"}[1h])) / clamp_min(sum(rate(weglide_requests_total{job=\"$job\"}[1h])), 1e-9)",
+          "legendFormat": "failure ratio"
+        }
+      ]
+    },
+    {
+      "title": "WeGlide Sync Runs",
+      "type": "timeseries",
+      "description": "Sync runs per day by result (ok, partial, failed) and p95 run duration. partial is normal when a pilot's backlog exceeds the 60 requests/day WeGlide allows per key.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (result) (rate(weglide_sync_runs_total{job=\"$job\"}[6h])) * 86400",
+          "legendFormat": "runs/day {{result}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(rate(weglide_sync_flights_imported_total{job=\"$job\"}[6h])) * 86400",
+          "legendFormat": "flights imported/day"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(weglide_sync_duration_seconds_bucket{job=\"$job\"}[6h])))",
+          "legendFormat": "p95 duration"
+        }
+      ]
+    },
+    {
+      "title": "WeGlide Requests",
+      "type": "timeseries",
+      "description": "HTTP requests to WeGlide (API and IGC files host) by status, and p95 request latency.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (status) (rate(weglide_requests_total{job=\"$job\"}[1h])) * 3600",
+          "legendFormat": "requests/h {{status}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(weglide_request_duration_seconds_bucket{job=\"$job\"}[1h])))",
+          "legendFormat": "p95 latency"
+        }
+      ]
     }
   ]
 }

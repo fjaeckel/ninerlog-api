@@ -128,6 +128,8 @@ type IGCPreview struct {
 type FlightFileService struct {
 	repo       repository.FlightFileRepository
 	flightRepo repository.FlightRepository
+	flights    *FlightService
+	aircraft   *AircraftService
 }
 
 // NewFlightFileService returns a FlightFileService.
