@@ -106,6 +106,21 @@ const (
 // Launch method key (LaunchMethodCurrency.MessageKey).
 const MsgLaunchMethodProgress = "launch_method.progress"
 
+// Remedy keys (Requirement.RemedyKey, LaunchMethodCurrency.RemedyKey).
+const (
+	RemedyFlyMore          = "remedy.fly_more"
+	RemedyTrainingFlight   = "remedy.training_flight"
+	RemedyProficiencyCheck = "remedy.proficiency_check"
+	RemedyLaunchMethodDual = "remedy.launch_method_dual"
+)
+
+// Readiness reason keys (GET /currency/readiness) with no currency counterpart.
+const (
+	MsgReadinessLaunchMethodCurrent = "readiness.launch_method_current"
+	MsgReadinessCredentialValid     = "readiness.credential_valid"
+	MsgReadinessCredentialExpired   = "readiness.credential_expired"
+)
+
 // MessageParams carries the variable parts of a message that are not already
 // fields on the enclosing object. Every field is optional; a key documents
 // which of them it requires.
@@ -117,6 +132,12 @@ type MessageParams struct {
 	// Date is an ISO date the message refers to that is not the object's own
 	// expiry — a proficiency check, a flight review completion, a window opening.
 	Date *string `json:"date,omitempty"`
+	// Missing is the outstanding amount a remedy key asks for, in Unit.
+	Missing *int `json:"missing,omitempty"`
+	// Unit is the unit of Missing (minutes, landings, launches, flights, …).
+	Unit *string `json:"unit,omitempty"`
+	// Method is the launch method a remedy key refers to.
+	Method *string `json:"method,omitempty"`
 }
 
 // msgDays builds params for a countdown key.

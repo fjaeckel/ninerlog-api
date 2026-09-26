@@ -1855,6 +1855,60 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /currency/readiness:
+    get:
+      tags: [Currency]
+      summary: Answer "may I fly on this date?"
+      description: |
+        Evaluates the caller's currency as of `date`, counting only the flights already on
+        record — as if the pilot does not fly again before then — and answers per rating,
+        per launch method (SFCL.155), for passengers and for medical certificates. A rolling
+        requirement whose `validUntil` is before `date` is unmet on that date; a rating or
+        credential whose expiry date is on or before `date` is expired on it.
+
+        With `aircraftReg`, only the ratings whose own class covers that aircraft are
+        answered (an ULTRALIGHT rating with a kind only for aircraft of that kind), with
+        the launch methods of those ratings and, when `passengers` is true, passenger
+        currency for that class. Without it every rating is answered. Keys are catalogued
+        in docs/CURRENCY_MESSAGES.md.
+      operationId: getCurrencyReadiness
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          description: Date to answer for, from today to 366 days ahead (UTC). Defaults to today.
+          schema:
+            type: string
+            format: date
+          example: "2026-10-03"
+        - name: aircraftReg
+          in: query
+          description: Registration of one of the caller's aircraft; restricts the answer to it.
+          schema:
+            type: string
+            maxLength: 20
+          example: D-1234
+        - name: passengers
+          in: query
+          description: Include passenger currency.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Readiness on the date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /custom-currency:
     get:
       tags: [Custom Currency]
@@ -9161,6 +9215,18 @@ components:
           format: date
           description: A date the message refers to that is not the object's own expiry — a proficiency check, a flight review completion, or a window opening
           example: "2026-01-15"
+        missing:
+          type: integer
+          description: Outstanding amount a remedy key asks for, in `unit`
+          example: 2
+        unit:
+          type: string
+          description: Unit of `missing` (minutes, landings, launches, flights, approaches, holds)
+          example: launches
+        method:
+          type: string
+          description: Launch method a remedy key refers to
+          example: aerotow
 
     PassengerCurrency:
       type: object
@@ -9440,6 +9506,16 @@ components:
             ULTRALIGHT rating the pilot holds, across all licences, is of one and the same kind.
             Omitted when zero. Setting the aircraft's kind makes them count.
           example: 3
+        validUntil:
+          type: [string, 'null']
+          format: date
+          description: |
+            For a `current` result of a rolling-window rule (LAPL FCL.140.A, SPL SFCL.160,
+            GPL FCL.240.G, German UL LuftPersV §45, FAA 14 CFR 61.57), the last date it stays
+            current if the pilot does not fly again — the latest date on which any accepted
+            alternative (the experience rows, or a proficiency check) is still met. Omitted
+            otherwise, and for expiry-anchored rules, where `expiryDate` governs.
+          example: "2027-05-31"
 
     LaunchMethodCurrency:
       type: object
@@ -9467,6 +9543,17 @@ components:
           type: string
           description: Always `launch_method.progress`; the client renders launches/required/method.
           example: "launch_method.progress"
+        validUntil:
+          type: [string, 'null']
+          format: date
+          description: When met, the last date the method stays met if the pilot does not fly again. Omitted when unmet.
+          example: "2027-04-12"
+        remedyKey:
+          type: string
+          description: When unmet, `remedy.launch_method_dual` (SFCL.155(d)); see docs/CURRENCY_MESSAGES.md.
+          example: "remedy.launch_method_dual"
+        remedyParams:
+          $ref: '#/components/schemas/MessageParams'
 
     CurrencyRequirement:
       type: object
@@ -9509,6 +9596,88 @@ components:
             is rendered by the client from current/required/unit.
           example: "requirement.progress"
         messageParams:
+          $ref: '#/components/schemas/MessageParams'
+        validUntil:
+          type: [string, 'null']
+          format: date
+          description: |
+            For a met requirement of a rolling-window rule, the last date it stays met if the
+            pilot does not fly again: the day before enough of the counted flights leave the
+            window for the total to drop below `required`. Omitted when unmet, on custom rules
+            and on expiry-anchored rules (FCL.740.A, FCL.625.A).
+          example: "2027-05-31"
+        remedyKey:
+          type: string
+          description: |
+            When unmet, what restores it: `remedy.fly_more`, `remedy.training_flight` or
+            `remedy.proficiency_check`. Omitted when met, on custom rules and on the FAA flight
+            review row. See docs/CURRENCY_MESSAGES.md.
+          example: "remedy.fly_more"
+        remedyParams:
+          $ref: '#/components/schemas/MessageParams'
+
+    ReadinessReport:
+      type: object
+      required: [date, items]
+      properties:
+        date:
+          type: string
+          format: date
+          description: The date answered for
+        aircraftReg:
+          type: string
+          description: Registration of the aircraft the answer is restricted to, as stored
+        items:
+          type: array
+          description: Ratings first, then launch methods, passengers and medical certificates
+          items:
+            $ref: '#/components/schemas/ReadinessItem'
+
+    ReadinessItem:
+      type: object
+      required: [kind, ready, status, reasonKey]
+      properties:
+        kind:
+          type: string
+          enum: [rating, launch_method, passengers, credential]
+        classRatingId:
+          type: string
+          format: uuid
+          description: The rating answered (kind rating) or the rating the launch method belongs to
+        licenseId:
+          type: string
+          format: uuid
+        classType:
+          $ref: '#/components/schemas/ClassType'
+        ulKind:
+          type: string
+          enum: [THREE_AXIS, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE]
+          description: Ultralight kind of the rating or passenger entry
+        launchMethod:
+          type: string
+          description: Launch method (kind launch_method)
+          example: aerotow
+        credentialId:
+          type: string
+          format: uuid
+          description: The medical certificate answered (kind credential)
+        ready:
+          type: boolean
+          description: Whether the privilege may be exercised on the date
+        status:
+          type: string
+          enum: [current, expiring, expired, lapsed, unknown, valid]
+          description: |
+            A rating's currency status on the date; `current` or `lapsed` for a launch
+            method; the day passenger status for passengers; `valid` or `expired` for a
+            credential.
+        reasonKey:
+          type: string
+          description: |
+            Message key explaining the answer — a rating, passenger or remedy key, or a
+            `readiness.*` key. Catalogued in docs/CURRENCY_MESSAGES.md.
+          example: "remedy.launch_method_dual"
+        params:
           $ref: '#/components/schemas/MessageParams'
 
     # ── Class Rating schemas ─────────────────────────────────────────────

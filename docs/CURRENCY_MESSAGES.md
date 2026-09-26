@@ -68,7 +68,10 @@ fixture keeps passing while covering a surface the API cannot produce.
 2. **Params never repeat fields the object already carries.** `classType`,
    `regulatoryAuthority`, `licenseType`, `expiryDate`, `current`/`required`/`unit`,
    `launches`/`method`, `dayExpiresOn`/`nightExpiresOn` are all fields; the client
-   composes from them. `messageParams` carries only `days`, `needed` and `date`.
+   composes from them. `messageParams` carries only `days`, `needed` and `date`. The
+   exception is `remedyParams` (`missing`, `unit`, `method`): a remedy is also the
+   `reasonKey` of a readiness item, which does not carry the row's fields, so its params
+   are complete on their own.
 3. **A key means one statement, not one authority.** LAPL, SPL, SPL-TMG and German UL
    all report `rating.recency_current`; which regulation to cite comes from
    `ruleDescriptionKey`.
@@ -205,9 +208,64 @@ The sailplane rules (see [SAILPLANES.md](./SAILPLANES.md)) use these keys:
 `LaunchMethodCurrency.messageKey` is always `launch_method.progress`; render
 `launches` / `required` for `method` (`winch`, `car`, `aerotow`, `self-launch`, `bungee`).
 
+## `validUntil`
+
+`CurrencyRequirement.validUntil`, `LaunchMethodCurrency.validUntil` and
+`ClassRatingCurrency.validUntil` are dates, not keys: the last day a met row, a met launch
+method or a `current` rating stays met if the pilot does not fly again. They are present
+only on rolling-window rules (LAPL, SPL, SPL TMG, GPL, German UL, FAA §61.57) and only when
+met; expiry-anchored rules (FCL.740.A, FCL.625.A) rely on `expiryDate`. A rating's date is
+the latest on which any accepted alternative still holds, so with a recent proficiency
+check it can be later than every experience row. Render it as "until 31 May 2027"; it is
+never a reason to show a warning by itself. How it is computed:
+[DOMAIN.md](./DOMAIN.md#recency-projection-validuntil-and-remedies).
+
+## Remedies
+
+An unmet row carries `remedyKey` and `remedyParams`: what the pilot does to restore it.
+They are sent on every unmet row, also on the alternative the pilot is not using (the
+proficiency check of a rating current by experience); show them where the rating or method
+is not current.
+
+| `remedyKey` | On | `remedyParams` | Meaning |
+| --- | --- | --- | --- |
+| `remedy.fly_more` | count and sum rows | `missing`, `unit` | Fly `missing` more `unit` (`minutes`, `landings`, `launches`, `flights`, `approaches`, `holds`). The row's `nameKey` says what counts — `requirement.training_flights` means flights with an instructor, `requirement.pic_time` minutes as PIC |
+| `remedy.training_flight` | `requirement.training_flight`, `requirement.tmg_training_flight` | — | Fly one flight of at least 1 h with an instructor |
+| `remedy.proficiency_check` | `requirement.proficiency_check` | — | Take a proficiency check with an examiner. The row only exists where the rule accepts one (the FCL.625.A IR check is mandatory rather than an alternative) |
+| `remedy.launch_method_dual` | `LaunchMethodCurrency` | `method`, `missing` | SFCL.155(d): fly `missing` launches with `method` dual or as supervised solo |
+
+The FAA §61.56 flight review row has no remedy. Custom rules carry none.
+
+## Readiness (`GET /currency/readiness`)
+
+Each `ReadinessItem` has `ready`, a `status` and a `reasonKey` with `params`. Keys are
+reused from the tables above wherever one says the right thing:
+
+| `kind` | `ready` | `reasonKey` | `params` |
+| --- | --- | --- | --- |
+| `rating` | `current` or `expiring` | the rating's `messageKey` (for example `rating.recency_current`, `rating.revalidation_not_met`, `rating.expired`) | the rating's `messageParams` |
+| `rating`, status `lapsed` | no | the remedy of the first unmet experience row, else `remedy.proficiency_check` | its `remedyParams` |
+| `launch_method` | met | `readiness.launch_method_current` | `date`: the method's `validUntil` |
+| `launch_method` | not met, status `lapsed` | `remedy.launch_method_dual` | `method`, `missing` |
+| `passengers` | day status `current` | the passenger `messageKey` (`pax.not_current` with `needed` when short) | the passenger `messageParams` |
+| `credential` | status `valid` | `readiness.credential_valid` | `date`: the expiry date, absent when the certificate has none |
+| `credential` | status `expired` | `readiness.credential_expired` | `date`: the expiry date |
+
+The credential type is not repeated: look it up by `credentialId`. Lena's Saturday
+("solo ✓ winch ✓ aerotow ✗ (2 launches) passengers ✓") is one `rating`, two
+`launch_method` and one `passengers` item; the aerotow item is
+`remedy.launch_method_dual` with `{method: "aerotow", missing: 2}`.
+
+| Key | Params | Meaning |
+| --- | --- | --- |
+| `readiness.launch_method_current` | `date` | The launch method is current on the date, until `date` |
+| `readiness.credential_valid` | `date`? | The medical certificate is valid on the date |
+| `readiness.credential_expired` | `date` | The medical certificate expired on `date`, on or before the date asked |
+
 ## Adding a key
 
-1. Add the constant in `internal/service/currency/messages.go`.
+1. Add the constant in `internal/service/currency/messages.go` (remedy and readiness keys
+   live there too).
 2. Add it to `knownMessageKeys` in `messages_test.go` — the sweep in
    `TestEveryRatingResultCarriesAKey` fails on any emitted key not in the catalogue.
 3. Add a row here.

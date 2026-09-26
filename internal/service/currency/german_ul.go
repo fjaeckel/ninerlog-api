@@ -3,7 +3,6 @@ package currency
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
@@ -298,7 +297,7 @@ func (e *GermanULEvaluator) EvaluateRatingPassengerCurrencyForHolder(ctx context
 		return result
 	}
 	kind := *rating.ULKind
-	since := paxWindowStart(time.Now())
+	since := paxWindowStart(nowFrom(ctx))
 
 	result := PassengerCurrency{
 		ClassType:           models.ClassTypeUL,

@@ -201,10 +201,11 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-24. "Ready to fly?" and what's missing** (api + fe)
 
-- API: every requirement row gets `validUntil` (the date the count falls below the threshold
-  as flights age out) and a `remedyKey` (e.g. SFCL.155(d): "fly 2 launches dual or supervised
-  solo"). `GET /currency/readiness?date=&aircraftReg=&passengers=` answers per rating, per
-  launch method, passengers and medical.
+- API — **implemented**: every requirement row gets `validUntil` (the date the count falls
+  below the threshold as flights age out) and a `remedyKey` (e.g. SFCL.155(d): "fly 2
+  launches dual or supervised solo"). `GET /currency/readiness?date=&aircraftReg=&passengers=`
+  answers per rating, per launch method, passengers and medical. See
+  [DOMAIN.md](../DOMAIN.md#readiness-get-currencyreadiness).
 - FE: a dashboard card and a currency-page header. Lena's version reads "Saturday: solo ✓
   winch ✓ aerotow ✗ (2 launches) passengers ✓". Also a season-start planner listing the
   minimum flights needed.

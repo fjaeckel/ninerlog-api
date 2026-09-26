@@ -66,7 +66,7 @@ var faaPassengerRatingRule = ratingRule{
 		{nameKey: ReqKeyNightLandings, metric: mNightLandings, threshold: 3, unit: "landings"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -115,7 +115,7 @@ var faaInstrumentRule = ratingRule{
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -130,7 +130,7 @@ var faaInstrumentRule = ratingRule{
 
 		allMet := reqApproaches.Met && reqHolds.Met
 
-		if rating.ExpiryDate != nil && rating.IsExpired() {
+		if rating.ExpiryDate != nil && rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if allMet {
@@ -141,7 +141,7 @@ var faaInstrumentRule = ratingRule{
 			// 0-6 months: current (checked above)
 			// 6-12 months: can regain by practice with safety pilot
 			// >12 months: IPC required
-			since12 := time.Now().AddDate(-1, 0, 0)
+			since12 := nowFrom(ctx).AddDate(-1, 0, 0)
 			progress12, err12 := rt.dp.GetProgressAll(ctx, rt.license.UserID, since12)
 			if err12 == nil && (progress12.Approaches >= 6 && progress12.Holds >= 1) {
 				// Met within 12 months but not within 6 — lapsed but recoverable
@@ -175,7 +175,7 @@ var faaGliderRule = ratingRule{
 		{nameKey: ReqKeyTrainingFlights, metric: mTrainingFlights, threshold: 3, unit: "flights"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		now := time.Now()
+		now := nowFrom(ctx)
 		rt.since = faaFlightReviewWindowStart(now)
 		lastReview, err := rt.dp.GetLastFlightReview(ctx, rt.license.UserID)
 		if err != nil {
@@ -284,7 +284,7 @@ func HasNightPrivilege(licenseType, authority string) bool {
 // EvaluatePassengerCurrency evaluates FAA §61.57(a)/(b) as Tier 2 passenger
 // currency, separate from rating currency.
 func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, _ []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
-	since := paxWindowStart(time.Now())
+	since := paxWindowStart(nowFrom(ctx))
 	sailplane := strings.EqualFold(license.LicenseType, "GLIDER") || classType == models.ClassTypeGlider
 	hasNight := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority) && classType != models.ClassTypeGlider
 
@@ -378,7 +378,7 @@ func (e *FAAEvaluator) EvaluateFlightReview(ctx context.Context, userID uuid.UUI
 		}
 	}
 
-	return faaFlightReviewStatus(time.Now(), *lastReview)
+	return faaFlightReviewStatus(nowFrom(ctx), *lastReview)
 }
 
 // faaFlightReviewStatus is the pure decision behind EvaluateFlightReview.

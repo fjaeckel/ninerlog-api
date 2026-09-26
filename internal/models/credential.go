@@ -44,10 +44,25 @@ type Credential struct {
 
 // IsExpired checks if the credential has expired
 func (c *Credential) IsExpired() bool {
+	return c.IsExpiredAt(time.Now())
+}
+
+// IsExpiredAt reports whether the credential has expired at now.
+func (c *Credential) IsExpiredAt(now time.Time) bool {
 	if c.ExpiryDate == nil {
 		return false
 	}
-	return c.ExpiryDate.Before(time.Now())
+	return c.ExpiryDate.Before(now)
+}
+
+// IsMedical reports whether the credential is a medical certificate.
+func (c *Credential) IsMedical() bool {
+	switch c.CredentialType {
+	case CredentialTypeEASAClass1Medical, CredentialTypeEASAClass2Medical, CredentialTypeEASALAPLMedical,
+		CredentialTypeFAAClass1Medical, CredentialTypeFAAClass2Medical, CredentialTypeFAAClass3Medical:
+		return true
+	}
+	return false
 }
 
 // IsExpiringSoon checks if the credential expires within the given number of days

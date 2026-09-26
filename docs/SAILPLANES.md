@@ -213,6 +213,17 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
   class, so a lapsed method shows as `0 / 5`. It is informational: the rating status does
   not depend on it, because NinerLog doesn't know which methods the pilot is trained for.
 - Passenger currency for `GLIDER` never reports night privilege.
+- Each met row and each met launch method carries `validUntil`, the last day it holds if
+  the pilot does not fly again: with exactly 15 launches the launches row lasts until the
+  oldest of them + 24 months − 1 day, a method with 5 launches until its fifth-newest
+  launch + 24 months − 1 day. An unmet launch method carries
+  `remedy.launch_method_dual` with the missing count: SFCL.155(d) lets the pilot restore it
+  by flying the missing launches dual or solo under supervision.
+- `GET /currency/readiness?aircraftReg=D-1234&passengers=true&date=…` answers a club
+  pilot's "legal this Saturday?" (L4): the `GLIDER` rating, each launch method she has
+  logged, sailplane passenger recency and her medical, evaluated on the flights already on
+  record as of that date. A `GLIDER` aircraft selects `GLIDER` ratings only; a `TMG`
+  selects the SPL or Part-FCL `TMG` rating. See [DOMAIN.md](./DOMAIN.md#readiness-get-currencyreadiness).
 - SFCL.160(c) is applied by `Service.EvaluateAll`: an SPL TMG result is reported current
   with `rating.sfcl_tmg_exempt` when any EASA-evaluated licence that is neither a sailplane
   nor an ultralight licence (PPL, LAPL, CPL, ATPL) carries a `TMG` rating.

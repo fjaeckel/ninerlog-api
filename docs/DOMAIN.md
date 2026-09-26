@@ -404,6 +404,15 @@ interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL
   `GetLandingDaysByULKind` also returns take-offs per date, at least one per flight, as
   launches are counted.
 
+The provider may also implement `DailyFlightDataProvider` (`daily.go`): the same reads per
+flown date (`GetDailyProgressByAircraftClass`, `GetDailyProgressByULKind`,
+`GetDailyProgressAll`) and launches per date and method (`GetDailyLaunchCounts`). The
+PostgreSQL implementation is `currency_flight_data_daily.go`; it reuses the aggregate
+`progressSelect` grouped by date, so a change to what a flight contributes applies to both.
+When the provider supports them, `Service.EvaluateAll` answers every read of one request
+from a per-request cache of those rows (`dailyCache`), which is what makes the forward
+projection below affordable.
+
 This separation keeps the *regulatory* logic (what to count and over which window) in the
 evaluators, and the *data* logic (how to query) in one place.
 
@@ -557,6 +566,77 @@ recency rule and its night restriction from the same check. Independently of the
 the `GLIDER` class never reports night privilege — under EASA and FAA alike, so a glider
 rating on an FAA Private licence has no night requirement while that licence's SEP rating
 keeps one.
+
+### Recency projection (`validUntil`) and remedies
+
+Every evaluator reads "now" from the context (`nowFrom`, `clock.go`), never from
+`time.Now()` directly, so a rule can be evaluated as of another date. Rolling windows,
+expiry checks (`ClassRating.IsExpiredAt`), countdowns, the closed revalidation window and
+the passenger window all follow it. An as-of evaluation runs at noon UTC on the date.
+
+For a rule with a rolling window (`windowRollingNow`: LAPL FCL.140.A, SPL SFCL.160(a)/(b),
+GPL FCL.240.G, German UL LuftPersV §45, FAA §61.57 day/night and IR), the engine
+(`projection.go`) re-evaluates the rule in memory at every date on which a flight on record
+leaves the window, assuming no further flights, and reports:
+
+- `Requirement.validUntil` on each met row — the last date it is still met. For a count or
+  sum that is the day before enough of the counted flights age out for the total to fall
+  below `required`: with exactly 15 launches, the oldest flown on day *X*, the launches row
+  is valid until *X* + 24 months − 1 day. For the longest-training-flight rows it is the
+  last date the newest qualifying flight still counts; for a proficiency check, the check's
+  date + window − 1 day.
+- `LaunchMethodCurrency.validUntil` on each met method, the same way.
+- `ClassRatingCurrency.validUntil` on a `current` result — the last date the rating stays
+  current. Where the rule accepts alternatives (experience rows **or** a proficiency
+  check), that is the latest date on which either alternative still holds, not the
+  earliest row.
+
+A flight "leaves the window" on the first date *D* for which *D* − window is not before
+the flight date (`lastDayCounted`), which matches how the aggregate reads compare
+`f.date >= now − window`. `validUntil` is omitted on unmet rows, on custom rules, on the
+FAA flight review row (the review carries `expiresOn`), and on expiry-anchored rules
+(FCL.740.A, FCL.625.A, expiry-only ratings), where `expiryDate` governs. Passenger
+currency keeps its own `dayExpiresOn` / `nightExpiresOn` (below). The SFCL.160(c) TMG
+exemption drops `validUntil` along with the requirements.
+
+Every unmet regulatory row carries a `remedyKey` and `remedyParams` naming what restores
+it (`annotateRemedies`): `remedy.fly_more` with the missing amount and unit for counts and
+sums, `remedy.training_flight` for the one-flight-of-an-hour rows, `remedy.proficiency_check`
+on a proficiency-check row, and `remedy.launch_method_dual` on an unmet launch method
+(SFCL.155(d): the missing launches are flown dual or supervised solo). The FAA flight
+review row has none. Remedies are emitted on every unmet row, including the alternative
+the pilot has not used; a client shows them where the rating is not current. Keys are in
+[CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md#remedies).
+
+### Readiness (`GET /currency/readiness`)
+
+`internal/service/readiness` answers "may I fly on this date?" for a date from today to
+366 days ahead. It calls `currency.Service.EvaluateAsOf`, which runs `EvaluateAll` with the
+context's clock set to that date: the flights on record are counted as if the pilot does
+not fly again before it, so a rolling row whose `validUntil` is before the date is unmet
+on it, and a rating or medical whose expiry date is on or before the date is expired, as
+`GET /currency` would report it that day. The answer is a list of items:
+
+| Item | Ready when | Reason key |
+| --- | --- | --- |
+| `rating` | status `current` or `expiring` (the rating may still be exercised) | the rating's `messageKey`; for a `lapsed` rating, the remedy of its first unmet experience row (the proficiency check's only when no other row has one) |
+| `launch_method` | the method's SFCL.155(c) recency is met | `readiness.launch_method_current` with its `validUntil`, or `remedy.launch_method_dual` |
+| `passengers` | day passenger status `current` | the passenger `messageKey` |
+| `credential` | the medical certificate has not expired on the date | `readiness.credential_valid` / `readiness.credential_expired` with its expiry date |
+
+With `aircraftReg`, only ratings whose **own** class covers the aircraft are answered — the
+same native match as a licence logbook: a `GLIDER` aircraft selects `GLIDER` ratings and
+their launch methods, an `SEP_LAND` aircraft `SEP_LAND` ratings, an `ULTRALIGHT` aircraft
+the `ULTRALIGHT` ratings whose kind covers the aircraft's kind (a rating with no kind covers
+every ultralight and reports `unknown`). Credited classes do not select a rating: flying a
+TMG needs a TMG rating, whatever a glider rating counts. IR ratings are answered only
+without an aircraft. Passenger items follow the same class and kind match and appear only
+when `passengers=true`. Launch methods are listed once per method.
+
+Medical certificates (EASA Class 1, Class 2, LAPL; FAA Class 1–3) are listed with or
+without an aircraft, the one expiring last per type, and are informational: no rule ties a
+medical to a rating here, and the German exemption for ultralights under 120 kg is not
+modelled. The aircraft must be one of the caller's; any other registration answers `404`.
 
 ### Regulatory differences (EASA vs FAA)
 

@@ -1096,6 +1096,21 @@ func TestEASA_SPL_InsufficientLaunches(t *testing.T) {
 		t.Fatal("SPL SEP_LAND not found")
 	}
 	assertStr(t, "status", rc["status"], "lapsed")
+	if _, ok := rc["validUntil"]; ok {
+		t.Errorf("lapsed rating carries validUntil %v", rc["validUntil"])
+	}
+	launches := getReq(rc, "requirement.launches")
+	assertStr(t, "launches.remedyKey", launches["remedyKey"], "remedy.fly_more")
+	params, _ := launches["remedyParams"].(map[string]interface{})
+	assertInt(t, "launches.remedyParams.missing", gi(params, "missing"), 5)
+	assertStr(t, "launches.remedyParams.unit", params["unit"], "launches")
+	if _, ok := launches["validUntil"]; ok {
+		t.Errorf("unmet launches row carries validUntil %v", launches["validUntil"])
+	}
+	flightTime := getReq(rc, "requirement.flight_time")
+	if _, ok := flightTime["validUntil"].(string); !ok {
+		t.Errorf("met flight time row has no validUntil: %v", flightTime)
+	}
 }
 
 // createSPLTMGFlightsCur logs 1h TMG flights: pic as PIC, then dual with an instructor.

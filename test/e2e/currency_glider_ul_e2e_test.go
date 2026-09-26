@@ -2,7 +2,10 @@
 
 package e2e_test
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // ─── GLIDER / ULTRALIGHT class ratings ──────────────────────────────────────
 
@@ -76,6 +79,20 @@ func TestEASA_GliderClass_Current(t *testing.T) {
 	assertInt(t, "progress.landings", gi(progress, "landings"), 15)
 	assertInt(t, "progress.launches", gi(progress, "launches"), 15)
 	assertInt(t, "progress.trainingFlights", gi(progress, "trainingFlights"), 2)
+
+	// 15 launches: the oldest, 210 days ago, holds the row until it leaves the window.
+	launchesUntil := time.Now().AddDate(0, 0, -210).AddDate(2, 0, -1).Format("2006-01-02")
+	launches := getReq(rc, "requirement.launches")
+	assertStr(t, "launches.validUntil", launches["validUntil"], launchesUntil)
+	if _, ok := launches["remedyKey"]; ok {
+		t.Errorf("met launches row carries remedyKey %v", launches["remedyKey"])
+	}
+	assertStr(t, "rating validUntil", rc["validUntil"], launchesUntil)
+	check := getReq(rc, "requirement.proficiency_check")
+	assertStr(t, "proficiency_check.remedyKey", check["remedyKey"], "remedy.proficiency_check")
+	if _, ok := check["validUntil"]; ok {
+		t.Errorf("unmet proficiency check carries validUntil %v", check["validUntil"])
+	}
 
 	pc := findPaxCur(result, "GLIDER")
 	if pc == nil {

@@ -519,6 +519,22 @@ with `rating.ul_kind_required` (see [DOMAIN.md](./DOMAIN.md#ultralights)). `stat
 ratings follow FCL.240.G, and an SPL TMG rating may carry `rating.sfcl_tmg_exempt`; see
 [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md).
 
+On rolling-window rules (LAPL, SPL, SPL TMG, GPL, German UL, FAA §61.57) each met
+requirement, each met launch method and a `current` rating carry `validUntil`, the last
+date they stay met with no further flying; every unmet regulatory row and launch method
+carries `remedyKey` and `remedyParams`. See
+[DOMAIN.md](./DOMAIN.md#recency-projection-validuntil-and-remedies).
+
+`GET /currency/readiness?date=&aircraftReg=&passengers=` answers "may I fly on this date?"
+per rating, launch method, passengers (only with `passengers=true`) and medical
+certificate, evaluating currency as of `date` on the flights already on record. `date`
+defaults to today (UTC) and must lie between today and 366 days ahead, else `400`; a
+malformed date is `400`. `aircraftReg` restricts the answer to the ratings whose own class
+(and ultralight kind) covers that aircraft; a registration that is not one of the caller's
+aircraft is `404`. Response: `ReadinessReport {date, aircraftReg?, items: ReadinessItem[]}`.
+Semantics in [DOMAIN.md](./DOMAIN.md#readiness-get-currencyreadiness), keys in
+[CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md#readiness-get-currencyreadiness).
+
 ### Custom Currency
 User-authored currency rules under `/custom-currency` — a rule is a declarative document (a
 rolling `window`, optional `filters` selecting which flights count, and `requirements`
