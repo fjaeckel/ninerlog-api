@@ -117,6 +117,60 @@ func (e AircraftCreateUlKind) Valid() bool {
 	}
 }
 
+// Defines values for AircraftReminderStatus.
+const (
+	DueSoon AircraftReminderStatus = "due_soon"
+	Ok      AircraftReminderStatus = "ok"
+	Overdue AircraftReminderStatus = "overdue"
+)
+
+// Valid indicates whether the value is a known member of the AircraftReminderStatus enum.
+func (e AircraftReminderStatus) Valid() bool {
+	switch e {
+	case DueSoon:
+		return true
+	case Ok:
+		return true
+	case Overdue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AircraftReminderKind.
+const (
+	ANNUALINSPECTION   AircraftReminderKind = "ANNUAL_INSPECTION"
+	ARC                AircraftReminderKind = "ARC"
+	CUSTOM             AircraftReminderKind = "CUSTOM"
+	ELTBATTERY         AircraftReminderKind = "ELT_BATTERY"
+	INSURANCE          AircraftReminderKind = "INSURANCE"
+	RESCUEROCKETEXPIRY AircraftReminderKind = "RESCUE_ROCKET_EXPIRY"
+	RESCUESYSTEMREPACK AircraftReminderKind = "RESCUE_SYSTEM_REPACK"
+)
+
+// Valid indicates whether the value is a known member of the AircraftReminderKind enum.
+func (e AircraftReminderKind) Valid() bool {
+	switch e {
+	case ANNUALINSPECTION:
+		return true
+	case ARC:
+		return true
+	case CUSTOM:
+		return true
+	case ELTBATTERY:
+		return true
+	case INSURANCE:
+		return true
+	case RESCUEROCKETEXPIRY:
+		return true
+	case RESCUESYSTEMREPACK:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnnouncementSeverity.
 const (
 	AnnouncementSeverityCritical AnnouncementSeverity = "critical"
@@ -1625,40 +1679,43 @@ func (e ImportTemplateRegions) Valid() bool {
 
 // Defines values for NotificationCategory.
 const (
-	CredentialLanguage   NotificationCategory = "credential_language"
-	CredentialMedical    NotificationCategory = "credential_medical"
-	CredentialOther      NotificationCategory = "credential_other"
-	CredentialSecurity   NotificationCategory = "credential_security"
-	CurrencyFlightReview NotificationCategory = "currency_flight_review"
-	CurrencyInstrument   NotificationCategory = "currency_instrument"
-	CurrencyNight        NotificationCategory = "currency_night"
-	CurrencyPassenger    NotificationCategory = "currency_passenger"
-	CurrencyRevalidation NotificationCategory = "currency_revalidation"
-	RatingExpiry         NotificationCategory = "rating_expiry"
+	NotificationCategoryAircraftReminder     NotificationCategory = "aircraft_reminder"
+	NotificationCategoryCredentialLanguage   NotificationCategory = "credential_language"
+	NotificationCategoryCredentialMedical    NotificationCategory = "credential_medical"
+	NotificationCategoryCredentialOther      NotificationCategory = "credential_other"
+	NotificationCategoryCredentialSecurity   NotificationCategory = "credential_security"
+	NotificationCategoryCurrencyFlightReview NotificationCategory = "currency_flight_review"
+	NotificationCategoryCurrencyInstrument   NotificationCategory = "currency_instrument"
+	NotificationCategoryCurrencyNight        NotificationCategory = "currency_night"
+	NotificationCategoryCurrencyPassenger    NotificationCategory = "currency_passenger"
+	NotificationCategoryCurrencyRevalidation NotificationCategory = "currency_revalidation"
+	NotificationCategoryRatingExpiry         NotificationCategory = "rating_expiry"
 )
 
 // Valid indicates whether the value is a known member of the NotificationCategory enum.
 func (e NotificationCategory) Valid() bool {
 	switch e {
-	case CredentialLanguage:
+	case NotificationCategoryAircraftReminder:
 		return true
-	case CredentialMedical:
+	case NotificationCategoryCredentialLanguage:
 		return true
-	case CredentialOther:
+	case NotificationCategoryCredentialMedical:
 		return true
-	case CredentialSecurity:
+	case NotificationCategoryCredentialOther:
 		return true
-	case CurrencyFlightReview:
+	case NotificationCategoryCredentialSecurity:
 		return true
-	case CurrencyInstrument:
+	case NotificationCategoryCurrencyFlightReview:
 		return true
-	case CurrencyNight:
+	case NotificationCategoryCurrencyInstrument:
 		return true
-	case CurrencyPassenger:
+	case NotificationCategoryCurrencyNight:
 		return true
-	case CurrencyRevalidation:
+	case NotificationCategoryCurrencyPassenger:
 		return true
-	case RatingExpiry:
+	case NotificationCategoryCurrencyRevalidation:
+		return true
+	case NotificationCategoryRatingExpiry:
 		return true
 	default:
 		return false
@@ -2602,6 +2659,13 @@ type AdminStats struct {
 	// ActiveSessions Live sessions across all users. A session is live while it holds an unrevoked, unexpired refresh token, so this counts signed-in devices rather than users.
 	ActiveSessions int `json:"activeSessions"`
 
+	// AircraftReminders Aircraft reminders across all users.
+	AircraftReminders struct {
+		// Overdue Reminders whose due date is before today (UTC).
+		Overdue int `json:"overdue"`
+		Total   int `json:"total"`
+	} `json:"aircraftReminders"`
+
 	// CloudBackupDestinations Counts of user-configured cloud backup destinations.
 	CloudBackupDestinations struct {
 		// ByProvider Number of destinations grouped by provider name (e.g. {"s3": 3, "sftp": 1}). Providers with zero destinations are omitted.
@@ -2924,6 +2988,103 @@ type AircraftCreate struct {
 //
 // Example: THREE_AXIS
 type AircraftCreateUlKind string
+
+// AircraftReminder defines model for AircraftReminder.
+type AircraftReminder struct {
+	AircraftId openapi_types.UUID `json:"aircraftId"`
+
+	// AircraftRegistration Example: D-MXYZ
+	AircraftRegistration string    `json:"aircraftRegistration"`
+	CreatedAt            time.Time `json:"createdAt"`
+
+	// DaysUntilDue Calendar days from today (UTC) to dueDate; negative when overdue
+	//
+	// Example: 19
+	DaysUntilDue int `json:"daysUntilDue"`
+
+	// DueDate Example: 2026-10-15
+	DueDate openapi_types.Date `json:"dueDate"`
+	Id      openapi_types.UUID `json:"id"`
+
+	// IntervalMonths Months added to the completion date to get the next due date
+	//
+	// Example: 12
+	IntervalMonths *int `json:"intervalMonths,omitempty"`
+
+	// Kind - ANNUAL_INSPECTION: annual airworthiness inspection (DAeC/DULV Jahresnachprüfung for gliders and ultralights)
+	// - INSURANCE: insurance policy renewal
+	// - RESCUE_SYSTEM_REPACK: ballistic rescue system repack (manufacturer interval)
+	// - RESCUE_ROCKET_EXPIRY: rescue-system rocket expiry (manufacturer interval)
+	// - ARC: Airworthiness Review Certificate
+	// - ELT_BATTERY: ELT battery replacement
+	// - CUSTOM: any other dated item; requires a label
+	Kind AircraftReminderKind `json:"kind"`
+
+	// Label Example: Allianz hull policy
+	Label      *string             `json:"label,omitempty"`
+	LastDoneOn *openapi_types.Date `json:"lastDoneOn,omitempty"`
+	Notes      *string             `json:"notes,omitempty"`
+
+	// Status overdue before today (UTC); due_soon when due within 30 days, today included; ok otherwise
+	Status    AircraftReminderStatus `json:"status"`
+	UpdatedAt time.Time              `json:"updatedAt"`
+}
+
+// AircraftReminderStatus overdue before today (UTC); due_soon when due within 30 days, today included; ok otherwise
+type AircraftReminderStatus string
+
+// AircraftReminderComplete defines model for AircraftReminderComplete.
+type AircraftReminderComplete struct {
+	// DoneOn Completion date; defaults to today (UTC)
+	DoneOn *openapi_types.Date `json:"doneOn,omitempty"`
+}
+
+// AircraftReminderCreate defines model for AircraftReminderCreate.
+type AircraftReminderCreate struct {
+	DueDate        openapi_types.Date `json:"dueDate"`
+	IntervalMonths *int               `json:"intervalMonths,omitempty"`
+
+	// Kind - ANNUAL_INSPECTION: annual airworthiness inspection (DAeC/DULV Jahresnachprüfung for gliders and ultralights)
+	// - INSURANCE: insurance policy renewal
+	// - RESCUE_SYSTEM_REPACK: ballistic rescue system repack (manufacturer interval)
+	// - RESCUE_ROCKET_EXPIRY: rescue-system rocket expiry (manufacturer interval)
+	// - ARC: Airworthiness Review Certificate
+	// - ELT_BATTERY: ELT battery replacement
+	// - CUSTOM: any other dated item; requires a label
+	Kind AircraftReminderKind `json:"kind"`
+
+	// Label Required when kind is CUSTOM
+	Label      *string             `json:"label,omitempty"`
+	LastDoneOn *openapi_types.Date `json:"lastDoneOn,omitempty"`
+	Notes      *string             `json:"notes,omitempty"`
+}
+
+// AircraftReminderKind - ANNUAL_INSPECTION: annual airworthiness inspection (DAeC/DULV Jahresnachprüfung for gliders and ultralights)
+// - INSURANCE: insurance policy renewal
+// - RESCUE_SYSTEM_REPACK: ballistic rescue system repack (manufacturer interval)
+// - RESCUE_ROCKET_EXPIRY: rescue-system rocket expiry (manufacturer interval)
+// - ARC: Airworthiness Review Certificate
+// - ELT_BATTERY: ELT battery replacement
+// - CUSTOM: any other dated item; requires a label
+type AircraftReminderKind string
+
+// AircraftReminderUpdate defines model for AircraftReminderUpdate.
+type AircraftReminderUpdate struct {
+	DueDate        *openapi_types.Date    `json:"dueDate,omitempty"`
+	IntervalMonths nullable.Nullable[int] `json:"intervalMonths,omitempty"`
+
+	// Kind - ANNUAL_INSPECTION: annual airworthiness inspection (DAeC/DULV Jahresnachprüfung for gliders and ultralights)
+	// - INSURANCE: insurance policy renewal
+	// - RESCUE_SYSTEM_REPACK: ballistic rescue system repack (manufacturer interval)
+	// - RESCUE_ROCKET_EXPIRY: rescue-system rocket expiry (manufacturer interval)
+	// - ARC: Airworthiness Review Certificate
+	// - ELT_BATTERY: ELT battery replacement
+	// - CUSTOM: any other dated item; requires a label
+	Kind       *AircraftReminderKind                 `json:"kind,omitempty"`
+	Label      nullable.Nullable[string]             `json:"label,omitempty"`
+	LastDoneOn nullable.Nullable[openapi_types.Date] `json:"lastDoneOn,omitempty"`
+	Notes      nullable.Nullable[string]             `json:"notes,omitempty"`
+}
 
 // AircraftStats defines model for AircraftStats.
 type AircraftStats struct {
@@ -6025,6 +6186,16 @@ type ImportJSONResult struct {
 	// Example: 3
 	AircraftImported int `json:"aircraftImported"`
 
+	// AircraftRemindersImported Aircraft reminders restored
+	//
+	// Example: 3
+	AircraftRemindersImported int `json:"aircraftRemindersImported"`
+
+	// AircraftRemindersSkipped Aircraft reminders skipped because their aircraft is not in the backup or an identical reminder already exists on the aircraft
+	//
+	// Example: 0
+	AircraftRemindersSkipped int `json:"aircraftRemindersSkipped"`
+
 	// AircraftSkipped Aircraft skipped because the registration already exists for the user
 	//
 	// Example: 1
@@ -6533,6 +6704,7 @@ type MessageParams struct {
 // - currency_instrument: Instrument currency
 // - currency_flight_review: Flight review / proficiency check due
 // - currency_revalidation: EASA revalidation requirements approaching expiry
+// - aircraft_reminder: aircraft reminder due within a warning day, or overdue
 type NotificationCategory string
 
 // NotificationHistoryEntry defines model for NotificationHistoryEntry.
@@ -6548,6 +6720,7 @@ type NotificationHistoryEntry struct {
 	// - currency_instrument: Instrument currency
 	// - currency_flight_review: Flight review / proficiency check due
 	// - currency_revalidation: EASA revalidation requirements approaching expiry
+	// - aircraft_reminder: aircraft reminder due within a warning day, or overdue
 	Category NotificationCategory `json:"category"`
 
 	// DaysBeforeExpiry Days before expiry when notification was sent
@@ -6589,7 +6762,7 @@ type NotificationPreferences struct {
 
 	// EnabledCategories List of enabled notification categories
 	//
-	// Example: ["credential_medical","credential_language","credential_security","credential_other","rating_expiry","currency_passenger","currency_night","currency_instrument","currency_flight_review","currency_revalidation"]
+	// Example: ["credential_medical","credential_language","credential_security","credential_other","rating_expiry","currency_passenger","currency_night","currency_instrument","currency_flight_review","currency_revalidation","aircraft_reminder"]
 	EnabledCategories []NotificationCategory `json:"enabledCategories"`
 
 	// WarningDays Days before expiry to send warnings
@@ -7351,6 +7524,9 @@ type ImportId = openapi_types.UUID
 // LicenseId Example: 550e8400-e29b-41d4-a716-446655440000
 type LicenseId = openapi_types.UUID
 
+// ReminderId defines model for ReminderId.
+type ReminderId = openapi_types.UUID
+
 // SignatureId Example: 880e8400-e29b-41d4-a716-446655440003
 type SignatureId = openapi_types.UUID
 
@@ -7452,6 +7628,11 @@ type ListAircraftParams struct {
 	// A bare `YYYY-MM-DD` is also accepted and read as midnight UTC on that date. An empty value is treated as if the parameter were omitted. Anything else returns 400.
 	// Deletions are not reported: a removed record simply stops appearing.
 	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
+}
+
+// ListAllAircraftRemindersParams defines parameters for ListAllAircraftReminders.
+type ListAllAircraftRemindersParams struct {
+	DueWithinDays *int `form:"dueWithinDays,omitempty" json:"dueWithinDays,omitempty"`
 }
 
 // SearchAirportsParams defines parameters for SearchAirports.
@@ -7851,6 +8032,7 @@ type ListImportsParams struct {
 // ImportDataJSONJSONBody defines parameters for ImportDataJSON.
 type ImportDataJSONJSONBody struct {
 	Aircraft            *[]map[string]interface{} `json:"aircraft,omitempty"`
+	AircraftReminders   *[]map[string]interface{} `json:"aircraftReminders,omitempty"`
 	Contacts            *[]map[string]interface{} `json:"contacts,omitempty"`
 	Credentials         *[]map[string]interface{} `json:"credentials,omitempty"`
 	CustomCurrencyRules *[]map[string]interface{} `json:"customCurrencyRules,omitempty"`
@@ -8034,6 +8216,15 @@ type CreateAircraftJSONRequestBody = AircraftCreate
 
 // UpdateAircraftJSONRequestBody defines body for UpdateAircraft for application/json ContentType.
 type UpdateAircraftJSONRequestBody = AircraftUpdate
+
+// CreateAircraftReminderJSONRequestBody defines body for CreateAircraftReminder for application/json ContentType.
+type CreateAircraftReminderJSONRequestBody = AircraftReminderCreate
+
+// UpdateAircraftReminderJSONRequestBody defines body for UpdateAircraftReminder for application/json ContentType.
+type UpdateAircraftReminderJSONRequestBody = AircraftReminderUpdate
+
+// CompleteAircraftReminderJSONRequestBody defines body for CompleteAircraftReminder for application/json ContentType.
+type CompleteAircraftReminderJSONRequestBody = AircraftReminderComplete
 
 // Disable2FAJSONRequestBody defines body for Disable2FA for application/json ContentType.
 type Disable2FAJSONRequestBody Disable2FAJSONBody

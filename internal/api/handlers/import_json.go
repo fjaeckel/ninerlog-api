@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -34,6 +36,7 @@ type importJSONBackup struct {
 	Contacts                []models.Contact                     `json:"contacts"`
 	CustomCurrencyRules     []cloudbackup.CustomCurrencyRule     `json:"customCurrencyRules"`
 	CustomReports           []cloudbackup.CustomReport           `json:"customReports"`
+	AircraftReminders       []models.AircraftReminder            `json:"aircraftReminders"`
 	NotificationPreferences *cloudbackup.NotificationPreferences `json:"notificationPreferences"`
 	FlightBaseline          *cloudbackup.FlightBaseline          `json:"flightBaseline"`
 	PilotProfile            *cloudbackup.PilotProfile            `json:"pilotProfile"`
@@ -73,6 +76,11 @@ type importJSONSummary struct {
 	CustomCurrencyRulesImported int `json:"customCurrencyRulesImported"`
 	// CustomReportsImported counts saved custom reports restored.
 	CustomReportsImported int `json:"customReportsImported"`
+	// AircraftRemindersImported counts aircraft reminders restored;
+	// AircraftRemindersSkipped those whose aircraft is not in the backup or
+	// that duplicate a reminder already on the aircraft.
+	AircraftRemindersImported int `json:"aircraftRemindersImported"`
+	AircraftRemindersSkipped  int `json:"aircraftRemindersSkipped"`
 	// NotificationPreferencesImported and FlightBaselineImported report
 	// whether those single-row settings were present and restored.
 	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
@@ -139,6 +147,11 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			fmt.Sprintf("Backup contains too many custom currency rules (%d, max %d)", n, maxRestoreEntities))
 		return
 	}
+	if n := len(body.AircraftReminders); n > maxRestoreEntities {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many aircraft reminders (%d, max %d)", n, maxRestoreEntities))
+		return
+	}
 	if n := len(body.CustomReports); n > maxRestoreEntities {
 		h.sendError(c, http.StatusBadRequest,
 			fmt.Sprintf("Backup contains too many custom reports (%d, max %d)", n, maxRestoreEntities))
@@ -181,8 +194,14 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 	}
 	// Keyed in canonical notation.
 	existingRegs := make(map[string]bool, len(existingAircraft))
+	aircraftIDByReg := make(map[string]uuid.UUID, len(existingAircraft)+len(body.Aircraft))
 	for _, a := range existingAircraft {
 		existingRegs[registration.Canonical(a.Registration)] = true
+		aircraftIDByReg[registration.Canonical(a.Registration)] = a.ID
+	}
+	backupAircraftReg := make(map[uuid.UUID]string, len(body.Aircraft))
+	for _, ac := range body.Aircraft {
+		backupAircraftReg[ac.ID] = registration.Canonical(ac.Registration)
 	}
 	for _, ac := range body.Aircraft {
 		if existingRegs[registration.Canonical(ac.Registration)] {
@@ -199,7 +218,19 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			return
 		}
 		existingRegs[newAC.Registration] = true
+		aircraftIDByReg[newAC.Registration] = newAC.ID
 		summary.AircraftImported++
+	}
+
+	// --- Aircraft reminders ---
+	if h.aircraftReminderService != nil {
+		imported, skipped, err := h.restoreAircraftReminders(ctx, userID, body.AircraftReminders, backupAircraftReg, aircraftIDByReg)
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, "Failed to "+err.Error())
+			return
+		}
+		summary.AircraftRemindersImported = imported
+		summary.AircraftRemindersSkipped = skipped
 	}
 
 	// --- Licenses + class ratings ---
@@ -378,4 +409,64 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, summary)
+}
+
+// restoreAircraftReminders recreates backup reminders on the restored or
+// existing aircraft with the backup aircraft's registration. Reminders whose
+// aircraft cannot be resolved, or identical in kind, label and due date to one
+// already on the aircraft, are skipped.
+func (h *APIHandler) restoreAircraftReminders(
+	ctx context.Context, userID uuid.UUID, reminders []models.AircraftReminder,
+	backupAircraftReg map[uuid.UUID]string, aircraftIDByReg map[string]uuid.UUID,
+) (imported, skipped int, err error) {
+	existing := map[uuid.UUID]map[string]bool{}
+	reminderKey := func(r *models.AircraftReminder) string {
+		label := ""
+		if r.Label != nil {
+			label = strings.TrimSpace(*r.Label)
+		}
+		return string(r.Kind) + "|" + label + "|" + models.DateOnly(r.DueDate).Format("2006-01-02")
+	}
+	for i := range reminders {
+		rem := reminders[i]
+		reg, ok := backupAircraftReg[rem.AircraftID]
+		if !ok {
+			reg = registration.Canonical(rem.AircraftRegistration)
+		}
+		aircraftID, ok := aircraftIDByReg[reg]
+		if !ok {
+			skipped++
+			continue
+		}
+		keys, loaded := existing[aircraftID]
+		if !loaded {
+			current, lerr := h.aircraftReminderService.List(ctx, userID, aircraftID)
+			if lerr != nil {
+				return imported, skipped, fmt.Errorf("load aircraft reminders for %q", reg)
+			}
+			keys = make(map[string]bool, len(current))
+			for _, c := range current {
+				keys[reminderKey(c)] = true
+			}
+			existing[aircraftID] = keys
+		}
+		if keys[reminderKey(&rem)] {
+			skipped++
+			continue
+		}
+		created, cerr := h.aircraftReminderService.Create(ctx, userID, aircraftID, service.AircraftReminderInput{
+			Kind:           rem.Kind,
+			Label:          rem.Label,
+			DueDate:        rem.DueDate,
+			IntervalMonths: rem.IntervalMonths,
+			LastDoneOn:     rem.LastDoneOn,
+			Notes:          rem.Notes,
+		})
+		if cerr != nil {
+			return imported, skipped, fmt.Errorf("import aircraft reminder %q on %q: %w", rem.Kind, reg, cerr)
+		}
+		keys[reminderKey(created)] = true
+		imported++
+	}
+	return imported, skipped, nil
 }

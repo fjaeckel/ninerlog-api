@@ -2723,7 +2723,7 @@ paths:
       tags:
         - Aircraft
       summary: Delete aircraft
-      description: Delete an aircraft from the user's database. Note - flights using this aircraft will retain the registration/type as text.
+      description: Delete an aircraft from the user's database. Note - flights using this aircraft will retain the registration/type as text; the aircraft's reminders are deleted with it.
       operationId: deleteAircraft
       security:
         - bearerAuth: []
@@ -2736,6 +2736,195 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /aircraft/{aircraftId}/reminders:
+    get:
+      tags:
+        - Aircraft
+      summary: List reminders for an aircraft
+      description: |
+        Dated aircraft items (annual inspection, insurance, rescue-system repack,
+        rescue-rocket expiry, ARC, ELT battery, custom) on one of the caller's
+        aircraft, ordered by due date. An aircraft that does not exist or belongs
+        to another user answers 404.
+      operationId: listAircraftReminders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AircraftId'
+      responses:
+        '200':
+          description: Reminders ordered by due date
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AircraftReminder'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Aircraft
+      summary: Add a reminder to an aircraft
+      description: |
+        `label` is required when `kind` is CUSTOM. Suggested intervals (a client
+        concern, not enforced): ANNUAL_INSPECTION 12 months (DAeC/DULV
+        Jahresnachprüfung); RESCUE_SYSTEM_REPACK and RESCUE_ROCKET_EXPIRY follow
+        the manufacturer.
+      operationId: createAircraftReminder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AircraftId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AircraftReminderCreate'
+      responses:
+        '201':
+          description: Reminder created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AircraftReminder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /aircraft/{aircraftId}/reminders/{reminderId}:
+    patch:
+      tags:
+        - Aircraft
+      summary: Update an aircraft reminder
+      description: |
+        Partial update. Omitted fields are unchanged; `label`, `intervalMonths`,
+        `lastDoneOn` and `notes` are cleared by sending null. The result is
+        revalidated (a CUSTOM reminder keeps a label). A reminder that does not
+        exist, belongs to another user or is on another aircraft answers 404.
+      operationId: updateAircraftReminder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AircraftId'
+        - $ref: '#/components/parameters/ReminderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AircraftReminderUpdate'
+      responses:
+        '200':
+          description: Reminder updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AircraftReminder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Aircraft
+      summary: Delete an aircraft reminder
+      operationId: deleteAircraftReminder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AircraftId'
+        - $ref: '#/components/parameters/ReminderId'
+      responses:
+        '204':
+          description: Reminder deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /aircraft/{aircraftId}/reminders/{reminderId}/complete:
+    post:
+      tags:
+        - Aircraft
+      summary: Mark an aircraft reminder done
+      description: |
+        Records `doneOn` (default: today, UTC) as `lastDoneOn`. When the reminder
+        has `intervalMonths`, `dueDate` becomes `doneOn` plus that many calendar
+        months, clamped to the last day of the month (31 January + 1 month =
+        28/29 February). Without an interval `dueDate` is left unchanged for the
+        client to edit.
+      operationId: completeAircraftReminder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AircraftId'
+        - $ref: '#/components/parameters/ReminderId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AircraftReminderComplete'
+      responses:
+        '200':
+          description: Reminder after completion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AircraftReminder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /aircraft-reminders:
+    get:
+      tags:
+        - Aircraft
+      summary: List reminders across all aircraft
+      description: |
+        All of the caller's aircraft reminders, ordered by due date, each with its
+        aircraft's registration. `dueWithinDays` keeps reminders due within that
+        many days of today (UTC), overdue ones included.
+      operationId: listAllAircraftReminders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dueWithinDays
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 3650
+          example: 30
+      responses:
+        '200':
+          description: Reminders ordered by due date
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AircraftReminder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /flights:
     get:
@@ -3874,10 +4063,11 @@ paths:
       summary: Export full data backup as JSON
       description: |
         Exports everything the user owns as a JSON backup file: flights (with
-        crew), aircraft, licences and class ratings, credentials, contacts,
-        custom currency rules, custom reports, notification preferences, the
-        carried-forward hours baseline and the pilot profile (mode and discipline
-        intents; evidence is derived and not exported).
+        crew), aircraft, aircraft reminders, licences and class ratings,
+        credentials, contacts, custom currency rules, custom reports,
+        notification preferences, the carried-forward hours baseline and the
+        pilot profile (mode and discipline intents; evidence is derived and not
+        exported).
 
         This is the same payload a cloud backup run writes, and
         `POST /imports/json` restores every section of it.
@@ -3901,7 +4091,7 @@ paths:
       description: |
         Restore a previously exported NinerLog JSON backup into the authenticated
         user's account. Recreates every section the backup carries: aircraft,
-        licences, class ratings, credentials, flights and crew members,
+        aircraft reminders, licences, class ratings, credentials, flights and crew members,
         contacts, custom currency rules, custom reports, notification
         preferences, the carried-forward hours baseline and the pilot profile. New UUIDs are assigned so the backup can
         be restored into any NinerLog installation (including the one it was
@@ -3920,6 +4110,10 @@ paths:
         revalidated the same way and appended after existing ones; a report
         scoped to a licence is re-pointed at that licence's restored copy, and
         loses the licence scope if the backup does not carry the licence.
+        Aircraft reminders attach to the restored aircraft, or to the existing
+        aircraft with the same registration when that aircraft was skipped; a
+        reminder whose aircraft the backup does not carry is skipped, as is one
+        identical (kind, label, due date) to a reminder already on the aircraft.
       operationId: importDataJSON
       security:
         - bearerAuth: []
@@ -3961,6 +4155,10 @@ paths:
                   items:
                     type: object
                 customCurrencyRules:
+                  type: array
+                  items:
+                    type: object
+                aircraftReminders:
                   type: array
                   items:
                     type: object
@@ -5954,6 +6152,15 @@ components:
         format: uuid
         example: 770e8400-e29b-41d4-a716-446655440002
 
+    ReminderId:
+      name: reminderId
+      in: path
+      required: true
+      description: Aircraft reminder UUID
+      schema:
+        type: string
+        format: uuid
+
     FlightId:
       name: flightId
       in: path
@@ -6654,6 +6861,149 @@ components:
           type: string
           format: date-time
           example: '2026-02-01T14:30:00Z'
+
+    AircraftReminderKind:
+      type: string
+      enum: [ANNUAL_INSPECTION, INSURANCE, RESCUE_SYSTEM_REPACK, RESCUE_ROCKET_EXPIRY, ARC, ELT_BATTERY, CUSTOM]
+      description: |
+        - ANNUAL_INSPECTION: annual airworthiness inspection (DAeC/DULV Jahresnachprüfung for gliders and ultralights)
+        - INSURANCE: insurance policy renewal
+        - RESCUE_SYSTEM_REPACK: ballistic rescue system repack (manufacturer interval)
+        - RESCUE_ROCKET_EXPIRY: rescue-system rocket expiry (manufacturer interval)
+        - ARC: Airworthiness Review Certificate
+        - ELT_BATTERY: ELT battery replacement
+        - CUSTOM: any other dated item; requires a label
+
+    AircraftReminder:
+      type: object
+      required:
+        - id
+        - aircraftId
+        - aircraftRegistration
+        - kind
+        - dueDate
+        - status
+        - daysUntilDue
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        aircraftId:
+          type: string
+          format: uuid
+        aircraftRegistration:
+          type: string
+          example: D-MXYZ
+        kind:
+          $ref: '#/components/schemas/AircraftReminderKind'
+        label:
+          type: string
+          maxLength: 100
+          example: Allianz hull policy
+        dueDate:
+          type: string
+          format: date
+          example: '2026-10-15'
+        intervalMonths:
+          type: integer
+          minimum: 1
+          maximum: 240
+          example: 12
+          description: Months added to the completion date to get the next due date
+        lastDoneOn:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 1000
+        status:
+          type: string
+          enum: [ok, due_soon, overdue]
+          description: overdue before today (UTC); due_soon when due within 30 days, today included; ok otherwise
+        daysUntilDue:
+          type: integer
+          description: Calendar days from today (UTC) to dueDate; negative when overdue
+          example: 19
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AircraftReminderCreate:
+      type: object
+      required:
+        - kind
+        - dueDate
+      properties:
+        kind:
+          $ref: '#/components/schemas/AircraftReminderKind'
+        label:
+          type: string
+          maxLength: 100
+          description: Required when kind is CUSTOM
+        dueDate:
+          type: string
+          format: date
+        intervalMonths:
+          type: integer
+          minimum: 1
+          maximum: 240
+        lastDoneOn:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 1000
+
+    AircraftReminderUpdate:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/AircraftReminderKind'
+        label:
+          type: [string, 'null']
+          maxLength: 100
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        dueDate:
+          type: string
+          format: date
+        intervalMonths:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 240
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        lastDoneOn:
+          type: [string, 'null']
+          format: date
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
+          x-go-type: nullable.Nullable[string]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+
+    AircraftReminderComplete:
+      type: object
+      properties:
+        doneOn:
+          type: string
+          format: date
+          description: Completion date; defaults to today (UTC)
 
     AircraftCreate:
       type: object
@@ -8244,7 +8594,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NotificationCategory'
-          example: [credential_medical, credential_language, credential_security, credential_other, rating_expiry, currency_passenger, currency_night, currency_instrument, currency_flight_review, currency_revalidation]
+          example: [credential_medical, credential_language, credential_security, credential_other, rating_expiry, currency_passenger, currency_night, currency_instrument, currency_flight_review, currency_revalidation, aircraft_reminder]
           description: List of enabled notification categories
         warningDays:
           type: array
@@ -8290,6 +8640,7 @@ components:
         - currency_instrument
         - currency_flight_review
         - currency_revalidation
+        - aircraft_reminder
       description: |
         Notification category for granular control:
         - credential_medical: Medical certificate expiry
@@ -8302,6 +8653,7 @@ components:
         - currency_instrument: Instrument currency
         - currency_flight_review: Flight review / proficiency check due
         - currency_revalidation: EASA revalidation requirements approaching expiry
+        - aircraft_reminder: aircraft reminder due within a warning day, or overdue
 
     NotificationHistoryEntry:
       type: object
@@ -10158,6 +10510,8 @@ components:
         - contactsCreated
         - customCurrencyRulesImported
         - customReportsImported
+        - aircraftRemindersImported
+        - aircraftRemindersSkipped
         - notificationPreferencesImported
         - flightBaselineImported
         - pilotProfileImported
@@ -10213,6 +10567,16 @@ components:
             Saved custom reports restored, appended after the account's
             existing reports.
           example: 2
+        aircraftRemindersImported:
+          type: integer
+          description: Aircraft reminders restored
+          example: 3
+        aircraftRemindersSkipped:
+          type: integer
+          description: >-
+            Aircraft reminders skipped because their aircraft is not in the
+            backup or an identical reminder already exists on the aircraft
+          example: 0
         notificationPreferencesImported:
           type: boolean
           description: Whether the backup carried notification preferences that were applied
@@ -10345,6 +10709,7 @@ components:
         - disabledAccounts
         - activeSessions
         - totalCustomReports
+        - aircraftReminders
         - cloudBackupDestinations
         - importsByFormat
         - pilotProfiles
@@ -10388,6 +10753,18 @@ components:
         totalCustomReports:
           type: integer
           description: Saved custom reports across all users.
+        aircraftReminders:
+          type: object
+          description: Aircraft reminders across all users.
+          required:
+            - total
+            - overdue
+          properties:
+            total:
+              type: integer
+            overdue:
+              type: integer
+              description: Reminders whose due date is before today (UTC).
         cloudBackupDestinations:
           type: object
           description: Counts of user-configured cloud backup destinations.

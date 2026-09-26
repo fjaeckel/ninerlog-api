@@ -53,6 +53,26 @@ var deTemplates = templateSet{
 		return subject, body
 	},
 
+	AircraftReminder: func(p AircraftReminderParams) (string, string) {
+		item := aircraftReminderItem(aircraftReminderKindsDE, p)
+		if p.Overdue {
+			subject := fmt.Sprintf("NinerLog: %s %s ist überfällig", p.Registration, item)
+			body := fmt.Sprintf(`<h2>Luftfahrzeug-Erinnerung überfällig</h2>
+<p>Hallo %s,</p>
+<p><strong>%s</strong> für <strong>%s</strong> war am <strong>%s</strong> fällig.</p>
+<p>Markieren Sie den Punkt in NinerLog als erledigt, sobald er abgeschlossen ist.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(item), html.EscapeString(p.Registration), html.EscapeString(p.DueDate))
+			return subject, body
+		}
+		subject := fmt.Sprintf("NinerLog: %s %s fällig in %d Tagen", p.Registration, item, p.DaysRemaining)
+		body := fmt.Sprintf(`<h2>Luftfahrzeug-Erinnerung</h2>
+<p>Hallo %s,</p>
+<p><strong>%s</strong> für <strong>%s</strong> ist am <strong>%s</strong> fällig (noch %d Tage).</p>
+<p>Markieren Sie den Punkt in NinerLog als erledigt, sobald er abgeschlossen ist.</p>
+<p>— NinerLog</p>`, html.EscapeString(p.UserName), html.EscapeString(item), html.EscapeString(p.Registration), html.EscapeString(p.DueDate), p.DaysRemaining)
+		return subject, body
+	},
+
 	PassengerCurrency: func(p PassengerCurrencyParams) (string, string) {
 		periodDE := "Tag"
 		if p.Period == "night" {

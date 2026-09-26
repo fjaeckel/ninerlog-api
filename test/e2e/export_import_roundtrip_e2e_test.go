@@ -332,3 +332,75 @@ func TestExportImportRoundTrip_PilotProfile(t *testing.T) {
 	}
 	assertStatus(t, dest.Do("POST", "/imports/json", bad), http.StatusBadRequest)
 }
+
+// Aircraft reminders survive a JSON backup moved to a fresh account, attach to
+// the restored aircraft, and are not duplicated by restoring the same backup
+// again.
+func TestExportImportRoundTrip_AircraftRemindersJSON(t *testing.T) {
+	source := NewE2EClient(t)
+	registerAndLogin(t, source, uniqueEmail("rem-rt-src"), "SecurePass123!", "Mehmet")
+	c42 := createReminderAircraft(t, source, "D-MXYZ")
+	createReminder(t, source, c42, map[string]interface{}{
+		"kind": "ANNUAL_INSPECTION", "dueDate": futureDate(40), "intervalMonths": 12,
+		"lastDoneOn": pastDate(325), "notes": "DULV Prüfer",
+	})
+	createReminder(t, source, c42, map[string]interface{}{
+		"kind": "CUSTOM", "label": "Prop overhaul", "dueDate": futureDate(700),
+	})
+
+	exportResp := source.GET("/exports/json")
+	requireStatus(t, exportResp, http.StatusOK)
+	var backup map[string]interface{}
+	if err := exportResp.JSON(&backup); err != nil {
+		t.Fatalf("backup is not valid JSON: %v", err)
+	}
+	if rems, _ := backup["aircraftReminders"].([]interface{}); len(rems) != 2 {
+		t.Fatalf("backup carries %d aircraft reminders, want 2", len(rems))
+	}
+
+	dest := NewE2EClient(t)
+	registerAndLogin(t, dest, uniqueEmail("rem-rt-dst"), "SecurePass123!", "Mehmet")
+
+	type summary struct {
+		AircraftImported          int `json:"aircraftImported"`
+		AircraftRemindersImported int `json:"aircraftRemindersImported"`
+		AircraftRemindersSkipped  int `json:"aircraftRemindersSkipped"`
+	}
+	restore := func() summary {
+		resp := dest.Do("POST", "/imports/json", backup)
+		requireStatus(t, resp, http.StatusOK)
+		var s summary
+		if err := resp.JSON(&s); err != nil {
+			t.Fatalf("invalid summary: %v", err)
+		}
+		return s
+	}
+
+	first := restore()
+	assertInt(t, "aircraftImported", first.AircraftImported, 1)
+	assertInt(t, "aircraftRemindersImported", first.AircraftRemindersImported, 2)
+	assertInt(t, "aircraftRemindersSkipped", first.AircraftRemindersSkipped, 0)
+
+	list := listReminders(t, dest, "/aircraft-reminders")
+	if len(list) != 2 {
+		t.Fatalf("destination holds %d reminders, want 2", len(list))
+	}
+	annual := list[0]
+	if annual.Kind != "ANNUAL_INSPECTION" || annual.AircraftRegistration != "D-MXYZ" ||
+		annual.AircraftID == c42 || annual.DueDate != futureDate(40) ||
+		annual.IntervalMonths == nil || *annual.IntervalMonths != 12 ||
+		annual.LastDoneOn == nil || *annual.LastDoneOn != pastDate(325) ||
+		annual.Notes == nil || *annual.Notes != "DULV Prüfer" {
+		t.Errorf("annual inspection not restored faithfully: %+v", annual)
+	}
+	if list[1].Label == nil || *list[1].Label != "Prop overhaul" {
+		t.Errorf("custom reminder label lost: %+v", list[1])
+	}
+
+	second := restore()
+	assertInt(t, "aircraftRemindersImported on re-restore", second.AircraftRemindersImported, 0)
+	assertInt(t, "aircraftRemindersSkipped on re-restore", second.AircraftRemindersSkipped, 2)
+	if n := len(listReminders(t, dest, "/aircraft-reminders")); n != 2 {
+		t.Errorf("re-restore duplicated reminders: %d, want 2", n)
+	}
+}

@@ -46,8 +46,8 @@ func TestNotificationPreferencesWithValues(t *testing.T) {
 	if prefs.CheckHour != 8 {
 		t.Errorf("CheckHour = %d, want 8", prefs.CheckHour)
 	}
-	if len(prefs.EnabledCategories) != 10 {
-		t.Errorf("EnabledCategories length = %d, want 10", len(prefs.EnabledCategories))
+	if len(prefs.EnabledCategories) != len(AllNotificationCategories) {
+		t.Errorf("EnabledCategories length = %d, want %d", len(prefs.EnabledCategories), len(AllNotificationCategories))
 	}
 }
 
@@ -163,8 +163,8 @@ func TestNotificationLogOptionalFields(t *testing.T) {
 }
 
 func TestAllNotificationCategories(t *testing.T) {
-	if len(AllNotificationCategories) != 10 {
-		t.Errorf("AllNotificationCategories should have 10 entries, got %d", len(AllNotificationCategories))
+	if len(AllNotificationCategories) != 11 {
+		t.Errorf("AllNotificationCategories should have 11 entries, got %d", len(AllNotificationCategories))
 	}
 
 	// Verify all expected categories are present
@@ -179,6 +179,7 @@ func TestAllNotificationCategories(t *testing.T) {
 		NotifCategoryCurrencyInstrument,
 		NotifCategoryCurrencyFlightReview,
 		NotifCategoryCurrencyRevalidation,
+		NotifCategoryAircraftReminder,
 	}
 
 	for _, cat := range expected {

@@ -79,7 +79,7 @@ below are for:
 |--------|------|--------|-------------|
 | `notification_check_runs_total` | Counter | — | Total background notification check runs |
 | `notification_check_duration_seconds` | Histogram | — | Duration of each check run |
-| `notifications_sent_total` | Counter | `type` | Notifications sent. Types: `credential_expiry`, `revalidation`, `passenger_currency`, `night_currency`, `flight_review`, `rating_expiry`, `currency_revalidation`, `currency_flight_review` |
+| `notifications_sent_total` | Counter | `type` | Notifications sent. Types: `credential_expiry`, `revalidation`, `passenger_currency`, `night_currency`, `flight_review`, `rating_expiry`, `currency_revalidation`, `currency_flight_review`, `aircraft_reminder` |
 | `notification_check_errors_total` | Counter | — | Check runs that aborted early due to an error (e.g. failing to load preferences) |
 | `notification_last_success_timestamp_seconds` | Gauge | — | Unix timestamp of the last successfully completed check run. Use for staleness alerting |
 

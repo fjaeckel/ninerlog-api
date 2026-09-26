@@ -88,6 +88,18 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   goal, acknowledge a toolkit that switched itself on, or switch to "show everything".
   Clients use it to fold features that serve none of the pilot's disciplines; the API itself
   hides nothing. Rules: [DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines).
+- **Aircraft reminders** (`internal/service/aircraft_reminder.go`) — dated items on an
+  aircraft the pilot owns or looks after: annual inspection (the DAeC/DULV
+  Jahresnachprüfung for gliders and ultralights), insurance, rescue-system repack,
+  rescue-rocket expiry, ARC, ELT battery, or a custom labelled item. Each has a due date
+  and an optional interval in months; marking it done (`POST …/complete`) records the date
+  and, with an interval, rolls the due date forward. Every reminder reports `ok`,
+  `due_soon` (within 30 days) or `overdue`, and `GET /aircraft-reminders?dueWithinDays=N`
+  lists what is coming up across the whole fleet for the dashboard. Due-soon and overdue
+  items are emailed like credential expiries (category `aircraft_reminder`). Suggested
+  intervals are a client concern and are not enforced: annual inspection 12 months,
+  rescue-system repack and rocket expiry per the manufacturer. Serves the ultralight owner (PERSONAS.md, Mehmet job 3) and any pilot who
+  maintains their own aircraft.
 - **Credentials** (`internal/service/credential.go`) — medicals, language proficiency,
   security clearances, German radio certificates (BZF II / BZF I / AZF); expiry feeds
   notifications.
@@ -476,9 +488,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.
 - **Full backup / restore** (`GET /exports/json`, `POST /imports/json`) — everything the
-  pilot owns in one document: flights with crew, aircraft, licences and class ratings,
-  credentials, contacts, custom currency rules, custom reports, notification preferences,
-  the carried-forward hours baseline and the pilot profile's intents. `cloudbackup.Payload` is the single definition of that
+  pilot owns in one document: flights with crew, aircraft and their reminders, licences and
+  class ratings, credentials, contacts, custom currency rules, custom reports, notification
+  preferences, the carried-forward hours baseline and the pilot profile's intents. `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
   carry the same data. Restores are additive and regenerate all IDs, so a backup moves
   between installations; a custom report scoped to a licence is re-pointed at that licence's
@@ -488,13 +500,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 
 ## Notifications
 
-A background job reminds pilots before licenses/ratings/medicals expire and before
-currency lapses.
+A background job reminds pilots before licenses/ratings/medicals expire, before
+currency lapses, and when an aircraft reminder falls due.
 
 - **Categories** (`internal/models/notification.go`, `NotificationCategory`):
   `credential_medical`, `credential_language`, `credential_security`,
   `credential_other`, `rating_expiry`, `currency_passenger`, `currency_night`,
-  `currency_instrument`, `currency_flight_review`, `currency_revalidation`.
+  `currency_instrument`, `currency_flight_review`, `currency_revalidation`,
+  `aircraft_reminder`. All are on by default (migration 75 switched `aircraft_reminder` on
+  for existing preferences too). `aircraft_reminder` uses the same warning-day thresholds
+  and due-date-keyed dedup as credential expiries, plus one "overdue" notice per due date
+  once the date has passed; completing a reminder moves its due date and re-arms both.
 - **Preferences** — per-user, per-category opt-in with configurable warning windows
   (`NotificationPreference`); sent notifications are recorded in `NotificationLog` for
   deduplication.
@@ -546,6 +562,7 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   counts flights whose owner was carried rather than crewing
   (see [DOMAIN.md](./DOMAIN.md#passenger-flights)), each kept apart for the same reason
   the logbook keeps them apart. `totalCustomReports` counts saved custom reports across all
+  users; `aircraftReminders` reports `total` and `overdue` aircraft reminders across all
   users. `pilotProfiles` reports how many users switched the pilot profile to show
   everything and, per discipline, how many set it explicitly on, off or as a training goal. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table

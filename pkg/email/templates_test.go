@@ -385,3 +385,84 @@ func TestUnknownCurrencyKeyIsVisible(t *testing.T) {
 		t.Errorf("unknown key rendered as %q", got)
 	}
 }
+
+func TestAircraftReminder_Templates(t *testing.T) {
+	tests := []struct {
+		name        string
+		locale      string
+		p           AircraftReminderParams
+		wantSubject []string
+		wantBody    []string
+	}{
+		{
+			name:        "en due soon names the kind",
+			locale:      "en",
+			p:           AircraftReminderParams{UserName: "Mehmet", Registration: "D-MXYZ", Kind: "ANNUAL_INSPECTION", DueDate: "15.10.2026", DaysRemaining: 19},
+			wantSubject: []string{"D-MXYZ", "Annual inspection", "due in 19 days"},
+			wantBody:    []string{"Aircraft Reminder", "Mehmet", "15.10.2026", "19 days"},
+		},
+		{
+			name:        "de due soon uses Jahresnachprüfung",
+			locale:      "de",
+			p:           AircraftReminderParams{UserName: "Mehmet", Registration: "D-MXYZ", Kind: "ANNUAL_INSPECTION", DueDate: "15.10.2026", DaysRemaining: 19},
+			wantSubject: []string{"D-MXYZ", "Jahresnachprüfung", "fällig in 19 Tagen"},
+			wantBody:    []string{"Luftfahrzeug-Erinnerung", "noch 19 Tage"},
+		},
+		{
+			name:        "en overdue",
+			locale:      "en",
+			p:           AircraftReminderParams{UserName: "Mehmet", Registration: "D-MXYZ", Kind: "RESCUE_SYSTEM_REPACK", DueDate: "01.09.2026", Overdue: true},
+			wantSubject: []string{"Rescue system repack", "is overdue"},
+			wantBody:    []string{"Aircraft Reminder Overdue", "was due on"},
+		},
+		{
+			name:        "de overdue",
+			locale:      "de",
+			p:           AircraftReminderParams{UserName: "Mehmet", Registration: "D-MXYZ", Kind: "RESCUE_ROCKET_EXPIRY", DueDate: "01.09.2026", Overdue: true},
+			wantSubject: []string{"Rettungsrakete", "überfällig"},
+			wantBody:    []string{"war am"},
+		},
+		{
+			name:        "label wins over kind",
+			locale:      "en",
+			p:           AircraftReminderParams{UserName: "Mehmet", Registration: "D-MXYZ", Kind: "CUSTOM", Label: "Prop overhaul", DueDate: "01.11.2026", DaysRemaining: 30},
+			wantSubject: []string{"Prop overhaul"},
+			wantBody:    []string{"Prop overhaul"},
+		},
+		{
+			name:     "label is escaped",
+			locale:   "en",
+			p:        AircraftReminderParams{UserName: "M", Registration: "D-MXYZ", Kind: "CUSTOM", Label: "<script>x</script>", DueDate: "01.11.2026", DaysRemaining: 3},
+			wantBody: []string{"&lt;script&gt;"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject, body := Templates(tt.locale).AircraftReminder(tt.p)
+			for _, want := range tt.wantSubject {
+				if !strings.Contains(subject, want) {
+					t.Errorf("subject %q missing %q", subject, want)
+				}
+			}
+			for _, want := range tt.wantBody {
+				if !strings.Contains(body, want) {
+					t.Errorf("body missing %q:\n%s", want, body)
+				}
+			}
+			if strings.Contains(body, "<script>") {
+				t.Error("body must escape the label")
+			}
+		})
+	}
+}
+
+func TestAircraftReminderKindCataloguesMatch(t *testing.T) {
+	if len(aircraftReminderKindsEN) != len(aircraftReminderKindsDE) {
+		t.Fatalf("en has %d kinds, de has %d", len(aircraftReminderKindsEN), len(aircraftReminderKindsDE))
+	}
+	for k := range aircraftReminderKindsEN {
+		if _, ok := aircraftReminderKindsDE[k]; !ok {
+			t.Errorf("de catalogue missing %s", k)
+		}
+	}
+}
