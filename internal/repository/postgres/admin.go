@@ -32,6 +32,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	stats := &repository.AdminStats{
 		ImportsByFormat:              map[string]int{},
 		BackupDestinationsByProvider: map[string]int{},
+		PilotProfileOverrides:        map[string]map[string]int{},
 	}
 
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users"), &stats.TotalUsers)
@@ -88,6 +89,11 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 			stats.ImportsByFormat[format] = count
 		}
 	}
+
+	r.scanCount(r.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM pilot_profiles WHERE mode = 'everything'",
+	), &stats.PilotProfilesEverythingMode)
+	r.scanPilotProfileOverrides(ctx, stats.PilotProfileOverrides)
 
 	// Cloud backup destinations: breakdown by provider.
 	rows, err := r.db.QueryContext(ctx,
@@ -239,4 +245,30 @@ func (r *adminRepository) DeleteExpiredPasswordResetTokens(ctx context.Context, 
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+// scanPilotProfileOverrides fills overrides with explicit intent counts per discipline.
+func (r *adminRepository) scanPilotProfileOverrides(ctx context.Context, overrides map[string]map[string]int) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT d.key, d.value->>'intent', COUNT(*)
+		FROM pilot_profiles p, jsonb_each(p.disciplines) d
+		WHERE d.value->>'intent' IN ('on', 'off', 'goal')
+		GROUP BY 1, 2`)
+	if err != nil {
+		slog.Error("admin stats: pilot_profiles overrides query failed", "error", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var discipline, intent string
+		var count int
+		if err := rows.Scan(&discipline, &intent, &count); err != nil {
+			slog.Error("admin stats: pilot_profiles overrides scan failed", "error", err)
+			continue
+		}
+		if overrides[discipline] == nil {
+			overrides[discipline] = map[string]int{}
+		}
+		overrides[discipline][intent] = count
+	}
 }

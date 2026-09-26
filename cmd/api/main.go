@@ -28,6 +28,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/webdav"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
+	"github.com/fjaeckel/ninerlog-api/internal/service/pilotprofile"
 	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
@@ -341,6 +342,11 @@ func main() {
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetOIDCService(oidcService)
 	apiHandler.SetCustomCurrencyService(customCurrencyService)
+	apiHandler.SetPilotProfileService(pilotprofile.NewService(
+		postgres.NewPilotProfileRepository(db),
+		postgres.NewDisciplineEvidenceSource(db),
+		licenseRepo, classRatingRepo, aircraftRepo,
+	))
 	apiHandler.SetCustomReportService(customreport.NewService(
 		postgres.NewCustomReportRepository(db),
 		service.NewLogbookScope(licenseService, classRatingService, aircraftService, currencyService),

@@ -33,6 +33,11 @@ type AdminStats struct {
 	// BackupDestinationsByProvider maps provider name to destination count.
 	// Never nil.
 	BackupDestinationsByProvider map[string]int
+	// PilotProfilesEverythingMode counts users whose pilot profile shows everything.
+	PilotProfilesEverythingMode int
+	// PilotProfileOverrides maps discipline to explicit intent (on, off, goal) to user
+	// count. Never nil; disciplines nobody has overridden are absent.
+	PilotProfileOverrides map[string]map[string]int
 }
 
 // AdminAuditLogEntry is one admin action, joined with the acting and target

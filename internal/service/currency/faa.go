@@ -256,27 +256,25 @@ var faaSuppressedIRRule = ratingRule{
 // isULLicenceType reports whether a free-text licence type names an
 // ultralight licence ("UL", "UL-…", "Ultralight", "Ultraleicht").
 func isULLicenceType(licenseType string) bool {
-	lt := strings.ToUpper(strings.TrimSpace(licenseType))
-	return lt == "UL" || strings.HasPrefix(lt, "UL ") || strings.HasPrefix(lt, "UL-") ||
-		strings.Contains(lt, "ULTRALIGHT") || strings.Contains(lt, "ULTRALEICHT")
+	return models.ClassifyLicence(licenseType, "") == models.LicenceKindUL
 }
 
 // HasNightPrivilege returns whether the given license type has night flying privileges.
 // Used by the frontend to show/hide night currency sections.
 func HasNightPrivilege(licenseType, authority string) bool {
-	lt := strings.ToUpper(licenseType)
+	kind := models.ClassifyLicence(licenseType, "")
 	auth := strings.ToUpper(authority)
 
 	switch {
-	case auth == "FAA" && (lt == "SPORT" || lt == "RECREATIONAL" || lt == "GLIDER"):
+	case auth == "FAA" && (kind == models.LicenceKindFAASport || kind == models.LicenceKindFAARecreational || kind == models.LicenceKindFAAGlider):
 		return false
-	case auth == "EASA" && isEASASailplane(lt):
+	case auth == "EASA" && kind.IsEASASailplane():
 		return false
-	case auth == "EASA" && isEASALAPLA(lt):
+	case auth == "EASA" && kind == models.LicenceKindLAPLA:
 		return false // LAPL requires separate night rating extension
-	case auth == "DULV" || auth == "DAEC" || (auth == "LBA" && isULLicenceType(lt)):
+	case auth == "DULV" || auth == "DAEC" || (auth == "LBA" && kind == models.LicenceKindUL):
 		return false // German UL — no night flying (LuftPersV §44(2))
-	case lt == "GPL":
+	case kind == models.LicenceKindGPL:
 		return false // no night rating for gyroplanes (FCL.810)
 	default:
 		return true // PPL, CPL, ATPL, FAA Private/Commercial/ATP

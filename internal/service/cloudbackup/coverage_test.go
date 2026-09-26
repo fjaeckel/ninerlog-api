@@ -35,6 +35,7 @@ var exported = map[string]string{
 	"custom_reports":           "CustomReports",
 	"notification_preferences": "NotificationPreferences",
 	"flight_baselines":         "FlightBaseline",
+	"pilot_profiles":           "PilotProfile",
 }
 
 // exempt maps a table to the reason its rows are not part of a user's backup.

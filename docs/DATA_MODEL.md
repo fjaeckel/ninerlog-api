@@ -19,6 +19,7 @@ flowchart TD
     User --> Contact
     User --> Flight
     User --> FlightBaseline
+    User --> PilotProfile
     License --> ClassRating
     Flight --> FlightCrewMember
 
@@ -303,6 +304,18 @@ order set by `PUT /reports/custom/order`; new reports are appended after the hig
 `position`. Aggregation runs as a single `GROUP BY` CTE over `flights`
 (`internal/repository/postgres/custom_report.go`) reusing `appendFlightFilters`, the same
 filter builder `GET /flights` uses.
+
+### PilotProfile (`internal/models/pilot_profile.go`, migration 74)
+
+One row per user in `pilot_profiles` (`user_id` primary key, `ON DELETE CASCADE`), holding only
+what the pilot chose for the adaptive disciplines: `mode` (`adaptive` or `everything`, CHECK
+constraint) and `disciplines` JSONB, a map of discipline to
+`{"intent": "on"|"off"|"goal", "acknowledgedAt": timestamp}`. Entries with intent `auto` and no
+acknowledgement are not stored; keys this version does not know are skipped on read and dropped
+on the next write. No row means mode `adaptive` and intent `auto` everywhere, and a read never
+creates one. Evidence and status are derived on every read and never stored — see
+[DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines). Exported and restored as the
+`pilotProfile` section of the JSON backup (a restore replaces the row).
 
 ## Auth, session, and notification tables
 

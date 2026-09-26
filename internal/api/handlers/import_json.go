@@ -36,6 +36,7 @@ type importJSONBackup struct {
 	CustomReports           []cloudbackup.CustomReport           `json:"customReports"`
 	NotificationPreferences *cloudbackup.NotificationPreferences `json:"notificationPreferences"`
 	FlightBaseline          *cloudbackup.FlightBaseline          `json:"flightBaseline"`
+	PilotProfile            *cloudbackup.PilotProfile            `json:"pilotProfile"`
 }
 
 type importLicenseBundle struct {
@@ -76,6 +77,8 @@ type importJSONSummary struct {
 	// whether those single-row settings were present and restored.
 	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
 	FlightBaselineImported          bool `json:"flightBaselineImported"`
+	// PilotProfileImported reports whether a pilot profile was present and restored.
+	PilotProfileImported bool `json:"pilotProfileImported"`
 }
 
 // ImportDataJSON implements POST /imports/json. It restores a NinerLog JSON
@@ -359,6 +362,19 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			return
 		}
 		summary.FlightBaselineImported = true
+	}
+
+	// --- Pilot profile ---
+	if p := body.PilotProfile; p != nil && h.pilotProfileService != nil {
+		if err := h.pilotProfileService.Replace(ctx, userID, p.ToModel(userID)); err != nil {
+			if errors.Is(err, models.ErrInvalidPilotProfile) {
+				h.sendError(c, http.StatusBadRequest, "Failed to import pilot profile: unknown mode or intent")
+				return
+			}
+			h.sendError(c, http.StatusInternalServerError, "Failed to import pilot profile")
+			return
+		}
+		summary.PilotProfileImported = true
 	}
 
 	c.JSON(http.StatusOK, summary)

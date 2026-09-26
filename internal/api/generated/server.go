@@ -512,6 +512,12 @@ type ServerInterface interface {
 	// GetNotificationHistory Get notification history
 	// (GET /users/me/notifications/history)
 	GetNotificationHistory(c *gin.Context, params GetNotificationHistoryParams)
+	// GetPilotProfile Get the pilot profile (disciplines / toolkits)
+	// (GET /users/me/pilot-profile)
+	GetPilotProfile(c *gin.Context)
+	// UpdatePilotProfile Update the pilot profile
+	// (PATCH /users/me/pilot-profile)
+	UpdatePilotProfile(c *gin.Context)
 	// GetMyStatistics Get current user's flight statistics
 	// (GET /users/me/statistics)
 	GetMyStatistics(c *gin.Context, params GetMyStatisticsParams)
@@ -4376,6 +4382,32 @@ func (siw *ServerInterfaceWrapper) GetNotificationHistory(c *gin.Context) {
 	siw.Handler.GetNotificationHistory(c, params)
 }
 
+// GetPilotProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetPilotProfile(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPilotProfile(c)
+}
+
+// UpdatePilotProfile operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePilotProfile(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdatePilotProfile(c)
+}
+
 // GetMyStatistics operation middleware
 func (siw *ServerInterfaceWrapper) GetMyStatistics(c *gin.Context) {
 
@@ -4473,6 +4505,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/users/me/baseline", wrapper.DeleteMyBaseline)
 	router.GET(options.BaseURL+"/users/me/baseline", wrapper.GetMyBaseline)
 	router.PUT(options.BaseURL+"/users/me/baseline", wrapper.PutMyBaseline)
+	router.GET(options.BaseURL+"/users/me/pilot-profile", wrapper.GetPilotProfile)
+	router.PATCH(options.BaseURL+"/users/me/pilot-profile", wrapper.UpdatePilotProfile)
 	router.GET(options.BaseURL+"/users/me/statistics", wrapper.GetMyStatistics)
 	router.GET(options.BaseURL+"/licenses", wrapper.ListLicenses)
 	router.POST(options.BaseURL+"/licenses", wrapper.CreateLicense)

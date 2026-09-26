@@ -18,6 +18,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
+	"github.com/fjaeckel/ninerlog-api/internal/service/pilotprofile"
 	"github.com/google/uuid"
 )
 
@@ -47,6 +48,8 @@ type DefaultJSONBuilder struct {
 	CustomCurrency *currency.CustomService
 	CustomReports  *customreport.Service
 	Notifications  *service.NotificationService
+	// PilotProfiles backs the pilotProfile section; nil omits it.
+	PilotProfiles *pilotprofile.Service
 	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
 	AttachCrew func(ctx context.Context, flights []*models.Flight)
@@ -150,6 +153,11 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		return Payload{}, err
 	}
 
+	profile, err := b.gatherPilotProfile(ctx, userID)
+	if err != nil {
+		return Payload{}, err
+	}
+
 	return Payload{
 		ExportedAt:              now.Format(time.RFC3339),
 		Version:                 b.versionOrDefault(),
@@ -163,7 +171,20 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		CustomReports:           reports,
 		NotificationPreferences: prefs,
 		FlightBaseline:          NewFlightBaseline(b.gatherBaseline(ctx, userID)),
+		PilotProfile:            profile,
 	}, nil
+}
+
+// gatherPilotProfile returns the user's stored pilot profile, or nil if they have none.
+func (b *DefaultJSONBuilder) gatherPilotProfile(ctx context.Context, userID uuid.UUID) (*PilotProfile, error) {
+	if b.PilotProfiles == nil {
+		return nil, nil
+	}
+	p, err := b.PilotProfiles.Settings(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get pilot profile: %w", err)
+	}
+	return NewPilotProfile(p), nil
 }
 
 // gatherContacts returns the user's address book, sorted by id.
