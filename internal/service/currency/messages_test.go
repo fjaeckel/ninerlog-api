@@ -25,8 +25,8 @@ var knownMessageKeys = map[string]bool{
 	MsgRatingIRLapsedSafetyPilot: true, MsgRatingIRExpiredIPC: true,
 	MsgRatingIRNotApplicable: true, MsgRatingPaxNotCurrent: true,
 	MsgRatingPaxDayCurrentNightNo: true, MsgRatingPaxCurrentDayNight: true,
-	MsgRatingGliderNotCurrent: true, MsgRatingGliderCurrent: true,
-	MsgPaxEvaluationFailed: true, MsgPaxNotCurrent: true,
+	MsgRatingFlightReviewGliderAlt: true,
+	MsgPaxEvaluationFailed:         true, MsgPaxNotCurrent: true,
 	MsgPaxCurrentDayNoNight: true, MsgPaxCurrentDayNightIRWaived: true,
 	MsgPaxCurrentDayNight: true, MsgPaxDayCurrentNightNot: true,
 	MsgPaxGPLExperienceNotMet: true, MsgPaxCurrentPrivilegeSeparat: true,
@@ -43,9 +43,9 @@ var knownNameKeys = map[string]bool{
 	ReqKeyLandings: true, ReqKeyDayLandings: true, ReqKeyNightLandings: true,
 	ReqKeyRefresherTraining: true, ReqKeyTrainingFlight: true,
 	ReqKeyProficiencyCheck: true, ReqKeyApproaches: true, ReqKeyHolds: true,
-	ReqKeyRouteSectors: true, ReqKeyLaunches: true, ReqKeyLaunchesAndLanding: true,
+	ReqKeyRouteSectors: true, ReqKeyLaunches: true,
 	ReqKeyFlightTime: true, ReqKeyTrainingFlights: true, ReqKeyTMGTime: true,
-	ReqKeyTMGLandings: true, ReqKeyTMGTrainingFlight: true,
+	ReqKeyTMGLandings: true, ReqKeyTMGTrainingFlight: true, ReqKeyFlightReview: true,
 }
 
 // evaluatorCase is one (authority, licenseType) pair to sweep.
@@ -222,7 +222,7 @@ func TestMessageParamsMatchKeys(t *testing.T) {
 	}
 	needsNeeded := map[string]bool{
 		MsgRatingPaxNotCurrent: true, MsgRatingPaxDayCurrentNightNo: true,
-		MsgRatingGliderNotCurrent: true, MsgPaxNotCurrent: true,
+		MsgPaxNotCurrent:         true,
 		MsgPaxDayCurrentNightNot: true,
 	}
 	needsDate := map[string]bool{

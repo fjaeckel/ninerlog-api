@@ -109,8 +109,13 @@ fixture keeps passing while covering a surface the API cannot produce.
 | `rating.pax_not_current` | `needed` | FAA Tier-1: day landings short |
 | `rating.pax_day_current_night_not` | `needed` | FAA Tier-1: day met, night short |
 | `rating.pax_current_day_night` | — | FAA Tier-1: day and night met |
-| `rating.glider_not_current` | `needed` | FAA glider: launches short |
-| `rating.glider_current` | — | FAA glider: launches met |
+| `rating.flight_review_glider_alternative` | — | FAA glider: no current flight review, but three instructional glider flights in the flight review period stand in for it (§61.56(b)) |
+| `flight_review.*` | as in [`FlightReviewStatus.messageKey`](#flightreviewstatusmessagekey) | FAA glider: the rating takes the flight review's statement (`none_on_record`, `expired`, `expiring`, `current`) |
+
+`rating.glider_not_current` and `rating.glider_current` are no longer sent: an FAA glider
+rating follows the §61.56 flight review, and §61.57(a) is reported as passenger currency
+under `ruleDescriptionKey` `faa_glider` ([SAILPLANES.md](./SAILPLANES.md#faa-gliders-14-cfr-part-61)).
+Clients may drop their strings.
 
 ## `PassengerCurrency.messageKey`
 
@@ -143,9 +148,10 @@ render them yourself. See [DOMAIN.md](./DOMAIN.md#passenger-currency-expiry-daye
 `nameKey` is one of: `requirement.total_time`, `.pic_time`, `.ifr_time`, `.landings`,
 `.day_landings`, `.night_landings`, `.refresher_training`, `.training_flight`,
 `.proficiency_check`, `.approaches`, `.holds`, `.route_sectors`, `.launches`,
-`.launches_and_landings`, `.sep_land_time`, `.sep_land_landings`, `.sep_sea_time`,
+`.sep_land_time`, `.sep_land_landings`, `.sep_sea_time`,
 `.sep_sea_landings`, `.flight_time`, `.training_flights`, `.tmg_time`, `.tmg_landings`,
-`.tmg_training_flight`. Absent on custom rules — see rule 4.
+`.tmg_training_flight`, `.flight_review`. Absent on custom rules — see rule 4.
+`requirement.launches_and_landings` is no longer sent (it was the FAA glider §61.57(a) row).
 
 The four `sep_*` keys are the per-class minimums of EASA FCL.140.A(b), present only on a
 LAPL license holding both SEP(land) and SEP(sea) ratings. LAPL results also carry a
@@ -162,11 +168,13 @@ The sailplane rules (see [SAILPLANES.md](./SAILPLANES.md)) use these keys:
 | `requirement.tmg_landings` | SFCL.160(b)(1)(ii) | `landings` | Take-offs and landings on TMGs |
 | `requirement.tmg_training_flight` | SFCL.160(b)(1)(iii) | `minutes` | Longest training flight with an instructor on a TMG (needs 60) |
 | `requirement.proficiency_check` | SFCL.160(a)(2), (b)(2) | `check` | The alternative to the experience rows |
+| `requirement.flight_review` | FAA §61.56(a) | `review` | The latest flight review, met while it is current or expiring |
+| `requirement.training_flights` | FAA §61.56(b) | `flights` | Instructional glider flights in the flight review period (needs 3); the alternative to the flight review row |
 
 | `messageKey` | Params | Meaning |
 | --- | --- | --- |
 | `requirement.progress` | — | The common case: render `current` / `required` `unit` |
-| `requirement.prof_check_completed` | `date` | Proficiency check completed on `date` |
+| `requirement.prof_check_completed` | `date` | Proficiency check, or FAA flight review, completed on `date` |
 | `requirement.prof_check_missing` | — | Not completed in the validity period |
 
 `LaunchMethodCurrency.messageKey` is always `launch_method.progress`; render
