@@ -347,6 +347,18 @@ them) and `DELETE /users/me` confirms with `confirmEmail` instead of `password`.
 `flightListColumns` for the flights-list columns). An unrecognised value for any of these
 is ignored rather than rejected, and the response always echoes what was stored.
 
+`GET /users/me/pilot-profile` returns the pilot profile: for each of the ten disciplines
+(`AEROPLANE`, `TMG`, `SAILPLANE`, `ULTRALIGHT`, `GYROPLANE`, `HELICOPTER`, `IFR`, `MULTI_CREW`,
+`INSTRUCTOR`, `SIMULATOR`, always in that order) its `status` (`active`, `training`, `dormant`,
+`off`), the pilot's `intent` (`auto`, `on`, `off`, `goal`), the `evidence` behind it, `ulKinds`
+and `acknowledgedAt`, plus `mode` (`adaptive` or `everything`) and `pendingAcknowledgement`.
+Evidence is derived on every read (rules in
+[DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines)); a `GET` never stores anything.
+`PATCH /users/me/pilot-profile` is an idempotent merge of `mode`, `intents` (a partial map of
+discipline to intent) and `acknowledge` (disciplines), and returns the full profile. An
+unknown mode, discipline or intent is a 400 and changes nothing. Clients must treat a
+discipline value they do not know as `active`.
+
 ### Licenses
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings
 (`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
@@ -696,8 +708,9 @@ still calls the old ones, so they are not removed.
 
 **Backup content.** Flights (with crew), aircraft, licences and class ratings, credentials,
 contacts, custom currency rules, custom reports, notification preferences, the
-carried-forward hours baseline, and the strict logbook mode with its flight revisions, mode
-switches and logbook certifications (`logbookMode`, `flightRevisions`,
+carried-forward hours baseline, the pilot profile (`pilotProfile`: mode, intents and
+acknowledgements; never the derived evidence), and the strict logbook mode with its flight
+revisions, mode switches and logbook certifications (`logbookMode`, `flightRevisions`,
 `logbookCertifications`). It is the same payload a cloud backup run writes
 (`cloudbackup.Payload` is the single definition of both; `BackupPayload` in the spec mirrors
 it, and `payload_spec_test.go` fails when they drift). Binary document files and instructor
@@ -715,8 +728,10 @@ run in one database transaction, so a failure writes nothing.
   in the same transaction. While the account holds licence or credential document files or
   signed flights, which a backup does not carry, it answers `409` with
   `code: replace_would_drop_attachments` and nothing is written.
-- Notification preferences and the flight baseline are overwritten by a backup that carries
-  them, in both modes. A flight keeps its ID when no flight, no other user's history and no
+- Notification preferences, the flight baseline and the pilot profile are overwritten by a
+  backup that carries them, in both modes (`pilotProfileImported` in the result). A pilot
+  profile with an unknown mode or intent fails the restore with `400`; disciplines this
+  version does not know are dropped. A flight keeps its ID when no flight, no other user's history and no
   void record of the account holds it, and gets a new one otherwise (its crew follows); every
   other ID is regenerated. A custom currency rule's sharing state is never carried over; a custom report scoped to a licence is re-pointed at that licence's
   restored copy, or loses the scope if the backup does not carry it.
@@ -882,7 +897,7 @@ A `logbookLicenseId`-filtered export covers only part of the logbook, so the
 career-wide snapshot is deliberately left out of it.
 
 ### Admin
-User management (list, disable/enable, unlock, reset 2FA, delete), platform stats,
+User management (list, disable/enable, unlock, reset 2FA, delete), platform stats (including how pilots override the pilot profile: `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` counts),
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,
 unverified-account sweep), email deliverability, and announcements. `GET /admin/stats` also
 counts `strictLogbookUsers`, `flightRevisions`, `flightCorrections`, `voidedFlights` and

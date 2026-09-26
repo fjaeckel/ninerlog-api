@@ -3,6 +3,7 @@
 package e2e_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -261,4 +262,73 @@ func TestExportImportRoundTrip_ReimportIntoSameAccountIsDeduplicated(t *testing.
 			}
 		})
 	}
+}
+
+// TestExportImportRoundTrip_PilotProfile asserts that the pilot profile's mode,
+// intents and acknowledgements survive GET /exports/json → POST /imports/json
+// into a fresh account, and that derived evidence is not exported.
+func TestExportImportRoundTrip_PilotProfile(t *testing.T) {
+	source := setupCurrencyUser(t, "pp-export")
+	licID := createLicenceNumbered(t, source, "LBA", "SPL", "DE.SFCL.RT")
+	createRatingCur(t, source, licID, "GLIDER", nil)
+	patchPilotProfile(t, source, map[string]interface{}{
+		"mode":        "everything",
+		"intents":     map[string]string{"IFR": "goal", "MULTI_CREW": "off"},
+		"acknowledge": []string{"SAILPLANE"},
+	})
+	sourceProfile := getPilotProfile(t, source)
+
+	backupResp := source.GET("/exports/json")
+	requireStatus(t, backupResp, http.StatusOK)
+	var backup map[string]interface{}
+	if err := json.Unmarshal(backupResp.Body, &backup); err != nil {
+		t.Fatalf("backup is not valid JSON: %v", err)
+	}
+	section, ok := backup["pilotProfile"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("backup is missing the pilotProfile section: %v", backup["pilotProfile"])
+	}
+	if section["mode"] != "everything" {
+		t.Errorf("pilotProfile.mode = %v", section["mode"])
+	}
+	disciplines, _ := section["disciplines"].(map[string]interface{})
+	if len(disciplines) != 3 {
+		t.Errorf("pilotProfile.disciplines = %v, want IFR, MULTI_CREW and SAILPLANE", disciplines)
+	}
+	if _, leaked := section["evidence"]; leaked {
+		t.Error("derived evidence was exported")
+	}
+
+	dest := NewE2EClient(t)
+	registerAndLogin(t, dest, uniqueEmail("pp-import"), "SecurePass123!", "PP Import")
+	restore := dest.Do("POST", "/imports/json", backup)
+	requireStatus(t, restore, http.StatusOK)
+	var summary struct {
+		PilotProfileImported bool `json:"pilotProfileImported"`
+	}
+	if err := restore.JSON(&summary); err != nil || !summary.PilotProfileImported {
+		t.Fatalf("pilotProfileImported = %v (%v) body=%s", summary.PilotProfileImported, err, string(restore.Body))
+	}
+
+	got := getPilotProfile(t, dest)
+	if got.Mode != "everything" {
+		t.Errorf("restored mode = %s", got.Mode)
+	}
+	for _, d := range ppAllDisciplines {
+		if got.state(d).Intent != sourceProfile.state(d).Intent {
+			t.Errorf("%s intent = %s, want %s", d, got.state(d).Intent, sourceProfile.state(d).Intent)
+		}
+	}
+	if a, b := got.state("SAILPLANE").AcknowledgedAt, sourceProfile.state("SAILPLANE").AcknowledgedAt; a == nil || b == nil || *a != *b {
+		t.Errorf("SAILPLANE acknowledgedAt = %v, want %v", a, b)
+	}
+	if got.state("SAILPLANE").Status != "active" || len(got.PendingAcknowledgement) != 0 {
+		t.Errorf("restored SAILPLANE = %+v pending %v", got.state("SAILPLANE"), got.PendingAcknowledgement)
+	}
+
+	bad := map[string]interface{}{
+		"format":       "NinerLog JSON Backup",
+		"pilotProfile": map[string]interface{}{"mode": "sometimes"},
+	}
+	assertStatus(t, dest.Do("POST", "/imports/json", bad), http.StatusBadRequest)
 }

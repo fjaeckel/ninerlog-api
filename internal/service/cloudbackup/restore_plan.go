@@ -48,6 +48,7 @@ type restorePlan struct {
 	reports  []*models.CustomReport
 	prefs    *models.NotificationPreferences
 	baseline *models.FlightBaseline
+	profile  *models.PilotProfile
 
 	logbook *service.PreparedLogbook
 
@@ -108,6 +109,9 @@ func buildRestorePlan(userID uuid.UUID, p *Payload) (*restorePlan, error) {
 		return nil, err
 	}
 	pl.planSettings(p)
+	if err := pl.planPilotProfile(p); err != nil {
+		return nil, err
+	}
 	if err := pl.planLogbook(p); err != nil {
 		return nil, err
 	}
@@ -378,6 +382,24 @@ func (pl *restorePlan) planSettings(p *Payload) {
 			pl.warnings.add("flightBaseline", 0, "restored although it no longer passes validation: %s", err)
 		}
 	}
+}
+
+// planPilotProfile plans the pilot profile, rejecting an unknown mode or
+// intent.
+func (pl *restorePlan) planPilotProfile(p *Payload) error {
+	if p.PilotProfile == nil {
+		return nil
+	}
+	profile := p.PilotProfile.ToModel(pl.userID)
+	if profile.Mode == "" {
+		profile.Mode = models.ModeAdaptive
+	}
+	if err := profile.Validate(); err != nil {
+		return invalidEntry("pilotProfile", 0, err)
+	}
+	profile.Compact()
+	pl.profile = profile
+	return nil
 }
 
 // planLogbook plans strict logbook mode, its switch events, the flight

@@ -702,3 +702,18 @@ type LogbookRepository interface {
 	// date, or ErrNotFound.
 	GetOverview(ctx context.Context, userID uuid.UUID) (*models.LogbookOverview, error)
 }
+
+// PilotProfileRepository stores pilot profile settings, one row per user.
+type PilotProfileRepository interface {
+	// Get returns the user's stored profile, or ErrNotFound when none is stored.
+	Get(ctx context.Context, userID uuid.UUID) (*models.PilotProfile, error)
+	// Upsert creates or replaces the user's profile.
+	Upsert(ctx context.Context, profile *models.PilotProfile) error
+}
+
+// DisciplineEvidenceSource reads the flight aggregate discipline derivation runs on.
+type DisciplineEvidenceSource interface {
+	// GetDisciplineFlightGroups aggregates the user's flights per normalised aircraft class
+	// and ultralight kind in one query.
+	GetDisciplineFlightGroups(ctx context.Context, userID uuid.UUID) ([]models.DisciplineFlightGroup, error)
+}

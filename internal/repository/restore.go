@@ -97,6 +97,7 @@ type RestoreTx interface {
 
 	UpsertNotificationPreferences(ctx context.Context, prefs *models.NotificationPreferences) error
 	UpsertFlightBaseline(ctx context.Context, baseline *models.FlightBaseline) error
+	UpsertPilotProfile(ctx context.Context, profile *models.PilotProfile) error
 
 	// LogbookRestoreWriter writes strict logbook mode, its switch events,
 	// flight revisions and certifications.

@@ -104,6 +104,7 @@ type RestoreResult struct {
 	CustomReportsImported           int              `json:"customReportsImported"`
 	NotificationPreferencesImported bool             `json:"notificationPreferencesImported"`
 	FlightBaselineImported          bool             `json:"flightBaselineImported"`
+	PilotProfileImported            bool             `json:"pilotProfileImported"`
 	FlightRevisionsImported         int              `json:"flightRevisionsImported"`
 	LogbookCertificationsImported   int              `json:"logbookCertificationsImported"`
 	Warnings                        []RestoreWarning `json:"warnings"`
@@ -343,6 +344,11 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 			return nil, fmt.Errorf("upsert flight baseline: %w", err)
 		}
 	}
+	if pl.profile != nil {
+		if err := tx.UpsertPilotProfile(ctx, pl.profile); err != nil {
+			return nil, fmt.Errorf("upsert pilot profile: %w", err)
+		}
+	}
 
 	logbook, err := service.ImportLogbook(ctx, tx, pl.userID, pl.logbook, flightIDs, licenseIDs)
 	var entry *service.LogbookImportError
@@ -369,6 +375,7 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		CustomReportsImported:           len(pl.reports),
 		NotificationPreferencesImported: pl.prefs != nil,
 		FlightBaselineImported:          pl.baseline != nil,
+		PilotProfileImported:            pl.profile != nil,
 		FlightRevisionsImported:         logbook.Revisions,
 		LogbookCertificationsImported:   logbook.Certifications,
 		Warnings:                        pl.warnings.list(),

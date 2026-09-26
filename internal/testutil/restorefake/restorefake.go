@@ -25,6 +25,7 @@ type State struct {
 	Reports     []*models.CustomReport
 	Prefs       *models.NotificationPreferences
 	Baseline    *models.FlightBaseline
+	Profile     *models.PilotProfile
 
 	Strict         bool
 	StrictSince    *time.Time
@@ -95,6 +96,7 @@ const (
 	OpCrew             = "insert_crew_members"
 	OpPrefs            = "upsert_notification_preferences"
 	OpBaseline         = "upsert_flight_baseline"
+	OpPilotProfile     = "upsert_pilot_profile"
 	OpSetStrict        = "set_strict"
 	OpModeEvent        = "import_mode_event"
 	OpRevisions        = "import_revisions"
@@ -292,6 +294,14 @@ func (t *tx) UpsertFlightBaseline(ctx context.Context, b *models.FlightBaseline)
 		return err
 	}
 	t.store.State.Baseline = b
+	return nil
+}
+
+func (t *tx) UpsertPilotProfile(ctx context.Context, p *models.PilotProfile) error {
+	if err := t.hit(OpPilotProfile); err != nil {
+		return err
+	}
+	t.store.State.Profile = p
 	return nil
 }
 

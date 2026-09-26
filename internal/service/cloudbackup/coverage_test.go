@@ -35,6 +35,7 @@ var exported = map[string]string{
 	"custom_reports":           "CustomReports",
 	"notification_preferences": "NotificationPreferences",
 	"flight_baselines":         "FlightBaseline",
+	"pilot_profiles":           "PilotProfile",
 	"logbook_mode_events":      "LogbookMode.Events",
 	"logbook_certifications":   "LogbookCertifications",
 	"flight_revisions":         "FlightRevisions",

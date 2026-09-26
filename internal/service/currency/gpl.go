@@ -1,8 +1,6 @@
 package currency
 
 import (
-	"strings"
-
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
@@ -44,5 +42,5 @@ var easaGPLRule = ratingRule{
 
 // isGPL reports whether licenseType names an EASA gyroplane pilot licence.
 func isGPL(licenseType string) bool {
-	return strings.ToUpper(strings.TrimSpace(licenseType)) == "GPL"
+	return models.ClassifyLicence(licenseType, "") == models.LicenceKindGPL
 }

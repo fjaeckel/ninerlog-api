@@ -249,6 +249,10 @@ func (t *restoreTx) UpsertNotificationPreferences(ctx context.Context, prefs *mo
 	return (&notificationRepository{tx: t.tx}).UpsertPreferences(ctx, prefs)
 }
 
+func (t *restoreTx) UpsertPilotProfile(ctx context.Context, profile *models.PilotProfile) error {
+	return (&pilotProfileRepository{db: t.tx}).Upsert(ctx, profile)
+}
+
 func (t *restoreTx) UpsertFlightBaseline(ctx context.Context, baseline *models.FlightBaseline) error {
 	return (&flightBaselineRepository{tx: t.tx}).Upsert(ctx, baseline)
 }
