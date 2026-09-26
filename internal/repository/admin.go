@@ -34,6 +34,10 @@ type AdminStats struct {
 	// LicencePrivilegesByKind maps privilege kind to count across all users.
 	// Never nil; kinds nobody has recorded are absent.
 	LicencePrivilegesByKind map[string]int
+	// FlightFiles and FlightFileBytes count flight recorder files and their
+	// total size across all users.
+	FlightFiles     int
+	FlightFileBytes int64
 	// ImportsByFormat maps import_format value to import count. Never nil;
 	// formats with no imports are absent.
 	ImportsByFormat map[string]int

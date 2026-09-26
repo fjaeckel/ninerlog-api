@@ -18,4 +18,8 @@ var (
 	// ErrDocumentFileLimit is returned when an image would push a licence or
 	// credential past its per-document image cap.
 	ErrDocumentFileLimit = errors.New("document image limit reached")
+
+	// ErrFlightFileLimit is returned when a file would push a flight past its
+	// per-flight file cap.
+	ErrFlightFileLimit = errors.New("flight file limit reached")
 )

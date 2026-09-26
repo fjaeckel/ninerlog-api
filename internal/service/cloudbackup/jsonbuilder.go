@@ -54,6 +54,8 @@ type DefaultJSONBuilder struct {
 	AircraftReminders *service.AircraftReminderService
 	// Privileges backs licenses[].privileges; nil omits them.
 	Privileges *service.LicencePrivilegeService
+	// FlightFiles backs the flightFiles section; nil omits it.
+	FlightFiles *service.FlightFileService
 	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
 	AttachCrew func(ctx context.Context, flights []*models.Flight)
@@ -170,6 +172,10 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 	if err != nil {
 		return Payload{}, err
 	}
+	flightFiles, err := b.gatherFlightFiles(ctx, userID)
+	if err != nil {
+		return Payload{}, err
+	}
 
 	return Payload{
 		ExportedAt:              now.Format(time.RFC3339),
@@ -186,7 +192,35 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		NotificationPreferences: prefs,
 		FlightBaseline:          NewFlightBaseline(b.gatherBaseline(ctx, userID)),
 		PilotProfile:            profile,
+		FlightFiles:             flightFiles,
 	}, nil
+}
+
+// gatherFlightFiles returns the user's flight files with their content,
+// sorted by flight id and SHA-256.
+func (b *DefaultJSONBuilder) gatherFlightFiles(ctx context.Context, userID uuid.UUID) ([]FlightFile, error) {
+	if b.FlightFiles == nil {
+		return nil, nil
+	}
+	stored, err := b.FlightFiles.ListAllWithContent(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list flight files: %w", err)
+	}
+	files := make([]FlightFile, 0, len(stored))
+	for _, f := range stored {
+		ff, err := NewFlightFile(f)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, ff)
+	}
+	sort.SliceStable(files, func(i, j int) bool {
+		if files[i].FlightID != files[j].FlightID {
+			return files[i].FlightID.String() < files[j].FlightID.String()
+		}
+		return files[i].SHA256 < files[j].SHA256
+	})
+	return files, nil
 }
 
 // gatherPilotProfile returns the user's stored pilot profile, or nil if they have none.

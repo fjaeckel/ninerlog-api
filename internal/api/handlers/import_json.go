@@ -40,6 +40,7 @@ type importJSONBackup struct {
 	NotificationPreferences *cloudbackup.NotificationPreferences `json:"notificationPreferences"`
 	FlightBaseline          *cloudbackup.FlightBaseline          `json:"flightBaseline"`
 	PilotProfile            *cloudbackup.PilotProfile            `json:"pilotProfile"`
+	FlightFiles             []cloudbackup.FlightFile             `json:"flightFiles"`
 }
 
 type importLicenseBundle struct {
@@ -84,6 +85,11 @@ type importJSONSummary struct {
 	AircraftRemindersSkipped  int `json:"aircraftRemindersSkipped"`
 	// LicencePrivilegesImported counts licence privileges restored.
 	LicencePrivilegesImported int `json:"licencePrivilegesImported"`
+	// FlightFilesImported counts flight recorder files restored;
+	// FlightFilesSkipped those whose flight is not in the backup or whose
+	// content the account already stores.
+	FlightFilesImported int `json:"flightFilesImported"`
+	FlightFilesSkipped  int `json:"flightFilesSkipped"`
 	// NotificationPreferencesImported and FlightBaselineImported report
 	// whether those single-row settings were present and restored.
 	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
@@ -162,6 +168,11 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 	if n := len(body.AircraftReminders); n > maxRestoreEntities {
 		h.sendError(c, http.StatusBadRequest,
 			fmt.Sprintf("Backup contains too many aircraft reminders (%d, max %d)", n, maxRestoreEntities))
+		return
+	}
+	if n := len(body.FlightFiles); n > maxRestoreFlights {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many flight files (%d, max %d)", n, maxRestoreFlights))
 		return
 	}
 	if n := len(body.CustomReports); n > maxRestoreEntities {
@@ -306,6 +317,7 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 	}
 
 	// --- Flights (+ crew members) ---
+	flightIDs := make(map[uuid.UUID]uuid.UUID, len(body.Flights))
 	for _, f := range body.Flights {
 		newF := f
 		newF.ID = uuid.New()
@@ -322,6 +334,7 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			return
 		}
 		summary.FlightsImported++
+		flightIDs[f.ID] = newF.ID
 
 		if len(crew) == 0 || h.flightCrewRepo == nil {
 			continue
@@ -349,6 +362,17 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 	}
 
 	summary.ContactsCreated = crewLinker.Created()
+
+	// --- Flight files ---
+	if h.flightFileService != nil {
+		imported, skipped, msg, status := h.restoreFlightFiles(ctx, userID, body.FlightFiles, flightIDs)
+		if msg != "" {
+			h.sendError(c, status, msg)
+			return
+		}
+		summary.FlightFilesImported = imported
+		summary.FlightFilesSkipped = skipped
+	}
 
 	// --- Custom currency rules ---
 	// Recreated through the service so each definition is revalidated and the
@@ -497,4 +521,40 @@ func (h *APIHandler) restoreAircraftReminders(
 		imported++
 	}
 	return imported, skipped, nil
+}
+
+// restoreFlightFiles attaches each backup flight file to the restored copy of
+// its flight. Files whose flight is not in flightIDs, of an unknown kind,
+// beyond the per-flight cap, or already stored are skipped. A non-empty msg is the error to answer with.
+func (h *APIHandler) restoreFlightFiles(
+	ctx context.Context, userID uuid.UUID, files []cloudbackup.FlightFile, flightIDs map[uuid.UUID]uuid.UUID,
+) (imported, skipped int, msg string, status int) {
+	perFlight := make(map[uuid.UUID]int)
+	for _, ff := range files {
+		flightID, ok := flightIDs[ff.FlightID]
+		if !ok || ff.Kind != string(models.FlightFileKindIGC) || perFlight[flightID] >= models.MaxFlightFilesPerFlight {
+			skipped++
+			continue
+		}
+		perFlight[flightID]++
+		data, err := ff.Decode()
+		if err != nil {
+			return imported, skipped, fmt.Sprintf("Failed to import flight file %q: content is corrupt", ff.Filename), http.StatusBadRequest
+		}
+		if _, err := h.flightFileService.Attach(ctx, userID, flightID, ff.Filename, data); err != nil {
+			switch {
+			case errors.Is(err, service.ErrFlightFileDuplicate), errors.Is(err, service.ErrFlightFileLimitReached):
+				skipped++
+				continue
+			case errors.Is(err, service.ErrInvalidIGC), errors.Is(err, service.ErrFlightFileEmpty),
+				errors.Is(err, service.ErrFlightFileTooLarge):
+				return imported, skipped, fmt.Sprintf("Failed to import flight file %q: %v", ff.Filename, err), http.StatusBadRequest
+			default:
+				slog.Error("restore: failed to import flight file", "error", err)
+				return imported, skipped, "Failed to import flight file", http.StatusInternalServerError
+			}
+		}
+		imported++
+	}
+	return imported, skipped, "", 0
 }

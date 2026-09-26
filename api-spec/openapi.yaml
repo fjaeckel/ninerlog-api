@@ -3366,6 +3366,77 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /flights/{flightId}/files:
+    get:
+      tags:
+        - Flights
+      summary: List a flight's recorder files
+      description: Metadata only; the bytes are fetched one file at a time.
+      operationId: listFlightFiles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+      responses:
+        '200':
+          description: The flight's files, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FlightFile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /flights/{flightId}/files/{fileId}:
+    get:
+      tags:
+        - Flights
+      summary: Download a flight recorder file
+      description: |
+        Returns the stored bytes unchanged, as `application/octet-stream` with
+        `Content-Disposition: attachment` and the stored filename.
+      operationId: getFlightFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+        - $ref: '#/components/parameters/FlightFileId'
+      responses:
+        '200':
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Flights
+      summary: Delete a flight recorder file
+      description: Removes the file; the flight is not changed.
+      operationId: deleteFlightFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+        - $ref: '#/components/parameters/FlightFileId'
+      responses:
+        '204':
+          description: File deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /flights/{flightId}/signatures:
     get:
       tags:
@@ -4241,9 +4312,10 @@ paths:
         Exports everything the user owns as a JSON backup file: flights (with
         crew), aircraft, aircraft reminders, licences with their class ratings
         and privileges, credentials, contacts, custom currency rules, custom reports,
-        notification preferences, the carried-forward hours baseline and the
+        notification preferences, the carried-forward hours baseline, the
         pilot profile (mode and discipline intents; evidence is derived and not
-        exported).
+        exported) and flight recorder files (`flightFiles`: IGC content gzipped
+        and base64-encoded, keyed by the flight's id in the backup).
 
         This is the same payload a cloud backup run writes, and
         `POST /imports/json` restores every section of it.
@@ -4295,6 +4367,9 @@ paths:
         identical (kind, label, due date) to a reminder already on the aircraft.
         Licence privileges travel inside their licence entry (`licenses[].privileges`)
         and are revalidated and attached to the restored licence.
+        Flight recorder files (`flightFiles`) are revalidated as IGC and attached
+        to the restored copy of their flight; a file whose flight the backup does
+        not carry, or which the account already stores, is skipped.
       operationId: importDataJSON
       security:
         - bearerAuth: []
@@ -5247,6 +5322,97 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /flights/igc/preview:
+    post:
+      tags:
+        - Flights
+      summary: Analyse an IGC file without storing it
+      description: |
+        Parses an FAI IGC flight recorder file and returns the flight it describes: take-off and
+        landing (UTC), duration, launch method with a confidence, release height, maximum
+        altitude, free and out-and-return distance, departure and arrival (the airport within
+        3 km, else coordinates), the outlanding flag, and the glider and pilot named in the
+        header. Nothing is stored.
+
+        `matchingFlightId` names a flight of the caller on the same date with the same
+        registration whose times overlap the file (or that has no times), so a client can offer
+        to attach the file to it through `POST /flights/igc` with `flightId`.
+
+        The file is at most **5 MB** and **200,000 fixes**. A file that is not IGC text, has no
+        date record, no valid fixes or no take-off is rejected with 400 and a message naming the
+        reason. The detection thresholds are documented in docs/SAILPLANES.md "IGC import".
+      operationId: previewIgcFlight
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IgcFileUpload'
+      responses:
+        '200':
+          description: The flight the file describes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IgcFlightPreview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+
+  /flights/igc:
+    post:
+      tags:
+        - Flights
+      summary: Import an IGC file as a flight, or attach it to one
+      description: |
+        Stores an FAI IGC file with a flight.
+
+        * With `flightId`, the file is attached to that flight of the caller; the flight itself
+          is not changed. Another user's flight, or a missing one, is 404.
+        * Without it, a flight is created from the file through the same path as
+          `POST /flights`: date and take-off/landing times (UTC), departure and arrival (ICAO
+          code of the airport within 3 km, else coordinates as `50.49889N 9.95389E`), one
+          landing, the launch method when it is detected and applies to the aircraft, the
+          release height and the outlanding flag. The aircraft is the header's
+          `HFGIDGLIDERID` registration; when the caller's fleet lacks it, it is created with
+          the header's glider type and the class the importers infer (`GLIDER` unless the
+          registration implies otherwise). A file without a registration is 400.
+
+        A flight holds at most **5 files**, each at most **5 MB**. The same file (by SHA-256)
+        is stored once per account: storing it again is 409. Files are included in
+        `GET /exports/json` and restored by `POST /imports/json`.
+      operationId: importIgcFlight
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IgcFlightImport'
+      responses:
+        '201':
+          description: File stored; the flight it belongs to
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IgcImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/FlightFileConflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
 
   /flights/recalculate:
     post:
@@ -6496,6 +6662,16 @@ components:
         type: string
         format: uuid
         example: 880e8400-e29b-41d4-a716-446655440003
+
+    FlightFileId:
+      name: fileId
+      in: path
+      required: true
+      description: Flight file UUID
+      schema:
+        type: string
+        format: uuid
+        example: bb0e8400-e29b-41d4-a716-446655440010
 
     DocumentFileId:
       name: fileId
@@ -9379,6 +9555,194 @@ components:
           maxLength: 200
           description: Optional short label shown with the image
 
+    IgcFileUpload:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: FAI IGC flight recorder file, at most 5 MB
+
+    IgcFlightImport:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: FAI IGC flight recorder file, at most 5 MB
+        flightId:
+          type: string
+          format: uuid
+          description: Attach the file to this flight of the caller instead of creating one
+
+    IgcPlace:
+      type: object
+      description: A take-off or landing position, with the airport within 3 km when there is one
+      required:
+        - lat
+        - lon
+      properties:
+        icao:
+          type: string
+          example: EDER
+        name:
+          type: string
+          example: Wasserkuppe Airport
+        lat:
+          type: number
+          format: double
+          example: 50.49889
+        lon:
+          type: number
+          format: double
+          example: 9.95389
+
+    IgcFlightPreview:
+      type: object
+      description: |
+        The flight an IGC file describes. Times are UTC; `date` is the UTC date of the
+        take-off. The first take-off in the file and the first landing after it bound the
+        flight. `launchMethod` is `unknown` when no heuristic matches, with confidence 0 and no
+        release height. `outAndReturnDistanceKm` is twice `freeDistanceKm`.
+      required:
+        - date
+        - takeoffTime
+        - landingTime
+        - landingDetected
+        - durationMinutes
+        - launchMethod
+        - launchMethodConfidence
+        - maxAltitudeM
+        - freeDistanceKm
+        - outAndReturnDistanceKm
+        - outlanding
+        - departure
+        - arrival
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-08-10'
+        takeoffTime:
+          type: string
+          description: Take-off, UTC HH:MM:SS
+          example: '09:31:46'
+        landingTime:
+          type: string
+          description: Landing, UTC HH:MM:SS; the last fix when no landing was detected
+          example: '10:22:46'
+        landingDetected:
+          type: boolean
+          description: False when the recording ends before the glider comes to rest
+        durationMinutes:
+          type: integer
+          description: Take-off to landing in minutes
+          example: 51
+        launchMethod:
+          type: string
+          enum: [winch, aerotow, self-launch, unknown]
+        launchMethodConfidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          example: 0.9
+        releaseHeightM:
+          type: integer
+          description: Height gained from take-off to release or engine stop, in metres
+          example: 749
+        maxAltitudeM:
+          type: integer
+          description: Highest altitude between take-off and landing, metres MSL (GNSS, else pressure altitude)
+          example: 2371
+        freeDistanceKm:
+          type: number
+          format: double
+          description: Largest straight-line distance from the take-off point, km
+          example: 39.9
+        outAndReturnDistanceKm:
+          type: number
+          format: double
+          description: Twice freeDistanceKm, km
+          example: 79.8
+        outlanding:
+          type: boolean
+          description: >-
+            The glider landed more than 3 km from the take-off point and from every known airport.
+            False when the airport database is unavailable.
+        departure:
+          $ref: '#/components/schemas/IgcPlace'
+        arrival:
+          $ref: '#/components/schemas/IgcPlace'
+        gliderRegistration:
+          type: string
+          description: HFGIDGLIDERID in canonical notation
+          example: D-KXYZ
+        gliderType:
+          type: string
+          example: ASG 29E
+        pilot:
+          type: string
+          example: Petra Example
+        matchingFlightId:
+          type: string
+          format: uuid
+          description: A flight of the caller on the same date and glider whose times overlap the file
+
+    IgcImportResult:
+      type: object
+      required:
+        - flight
+        - fileId
+        - summary
+      properties:
+        flight:
+          $ref: '#/components/schemas/Flight'
+        fileId:
+          type: string
+          format: uuid
+        summary:
+          $ref: '#/components/schemas/IgcFlightPreview'
+
+    FlightFile:
+      type: object
+      description: A flight recorder file attached to a flight (metadata only)
+      required:
+        - id
+        - flightId
+        - kind
+        - filename
+        - sizeBytes
+        - sha256
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        flightId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [IGC]
+        filename:
+          type: string
+          maxLength: 255
+          example: 2026-08-10-LXV-PX.igc
+        sizeBytes:
+          type: integer
+          example: 73709
+        sha256:
+          type: string
+          description: Hex SHA-256 of the content
+        createdAt:
+          type: string
+          format: date-time
+
     Features:
       type: object
       description: |
@@ -9386,7 +9750,21 @@ components:
         limits a client needs in order to validate before uploading.
       required:
         - documentFiles
+        - flightFiles
       properties:
+        flightFiles:
+          type: object
+          description: Limits for IGC files on flights (`POST /flights/igc`); always available
+          required:
+            - maxBytes
+            - maxPerFlight
+          properties:
+            maxBytes:
+              type: integer
+              example: 5242880
+            maxPerFlight:
+              type: integer
+              example: 5
         documentFiles:
           type: object
           required:
@@ -9397,7 +9775,7 @@ components:
           properties:
             enabled:
               type: boolean
-              description: When false, every /files endpoint answers 403 — uploads and downloads alike
+              description: When false, every licence and credential /files endpoint answers 403 — uploads and downloads alike
             maxBytes:
               type: integer
               description: Maximum size of a single image in bytes
@@ -11325,6 +11703,8 @@ components:
         - aircraftRemindersImported
         - aircraftRemindersSkipped
         - licencePrivilegesImported
+        - flightFilesImported
+        - flightFilesSkipped
         - notificationPreferencesImported
         - flightBaselineImported
         - pilotProfileImported
@@ -11394,6 +11774,16 @@ components:
           type: integer
           description: Licence privileges restored onto their restored licences
           example: 2
+        flightFilesImported:
+          type: integer
+          description: Flight recorder files restored onto their restored flights
+          example: 4
+        flightFilesSkipped:
+          type: integer
+          description: >-
+            Flight recorder files skipped because the backup does not carry their flight, or the
+            account already stores the same file
+          example: 0
         notificationPreferencesImported:
           type: boolean
           description: Whether the backup carried notification preferences that were applied
@@ -11528,6 +11918,7 @@ components:
         - totalCustomReports
         - aircraftReminders
         - licencePrivileges
+        - flightFiles
         - cloudBackupDestinations
         - importsByFormat
         - pilotProfiles
@@ -11600,6 +11991,18 @@ components:
               example:
                 SAILPLANE_TOWING: 2
                 UL_PASSENGER_AUTH: 5
+        flightFiles:
+          type: object
+          description: Flight recorder (IGC) files across all users.
+          required:
+            - count
+            - totalBytes
+          properties:
+            count:
+              type: integer
+            totalBytes:
+              type: integer
+              format: int64
         cloudBackupDestinations:
           type: object
           description: Counts of user-configured cloud backup destinations.
@@ -14067,6 +14470,17 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: Maximum number of files for this document reached
+
+    FlightFileConflict:
+      description: >-
+        The file is already stored (on this flight, or on another flight of the
+        account), or the flight already holds the maximum of 5 files.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: This IGC file is already stored
 
     PayloadTooLarge:
       description: The uploaded file exceeds the maximum allowed size

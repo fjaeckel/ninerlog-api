@@ -1296,6 +1296,21 @@ func (e FlightCreateLaunchMethod) Valid() bool {
 	}
 }
 
+// Defines values for FlightFileKind.
+const (
+	IGC FlightFileKind = "IGC"
+)
+
+// Valid indicates whether the value is a known member of the FlightFileKind enum.
+func (e FlightFileKind) Valid() bool {
+	switch e {
+	case IGC:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FlightListColumn.
 const (
 	FlightListColumnCrossCountryTime    FlightListColumn = "crossCountryTime"
@@ -1470,6 +1485,30 @@ func (e FlightSignatureStatus) Valid() bool {
 	case FlightSignatureStatusRevoked:
 		return true
 	case FlightSignatureStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for IgcFlightPreviewLaunchMethod.
+const (
+	IgcFlightPreviewLaunchMethodAerotow    IgcFlightPreviewLaunchMethod = "aerotow"
+	IgcFlightPreviewLaunchMethodSelfLaunch IgcFlightPreviewLaunchMethod = "self-launch"
+	IgcFlightPreviewLaunchMethodUnknown    IgcFlightPreviewLaunchMethod = "unknown"
+	IgcFlightPreviewLaunchMethodWinch      IgcFlightPreviewLaunchMethod = "winch"
+)
+
+// Valid indicates whether the value is a known member of the IgcFlightPreviewLaunchMethod enum.
+func (e IgcFlightPreviewLaunchMethod) Valid() bool {
+	switch e {
+	case IgcFlightPreviewLaunchMethodAerotow:
+		return true
+	case IgcFlightPreviewLaunchMethodSelfLaunch:
+		return true
+	case IgcFlightPreviewLaunchMethodUnknown:
+		return true
+	case IgcFlightPreviewLaunchMethodWinch:
 		return true
 	default:
 		return false
@@ -2953,6 +2992,12 @@ type AdminStats struct {
 		Total int `json:"total"`
 	} `json:"cloudBackupDestinations"`
 	DisabledAccounts int `json:"disabledAccounts"`
+
+	// FlightFiles Flight recorder (IGC) files across all users.
+	FlightFiles struct {
+		Count      int   `json:"count"`
+		TotalBytes int64 `json:"totalBytes"`
+	} `json:"flightFiles"`
 	FlightsThisMonth int `json:"flightsThisMonth"`
 
 	// ImportsByFormat Completed imports grouped by the detected source format, i.e. which logbook pilots are migrating from. Keys are ImportFormat values; formats nobody has imported are omitted.
@@ -5475,7 +5520,7 @@ type Features struct {
 		// AllowedContentTypes Example: ["image/jpeg","image/png","application/pdf"]
 		AllowedContentTypes []string `json:"allowedContentTypes"`
 
-		// Enabled When false, every /files endpoint answers 403 — uploads and downloads alike
+		// Enabled When false, every licence and credential /files endpoint answers 403 — uploads and downloads alike
 		Enabled bool `json:"enabled"`
 
 		// MaxBytes Maximum size of a single image in bytes
@@ -5488,6 +5533,15 @@ type Features struct {
 		// Example: 5
 		MaxPerDocument int `json:"maxPerDocument"`
 	} `json:"documentFiles"`
+
+	// FlightFiles Limits for IGC files on flights (`POST /flights/igc`); always available
+	FlightFiles struct {
+		// MaxBytes Example: 5242880
+		MaxBytes int `json:"maxBytes"`
+
+		// MaxPerFlight Example: 5
+		MaxPerFlight int `json:"maxPerFlight"`
+	} `json:"flightFiles"`
 }
 
 // Flight defines model for Flight.
@@ -6276,6 +6330,26 @@ type FlightCrewMemberInput struct {
 	Role CrewRole `json:"role"`
 }
 
+// FlightFile A flight recorder file attached to a flight (metadata only)
+type FlightFile struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Filename Example: 2026-08-10-LXV-PX.igc
+	Filename string             `json:"filename"`
+	FlightId openapi_types.UUID `json:"flightId"`
+	Id       openapi_types.UUID `json:"id"`
+	Kind     FlightFileKind     `json:"kind"`
+
+	// Sha256 Hex SHA-256 of the content
+	Sha256 string `json:"sha256"`
+
+	// SizeBytes Example: 73709
+	SizeBytes int `json:"sizeBytes"`
+}
+
+// FlightFileKind defines model for FlightFile.Kind.
+type FlightFileKind string
+
 // FlightListColumn An optional column of the flights list. Date, route, aircraft and total time are the identity of a logbook row and are always shown, so they are not part of this enum. The order below is the display order, and for the time columns also the priority order in which they survive as the list gets narrower.
 //
 // Example: picTime
@@ -6534,6 +6608,125 @@ type FlightUpdate struct {
 	TotalTime *int `json:"totalTime,omitempty"`
 }
 
+// IgcFileUpload defines model for IgcFileUpload.
+type IgcFileUpload struct {
+	// File FAI IGC flight recorder file, at most 5 MB
+	File openapi_types.File `json:"file"`
+}
+
+// IgcFlightImport defines model for IgcFlightImport.
+type IgcFlightImport struct {
+	// File FAI IGC flight recorder file, at most 5 MB
+	File openapi_types.File `json:"file"`
+
+	// FlightId Attach the file to this flight of the caller instead of creating one
+	FlightId *openapi_types.UUID `json:"flightId,omitempty"`
+}
+
+// IgcFlightPreview The flight an IGC file describes. Times are UTC; `date` is the UTC date of the
+// take-off. The first take-off in the file and the first landing after it bound the
+// flight. `launchMethod` is `unknown` when no heuristic matches, with confidence 0 and no
+// release height. `outAndReturnDistanceKm` is twice `freeDistanceKm`.
+type IgcFlightPreview struct {
+	// Arrival A take-off or landing position, with the airport within 3 km when there is one
+	Arrival IgcPlace `json:"arrival"`
+
+	// Date Example: 2026-08-10
+	Date openapi_types.Date `json:"date"`
+
+	// Departure A take-off or landing position, with the airport within 3 km when there is one
+	Departure IgcPlace `json:"departure"`
+
+	// DurationMinutes Take-off to landing in minutes
+	//
+	// Example: 51
+	DurationMinutes int `json:"durationMinutes"`
+
+	// FreeDistanceKm Largest straight-line distance from the take-off point, km
+	//
+	// Example: 39.9
+	FreeDistanceKm float64 `json:"freeDistanceKm"`
+
+	// GliderRegistration HFGIDGLIDERID in canonical notation
+	//
+	// Example: D-KXYZ
+	GliderRegistration *string `json:"gliderRegistration,omitempty"`
+
+	// GliderType Example: ASG 29E
+	GliderType *string `json:"gliderType,omitempty"`
+
+	// LandingDetected False when the recording ends before the glider comes to rest
+	LandingDetected bool `json:"landingDetected"`
+
+	// LandingTime Landing, UTC HH:MM:SS; the last fix when no landing was detected
+	//
+	// Example: 10:22:46
+	LandingTime  string                       `json:"landingTime"`
+	LaunchMethod IgcFlightPreviewLaunchMethod `json:"launchMethod"`
+
+	// LaunchMethodConfidence Example: 0.9
+	LaunchMethodConfidence float64 `json:"launchMethodConfidence"`
+
+	// MatchingFlightId A flight of the caller on the same date and glider whose times overlap the file
+	MatchingFlightId *openapi_types.UUID `json:"matchingFlightId,omitempty"`
+
+	// MaxAltitudeM Highest altitude between take-off and landing, metres MSL (GNSS, else pressure altitude)
+	//
+	// Example: 2371
+	MaxAltitudeM int `json:"maxAltitudeM"`
+
+	// OutAndReturnDistanceKm Twice freeDistanceKm, km
+	//
+	// Example: 79.8
+	OutAndReturnDistanceKm float64 `json:"outAndReturnDistanceKm"`
+
+	// Outlanding The glider landed more than 3 km from the take-off point and from every known airport. False when the airport database is unavailable.
+	Outlanding bool `json:"outlanding"`
+
+	// Pilot Example: Petra Example
+	Pilot *string `json:"pilot,omitempty"`
+
+	// ReleaseHeightM Height gained from take-off to release or engine stop, in metres
+	//
+	// Example: 749
+	ReleaseHeightM *int `json:"releaseHeightM,omitempty"`
+
+	// TakeoffTime Take-off, UTC HH:MM:SS
+	//
+	// Example: 09:31:46
+	TakeoffTime string `json:"takeoffTime"`
+}
+
+// IgcFlightPreviewLaunchMethod defines model for IgcFlightPreview.LaunchMethod.
+type IgcFlightPreviewLaunchMethod string
+
+// IgcImportResult defines model for IgcImportResult.
+type IgcImportResult struct {
+	FileId openapi_types.UUID `json:"fileId"`
+	Flight Flight             `json:"flight"`
+
+	// Summary The flight an IGC file describes. Times are UTC; `date` is the UTC date of the
+	// take-off. The first take-off in the file and the first landing after it bound the
+	// flight. `launchMethod` is `unknown` when no heuristic matches, with confidence 0 and no
+	// release height. `outAndReturnDistanceKm` is twice `freeDistanceKm`.
+	Summary IgcFlightPreview `json:"summary"`
+}
+
+// IgcPlace A take-off or landing position, with the airport within 3 km when there is one
+type IgcPlace struct {
+	// Icao Example: EDER
+	Icao *string `json:"icao,omitempty"`
+
+	// Lat Example: 50.49889
+	Lat float64 `json:"lat"`
+
+	// Lon Example: 9.95389
+	Lon float64 `json:"lon"`
+
+	// Name Example: Wasserkuppe Airport
+	Name *string `json:"name,omitempty"`
+}
+
 // ImportColumnMapping defines model for ImportColumnMapping.
 type ImportColumnMapping struct {
 	// DateFormat Date parsing format (Go / strftime-style). Only relevant when targetField is `date`.
@@ -6739,6 +6932,16 @@ type ImportJSONResult struct {
 
 	// FlightBaselineImported Whether the backup carried a carried-forward hours baseline that was applied
 	FlightBaselineImported bool `json:"flightBaselineImported"`
+
+	// FlightFilesImported Flight recorder files restored onto their restored flights
+	//
+	// Example: 4
+	FlightFilesImported int `json:"flightFilesImported"`
+
+	// FlightFilesSkipped Flight recorder files skipped because the backup does not carry their flight, or the account already stores the same file
+	//
+	// Example: 0
+	FlightFilesSkipped int `json:"flightFilesSkipped"`
 
 	// FlightsImported Example: 27
 	FlightsImported int `json:"flightsImported"`
@@ -8332,6 +8535,9 @@ type CustomReportId = openapi_types.UUID
 // DocumentFileId Example: aa0e8400-e29b-41d4-a716-446655440009
 type DocumentFileId = openapi_types.UUID
 
+// FlightFileId Example: bb0e8400-e29b-41d4-a716-446655440010
+type FlightFileId = openapi_types.UUID
+
 // FlightId Example: 660e8400-e29b-41d4-a716-446655440001
 type FlightId = openapi_types.UUID
 
@@ -8367,6 +8573,9 @@ type DocumentFileLimitReached = Error
 
 // DocumentFilesDisabled defines model for DocumentFilesDisabled.
 type DocumentFilesDisabled = Error
+
+// FlightFileConflict defines model for FlightFileConflict.
+type FlightFileConflict = Error
 
 // Forbidden defines model for Forbidden.
 type Forbidden = Error
@@ -9158,6 +9367,12 @@ type CreateFlightJSONRequestBody = FlightCreate
 
 // CreateFlightBatchJSONRequestBody defines body for CreateFlightBatch for application/json ContentType.
 type CreateFlightBatchJSONRequestBody = FlightBatchCreate
+
+// ImportIgcFlightMultipartRequestBody defines body for ImportIgcFlight for multipart/form-data ContentType.
+type ImportIgcFlightMultipartRequestBody = IgcFlightImport
+
+// PreviewIgcFlightMultipartRequestBody defines body for PreviewIgcFlight for multipart/form-data ContentType.
+type PreviewIgcFlightMultipartRequestBody = IgcFileUpload
 
 // UpdateFlightJSONRequestBody defines body for UpdateFlight for application/json ContentType.
 type UpdateFlightJSONRequestBody = FlightUpdate
