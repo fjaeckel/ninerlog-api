@@ -58,6 +58,8 @@ const (
 	FieldPerson4 Field = "person4"
 	FieldPerson5 Field = "person5"
 	FieldPerson6 Field = "person6"
+
+	FieldLaunchMethod Field = "launchMethod"
 )
 
 // Mapping is one suggested source-column → target-field pair.

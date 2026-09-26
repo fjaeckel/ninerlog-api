@@ -371,6 +371,18 @@ rating or a rule for a sailplane licence (EASA `SPL`/`LAPL(S)`, FAA `GLIDER`), n
 a powered class, its proficiency check or its passenger currency — even when the glider is
 classed `SEP_LAND`. Self-launches are not towed.
 
+`Flight.launchMethod` is one of `winch`, `aerotow`, `self-launch`, `car`, `bungee` or unset;
+the service normalises case and whitespace and rejects anything else with
+`ErrInvalidLaunchMethod` on every write path, JSON restore included. How the value moves
+through CSV import (kept only on aircraft `models.LaunchMethodApplies` to), CSV and PDF export is in
+[SAILPLANES.md](./SAILPLANES.md#launch-method-in-and-out).
+
+Aircraft created by an import are classed by `models.InferImportedAircraftClass`: the
+source's own class column, else the German registration (`D-` + four digits `GLIDER`,
+`D-M…` `ULTRALIGHT` with no kind, `D-K…` unset), else `GLIDER` when one of the file's
+flights on it has a towed launch. An aircraft already in the fleet is never reclassified.
+See [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md#aircraft-class-on-import).
+
 Aircraft between categories are classed by the licence they are flown under: UL sailplanes
 and UL motorgliders `ULTRALIGHT`, sailplanes including self-launching ones `GLIDER`, touring
 motor gliders `TMG`. See [SAILPLANES.md](./SAILPLANES.md) for telling a self-launching

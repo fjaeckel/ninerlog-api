@@ -37,6 +37,7 @@ func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repos
 // CreateFlight creates a new flight log entry
 func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
+	models.NormalizeLaunchMethod(flight)
 
 	// Validate text field lengths
 	if err := models.ValidateFlightTextFields(flight); err != nil {
@@ -82,6 +83,7 @@ func (s *FlightService) ListFlights(ctx context.Context, userID uuid.UUID, opts 
 // UpdateFlight updates a flight and verifies user ownership
 func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight, userID uuid.UUID) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
+	models.NormalizeLaunchMethod(flight)
 
 	// Verify ownership
 	existing, err := s.flightRepo.GetByID(ctx, flight.ID)

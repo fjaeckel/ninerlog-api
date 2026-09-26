@@ -228,7 +228,8 @@ apart), so nullable fields could not be cleared through the API at all, and two 
 workarounds existed instead: sending `""` to a text field, and the literal string `"null"` for
 `Flight.launchMethod`. Both are retired now that real `null` works; `launchMethod` accepts only
 `winch`, `aerotow`, `self-launch`, `car` or `bungee` in the spec's `enum`, and `null` clears it
-like any other nullable field.
+like any other nullable field. The service enforces the enum on every write path, so any other
+value is a 400 on `POST`/`PUT /flights` and fails a `POST /imports/json` restore.
 
 ## Delta sync (`updatedSince`)
 
@@ -611,6 +612,9 @@ chronological order. It also accepts every `GET /flights` filter — `q`, `searc
 pagination. An invalid `q` returns 400. `totals=true` appends one totals row after the last
 flight: `Total (N flights)` in the first column and the sum of every time, count and distance
 column in that layout's format. A file with a totals row is a report, not an import source.
+The standard layout's last column is `LaunchMethod`; the other layouts have no launch column
+and append `[Launch: <method>]` to the remarks cell, as the PDFs do. `POST /imports/confirm`
+reads either back into `launchMethod`.
 
 `GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,
 email, phone, notes, the contact's logged crew roles as `CATEGORIES`, and a stable `UID`

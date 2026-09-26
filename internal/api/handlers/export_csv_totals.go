@@ -64,6 +64,7 @@ func standardCSVTotals(flights []*models.Flight, prefs exportPrefs) []string {
 		dec(func(f *models.Flight) int { return f.SPICTime }),
 		dec(func(f *models.Flight) int { return f.ExaminerTime }),
 		dec(func(f *models.Flight) int { return f.ReliefTime }),
+		"",
 	}
 }
 

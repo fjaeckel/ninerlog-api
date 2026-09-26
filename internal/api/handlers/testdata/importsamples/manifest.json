@@ -230,6 +230,23 @@
         "totalTimeMinutes": 112,
         "landings": 1
       }
+    },
+    {
+      "file": "vereinsflieger-glider.csv",
+      "expectTemplate": "VEREINSFLIEGER_CSV",
+      "provenance": "real-header",
+      "notes": "Header row verbatim from a real Vereinsflieger standard export (the same as vereinsflieger.csv); values invented for a club glider pilot (persona Lena, docs/PERSONAS.md scenario L2). 'S.-Art' carries the launch method code: W winch, F aerotow, E self-launch, plus one unknown code 'X' that must import with no launch method rather than fail the row. Registrations cover the class heuristic: D-1234 and D-5678 (four digits, glider), D-KLSG (SLG or TMG, left unclassified), D-KTOW (aerotowed, so glider) and D-MXYZ (ultralight).",
+      "expectRows": 7,
+      "expectFirstRow": {
+        "date": "2026-05-09",
+        "aircraftReg": "D-1234",
+        "aircraftType": "D-1234",
+        "departureIcao": "EDHM",
+        "arrivalIcao": "EDHM",
+        "totalTimeMinutes": 8,
+        "landings": 1,
+        "launchMethod": "winch"
+      }
     }
   ],
   "wanted": []

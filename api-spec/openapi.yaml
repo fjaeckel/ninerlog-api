@@ -3674,7 +3674,8 @@ paths:
     get:
       tags: [Export]
       summary: Export flights as CSV
-      description: Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats.
+      description: >-
+        Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats. The standard layout ends with a `LaunchMethod` column; the easa, faa and weblogbook layouts have no launch-method column and carry it in their remarks cell as `[Launch: winch]`, which `POST /imports/confirm` reads back.
       operationId: exportFlightsCSV
       security:
         - bearerAuth: []
@@ -9491,9 +9492,23 @@ components:
         - person4
         - person5
         - person6
+        - launchMethod
         - ignore
       description: |
         Target flight log field for column mapping.
+
+        `launchMethod` accepts the flight enum values (winch, aerotow,
+        self-launch, car, bungee), the Vereinsflieger codes W, F, E, A and G,
+        and the German words (Winde, F-Schlepp, Eigenstart, Autoschlepp,
+        Gummiseil); an unrecognised value leaves the launch method empty and
+        does not fail the row. A `[Launch: <method>]` marker in a remarks
+        column is read as the launch method and removed from the remarks.
+
+        Aircraft created by the import get a class from the source's aircraft
+        table when it has one, otherwise from a German registration
+        (`D-` + four digits is GLIDER, `D-M…` is ULTRALIGHT with no kind),
+        otherwise GLIDER when one of its flights has a towed launch (winch,
+        aerotow, car, bungee). Existing aircraft are never changed.
 
         A `nightTime` or `crossCountryTime` column is stored as the pilot's
         own value with the matching override flag set (capped at block time)

@@ -207,6 +207,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 		"IFRTime", "Remarks",
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
+		"LaunchMethod",
 	}
 	csvWrite(w, headers)
 
@@ -304,6 +305,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 			prefs.formatDecimal(f.SPICTime),
 			prefs.formatDecimal(f.ExaminerTime),
 			prefs.formatDecimal(f.ReliefTime),
+			safeStrCSV(f.LaunchMethod),
 		}
 		csvWrite(w, row)
 	}

@@ -1243,6 +1243,7 @@ const (
 	ImportFieldLandingsDay             ImportField = "landingsDay"
 	ImportFieldLandingsNight           ImportField = "landingsNight"
 	ImportFieldLandingsTotal           ImportField = "landingsTotal"
+	ImportFieldLaunchMethod            ImportField = "launchMethod"
 	ImportFieldNightTime               ImportField = "nightTime"
 	ImportFieldOffBlockTime            ImportField = "offBlockTime"
 	ImportFieldOnBlockTime             ImportField = "onBlockTime"
@@ -1306,6 +1307,8 @@ func (e ImportField) Valid() bool {
 	case ImportFieldLandingsNight:
 		return true
 	case ImportFieldLandingsTotal:
+		return true
+	case ImportFieldLaunchMethod:
 		return true
 	case ImportFieldNightTime:
 		return true
@@ -5535,6 +5538,19 @@ type ImportColumnMapping struct {
 
 	// TargetField Target flight log field for column mapping.
 	//
+	// `launchMethod` accepts the flight enum values (winch, aerotow,
+	// self-launch, car, bungee), the Vereinsflieger codes W, F, E, A and G,
+	// and the German words (Winde, F-Schlepp, Eigenstart, Autoschlepp,
+	// Gummiseil); an unrecognised value leaves the launch method empty and
+	// does not fail the row. A `[Launch: <method>]` marker in a remarks
+	// column is read as the launch method and removed from the remarks.
+	//
+	// Aircraft created by the import get a class from the source's aircraft
+	// table when it has one, otherwise from a German registration
+	// (`D-` + four digits is GLIDER, `D-M…` is ULTRALIGHT with no kind),
+	// otherwise GLIDER when one of its flights has a towed launch (winch,
+	// aerotow, car, bungee). Existing aircraft are never changed.
+	//
 	// A `nightTime` or `crossCountryTime` column is stored as the pilot's
 	// own value with the matching override flag set (capped at block time)
 	// instead of being re-derived.
@@ -5585,6 +5601,19 @@ type ImportConfirmRequest struct {
 }
 
 // ImportField Target flight log field for column mapping.
+//
+// `launchMethod` accepts the flight enum values (winch, aerotow,
+// self-launch, car, bungee), the Vereinsflieger codes W, F, E, A and G,
+// and the German words (Winde, F-Schlepp, Eigenstart, Autoschlepp,
+// Gummiseil); an unrecognised value leaves the launch method empty and
+// does not fail the row. A `[Launch: <method>]` marker in a remarks
+// column is read as the launch method and removed from the remarks.
+//
+// Aircraft created by the import get a class from the source's aircraft
+// table when it has one, otherwise from a German registration
+// (`D-` + four digits is GLIDER, `D-M…` is ULTRALIGHT with no kind),
+// otherwise GLIDER when one of its flights has a towed launch (winch,
+// aerotow, car, bungee). Existing aircraft are never changed.
 //
 // A `nightTime` or `crossCountryTime` column is stored as the pilot's
 // own value with the matching override flag set (capped at block time)
