@@ -61,6 +61,7 @@ legal when they are not:
 | C6 | The licence-filtered PDF compares the raw `aircraft_class` case-sensitively, ignores the UL kind, and drops SEP flights that were credited toward §45(2). | `internal/api/handlers/export_pdf.go:555-581` | — |
 | C7 | `SET*` classes land in the SP-ME column. | `internal/service/flightrules/display.go:197` | AMC1 FCL.050 |
 | C8 | The LAPL(A) training flight has the same cumulative pattern as C1, for every LAPL(A) holder. | `easa.go:357` (`easaLAPLRule`, `mInstructorMinutes`) | FCL.140.A(a)(1): "one refresher training flight of at least 1 hour total flight time with an instructor" |
+| C9 | FAA SEP and other powered ratings report §61.57(a)/(b) passenger currency as the rating *status*, the same pattern WP-02 fixed for gliders. It affects every FAA pilot (guard persona Mark's FAA peers). Found during WP-02; not yet scheduled. | `faa.go` (`faaPassengerRatingRule`) | §61.57 governs passengers; §61.56 governs acting as PIC |
 
 Checked and **not** a finding: §45(2) allows the 12 h to be flown on three-axis UL, TMG or SEP.
 Pooling SEP/TMG time is correct, as long as the training flight is on a three-axis UL, which
