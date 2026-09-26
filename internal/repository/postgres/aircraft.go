@@ -24,9 +24,9 @@ func (r *aircraftRepository) Create(ctx context.Context, aircraft *models.Aircra
 	query := `
 		INSERT INTO aircraft (user_id, registration, type, make, model,
 		                      is_complex, is_high_performance, is_tailwheel, is_multi_pilot,
-		                      notes, is_active, aircraft_class,
+		                      notes, is_active, aircraft_class, ul_kind, mtom_kg,
 		                      default_departure_icao, default_arrival_icao)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, created_at, updated_at
 	`
 	err := r.db.QueryRowContext(ctx, query,
@@ -42,6 +42,8 @@ func (r *aircraftRepository) Create(ctx context.Context, aircraft *models.Aircra
 		aircraft.Notes,
 		aircraft.IsActive,
 		aircraft.AircraftClass,
+		aircraft.ULKind,
+		aircraft.MTOMKg,
 		aircraft.DefaultDepartureICAO,
 		aircraft.DefaultArrivalICAO,
 	).Scan(&aircraft.ID, &aircraft.CreatedAt, &aircraft.UpdatedAt)
@@ -58,7 +60,7 @@ func (r *aircraftRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 	query := `
 		SELECT id, user_id, registration, type, make, model,
 		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
-		       aircraft_class, default_departure_icao, default_arrival_icao,
+		       aircraft_class, ul_kind, mtom_kg, default_departure_icao, default_arrival_icao,
 		       created_at, updated_at
 		FROM aircraft WHERE id = $1
 	`
@@ -66,7 +68,7 @@ func (r *aircraftRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&a.ID, &a.UserID, &a.Registration, &a.Type, &a.Make, &a.Model,
 		&a.IsComplex, &a.IsHighPerformance, &a.IsTailwheel, &a.IsMultiPilot,
-		&a.Notes, &a.IsActive, &a.AircraftClass,
+		&a.Notes, &a.IsActive, &a.AircraftClass, &a.ULKind, &a.MTOMKg,
 		&a.DefaultDepartureICAO, &a.DefaultArrivalICAO,
 		&a.CreatedAt, &a.UpdatedAt,
 	)
@@ -83,7 +85,7 @@ func (r *aircraftRepository) GetByUserID(ctx context.Context, userID uuid.UUID, 
 	query := `
 		SELECT id, user_id, registration, type, make, model,
 		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
-		       aircraft_class, default_departure_icao, default_arrival_icao,
+		       aircraft_class, ul_kind, mtom_kg, default_departure_icao, default_arrival_icao,
 		       created_at, updated_at
 		FROM aircraft WHERE user_id = $1`
 	args := []any{userID}
@@ -115,7 +117,7 @@ func (r *aircraftRepository) GetPageByUserID(ctx context.Context, userID uuid.UU
 	query := `
 		SELECT id, user_id, registration, type, make, model,
 		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
-		       aircraft_class, default_departure_icao, default_arrival_icao,
+		       aircraft_class, ul_kind, mtom_kg, default_departure_icao, default_arrival_icao,
 		       created_at, updated_at
 		FROM aircraft WHERE user_id = $1`
 	args := append([]any{}, countArgs...)
@@ -144,7 +146,7 @@ func scanAircraftRows(rows *sql.Rows) ([]*models.Aircraft, error) {
 		if err := rows.Scan(
 			&a.ID, &a.UserID, &a.Registration, &a.Type, &a.Make, &a.Model,
 			&a.IsComplex, &a.IsHighPerformance, &a.IsTailwheel, &a.IsMultiPilot,
-			&a.Notes, &a.IsActive, &a.AircraftClass,
+			&a.Notes, &a.IsActive, &a.AircraftClass, &a.ULKind, &a.MTOMKg,
 			&a.DefaultDepartureICAO, &a.DefaultArrivalICAO,
 			&a.CreatedAt, &a.UpdatedAt,
 		); err != nil {
@@ -160,10 +162,10 @@ const aircraftUpdateQuery = `
 	SET registration = $1, type = $2, make = $3, model = $4,
 	    is_complex = $5, is_high_performance = $6,
 	    is_tailwheel = $7, is_multi_pilot = $8,
-	    notes = $9, is_active = $10, aircraft_class = $11,
-	    default_departure_icao = $12, default_arrival_icao = $13,
-	    updated_at = $14
-	WHERE id = $15
+	    notes = $9, is_active = $10, aircraft_class = $11, ul_kind = $12, mtom_kg = $13,
+	    default_departure_icao = $14, default_arrival_icao = $15,
+	    updated_at = $16
+	WHERE id = $17
 `
 
 func aircraftUpdateArgs(aircraft *models.Aircraft, now time.Time) []any {
@@ -171,7 +173,7 @@ func aircraftUpdateArgs(aircraft *models.Aircraft, now time.Time) []any {
 		aircraft.Registration, aircraft.Type, aircraft.Make, aircraft.Model,
 		aircraft.IsComplex, aircraft.IsHighPerformance, aircraft.IsTailwheel,
 		aircraft.IsMultiPilot,
-		aircraft.Notes, aircraft.IsActive, aircraft.AircraftClass,
+		aircraft.Notes, aircraft.IsActive, aircraft.AircraftClass, aircraft.ULKind, aircraft.MTOMKg,
 		aircraft.DefaultDepartureICAO, aircraft.DefaultArrivalICAO,
 		now, aircraft.ID,
 	}

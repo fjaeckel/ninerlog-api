@@ -39,6 +39,9 @@ func (s *AircraftService) CreateAircraft(ctx context.Context, aircraft *models.A
 	if err := aircraft.Validate(); err != nil {
 		return err
 	}
+	if err := aircraft.NormalizeULKind(); err != nil {
+		return err
+	}
 	if err := models.ValidateAircraftTextFields(aircraft); err != nil {
 		return err
 	}
@@ -115,6 +118,9 @@ func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.A
 		return 0, ErrUnauthorizedAircraft
 	}
 	if err := aircraft.Validate(); err != nil {
+		return 0, err
+	}
+	if err := aircraft.NormalizeULKind(); err != nil {
 		return 0, err
 	}
 	if err := models.ValidateAircraftTextFields(aircraft); err != nil {

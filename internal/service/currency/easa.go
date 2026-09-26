@@ -58,10 +58,13 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 		return &easaIRRule
 	}
 
-	// Glider uses SFCL.160(a) regardless of license type; ultralight is national law, expiry only
+	// Glider uses SFCL.160(a) and gyroplane FCL.240.G regardless of license type;
+	// ultralight is national law, expiry only
 	switch rating.ClassType {
 	case models.ClassTypeGlider:
 		return &easaSPLRule
+	case models.ClassTypeGyro:
+		return &easaGPLRule
 	case models.ClassTypeUL:
 		return &easaExpiryOnlyRule
 	}
@@ -100,12 +103,15 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 //
 // All within the 12 months preceding the expiry date of the rating. With both
 // SEP(land) and TMG ratings on the license, flights in either class count.
+// THREE_AXIS ultralights count as SEP(land) and THREE_AXIS_MOTORGLIDER as TMG
+// toward time and landings, not the refresher (FCL.035(a)(4)).
 var easaSEPTMGRule = ratingRule{
 	displayKey:  "easa_sep_tmg",
-	description: "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within the 12 months preceding the expiry date; holders of both SEP(land) and TMG ratings may combine flights in either class (EASA FCL.740.A(b)(1))",
+	description: "Requires 12h total flight time + 6h as PIC + 12 takeoffs & landings + 1h refresher training with instructor, all within the 12 months preceding the expiry date; holders of both SEP(land) and TMG ratings may combine flights in either class (EASA FCL.740.A(b)(1)); three-axis ultralight time and landings count, the refresher does not (FCL.035(a)(4))",
 	window:      windowSpec{kind: windowPrecedingExpiry, years: 1},
 	scope:       scopeClassGroup,
 	classGroup:  easaSEPTMGClasses,
+	ulCredit:    easaAnnexICredit,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 360, unit: "minutes"},
@@ -334,14 +340,17 @@ var easaExpiryOnlyRule = ratingRule{
 //   - NO PIC hour requirement (key difference from FCL.740.A)
 //   - OR a LAPL(A) proficiency check (FCL.140.A(a)(2))
 //   - with both SEP(land) and SEP(sea) ratings: 1 hour and 6 landings in each (FCL.140.A(b))
+//   - THREE_AXIS and THREE_AXIS_MOTORGLIDER ultralights count toward time and
+//     landings, not the training flight (FCL.035(a)(4))
 //
 // Lookback: rolling 24 months from NOW.
 var easaLAPLRule = ratingRule{
 	displayKey:  "easa_lapl",
-	description: "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor on aeroplanes or TMG within the last 24 months, or a LAPL(A) proficiency check; holders of SEP(land) and SEP(sea) need 1h and 6 takeoffs & landings in each (EASA FCL.140.A)",
+	description: "Requires 12h flight time + 12 takeoffs & landings + 1h training flight with instructor on aeroplanes or TMG within the last 24 months, or a LAPL(A) proficiency check; holders of SEP(land) and SEP(sea) need 1h and 6 takeoffs & landings in each (EASA FCL.140.A); three-axis ultralight time and landings count, the training flight does not (FCL.035(a)(4))",
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeClassGroup,
 	classGroup:  easaLAPLClasses,
+	ulCredit:    easaAnnexICredit,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
@@ -456,6 +465,13 @@ var easaSPLRule = ratingRule{
 			hours.PICMinutes += tmg.PICMinutes
 			hours.InstructorMinutes += tmg.InstructorMinutes
 			rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
+			ulMinutes, err := rt.ulHoursCredit(ctx, models.ULKindSailplane, models.ULKindThreeAxisMotorglider)
+			if err != nil {
+				rt.result.Status = StatusUnknown
+				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+				return
+			}
+			hours.PICMinutes += ulMinutes
 		}
 		rt.result.Progress = sailplane
 		reqs := []Requirement{
@@ -577,14 +593,29 @@ var easaSPLTMGRule = ratingRule{
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
+		ulSailplane, err := rt.ulHoursCredit(ctx, models.ULKindSailplane)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+			return
+		}
+		ulMotorglider, err := rt.ulHoursCredit(ctx, models.ULKindThreeAxisMotorglider)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+			return
+		}
+		rt.result.CreditedULKinds = []models.ULKind{models.ULKindSailplane, models.ULKindThreeAxisMotorglider}
 		hours := *tmg
-		hours.PICMinutes += glider.PICMinutes
+		hours.PICMinutes += glider.PICMinutes + ulSailplane + ulMotorglider
 		hours.InstructorMinutes += glider.InstructorMinutes
+		tmgHours := *tmg
+		tmgHours.PICMinutes += ulMotorglider
 		rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
 		rt.result.Progress = tmg
 
-		reqs := []Requirement{buildReq(&hours, rt.rule.baseReqs[0])}
-		reqs = append(reqs, buildReqs(tmg, rt.rule.baseReqs[1:])...)
+		reqs := []Requirement{buildReq(&hours, rt.rule.baseReqs[0]), buildReq(&tmgHours, rt.rule.baseReqs[1])}
+		reqs = append(reqs, buildReqs(tmg, rt.rule.baseReqs[2:])...)
 		allMetByExperience := allReqsMet(reqs)
 
 		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeTMG}, rt.since)
@@ -639,7 +670,7 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 
 	result := PassengerCurrency{
 		ClassType:           classType,
-		RegulatoryAuthority: "EASA",
+		RegulatoryAuthority: license.RegulatoryAuthority,
 		DayRequired:         3,
 		NightRequired:       1,
 		NightPrivilege:      hasNightPrivilege,
@@ -702,8 +733,27 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 		result.NightStatus = StatusExpired
 	}
 
+	// FCL.205.G(a)(2): GPL passengers only after 10h PIC on gyroplanes since issue
+	gplShortfall := 0
+	if classType == models.ClassTypeGyro && isGPL(license.LicenseType) {
+		p, err := dp.GetProgressByAircraftClass(ctx, license.UserID, []models.ClassType{models.ClassTypeGyro}, false, license.IssueDate)
+		if err != nil {
+			result.DayStatus = StatusUnknown
+			result.NightStatus = StatusUnknown
+			result.setMsg(MsgPaxEvaluationFailed, nil)
+			return result
+		}
+		if p.PICMinutes < gplPassengerPICMinutes {
+			gplShortfall = gplPassengerPICMinutes - p.PICMinutes
+			result.DayStatus = StatusExpired
+			result.DayExpiresOn = nil
+		}
+	}
+
 	// Summary message
 	switch {
+	case gplShortfall > 0:
+		result.setMsg(MsgPaxGPLExperienceNotMet, msgNeeded(gplShortfall))
 	case result.DayStatus != StatusCurrent:
 		needed := 3 - landings
 		result.setMsg(MsgPaxNotCurrent, msgNeeded(needed))
@@ -734,4 +784,12 @@ func hasValidIRRating(ratings []*models.ClassRating) bool {
 		return true
 	}
 	return false
+}
+
+// applySFCLTMGExemption marks an SPL TMG result current when the pilot holds
+// Part-FCL TMG privileges (SFCL.160(c)).
+func applySFCLTMGExemption(result *ClassRatingCurrency) {
+	result.Status = StatusCurrent
+	result.Requirements = nil
+	result.setMsg(MsgRatingSFCLTMGExempt, nil)
 }

@@ -137,6 +137,7 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
 | SFCL.160(b)(1)(ii) | `requirement.tmg_landings` ≥ 12 | landings | `TMG` |
 | SFCL.160(b)(1)(iii) | `requirement.tmg_training_flight` ≥ 60 min | longest total time of a flight with dual time | `TMG` |
 | SFCL.160(b)(2) | `requirement.proficiency_check` | a proficiency check flight in 24 months | `TMG` |
+| SFCL.160(c) | `rating.sfcl_tmg_exempt`, no requirements | the pilot holds a `TMG` rating on a Part-FCL licence | — |
 | SFCL.155(c) | `launchMethodCurrency[]` | take-offs per `launchMethod`; `self-launch` adds `TMG` take-offs | `GLIDER` (+ `TMG`) |
 | SFCL.160(e)(1) | passenger currency, `easa_spl_pax` | landing days of flights with PIC time | `GLIDER` |
 | SFCL.160(e)(2) | passenger currency, `easa_spl_tmg_pax` | landing days of flights with PIC time | `TMG`, SPL licence only |
@@ -149,11 +150,18 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
   class, so a lapsed method shows as `0 / 5`. It is informational: the rating status does
   not depend on it, because NinerLog doesn't know which methods the pilot is trained for.
 - Passenger currency for `GLIDER` never reports night privilege.
+- SFCL.160(c) is applied by `Service.EvaluateAll`: an SPL TMG result is reported current
+  with `rating.sfcl_tmg_exempt` when any EASA-evaluated licence that is neither a sailplane
+  nor an ultralight licence (PPL, LAPL, CPL, ATPL) carries a `TMG` rating.
+- AMC1 SFCL.160 credits Annex I sailplanes toward the hourly requirements only. PIC time on
+  `ULTRALIGHT` aircraft of kind `SAILPLANE` or `THREE_AXIS_MOTORGLIDER` counts toward the 5 h
+  of (a) and the 12 h of (b), and `THREE_AXIS_MOTORGLIDER` PIC time toward the 6 h on TMGs;
+  their dual time, launches, landings and training flights never count, because a training
+  flight needs an ORA.ATO.135-authorised aircraft. The result lists the kinds in
+  `creditedUltralightKinds`.
 
 ### Known gaps
 
-- SFCL.160(c) is not applied: an SPL TMG rating is evaluated under (b) even when the pilot
-  also holds a Part-FCL licence with TMG privileges.
 - SFCL.160(e)(2) night passenger carriage in a TMG is not evaluated for SPL holders.
 - SFCL.155(a) initial launch-method training and SFCL.115(a)(2) passenger prerequisites are
   not tracked.

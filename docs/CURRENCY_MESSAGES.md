@@ -97,7 +97,8 @@ fixture keeps passing while covering a surface the API cannot produce.
 | `rating.revalidation_expiring_met` | `days` | Requirements met, expiry approaching |
 | `rating.revalidation_current` | — | Requirements met, not near expiry |
 | `rating.recency_not_met` | — | Rolling recency incomplete (LAPL, SPL, UL) |
-| `rating.recency_current` | — | Rolling recency satisfied (LAPL, SPL, UL) |
+| `rating.recency_current` | — | Rolling recency satisfied (LAPL, SPL, GPL, UL) |
+| `rating.sfcl_tmg_exempt` | — | SPL TMG privileges need no SFCL.160(b) experience: the pilot holds Part-FCL TMG privileges (SFCL.160(c)) |
 | `rating.ir_hours_and_check_not_met` | — | EASA IR: neither IFR hours nor proficiency check |
 | `rating.ir_hours_not_met` | — | EASA IR: IFR hours short |
 | `rating.ir_check_not_met` | — | EASA IR: annual proficiency check missing |
@@ -122,6 +123,7 @@ fixture keeps passing while covering a surface the API cannot produce.
 | `pax.current_day_night` | — | Day and night both met |
 | `pax.day_current_night_not` | `needed` | Day met, night short by `needed` |
 | `pax.current_day_privilege_separate` | — | UL: experience met, but the passenger endorsement is proved separately |
+| `pax.gpl_experience_not_met` | `needed` | GPL: `needed` more minutes as PIC on gyroplanes since licence issue before passengers may be carried (FCL.205.G(a)(2)) |
 
 Expiry dates are **not** in the message — read `dayExpiresOn` / `nightExpiresOn` and
 render them yourself. See [DOMAIN.md](./DOMAIN.md#passenger-currency-expiry-dayexpireson--nightexpireson).

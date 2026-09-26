@@ -44,6 +44,9 @@ type ClassRatingCurrency struct {
 	// CountedClasses lists the aircraft classes whose flights count toward
 	// this rating, when that is more than the rating's own class.
 	CountedClasses []models.ClassType `json:"countedClasses,omitempty"`
+	// CreditedULKinds lists the ultralight kinds whose flights also count
+	// toward this rating.
+	CreditedULKinds []models.ULKind `json:"creditedUltralightKinds,omitempty"`
 }
 
 // Progress holds progress metrics toward currency requirements (all times in minutes)
@@ -101,15 +104,17 @@ type CurrencyStatusResponse struct {
 // EASA: FCL.060(b) — 3 T&L in preceding 90 days in same type/class.
 // FAA: §61.57(a)/(b) — 3 T&L day / 3 full-stop night T&L in 90 days.
 type PassengerCurrency struct {
-	ClassType           models.ClassType `json:"classType"`
-	RegulatoryAuthority string           `json:"regulatoryAuthority"`
-	DayStatus           Status           `json:"dayStatus"`
-	NightStatus         Status           `json:"nightStatus"`
-	DayLandings         int              `json:"dayLandings"`
-	NightLandings       int              `json:"nightLandings"`
-	DayRequired         int              `json:"dayRequired"`
-	NightRequired       int              `json:"nightRequired"`
-	NightPrivilege      bool             `json:"nightPrivilege"`
+	ClassType models.ClassType `json:"classType"`
+	// ULKind is the ultralight kind the result covers, for ULTRALIGHT only.
+	ULKind              *models.ULKind `json:"ulKind,omitempty"`
+	RegulatoryAuthority string         `json:"regulatoryAuthority"`
+	DayStatus           Status         `json:"dayStatus"`
+	NightStatus         Status         `json:"nightStatus"`
+	DayLandings         int            `json:"dayLandings"`
+	NightLandings       int            `json:"nightLandings"`
+	DayRequired         int            `json:"dayRequired"`
+	NightRequired       int            `json:"nightRequired"`
+	NightPrivilege      bool           `json:"nightPrivilege"`
 	// DayExpiresOn is the last date the day requirement stays met with no
 	// further flying — the oldest qualifying landing plus 90 days. Omitted
 	// when the requirement is not currently met.

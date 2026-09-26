@@ -161,6 +161,12 @@ func TestTowedFlights_IncludedOnlyForSailplaneRules(t *testing.T) {
 			rating := &models.ClassRating{ID: uuid.New(), ClassType: tt.class, LicenseID: uuid.New(), ExpiryDate: futureDate(6)}
 			license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: tt.licType}
 			tt.eval.Evaluate(context.Background(), rating, license, dp)
+			if tt.class == models.ClassTypeUL {
+				if dp.lastULSel == nil || dp.lastULTowed != tt.want {
+					t.Errorf("UL includeTowed = %v (queried %v), want %v", dp.lastULTowed, dp.lastULSel != nil, tt.want)
+				}
+				return
+			}
 			if got, ok := dp.includeTowed[tt.class]; !ok || got != tt.want {
 				t.Errorf("includeTowed = %v (queried %v), want %v", got, ok, tt.want)
 			}

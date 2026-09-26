@@ -21,6 +21,7 @@ const (
 	ClassTypeOther   ClassType = "OTHER"
 	ClassTypeGlider  ClassType = "GLIDER"
 	ClassTypeUL      ClassType = "ULTRALIGHT"
+	ClassTypeGyro    ClassType = "GYROPLANE"
 )
 
 // ValidClassTypes returns all valid class types
@@ -30,7 +31,7 @@ func ValidClassTypes() []ClassType {
 		ClassTypeMEPLand, ClassTypeMEPSea,
 		ClassTypeSETLand, ClassTypeSETSea,
 		ClassTypeTMG, ClassTypeIR, ClassTypeOther,
-		ClassTypeGlider, ClassTypeUL,
+		ClassTypeGlider, ClassTypeUL, ClassTypeGyro,
 	}
 }
 
@@ -46,14 +47,29 @@ func IsValidClassType(ct ClassType) bool {
 
 // ClassRating represents a class rating attached to a license
 type ClassRating struct {
-	ID         uuid.UUID  `json:"id"`
-	LicenseID  uuid.UUID  `json:"licenseId"`
-	ClassType  ClassType  `json:"classType"`
+	ID        uuid.UUID `json:"id"`
+	LicenseID uuid.UUID `json:"licenseId"`
+	ClassType ClassType `json:"classType"`
+	// ULKind is set only when ClassType is ULTRALIGHT.
+	ULKind     *ULKind    `json:"ulKind,omitempty"`
 	IssueDate  time.Time  `json:"issueDate"`
 	ExpiryDate *time.Time `json:"expiryDate,omitempty"`
 	Notes      *string    `json:"notes,omitempty"`
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+// NormalizeULKind clears ULKind on a non-ULTRALIGHT rating and returns
+// ErrInvalidULKind for an unknown kind.
+func (cr *ClassRating) NormalizeULKind() error {
+	if cr.ClassType != ClassTypeUL {
+		cr.ULKind = nil
+		return nil
+	}
+	if cr.ULKind != nil && !IsValidRatingULKind(*cr.ULKind) {
+		return ErrInvalidULKind
+	}
+	return nil
 }
 
 // IsExpired checks if the class rating has expired

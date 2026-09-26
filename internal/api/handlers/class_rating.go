@@ -49,6 +49,7 @@ func (h *APIHandler) CreateClassRating(c *gin.Context, licenseId generated.Licen
 
 	var req struct {
 		ClassType  string  `json:"classType" binding:"required"`
+		ULKind     *string `json:"ulKind"`
 		IssueDate  string  `json:"issueDate" binding:"required"`
 		ExpiryDate *string `json:"expiryDate"`
 		Notes      *string `json:"notes"`
@@ -70,6 +71,10 @@ func (h *APIHandler) CreateClassRating(c *gin.Context, licenseId generated.Licen
 		IssueDate: issueDate,
 		Notes:     req.Notes,
 	}
+	if req.ULKind != nil {
+		k := models.ULKind(*req.ULKind)
+		cr.ULKind = &k
+	}
 
 	if req.ExpiryDate != nil && *req.ExpiryDate != "" {
 		expiry, err := time.Parse("2006-01-02", *req.ExpiryDate)
@@ -83,6 +88,10 @@ func (h *APIHandler) CreateClassRating(c *gin.Context, licenseId generated.Licen
 	if err := h.classRatingService.CreateClassRating(c.Request.Context(), cr, userID); err != nil {
 		if errors.Is(err, service.ErrInvalidClassType) {
 			h.sendError(c, http.StatusBadRequest, "Invalid class type")
+			return
+		}
+		if errors.Is(err, models.ErrInvalidULKind) {
+			h.sendError(c, http.StatusBadRequest, "Invalid ultralight kind")
 			return
 		}
 		if errors.Is(err, service.ErrLicenseNotFound) || errors.Is(err, service.ErrUnauthorizedAccess) {
@@ -139,10 +148,15 @@ func (h *APIHandler) UpdateClassRating(c *gin.Context, licenseId generated.Licen
 		}
 	}
 	applyNullable(&cr.Notes, req.Notes)
+	applyNullableULKind(&cr.ULKind, req.UlKind)
 
 	if err := h.classRatingService.UpdateClassRating(c.Request.Context(), cr, userID); err != nil {
 		if errors.Is(err, service.ErrClassRatingNotFound) || errors.Is(err, service.ErrUnauthorizedClassRating) {
 			h.sendError(c, http.StatusNotFound, "Class rating not found")
+			return
+		}
+		if errors.Is(err, models.ErrInvalidULKind) {
+			h.sendError(c, http.StatusBadRequest, "Invalid ultralight kind")
 			return
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update class rating")

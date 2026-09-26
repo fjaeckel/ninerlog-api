@@ -37,6 +37,9 @@ func (s *ClassRatingService) CreateClassRating(ctx context.Context, cr *models.C
 	if !models.IsValidClassType(cr.ClassType) {
 		return ErrInvalidClassType
 	}
+	if err := cr.NormalizeULKind(); err != nil {
+		return err
+	}
 	// Verify license ownership
 	license, err := s.licenseRepo.GetByID(ctx, cr.LicenseID)
 	if err != nil {
@@ -102,6 +105,11 @@ func (s *ClassRatingService) UpdateClassRating(ctx context.Context, cr *models.C
 	existing.IssueDate = cr.IssueDate
 	existing.ExpiryDate = cr.ExpiryDate
 	existing.Notes = cr.Notes
+	existing.ULKind = cr.ULKind
+	if err := existing.NormalizeULKind(); err != nil {
+		return err
+	}
+	*cr = *existing
 	return s.classRatingRepo.Update(ctx, existing)
 }
 

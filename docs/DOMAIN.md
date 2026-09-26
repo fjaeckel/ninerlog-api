@@ -359,6 +359,9 @@ interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL
   its day and night landing counts, newest date first; `picOnly` keeps only flights with PIC
   time. Used for passenger currency, which needs *when* each landing was flown, not just how
   many there were.
+- `GetProgressByULKind`, `GetLastProficiencyCheckByULKind`, `GetLandingDaysByULKind` — the
+  same three reads on `ULTRALIGHT` aircraft selected by kind (`ULSelector`: kinds, plus
+  aircraft with no kind when `IncludeUnspecified`, and of at least `MinMTOMKg` kg when set).
 
 This separation keeps the *regulatory* logic (what to count and over which window) in the
 evaluators, and the *data* logic (how to query) in one place.
@@ -371,7 +374,9 @@ classed `SEP_LAND`. Self-launches are not towed.
 Aircraft between categories are classed by the licence they are flown under: UL sailplanes
 and UL motorgliders `ULTRALIGHT`, sailplanes including self-launching ones `GLIDER`, touring
 motor gliders `TMG`. See [SAILPLANES.md](./SAILPLANES.md) for telling a self-launching
-sailplane from a TMG.
+sailplane from a TMG. An ultralight is never classed `SEP_LAND` or
+`TMG`, even when it is credited toward those ratings: crediting is declared by its ultralight
+kind (see [Ultralights](#ultralights)).
 
 ### Credited classes
 
@@ -384,17 +389,21 @@ rating, never toward `OTHER`. These EASA rules count more than one class
 
 | Rule | Classes counted | Condition |
 | --- | --- | --- |
-| LAPL(A) recency, FCL.140.A(a) (`easaLAPLRule`) | `SEP_LAND`, `SEP_SEA`, `MEP_LAND`, `MEP_SEA`, `SET_LAND`, `SET_SEA`, `TMG` | Always — the rule counts experience "as pilots of aeroplanes or TMGs". `GLIDER` and `ULTRALIGHT` are not aeroplanes. |
+| LAPL(A) recency, FCL.140.A(a) (`easaLAPLRule`) | `SEP_LAND`, `SEP_SEA`, `MEP_LAND`, `MEP_SEA`, `SET_LAND`, `SET_SEA`, `TMG` | Always — the rule counts experience "as pilots of aeroplanes or TMGs". `GLIDER` is not an aeroplane; an `ULTRALIGHT` counts only through its kind (FCL.035(a)(4)). |
 | SEP/TMG revalidation, FCL.740.A(b)(1) (`easaSEPTMGRule`) | `SEP_LAND`, `TMG` | Only for a `SEP_LAND` or `TMG` rating on a license that holds both. `SEP_SEA` is never pooled. |
 | Sailplane recency, SFCL.160(a)(1) (`easaSPLRule`) | `GLIDER`, `TMG` | For a `GLIDER` rating, and only for the 5 h; launches and training flights count on `GLIDER` alone. |
 | SPL TMG recency, SFCL.160(b)(1) (`easaSPLTMGRule`) | `GLIDER`, `TMG` | Only for the 12 h; the 6 h, take-offs and landings and training flight count on `TMG` alone. |
+
+Two EASA rules also credit ultralight flights (`easaAnnexICredit`, below), and the German
+three-axis rule counts `SEP_LAND` and `TMG` (see [Ultralights](#ultralights)).
 
 For the two aeroplane rules the pool applies to the experience totals and to the
 proficiency-check lookup, and never includes towed launches. The
 evaluator needs the license's other ratings for the condition, so `EASAEvaluator`
 implements `PeerAwareEvaluator` and `Service.EvaluateAll` passes them in. A pooled result
 lists the counted classes in `ClassRatingCurrency.countedClasses`; it is absent when only the
-rating's own class counts.
+rating's own class counts. Ultralight kinds a rule counts are listed in
+`ClassRatingCurrency.creditedUltralightKinds`.
 
 LAPL(A) recency (FCL.140.A) is also met by a LAPL(A) proficiency check on any pooled class
 within the 24 months (`requirement.proficiency_check`), as an alternative to the experience
@@ -443,8 +452,9 @@ first. An expiry is omitted when the requirement is unmet (nothing to lapse), in
 
 Licence types without night privilege (`HasNightPrivilege` in `faa.go`) report
 `nightPrivilege: false` and are not evaluated for night passenger currency: FAA Sport,
-Recreational and Glider; EASA `LAPL` / `LAPL(A)` and `SPL` / `LAPL(S)`; and every German UL
-authority (LBA, DULV, DAeC). Licence types are matched case-insensitively, and the EASA
+Recreational and Glider; EASA `LAPL` / `LAPL(A)`, `SPL` / `LAPL(S)` and `GPL`; the German UL
+authorities DULV and DAeC; and an ultralight licence type (`UL`, `UL-…`, `Ultralight`,
+`Ultraleicht`) under LBA — an LBA-issued PPL keeps its night privilege. Licence types are matched case-insensitively, and the EASA
 spellings are shared with the rating dispatch in `easaSelectRule` (`isEASALAPLA`,
 `isEASASailplane`), so a LAPL or SPL gets both its FCL.140 recency rule and its night
 restriction from the same check.
@@ -460,29 +470,119 @@ The two main rule sets differ substantially, which is why each has its own evalu
 | Instrument recency | FCL.625.A revalidation | §61.57(c): rolling 6 months |
 | Flight review | Recency requirements | §61.56: every 24 calendar months |
 | Gliders | SFCL.160 recency, SFCL.155 launch methods — see [SAILPLANES.md](./SAILPLANES.md) | §61.57(d) |
+| Gyroplanes | FCL.240.G (GPL) — see [Gyroplanes (GPL)](#gyroplanes-gpl) | class-generic §61.57 |
 
-`GermanULEvaluator` handles German ultralight rules and registers itself for the relevant
-authority strings via `RegisterMulti`. `OtherEvaluator` is the safe fallback for any
+`GermanULEvaluator` handles German ultralight rules, delegates every non-`ULTRALIGHT` rating to
+`EASAEvaluator`, and registers itself for the relevant authority strings via `RegisterMulti`. `OtherEvaluator` is the safe fallback for any
 authority without a dedicated implementation — it performs an expiry-only check so the
 system degrades gracefully rather than failing.
 
-`GLIDER` and `ULTRALIGHT` class ratings select their rule from the class, not the license
-type:
+### Ultralights
+
+An ultralight ("Luftsportgerät", EU Annex I aircraft) is classed `ULTRALIGHT` and carries an
+ultralight kind, `ul_kind` (migration 72), on the aircraft and on an `ULTRALIGHT` class rating.
+The kind is the German "Luftsportgeräteart" the licence is issued for; `models/ultralight.go`
+holds the vocabulary and its mappings.
+
+| Kind | Meaning | German licence class | Credited under FCL.035(a)(4) as |
+| --- | --- | --- | --- |
+| `THREE_AXIS` | aerodynamically (three-axis) controlled UL aeroplane | Dreiachs | `SEP_LAND` |
+| `THREE_AXIS_MOTORGLIDER` | three-axis UL that meets the TMG definition (aircraft only) | Dreiachs | `TMG`; PIC hours toward SFCL.160 |
+| `WEIGHT_SHIFT` | weight-shift trike | Trike | — |
+| `GYROPLANE` | UL gyroplane | Tragschrauber | `GYROPLANE` (GPL), from 450 kg MTOM (FCL.035(a)(5)) |
+| `HELICOPTER` | UL helicopter | UL-Hubschrauber | — |
+| `POWERED_PARAGLIDER` | Motorschirm or Motorschirm-Trike | Motorschirm | — |
+| `SAILPLANE` | UL sailplane | UL-Segelflug | PIC hours toward SFCL.160 (AMC1 SFCL.160) |
+
+The kind is kept only on an `ULTRALIGHT` aircraft or rating; the service clears it when the
+class is anything else and rejects an unknown kind with `ErrInvalidULKind` (400). A rating
+cannot be `THREE_AXIS_MOTORGLIDER`: a `THREE_AXIS` rating covers both three-axis kinds
+(`models.AircraftKindsForRating`). The kind is part of the aircraft and class rating payloads, so
+it travels in the JSON export and import.
+
+**EASA crediting, FCL.035(a)(4).** Hours in aeroplanes or TMGs within Annex I count in full
+toward LAPL(A) recency (FCL.140.A(a)(1)) and SEP/TMG revalidation by experience
+(FCL.740.A(b)(1)(ii)) when the aircraft is of the same category and class. The two rules
+declare `ulCredit: easaAnnexICredit`, which adds `THREE_AXIS` flights where the rule counts
+`SEP_LAND` and `THREE_AXIS_MOTORGLIDER` flights where it counts `TMG`:
+
+- Total time, PIC time and landings are credited. German administrative practice (NfL
+  2021-1-2238) includes takeoffs and landings.
+- Dual time is not. The refresher flight with an instructor must be in an aircraft authorised
+  under ORA.ATO.135, which excludes Annex I category (e) ultralights, so a UL flight never meets
+  the refresher or the LAPL(A) training flight. Nor does a UL proficiency check count.
+- Only an aircraft with an explicit kind is credited. A trike, gyroplane, UL helicopter,
+  powered paraglider or UL sailplane is not an aeroplane or TMG of the same class
+  (Luftamt Südbayern: "nur ... in einem aerodynamisch dreiachsgesteuerten Luftsportgerät").
+- Passenger recency (FCL.060(b)) and the LAPL(A) SEP(land)/SEP(sea) split (FCL.140.A(b)) are
+  not among the credited requirements and never count ultralights. Nor does SEP(sea).
+
+**German ultralight recency, LuftPersV.** `GermanULEvaluator` (LBA, DULV, DAeC) evaluates an
+`ULTRALIGHT` rating by its kind; a rating with no kind is evaluated as `THREE_AXIS`. Every other
+class rating on such a licence (an LBA-issued PPL's `SEP_LAND`, say) is delegated to
+`EASAEvaluator`. All windows roll back from today.
+
+| Kind (rule) | Requirement | Counts | Proficiency check replaces it |
+| --- | --- | --- | --- |
+| `THREE_AXIS` (`germanULRule`, §45(2)) | 12h in 24 months incl. 6h PIC, 12 landings, 1h training flight with an instructor | three-axis UL, `SEP_LAND` and `TMG` time and landings; the training flight only on a three-axis UL | yes, in a three-axis UL, TMG or SEP (§45(3)) |
+| `HELICOPTER` (`germanULHelicopterRule`, §45(2a)) | 6h in 12 months incl. 6 landings, 1h with an instructor | UL helicopters | yes |
+| `GYROPLANE` (`germanULGyroplaneRule`, DULV) | 12h in 24 months incl. 6h PIC, 12 landings, 1h training flight | gyroplanes only | yes |
+| `WEIGHT_SHIFT` DULV/LBA (`germanULTrikeDULVRule`) | 12h as PIC in 24 months | trikes | no |
+| `WEIGHT_SHIFT` DAeC (`germanULTrikeDAeCRule`) | 12h and 12 landings in 24 months; the safety/performance training is not tracked | trikes | no |
+| `POWERED_PARAGLIDER` (`germanULPoweredParagliderRule`) | 30 landings in 24 months | powered paragliders | no |
+| `SAILPLANE` (`germanULSailplaneRule`, DAeC) | 5 landings in 12 months, towed launches included | UL sailplanes | no |
+
+Only the three-axis and helicopter rules are statute (§45(2), (2a)); the others are set by
+DULV/DAeC under §45(4), and the two associations differ for trikes, so the trike rule follows
+the licence's authority. A flight on an `ULTRALIGHT` aircraft with no kind counts toward a German
+rating of any kind, never toward EASA crediting. An unmet requirement reports `expiring`: the
+licence does not lapse (§45(1)), the privileges may not be exercised until the requirement is
+met. Landings stand in for takeoffs and landings, and dual time for the training flight, as in
+the EASA rules.
+
+Passenger recency (§45a) is 3 takeoffs and landings in the preceding 90 days in an ultralight of
+the same kind, so it is evaluated per rating kind (`RatingPassengerCurrencyEvaluator`) and
+reported with `PassengerCurrency.ulKind`; SEP/TMG landings do not count. The passenger rating
+itself (§84a) is proved separately and not tracked. Ultralights have no night privilege
+(§44(2)).
+
+`GLIDER`, `ULTRALIGHT` and `GYROPLANE` class ratings select their rule from the class, not the
+license type:
 
 | Class | LBA / DULV / DAeC | EASA / unknown authority | FAA |
 | --- | --- | --- | --- |
 | `GLIDER` | SFCL.160(a) (`easaSPLRule`) | SFCL.160(a) (`easaSPLRule`) | §61.57 glider launches (`faaGliderRule`) |
-| `ULTRALIGHT` | LuftPersV §45 (`germanULRule`) + UL passenger currency | expiry only, no passenger currency | expiry only, no passenger currency |
+| `ULTRALIGHT` | LuftPersV §45 by kind + §45a passenger currency by kind | expiry only, no passenger currency | expiry only, no passenger currency |
+| `GYROPLANE` | FCL.240.G (`easaGPLRule`, via EASA) | FCL.240.G (`easaGPLRule`); unknown authority: expiry only | §61.57 (`faaPassengerRatingRule`) |
 
-Ultralights are national law, so only the German UL authorities carry a recency rule for them.
+Ultralight licences are national law, so only the German UL authorities carry a recency rule for
+them. EASA rules credit ultralight time without evaluating an `ULTRALIGHT` rating.
 
 Passenger currency for a `GLIDER` rating never reports night privilege. For `GLIDER`, and for
 `TMG` on an `SPL` or `LAPL(S)` license, it counts only flights with PIC time
 (SFCL.160(e)), under `ruleDescriptionKey` `easa_spl_pax` or `easa_spl_tmg_pax`.
 
 The sailplane rules — what counts toward SFCL.160(a) and (b), the proficiency-check
-alternative, per-method launch recency (SFCL.155(c)) and the known gaps — are described in
-[SAILPLANES.md](./SAILPLANES.md).
+alternative, per-method launch recency (SFCL.155(c)), the SFCL.160(c) exemption, the Annex I
+hour credit and the known gaps — are described in [SAILPLANES.md](./SAILPLANES.md).
+
+### Gyroplanes (GPL)
+
+From 18 February 2026 Part-FCL licenses gyroplanes with the GPL (Reg. (EU) 2025/134). A `GYROPLANE`
+class rating and aircraft class (migration 73) cover the single-propeller gyroplane class.
+
+- **Recency, FCL.240.G(a)** (`easaGPLRule`, any EASA-evaluated licence): in the last 2 years,
+  12h as PIC, dual or supervised solo on gyroplanes including 12 takeoffs and landings and 1h of
+  refresher training with an instructor; or a GPL proficiency check.
+- **Annex I credit, FCL.035(a)(5)** (`gplAnnexICredit`): an `ULTRALIGHT` aircraft of kind
+  `GYROPLANE` with `mtom_kg` of at least 450 counts toward the 12h and the landings, never the
+  refresher. An ultralight gyroplane with no mass recorded is not credited.
+- **Passengers**: FCL.060(b) applies to gyroplanes; the GPL carries no night privilege (FCL.810
+  has no gyroplane night rating), and FCL.205.G(a)(2) requires 10h as PIC on `GYROPLANE`
+  aircraft since the licence's issue date before the first passenger —
+  `pax.gpl_experience_not_met` reports the minutes still needed.
+- **German UL gyroplane recency** counts `GYROPLANE` time and landings too (a Part-FCL gyroplane
+  is a Tragschrauber); the training flight still has to be in a UL gyroplane.
 
 ### Extending the engine
 
