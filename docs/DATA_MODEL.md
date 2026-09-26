@@ -198,7 +198,7 @@ are **integer minutes**):
   [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
 - **Booleans**: `IsPIC`, `IsDual`.
 - **Takeoffs/landings**: `LandingsDay`, `LandingsNight`, `AllLandings` (auto),
-  `TakeoffsDay`, `TakeoffsNight` (auto from sunset/sunrise at departure).
+  `TakeoffsDay`, `TakeoffsNight` (auto: one per landing, split by sunset/sunrise at departure).
 - **Auto-calculated**: `SoloTime`, `CrossCountryTime`, `Distance` (NM, from airport
   coordinates). `NightTime`, `CrossCountryTime`, the takeoff/landing splits, `SICTime` and
   `MultiPilotTime` each carry an `*Override` flag (`night_time_override` and
