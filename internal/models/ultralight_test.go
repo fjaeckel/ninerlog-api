@@ -75,3 +75,19 @@ func TestULKindMappings(t *testing.T) {
 		t.Errorf("GYROPLANE rating covers %v", got)
 	}
 }
+
+func TestAircraftValidateMTOM(t *testing.T) {
+	for _, tt := range []struct {
+		mtom    *int
+		wantErr bool
+	}{
+		{nil, false}, {intPtr(472), false}, {intPtr(0), true}, {intPtr(-5), true}, {intPtr(1000001), true},
+	} {
+		a := &Aircraft{Registration: "D-MGYR", Type: "MTO", Make: "AutoGyro", Model: "MTOsport", MTOMKg: tt.mtom}
+		if err := a.Validate(); (err == ErrInvalidAircraftMTOM) != tt.wantErr {
+			t.Errorf("MTOM %v: err = %v, wantErr %v", tt.mtom, err, tt.wantErr)
+		}
+	}
+}
+
+func intPtr(i int) *int { return &i }

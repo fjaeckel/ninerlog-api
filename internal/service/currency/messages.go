@@ -29,6 +29,7 @@ const (
 
 	MsgRatingRecencyNotMet  = "rating.recency_not_met"
 	MsgRatingRecencyCurrent = "rating.recency_current"
+	MsgRatingSFCLTMGExempt  = "rating.sfcl_tmg_exempt"
 
 	MsgRatingIRHoursAndCheckNotMet = "rating.ir_hours_and_check_not_met"
 	MsgRatingIRHoursNotMet         = "rating.ir_hours_not_met"
@@ -55,6 +56,7 @@ const (
 	MsgPaxCurrentDayNight         = "pax.current_day_night"
 	MsgPaxDayCurrentNightNot      = "pax.day_current_night_not"
 	MsgPaxCurrentPrivilegeSeparat = "pax.current_day_privilege_separate"
+	MsgPaxGPLExperienceNotMet     = "pax.gpl_experience_not_met"
 )
 
 // Flight review keys (FlightReviewStatus.MessageKey).

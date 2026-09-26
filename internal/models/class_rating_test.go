@@ -7,8 +7,8 @@ import (
 
 func TestValidClassTypes(t *testing.T) {
 	types := ValidClassTypes()
-	if len(types) != 11 {
-		t.Errorf("ValidClassTypes() count = %d, want 11", len(types))
+	if len(types) != 12 {
+		t.Errorf("ValidClassTypes() count = %d, want 12", len(types))
 	}
 }
 
@@ -16,7 +16,7 @@ func TestIsValidClassType_Valid(t *testing.T) {
 	validTypes := []ClassType{
 		ClassTypeSEPLand, ClassTypeSEPSea, ClassTypeMEPLand, ClassTypeMEPSea,
 		ClassTypeSETLand, ClassTypeSETSea, ClassTypeTMG, ClassTypeIR, ClassTypeOther,
-		ClassTypeGlider, ClassTypeUL,
+		ClassTypeGlider, ClassTypeUL, ClassTypeGyro,
 	}
 	for _, ct := range validTypes {
 		if !IsValidClassType(ct) {

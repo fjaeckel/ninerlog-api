@@ -122,6 +122,7 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 		k := models.ULKind(*req.UlKind)
 		aircraft.ULKind = &k
 	}
+	aircraft.MTOMKg = req.MaxTakeoffMassKg
 	aircraft.DefaultDepartureICAO = normalizeICAO(req.DefaultDepartureIcao)
 	aircraft.DefaultArrivalICAO = normalizeICAO(req.DefaultArrivalIcao)
 
@@ -132,6 +133,10 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 		}
 		if errors.Is(err, models.ErrInvalidULKind) {
 			h.sendError(c, http.StatusBadRequest, "Invalid ultralight kind")
+			return
+		}
+		if errors.Is(err, models.ErrInvalidAircraftMTOM) {
+			h.sendError(c, http.StatusBadRequest, "Invalid maximum take-off mass")
 			return
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to create aircraft")
@@ -218,6 +223,7 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 	}
 	applyNullable(&aircraft.AircraftClass, req.AircraftClass)
 	applyNullableULKind(&aircraft.ULKind, req.UlKind)
+	applyNullable(&aircraft.MTOMKg, req.MaxTakeoffMassKg)
 	if req.DefaultDepartureIcao.IsSpecified() {
 		if req.DefaultDepartureIcao.IsNull() {
 			aircraft.DefaultDepartureICAO = nil
@@ -243,6 +249,10 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 		}
 		if errors.Is(err, models.ErrInvalidULKind) {
 			h.sendError(c, http.StatusBadRequest, "Invalid ultralight kind")
+			return
+		}
+		if errors.Is(err, models.ErrInvalidAircraftMTOM) {
+			h.sendError(c, http.StatusBadRequest, "Invalid maximum take-off mass")
 			return
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update aircraft")
@@ -355,5 +365,6 @@ func convertToGeneratedAircraft(a *models.Aircraft) generated.Aircraft {
 		k := generated.AircraftUlKind(*a.ULKind)
 		ac.UlKind = &k
 	}
+	ac.MaxTakeoffMassKg = a.MTOMKg
 	return ac
 }

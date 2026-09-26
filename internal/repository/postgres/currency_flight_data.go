@@ -40,8 +40,9 @@ const progressSelect = `
 			COUNT(*) FILTER (WHERE f.dual_time > 0) as training_flights,
 			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes`
 
-// ulKindFilter matches ULTRALIGHT aircraft a whose kind is in $2, or unset when $3.
-const ulKindFilter = `upper(trim(a.aircraft_class)) = 'ULTRALIGHT' AND (a.ul_kind = ANY($2) OR ($3 AND a.ul_kind IS NULL))`
+// ulKindFilter matches ULTRALIGHT aircraft a whose kind is in $2, or unset when
+// $3, with an MTOM of at least $4 kg when $4 is not 0.
+const ulKindFilter = `upper(trim(a.aircraft_class)) = 'ULTRALIGHT' AND (a.ul_kind = ANY($2) OR ($3 AND a.ul_kind IS NULL)) AND ($4 = 0 OR a.mtom_kg >= $4)`
 
 // towedLaunches lists the launch methods that do not count toward powered classes.
 const towedLaunches = `('winch', 'aerotow', 'car', 'bungee')`
@@ -87,22 +88,22 @@ func (p *currencyFlightDataProvider) GetProgressByULKind(ctx context.Context, us
 		SELECT` + progressSelect + `
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $4
-			AND ($5 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $5
+			AND ($6 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 	`
-	return p.scanProgress(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, since, includeTowed)
+	return p.scanProgress(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, includeTowed)
 }
 
 func (p *currencyFlightDataProvider) GetLastProficiencyCheckByULKind(ctx context.Context, userID uuid.UUID, sel currency.ULSelector, since time.Time) (*time.Time, error) {
 	query := `
 		SELECT f.date FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.is_proficiency_check = true AND f.date >= $4
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.is_proficiency_check = true AND f.date >= $5
 		ORDER BY f.date DESC
 		LIMIT 1
 	`
 	var checkDate time.Time
-	err := p.db.QueryRowContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, since).Scan(&checkDate)
+	err := p.db.QueryRowContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since).Scan(&checkDate)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -120,13 +121,13 @@ func (p *currencyFlightDataProvider) GetLandingDaysByULKind(ctx context.Context,
 			COALESCE(SUM(f.landings_night), 0) as night_landings
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
-		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $4
-			AND ($5 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
+		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $5
+			AND ($6 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 		GROUP BY f.date
 		HAVING SUM(f.landings_day + f.landings_night) > 0
 		ORDER BY f.date DESC
 	`
-	rows, err := p.db.QueryContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, since, includeTowed)
+	rows, err := p.db.QueryContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, includeTowed)
 	if err != nil {
 		return nil, err
 	}

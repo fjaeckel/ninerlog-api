@@ -74,7 +74,8 @@ privileges and carry passengers?
   EASA credits only `THREE_AXIS` (as SEP_LAND) and `THREE_AXIS_MOTORGLIDER` (as TMG) time and
   landings, never their dual time (FCL.035(a)(4)); German UL recency and passenger currency
   are per kind (LuftPersV §45, §45a). Never class an ultralight `SEP_LAND` to make it count.
-  See DOMAIN.md "Ultralights".
+  See DOMAIN.md "Ultralights". **Gyroplanes** (`GYROPLANE`, GPL) follow FCL.240.G with
+  FCL.035(a)(5) credit for UL gyroplanes of at least 450 kg (`aircraft.mtom_kg`).
 - **Evaluators never write SQL.** They pull aggregates through the `FlightDataProvider`
   interface (`evaluator.go`, PostgreSQL impl in `postgres/currency_flight_data.go`):
   `GetProgressByAircraftClass`, `GetProgressAll`, `GetLastFlightReview`,

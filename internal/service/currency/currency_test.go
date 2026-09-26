@@ -35,6 +35,9 @@ type mockFlightDataProvider struct {
 	lastULSel       *ULSelector
 	lastULTowed     bool
 	lastULProfCheck *ULSelector
+	// ulMTOM is the MTOM of aircraft of each kind; a selector with MinMTOMKg
+	// skips kinds below it.
+	ulMTOM map[models.ULKind]int
 }
 
 func newMockFlightDataProvider() *mockFlightDataProvider {
@@ -163,6 +166,9 @@ func (m *mockFlightDataProvider) GetProgressByULKind(_ context.Context, _ uuid.U
 	}
 	sum := &Progress{}
 	for _, k := range ulKeys(sel) {
+		if sel.MinMTOMKg > 0 && m.ulMTOM[k] < sel.MinMTOMKg {
+			continue
+		}
 		addProgress(sum, m.ulProgress(k), true)
 	}
 	return sum, nil

@@ -102,8 +102,8 @@ func TestGetProgressByULKind_BindsKindsAndUnspecified(t *testing.T) {
 
 	userID := uuid.New()
 	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	mock.ExpectQuery(regexp.QuoteMeta("(a.ul_kind = ANY($2) OR ($3 AND a.ul_kind IS NULL)) AND f.date >= $4")).
-		WithArgs(userID, pq.Array([]string{"THREE_AXIS"}), true, since, false).
+	mock.ExpectQuery(regexp.QuoteMeta("(a.ul_kind = ANY($2) OR ($3 AND a.ul_kind IS NULL)) AND ($4 = 0 OR a.mtom_kg >= $4) AND f.date >= $5")).
+		WithArgs(userID, pq.Array([]string{"THREE_AXIS"}), true, 0, since, false).
 		WillReturnRows(sqlmock.NewRows(progressColumns).AddRow(2, 180, 180, 0, 60, 0, 4, 4, 0, 0, 0, 4, 1, 60))
 
 	got, err := p.GetProgressByULKind(context.Background(), userID, currency.ULSelector{Kinds: []models.ULKind{models.ULKindThreeAxis}, IncludeUnspecified: true}, false, since)
@@ -124,11 +124,11 @@ func TestGetLastProficiencyCheckByULKind(t *testing.T) {
 
 	userID := uuid.New()
 	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	mock.ExpectQuery(regexp.QuoteMeta("a.ul_kind IS NULL)) AND f.is_proficiency_check = true")).
-		WithArgs(userID, pq.Array([]string{"GYROPLANE"}), false, since).
+	mock.ExpectQuery(regexp.QuoteMeta("a.mtom_kg >= $4) AND f.is_proficiency_check = true")).
+		WithArgs(userID, pq.Array([]string{"GYROPLANE"}), false, 450, since).
 		WillReturnRows(sqlmock.NewRows([]string{"date"}))
 
-	got, err := p.GetLastProficiencyCheckByULKind(context.Background(), userID, currency.ULSelector{Kinds: []models.ULKind{models.ULKindGyroplane}}, since)
+	got, err := p.GetLastProficiencyCheckByULKind(context.Background(), userID, currency.ULSelector{Kinds: []models.ULKind{models.ULKindGyroplane}, MinMTOMKg: 450}, since)
 	if err != nil {
 		t.Fatalf("GetLastProficiencyCheckByULKind: %v", err)
 	}
@@ -147,8 +147,8 @@ func TestGetLandingDaysByULKind(t *testing.T) {
 	userID := uuid.New()
 	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	day := time.Date(2025, 3, 2, 0, 0, 0, 0, time.UTC)
-	mock.ExpectQuery(regexp.QuoteMeta("a.ul_kind IS NULL)) AND f.date >= $4")).
-		WithArgs(userID, pq.Array([]string{"SAILPLANE"}), true, since, true).
+	mock.ExpectQuery(regexp.QuoteMeta("a.mtom_kg >= $4) AND f.date >= $5")).
+		WithArgs(userID, pq.Array([]string{"SAILPLANE"}), true, 0, since, true).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "day_landings", "night_landings"}).AddRow(day, 3, 0))
 
 	got, err := p.GetLandingDaysByULKind(context.Background(), userID, currency.ULSelector{Kinds: []models.ULKind{models.ULKindSailplane}, IncludeUnspecified: true}, true, since)

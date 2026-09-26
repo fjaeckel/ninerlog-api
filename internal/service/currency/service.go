@@ -56,18 +56,24 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 	seenPassengerClasses := make(map[string]bool) // one passenger currency per class across licenses
 	flightReviewEvaluated := false
 
+	ratingsByLicense := make(map[uuid.UUID][]*models.ClassRating, len(licenses))
 	for _, license := range licenses {
-		// Get class ratings for this license
 		classRatings, err := s.classRatingRepo.GetByLicenseID(ctx, license.ID)
 		if err != nil {
 			continue // skip on error
 		}
+		ratingsByLicense[license.ID] = classRatings
+	}
+	partFCLTMG := s.holdsPartFCLTMG(licenses, ratingsByLicense)
+
+	for _, license := range licenses {
+		classRatings, ok := ratingsByLicense[license.ID]
+		if !ok {
+			continue
+		}
 
 		// Find the evaluator for this license's authority
-		eval := s.registry.Get(license.RegulatoryAuthority)
-		if eval == nil {
-			eval = s.fallback
-		}
+		eval := s.evaluatorFor(license)
 
 		for _, cr := range classRatings {
 			// Tier 1: Rating currency
@@ -76,6 +82,9 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 				result = pe.EvaluateWithPeers(ctx, cr, license, classRatings, s.flightData)
 			} else {
 				result = eval.Evaluate(ctx, cr, license, s.flightData)
+			}
+			if partFCLTMG && result.RuleDescriptionKey == easaSPLTMGRule.displayKey {
+				applySFCLTMGExemption(&result)
 			}
 			ratings = append(ratings, result)
 
@@ -125,4 +134,32 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 		PassengerCurrency: passengerCurrency,
 		FlightReview:      flightReview,
 	}, nil
+}
+
+// evaluatorFor returns the evaluator for a license's authority.
+func (s *Service) evaluatorFor(license *models.License) Evaluator {
+	if eval := s.registry.Get(license.RegulatoryAuthority); eval != nil {
+		return eval
+	}
+	return s.fallback
+}
+
+// holdsPartFCLTMG reports whether the user holds a TMG class rating on a
+// Part-FCL licence — one evaluated under EASA rules that is neither a
+// sailplane nor an ultralight licence (SFCL.160(c)).
+func (s *Service) holdsPartFCLTMG(licenses []*models.License, ratingsByLicense map[uuid.UUID][]*models.ClassRating) bool {
+	for _, license := range licenses {
+		switch s.evaluatorFor(license).(type) {
+		case *EASAEvaluator, *GermanULEvaluator:
+		default:
+			continue
+		}
+		if isEASASailplane(license.LicenseType) || isULLicenceType(license.LicenseType) {
+			continue
+		}
+		if hasClass(ratingsByLicense[license.ID], models.ClassTypeTMG) {
+			return true
+		}
+	}
+	return false
 }

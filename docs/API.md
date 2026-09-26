@@ -355,6 +355,8 @@ see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md). `ulKind` is kept o
 `aircraftClass` is `ULTRALIGHT` and silently cleared otherwise; an unknown kind is a `400`
 (`Invalid ultralight kind`). Class ratings take the same `ulKind` on `POST` and `PATCH
 /licenses/{id}/ratings`, without the aircraft-only `THREE_AXIS_MOTORGLIDER`.
+`maxTakeoffMassKg` (1–1,000,000, nullable) records the aircraft's MTOM; out of range is a `400`
+(`Invalid maximum take-off mass`).
 
 `pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
 rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
@@ -474,7 +476,9 @@ than the rating's own class count toward it (EASA LAPL(A) and SEP(land)+TMG pool
 `creditedUltralightKinds` when ultralight flights count too: `THREE_AXIS` /
 `THREE_AXIS_MOTORGLIDER` toward EASA SEP/TMG and LAPL(A) time and landings (FCL.035(a)(4)), or
 the kinds a German `ULTRALIGHT` rating covers. A German ultralight passenger currency entry
-carries `ulKind`, one entry per kind (see [DOMAIN.md](./DOMAIN.md#ultralights)).
+carries `ulKind`, one entry per kind (see [DOMAIN.md](./DOMAIN.md#ultralights)). GYROPLANE
+ratings follow FCL.240.G, and an SPL TMG rating may carry `rating.sfcl_tmg_exempt`; see
+[CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md).
 
 ### Custom Currency
 User-authored currency rules under `/custom-currency` — a rule is a declarative document (a

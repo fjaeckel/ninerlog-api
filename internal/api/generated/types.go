@@ -441,6 +441,7 @@ func (e ClassRatingCurrencyStatus) Valid() bool {
 // Defines values for ClassType.
 const (
 	ClassTypeGLIDER     ClassType = "GLIDER"
+	ClassTypeGYROPLANE  ClassType = "GYROPLANE"
 	ClassTypeIR         ClassType = "IR"
 	ClassTypeMEPLAND    ClassType = "MEP_LAND"
 	ClassTypeMEPSEA     ClassType = "MEP_SEA"
@@ -457,6 +458,8 @@ const (
 func (e ClassType) Valid() bool {
 	switch e {
 	case ClassTypeGLIDER:
+		return true
+	case ClassTypeGYROPLANE:
 		return true
 	case ClassTypeIR:
 		return true
@@ -2514,6 +2517,11 @@ type Aircraft struct {
 	// Example: Cessna
 	Make string `json:"make"`
 
+	// MaxTakeoffMassKg Maximum certificated take-off mass in kilograms. FCL.035(a)(5) credits an ULTRALIGHT GYROPLANE of at least 450 kg toward GPL recency.
+	//
+	// Example: 472
+	MaxTakeoffMassKg *int `json:"maxTakeoffMassKg,omitempty"`
+
 	// Model Aircraft model name
 	//
 	// Example: 172 Skyhawk
@@ -2544,7 +2552,9 @@ type Aircraft struct {
 	// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
 	// - SAILPLANE: ultralight sailplane
 	// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
-	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+	// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+	// 450 kg toward GPL recency (FCL.035(a)(5)).
 	//
 	//
 	// Example: THREE_AXIS
@@ -2567,7 +2577,9 @@ type Aircraft struct {
 // - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
 // - SAILPLANE: ultralight sailplane
 // Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
-// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+// 450 kg toward GPL recency (FCL.035(a)(5)).
 //
 // Example: THREE_AXIS
 type AircraftUlKind string
@@ -2608,6 +2620,11 @@ type AircraftCreate struct {
 	// Example: Cessna
 	Make string `json:"make"`
 
+	// MaxTakeoffMassKg Maximum certificated take-off mass in kilograms. FCL.035(a)(5) credits an ULTRALIGHT GYROPLANE of at least 450 kg toward GPL recency.
+	//
+	// Example: 472
+	MaxTakeoffMassKg *int `json:"maxTakeoffMassKg,omitempty"`
+
 	// Model Aircraft model name
 	//
 	// Example: 172 Skyhawk
@@ -2636,7 +2653,9 @@ type AircraftCreate struct {
 	// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
 	// - SAILPLANE: ultralight sailplane
 	// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
-	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+	// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+	// 450 kg toward GPL recency (FCL.035(a)(5)).
 	//
 	//
 	// Example: THREE_AXIS
@@ -2653,7 +2672,9 @@ type AircraftCreate struct {
 // - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
 // - SAILPLANE: ultralight sailplane
 // Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
-// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+// 450 kg toward GPL recency (FCL.035(a)(5)).
 //
 // Example: THREE_AXIS
 type AircraftCreateUlKind string
@@ -2791,6 +2812,11 @@ type AircraftUpdate struct {
 	// Make Example: Cessna
 	Make *string `json:"make,omitempty"`
 
+	// MaxTakeoffMassKg Maximum certificated take-off mass in kilograms. FCL.035(a)(5) credits an ULTRALIGHT GYROPLANE of at least 450 kg toward GPL recency.
+	//
+	// Example: 472
+	MaxTakeoffMassKg nullable.Nullable[int] `json:"maxTakeoffMassKg,omitempty"`
+
 	// Model Example: 172 Skyhawk
 	Model *string `json:"model,omitempty"`
 
@@ -2818,7 +2844,9 @@ type AircraftUpdate struct {
 	// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
 	// - SAILPLANE: ultralight sailplane
 	// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
-	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4).
+	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+	// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+	// 450 kg toward GPL recency (FCL.035(a)(5)).
 	//
 	//
 	// Example: THREE_AXIS
@@ -3510,6 +3538,7 @@ type ClassRating struct {
 	// - OTHER: Other rating type
 	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
+	// - GYROPLANE: Gyroplane (EASA GPL, FCL.240.G recency)
 	ClassType ClassType `json:"classType"`
 	CreatedAt time.Time `json:"createdAt"`
 
@@ -3556,6 +3585,7 @@ type ClassRatingCreate struct {
 	// - OTHER: Other rating type
 	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
+	// - GYROPLANE: Gyroplane (EASA GPL, FCL.240.G recency)
 	ClassType  ClassType           `json:"classType"`
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
 	IssueDate  openapi_types.Date  `json:"issueDate"`
@@ -3587,6 +3617,7 @@ type ClassRatingCurrency struct {
 	// - OTHER: Other rating type
 	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
+	// - GYROPLANE: Gyroplane (EASA GPL, FCL.240.G recency)
 	ClassType ClassType `json:"classType"`
 
 	// CountedClasses Aircraft classes whose flights count toward this rating, present only when that is more
@@ -3602,7 +3633,9 @@ type ClassRatingCurrency struct {
 	// CreditedUltralightKinds Ultralight kinds whose flights also count toward this rating, present only when any do.
 	// EASA LAPL(A) recency and SEP/TMG revalidation credit THREE_AXIS (as SEP_LAND) and
 	// THREE_AXIS_MOTORGLIDER (as TMG) hours and landings, never their dual time
-	// (FCL.035(a)(4)). A German ultralight rating lists the kinds it covers.
+	// (FCL.035(a)(4)); SPL recency credits SAILPLANE and THREE_AXIS_MOTORGLIDER hours only
+	// (AMC1 SFCL.160); GPL recency credits GYROPLANE (at least 450 kg) hours and landings
+	// (FCL.035(a)(5)). A German ultralight rating lists the kinds it covers.
 	//
 	//
 	// Example: ["THREE_AXIS"]
@@ -3708,7 +3741,7 @@ type ClassRatingCurrency struct {
 	// FCL.740.A SEP/TMG/MEP/SET and FCL.625.A IR), the date on which
 	// the 12-month experience-counting window opens (expiry − 12
 	// months). Omitted for rolling-window rules (LAPL FCL.140.A,
-	// SPL SFCL.160) and for expiry-only ratings.
+	// SPL SFCL.160, GPL FCL.240.G) and for expiry-only ratings.
 	WindowOpensAt *openapi_types.Date `json:"windowOpensAt,omitempty"`
 }
 
@@ -3744,6 +3777,7 @@ type ClassRatingUpdate struct {
 // - OTHER: Other rating type
 // - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 // - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
+// - GYROPLANE: Gyroplane (EASA GPL, FCL.240.G recency)
 type ClassType string
 
 // CompleteSignatureRequest defines model for CompleteSignatureRequest.
@@ -6294,6 +6328,7 @@ type PassengerCurrency struct {
 	// - OTHER: Other rating type
 	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
 	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
+	// - GYROPLANE: Gyroplane (EASA GPL, FCL.240.G recency)
 	ClassType ClassType `json:"classType"`
 
 	// DayExpiresOn Last date the day requirement stays met if the pilot does not fly again — the oldest landing still needed to reach dayRequired, plus 90 days (inclusive). Absent when the day requirement is not currently met.

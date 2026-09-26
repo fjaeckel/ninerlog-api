@@ -212,6 +212,14 @@ var faaSuppressedIRRule = ratingRule{
 	},
 }
 
+// isULLicenceType reports whether a free-text licence type names an
+// ultralight licence ("UL", "UL-…", "Ultralight", "Ultraleicht").
+func isULLicenceType(licenseType string) bool {
+	lt := strings.ToUpper(strings.TrimSpace(licenseType))
+	return lt == "UL" || strings.HasPrefix(lt, "UL ") || strings.HasPrefix(lt, "UL-") ||
+		strings.Contains(lt, "ULTRALIGHT") || strings.Contains(lt, "ULTRALEICHT")
+}
+
 // HasNightPrivilege returns whether the given license type has night flying privileges.
 // Used by the frontend to show/hide night currency sections.
 func HasNightPrivilege(licenseType, authority string) bool {
@@ -225,8 +233,10 @@ func HasNightPrivilege(licenseType, authority string) bool {
 		return false
 	case auth == "EASA" && isEASALAPLA(lt):
 		return false // LAPL requires separate night rating extension
-	case auth == "LBA" || auth == "DULV" || auth == "DAEC":
-		return false // German UL — no night flying
+	case auth == "DULV" || auth == "DAEC" || (auth == "LBA" && isULLicenceType(lt)):
+		return false // German UL — no night flying (LuftPersV §44(2))
+	case lt == "GPL":
+		return false // no night rating for gyroplanes (FCL.810)
 	default:
 		return true // PPL, CPL, ATPL, FAA Private/Commercial/ATP
 	}

@@ -24,6 +24,8 @@ type Aircraft struct {
 	AircraftClass *string `json:"aircraftClass,omitempty"`
 	// ULKind is set only when AircraftClass is ULTRALIGHT.
 	ULKind *ULKind `json:"ulKind,omitempty"`
+	// MTOMKg is the maximum certificated take-off mass in kilograms.
+	MTOMKg *int `json:"maxTakeoffMassKg,omitempty"`
 	// Logging defaults, prefilled when a flight with this aircraft is logged
 	DefaultDepartureICAO *string   `json:"defaultDepartureIcao,omitempty"`
 	DefaultArrivalICAO   *string   `json:"defaultArrivalIcao,omitempty"`
@@ -79,6 +81,9 @@ func (a *Aircraft) Validate() error {
 	}
 	if a.Model == "" {
 		return ErrAircraftModelRequired
+	}
+	if a.MTOMKg != nil && (*a.MTOMKg <= 0 || *a.MTOMKg > 1000000) {
+		return ErrInvalidAircraftMTOM
 	}
 	return nil
 }

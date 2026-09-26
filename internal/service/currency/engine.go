@@ -183,6 +183,17 @@ type ulCredit struct {
 	countsTowed bool
 }
 
+// ulHoursCredit returns the PIC minutes flown on ultralights of kinds since the
+// rule's window start, and records the kinds as credited on the result.
+func (rt *ratingRuntime) ulHoursCredit(ctx context.Context, kinds ...models.ULKind) (int, error) {
+	p, err := rt.dp.GetProgressByULKind(ctx, rt.license.UserID, ULSelector{Kinds: kinds}, true, rt.since)
+	if err != nil {
+		return 0, err
+	}
+	rt.result.CreditedULKinds = kinds
+	return p.PICMinutes, nil
+}
+
 // ratingRuntime carries the per-evaluation state threaded through the engine
 // and into a rule's finalize strategy.
 type ratingRuntime struct {
@@ -329,4 +340,46 @@ func evalRatingRuleWithPeers(ctx context.Context, rule *ratingRule, rating *mode
 	rt := &ratingRuntime{rule: rule, rating: rating, license: license, peers: peers, classes: classes, ul: ul, dp: dp, result: &result}
 	rule.finalize(ctx, rt)
 	return result
+}
+
+// recencyFinalize returns the finalize strategy for a rolling-window recency
+// rule; withCheck adds a proficiency check that replaces the experience.
+func recencyFinalize(withCheck bool) func(ctx context.Context, rt *ratingRuntime) {
+	return func(ctx context.Context, rt *ratingRuntime) {
+		rt.since = rt.rule.window.rollingSince(time.Now())
+		progress, err := rt.fetchProgress(ctx)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+			return
+		}
+		rt.result.Progress = progress
+		reqs := buildReqs(progress, rt.rule.baseReqs)
+		met := allReqsMet(reqs)
+
+		if withCheck {
+			checkDate, err := rt.lastProficiencyCheck(ctx)
+			if err != nil {
+				rt.result.Status = StatusUnknown
+				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+				return
+			}
+			reqCheck := profCheckRequirement(checkDate)
+			met = met || reqCheck.Met
+			reqs = append(reqs, reqCheck)
+		}
+		rt.result.Requirements = reqs
+		setRecencyStatus(rt.result, met)
+	}
+}
+
+// setRecencyStatus sets a recency rule's status and message.
+func setRecencyStatus(result *ClassRatingCurrency, met bool) {
+	if met {
+		result.Status = StatusCurrent
+		result.setMsg(MsgRatingRecencyCurrent, nil)
+	} else {
+		result.Status = StatusExpiring
+		result.setMsg(MsgRatingRecencyNotMet, nil)
+	}
 }

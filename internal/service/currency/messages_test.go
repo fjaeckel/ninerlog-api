@@ -19,7 +19,7 @@ var knownMessageKeys = map[string]bool{
 	MsgRatingExpiring: true, MsgRatingValidUntil: true, MsgRatingWindowNotOpen: true,
 	MsgRatingRevalidationNotMet: true, MsgRatingRevalidationNotMetProfCheck: true,
 	MsgRatingRevalidationExpiringMet: true, MsgRatingRevalidationCurrent: true,
-	MsgRatingRecencyNotMet: true, MsgRatingRecencyCurrent: true,
+	MsgRatingRecencyNotMet: true, MsgRatingRecencyCurrent: true, MsgRatingSFCLTMGExempt: true,
 	MsgRatingIRHoursAndCheckNotMet: true, MsgRatingIRHoursNotMet: true,
 	MsgRatingIRCheckNotMet: true, MsgRatingIRCurrent: true,
 	MsgRatingIRLapsedSafetyPilot: true, MsgRatingIRExpiredIPC: true,
@@ -29,7 +29,7 @@ var knownMessageKeys = map[string]bool{
 	MsgPaxEvaluationFailed: true, MsgPaxNotCurrent: true,
 	MsgPaxCurrentDayNoNight: true, MsgPaxCurrentDayNightIRWaived: true,
 	MsgPaxCurrentDayNight: true, MsgPaxDayCurrentNightNot: true,
-	MsgPaxCurrentPrivilegeSeparat:   true,
+	MsgPaxGPLExperienceNotMet: true, MsgPaxCurrentPrivilegeSeparat: true,
 	MsgFlightReviewEvaluationFailed: true, MsgFlightReviewNoneOnRecord: true,
 	MsgFlightReviewExpired: true, MsgFlightReviewExpiring: true,
 	MsgFlightReviewCurrent: true,
@@ -63,6 +63,7 @@ func allEvaluatorCases() []evaluatorCase {
 	return []evaluatorCase{
 		{"EASA", "PPL", easa}, {"EASA", "CPL", easa}, {"EASA", "ATPL", easa},
 		{"EASA", "LAPL", easa}, {"EASA", "LAPL(S)", easa}, {"EASA", "SPL", easa},
+		{"EASA", "GPL", easa},
 		{"FAA", "PRIVATE", faa}, {"FAA", "COMMERCIAL", faa}, {"FAA", "ATP", faa},
 		{"FAA", "SPORT", faa}, {"FAA", "RECREATIONAL", faa}, {"FAA", "GLIDER", faa},
 		{"DULV", "UL", ul}, {"LBA", "UL", ul},
@@ -73,7 +74,8 @@ func allEvaluatorCases() []evaluatorCase {
 var allClassTypes = []models.ClassType{
 	models.ClassTypeSEPLand, models.ClassTypeSEPSea, models.ClassTypeMEPLand,
 	models.ClassTypeMEPSea, models.ClassTypeSETLand, models.ClassTypeSETSea,
-	models.ClassTypeTMG, models.ClassTypeIR,
+	models.ClassTypeTMG, models.ClassTypeIR, models.ClassTypeGlider,
+	models.ClassTypeUL, models.ClassTypeGyro,
 }
 
 // checkKeys asserts one result carries a catalogued key everywhere it carries text.

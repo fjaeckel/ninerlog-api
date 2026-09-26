@@ -18,8 +18,9 @@ import (
 //     instructor on a three-axis UL; or a proficiency check (§45(3))
 //   - HELICOPTER (§45(2a)): 6h in 12 months incl. 6 takeoffs & landings and a
 //     1h flight with an instructor; or a proficiency check
-//   - GYROPLANE (DULV, §45(4)): 12h in 24 months on gyroplanes incl. 6h PIC,
-//     12 takeoffs & landings and a 1h flight with an instructor; or a check
+//   - GYROPLANE (DULV, §45(4)): 12h in 24 months on gyroplanes (UL and
+//     GYROPLANE) incl. 6h PIC, 12 takeoffs & landings and a 1h flight with an
+//     instructor on a UL gyroplane; or a check
 //   - WEIGHT_SHIFT (§45(4)): DAeC 12h + 12 takeoffs & landings in 24 months;
 //     DULV and LBA 12h as PIC in 24 months
 //   - POWERED_PARAGLIDER (§45(4)): 30 takeoffs & landings in 24 months
@@ -104,6 +105,11 @@ func germanULSEPTMGClasses(_ *models.ClassRating, _ []*models.ClassRating) []mod
 	return []models.ClassType{models.ClassTypeSEPLand, models.ClassTypeTMG}
 }
 
+// germanULGyroClasses returns the Part-FCL gyroplane class.
+func germanULGyroClasses(_ *models.ClassRating, _ []*models.ClassRating) []models.ClassType {
+	return []models.ClassType{models.ClassTypeGyro}
+}
+
 // germanULNoClasses returns no Part-FCL classes.
 func germanULNoClasses(_ *models.ClassRating, _ []*models.ClassRating) []models.ClassType {
 	return nil
@@ -124,7 +130,7 @@ var germanULRule = ratingRule{
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
 		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
 	},
-	finalize: germanULFinalize(true),
+	finalize: recencyFinalize(true),
 }
 
 // germanULHelicopterRule — ultralight helicopter recency (LuftPersV §45(2a), (3)).
@@ -140,24 +146,26 @@ var germanULHelicopterRule = ratingRule{
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 6, unit: "landings"},
 		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
 	},
-	finalize: germanULFinalize(true),
+	finalize: recencyFinalize(true),
 }
 
 // germanULGyroplaneRule — gyroplane recency (DULV under LuftPersV §45(4)).
+// GYROPLANE time and landings count; the training flight is on a UL gyroplane.
 var germanULGyroplaneRule = ratingRule{
-	displayKey:  "ul_gyroplane",
-	description: "Erfordert 12h Flugzeit ausschließlich auf Tragschraubern, davon 6h als verantwortlicher Pilot, 12 Starts & Landungen und 1h Übungsflug mit Fluglehrer, in 24 Monaten; oder eine Befähigungsüberprüfung (DULV, LuftPersV §45 Abs. 4)",
-	window:      windowSpec{kind: windowRollingNow, years: 2},
-	scope:       scopeClassGroup,
-	classGroup:  germanULNoClasses,
-	ulCredit:    germanULNativeCredit,
+	displayKey:    "ul_gyroplane",
+	description:   "Erfordert 12h Flugzeit ausschließlich auf Tragschraubern, davon 6h als verantwortlicher Pilot, 12 Starts & Landungen und 1h Übungsflug mit Fluglehrer, in 24 Monaten; oder eine Befähigungsüberprüfung (DULV, LuftPersV §45 Abs. 4)",
+	window:        windowSpec{kind: windowRollingNow, years: 2},
+	scope:         scopeClassGroup,
+	classGroup:    germanULGyroClasses,
+	classesNoDual: true,
+	ulCredit:      germanULNativeCredit,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 360, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
 		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
 	},
-	finalize: germanULFinalize(true),
+	finalize: recencyFinalize(true),
 }
 
 // germanULTrikeDULVRule — weight-shift trike recency (DULV under LuftPersV §45(4)).
@@ -171,7 +179,7 @@ var germanULTrikeDULVRule = ratingRule{
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 720, unit: "minutes"},
 	},
-	finalize: germanULFinalize(false),
+	finalize: recencyFinalize(false),
 }
 
 // germanULTrikeDAeCRule — weight-shift trike recency (DAeC under LuftPersV §45(4)).
@@ -186,7 +194,7 @@ var germanULTrikeDAeCRule = ratingRule{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
 	},
-	finalize: germanULFinalize(false),
+	finalize: recencyFinalize(false),
 }
 
 // germanULPoweredParagliderRule — powered paraglider recency (LuftPersV §45(4)).
@@ -200,7 +208,7 @@ var germanULPoweredParagliderRule = ratingRule{
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 30, unit: "landings"},
 	},
-	finalize: germanULFinalize(false),
+	finalize: recencyFinalize(false),
 }
 
 // germanULSailplaneRule — ultralight sailplane recency (DAeC under LuftPersV §45(4)).
@@ -214,54 +222,7 @@ var germanULSailplaneRule = ratingRule{
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 5, unit: "landings"},
 	},
-	finalize: germanULFinalize(false),
-}
-
-// germanULFinalize returns the finalize strategy for German ultralight
-// recency; withCheck adds a proficiency check that replaces the experience.
-func germanULFinalize(withCheck bool) func(ctx context.Context, rt *ratingRuntime) {
-	return func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
-		progress, err := rt.fetchProgress(ctx)
-		if err != nil {
-			rt.result.Status = StatusUnknown
-			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
-			return
-		}
-		rt.result.Progress = progress
-		reqs := buildReqs(progress, rt.rule.baseReqs)
-		met := allReqsMet(reqs)
-
-		if withCheck {
-			checkDate, err := rt.lastProficiencyCheck(ctx)
-			if err != nil {
-				rt.result.Status = StatusUnknown
-				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
-				return
-			}
-			reqCheck := Requirement{
-				NameKey: ReqKeyProficiencyCheck, Current: 0, Required: 1, Unit: "check",
-				MessageKey: MsgRequirementProfCheckMissing,
-			}
-			if checkDate != nil {
-				reqCheck.Met = true
-				reqCheck.Current = 1
-				reqCheck.MessageKey = MsgRequirementProfCheckCompleted
-				reqCheck.MessageParams = msgDate(checkDate.Format("2006-01-02"))
-				met = true
-			}
-			reqs = append(reqs, reqCheck)
-		}
-		rt.result.Requirements = reqs
-
-		if met {
-			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
-		} else {
-			rt.result.Status = StatusExpiring
-			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
-		}
-	}
+	finalize: recencyFinalize(false),
 }
 
 // EvaluatePassengerCurrency evaluates passenger recency for a class. An

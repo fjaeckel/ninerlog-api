@@ -58,10 +58,13 @@ func easaSelectRule(rating *models.ClassRating, license *models.License) *rating
 		return &easaIRRule
 	}
 
-	// Glider uses SFCL.160(a) regardless of license type; ultralight is national law, expiry only
+	// Glider uses SFCL.160(a) and gyroplane FCL.240.G regardless of license type;
+	// ultralight is national law, expiry only
 	switch rating.ClassType {
 	case models.ClassTypeGlider:
 		return &easaSPLRule
+	case models.ClassTypeGyro:
+		return &easaGPLRule
 	case models.ClassTypeUL:
 		return &easaExpiryOnlyRule
 	}
@@ -462,6 +465,13 @@ var easaSPLRule = ratingRule{
 			hours.PICMinutes += tmg.PICMinutes
 			hours.InstructorMinutes += tmg.InstructorMinutes
 			rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
+			ulMinutes, err := rt.ulHoursCredit(ctx, models.ULKindSailplane, models.ULKindThreeAxisMotorglider)
+			if err != nil {
+				rt.result.Status = StatusUnknown
+				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+				return
+			}
+			hours.PICMinutes += ulMinutes
 		}
 		rt.result.Progress = sailplane
 		reqs := []Requirement{
@@ -583,14 +593,29 @@ var easaSPLTMGRule = ratingRule{
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
+		ulSailplane, err := rt.ulHoursCredit(ctx, models.ULKindSailplane)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+			return
+		}
+		ulMotorglider, err := rt.ulHoursCredit(ctx, models.ULKindThreeAxisMotorglider)
+		if err != nil {
+			rt.result.Status = StatusUnknown
+			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
+			return
+		}
+		rt.result.CreditedULKinds = []models.ULKind{models.ULKindSailplane, models.ULKindThreeAxisMotorglider}
 		hours := *tmg
-		hours.PICMinutes += glider.PICMinutes
+		hours.PICMinutes += glider.PICMinutes + ulSailplane + ulMotorglider
 		hours.InstructorMinutes += glider.InstructorMinutes
+		tmgHours := *tmg
+		tmgHours.PICMinutes += ulMotorglider
 		rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
 		rt.result.Progress = tmg
 
-		reqs := []Requirement{buildReq(&hours, rt.rule.baseReqs[0])}
-		reqs = append(reqs, buildReqs(tmg, rt.rule.baseReqs[1:])...)
+		reqs := []Requirement{buildReq(&hours, rt.rule.baseReqs[0]), buildReq(&tmgHours, rt.rule.baseReqs[1])}
+		reqs = append(reqs, buildReqs(tmg, rt.rule.baseReqs[2:])...)
 		allMetByExperience := allReqsMet(reqs)
 
 		profCheckDate, _ := rt.dp.GetLastProficiencyCheck(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeTMG}, rt.since)
@@ -645,7 +670,7 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 
 	result := PassengerCurrency{
 		ClassType:           classType,
-		RegulatoryAuthority: "EASA",
+		RegulatoryAuthority: license.RegulatoryAuthority,
 		DayRequired:         3,
 		NightRequired:       1,
 		NightPrivilege:      hasNightPrivilege,
@@ -708,8 +733,27 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 		result.NightStatus = StatusExpired
 	}
 
+	// FCL.205.G(a)(2): GPL passengers only after 10h PIC on gyroplanes since issue
+	gplShortfall := 0
+	if classType == models.ClassTypeGyro && isGPL(license.LicenseType) {
+		p, err := dp.GetProgressByAircraftClass(ctx, license.UserID, []models.ClassType{models.ClassTypeGyro}, false, license.IssueDate)
+		if err != nil {
+			result.DayStatus = StatusUnknown
+			result.NightStatus = StatusUnknown
+			result.setMsg(MsgPaxEvaluationFailed, nil)
+			return result
+		}
+		if p.PICMinutes < gplPassengerPICMinutes {
+			gplShortfall = gplPassengerPICMinutes - p.PICMinutes
+			result.DayStatus = StatusExpired
+			result.DayExpiresOn = nil
+		}
+	}
+
 	// Summary message
 	switch {
+	case gplShortfall > 0:
+		result.setMsg(MsgPaxGPLExperienceNotMet, msgNeeded(gplShortfall))
 	case result.DayStatus != StatusCurrent:
 		needed := 3 - landings
 		result.setMsg(MsgPaxNotCurrent, msgNeeded(needed))
@@ -740,4 +784,12 @@ func hasValidIRRating(ratings []*models.ClassRating) bool {
 		return true
 	}
 	return false
+}
+
+// applySFCLTMGExemption marks an SPL TMG result current when the pilot holds
+// Part-FCL TMG privileges (SFCL.160(c)).
+func applySFCLTMGExemption(result *ClassRatingCurrency) {
+	result.Status = StatusCurrent
+	result.Requirements = nil
+	result.setMsg(MsgRatingSFCLTMGExempt, nil)
 }

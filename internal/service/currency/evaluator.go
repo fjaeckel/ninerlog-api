@@ -58,10 +58,12 @@ type FlightDataProvider interface {
 	GetLandingDaysByULKind(ctx context.Context, userID uuid.UUID, sel ULSelector, includeTowed bool, since time.Time) ([]LandingDay, error)
 }
 
-// ULSelector selects ULTRALIGHT aircraft by kind.
+// ULSelector selects ULTRALIGHT aircraft by kind and, when MinMTOMKg is not
+// 0, by a maximum take-off mass of at least MinMTOMKg.
 type ULSelector struct {
 	Kinds              []models.ULKind
 	IncludeUnspecified bool
+	MinMTOMKg          int
 }
 
 // Evaluator evaluates currency for a class rating based on the regulatory authority
