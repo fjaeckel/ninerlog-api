@@ -37,6 +37,10 @@ var knownMessageKeys = map[string]bool{
 	MsgRequirementProgress: true, MsgRequirementProfCheckCompleted: true,
 	MsgRequirementProfCheckMissing: true,
 	MsgLaunchMethodProgress:        true,
+	RemedyFlyMore:                  true, RemedyTrainingFlight: true,
+	RemedyProficiencyCheck: true, RemedyLaunchMethodDual: true,
+	MsgReadinessLaunchMethodCurrent: true, MsgReadinessCredentialValid: true,
+	MsgReadinessCredentialExpired: true,
 }
 
 var knownNameKeys = map[string]bool{
@@ -98,10 +102,22 @@ func checkKeys(t *testing.T, label string, r ClassRatingCurrency) {
 		} else if !knownMessageKeys[req.MessageKey] {
 			t.Errorf("%s: requirement[%d] MessageKey %q not in catalogue", label, i, req.MessageKey)
 		}
+		if req.Met && req.RemedyKey != "" {
+			t.Errorf("%s: requirement[%d] is met but has RemedyKey %q", label, i, req.RemedyKey)
+		}
+		if req.RemedyKey != "" && !knownMessageKeys[req.RemedyKey] {
+			t.Errorf("%s: requirement[%d] RemedyKey %q not in catalogue", label, i, req.RemedyKey)
+		}
+		if !req.Met && req.RemedyKey == "" && req.NameKey != ReqKeyFlightReview {
+			t.Errorf("%s: requirement[%d] %s is unmet with no RemedyKey", label, i, req.NameKey)
+		}
 	}
 	for i, lm := range r.LaunchMethodCurrency {
 		if lm.MessageKey != MsgLaunchMethodProgress {
 			t.Errorf("%s: launchMethod[%d] MessageKey = %q", label, i, lm.MessageKey)
+		}
+		if !lm.Met && lm.RemedyKey != RemedyLaunchMethodDual {
+			t.Errorf("%s: launchMethod[%d] RemedyKey = %q", label, i, lm.RemedyKey)
 		}
 	}
 }

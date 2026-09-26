@@ -129,17 +129,28 @@ func paxLapseDate(history []LandingDay, required int, count paxLandingCount, wai
 // ratingLapseDate returns the first day a rolling-window rule was no longer
 // met, or nil when it was never met or dp cannot read as of a past day. The
 // rule is re-evaluated at noon UTC of each probed day.
-func ratingLapseDate(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider, now time.Time) *time.Time {
-	asOf, ok := dp.(AsOfProvider)
+func ratingLapseDate(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider) *time.Time {
+	asOf, ok := asOfProvider(dp)
 	if !ok {
 		return nil
 	}
 	metAt := func(day, until time.Time) (bool, error) {
-		r := evalRatingRuleAt(ctx, rule, rating, license, peers, held, asOf.AsOf(until), day.Add(12*time.Hour))
+		r := evalRatingRuleOnce(withNow(ctx, day.Add(12*time.Hour)), rule, rating, license, peers, held, asOf.AsOf(until))
 		return r.Status == StatusCurrent, nil
 	}
-	last, _ := lastCurrentDay(models.CalendarDate(now), lapseSearchFloor, metAt)
+	last, _ := lastCurrentDay(models.CalendarDate(nowFrom(ctx)), lapseSearchFloor, metAt)
 	return lapseAfter(last)
+}
+
+// asOfProvider returns dp, or the provider a dailyCache wraps, as an
+// AsOfProvider.
+func asOfProvider(dp FlightDataProvider) (AsOfProvider, bool) {
+	if c, ok := dp.(*dailyCache); ok {
+		a, ok := c.dp.(AsOfProvider)
+		return a, ok
+	}
+	a, ok := dp.(AsOfProvider)
+	return a, ok
 }
 
 // fillPaxLapseDates sets DayLapsedOn and NightLapsedOn for each expired

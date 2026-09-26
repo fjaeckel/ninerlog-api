@@ -169,6 +169,9 @@ rules.
   and exports as a block-timed flight. Tap-to-log sessions follow suit: a `takeoff` event
   with no open session opens one and the `landing` event completes it. See
   [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
+- List totals: `GET /flights` returns `totals` (column sums over every flight matching the
+  filters) and `monthTotals` (the same per month, for the months on the page) next to
+  `pagination` — see [API.md](./API.md).
 - Batch circuits: `POST /flights/batch` logs a series of flights — typically winch
   circuits at one site — from one template (aircraft, launch method, crew, site) and one
   take-off/landing pair per leg, 1–50 legs, validated like single creates and stored
@@ -254,6 +257,16 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   reports `lapsed`: the licence is valid, its privileges are not exercisable until recency is
   restored. `expiring` stays for an approaching expiry date or unmet expiry-anchored
   revalidation, `expired` for a past expiry date. Lapsed ratings get the recency notice email.
+- **How long, and what is missing** — on rolling recency rules every met requirement and launch
+  method carries `validUntil`, and a current rating `recencyExpiresOn`, the last day it holds without further
+  flying, and every unmet one a remedy key ("fly 3 more launches", "one training flight of
+  an hour", "a proficiency check", SFCL.155(d) "2 aerotow launches dual or supervised
+  solo").
+- **Ready to fly?** — `GET /currency/readiness` answers for a date up to a year ahead,
+  optionally for one aircraft and with passengers: rating, each launch method, passengers
+  and medical certificate, each ready or not with the reason. A glider selects the glider
+  rating and its launch methods, an SEP aircraft the SEP rating, an ultralight the rating of
+  its kind (`internal/service/readiness`).
 - **Cross-class crediting** — EASA LAPL(A) recency counts flights on every aeroplane class
   and TMG together (FCL.140.A), with the training flight being one flight of at least an hour
   with an instructor, and accepts a LAPL(A) proficiency check instead; a PPL/CPL/ATPL

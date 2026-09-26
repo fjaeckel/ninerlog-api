@@ -135,13 +135,13 @@ type windowSpec struct {
 }
 
 // rollingSince resolves a rolling-from-now window to its start instant.
-func (w windowSpec) rollingSince(now time.Time) time.Time {
-	return now.AddDate(-w.years, -w.months, -w.days)
-}
-
-// isRolling reports whether the window is a non-empty rolling-from-now window.
+// isRolling reports whether the window rolls back from now by a fixed span.
 func (w windowSpec) isRolling() bool {
 	return w.kind == windowRollingNow && (w.years != 0 || w.months != 0 || w.days != 0)
+}
+
+func (w windowSpec) rollingSince(now time.Time) time.Time {
+	return now.AddDate(-w.years, -w.months, -w.days)
 }
 
 // progressScope declares which aggregated flight set a rule evaluates against.
@@ -214,16 +214,16 @@ func (rt *ratingRuntime) ulHoursCredit(ctx context.Context, kinds ...models.ULKi
 // ratingRuntime carries the per-evaluation state threaded through the engine
 // and into a rule's finalize strategy.
 type ratingRuntime struct {
-	rule    *ratingRule
-	rating  *models.ClassRating
-	license *models.License
-	peers   []*models.ClassRating
-	classes []models.ClassType
-	ul      *ulCredit
-	dp      FlightDataProvider
-	result  *ClassRatingCurrency
-	since   time.Time
-	now     time.Time
+	rule     *ratingRule
+	rating   *models.ClassRating
+	license  *models.License
+	peers    []*models.ClassRating
+	classes  []models.ClassType
+	ul       *ulCredit
+	dp       FlightDataProvider
+	result   *ClassRatingCurrency
+	progress *Progress
+	since    time.Time
 }
 
 // fetchProgress aggregates flight data for the runtime's window and scope,
@@ -348,16 +348,19 @@ func evalRatingRuleWithPeers(ctx context.Context, rule *ratingRule, rating *mode
 }
 
 // evalRatingRuleForHolder is evalRatingRuleWithPeers with every class rating
-// the user holds across licences.
+// the user holds across licences. It adds remedies to unmet rows and, when dp
+// is a dailyCache, validUntil dates to rolling-window results.
 func evalRatingRuleForHolder(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
-	now := time.Now()
-	result := evalRatingRuleAt(ctx, rule, rating, license, peers, held, dp, now)
-	if rule.window.isRolling() && result.Status == StatusCurrent {
-		result.RecencyExpiresOn = paxExpiryString(recencyLapseDate(ctx, rule, rating, license, peers, held, dp, now))
+	result := evalRatingRuleOnce(ctx, rule, rating, license, peers, held, dp)
+	if cache, ok := dp.(*dailyCache); ok {
+		projectValidUntil(ctx, rule.window, &result, cache, func(at context.Context) ClassRatingCurrency {
+			return evalRatingRuleOnce(at, rule, rating, license, peers, held, dp)
+		})
 	}
 	if rule.window.isRolling() && ratingNotMet(result.Status) && lapseDatesRequested(ctx) {
-		result.LapsedOn = ratingLapseDate(ctx, rule, rating, license, peers, held, dp, now)
+		result.LapsedOn = ratingLapseDate(ctx, rule, rating, license, peers, held, dp)
 	}
+	annotateRemedies(&result)
 	return result
 }
 
@@ -367,13 +370,12 @@ func ratingNotMet(status Status) bool {
 	return status == StatusExpiring || status == StatusExpired || status == StatusLapsed
 }
 
-// evalRatingRuleAt evaluates a rule as of now: it builds the base result shell
-// (identity, authority, description, expiry) and dispatches to the rule's
-// finalize strategy.
-func evalRatingRuleAt(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider, now time.Time) ClassRatingCurrency {
+// evalRatingRuleOnce runs rule for rating at the context's instant.
+func evalRatingRuleOnce(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
 	result := ClassRatingCurrency{
 		ClassRatingID:       rating.ID,
 		ClassType:           rating.ClassType,
+		ULKind:              rating.ULKind,
 		LicenseID:           rating.LicenseID,
 		RegulatoryAuthority: license.RegulatoryAuthority,
 		LicenseType:         license.LicenseType,
@@ -397,43 +399,16 @@ func evalRatingRuleAt(ctx context.Context, rule *ratingRule, rating *models.Clas
 		result.CreditedULKinds = ul.sel.Kinds
 	}
 
-	rt := &ratingRuntime{rule: rule, rating: rating, license: license, peers: peers, classes: classes, ul: ul, dp: dp, result: &result, now: now}
+	rt := &ratingRuntime{rule: rule, rating: rating, license: license, peers: peers, classes: classes, ul: ul, dp: dp, result: &result}
 	rule.finalize(ctx, rt)
 	return result
-}
-
-// recencyLapseDate returns the last date a rolling-window rule stays current
-// with no further flying: a binary search over the dates from today to one
-// full window ahead, evaluating the rule at midnight UTC of each. Returns nil
-// when the rule is not current today or is still current a full window ahead.
-func recencyLapseDate(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider, now time.Time) *time.Time {
-	u := now.UTC()
-	today := time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC)
-	currentOn := func(d int) bool {
-		return evalRatingRuleAt(ctx, rule, rating, license, peers, held, dp, today.AddDate(0, 0, d)).Status == StatusCurrent
-	}
-	hi := int(today.AddDate(rule.window.years, rule.window.months, rule.window.days).Sub(today).Hours()/24) + 1
-	if !currentOn(0) || currentOn(hi) {
-		return nil
-	}
-	lo := 0
-	for hi-lo > 1 {
-		mid := (lo + hi) / 2
-		if currentOn(mid) {
-			lo = mid
-		} else {
-			hi = mid
-		}
-	}
-	lapse := today.AddDate(0, 0, lo)
-	return &lapse
 }
 
 // recencyFinalize returns the finalize strategy for a rolling-window recency
 // rule; withCheck adds a proficiency check that replaces the experience.
 func recencyFinalize(withCheck bool) func(ctx context.Context, rt *ratingRuntime) {
 	return func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(rt.now)
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown

@@ -298,7 +298,7 @@ func (e *GermanULEvaluator) EvaluateRatingPassengerCurrencyForHolder(ctx context
 		return result
 	}
 	kind := *rating.ULKind
-	since := paxWindowStart(time.Now())
+	since := paxWindowStart(nowFrom(ctx))
 
 	result := PassengerCurrency{
 		ClassType:           models.ClassTypeUL,
@@ -336,7 +336,7 @@ func (e *GermanULEvaluator) EvaluateRatingPassengerCurrencyForHolder(ctx context
 	}
 	fillPaxLapseDates(ctx, &result, func(from time.Time) ([]LandingDay, error) {
 		return dp.GetLandingDaysByULKind(ctx, license.UserID, sel, kind == models.ULKindSailplane, from)
-	}, nil, time.Now())
+	}, nil, nowFrom(ctx))
 
 	return result
 }

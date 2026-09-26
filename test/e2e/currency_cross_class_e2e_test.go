@@ -36,7 +36,7 @@ func lastDayInWindowCur(date string, years int) string {
 		panic(err)
 	}
 	end := d.AddDate(years, 0, 0)
-	for end.AddDate(-years, 0, 0).After(d) {
+	for !end.AddDate(-years, 0, 0).Before(d) {
 		end = end.AddDate(0, 0, -1)
 	}
 	return end.Format("2006-01-02")

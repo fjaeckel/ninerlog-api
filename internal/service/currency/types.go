@@ -23,13 +23,15 @@ const (
 
 // ClassRatingCurrency holds the currency evaluation result for one class rating
 type ClassRatingCurrency struct {
-	ClassRatingID       uuid.UUID        `json:"classRatingId"`
-	ClassType           models.ClassType `json:"classType"`
-	LicenseID           uuid.UUID        `json:"licenseId"`
-	RegulatoryAuthority string           `json:"regulatoryAuthority"`
-	LicenseType         string           `json:"licenseType"`
-	Status              Status           `json:"status"`
-	ExpiryDate          *string          `json:"expiryDate,omitempty"`
+	ClassRatingID uuid.UUID        `json:"classRatingId"`
+	ClassType     models.ClassType `json:"classType"`
+	// ULKind is the rating's ultralight kind; not serialised.
+	ULKind              *models.ULKind `json:"-"`
+	LicenseID           uuid.UUID      `json:"licenseId"`
+	RegulatoryAuthority string         `json:"regulatoryAuthority"`
+	LicenseType         string         `json:"licenseType"`
+	Status              Status         `json:"status"`
+	ExpiryDate          *string        `json:"expiryDate,omitempty"`
 	// WindowOpensAt is set for expiry-anchored revalidation rules
 	// (EASA FCL.740.A SEP/TMG/MEP/SET, FCL.625.A IR). It is the date on which
 	// the 12-month experience-counting window opens (expiry − 12 months).
@@ -102,6 +104,12 @@ type Requirement struct {
 	Unit          string         `json:"unit"`
 	MessageKey    string         `json:"messageKey"`
 	MessageParams *MessageParams `json:"messageParams,omitempty"`
+	// ValidUntil is the last date a met rolling-window requirement stays met
+	// with no further flying.
+	ValidUntil *string `json:"validUntil,omitempty"`
+	// RemedyKey names what restores an unmet requirement; RemedyParams its params.
+	RemedyKey    string         `json:"remedyKey,omitempty"`
+	RemedyParams *MessageParams `json:"remedyParams,omitempty"`
 }
 
 // CurrencyStatusResponse is the full response from the currency endpoint.
@@ -170,4 +178,9 @@ type LaunchMethodCurrency struct {
 	Required   int    `json:"required"`
 	Met        bool   `json:"met"`
 	MessageKey string `json:"messageKey"`
+	// ValidUntil is the last date a met method stays met with no further flying.
+	ValidUntil *string `json:"validUntil,omitempty"`
+	// RemedyKey names what restores an unmet method (SFCL.155(d)); RemedyParams its params.
+	RemedyKey    string         `json:"remedyKey,omitempty"`
+	RemedyParams *MessageParams `json:"remedyParams,omitempty"`
 }
