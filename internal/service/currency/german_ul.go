@@ -17,16 +17,19 @@ import (
 //     incl. 6h PIC, 12 takeoffs & landings and a 1h training flight with an
 //     instructor on a three-axis UL; or a proficiency check (§45(3))
 //   - HELICOPTER (§45(2a)): 6h in 12 months incl. 6 takeoffs & landings and a
-//     1h flight with an instructor; or a proficiency check
+//     flight of at least 1h with an instructor; or a proficiency check
 //   - GYROPLANE (DULV, §45(4)): 12h in 24 months on gyroplanes (UL and
-//     GYROPLANE) incl. 6h PIC, 12 takeoffs & landings and a 1h flight with an
-//     instructor on a UL gyroplane; or a check
+//     GYROPLANE) incl. 6h PIC, 12 takeoffs & landings and a flight of at least
+//     1h with an instructor on a UL gyroplane; or a check
 //   - WEIGHT_SHIFT (§45(4)): DAeC 12h + 12 takeoffs & landings in 24 months;
 //     DULV and LBA 12h as PIC in 24 months
 //   - POWERED_PARAGLIDER (§45(4)): 30 takeoffs & landings in 24 months
 //   - SAILPLANE (DAeC, §45(4)): 5 takeoffs & landings in 12 months
 //
-// No night privilege for ultralights (§44(2)).
+// A training flight is one flight of at least 1h total time with dual time.
+// A rating with no kind is not evaluated (rating.ul_kind_required). ULTRALIGHT
+// flights of no kind count only when the user holds ULTRALIGHT ratings of
+// exactly one kind. No night privilege for ultralights (§44(2)).
 type GermanULEvaluator struct {
 	easa *EASAEvaluator
 }
@@ -50,21 +53,52 @@ func (e *GermanULEvaluator) Evaluate(ctx context.Context, rating *models.ClassRa
 	return e.EvaluateWithPeers(ctx, rating, license, nil, dp)
 }
 
-// EvaluateWithPeers evaluates an ULTRALIGHT rating by its kind and delegates
-// every other class to the EASA evaluator.
+// EvaluateWithPeers is EvaluateForHolder with the licence's ratings as every
+// rating held.
 func (e *GermanULEvaluator) EvaluateWithPeers(ctx context.Context, rating *models.ClassRating, license *models.License, peers []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
+	return e.EvaluateForHolder(ctx, rating, license, peers, peers, dp)
+}
+
+// EvaluateForHolder evaluates an ULTRALIGHT rating by its kind and delegates
+// every other class to the EASA evaluator.
+func (e *GermanULEvaluator) EvaluateForHolder(ctx context.Context, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
 	if rating.ClassType != models.ClassTypeUL {
 		return e.easa.EvaluateWithPeers(ctx, rating, license, peers, dp)
 	}
-	return evalRatingRuleWithPeers(ctx, germanULSelectRule(ratingULKind(rating), license), rating, license, peers, dp)
+	if rating.ULKind == nil {
+		return evalRatingRuleForHolder(ctx, &germanULKindRequiredRule, rating, license, peers, held, dp)
+	}
+	return evalRatingRuleForHolder(ctx, germanULSelectRule(*rating.ULKind, license), rating, license, peers, held, dp)
 }
 
-// ratingULKind returns the rating's ultralight kind, THREE_AXIS when unset.
-func ratingULKind(rating *models.ClassRating) models.ULKind {
-	if rating.ULKind == nil {
-		return models.ULKindThreeAxis
+// kindlessULCounts reports whether ULTRALIGHT flights of no kind count toward
+// rating: the user's ULTRALIGHT ratings, rating included, all have one and the
+// same kind.
+func kindlessULCounts(rating *models.ClassRating, held []*models.ClassRating) bool {
+	var kind *models.ULKind
+	for _, r := range append([]*models.ClassRating{rating}, held...) {
+		if r == nil || r.ClassType != models.ClassTypeUL {
+			continue
+		}
+		if r.ULKind == nil {
+			return false
+		}
+		if kind != nil && *kind != *r.ULKind {
+			return false
+		}
+		kind = r.ULKind
 	}
-	return *rating.ULKind
+	return kind != nil
+}
+
+// germanULKindRequiredRule reports an ULTRALIGHT rating with no kind as unknown.
+var germanULKindRequiredRule = ratingRule{
+	description: "Ultralight kind not recorded on the rating; LuftPersV §45 recency depends on the kind",
+	scope:       scopeByClass,
+	finalize: func(_ context.Context, rt *ratingRuntime) {
+		rt.result.Status = StatusUnknown
+		rt.result.setMsg(MsgRatingULKindRequired, nil)
+	},
 }
 
 // germanULSelectRule returns the recency rule for an ultralight kind.
@@ -89,13 +123,17 @@ func germanULSelectRule(kind models.ULKind, license *models.License) *ratingRule
 }
 
 // germanULNativeCredit counts the rating's own ultralights, and ultralights of
-// no kind, with their dual time and proficiency checks.
-func germanULNativeCredit(rating *models.ClassRating, _ []models.ClassType) *ulCredit {
-	kind := ratingULKind(rating)
+// no kind when kindlessULCounts, with their dual time and proficiency checks.
+func germanULNativeCredit(rating *models.ClassRating, _ []models.ClassType, held []*models.ClassRating) *ulCredit {
+	if rating.ULKind == nil {
+		return nil
+	}
+	kind := *rating.ULKind
 	return &ulCredit{
-		sel:         ULSelector{Kinds: models.AircraftKindsForRating(kind), IncludeUnspecified: true},
-		native:      true,
-		countsTowed: kind == models.ULKindSailplane,
+		sel:                ULSelector{Kinds: models.AircraftKindsForRating(kind), IncludeUnspecified: kindlessULCounts(rating, held)},
+		native:             true,
+		countsTowed:        kind == models.ULKindSailplane,
+		reportUnclassified: true,
 	}
 }
 
@@ -128,7 +166,7 @@ var germanULRule = ratingRule{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 360, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
-		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
+		{nameKey: ReqKeyTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: recencyFinalize(true),
 }
@@ -136,7 +174,7 @@ var germanULRule = ratingRule{
 // germanULHelicopterRule — ultralight helicopter recency (LuftPersV §45(2a), (3)).
 var germanULHelicopterRule = ratingRule{
 	displayKey:  "ul_luftpersv_helicopter",
-	description: "Erfordert 6h Flugzeit auf UL-Hubschraubern mit 6 Starts & Landungen und 1h Flug mit Fluglehrer in 12 Monaten; oder eine Befähigungsüberprüfung (LuftPersV §45 Abs. 2a, 3)",
+	description: "Erfordert 6h Flugzeit auf UL-Hubschraubern mit 6 Starts & Landungen und einem Flug von mindestens 1h mit Fluglehrer in 12 Monaten; oder eine Befähigungsüberprüfung (LuftPersV §45 Abs. 2a, 3)",
 	window:      windowSpec{kind: windowRollingNow, years: 1},
 	scope:       scopeClassGroup,
 	classGroup:  germanULNoClasses,
@@ -144,7 +182,7 @@ var germanULHelicopterRule = ratingRule{
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 360, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 6, unit: "landings"},
-		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
+		{nameKey: ReqKeyTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: recencyFinalize(true),
 }
@@ -163,7 +201,7 @@ var germanULGyroplaneRule = ratingRule{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyPICTime, metric: mPICMinutes, threshold: 360, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
-		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
+		{nameKey: ReqKeyTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: recencyFinalize(true),
 }
@@ -226,20 +264,40 @@ var germanULSailplaneRule = ratingRule{
 }
 
 // EvaluatePassengerCurrency evaluates passenger recency for a class. An
-// ULTRALIGHT class is evaluated as THREE_AXIS; other classes go to EASA.
+// ULTRALIGHT class has no kind and reports unknown; other classes go to EASA.
 func (e *GermanULEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peers []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
 	return e.EvaluateRatingPassengerCurrency(ctx, &models.ClassRating{ClassType: classType}, license, peers, dp)
 }
 
-// EvaluateRatingPassengerCurrency evaluates German ultralight passenger
-// recency (LuftPersV §45a): 3 takeoffs & landings in the preceding 90 days in
-// an ultralight of the rating's kind. The passenger rating (§84a) is proved
-// separately. Other classes go to EASA.
+// EvaluateRatingPassengerCurrency is EvaluateRatingPassengerCurrencyForHolder
+// with the licence's ratings as every rating held.
 func (e *GermanULEvaluator) EvaluateRatingPassengerCurrency(ctx context.Context, rating *models.ClassRating, license *models.License, peers []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
+	return e.EvaluateRatingPassengerCurrencyForHolder(ctx, rating, license, peers, peers, dp)
+}
+
+// EvaluateRatingPassengerCurrencyForHolder evaluates German ultralight
+// passenger recency (LuftPersV §45a): 3 takeoffs and 3 landings in the
+// preceding 90 days in an ultralight of the rating's kind. DayLandings reports
+// the smaller of the two counts. The passenger rating (§84a) is proved
+// separately. A rating with no kind reports unknown with
+// rating.ul_kind_required; the service omits it. Other classes go to EASA.
+func (e *GermanULEvaluator) EvaluateRatingPassengerCurrencyForHolder(ctx context.Context, rating *models.ClassRating, license *models.License, peers, held []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
 	if rating.ClassType != models.ClassTypeUL {
 		return e.easa.EvaluatePassengerCurrency(ctx, rating.ClassType, license, peers, dp)
 	}
-	kind := ratingULKind(rating)
+	if rating.ULKind == nil {
+		result := PassengerCurrency{
+			ClassType:           models.ClassTypeUL,
+			RegulatoryAuthority: license.RegulatoryAuthority,
+			DayStatus:           StatusUnknown,
+			NightStatus:         StatusUnknown,
+			DayRequired:         3,
+			RuleDescriptionKey:  "ul_pax",
+		}
+		result.setMsg(MsgRatingULKindRequired, nil)
+		return result
+	}
+	kind := *rating.ULKind
 	since := paxWindowStart(time.Now())
 
 	result := PassengerCurrency{
@@ -253,7 +311,7 @@ func (e *GermanULEvaluator) EvaluateRatingPassengerCurrency(ctx context.Context,
 		RuleDescriptionKey:  "ul_pax",
 	}
 
-	sel := ULSelector{Kinds: models.AircraftKindsForRating(kind), IncludeUnspecified: true}
+	sel := ULSelector{Kinds: models.AircraftKindsForRating(kind), IncludeUnspecified: kindlessULCounts(rating, held)}
 	days, err := dp.GetLandingDaysByULKind(ctx, license.UserID, sel, kind == models.ULKindSailplane, since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
@@ -263,17 +321,18 @@ func (e *GermanULEvaluator) EvaluateRatingPassengerCurrency(ctx context.Context,
 	}
 
 	landings, _ := paxTotals(days)
-	result.DayLandings = landings
+	count := min(landings, paxTakeoffTotal(days))
+	result.DayLandings = count
 	result.NightLandings = 0
 	result.NightStatus = StatusUnknown
-	result.DayExpiresOn = paxExpiryString(paxExpiryDate(days, result.DayRequired, allLandings))
+	result.DayExpiresOn = paxExpiryString(paxExpiryDateTakeoffsAndLandings(days, result.DayRequired))
 
-	if landings >= 3 {
+	if count >= result.DayRequired {
 		result.DayStatus = StatusCurrent
 		result.setMsg(MsgPaxCurrentPrivilegeSeparat, nil)
 	} else {
 		result.DayStatus = StatusExpired
-		result.setMsg(MsgPaxNotCurrent, msgNeeded(3-landings))
+		result.setMsg(MsgPaxNotCurrent, msgNeeded(result.DayRequired-count))
 	}
 
 	return result

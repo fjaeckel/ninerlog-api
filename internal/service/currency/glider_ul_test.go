@@ -55,7 +55,7 @@ func TestGliderULClass_RuleSelection(t *testing.T) {
 func TestGermanULEvaluator_GliderUsesSPLRule(t *testing.T) {
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeGlider] = &Progress{
-		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, Launches: 20, TrainingFlights: 2,
+		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60, Launches: 20, TrainingFlights: 2,
 	}
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeGlider, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "DAeC", LicenseType: "SPL"}
@@ -72,7 +72,7 @@ func TestGermanULEvaluator_GliderUsesSPLRule(t *testing.T) {
 func TestEASA_GliderClass_CountsGliderFlights(t *testing.T) {
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeGlider] = &Progress{
-		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, Launches: 20, TrainingFlights: 2,
+		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60, Launches: 20, TrainingFlights: 2,
 	}
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeGlider, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}
@@ -89,7 +89,7 @@ func TestEASA_GliderClass_CountsGliderFlights(t *testing.T) {
 func TestEASA_ULClass_ExpiryOnly(t *testing.T) {
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeUL] = &Progress{
-		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120,
+		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120, LongestTrainingFlightMinutes: 60,
 	}
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeUL, LicenseID: uuid.New(), ExpiryDate: futureDate(12)}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "UL"}
@@ -125,7 +125,7 @@ func TestService_ULPassengerCurrency_GermanAuthorityOnly(t *testing.T) {
 			userID := uuid.New()
 			lic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: tt.authority, LicenseType: "UL"}
 			licRepo.licenses[lic.ID] = lic
-			crRepo.ratings[lic.ID] = []*models.ClassRating{{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeUL}}
+			crRepo.ratings[lic.ID] = []*models.ClassRating{{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeUL, ULKind: ulKindPtr(models.ULKindThreeAxis)}}
 
 			result, err := NewService(reg, licRepo, crRepo, newMockFlightDataProvider()).EvaluateAll(context.Background(), userID)
 			if err != nil {
@@ -159,6 +159,9 @@ func TestTowedFlights_IncludedOnlyForSailplaneRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dp := newMockFlightDataProvider()
 			rating := &models.ClassRating{ID: uuid.New(), ClassType: tt.class, LicenseID: uuid.New(), ExpiryDate: futureDate(6)}
+			if tt.class == models.ClassTypeUL {
+				rating.ULKind = ulKindPtr(models.ULKindThreeAxis)
+			}
 			license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: tt.licType}
 			tt.eval.Evaluate(context.Background(), rating, license, dp)
 			if tt.class == models.ClassTypeUL {

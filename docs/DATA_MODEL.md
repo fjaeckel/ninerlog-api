@@ -102,7 +102,8 @@ A class/type rating attached to a license. `ClassType` is an enum:
 
 `ul_kind` (migration 72, nullable, CHECK-constrained) is the ultralight kind an `ULTRALIGHT`
 rating covers — `THREE_AXIS`, `WEIGHT_SHIFT`, `GYROPLANE`, `HELICOPTER`, `POWERED_PARAGLIDER`
-or `SAILPLANE` — and is cleared on any other class. NULL is evaluated as `THREE_AXIS`. See
+or `SAILPLANE` — and is cleared on any other class. A German UL rating with NULL is not
+evaluated (`rating.ul_kind_required`). See
 [DOMAIN.md](./DOMAIN.md#ultralights).
 
 ### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65, 72, 73)

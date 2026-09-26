@@ -23,7 +23,7 @@ func gplSetup() (*models.ClassRating, *models.License) {
 
 func TestGPL_Current(t *testing.T) {
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeGyro] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeGyro] = &Progress{TotalMinutes: 720, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 	rating, license := gplSetup()
 
 	res := NewEASAEvaluator().Evaluate(context.Background(), rating, license, dp)
@@ -60,9 +60,9 @@ func TestGPL_AnnexIGyroplaneCredit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dp := newMockFlightDataProvider()
-			dp.progressByClass[models.ClassTypeGyro] = &Progress{TotalMinutes: 120, Landings: 2, InstructorMinutes: 60}
+			dp.progressByClass[models.ClassTypeGyro] = &Progress{TotalMinutes: 120, Landings: 2, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 			dp.progressByUL = map[models.ULKind]*Progress{
-				models.ULKindGyroplane: {TotalMinutes: 600, Landings: 10, InstructorMinutes: 120},
+				models.ULKindGyroplane: {TotalMinutes: 600, Landings: 10, InstructorMinutes: 120, LongestTrainingFlightMinutes: 60},
 			}
 			dp.ulMTOM = map[models.ULKind]int{models.ULKindGyroplane: tt.mtom}
 			rating, license := gplSetup()
@@ -141,9 +141,9 @@ func TestHasNightPrivilege_GermanAndGPL(t *testing.T) {
 
 func TestGermanULGyroplane_CountsGyroplaneClassTime(t *testing.T) {
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeGyro] = &Progress{TotalMinutes: 600, PICMinutes: 600, Landings: 10, InstructorMinutes: 120}
+	dp.progressByClass[models.ClassTypeGyro] = &Progress{TotalMinutes: 600, PICMinutes: 600, Landings: 10, InstructorMinutes: 120, LongestTrainingFlightMinutes: 60}
 	dp.progressByUL = map[models.ULKind]*Progress{
-		models.ULKindGyroplane: {TotalMinutes: 120, PICMinutes: 60, Landings: 2, InstructorMinutes: 60},
+		models.ULKindGyroplane: {TotalMinutes: 120, PICMinutes: 60, Landings: 2, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60},
 	}
 	rating := ulRating(ulKindPtr(models.ULKindGyroplane))
 

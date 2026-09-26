@@ -92,7 +92,7 @@ func TestEASA_LAPL_GliderNotCounted(t *testing.T) {
 	if rc == nil {
 		t.Fatal("LAPL SEP_LAND not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 }
 
 // TestEASA_LAPL_ProficiencyCheck — a LAPL(A) proficiency check alone satisfies FCL.140.A(a)(2).
@@ -138,7 +138,7 @@ func TestEASA_LAPL_LandSeaSplit(t *testing.T) {
 	if rc == nil {
 		t.Fatal("LAPL SEP_SEA not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 	for _, key := range []string{"requirement.sep_land_time", "requirement.sep_land_landings"} {
 		req := getReq(rc, key)
 		if req == nil {

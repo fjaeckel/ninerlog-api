@@ -57,12 +57,14 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 	flightReviewEvaluated := false
 
 	ratingsByLicense := make(map[uuid.UUID][]*models.ClassRating, len(licenses))
+	var heldRatings []*models.ClassRating
 	for _, license := range licenses {
 		classRatings, err := s.classRatingRepo.GetByLicenseID(ctx, license.ID)
 		if err != nil {
 			continue // skip on error
 		}
 		ratingsByLicense[license.ID] = classRatings
+		heldRatings = append(heldRatings, classRatings...)
 	}
 	partFCLTMG := s.holdsPartFCLTMG(licenses, ratingsByLicense)
 
@@ -78,7 +80,10 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 		for _, cr := range classRatings {
 			// Tier 1: Rating currency
 			var result ClassRatingCurrency
-			if pe, ok := eval.(PeerAwareEvaluator); ok {
+			holderEval, holderAware := eval.(HolderAwareEvaluator)
+			if holderAware {
+				result = holderEval.EvaluateForHolder(ctx, cr, license, classRatings, heldRatings, s.flightData)
+			} else if pe, ok := eval.(PeerAwareEvaluator); ok {
 				result = pe.EvaluateWithPeers(ctx, cr, license, classRatings, s.flightData)
 			} else {
 				result = eval.Evaluate(ctx, cr, license, s.flightData)
@@ -89,23 +94,26 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 			ratings = append(ratings, result)
 
 			// Tier 2: Passenger currency (if evaluator supports it).
-			// IR ratings, and ULTRALIGHT outside the German UL evaluator, are skipped.
+			// IR ratings, ULTRALIGHT outside the German UL evaluator, and
+			// ULTRALIGHT with no kind are skipped.
 			if cr.ClassType == models.ClassTypeIR {
 				continue
 			}
-			if _, germanUL := eval.(*GermanULEvaluator); cr.ClassType == models.ClassTypeUL && !germanUL {
+			if _, germanUL := eval.(*GermanULEvaluator); cr.ClassType == models.ClassTypeUL && (!germanUL || cr.ULKind == nil) {
 				continue
 			}
 			passengerKey := string(cr.ClassType) + ":" + license.RegulatoryAuthority
 			if cr.ClassType == models.ClassTypeUL {
-				passengerKey += ":" + string(ratingULKind(cr))
+				passengerKey += ":" + string(*cr.ULKind)
 			}
 			if seenPassengerClasses[passengerKey] {
 				continue
 			}
 			seenPassengerClasses[passengerKey] = true
 
-			if paxEval, ok := eval.(RatingPassengerCurrencyEvaluator); ok {
+			if holderAware {
+				passengerCurrency = append(passengerCurrency, holderEval.EvaluateRatingPassengerCurrencyForHolder(ctx, cr, license, classRatings, heldRatings, s.flightData))
+			} else if paxEval, ok := eval.(RatingPassengerCurrencyEvaluator); ok {
 				passengerCurrency = append(passengerCurrency, paxEval.EvaluateRatingPassengerCurrency(ctx, cr, license, classRatings, s.flightData))
 			} else if paxEval, ok := eval.(PassengerCurrencyEvaluator); ok {
 				pax := paxEval.EvaluatePassengerCurrency(ctx, cr.ClassType, license, classRatings, s.flightData)

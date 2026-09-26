@@ -336,7 +336,7 @@ var easaExpiryOnlyRule = ratingRule{
 // easaLAPLRule — EASA FCL.140.A recency for LAPL(A), on aeroplanes and TMG pooled:
 //   - 12 hours flight time (as PIC, dual, or solo under supervision)
 //   - 12 takeoffs & landings
-//   - 1 hour dual instruction
+//   - 1 training flight of at least 1 hour total time with an instructor
 //   - NO PIC hour requirement (key difference from FCL.740.A)
 //   - OR a LAPL(A) proficiency check (FCL.140.A(a)(2))
 //   - with both SEP(land) and SEP(sea) ratings: 1 hour and 6 landings in each (FCL.140.A(b))
@@ -354,7 +354,7 @@ var easaLAPLRule = ratingRule{
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
-		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
+		{nameKey: ReqKeyTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rt.since = rt.rule.window.rollingSince(time.Now())
@@ -392,13 +392,7 @@ var easaLAPLRule = ratingRule{
 		}
 		rt.result.Requirements = append(reqs, reqProfCheck)
 
-		if !allMetByExperience && !hasProfCheck {
-			rt.result.Status = StatusExpiring
-			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
-		} else {
-			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
-		}
+		setRecencyStatus(rt.result, allMetByExperience || hasProfCheck)
 	},
 }
 
@@ -487,13 +481,7 @@ var easaSPLRule = ratingRule{
 
 		rt.result.LaunchMethodCurrency = easaLaunchMethodCurrency(ctx, rt, tmg.Launches)
 
-		if !allMetByExperience && !reqProfCheck.Met {
-			rt.result.Status = StatusExpiring
-			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
-		} else {
-			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
-		}
+		setRecencyStatus(rt.result, allMetByExperience || reqProfCheck.Met)
 	},
 }
 
@@ -622,13 +610,7 @@ var easaSPLTMGRule = ratingRule{
 		reqProfCheck := profCheckRequirement(profCheckDate)
 		rt.result.Requirements = append(reqs, reqProfCheck)
 
-		if !allMetByExperience && !reqProfCheck.Met {
-			rt.result.Status = StatusExpiring
-			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
-		} else {
-			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
-		}
+		setRecencyStatus(rt.result, allMetByExperience || reqProfCheck.Met)
 	},
 }
 

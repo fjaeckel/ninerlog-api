@@ -937,7 +937,7 @@ func TestEASA_LAPL_NoFlights(t *testing.T) {
 	if rc == nil {
 		t.Fatal("LAPL SEP_LAND not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 }
 
 // TestEASA_LAPL_RollingWindow — rolling 24 months from NOW (not expiry-based).
@@ -970,7 +970,7 @@ func TestEASA_LAPL_RollingWindow(t *testing.T) {
 	if rc == nil {
 		t.Fatal("LAPL SEP_LAND not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 }
 
 // TestEASA_LAPL_NoNightPrivilege — LAPL requires separate night rating extension.
@@ -1095,7 +1095,7 @@ func TestEASA_SPL_InsufficientLaunches(t *testing.T) {
 	if rc == nil {
 		t.Fatal("SPL SEP_LAND not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 }
 
 // createSPLTMGFlightsCur logs 1h TMG flights: pic as PIC, then dual with an instructor.
@@ -1152,7 +1152,7 @@ func TestEASA_SPL_TMG_NoTrainingFlight(t *testing.T) {
 	if rc == nil {
 		t.Fatal("SPL TMG not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 	if r := getReq(rc, "requirement.tmg_training_flight"); r == nil || gb(r, "met") {
 		t.Errorf("tmg_training_flight = %v, want unmet", r)
 	}
@@ -1182,7 +1182,7 @@ func TestEASA_SPL_TMG_GliderHoursCount(t *testing.T) {
 	if rc == nil {
 		t.Fatal("SPL TMG not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 	if r := getReq(rc, "requirement.flight_time"); r == nil || gi(r, "current") != 720 || !gb(r, "met") {
 		t.Errorf("flight_time = %v, want 720 minutes met", r)
 	}
@@ -2092,14 +2092,14 @@ func TestFAA_ATPSameAsPrivate(t *testing.T) {
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// TestGermanUL_DULV_Current — three-axis UL: 12h incl. 6h PIC + 12 T&L + 1h instructor in rolling 24mo.
-// The UL is classed ULTRALIGHT; a UL rated SEP_LAND is evaluated under EASA rules.
+// TestGermanUL_DULV_Current — three-axis UL: 12h incl. 6h PIC + 12 T&L + a 1h flight with an
+// instructor in rolling 24mo. The aircraft has no kind and counts because the only UL rating is three-axis.
 func TestGermanUL_DULV_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-dulv-cur")
 	createAircraftCur(t, c, "D-MULV", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, licID, "THREE_AXIS")
 
 	for i := 0; i < 11; i++ {
 		createFlightCur(t, c, map[string]interface{}{
@@ -2131,7 +2131,7 @@ func TestGermanUL_DAeC_Current(t *testing.T) {
 	createAircraftCur(t, c, "D-MAEC", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DAeC", "UL")
-	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, licID, "THREE_AXIS")
 
 	for i := 0; i < 11; i++ {
 		createFlightCur(t, c, map[string]interface{}{
@@ -2163,7 +2163,7 @@ func TestGermanUL_NoNightPrivilege(t *testing.T) {
 	createAircraftCur(t, c, "D-MULN", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, licID, "THREE_AXIS")
 
 	createFlightCur(t, c, map[string]interface{}{
 		"date": pastDate(5), "aircraftReg": "D-MULN", "aircraftType": "C42",

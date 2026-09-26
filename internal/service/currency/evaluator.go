@@ -13,6 +13,9 @@ type LandingDay struct {
 	Date          time.Time
 	DayLandings   int
 	NightLandings int
+	// Takeoffs counts take-offs, at least one per flight. Set only by
+	// GetLandingDaysByULKind.
+	Takeoffs int
 }
 
 // FlightDataProvider provides aggregated flight data for currency evaluation
@@ -54,7 +57,8 @@ type FlightDataProvider interface {
 	GetLastProficiencyCheckByULKind(ctx context.Context, userID uuid.UUID, sel ULSelector, since time.Time) (*time.Time, error)
 
 	// GetLandingDaysByULKind is GetLandingDaysByAircraftClass on ULTRALIGHT
-	// aircraft matching sel.
+	// aircraft matching sel, with take-offs per date; dates with neither
+	// take-offs nor landings are omitted.
 	GetLandingDaysByULKind(ctx context.Context, userID uuid.UUID, sel ULSelector, includeTowed bool, since time.Time) ([]LandingDay, error)
 }
 
@@ -96,6 +100,15 @@ type RatingPassengerCurrencyEvaluator interface {
 // currency depends on the other class ratings on the same license.
 type PeerAwareEvaluator interface {
 	EvaluateWithPeers(ctx context.Context, rating *models.ClassRating, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency
+}
+
+// HolderAwareEvaluator is an optional interface for evaluators whose results
+// depend on every class rating the user holds, across all licences
+// (heldRatings). The service prefers it over PeerAwareEvaluator and
+// RatingPassengerCurrencyEvaluator.
+type HolderAwareEvaluator interface {
+	EvaluateForHolder(ctx context.Context, rating *models.ClassRating, license *models.License, peerRatings, heldRatings []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency
+	EvaluateRatingPassengerCurrencyForHolder(ctx context.Context, rating *models.ClassRating, license *models.License, peerRatings, heldRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency
 }
 
 // FlightReviewEvaluator is an optional interface for evaluators that support

@@ -298,9 +298,8 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 		}
 	}
 
-	// Revalidation currency notification (EASA — requirements not met approaching expiry)
-	if (rating.Status == currency.StatusExpiring || rating.Status == currency.StatusExpired) &&
-		prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
+	// Revalidation or recency not met
+	if ratingRequirementsNotMet(rating.Status) && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
 		// Reference is the class rating ID; no expiry date key.
 		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyRevalidation), rating.ClassRatingID, 0, nil)
 		if err != nil || sent {
@@ -332,6 +331,17 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 			DaysBeforeExpiry: &zero,
 			Subject:          &subject,
 		})
+	}
+}
+
+// ratingRequirementsNotMet reports whether a rating status calls for the
+// revalidation/recency notice: expiring, expired or lapsed.
+func ratingRequirementsNotMet(status currency.Status) bool {
+	switch status {
+	case currency.StatusExpiring, currency.StatusExpired, currency.StatusLapsed:
+		return true
+	default:
+		return false
 	}
 }
 

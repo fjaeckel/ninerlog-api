@@ -6535,7 +6535,10 @@ components:
           example: THREE_AXIS
           description: |
             Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-            ULTRALIGHT and cleared otherwise; null means unspecified.
+            ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+            aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+            rating the pilot holds is of one kind; otherwise they are reported in
+            ClassRatingCurrency.unclassifiedFlights.
             - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
             - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
             - WEIGHT_SHIFT: weight-shift controlled trike
@@ -6638,7 +6641,10 @@ components:
           example: THREE_AXIS
           description: |
             Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-            ULTRALIGHT and cleared otherwise; null means unspecified.
+            ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+            aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+            rating the pilot holds is of one kind; otherwise they are reported in
+            ClassRatingCurrency.unclassifiedFlights.
             - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
             - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
             - WEIGHT_SHIFT: weight-shift controlled trike
@@ -6712,7 +6718,10 @@ components:
           example: THREE_AXIS
           description: |
             Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-            ULTRALIGHT and cleared otherwise; null means unspecified.
+            ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+            aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+            rating the pilot holds is of one kind; otherwise they are reported in
+            ClassRatingCurrency.unclassifiedFlights.
             - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
             - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
             - WEIGHT_SHIFT: weight-shift controlled trike
@@ -8964,8 +8973,8 @@ components:
           enum: [THREE_AXIS, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE]
           description: |
             Ultralight kind this entry covers, present only for a German ULTRALIGHT rating.
-            LuftPersV §45a passenger recency counts landings in an ultralight of the same kind,
-            so there is one entry per kind.
+            LuftPersV §45a passenger recency counts take-offs and landings in an ultralight of the
+            same kind, so there is one entry per kind. A rating with no kind has no entry.
         regulatoryAuthority:
           type: string
           description: Authority that defines the passenger currency rules
@@ -8979,7 +8988,9 @@ components:
           description: Night passenger currency status
         dayLandings:
           type: integer
-          description: Number of landings in the preceding 90 days
+          description: >-
+            Number of landings in the preceding 90 days. For a German ultralight entry (ulKind
+            set), the smaller of the take-off and landing counts (LuftPersV §45a).
         nightLandings:
           type: integer
           description: Number of night landings in the preceding 90 days
@@ -9078,13 +9089,18 @@ components:
           description: Type from the parent license
         status:
           type: string
-          enum: [current, expiring, expired, unknown]
+          enum: [current, expiring, expired, lapsed, unknown]
           description: |
             Currency status:
             - current: All requirements met
-            - expiring: Rating expiry approaching (within 90 days)
-            - expired: Rating has expired or currency requirements not met
-            - unknown: Authority not supported for auto-calculation
+            - expiring: Expiry date approaching (within 90 days), or revalidation experience
+              not yet met before the expiry date (EASA FCL.740.A, FCL.625.A)
+            - expired: Past the rating's expiry date, or an FAA 14 CFR 61.57 requirement not met
+            - lapsed: A rolling recency rule (LAPL FCL.140.A, SPL SFCL.160, GPL FCL.240.G,
+              German UL LuftPersV §45) is not met. The licence stays valid; its privileges
+              may not be exercised until recency is restored.
+            - unknown: Not determinable — no expiry date, no rule for the authority, flight
+              data unreadable, or data missing (see messageKey)
         expiryDate:
           type: [string, 'null']
           format: date
@@ -9207,6 +9223,15 @@ components:
             type: string
             enum: [THREE_AXIS, THREE_AXIS_MOTORGLIDER, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE]
           example: [THREE_AXIS]
+        unclassifiedFlights:
+          type: integer
+          minimum: 1
+          description: |
+            Flights in the rule's window on ULTRALIGHT aircraft with no ultralight kind that did
+            not count toward this German ultralight rating. They count only when every
+            ULTRALIGHT rating the pilot holds, across all licences, is of one and the same kind.
+            Omitted when zero. Setting the aircraft's kind makes them count.
+          example: 3
 
     LaunchMethodCurrency:
       type: object
@@ -9331,8 +9356,9 @@ components:
           example: THREE_AXIS
           description: |
             Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-            otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-            (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+            otherwise. Selects the German recency rule
+            (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+            reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
             THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
         issueDate:
           type: string
@@ -9366,8 +9392,9 @@ components:
           enum: [THREE_AXIS, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE, 'null']
           description: |
             Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-            otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-            (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+            otherwise. Selects the German recency rule
+            (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+            reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
             THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
         issueDate:
           type: string
@@ -9386,8 +9413,9 @@ components:
           enum: [THREE_AXIS, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE, 'null']
           description: |
             Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-            otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-            (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+            otherwise. Selects the German recency rule
+            (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+            reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
             THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
           x-go-type: nullable.Nullable[string]
           x-go-type-import:

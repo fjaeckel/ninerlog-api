@@ -195,8 +195,13 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 `internal/api/handlers/currency.go`). Full design in
 [DOMAIN.md](./DOMAIN.md#currency-engine).
 
+- **Status `lapsed`** — an unmet rolling recency rule (LAPL(A), SPL, SPL TMG, GPL, German UL)
+  reports `lapsed`: the licence is valid, its privileges are not exercisable until recency is
+  restored. `expiring` stays for an approaching expiry date or unmet expiry-anchored
+  revalidation, `expired` for a past expiry date. Lapsed ratings get the recency notice email.
 - **Cross-class crediting** — EASA LAPL(A) recency counts flights on every aeroplane class
-  and TMG together (FCL.140.A), and accepts a LAPL(A) proficiency check instead; a PPL/CPL/ATPL
+  and TMG together (FCL.140.A), with the training flight being one flight of at least an hour
+  with an instructor, and accepts a LAPL(A) proficiency check instead; a PPL/CPL/ATPL
   holding both SEP(land) and TMG ratings revalidates both from flights in either class
   (FCL.740.A(b)(1)). No custom rule is needed. The rating result lists the pooled classes in
   `countedClasses`. Details in [DOMAIN.md](./DOMAIN.md#credited-classes).
@@ -205,7 +210,11 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   UL time and landings count toward EASA SEP/TMG revalidation and LAPL(A) recency, the
   instructor flight does not (FCL.035(a)(4)); German UL recency and passenger recency are
   evaluated per kind (LuftPersV §45, §45a), with SEP(land)/TMG time counting toward
-  three-axis recency. UL sailplane and UL motorglider PIC hours count toward SPL recency
+  three-axis recency. The §45 training flight is one flight of at least an hour with an
+  instructor; §45a counts take-offs and landings. A UL rating with no kind is not evaluated
+  (the pilot is asked to set it), and flights on a UL with no kind count only for a pilot
+  whose UL ratings are all of one kind — otherwise the rating reports them as unclassified.
+  UL sailplane and UL motorglider PIC hours count toward SPL recency
   (AMC1 SFCL.160). Details in [DOMAIN.md](./DOMAIN.md#ultralights).
 - **Gyroplanes (GPL)** — a `GYROPLANE` class rating follows FCL.240.G; ultralight gyroplanes of
   at least 450 kg MTOM count toward its time and landings (FCL.035(a)(5)); passenger carriage

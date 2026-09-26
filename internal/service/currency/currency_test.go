@@ -196,6 +196,9 @@ func (m *mockFlightDataProvider) GetLandingDaysByULKind(ctx context.Context, use
 			if err != nil {
 				return nil, err
 			}
+			for i := range d {
+				d[i].Takeoffs = d[i].DayLandings + d[i].NightLandings
+			}
 			out = append(out, d...)
 			continue
 		}

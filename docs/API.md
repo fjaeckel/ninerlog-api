@@ -476,8 +476,12 @@ than the rating's own class count toward it (EASA LAPL(A) and SEP(land)+TMG pool
 [DOMAIN.md](./DOMAIN.md#credited-classes)); the field is absent otherwise. It carries
 `creditedUltralightKinds` when ultralight flights count too: `THREE_AXIS` /
 `THREE_AXIS_MOTORGLIDER` toward EASA SEP/TMG and LAPL(A) time and landings (FCL.035(a)(4)), or
-the kinds a German `ULTRALIGHT` rating covers. A German ultralight passenger currency entry
-carries `ulKind`, one entry per kind (see [DOMAIN.md](./DOMAIN.md#ultralights)). GYROPLANE
+the kinds a German `ULTRALIGHT` rating covers, and `unclassifiedFlights` when flights on
+ultralights with no kind were not counted. A German ultralight passenger currency entry
+carries `ulKind`, one entry per kind; a UL rating with no kind has none and reports `unknown`
+with `rating.ul_kind_required` (see [DOMAIN.md](./DOMAIN.md#ultralights)). `status` is one of
+`current`, `expiring`, `expired`, `lapsed` (rolling recency not met, licence still valid) and
+`unknown`. GYROPLANE
 ratings follow FCL.240.G, and an SPL TMG rating may carry `rating.sfcl_tmg_exempt`; see
 [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md).
 

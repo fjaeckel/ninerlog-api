@@ -149,13 +149,13 @@ func TestGetLandingDaysByULKind(t *testing.T) {
 	day := time.Date(2025, 3, 2, 0, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta("a.mtom_kg >= $4) AND f.date >= $5")).
 		WithArgs(userID, pq.Array([]string{"SAILPLANE"}), true, 0, since, true).
-		WillReturnRows(sqlmock.NewRows([]string{"date", "day_landings", "night_landings"}).AddRow(day, 3, 0))
+		WillReturnRows(sqlmock.NewRows([]string{"date", "day_landings", "night_landings", "takeoffs"}).AddRow(day, 3, 0, 2))
 
 	got, err := p.GetLandingDaysByULKind(context.Background(), userID, currency.ULSelector{Kinds: []models.ULKind{models.ULKindSailplane}, IncludeUnspecified: true}, true, since)
 	if err != nil {
 		t.Fatalf("GetLandingDaysByULKind: %v", err)
 	}
-	if len(got) != 1 || got[0].DayLandings != 3 || !got[0].Date.Equal(day) {
+	if len(got) != 1 || got[0].DayLandings != 3 || got[0].Takeoffs != 2 || !got[0].Date.Equal(day) {
 		t.Errorf("days = %+v", got)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

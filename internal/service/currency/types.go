@@ -12,7 +12,11 @@ const (
 	StatusCurrent  Status = "current"
 	StatusExpiring Status = "expiring"
 	StatusExpired  Status = "expired"
-	StatusUnknown  Status = "unknown"
+	// StatusLapsed is a rolling recency rule with unmet requirements: the
+	// licence stays valid, its privileges are not exercisable until recency
+	// is restored.
+	StatusLapsed  Status = "lapsed"
+	StatusUnknown Status = "unknown"
 )
 
 // ClassRatingCurrency holds the currency evaluation result for one class rating
@@ -47,6 +51,9 @@ type ClassRatingCurrency struct {
 	// CreditedULKinds lists the ultralight kinds whose flights also count
 	// toward this rating.
 	CreditedULKinds []models.ULKind `json:"creditedUltralightKinds,omitempty"`
+	// UnclassifiedFlights counts flights in the window on ULTRALIGHT aircraft
+	// with no kind that the rule did not count.
+	UnclassifiedFlights int `json:"unclassifiedFlights,omitempty"`
 }
 
 // Progress holds progress metrics toward currency requirements (all times in minutes)
