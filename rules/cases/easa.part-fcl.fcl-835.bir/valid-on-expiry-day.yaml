@@ -1,0 +1,15 @@
+rule: easa.part-fcl.fcl-835.bir
+name: valid-on-expiry-day
+description: "On its expiry date the BIR is still valid."
+covers: [expiry:on, stage:met]
+asOf: 2026-11-01
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: BIR, issued: 2025-11-01 }
+  flights:
+    - { date: 2026-08-10, class: SEP_LAND, minutes: { total: 90, pic: 90, ifr: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, approaches: 2, checkRating: BIR, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: current

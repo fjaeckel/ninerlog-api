@@ -1,0 +1,19 @@
+rule: de.luftpersv.45-2.three-axis
+name: not-applicable
+description: >-
+  Only three-axis ultralight ratings on a German ultralight licence (LBA, DULV, DAeC) are
+  evaluated: not a trike rating, a rating with no kind, an ultralight rating on an EASA or FAA
+  licence, or an SEP rating.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-ws, licenceId: l-ul, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+    - { id: r-none, licenceId: l-ul, class: ULTRALIGHT }
+    - { id: r-easa-ul, licenceId: l-easa, class: ULTRALIGHT, ulKind: THREE_AXIS }
+    - { id: r-faa-ul, licenceId: l-faa, class: ULTRALIGHT, ulKind: THREE_AXIS }
+    - { id: r-sep, licenceId: l-easa, class: SEP_LAND, expires: 2027-01-31 }
+expect: []

@@ -1,0 +1,20 @@
+rule: easa.part-sfcl.sfcl-215.cloud-flying
+name: ir-credit
+description: >-
+  A pilot holding a valid IR on a PPL(A) is fully credited toward the cloud flying recency;
+  the cloud flying privilege is valid on its expiry day.
+covers: [stage:ir_credit, expiry:on]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-ir, licenceId: l-ppl, class: IR, expires: 2027-03-31 }
+  privileges:
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING, expires: 2026-09-15 }
+expect:
+  - subject: { kind: privilege, id: p-cloud }
+    status: current
+    messageKey: privilege.recency_credited
+    messageParams: { date: 2026-09-15 }

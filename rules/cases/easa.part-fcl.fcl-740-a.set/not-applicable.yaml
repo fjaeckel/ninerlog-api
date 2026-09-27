@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-740-a.set
+name: not-applicable
+description: MEP ratings and SET ratings on DULV licences are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-dulv, authority: DAEC, type: UL }
+  ratings:
+    - { id: r-mep, licenceId: l-ppl, class: MEP_LAND, expires: 2026-10-31 }
+    - { id: r-dulv, licenceId: l-dulv, class: SET_LAND, expires: 2026-10-31 }
+expect: []

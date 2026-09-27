@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-055.language-level-5
+name: valid-on-expiry-day
+description: "The endorsement is valid on its expiry date."
+covers: [expiry:on, stage:expiring]
+asOf: 2029-04-15
+record:
+  credentials:
+    - { id: c-lang, type: LANG_ICAO_LEVEL5, issued: 2023-04-15 }
+expect:
+  - subject: { kind: credential, id: c-lang }
+    status: expiring
+    messageParams: { days: 0 }

@@ -1,0 +1,13 @@
+rule: faa.14cfr61.61-23-d.first-class-atp
+name: not-applicable
+description: Without an ATP certificate the first-class ATP duration does not apply (the commercial and private rules do); second-class and EASA medicals are never evaluated here.
+asOf: 2026-08-16
+record:
+  holder: { dateOfBirth: 1980-06-01 }
+  licences:
+    - { id: l-cpl, authority: FAA, type: COMMERCIAL }
+  credentials:
+    - { id: c-1, type: FAA_CLASS1_MEDICAL, issued: 2026-02-10 }
+    - { id: c-2, type: FAA_CLASS2_MEDICAL, issued: 2026-02-10 }
+    - { id: c-easa, type: EASA_CLASS1_MEDICAL, issued: 2026-02-10 }
+expect: []

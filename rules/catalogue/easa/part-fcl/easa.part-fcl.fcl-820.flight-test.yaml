@@ -1,0 +1,18 @@
+id: easa.part-fcl.fcl-820.flight-test
+title: Flight test rating
+authority: easa
+instrument: Part-FCL
+article: FCL.820
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.820
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-820.md
+  quote:
+    - "(a) Holders of a pilot licence for aeroplanes or helicopters shall only act as PIC in category 1 or 2 flight tests, as defined in Part-21, when they hold a flight test rating."
+applies_to: { subject: privilege, privilegeKinds: [FLIGHT_TEST] }
+notes: >-
+  The flight test rating has no validity period or recency requirement; FCL.820 sets privileges and issue prerequisites only. The FCL.740(b) derogation for flight test pilots (renewal of a type rating after 50 hours of test flights) is a renewal path and not modelled.

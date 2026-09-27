@@ -1,0 +1,23 @@
+rule: faa.14cfr61.61-23-c-3.basicmed
+name: current
+description: A BasicMed course in February 2025 and an examination in May 2023, with a valid driver's license, allow PIC under 61.113(i) through 28 February 2027, when the course leaves its 24 calendar months.
+covers: [stage:current, requirement:course:met, requirement:exam:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+  credentials:
+    - { id: c-dl, type: US_DRIVERS_LICENSE, issued: 2022-01-01, expires: 2030-01-01 }
+    - { id: c-bm, type: FAA_BASICMED, issued: 2023-05-01 }
+  events:
+    - { date: 2023-05-01, kind: basicmed_exam }
+    - { date: 2025-02-10, kind: basicmed_course }
+expect:
+  - subject: { kind: credential, id: c-bm, detail: FAA_BASICMED }
+    status: current
+    messageKey: credential.valid
+    messageParams: { date: 2027-02-28 }
+    validUntil: 2027-02-28
+    requirements:
+      course: { current: 1, met: true, validUntil: 2027-02-28 }
+      exam: { current: 1, met: true, validUntil: 2027-05-31 }

@@ -1,0 +1,16 @@
+rule: de.luftpersv.96-4.ul-instructor
+name: expired-day-after
+description: The day after the three years end the rating is expired; renewal is not evaluated.
+covers: [stage:expired, expiry:after]
+asOf: 2027-01-11
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  privileges:
+    - { id: p-fi, licenceId: l-ul, kind: UL_INSTRUCTOR, validFrom: 2024-01-10 }
+expect:
+  - subject: { kind: privilege, id: p-fi }
+    status: expired
+    messageKey: privilege.expired
+    messageParams: { date: "2027-01-10" }
+    expiresOn: 2027-01-10

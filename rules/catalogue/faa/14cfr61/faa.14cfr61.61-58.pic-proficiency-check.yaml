@@ -1,0 +1,23 @@
+id: faa.14cfr61.61-58.pic-proficiency-check
+title: PIC proficiency check for multi-pilot or turbojet aircraft
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.58(a)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.58(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.58
+  file: sources/faa/61.58.md
+  quote:
+    - "(1) Within the preceding 12 calendar months, complete a pilot-in-command proficiency check in an aircraft that is type certificated for more than one required pilot flight crewmember or is turbojet-powered; and"
+    - "(2) Within the preceding 24 calendar months, complete a pilot-in-command proficiency check in the particular type of aircraft in which that person will serve as pilot in command, that is type certificated for more than one required pilot flight crewmember or is turbojet-powered."
+applies_to: { subject: type }
+notes: >-
+  Not supported: the record does not say which type ratings are for aircraft certificated
+  for more than one pilot or turbojet-powered, and applies_to cannot select type-rated
+  ratings (see docs/vocab-requests/faa.md). The checks themselves would be proficiency_check
+  events with a type designator. The grace month either side of the due month (61.58(i)) and
+  the part 91K/121/125/135 exclusions are also not modelled.

@@ -1,0 +1,15 @@
+rule: easa.part-fcl.fcl-740.validity
+name: valid
+description: A type rating with more than 90 days left is valid.
+covers: [stage:valid, expiry:before]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-atpl, authority: EASA, type: ATPL(A) }
+  ratings:
+    - { id: r-type, licenceId: l-atpl, class: OTHER, typeDesignator: A320, expires: 2027-03-31 }
+expect:
+  - subject: { kind: rating, id: r-type, class: OTHER }
+    status: current
+    messageKey: rating.valid_until
+    expiresOn: 2027-03-31

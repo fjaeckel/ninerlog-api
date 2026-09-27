@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-56.flight-review
+name: window-first-day
+description: A review on 1 August 2024 is since the beginning of the 24th calendar month before August 2026; it holds through 31 August 2026.
+covers: [window:edge-in, stage:reviewed]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  events:
+    - { date: 2024-08-01, kind: flight_review, class: SEP_LAND }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: current
+    messageKey: flight_review.current
+    messageParams: { date: 2024-08-01 }
+    validUntil: 2026-08-31

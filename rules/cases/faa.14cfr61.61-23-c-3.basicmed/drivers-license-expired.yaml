@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-23-c-3.basicmed
+name: drivers-license-expired
+description: A driver's license that expired the day before ends BasicMed privileges although course and examination are current.
+covers: [stage:drivers_license_expired]
+asOf: 2026-08-16
+record:
+  credentials:
+    - { id: c-dl, type: US_DRIVERS_LICENSE, expires: 2026-08-15 }
+    - { id: c-bm, type: FAA_BASICMED }
+  events:
+    - { date: 2025-01-10, kind: basicmed_exam }
+    - { date: 2025-01-10, kind: basicmed_course }
+expect:
+  - subject: { kind: credential, id: c-bm }
+    status: lapsed
+    messageKey: credential.drivers_license_expired

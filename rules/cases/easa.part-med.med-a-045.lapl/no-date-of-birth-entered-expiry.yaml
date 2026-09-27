@@ -1,0 +1,12 @@
+rule: easa.part-med.med-a-045.lapl
+name: no-date-of-birth-entered-expiry
+description: "Without a date of birth the entered expiry date is used."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-med, type: EASA_LAPL_MEDICAL, issued: 2026-03-01, expires: 2027-01-31 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    expiresOn: 2027-01-31

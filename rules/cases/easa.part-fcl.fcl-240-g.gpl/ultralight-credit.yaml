@@ -1,0 +1,27 @@
+rule: easa.part-fcl.fcl-240-g.gpl
+name: ultralight-credit
+description: >-
+  Ultralight gyroplane hours with an MTOM of at least 450 kg count toward the 12 hours and
+  the take-offs and landings but not toward the refresher training; a lighter ultralight
+  gyroplane does not count; an ultralight flight with no recorded mass is unknown input.
+covers: [stage:current, unknown:ulCredit, requirement:total_time:met, requirement:refresher:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  flights:
+    - { date: 2026-01-10, class: GYROPLANE, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-02-10, class: ULTRALIGHT, ulKind: GYROPLANE, mtomKg: 560, minutes: { total: 660, pic: 600, dual: 60 }, takeoffs: { day: 10 }, landings: { day: 10 } }
+    - { date: 2026-03-10, class: ULTRALIGHT, ulKind: GYROPLANE, mtomKg: 450, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-04-10, class: ULTRALIGHT, ulKind: GYROPLANE, mtomKg: 449, minutes: { total: 120, pic: 120 }, takeoffs: { day: 4 }, landings: { day: 4 } }
+    - { date: 2026-05-10, class: ULTRALIGHT, ulKind: GYROPLANE, minutes: { total: 45, pic: 45 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: rating, id: r-gyro }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      total_time: { current: 750, met: true, tracked: true }
+      takeoffs_landings: { current: 13, met: true }
+      refresher: { current: 60, met: true }

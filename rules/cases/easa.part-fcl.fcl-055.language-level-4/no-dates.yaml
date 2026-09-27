@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-055.language-level-4
+name: no-dates
+description: "Without an assessment date or an expiry date nothing can be said."
+covers: [stage:no_expiry]
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-lang, type: LANG_ICAO_LEVEL4 }
+expect:
+  - subject: { kind: credential, id: c-lang }
+    status: unknown
+    messageKey: credential.no_expiry_date

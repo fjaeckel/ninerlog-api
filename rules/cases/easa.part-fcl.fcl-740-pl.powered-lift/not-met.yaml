@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-740-pl.powered-lift
+name: not-met
+description: "Without a proficiency check, and with too little flying on the type, the rating is not revalidated."
+covers: [stage:not_met, requirement:proficiency_check:unmet, requirement:sectors:unmet, requirement:examiner_sector:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: POWERED_LIFT, typeDesignator: AW609, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-05-10, class: POWERED_LIFT, typeDesignator: AW609, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+expect:
+  - subject: { kind: rating, id: r-type, class: POWERED_LIFT }
+    status: expiring
+    messageKey: rating.revalidation_not_met_prof_check
+    requirements:
+      proficiency_check: { current: 0, met: false, remedyKey: remedy.proficiency_check }
+      sectors: { current: 1, met: false, remedyParams: { missing: 9, unit: sectors } }

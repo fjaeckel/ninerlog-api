@@ -1,0 +1,19 @@
+id: easa.part-bfcl.bfcl-360.fi-b
+title: FI(B) certificate recency
+authority: easa
+instrument: Part-BFCL
+article: BFCL.360
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA BFCL.360
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
+  file: sources/easa/bfcl-360.md
+  quote:
+    - "(a) An FI(B) certificate holder shall only exercise the privileges of his or her certificate if he or she has completed:"
+    - "(ii) at least 6 hours of flight instruction in balloons as FI(B); and"
+applies_to: { subject: privilege, privilegeKinds: [FI], licenceKinds: [BPL] }
+notes: >-
+  Balloons are not in the app: NinerLog records no balloon flights, no balloon class (hot-air, gas, mixed, hot-air airship) and no hot-air balloon group (A to D), so a rule could not tell which class or group a flight or check belongs to. Without balloon flights there is no instruction time to count.

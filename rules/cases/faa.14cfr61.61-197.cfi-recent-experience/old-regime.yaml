@@ -1,0 +1,20 @@
+rule: faa.14cfr61.61-197.cfi-recent-experience
+name: old-regime
+description: Certificates carrying an expiration date were issued before 1 December 2024 and follow faa.14cfr61.61-19-d.cfi-expiry, whether before, on or after their expiry date.
+covers: [stage:old_regime, expiry:before, expiry:on, expiry:after]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-before, licenceId: l-faa, kind: CFI, issued: 2024-11-20, expires: 2026-11-30 }
+    - { id: p-on, licenceId: l-faa, kind: CFI, issued: 2024-08-02, expires: 2026-08-16 }
+    - { id: p-after, licenceId: l-faa, kind: CFI, issued: 2024-07-02, expires: 2026-07-31 }
+expect:
+  - subject: { kind: privilege, id: p-before }
+    status: not_applicable
+    messageKey: privilege.not_applicable
+  - subject: { kind: privilege, id: p-on }
+    status: not_applicable
+  - subject: { kind: privilege, id: p-after }
+    status: not_applicable

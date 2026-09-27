@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-101-g.recreational-recency
+name: recent-pic
+description: A recreational pilot with 120 hours who logged PIC time on 17 February, the 180th day before 16 August, may still act as PIC that day.
+covers: [stage:current, requirement:recent_pic:met, any_of:recency:recent_pic, requirement:experienced:unmet, window:edge-in]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-rec, authority: FAA, type: RECREATIONAL }
+  flights:
+    - { date: 2024-06-01, class: SEP_LAND, minutes: { total: 7140, pic: 7140 } }
+    - { date: 2026-02-17, class: SEP_LAND, minutes: { total: 60, pic: 60 } }
+expect:
+  - subject: { kind: licence, id: l-rec }
+    status: current
+    messageKey: licence.recency_current
+    validUntil: 2026-08-16
+    requirements:
+      experienced: { current: 7200, required: 24000, met: false }
+      recent_pic: { current: 60, met: true }

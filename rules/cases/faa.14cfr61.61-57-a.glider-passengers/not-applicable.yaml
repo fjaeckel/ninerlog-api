@@ -1,0 +1,14 @@
+rule: faa.14cfr61.61-57-a.glider-passengers
+name: not-applicable
+description: Powered classes, also on a certificate of type GLIDER, are evaluated by the powered rule; a student glider pilot may not carry passengers; an EASA glider rating follows Part-SFCL.
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-glider, authority: FAA, type: GLIDER }
+    - { id: l-student, authority: FAA, type: STUDENT }
+    - { id: l-easa, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-glider, class: SEP_LAND }
+    - { id: r-student-glider, licenceId: l-student, class: GLIDER }
+    - { id: r-easa-glider, licenceId: l-easa, class: GLIDER }
+expect: []

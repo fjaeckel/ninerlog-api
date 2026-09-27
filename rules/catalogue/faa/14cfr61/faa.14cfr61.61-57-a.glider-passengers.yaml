@@ -1,0 +1,77 @@
+id: faa.14cfr61.61-57-a.glider-passengers
+title: Passenger recency, launches and landings (gliders)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.57(a)(1)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.57(a)(1)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+  file: sources/faa/61.57.md
+  quote:
+    - "no person may act as a pilot in command of an aircraft carrying persons or of an aircraft certificated for more than one pilot flight crewmember unless that person has made at least three takeoffs and three landings within the preceding 90 days, and—"
+    - "(i) The person acted as the sole manipulator of the flight controls; and"
+    - "(ii) The required takeoffs and landings were performed in an aircraft of the same category, class, and type (if a class or type rating is required)"
+citations: [14 CFR 61.57(a)(1)]
+
+applies_to:
+  subject: passengers
+  authorities: [FAA]
+  classes: [GLIDER]
+  excludeLicenceKinds: [FAA_STUDENT]
+
+window: { rolling_days: 90 }
+
+requirements:
+  all_of:
+    - id: launches
+      metric: launches
+      min: 3
+      unit: launches
+      nameKey: requirement.launches
+      remedyKey: remedy.fly_more
+      filter: &glider { classes: [$subject], soleManipulator: true }
+    - id: landings
+      metric: landings.total
+      min: 3
+      unit: landings
+      nameKey: requirement.landings
+      remedyKey: remedy.fly_more
+      filter: *glider
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: pax.day_current }
+  - { id: not_logged, when: undetermined, status: unknown, messageKey: pax.experience_not_logged }
+  - { id: landings_short, when: { unmet: landings }, status: lapsed, messageKey: pax.not_current, params: { needed: { needed: landings } } }
+  - { id: launches_short, when: always, status: lapsed, messageKey: pax.not_current, params: { needed: { needed: launches } } }
+
+ruleDescriptionKey: faa_glider
+
+divergences:
+  - id: launches
+    api: Counts landings only.
+    article: At least three takeoffs and three landings; for a glider every launch is its takeoff, so three launches and three landings are needed.
+    cite: 14 CFR 61.57(a)(1)
+  - id: sole-manipulator
+    api: Counts landings on glider flights with PIC time.
+    article: Only launches and landings made as sole manipulator of the flight controls count; PIC time is not the same thing. When no flight in the window records it, passenger recency is unknown, never current.
+    cite: 14 CFR 61.57(a)(1)(i)
+  - id: glider-licence-classes
+    api: Treats every class on a licence of type GLIDER as a glider (PIC-only counting, towed launches included).
+    article: The requirement follows the category and class of the aircraft; a powered class on any certificate is evaluated by faa.14cfr61.61-57-a.passengers.
+    cite: 14 CFR 61.57(a)(1)(ii)
+  - id: status-lapsed
+    api: Reports unmet passenger recency as expired.
+    article: Passenger recency is rolling recent experience; the certificate and rating stay valid, so the status is lapsed.
+    cite: 14 CFR 61.57(a)(1)
+
+notes: >-
+  Partial: the same limits as faa.14cfr61.61-57-a.passengers (no type distinction, no
+  simulator credit, no (e) exceptions). Launches of every method count (winch, aerotow,
+  self-launch, ...); a glider launch is the glider's takeoff. Night passenger recency for
+  gliders (61.57(b)) is not evaluated: NinerLog records no night glider operations, as the
+  API did not either. The 61.56 flight review is evaluated once per pilot by
+  faa.14cfr61.61-56.flight-review.

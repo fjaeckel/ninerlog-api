@@ -1,0 +1,18 @@
+rule: faa.14cfr61.61-69.towing
+name: tow-kind-not-recorded
+description: Accompanied tow flights that do not say what they towed cannot be counted; with nothing else to go on the status is unknown.
+covers: [unknown:towKinds, stage:not_logged]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  privileges:
+    - { id: p-tow, licenceId: l-faa, kind: SAILPLANE_TOWING }
+  flights:
+    - { date: 2026-06-10, class: SEP_LAND, minutes: { total: 60, pic: 60 }, towedGliders: 3, flags: { towFlight: true, accompanied: true } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: unknown
+    messageKey: privilege.recency_not_logged
+    requirements:
+      tows_accompanied: { tracked: false, met: false }

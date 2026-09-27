@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.lapl
+name: entered-date-earlier
+description: "An entered expiry date earlier than the derived one is used."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_LAPL_MEDICAL, issued: 2026-03-01, expires: 2026-12-31 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    expiresOn: 2026-12-31

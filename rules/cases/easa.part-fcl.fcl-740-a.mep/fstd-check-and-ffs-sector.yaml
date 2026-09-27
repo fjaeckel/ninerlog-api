@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-740-a.mep
+name: fstd-check-and-ffs-sector
+description: A proficiency check in an FNPT counts toward (a)(1); a route sector with an examiner counts in an FFS but not in an FNPT.
+covers: [requirement:examiner_sector:met, requirement:proficiency_check:met, stage:met_expiring]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-mep, licenceId: l-ppl, class: MEP_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-08-20, class: MEP_LAND, isSimulator: true, fstdType: FNPT, minutes: { total: 60 }, cruiseMinutes: 20, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+    - { date: 2026-08-21, class: MEP_LAND, isSimulator: true, fstdType: FFS, minutes: { total: 60 }, cruiseMinutes: 20, flags: { examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-mep }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    requirements:
+      proficiency_check: { current: 1, met: true, lastDate: 2026-08-20 }
+      sectors: { current: 0, met: false }
+      examiner_sector: { current: 1, met: true, lastDate: 2026-08-21 }

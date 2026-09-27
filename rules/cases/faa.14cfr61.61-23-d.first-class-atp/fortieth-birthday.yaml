@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-23-d.first-class-atp
+name: fortieth-birthday
+description: The age counts on the examination date. A pilot examined on the day they turn 40 gets 6 months for ATP privileges (through 30 September); one examined the day before their 40th birthday gets 12 months (through 31 March 2027).
+covers: [stage:expiring, stage:valid, expiry:before]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1986-03-15 }
+  licences:
+    - { id: l-atp, authority: FAA, type: ATP }
+  credentials:
+    - { id: c-at-40, type: FAA_CLASS1_MEDICAL, issued: 2026-03-15 }
+    - { id: c-at-39, type: FAA_CLASS1_MEDICAL, issued: 2026-03-14 }
+expect:
+  - subject: { kind: credential, id: c-at-40 }
+    status: expiring
+    messageKey: credential.expiring
+    messageParams: { days: 15, date: 2026-09-30 }
+    expiresOn: 2026-09-30
+  - subject: { kind: credential, id: c-at-39 }
+    status: current
+    expiresOn: 2027-03-31

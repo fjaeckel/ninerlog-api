@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-57-a.glider-passengers
+name: window-edges
+description: The flight on 18 May (the 90th day before 16 August) counts; the two on 17 May do not.
+covers: [window:edge-in, window:edge-out, stage:landings_short]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+  flights:
+    - { date: 2026-05-17, class: GLIDER, launchMethod: winch, minutes: { total: 20, pic: 20 }, launches: 2, landings: { day: 2 }, soleManipulator: true }
+    - { date: 2026-05-18, class: GLIDER, launchMethod: winch, minutes: { total: 20, pic: 20 }, launches: 1, landings: { day: 1 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: GLIDER }
+    status: lapsed
+    messageKey: pax.not_current
+    messageParams: { needed: 2 }
+    requirements:
+      launches: { current: 1 }
+      landings: { current: 1 }

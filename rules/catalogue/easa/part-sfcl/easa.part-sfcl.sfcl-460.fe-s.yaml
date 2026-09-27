@@ -1,0 +1,75 @@
+id: easa.part-sfcl.sfcl-460.fe-s
+title: FE(S) certificate validity and revalidation
+authority: easa
+instrument: Part-SFCL
+article: SFCL.460(a), (b)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.460
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-460.md
+  quote:
+    - "(a) An FE(S) certificate shall be valid for five years."
+    - "(b) An FE(S) certificate shall be revalidated if its holder has:"
+    - "(1) during the validity period of the FE(S) certificate, completed an examiner refresher course which is provided either by the competent authority or by an ATO or a DTO and approved by that competent authority, during which the holder shall receive theoretical knowledge instruction for refreshing and updating the knowledge relevant for sailplane examiners;"
+    - "(2) within the last 24 months preceding the end of the validity period of the certificate, demonstrated the ability to conduct skill tests, proficiency checks or assessments of competence to an inspector from the competent authority or an examiner specifically authorised to do so by the competent authority that is responsible for the FE(S) certificate."
+citations: [EASA SFCL.460(a), EASA SFCL.460(b)(1), EASA SFCL.460(b)(2)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [FE_S]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+validity:
+  from: valid_from
+  periods:
+    - { months: 60 }
+
+requirements:
+  all_of:
+    - id: refresher
+      metric: events
+      window: { validity_period: true }
+      filter: { eventKinds: [examiner_refresher] }
+      min: 1
+      unit: training
+      nameKey: requirement.examiner_refresher
+      remedyKey: remedy.refresher_training
+    - id: demonstration
+      metric: events
+      window: { before_expiry_months: 24 }
+      filter: { eventKinds: [assessment_of_competence] }
+      min: 1
+      unit: check
+      nameKey: requirement.assessment_of_competence
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: privilege.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: met, when: all_met, status: current, messageKey: privilege.revalidation_current, params: { date: expiry_date } }
+  - { id: not_met, when: always, status: expiring, messageKey: privilege.revalidation_not_met, params: { date: expiry_date } }
+
+ruleDescriptionKey: privilege_expiry
+
+divergences:
+  - id: five-year-validity
+    api: Uses only a recorded expiry date; without one the FE(S) certificate never expires.
+    article: An FE(S) certificate is valid for five years; the catalogue derives the expiry from the validity start (or issue date) and uses the earlier of that and a recorded date.
+    cite: EASA SFCL.460(a)
+  - id: revalidation
+    api: Reports the FE(S) certificate valid until its expiry date with no revalidation requirements.
+    article: Revalidation needs an examiner refresher course during the validity period and a demonstration to an inspector or authorised examiner within the 24 months before the end of the validity period.
+    cite: EASA SFCL.460(b)
+
+notes: >-
+  The certificate's validity runs from its validFrom date (else its issue date) for five
+  years, or to a recorded earlier expiry date; without either date the expiry is unknown.
+  The refresher course is an examiner_refresher event within the validity period; the
+  demonstration of (b)(2) is recorded as an assessment_of_competence event within the 24
+  months before the expiry date. While both are outstanding the certificate is still
+  valid (status expiring, privilege.revalidation_not_met). Renewal after expiry (d),
+  combined revalidation with other examiner certificates (c) and the SFCL.410/420
+  conditions of (e) are not evaluated. A certificate is valid through its expiry date.

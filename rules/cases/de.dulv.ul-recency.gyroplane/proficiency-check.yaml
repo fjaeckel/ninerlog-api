@@ -1,0 +1,19 @@
+rule: de.dulv.ul-recency.gyroplane
+name: proficiency-check
+description: A proficiency check in a Part-FCL gyroplane replaces the experience, as in the API.
+covers: [stage:current, any_of:recency:proficiency_check, requirement:proficiency_check:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DAeC, type: UL }
+  ratings:
+    - { id: r-gyro, licenceId: l-ul, class: ULTRALIGHT, ulKind: GYROPLANE }
+  flights:
+    - { date: 2025-10-01, class: GYROPLANE, minutes: { total: 60, pic: 60 }, landings: { day: 3 }, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, id: r-gyro }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2027-10-01
+    requirements:
+      proficiency_check: { current: 1, met: true }

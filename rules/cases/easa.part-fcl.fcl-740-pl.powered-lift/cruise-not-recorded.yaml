@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-740-pl.powered-lift
+name: cruise-not-recorded
+description: "Without a recorded cruise time the route sectors cannot be counted, and an examiner sector in an FSTD of unknown type is unknown."
+covers: [unknown:route_sectors, unknown:fstdTypes, stage:undetermined]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: POWERED_LIFT, typeDesignator: AW609, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-05-10, class: POWERED_LIFT, typeDesignator: AW609, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-20, class: POWERED_LIFT, typeDesignator: AW609, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true } }
+    - { date: 2026-08-21, class: POWERED_LIFT, typeDesignator: AW609, isSimulator: true, minutes: { total: 60 }, cruiseMinutes: 20, flags: { examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-type, class: POWERED_LIFT }
+    status: unknown
+    messageKey: rating.type_not_identifiable
+    requirements:
+      sectors: { tracked: false }
+      examiner_sector: { tracked: false }

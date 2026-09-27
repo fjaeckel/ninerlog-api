@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-56.flight-review
+name: wings-phase
+description: Completing a phase of the FAA WINGS proficiency program in January 2026 replaces the flight review.
+covers: [stage:program_substitute, requirement:proficiency_program:met, any_of:review:proficiency_program]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  events:
+    - { date: 2026-01-20, kind: proficiency_program_phase }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: current
+    messageKey: flight_review.substituted
+    messageParams: { date: 2026-01-20 }
+    validUntil: 2028-01-31

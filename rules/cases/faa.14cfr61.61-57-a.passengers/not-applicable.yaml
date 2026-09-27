@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-57-a.passengers
+name: not-applicable
+description: Student pilots may not carry passengers; EASA licences, instrument ratings, gliders (a separate rule) and ultralights are not evaluated here.
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-student, authority: FAA, type: STUDENT }
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-student-sep, licenceId: l-student, class: SEP_LAND }
+    - { id: r-easa-sep, licenceId: l-easa, class: SEP_LAND }
+    - { id: r-ir, licenceId: l-faa, class: IR }
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+    - { id: r-ul, licenceId: l-faa, class: ULTRALIGHT }
+expect: []

@@ -1,0 +1,19 @@
+id: easa.part-fcl.fcl-940-sfi.revalidation
+title: SFI certificate revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.940.SFI(a)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940.SFI(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940-sfi.md
+  quote:
+    - "To revalidate an SFI certificate, applicants shall fulfil, before the expiry date of the SFI certificate, at least two out of the following three requirements:"
+    - "(1) have completed at least 50 hours as instructors or examiners in FSTDs, of which at least 15 hours in the period of 12 months immediately preceding the expiry date of the SFI certificate;"
+applies_to: { subject: privilege, privilegeKinds: [SFI] }
+notes: >-
+  Hours as instructor or examiner in FSTDs are not recorded separately from the pilot's own FSTD sessions in a way NinerLog can rely on, and (b), the FFS proficiency checks for every type held, needs per-type data. The 3-year validity (FCL.940) is evaluated by easa.part-fcl.fcl-940.validity.

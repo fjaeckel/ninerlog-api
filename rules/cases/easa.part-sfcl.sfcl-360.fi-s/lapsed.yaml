@@ -1,0 +1,28 @@
+rule: easa.part-sfcl.sfcl-360.fi-s
+name: lapsed
+description: >-
+  Refresher training the day before the 3-year window, a supervised instruction flight the
+  day before the 9-year window and 10 hours of instruction leave the certificate lapsed;
+  instruction in an aeroplane does not count.
+covers: [stage:lapsed, requirement:refresher:unmet, requirement:instruction_time:unmet, requirement:instruction_launches:unmet, requirement:resumption_assessment:unmet, requirement:demonstration:unmet, window:rolling_months=36:edge-out, window:rolling_months=108:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fis, licenceId: l-spl, kind: FI_S }
+  events:
+    - { date: 2023-09-14, kind: instructor_refresher }
+    - { date: 2017-09-14, kind: supervised_instruction }
+  flights:
+    - { date: 2026-03-01, class: GLIDER, launchMethod: aerotow, minutes: { total: 600, pic: 600, dualGiven: 600 }, launches: 8, landings: { day: 8 } }
+    - { date: 2026-03-02, class: SEP_LAND, minutes: { total: 1800, pic: 1800, dualGiven: 1800 }, takeoffs: { day: 60 }, landings: { day: 60 } }
+expect:
+  - subject: { kind: privilege, id: p-fis }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+    requirements:
+      refresher: { current: 0, met: false, remedyKey: remedy.refresher_training }
+      instruction_time: { current: 600, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 1200, unit: minutes } }
+      instruction_launches: { current: 8, met: false, remedyParams: { missing: 52, unit: launches } }
+      demonstration: { current: 0, met: false }

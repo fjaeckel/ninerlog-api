@@ -1,0 +1,28 @@
+rule: easa.part-sfcl.sfcl-160-a.sailplane
+name: experience-current
+description: >-
+  Five hours as PIC, dual or supervised solo with 15 launches and two training flights in
+  the last 24 months keep the glider rating current; a flight on the window's first day
+  counts, and TMG hours count toward the 5 hours.
+covers: [stage:current, any_of:recency:experience, requirement:flight_time:met, requirement:launches:met, requirement:training_flights:met, requirement:proficiency_check:unmet, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+  flights:
+    - { date: 2024-09-15, class: GLIDER, launchMethod: winch, minutes: { total: 20, dual: 20 }, launches: 1, landings: { day: 1 } }
+    - { date: 2025-05-10, class: GLIDER, launchMethod: winch, minutes: { total: 10, dual: 10 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-06-01, class: GLIDER, launchMethod: winch, minutes: { total: 90, spic: 90 }, launches: 6, landings: { day: 6 } }
+    - { date: 2026-07-01, class: GLIDER, launchMethod: aerotow, minutes: { total: 120, pic: 120 }, launches: 7, landings: { day: 7 } }
+    - { date: 2026-08-01, class: TMG, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, launches: 3 }
+expect:
+  - subject: { kind: rating, id: r-gld, class: GLIDER }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      flight_time: { current: 300, required: 300, met: true }
+      launches: { current: 15, required: 15, met: true }
+      training_flights: { current: 2, required: 2, met: true }
+      proficiency_check: { current: 0, met: false, remedyKey: remedy.proficiency_check }

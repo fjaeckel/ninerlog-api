@@ -1,0 +1,16 @@
+rule: easa.part-sfcl.sfcl-160-b.tmg
+name: not-applicable
+description: >-
+  A TMG rating on a PPL(A) follows FCL.740.A, one on an FAA certificate follows 14 CFR 61;
+  a GLIDER rating on an SPL follows SFCL.160(a).
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-ppl, licenceId: l-ppl, class: TMG, expires: 2027-01-31 }
+    - { id: r-faa, licenceId: l-faa, class: TMG }
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+expect: []

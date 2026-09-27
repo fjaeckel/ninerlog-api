@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-19-d.cfi-expiry
+name: expiring-renewal-window
+description: 76 days before the certificate expires the instructor is in the renewal period and is reminded to renew under 61.197(e).
+covers: [stage:expiring, expiry:before]
+asOf: 2026-04-15
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-cfi, licenceId: l-faa, kind: CFI, issued: 2024-06-10, expires: 2026-06-30 }
+expect:
+  - subject: { kind: privilege, id: p-cfi }
+    status: expiring
+    messageKey: privilege.expiring
+    messageParams: { days: 76, date: 2026-06-30 }
+    expiresOn: 2026-06-30

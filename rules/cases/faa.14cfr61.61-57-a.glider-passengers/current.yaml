@@ -1,0 +1,23 @@
+rule: faa.14cfr61.61-57-a.glider-passengers
+name: current
+description: Three winch launches and three landings flown solo in a glider allow passengers; the instructor-flown dual flight does not add to them.
+covers: [stage:current, requirement:launches:met, requirement:landings:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+  flights:
+    - { date: 2026-07-04, class: GLIDER, launchMethod: winch, minutes: { total: 20, pic: 20 }, launches: 1, landings: { day: 1 }, soleManipulator: true }
+    - { date: 2026-07-04, class: GLIDER, launchMethod: winch, minutes: { total: 25, pic: 25 }, launches: 1, landings: { day: 1 }, soleManipulator: true }
+    - { date: 2026-07-05, class: GLIDER, launchMethod: aerotow, minutes: { total: 90, pic: 90 }, launches: 1, landings: { day: 1 }, soleManipulator: true }
+    - { date: 2026-07-06, class: GLIDER, launchMethod: aerotow, minutes: { total: 40, dual: 40 }, launches: 1, landings: { day: 1 }, soleManipulator: false }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: GLIDER }
+    status: current
+    messageKey: pax.day_current
+    validUntil: 2026-10-02
+    requirements:
+      launches: { current: 3, required: 3, met: true }
+      landings: { current: 3, required: 3, met: true }

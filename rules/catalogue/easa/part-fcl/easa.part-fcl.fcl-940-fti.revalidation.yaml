@@ -1,0 +1,20 @@
+id: easa.part-fcl.fcl-940-fti.revalidation
+title: FTI certificate revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.940.FTI(a)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940.FTI(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940-fti.md
+  quote:
+    - "(a) Revalidation. For revalidation of an FTI certificate, the applicant shall, within the validity period of the FTI certificate, fulfil one of the following requirements:"
+    - "(i) 50 hours of flight tests, of which at least 15 hours shall be within the 12 months preceding the expiry date of the FTI certificate; and"
+    - "(ii) 5 hours of flight test flight instruction within the 12 months preceding the expiry date of the FTI certificate; or"
+applies_to: { subject: privilege, privilegeKinds: [FTI] }
+notes: >-
+  Flight-test time and flight-test instruction are not recorded as such. The 3-year validity (FCL.940) is evaluated by easa.part-fcl.fcl-940.validity.

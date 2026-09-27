@@ -1,0 +1,16 @@
+rule: easa.part-fcl.fcl-625-h.ir
+name: not-applicable
+description: An IR on an aeroplane licence follows FCL.625.A; FAA and DULV IRs and type ratings are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-other, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-dulv, authority: DULV, type: UL }
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-other, licenceId: l-other, class: IR, expires: 2026-10-31 }
+    - { id: r-faa, licenceId: l-faa, class: IR }
+    - { id: r-dulv, licenceId: l-dulv, class: IR, expires: 2026-10-31 }
+    - { id: r-sep, licenceId: l-1, class: HELICOPTER, expires: 2026-10-31 }
+expect: []

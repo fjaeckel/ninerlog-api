@@ -1,0 +1,25 @@
+rule: easa.part-sfcl.sfcl-160-e-2.tmg-passengers
+name: day-only-night-not-met
+description: >-
+  With a TMG night rating but no take-off or landing at night as PIC in the last 90 days,
+  day passengers are allowed and night passengers are not; a night dual flight does not count.
+covers: [stage:day_only, requirement:night_takeoffs:unmet, requirement:night_landings:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  privileges:
+    - { id: p-night, licenceId: l-spl, kind: TMG_NIGHT }
+  flights:
+    - { date: 2026-08-01, class: TMG, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, launches: 3 }
+    - { date: 2026-08-10, class: TMG, minutes: { total: 60, dual: 60, night: 60 }, takeoffs: { night: 2 }, landings: { night: 2 }, launches: 2 }
+expect:
+  - subject: { kind: passengers, id: l-spl, class: TMG }
+    status: current
+    messageKey: pax.day_current_night_not
+    messageParams: { needed: 1 }
+    requirements:
+      night_takeoffs: { current: 0, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 1, unit: takeoffs } }
+      night_landings: { current: 0, met: false }

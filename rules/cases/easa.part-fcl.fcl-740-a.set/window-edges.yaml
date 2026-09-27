@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-740-a.set
+name: window-edges
+description: A check on 31 July, 3 months before the 31 October expiry, counts; one on 30 July does not.
+covers: [window:edge-in, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-set, licenceId: l-ppl, class: SET_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-07-30, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+    - { date: 2026-07-31, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-set }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    requirements:
+      proficiency_check: { current: 1, lastDate: 2026-07-31 }

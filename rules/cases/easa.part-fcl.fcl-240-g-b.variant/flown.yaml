@@ -1,0 +1,26 @@
+rule: easa.part-fcl.fcl-240-g-b.variant
+name: flown
+description: A flight in the variant on the first day of the 2-year window keeps it current; flights in another variant do not count for it.
+covers: [stage:current, any_of:variant:variant_flown, requirement:variant_flown:met, requirement:differences_training:unmet, requirement:proficiency_check:unmet, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  variants:
+    - { id: v-electric, ratingId: r-gyro, name: SPG-ELECTRIC }
+    - { id: v-piston, ratingId: r-gyro, name: SPG-PISTON }
+  flights:
+    - { date: 2024-09-15, class: GYROPLANE, variant: SPG-ELECTRIC, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-06-01, class: GYROPLANE, variant: SPG-PISTON, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: type, id: v-electric, detail: SPG-ELECTRIC }
+    status: current
+    messageKey: type.current
+    validUntil: 2026-09-15
+    requirements:
+      variant_flown: { current: 1, met: true }
+  - subject: { kind: type, id: v-piston, detail: SPG-PISTON }
+    status: current
+    messageKey: type.current

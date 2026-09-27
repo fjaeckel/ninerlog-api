@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-105-a.lapl-passengers
+name: not-met
+description: "Dual time and ultralight hours do not count; 5 hours as PIC leave 5 hours to fly."
+covers: [stage:not_met, requirement:pic_since_issue:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A), issued: 2025-04-01 }
+  ratings:
+    - { id: r-sep, licenceId: l-lapl, class: SEP_LAND }
+  flights:
+    - { date: 2025-06-01, class: SEP_LAND, minutes: { total: 300, pic: 300, dual: 0 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2025-07-01, class: SEP_LAND, minutes: { total: 600, pic: 0, dual: 600 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2025-08-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 300, pic: 300 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: passengers, id: l-lapl, class: SEP_LAND }
+    status: expired
+    messageKey: pax.prerequisite_not_met
+    messageParams: { needed: 300 }
+    requirements:
+      pic_since_issue: { current: 300, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 300, unit: minutes } }

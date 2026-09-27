@@ -1,0 +1,19 @@
+id: easa.part-fcl.fcl-065.age-limits
+title: Age limits for commercial air transport
+authority: easa
+instrument: Part-FCL
+article: FCL.065
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.065
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-065.md
+  quote:
+    - "(a) Age 60–64. Aeroplanes and helicopters. The holder of a pilot licence who has attained the age of 60 years shall not act as a pilot of an aircraft engaged in commercial air transport except as a member of a multi-pilot crew."
+    - "(b) Age 65. Holders of a pilot licence who has attained the age of 65 years shall not act as a pilot of an aircraft that is engaged in commercial air transport."
+applies_to: { subject: licence, licenceKinds: [CPL_A, ATPL_A, MPL, HELICOPTER] }
+notes: >-
+  The record has the holder's date of birth but not whether a flight or a job is commercial air transport, single-pilot or multi-pilot, or a HEMS operation; the limits cannot be applied. A caller that knows the pilot flies commercial air transport could compare the age with 60 and 65.

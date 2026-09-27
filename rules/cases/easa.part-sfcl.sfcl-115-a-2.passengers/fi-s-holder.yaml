@@ -1,0 +1,16 @@
+rule: easa.part-sfcl.sfcl-115-a-2.passengers
+name: fi-s-holder
+description: An FI(S) certificate holder meets the prerequisite without the hours or launches.
+covers: [stage:instructor]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL, issued: 2026-01-10 }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+  privileges:
+    - { id: p-fis, licenceId: l-spl, kind: FI_S, expires: 2027-12-31 }
+expect:
+  - subject: { kind: passengers, id: l-spl, class: GLIDER }
+    status: current
+    messageKey: pax.prerequisite_met

@@ -1,0 +1,19 @@
+id: faa.14cfr61.61-53.medical-deficiency
+title: Prohibition on operations during medical deficiency
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.53"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.53(b)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.53
+  file: sources/faa/61.53.md
+  quote:
+    - "For operations provided for in § 61.23(b) of this part, a person shall not act as pilot in command, or in any other capacity as a required pilot flight crewmember, while that person knows or has reason to know of any medical condition that would make the person unable to operate the aircraft in a safe manner."
+applies_to: { subject: credential, credentialTypes: [FAA_CLASS1_MEDICAL, FAA_CLASS2_MEDICAL, FAA_CLASS3_MEDICAL, FAA_BASICMED] }
+notes: >-
+  Not supported: a self-assessment by the pilot on the day of the flight; nothing in the
+  record can show it.

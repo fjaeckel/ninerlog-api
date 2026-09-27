@@ -1,0 +1,17 @@
+rule: faa.14cfr61.61-57-a.passengers
+name: simulator-not-counted
+description: Landings in a full flight simulator count only under an approved part 142 course, which the record cannot show; a helicopter pilot with only simulator landings is not current.
+covers: [stage:not_current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-heli, licenceId: l-faa, class: HELICOPTER }
+  flights:
+    - { date: 2026-08-10, class: HELICOPTER, isSimulator: true, fstdType: FFS, minutes: { total: 120 }, takeoffs: { day: 6 }, landings: { day: 6 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: HELICOPTER }
+    status: lapsed
+    messageKey: pax.not_current
+    messageParams: { needed: 3 }

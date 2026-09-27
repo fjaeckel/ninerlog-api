@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: roles-and-takeoffs
+description: Co-pilot and PICUS time do not count toward the 12 hours, and 12 landings with only 8 take-offs are 8 take-offs and landings.
+covers: [requirement:flight_time:unmet, requirement:takeoffs_landings:unmet, stage:lapsed]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-land, licenceId: l-lapl, class: SEP_LAND }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 720, pic: 300, sic: 300, dual: 60, picus: 60 }, takeoffs: { day: 8 }, landings: { day: 12 } }
+expect:
+  - subject: { kind: rating, id: r-land }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 360, met: false }
+      takeoffs_landings: { current: 8, met: false }
+      refresher_training: { current: 60, met: true }

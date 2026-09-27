@@ -1,0 +1,20 @@
+id: easa.part-fcl.fcl-940-sti.revalidation
+title: STI certificate revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.940.STI(a)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940.STI(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940-sti.md
+  quote:
+    - "To revalidate an STI certificate, applicants shall, within the period of 12 months immediately preceding the expiry date of the STI certificate, comply with all of the following conditions:"
+    - "(1) have conducted at least 3 hours of flight instruction in an FSTD, as part of a complete CPL, IR, PPL or class or type rating course;"
+    - "(2) have passed in the FSTD on which flight instruction is conducted, the applicable sections of the proficiency check in accordance with Appendix 9 to this Annex for the appropriate class or type of aircraft."
+applies_to: { subject: privilege, privilegeKinds: [STI] }
+notes: >-
+  Instruction given in an FSTD as part of a complete licence or rating course, and a check passed on the same FSTD, are not identifiable in the record. The 3-year validity (FCL.940) is evaluated by easa.part-fcl.fcl-940.validity.

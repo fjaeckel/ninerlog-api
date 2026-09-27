@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-060-b.night-passengers
+name: night-current
+description: One take-off and one landing at night as pilot flying within 90 days allow carrying passengers at night.
+covers: [stage:current, requirement:night_takeoffs:met, requirement:night_landings:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  flights:
+    - { date: 2026-08-20, class: SEP_LAND, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 1 }, landings: { night: 1 }, pilotFlying: true }
+expect:
+  - subject: { kind: passengers, id: l-ppl, class: SEP_LAND }
+    status: current
+    messageKey: pax.night_current
+    validUntil: 2026-11-18
+    requirements:
+      night_takeoffs: { current: 1, met: true }
+      night_landings: { current: 1, met: true }

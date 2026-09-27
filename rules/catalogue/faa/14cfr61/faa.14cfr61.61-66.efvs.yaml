@@ -1,0 +1,21 @@
+id: faa.14cfr61.61-66.efvs
+title: Enhanced flight vision system recent experience
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.66(d), (e)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.66(d)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.66
+  file: sources/faa/61.66.md
+  quote:
+    - "(1) One approach must terminate in a full stop landing; and"
+applies_to: { subject: privilege, privilegeKinds: [EFVS], authorities: [FAA] }
+notes: >-
+  Not supported: 61.66(d) needs six instrument approaches flown using EFVS as sole
+  manipulator within the 6 calendar months before the month of the flight, one to a full
+  stop, and (e) an EFVS refresher course after more than six further months. The record does
+  not mark approaches as flown with EFVS, so the approaches cannot be counted.

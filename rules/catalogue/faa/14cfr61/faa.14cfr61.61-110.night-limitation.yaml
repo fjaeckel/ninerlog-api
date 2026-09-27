@@ -1,0 +1,21 @@
+id: faa.14cfr61.61-110.night-limitation
+title: Night flying exceptions and the night flying prohibited limitation
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.110"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.110(b)(2)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.110
+  file: sources/faa/61.110.md
+  quote:
+    - "At the end of that period, the certificate will become invalid for use until the person complies with the appropriate night training requirements of this subpart."
+applies_to: { subject: licence, authorities: [FAA] }
+notes: >-
+  Not supported: the record has no "Night flying prohibited" limitation and no Alaska-
+  training marker. With them, the Alaska case (the certificate becomes invalid 12 calendar
+  months after issue until night training is complete) would be a licence validity rule, and
+  the night passenger rule would be not_applicable for a limited certificate.

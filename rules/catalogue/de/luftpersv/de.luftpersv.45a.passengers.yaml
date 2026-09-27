@@ -1,0 +1,113 @@
+id: de.luftpersv.45a.passengers
+title: Ultralight passengers, other ultralight kinds (recency and passenger authorisation)
+authority: de
+instrument: LuftPersV
+article: § 45a, § 84a(1), (2), (3), (5)
+support: supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 45a
+  url: https://www.gesetze-im-internet.de/luftpersv/__45a.html
+  file: sources/de/luftpersv-45a.md
+  quote: "Ein Luftsportgeräteführer darf ein Luftsportgerät, in dem sich Fluggäste befinden, als verantwortlicher Luftsportgeräteführer nur führen, wenn er innerhalb der vorhergehenden 90 Tage mindestens drei Starts und drei Landungen mit einem Luftsportgerät derselben Art ausgeführt hat."
+related_sources:
+  - cite: LuftPersV § 84a
+    url: https://www.gesetze-im-internet.de/luftpersv/__84a.html
+    file: sources/de/luftpersv-84a.md
+    quote:
+      - "Luftsportgeräteführer bedürfen für Flüge oder Sprünge mit Passagieren der Passagierberechtigung."
+      - "Fachliche Voraussetzungen für den Erwerb der Berechtigung, Flüge nach Absatz 1 mit zweisitzigen Ultraleichtflugzeugen durchzuführen, ist der Nachweis von fünf Überlandflügen, davon mindestens zwei Überlandflüge mit Zwischenlandung über eine Gesamtstrecke von mindestens 200 Kilometer nach Erwerb des Luftfahrerscheins für Luftsportgeräteführer in Begleitung eines Fluglehrers."
+      - "Für die fachlichen Voraussetzungen für den Erwerb der Berechtigung, Flüge nach Absatz 1 mit doppelsitzigen Hängegleitern, Gleitsegeln oder anderen vergleichbaren Luftsportgeräten oder Sprünge mit Tandem-Sprungfallschirmen durchzuführen, gilt § 42 Abs. 2 entsprechend."
+      - "Die Gültigkeit richtet sich nach der Gültigkeit des Luftfahrerscheins für Luftsportgeräteführer, soweit nicht der Beauftragte nach § 31c des Luftverkehrsgesetzes entsprechend § 42 Abs. 2 die Gültigkeitsdauer beschränkt und Voraussetzungen für die Verlängerung festlegt."
+  - cite: LuftPersV § 44(2)
+    url: https://www.gesetze-im-internet.de/luftpersv/__44.html
+    file: sources/de/luftpersv-44.md
+    quote: "Der Luftfahrerschein berechtigt zum Führen von Luftsportgerät der im Luftfahrerschein eingetragenen Art und zu den eingetragenen Start- oder Sprungarten am Tage und von Sprungfallschirmen auch bei Nacht."
+citations: [LuftPersV § 45a, LuftPersV § 84a(1), LuftPersV § 84a(2)]
+
+applies_to:
+  subject: passengers
+  classes: [ULTRALIGHT]
+  ulKinds: [WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE]
+  authorities: [LBA, DULV, DAEC]
+
+window: { rolling_days: 90 }
+filter: { classes: [ULTRALIGHT], ulKinds: [$subject] }
+
+requirements:
+  all_of:
+    - id: day
+      metric: takeoffs_and_landings
+      min: 3
+      unit: landings
+      nameKey: requirement.takeoffs_and_landings
+      remedyKey: remedy.fly_more
+    - informational: true
+      when: { not: { holds: { privileges: [UL_PASSENGER_AUTH], sameLicence: true, valid: true } } }
+      window: { since_issue: licence }
+      filter: { withMinutes: [dual, crossCountry] }
+      all_of:
+        - { id: ul_xc_flights, metric: flights, min: 5, unit: flights, nameKey: requirement.ul_xc_flights, remedyKey: remedy.fly_more }
+        - id: ul_xc_landing_flights
+          metric: flights
+          filter: { minLandings: 2, minDistanceKm: 200 }
+          min: 2
+          unit: flights
+          nameKey: requirement.ul_xc_landing_flights
+          remedyKey: remedy.fly_more
+
+stages:
+  - id: current
+    when:
+      all:
+        - all_met
+        - { holds: { privileges: [UL_PASSENGER_AUTH], sameLicence: true, valid: true } }
+    status: current
+    messageKey: pax.current_day_no_night_privilege
+  - { id: authorisation_missing, when: all_met, status: unknown, messageKey: pax.ul_authorisation_missing }
+  - { id: not_current, when: always, status: expired, messageKey: pax.not_current, params: { needed: { needed: day } } }
+
+ruleDescriptionKey: ul_pax
+
+divergences:
+  - id: logged-takeoffs
+    api: Counts at least one take-off for every flight, even when none is logged.
+    article: Three take-offs and three landings must have been made; NinerLog counts the take-offs and landings logged.
+    cite: LuftPersV § 45a
+  - id: towed-launches
+    api: Leaves out ultralight flights launched by winch, aerotow, car or bungee (except for ultralight sailplanes).
+    article: Every take-off and landing with an ultralight of the same kind counts, however it was launched.
+    cite: LuftPersV § 45a
+  - id: kindless-ul
+    api: Counts ultralight flights with no kind when every ultralight rating the pilot holds has one and the same kind.
+    article: Only take-offs and landings "mit einem Luftsportgerät derselben Art" count; a flight whose ultralight kind is not recorded is reported as unknown input, never counted.
+    cite: LuftPersV § 45a
+  - id: xc-after-licence
+    api: Counts the cross-country flights with an instructor over the pilot's whole logbook.
+    article: The five cross-country flights with an instructor count only after the ultralight licence was issued.
+    cite: LuftPersV § 84a(2)
+  - id: xc-distance-per-flight
+    api: Adds up the departure-to-arrival distance of every such flight and needs 200 km in total.
+    article: Read literally, each of the two cross-country flights with an intermediate landing covers a total distance of at least 200 km.
+    cite: LuftPersV § 84a(2)
+
+notes: >-
+  One evaluation per German ultralight licence and ultralight kind other than three-axis
+  (weight-shift, gyroplane, helicopter, powered paraglider, ultralight sailplane); three-axis
+  ratings follow de.luftpersv.45a.passengers-three-axis, which adds the deemed authorisation of
+  § 84a(2) second sentence. § 45a counts take-offs and landings "mit einem Luftsportgerät
+  derselben Art" in any role; it does not require PIC time. Night passenger flights are not
+  evaluated: the licence is valid by day only (§ 44(2)).
+  § 84a: the authorisation is a recorded UL_PASSENGER_AUTH privilege on the same licence, valid
+  through its expiry date (§ 84a(5)); the ultralight kind the privilege is entered for is not
+  compared with the rating's kind. Without an authorisation the progress toward it is shown,
+  informational and counted since the ultralight licence was issued, as for three-axis pilots:
+  five cross-country flights with dual time, two of them with at least two landings and at
+  least 200 km. § 84a(2) sets these for two-seat ultralight aeroplanes; for hang gliders,
+  paragliders and comparable devices § 84a(3) leaves the requirements to the Beauftragte, and
+  the API shows the same rows for every kind, so the catalogue does too (informational only;
+  they never change the status). Ambiguity, § 84a(2): 200 km is read literally as the whole
+  route of each of the two flights with an intermediate landing, not a total over both.
+  Ultralight sailplane take-offs by winch or aerotow count as take-offs.

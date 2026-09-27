@@ -1,0 +1,21 @@
+id: de.luftpersv.16-2.ul-student-medical
+title: Ultralight student medical above 120 kg
+authority: de
+instrument: LuftPersV
+article: § 16(2)
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 16(2)
+  url: https://www.gesetze-im-internet.de/luftpersv/__16.html
+  file: sources/de/luftpersv-16.md
+  quote:
+    - "Abweichend von Satz 2 müssen Bewerber um einen Luftfahrerschein für Luftsportgeräte, die eine höchstzulässige Leermasse von 120 Kilogramm einschließlich Gurtzeug und Rettungsgerät überschreiten, spätestens zum ersten Alleinflug ein Tauglichkeitszeugnis entsprechend Anhang IV MED.A.030 Buchstabe b der Verordnung (EU) Nr. 1178/2011 vorlegen."
+applies_to: { subject: training, programme: UL_THREE_AXIS }
+notes: >-
+  Training-phase rule: a student for an ultralight above 120 kg empty mass needs an LAPL-level
+  medical by the first solo flight. Not evaluable: the record has no empty mass per
+  ultralight (only an optional MTOM) and no first-solo date, and the training programmes are
+  progress displays, not gates.

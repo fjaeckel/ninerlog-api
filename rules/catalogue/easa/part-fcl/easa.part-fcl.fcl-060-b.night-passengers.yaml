@@ -1,0 +1,98 @@
+id: easa.part-fcl.fcl-060-b.night-passengers
+title: Passenger recency at night, 90 days
+authority: easa
+instrument: Part-FCL
+article: FCL.060(b)(2)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.060(b)(2)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-060.md
+  quote:
+    - "(b) Aeroplanes, helicopters, powered-lift aircraft, airships, VTOL-capable aircraft (VCA) and gyroplanes. A pilot shall not operate an aircraft in commercial air transport or for carrying passengers:"
+    - "(2) as PIC at night unless he/she:"
+    - "(i) has carried out in the preceding 90 days at least 1 take-off, approach and landing at night as a pilot flying in an aircraft of the same type or class or an FFS representing that type or class; or"
+    - "(ii) holds an IR;"
+related_sources:
+  - cite: EASA FCL.010
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-010.md
+    quote: "‘Night’ means the period between the end of evening civil twilight and the beginning of morning civil twilight or such other period between sunset and sunrise as may be prescribed by the appropriate authority."
+
+applies_to:
+  subject: passengers
+  classes: [SEP_LAND, SEP_SEA, MEP_LAND, MEP_SEA, SET_LAND, SET_SEA, TMG, HELICOPTER, GYROPLANE, POWERED_LIFT, AIRSHIP]
+  authorities: [EASA, LBA]
+  excludeLicenceKinds: [SPL, LAPL_S, UL]
+
+window: { rolling_days: 90 }
+filter:
+  classes: [$subject]
+  pilotFlying: true
+  simulator: include
+  fstdTypes: [FFS]
+
+requirements:
+  all_of:
+    - id: night_takeoffs
+      metric: takeoffs.night
+      min: 1
+      unit: takeoffs
+      nameKey: requirement.night_takeoffs
+      remedyKey: remedy.fly_more
+    - id: night_landings
+      metric: landings.night
+      min: 1
+      unit: landings
+      nameKey: requirement.night_landings
+      remedyKey: remedy.fly_more
+
+stages:
+  - { id: ir_waiver, when: { holds: { classes: [IR], sameLicence: true, valid: true } }, status: current, messageKey: pax.night_waived_ir }
+  - { id: current, when: all_met, status: current, messageKey: pax.night_current }
+  - { id: pilot_flying_not_logged, when: undetermined, status: unknown, messageKey: pax.experience_not_logged }
+  - { id: landings_short, when: { unmet: night_landings }, status: expired, messageKey: pax.night_not_current, params: { needed: { needed: night_landings } } }
+  - { id: takeoffs_short, when: always, status: expired, messageKey: pax.night_not_current, params: { needed: { needed: night_takeoffs } } }
+
+ruleDescriptionKey: easa_pax
+
+divergences:
+  - id: takeoffs
+    api: Counts night landings only.
+    article: The pilot needs 1 take-off and 1 landing (with its approach) at night.
+    cite: EASA FCL.060(b)(2)(i)
+  - id: pilot-flying
+    api: Counts every night landing in the class, including those on which the pilot was not flying.
+    article: Only a night take-off and landing as a pilot flying count; a flight without a recorded pilot-flying flag is unknown.
+    cite: EASA FCL.060(b)(2)(i)
+  - id: ffs
+    api: Ignores simulator sessions.
+    article: A night take-off and landing in an FFS representing the type or class counts.
+    cite: EASA FCL.060(b)(2)(i)
+  - id: night-privilege
+    api: Does not evaluate night passenger recency for licences it considers to have no night privilege (LAPL, and DULV or DAeC authorities) and reports pax.current_day_no_night_privilege.
+    article: The night condition applies to any pilot who carries passengers as PIC at night; whether the pilot may fly at night at all (night rating, FCL.810) is a separate question left to the caller.
+    cite: EASA FCL.060(b)(2)
+  - id: ir-validity-date
+    api: Checks whether the IR is valid on today's date, even when evaluating another date.
+    article: The IR must be held on the date evaluated.
+    cite: EASA FCL.060(b)(2)(ii)
+  - id: ir-without-expiry
+    api: Does not waive the night requirement for an IR recorded without an expiry date.
+    article: Holding an IR waives the night requirement; an IR with no recorded expiry date is taken as held.
+    cite: EASA FCL.060(b)(2)(ii)
+  - id: authorities
+    api: Also evaluates passenger recency for classes recorded on DULV or DAeC licences.
+    article: FCL.060 applies to holders of Part-FCL licences, issued by EASA member-state authorities such as the LBA.
+    cite: EASA FCL.060(b)
+
+notes: >-
+  Partial, for the same reasons as easa.part-fcl.fcl-060-b.passengers (class stands for
+  type; approaches are not counted separately). This rule answers only the night condition;
+  the day condition (b)(1) applies as well and is a separate rule. "Holds an IR" is read as
+  an IR on the same licence that is not expired on the date evaluated; the text does not say
+  the IR must be valid, the catalogue requires it. The 1 take-off and 1 landing may be on
+  different flights.

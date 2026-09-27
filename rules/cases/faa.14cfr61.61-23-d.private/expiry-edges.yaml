@@ -1,0 +1,25 @@
+rule: faa.14cfr61.61-23-d.private
+name: expiry-edges
+description: Three medicals of a 50-year-old sport pilot flying on a medical - one ending on 31 August 2026 (valid that day, in the last 30 days), one ended on 31 July, and a recorded expiry earlier than the derived one, which wins.
+covers: [stage:expiring, stage:expired, expiry:on, expiry:after]
+asOf: 2026-08-31
+record:
+  holder: { dateOfBirth: 1976-02-01 }
+  licences:
+    - { id: l-sport, authority: FAA, type: SPORT }
+  credentials:
+    - { id: c-on, type: FAA_CLASS3_MEDICAL, issued: 2024-08-05 }
+    - { id: c-after, type: FAA_CLASS2_MEDICAL, issued: 2024-07-31 }
+    - { id: c-recorded, type: FAA_CLASS3_MEDICAL, issued: 2025-06-01, expires: 2026-09-10 }
+expect:
+  - subject: { kind: credential, id: c-on }
+    status: expiring
+    messageParams: { days: 0, date: 2026-08-31 }
+  - subject: { kind: credential, id: c-after }
+    status: expired
+    messageKey: credential.expired
+    messageParams: { date: 2026-07-31 }
+  - subject: { kind: credential, id: c-recorded }
+    status: expiring
+    expiresOn: 2026-09-10
+    messageParams: { days: 10, date: 2026-09-10 }

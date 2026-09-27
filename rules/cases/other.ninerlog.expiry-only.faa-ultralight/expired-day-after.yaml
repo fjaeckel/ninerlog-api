@@ -1,0 +1,14 @@
+rule: other.ninerlog.expiry-only.faa-ultralight
+name: expired-day-after
+description: The day after its expiry date the rating is expired.
+covers: [stage:expired, expiry:after]
+asOf: 2026-09-16
+record:
+  licences:
+    - { id: l-1, authority: FAA, type: PPL }
+  ratings:
+    - { id: r-1, licenceId: l-1, class: ULTRALIGHT, expires: 2026-09-15 }
+expect:
+  - subject: { kind: rating, id: r-1 }
+    status: expired
+    messageKey: rating.expired

@@ -1,0 +1,16 @@
+rule: easa.part-fcl.fcl-740-pl.powered-lift
+name: window-not-open
+description: "More than 12 months before expiry the window is not open."
+covers: [stage:window_not_open]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: POWERED_LIFT, typeDesignator: AW609, expires: 2027-12-31 }
+  flights: []
+expect:
+  - subject: { kind: rating, id: r-type, class: POWERED_LIFT }
+    status: current
+    messageKey: rating.window_not_open
+    messageParams: { date: 2026-12-31 }

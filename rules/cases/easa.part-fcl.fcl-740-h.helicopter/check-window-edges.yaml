@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: check-window-edges
+description: "A check on 31 July, 3 months before the 31 October expiry, counts; one on 30 July does not."
+covers: [window:before_expiry_months=3:edge-in, window:before_expiry_months=3:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: R44, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: HELICOPTER, typeDesignator: R44, minutes: { total: 120, pic: 120 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-07-30, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+    - { date: 2026-07-31, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-type, class: HELICOPTER }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    requirements:
+      proficiency_check: { current: 1, lastDate: 2026-07-31 }

@@ -1,0 +1,10 @@
+rule: faa.14cfr61.61-101-g.recreational-recency
+name: not-applicable
+description: Private, sport and EASA licences have no 61.101(g) recency.
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+    - { id: l-sport, authority: FAA, type: SPORT }
+    - { id: l-easa, authority: EASA, type: LAPL(A) }
+expect: []

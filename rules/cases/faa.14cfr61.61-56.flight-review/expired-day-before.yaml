@@ -1,0 +1,18 @@
+rule: faa.14cfr61.61-56.flight-review
+name: expired-day-before
+description: A review on 31 July 2024 ran out on 31 July 2026; on 16 August the pilot may not act as PIC until a new review.
+covers: [window:edge-out, stage:expired, requirement:flight_review:unmet, requirement:proficiency_check:unmet, requirement:proficiency_program:unmet, requirement:last_review:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  events:
+    - { date: 2024-07-31, kind: flight_review }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: expired
+    messageKey: flight_review.expired
+    messageParams: { date: 2024-07-31 }
+    requirements:
+      flight_review: { current: 0, met: false, remedyKey: remedy.flight_review }
+      last_review: { current: 1, met: true, lastDate: 2024-07-31 }

@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-710.variant
+name: variant-not-recorded
+description: "Flights in the class without a variant cannot be matched; the result is unknown."
+covers: [unknown:variants, stage:unknown]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  variants:
+    - { id: v-electric, ratingId: r-sep, name: ELECTRIC, issued: 2023-05-01 }
+  flights:
+    - { date: 2026-05-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: type, id: v-electric, class: SEP_LAND }
+    status: unknown
+    messageKey: type.unknown
+    requirements:
+      variant_flown: { met: false, tracked: false }

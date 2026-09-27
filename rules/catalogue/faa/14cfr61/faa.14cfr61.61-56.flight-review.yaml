@@ -1,0 +1,120 @@
+id: faa.14cfr61.61-56.flight-review
+title: Flight review
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.56(c), (d), (e), (g)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.56(c)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.56
+  file: sources/faa/61.56.md
+  quote:
+    - "(c) Except as provided in paragraphs (d), (e), and (g) of this section, no person may act as pilot in command of an aircraft unless, since the beginning of the 24th calendar month before the month in which that pilot acts as pilot in command, that person has—"
+    - "(1) Accomplished a flight review given in an aircraft for which that pilot is rated by an authorized instructor and"
+    - "(2) A logbook endorsed from an authorized instructor who gave the review certifying that the person has satisfactorily completed the review."
+    - "(d) A person who has, within the period specified in paragraph (c) of this section, passed any of the following need not accomplish the flight review required by this section:"
+    - "(1) A pilot proficiency check or practical test conducted by an examiner, an approved pilot check airman, or a U.S. Armed Force, for a pilot certificate, rating, or operating privilege."
+    - "(2) A practical test conducted by an examiner for one of the following:"
+    - "(e) A person who has, within the period specified in paragraph (c) of this section, satisfactorily accomplished one or more phases of an FAA-sponsored pilot proficiency program need not accomplish the flight review required by this section."
+    - "(g) A student pilot need not accomplish the flight review required by this section provided the student pilot is undergoing training for a certificate and has a current solo flight endorsement as required under § 61.87 of this part."
+related_sources:
+  - cite: 14 CFR 61.56(b)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.56
+    file: sources/faa/61.56.md
+    quote: "(b) Glider pilots may substitute a minimum of three instructional flights in a glider, each of which includes a flight to traffic pattern altitude, in lieu of the 1 hour of flight training required in paragraph (a) of this section."
+  - cite: 14 CFR 61.56(i)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.56
+    file: sources/faa/61.56.md
+    quote: "(i) A flight simulator or flight training device may be used to meet the flight review requirements of this section subject to the following conditions:"
+citations: [14 CFR 61.56(c), 14 CFR 61.56(d), 14 CFR 61.56(e), 14 CFR 61.56(g)]
+
+applies_to:
+  subject: flight_review
+  authorities: [FAA]
+
+window: { calendar_months: 24 }
+
+requirements:
+  all_of:
+    - id: review
+      any_of:
+        - id: flight_review
+          metric: events
+          min: 1
+          unit: review
+          nameKey: requirement.flight_review
+          remedyKey: remedy.flight_review
+          filter: { eventKinds: [flight_review], simulator: include }
+        - id: proficiency_check
+          metric: events
+          min: 1
+          unit: check
+          nameKey: requirement.proficiency_check
+          filter: { eventKinds: [proficiency_check, practical_test], simulator: include }
+        - id: proficiency_program
+          metric: events
+          min: 1
+          unit: events
+          nameKey: requirement.proficiency_program
+          filter: { eventKinds: [proficiency_program_phase], simulator: include }
+    - id: last_review
+      informational: true
+      metric: events
+      min: 1
+      unit: events
+      nameKey: requirement.flight_review
+      window: { lifetime: true }
+      filter: { eventKinds: [flight_review, proficiency_check, practical_test, proficiency_program_phase], simulator: include }
+
+stages:
+  - { id: student, when: { holds: { licenceKinds: [FAA_STUDENT], sameLicence: true } }, status: not_applicable, messageKey: flight_review.not_applicable }
+  - { id: reviewed, when: { met: flight_review }, status: current, messageKey: flight_review.current, params: { date: { last_date: flight_review } } }
+  - { id: check_substitute, when: { met: proficiency_check }, status: current, messageKey: flight_review.substituted, params: { date: { last_date: proficiency_check } } }
+  - { id: program_substitute, when: all_met, status: current, messageKey: flight_review.substituted, params: { date: { last_date: proficiency_program } } }
+  - { id: expired, when: { met: last_review }, status: expired, messageKey: flight_review.expired, params: { date: { last_date: last_review } } }
+  - { id: none_on_record, when: always, status: expired, messageKey: flight_review.none_on_record }
+
+ruleDescriptionKey: faa_flight_review
+
+divergences:
+  - id: substitutes
+    api: Recognises only flights flagged as flight review.
+    article: A pilot proficiency check or practical test (with an examiner, check airman or the Armed Forces) or a phase of an FAA-sponsored pilot proficiency program (WINGS) within the period replaces the flight review.
+    cite: 14 CFR 61.56(d), (e)
+  - id: glider-alternative
+    api: Reports an FAA glider rating current when three instructional glider flights were logged in the 24-calendar-month window (rating.flight_review_glider_alternative), even without a flight review.
+    article: The three instructional glider flights replace only the 1 hour of flight training within a flight review; the review, its ground training and the instructor's endorsement are still required. Only a completed flight review (or a (d)/(e) substitute) counts.
+    cite: 14 CFR 61.56(b)
+  - id: per-pilot
+    api: Evaluates the flight review a second time for each glider rating (faa.14cfr61.61-56.glider-rating), besides once per pilot.
+    article: The flight review is one requirement per pilot, not per rating; it is evaluated once per pilot.
+    cite: 14 CFR 61.56(c)
+  - id: student
+    api: Evaluates the flight review for student pilots too.
+    article: A student pilot undergoing training with a current solo endorsement needs no flight review; the rule is not_applicable for student certificates.
+    cite: 14 CFR 61.56(g)
+  - id: simulator
+    api: Ignores flight reviews logged on simulator sessions.
+    article: A flight simulator or flight training device may be used for the flight review (under an approved part 142 course), so a review logged on a device counts.
+    cite: 14 CFR 61.56(i)
+  - id: no-expiring
+    api: Reports the review as expiring (flight_review.expiring) in the last 90 days of its validity.
+    article: The review is current until the end of the 24th calendar month; the evaluation's validUntil gives that date, but the vocabulary has no stage for "validUntil within n days" yet, so no expiring status is reported (see docs/vocab-requests/faa.md).
+    cite: 14 CFR 61.56(c)
+
+notes: >-
+  Partial: no expiring stage (vocabulary request). Evaluated once per pilot, on the first FAA
+  certificate in the record. Reviews come from flight_review events (or flights flagged
+  flightReview); (d) substitutes from proficiency_check and practical_test events (flags
+  proficiencyCheck), (e) from proficiency_program_phase events. Who gave the review or check
+  (authorized instructor, examiner, check airman) and whether the instructor endorsed the
+  logbook are taken as met when the event is logged. An instrument proficiency check (ipc) is
+  not a (d) substitute: it may be given by an authorized instructor, and (d)(1) requires an
+  examiner, check airman or the Armed Forces. 61.56(b) glider instructional flights are part
+  of a review, not a substitute for it, so they do not count on their own. The student
+  exemption (g) assumes a current solo endorsement (faa.14cfr61.61-87-n.student-solo). The
+  (f) ground-training relief for flight instructors does not change the date and is not
+  modelled.

@@ -1,0 +1,56 @@
+id: easa.part-sfcl.sfcl-160-e-1.sailplane-passengers
+title: SPL passenger recency, sailplanes excluding TMGs
+authority: easa
+instrument: Part-SFCL
+article: SFCL.160(e)(1)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.160(e)(1)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-160.md
+  quote:
+    - "SPL holders shall carry passengers only if in the preceding 90 days they have carried out as PIC, at least:"
+    - "(1) three launches in sailplanes, excluding TMGs, if passengers are to be carried in sailplanes, excluding TMGs; or"
+
+applies_to:
+  subject: passengers
+  classes: [GLIDER]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_days: 90 }
+
+requirements:
+  id: launches
+  metric: launches
+  filter: { classes: [GLIDER], roles: [pic] }
+  min: 3
+  unit: launches
+  nameKey: requirement.launches_as_pic
+  remedyKey: remedy.fly_more
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: pax.current_day_no_night_privilege }
+  - { id: not_current, when: always, status: expired, messageKey: pax.not_current, params: { needed: { needed: launches } } }
+
+ruleDescriptionKey: easa_spl_pax
+
+divergences:
+  - id: launches
+    api: Counts the landings of sailplane flights with PIC time.
+    article: Counts launches as PIC in sailplanes; a series row with more launches than landings counts its launches.
+    cite: EASA SFCL.160(e)(1)
+  - id: authorities
+    api: Also evaluates sailplane passenger recency for GLIDER ratings recorded on DULV or DAeC licences.
+    article: SFCL.160(e) applies to SPL holders; ultralight associations issue no SPL.
+    cite: EASA SFCL.160(e)
+
+notes: >-
+  One evaluation per authority for the GLIDER class (a GLIDER rating on a PPL counts as
+  sailplane privileges too). A launch as PIC is a launch of a GLIDER flight with PIC time;
+  supervised solo (SPIC) flights do not count. The preceding 90 days are asOf - 90 days
+  through asOf. Sailplanes carry no night passenger privilege, hence
+  pax.current_day_no_night_privilege when current. The SFCL.115(a)(2) prerequisites are a
+  separate rule (easa.part-sfcl.sfcl-115-a-2.passengers).

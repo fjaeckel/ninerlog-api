@@ -1,0 +1,22 @@
+rule: de.luftpersv.45-2.three-axis
+name: proficiency-check
+description: >-
+  A proficiency check with an examiner in an SEP(land) aeroplane replaces the experience
+  (§ 45(3)); it keeps the rating current until it leaves the 24 months.
+covers: [stage:current, any_of:recency:proficiency_check, requirement:proficiency_check:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DAeC, type: Luftsportgeräteführer }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+  flights:
+    - { date: 2026-03-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-3ax }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2028-03-01
+    requirements:
+      proficiency_check: { current: 1, met: true }
+      total_time: { current: 60, met: false }

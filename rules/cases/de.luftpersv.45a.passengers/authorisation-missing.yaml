@@ -1,0 +1,34 @@
+rule: de.luftpersv.45a.passengers
+name: authorisation-missing
+description: >-
+  Trike recency met, but the passenger authorisation expired the day before: status unknown
+  with the progress toward § 84a. Five cross-country trike flights with an instructor since
+  the licence was issued (not the one the day before issue), two of them with an intermediate
+  landing over at least 200 km. A PPL does not replace the authorisation for trike pilots.
+covers: [stage:authorisation_missing, requirement:ul_xc_flights:met, requirement:ul_xc_landing_flights:met, window:since_issue=licence:edge-in, window:since_issue=licence:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL, issued: 2025-03-01 }
+    - { id: l-ppl, authority: LBA, type: PPL(A) }
+  ratings:
+    - { id: r-ws, licenceId: l-ul, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND }
+  privileges:
+    - { id: p-pax, licenceId: l-ul, kind: UL_PASSENGER_AUTH, expires: 2026-09-14 }
+  flights:
+    - { date: 2025-02-28, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 120, dual: 120, crossCountry: 120 }, landings: { day: 2 }, distanceKm: 250 }
+    - { date: 2025-03-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 120, dual: 120, crossCountry: 120 }, landings: { day: 2 }, distanceKm: 200 }
+    - { date: 2025-04-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 150, dual: 150, crossCountry: 150 }, landings: { day: 3 }, distanceKm: 260 }
+    - { date: 2025-04-02, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 60, dual: 60, crossCountry: 60 }, landings: { day: 1 }, distanceKm: 90 }
+    - { date: 2025-04-03, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 60, dual: 60, crossCountry: 60 }, landings: { day: 1 }, distanceKm: 90 }
+    - { date: 2025-04-04, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 60, dual: 60, crossCountry: 60 }, landings: { day: 1 }, distanceKm: 90 }
+    - { date: 2026-09-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+expect:
+  - subject: { kind: passengers, id: l-ul }
+    status: unknown
+    messageKey: pax.ul_authorisation_missing
+    requirements:
+      day: { current: 3, met: true }
+      ul_xc_flights: { current: 5, met: true }
+      ul_xc_landing_flights: { current: 2, met: true }

@@ -1,0 +1,17 @@
+rule: faa.14cfr61.61-217.ground-instructor
+name: flight-instruction
+description: Flight instruction given in February 2026 keeps the ground instructor current through 28 February 2027.
+covers: [stage:current, requirement:flight_instruction:met, any_of:recent_activity:flight_instruction, requirement:refresher_course:unmet, requirement:endorsement:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-gi, licenceId: l-faa, kind: GROUND_INSTRUCTOR, issued: 2019-05-01 }
+  flights:
+    - { date: 2026-02-01, class: SEP_LAND, minutes: { total: 60, pic: 60, dualGiven: 60 } }
+expect:
+  - subject: { kind: privilege, id: p-gi }
+    status: current
+    messageKey: privilege.recency_current
+    messageParams: { date: 2027-02-28 }

@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-710.variant
+name: not-flown
+description: "The variant was last flown more than 2 years ago; flights on another variant do not count."
+covers: [stage:not_flown, requirement:variant_flown:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  variants:
+    - { id: v-electric, ratingId: r-sep, name: ELECTRIC, issued: 2023-05-01 }
+  flights:
+    - { date: 2024-08-01, class: SEP_LAND, variant: ELECTRIC, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-04-10, class: SEP_LAND, variant: PISTON, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: type, id: v-electric, class: SEP_LAND }
+    status: lapsed
+    messageKey: type.not_flown
+    requirements:
+      variant_flown: { current: 0, met: false, remedyKey: remedy.differences_training }

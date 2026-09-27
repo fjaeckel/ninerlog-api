@@ -1,0 +1,26 @@
+id: faa.14cfr61.61-2.exercise-of-privilege
+title: "Exercise of privilege: validity and currency"
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.2"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.2
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.2
+  file: sources/faa/61.2.md
+  quote:
+    - "(1) Exercise privileges of a certificate, rating, endorsement, or authorization issued under this part if the certificate, rating or authorization is surrendered, suspended, revoked or expired."
+    - "(1) Exercise privileges of an airman certificate, rating, endorsement, or authorization issued under this part unless that person meets the appropriate airman recent experience and medical requirements of this part, specific to the operation or activity."
+applies_to: { subject: licence, authorities: [FAA] }
+notes: >-
+  Definitional: 61.2 separates validity (a certificate, rating or medical that is expired,
+  suspended or revoked) from currency (recent experience and medical requirements for the
+  operation). It adds no requirement of its own; the catalogue applies it through the
+  individual rules: expiry-based rules (faa.14cfr61.61-19-d.cfi-expiry,
+  faa.14cfr61.61-21.cat-ii-iii, the 61.23(d) medical rules) and recency rules (61.56, 61.57,
+  61.69, 61.101(g), 61.197, 61.217). Surrender, suspension and revocation are not in the
+  record. Composing them into one go/no-go per operation is left to the API consumer
+  (readiness).

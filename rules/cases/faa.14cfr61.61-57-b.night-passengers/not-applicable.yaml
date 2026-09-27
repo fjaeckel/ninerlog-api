@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-57-b.night-passengers
+name: not-applicable
+description: Student certificates, gliders, instrument ratings, ultralights and EASA licences are not evaluated for FAA night passenger recency.
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-student, authority: FAA, type: STUDENT }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-student, licenceId: l-student, class: SEP_LAND }
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+    - { id: r-ir, licenceId: l-faa, class: IR }
+    - { id: r-ul, licenceId: l-faa, class: ULTRALIGHT }
+    - { id: r-easa, licenceId: l-easa, class: SEP_LAND }
+expect: []

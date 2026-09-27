@@ -1,0 +1,14 @@
+rule: easa.part-med.med-a-030.lapl
+name: expired
+description: "An expired medical certificate does not allow exercising the licence."
+covers: [stage:no_valid_medical]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: SPL }
+  credentials:
+    - { id: c-1, type: EASA_LAPL_MEDICAL, expires: 2026-09-14 }
+expect:
+  - subject: { kind: licence, id: l-1 }
+    status: expired
+    messageKey: licence.medical_required

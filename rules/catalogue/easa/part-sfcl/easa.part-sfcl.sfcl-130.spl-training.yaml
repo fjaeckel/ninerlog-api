@@ -1,0 +1,114 @@
+id: easa.part-sfcl.sfcl-130.spl-training
+title: SPL training course flight instruction
+authority: easa
+instrument: Part-SFCL
+article: SFCL.130(a), (b)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.130
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-130.md
+  quote: "TODO: verify"
+related_sources:
+  - cite: EASA SFCL.035
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+    file: sources/easa/sfcl-035.md
+    quote: "Applicants for an SPL or an associated privilege, rating or certificate shall be fully credited with all solo, dual instruction or PIC flight time on sailplanes towards the requirement of a total flight time for the licence, privilege, rating or certificate."
+  - cite: EASA MED.A.030(a)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/med-a-030.md
+    quote: "(a) A student pilot shall not fly solo unless that student pilot holds a medical certificate, as required for the relevant licence."
+citations: [EASA SFCL.130(a), EASA SFCL.130(b)]
+
+applies_to:
+  subject: training
+  programme: SPL
+  holds: { credentials: [EASA_LAPL_MEDICAL, EASA_CLASS2_MEDICAL, EASA_CLASS1_MEDICAL] }
+
+window: { lifetime: true }
+
+requirements:
+  all_of:
+    - id: instruction_time
+      metric: minutes.dualOrSpic
+      filter: { classes: [GLIDER] }
+      min: 900
+      unit: minutes
+      nameKey: requirement.flight_instruction
+      remedyKey: remedy.fly_more
+    - id: dual_time
+      metric: minutes.dual
+      filter: { classes: [GLIDER] }
+      min: 600
+      unit: minutes
+      nameKey: requirement.dual_time
+      remedyKey: remedy.fly_more
+    - id: supervised_solo_time
+      metric: minutes.spic
+      filter: { classes: [GLIDER] }
+      min: 120
+      unit: minutes
+      nameKey: requirement.supervised_solo_time
+      remedyKey: remedy.fly_more
+    - id: launches
+      metric: launches
+      filter:
+        classes: [GLIDER]
+        any:
+          - { withMinutes: [dual] }
+          - { withMinutes: [spic] }
+      min: 45
+      unit: launches
+      nameKey: requirement.launches
+      remedyKey: remedy.fly_more
+    - id: cross_country
+      metric: flights
+      filter:
+        classes: [GLIDER]
+        any:
+          - { roles: [pic, spic], withoutMinutes: [dual], withMinutes: [crossCountry], minDistanceKm: 50 }
+          - { withMinutes: [dual, crossCountry], minDistanceKm: 100 }
+      min: 1
+      unit: flights
+      nameKey: requirement.cross_country_flights
+      remedyKey: remedy.fly_more
+    - id: credit_sfcl130b
+      informational: true
+      when: { holds: { licenceKinds: [PPL_A, LAPL_A, CPL_A, ATPL_A, MPL, GPL, HELICOPTER] } }
+      metric: minutes.pic
+      filter: { classes: [SEP_LAND, SEP_SEA, MEP_LAND, MEP_SEA, SET_LAND, SET_SEA, HELICOPTER, GYROPLANE, POWERED_LIFT, AIRSHIP] }
+      escape_hatch: sfcl-130b-credit
+      min: 420
+      unit: minutes
+      nameKey: requirement.sfcl130b_credit
+
+stages:
+  - { id: complete, when: all_met, status: current, messageKey: training.all_met }
+  - { id: distance_unknown, when: undetermined, status: unknown, messageKey: training.distance_unknown }
+  - { id: in_progress, when: always, status: lapsed, messageKey: training.in_progress }
+
+
+divergences:
+  - id: distance-unknown
+    api: Counts a cross-country flight with no recorded distance as the qualifying flight (with a warning).
+    article: The cross-country flight must reach the distance (50 km solo, 100 km dual); a flight without a recorded distance is unknown and never completes the programme.
+    cite: EASA SFCL.130(a)
+
+notes: >-
+  Partial: the verbatim text of SFCL.130 is not in sources/ (TODO: verify); the figures
+  follow the API's template and ninerlog-api docs/SAILPLANES.md (15 hours of flight
+  instruction in sailplanes excluding TMGs, including 10 hours dual, 2 hours supervised
+  solo, 45 launches, and one solo cross-country flight of at least 50 km or one dual of at
+  least 100 km). Instruction is dual plus supervised solo (SPIC) time on GLIDER flights;
+  PIC time is not instruction. Launches are those of flights with dual or SPIC time. A
+  cross-country flight is a GLIDER flight with cross-country time and a recorded
+  distance. The SFCL.130(b) credit (10 % of PIC time on other aircraft categories, at most 7
+  hours, balloons excepted) is shown for holders of an aeroplane, gyroplane or helicopter
+  licence and never affects the status (escape hatch sfcl-130b-credit). The programme is
+  evaluated for holders of an EASA medical certificate (a student needs one to fly solo,
+  MED.A.030(a)), since a student holds no licence yet; the consumer decides which
+  programmes to show (the API selects them by discipline). Status: current when every item is met,
+  lapsed while items are open.

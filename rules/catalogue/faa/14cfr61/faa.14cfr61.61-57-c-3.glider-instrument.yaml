@@ -1,0 +1,23 @@
+id: faa.14cfr61.61-57-c-3.glider-instrument
+title: Instrument recent experience in a glider
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.57(c)(3)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.57(c)(3)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+  file: sources/faa/61.57.md
+  quote:
+    - "(A) One hour of instrument flight time in a glider or in a single engine airplane using a view-limiting device while performing interception and tracking courses through the use of navigation electronic systems."
+    - "(B) Two hours of instrument flight time in a glider or a single engine airplane with the use of a view-limiting device while performing straight glides, turns to specific headings, steep turns, flight at various airspeeds, navigation, and slow flight and stalls."
+applies_to: { subject: rating, classes: [IR], authorities: [FAA] }
+notes: >-
+  Not supported: the record's IR rating does not say whether its privileges are used in a
+  glider, and instrument time is not split by the tasks (A) and (B) require (interception
+  and tracking for one hour, performance manoeuvres for two hours). The passenger condition
+  (c)(3)(ii) needs 2 hours of glider instrument time in the 6 calendar months.
+  faa.14cfr61.61-57-c.instrument covers airplanes, powered-lift, helicopters and airships.

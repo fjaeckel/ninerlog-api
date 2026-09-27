@@ -1,0 +1,23 @@
+id: faa.14cfr61.61-55.sic
+title: Second-in-command qualifications
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.55(b)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.55(b)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.55
+  file: sources/faa/61.55.md
+  quote:
+    - "(b) Except as provided in paragraph (e) of this section, no person may serve as a second-in-command of an aircraft type certificated for more than one required pilot flight crewmember or in operations requiring a second-in-command unless that person has within the previous 12 calendar months:"
+    - "(i) Three takeoffs and three landings to a full stop as the sole manipulator of the flight controls;"
+applies_to: { subject: type }
+notes: >-
+  Not supported: the record has no SIC type rating or SIC-privileges-only designation to
+  evaluate, and the 12-calendar-month familiarization (systems, performance, procedures,
+  flight manual, placards), engine-out procedures and crew resource management training are
+  not recorded. The takeoff and landing part could be counted once a type subject for SIC
+  privileges exists.

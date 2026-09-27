@@ -1,0 +1,12 @@
+rule: easa.part-sfcl.sfcl-160-e-1.sailplane-passengers
+name: not-applicable
+description: TMG passengers follow SFCL.160(e)(2); FAA glider passengers follow 14 CFR 61.57.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+    - { id: r-faa, licenceId: l-faa, class: GLIDER }
+expect: []

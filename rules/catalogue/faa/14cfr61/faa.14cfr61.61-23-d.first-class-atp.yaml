@@ -1,0 +1,63 @@
+id: faa.14cfr61.61-23-d.first-class-atp
+title: First-class medical duration for airline transport pilot privileges
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.23(d)(1)(i), (d)(1)(ii)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.23(d)(1)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.23
+  file: sources/faa/61.23.md
+  quote:
+    - "(d) Duration of a medical certificate. Use the following table to determine duration for each class of medical certificate:"
+    - "Then your medical certificate expires, for that operation, at the end of the last day of the"
+    - "(1) A first-class medical certificate"
+    - "(i) Under age 40"
+    - "an airline transport pilot certificate for pilot-in-command privileges, or for second-in-command privileges in a flag or supplemental operation in part 121 requiring three or more pilots"
+    - "12th month after the month of the date of examination shown on the medical certificate."
+    - "(ii) Age 40 or older"
+    - "6th month after the month of the date of examination shown on the medical certificate."
+related_sources:
+  - cite: 14 CFR 61.23(a)(1)(i)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.23
+    file: sources/faa/61.23.md
+    quote: "(i) When exercising the pilot-in-command privileges of an airline transport pilot certificate;"
+citations: [14 CFR 61.23(d)(1)(i), 14 CFR 61.23(d)(1)(ii)]
+
+applies_to:
+  subject: credential
+  credentialTypes: [FAA_CLASS1_MEDICAL]
+  holds: { licenceKinds: [FAA_ATP] }
+
+validity:
+  from: issued
+  periods:
+    - { when: { age_under: 40 }, months: 12, end_of_month: true }
+    - { when: { age_at_least: 40 }, months: 6, end_of_month: true }
+
+stages:
+  - { id: date_of_birth, when: { missing: date_of_birth }, status: unknown, messageKey: credential.date_of_birth_required }
+  - { id: no_exam_date, when: no_expiry, status: unknown, messageKey: credential.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: credential.expired, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 30 } }, status: expiring, messageKey: credential.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: valid, when: always, status: current, messageKey: credential.valid, params: { date: expiry_date } }
+
+ruleDescriptionKey: faa_medical_atp
+
+divergences:
+  - id: derived-expiry
+    api: Uses only the expiry date entered for the medical, and treats it as expired on that day.
+    article: For airline transport pilot privileges a first-class medical runs to the end of the 12th month after the month of the examination (under 40 on the examination date) or the 6th month (40 or older), and is valid through that last day; the entered date is used only when earlier.
+    cite: 14 CFR 61.23(d)(1)
+
+notes: >-
+  Partial: evaluated for holders of an airline transport pilot certificate, for the ATP
+  pilot-in-command privileges; the same certificate's duration for commercial and private
+  privileges is evaluated by faa.14cfr61.61-23-d.commercial and faa.14cfr61.61-23-d.private
+  (the certificate steps down, one evaluation per privilege level). The issued date is the
+  examination date. The (d)(1)(ii) case of a part 121 flightcrew member who has reached age
+  60 is not modelled, because the record does not say whether the pilot flies part 121
+  operations. The age is taken on the examination date, as the table says.

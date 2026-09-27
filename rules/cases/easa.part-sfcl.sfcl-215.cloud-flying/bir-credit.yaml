@@ -1,0 +1,16 @@
+rule: easa.part-sfcl.sfcl-215.cloud-flying
+name: bir-credit
+description: A pilot holding a valid BIR is fully credited toward the cloud flying recency.
+covers: [stage:ir_credit]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING }
+    - { id: p-bir, licenceId: l-ppl, kind: BIR, expires: 2027-06-30 }
+expect:
+  - subject: { kind: privilege, id: p-cloud }
+    status: current
+    messageKey: privilege.recency_credited

@@ -1,0 +1,36 @@
+rule: de.luftpersv.45a.passengers-three-axis
+name: authorisation-missing
+description: >-
+  Recency met, but the passenger authorisation on this licence expired and the one on the
+  other licence does not count: status unknown with the progress toward § 84a(2). Five
+  cross-country flights with an instructor since the licence was issued on 1 March 2025
+  (the one on 28 February does not count), two of them with an intermediate landing over
+  at least 200 km.
+covers: [stage:authorisation_missing, requirement:ul_xc_flights:met, requirement:ul_xc_landing_flights:met, window:since_issue=licence:edge-in, window:since_issue=licence:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DAeC, type: UL, issued: 2025-03-01 }
+    - { id: l-other, authority: DULV, type: UL, issued: 2019-01-01 }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+  privileges:
+    - { id: p-old, licenceId: l-ul, kind: UL_PASSENGER_AUTH, expires: 2026-01-01 }
+    - { id: p-other, licenceId: l-other, kind: UL_PASSENGER_AUTH }
+  flights:
+    - { date: 2025-02-28, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 120, dual: 120, crossCountry: 120 }, landings: { day: 2 }, distanceKm: 250 }
+    - { date: 2025-03-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 120, dual: 120, crossCountry: 120 }, landings: { day: 2 }, distanceKm: 210 }
+    - { date: 2025-04-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 150, dual: 150, crossCountry: 150 }, landings: { day: 3 }, distanceKm: 260 }
+    - { date: 2025-04-02, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 60, dual: 60, crossCountry: 60 }, landings: { day: 1 }, distanceKm: 90 }
+    - { date: 2025-04-03, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 60, dual: 60, crossCountry: 60 }, landings: { day: 1 }, distanceKm: 90 }
+    - { date: 2025-04-04, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 60, dual: 60, crossCountry: 60 }, landings: { day: 1 }, distanceKm: 90 }
+    - { date: 2025-04-05, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 60, pic: 60, crossCountry: 60 }, landings: { day: 2 }, distanceKm: 300 }
+    - { date: 2026-09-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+expect:
+  - subject: { kind: passengers, id: l-ul, ulKind: THREE_AXIS }
+    status: unknown
+    messageKey: pax.ul_authorisation_missing
+    requirements:
+      day: { current: 3, met: true }
+      ul_xc_flights: { current: 5, required: 5, met: true }
+      ul_xc_landing_flights: { current: 2, required: 2, met: true }

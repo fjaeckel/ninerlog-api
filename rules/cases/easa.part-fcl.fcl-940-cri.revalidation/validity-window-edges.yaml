@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-940-cri.revalidation
+name: validity-window-edges
+description: "Instruction on 15 January 2024, the first day of the validity period, counts; instruction the day before does not; helicopter instruction does not count."
+covers: [window:edge-in, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: CRI, issued: 2024-01-15 }
+  flights:
+    - { date: 2024-01-14, class: SEP_LAND, minutes: { total: 300, dualGiven: 300 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2024-01-15, class: SEP_LAND, minutes: { total: 300, dualGiven: 300 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2025-01-15, class: HELICOPTER, minutes: { total: 300, dualGiven: 300 } }
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: current
+    messageKey: privilege.revalidation_not_met
+    requirements:
+      instruction: { current: 300 }

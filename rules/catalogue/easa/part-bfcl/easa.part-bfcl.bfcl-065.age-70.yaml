@@ -1,0 +1,18 @@
+id: easa.part-bfcl.bfcl-065.age-70
+title: BPL holders aged 70 or older, commercial passenger operations
+authority: easa
+instrument: Part-BFCL
+article: BFCL.065
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA BFCL.065
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
+  file: sources/easa/bfcl-065.md
+  quote:
+    - "BPL holders who have attained the age of 70 years shall not act as pilots of a balloon engaged in commercial passenger balloon operations."
+applies_to: { subject: licence, licenceKinds: [BPL] }
+notes: >-
+  Balloons are not in the app: NinerLog records no balloon flights, no balloon class (hot-air, gas, mixed, hot-air airship) and no hot-air balloon group (A to D), so a rule could not tell which class or group a flight or check belongs to. Commercial passenger balloon operations are not recorded either.

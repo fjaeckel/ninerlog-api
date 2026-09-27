@@ -1,0 +1,14 @@
+rule: easa.part-med.med-a-030.class-1
+name: lower-class
+description: "A lower-class medical certificate is not enough for this licence."
+covers: [stage:no_valid_medical]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  credentials:
+    - { id: c-1, type: EASA_CLASS2_MEDICAL, expires: 2027-09-14 }
+expect:
+  - subject: { kind: licence, id: l-1 }
+    status: expired
+    messageKey: licence.medical_required

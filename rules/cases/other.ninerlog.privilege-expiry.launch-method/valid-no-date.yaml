@@ -1,0 +1,15 @@
+rule: other.ninerlog.privilege-expiry.launch-method
+name: valid-no-date
+description: A privilege with no recorded expiry is valid indefinitely.
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: LAUNCH_METHOD_TRAINED }
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: current
+    messageKey: privilege.valid
+    messageParams: {}

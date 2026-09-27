@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-57-a.glider-passengers
+name: launches-short
+description: Landings alone no longer suffice; with three landings but only two launches logged the pilot needs one more launch.
+covers: [stage:launches_short, requirement:launches:unmet, requirement:landings:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+  flights:
+    - { date: 2026-06-01, class: GLIDER, launchMethod: winch, minutes: { total: 30, pic: 30 }, launches: 2, landings: { day: 2 }, soleManipulator: true }
+    - { date: 2026-06-02, class: GLIDER, minutes: { total: 30, pic: 30 }, landings: { day: 1 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: GLIDER }
+    status: lapsed
+    messageKey: pax.not_current
+    messageParams: { needed: 1 }
+    requirements:
+      launches: { current: 2, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 1, unit: launches } }
+      landings: { current: 3, met: true }

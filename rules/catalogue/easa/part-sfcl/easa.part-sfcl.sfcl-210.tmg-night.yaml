@@ -1,0 +1,18 @@
+id: easa.part-sfcl.sfcl-210.tmg-night
+title: TMG night rating
+authority: easa
+instrument: Part-SFCL
+article: SFCL.210
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.210
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-210.md
+  quote:
+    - "(a) SPL holders with privileges to fly TMGs shall only exercise their TMG privileges in VFR conditions at night if they hold a TMG night rating in accordance with this point."
+applies_to: { subject: privilege, privilegeKinds: [TMG_NIGHT] }
+notes: >-
+  No recency or validity of its own: the article sets training requirements only. Holding the rating gates night passengers in TMGs, encoded in easa.part-sfcl.sfcl-160-e-2.tmg-passengers. The API reports only a recorded expiry date (other.ninerlog.privilege-expiry).

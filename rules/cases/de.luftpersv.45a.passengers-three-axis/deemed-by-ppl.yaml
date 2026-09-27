@@ -1,0 +1,22 @@
+rule: de.luftpersv.45a.passengers-three-axis
+name: deemed-by-ppl
+description: >-
+  A three-axis pilot who holds a valid PPL(A) has the passenger authorisation by § 84a(2)
+  second sentence; no progress rows are shown.
+covers: [stage:current, requirement:day:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL, issued: 2021-01-01 }
+    - { id: l-ppl, authority: LBA, type: PPL(A) }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-05-31 }
+  flights:
+    - { date: 2026-09-10, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 45, pic: 45 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+expect:
+  - subject: { kind: passengers, id: l-ul }
+    status: current
+    messageKey: pax.current_day_no_night_privilege
+    requirements:
+      ul_xc_flights: { absent: true }

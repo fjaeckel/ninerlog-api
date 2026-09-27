@@ -1,0 +1,17 @@
+rule: faa.14cfr61.61-101-g.recreational-recency
+name: lapsed
+description: Under 400 hours and the last PIC flight on 16 February (181 days ago); dual instruction since then is not PIC time. The pilot needs training and an instructor's endorsement.
+covers: [stage:not_met, requirement:recent_pic:unmet, requirement:experienced:unmet, window:edge-out]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-rec, authority: FAA, type: RECREATIONAL }
+  flights:
+    - { date: 2026-02-16, class: SEP_LAND, minutes: { total: 60, pic: 60 } }
+    - { date: 2026-07-01, class: SEP_LAND, minutes: { total: 60, dual: 60 } }
+expect:
+  - subject: { kind: licence, id: l-rec }
+    status: lapsed
+    messageKey: licence.recency_not_met
+    requirements:
+      recent_pic: { current: 0, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 1, unit: minutes } }

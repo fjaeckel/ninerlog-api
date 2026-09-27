@@ -1,0 +1,26 @@
+rule: easa.part-sfcl.sfcl-215.cloud-flying
+name: expired-ir-no-credit
+description: >-
+  An expired IR(A) and an FAA instrument rating give no credit; an expired cloud flying
+  privilege is expired.
+covers: [stage:expired, stage:lapsed, expiry:after]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-ir, licenceId: l-ppl, class: IR, expires: 2026-09-14 }
+    - { id: r-faa-ir, licenceId: l-faa, class: IR }
+  privileges:
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING }
+    - { id: p-cloud-old, licenceId: l-spl, kind: CLOUD_FLYING, expires: 2026-09-14 }
+expect:
+  - subject: { kind: privilege, id: p-cloud }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+  - subject: { kind: privilege, id: p-cloud-old }
+    status: expired
+    messageKey: privilege.expired
+    messageParams: { date: 2026-09-14 }

@@ -1,0 +1,23 @@
+rule: easa.part-fcl.fcl-205-g-a-2.passengers
+name: met
+description: >-
+  Ten hours as PIC on gyroplanes since the GPL was issued, starting on the issue day, allow
+  passengers; dual time and ultralight gyroplane time do not count.
+covers: [stage:met, requirement:gpl_pic:met, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL, issued: 2026-02-01 }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  flights:
+    - { date: 2026-02-01, class: GYROPLANE, minutes: { total: 240, pic: 240 }, takeoffs: { day: 4 }, landings: { day: 4 } }
+    - { date: 2026-04-01, class: GYROPLANE, minutes: { total: 420, pic: 360, dual: 60 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: GYROPLANE, mtomKg: 560, minutes: { total: 300, pic: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+expect:
+  - subject: { kind: passengers, id: l-gpl, class: GYROPLANE }
+    status: current
+    messageKey: pax.prerequisite_met
+    windowOpensAt: 2026-02-01
+    requirements:
+      gpl_pic: { current: 600, required: 600, met: true }

@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-197.cfi-recent-experience
+name: window-first-day
+description: A flight instructor practical test on 1 August 2024 (the certificate was reissued without expiration later) still counts on 16 August 2026, through 31 August.
+covers: [stage:current, window:edge-in, requirement:practical_test:met, any_of:recent_experience:practical_test, requirement:refresher_course:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-cfi, licenceId: l-faa, kind: CFI, issued: 2024-12-05 }
+  events:
+    - { date: 2024-08-01, kind: practical_test, rating: CFII }
+expect:
+  - subject: { kind: privilege, id: p-cfi }
+    status: current
+    messageParams: { date: 2026-08-31 }

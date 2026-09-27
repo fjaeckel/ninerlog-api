@@ -1,0 +1,27 @@
+rule: de.dulv.ul-recency.gyroplane
+name: current-by-experience
+description: >-
+  Ultralight gyroplane and Part-FCL gyroplane time pools to 12 h with 6 h PIC and 12
+  landings; the training flight is on the ultralight gyroplane. The first flight is on the
+  first day of the 24 months.
+covers: [stage:current, window:edge-in, any_of:recency:experience, requirement:total_time:met, requirement:pic_time:met, requirement:landings:met, requirement:training_flight:met, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-gyro, licenceId: l-ul, class: ULTRALIGHT, ulKind: GYROPLANE }
+  flights:
+    - { date: 2024-09-15, class: ULTRALIGHT, ulKind: GYROPLANE, minutes: { total: 300, pic: 240, dual: 60 }, landings: { day: 6 } }
+    - { date: 2026-02-01, class: GYROPLANE, minutes: { total: 420, pic: 420 }, landings: { day: 6 } }
+expect:
+  - subject: { kind: rating, id: r-gyro, ulKind: GYROPLANE }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2026-09-15
+    requirements:
+      total_time: { current: 720, met: true }
+      pic_time: { current: 660, met: true }
+      landings: { current: 12, met: true }
+      training_flight: { current: 300, met: true }
+      proficiency_check: { current: 0, met: false }

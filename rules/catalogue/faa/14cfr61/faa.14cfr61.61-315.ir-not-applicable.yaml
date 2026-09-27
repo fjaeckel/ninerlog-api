@@ -1,0 +1,53 @@
+id: faa.14cfr61.61-315.ir-not-applicable
+title: No instrument privileges on sport and recreational certificates
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.315(c)(12), (c)(13); 61.101(e)(9), (e)(10)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.315(c)(13)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.315
+  file: sources/faa/61.315.md
+  quote:
+    - "(c) You may not act as pilot in command of an aircraft:"
+    - "(12) When the flight or surface visibility is less than 3 statute miles."
+    - "(13) Without visual reference to the surface."
+related_sources:
+  - cite: 14 CFR 61.101(e)(10)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.101
+    file: sources/faa/61.101.md
+    quote:
+      - "(e) Except as provided in paragraphs (d) and (i) of this section, a recreational pilot may not act as pilot in command of an aircraft—"
+      - "(9) When the flight or surface visibility is less than 3 statute miles;"
+      - "(10) Without visual reference to the surface;"
+citations: [14 CFR 61.315(c)(13), 14 CFR 61.101(e)(10)]
+
+applies_to:
+  subject: rating
+  classes: [IR]
+  authorities: [FAA]
+  licenceKinds: [FAA_SPORT, FAA_RECREATIONAL]
+
+stages:
+  - { id: not_applicable, when: always, status: not_applicable, messageKey: rating.ir_not_applicable }
+
+ruleDescriptionKey: faa_ir
+
+divergences:
+  - id: status
+    api: Reports an IR on a sport or recreational certificate with status unknown.
+    article: A sport or recreational pilot may not fly without visual reference to the surface or below 3 statute miles visibility, so instrument recency does not apply; the status is not_applicable.
+    cite: 14 CFR 61.315(c)(13), 14 CFR 61.101(e)(10)
+
+notes: >-
+  The API cites 61.315 for both certificates; 61.315 is the sport pilot section and says
+  nothing about instrument ratings as such. The basis is the prohibition on flight without
+  visual reference to the surface and below 3 statute miles visibility: 61.315(c)(12)-(13)
+  for sport pilots and 61.101(e)(9)-(10) for recreational pilots. An instrument rating
+  recorded on such a certificate therefore carries no privileges; the instrument recency of
+  faa.14cfr61.61-57-c.instrument excludes these certificates. Licence kinds are classified
+  from the licence type by the vocabulary's aliases (the API compared the untrimmed upper-case
+  type).

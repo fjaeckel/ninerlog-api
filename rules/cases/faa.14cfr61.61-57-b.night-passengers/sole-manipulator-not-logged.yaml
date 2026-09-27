@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-57-b.night-passengers
+name: sole-manipulator-not-logged
+description: A night flight that does not record the sole manipulator counts for nothing yet; with no other night flight the status is unknown.
+covers: [unknown:soleManipulator, stage:not_logged]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2026-08-01, class: SEP_LAND, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 3 }, landings: { night: 3 }, fullStopNightLandings: 3 }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: unknown
+    messageKey: pax.experience_not_logged
+    requirements:
+      night_takeoffs: { tracked: false }
+      full_stop_night_landings: { tracked: false }

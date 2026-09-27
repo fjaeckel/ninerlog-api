@@ -1,0 +1,48 @@
+id: faa.14cfr61.61-87-n.student-solo
+title: Student pilot solo endorsement (90 days)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.87(n), (p)(4)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.87(n)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.87
+  file: sources/faa/61.87.md
+  quote: "A student pilot may not operate an aircraft in solo flight unless that student pilot has received an endorsement in the student's logbook for the specific make and model aircraft to be flown by an authorized instructor who gave the training within the 90 days preceding the date of the flight."
+related_sources:
+  - cite: 14 CFR 61.87(p)(4)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.87
+    file: sources/faa/61.87.md
+    quote: "(4) Endorsed the student pilot's logbook for the specific make and model aircraft to be flown, and that endorsement remains current for solo flight privileges, provided an authorized instructor updates the student's logbook every 90 days thereafter."
+citations: [14 CFR 61.87(n), 14 CFR 61.87(p)(4)]
+
+applies_to:
+  subject: licence
+  authorities: [FAA]
+  licenceKinds: [FAA_STUDENT]
+
+window: { rolling_days: 90 }
+
+requirements:
+  all_of:
+    - id: solo_endorsement
+      metric: events
+      min: 1
+      unit: events
+      nameKey: requirement.solo_endorsement
+      filter: { eventKinds: [solo_endorsement] }
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: licence.recency_current }
+  - { id: not_met, when: always, status: lapsed, messageKey: licence.recency_not_met }
+
+ruleDescriptionKey: faa_student_solo
+
+notes: >-
+  Partial: one evaluation per FAA student pilot certificate; any solo_endorsement event in
+  the 90 days before asOf counts (asOf - 90 days through asOf, as for 61.57). The make and
+  model of the endorsement is not checked, and the separate night solo endorsement
+  (61.87(o)) and the one-time pre-solo knowledge test and training are not modelled.

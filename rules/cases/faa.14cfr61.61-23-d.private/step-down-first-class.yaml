@@ -1,0 +1,15 @@
+rule: faa.14cfr61.61-23-d.private
+name: step-down-first-class
+description: An ATP aged 45 examined on 10 January 2025 keeps third-class (private) privileges from the first-class medical through 31 January 2027, long after the ATP and commercial privileges ended.
+covers: [stage:valid]
+asOf: 2026-08-16
+record:
+  holder: { dateOfBirth: 1980-01-01 }
+  licences:
+    - { id: l-atp, authority: FAA, type: ATP }
+  credentials:
+    - { id: c-1, type: FAA_CLASS1_MEDICAL, issued: 2025-01-10 }
+expect:
+  - subject: { kind: credential, id: c-1 }
+    status: current
+    expiresOn: 2027-01-31

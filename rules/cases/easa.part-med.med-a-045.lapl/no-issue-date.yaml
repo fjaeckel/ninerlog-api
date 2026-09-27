@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.lapl
+name: no-issue-date
+description: "Without an issue date and an entered expiry date nothing can be derived."
+covers: [stage:no_expiry]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_LAPL_MEDICAL }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: unknown
+    messageKey: credential.no_expiry_date

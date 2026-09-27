@@ -1,0 +1,12 @@
+rule: faa.14cfr61.61-69.towing
+name: not-applicable
+description: An EASA sailplane towing privilege follows SFCL.205; FAA banner towing has no 61.69 recency.
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  privileges:
+    - { id: p-easa, licenceId: l-easa, kind: SAILPLANE_TOWING }
+    - { id: p-banner, licenceId: l-faa, kind: BANNER_TOWING }
+expect: []

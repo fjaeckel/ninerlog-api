@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-940-cri.revalidation
+name: one-of-three
+description: "Only the refresher training is done; two of the three items are needed."
+covers: [stage:not_met, n_of:revalidation:unmet, requirement:instruction:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: CRI, issued: 2024-01-15 }
+  events:
+    - { date: 2026-02-01, kind: instructor_refresher }
+  flights:
+    - { date: 2025-03-01, class: SEP_LAND, minutes: { total: 120, dualGiven: 120 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: current
+    messageKey: privilege.revalidation_not_met
+    messageParams: { date: 2027-01-15 }
+    requirements:
+      instruction: { current: 120, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 480, unit: minutes } }

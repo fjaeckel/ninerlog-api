@@ -1,0 +1,14 @@
+rule: easa.part-med.med-a-045.class-1
+name: valid-on-expiry-day
+description: "The certificate is valid on its expiry date."
+covers: [expiry:on, stage:revalidation_window]
+asOf: 2027-03-01
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS1_MEDICAL, issued: 2026-03-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: expiring
+    messageKey: credential.revalidation_window_open
+    messageParams: { days: 0, date: 2027-03-01 }

@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-217.ground-instructor
+name: refresher-course
+description: A flight instructor refresher course on 1 August 2025, the first day of the 12 calendar months before August 2026, counts through 31 August.
+covers: [stage:current, requirement:refresher_course:met, any_of:recent_activity:refresher_course, window:edge-in]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  privileges:
+    - { id: p-gi, licenceId: l-faa, kind: GROUND_INSTRUCTOR }
+  events:
+    - { date: 2025-08-01, kind: instructor_refresher }
+expect:
+  - subject: { kind: privilege, id: p-gi }
+    status: current
+    validUntil: 2026-08-31

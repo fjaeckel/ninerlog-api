@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-57-a.tailwheel
+name: current
+description: Three full-stop landings as sole manipulator in a tailwheel airplane allow passengers in a tailwheel airplane; touch-and-goes in a nosewheel airplane do not count.
+covers: [stage:current, requirement:tailwheel_full_stop:met, requirement:tailwheel_flown:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2026-07-20, class: SEP_LAND, tailwheel: false, minutes: { total: 60, pic: 60 }, takeoffs: { day: 5 }, landings: { day: 5 }, fullStopLandings: 5, soleManipulator: true }
+    - { date: 2026-08-02, class: SEP_LAND, tailwheel: true, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, fullStopLandings: 3, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: current
+    messageKey: pax.tailwheel_current
+    validUntil: 2026-10-31
+    requirements:
+      tailwheel_full_stop: { current: 3, required: 3, met: true }
+      tailwheel_flown: { current: 1, met: true }

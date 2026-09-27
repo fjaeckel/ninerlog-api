@@ -1,0 +1,14 @@
+rule: faa.14cfr61.61-23-d.commercial
+name: valid-on-last-day
+description: On 31 August 2026 the second-class medical still covers commercial privileges.
+covers: [stage:expiring, expiry:on]
+asOf: 2026-08-31
+record:
+  licences:
+    - { id: l-cpl, authority: FAA, type: COMMERCIAL }
+  credentials:
+    - { id: c-2, type: FAA_CLASS2_MEDICAL, issued: 2025-08-20 }
+expect:
+  - subject: { kind: credential, id: c-2 }
+    status: expiring
+    messageParams: { days: 0, date: 2026-08-31 }

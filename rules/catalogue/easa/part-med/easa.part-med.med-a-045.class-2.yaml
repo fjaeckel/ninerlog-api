@@ -1,0 +1,63 @@
+id: easa.part-med.med-a-045.class-2
+title: Class 2 medical certificate validity
+authority: easa
+instrument: Part-MED
+article: MED.A.045(a)(3)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA MED.A.045(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/med-a-045.md
+  quote:
+    - "(3) Class 2 medical certificates shall be valid for a period of:"
+    - "(i) 60 months, until the licence holder reaches the age of 40. A medical certificate issued prior to the licence holder reaching the age of 40 shall cease to be valid after the licence holder reaches the age of 42;"
+    - "(ii) 24 months, for licence holders aged between 40 and 50. A medical certificate issued prior to the licence holder reaching the age of 50 shall cease to be valid after the licence holder reaches the age of 51;"
+    - "(iii) 12 months, for licence holders aged above 50."
+related_sources:
+  - cite: EASA MED.A.045(a)(5), (b)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/med-a-045.md
+    quote:
+      - "(5) The validity period of a medical certificate, including any associated examination or special investigation, shall be calculated from the date of the aero-medical examination in the case of initial issue and renewal, and from the expiry date of the previous medical certificate in the case of revalidation."
+      - "Aero-medical examinations and assessments, as applicable, for the revalidation of a medical certificate may be undertaken up to 45 days prior to the expiry date of the medical certificate."
+citations: [EASA MED.A.045(a)(3)]
+
+applies_to:
+  subject: credential
+  credentialTypes: [EASA_CLASS2_MEDICAL]
+
+validity:
+  from: valid_from
+  periods:
+    - { when: { age_under: 40 }, months: 60, cap_at_age: 42 }
+    - { when: { age_at_least: 40, age_under: 50 }, months: 24, cap_at_age: 51 }
+    - { months: 12 }
+
+stages:
+  - { id: date_of_birth_missing, when: { all: [{ missing: date_of_birth }, no_expiry] }, status: unknown, messageKey: credential.date_of_birth_required }
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: credential.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: credential.expired, params: { date: expiry_date } }
+  - { id: revalidation_window, when: { expires_within: { days: 45 } }, status: expiring, messageKey: credential.revalidation_window_open, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: valid, when: always, status: current, messageKey: credential.valid, params: { date: expiry_date } }
+
+divergences:
+  - id: derived-validity
+    api: Uses only the expiry date the pilot entered.
+    article: The validity period follows from the certificate class and the holder's age; when the derived date is earlier than the entered one, the derived date applies.
+    cite: EASA MED.A.045(a)
+  - id: valid-through-expiry
+    api: Reports the medical expired on its expiry date.
+    article: The certificate is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: EASA MED.A.045(a)
+
+notes: >-
+  "Aged between 40 and 50" and "aged above 50" overlap or leave a gap at exactly 50; the catalogue reads (ii) as 40 to 49 and (iii) as 50 or more, consistent with the cap at 51 for certificates issued before 50. A certificate issued before 42 or 51 ends on that birthday at the latest.
+  The period runs from validFrom (the previous expiry date, for a revalidation) or else the
+  issue date (the examination date, for initial issue and renewal), MED.A.045(a)(5); the age
+  is taken on that date. The effective expiry is the earlier of the derived and the entered
+  date. Without a date of birth the derived date is unknown and only an entered expiry date
+  is used. The 45-day stage reflects MED.A.045(b): the revalidation examination may be taken
+  now. Renewal after expiry (MED.A.045(c)) is not modelled.

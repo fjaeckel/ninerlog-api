@@ -1,0 +1,14 @@
+rule: faa.14cfr61.61-23-d.first-class-atp
+name: missing-inputs
+description: Without a date of birth the age on the examination date, and so the duration, cannot be told.
+covers: [stage:date_of_birth]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-atp, authority: FAA, type: ATP }
+  credentials:
+    - { id: c-med, type: FAA_CLASS1_MEDICAL, issued: 2026-02-10 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: unknown
+    messageKey: credential.date_of_birth_required

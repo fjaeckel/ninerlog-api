@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-19-d.cfi-expiry
+name: new-regime
+description: A flight instructor certificate issued on or after 1 December 2024 has no expiration date; this rule does not apply (recent experience is faa.14cfr61.61-197.cfi-recent-experience). EASA instructor privileges are not evaluated.
+covers: [stage:no_expiration_date]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-cfi, licenceId: l-faa, kind: CFI, issued: 2025-03-01 }
+    - { id: p-fi, licenceId: l-easa, kind: FI, issued: 2025-03-01, expires: 2028-03-31 }
+expect:
+  - subject: { kind: privilege, id: p-cfi }
+    status: not_applicable
+    messageKey: privilege.not_applicable

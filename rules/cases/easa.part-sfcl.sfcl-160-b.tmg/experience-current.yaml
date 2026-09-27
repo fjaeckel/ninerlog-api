@@ -1,0 +1,27 @@
+rule: easa.part-sfcl.sfcl-160-b.tmg
+name: experience-current
+description: >-
+  Twelve hours including 6 hours, 12 take-offs and landings and a 1-hour training flight on
+  TMGs keep the SPL TMG privileges current; sailplane hours count toward the 12 hours, and a
+  flight on the window's first day counts.
+covers: [stage:current, any_of:recency:experience, requirement:flight_time:met, requirement:tmg_time:met, requirement:tmg_takeoffs_landings:met, requirement:tmg_training_flight:met, requirement:proficiency_check:unmet, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  flights:
+    - { date: 2024-09-15, class: TMG, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 }, launches: 2 }
+    - { date: 2026-03-01, class: TMG, minutes: { total: 300, pic: 300 }, takeoffs: { day: 10 }, landings: { day: 10 }, launches: 10 }
+    - { date: 2026-06-01, class: GLIDER, launchMethod: winch, minutes: { total: 360, pic: 300, spic: 60 }, launches: 8, landings: { day: 8 } }
+expect:
+  - subject: { kind: rating, id: r-tmg, class: TMG }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      flight_time: { current: 720, met: true }
+      tmg_time: { current: 360, met: true }
+      tmg_takeoffs_landings: { current: 12, met: true }
+      tmg_training_flight: { current: 60, met: true }
+      proficiency_check: { current: 0, met: false }

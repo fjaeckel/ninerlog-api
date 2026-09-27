@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-030.class-2
+name: higher-class
+description: "A class 1 certificate includes the privileges of the lower classes."
+covers: [stage:valid_medical]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+  credentials:
+    - { id: c-1, type: EASA_CLASS1_MEDICAL, expires: 2027-01-10 }
+expect:
+  - subject: { kind: licence, id: l-1 }
+    status: current

@@ -1,0 +1,17 @@
+rule: easa.part-sfcl.sfcl-205-f.sailplane-towing
+name: valid-on-expiry-day
+description: A towing rating with an expiry date is still valid on that date.
+covers: [stage:current, expiry:on]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: LAPL(S) }
+  privileges:
+    - { id: p-tow, licenceId: l-spl, kind: SAILPLANE_TOWING, expires: 2026-09-15 }
+  flights:
+    - { date: 2026-05-01, class: TMG, minutes: { total: 90, pic: 90 }, takeoffs: { day: 5 }, landings: { day: 5 }, towedGliders: 5, flags: { towFlight: true } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: current
+    messageKey: privilege.recency_current
+    messageParams: { date: 2026-09-15 }

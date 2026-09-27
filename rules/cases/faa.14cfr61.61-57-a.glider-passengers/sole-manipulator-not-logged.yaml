@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-57-a.glider-passengers
+name: sole-manipulator-not-logged
+description: PIC time alone does not show the pilot was sole manipulator; without that field the status is unknown.
+covers: [unknown:soleManipulator, stage:not_logged]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+  flights:
+    - { date: 2026-06-01, class: GLIDER, launchMethod: aerotow, minutes: { total: 200, pic: 200 }, launches: 4, landings: { day: 4 } }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: GLIDER }
+    status: unknown
+    messageKey: pax.experience_not_logged
+    requirements:
+      launches: { tracked: false, met: false }
+      landings: { tracked: false, met: false }

@@ -1,0 +1,85 @@
+id: easa.part-fcl.fcl-940-fi.revalidation
+title: FI and IRI certificate revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.940.FI(a)(1); FCL.940.IRI; FCL.940
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940.FI(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940-fi.md
+  quote:
+    - "(1) To revalidate an FI certificate, holders shall fulfil at least two out of the three following requirements before the expiry date of the FI certificate:"
+    - "(A) in the case of an FI(A) and an FI(H), at least 50 hours of flight instruction in the appropriate aircraft category as FIs, TRIs, CRIs, IRIs MIs or examiners. If the privileges to instruct for the BIR and the IR are to be revalidated, 10 of those 50 hours shall be flight instruction for a BIR or an IR and shall have been completed within the last 12 months immediately preceding the expiry date of the FI certificate;"
+    - "(ii) they have completed instructor refresher training as an FI at an ATO or at the competent authority;"
+    - "(iii) they have passed an assessment of competence in accordance with point FCL.935 in the period of 12 months immediately preceding the expiry date of the FI certificate."
+related_sources:
+  - cite: EASA FCL.940.IRI
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-940-iri.md
+    quote: "For revalidation and renewal of an IRI certificate, the holder shall meet the requirements for revalidation and renewal of an FI certificate, in accordance with FCL.940.FI."
+  - cite: EASA FCL.940
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-940.md
+    quote: "With the exception of the MI, and without prejudice to points FCL.900 (b)(1) and FCL.915 (e)(2), instructor certificates shall be valid for a period of 3 years."
+citations: [EASA FCL.940.FI(a)(1), EASA FCL.940.IRI, EASA FCL.940]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [FI, IRI]
+
+validity:
+  from: valid_from
+  periods:
+    - { months: 36 }
+
+window: { before_expiry_months: 36 }
+
+requirements:
+  id: revalidation
+  n_of:
+    n: 2
+    of:
+      - id: instruction
+        metric: minutes.instructorOrExaminer
+        min: 3000
+        unit: minutes
+        nameKey: requirement.instruction_given
+        remedyKey: remedy.fly_more
+      - id: refresher
+        metric: events
+        filter: { eventKinds: [instructor_refresher] }
+        min: 1
+        unit: training
+        nameKey: requirement.instructor_refresher
+      - id: assessment
+        metric: events
+        window: { before_expiry_months: 12 }
+        filter: { eventKinds: [assessment_of_competence] }
+        min: 1
+        unit: check
+        nameKey: requirement.assessment_of_competence
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: privilege.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: met, when: all_met, status: current, messageKey: privilege.revalidation_current, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: privilege.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: not_met, when: always, status: current, messageKey: privilege.revalidation_not_met, params: { date: expiry_date } }
+
+notes: >-
+  Partial. The 50 hours are counted as instruction given plus examiner time, in any aircraft
+  and in the whole validity period (3 years, FCL.940); the "appropriate aircraft category"
+  is not checked, because an FI privilege record does not say whether it is an FI(A) or an
+  FI(H). The 20 hours of an FI(As), the 50 hours in gyroplanes of an FI(G) ((a)(1)(i)(B),
+  (C)) and the 10 hours of BIR or IR instruction in the last 12 months are not modelled.
+  Instructor refresher training counts anywhere in the validity period; an assessment of
+  competence (any assessment_of_competence event) counts in the 12 months before expiry.
+  The rule that at least every alternate revalidation includes the assessment of competence
+  ((a)(2)) is not tracked. The validity (3 years from validFrom, else the issue date, capped
+  by an entered expiry date) comes from FCL.940. Renewal ((b)) is not modelled. An IRI is
+  revalidated like an FI (FCL.940.IRI). The API does not evaluate instructor certificates
+  today.

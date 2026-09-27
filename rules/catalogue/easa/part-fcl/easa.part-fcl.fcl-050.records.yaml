@@ -1,0 +1,18 @@
+id: easa.part-fcl.fcl-050.records
+title: Recording of flight time
+authority: easa
+instrument: Part-FCL
+article: FCL.050
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.050
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-050.md
+  quote:
+    - "The pilot shall keep a reliable record of the details of all flights flown in a form and manner established by the competent authority."
+applies_to: { subject: licence }
+notes: >-
+  Not a currency or validity rule: FCL.050 is the obligation to keep the logbook that NinerLog is. It decides no status on a date, so there is nothing to evaluate. The definitions every rule counts with (route sector, night, flight time) come from FCL.010 and are cited by the rules that use them.

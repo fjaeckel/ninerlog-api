@@ -1,0 +1,12 @@
+rule: easa.part-med.med-a-045.class-2
+name: no-date-of-birth
+description: "Without a date of birth and without an entered expiry date the validity cannot be derived."
+covers: [stage:date_of_birth_missing]
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-med, type: EASA_CLASS2_MEDICAL, issued: 2026-03-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: unknown
+    messageKey: credential.date_of_birth_required

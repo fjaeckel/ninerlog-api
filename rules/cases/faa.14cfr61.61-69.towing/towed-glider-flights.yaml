@@ -1,0 +1,24 @@
+rule: faa.14cfr61.61-69.towing
+name: towed-glider-flights
+description: Three aerotowed glider flights as PIC count; a winch launch and a dual aerotow do not.
+covers: [stage:current, requirement:towed_glider_flights:met, any_of:towing_recency:towed_glider_flights]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+  privileges:
+    - { id: p-tow, licenceId: l-faa, kind: SAILPLANE_TOWING }
+  flights:
+    - { date: 2026-04-01, class: GLIDER, launchMethod: aerotow, minutes: { total: 60, pic: 60 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-04-02, class: GLIDER, launchMethod: aerotow, minutes: { total: 60, pic: 60 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-04-03, class: GLIDER, launchMethod: winch, minutes: { total: 10, pic: 10 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-04-04, class: GLIDER, launchMethod: aerotow, minutes: { total: 40, dual: 40 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-04-05, class: GLIDER, launchMethod: aerotow, minutes: { total: 60, pic: 60 }, launches: 1, landings: { day: 1 } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: current
+    messageKey: privilege.recency_current
+    requirements:
+      towed_glider_flights: { current: 3, met: true }

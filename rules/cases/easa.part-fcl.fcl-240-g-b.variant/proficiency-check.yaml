@@ -1,0 +1,18 @@
+rule: easa.part-fcl.fcl-240-g-b.variant
+name: proficiency-check
+description: A proficiency check recorded for the variant restores it.
+covers: [stage:current, any_of:variant:proficiency_check, requirement:proficiency_check:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  variants:
+    - { id: v-electric, ratingId: r-gyro, name: SPG-ELECTRIC }
+  events:
+    - { date: 2026-08-01, kind: proficiency_check, class: GYROPLANE, variant: SPG-ELECTRIC }
+expect:
+  - subject: { kind: type, id: v-electric }
+    status: current
+    messageKey: type.current

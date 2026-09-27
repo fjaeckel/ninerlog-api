@@ -1,0 +1,68 @@
+id: faa.14cfr61.61-57-a.tailwheel
+title: Passenger recency in tailwheel airplanes (full-stop landings)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.57(a)(1)(ii)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.57(a)(1)(ii)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+  file: sources/faa/61.57.md
+  quote:
+    - "no person may act as a pilot in command of an aircraft carrying persons or of an aircraft certificated for more than one pilot flight crewmember unless that person has made at least three takeoffs and three landings within the preceding 90 days, and—"
+    - "(i) The person acted as the sole manipulator of the flight controls; and"
+    - "if the aircraft to be flown is an airplane with a tailwheel, the takeoffs and landings must have been made to a full stop in an airplane with a tailwheel."
+citations: [14 CFR 61.57(a)(1)(i), 14 CFR 61.57(a)(1)(ii)]
+
+applies_to:
+  subject: passengers
+  authorities: [FAA]
+  classes: [SEP_LAND, SEP_SEA, MEP_LAND, MEP_SEA, SET_LAND, SET_SEA]
+  excludeLicenceKinds: [FAA_STUDENT]
+
+window: { rolling_days: 90 }
+
+requirements:
+  all_of:
+    - id: tailwheel_full_stop
+      metric: full_stop_landings
+      min: 3
+      unit: landings
+      nameKey: requirement.tailwheel_full_stop_landings
+      remedyKey: remedy.fly_more
+      filter: { classes: [$subject], tailwheel: true, soleManipulator: true }
+    - id: tailwheel_flown
+      informational: true
+      metric: flights
+      min: 1
+      unit: flights
+      nameKey: requirement.tailwheel_flights
+      window: { lifetime: true }
+      filter: { classes: [$subject], tailwheel: true }
+
+stages:
+  - { id: no_tailwheel, when: { unmet: tailwheel_flown }, status: not_applicable, messageKey: pax.tailwheel_not_applicable }
+  - { id: current, when: all_met, status: current, messageKey: pax.tailwheel_current }
+  - { id: not_logged, when: undetermined, status: unknown, messageKey: pax.experience_not_logged }
+  - { id: not_current, when: always, status: lapsed, messageKey: pax.tailwheel_not_current, params: { needed: { needed: tailwheel_full_stop } } }
+
+ruleDescriptionKey: faa_pax_day_night
+
+divergences:
+  - id: tailwheel
+    api: Does not distinguish tailwheel airplanes; any three landings in the class allow carrying passengers in a tailwheel airplane too.
+    article: To carry passengers in a tailwheel airplane the three takeoffs and landings must have been made to a full stop in a tailwheel airplane, as sole manipulator.
+    cite: 14 CFR 61.57(a)(1)(ii)
+
+notes: >-
+  One evaluation per airplane class on an FAA certificate (not student). A class in which the
+  pilot never logged a tailwheel flight is not_applicable: the condition applies only "if the
+  aircraft to be flown is an airplane with a tailwheel", and the logbook is the only
+  evidence of that. Flights that do not record whether the airplane has a tailwheel make the
+  class unknown until one does. The full-stop landing count stands for the takeoffs and
+  landings to a full stop (every landing is preceded by a takeoff); flights without a
+  full-stop count are unknown. The general 61.57(a) takeoff
+  and landing count is faa.14cfr61.61-57-a.passengers.

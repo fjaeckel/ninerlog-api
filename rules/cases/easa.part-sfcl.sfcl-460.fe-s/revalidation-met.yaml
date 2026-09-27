@@ -1,0 +1,24 @@
+rule: easa.part-sfcl.sfcl-460.fe-s
+name: revalidation-met
+description: >-
+  A refresher course on the first day of the validity period and a demonstration on the
+  first day of the 24 months before the derived five-year expiry meet the revalidation.
+covers: [stage:met, requirement:refresher:met, requirement:demonstration:met, window:validity_period:edge-in, window:before_expiry_months=24:edge-in, expiry:before]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fes, licenceId: l-spl, kind: FE_S, issued: 2022-01-10 }
+  events:
+    - { date: 2022-01-10, kind: examiner_refresher }
+    - { date: 2025-01-10, kind: assessment_of_competence }
+expect:
+  - subject: { kind: privilege, id: p-fes }
+    status: current
+    messageKey: privilege.revalidation_current
+    messageParams: { date: 2027-01-10 }
+    expiresOn: 2027-01-10
+    requirements:
+      refresher: { current: 1, met: true }
+      demonstration: { current: 1, met: true }

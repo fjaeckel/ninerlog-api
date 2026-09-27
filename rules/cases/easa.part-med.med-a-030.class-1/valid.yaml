@@ -1,0 +1,14 @@
+rule: easa.part-med.med-a-030.class-1
+name: valid
+description: "A valid class1 medical certificate allows exercising the licence."
+covers: [stage:valid_medical]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  credentials:
+    - { id: c-1, type: EASA_CLASS1_MEDICAL, issued: 2026-01-10, expires: 2027-01-10 }
+expect:
+  - subject: { kind: licence, id: l-1 }
+    status: current
+    messageKey: licence.valid

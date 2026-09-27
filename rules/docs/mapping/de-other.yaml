@@ -1,0 +1,34 @@
+# Mapping from the de-other porting family for the integration step:
+# inventory/code-rules.yaml and inventory/articles-de.yaml maps_to.
+mappings:
+  # code rules (inventory/code-rules.yaml)
+  - { code_rule: de.luftpersv.45a.passengers, maps_to: [de.luftpersv.45a.passengers-three-axis, de.luftpersv.45a.passengers] }
+  - { code_rule: de.luftpersv.84a.passenger-authorisation, maps_to: [de.luftpersv.45a.passengers-three-axis, de.luftpersv.45a.passengers] }
+  - { code_rule: de.luftpersv.45.kind-required, maps_to: [de.luftpersv.45.kind-required] }
+  - { code_rule: de.luftpersv.45-2.three-axis, maps_to: [de.luftpersv.45-2.three-axis] }
+  - { code_rule: de.luftpersv.45-2a.helicopter, maps_to: [de.luftpersv.45-2a.helicopter] }
+  - { code_rule: de.luftpersv.45-4.gyroplane, maps_to: [de.dulv.ul-recency.gyroplane] }
+  - { code_rule: de.luftpersv.45-4.weight-shift-dulv, maps_to: [de.dulv.ul-recency.weight-shift] }
+  - { code_rule: de.luftpersv.45-4.weight-shift-daec, maps_to: [de.daec.ul-recency.weight-shift] }
+  - { code_rule: de.luftpersv.45-4.powered-paraglider, maps_to: [de.dulv.ul-recency.powered-paraglider] }
+  - { code_rule: de.luftpersv.45-4.sailplane, maps_to: [de.daec.ul-recency.sailplane] }
+  - { code_rule: de.dulv.ul-towing, maps_to: [de.luftpersv.84-5.ul-towing] }
+  - { code_rule: de.luftpersv.42.three-axis-training, maps_to: [de.luftpersv.42.three-axis-training] }
+  - { code_rule: de.luftpersv.42.weight-shift-training, maps_to: [de.luftpersv.42.weight-shift-training] }
+  - { code_rule: other.ninerlog.expiry-only, maps_to: [other.ninerlog.expiry-only, other.ninerlog.expiry-only.faa-ultralight] }
+  - { code_rule: other.ninerlog.privilege-expiry, maps_to: [other.ninerlog.privilege-expiry, other.ninerlog.privilege-expiry.launch-method] }
+  # articles (inventory/articles-de.yaml)
+  - { article: LuftPersV § 1, maps_to: [de.luftpersv.1.licensed-personnel] }
+  - { article: LuftPersV § 8, maps_to: [de.luftpersv.8.documents-carried] }
+  - { article: LuftPersV § 9, maps_to: [de.luftpersv.9.validity] }
+  - { article: LuftPersV § 11, maps_to: [de.luftpersv.11.exercise-of-privileges] }
+  - { article: LuftPersV § 16, maps_to: [de.luftpersv.16-2.ul-student-medical] }
+  - { article: LuftPersV § 44, maps_to: [de.luftpersv.44-2.day-only, de.luftpersv.45.kind-required] }
+  - { article: LuftPersV § 45, maps_to: [de.luftpersv.45-1.medical-above-120kg, de.luftpersv.45-2.three-axis, de.luftpersv.45-2a.helicopter, de.luftpersv.45.kind-required, de.dulv.ul-recency.gyroplane, de.dulv.ul-recency.weight-shift, de.daec.ul-recency.weight-shift, de.dulv.ul-recency.powered-paraglider, de.daec.ul-recency.sailplane] }
+  - { article: LuftPersV § 45a, maps_to: [de.luftpersv.45a.passengers-three-axis, de.luftpersv.45a.passengers] }
+  - { article: LuftPersV § 45b, maps_to: [de.luftpersv.45b.flight-time-credit, de.luftpersv.42.three-axis-training, de.luftpersv.42.weight-shift-training] }
+  - { article: LuftPersV § 84, maps_to: [de.luftpersv.84-5.ul-towing] }
+  - { article: LuftPersV § 84a, maps_to: [de.luftpersv.45a.passengers-three-axis, de.luftpersv.45a.passengers, other.ninerlog.privilege-expiry] }
+  - { article: LuftPersV § 96, maps_to: [de.luftpersv.96-4.ul-instructor] }
+  - { article: LuftPersV § 120, maps_to: [de.luftpersv.120.logbook-certification] }
+  - { article: LuftVZO § 1, maps_to: [de.luftvzo.1-4.ul-120kg-exemption] }

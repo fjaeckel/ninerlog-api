@@ -1,0 +1,16 @@
+rule: easa.part-fcl.fcl-625-h.ir
+name: window-not-open
+description: Earlier than 3 months before expiry the window is not open.
+covers: [stage:window_not_open]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-ir, licenceId: l-1, class: IR, expires: 2027-06-30 }
+  flights: []
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: current
+    messageKey: rating.window_not_open
+    messageParams: { date: 2027-03-30 }

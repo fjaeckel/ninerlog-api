@@ -1,0 +1,29 @@
+rule: easa.part-fcl.fcl-740-a.set
+name: experience-does-not-count
+description: Route sectors and refresher training do not revalidate an SET rating (the API accepted them); a check in another class does not count either.
+covers: [stage:not_met, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-set, licenceId: l-ppl, class: SET_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-08-01, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-02, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-03, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-04, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-05, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-06, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-07, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-08, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-09, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-10, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-15, class: SET_LAND, minutes: { total: 60, dual: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-16, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, id: r-set }
+    status: expiring
+    messageKey: rating.revalidation_not_met_prof_check
+    requirements:
+      proficiency_check: { current: 0, met: false, remedyKey: remedy.proficiency_check }

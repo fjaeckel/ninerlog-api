@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-23-d.first-class-atp
+name: valid-on-last-day
+description: The medical is valid to the end of the last day of the 6th month; on 30 September it still counts.
+covers: [stage:expiring, expiry:on]
+asOf: 2026-09-30
+record:
+  holder: { dateOfBirth: 1970-01-01 }
+  licences:
+    - { id: l-atp, authority: FAA, type: ATP }
+  credentials:
+    - { id: c-med, type: FAA_CLASS1_MEDICAL, issued: 2026-03-02 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: expiring
+    messageKey: credential.expiring
+    messageParams: { days: 0, date: 2026-09-30 }

@@ -1,0 +1,20 @@
+rule: faa.14cfr61.61-57-a.passengers
+name: window-day-before
+description: Takeoffs and landings on 17 May are 91 days before 16 August and no longer count; only the one on 18 May does.
+covers: [window:edge-out, window:edge-in, stage:not_current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2026-05-17, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 }, soleManipulator: true }
+    - { date: 2026-05-18, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: lapsed
+    messageKey: pax.not_current
+    messageParams: { needed: 2 }
+    requirements:
+      takeoffs_landings: { current: 1, met: false }

@@ -1,0 +1,9 @@
+rule: faa.14cfr61.61-23-c-3.basicmed
+name: not-applicable
+description: Part 67 medicals and the driver's license itself are not BasicMed credentials.
+asOf: 2026-08-16
+record:
+  credentials:
+    - { id: c-dl, type: US_DRIVERS_LICENSE, expires: 2030-01-01 }
+    - { id: c-3, type: FAA_CLASS3_MEDICAL, issued: 2025-01-10 }
+expect: []

@@ -1,0 +1,51 @@
+id: easa.part-fcl.fcl-740.validity
+title: Class and type rating validity (types without a revalidation rule)
+authority: easa
+instrument: Part-FCL
+article: FCL.740(a)(1)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.740(a)(1)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-740.md
+  quote: "The validity period of class and type ratings shall be 1 year, except for single-pilot single-engine class ratings for which the validity period shall be 2 years, unless otherwise determined in the OSD."
+
+applies_to:
+  subject: rating
+  classes: [OTHER]
+  authorities: [EASA, LBA]
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: rating.expired }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: rating.expiring, params: { days: days_to_expiry } }
+  - { id: valid, when: always, status: current, messageKey: rating.valid_until }
+
+divergences:
+  - id: ultralight
+    api: Gives ultralight ratings recorded on an EASA licence an expiry-only result.
+    article: Ultralights (Annex I aircraft) carry no Part-FCL class or type rating; FCL.740 does not apply to them.
+    cite: EASA FCL.740(a)(1)
+  - id: rotorcraft-and-airships
+    api: Gives helicopter, powered-lift and airship ratings an expiry-only result.
+    article: Their type ratings are revalidated under FCL.740.H, FCL.740.PL and FCL.740.As; see the rules for those points.
+    cite: EASA FCL.740(a)(1)
+  - id: valid-through-expiry
+    api: Reports the rating expired on its expiry date.
+    article: The rating is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: EASA FCL.740(a)(1)
+  - id: authorities
+    api: Also evaluates such ratings recorded on DULV or DAeC licences.
+    article: FCL.740 applies to Part-FCL class and type ratings, issued by EASA member-state authorities such as the LBA.
+    cite: EASA FCL.740(a)(1)
+
+notes: >-
+  Partial: covers ratings recorded with class OTHER (aeroplane type ratings and anything the
+  app cannot classify). Their revalidation (FCL.740.A(a) for multi-engine and multi-pilot
+  type ratings) is not evaluated because the class does not tell which point applies; only
+  the recorded expiry date is reported. The validity period itself (1 year, 2 years, or as
+  the OSD determines) is not derived: the class does not say which applies. Renewal
+  (FCL.740(b)) is not modelled. The 90-day expiring threshold is NinerLog presentation.

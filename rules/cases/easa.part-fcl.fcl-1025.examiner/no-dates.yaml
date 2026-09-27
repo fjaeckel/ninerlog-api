@@ -1,0 +1,15 @@
+rule: easa.part-fcl.fcl-1025.examiner
+name: no-dates
+description: "Without an issue date or an expiry date the validity cannot be placed."
+covers: [stage:no_expiry]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: EXAMINER }
+  flights: []
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: unknown
+    messageKey: privilege.no_expiry_date

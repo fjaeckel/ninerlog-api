@@ -1,0 +1,24 @@
+rule: faa.14cfr61.61-315.ir-not-applicable
+name: sport-and-recreational
+description: An instrument rating recorded on a sport or a recreational certificate carries no privileges (no flight without visual reference to the surface); on a private certificate it is evaluated by the 61.57(c) rule instead.
+covers: [stage:not_applicable]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-sport, authority: FAA, type: SPORT }
+    - { id: l-rec, authority: faa, type: recreational }
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+    - { id: l-easa, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-sport-ir, licenceId: l-sport, class: IR }
+    - { id: r-rec-ir, licenceId: l-rec, class: IR }
+    - { id: r-ppl-ir, licenceId: l-ppl, class: IR }
+    - { id: r-easa-ir, licenceId: l-easa, class: IR }
+    - { id: r-sport-sep, licenceId: l-sport, class: SEP_LAND }
+expect:
+  - subject: { kind: rating, id: r-sport-ir, class: IR }
+    status: not_applicable
+    messageKey: rating.ir_not_applicable
+  - subject: { kind: rating, id: r-rec-ir, class: IR }
+    status: not_applicable
+    messageKey: rating.ir_not_applicable

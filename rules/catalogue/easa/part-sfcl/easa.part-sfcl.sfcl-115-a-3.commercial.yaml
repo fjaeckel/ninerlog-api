@@ -1,0 +1,21 @@
+id: easa.part-sfcl.sfcl-115-a-3.commercial
+title: SPL privileges in other than non-commercial operations
+authority: easa
+instrument: Part-SFCL
+article: SFCL.115(a)(3), (c)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.115(a)(3)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-115.md
+  quote:
+    - "(3) in operations other than those specified in paragraph (1), only if they have:"
+    - "(i) attained the age of 18 years;"
+    - "(ii) completed, after the issue of the licence, 75 hours of flight time or 200 launches or take-offs and landings as PIC on sailplanes."
+    - "(c) SPL holders shall exercise SPL privileges only if they comply with the applicable recency requirements and only if their medical certificate, appropriate to the privileges exercised, is valid."
+applies_to: { subject: licence, licenceKinds: [SPL, LAPL_S] }
+notes: >-
+  NinerLog records no commercial (remunerated) sailplane operations or a privilege for them, so (a)(3) has no subject. (c) composes the recency rules and the medical validity (Part-MED); that composition is an API consumer (readiness), not a catalogue rule.

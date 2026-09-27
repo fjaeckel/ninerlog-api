@@ -1,0 +1,21 @@
+id: de.luftpersv.8.documents-carried
+title: Documents to be carried
+authority: de
+instrument: LuftPersV
+article: § 8(2)
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 8(2)
+  url: https://www.gesetze-im-internet.de/luftpersv/__8.html
+  file: sources/de/luftpersv-8.md
+  quote:
+    - "Zusammen mit der Erlaubnis sind folgende Dokumente bei Ausübung der erlaubnispflichtigen Tätigkeit mitzuführen:"
+    - "1. Personalausweis oder Reisepass,"
+    - "2. Tauglichkeitszeugnis, falls ein solches zur Ausübung der erlaubnispflichtigen Tätigkeit erforderlich ist."
+applies_to: { subject: licence, authorities: [LBA, DULV, DAEC] }
+notes: >-
+  A carriage requirement (licence, identity document and, where one is required, the medical
+  certificate on board); it cannot be computed from the record.

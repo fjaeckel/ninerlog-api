@@ -1,0 +1,14 @@
+rule: easa.part-fcl.fcl-940.validity
+name: entered-date-later
+description: "An entered expiry date more than 3 years after issue is capped."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: TRI, issued: 2024-01-15, expires: 2030-01-01 }
+  flights: []
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    expiresOn: 2027-01-15

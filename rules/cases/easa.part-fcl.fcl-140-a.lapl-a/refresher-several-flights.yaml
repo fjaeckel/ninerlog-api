@@ -1,0 +1,22 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: refresher-several-flights
+description: Three dual flights of 20 minutes add up to the 1 hour of refresher training.
+covers: [requirement:refresher_training:met, stage:current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-land, licenceId: l-lapl, class: SEP_LAND }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 660, pic: 660 }, takeoffs: { day: 9 }, landings: { day: 9 } }
+    - { date: 2026-05-01, class: SEP_LAND, minutes: { total: 20, dual: 20 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-05-02, class: SEP_LAND, minutes: { total: 20, dual: 20 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-05-03, class: SEP_LAND, minutes: { total: 20, dual: 20 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: rating, id: r-land }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      refresher_training: { current: 60, met: true }
+      flight_time: { current: 720, met: true }

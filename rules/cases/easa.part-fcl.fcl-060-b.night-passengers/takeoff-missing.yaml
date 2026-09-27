@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-060-b.night-passengers
+name: takeoff-missing
+description: A night landing after a day take-off is not a night take-off.
+covers: [stage:takeoffs_short, requirement:night_takeoffs:unmet, requirement:night_landings:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  flights:
+    - { date: 2026-08-20, class: SEP_LAND, minutes: { total: 60, pic: 60, night: 30 }, takeoffs: { day: 1 }, landings: { night: 1 }, pilotFlying: true }
+expect:
+  - subject: { kind: passengers, id: l-ppl, class: SEP_LAND }
+    status: expired
+    messageKey: pax.night_not_current
+    messageParams: { needed: 1 }
+    requirements:
+      night_takeoffs: { current: 0, met: false }
+      night_landings: { current: 1, met: true }

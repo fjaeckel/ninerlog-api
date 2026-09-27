@@ -1,0 +1,45 @@
+# Mapping from the easa-sfcl porting family for the integration step:
+# inventory/code-rules.yaml and inventory/articles-easa.yaml maps_to.
+mappings:
+  # code rules (inventory/code-rules.yaml)
+  - { code_rule: easa.part-fcl.fcl-240-g.gpl, maps_to: [easa.part-fcl.fcl-240-g.gpl] }
+  - { code_rule: easa.part-fcl.fcl-205-g-a-2.gpl-passengers, maps_to: [easa.part-fcl.fcl-205-g-a-2.passengers] }
+  - { code_rule: easa.part-sfcl.sfcl-160-a.sailplane, maps_to: [easa.part-sfcl.sfcl-160-a.sailplane] }
+  - { code_rule: easa.part-sfcl.sfcl-155-c.launch-method, maps_to: [easa.part-sfcl.sfcl-155-c.launch-method, easa.part-sfcl.sfcl-155-c.self-launch, easa.part-sfcl.sfcl-155-c.bungee] }
+  - { code_rule: easa.part-sfcl.sfcl-155-a.launch-method-trained, maps_to: [easa.part-sfcl.sfcl-155-a.launch-method-trained] }
+  - { code_rule: easa.part-sfcl.sfcl-160-b.tmg, maps_to: [easa.part-sfcl.sfcl-160-b.tmg] }
+  - { code_rule: easa.part-sfcl.sfcl-160-c.tmg-exemption, maps_to: [easa.part-sfcl.sfcl-160-b.tmg] }
+  - { code_rule: easa.part-sfcl.sfcl-160-e-1.sailplane-passengers, maps_to: [easa.part-sfcl.sfcl-160-e-1.sailplane-passengers] }
+  - { code_rule: easa.part-sfcl.sfcl-160-e-2.tmg-passengers, maps_to: [easa.part-sfcl.sfcl-160-e-2.tmg-passengers] }
+  - { code_rule: easa.part-sfcl.sfcl-115-a-2.passenger-prerequisites, maps_to: [easa.part-sfcl.sfcl-115-a-2.passengers] }
+  - { code_rule: easa.part-sfcl.sfcl-205-c.sailplane-towing, maps_to: [easa.part-sfcl.sfcl-205-f.sailplane-towing] }
+  - { code_rule: easa.part-sfcl.sfcl-205-c.banner-towing, maps_to: [easa.part-sfcl.sfcl-205-f.banner-towing] }
+  - { code_rule: easa.part-sfcl.sfcl-215.cloud-flying, maps_to: [easa.part-sfcl.sfcl-215.cloud-flying] }
+  - { code_rule: easa.part-sfcl.sfcl-360.fi-s, maps_to: [easa.part-sfcl.sfcl-360.fi-s] }
+  - { code_rule: easa.part-sfcl.sfcl-130.spl-training, maps_to: [easa.part-sfcl.sfcl-130.spl-training] }
+  - { code_rule: easa.part-sfcl.sfcl-150-b.tmg-extension-training, maps_to: [easa.part-sfcl.sfcl-150-b.tmg-extension] }
+  # articles (inventory/articles-easa.yaml)
+  - { article: FCL.205.G, maps_to: [easa.part-fcl.fcl-205-g-a-2.passengers] }
+  - { article: FCL.240.G, maps_to: [easa.part-fcl.fcl-240-g.gpl, easa.part-fcl.fcl-240-g-b.variant] }
+  - { article: SFCL.035, maps_to: [easa.part-sfcl.sfcl-035.credit] }
+  - { article: SFCL.065, maps_to: [easa.part-sfcl.sfcl-065.age-70] }
+  - { article: SFCL.115, maps_to: [easa.part-sfcl.sfcl-115-a-2.passengers, easa.part-sfcl.sfcl-115-a-3.commercial] }
+  - { article: SFCL.150, maps_to: [easa.part-sfcl.sfcl-150-b.tmg-extension] }
+  - { article: SFCL.155, maps_to: [easa.part-sfcl.sfcl-155-a.launch-method-trained, easa.part-sfcl.sfcl-155-c.launch-method, easa.part-sfcl.sfcl-155-c.self-launch, easa.part-sfcl.sfcl-155-c.bungee] }
+  - { article: SFCL.160, maps_to: [easa.part-sfcl.sfcl-160-a.sailplane, easa.part-sfcl.sfcl-160-b.tmg, easa.part-sfcl.sfcl-160-e-1.sailplane-passengers, easa.part-sfcl.sfcl-160-e-2.tmg-passengers] }
+  - { article: SFCL.200, maps_to: [easa.part-sfcl.sfcl-200.aerobatic] }
+  - { article: SFCL.205, maps_to: [easa.part-sfcl.sfcl-205-f.sailplane-towing, easa.part-sfcl.sfcl-205-f.banner-towing] }
+  - { article: SFCL.210, maps_to: [easa.part-sfcl.sfcl-210.tmg-night, easa.part-sfcl.sfcl-160-e-2.tmg-passengers] }
+  - { article: SFCL.215, maps_to: [easa.part-sfcl.sfcl-215.cloud-flying] }
+  - { article: SFCL.360, maps_to: [easa.part-sfcl.sfcl-360.fi-s] }
+  - { article: SFCL.460, maps_to: [easa.part-sfcl.sfcl-460.fe-s] }
+  - { article: BFCL.035, maps_to: [easa.part-bfcl.bfcl-035.credit] }
+  - { article: BFCL.065, maps_to: [easa.part-bfcl.bfcl-065.age-70] }
+  - { article: BFCL.115, maps_to: [easa.part-bfcl.bfcl-115.privileges] }
+  - { article: BFCL.150, maps_to: [easa.part-bfcl.bfcl-150.extension] }
+  - { article: BFCL.160, maps_to: [easa.part-bfcl.bfcl-160.recency] }
+  - { article: BFCL.200, maps_to: [easa.part-bfcl.bfcl-200.tethered] }
+  - { article: BFCL.210, maps_to: [easa.part-bfcl.bfcl-210.night] }
+  - { article: BFCL.215, maps_to: [easa.part-bfcl.bfcl-215.commercial] }
+  - { article: BFCL.360, maps_to: [easa.part-bfcl.bfcl-360.fi-b] }
+  - { article: BFCL.460, maps_to: [easa.part-bfcl.bfcl-460.fe-b] }

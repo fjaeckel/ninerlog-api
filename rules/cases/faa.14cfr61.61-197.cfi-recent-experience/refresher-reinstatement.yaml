@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-197.cfi-recent-experience
+name: refresher-reinstatement
+description: The practical test of 31 July 2024 carried recent experience through 31 July 2026. In August, within 3 calendar months after that last month, a refresher course or a practical test reinstates the privileges.
+covers: [stage:refresher_reinstatement, window:edge-out]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-cfi, licenceId: l-faa, kind: CFI, issued: 2024-12-05 }
+  events:
+    - { date: 2024-07-31, kind: practical_test, rating: CFI }
+expect:
+  - subject: { kind: privilege, id: p-cfi }
+    status: lapsed
+    messageKey: privilege.cfi_reinstate_refresher

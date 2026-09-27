@@ -1,0 +1,22 @@
+id: faa.14cfr61.61-303.sport-operating-limits
+title: Operating limits and endorsements for light-sport category aircraft
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.303"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.303(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.303
+  file: sources/faa/61.303.md
+  quote:
+    - "Use the following table to determine what operating limits and endorsement requirements in this subpart, if any, apply to you when you operate an aircraft that satisfies the limitations identified in § 61.316."
+applies_to: { subject: licence, authorities: [FAA], licenceKinds: [FAA_SPORT, FAA_RECREATIONAL, FAA_PRIVATE, FAA_COMMERCIAL, FAA_ATP] }
+notes: >-
+  Not supported: the table decides which sport pilot limits and endorsements apply depending
+  on whether the pilot holds a medical, only a U.S. driver's license, or neither, and on the
+  certificate and ratings held, for flights in aircraft meeting 61.316. It sets no period;
+  the record does not say which aircraft meet 61.316 or which category and class
+  endorsements a sport pilot holds.

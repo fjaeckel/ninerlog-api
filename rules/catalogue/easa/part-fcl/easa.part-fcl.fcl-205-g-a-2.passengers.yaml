@@ -1,0 +1,52 @@
+id: easa.part-fcl.fcl-205-g-a-2.passengers
+title: GPL passenger prerequisite after licence issue
+authority: easa
+instrument: Part-FCL
+article: FCL.205.G(a)(2)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.205.G(a)(2)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-205-g.md
+  quote:
+    - "(a) The privileges of the holder of a GPL are to act as PIC in gyroplanes:"
+    - "(2) performing the carriage of passengers only when they have completed 10 hours of flight time as PIC on gyroplanes after the issuance of the licence."
+
+applies_to:
+  subject: passengers
+  classes: [GYROPLANE]
+  licenceKinds: [GPL]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { since_issue: licence }
+
+requirements:
+  id: gpl_pic
+  metric: minutes.pic
+  filter: { classes: [GYROPLANE] }
+  min: 600
+  unit: minutes
+  nameKey: requirement.pic_time_since_issue
+  remedyKey: remedy.fly_more
+
+stages:
+  - { id: met, when: all_met, status: current, messageKey: pax.prerequisite_met }
+  - { id: issue_date_unknown, when: undetermined, status: unknown, messageKey: pax.prerequisite_unknown }
+  - id: not_met
+    when: always
+    status: expired
+    messageKey: pax.gpl_experience_not_met
+    params: { needed: { needed: gpl_pic } }
+
+ruleDescriptionKey: easa_pax
+
+notes: >-
+  One evaluation per authority for the GYROPLANE class of a GPL. PIC time on GYROPLANE
+  flights since the recorded issue date of the GPL; ultralight gyroplane time is not
+  credited (FCL.035(a)(5) credits it toward FCL.240.G(a) only). A re-issued licence
+  carries a later issue date than the one the article means. Without a recorded issue
+  date the prerequisite is unknown. The 90-day take-off and landing recency of FCL.060(b)
+  is a separate rule; the API reports both in one passenger result.

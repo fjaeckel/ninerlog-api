@@ -1,0 +1,98 @@
+id: de.luftpersv.96-4.ul-instructor
+title: Ultralight instructor rating, validity and extension
+authority: de
+instrument: LuftPersV
+article: § 96(1), (4)
+support: partial
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 96(4)
+  url: https://www.gesetze-im-internet.de/luftpersv/__96.html
+  file: sources/de/luftpersv-96.md
+  quote:
+    - "Eine Berechtigung nach § 95a kann um drei Jahre verlängert oder erneuert werden, wenn der Bewerber innerhalb der letzten drei Jahre mindestens zwei der nachstehenden Voraussetzungen erfüllt hat:"
+    - "60 Starts und Landungen oder zehn Flugstunden als Lehrer oder Prüfer für die Berechtigung nach § 95a,"
+    - "Teilnahme an einem von der zuständigen Stelle durchgeführten oder anerkannten Fortbildungslehrgang für Fluglehrer innerhalb der Gültigkeitsdauer der Lehrberechtigung oder innerhalb der letzten zwölf Monate vor der Erneuerung der Lehrberechtigung,"
+    - "erfolgreiches Ablegen einer Befähigungsprüfung innerhalb der letzten zwölf Monate vor Verlängerung oder Erneuerung der Lehrberechtigung."
+related_sources:
+  - cite: LuftPersV § 96(1)
+    url: https://www.gesetze-im-internet.de/luftpersv/__96.html
+    file: sources/de/luftpersv-96.md
+    quote: "Die Berechtigungen nach den §§ 88 und 95a werden mit einer Gültigkeitsdauer von drei Jahren erteilt. Die Berechtigung nach § 95a wird in den Luftfahrerschein für Luftsportgeräteführer eingetragen."
+citations: [LuftPersV § 96(1), LuftPersV § 96(4)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [UL_INSTRUCTOR]
+  authorities: [LBA, DULV, DAEC]
+
+validity:
+  from: valid_from
+  periods:
+    - { months: 36 }
+
+window: { before_expiry_months: 36 }
+
+requirements:
+  id: extension
+  n_of:
+    n: 2
+    of:
+      - id: instruction
+        any_of:
+          - id: instruction_takeoffs_landings
+            metric: takeoffs_and_landings
+            filter: { classes: [ULTRALIGHT], roles: [instructor, examiner] }
+            min: 60
+            unit: landings
+            nameKey: requirement.takeoffs_and_landings
+            remedyKey: remedy.fly_more
+          - id: instruction_time
+            metric: minutes.instructorOrExaminer
+            filter: { classes: [ULTRALIGHT] }
+            min: 600
+            unit: minutes
+            nameKey: requirement.instruction_given
+            remedyKey: remedy.fly_more
+      - id: refresher_course
+        metric: events
+        window: { validity_period: true }
+        filter: { eventKinds: [instructor_refresher] }
+        min: 1
+        unit: training
+        nameKey: requirement.instructor_refresher
+        remedyKey: remedy.refresher_training
+      - id: assessment
+        metric: events
+        window: { before_expiry_months: 12 }
+        filter: { eventKinds: [assessment_of_competence] }
+        min: 1
+        unit: check
+        nameKey: requirement.assessment_of_competence
+        remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: privilege.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: met, when: all_met, status: current, messageKey: privilege.revalidation_current, params: { date: expiry_date } }
+  - { id: not_met, when: always, status: expiring, messageKey: privilege.revalidation_not_met, params: { date: expiry_date } }
+
+notes: >-
+  Not in the API (it has no UL_INSTRUCTOR privilege); new catalogue behaviour. The rating is
+  valid for three years from its valid-from date (else its issue date), or until an earlier
+  recorded expiry (§ 96(1)). Extension needs two of three items within the last three years,
+  read as the 36 months before the expiry date. Item 1: "60 Starts und Landungen oder zehn
+  Flugstunden als Lehrer oder Prüfer" is read with "als Lehrer oder Prüfer" qualifying both
+  alternatives: take-offs and landings of ultralight flights with instruction given or
+  examiner time, or 10 hours of instruction given plus examiner time on ultralights. Item 2:
+  an instructor refresher course (event instructor_refresher) within the rating's validity
+  period; the alternative "within the 12 months before renewal" applies to renewal after
+  expiry, which is not evaluated. Item 3: the "Befähigungsprüfung" is recorded as an
+  assessment_of_competence event within the 12 months before the expiry date, the date an
+  extension takes effect. Partial: renewal of an expired rating is not evaluated (the
+  catalogue reports expired), that the course is run or recognised by the competent body is
+  taken as met, and instruction given on any ultralight kind counts, although § 96(2) lets
+  the rating be limited to certain ultralights. The § 88 rating (flight engineer instructor)
+  is out of scope.

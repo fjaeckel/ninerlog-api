@@ -1,0 +1,58 @@
+id: faa.14cfr61.61-101-g.recreational-recency
+title: Recreational pilot PIC recency (under 400 hours)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.101(g)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.101(g)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.101
+  file: sources/faa/61.101.md
+  quote: "(g) A person who holds a recreational pilot certificate, has logged fewer than 400 flight hours, and has not logged pilot-in-command time in an aircraft within the 180 days preceding the flight shall not act as pilot in command of an aircraft until the pilot receives flight training and a logbook endorsement from an authorized instructor, and the instructor certifies that the person is proficient to act as pilot in command of the aircraft."
+citations: [14 CFR 61.101(g)]
+
+applies_to:
+  subject: licence
+  authorities: [FAA]
+  licenceKinds: [FAA_RECREATIONAL]
+
+window: { rolling_days: 180 }
+
+requirements:
+  id: recency
+  any_of:
+    - id: experienced
+      metric: minutes.total
+      min: 24000
+      unit: minutes
+      nameKey: requirement.total_time
+      window: { lifetime: true }
+    - id: recent_pic
+      metric: minutes.pic
+      min: 1
+      unit: minutes
+      nameKey: requirement.pic_time
+      remedyKey: remedy.fly_more
+
+restored_by:
+  - { event: instructor_endorsement }
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: licence.recency_current }
+  - { id: not_met, when: always, status: lapsed, messageKey: licence.recency_not_met }
+
+ruleDescriptionKey: faa_recreational
+
+notes: >-
+  One evaluation per FAA recreational pilot certificate. A pilot with at least 400 flight
+  hours (24,000 minutes total time, simulators excluded) or with PIC time in an aircraft in
+  the 180 days before asOf may act as PIC. Otherwise an instructor's endorsement after flight
+  training (instructor_endorsement event) restores the privilege; it is taken to count for
+  180 days, after which PIC time since the endorsement keeps the pilot current. The other
+  recreational limitations (one passenger, no night, airspace and distance endorsements,
+  61.101(a)-(f)) concern individual flights and are not evaluated; night passengers are
+  not_applicable in faa.14cfr61.61-57-b.night-passengers and an IR is not_applicable in
+  faa.14cfr61.61-315.ir-not-applicable.

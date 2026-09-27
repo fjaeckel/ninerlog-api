@@ -1,0 +1,91 @@
+id: easa.part-fcl.fcl-835.bir
+title: Basic instrument rating (BIR) validity and revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.835(g)(1), (g)(2)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.835(g)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-835.md
+  quote:
+    - "(1) A BIR shall be valid for 1 year."
+    - "(2) Applicants for the revalidation of a BIR shall:"
+    - "(i) within a period of three months immediately preceding the expiry date of the rating, pass a proficiency check in accordance with Appendix 9 to this Part; or"
+    - "(ii) within the validity period, complete 6 hours as PIC under IFR including three instrument approach procedures and complete a training flight of at least one hour with an instructor who holds privileges to provide training for the BIR."
+    - "(3) For each alternate subsequent revalidation, the holder of the BIR shall pass a proficiency check in accordance with paragraph (2)(i) in an aeroplane."
+citations: [EASA FCL.835(g)(1), EASA FCL.835(g)(2)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [BIR]
+  authorities: [EASA, LBA]
+
+validity:
+  from: valid_from
+  periods:
+    - { months: 12 }
+
+window: { before_expiry_months: 12 }
+
+requirements:
+  id: revalidation
+  any_of:
+    - id: proficiency_check
+      metric: events
+      window: { before_expiry_months: 3 }
+      filter:
+        eventKinds: [proficiency_check]
+        eventRatings: [BIR]
+        categories: [aeroplane]
+        simulator: include
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+    - id: experience
+      all_of:
+        - id: ifr_pic_time
+          metric: minutes.ifr
+          filter: { categories: [aeroplane], roles: [pic] }
+          min: 360
+          unit: minutes
+          nameKey: requirement.ifr_time
+          remedyKey: remedy.fly_more
+        - id: approaches
+          metric: approaches
+          filter: { categories: [aeroplane], roles: [pic] }
+          min: 3
+          unit: approaches
+          nameKey: requirement.approaches
+          remedyKey: remedy.fly_more
+        - id: training_flight
+          metric: longest_training_flight_minutes
+          filter: { categories: [aeroplane] }
+          min: 60
+          unit: minutes
+          nameKey: requirement.training_flight
+          remedyKey: remedy.training_flight
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: privilege.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: met, when: all_met, status: current, messageKey: privilege.revalidation_current, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: privilege.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: not_met, when: always, status: current, messageKey: privilege.revalidation_not_met, params: { date: expiry_date } }
+
+notes: >-
+  Partial. The rule that every alternate revalidation is a proficiency check in an
+  aeroplane ((g)(3)) is not tracked, so the experience route is always offered. "6 hours as
+  PIC under IFR" is counted as IFR time on aeroplane flights with PIC time, and the three
+  approaches likewise; the training flight is one flight of at least 1 hour with dual time
+  received, and that the instructor holds BIR privileges is taken as met. The check must be
+  recorded as a BIR check (event rating BIR, or checkRating BIR on a flight flagged as a
+  proficiency check); it may be combined with a class rating check ((g)(8)). The (g)(7)
+  multi-engine BIR conditions, early revalidation ((g)(4)) and renewal ((g)(6)) are not
+  modelled. The validity is 1 year from validFrom (else the issue date), capped by an
+  entered expiry date. The BIR is recorded as a privilege on the licence. The API does not
+  evaluate the BIR today.

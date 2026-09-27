@@ -1,0 +1,11 @@
+rule: faa.14cfr61.61-87-n.student-solo
+name: not-applicable
+description: Only FAA student pilot certificates need the 90-day solo endorsement.
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+    - { id: l-easa, authority: EASA, type: SPL }
+  events:
+    - { date: 2026-07-01, kind: solo_endorsement }
+expect: []

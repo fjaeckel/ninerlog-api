@@ -1,0 +1,22 @@
+rule: easa.part-sfcl.sfcl-155-c.launch-method
+name: trained-never-logged
+description: >-
+  A car launch training recorded as a privilege lists car even without a logged car
+  launch in the window; launches the day before the 24-month window do not count.
+covers: [stage:lapsed, requirement:launches:unmet, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+  privileges:
+    - { id: p-car, licenceId: l-spl, kind: LAUNCH_METHOD_TRAINED, detail: car }
+  flights:
+    - { date: 2024-09-14, class: GLIDER, launchMethod: car, minutes: { total: 30, pic: 30 }, launches: 5, landings: { day: 5 } }
+expect:
+  - subject: { kind: launch_method, id: r-gld, detail: car }
+    status: lapsed
+    messageKey: launch_method.lapsed
+    requirements:
+      launches: { current: 0, met: false, remedyParams: { method: car, missing: 5 } }

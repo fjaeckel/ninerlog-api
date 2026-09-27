@@ -1,0 +1,20 @@
+id: easa.part-fcl.fcl-825.eir
+title: En route instrument rating (EIR), deleted
+authority: easa
+instrument: Part-FCL
+article: Article 4c (FCL.825)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: 2022-09-08
+source:
+  cite: EASA Regulation (EU) No 1178/2011 Article 4c
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-825.md
+  quote:
+    - "1. Up to and including 8 September 2022, holders of an en route instrument rating (‘EIR’) set out in point FCL.825 of Annex I (Part-FCL) shall:"
+    - "(a) be entitled to continue to exercise the privileges of their EIR;"
+    - "(b) continue to be entitled to receive revalidation or renewal of their EIR, in accordance with point FCL.825(g) of Annex I (Part-FCL);"
+applies_to: { subject: rating, classes: [IR] }
+notes: >-
+  Point FCL.825 has been deleted from Part-FCL; under the transitional Article 4c of Regulation (EU) No 1178/2011, EIR privileges and their revalidation ended on 8 September 2022 (EIR holders receive BIR credit). An EIR can no longer be exercised, so there is nothing to evaluate after that date. The historical FCL.825 text is not in sources/ (the source file marks it TODO: verify); the quote is from Article 4c.

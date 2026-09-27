@@ -1,0 +1,111 @@
+id: de.dulv.ul-recency.gyroplane
+title: Ultralight recency, gyroplanes (DULV)
+authority: de
+instrument: DULV
+article: DULV recency rule for ultralight gyroplanes, under LuftPersV § 45(4)
+support: partial
+source_kind: association
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 45(4)
+  url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+  file: sources/de/luftpersv-45.md
+  quote:
+    - "Die Rechte aus einem Luftfahrerschein für Luftsportgeräteführer nach § 1 Absatz 4 Satz 1 Nummer 1 der Luftverkehrs-Zulassungs-Ordnung sowie für Sprungfallschirmführer dürfen nur ausgeübt werden, wenn der Inhaber des Luftfahrerscheins eine ausreichende fliegerische Übung nachweist."
+    - "Die Einzelheiten legt der Beauftragte nach § 31c des Luftverkehrsgesetzes entsprechend § 42 Absatz 2 fest."
+related_sources:
+  - cite: LuftVZO § 1(4)
+    url: https://www.gesetze-im-internet.de/luftvzo/__1.html
+    file: sources/de/luftvzo-1.md
+    quote: "Von der Musterzulassung befreit sind ein- oder zweisitzige Luftsportgeräte mit einer höchstzulässigen Leermasse von 120 Kilogramm einschließlich Gurtzeug und Rettungsgerät;"
+citations: [DULV recency rule for ultralight gyroplanes (document title not verified), LuftPersV § 45(4)]
+
+applies_to:
+  subject: rating
+  classes: [ULTRALIGHT]
+  ulKinds: [GYROPLANE]
+  authorities: [LBA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: recency
+  any_of:
+    - id: experience
+      all_of:
+        - id: total_time
+          metric: minutes.total
+          filter: &counted
+            any:
+              - { classes: [ULTRALIGHT], ulKinds: [GYROPLANE] }
+              - { classes: [GYROPLANE] }
+          min: 720
+          unit: minutes
+          nameKey: requirement.total_time
+          remedyKey: remedy.fly_more
+        - id: pic_time
+          metric: minutes.pic
+          filter: *counted
+          min: 360
+          unit: minutes
+          nameKey: requirement.pic_time
+          remedyKey: remedy.fly_more
+        - id: landings
+          metric: landings.total
+          filter: *counted
+          min: 12
+          unit: landings
+          nameKey: requirement.landings
+          remedyKey: remedy.fly_more
+        - id: training_flight
+          metric: longest_training_flight_minutes
+          filter: { classes: [ULTRALIGHT], ulKinds: [GYROPLANE] }
+          min: 60
+          unit: minutes
+          nameKey: requirement.training_flight
+          remedyKey: remedy.training_flight
+    - id: proficiency_check
+      metric: events
+      filter:
+        eventKinds: [proficiency_check]
+        any:
+          - { classes: [ULTRALIGHT], ulKinds: [GYROPLANE] }
+          - { classes: [GYROPLANE] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: kind_unknown, when: undetermined, status: unknown, messageKey: rating.ul_flights_kind_unknown }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: ul_gyroplane
+
+divergences:
+  - id: kindless-ul
+    api: Counts ultralight flights with no kind when every ultralight rating the pilot holds has one and the same kind.
+    article: The licence covers the ultralight kind entered in it; a flight whose ultralight kind is not recorded cannot be attributed to gyroplanes and is reported as unknown input, never counted.
+    cite: LuftPersV § 44(2)
+
+notes: >-
+  Partial: association rule. The numbers (12 h in 24 months on gyroplanes, 6 h as PIC, 12
+  landings, one training flight of at least 1 hour with an instructor, or a proficiency check)
+  come from the rules the DULV sets as Beauftragter under § 31c LuftVG, to which § 45(4)
+  LuftPersV delegates; they are not in the statute. The association document is private and
+  is not stored in sources/; its title and text were not verified for this port (TODO:
+  verify), so the thresholds are those the API implements (internal/service/currency/
+  german_ul.go germanULGyroplaneRule). The API's own description says "12 Starts & Landungen"
+  while it counts landings only; the catalogue keeps landings until the document is checked.
+  Gyroplane-class (Part-FCL GYROPLANE) flights count toward time, PIC time and landings, as in
+  the API; the training flight and the check count on ultralight gyroplanes, and a check in a
+  Part-FCL gyroplane also counts. As in the API the rule applies to every German ultralight
+  authority, although it is a DULV rule; whether DAeC-issued gyroplane licences follow the
+  same numbers is not verified.
+  Ambiguity, § 45(4): it refers to "§ 1 Absatz 4 Satz 1 Nummer 1" LuftVZO, but LuftVZO § 1(4)
+  Satz 1 has no numbered items; read literally it covers one- and two-seat sport aircraft of
+  at most 120 kg empty mass. Ultralights of this kind above 120 kg are named neither in
+  § 45(2), (2a) nor (4); the catalogue applies the association rule regardless of mass, as the
+  API does, because the record has no empty mass per ultralight.

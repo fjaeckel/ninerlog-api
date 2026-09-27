@@ -1,0 +1,17 @@
+rule: faa.14cfr61.61-101-g.recreational-recency
+name: experienced
+description: With 400 flight hours logged the 180-day condition no longer applies, even after a year without PIC time.
+covers: [stage:current, requirement:experienced:met, any_of:recency:experienced, requirement:recent_pic:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-rec, authority: FAA, type: RECREATIONAL }
+  flights:
+    - { date: 2020-01-01, class: SEP_LAND, minutes: { total: 23000, pic: 23000 } }
+    - { date: 2025-06-01, class: SEP_LAND, minutes: { total: 1000, pic: 1000 } }
+expect:
+  - subject: { kind: licence, id: l-rec }
+    status: current
+    requirements:
+      experienced: { current: 24000, met: true }
+      recent_pic: { current: 0, met: false }

@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-240-g.gpl
+name: proficiency-check
+description: A GPL proficiency check in the last 2 years keeps the GPL current; a check in an ultralight gyroplane does not count.
+covers: [stage:current, any_of:recency:proficiency_check, requirement:proficiency_check:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  flights:
+    - { date: 2025-05-05, class: GYROPLANE, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, flags: { proficiencyCheck: true } }
+    - { date: 2026-05-05, class: ULTRALIGHT, ulKind: GYROPLANE, mtomKg: 560, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, id: r-gyro }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2027-05-05
+    requirements:
+      proficiency_check: { current: 1, met: true, lastDate: 2025-05-05 }

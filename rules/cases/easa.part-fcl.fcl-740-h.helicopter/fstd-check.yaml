@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: fstd-check
+description: "A proficiency check in an FSTD representing the type counts as the check but its time does not count toward the 2 hours."
+covers: [requirement:proficiency_check:met, requirement:type_time:unmet, stage:not_met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: R44, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-20, class: HELICOPTER, typeDesignator: R44, isSimulator: true, fstdType: FFS, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, id: r-type, class: HELICOPTER }
+    status: expiring
+    messageKey: rating.revalidation_not_met_prof_check
+    requirements:
+      proficiency_check: { current: 1, met: true }
+      type_time: { current: 60, met: false }

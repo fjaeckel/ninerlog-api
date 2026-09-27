@@ -1,0 +1,20 @@
+rule: faa.14cfr61.61-56.flight-review
+name: practical-test-substitutes
+description: Passing the instrument rating practical test in June 2025 replaces the flight review; the old review from 2023 no longer counts.
+covers: [stage:check_substitute, requirement:proficiency_check:met, any_of:review:proficiency_check]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  events:
+    - { date: 2023-05-02, kind: flight_review }
+    - { date: 2025-06-12, kind: practical_test, class: SEP_LAND, rating: IR }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: current
+    messageKey: flight_review.substituted
+    messageParams: { date: 2025-06-12 }
+    validUntil: 2027-06-30
+    requirements:
+      flight_review: { met: false }
+      proficiency_check: { current: 1, met: true }

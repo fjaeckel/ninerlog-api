@@ -1,0 +1,15 @@
+rule: faa.14cfr61.61-23-d.commercial
+name: expired-day-after
+description: From 1 September 2026 the medical no longer covers commercial privileges (it may still cover private ones, see faa.14cfr61.61-23-d.private).
+covers: [stage:expired, expiry:after]
+asOf: 2026-09-01
+record:
+  licences:
+    - { id: l-atp, authority: FAA, type: ATP }
+  credentials:
+    - { id: c-2, type: FAA_CLASS2_MEDICAL, issued: 2025-08-20 }
+expect:
+  - subject: { kind: credential, id: c-2 }
+    status: expired
+    messageKey: credential.expired
+    messageParams: { date: 2026-08-31 }

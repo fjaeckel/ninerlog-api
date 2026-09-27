@@ -1,0 +1,25 @@
+rule: easa.part-sfcl.sfcl-160-b.tmg
+name: lapsed
+description: >-
+  Twelve landings but only 10 take-offs on TMGs do not make 12 take-offs and landings; a
+  flight the day before the 24-month window no longer counts; without a check the TMG
+  privileges are lapsed.
+covers: [stage:lapsed, requirement:flight_time:unmet, requirement:tmg_time:unmet, requirement:tmg_takeoffs_landings:unmet, requirement:tmg_training_flight:unmet, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  flights:
+    - { date: 2024-09-14, class: TMG, minutes: { total: 720, pic: 660, dual: 60 }, takeoffs: { day: 20 }, landings: { day: 20 }, launches: 20 }
+    - { date: 2026-02-01, class: TMG, minutes: { total: 240, pic: 240 }, takeoffs: { day: 10 }, landings: { day: 12 }, launches: 10 }
+expect:
+  - subject: { kind: rating, id: r-tmg }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 240, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 480, unit: minutes } }
+      tmg_time: { current: 240, met: false }
+      tmg_takeoffs_landings: { current: 10, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 2, unit: landings } }
+      tmg_training_flight: { current: 0, met: false, remedyKey: remedy.training_flight }

@@ -1,0 +1,27 @@
+id: easa.part-fcl.fcl-940-mi.validity
+title: MI certificate validity
+authority: easa
+instrument: Part-FCL
+article: FCL.940.MI
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940.MI
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940-mi.md
+  quote: "The MI certificate is valid as long as the FI, TRI or CRI certificate is valid."
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [MI]
+
+stages:
+  - { id: valid, when: { holds: { privileges: [FI, TRI, CRI], sameLicence: true, valid: true } }, status: current, messageKey: privilege.valid }
+  - { id: invalid, when: always, status: expired, messageKey: privilege.underlying_certificate_invalid }
+
+notes: >-
+  The MI is valid while an FI, TRI or CRI certificate on the same licence is valid (not
+  expired on the date evaluated, or with no expiry date entered). A date entered on the MI
+  itself is not used. The API does not evaluate instructor certificates today.

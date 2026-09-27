@@ -1,0 +1,25 @@
+rule: de.dulv.ul-recency.gyroplane
+name: window-day-before
+description: >-
+  The ultralight gyroplane flight of 14 September 2024 is outside the 24 months; three-axis
+  ultralight time never counts toward gyroplane recency.
+covers: [stage:lapsed, window:edge-out, requirement:total_time:unmet, requirement:pic_time:unmet, requirement:landings:unmet, requirement:training_flight:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-gyro, licenceId: l-ul, class: ULTRALIGHT, ulKind: GYROPLANE }
+  flights:
+    - { date: 2024-09-14, class: ULTRALIGHT, ulKind: GYROPLANE, minutes: { total: 300, pic: 240, dual: 60 }, landings: { day: 6 } }
+    - { date: 2026-02-01, class: GYROPLANE, minutes: { total: 300, pic: 300 }, landings: { day: 6 } }
+    - { date: 2026-03-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 600, pic: 540, dual: 60 }, landings: { day: 10 } }
+expect:
+  - subject: { kind: rating, id: r-gyro }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      total_time: { current: 300, met: false, remedyParams: { missing: 420, unit: minutes } }
+      pic_time: { current: 300, met: false }
+      landings: { current: 6, met: false }
+      training_flight: { current: 0, met: false, remedyKey: remedy.training_flight }

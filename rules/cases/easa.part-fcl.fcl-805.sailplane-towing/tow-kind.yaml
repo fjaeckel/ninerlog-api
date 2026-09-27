@@ -1,0 +1,22 @@
+rule: easa.part-fcl.fcl-805.sailplane-towing
+name: tow-kind
+description: "Only glider tows count; banner tows do not, and a tow flight without a recorded tow kind is unknown."
+covers: [unknown:towKinds, stage:lapsed]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-tow, licenceId: l-1, kind: SAILPLANE_TOWING }
+  flights:
+    - { date: 2026-01-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2026-02-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2026-03-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2026-04-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2026-05-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: banner }
+    - { date: 2026-06-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: lapsed
+    requirements:
+      tows: { current: 4, met: false, tracked: true }

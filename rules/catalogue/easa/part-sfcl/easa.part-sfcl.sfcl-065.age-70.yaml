@@ -1,0 +1,18 @@
+id: easa.part-sfcl.sfcl-065.age-70
+title: SPL holders aged 70 or older, commercial passenger operations
+authority: easa
+instrument: Part-SFCL
+article: SFCL.065
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.065
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-065.md
+  quote:
+    - "SPL holders who have attained the age of 70 years shall not act as pilots of sailplanes engaged in commercial passenger sailplane operations."
+applies_to: { subject: licence, licenceKinds: [SPL, LAPL_S] }
+notes: >-
+  NinerLog does not record whether a flight or a planned flight is a commercial passenger sailplane operation; the age limit cannot be applied to anything.

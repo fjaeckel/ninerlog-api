@@ -1,0 +1,18 @@
+rule: faa.14cfr61.61-101-g.recreational-recency
+name: instructor-endorsement
+description: After training, the instructor's endorsement on 1 July lets the pilot act as PIC again although no PIC time was logged in the last 180 days.
+covers: [event:instructor_endorsement, stage:current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-rec, authority: FAA, type: RECREATIONAL }
+  flights:
+    - { date: 2025-10-01, class: SEP_LAND, minutes: { total: 60, pic: 60 } }
+    - { date: 2026-07-01, class: SEP_LAND, minutes: { total: 60, dual: 60 } }
+  events:
+    - { date: 2026-07-01, kind: instructor_endorsement }
+expect:
+  - subject: { kind: licence, id: l-rec }
+    status: current
+    requirements:
+      recent_pic: { met: false }

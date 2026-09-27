@@ -1,0 +1,22 @@
+rule: de.luftpersv.96-4.ul-instructor
+name: valid-on-expiry-day
+description: >-
+  A recorded expiry earlier than three years wins; the rating is valid on that date. Instruction
+  and a course within the validity still meet the extension.
+covers: [stage:met, expiry:on]
+asOf: 2026-06-30
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  privileges:
+    - { id: p-fi, licenceId: l-ul, kind: UL_INSTRUCTOR, validFrom: 2024-01-10, expires: 2026-06-30 }
+  events:
+    - { date: 2025-01-10, kind: instructor_refresher }
+  flights:
+    - { date: 2025-05-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 600, dualGiven: 600 }, takeoffs: { day: 60 }, landings: { day: 60 } }
+expect:
+  - subject: { kind: privilege, id: p-fi }
+    status: current
+    messageKey: privilege.revalidation_current
+    messageParams: { date: "2026-06-30" }
+    expiresOn: 2026-06-30

@@ -1,0 +1,74 @@
+id: de.luftpersv.45-2a.helicopter
+title: Ultralight recency, ultralight helicopters
+authority: de
+instrument: LuftPersV
+article: § 45(2a), (3)
+support: supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 45(2a)
+  url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+  file: sources/de/luftpersv-45.md
+  quote:
+    - "Die Rechte aus einem Luftfahrerschein mit der eingetragenen Luftsportgeräteart Ultraleichthubschrauber dürfen nur ausgeübt werden, wenn der Inhaber mindestens sechs Flugstunden auf Ultraleichthubschraubern innerhalb der letzten zwölf Monate durchgeführt hat."
+    - "In den sechs Stunden müssen mindestens sechs Starts und sechs Landungen sowie ein Übungsflug von mindestens einer Stunde Flugzeit in Begleitung eines Fluglehrers auf einem Ultraleichthubschrauber enthalten sein."
+    - "Die Voraussetzungen nach Absatz 2a können durch eine Befähigungsüberprüfung mit einem dazu anerkannten Prüfer auf einem Ultraleichthubschrauber ersetzt werden."
+related_sources:
+  - cite: LuftPersV § 45(1)
+    url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+    file: sources/de/luftpersv-45.md
+    quote: "Der Luftfahrerschein für Luftsportgeräteführer nach § 42 wird unbefristet erteilt."
+citations: [LuftPersV § 45(2a), LuftPersV § 45(3)]
+
+applies_to:
+  subject: rating
+  classes: [ULTRALIGHT]
+  ulKinds: [HELICOPTER]
+  authorities: [LBA, DULV, DAEC]
+
+window: { rolling_months: 12 }
+filter: { classes: [ULTRALIGHT], ulKinds: [HELICOPTER] }
+
+requirements:
+  id: recency
+  any_of:
+    - id: experience
+      all_of:
+        - { id: total_time, metric: minutes.total, min: 360, unit: minutes, nameKey: requirement.total_time, remedyKey: remedy.fly_more }
+        - { id: takeoffs, metric: takeoffs.total, min: 6, unit: takeoffs, nameKey: requirement.takeoffs, remedyKey: remedy.fly_more }
+        - { id: landings, metric: landings.total, min: 6, unit: landings, nameKey: requirement.landings, remedyKey: remedy.fly_more }
+        - { id: training_flight, metric: longest_training_flight_minutes, min: 60, unit: minutes, nameKey: requirement.training_flight, remedyKey: remedy.training_flight }
+    - id: proficiency_check
+      metric: events
+      filter: { eventKinds: [proficiency_check] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: kind_unknown, when: undetermined, status: unknown, messageKey: rating.ul_flights_kind_unknown }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: ul_luftpersv_helicopter
+
+divergences:
+  - id: takeoffs
+    api: Counts landings only.
+    article: The 6 hours must include 6 take-offs and 6 landings.
+    cite: LuftPersV § 45(2a)
+  - id: kindless-ul
+    api: Counts ultralight flights with no kind when every ultralight rating the pilot holds has one and the same kind.
+    article: Only flights on ultralight helicopters count; a flight whose ultralight kind is not recorded is reported as unknown input, never counted.
+    cite: LuftPersV § 45(2a)
+
+notes: >-
+  Only ultralight helicopter flights count; no Part-FCL class is credited. No PIC time is
+  required. The training flight is one flight with dual time of at least 60 minutes total;
+  that the instructor is a Fluglehrer is taken as met. § 45(3) names no period for the
+  proficiency check (on an ultralight helicopter) that replaces the requirements; the
+  catalogue counts a check within the same 12 months. Examiner recognition and the logbook
+  signature are taken as met. The licence has no expiry (§ 45(1)).

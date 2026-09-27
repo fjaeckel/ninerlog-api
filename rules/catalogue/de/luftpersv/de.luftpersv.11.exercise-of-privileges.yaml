@@ -1,0 +1,22 @@
+id: de.luftpersv.11.exercise-of-privileges
+title: Exercise of licence privileges
+authority: de
+instrument: LuftPersV
+article: § 11(1)
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 11(1)
+  url: https://www.gesetze-im-internet.de/luftpersv/__11.html
+  file: sources/de/luftpersv-11.md
+  quote:
+    - "Die Rechte aus einer Erlaubnis dürfen nur ausgeübt werden, wenn die zur Erteilung der Erlaubnis geforderten Zeugnisse und Nachweise jeweils gültig sind und die fortlaufende Flugerfahrung auf Verlangen der zuständigen Stelle nach § 5 oder der Luftaufsicht durch entsprechende Einträge im Flugbuch nachgewiesen werden kann."
+applies_to: { subject: licence, authorities: [LBA, DULV, DAEC] }
+notes: >-
+  A general gate combining the validity of the certificates required for the licence and
+  provable ongoing flight experience. The catalogue evaluates the individual recency and
+  validity rules (§ 45, § 45a, § 84(5), § 96); combining them into one fly or no-fly answer is
+  the readiness consumer in the API (DESIGN.md decision 5), not a catalogue rule. The
+  security-clearance sentence (§ 7 LuftSiG) is not modelled.

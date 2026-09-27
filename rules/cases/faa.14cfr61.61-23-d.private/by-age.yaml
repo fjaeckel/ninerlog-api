@@ -1,0 +1,17 @@
+rule: faa.14cfr61.61-23-d.private
+name: by-age
+description: For private privileges a medical taken under 40 runs to the end of the 60th month after the examination month, one taken at 40 or older to the end of the 24th.
+covers: [stage:valid, expiry:before]
+asOf: 2026-08-16
+record:
+  holder: { dateOfBirth: 1990-01-01 }
+  licences:
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+  credentials:
+    - { id: c-3, type: FAA_CLASS3_MEDICAL, issued: 2024-06-10 }
+expect:
+  - subject: { kind: credential, id: c-3 }
+    status: current
+    messageKey: credential.valid
+    messageParams: { date: 2029-06-30 }
+    expiresOn: 2029-06-30

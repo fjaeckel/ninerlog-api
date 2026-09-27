@@ -1,0 +1,30 @@
+rule: easa.part-fcl.fcl-740-a.mep
+name: check-window-edges
+description: A check on 31 July, 3 months before the 31 October expiry, counts; one on 30 July does not.
+covers: [window:before_expiry_months=3:edge-in, window:before_expiry_months=3:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-mep, licenceId: l-ppl, class: MEP_LAND, expires: 2026-10-31 }
+  events:
+    - { date: 2026-07-30, kind: proficiency_check, class: MEP_LAND }
+    - { date: 2026-07-31, kind: proficiency_check, class: MEP_LAND }
+  flights:
+    - { date: 2026-01-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-02-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-03-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-04-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-05-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-06-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-06-20, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-07-05, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-07-15, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-07-25, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+expect:
+  - subject: { kind: rating, id: r-mep }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    requirements:
+      proficiency_check: { current: 1, met: true, lastDate: 2026-07-31 }

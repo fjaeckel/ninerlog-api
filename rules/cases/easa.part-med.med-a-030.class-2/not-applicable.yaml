@@ -1,0 +1,10 @@
+rule: easa.part-med.med-a-030.class-2
+name: not-applicable
+description: Licences of another group, helicopter licences and FAA licences are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-h, authority: EASA, type: CPL(H) }
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+    - { id: l-o, authority: EASA, type: ATPL(A) }
+expect: []

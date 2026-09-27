@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.class-2
+name: entered-date-later
+description: "An entered expiry date later than the regulation allows is capped at the derived date."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS2_MEDICAL, issued: 2026-03-01, expires: 2035-12-31 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    expiresOn: 2028-03-01

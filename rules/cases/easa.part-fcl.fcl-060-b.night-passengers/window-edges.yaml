@@ -1,0 +1,18 @@
+rule: easa.part-fcl.fcl-060-b.night-passengers
+name: window-edges
+description: A night take-off and landing on 17 June counts on 15 September; one on 16 June does not.
+covers: [window:edge-in, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  flights:
+    - { date: 2026-06-16, class: SEP_LAND, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 1 }, landings: { night: 1 }, pilotFlying: true }
+    - { date: 2026-06-17, class: SEP_LAND, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 1 }, landings: { night: 1 }, pilotFlying: true }
+expect:
+  - subject: { kind: passengers, id: l-ppl, class: SEP_LAND }
+    status: current
+    messageKey: pax.night_current
+    validUntil: 2026-09-15

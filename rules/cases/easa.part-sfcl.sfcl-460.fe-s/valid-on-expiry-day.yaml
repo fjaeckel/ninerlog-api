@@ -1,0 +1,18 @@
+rule: easa.part-sfcl.sfcl-460.fe-s
+name: valid-on-expiry-day
+description: Five years after its issue the certificate is still valid on the expiry day itself.
+covers: [stage:met, expiry:on]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fes, licenceId: l-spl, kind: FE_S, issued: 2021-09-15 }
+  events:
+    - { date: 2025-10-01, kind: examiner_refresher }
+    - { date: 2026-02-01, kind: assessment_of_competence }
+expect:
+  - subject: { kind: privilege, id: p-fes }
+    status: current
+    messageKey: privilege.revalidation_current
+    expiresOn: 2026-09-15

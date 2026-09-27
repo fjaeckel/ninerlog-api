@@ -1,0 +1,10 @@
+rule: easa.part-fcl.fcl-055.language-level-4
+name: not-applicable
+description: Other language levels and medicals are not evaluated here.
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-6, type: LANG_ICAO_LEVEL6, issued: 2020-01-01 }
+    - { id: c-o, type: LANG_ICAO_LEVEL5, issued: 2020-01-01 }
+    - { id: c-med, type: EASA_CLASS2_MEDICAL, issued: 2020-01-01 }
+expect: []

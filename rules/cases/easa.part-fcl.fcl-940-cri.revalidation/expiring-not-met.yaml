@@ -1,0 +1,18 @@
+rule: easa.part-fcl.fcl-940-cri.revalidation
+name: expiring-not-met
+description: "Within 90 days of expiry and not revalidated, the certificate shows as expiring."
+covers: [stage:expiring, requirement:refresher:unmet]
+asOf: 2026-11-01
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: CRI, issued: 2024-01-15 }
+  flights: []
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: expiring
+    messageKey: privilege.expiring
+    messageParams: { days: 75, date: 2027-01-15 }
+    requirements:
+      refresher: { current: 0, met: false }

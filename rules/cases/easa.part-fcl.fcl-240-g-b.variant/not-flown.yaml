@@ -1,0 +1,22 @@
+rule: easa.part-fcl.fcl-240-g-b.variant
+name: not-flown
+description: >-
+  The variant was last flown the day before the 2-year window; before flying it again the
+  pilot needs differences training, a proficiency check or refresher training in it.
+covers: [stage:not_flown, requirement:variant_flown:unmet, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  variants:
+    - { id: v-electric, ratingId: r-gyro, name: SPG-ELECTRIC }
+  flights:
+    - { date: 2024-09-14, class: GYROPLANE, variant: SPG-ELECTRIC, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: type, id: v-electric }
+    status: lapsed
+    messageKey: type.not_flown
+    requirements:
+      variant_flown: { current: 0, met: false, remedyKey: remedy.differences_training }

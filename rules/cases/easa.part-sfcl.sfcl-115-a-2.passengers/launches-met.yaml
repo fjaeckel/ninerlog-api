@@ -1,0 +1,19 @@
+rule: easa.part-sfcl.sfcl-115-a-2.passengers
+name: launches-met
+description: Thirty launches as PIC since issue meet the prerequisite with little flight time.
+covers: [stage:met, any_of:prerequisite:pax_prerequisite_launches, requirement:pax_prerequisite_launches:met, requirement:pax_prerequisite_time:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL, issued: 2025-04-01 }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+  flights:
+    - { date: 2025-08-01, class: GLIDER, launchMethod: winch, minutes: { total: 180, pic: 180 }, launches: 30, landings: { day: 30 } }
+expect:
+  - subject: { kind: passengers, id: l-spl, class: GLIDER }
+    status: current
+    messageKey: pax.prerequisite_met
+    requirements:
+      pax_prerequisite_launches: { current: 30, met: true }
+      pax_prerequisite_time: { current: 180, met: false }

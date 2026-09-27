@@ -1,0 +1,18 @@
+id: easa.part-bfcl.bfcl-460.fe-b
+title: FE(B) certificate validity and revalidation
+authority: easa
+instrument: Part-BFCL
+article: BFCL.460
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA BFCL.460
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
+  file: sources/easa/bfcl-460.md
+  quote:
+    - "(a) An FE(B) certificate shall be valid for five years."
+applies_to: { subject: privilege, privilegeKinds: [EXAMINER], licenceKinds: [BPL] }
+notes: >-
+  Balloons are not in the app: NinerLog records no balloon flights, no balloon class (hot-air, gas, mixed, hot-air airship) and no hot-air balloon group (A to D), so a rule could not tell which class or group a flight or check belongs to. No FE(B) privilege kind exists either (EXAMINER on a BPL licence is the nearest); the five-year validity and revalidation mirror easa.part-sfcl.sfcl-460.fe-s and can follow once balloons are in the app.

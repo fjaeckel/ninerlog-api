@@ -1,0 +1,15 @@
+rule: other.ninerlog.expiry-only.faa-ultralight
+name: valid
+description: A rating expiring in 91 days is simply valid; the 90-day warning has not started.
+covers: [stage:valid, expiry:before]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: FAA, type: PPL }
+  ratings:
+    - { id: r-1, licenceId: l-1, class: ULTRALIGHT, expires: 2026-12-15 }
+expect:
+  - subject: { kind: rating, id: r-1 }
+    status: current
+    messageKey: rating.valid_until
+    expiresOn: 2026-12-15

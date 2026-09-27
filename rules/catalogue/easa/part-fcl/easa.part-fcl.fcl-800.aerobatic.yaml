@@ -1,0 +1,18 @@
+id: easa.part-fcl.fcl-800.aerobatic
+title: Aerobatic rating
+authority: easa
+instrument: Part-FCL
+article: FCL.800
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.800
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-800.md
+  quote:
+    - "(a) Holders of a pilot licence with privileges to fly aeroplanes or TMGs shall undertake aerobatic flights only if they hold an aerobatic rating in accordance with this point."
+applies_to: { subject: privilege, privilegeKinds: [AEROBATIC_BASIC, AEROBATIC_ADVANCED] }
+notes: >-
+  The aerobatic rating has no validity period and no recency requirement; FCL.800 sets only training prerequisites, which are out of scope (DESIGN.md section 9). An entered expiry date on the privilege is reported by the API's generic privilege expiry.

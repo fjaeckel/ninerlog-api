@@ -1,0 +1,26 @@
+id: faa.14cfr61.61-23-ab.medical-required
+title: Operations requiring a medical certificate
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.23(a), (b), (c)(1)-(2)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.23(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.23
+  file: sources/faa/61.23.md
+  quote:
+    - "(a) Operations requiring a medical certificate. Except as provided in paragraphs (b) and (c) of this section, a person—"
+    - "(b) Operations not requiring a medical certificate. A person is not required to hold a medical certificate—"
+applies_to: { subject: credential, credentialTypes: [FAA_CLASS1_MEDICAL, FAA_CLASS2_MEDICAL, FAA_CLASS3_MEDICAL, FAA_BASICMED, US_DRIVERS_LICENSE] }
+notes: >-
+  Not supported: which class of medical (or none, or a U.S. driver's license) an operation
+  needs depends on the operation flown (ATP or commercial privileges, glider or balloon,
+  instructing without acting as PIC, sport pilot aircraft), which the record does not state
+  in advance. The durations of 61.23(d) are evaluated per privilege level by
+  faa.14cfr61.61-23-d.first-class-atp, faa.14cfr61.61-23-d.commercial and
+  faa.14cfr61.61-23-d.private, and BasicMed (61.23(c)(3)) by faa.14cfr61.61-23-c-3.basicmed.
+  The driver's-license conditions for sport pilots (61.23(c)(2)) are self-declarations and
+  are not modelled.

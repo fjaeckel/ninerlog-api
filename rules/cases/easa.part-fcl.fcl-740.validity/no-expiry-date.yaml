@@ -1,0 +1,14 @@
+rule: easa.part-fcl.fcl-740.validity
+name: no-expiry-date
+description: Without an expiry date nothing can be said.
+covers: [stage:no_expiry]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-atpl, authority: EASA, type: ATPL(A) }
+  ratings:
+    - { id: r-type, licenceId: l-atpl, class: OTHER, typeDesignator: A320 }
+expect:
+  - subject: { kind: rating, id: r-type, class: OTHER }
+    status: unknown
+    messageKey: rating.no_expiry_date

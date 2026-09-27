@@ -1,0 +1,12 @@
+rule: easa.part-sfcl.sfcl-160-e-2.tmg-passengers
+name: not-applicable
+description: TMG passengers on a PPL(A) follow FCL.060(b); sailplane passengers follow SFCL.160(e)(1).
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-ppl, class: TMG, expires: 2027-05-31 }
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+expect: []

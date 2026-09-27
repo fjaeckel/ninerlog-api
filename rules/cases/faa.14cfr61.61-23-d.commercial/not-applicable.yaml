@@ -1,0 +1,11 @@
+rule: faa.14cfr61.61-23-d.commercial
+name: not-applicable
+description: A private pilot has no commercial privileges; a third-class medical never covers them.
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+  credentials:
+    - { id: c-2, type: FAA_CLASS2_MEDICAL, issued: 2025-08-20 }
+    - { id: c-3, type: FAA_CLASS3_MEDICAL, issued: 2025-08-20 }
+expect: []

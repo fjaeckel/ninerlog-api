@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-57-b.night-passengers
+name: recreational-no-night
+description: A recreational pilot may not fly between sunset and sunrise, so night passenger recency does not apply, whatever the logbook shows.
+covers: [stage:recreational_no_night]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-rec, authority: FAA, type: RECREATIONAL }
+  ratings:
+    - { id: r-sep, licenceId: l-rec, class: SEP_LAND }
+  flights:
+    - { date: 2026-08-01, class: SEP_LAND, minutes: { total: 60, dual: 60, night: 60 }, takeoffs: { night: 3 }, landings: { night: 3 }, fullStopNightLandings: 3, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-rec, class: SEP_LAND }
+    status: not_applicable
+    messageKey: pax.night_no_privilege

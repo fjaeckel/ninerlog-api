@@ -1,0 +1,18 @@
+id: easa.part-bfcl.bfcl-035.credit
+title: BPL crediting of flight time
+authority: easa
+instrument: Part-BFCL
+article: BFCL.035
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA BFCL.035
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
+  file: sources/easa/bfcl-035.md
+  quote:
+    - "Applicants for a BPL or an associated privilege, rating or certificate shall be fully credited with all solo, dual instruction or PIC flight time on balloons towards the requirement of a total flight time for the licence, privilege, rating or certificate."
+applies_to: { subject: licence, licenceKinds: [BPL] }
+notes: >-
+  Balloons are not in the app: NinerLog records no balloon flights, no balloon class (hot-air, gas, mixed, hot-air airship) and no hot-air balloon group (A to D), so a rule could not tell which class or group a flight or check belongs to. A crediting principle for issue requirements in any case.

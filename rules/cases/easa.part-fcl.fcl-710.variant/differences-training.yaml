@@ -1,0 +1,22 @@
+rule: easa.part-fcl.fcl-710.variant
+name: differences-training
+description: "Further differences training on the variant restores the privilege."
+covers: [event:differences_training, stage:current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  variants:
+    - { id: v-electric, ratingId: r-sep, name: ELECTRIC, issued: 2023-05-01 }
+  events:
+    - { date: 2026-02-01, kind: differences_training, class: SEP_LAND, variant: ELECTRIC }
+    - { date: 2026-02-02, kind: differences_training, class: SEP_LAND, variant: PISTON }
+  flights:
+    - { date: 2023-06-01, class: SEP_LAND, variant: ELECTRIC, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: type, id: v-electric, class: SEP_LAND }
+    status: current
+    messageKey: type.current
+    validUntil: 2028-02-01

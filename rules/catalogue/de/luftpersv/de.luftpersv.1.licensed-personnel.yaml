@@ -1,0 +1,21 @@
+id: de.luftpersv.1.licensed-personnel
+title: Ultralight pilots need a licence
+authority: de
+instrument: LuftPersV
+article: § 1 Nr. 4
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 1
+  url: https://www.gesetze-im-internet.de/luftpersv/__1.html
+  file: sources/de/luftpersv-1.md
+  quote:
+    - "Das erlaubnispflichtige Personal im Sinne des § 4 Absatz 1 und 2 des Luftverkehrsgesetzes umfasst:"
+    - "4. Luftsportgeräteführer,"
+applies_to: { subject: licence, authorities: [LBA, DULV, DAEC] }
+notes: >-
+  Context only: ultralight pilots (Luftsportgeräteführer) need a licence. Nothing to evaluate
+  on a date; the app models German ultralight licences (authorities LBA, DULV, DAeC) and the
+  rules that apply to them are § 45, § 45a, § 84, § 84a and § 96.

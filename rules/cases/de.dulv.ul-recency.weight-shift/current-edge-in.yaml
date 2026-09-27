@@ -1,0 +1,22 @@
+rule: de.dulv.ul-recency.weight-shift
+name: current-edge-in
+description: >-
+  Twelve hours as PIC on trikes in 24 months, the first flight on the first day of the
+  window; dual time does not count as PIC time, and a DULV licence uses the DULV numbers.
+covers: [stage:current, window:edge-in, requirement:pic_time:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-ws, licenceId: l-ul, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+  flights:
+    - { date: 2024-09-15, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 300, pic: 240, dual: 60 }, landings: { day: 4 } }
+    - { date: 2026-06-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 480, pic: 480 }, landings: { day: 2 } }
+expect:
+  - subject: { kind: rating, id: r-ws, ulKind: WEIGHT_SHIFT }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2026-09-15
+    requirements:
+      pic_time: { current: 720, required: 720, met: true }

@@ -1,0 +1,25 @@
+rule: easa.part-sfcl.sfcl-160-a.sailplane
+name: ultralight-not-credited
+description: >-
+  PIC hours and launches on an ultralight sailplane or motorglider are not credited toward
+  SFCL.160(a); Part-SFCL has no Annex I crediting provision.
+covers: [stage:lapsed, requirement:flight_time:unmet, requirement:launches:met, requirement:training_flights:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+  flights:
+    - { date: 2026-02-01, class: GLIDER, launchMethod: winch, minutes: { total: 30, dual: 30 }, launches: 5, landings: { day: 5 } }
+    - { date: 2026-03-01, class: GLIDER, launchMethod: winch, minutes: { total: 30, dual: 30 }, launches: 10, landings: { day: 10 } }
+    - { date: 2026-04-01, class: ULTRALIGHT, ulKind: SAILPLANE, launchMethod: winch, minutes: { total: 300, pic: 300 }, launches: 10, landings: { day: 10 } }
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: THREE_AXIS_MOTORGLIDER, minutes: { total: 300, pic: 300 }, takeoffs: { day: 5 }, landings: { day: 5 }, launches: 5 }
+expect:
+  - subject: { kind: rating, id: r-gld }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 60, met: false }
+      launches: { current: 15, met: true }
+      training_flights: { current: 2, met: true }

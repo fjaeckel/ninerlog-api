@@ -1,0 +1,14 @@
+rule: easa.part-med.med-a-045.class-1
+name: expired-day-after
+description: "The day after its expiry date the certificate is expired."
+covers: [stage:expired, expiry:after]
+asOf: 2027-03-02
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS1_MEDICAL, issued: 2026-03-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: expired
+    messageKey: credential.expired
+    messageParams: { date: 2027-03-01 }

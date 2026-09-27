@@ -1,0 +1,95 @@
+id: easa.part-sfcl.sfcl-150-b.tmg-extension
+title: SPL extension to TMGs
+authority: easa
+instrument: Part-SFCL
+article: SFCL.150(b), (c)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.150(b)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-150.md
+  quote:
+    - "(b) In the case specified in paragraph (a), the privileges of an SPL shall be extended to TMGs upon application if a pilot has:"
+    - "(1) completed at an ATO or a DTO the training elements specified in point SFCL.130(a)(2)(v);"
+    - "(2) passed a skill test to demonstrate an adequate level of practical skill in a TMG."
+    - "(c) Holders of a licence issued in accordance with Annex I (Part-FCL) to Regulation (EU) No 1178/2011 shall receive full credit towards the requirements in paragraph (b) provided that they:"
+    - "(1) hold a class rating for TMGs; or"
+    - "(2) have TMG privileges and comply with the recency requirements in point FCL.140.A of Annex I (Part-FCL) to Regulation (EU) No 1178/2011."
+citations: [EASA SFCL.150(b), EASA SFCL.150(c), EASA SFCL.130(a)(2)(v)]
+
+applies_to:
+  subject: training
+  programme: SPL_TMG_EXTENSION
+  licenceKinds: [SPL, LAPL_S]
+
+window: { lifetime: true }
+
+requirements:
+  all_of:
+    - id: instruction_time
+      metric: minutes.dualOrSpic
+      filter: { classes: [TMG] }
+      min: 360
+      unit: minutes
+      nameKey: requirement.flight_instruction
+      remedyKey: remedy.fly_more
+    - id: dual_time
+      metric: minutes.dual
+      filter: { classes: [TMG] }
+      min: 240
+      unit: minutes
+      nameKey: requirement.dual_time
+      remedyKey: remedy.fly_more
+    - id: solo_cross_country
+      metric: flights
+      filter: { classes: [TMG], roles: [pic, spic], withoutMinutes: [dual], withMinutes: [crossCountry], minDistanceKm: 150 }
+      min: 1
+      unit: flights
+      nameKey: requirement.cross_country_flights
+      remedyKey: remedy.fly_more
+    - id: skill_test
+      metric: events
+      filter: { eventKinds: [skill_test], classes: [TMG] }
+      min: 1
+      unit: check
+      nameKey: requirement.skill_test
+
+stages:
+  - id: part_fcl_credit
+    when: { holds: { classes: [TMG], licenceKinds: [PPL_A, LAPL_A, CPL_A, ATPL_A, MPL], valid: true } }
+    status: current
+    messageKey: training.credited
+  - { id: complete, when: all_met, status: current, messageKey: training.all_met }
+  - { id: distance_unknown, when: undetermined, status: unknown, messageKey: training.distance_unknown }
+  - { id: in_progress, when: always, status: lapsed, messageKey: training.in_progress }
+
+
+divergences:
+  - id: skill-test
+    api: Reports the extension training complete when the flight instruction items are met.
+    article: The extension also needs a skill test in a TMG.
+    cite: EASA SFCL.150(b)(2)
+  - id: part-fcl-credit
+    api: Ignores a Part-FCL TMG class rating.
+    article: Holders of a Part-FCL licence with a TMG class rating (or TMG privileges and FCL.140.A recency) receive full credit toward the extension.
+    cite: EASA SFCL.150(c)
+  - id: distance-unknown
+    api: Counts a solo cross-country flight with no recorded distance as the qualifying flight (with a warning).
+    article: The solo cross-country flight must reach the distance; a flight without a recorded distance is unknown and never completes the programme.
+    cite: EASA SFCL.130(a)(2)(v)
+
+notes: >-
+  Partial: the training elements of SFCL.130(a)(2)(v) are not in sources/ (TODO: verify);
+  the figures follow the API's template (6 hours of flight instruction in TMGs including 4
+  hours dual and one solo cross-country flight of at least 150 km, per ninerlog-api
+  docs/SAILPLANES.md). Instruction is dual plus supervised solo time on TMG flights; the
+  solo cross-country flight is a TMG flight without dual time, with cross-country time and
+  a recorded distance of at least 150 km. The skill test is a skill_test event in the TMG
+  class. The SFCL.150(c) credit holds while the pilot holds a TMG class rating, within its
+  recorded expiry date, on a Part-FCL aeroplane licence; the (c)(2) FCL.140.A recency of a
+  LAPL(A) TMG privilege is not checked. SFCL.150(a) (whether the skill test was taken in a
+  sailplane) is not recorded; the programme is evaluated for every SPL or LAPL(S) holder.
+  Status: current when complete or credited, lapsed while items are open.

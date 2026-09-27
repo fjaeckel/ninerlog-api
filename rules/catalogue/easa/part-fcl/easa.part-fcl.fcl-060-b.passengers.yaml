@@ -1,0 +1,78 @@
+id: easa.part-fcl.fcl-060-b.passengers
+title: Passenger recency, 90 days (aeroplanes, helicopters, powered-lift, airships, gyroplanes)
+authority: easa
+instrument: Part-FCL
+article: FCL.060(b)(1)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.060(b)(1)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-060.md
+  quote:
+    - "(b) Aeroplanes, helicopters, powered-lift aircraft, airships, VTOL-capable aircraft (VCA) and gyroplanes. A pilot shall not operate an aircraft in commercial air transport or for carrying passengers:"
+    - "(1) as PIC or co-pilot unless he or she has carried out, in the preceding 90 days, at least 3 take-offs, approaches and landings as a pilot flying in an aircraft of the same type or class or an FFS representing that type or class. The 3 take-offs and landings shall be performed in either multi-pilot or single-pilot operations, depending on the privileges held by the pilot; and"
+
+applies_to:
+  subject: passengers
+  classes: [SEP_LAND, SEP_SEA, MEP_LAND, MEP_SEA, SET_LAND, SET_SEA, TMG, HELICOPTER, GYROPLANE, POWERED_LIFT, AIRSHIP]
+  authorities: [EASA, LBA]
+  excludeLicenceKinds: [SPL, LAPL_S, UL]
+
+window: { rolling_days: 90 }
+
+requirements:
+  id: takeoffs_landings
+  metric: takeoffs_and_landings
+  filter:
+    classes: [$subject]
+    pilotFlying: true
+    simulator: include
+    fstdTypes: [FFS]
+  min: 3
+  unit: landings
+  nameKey: requirement.takeoffs_and_landings
+  remedyKey: remedy.fly_more
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: pax.day_current }
+  - { id: pilot_flying_not_logged, when: undetermined, status: unknown, messageKey: pax.experience_not_logged }
+  - { id: not_current, when: always, status: expired, messageKey: pax.not_current, params: { needed: { needed: takeoffs_landings } } }
+
+ruleDescriptionKey: easa_pax
+
+divergences:
+  - id: takeoffs
+    api: Counts landings only.
+    article: The pilot needs 3 take-offs and 3 landings (with their approaches); the smaller of the two counts.
+    cite: EASA FCL.060(b)(1)
+  - id: pilot-flying
+    api: Counts every landing in the class, including flights on which the pilot was not flying (for example dual flights with an instructor at the controls).
+    article: Only take-offs and landings as a pilot flying count; a flight without a recorded pilot-flying flag is unknown, never counted.
+    cite: EASA FCL.060(b)(1)
+  - id: ffs
+    api: Ignores simulator sessions.
+    article: Take-offs and landings in an FFS representing the type or class count; other FSTDs do not.
+    cite: EASA FCL.060(b)(1)
+  - id: night-separate
+    api: Reports day and night passenger recency in one result with combined messages (pax.current_day_night, pax.day_current_night_not, pax.current_day_night_ir_waived, pax.current_day_no_night_privilege).
+    article: FCL.060(b)(1) (by day) and (b)(2) (as PIC at night) are separate conditions; the night condition is easa.part-fcl.fcl-060-b.night-passengers.
+    cite: EASA FCL.060(b)(1), (b)(2)
+  - id: authorities
+    api: Also evaluates passenger recency for classes recorded on DULV or DAeC licences.
+    article: FCL.060 applies to holders of Part-FCL licences, issued by EASA member-state authorities such as the LBA; ultralight passengers follow national law.
+    cite: EASA FCL.060(b)
+
+notes: >-
+  Partial. One evaluation per class (and authority) the holder rates. "Same type or class"
+  is read as the NinerLog class: for helicopters, powered-lift and airships, which are
+  type-rated, every type recorded with that class counts, and type-rated aeroplanes recorded
+  with class OTHER are not evaluated. The approaches are not counted separately; each
+  take-off and landing is taken to include one. The (b)(1) second sentence (multi-pilot or
+  single-pilot operations, depending on the privileges held) is not checked. The cruise
+  relief co-pilot recency ((b)(3)), cross-type credit under the OSD ((b)(4), (b)(5)) and the
+  commercial air transport extension ((c)) are not modelled. Pilot flying comes from the
+  flight's pilotFlying field; the API must map it (for example from single-pilot PIC time)
+  before adopting this rule.

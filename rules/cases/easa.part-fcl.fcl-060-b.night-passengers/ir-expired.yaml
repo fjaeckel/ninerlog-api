@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-060-b.night-passengers
+name: ir-expired
+description: An IR that expired the day before does not waive the night requirement.
+covers: [stage:landings_short]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+    - { id: r-ir, licenceId: l-ppl, class: IR, expires: 2026-09-14 }
+  flights:
+    - { date: 2026-08-20, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, pilotFlying: true }
+expect:
+  - subject: { kind: passengers, id: l-ppl, class: SEP_LAND }
+    status: expired
+    messageKey: pax.night_not_current
+    messageParams: { needed: 1 }
+    requirements:
+      night_landings: { current: 0, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 1, unit: landings } }

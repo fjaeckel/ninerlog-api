@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-055.language-level-5
+name: entered-date-later
+description: "An entered expiry date more than 6 years after the assessment is capped."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-lang, type: LANG_ICAO_LEVEL5, issued: 2023-04-15, expires: 2035-01-01 }
+expect:
+  - subject: { kind: credential, id: c-lang }
+    status: current
+    expiresOn: 2029-04-15

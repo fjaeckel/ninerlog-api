@@ -1,0 +1,28 @@
+rule: easa.part-sfcl.sfcl-205-f.banner-towing
+name: current
+description: >-
+  Five tows in the last 24 months keep the towing rating current: three sailplanes towed on
+  the window's first day, one tow flight with no count stated and one glider tow; a tow in an
+  ultralight and an ordinary TMG flight do not count.
+covers: [stage:current, requirement:tows:met, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  privileges:
+    - { id: p-tow, licenceId: l-spl, kind: BANNER_TOWING }
+  flights:
+    - { date: 2024-09-15, class: TMG, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, launches: 3, towedGliders: 3, flags: { towFlight: true } }
+    - { date: 2026-05-01, class: TMG, minutes: { total: 20, pic: 20 }, takeoffs: { day: 1 }, landings: { day: 1 }, launches: 1, flags: { towFlight: true } }
+    - { date: 2026-06-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, towKind: glider, flags: { towFlight: true } }
+    - { date: 2026-07-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 60, pic: 60 }, takeoffs: { day: 4 }, landings: { day: 4 }, towedGliders: 4, flags: { towFlight: true } }
+    - { date: 2026-08-01, class: TMG, minutes: { total: 90, pic: 90 }, takeoffs: { day: 1 }, landings: { day: 1 }, launches: 1 }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: current
+    messageKey: privilege.recency_current
+    validUntil: 2026-09-15
+    requirements:
+      tows: { current: 5, required: 5, met: true }

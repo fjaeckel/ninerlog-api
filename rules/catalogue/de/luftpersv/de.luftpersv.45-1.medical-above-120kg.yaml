@@ -1,0 +1,24 @@
+id: de.luftpersv.45-1.medical-above-120kg
+title: Ultralight licence validity and medical above 120 kg
+authority: de
+instrument: LuftPersV
+article: § 45(1)
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 45(1)
+  url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+  file: sources/de/luftpersv-45.md
+  quote:
+    - "Der Luftfahrerschein für Luftsportgeräteführer, die Luftsportgeräte mit einer höchstzulässigen Leermasse von mehr als 120 Kilogramm einschließlich Gurtzeug und Rettungsgerät betreiben, ist nur gültig in Verbindung mit einem gültigen Tauglichkeitszeugnis nach Anhang IV MED.A.030 Buchstabe b der Verordnung (EU) Nr. 1178/2011."
+    - "Der Inhaber eines Luftfahrerscheins für sonstige Luftsportgeräte darf die Rechte aus dem Luftfahrerschein nicht ausüben, wenn er eine Einschränkung seiner Tauglichkeit feststellt, aus der sich Zweifel an der sicheren Ausübung seiner Rechte ergeben könnten."
+applies_to: { subject: rating, classes: [ULTRALIGHT], authorities: [LBA, DULV, DAEC] }
+notes: >-
+  Not evaluated: above 120 kg empty mass the ultralight licence is valid only with a valid
+  LAPL-level medical (MED.A.030(b)), but the record has no empty mass per ultralight, so the
+  app cannot tell which ultralights need it, and the API does not link a medical to
+  ultralight ratings. The medical validity itself is the Part-MED family's rule. The
+  self-assessment of the third sentence cannot be computed. The first sentence (the licence
+  has no expiry) is applied in the § 45(2) and (2a) rules.

@@ -1,0 +1,10 @@
+rule: de.luftpersv.42.three-axis-training
+name: not-applicable
+description: Without an ultralight licence record (here only an EASA PPL) the ultralight training programme is not evaluated.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  flights:
+    - { date: 2025-04-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 1200, dual: 1200 } }
+expect: []

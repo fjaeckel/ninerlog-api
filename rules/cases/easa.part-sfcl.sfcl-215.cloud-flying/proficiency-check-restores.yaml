@@ -1,0 +1,19 @@
+rule: easa.part-sfcl.sfcl-215.cloud-flying
+name: proficiency-check-restores
+description: A cloud flying proficiency check with an FE(S) restores the privileges for 24 months without the flights.
+covers: [stage:current, event:proficiency_check]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING }
+  flights:
+    - { date: 2026-03-10, class: GLIDER, checkRating: CLOUD_FLYING, minutes: { total: 60, pic: 60, ifr: 20 }, launches: 1, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: privilege, id: p-cloud }
+    status: current
+    messageKey: privilege.recency_current
+    validUntil: 2028-03-10
+    requirements:
+      cloud_flying_time: { current: 20, met: false }

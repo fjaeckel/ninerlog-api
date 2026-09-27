@@ -1,0 +1,18 @@
+rule: easa.part-fcl.fcl-205-g-a-2.passengers
+name: issue-date-unknown
+description: Without a recorded GPL issue date the time since issue cannot be counted.
+covers: [stage:issue_date_unknown]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  flights:
+    - { date: 2026-06-01, class: GYROPLANE, minutes: { total: 900, pic: 900 }, takeoffs: { day: 9 }, landings: { day: 9 } }
+expect:
+  - subject: { kind: passengers, id: l-gpl, class: GYROPLANE }
+    status: unknown
+    messageKey: pax.prerequisite_unknown
+    requirements:
+      gpl_pic: { tracked: false }

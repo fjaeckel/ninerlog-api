@@ -1,0 +1,13 @@
+rule: de.dulv.ul-recency.gyroplane
+name: not-applicable
+description: A Part-FCL gyroplane rating and an ultralight gyroplane rating on an EASA licence are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-gpl, licenceId: l-gpl, class: GYROPLANE }
+    - { id: r-easa-ul, licenceId: l-gpl, class: ULTRALIGHT, ulKind: GYROPLANE }
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+expect: []

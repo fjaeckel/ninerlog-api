@@ -1,0 +1,15 @@
+rule: easa.part-fcl.fcl-940-fi.revalidation
+name: valid-on-expiry-day
+description: "On its expiry date the certificate is still valid."
+covers: [expiry:on]
+asOf: 2027-01-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: FI, issued: 2024-01-15 }
+  flights: []
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: expiring
+    messageParams: { days: 0, date: 2027-01-15 }

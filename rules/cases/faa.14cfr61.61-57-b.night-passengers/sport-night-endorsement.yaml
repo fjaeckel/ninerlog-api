@@ -1,0 +1,24 @@
+rule: faa.14cfr61.61-57-b.night-passengers
+name: sport-night-endorsement
+description: A sport pilot without the 61.329 night endorsement has no night privilege; with it (privilege SPORT_NIGHT) night passenger recency is evaluated like any other pilot's.
+covers: [stage:sport_no_night, stage:current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-sport, authority: FAA, type: SPORT }
+    - { id: l-sport-night, authority: FAA, type: SPORT }
+  ratings:
+    - { id: r-sep, licenceId: l-sport, class: SEP_LAND }
+    - { id: r-gyro, licenceId: l-sport-night, class: GYROPLANE }
+  privileges:
+    - { id: p-night, licenceId: l-sport-night, kind: SPORT_NIGHT, issued: 2026-01-10 }
+  flights:
+    - { date: 2026-08-01, class: SEP_LAND, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 3 }, landings: { night: 3 }, fullStopNightLandings: 3, soleManipulator: true }
+    - { date: 2026-08-02, class: GYROPLANE, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 3 }, landings: { night: 3 }, fullStopNightLandings: 3, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-sport, class: SEP_LAND }
+    status: not_applicable
+    messageKey: pax.night_no_privilege
+  - subject: { kind: passengers, id: l-sport-night, class: GYROPLANE }
+    status: current
+    messageKey: pax.night_current

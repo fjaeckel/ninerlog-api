@@ -1,0 +1,29 @@
+rule: de.luftpersv.45-2.three-axis
+name: window-day-before
+description: >-
+  The same flights one day later: the flight of 14 September 2024 is outside the 24 months,
+  so time, take-offs and landings fall short and the privileges lapse; the licence itself
+  does not expire.
+covers: [stage:lapsed, window:edge-out, requirement:total_time:unmet, requirement:takeoffs:unmet, requirement:landings:unmet, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS, expires: 2025-01-01 }
+  flights:
+    - { date: 2024-09-14, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 120, pic: 120 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+    - { date: 2025-06-01, class: SEP_LAND, minutes: { total: 300, pic: 300 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: THREE_AXIS_MOTORGLIDER, minutes: { total: 240, pic: 180, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-07-01, class: TMG, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: rating, id: r-3ax }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      total_time: { current: 600, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 120, unit: minutes } }
+      pic_time: { current: 540, met: true }
+      takeoffs: { current: 9, met: false, remedyParams: { missing: 3, unit: takeoffs } }
+      landings: { current: 9, met: false }
+      training_flight: { met: true }
+      proficiency_check: { current: 0, met: false }

@@ -1,0 +1,77 @@
+id: faa.14cfr61.61-23-c-3.basicmed
+title: BasicMed course and examination
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.23(c)(3)(i)(C), (D); 61.113(i); Part 68
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.23(c)(3)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.23
+  file: sources/faa/61.23.md
+  quote:
+    - "(3) A person using a U.S. driver's license to meet the requirements of paragraph (c) while operating under the conditions and limitations of § 61.113(i) must meet the following requirements—"
+    - "(C) Complete the medical education course set forth in § 68.3 of this chapter during the 24 calendar months before acting as pilot in command or serving as a required flightcrew member in an operation conducted under § 61.113(i) and retain a certification of course completion in accordance with § 68.3(b)(1) of this chapter;"
+    - "(D) Receive a comprehensive medical examination from a State-licensed physician during the 48 calendar months before acting as pilot in command or serving as a required flightcrew member of an operation conducted under § 61.113(i) and that medical examination is conducted in accordance with the requirements in part 68 of this chapter; and"
+related_sources:
+  - cite: 14 CFR 61.113(i)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.113
+    file: sources/faa/61.113.md
+    quote: "(i) A private pilot may act as pilot in command or serve as a required flightcrew member of an aircraft without holding a medical certificate issued under part 67 of this chapter provided the pilot holds a valid U.S. driver's license, meets the requirements of § 61.23(c)(3), and complies with this section and all of the following conditions and limitations:"
+  - cite: 14 CFR 68.1
+    url: https://www.ecfr.gov/current/title-14/part-68/section-68.1
+    file: sources/faa/68.1.md
+    quote: "This part prescribes the medical education and examination requirements for operating an aircraft under § 61.113(i) of this chapter without holding a medical certificate issued under part 67 of this chapter."
+  - cite: 14 CFR 68.3(b)(1)
+    url: https://www.ecfr.gov/current/title-14/part-68/section-68.3
+    file: sources/faa/68.3.md
+    quote: "(1) A certification of completion of the medical education course, which shall be retained in the individual's logbook and made available upon request, and shall contain the individual's name, address, and airman certificate number;"
+  - cite: 14 CFR 68.5(b)
+    url: https://www.ecfr.gov/current/title-14/part-68/section-68.5
+    file: sources/faa/68.5.md
+    quote: "(1) Conduct the medical examination in accordance with the checklist set forth in § 68.7,"
+citations: [14 CFR 61.23(c)(3)(i)(C), 14 CFR 61.23(c)(3)(i)(D), 14 CFR 61.113(i)]
+
+applies_to:
+  subject: credential
+  credentialTypes: [FAA_BASICMED]
+
+requirements:
+  all_of:
+    - id: course
+      metric: events
+      min: 1
+      unit: training
+      nameKey: requirement.basicmed_course
+      window: { calendar_months: 24 }
+      filter: { eventKinds: [basicmed_course] }
+    - id: exam
+      metric: events
+      min: 1
+      unit: check
+      nameKey: requirement.basicmed_exam
+      window: { calendar_months: 48 }
+      filter: { eventKinds: [basicmed_exam] }
+
+stages:
+  - { id: no_drivers_license, when: { not: { holds: { credentials: [US_DRIVERS_LICENSE] } } }, status: unknown, messageKey: credential.drivers_license_required }
+  - { id: drivers_license_expired, when: { not: { holds: { credentials: [US_DRIVERS_LICENSE], valid: true } } }, status: lapsed, messageKey: credential.drivers_license_expired }
+  - { id: current, when: all_met, status: current, messageKey: credential.valid, params: { date: valid_until } }
+  - { id: not_met, when: always, status: lapsed, messageKey: credential.basicmed_not_met }
+
+ruleDescriptionKey: faa_basicmed
+
+notes: >-
+  Partial: evaluated for every FAA_BASICMED credential in the record. The course
+  (basicmed_course event) must lie in the 24 calendar months and the examination
+  (basicmed_exam event) in the 48 calendar months before the month of the flight plus that
+  month; validUntil is the last day both still count. A valid U.S. driver's license
+  (credential US_DRIVERS_LICENSE, valid through its expiry date) is required by 61.113(i);
+  when none is recorded the status is unknown. Not modelled: having held a part 67 medical
+  after 14 July 2006 (61.23(c)(3)(i)(B)), the conditions on the most recent medical and
+  application (61.23(c)(3)(ii)-(iv)), care by a physician for a diagnosed condition, the
+  one-time special issuances of 68.9 (faa.14cfr68.68-9.special-issuance), and the operating
+  limits of 61.113(i)(1)-(2) (occupants, weight, altitude, speed), which concern the flight,
+  not the pilot's record.

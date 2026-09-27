@@ -1,0 +1,16 @@
+rule: easa.part-fcl.fcl-625-h.ir
+name: no-expiry-date
+description: Without an expiry date the window cannot be placed.
+covers: [stage:no_expiry]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-ir, licenceId: l-1, class: IR }
+  flights:
+    - { date: 2026-08-20, class: HELICOPTER, minutes: { total: 60, pic: 60, ifr: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, checkRating: IR, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: unknown
+    messageKey: rating.no_expiry_date

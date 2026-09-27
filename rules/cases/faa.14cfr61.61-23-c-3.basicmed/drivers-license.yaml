@@ -1,0 +1,15 @@
+rule: faa.14cfr61.61-23-c-3.basicmed
+name: drivers-license
+description: BasicMed needs a valid U.S. driver's license; without one on record the status is unknown.
+covers: [stage:no_drivers_license]
+asOf: 2026-08-16
+record:
+  credentials:
+    - { id: c-bm, type: FAA_BASICMED }
+  events:
+    - { date: 2025-01-10, kind: basicmed_exam }
+    - { date: 2025-01-10, kind: basicmed_course }
+expect:
+  - subject: { kind: credential, id: c-bm }
+    status: unknown
+    messageKey: credential.drivers_license_required

@@ -1,0 +1,23 @@
+rule: faa.14cfr61.61-21.cat-ii-iii
+name: expiry-edges
+description: On 30 September the authorization renewed in March is still valid; the one renewed in February ended on 31 August; one without an issue date has no derivable expiry.
+covers: [stage:expiring, stage:expired, stage:no_issue_date, expiry:on, expiry:after]
+asOf: 2026-09-30
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: ATP }
+  privileges:
+    - { id: p-on, licenceId: l-faa, kind: CAT_II, validFrom: 2026-03-31 }
+    - { id: p-after, licenceId: l-faa, kind: CAT_II, issued: 2026-02-01 }
+    - { id: p-none, licenceId: l-faa, kind: CAT_III }
+expect:
+  - subject: { kind: privilege, id: p-on }
+    status: expiring
+    messageParams: { days: 0, date: 2026-09-30 }
+  - subject: { kind: privilege, id: p-after }
+    status: expired
+    messageKey: privilege.expired
+    messageParams: { date: 2026-08-31 }
+  - subject: { kind: privilege, id: p-none }
+    status: unknown
+    messageKey: privilege.no_expiry_date

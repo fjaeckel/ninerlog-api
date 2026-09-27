@@ -1,0 +1,82 @@
+id: easa.part-fcl.fcl-740-as.airship
+title: Airship type rating revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.740.As(a)(1), (a)(2)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.740.As(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-740-as.md
+  quote:
+    - "(a) Revalidation. For revalidation of type ratings for airships, the applicant shall:"
+    - "(1) pass a proficiency check in accordance with Appendix 9 to this Part in the relevant type of airship within the 3 months immediately preceding the expiry date of the rating; and"
+    - "(2) complete at least 2 hours as a pilot of the relevant airship type within the validity period of the rating. The duration of the proficiency check may be counted towards the 2 hours."
+related_sources:
+  - cite: EASA FCL.740(a)(1)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-740.md
+    quote: "The validity period of class and type ratings shall be 1 year, except for single-pilot single-engine class ratings for which the validity period shall be 2 years, unless otherwise determined in the OSD."
+citations: [EASA FCL.740.As(a)(1), EASA FCL.740.As(a)(2)]
+
+applies_to:
+  subject: rating
+  classes: [AIRSHIP]
+  authorities: [EASA, LBA]
+
+window: { before_expiry_months: 12 }
+filter:
+  classes: [$subject]
+  typeDesignators: [$subject]
+
+requirements:
+  all_of:
+    - id: proficiency_check
+      metric: events
+      window: { before_expiry_months: 3 }
+      filter: { eventKinds: [proficiency_check] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+    - id: type_time
+      metric: minutes.total
+      min: 120
+      unit: minutes
+      nameKey: requirement.flight_time
+      remedyKey: remedy.fly_more
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: rating.expired }
+  - { id: window_not_open, when: before_window, status: current, messageKey: rating.window_not_open, params: { date: window_opens_at } }
+  - id: met_expiring
+    when: { all: [all_met, { expires_within: { days: 90 } }] }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    params: { days: days_to_expiry }
+  - { id: met, when: all_met, status: current, messageKey: rating.revalidation_current }
+  - { id: type_unknown, when: undetermined, status: unknown, messageKey: rating.type_not_identifiable }
+  - { id: not_met, when: always, status: expiring, messageKey: rating.revalidation_not_met_prof_check }
+
+divergences:
+  - id: revalidation
+    api: Reports airship ratings by their expiry date only.
+    article: An airship type rating is revalidated by a proficiency check in the 3 months before expiry and 2 hours as pilot of the type within the validity period.
+    cite: EASA FCL.740.As(a)
+  - id: valid-through-expiry
+    api: Reports the rating expired on its expiry date.
+    article: The rating is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: EASA FCL.740(a)(1)
+
+notes: >-
+  Partial: the type is the rating's typeDesignator; flights and checks count only on that
+  type designator, and when the rating or the flights carry none the result is unknown. The
+  validity period of an airship type rating is 1 year (FCL.740(a)(1)), so the 2 hours are
+  counted in the 12 months before the recorded expiry. The proficiency check flight counts
+  toward the 2 hours. Checks in an FSTD do not count ((a)(1) says in the relevant type of
+  airship). The combined IR(As) revalidation ((a)(3)) and renewal are not modelled. The
+  90-day expiring threshold and the window_not_open stage are NinerLog presentation.

@@ -1,0 +1,14 @@
+rule: de.luftpersv.45.kind-required
+name: not-applicable
+description: Ratings with a kind, and kindless ultralight ratings on EASA or FAA licences, are not reported here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: LBA, type: UL }
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: SPORT }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+    - { id: r-easa-ul, licenceId: l-easa, class: ULTRALIGHT }
+    - { id: r-faa-ul, licenceId: l-faa, class: ULTRALIGHT }
+expect: []

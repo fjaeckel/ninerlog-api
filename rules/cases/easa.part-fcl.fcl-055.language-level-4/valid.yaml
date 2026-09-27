@@ -1,0 +1,14 @@
+rule: easa.part-fcl.fcl-055.language-level-4
+name: valid
+description: "A level 4 assessment on 2023-04-15 is valid until 2027-04-15."
+covers: [stage:valid, expiry:before]
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-lang, type: LANG_ICAO_LEVEL4, issued: 2023-04-15 }
+expect:
+  - subject: { kind: credential, id: c-lang }
+    status: current
+    messageKey: credential.valid
+    messageParams: { date: 2027-04-15 }
+    expiresOn: 2027-04-15

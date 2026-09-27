@@ -1,0 +1,18 @@
+rule: faa.14cfr61.61-57-a.tailwheel
+name: not-applicable
+description: Only airplane classes on non-student FAA certificates are evaluated; helicopters, gliders and TMGs are not airplanes with a tailwheel in the sense of 61.57(a)(1)(ii).
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+    - { id: l-student, authority: FAA, type: STUDENT }
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-heli, licenceId: l-faa, class: HELICOPTER }
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+    - { id: r-tmg, licenceId: l-faa, class: TMG }
+    - { id: r-student, licenceId: l-student, class: SEP_LAND }
+    - { id: r-easa, licenceId: l-easa, class: SEP_LAND }
+  flights:
+    - { date: 2026-08-01, class: GLIDER, tailwheel: true, minutes: { total: 60, pic: 60 }, launches: 1, landings: { day: 1 }, fullStopLandings: 1, soleManipulator: true }
+expect: []

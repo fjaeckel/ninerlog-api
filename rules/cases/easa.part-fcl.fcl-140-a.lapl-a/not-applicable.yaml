@@ -1,0 +1,15 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: not-applicable
+description: Class ratings on a PPL(A) follow FCL.740.A; LAPL(A) privileges on a DULV licence, sailplane and IR entries are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-dulv, authority: DULV, type: LAPL(A) }
+    - { id: l-lapl, authority: EASA, type: LAPL }
+  ratings:
+    - { id: r-ppl, licenceId: l-ppl, class: SEP_LAND, expires: 2026-10-31 }
+    - { id: r-dulv, licenceId: l-dulv, class: SEP_LAND }
+    - { id: r-glider, licenceId: l-lapl, class: GLIDER }
+    - { id: r-ul, licenceId: l-lapl, class: ULTRALIGHT }
+expect: []

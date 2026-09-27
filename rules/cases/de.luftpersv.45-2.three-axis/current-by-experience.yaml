@@ -1,0 +1,32 @@
+rule: de.luftpersv.45-2.three-axis
+name: current-by-experience
+description: >-
+  Three-axis UL, UL motorglider, SEP(land) and TMG time pools to 12 h with 6 h PIC and 12
+  take-offs and landings; the aerotowed UL motorglider flight with an instructor counts and is
+  the training flight.
+  The first flight falls on the first day of the 24 months, so the rating stays current
+  through asOf only.
+covers: [stage:current, window:edge-in, any_of:recency:experience, requirement:total_time:met, requirement:pic_time:met, requirement:takeoffs:met, requirement:landings:met, requirement:training_flight:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+  flights:
+    - { date: 2024-09-15, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 120, pic: 120 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+    - { date: 2025-06-01, class: SEP_LAND, minutes: { total: 300, pic: 300 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: THREE_AXIS_MOTORGLIDER, launchMethod: aerotow, minutes: { total: 240, pic: 180, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-07-01, class: TMG, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: rating, id: r-3ax, class: ULTRALIGHT, ulKind: THREE_AXIS }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2026-09-15
+    requirements:
+      total_time: { current: 720, required: 720, met: true }
+      pic_time: { current: 660, met: true }
+      takeoffs: { current: 12, met: true }
+      landings: { current: 12, met: true }
+      training_flight: { current: 240, met: true }
+      proficiency_check: { current: 0, met: false, remedyKey: remedy.proficiency_check }

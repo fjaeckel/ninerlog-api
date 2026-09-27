@@ -1,0 +1,24 @@
+id: de.luftpersv.44-2.day-only
+title: Scope of the ultralight licence
+authority: de
+instrument: LuftPersV
+article: § 44(2)-(5)
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 44(2)
+  url: https://www.gesetze-im-internet.de/luftpersv/__44.html
+  file: sources/de/luftpersv-44.md
+  quote:
+    - "Der Luftfahrerschein berechtigt zum Führen von Luftsportgerät der im Luftfahrerschein eingetragenen Art und zu den eingetragenen Start- oder Sprungarten am Tage und von Sprungfallschirmen auch bei Nacht."
+applies_to: { subject: licence, authorities: [LBA, DULV, DAEC] }
+notes: >-
+  The scope of the ultralight licence: the kind entered, the launch methods entered, by day
+  only. The catalogue uses it for the kind (de.luftpersv.45.kind-required) and for the
+  day-only passenger message of the § 45a rules; the night restriction itself is applied by API
+  consumers (the night-privilege flag and the ultralight night-flight save warning, both
+  scope consumer). Not evaluated: the entered launch methods (§ 44(3)), the local-area
+  restriction of § 44(4) and the automatic-release restriction of § 44(5); the record does
+  not carry them.

@@ -1,0 +1,29 @@
+rule: easa.part-sfcl.sfcl-115-a-2.passengers
+name: hours-met
+description: >-
+  Ten hours as PIC on sailplanes and TMGs since the SPL was issued, starting on the issue
+  day, meet the prerequisite; dual time does not count. Both the GLIDER and the TMG class
+  are evaluated.
+covers: [stage:met, any_of:prerequisite:pax_prerequisite_time, requirement:pax_prerequisite_time:met, requirement:pax_prerequisite_launches:unmet, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL, issued: 2025-04-01 }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  flights:
+    - { date: 2025-04-01, class: GLIDER, launchMethod: winch, minutes: { total: 300, pic: 300 }, launches: 5, landings: { day: 5 } }
+    - { date: 2025-06-01, class: TMG, minutes: { total: 300, pic: 300 }, takeoffs: { day: 4 }, landings: { day: 4 }, launches: 4 }
+    - { date: 2025-07-01, class: GLIDER, launchMethod: winch, minutes: { total: 120, dual: 120 }, launches: 10, landings: { day: 10 } }
+expect:
+  - subject: { kind: passengers, id: l-spl, class: GLIDER }
+    status: current
+    messageKey: pax.prerequisite_met
+    windowOpensAt: 2025-04-01
+    requirements:
+      pax_prerequisite_time: { current: 600, met: true }
+      pax_prerequisite_launches: { current: 9, met: false }
+  - subject: { kind: passengers, id: l-spl, class: TMG }
+    status: current
+    messageKey: pax.prerequisite_met

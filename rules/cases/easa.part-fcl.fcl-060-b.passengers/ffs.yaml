@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-060-b.passengers
+name: ffs
+description: Take-offs and landings in an FFS representing the class count; an FNPT does not, and a simulator session of unknown type is unknown.
+covers: [unknown:fstdTypes, stage:current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  flights:
+    - { date: 2026-08-01, class: SEP_LAND, isSimulator: true, fstdType: FFS, minutes: { total: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, pilotFlying: true }
+    - { date: 2026-08-02, class: SEP_LAND, isSimulator: true, fstdType: FNPT, minutes: { total: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, pilotFlying: true }
+    - { date: 2026-08-03, class: SEP_LAND, isSimulator: true, minutes: { total: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, pilotFlying: true }
+expect:
+  - subject: { kind: passengers, id: l-ppl, class: SEP_LAND }
+    status: current
+    messageKey: pax.day_current
+    requirements:
+      takeoffs_landings: { current: 3, met: true }

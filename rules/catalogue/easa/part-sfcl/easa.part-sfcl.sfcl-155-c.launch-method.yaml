@@ -1,0 +1,58 @@
+id: easa.part-sfcl.sfcl-155-c.launch-method
+title: SPL launch method recency, winch, car and aerotow
+authority: easa
+instrument: Part-SFCL
+article: SFCL.155(c), (d)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.155(c)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-155.md
+  quote:
+    - "(c) In order to maintain the privileges for each launching method and in accordance with the requirements of paragraphs (a) and (b), SPL holders shall complete a minimum of five launches during the last two years, except for bungee launch, in which case they shall complete only two launches."
+    - "(d) If SPL holders do not comply with the requirement in paragraph (c), in order to renew their privileges they shall perform the additional number of launches flying dual or solo under the supervision of an instructor."
+citations: [EASA SFCL.155(c), EASA SFCL.155(d)]
+
+applies_to:
+  subject: launch_method
+  classes: [GLIDER]
+  launchMethods: [winch, car, aerotow]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: launches
+  metric: launches
+  filter: { classes: [GLIDER], launchMethods: [$subject] }
+  min: 5
+  unit: launches
+  nameKey: requirement.launches
+  remedyKey: remedy.launch_method_dual
+  messages: { met: launch_method.progress, unmet: launch_method.progress }
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: launch_method.current }
+  - { id: lapsed, when: always, status: lapsed, messageKey: launch_method.lapsed }
+
+ruleDescriptionKey: sfcl_155_launch_method
+
+divergences:
+  - id: authorities
+    api: Also lists launch methods for GLIDER ratings recorded on DULV or DAeC licences.
+    article: SFCL.155 applies to SPL holders; ultralight associations issue no SPL.
+    cite: EASA SFCL.155(c)
+
+notes: >-
+  One evaluation per launch method on a GLIDER rating: every method the pilot has logged on
+  a GLIDER flight up to asOf, and every method with a LAUNCH_METHOD_TRAINED privilege on the
+  rating's licence (SFCL.155(a)). Self-launch and bungee launch have their own rules
+  (easa.part-sfcl.sfcl-155-c.self-launch, easa.part-sfcl.sfcl-155-c.bungee) because they
+  count differently. Launches in any role count; "the last two years" is 24 months up to
+  asOf. An unmet method carries remedy.launch_method_dual with the missing launches, to be
+  flown dual or solo under supervision (SFCL.155(d)). Whether a method was trained is not
+  a condition here; the API's trained flag on the launch method row is not reproduced.
+  Launch methods other than these five (SFCL.155(a)(4)) are not recorded.

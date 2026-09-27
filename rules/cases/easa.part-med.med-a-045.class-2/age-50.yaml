@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.class-2
+name: age-50
+description: "Issued at 50 the certificate runs 12 months."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1976-01-01 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS2_MEDICAL, issued: 2026-06-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    expiresOn: 2027-06-01

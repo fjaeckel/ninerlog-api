@@ -1,0 +1,66 @@
+id: easa.part-fcl.fcl-240-g-b.variant
+title: GPL SPG variant recency
+authority: easa
+instrument: Part-FCL
+article: FCL.240.G(b)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.240.G(b)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-240-g.md
+  quote:
+    - "(b) Holders of a GPL with privileges for the SPG class who, in accordance with point FCL.235.G(c), have extended their privileges to a variant with a different type of engine as specified in point FCL.235.G(a) shall, if they have not flown that variant within the preceding 2 years, complete any of the following in that variant, before exercising their privileges in that variant:"
+    - "(1) further differences training in accordance with point FCL.235.G(c);"
+    - "(2) a proficiency check;"
+    - "(3) refresher training in accordance with point (a)(1)(ii)."
+citations: [EASA FCL.240.G(b)]
+
+applies_to:
+  subject: type
+  classes: [GYROPLANE]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: variant
+  any_of:
+    - id: variant_flown
+      metric: flights
+      filter: { classes: [$subject], variants: [$subject] }
+      min: 1
+      unit: flights
+      nameKey: requirement.variant_flown
+      remedyKey: remedy.differences_training
+    - id: differences_training
+      metric: events
+      filter: { eventKinds: [differences_training], variants: [$subject] }
+      min: 1
+      unit: training
+      nameKey: requirement.differences_training
+    - id: proficiency_check
+      metric: events
+      filter: { eventKinds: [proficiency_check], variants: [$subject] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: type.current }
+  - { id: variant_unknown, when: undetermined, status: unknown, messageKey: type.unknown }
+  - { id: not_flown, when: always, status: lapsed, messageKey: type.not_flown }
+
+ruleDescriptionKey: easa_gpl
+
+notes: >-
+  One evaluation per variant recorded for a GYROPLANE rating (record.variants): the SPG
+  variants with another type of engine the GPL was extended to. The class names no SPG
+  subclass, so any recorded gyroplane variant is evaluated. Flying the variant within the
+  preceding 2 years keeps it current; refresher training in the variant (b)(3) and a check
+  flight are flights in the variant and count as flown; a differences training or
+  proficiency check recorded as an event for the variant counts as well. A flight with no
+  recorded variant cannot be attributed and is unknown input. New in the catalogue: the API
+  does not evaluate variants.

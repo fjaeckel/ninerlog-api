@@ -1,0 +1,73 @@
+id: easa.part-fcl.fcl-1025.examiner
+title: Examiner certificate validity and revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.1025(a), (b)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.1025
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-1025.md
+  quote:
+    - "An examiner certificate shall be valid for 3 years."
+    - "To revalidate an examiner certificate, holders shall comply with all of the following conditions:"
+    - "(1) before the expiry date of the certificate, have conducted at least six skill tests, proficiency checks, assessments of competence, or EBT evaluation phases during an EBT module referred to in point ORO.FC.231 of Annex III (Part-ORO) to Regulation (EU) No 965/2012;"
+    - "(2) in the period of 12 months immediately preceding the expiry date of the certificate, have completed an examiner refresher course which is provided by the competent authority or which is provided by an ATO and approved by the competent authority;"
+    - "(3) one of the skill tests, proficiency checks, assessments of competence or EBT evaluation phases conducted in accordance with point (1) shall take place in the period of 12 months immediately preceding the expiry date of the examiner certificate and shall:"
+    - "(i) have been assessed by an inspector from the competent authority or by a senior examiner specifically authorised to do so by the competent authority responsible for the examiner certificate; or"
+    - "(ii) comply with the requirements in point FCL.1020."
+citations: [EASA FCL.1025(a), EASA FCL.1025(b)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [EXAMINER]
+
+validity:
+  from: valid_from
+  periods:
+    - { months: 36 }
+
+window: { before_expiry_months: 36 }
+
+requirements:
+  all_of:
+    - id: tests_conducted
+      metric: flights
+      filter: { roles: [examiner], simulator: include }
+      min: 6
+      unit: flights
+      nameKey: requirement.tests_conducted
+    - id: refresher
+      metric: events
+      window: { before_expiry_months: 12 }
+      filter: { eventKinds: [examiner_refresher] }
+      min: 1
+      unit: training
+      nameKey: requirement.examiner_refresher
+    - id: assessed_test
+      metric: events
+      window: { before_expiry_months: 12 }
+      filter: { eventKinds: [assessment_of_competence], eventRatings: [EXAMINER] }
+      min: 1
+      unit: check
+      nameKey: requirement.assessment_of_competence
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: privilege.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: met, when: all_met, status: current, messageKey: privilege.revalidation_current, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: privilege.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: not_met, when: always, status: current, messageKey: privilege.revalidation_not_met, params: { date: expiry_date } }
+
+notes: >-
+  Partial. A test, check or assessment conducted is a flight (or FSTD session) with
+  examiner time; EBT evaluation phases are counted only when logged that way. The assessed
+  test of (b)(3) is recorded as an assessment_of_competence event with rating EXAMINER (the
+  examiner's own assessment by an inspector or senior examiner, or under FCL.1020); that it
+  was one of the six tests is not checked. Revalidation of several examiner categories on
+  one assessment, renewal ((c)) and continued compliance with FCL.1010 and FCL.1030 ((d))
+  are not modelled. The privilege kind EXAMINER does not distinguish FE, CRE, IRE, TRE and
+  so on. The API does not evaluate examiner certificates today.

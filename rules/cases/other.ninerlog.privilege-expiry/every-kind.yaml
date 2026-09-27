@@ -1,0 +1,30 @@
+rule: other.ninerlog.privilege-expiry
+name: every-kind
+description: >-
+  Aerobatic, TMG night, BI(S), FE(S), UL passenger and UL type-briefing privileges are all
+  tracked by expiry; towing, cloud flying, FI(S) and launch-method privileges have their own
+  rules.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-ul, authority: DAeC, type: UL }
+  privileges:
+    - { id: p-aero, licenceId: l-spl, kind: AEROBATIC_BASIC }
+    - { id: p-aero2, licenceId: l-spl, kind: AEROBATIC_ADVANCED }
+    - { id: p-tmgn, licenceId: l-spl, kind: TMG_NIGHT }
+    - { id: p-bis, licenceId: l-spl, kind: BI_S, expires: 2026-01-01 }
+    - { id: p-fes, licenceId: l-spl, kind: FE_S, expires: 2027-01-01 }
+    - { id: p-type, licenceId: l-ul, kind: UL_TYPE_BRIEFING, detail: C42 }
+    - { id: p-tow, licenceId: l-spl, kind: SAILPLANE_TOWING }
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING }
+    - { id: p-fis, licenceId: l-spl, kind: FI_S }
+    - { id: p-lm, licenceId: l-spl, kind: LAUNCH_METHOD_TRAINED, detail: winch }
+    - { id: p-ultow, licenceId: l-ul, kind: UL_TOWING }
+expect:
+  - { subject: { kind: privilege, id: p-aero }, status: current, messageKey: privilege.valid }
+  - { subject: { kind: privilege, id: p-aero2 }, status: current, messageKey: privilege.valid }
+  - { subject: { kind: privilege, id: p-tmgn }, status: current, messageKey: privilege.valid }
+  - { subject: { kind: privilege, id: p-bis }, status: expired, messageKey: privilege.expired, messageParams: { date: "2026-01-01" } }
+  - { subject: { kind: privilege, id: p-fes }, status: current, messageKey: privilege.valid }
+  - { subject: { kind: privilege, id: p-type, detail: C42 }, status: current, messageKey: privilege.valid }

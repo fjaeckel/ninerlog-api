@@ -1,0 +1,50 @@
+id: easa.part-fcl.fcl-105-a.lapl-passengers
+title: LAPL(A) passengers after 10 hours as PIC
+authority: easa
+instrument: Part-FCL
+article: FCL.105.A(b)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.105.A(b)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-105-a.md
+  quote:
+    - "(1) Holders of a LAPL(A) shall carry passengers only if they have completed 10 hours of flight time as PIC on aeroplanes or TMG after the issuance of the licence."
+    - "(2) Holders of a LAPL(A) who previously held an ATPL(A), an MPL(A), a CPL(A) or a PPL(A), are exempted from the requirements laid down in point (b)(1)."
+
+applies_to:
+  subject: passengers
+  classes: [SEP_LAND, SEP_SEA, TMG]
+  authorities: [EASA, LBA]
+  licenceKinds: [LAPL_A]
+
+window: { since_issue: licence }
+
+requirements:
+  id: pic_since_issue
+  metric: minutes.pic
+  filter: { categories: [aeroplane] }
+  min: 600
+  unit: minutes
+  nameKey: requirement.pic_time_since_issue
+  remedyKey: remedy.fly_more
+
+stages:
+  - { id: exempt, when: { holds: { licenceKinds: [PPL_A, CPL_A, ATPL_A, MPL] } }, status: current, messageKey: pax.prerequisite_exempt }
+  - { id: met, when: all_met, status: current, messageKey: pax.prerequisite_met }
+  - { id: issue_date_missing, when: undetermined, status: unknown, messageKey: pax.prerequisite_unknown }
+  - { id: not_met, when: always, status: expired, messageKey: pax.prerequisite_not_met, params: { needed: { needed: pic_since_issue } } }
+
+
+notes: >-
+  A condition before the first passenger flight on a LAPL(A), in addition to the 90-day
+  recency of FCL.060(b). PIC time on any aeroplane or TMG (the TMG class is in the aeroplane
+  category) since the licence issue date counts; ultralight hours are not credited
+  (FCL.035(a)(4) credits them only toward FCL.140.A(a)(1) and FCL.740.A(b)(1)(ii)). A
+  PPL(A), CPL(A), ATPL(A) or MPL recorded in the holder's record, valid or not, is taken as
+  "previously held". Without a licence issue date the hours cannot be counted and the
+  result is unknown. The needed parameter is in minutes. The API does not evaluate this
+  condition today.

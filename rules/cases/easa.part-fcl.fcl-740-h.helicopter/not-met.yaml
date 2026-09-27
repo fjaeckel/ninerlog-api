@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: not-met
+description: "Without a proficiency check, and with too little flying on the type, the rating is not revalidated."
+covers: [stage:not_met, requirement:proficiency_check:unmet, requirement:type_time:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: R44, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-05-10, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: rating, id: r-type, class: HELICOPTER }
+    status: expiring
+    messageKey: rating.revalidation_not_met_prof_check
+    requirements:
+      proficiency_check: { current: 0, met: false, remedyKey: remedy.proficiency_check }
+      type_time: { current: 60, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 60, unit: minutes } }

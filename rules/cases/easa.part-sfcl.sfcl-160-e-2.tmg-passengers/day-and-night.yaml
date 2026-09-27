@@ -1,0 +1,25 @@
+rule: easa.part-sfcl.sfcl-160-e-2.tmg-passengers
+name: day-and-night
+description: >-
+  With a TMG night rating valid on its expiry day, one of the three take-offs and landings
+  flown at night allows passengers by day and by night.
+covers: [stage:day_and_night, requirement:night_takeoffs:met, requirement:night_landings:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  privileges:
+    - { id: p-night, licenceId: l-spl, kind: TMG_NIGHT, expires: 2026-09-15 }
+  flights:
+    - { date: 2026-08-01, class: TMG, minutes: { total: 60, pic: 60, night: 30 }, takeoffs: { day: 2 }, landings: { day: 1, night: 1 }, launches: 2 }
+    - { date: 2026-08-02, class: TMG, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 1 }, landings: { day: 1 }, launches: 1 }
+expect:
+  - subject: { kind: passengers, id: l-spl, class: TMG }
+    status: current
+    messageKey: pax.current_day_night
+    requirements:
+      day: { current: 3, met: true }
+      night_takeoffs: { current: 1, met: true }
+      night_landings: { current: 1, met: true }

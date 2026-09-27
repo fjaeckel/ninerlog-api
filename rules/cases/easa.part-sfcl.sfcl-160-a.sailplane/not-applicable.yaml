@@ -1,0 +1,17 @@
+rule: easa.part-sfcl.sfcl-160-a.sailplane
+name: not-applicable
+description: >-
+  Only GLIDER ratings are evaluated: an SEP or TMG rating on an SPL, an FAA glider rating
+  and a GLIDER rating on a DULV ultralight licence are not.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-dulv, authority: DULV, type: UL }
+  ratings:
+    - { id: r-sep, licenceId: l-spl, class: SEP_LAND }
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+    - { id: r-faa, licenceId: l-faa, class: GLIDER }
+    - { id: r-dulv, licenceId: l-dulv, class: GLIDER }
+expect: []

@@ -1,0 +1,17 @@
+rule: easa.part-sfcl.sfcl-150-b.tmg-extension
+name: part-fcl-credit
+description: >-
+  An SPL holder with a valid TMG class rating on a PPL(A) receives full credit toward the
+  extension; a pilot with no SPL is not evaluated.
+covers: [stage:part_fcl_credit]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-tmg, licenceId: l-ppl, class: TMG, expires: 2027-04-30 }
+expect:
+  - subject: { kind: training, id: l-spl, detail: SPL_TMG_EXTENSION }
+    status: current
+    messageKey: training.credited

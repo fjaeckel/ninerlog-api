@@ -1,0 +1,13 @@
+rule: de.luftpersv.96-4.ul-instructor
+name: not-applicable
+description: An EASA FI certificate and an ultralight towing rating are not the § 95a ultralight instructor rating.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-tow, licenceId: l-ul, kind: UL_TOWING }
+    - { id: p-fi-easa, licenceId: l-ppl, kind: FI, validFrom: 2024-01-10 }
+    - { id: p-ulfi-easa, licenceId: l-ppl, kind: UL_INSTRUCTOR, validFrom: 2024-01-10 }
+expect: []

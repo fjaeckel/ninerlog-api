@@ -1,0 +1,14 @@
+rule: easa.part-fcl.fcl-805.banner-towing
+name: not-applicable
+description: The towing privilege of a sailplane licence follows SFCL.205; FAA licences and other privileges are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-spl, licenceId: l-spl, kind: BANNER_TOWING }
+    - { id: p-faa, licenceId: l-faa, kind: BANNER_TOWING }
+    - { id: p-other, licenceId: l-ppl, kind: SAILPLANE_TOWING }
+expect: []

@@ -1,0 +1,15 @@
+rule: faa.14cfr61.61-56.flight-review
+name: simulator-review
+description: A flight review flown in a flight training device (under a part 142 course) counts.
+covers: [stage:reviewed]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: ATP }
+  flights:
+    - { date: 2025-11-04, class: MEP_LAND, isSimulator: true, fstdType: FTD, minutes: { total: 120, dual: 120 }, flags: { flightReview: true } }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: current
+    messageKey: flight_review.current
+    messageParams: { date: 2025-11-04 }

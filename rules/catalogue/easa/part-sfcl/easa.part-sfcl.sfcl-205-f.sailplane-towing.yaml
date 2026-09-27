@@ -1,0 +1,61 @@
+id: easa.part-sfcl.sfcl-205-f.sailplane-towing
+title: Sailplane towing rating recency
+authority: easa
+instrument: Part-SFCL
+article: SFCL.205(f), (g)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.205(f)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-205.md
+  quote:
+    - "(f) To exercise the privileges of the sailplane towing or banner towing rating, the holder of the rating shall complete a minimum of five tows during the last two years."
+    - "(g) If a holder of the sailplane towing rating does not comply with the requirement in paragraph (f), before resuming the exercise of his or her privileges, he or she shall complete the missing tows with or under the supervision of an instructor."
+citations: [EASA SFCL.205(f), EASA SFCL.205(g)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [SAILPLANE_TOWING]
+  licenceKinds: [SPL, LAPL_S]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: tows
+  metric: tows
+  filter: { excludeClasses: [ULTRALIGHT] }
+  min: 5
+  unit: tows
+  nameKey: requirement.tows
+  remedyKey: remedy.privilege_with_instructor
+
+stages:
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: expiry_date } }
+  - { id: lapsed, when: always, status: lapsed, messageKey: privilege.recency_not_met, params: { date: expiry_date } }
+
+ruleDescriptionKey: sfcl_205_towing
+
+divergences:
+  - id: article
+    api: Cites SFCL.205(c), which sets the banner towing rating's issue requirements.
+    article: The recency of both towing ratings is SFCL.205(f); the resumption with an instructor is (g).
+    cite: EASA SFCL.205(f)
+  - id: licence-scope
+    api: Evaluates SAILPLANE_TOWING under SFCL.205 on every licence that is not an FAA licence, including PPL(A) and LAPL(A).
+    article: SFCL.205 is the towing rating of SPL holders with TMG privileges; towing ratings on Part-FCL aeroplane licences follow FCL.805.
+    cite: EASA SFCL.205(a)
+
+notes: >-
+  Five tows as tug pilot in the last 24 months: the towedGliders of flights flagged as tow
+  flights (one per flight when not stated), in any aircraft except ultralights (ultralight
+  towing follows national rules). The article counts "tows" without saying what was towed,
+  so sailplane and banner tows both count, as in the API. An unmet requirement carries
+  remedy.privilege_with_instructor: the missing tows are flown with or under the
+  supervision of an instructor (SFCL.205(g)). A privilege with a recorded expiry date is
+  valid through that date. Applies to SAILPLANE_TOWING privileges on SPL or LAPL(S)
+  licences; on a Part-FCL licence the same privilege follows FCL.805.

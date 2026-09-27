@@ -1,0 +1,17 @@
+rule: de.luftpersv.84-5.ul-towing
+name: expired-day-after
+description: The day after its recorded expiry date the towing rating is expired, whatever the tows.
+covers: [stage:expired, expiry:after]
+asOf: 2026-09-16
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  privileges:
+    - { id: p-tow, licenceId: l-ul, kind: UL_TOWING, expires: 2026-09-15 }
+  flights:
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 90, pic: 90 }, towedGliders: 10, flags: { towFlight: true } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: expired
+    messageKey: privilege.expired
+    messageParams: { date: "2026-09-15" }

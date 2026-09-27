@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-940-fi.revalidation
+name: assessment-window-edges
+description: "An assessment of competence on 15 January 2026, 12 months before expiry, counts; one on 14 January 2026 does not."
+covers: [window:before_expiry_months=12:edge-in, window:before_expiry_months=12:edge-out, requirement:assessment:met, stage:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: FI, issued: 2024-01-15 }
+  events:
+    - { date: 2026-01-14, kind: assessment_of_competence }
+    - { date: 2026-01-15, kind: assessment_of_competence }
+    - { date: 2025-05-01, kind: instructor_refresher }
+  flights: []
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: current
+    requirements:
+      assessment: { current: 1, met: true, lastDate: 2026-01-15 }

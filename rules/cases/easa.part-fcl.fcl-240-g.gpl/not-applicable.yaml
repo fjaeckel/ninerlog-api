@@ -1,0 +1,14 @@
+rule: easa.part-fcl.fcl-240-g.gpl
+name: not-applicable
+description: A GYROPLANE rating on an FAA certificate or a DULV licence, and an SEP rating, are not GPL recency.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-dulv, authority: DULV, type: UL }
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-faa, licenceId: l-faa, class: GYROPLANE }
+    - { id: r-dulv, licenceId: l-dulv, class: GYROPLANE }
+    - { id: r-sep, licenceId: l-gpl, class: SEP_LAND }
+expect: []

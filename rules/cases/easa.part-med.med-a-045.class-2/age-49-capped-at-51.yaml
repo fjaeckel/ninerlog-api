@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.class-2
+name: age-49-capped-at-51
+description: "Issued at 49 the certificate would run 24 months but ends on the 51st birthday."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1977-01-01 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS2_MEDICAL, issued: 2026-01-10 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    expiresOn: 2028-01-01

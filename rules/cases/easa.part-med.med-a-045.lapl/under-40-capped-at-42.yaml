@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.lapl
+name: under-40-capped-at-42
+description: "Issued at 39 the certificate would run 60 months but ends on the 42nd birthday."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1986-06-10 }
+  credentials:
+    - { id: c-med, type: EASA_LAPL_MEDICAL, issued: 2026-01-10 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    expiresOn: 2028-06-10

@@ -1,0 +1,22 @@
+rule: easa.part-fcl.fcl-835.bir
+name: experience
+description: "6 hours as PIC under IFR with 3 approaches and a 1-hour training flight within the validity period revalidate the BIR."
+covers: [any_of:revalidation:experience, requirement:ifr_pic_time:met, requirement:approaches:met, requirement:training_flight:met, requirement:proficiency_check:unmet, stage:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: BIR, issued: 2025-11-01 }
+  flights:
+    - { date: 2026-02-01, class: SEP_LAND, minutes: { total: 240, pic: 240, ifr: 240 }, takeoffs: { day: 1 }, landings: { day: 1 }, approaches: 2 }
+    - { date: 2026-03-01, class: SEP_LAND, minutes: { total: 120, pic: 120, ifr: 120 }, takeoffs: { day: 1 }, landings: { day: 1 }, approaches: 1 }
+    - { date: 2026-04-01, class: SEP_LAND, minutes: { total: 70, dual: 70, ifr: 70 }, takeoffs: { day: 1 }, landings: { day: 1 }, approaches: 1 }
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: current
+    requirements:
+      ifr_pic_time: { current: 360, met: true }
+      approaches: { current: 3, met: true }
+      training_flight: { current: 70, met: true }
+      proficiency_check: { current: 0, met: false }

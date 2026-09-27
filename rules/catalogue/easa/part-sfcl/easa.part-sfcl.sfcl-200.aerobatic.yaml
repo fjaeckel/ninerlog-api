@@ -1,0 +1,18 @@
+id: easa.part-sfcl.sfcl-200.aerobatic
+title: SPL aerobatic privileges
+authority: easa
+instrument: Part-SFCL
+article: SFCL.200
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.200
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-200.md
+  quote:
+    - "(a) SPL holders shall only undertake aerobatic flights in sailplanes with any engine stopped, or, in the case of paragraph (d) and (e), with engine power, if they hold the appropriate aerobatic privileges in accordance with this point."
+applies_to: { subject: privilege, privilegeKinds: [AEROBATIC_BASIC, AEROBATIC_ADVANCED] }
+notes: >-
+  The article sets issue requirements (30 hours or 120 launches as PIC after issue, a training course) and no recency or validity; the recorded privilege is the outcome. The API reports only a recorded expiry date (other.ninerlog.privilege-expiry).

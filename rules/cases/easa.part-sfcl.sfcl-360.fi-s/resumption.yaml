@@ -1,0 +1,22 @@
+rule: easa.part-sfcl.sfcl-360.fi-s
+name: resumption
+description: >-
+  A lapsed instructor resumes with refresher training and an assessment of competence; the
+  assessment also stands in for the supervised instruction flight.
+covers: [stage:current, any_of:instruction:resumption_assessment, requirement:resumption_assessment:met, requirement:demonstration:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fis, licenceId: l-spl, kind: FI_S }
+  events:
+    - { date: 2026-06-01, kind: instructor_refresher }
+    - { date: 2026-06-20, kind: assessment_of_competence, class: GLIDER }
+expect:
+  - subject: { kind: privilege, id: p-fis }
+    status: current
+    messageKey: privilege.recency_current
+    requirements:
+      resumption_assessment: { current: 1, met: true }
+      demonstration: { current: 1, met: true }

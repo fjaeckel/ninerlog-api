@@ -1,0 +1,14 @@
+rule: faa.14cfr61.61-23-d.private
+name: missing-inputs
+description: Without a date of birth the age on the examination date, and so the duration, is unknown.
+covers: [stage:date_of_birth]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+  credentials:
+    - { id: c-3, type: FAA_CLASS3_MEDICAL, issued: 2024-06-10 }
+expect:
+  - subject: { kind: credential, id: c-3 }
+    status: unknown
+    messageKey: credential.date_of_birth_required

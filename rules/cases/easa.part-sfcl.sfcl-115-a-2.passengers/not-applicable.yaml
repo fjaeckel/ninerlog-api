@@ -1,0 +1,12 @@
+rule: easa.part-sfcl.sfcl-115-a-2.passengers
+name: not-applicable
+description: A GLIDER rating on a PPL(A) and an FAA glider rating are not SPL privileges.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A), issued: 2020-01-01 }
+    - { id: l-faa, authority: FAA, type: PRIVATE, issued: 2020-01-01 }
+  ratings:
+    - { id: r-ppl, licenceId: l-ppl, class: GLIDER }
+    - { id: r-faa, licenceId: l-faa, class: GLIDER }
+expect: []

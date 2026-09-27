@@ -1,0 +1,16 @@
+rule: easa.part-fcl.fcl-740-a.mep
+name: met-current
+description: With 92 days to expiry (the first day of the 3-month window) a met rating is current.
+covers: [stage:met]
+asOf: 2026-09-30
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-mep, licenceId: l-ppl, class: MEP_LAND, expires: 2026-12-31 }
+  flights:
+    - { date: 2026-09-30, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-mep }
+    status: current
+    messageKey: rating.revalidation_current

@@ -1,0 +1,28 @@
+rule: easa.part-fcl.fcl-740-a.mep
+name: check-too-early
+description: A proficiency check 4 months before expiry is outside the 3-month window (the API accepted it anywhere in the 12 months).
+covers: [stage:not_met, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-mep, licenceId: l-ppl, class: MEP_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-01-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-02-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-03-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-04-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-05-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-06-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-06-20, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-07-05, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-07-15, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-06-30, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, id: r-mep }
+    status: expiring
+    messageKey: rating.revalidation_not_met_prof_check
+    requirements:
+      proficiency_check: { current: 0, met: false }
+      sectors: { current: 10, met: true }

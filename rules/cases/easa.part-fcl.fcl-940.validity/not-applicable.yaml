@@ -1,0 +1,13 @@
+rule: easa.part-fcl.fcl-940.validity
+name: not-applicable
+description: FI, CRI and MI certificates and non-instructor privileges have their own rules.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-fi, licenceId: l-1, kind: FI, issued: 2024-01-15 }
+    - { id: p-cri, licenceId: l-1, kind: CRI, issued: 2024-01-15 }
+    - { id: p-mi, licenceId: l-1, kind: MI }
+    - { id: p-night, licenceId: l-1, kind: NIGHT }
+expect: []

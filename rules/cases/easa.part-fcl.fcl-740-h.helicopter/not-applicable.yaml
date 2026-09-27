@@ -1,0 +1,14 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: not-applicable
+description: Other classes and ratings on DULV or FAA licences are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+    - { id: l-dulv, authority: DULV, type: UL }
+  ratings:
+    - { id: r-other, licenceId: l-1, class: OTHER, expires: 2026-10-31 }
+    - { id: r-faa, licenceId: l-faa, class: HELICOPTER, typeDesignator: R44 }
+    - { id: r-dulv, licenceId: l-dulv, class: HELICOPTER, expires: 2026-10-31 }
+expect: []

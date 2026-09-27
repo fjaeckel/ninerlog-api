@@ -1,0 +1,27 @@
+rule: de.luftpersv.96-4.ul-instructor
+name: met-by-time-and-assessment
+description: >-
+  Ten hours of instruction and examining on ultralights and an assessment of competence on
+  10 January 2026, the first day of the 12 months before expiry, meet two items; the
+  assessment of the day before does not count toward the 12 months.
+covers: [stage:met, any_of:instruction:instruction_time, requirement:instruction_time:met, requirement:assessment:met, window:before_expiry_months=12:edge-in, window:before_expiry_months=12:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  privileges:
+    - { id: p-fi, licenceId: l-ul, kind: UL_INSTRUCTOR, issued: 2021-01-10, validFrom: 2024-01-10 }
+  events:
+    - { date: 2026-01-09, kind: assessment_of_competence }
+    - { date: 2026-01-10, kind: assessment_of_competence }
+  flights:
+    - { date: 2025-05-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 480, dualGiven: 480 }, takeoffs: { day: 10 }, landings: { day: 10 } }
+    - { date: 2025-06-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 120, examiner: 120 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+expect:
+  - subject: { kind: privilege, id: p-fi }
+    status: current
+    messageKey: privilege.revalidation_current
+    requirements:
+      instruction_takeoffs_landings: { current: 12, met: false }
+      instruction_time: { current: 600, met: true }
+      assessment: { current: 1, met: true }

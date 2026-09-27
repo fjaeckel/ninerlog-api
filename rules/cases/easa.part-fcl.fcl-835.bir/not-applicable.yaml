@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-835.bir
+name: not-applicable
+description: Other privileges, and a BIR recorded on an FAA licence, are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  privileges:
+    - { id: p-night, licenceId: l-1, kind: NIGHT, issued: 2025-11-01 }
+    - { id: p-faa, licenceId: l-faa, kind: BIR, issued: 2025-11-01 }
+expect: []

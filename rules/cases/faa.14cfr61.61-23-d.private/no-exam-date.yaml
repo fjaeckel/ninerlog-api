@@ -1,0 +1,15 @@
+rule: faa.14cfr61.61-23-d.private
+name: no-exam-date
+description: A third-class medical recorded without examination or expiry date has no derivable end.
+covers: [stage:no_exam_date]
+asOf: 2026-08-16
+record:
+  holder: { dateOfBirth: 1990-01-01 }
+  licences:
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+  credentials:
+    - { id: c-3, type: FAA_CLASS3_MEDICAL }
+expect:
+  - subject: { kind: credential, id: c-3 }
+    status: unknown
+    messageKey: credential.no_expiry_date

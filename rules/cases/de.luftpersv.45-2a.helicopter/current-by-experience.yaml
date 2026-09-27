@@ -1,0 +1,26 @@
+rule: de.luftpersv.45-2a.helicopter
+name: current-by-experience
+description: >-
+  Six hours on ultralight helicopters in 12 months, with 6 take-offs and landings and a
+  75-minute flight with an instructor; the first flight is on the first day of the 12 months.
+covers: [stage:current, window:edge-in, any_of:recency:experience, requirement:total_time:met, requirement:takeoffs:met, requirement:landings:met, requirement:training_flight:met, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-heli, licenceId: l-ul, class: ULTRALIGHT, ulKind: HELICOPTER }
+  flights:
+    - { date: 2025-09-15, class: ULTRALIGHT, ulKind: HELICOPTER, minutes: { total: 75, dual: 75 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: HELICOPTER, minutes: { total: 285, pic: 285 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+expect:
+  - subject: { kind: rating, id: r-heli, ulKind: HELICOPTER }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2026-09-15
+    requirements:
+      total_time: { current: 360, required: 360, met: true }
+      takeoffs: { current: 6, met: true }
+      landings: { current: 6, met: true }
+      training_flight: { current: 75, met: true }
+      proficiency_check: { current: 0, met: false }

@@ -1,0 +1,21 @@
+id: faa.14cfr68.68-9.special-issuance
+title: BasicMed special issuance and specialist certification
+authority: faa
+instrument: 14 CFR Part 68
+article: "68.9"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 68.9(c)(2)
+  url: https://www.ecfr.gov/current/title-14/part-68/section-68.9
+  file: sources/faa/68.9.md
+  quote:
+    - "(2) Subject to paragraph (c)(1) of this section, an individual clinically diagnosed with a mental health condition shall certify every 2 years, in conjunction with the certification under § 68.3(b)(3), that the individual is under the care of a State-licensed medical specialist for that mental health condition."
+applies_to: { subject: credential, credentialTypes: [FAA_BASICMED] }
+notes: >-
+  Not supported: the one-time special issuance for listed mental health, neurological and
+  cardiovascular conditions and the two-yearly certification of specialist care depend on
+  medical history NinerLog does not record. The course and examination intervals of BasicMed
+  are faa.14cfr61.61-23-c-3.basicmed.

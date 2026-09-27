@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-240-g-b.variant
+name: differences-training
+description: Differences training recorded for the variant restores it without a logged flight in it.
+covers: [stage:current, any_of:variant:differences_training, requirement:differences_training:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  variants:
+    - { id: v-electric, ratingId: r-gyro, name: SPG-ELECTRIC }
+  events:
+    - { date: 2026-08-01, kind: differences_training, class: GYROPLANE, variant: SPG-ELECTRIC }
+expect:
+  - subject: { kind: type, id: v-electric }
+    status: current
+    messageKey: type.current
+    requirements:
+      differences_training: { current: 1, met: true }

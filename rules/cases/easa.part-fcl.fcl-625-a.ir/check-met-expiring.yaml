@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-625-a.ir
+name: check-met-expiring
+description: An IR proficiency check in the 3 months before expiry revalidates the IR; no IFR hours are needed.
+covers: [stage:met_expiring, requirement:proficiency_check:met, expiry:before]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-ir, licenceId: l-1, class: IR, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-08-20, class: MEP_LAND, minutes: { total: 60, pic: 60, ifr: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, checkRating: IR, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-ir, class: IR }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    messageParams: { days: 46 }
+    expiresOn: 2026-10-31
+    windowOpensAt: 2026-07-31
+    requirements:
+      proficiency_check: { current: 1, required: 1, met: true, lastDate: 2026-08-20 }

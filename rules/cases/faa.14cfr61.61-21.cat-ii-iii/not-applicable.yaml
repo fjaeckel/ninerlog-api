@@ -1,0 +1,12 @@
+rule: faa.14cfr61.61-21.cat-ii-iii
+name: not-applicable
+description: Category II and III privileges on an EASA licence and other FAA privileges are not evaluated.
+asOf: 2026-09-30
+record:
+  licences:
+    - { id: l-easa, authority: EASA, type: ATPL(A) }
+    - { id: l-faa, authority: FAA, type: ATP }
+  privileges:
+    - { id: p-easa, licenceId: l-easa, kind: CAT_II, issued: 2026-05-20 }
+    - { id: p-efvs, licenceId: l-faa, kind: EFVS, issued: 2026-05-20 }
+expect: []

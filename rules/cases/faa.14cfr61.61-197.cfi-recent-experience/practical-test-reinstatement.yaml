@@ -1,0 +1,18 @@
+rule: faa.14cfr61.61-197.cfi-recent-experience
+name: practical-test-reinstatement
+description: Recent experience ended on 30 April 2026; May, June and July have passed, so in August only a flight instructor practical test reinstates the privileges.
+covers: [stage:practical_test_reinstatement]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: ATP }
+  privileges:
+    - { id: p-cfi, licenceId: l-faa, kind: CFI, issued: 2024-12-05 }
+  events:
+    - { date: 2024-04-10, kind: instructor_refresher }
+expect:
+  - subject: { kind: privilege, id: p-cfi }
+    status: lapsed
+    messageKey: privilege.cfi_reinstate_practical_test
+    requirements:
+      refresher_course: { current: 0, met: false }

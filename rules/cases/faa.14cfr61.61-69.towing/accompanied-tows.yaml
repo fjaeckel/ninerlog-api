@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-69.towing
+name: accompanied-tows
+description: Three glider tows flown while accompanied by a qualified tow pilot in May 2025 keep the towing privilege current through 31 May 2027.
+covers: [stage:current, requirement:tows_accompanied:met, requirement:towed_glider_flights:unmet, any_of:towing_recency:tows_accompanied]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-tow, licenceId: l-faa, kind: SAILPLANE_TOWING, issued: 2025-04-01 }
+  flights:
+    - { date: 2025-05-10, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, towKind: glider, towedGliders: 3, flags: { towFlight: true, accompanied: true } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: current
+    messageKey: privilege.recency_current
+    messageParams: { date: 2027-05-31 }
+    validUntil: 2027-05-31
+    requirements:
+      tows_accompanied: { current: 3, required: 3, met: true }
+      towed_glider_flights: { current: 0, met: false }

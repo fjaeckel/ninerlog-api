@@ -1,0 +1,22 @@
+rule: easa.part-sfcl.sfcl-160-b.tmg
+name: part-fcl-tmg-exempt
+description: >-
+  An SPL holder who also holds a valid TMG class rating on a PPL(A) is exempt from
+  SFCL.160(b), whatever her TMG experience; the rating is valid on its expiry day.
+covers: [stage:exempt, requirement:tmg_time:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+    - { id: r-ppl-tmg, licenceId: l-ppl, class: TMG, expires: 2026-09-15 }
+  flights:
+    - { date: 2026-05-01, class: TMG, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 }, launches: 2 }
+expect:
+  - subject: { kind: rating, id: r-tmg }
+    status: current
+    messageKey: rating.sfcl_tmg_exempt
+    requirements:
+      tmg_time: { current: 60, met: false }

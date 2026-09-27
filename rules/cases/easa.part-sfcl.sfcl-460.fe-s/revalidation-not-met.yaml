@@ -1,0 +1,25 @@
+rule: easa.part-sfcl.sfcl-460.fe-s
+name: revalidation-not-met
+description: >-
+  A refresher course the day before the validity period and a demonstration the day
+  before the 24-month window do not count; the certificate stays valid until its expiry
+  but is not yet revalidated. A recorded expiry date earlier than five years wins.
+covers: [stage:not_met, requirement:refresher:unmet, requirement:demonstration:unmet, window:validity_period:edge-out, window:before_expiry_months=24:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fes, licenceId: l-spl, kind: FE_S, issued: 2022-03-01, expires: 2026-12-31 }
+  events:
+    - { date: 2022-02-28, kind: examiner_refresher }
+    - { date: 2024-12-30, kind: assessment_of_competence }
+expect:
+  - subject: { kind: privilege, id: p-fes }
+    status: expiring
+    messageKey: privilege.revalidation_not_met
+    messageParams: { date: 2026-12-31 }
+    expiresOn: 2026-12-31
+    requirements:
+      refresher: { current: 0, met: false, remedyKey: remedy.refresher_training }
+      demonstration: { current: 0, met: false }

@@ -1,0 +1,25 @@
+rule: easa.part-sfcl.sfcl-215.cloud-flying
+name: flights-current
+description: >-
+  Five cloud flights in sailplanes keep the privilege current with less than an hour; a
+  dual cloud flight with an instructor counts.
+covers: [stage:current, any_of:cloud_flying:cloud_flying_flights, requirement:cloud_flying_flights:met, requirement:cloud_flying_time:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING }
+  flights:
+    - { date: 2026-05-01, class: GLIDER, minutes: { total: 60, pic: 60, ifr: 10 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-05-02, class: GLIDER, minutes: { total: 60, pic: 60, ifr: 10 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-05-03, class: GLIDER, minutes: { total: 60, pic: 60, ifr: 10 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-05-04, class: GLIDER, minutes: { total: 60, pic: 60, ifr: 10 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-08-01, class: GLIDER, minutes: { total: 60, dual: 60, ifr: 15 }, launches: 1, landings: { day: 1 } }
+expect:
+  - subject: { kind: privilege, id: p-cloud }
+    status: current
+    messageKey: privilege.recency_current
+    requirements:
+      cloud_flying_time: { current: 55, met: false }
+      cloud_flying_flights: { current: 5, met: true }

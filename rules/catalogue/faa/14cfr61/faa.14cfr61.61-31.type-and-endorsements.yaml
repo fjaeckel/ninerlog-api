@@ -1,0 +1,23 @@
+id: faa.14cfr61.61-31.type-and-endorsements
+title: Type ratings and one-time training endorsements
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.31"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.31(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.31
+  file: sources/faa/61.31.md
+  quote:
+    - "A person who acts as a pilot in command of any of the following aircraft must hold a type rating for that aircraft:"
+applies_to: { subject: type }
+notes: >-
+  Not supported: 61.31 sets which aircraft need a type rating and the one-time training
+  endorsements for complex, high-performance, pressurized high-altitude and tailwheel
+  airplanes, gliders on ground tow and night vision goggles. None of them has a recurring
+  period; holding the endorsement is a qualification, not recency, and the record has no
+  endorsement data for them. The recency that depends on the aircraft (tailwheel full-stop
+  landings) is faa.14cfr61.61-57-a.tailwheel.

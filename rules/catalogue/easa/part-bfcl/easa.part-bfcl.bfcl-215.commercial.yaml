@@ -1,0 +1,20 @@
+id: easa.part-bfcl.bfcl-215.commercial
+title: Balloon commercial operation rating recency
+authority: easa
+instrument: Part-BFCL
+article: BFCL.215(d), (e)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA BFCL.215(d)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
+  file: sources/easa/bfcl-215.md
+  quote:
+    - "(d) A pilot who holds a commercial operation rating shall exercise the privileges of that rating in commercial passenger ballooning only if he or she has completed:"
+    - "(i) at least three flights as PIC in balloons, of which at least one shall be in a balloon of the relevant class; or"
+    - "(ii) one flight as PIC in a balloon of the relevant class under the supervision of an FI(B) who is qualified in accordance with this point; and"
+applies_to: { subject: privilege, privilegeKinds: [BALLOON_COMMERCIAL] }
+notes: >-
+  Balloons are not in the app: NinerLog records no balloon flights, no balloon class (hot-air, gas, mixed, hot-air airship) and no hot-air balloon group (A to D), so a rule could not tell which class or group a flight or check belongs to. The 180-day flights, the 24-month proficiency check or refresher course and the class and group limits of (f) all need the balloon class.

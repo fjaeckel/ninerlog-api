@@ -1,0 +1,17 @@
+rule: easa.part-sfcl.sfcl-155-c.launch-method
+name: not-applicable
+description: >-
+  Launch methods on an FAA glider rating and flights without a launch method are not
+  evaluated; a TMG rating has no launch methods.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-faa, licenceId: l-faa, class: GLIDER }
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  flights:
+    - { date: 2026-05-01, class: GLIDER, minutes: { total: 30, pic: 30 }, launches: 5, landings: { day: 5 } }
+expect: []

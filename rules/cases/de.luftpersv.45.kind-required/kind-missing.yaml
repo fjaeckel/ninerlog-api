@@ -1,0 +1,17 @@
+rule: de.luftpersv.45.kind-required
+name: kind-missing
+description: An ultralight rating on a DULV licence without an ultralight kind cannot be evaluated; the pilot is asked to set the kind.
+covers: [stage:kind_required]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-ul, licenceId: l-ul, class: ULTRALIGHT }
+  flights:
+    - { date: 2026-04-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 720, pic: 660, dual: 60 }, takeoffs: { day: 12 }, landings: { day: 12 } }
+expect:
+  - subject: { kind: rating, id: r-ul, class: ULTRALIGHT }
+    status: unknown
+    messageKey: rating.ul_kind_required
+    requirements: {}

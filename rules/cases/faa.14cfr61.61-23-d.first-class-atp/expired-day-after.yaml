@@ -1,0 +1,17 @@
+rule: faa.14cfr61.61-23-d.first-class-atp
+name: expired-day-after
+description: On 1 October the first-class privileges for ATP operations have ended; the entered expiry date of 2027 does not extend them.
+covers: [stage:expired, expiry:after]
+asOf: 2026-10-01
+record:
+  holder: { dateOfBirth: 1970-01-01 }
+  licences:
+    - { id: l-atp, authority: FAA, type: ATP }
+  credentials:
+    - { id: c-med, type: FAA_CLASS1_MEDICAL, issued: 2026-03-02, expires: 2027-03-31 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: expired
+    messageKey: credential.expired
+    messageParams: { date: 2026-09-30 }
+    expiresOn: 2026-09-30

@@ -1,0 +1,34 @@
+rule: de.luftpersv.45a.passengers
+name: per-kind
+description: >-
+  A licence with trike and UL sailplane ratings is evaluated per kind: three trike take-offs
+  and landings in 90 days (the first on the first day) make the trike current; the
+  winch-launched UL sailplane flights give only two, and trike flights do not count for it.
+covers: [stage:current, stage:not_current, requirement:day:met, requirement:day:unmet, window:rolling_days=90:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DAeC, type: UL, issued: 2018-04-01 }
+  ratings:
+    - { id: r-ws, licenceId: l-ul, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+    - { id: r-sail, licenceId: l-ul, class: ULTRALIGHT, ulKind: SAILPLANE }
+  privileges:
+    - { id: p-pax, licenceId: l-ul, kind: UL_PASSENGER_AUTH, detail: WEIGHT_SHIFT, expires: 2026-09-15 }
+  flights:
+    - { date: 2026-06-17, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-08-10, class: ULTRALIGHT, ulKind: SAILPLANE, launchMethod: winch, minutes: { total: 20, pic: 20 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+expect:
+  - subject: { kind: passengers, id: l-ul, ulKind: WEIGHT_SHIFT }
+    status: current
+    messageKey: pax.current_day_no_night_privilege
+    validUntil: 2026-09-15
+    requirements:
+      day: { current: 3, met: true }
+      ul_xc_flights: { absent: true }
+  - subject: { kind: passengers, id: l-ul, ulKind: SAILPLANE }
+    status: expired
+    messageKey: pax.not_current
+    messageParams: { needed: 1 }
+    requirements:
+      day: { current: 2, met: false }

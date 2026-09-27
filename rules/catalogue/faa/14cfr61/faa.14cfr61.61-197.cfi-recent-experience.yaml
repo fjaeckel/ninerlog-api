@@ -1,0 +1,101 @@
+id: faa.14cfr61.61-197.cfi-recent-experience
+title: Flight instructor recent experience (certificates without an expiration date)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.197(a), (b)(1), (b)(2)(iii), (c); 61.199(a)
+support: partial
+source_kind: regulation
+effective_from: 2024-12-01
+effective_to: null
+source:
+  cite: 14 CFR 61.197(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.197
+  file: sources/faa/61.197.md
+  quote:
+    - "(a) A person may exercise the privileges of the person's flight instructor certificate only if, within the preceding 24 calendar months, that person has satisfied one of the recent experience requirements specified in paragraph (b) of this section."
+    - "(b) A person who holds a flight instructor certificate may establish recent experience by satisfying one of the following requirements—"
+    - "(1) Passing a practical test for—"
+    - "(i) One of the ratings listed on the flight instructor certificate; or"
+    - "(ii) An additional flight instructor rating; or"
+    - "(iii) Within the preceding 3 calendar months, the person has successfully completed an approved flight instructor refresher course consisting of ground training or flight training, or a combination of both."
+    - "(c) Except as provided in paragraph (f) of this section, a person who fails to establish recent experience in accordance with paragraph (b) of this section during the 24 calendar month period specified in paragraph (a) of this section may not exercise flight instructor privileges until those privileges are reinstated in accordance with § 61.199."
+    - "(d) The practical test required by paragraph (b)(1) of this section may be accomplished in a full flight simulator or flight training device if the test is accomplished pursuant to an approved course conducted by a training center certificated under part 142 of this chapter."
+related_sources:
+  - cite: 14 CFR 61.19(d)(1)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.19
+    file: sources/faa/61.19.md
+    quote: "(1) A flight instructor certificate issued under this part on or after December 1, 2024, is issued without an expiration date."
+  - cite: 14 CFR 61.199(a)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.199
+    file: sources/faa/61.199.md
+    quote:
+      - "(1) If 3 calendar months or less have passed since the last month of the flight instructor's recent experience period, the flight instructor may successfully complete an approved flight instructor refresher course consisting of ground training or flight training, or a combination of both, or satisfy one of the requirements specified in paragraph (a)(2) of this section."
+      - "(2) If more than 3 calendar months have passed since the last month of the flight instructor's recent experience period, the flight instructor must satisfactorily complete one of the following:"
+  - cite: 14 CFR 61.425(a)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.425
+    file: sources/faa/61.425.md
+    quote: "(a) If you hold a flight instructor certificate with a sport pilot rating issued after December 1, 2024, you must establish recent experience in accordance with § 61.197."
+  - cite: 14 CFR 61.427
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.427
+    file: sources/faa/61.427.md
+    quote:
+      - "(a) If 3 calendar months or less have passed since the last month of your recent experience period, you must successfully complete an approved flight instructor refresher course consisting of ground training or flight training, or a combination of both, or satisfy the requirements specified in paragraph (b) of this section."
+      - "(b) If more than 3 calendar months have passed since the last month of the flight instructor's recent experience period, you must pass a practical test as prescribed in § 61.405(b) or § 61.183(h) for one of the ratings listed on your flight instructor certificate with a sport pilot rating."
+citations: [14 CFR 61.197(a), 14 CFR 61.197(b), 14 CFR 61.197(c), 14 CFR 61.199(a), 14 CFR 61.427]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [CFI]
+  authorities: [FAA]
+
+window: { calendar_months: 24 }
+
+requirements:
+  id: recent_experience
+  any_of:
+    - id: practical_test
+      metric: events
+      min: 1
+      unit: check
+      nameKey: requirement.practical_test
+      filter: { eventKinds: [practical_test], eventRatings: [CFI, CFII, MEI], simulator: include }
+    - id: refresher_course
+      metric: events
+      min: 1
+      unit: training
+      nameKey: requirement.instructor_refresher
+      filter: { eventKinds: [instructor_refresher] }
+
+stages:
+  - { id: old_regime, when: { not: no_expiry }, status: not_applicable, messageKey: privilege.not_applicable }
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: valid_until } }
+  - { id: refresher_reinstatement, when: { met_within: { calendar_months: 3 } }, status: lapsed, messageKey: privilege.cfi_reinstate_refresher }
+  - { id: practical_test_reinstatement, when: always, status: lapsed, messageKey: privilege.cfi_reinstate_practical_test }
+
+ruleDescriptionKey: faa_cfi
+
+divergences:
+  - id: recent-experience
+    api: Treats a flight instructor privilege without an expiry date as valid indefinitely.
+    article: A flight instructor certificate issued on or after 1 December 2024 has no expiration date, but its privileges may be exercised only with recent experience (a flight instructor practical test or an approved refresher course) within the preceding 24 calendar months; afterwards they must be reinstated under 61.199.
+    cite: 14 CFR 61.197(a), (c)
+
+notes: >-
+  The new regime (Amdt. 61-155). effective_from is the date 61.19(d)(1) names; before it
+  every flight instructor certificate expired (faa.14cfr61.61-19-d.cfi-expiry). A CFI
+  privilege with a recorded expiry date is an old-regime certificate and is not_applicable
+  here. Partial: counted are a practical test for a flight instructor rating (practical_test
+  event with rating CFI, CFII or MEI, also in a device) and an approved flight instructor
+  refresher course (instructor_refresher event); each counts for the 24 calendar months
+  after its month. The issue month (a)(1) is covered by the practical test that led to the
+  certificate when it is recorded as an event. Not counted, because the record cannot show
+  them: (b)(2)(i) five endorsed applicants with 80 % first-time passes, (b)(2)(ii) check
+  pilot or chief instructor duties, (b)(2)(iv) a military instructor check and (b)(2)(v)
+  WINGS instructor activity. The (a)(3) carry-forward (recent experience in the 3 calendar
+  months before the last month keeps the period running from that last month) is not
+  modelled, so an early renewal can show up to 3 months less. After a lapse, (c) and 61.199:
+  within 3 calendar months after the last month of the period a refresher course or a
+  practical test reinstates, later only a practical test; the engine cannot tell a refresher
+  course taken after that limit from one taken in time, so a late course shows as current.
+  The 61.199(a)(3) military reinstatement and the filing of an application with the FAA are
+  not modelled. Sport-rated instructors (61.425(a), 61.427) follow the same rule.

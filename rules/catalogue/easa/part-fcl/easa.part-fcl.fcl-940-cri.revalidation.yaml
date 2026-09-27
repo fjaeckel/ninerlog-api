@@ -1,0 +1,77 @@
+id: easa.part-fcl.fcl-940-cri.revalidation
+title: CRI certificate revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.940.CRI(a); FCL.940
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940.CRI(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940-cri.md
+  quote:
+    - "(a) To revalidate a CRI certificate, applicants shall fulfil, within the validity period of the CRI certificate, at least two out of the following three requirements:"
+    - "(1) conduct at least 10 hours of flight instruction as a CRI. If applicants have CRI privileges on both single-engine and multi-engine aeroplanes, those hours of flight instruction shall be equally divided between single-engine and multi-engine aeroplanes;"
+    - "(2) complete a refresher training as a CRI at an ATO or at a competent authority;"
+    - "(3) pass the assessment of competence in accordance with point FCL.935 for multi-engine or single-engine aeroplanes, as relevant."
+related_sources:
+  - cite: EASA FCL.940
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-940.md
+    quote: "With the exception of the MI, and without prejudice to points FCL.900 (b)(1) and FCL.915 (e)(2), instructor certificates shall be valid for a period of 3 years."
+citations: [EASA FCL.940.CRI(a), EASA FCL.940]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [CRI]
+
+validity:
+  from: valid_from
+  periods:
+    - { months: 36 }
+
+window: { before_expiry_months: 36 }
+
+requirements:
+  id: revalidation
+  n_of:
+    n: 2
+    of:
+      - id: instruction
+        metric: minutes.dualGiven
+        filter: { categories: [aeroplane] }
+        min: 600
+        unit: minutes
+        nameKey: requirement.instruction_given
+        remedyKey: remedy.fly_more
+      - id: refresher
+        metric: events
+        filter: { eventKinds: [instructor_refresher] }
+        min: 1
+        unit: training
+        nameKey: requirement.instructor_refresher
+      - id: assessment
+        metric: events
+        filter: { eventKinds: [assessment_of_competence] }
+        min: 1
+        unit: check
+        nameKey: requirement.assessment_of_competence
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: privilege.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: met, when: all_met, status: current, messageKey: privilege.revalidation_current, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: privilege.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: not_met, when: always, status: current, messageKey: privilege.revalidation_not_met, params: { date: expiry_date } }
+
+notes: >-
+  Partial. The 10 hours are instruction given in aeroplanes (including TMGs) within the
+  validity period; the equal split between single-engine and multi-engine aeroplanes for a
+  CRI holding both privileges is not checked, and instruction given as FI counts too,
+  because the record does not say in which capacity it was given. Any instructor refresher
+  training and any assessment of competence event in the validity period count. The rule
+  that at least every alternate revalidation includes the assessment of competence ((b)) is
+  not tracked. The validity (3 years) comes from FCL.940. Renewal ((c)) is not modelled. The
+  API does not evaluate instructor certificates today.

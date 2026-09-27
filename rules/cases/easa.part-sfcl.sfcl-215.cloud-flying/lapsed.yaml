@@ -1,0 +1,23 @@
+rule: easa.part-sfcl.sfcl-215.cloud-flying
+name: lapsed
+description: >-
+  Cloud flying the day before the 24-month window no longer counts; the missing time or
+  flights are to be flown with an FI(S). A sailplane proficiency check without the cloud
+  flying rating does not restore.
+covers: [stage:lapsed, requirement:cloud_flying_time:unmet, requirement:cloud_flying_flights:unmet, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING }
+  flights:
+    - { date: 2024-09-14, class: GLIDER, minutes: { total: 300, pic: 300, ifr: 120 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-05-01, class: GLIDER, minutes: { total: 60, pic: 60, ifr: 25 }, launches: 1, landings: { day: 1 }, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: privilege, id: p-cloud }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+    requirements:
+      cloud_flying_time: { current: 25, met: false, remedyKey: remedy.privilege_with_instructor, remedyParams: { missing: 35, unit: minutes } }
+      cloud_flying_flights: { current: 1, met: false, remedyParams: { missing: 4, unit: flights } }

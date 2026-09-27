@@ -1,0 +1,22 @@
+id: faa.14cfr61.61-195.instructor-limitations
+title: Flight instructor limitations and qualifications
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.195"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.195(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.195
+  file: sources/faa/61.195.md
+  quote:
+    - "In any 24-consecutive-hour period, a flight instructor may not conduct more than 8 hours of flight training."
+applies_to: { subject: privilege, privilegeKinds: [CFI], authorities: [FAA] }
+notes: >-
+  Not supported: 61.195 limits what a flight instructor may teach and endorse (8 hours of
+  flight training per 24 hours, the ratings and experience needed for certain students and
+  endorsements). These are per-lesson conditions and one-time qualifications, not recency.
+  The instructor's recent experience is faa.14cfr61.61-197.cfi-recent-experience and the
+  old-regime expiry faa.14cfr61.61-19-d.cfi-expiry.

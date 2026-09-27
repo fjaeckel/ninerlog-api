@@ -1,0 +1,43 @@
+id: easa.part-fcl.fcl-055.language-level-4
+title: Language proficiency level 4 validity
+authority: easa
+instrument: Part-FCL
+article: FCL.055(c)(1)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.055(c)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-055.md
+  quote:
+    - "(c) Except for pilots who have demonstrated language proficiency at the expert level (level 6) in accordance with Appendix 2 to this Annex, the language proficiency endorsement shall be re-evaluated every:"
+    - "(1) 4 years, if the level demonstrated is operational level (level 4); or"
+related_sources:
+  - cite: EASA FCL.055(a)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-055.md
+    quote: "Aeroplane, helicopter, powered-lift aircraft, airship and gyroplane pilots required to use the radio telephone shall not exercise the privileges of their licences and ratings unless they have a language proficiency endorsement on their licence in either in English or the language used for radio communications involved in the flight."
+
+applies_to:
+  subject: credential
+  credentialTypes: [LANG_ICAO_LEVEL4]
+
+validity:
+  from: issued
+  periods:
+    - { months: 48 }
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: credential.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: credential.expired, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: credential.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: valid, when: always, status: current, messageKey: credential.valid, params: { date: expiry_date } }
+
+notes: >-
+  The 4 years run from the credential's issue date, read as the date of the
+  assessment. The effective expiry is the earlier of that and the entered expiry date.
+  Level 6 needs no re-evaluation (FCL.055(c)) and has no rule. The special requirements for
+  IR holders ((d), (e)) and whether the endorsement is required at all (radio use, (a)) are
+  not modelled. The API does not evaluate language endorsements today (they are stored with an entered expiry date only). The 90-day expiring threshold is NinerLog presentation.

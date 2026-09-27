@@ -1,0 +1,156 @@
+id: easa.part-fcl.fcl-140-a.lapl-a
+title: LAPL(A) recency
+authority: easa
+instrument: Part-FCL
+article: FCL.140.A(a), (b); FCL.035(a)(4)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.140.A(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-140-a.md
+  quote:
+    - "(a) Holders of a LAPL(A) shall exercise the privileges of their licence only if in the last 2 years they have met any of the following conditions as pilots of aeroplanes or TMGs:"
+    - "(1) they have completed at least 12 hours of flight time as PIC or flying dual or solo under the supervision of an instructor, including:"
+    - "(i) 12 take-offs and landings;"
+    - "(ii) refresher training of at least 1 hour of total flight time with and to the satisfaction of an instructor who shall select those flight exercises that allow the applicant to refresh their competence in safely operating the aircraft and applying normal, abnormal and emergency procedures;"
+    - "(2) they have passed a LAPL(A) proficiency check with an examiner. The proficiency check programme shall be based on the skill test for the LAPL(A);"
+    - "(b) If holders of a LAPL(A) hold both a SEP(land) and a SEP(sea) privilege, they may comply with the requirements in point (a)(1) in either class or a combination thereof which shall be valid for both privileges. For this purpose, at least 1 hour of the required flight time and 6 out of the required 12 take-offs and landings shall be completed in each class."
+related_sources:
+  - cite: EASA FCL.035(a)(4)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-035.md
+    quote:
+      - "All hours flown in aeroplanes or TMGs that are subject to a decision of a Member State taken in accordance with points (a) or (c) of Article 2(8) of Regulation (EU) 2018/1139 or that fall within the scope of Annex I to that Regulation shall be credited in full towards fulfilling the flight time requirements of point FCL.140.A(a)(1) and point FCL.740.A(b)(1)(ii) of this Annex"
+      - "(i) the aeroplane or TMG concerned is of the same category and class as the Part-FCL aircraft in respect of which the hours flown are to be credited;"
+citations: [EASA FCL.140.A(a), EASA FCL.140.A(b), EASA FCL.035(a)(4)]
+
+applies_to:
+  subject: rating
+  classes: [SEP_LAND, SEP_SEA, TMG]
+  authorities: [EASA, LBA]
+  licenceKinds: [LAPL_A]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: recency
+  any_of:
+    - id: experience
+      all_of:
+        - id: flight_time
+          metric: minutes.picOrDualOrSpic
+          filter:
+            classes: &aeroplanes [SEP_LAND, SEP_SEA, MEP_LAND, MEP_SEA, SET_LAND, SET_SEA, TMG]
+            ulCredit:
+              - { class: SEP_LAND, ulKinds: [THREE_AXIS] }
+              - { class: TMG, ulKinds: [THREE_AXIS_MOTORGLIDER] }
+          min: 720
+          unit: minutes
+          nameKey: requirement.total_time
+          remedyKey: remedy.fly_more
+        - id: takeoffs_landings
+          metric: takeoffs_and_landings
+          filter: { classes: *aeroplanes }
+          min: 12
+          unit: landings
+          nameKey: requirement.takeoffs_and_landings
+          remedyKey: remedy.fly_more
+        - id: refresher_training
+          metric: minutes.dual
+          filter: { classes: *aeroplanes }
+          min: 60
+          unit: minutes
+          nameKey: requirement.refresher_training
+          remedyKey: remedy.fly_more
+        - id: land_sea_split
+          when: { holds: { classes: [SEP_LAND, SEP_SEA], sameLicence: true, every: true } }
+          all_of:
+            - id: sep_land_time
+              metric: minutes.picOrDualOrSpic
+              filter: { classes: [SEP_LAND] }
+              min: 60
+              unit: minutes
+              nameKey: requirement.sep_land_time
+              remedyKey: remedy.fly_more
+            - id: sep_land_takeoffs_landings
+              metric: takeoffs_and_landings
+              filter: { classes: [SEP_LAND] }
+              min: 6
+              unit: landings
+              nameKey: requirement.sep_land_landings
+              remedyKey: remedy.fly_more
+            - id: sep_sea_time
+              metric: minutes.picOrDualOrSpic
+              filter: { classes: [SEP_SEA] }
+              min: 60
+              unit: minutes
+              nameKey: requirement.sep_sea_time
+              remedyKey: remedy.fly_more
+            - id: sep_sea_takeoffs_landings
+              metric: takeoffs_and_landings
+              filter: { classes: [SEP_SEA] }
+              min: 6
+              unit: landings
+              nameKey: requirement.sep_sea_landings
+              remedyKey: remedy.fly_more
+    - id: proficiency_check
+      metric: events
+      filter:
+        eventKinds: [proficiency_check]
+        categories: [aeroplane]
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: easa_lapl
+
+divergences:
+  - id: pic-dual-spic-time
+    api: Counts flight time in every role (co-pilot, PICUS, examiner) toward the 12 hours.
+    article: The 12 hours are flight time as PIC or flying dual or solo under the supervision of an instructor.
+    cite: EASA FCL.140.A(a)(1)
+  - id: takeoffs
+    api: Counts landings only.
+    article: The 12 take-offs and landings need both; the smaller of the two counts.
+    cite: EASA FCL.140.A(a)(1)(i)
+  - id: refresher-cumulative
+    api: Requires one single training flight of at least 1 hour.
+    article: The refresher training is at least 1 hour of total flight time with an instructor; it may be flown on several flights.
+    cite: EASA FCL.140.A(a)(1)(ii)
+  - id: ul-credit-time-only
+    api: Credits Annex I (ultralight) three-axis and motorglider flights toward time and landings.
+    article: Annex I hours are credited toward the flight time requirement only; take-offs, landings and the refresher training are flown in aeroplanes or TMGs.
+    cite: EASA FCL.035(a)(4)
+  - id: land-sea-takeoffs
+    api: Splits landings only (6 in each class) when both SEP(land) and SEP(sea) are held.
+    article: At least 1 hour of flight time and 6 of the 12 take-offs and landings in each class.
+    cite: EASA FCL.140.A(b)
+  - id: towed-launches
+    api: Excludes flights with a winch, aerotow, car or bungee launch.
+    article: Every flight as pilot of an aeroplane or TMG counts; no launch method is excluded.
+    cite: EASA FCL.140.A(a)
+  - id: authorities
+    api: Also evaluates LAPL(A) class privileges recorded on DULV or DAeC licences.
+    article: FCL.140.A applies to the LAPL(A), issued by EASA member-state authorities such as the LBA.
+    cite: EASA FCL.140.A(a)
+
+notes: >-
+  Partial: FCL.140.A(c) (a variant with a different type of engine not flown within 2 years)
+  is not encoded here; it follows the same logic as FCL.710(d) (easa.part-fcl.fcl-710.variant).
+  One evaluation per SEP(land), SEP(sea) or TMG privilege on the LAPL(A); all of them
+  pool every aeroplane and TMG flight ("as pilots of aeroplanes or TMGs"). The refresher
+  training is counted as dual time received in an aeroplane or TMG; that it is signed by an
+  instructor (d) is taken as met. The LAPL(A) proficiency check is any proficiency check in
+  an aeroplane or TMG; that its programme follows the LAPL(A) skill test is taken as met.
+  UL credit (FCL.035(a)(4)) is read literally as "flight time requirements": credited toward
+  the 12 hours only. The text does not say whether credited hours count toward the 1 hour
+  per class of (b); the catalogue does not credit them there. A LAPL(A) privilege has no
+  expiry date; a recorded one is ignored.

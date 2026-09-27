@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-197.cfi-recent-experience
+name: refresher-course
+description: An approved flight instructor refresher course in October 2025 gives recent experience through 31 October 2027. A practical test for an instrument rating (not an instructor rating) does not count.
+covers: [stage:current, requirement:refresher_course:met, requirement:practical_test:unmet, any_of:recent_experience:refresher_course]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-cfi, licenceId: l-faa, kind: CFI, issued: 2025-01-10 }
+  events:
+    - { date: 2025-06-01, kind: practical_test, rating: IR }
+    - { date: 2025-10-05, kind: instructor_refresher }
+expect:
+  - subject: { kind: privilege, id: p-cfi }
+    status: current
+    messageKey: privilege.recency_current
+    messageParams: { date: 2027-10-31 }
+    validUntil: 2027-10-31
+    requirements:
+      practical_test: { current: 0, met: false }
+      refresher_course: { current: 1, met: true }

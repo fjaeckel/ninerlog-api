@@ -1,0 +1,114 @@
+id: easa.part-sfcl.sfcl-160-b.tmg
+title: SPL recency, TMGs
+authority: easa
+instrument: Part-SFCL
+article: SFCL.160(b), (c)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.160(b)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-160.md
+  quote:
+    - "SPL holders shall exercise their TMG privileges only if in the last 24 months before the planned flight they:"
+    - "(1) completed at least 12 hours of flight time as PIC or flying dual or solo under the supervision of an FI(S), including, on TMGs, at least:"
+    - "(i) six hours flight time;"
+    - "(ii) 12 take-offs and landings; and"
+    - "(iii) a training flight of at least one hour total flight time with an instructor; or"
+    - "(2) passed a proficiency check with an examiner; the proficiency check shall be based on the skill test as specified in point SFCL.150(b)(2)."
+related_sources:
+  - cite: EASA SFCL.160(c)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+    file: sources/easa/sfcl-160.md
+    quote: "(c) SPL holders with privileges to fly on TMGs who also hold a licence including the privileges to fly on TMGs in accordance with the provisions of Annex I (Part-FCL) to Regulation (EU) No 1178/2011 shall be exempted from complying with paragraph (b)."
+citations: [EASA SFCL.160(b)(1), EASA SFCL.160(b)(2), EASA SFCL.160(c)]
+
+applies_to:
+  subject: rating
+  classes: [TMG]
+  licenceKinds: [SPL, LAPL_S]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: recency
+  any_of:
+    - id: experience
+      all_of:
+        - id: flight_time
+          metric: minutes.picOrDualOrSpic
+          filter: { classes: [GLIDER, TMG] }
+          min: 720
+          unit: minutes
+          nameKey: requirement.flight_time
+          remedyKey: remedy.fly_more
+        - id: tmg_time
+          metric: minutes.picOrDualOrSpic
+          filter: { classes: [TMG] }
+          min: 360
+          unit: minutes
+          nameKey: requirement.tmg_time
+          remedyKey: remedy.fly_more
+        - id: tmg_takeoffs_landings
+          metric: takeoffs_and_landings
+          filter: { classes: [TMG] }
+          min: 12
+          unit: landings
+          nameKey: requirement.takeoffs_and_landings
+          remedyKey: remedy.fly_more
+        - id: tmg_training_flight
+          metric: longest_training_flight_minutes
+          filter: { classes: [TMG] }
+          min: 60
+          unit: minutes
+          nameKey: requirement.tmg_training_flight
+          remedyKey: remedy.training_flight
+    - id: proficiency_check
+      metric: events
+      filter: { eventKinds: [proficiency_check], classes: [TMG] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - id: exempt
+    when: { holds: { classes: [TMG], licenceKinds: [PPL_A, LAPL_A, CPL_A, ATPL_A, MPL], valid: true } }
+    status: current
+    messageKey: rating.sfcl_tmg_exempt
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: easa_spl_tmg
+
+divergences:
+  - id: takeoffs
+    api: Counts 12 TMG landings only.
+    article: The experience needs 12 take-offs and landings on TMGs; the smaller of the two counts.
+    cite: EASA SFCL.160(b)(1)(ii)
+  - id: no-ul-credit
+    api: Credits PIC time on ultralight sailplanes and ultralight motorgliders toward the 12 hours, and ultralight motorglider PIC time toward the 6 hours on TMGs.
+    article: The 6 hours are flown on TMGs; Part-SFCL contains no provision crediting Annex I aircraft.
+    cite: EASA SFCL.160(b)(1)
+  - id: exemption-valid-rating
+    api: Exempts the pilot whenever any non-sailplane, non-ultralight licence carries a TMG rating, even an expired one, and whatever the licence type.
+    article: The exemption needs a Part-FCL licence including the privileges to fly TMGs; a TMG class rating past its expiry date confers no privileges.
+    cite: EASA SFCL.160(c)
+  - id: authorities
+    api: Also evaluates TMG ratings on sailplane licences recorded under DULV or DAeC.
+    article: SFCL.160 applies to SPL holders; ultralight associations issue no SPL.
+    cite: EASA SFCL.160(b)
+
+notes: >-
+  The article does not name the aircraft for the 12 hours; the catalogue reads them as
+  flown on sailplanes, TMGs included, as the API does. Six hours, 12 take-offs and landings
+  and the training flight are on TMGs. The training flight is one flight of at least 60
+  minutes total time with dual time received; that the instructor and the examiner are
+  qualified is taken as met. The SFCL.160(c) exemption holds while the pilot holds a TMG
+  class rating, within its recorded expiry date, on a PPL(A), LAPL(A), CPL(A), ATPL(A) or
+  MPL; for a LAPL(A) the FCL.140.A recency of that rating is not checked here, and a
+  licence with an unknown type does not exempt. An SPL has no expiry; a recorded expiry
+  date is ignored.

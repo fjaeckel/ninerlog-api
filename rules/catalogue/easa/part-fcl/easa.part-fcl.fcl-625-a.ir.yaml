@@ -1,0 +1,108 @@
+id: easa.part-fcl.fcl-625-a.ir
+title: Instrument rating revalidation, aeroplanes (IR(A))
+authority: easa
+instrument: Part-FCL
+article: FCL.625(b)(1); FCL.625.A(a)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.625.A(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-625-a.md
+  quote:
+    - "To revalidate an IR(A), applicants shall:"
+    - "(2) pass a proficiency check in accordance with Appendix 9, or complete EBT practical assessment in accordance with Appendix 10, if the IR revalidation is combined with the revalidation of a class or type rating;"
+    - "(3) if the IR revalidation is not combined with the revalidation of a class or type rating:"
+    - "(4) An FNPT II or an FFS representing the relevant class or type of aeroplane may be used for the revalidation pursuant to point (3), provided that at least each alternate proficiency check for the revalidation of an IR(A) is performed in an aeroplane."
+related_sources:
+  - cite: EASA FCL.625(a), (b)(1)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-625.md
+    quote:
+      - "An IR shall be valid for 1 year."
+      - "(1) An IR shall be revalidated within the 3 months immediately preceding its expiry date by complying with the revalidation criteria for the relevant aircraft category."
+  - cite: EASA FCL.625(b)(4)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-625.md
+    quote: "(4) Applicants for the revalidation of an IR shall receive full credits for the proficiency check as required in this Subpart when they complete EBT practical assessment in accordance with Appendix 10 related to the IR at an EBT operator."
+citations: [EASA FCL.625(b)(1), EASA FCL.625.A(a)]
+
+applies_to:
+  subject: rating
+  classes: [IR]
+  authorities: [EASA, LBA]
+  excludeLicenceKinds: [HELICOPTER]
+
+window: { before_expiry_months: 3 }
+
+requirements:
+  id: proficiency_check
+  metric: events
+  filter:
+    eventKinds: [proficiency_check, ebt_assessment]
+    eventRatings: [IR]
+    categories: [aeroplane]
+    simulator: include
+  min: 1
+  unit: check
+  nameKey: requirement.proficiency_check
+  remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: rating.expired }
+  - { id: window_not_open, when: before_window, status: current, messageKey: rating.window_not_open, params: { date: window_opens_at } }
+  - id: met_expiring
+    when: { all: [all_met, { expires_within: { days: 90 } }] }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    params: { days: days_to_expiry }
+  - { id: met, when: all_met, status: current, messageKey: rating.revalidation_current }
+  - { id: not_met, when: always, status: expiring, messageKey: rating.ir_check_not_met }
+
+ruleDescriptionKey: easa_ir
+
+divergences:
+  - id: no-ifr-hours
+    api: Requires 10 hours of IFR flight time in the 12 months before expiry as well as a proficiency check.
+    article: FCL.625 and FCL.625.A revalidate an IR(A) by a proficiency check (or EBT practical assessment) only; no IFR hours are required.
+    cite: EASA FCL.625.A(a)
+  - id: ir-check-only
+    api: Accepts any logged proficiency check, in any class, as the IR check.
+    article: Only a proficiency check for the IR (a combined class or type rating and IR check, or the IR sections of Appendix 9) revalidates the IR; a class rating check alone does not.
+    cite: EASA FCL.625.A(a)(2), (a)(3)
+  - id: check-window
+    api: Accepts a proficiency check anywhere in the 12 months before expiry.
+    article: The IR is revalidated within the 3 months immediately preceding its expiry date.
+    cite: EASA FCL.625(b)(1)
+  - id: fstd
+    api: Ignores proficiency checks flown in a simulator.
+    article: An FNPT II or an FFS representing the class or type may be used for the check.
+    cite: EASA FCL.625.A(a)(4)
+  - id: valid-through-expiry
+    api: Reports the rating expired on its expiry date.
+    article: The IR is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: EASA FCL.625(a)
+  - id: authorities
+    api: Also evaluates IR ratings recorded on DULV or DAeC licences.
+    article: FCL.625 applies to IRs on Part-FCL licences, issued by EASA member-state authorities such as the LBA.
+    cite: EASA FCL.625(a)
+  - id: helicopter-licences
+    api: Evaluates an IR on a helicopter licence with the aeroplane rule.
+    article: An IR(H) is revalidated under FCL.625.H with a check in a helicopter; see easa.part-fcl.fcl-625-h.ir.
+    cite: EASA FCL.625.H(a)
+
+notes: >-
+  Partial. The check must be recorded as an IR check: an event with rating IR, or a flight
+  flagged as a proficiency check with checkRating IR; a combined class rating and IR check
+  is one such event. The check counts in an aeroplane or in any FSTD whose flight is recorded
+  with an aeroplane class; that the FSTD is an FNPT II or FFS, and that every alternate check
+  is flown in an aeroplane ((a)(4)), are not checked. (a)(1), holding the relevant class or
+  type rating, is taken as met. An IR on a licence that is not a helicopter licence is read
+  as an IR(A). An early check (FCL.625(b)(2): the new validity starts on the check date) is
+  not credited against the recorded expiry. Renewal (FCL.625(c)) and the 7-year rule
+  (FCL.625(d)) are not modelled: an expired IR stays expired until a new expiry date is
+  entered. The 90-day expiring threshold and the window_not_open stage are NinerLog
+  presentation, not the article.

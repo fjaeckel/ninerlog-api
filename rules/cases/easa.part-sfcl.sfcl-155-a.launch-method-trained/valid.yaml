@@ -1,0 +1,27 @@
+rule: easa.part-sfcl.sfcl-155-a.launch-method-trained
+name: valid
+description: >-
+  A recorded launch method training is valid; with an expiry date it is valid up to and
+  on that date; other privilege kinds are not evaluated here.
+covers: [stage:valid, expiry:before, expiry:on]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-winch, licenceId: l-spl, kind: LAUNCH_METHOD_TRAINED, detail: winch }
+    - { id: p-aero, licenceId: l-spl, kind: LAUNCH_METHOD_TRAINED, detail: aerotow, expires: 2026-09-15 }
+    - { id: p-bungee, licenceId: l-spl, kind: LAUNCH_METHOD_TRAINED, detail: bungee, expires: 2027-03-01 }
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING }
+expect:
+  - subject: { kind: privilege, id: p-winch, detail: winch }
+    status: current
+    messageKey: privilege.valid
+  - subject: { kind: privilege, id: p-aero, detail: aerotow }
+    status: current
+    messageKey: privilege.valid
+    messageParams: { date: 2026-09-15 }
+  - subject: { kind: privilege, id: p-bungee, detail: bungee }
+    status: current
+    messageKey: privilege.valid
+    expiresOn: 2027-03-01

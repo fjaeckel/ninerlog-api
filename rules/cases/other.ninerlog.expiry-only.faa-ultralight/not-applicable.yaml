@@ -1,0 +1,12 @@
+rule: other.ninerlog.expiry-only.faa-ultralight
+name: not-applicable
+description: Other classes on FAA certificates follow Part 61 rules; ultralight ratings of other authorities have their own rules.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+    - { id: r-ul, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS, expires: 2027-01-31 }
+expect: []

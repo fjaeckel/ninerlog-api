@@ -1,0 +1,15 @@
+rule: easa.part-med.med-a-045.class-1
+name: valid
+description: "A certificate issued on 2026-03-01 to a holder aged 45 (12 months) is valid until 2027-03-01."
+covers: [stage:valid, expiry:before]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS1_MEDICAL, issued: 2026-03-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    messageKey: credential.valid
+    messageParams: { date: 2027-03-01 }
+    expiresOn: 2027-03-01

@@ -1,0 +1,15 @@
+rule: easa.part-fcl.fcl-740.validity
+name: valid-on-expiry-day
+description: On its expiry date the rating is still valid.
+covers: [expiry:on, stage:expiring]
+asOf: 2026-10-31
+record:
+  licences:
+    - { id: l-atpl, authority: EASA, type: ATPL(A) }
+  ratings:
+    - { id: r-type, licenceId: l-atpl, class: OTHER, typeDesignator: A320, expires: 2026-10-31 }
+expect:
+  - subject: { kind: rating, id: r-type, class: OTHER }
+    status: expiring
+    messageKey: rating.expiring
+    messageParams: { days: 0 }

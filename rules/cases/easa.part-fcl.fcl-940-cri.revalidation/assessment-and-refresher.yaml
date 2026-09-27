@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-940-cri.revalidation
+name: assessment-and-refresher
+description: "An assessment of competence and refresher training revalidate the certificate without the instruction hours."
+covers: [requirement:assessment:met, stage:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: CRI, issued: 2024-01-15 }
+  events:
+    - { date: 2024-06-01, kind: assessment_of_competence }
+    - { date: 2025-05-01, kind: instructor_refresher }
+  flights: []
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: current
+    requirements:
+      assessment: { current: 1, met: true }
+      instruction: { current: 0, met: false }

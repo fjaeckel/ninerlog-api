@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-21.cat-ii-iii
+name: six-months
+description: A Category II authorization issued on 20 May 2026 expires at the end of November 2026; a Category III authorization renewed on 5 March 2026 expires at the end of September, 20 days away on 10 September.
+covers: [stage:valid, stage:expiring, expiry:before]
+asOf: 2026-09-10
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: ATP }
+  privileges:
+    - { id: p-cat2, licenceId: l-faa, kind: CAT_II, issued: 2026-05-20 }
+    - { id: p-cat3, licenceId: l-faa, kind: CAT_III, issued: 2024-01-01, validFrom: 2026-03-05 }
+expect:
+  - subject: { kind: privilege, id: p-cat2 }
+    status: current
+    messageKey: privilege.valid
+    messageParams: { date: 2026-11-30 }
+    expiresOn: 2026-11-30
+  - subject: { kind: privilege, id: p-cat3 }
+    status: expiring
+    messageKey: privilege.expiring
+    messageParams: { days: 20, date: 2026-09-30 }

@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.lapl
+name: under-40-full-period
+description: "Issued at 30 the certificate runs 60 months."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1996-06-10 }
+  credentials:
+    - { id: c-med, type: EASA_LAPL_MEDICAL, issued: 2026-01-10 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    expiresOn: 2031-01-10

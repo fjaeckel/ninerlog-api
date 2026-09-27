@@ -1,0 +1,22 @@
+id: faa.14cfr61.61-3.required-documents
+title: Required certificates, ratings and documents
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.3"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.3(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.3
+  file: sources/faa/61.3.md
+  quote:
+    - "No person may serve as a required pilot flight crewmember of a civil aircraft of the United States, unless that person:"
+applies_to: { subject: licence, authorities: [FAA] }
+notes: >-
+  Not supported: 61.3 is about holding and carrying the pilot certificate, photo
+  identification and, where required, a medical certificate or U.S. driver's license, and
+  about holding the rating or authorization an operation needs. Possession is not in the
+  record, and which operation is flown is not known in advance. Medical validity is
+  evaluated by the 61.23 rules; ratings carry no recency of their own under Part 61.

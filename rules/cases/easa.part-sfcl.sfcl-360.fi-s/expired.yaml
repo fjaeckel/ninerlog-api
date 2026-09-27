@@ -1,0 +1,15 @@
+rule: easa.part-sfcl.sfcl-360.fi-s
+name: expired
+description: An FI(S) certificate recorded with an expiry date is expired from the next day.
+covers: [stage:expired, expiry:after]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fis, licenceId: l-spl, kind: FI_S, expires: 2026-09-14 }
+expect:
+  - subject: { kind: privilege, id: p-fis }
+    status: expired
+    messageKey: privilege.expired
+    messageParams: { date: 2026-09-14 }

@@ -1,0 +1,128 @@
+id: de.luftpersv.45-2.three-axis
+title: Ultralight recency, aerodynamically controlled (three-axis) ultralights
+authority: de
+instrument: LuftPersV
+article: § 45(2), (3)
+support: supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 45(2)
+  url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+  file: sources/de/luftpersv-45.md
+  quote:
+    - "Die Rechte aus einem Luftfahrerschein mit der eingetragenen Luftsportgeräteart aerodynamisch gesteuerte Ultraleichtflugzeuge dürfen nur ausgeübt werden, wenn der Inhaber eines Luftfahrerscheins für aerodynamisch gesteuerte Ultraleichtflugzeuge mindestens 12 Flugstunden auf aerodynamisch gesteuerten Ultraleichtflugzeugen, Reisemotorseglern oder einmotorigen Landflugzeugen mit Kolbentriebwerk innerhalb der letzten 24 Monate durchgeführt hat."
+    - "In den 12 Stunden müssen mindestens sechs Stunden als verantwortlicher Luftfahrzeugführer und 12 Starts und 12 Landungen sowie ein Übungsflug von mindestens einer Stunde Flugzeit in Begleitung eines Fluglehrers auf aerodynamisch gesteuerten Ultraleichtflugzeugen enthalten sein."
+    - "Die Voraussetzungen nach Absatz 2 können durch eine Befähigungsüberprüfung mit einem dazu anerkannten Prüfer auf einem aerodynamisch gesteuerten Ultraleichtflugzeug, einem Reisemotorsegler oder einem einmotorigen Landflugzeug mit Kolbentriebwerk ersetzt werden."
+related_sources:
+  - cite: LuftPersV § 45(1)
+    url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+    file: sources/de/luftpersv-45.md
+    quote: "Der Luftfahrerschein für Luftsportgeräteführer nach § 42 wird unbefristet erteilt."
+  - cite: LuftPersV § 45b
+    url: https://www.gesetze-im-internet.de/luftpersv/__45b.html
+    file: sources/de/luftpersv-45b.md
+    quote: "Als Flugzeiten für den Erwerb und die Erweiterung eines Luftfahrerscheins für Luftsportgeräteführer sowie den Nachweis für die Ausübung der Rechte aus diesem gelten, sofern in dieser Verordnung nichts anderes bestimmt ist:"
+citations: [LuftPersV § 45(2), LuftPersV § 45(3)]
+
+applies_to:
+  subject: rating
+  classes: [ULTRALIGHT]
+  ulKinds: [THREE_AXIS]
+  authorities: [LBA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: recency
+  any_of:
+    - id: experience
+      all_of:
+        - id: total_time
+          metric: minutes.total
+          filter: &counted
+            any:
+              - { classes: [ULTRALIGHT], ulKinds: [THREE_AXIS, THREE_AXIS_MOTORGLIDER] }
+              - { classes: [SEP_LAND, TMG] }
+          min: 720
+          unit: minutes
+          nameKey: requirement.total_time
+          remedyKey: remedy.fly_more
+        - id: pic_time
+          metric: minutes.pic
+          filter: *counted
+          min: 360
+          unit: minutes
+          nameKey: requirement.pic_time
+          remedyKey: remedy.fly_more
+        - id: takeoffs
+          metric: takeoffs.total
+          filter: *counted
+          min: 12
+          unit: takeoffs
+          nameKey: requirement.takeoffs
+          remedyKey: remedy.fly_more
+        - id: landings
+          metric: landings.total
+          filter: *counted
+          min: 12
+          unit: landings
+          nameKey: requirement.landings
+          remedyKey: remedy.fly_more
+        - id: training_flight
+          metric: longest_training_flight_minutes
+          filter: { classes: [ULTRALIGHT], ulKinds: [THREE_AXIS, THREE_AXIS_MOTORGLIDER] }
+          min: 60
+          unit: minutes
+          nameKey: requirement.training_flight
+          remedyKey: remedy.training_flight
+    - id: proficiency_check
+      metric: events
+      filter:
+        eventKinds: [proficiency_check]
+        any:
+          - { classes: [ULTRALIGHT], ulKinds: [THREE_AXIS, THREE_AXIS_MOTORGLIDER] }
+          - { classes: [SEP_LAND, TMG] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: kind_unknown, when: undetermined, status: unknown, messageKey: rating.ul_flights_kind_unknown }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: ul_luftpersv
+
+divergences:
+  - id: takeoffs
+    api: Counts landings only.
+    article: The 12 hours must include 12 take-offs and 12 landings.
+    cite: LuftPersV § 45(2)
+  - id: kindless-ul
+    api: Counts ultralight flights with no kind when every ultralight rating the pilot holds has one and the same kind.
+    article: Only aerodynamically controlled ultralights, TMGs and single-engine piston land aeroplanes count; a flight whose ultralight kind is not recorded cannot be classified and is reported as unknown input (status unknown when nothing else counts), never counted.
+    cite: LuftPersV § 45(2)
+  - id: towed-launches
+    api: Leaves out SEP(land), TMG and ultralight flights launched by winch, aerotow, car or bungee.
+    article: Every flight in an aerodynamically controlled ultralight, TMG or single-engine piston land aeroplane counts; no launch method is excluded.
+    cite: LuftPersV § 45(2)
+
+notes: >-
+  The 12 hours, 6 hours as PIC and the take-offs and landings count on three-axis ultralights
+  (including UL motorgliders), TMGs and SEP(land) aeroplanes; single-engine turbine aeroplanes
+  are a separate class (SET) and do not count. Ambiguity, § 45(2) second sentence: the closing
+  words "auf aerodynamisch gesteuerten Ultraleichtflugzeugen" follow the training flight and
+  are read as qualifying only the training flight, as the API does; the PIC hours and the
+  take-offs and landings are part of "den 12 Stunden", which already includes TMG and SEP
+  time. The other reading (all of them on three-axis ultralights only) would stop TMG and SEP
+  time counting toward the 6 hours PIC and the take-offs and landings. The training flight is
+  one flight with dual time of at least 60 minutes total; that the instructor is a
+  Fluglehrer is taken as met. § 45(3) names no period for the proficiency check that
+  replaces the requirements; the catalogue counts a check within the same 24 months. That the
+  examiner is recognised, and the logbook signature required by § 45(3) third sentence, are
+  taken as met. § 45(1): the licence has no expiry, so a recorded rating expiry is ignored.
+  § 45b: instructor and examiner time counts when it is logged as flight time (total, and PIC
+  when the pilot logs it as PIC).

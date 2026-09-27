@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: proficiency-check
+description: A proficiency check with an examiner in an aeroplane in the last 2 years keeps the LAPL(A) current without the experience.
+covers: [any_of:recency:proficiency_check, requirement:proficiency_check:met, stage:current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-land, licenceId: l-lapl, class: SEP_LAND }
+  flights:
+    - { date: 2025-10-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-land }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2027-10-01
+    requirements:
+      proficiency_check: { current: 1, met: true, lastDate: 2025-10-01 }
+      flight_time: { current: 60, met: false }

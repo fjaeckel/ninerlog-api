@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-57-a.glider-passengers
+name: landings-short
+description: Three launches but two landings in the glider (one flight ended in a landing out the pilot did not log) leave the pilot one landing short.
+covers: [stage:landings_short, requirement:landings:unmet, requirement:launches:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: GLIDER }
+  ratings:
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+  flights:
+    - { date: 2026-06-01, class: GLIDER, launchMethod: aerotow, minutes: { total: 180, pic: 180 }, launches: 3, landings: { day: 2 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: GLIDER }
+    status: lapsed
+    messageKey: pax.not_current
+    messageParams: { needed: 1 }
+    requirements:
+      landings: { current: 2, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 1, unit: landings } }

@@ -1,0 +1,93 @@
+id: easa.part-sfcl.sfcl-215.cloud-flying
+title: Sailplane cloud flying recency
+authority: easa
+instrument: Part-SFCL
+article: SFCL.215(e), (f), (g)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.215(e)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-215.md
+  quote:
+    - "(e) SPL holders shall exercise their sailplane cloud flying privileges only if in the last two years before the planned cloud flight they have completed at least one hour of flight time, or five flights, as PIC exercising cloud flying privileges in sailplanes."
+    - "(f) If SPL holders with sailplane cloud flying privileges do not comply with the requirements in paragraph (e) and they wish to resume the exercise of their sailplane cloud flying privileges they shall:"
+    - "(1) pass a proficiency check with an FE(S); or"
+    - "(2) perform the additional flight time or flights required in paragraph (e) with an FI(S)."
+    - "(g) SPL holders with sailplane cloud flying privileges who also hold a BIR or an IR(A) in accordance with Annex I (Part-FCL) to Regulation (EU) No 1178/2011 shall be fully credited towards the requirements of paragraph (e)."
+citations: [EASA SFCL.215(e), EASA SFCL.215(f), EASA SFCL.215(g)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [CLOUD_FLYING]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+filter: { classes: [GLIDER], roles: [pic, dual] }
+
+requirements:
+  id: cloud_flying
+  any_of:
+    - id: cloud_flying_time
+      metric: minutes.ifr
+      min: 60
+      unit: minutes
+      nameKey: requirement.cloud_flying_time
+      remedyKey: remedy.privilege_with_instructor
+    - id: cloud_flying_flights
+      metric: flights
+      filter: { withMinutes: [ifr] }
+      min: 5
+      unit: flights
+      nameKey: requirement.cloud_flying_flights
+      remedyKey: remedy.privilege_with_instructor
+
+stages:
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - id: ir_credit
+    when:
+      any:
+        - { holds: { classes: [IR], licenceKinds: [PPL_A, LAPL_A, CPL_A, ATPL_A, MPL, IR], valid: true } }
+        - { holds: { privileges: [BIR], valid: true } }
+    status: current
+    messageKey: privilege.recency_credited
+    params: { date: expiry_date }
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: expiry_date } }
+  - { id: lapsed, when: always, status: lapsed, messageKey: privilege.recency_not_met, params: { date: expiry_date } }
+
+restored_by:
+  - { event: proficiency_check, filter: { classes: [GLIDER], eventRatings: [CLOUD_FLYING] } }
+
+ruleDescriptionKey: sfcl_215_cloud_flying
+
+divergences:
+  - id: proficiency-check
+    api: Has no proficiency-check path; a lapsed pilot stays lapsed until the cloud flying time or flights are flown again.
+    article: A proficiency check with an FE(S) restores the privileges; the catalogue counts it for 24 months like the flights.
+    cite: EASA SFCL.215(f)(1)
+  - id: dual-with-instructor
+    api: Counts only sailplane flights with PIC time.
+    article: A pilot who lapsed may fly the missing time or flights with an FI(S); cloud flights with dual time count as well.
+    cite: EASA SFCL.215(f)(2)
+  - id: bir-ir-credit
+    api: Ignores a BIR or IR(A).
+    article: A holder of a BIR or an IR(A) is fully credited toward the recency.
+    cite: EASA SFCL.215(g)
+  - id: authorities
+    api: Evaluates CLOUD_FLYING privileges on every licence, FAA and ultralight licences included.
+    article: Cloud flying privileges are SPL privileges.
+    cite: EASA SFCL.215(a)
+
+notes: >-
+  Cloud flying time is the IFR time of a GLIDER flight (NinerLog reads IFR time on a
+  sailplane as cloud flying); a cloud flight is a GLIDER flight with IFR time. Flights with
+  PIC or dual time count: dual flights with an FI(S) are the (f)(2) way to make up the
+  shortfall, and counting them before a lapse changes nothing a pilot could use. A
+  proficiency check restores the privileges when it is recorded as a check on a GLIDER
+  with rating CLOUD_FLYING (the sailplane recency check of SFCL.160(a)(2) does not), and
+  counts for 24 months. The BIR or IR(A) credit holds while the pilot holds a valid BIR
+  privilege or an IR rating on an aeroplane licence (an FAA or helicopter IR does not
+  count); an IR recorded on its own IR licence is taken as IR(A). A privilege with a
+  recorded expiry date is valid through that date.

@@ -1,0 +1,26 @@
+rule: easa.part-fcl.fcl-240-g.gpl
+name: experience-current
+description: >-
+  Twelve hours as PIC, dual or supervised solo with 12 take-offs and landings and 1 hour of
+  refresher training on gyroplanes in the last 2 years keep the GPL current; a flight on the
+  window's first day counts; time with no PIC, dual or supervised solo role does not.
+covers: [stage:current, any_of:recency:experience, requirement:total_time:met, requirement:takeoffs_landings:met, requirement:refresher:met, requirement:proficiency_check:unmet, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  flights:
+    - { date: 2024-09-15, class: GYROPLANE, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-03-01, class: GYROPLANE, minutes: { total: 600, pic: 600 }, takeoffs: { day: 10 }, landings: { day: 10 } }
+    - { date: 2026-03-02, class: GYROPLANE, minutes: { total: 60, spic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-03-03, class: GYROPLANE, minutes: { total: 120 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: rating, id: r-gyro, class: GYROPLANE }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      total_time: { current: 720, met: true }
+      takeoffs_landings: { current: 14, met: true }
+      refresher: { current: 60, met: true }

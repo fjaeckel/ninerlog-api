@@ -1,0 +1,23 @@
+rule: easa.part-fcl.fcl-835.bir
+name: check
+description: "A BIR proficiency check in the 3 months before expiry revalidates the BIR."
+covers: [any_of:revalidation:proficiency_check, requirement:proficiency_check:met, requirement:ifr_pic_time:unmet, requirement:approaches:unmet, requirement:training_flight:unmet, stage:met, expiry:before]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: BIR, issued: 2025-11-01 }
+  flights:
+    - { date: 2026-08-10, class: SEP_LAND, minutes: { total: 90, pic: 90, ifr: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, approaches: 2, checkRating: BIR, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: current
+    messageKey: privilege.revalidation_current
+    messageParams: { date: 2026-11-01 }
+    expiresOn: 2026-11-01
+    requirements:
+      proficiency_check: { current: 1, met: true }
+      ifr_pic_time: { current: 60, met: false }
+      approaches: { current: 2, met: false }
+      training_flight: { current: 0, met: false, remedyKey: remedy.training_flight }

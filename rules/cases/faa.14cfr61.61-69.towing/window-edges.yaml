@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-69.towing
+name: window-edges
+description: On 16 August 2026 the 24 calendar months start on 1 August 2024; tows on that day count, tows on 31 July 2024 do not.
+covers: [window:edge-in, window:edge-out, stage:not_met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-tow, licenceId: l-faa, kind: SAILPLANE_TOWING }
+  flights:
+    - { date: 2024-07-31, class: SEP_LAND, minutes: { total: 60, pic: 60 }, towKind: glider, towedGliders: 2, flags: { towFlight: true, accompanied: true } }
+    - { date: 2024-08-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, towKind: ul_glider, towedGliders: 2, flags: { towFlight: true, accompanied: true } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+    requirements:
+      tows_accompanied: { current: 2, met: false }

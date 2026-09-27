@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-23-d.commercial
+name: twelve-months
+description: For commercial privileges a second-class medical of 20 August 2025 runs through 31 August 2026 and a first-class one of 1 December 2025 through 31 December 2026, whatever the pilot's age.
+covers: [stage:expiring, stage:valid, expiry:before]
+asOf: 2026-08-16
+record:
+  holder: { dateOfBirth: 1960-01-01 }
+  licences:
+    - { id: l-cpl, authority: FAA, type: COMMERCIAL }
+  credentials:
+    - { id: c-2, type: FAA_CLASS2_MEDICAL, issued: 2025-08-20 }
+    - { id: c-1, type: FAA_CLASS1_MEDICAL, issued: 2025-12-01 }
+expect:
+  - subject: { kind: credential, id: c-2 }
+    status: expiring
+    messageKey: credential.expiring
+    messageParams: { days: 15, date: 2026-08-31 }
+    expiresOn: 2026-08-31
+  - subject: { kind: credential, id: c-1 }
+    status: current
+    messageKey: credential.valid
+    messageParams: { date: 2026-12-31 }

@@ -1,0 +1,18 @@
+id: easa.part-fcl.fcl-810.night-rating
+title: Night rating
+authority: easa
+instrument: Part-FCL
+article: FCL.810
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.810
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-810.md
+  quote:
+    - "(1) Applicants shall have completed a training course within a period of up to 6 months at a DTO or at an ATO to exercise the privileges of an LAPL or a PPL for aeroplanes, TMGs or airships in VFR conditions at night. The course shall comprise:"
+applies_to: { subject: privilege, privilegeKinds: [NIGHT] }
+notes: >-
+  The night rating has no validity period and no recency requirement of its own; FCL.810 sets training requirements, which are out of scope. Night passenger recency is FCL.060(b)(2) (easa.part-fcl.fcl-060-b.night-passengers).

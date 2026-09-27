@@ -1,0 +1,21 @@
+rule: easa.part-sfcl.sfcl-130.spl-training
+name: distance-unknown
+description: >-
+  Every other item is met, but the only cross-country flight has no recorded distance; the
+  programme cannot be confirmed complete. Without an aeroplane, gyroplane or helicopter
+  licence no credit row is shown; an expired medical still shows the progress.
+covers: [stage:distance_unknown, unknown:minDistanceKm]
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-med, type: EASA_LAPL_MEDICAL, expires: 2026-01-31 }
+  flights:
+    - { date: 2026-04-01, class: GLIDER, launchMethod: winch, minutes: { total: 600, dual: 600 }, launches: 40, landings: { day: 40 } }
+    - { date: 2026-05-01, class: GLIDER, launchMethod: winch, minutes: { total: 300, spic: 300, crossCountry: 120 }, launches: 5, landings: { day: 5 } }
+expect:
+  - subject: { kind: training, detail: SPL }
+    status: unknown
+    messageKey: training.distance_unknown
+    requirements:
+      cross_country: { tracked: false, met: false }
+      credit_sfcl130b: { absent: true }

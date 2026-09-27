@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-205-g-a-2.passengers
+name: not-met
+description: PIC time flown the day before the GPL was issued does not count; 4 hours since issue leave 6 hours to fly.
+covers: [stage:not_met, requirement:gpl_pic:unmet, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL, issued: 2026-02-01 }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  flights:
+    - { date: 2026-01-31, class: GYROPLANE, minutes: { total: 600, pic: 600 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+    - { date: 2026-06-01, class: GYROPLANE, minutes: { total: 240, pic: 240 }, takeoffs: { day: 4 }, landings: { day: 4 } }
+expect:
+  - subject: { kind: passengers, id: l-gpl, class: GYROPLANE }
+    status: expired
+    messageKey: pax.gpl_experience_not_met
+    messageParams: { needed: 360 }
+    requirements:
+      gpl_pic: { current: 240, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 360, unit: minutes } }

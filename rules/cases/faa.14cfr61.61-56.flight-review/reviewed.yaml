@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-56.flight-review
+name: reviewed
+description: A flight review on 10 March 2025 keeps the pilot current through 31 March 2027, the end of the 24th calendar month after it.
+covers: [stage:reviewed, requirement:flight_review:met, requirement:last_review:met, any_of:review:flight_review]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2025-03-10, class: SEP_LAND, minutes: { total: 75, dual: 75 }, takeoffs: { day: 4 }, landings: { day: 4 }, flags: { flightReview: true } }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: current
+    messageKey: flight_review.current
+    messageParams: { date: 2025-03-10 }
+    validUntil: 2027-03-31
+    requirements:
+      flight_review: { current: 1, met: true, lastDate: 2025-03-10, validUntil: 2027-03-31 }
+      proficiency_check: { current: 0, met: false }
+      last_review: { current: 1, met: true }

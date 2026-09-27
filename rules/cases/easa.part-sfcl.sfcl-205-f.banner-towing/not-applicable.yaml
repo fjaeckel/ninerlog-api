@@ -1,0 +1,16 @@
+rule: easa.part-sfcl.sfcl-205-f.banner-towing
+name: not-applicable
+description: >-
+  The towing rating on a PPL(A) follows FCL.805 and on an FAA certificate 14 CFR 61.69;
+  other privileges on the SPL are not towing ratings.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-ppl, licenceId: l-ppl, kind: BANNER_TOWING }
+    - { id: p-faa, licenceId: l-faa, kind: BANNER_TOWING }
+    - { id: p-cloud, licenceId: l-spl, kind: CLOUD_FLYING }
+expect: []

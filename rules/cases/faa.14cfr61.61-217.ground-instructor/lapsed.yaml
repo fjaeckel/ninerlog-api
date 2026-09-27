@@ -1,0 +1,20 @@
+rule: faa.14cfr61.61-217.ground-instructor
+name: lapsed
+description: Instruction on 31 July 2025 is outside the 12 calendar months on 16 August 2026; the ground instructor may not perform the duties.
+covers: [stage:not_met, requirement:flight_instruction:unmet, window:edge-out]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-gi, licenceId: l-faa, kind: GROUND_INSTRUCTOR }
+    - { id: p-easa, licenceId: l-easa, kind: GROUND_INSTRUCTOR }
+  flights:
+    - { date: 2025-07-31, class: SEP_LAND, minutes: { total: 90, pic: 90, dualGiven: 90 } }
+expect:
+  - subject: { kind: privilege, id: p-gi }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+    requirements:
+      flight_instruction: { current: 0, met: false }

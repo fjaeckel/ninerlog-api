@@ -1,0 +1,10 @@
+rule: easa.part-med.med-a-045.class-1
+name: not-applicable
+description: Other medical classes, FAA medicals and language certificates are not evaluated here.
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-other, type: EASA_CLASS2_MEDICAL, issued: 2026-01-10 }
+    - { id: c-faa, type: FAA_CLASS3_MEDICAL, issued: 2026-01-10 }
+    - { id: c-lang, type: LANG_ICAO_LEVEL4, issued: 2026-01-10 }
+expect: []

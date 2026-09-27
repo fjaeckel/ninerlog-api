@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-710.variant
+name: refresher-training
+description: "Refresher training in the variant restores the privilege."
+covers: [event:refresher_training, stage:current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  variants:
+    - { id: v-electric, ratingId: r-sep, name: ELECTRIC, issued: 2023-05-01 }
+  events:
+    - { date: 2026-05-01, kind: refresher_training, class: SEP_LAND, variant: ELECTRIC }
+  flights: []
+expect:
+  - subject: { kind: type, id: v-electric, class: SEP_LAND }
+    status: current
+    messageKey: type.current

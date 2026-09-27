@@ -1,0 +1,24 @@
+rule: easa.part-sfcl.sfcl-160-e-1.sailplane-passengers
+name: current
+description: >-
+  Three winch launches as PIC logged as one series row with a single landing, on the first
+  day of the 90-day window, allow passengers in sailplanes; launches count, not landings.
+  A GLIDER rating on a second EASA licence gives no second evaluation.
+covers: [stage:current, requirement:launches:met, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+    - { id: r-gld2, licenceId: l-ppl, class: GLIDER }
+  flights:
+    - { date: 2026-06-17, class: GLIDER, launchMethod: winch, minutes: { total: 18, pic: 18 }, launches: 3, landings: { day: 1 } }
+expect:
+  - subject: { kind: passengers, id: l-spl, class: GLIDER }
+    status: current
+    messageKey: pax.current_day_no_night_privilege
+    validUntil: 2026-09-15
+    requirements:
+      launches: { current: 3, required: 3, met: true, lastDate: 2026-06-17 }

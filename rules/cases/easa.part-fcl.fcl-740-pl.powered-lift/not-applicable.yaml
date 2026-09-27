@@ -1,0 +1,14 @@
+rule: easa.part-fcl.fcl-740-pl.powered-lift
+name: not-applicable
+description: Other classes and ratings on DULV or FAA licences are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+    - { id: l-dulv, authority: DULV, type: UL }
+  ratings:
+    - { id: r-other, licenceId: l-1, class: OTHER, expires: 2026-10-31 }
+    - { id: r-faa, licenceId: l-faa, class: POWERED_LIFT, typeDesignator: AW609 }
+    - { id: r-dulv, licenceId: l-dulv, class: POWERED_LIFT, expires: 2026-10-31 }
+expect: []

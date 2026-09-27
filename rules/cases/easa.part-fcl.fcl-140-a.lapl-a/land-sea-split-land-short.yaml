@@ -1,0 +1,25 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: land-sea-split-land-short
+description: A seaplane pilot who also holds SEP(land) flew everything on sea; the land share is missing, but a proficiency check keeps the LAPL(A) current anyway.
+covers: [requirement:sep_land_time:unmet, requirement:sep_land_takeoffs_landings:unmet, any_of:recency:proficiency_check]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: LBA, type: LAPL(A) }
+  ratings:
+    - { id: r-land, licenceId: l-lapl, class: SEP_LAND }
+    - { id: r-sea, licenceId: l-lapl, class: SEP_SEA }
+  flights:
+    - { date: 2026-03-10, class: SEP_SEA, minutes: { total: 720, pic: 660, dual: 60 }, takeoffs: { day: 12 }, landings: { day: 12 } }
+    - { date: 2026-08-10, class: SEP_SEA, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, id: r-land }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      sep_land_time: { current: 0, met: false }
+      sep_land_takeoffs_landings: { current: 0, met: false }
+      sep_sea_time: { current: 780, met: true }
+      proficiency_check: { current: 1, met: true }
+  - subject: { kind: rating, id: r-sea }
+    status: current

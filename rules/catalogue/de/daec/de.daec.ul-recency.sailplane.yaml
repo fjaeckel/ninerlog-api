@@ -1,0 +1,63 @@
+id: de.daec.ul-recency.sailplane
+title: Ultralight recency, ultralight sailplanes (DAeC)
+authority: de
+instrument: DAeC
+article: DAeC recency rule for ultralight sailplanes, under LuftPersV § 45(4)
+support: partial
+source_kind: association
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 45(4)
+  url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+  file: sources/de/luftpersv-45.md
+  quote:
+    - "Die Rechte aus einem Luftfahrerschein für Luftsportgeräteführer nach § 1 Absatz 4 Satz 1 Nummer 1 der Luftverkehrs-Zulassungs-Ordnung sowie für Sprungfallschirmführer dürfen nur ausgeübt werden, wenn der Inhaber des Luftfahrerscheins eine ausreichende fliegerische Übung nachweist."
+    - "Die Einzelheiten legt der Beauftragte nach § 31c des Luftverkehrsgesetzes entsprechend § 42 Absatz 2 fest."
+related_sources:
+  - cite: LuftVZO § 1(4)
+    url: https://www.gesetze-im-internet.de/luftvzo/__1.html
+    file: sources/de/luftvzo-1.md
+    quote: "Von der Musterzulassung befreit sind ein- oder zweisitzige Luftsportgeräte mit einer höchstzulässigen Leermasse von 120 Kilogramm einschließlich Gurtzeug und Rettungsgerät;"
+citations: [DAeC recency rule for ultralight sailplanes (document title not verified), LuftPersV § 45(4)]
+
+applies_to:
+  subject: rating
+  classes: [ULTRALIGHT]
+  ulKinds: [SAILPLANE]
+  authorities: [LBA, DULV, DAEC]
+
+window: { rolling_months: 12 }
+filter: { classes: [ULTRALIGHT], ulKinds: [SAILPLANE] }
+
+requirements:
+  all_of:
+    - { id: landings, metric: landings.total, min: 5, unit: landings, nameKey: requirement.landings, remedyKey: remedy.fly_more }
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: kind_unknown, when: undetermined, status: unknown, messageKey: rating.ul_flights_kind_unknown }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: ul_sailplane
+
+divergences:
+  - id: kindless-ul
+    api: Counts ultralight flights with no kind when every ultralight rating the pilot holds has one and the same kind.
+    article: The licence covers the ultralight kind entered in it; a flight whose ultralight kind is not recorded cannot be attributed and is reported as unknown input, never counted.
+    cite: LuftPersV § 44(2)
+
+notes: >-
+  Partial: association rule. The number (5 landings with ultralight sailplanes in 12 months,
+  every launch method) comes from the rules the DAeC sets as Beauftragter under § 31c LuftVG,
+  to which § 45(4) LuftPersV delegates; it is not in the statute. The association document is
+  private and is not stored in sources/; its title and text were not verified for this port
+  (TODO: verify), so the threshold is the one the API implements
+  (internal/service/currency/german_ul.go germanULSailplaneRule). As in the API it applies to
+  every German ultralight authority. The API description says "5 Starts & Landungen" while it
+  counts landings only; the catalogue keeps landings until the document is checked.
+  Ambiguity, § 45(4): it refers to "§ 1 Absatz 4 Satz 1 Nummer 1" LuftVZO, but LuftVZO § 1(4)
+  Satz 1 has no numbered items; read literally it covers one- and two-seat sport aircraft of
+  at most 120 kg empty mass. Ultralights of this kind above 120 kg are named neither in
+  § 45(2), (2a) nor (4); the catalogue applies the association rule regardless of mass, as the
+  API does, because the record has no empty mass per ultralight.

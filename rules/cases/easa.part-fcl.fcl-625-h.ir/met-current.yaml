@@ -1,0 +1,16 @@
+rule: easa.part-fcl.fcl-625-h.ir
+name: met-current
+description: With 92 days to expiry, on the first day of the window, the check makes the IR current.
+covers: [stage:met]
+asOf: 2026-09-30
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-ir, licenceId: l-1, class: IR, expires: 2026-12-31 }
+  flights:
+    - { date: 2026-09-30, class: HELICOPTER, minutes: { total: 60, pic: 60, ifr: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, checkRating: IR, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: current
+    messageKey: rating.revalidation_current

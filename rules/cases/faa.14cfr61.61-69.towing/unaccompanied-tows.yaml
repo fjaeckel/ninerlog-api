@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-69.towing
+name: unaccompanied-tows
+description: Tows flown alone do not count toward the 61.69(a)(6)(i) recency, which requires a qualified pilot on board; nor do banner tows.
+covers: [stage:not_met, requirement:tows_accompanied:unmet, requirement:towed_glider_flights:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  privileges:
+    - { id: p-tow, licenceId: l-faa, kind: SAILPLANE_TOWING }
+  flights:
+    - { date: 2026-06-10, class: SEP_LAND, minutes: { total: 90, pic: 90 }, takeoffs: { day: 6 }, landings: { day: 6 }, towKind: glider, towedGliders: 6, flags: { towFlight: true } }
+    - { date: 2026-06-11, class: SEP_LAND, minutes: { total: 90, pic: 90 }, takeoffs: { day: 3 }, landings: { day: 3 }, towKind: banner, towedGliders: 3, flags: { towFlight: true, accompanied: true } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+    requirements:
+      tows_accompanied: { current: 0, met: false, tracked: true, remedyKey: remedy.fly_more, remedyParams: { missing: 3, unit: tows } }

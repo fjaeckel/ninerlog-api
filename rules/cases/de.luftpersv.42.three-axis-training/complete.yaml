@@ -1,0 +1,23 @@
+rule: de.luftpersv.42.three-axis-training
+name: complete
+description: >-
+  Thirty hours of dual, supervised solo and PIC time on three-axis ultralights and UL
+  motorgliders, 5 hours of it solo: the programme is complete. SEP and trike time does not count.
+covers: [stage:complete, requirement:total_time:met, requirement:solo_time:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  flights:
+    - { date: 2025-04-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 1200, dual: 1200 } }
+    - { date: 2025-06-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 240, spic: 240 } }
+    - { date: 2025-07-01, class: ULTRALIGHT, ulKind: THREE_AXIS_MOTORGLIDER, minutes: { total: 360, dual: 300, spic: 60 } }
+    - { date: 2025-08-01, class: SEP_LAND, minutes: { total: 600, pic: 600 } }
+    - { date: 2025-08-02, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 600, pic: 600 } }
+expect:
+  - subject: { kind: training, id: l-ul, detail: UL_THREE_AXIS }
+    status: current
+    messageKey: training.all_met
+    requirements:
+      total_time: { current: 1800, met: true }
+      solo_time: { current: 300, met: true }

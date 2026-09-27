@@ -1,0 +1,115 @@
+id: faa.14cfr61.61-57-b.night-passengers
+title: Night passenger recency (full-stop takeoffs and landings)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.57(b)(1)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.57(b)(1)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+  file: sources/faa/61.57.md
+  quote:
+    - "no person may act as pilot in command of an aircraft carrying persons during the period beginning 1 hour after sunset and ending 1 hour before sunrise, unless within the preceding 90 days that person has made at least three takeoffs and three landings to a full stop during the period beginning 1 hour after sunset and ending 1 hour before sunrise, and—"
+    - "(i) That person acted as sole manipulator of the flight controls; and"
+    - "(ii) The required takeoffs and landings were performed in an aircraft of the same category, class, and type (if a class or type rating is required)."
+related_sources:
+  - cite: 14 CFR 61.101(e)(6)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.101
+    file: sources/faa/61.101.md
+    quote: ["(e) Except as provided in paragraphs (d) and (i) of this section, a recreational pilot may not act as pilot in command of an aircraft—", "(6) Between sunset and sunrise;"]
+  - cite: 14 CFR 61.315(c)(5)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.315
+    file: sources/faa/61.315.md
+    quote: ["(c) You may not act as pilot in command of an aircraft:", "(5) At night, except as provided in § 61.329."]
+  - cite: 14 CFR 61.329
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.329
+    file: sources/faa/61.329.md
+    quote:
+      - "You may act as pilot in command with a sport pilot certificate during night operations if you:"
+      - "(c) Receive a logbook endorsement from an authorized instructor certifying that you meet the training requirements in paragraph (a) of this section and are proficient in the operation of the aircraft at night in the category and class which the sport pilot seeks privileges."
+citations: [14 CFR 61.57(b)(1), 14 CFR 61.101(e)(6), 14 CFR 61.315(c)(5), 14 CFR 61.329]
+
+applies_to:
+  subject: passengers
+  authorities: [FAA]
+  excludeClasses: [IR, GLIDER, ULTRALIGHT]
+  excludeLicenceKinds: [FAA_STUDENT]
+
+window: { rolling_days: 90 }
+
+requirements:
+  all_of:
+    - id: night_takeoffs
+      metric: takeoffs.night
+      min: 3
+      unit: takeoffs
+      nameKey: requirement.night_takeoffs
+      remedyKey: remedy.fly_more
+      filter: &night { classes: [$subject], soleManipulator: true }
+    - id: full_stop_night_landings
+      metric: full_stop_night_landings
+      min: 3
+      unit: landings
+      nameKey: requirement.full_stop_night_landings
+      remedyKey: remedy.fly_more
+      filter: *night
+
+stages:
+  - id: recreational_no_night
+    when: { holds: { licenceKinds: [FAA_RECREATIONAL], sameLicence: true } }
+    status: not_applicable
+    messageKey: pax.night_no_privilege
+  - id: sport_no_night
+    when:
+      all:
+        - { holds: { licenceKinds: [FAA_SPORT], sameLicence: true } }
+        - { not: { holds: { privileges: [SPORT_NIGHT], sameLicence: true, valid: true } } }
+    status: not_applicable
+    messageKey: pax.night_no_privilege
+  - { id: current, when: all_met, status: current, messageKey: pax.night_current }
+  - { id: not_logged, when: undetermined, status: unknown, messageKey: pax.experience_not_logged }
+  - { id: landings_short, when: { unmet: full_stop_night_landings }, status: lapsed, messageKey: pax.night_not_current, params: { needed: { needed: full_stop_night_landings } } }
+  - { id: takeoffs_short, when: always, status: lapsed, messageKey: pax.night_not_current, params: { needed: { needed: night_takeoffs } } }
+
+ruleDescriptionKey: faa_pax_day_night
+
+divergences:
+  - id: full-stop
+    api: Counts every logged night landing.
+    article: Only landings to a full stop during the period from 1 hour after sunset to 1 hour before sunrise count. When no flight in the window records full-stop night landings, night passenger recency is unknown, never current.
+    cite: 14 CFR 61.57(b)(1)
+  - id: night-takeoffs
+    api: Counts landings only.
+    article: At least three night takeoffs are needed as well as three full-stop night landings.
+    cite: 14 CFR 61.57(b)(1)
+  - id: sole-manipulator
+    api: Counts night landings on every flight in the class, whatever the pilot's role.
+    article: Only takeoffs and landings made as sole manipulator of the flight controls count.
+    cite: 14 CFR 61.57(b)(1)(i)
+  - id: sport-night
+    api: Never evaluates night passenger recency for sport pilots (no night privilege).
+    article: Since 61.329, a sport pilot with the instructor's night endorsement (privilege SPORT_NIGHT) may fly at night; night passenger recency is evaluated for them.
+    cite: 14 CFR 61.329
+  - id: no-night-privilege
+    api: Reports night as unknown with pax.current_day_no_night_privilege for recreational and sport pilots.
+    article: A recreational pilot (and a sport pilot without the 61.329 endorsement) may not fly at night; the night rule is not_applicable with pax.night_no_privilege.
+    cite: 14 CFR 61.101(e)(6)
+  - id: status-lapsed
+    api: Reports unmet night recency as expired (tier 2) or expiring (rating rule).
+    article: Night passenger recency is rolling recent experience; the status is lapsed.
+    cite: 14 CFR 61.57(b)(1)
+
+notes: >-
+  Partial: night takeoffs are read from the logged night takeoffs, whose night may be the
+  logbook's night (end of evening civil twilight) rather than the 61.57(b) period from 1
+  hour after sunset to 1 hour before sunrise; full_stop_night_landings must be recorded for
+  that period. The type part of "category, class, and type" is not modelled (see
+  faa.14cfr61.61-57-a.passengers). Full flight simulators (61.57(b)(2)) need an approved
+  part 142 course the record cannot show, so simulator sessions do not count. The (e)
+  exceptions, including (e)(4) for turbine multi-pilot airplanes, are not modelled. Gliders
+  are not evaluated (NinerLog records no night glider operations; the API did not evaluate
+  them either). A private pilot certificate carrying "Night flying prohibited" (61.110) is not
+  recognised because the record has no such limitation.

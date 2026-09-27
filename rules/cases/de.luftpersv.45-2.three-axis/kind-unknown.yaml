@@ -1,0 +1,22 @@
+rule: de.luftpersv.45-2.three-axis
+name: kind-unknown
+description: >-
+  Every ultralight flight in the 24 months has no ultralight kind recorded: they cannot be
+  classified as three-axis flights, so the recency is unknown rather than met or lapsed.
+covers: [stage:kind_unknown, unknown:ulKinds]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+  flights:
+    - { date: 2026-04-01, class: ULTRALIGHT, minutes: { total: 720, pic: 660, dual: 60 }, takeoffs: { day: 12 }, landings: { day: 12 } }
+expect:
+  - subject: { kind: rating, id: r-3ax }
+    status: unknown
+    messageKey: rating.ul_flights_kind_unknown
+    requirements:
+      total_time: { tracked: false, met: false }
+      training_flight: { tracked: false }
+      proficiency_check: { tracked: true, met: false }

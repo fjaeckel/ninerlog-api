@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-87-n.student-solo
+name: endorsement-current
+description: A solo endorsement dated 18 May is within the 90 days preceding 16 August; the student may fly solo that day.
+covers: [stage:current, requirement:solo_endorsement:met, window:edge-in]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-student, authority: FAA, type: STUDENT }
+    - { id: l-ppl, authority: FAA, type: PRIVATE }
+  events:
+    - { date: 2026-05-18, kind: solo_endorsement, class: SEP_LAND }
+expect:
+  - subject: { kind: licence, id: l-student }
+    status: current
+    messageKey: licence.recency_current
+    validUntil: 2026-08-16

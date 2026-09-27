@@ -1,0 +1,21 @@
+id: easa.part-fcl.fcl-940-tri.revalidation
+title: TRI certificate revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.940.TRI(a)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940.TRI(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940-tri.md
+  quote:
+    - "To revalidate a TRI(A) certificate, applicants shall, within the 12 months immediately preceding the expiry date of the certificate fulfil at least two out of the three following requirements:"
+    - "(i) conduct one of the following parts of a complete type rating or recurrent training course: simulator session of at least 3 hours or one air exercise of at least 1 hour comprising a minimum of two take-offs and landings;"
+    - "(ii) complete instructor refresher training as a TRI(A) at an ATO;"
+    - "(iii) pass the assessment of competence in accordance with point FCL.935. Applicants who have complied with point FCL.910.TRI (b)(3) shall be deemed to comply with this requirement."
+applies_to: { subject: privilege, privilegeKinds: [TRI] }
+notes: >-
+  The record does not say whether instruction given was part of a complete type rating or recurrent training course, nor for which category (A, H, PL) the TRI certificate is held, and the helicopter and powered-lift variants count hours per type held. The 3-year validity (FCL.940) is evaluated by easa.part-fcl.fcl-940.validity.

@@ -1,0 +1,18 @@
+id: easa.part-bfcl.bfcl-210.night
+title: BPL night rating
+authority: easa
+instrument: Part-BFCL
+article: BFCL.210
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA BFCL.210
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
+  file: sources/easa/bfcl-210.md
+  quote:
+    - "(a) A BPL holder shall exercise the privileges of his or her licence in VFR conditions at night only if he or she holds a night rating in accordance with this point."
+applies_to: { subject: privilege, privilegeKinds: [NIGHT], licenceKinds: [BPL] }
+notes: >-
+  Balloons are not in the app: NinerLog records no balloon flights, no balloon class (hot-air, gas, mixed, hot-air airship) and no hot-air balloon group (A to D), so a rule could not tell which class or group a flight or check belongs to. The article sets training requirements only; there is no recency to evaluate.

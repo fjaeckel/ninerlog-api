@@ -1,0 +1,78 @@
+id: easa.part-fcl.fcl-740-a.set
+title: Single-engine turbo-prop class rating revalidation (SET)
+authority: easa
+instrument: Part-FCL
+article: FCL.740.A(b)(3)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.740.A(b)(3)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-740-a.md
+  quote: "(3) Single-pilot single-engine turbo-prop aeroplanes. For revalidation of single-engine turbo-prop class ratings applicants shall pass a proficiency check on the relevant class in accordance with Appendix 9 to this Part with an examiner, within the 3 months preceding the expiry date of the rating."
+related_sources:
+  - cite: EASA FCL.740(a)(1)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-740.md
+    quote: "The validity period of class and type ratings shall be 1 year, except for single-pilot single-engine class ratings for which the validity period shall be 2 years, unless otherwise determined in the OSD."
+
+applies_to:
+  subject: rating
+  classes: [SET_LAND, SET_SEA]
+  authorities: [EASA, LBA]
+  excludeLicenceKinds: [LAPL_A, SPL, LAPL_S]
+
+window: { before_expiry_months: 3 }
+
+requirements:
+  id: proficiency_check
+  metric: events
+  filter:
+    eventKinds: [proficiency_check]
+    classes: [$subject]
+  min: 1
+  unit: check
+  nameKey: requirement.proficiency_check
+  remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: rating.expired }
+  - { id: window_not_open, when: before_window, status: current, messageKey: rating.window_not_open, params: { date: window_opens_at } }
+  - id: met_expiring
+    when: { all: [all_met, { expires_within: { days: 90 } }] }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    params: { days: days_to_expiry }
+  - { id: met, when: all_met, status: current, messageKey: rating.revalidation_current }
+  - { id: not_met, when: always, status: expiring, messageKey: rating.revalidation_not_met_prof_check }
+
+ruleDescriptionKey: easa_mep_set
+
+divergences:
+  - id: proficiency-check-only
+    api: Revalidates an SET rating with 10 route sectors plus 1 hour of refresher training, or a proficiency check.
+    article: An SET class rating is revalidated only by a proficiency check with an examiner in the 3 months before expiry.
+    cite: EASA FCL.740.A(b)(3)
+  - id: check-window
+    api: Accepts a proficiency check anywhere in the 12 months before expiry.
+    article: The proficiency check counts only within the 3 months preceding the expiry date.
+    cite: EASA FCL.740.A(b)(3)
+  - id: valid-through-expiry
+    api: Reports the rating expired on its expiry date.
+    article: The rating is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: EASA FCL.740.A(b)(3)
+  - id: authorities
+    api: Also evaluates SET ratings recorded on DULV or DAeC licences.
+    article: FCL.740.A applies to Part-FCL class ratings, issued by EASA member-state authorities such as the LBA.
+    cite: EASA FCL.740.A(b)(3)
+
+notes: >-
+  The check is flown in the aeroplane: (b)(3) does not mention an FSTD, unlike (a)(1), so
+  simulator checks do not count. That the check is taken with an examiner is taken as met for
+  a logged proficiency check. The revalidation window, and so windowOpensAt, is the 3 months
+  before expiry. An early proficiency check (FCL.740(a)(1): the new validity period starts on
+  the check date) is not credited against the recorded expiry; enter the new expiry date
+  instead. The 90-day expiring threshold is NinerLog presentation, not the article.

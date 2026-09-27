@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-105-a.lapl-passengers
+name: met
+description: "10 hours as PIC on aeroplanes and TMGs since the licence was issued allow carrying passengers."
+covers: [stage:met, requirement:pic_since_issue:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A), issued: 2025-04-01 }
+  ratings:
+    - { id: r-sep, licenceId: l-lapl, class: SEP_LAND }
+  flights:
+    - { date: 2025-06-01, class: SEP_LAND, minutes: { total: 300, pic: 300, dual: 0 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2025-07-01, class: TMG, minutes: { total: 240, pic: 240, dual: 0 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2025-08-01, class: MEP_LAND, minutes: { total: 60, pic: 60, dual: 0 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: passengers, id: l-lapl, class: SEP_LAND }
+    status: current
+    messageKey: pax.prerequisite_met
+    requirements:
+      pic_since_issue: { current: 600, required: 600, met: true }

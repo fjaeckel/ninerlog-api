@@ -1,0 +1,100 @@
+id: easa.part-fcl.fcl-240-g.gpl
+title: GPL recency
+authority: easa
+instrument: Part-FCL
+article: FCL.240.G(a); FCL.035(a)(5)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.240.G(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-240-g.md
+  quote:
+    - "(a) Holders of a GPL shall exercise the privileges of their licence in a specific class or type of gyroplane only if in the last 2 years they have met any of the following conditions as pilots of gyroplanes in the relevant class or type:"
+    - "(1) they have completed at least 12 hours of flight time as PIC or flying dual or solo under the supervision of an instructor, including:"
+    - "(i) 12 take-offs and landings;"
+    - "(ii) refresher training of at least 1 hour of total flight time with and to the satisfaction of an instructor who shall select those flight exercises that allow the applicant to refresh their competence in safely operating the aircraft and applying normal, abnormal and emergency procedures;"
+    - "(2) they have passed a GPL proficiency check with an examiner. The proficiency check programme shall be based on the skill test for the GPL."
+related_sources:
+  - cite: EASA FCL.035(a)(5)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-035.md
+    quote: "(5) All hours flown in gyroplanes that fall within the scope of Annex I to Regulation (EU) 2018/1139 and which have a maximum certificated take-off mass of at least 450 kg shall be credited in full towards completing the 12 hours of flight time and 12 take-offs and landings in accordance with point FCL.240.G(a) but shall not be credited towards the requirement in point FCL.240.G(a)(1)(ii)."
+citations: [EASA FCL.240.G(a)(1), EASA FCL.240.G(a)(2), EASA FCL.035(a)(5)]
+
+applies_to:
+  subject: rating
+  classes: [GYROPLANE]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: recency
+  any_of:
+    - id: experience
+      all_of:
+        - id: total_time
+          metric: minutes.picOrDualOrSpic
+          filter: &credit_filter
+            classes: [$subject]
+            ulCredit:
+              - { class: GYROPLANE, ulKinds: [GYROPLANE], minMtomKg: 450 }
+          min: 720
+          unit: minutes
+          nameKey: requirement.total_time
+          remedyKey: remedy.fly_more
+        - id: takeoffs_landings
+          metric: takeoffs_and_landings
+          filter: *credit_filter
+          min: 12
+          unit: landings
+          nameKey: requirement.takeoffs_and_landings
+          remedyKey: remedy.fly_more
+        - id: refresher
+          metric: minutes.dual
+          filter: { classes: [$subject] }
+          min: 60
+          unit: minutes
+          nameKey: requirement.refresher_training
+          remedyKey: remedy.fly_more
+    - id: proficiency_check
+      metric: events
+      filter: { eventKinds: [proficiency_check], classes: [$subject] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: easa_gpl
+
+divergences:
+  - id: pic-dual-spic
+    api: Counts the total time of every gyroplane flight toward the 12 hours, whatever the pilot's role.
+    article: The 12 hours are flown as PIC or dual or solo under the supervision of an instructor.
+    cite: EASA FCL.240.G(a)(1)
+  - id: takeoffs
+    api: Counts 12 landings only.
+    article: The experience needs 12 take-offs and landings; the smaller of the two counts.
+    cite: EASA FCL.240.G(a)(1)(i)
+  - id: authorities
+    api: Also evaluates GYROPLANE ratings recorded on DULV or DAeC licences with the GPL rule.
+    article: FCL.240.G applies to GPL holders; ultralight associations issue no GPL (ultralight gyroplanes are the ULTRALIGHT class).
+    cite: EASA FCL.240.G(a)
+
+notes: >-
+  One evaluation per GYROPLANE rating (the class or type of gyroplane). Ultralight
+  gyroplane flights with a recorded MTOM of at least 450 kg count toward the 12 hours and
+  the 12 take-offs and landings (FCL.035(a)(5)); an ultralight flight with no kind or no
+  mass is unknown input for those rows. The refresher training is dual time received in
+  the class (it may be spread over flights); that the instructor is qualified is taken as
+  met. The proficiency check is a check flight or event in the GYROPLANE class; checks in
+  ultralight gyroplanes do not count. A GPL has no expiry; a recorded expiry date is
+  ignored, as in the API. The SPG variant rule of FCL.240.G(b) is
+  easa.part-fcl.fcl-240-g-b.variant.

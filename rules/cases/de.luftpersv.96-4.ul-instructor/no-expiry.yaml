@@ -1,0 +1,14 @@
+rule: de.luftpersv.96-4.ul-instructor
+name: no-expiry
+description: Without an issue, valid-from or expiry date the three years cannot be placed.
+covers: [stage:no_expiry]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: LBA, type: UL }
+  privileges:
+    - { id: p-fi, licenceId: l-ul, kind: UL_INSTRUCTOR }
+expect:
+  - subject: { kind: privilege, id: p-fi }
+    status: unknown
+    messageKey: privilege.no_expiry_date

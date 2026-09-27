@@ -1,0 +1,14 @@
+rule: faa.14cfr61.61-23-d.commercial
+name: no-exam-date
+description: A second-class medical without examination or expiry date has no derivable duration.
+covers: [stage:no_exam_date]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-cpl, authority: FAA, type: COMMERCIAL }
+  credentials:
+    - { id: c-2, type: FAA_CLASS2_MEDICAL }
+expect:
+  - subject: { kind: credential, id: c-2 }
+    status: unknown
+    messageKey: credential.no_expiry_date

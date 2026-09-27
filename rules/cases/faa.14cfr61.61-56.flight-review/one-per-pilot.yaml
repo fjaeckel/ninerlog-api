@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-56.flight-review
+name: one-per-pilot
+description: The flight review is evaluated once per pilot, on the first FAA certificate, however many FAA certificates and ratings are recorded; EASA licences have no flight review.
+covers: [stage:reviewed]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-cfi, authority: FAA, type: CFI }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+  events:
+    - { date: 2026-02-01, kind: flight_review, class: GLIDER }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: current
+    messageKey: flight_review.current

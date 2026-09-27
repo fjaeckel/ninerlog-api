@@ -1,0 +1,22 @@
+id: de.luftpersv.120.logbook-certification
+title: Logbook entries certified by instructor or examiner
+authority: de
+instrument: LuftPersV
+article: § 120(1)
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 120(1)
+  url: https://www.gesetze-im-internet.de/luftpersv/__120.html
+  file: sources/de/luftpersv-120.md
+  quote:
+    - "Angaben zum Nachweis von Voraussetzungen zum Erwerb, zur Erneuerung oder Erweiterung der Erlaubnis oder der Berechtigung oder zur Ausübung der Rechte aus der Erlaubnis oder der Berechtigung, die mit Prüfer, mit Fluglehrer oder unter dessen Aufsicht zu erfüllen sind, müssen von dem Prüfer oder Fluglehrer unter Angabe der Art und Nummer seines Luftfahrerscheins als richtig bescheinigt werden."
+applies_to: { subject: licence, authorities: [LBA, DULV, DAEC] }
+notes: >-
+  Evidence rule: entries that prove a requirement flown with an instructor or examiner (the
+  § 45(2) training flight, the § 45(3) proficiency check, the § 84a cross-country flights)
+  must be certified by them. The record has no signature field, so the catalogue takes the
+  certification as given; the API has flight signatures but does not require them. The
+  two-year retention is not evaluated.

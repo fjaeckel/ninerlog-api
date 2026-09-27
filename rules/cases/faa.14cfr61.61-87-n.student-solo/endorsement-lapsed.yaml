@@ -1,0 +1,14 @@
+rule: faa.14cfr61.61-87-n.student-solo
+name: endorsement-lapsed
+description: An endorsement dated 17 May is 91 days old on 16 August; the instructor must update it before the next solo flight.
+covers: [stage:not_met, requirement:solo_endorsement:unmet, window:edge-out]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-student, authority: FAA, type: STUDENT }
+  events:
+    - { date: 2026-05-17, kind: solo_endorsement, class: SEP_LAND }
+expect:
+  - subject: { kind: licence, id: l-student }
+    status: lapsed
+    messageKey: licence.recency_not_met

@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-57-a.tailwheel
+name: window-edges
+description: A tailwheel pilot with one full-stop landing on 18 May (counts) and two on 17 May (91 days ago) needs two more before carrying passengers in a tailwheel airplane.
+covers: [window:edge-in, window:edge-out, stage:not_current, requirement:tailwheel_full_stop:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2026-05-17, class: SEP_LAND, tailwheel: true, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 }, fullStopLandings: 2, soleManipulator: true }
+    - { date: 2026-05-18, class: SEP_LAND, tailwheel: true, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, fullStopLandings: 1, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: lapsed
+    messageKey: pax.tailwheel_not_current
+    messageParams: { needed: 2 }
+    requirements:
+      tailwheel_full_stop: { current: 1, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 2, unit: landings } }
+      tailwheel_flown: { current: 2, met: true }

@@ -1,0 +1,72 @@
+id: faa.14cfr61.61-217.ground-instructor
+title: Ground instructor recent experience
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.217"
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.217
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.217
+  file: sources/faa/61.217.md
+  quote:
+    - "The holder of a ground instructor certificate may not perform the duties of a ground instructor unless the person can show that one of the following occurred during the preceding 12 calendar months:"
+    - "(b) Employment or activity as a flight instructor giving pilot, flight instructor, or ground instructor ground or flight training;"
+    - "(c) Completion of an approved flight instructor refresher course and receipt of a graduation certificate for that course; or"
+    - "(d) An endorsement from an authorized instructor certifying that the person has demonstrated knowledge in the subject areas prescribed under § 61.213(a)(3) and (a)(4), as appropriate."
+related_sources:
+  - cite: 14 CFR 61.19(e)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.19
+    file: sources/faa/61.19.md
+    quote: "(e) Ground instructor certificate. A ground instructor certificate is issued without an expiration date."
+citations: [14 CFR 61.217]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [GROUND_INSTRUCTOR]
+  authorities: [FAA]
+
+window: { calendar_months: 12 }
+
+requirements:
+  id: recent_activity
+  any_of:
+    - id: flight_instruction
+      metric: minutes.dualGiven
+      min: 1
+      unit: minutes
+      nameKey: requirement.instruction_given
+      filter: { simulator: include }
+    - id: refresher_course
+      metric: events
+      min: 1
+      unit: training
+      nameKey: requirement.instructor_refresher
+      filter: { eventKinds: [instructor_refresher] }
+    - id: endorsement
+      metric: events
+      min: 1
+      unit: events
+      nameKey: requirement.instructor_endorsement
+      filter: { eventKinds: [instructor_endorsement] }
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: valid_until } }
+  - { id: not_met, when: always, status: lapsed, messageKey: privilege.recency_not_met }
+
+ruleDescriptionKey: faa_ground_instructor
+
+divergences:
+  - id: recent-experience
+    api: Treats a ground instructor privilege without an expiry date as valid indefinitely.
+    article: A ground instructor may perform the duties only with instructing activity, an approved flight instructor refresher course or an instructor's endorsement during the preceding 12 calendar months.
+    cite: 14 CFR 61.217
+
+notes: >-
+  Partial: (a) employment or activity as a ground instructor is not recorded; ground
+  training given as a flight instructor is not recorded either, so (b) counts only flight
+  instruction given (dualGiven time, also in a device). (c) is an instructor_refresher event,
+  (d) an instructor_endorsement event. The 12 calendar months are those before the month of
+  asOf plus the month to date.

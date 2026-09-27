@@ -1,0 +1,59 @@
+id: faa.14cfr61.61-19-d.cfi-expiry
+title: Flight instructor certificate expiry (certificates issued before 1 December 2024)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.19(d)(2); 61.197(e)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.19(d)(2)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.19
+  file: sources/faa/61.19.md
+  quote:
+    - "(1) A flight instructor certificate issued under this part on or after December 1, 2024, is issued without an expiration date."
+    - "(2) A flight instructor certificate issued before December 1, 2024, expires 24 calendar months from the month in which it was issued, renewed, or reinstated, as appropriate."
+related_sources:
+  - cite: 14 CFR 61.197(e)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.197
+    file: sources/faa/61.197.md
+    quote: "(e) A person who holds an unexpired flight instructor certificate issued before December 1, 2024, may renew that certificate by establishing recent experience in accordance with paragraph (b) of this section prior to the month of expiration on that person's flight instructor certificate. Except as provided in § 61.40, if that person fails to establish recent experience prior to the expiration of that person's flight instructor certificate, that person may not exercise flight instructor privileges until those privileges are reinstated in accordance with § 61.199."
+  - cite: 14 CFR 61.425(b)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.425
+    file: sources/faa/61.425.md
+    quote: "(b) If you hold an unexpired flight instructor certificate with a sport pilot rating issued before December 1, 2024, you must renew your certificate by establishing recent experience in accordance with § 61.197 prior to the month of expiration on your flight instructor certificate."
+  - cite: 14 CFR 61.2(a)(2)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.2
+    file: sources/faa/61.2.md
+    quote: "(2) Exercise privileges of a flight instructor certificate if that flight instructor certificate is surrendered, suspended, revoked or expired."
+citations: [14 CFR 61.19(d)(2), 14 CFR 61.197(e), 14 CFR 61.425(b)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [CFI]
+  authorities: [FAA]
+
+stages:
+  - { id: no_expiration_date, when: no_expiry, status: not_applicable, messageKey: privilege.not_applicable }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: privilege.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: valid, when: always, status: current, messageKey: privilege.valid, params: { date: expiry_date } }
+
+ruleDescriptionKey: faa_cfi
+
+notes: >-
+  The old regime. A flight instructor certificate issued before 1 December 2024 carries an
+  expiration date: the end of the 24th calendar month after the month it was issued, renewed
+  or reinstated. It is identified by that recorded date; a CFI privilege without one is a
+  certificate issued on or after 1 December 2024 (61.19(d)(1)), which is not_applicable here
+  and is evaluated by faa.14cfr61.61-197.cfi-recent-experience instead. The two regimes
+  depend on the certificate's issue date, not on the evaluation date, so neither rule is
+  bounded by effective_to: the last old certificates (issued in November 2024) run to
+  30 November 2026 and must still be reported expired afterwards. The expiry is not derived
+  from the issue date, because the vocabulary cannot restrict a validity period to
+  certificates issued before a date; the recorded date is authoritative. Renewal
+  (61.197(e)) by recent experience before the expiration month produces a new certificate,
+  entered as a new record. After expiry, privileges are reinstated under 61.199 (practical
+  test or, within 3 calendar months, a refresher course). Sport-rated instructor
+  certificates (61.425(b)) follow the same rule when recorded as CFI privileges.

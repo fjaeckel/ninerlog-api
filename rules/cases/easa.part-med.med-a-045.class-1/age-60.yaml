@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.class-1
+name: age-60
+description: "A holder aged 60 on the examination date gets 6 months."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1966-02-01 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS1_MEDICAL, issued: 2026-08-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    expiresOn: 2027-02-01

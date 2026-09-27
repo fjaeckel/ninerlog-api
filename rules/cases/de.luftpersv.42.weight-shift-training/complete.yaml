@@ -1,0 +1,20 @@
+rule: de.luftpersv.42.weight-shift-training
+name: complete
+description: Twenty-five hours on trikes with 10 hours dual and 5 hours solo complete the programme; three-axis time does not count.
+covers: [stage:complete, requirement:total_time:met, requirement:dual_time:met, requirement:solo_time:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  flights:
+    - { date: 2025-04-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 600, dual: 600 } }
+    - { date: 2025-06-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 900, spic: 300, dual: 600 } }
+    - { date: 2025-07-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 600, dual: 600 } }
+expect:
+  - subject: { kind: training, id: l-ul, detail: UL_WEIGHT_SHIFT }
+    status: current
+    messageKey: training.all_met
+    requirements:
+      total_time: { current: 1500, met: true }
+      dual_time: { current: 1200, met: true }
+      solo_time: { current: 300, met: true }

@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-56.flight-review
+name: glider-flights-not-a-review
+description: Three instructional glider flights replace only the flight-training hour within a review; without a logged review (or a substitute) the glider pilot has none on record. An instrument proficiency check with an instructor is not a substitute either.
+covers: [stage:none_on_record, requirement:last_review:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-glider, licenceId: l-faa, class: GLIDER }
+  flights:
+    - { date: 2026-05-02, class: GLIDER, launchMethod: aerotow, minutes: { total: 25, dual: 25 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-05-02, class: GLIDER, launchMethod: aerotow, minutes: { total: 20, dual: 20 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-05-03, class: GLIDER, launchMethod: aerotow, minutes: { total: 30, dual: 30 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-06-01, class: SEP_LAND, minutes: { total: 90, dual: 90, simulatedInstrument: 60 }, approaches: 6, holds: 1, flags: { ipc: true } }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: expired
+    messageKey: flight_review.none_on_record
+    requirements:
+      flight_review: { current: 0, met: false }
+      last_review: { current: 0, met: false }

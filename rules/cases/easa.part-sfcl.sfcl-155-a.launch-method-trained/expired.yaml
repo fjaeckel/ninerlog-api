@@ -1,0 +1,15 @@
+rule: easa.part-sfcl.sfcl-155-a.launch-method-trained
+name: expired
+description: A launch method training recorded with an expiry date is expired from the day after that date.
+covers: [stage:expired, expiry:after]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-car, licenceId: l-spl, kind: LAUNCH_METHOD_TRAINED, detail: car, expires: 2026-09-14 }
+expect:
+  - subject: { kind: privilege, id: p-car, detail: car }
+    status: expired
+    messageKey: privilege.expired
+    messageParams: { date: 2026-09-14 }

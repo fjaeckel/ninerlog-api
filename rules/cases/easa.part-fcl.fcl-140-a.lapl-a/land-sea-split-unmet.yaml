@@ -1,0 +1,29 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: land-sea-split-unmet
+description: Holding SEP(land) and SEP(sea), the pilot flew only 30 minutes and 3 take-offs and landings on sea; the split of FCL.140.A(b) is not met for either privilege.
+covers: [requirement:sep_land_time:met, requirement:sep_land_takeoffs_landings:met, requirement:sep_sea_time:unmet, requirement:sep_sea_takeoffs_landings:unmet, stage:lapsed]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-land, licenceId: l-lapl, class: SEP_LAND }
+    - { id: r-sea, licenceId: l-lapl, class: SEP_SEA }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 630, pic: 630 }, takeoffs: { day: 9 }, landings: { day: 9 } }
+    - { date: 2026-04-10, class: SEP_SEA, minutes: { total: 30, pic: 30 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+    - { date: 2026-05-10, class: SEP_LAND, minutes: { total: 60, dual: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: rating, id: r-land }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 720, met: true }
+      takeoffs_landings: { current: 13, met: true }
+      sep_land_time: { current: 690, met: true }
+      sep_land_takeoffs_landings: { current: 10, met: true }
+      sep_sea_time: { current: 30, met: false, remedyParams: { missing: 30, unit: minutes } }
+      sep_sea_takeoffs_landings: { current: 3, met: false, remedyParams: { missing: 3, unit: landings } }
+  - subject: { kind: rating, id: r-sea, class: SEP_SEA }
+    status: lapsed
+    messageKey: rating.recency_not_met

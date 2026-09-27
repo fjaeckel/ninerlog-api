@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-205-g-a-2.passengers
+name: not-applicable
+description: A gyroplane rating recorded on a PPL(A) or an FAA certificate is not a GPL.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A), issued: 2020-01-01 }
+    - { id: l-faa, authority: FAA, type: PRIVATE, issued: 2020-01-01 }
+  ratings:
+    - { id: r-ppl, licenceId: l-ppl, class: GYROPLANE }
+    - { id: r-faa, licenceId: l-faa, class: GYROPLANE }
+expect: []

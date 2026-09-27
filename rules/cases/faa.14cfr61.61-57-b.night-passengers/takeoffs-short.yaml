@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-57-b.night-passengers
+name: takeoffs-short
+description: Three full-stop night landings after flights that took off in daylight give only one night takeoff; two more are needed.
+covers: [stage:takeoffs_short, requirement:night_takeoffs:unmet, requirement:full_stop_night_landings:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-mep, licenceId: l-faa, class: MEP_LAND }
+  flights:
+    - { date: 2026-06-15, class: MEP_LAND, minutes: { total: 240, pic: 240, night: 80 }, takeoffs: { day: 2, night: 1 }, landings: { night: 3 }, fullStopNightLandings: 3, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: MEP_LAND }
+    status: lapsed
+    messageKey: pax.night_not_current
+    messageParams: { needed: 2 }
+    requirements:
+      night_takeoffs: { current: 1, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 2, unit: takeoffs } }

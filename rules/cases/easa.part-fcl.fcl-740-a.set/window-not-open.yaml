@@ -1,0 +1,16 @@
+rule: easa.part-fcl.fcl-740-a.set
+name: window-not-open
+description: Earlier than 3 months before expiry the revalidation window is not open.
+covers: [stage:window_not_open]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-set, licenceId: l-ppl, class: SET_LAND, expires: 2027-06-30 }
+  flights: []
+expect:
+  - subject: { kind: rating, id: r-set }
+    status: current
+    messageKey: rating.window_not_open
+    messageParams: { date: 2027-03-30 }

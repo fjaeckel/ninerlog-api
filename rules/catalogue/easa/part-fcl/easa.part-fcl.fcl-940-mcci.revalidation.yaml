@@ -1,0 +1,18 @@
+id: easa.part-fcl.fcl-940-mcci.revalidation
+title: MCCI certificate revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.940.MCCI(a)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940.MCCI(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940-mcci.md
+  quote:
+    - "(a) For revalidation of an MCCI certificate the applicant shall have completed the requirements of FCL.930.MCCI(a)(3) on the relevant type of FNPT II/III, FTD 2/3 or FFS, within the last 12 months of the validity period of the MCCI certificate."
+applies_to: { subject: privilege, privilegeKinds: [MCCI] }
+notes: >-
+  The requirement refers to FCL.930.MCCI(a)(3), which is not in sources/, and to instruction in an MCC course, which the record does not identify. The 3-year validity (FCL.940) is evaluated by easa.part-fcl.fcl-940.validity.

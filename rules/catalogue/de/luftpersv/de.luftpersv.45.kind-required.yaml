@@ -1,0 +1,40 @@
+id: de.luftpersv.45.kind-required
+title: Ultralight rating without a kind
+authority: de
+instrument: LuftPersV
+article: § 44(2), § 45(2), (2a), (4)
+support: supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 44(2)
+  url: https://www.gesetze-im-internet.de/luftpersv/__44.html
+  file: sources/de/luftpersv-44.md
+  quote: "Der Luftfahrerschein berechtigt zum Führen von Luftsportgerät der im Luftfahrerschein eingetragenen Art und zu den eingetragenen Start- oder Sprungarten am Tage und von Sprungfallschirmen auch bei Nacht."
+related_sources:
+  - cite: LuftPersV § 45(2), (2a), (4)
+    url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+    file: sources/de/luftpersv-45.md
+    quote:
+      - "Die Rechte aus einem Luftfahrerschein mit der eingetragenen Luftsportgeräteart aerodynamisch gesteuerte Ultraleichtflugzeuge dürfen nur ausgeübt werden,"
+      - "Die Rechte aus einem Luftfahrerschein mit der eingetragenen Luftsportgeräteart Ultraleichthubschrauber dürfen nur ausgeübt werden,"
+      - "Die Einzelheiten legt der Beauftragte nach § 31c des Luftverkehrsgesetzes entsprechend § 42 Absatz 2 fest."
+citations: [LuftPersV § 44(2), LuftPersV § 45]
+
+applies_to:
+  subject: rating
+  classes: [ULTRALIGHT]
+  ulKinds: [none]
+  authorities: [LBA, DULV, DAEC]
+
+stages:
+  - { id: kind_required, when: always, status: unknown, messageKey: rating.ul_kind_required }
+
+notes: >-
+  The licence covers the Luftsportgeräteart entered in it (§ 44(2)), and the recency rule,
+  its thresholds and the aircraft that count all depend on that kind (§ 45(2), (2a) and the
+  association rules under § 45(4)). A German ultralight rating with no kind is therefore not
+  evaluated: it reports unknown with rating.ul_kind_required and no requirements, and the
+  passenger rules (§ 45a) do not evaluate it either. The API emits no ruleDescriptionKey for
+  it; neither does the catalogue.

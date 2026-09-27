@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-240-g-b.variant
+name: variant-not-recorded
+description: Gyroplane flights without a recorded variant cannot be attributed; the variant's status is unknown.
+covers: [stage:variant_unknown, unknown:variants]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-gpl, authority: EASA, type: GPL }
+  ratings:
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
+  variants:
+    - { id: v-electric, ratingId: r-gyro, name: SPG-ELECTRIC }
+  flights:
+    - { date: 2026-06-01, class: GYROPLANE, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: type, id: v-electric }
+    status: unknown
+    messageKey: type.unknown
+    requirements:
+      variant_flown: { tracked: false, met: false }

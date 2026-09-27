@@ -1,0 +1,23 @@
+rule: easa.part-fcl.fcl-805.sailplane-towing
+name: window-edges
+description: "A tow on 15 September 2024 counts on 15 September 2026; one on 14 September 2024 does not."
+covers: [window:edge-in, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-tow, licenceId: l-1, kind: SAILPLANE_TOWING }
+  flights:
+    - { date: 2024-09-14, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2024-09-15, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2026-01-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2026-02-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2026-03-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+    - { date: 2026-04-01, class: SEP_LAND, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { towFlight: true }, towKind: glider }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: current
+    validUntil: 2026-09-15
+    requirements:
+      tows: { current: 5 }

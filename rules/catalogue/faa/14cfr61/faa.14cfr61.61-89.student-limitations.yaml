@@ -1,0 +1,23 @@
+id: faa.14cfr61.61-89.student-limitations
+title: Student pilot limitations
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.89"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.89(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.89
+  file: sources/faa/61.89.md
+  quote:
+    - "(a) A student pilot may not act as pilot in command of an aircraft:"
+    - "(1) That is carrying a passenger;"
+applies_to: { subject: passengers, authorities: [FAA], licenceKinds: [FAA_STUDENT] }
+notes: >-
+  Not supported as a rule of its own: a student pilot may never carry passengers, so the
+  passenger rules (faa.14cfr61.61-57-a.passengers, faa.14cfr61.61-57-a.glider-passengers,
+  faa.14cfr61.61-57-a.tailwheel, faa.14cfr61.61-57-b.night-passengers) exclude student
+  certificates. The other limitations (compensation, visibility, international flights,
+  sport pilot students at night) concern individual flights.

@@ -1,0 +1,13 @@
+rule: easa.part-med.med-a-045.class-2
+name: window-day-before
+description: "46 days before expiry the certificate is simply valid."
+covers: [stage:valid]
+asOf: 2028-01-15
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS2_MEDICAL, issued: 2026-03-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    messageKey: credential.valid

@@ -1,0 +1,19 @@
+id: easa.part-fcl.fcl-625-as.ir
+title: IR(As) revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.625.As
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.625.As
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-625-as.md
+  quote:
+    - "Applicants for the revalidation of an IR(As):"
+    - "(a) when combined with the revalidation of a type rating, shall complete a proficiency check in accordance with Appendix 9 to this Part, for the relevant type of airship;"
+applies_to: { subject: rating, classes: [IR] }
+notes: >-
+  An IR is recorded without its aircraft category; an IR(As) cannot be told from an IR(A) on an aeroplane licence (there is no airship licence kind). IRs on aeroplane licences are evaluated as IR(A) (easa.part-fcl.fcl-625-a.ir) and on helicopter licences as IR(H) (easa.part-fcl.fcl-625-h.ir).

@@ -1,0 +1,25 @@
+rule: easa.part-sfcl.sfcl-160-b.tmg
+name: training-flight-too-short
+description: >-
+  Two dual TMG flights of 40 and 50 minutes do not make a training flight of at least one
+  hour; the hour is one flight, not a sum.
+covers: [stage:lapsed, requirement:tmg_training_flight:unmet, requirement:tmg_time:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: LAPL(S) }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  flights:
+    - { date: 2026-04-01, class: TMG, minutes: { total: 40, dual: 40 }, takeoffs: { day: 1 }, landings: { day: 1 }, launches: 1 }
+    - { date: 2026-04-02, class: TMG, minutes: { total: 50, dual: 50 }, takeoffs: { day: 1 }, landings: { day: 1 }, launches: 1 }
+    - { date: 2026-05-01, class: TMG, minutes: { total: 720, pic: 720 }, takeoffs: { day: 12 }, landings: { day: 12 }, launches: 12 }
+expect:
+  - subject: { kind: rating, id: r-tmg }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 810, met: true }
+      tmg_time: { current: 810, met: true }
+      tmg_takeoffs_landings: { current: 14, met: true }
+      tmg_training_flight: { current: 50, met: false, remedyKey: remedy.training_flight }

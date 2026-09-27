@@ -1,0 +1,64 @@
+id: easa.part-fcl.fcl-710.variant
+title: Variant not flown within 2 years
+authority: easa
+instrument: Part-FCL
+article: FCL.710(d), (da)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.710(d)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-710.md
+  quote:
+    - "(d) Pilots who, after having extended their privileges to another variant within a class or type rating in accordance with this point, have not flown that variant within the preceding 2 years shall, before exercising their privileges in that variant, complete any of the following in that variant:"
+    - "(1) further differences training in accordance with points (a) and (b) or, if applicable, (c);"
+    - "(2) a proficiency check;"
+    - "(3) in the case of a variant within the SEP class rating with a particular engine type referred to in Article 2, point (8c), refresher training in accordance with point FCL.740.A(b)(1)(ii)(C)."
+    - "(da) Point FCL.710(d) shall not apply in the case of variants within the TMG class rating and variants within the SEP class rating that have the same type of engine referred to in Article 2, point (8c), of this Regulation."
+related_sources:
+  - cite: EASA FCL.140.A(c)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-140-a.md
+    quote: "(c) Holders of an LAPL(A) with privileges for SEP aeroplanes who, in accordance with point FCL.135.A(b), have extended their privileges to a variant with a different type of engine referred to in Article 2, point (8c), if they have not flown that variant within the preceding 2 years, shall complete any of the following in that variant, before exercising their privileges in that variant:"
+citations: [EASA FCL.710(d), EASA FCL.710(da), EASA FCL.140.A(c)]
+
+applies_to:
+  subject: type
+  excludeClasses: [TMG, ULTRALIGHT, GLIDER, BALLOON]
+  authorities: [EASA, LBA]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: variant_flown
+  metric: flights
+  filter: { variants: [$subject] }
+  min: 1
+  unit: flights
+  nameKey: requirement.variant_flown
+  remedyKey: remedy.differences_training
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: type.current }
+  - { id: unknown, when: undetermined, status: unknown, messageKey: type.unknown }
+  - { id: not_flown, when: always, status: lapsed, messageKey: type.not_flown }
+
+restored_by:
+  - { event: differences_training, filter: { variants: [$subject] } }
+  - { event: proficiency_check, filter: { variants: [$subject] } }
+  - { event: refresher_training, filter: { variants: [$subject] } }
+
+notes: >-
+  Partial. A variant is a record variant the pilot extended a class or type rating to; its
+  flights are those recorded with that variant name. Differences training, a proficiency
+  check or refresher training on the variant restores the privilege for another 2 years, as
+  a flight would. (da) is applied to TMG variants only: whether an SEP variant has the same
+  type of engine as the aircraft on which the rating was issued is not recorded, so every
+  recorded SEP variant is evaluated. Refresher training ((d)(3)) is accepted for any
+  variant, although the text limits it to SEP variants with a particular engine type. A
+  variant whose initial differences training is not logged as an event and that has not
+  been flown in 2 years shows as not flown. FCL.140.A(c) (LAPL(A) SEP variants with a
+  different engine type) states the same condition and is covered by this rule. The API
+  does not evaluate variants today, so there is no divergence to list.

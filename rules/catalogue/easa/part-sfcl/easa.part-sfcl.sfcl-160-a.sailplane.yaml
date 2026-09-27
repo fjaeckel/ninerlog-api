@@ -1,0 +1,92 @@
+id: easa.part-sfcl.sfcl-160-a.sailplane
+title: SPL recency, sailplanes excluding TMGs
+authority: easa
+instrument: Part-SFCL
+article: SFCL.160(a)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.160(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-160.md
+  quote:
+    - "SPL holders shall exercise SPL privileges, excluding TMGs, only if in the last 24 months before the planned flight they:"
+    - "(1) completed, on sailplanes, at least five hours of flight time as PIC or flying dual or solo under the supervision of an FI(S), including, on sailplanes, excluding TMGs, at least:"
+    - "(i) 15 launches; and"
+    - "(ii) two training flights with an FI(S); or"
+    - "(2) passed a proficiency check with an FE(S) on a sailplane, excluding TMGs; the proficiency check shall be based on the skill test for SPL."
+citations: [EASA SFCL.160(a)(1), EASA SFCL.160(a)(2)]
+
+applies_to:
+  subject: rating
+  classes: [GLIDER]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: recency
+  any_of:
+    - id: experience
+      all_of:
+        - id: flight_time
+          metric: minutes.picOrDualOrSpic
+          filter: { classes: [GLIDER, TMG] }
+          min: 300
+          unit: minutes
+          nameKey: requirement.flight_time
+          remedyKey: remedy.fly_more
+        - id: launches
+          metric: launches
+          filter: { classes: [GLIDER] }
+          min: 15
+          unit: launches
+          nameKey: requirement.launches
+          remedyKey: remedy.fly_more
+        - id: training_flights
+          metric: training_flights
+          filter: { classes: [GLIDER] }
+          min: 2
+          unit: flights
+          nameKey: requirement.training_flights
+          remedyKey: remedy.fly_more
+    - id: proficiency_check
+      metric: events
+      filter: { eventKinds: [proficiency_check], classes: [GLIDER] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: easa_spl
+
+divergences:
+  - id: no-ul-credit
+    api: Credits PIC time on ultralight sailplanes and ultralight motorgliders (Annex I aircraft) toward the 5 hours.
+    article: The 5 hours are flown on sailplanes; Part-SFCL contains no provision crediting Annex I aircraft, unlike FCL.035(a)(4) and (a)(5) for aeroplanes and gyroplanes.
+    cite: EASA SFCL.160(a)(1)
+  - id: glider-class-only
+    api: Evaluates every rating on an SPL or LAPL(S) licence other than TMG (for example SEP_LAND) as a sailplane rating.
+    article: SFCL.160(a) covers the SPL privileges on sailplanes, excluding TMGs; other classes are not sailplanes.
+    cite: EASA SFCL.160(a)
+  - id: authorities
+    api: Also evaluates GLIDER ratings recorded on DULV or DAeC ultralight licences.
+    article: SFCL.160 applies to SPL holders; ultralight associations issue no SPL.
+    cite: EASA SFCL.160(a)
+
+notes: >-
+  "On sailplanes" includes TMGs (a TMG is a powered sailplane in Part-SFCL), so TMG time
+  counts toward the 5 hours; the 15 launches and the two training flights are counted on
+  GLIDER flights only (self-launching sailplanes included), whatever the launch method.
+  "Two training flights with an FI(S)" are two flights with dual time received; that the
+  instructor holds an FI(S) certificate and the examiner an FE(S) certificate is taken as
+  met. The proficiency check is a check flight or check event in the GLIDER class. The
+  logbook signatures of SFCL.160(d) are not evaluated. Launches are the flight's launch
+  count (a series row counts every launch). An SPL has no expiry; a recorded expiry date
+  is ignored here, as in the API.

@@ -1,0 +1,14 @@
+rule: easa.part-med.med-a-030.class-1
+name: none-recorded
+description: "With no EASA medical recorded the result is unknown; an FAA medical does not count."
+covers: [stage:no_medical_recorded]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  credentials:
+    - { id: c-1, type: FAA_CLASS1_MEDICAL, expires: 2027-01-10 }
+expect:
+  - subject: { kind: licence, id: l-1 }
+    status: unknown
+    messageKey: licence.medical_not_recorded

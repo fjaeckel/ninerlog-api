@@ -1,0 +1,12 @@
+rule: de.dulv.ul-recency.weight-shift
+name: not-applicable
+description: A trike rating on a DAeC licence follows the DAeC rule (authority matched case-insensitively); other kinds are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-daec, authority: " daec ", type: UL }
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-ws-daec, licenceId: l-daec, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+    - { id: r-ppg, licenceId: l-ul, class: ULTRALIGHT, ulKind: POWERED_PARAGLIDER }
+expect: []

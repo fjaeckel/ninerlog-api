@@ -1,0 +1,22 @@
+rule: easa.part-sfcl.sfcl-205-f.sailplane-towing
+name: lapsed
+description: >-
+  Tows flown the day before the 24-month window no longer count; two tows leave three to
+  fly before towing again; the rating is within its expiry date.
+covers: [stage:lapsed, requirement:tows:unmet, window:edge-out, expiry:before]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-tow, licenceId: l-spl, kind: SAILPLANE_TOWING, expires: 2027-01-31 }
+  flights:
+    - { date: 2024-09-14, class: TMG, minutes: { total: 90, pic: 90 }, takeoffs: { day: 5 }, landings: { day: 5 }, towedGliders: 5, flags: { towFlight: true } }
+    - { date: 2026-05-01, class: TMG, minutes: { total: 40, pic: 40 }, takeoffs: { day: 2 }, landings: { day: 2 }, towedGliders: 2, flags: { towFlight: true } }
+expect:
+  - subject: { kind: privilege, id: p-tow }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+    messageParams: { date: 2027-01-31 }
+    requirements:
+      tows: { current: 2, met: false, remedyKey: remedy.privilege_with_instructor, remedyParams: { missing: 3, unit: tows } }

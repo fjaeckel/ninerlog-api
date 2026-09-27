@@ -1,0 +1,14 @@
+rule: easa.part-med.med-a-045.class-1
+name: revalidation-window
+description: "45 days before expiry the revalidation examination may be taken."
+covers: [stage:revalidation_window]
+asOf: 2027-01-15
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS1_MEDICAL, issued: 2026-03-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: expiring
+    messageKey: credential.revalidation_window_open
+    messageParams: { days: 45, date: 2027-03-01 }

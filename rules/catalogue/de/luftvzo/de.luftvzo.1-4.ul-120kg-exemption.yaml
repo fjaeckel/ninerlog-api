@@ -1,0 +1,22 @@
+id: de.luftvzo.1-4.ul-120kg-exemption
+title: 120 kg ultralight exemption
+authority: de
+instrument: LuftVZO
+article: § 1(4)
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftVZO § 1(4)
+  url: https://www.gesetze-im-internet.de/luftvzo/__1.html
+  file: sources/de/luftvzo-1.md
+  quote:
+    - "Von der Musterzulassung befreit sind ein- oder zweisitzige Luftsportgeräte mit einer höchstzulässigen Leermasse von 120 Kilogramm einschließlich Gurtzeug und Rettungsgerät;"
+applies_to: { subject: rating, classes: [ULTRALIGHT], authorities: [LBA, DULV, DAEC] }
+notes: >-
+  A definition, not a rule: one- and two-seat sport aircraft up to 120 kg empty mass are exempt
+  from type certification. LuftPersV § 45(1) and § 16(2) use the 120 kg threshold for the
+  medical, and § 45(4) refers to "§ 1 Absatz 4 Satz 1 Nummer 1" of this ordinance, a numbered
+  item the current text of § 1(4) does not have (see the association rules under § 45(4)).
+  The record has no empty mass per ultralight, so nothing here can be evaluated.

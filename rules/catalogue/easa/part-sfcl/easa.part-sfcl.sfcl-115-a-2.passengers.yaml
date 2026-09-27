@@ -1,0 +1,81 @@
+id: easa.part-sfcl.sfcl-115-a-2.passengers
+title: SPL passenger prerequisites after licence issue
+authority: easa
+instrument: Part-SFCL
+article: SFCL.115(a)(2)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.115(a)(2)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-115.md
+  quote:
+    - "(2) including the carriage of passengers only if they:"
+    - "(i) comply with point SFCL.160(e); and"
+    - "(ii) either:"
+    - "(A) have completed, after the issue of the SPL, at least 10 hours of flight time or 30 launches or take-offs and landings as PIC on sailplanes and, additionally, one training flight during which holders shall demonstrate to an FI(S) the competence required for the carriage of passengers; or"
+    - "(B) hold an FI(S) certificate in accordance with Subpart FI;"
+citations: [EASA SFCL.115(a)(2)(ii)]
+
+applies_to:
+  subject: passengers
+  classes: [GLIDER, TMG]
+  licenceKinds: [SPL, LAPL_S]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { since_issue: licence }
+filter: { classes: [GLIDER, TMG], roles: [pic] }
+
+requirements:
+  id: prerequisite
+  any_of:
+    - id: pax_prerequisite_time
+      metric: minutes.pic
+      min: 600
+      unit: minutes
+      nameKey: requirement.pax_prerequisite_time
+      remedyKey: remedy.fly_more
+    - id: pax_prerequisite_launches
+      metric: launches
+      min: 30
+      unit: launches
+      nameKey: requirement.pax_prerequisite_launches
+      remedyKey: remedy.fly_more
+
+stages:
+  - id: instructor
+    when: { holds: { privileges: [FI_S], valid: true } }
+    status: current
+    messageKey: pax.prerequisite_met
+  - { id: met, when: all_met, status: current, messageKey: pax.prerequisite_met }
+  - { id: issue_date_unknown, when: undetermined, status: unknown, messageKey: pax.prerequisite_unknown }
+  - id: not_met
+    when: always
+    status: expired
+    messageKey: pax.prerequisite_not_met
+    params: { needed: { needed: pax_prerequisite_time } }
+
+ruleDescriptionKey: easa_spl_pax
+
+divergences:
+  - id: enforced
+    api: Reports the prerequisite rows for information only; passenger status never depends on them.
+    article: SPL holders carry passengers only after 10 hours or 30 launches or take-offs and landings as PIC on sailplanes since the SPL was issued (plus a training flight), or with an FI(S) certificate.
+    cite: EASA SFCL.115(a)(2)(ii)
+  - id: fi-s-alternative
+    api: Does not consider an FI(S) certificate.
+    article: Holding an FI(S) certificate satisfies the prerequisite on its own.
+    cite: EASA SFCL.115(a)(2)(ii)(B)
+
+notes: >-
+  Partial: the training flight demonstrating passenger competence to an FI(S) is not
+  recorded in NinerLog and is taken as met; a row for it (metric not_recorded) would make
+  the rule's coverage tags unreachable. SFCL.115(a)(2)(i) is the SFCL.160(e) rules. Counted
+  since the recorded issue date of the SPL or LAPL(S) (a re-issued licence carries a later
+  date than the one the article means), on GLIDER and TMG flights with PIC time; a TMG
+  flight's launch count is its take-offs. Without a recorded issue date the prerequisite is
+  unknown. An FI_S privilege, valid through its expiry date, on any licence satisfies (B).
+  One evaluation per authority and class (GLIDER, TMG). SFCL.115(a)(3) (commercial
+  operations) and the medical condition of SFCL.115(c) are separate entries.

@@ -1,0 +1,24 @@
+id: de.luftpersv.9.validity
+title: Validity of licences and ratings
+authority: de
+instrument: LuftPersV
+article: § 9(1)
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 9(1)
+  url: https://www.gesetze-im-internet.de/luftpersv/__9.html
+  file: sources/de/luftpersv-9.md
+  quote:
+    - "Eine nach dieser Verordnung oder nach der Verordnung (EU) Nr. 1178/2011 erteilte Erlaubnis ist, soweit nichts anderes bestimmt ist, unbefristet gültig."
+    - "Die Gültigkeitsdauer von Berechtigungen und Erweiterungen der Erlaubnis richtet sich nach den Vorschriften, die für die Erteilung der Berechtigung maßgeblich sind."
+applies_to: { subject: licence, authorities: [LBA, DULV, DAEC] }
+notes: >-
+  No licence-level evaluation: licences issued under LuftPersV or Part-FCL are unlimited (the
+  ultralight licence too, § 45(1)), and ratings and privileges follow their own provisions,
+  which the catalogue encodes rule by rule (§ 45, § 84(5), § 84a(5), § 96). The app treats a
+  licence without an expiry date as valid. The second sentence is also the closest source for
+  the app-policy expiry-only rules other.ninerlog.expiry-only and
+  other.ninerlog.privilege-expiry.

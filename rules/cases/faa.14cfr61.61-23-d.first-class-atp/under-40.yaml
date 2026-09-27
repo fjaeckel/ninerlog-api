@@ -1,0 +1,17 @@
+rule: faa.14cfr61.61-23-d.first-class-atp
+name: under-40
+description: An ATP aged 35 at the examination on 10 February 2026 holds first-class privileges through 28 February 2027, the end of the 12th month after the month of the examination.
+covers: [stage:valid, expiry:before]
+asOf: 2026-08-16
+record:
+  holder: { dateOfBirth: 1990-05-01 }
+  licences:
+    - { id: l-atp, authority: FAA, type: ATP }
+  credentials:
+    - { id: c-med, type: FAA_CLASS1_MEDICAL, issued: 2026-02-10 }
+expect:
+  - subject: { kind: credential, id: c-med, detail: FAA_CLASS1_MEDICAL }
+    status: current
+    messageKey: credential.valid
+    messageParams: { date: 2027-02-28 }
+    expiresOn: 2027-02-28

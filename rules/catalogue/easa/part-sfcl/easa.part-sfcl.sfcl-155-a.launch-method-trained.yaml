@@ -1,0 +1,37 @@
+id: easa.part-sfcl.sfcl-155-a.launch-method-trained
+title: SPL launch method training record
+authority: easa
+instrument: Part-SFCL
+article: SFCL.155(a), (b)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.155(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-155.md
+  quote:
+    - "(a) SPL holders shall exercise their privileges only by using those launching methods for which they have completed a specific training either during the training course in accordance with point SFCL.130 or point SFCL.150(e)(1) or during additional training provided by an instructor after the issue of the SPL."
+    - "(b) The completion of the training as specified in paragraph (a) shall be entered in the logbook of the pilot and signed by the head of training of the ATO or the DTO or the instructor that is responsible for the training, as applicable."
+citations: [EASA SFCL.155(a), EASA SFCL.155(b)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [LAUNCH_METHOD_TRAINED]
+
+stages:
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: valid, when: always, status: current, messageKey: privilege.valid, params: { date: expiry_date } }
+
+ruleDescriptionKey: sfcl_155_launch_method
+
+notes: >-
+  Partial: a LAUNCH_METHOD_TRAINED privilege records that the specific training of
+  SFCL.155(a) was completed and signed (SFCL.155(b)) for the launch method in its detail;
+  it is valid unless a recorded expiry date has passed (valid through that date). The
+  training content of SFCL.155(a)(1)-(4) (10 dual and 5 supervised solo winch or car
+  launches, 5 and 5 for aerotow or self-launch, 3 bungee launches) is not counted from the
+  logbook, because training before NinerLog is usually not logged there. A trained method
+  becomes a launch_method subject of the SFCL.155(c) rules. The API's trained flag on the
+  sailplane rating's launch method rows is an API presentation and is not reproduced.

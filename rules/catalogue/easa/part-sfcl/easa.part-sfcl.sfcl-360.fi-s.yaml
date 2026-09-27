@@ -1,0 +1,109 @@
+id: easa.part-sfcl.sfcl-360.fi-s
+title: FI(S) certificate recency
+authority: easa
+instrument: Part-SFCL
+article: SFCL.360
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.360(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-360.md
+  quote:
+    - "(a) An FI(S) certificate holder shall only exercise the privileges of his or her certificate if before the planned exercise of those privileges he or she has:"
+    - "(1) within the last three years, completed:"
+    - "(i) instructor refresher training at an ATO, a DTO, or a competent authority during which the holder shall receive theoretical knowledge instruction for refreshing and updating the knowledge relevant for sailplane instructors; and"
+    - "(ii) when providing flight instruction as FI(S), at least:"
+    - "(A) 30 hours; or"
+    - "(B) 60 launches or take-offs and landings; and"
+    - "(2) within the last nine years and in accordance with the procedures established for that purpose by the competent authority, demonstrated the ability to instruct on sailplanes to an FI(S) who is qualified in accordance with point SFCL.315(a)(7) and nominated by the head of training of an ATO or a DTO."
+    - "(b) The hours flown as an FE(S) during skill tests, proficiency checks and assessments of competence shall be fully credited towards the requirement in paragraph (a)(1)(ii)."
+    - "(c) If the FI(S) certificate holder has failed to complete the instruction flight under supervision to the satisfaction of the FI(S) in accordance with paragraph (a)(2), he or she shall not exercise the privileges of the FI(S) certificate until he or she has successfully completed an assessment of competence in accordance with point SFCL.345."
+    - "(d) To resume the exercise of the privileges of the FI(S) certificate, an FI(S) certificate holder who does not comply with all the requirements in paragraph (a) shall comply with the requirements of paragraph (a)(1)(i) and of point SFCL.345."
+citations: [EASA SFCL.360(a)(1), EASA SFCL.360(a)(2), EASA SFCL.360(b), EASA SFCL.360(c), EASA SFCL.360(d)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [FI_S]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 36 }
+
+requirements:
+  all_of:
+    - id: refresher
+      metric: events
+      filter: { eventKinds: [instructor_refresher] }
+      min: 1
+      unit: training
+      nameKey: requirement.fi_refresher
+      remedyKey: remedy.refresher_training
+    - id: instruction
+      any_of:
+        - id: instruction_time
+          metric: minutes.instructorOrExaminer
+          filter: { classes: [GLIDER, TMG] }
+          min: 1800
+          unit: minutes
+          nameKey: requirement.instruction_time
+          remedyKey: remedy.fly_more
+        - id: instruction_launches
+          metric: launches
+          filter: { classes: [GLIDER, TMG], withMinutes: [dualGiven] }
+          min: 60
+          unit: launches
+          nameKey: requirement.instruction_launches
+          remedyKey: remedy.fly_more
+        - id: resumption_assessment
+          metric: events
+          filter: { eventKinds: [assessment_of_competence] }
+          min: 1
+          unit: check
+          nameKey: requirement.assessment_of_competence
+    - id: demonstration
+      metric: events
+      window: { rolling_months: 108 }
+      filter: { eventKinds: [supervised_instruction, assessment_of_competence] }
+      min: 1
+      unit: events
+      nameKey: requirement.supervised_instruction
+
+stages:
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: expiry_date } }
+  - { id: lapsed, when: always, status: lapsed, messageKey: privilege.recency_not_met, params: { date: expiry_date } }
+
+ruleDescriptionKey: sfcl_360_fi_s
+
+divergences:
+  - id: refresher-required
+    api: Shows the instructor refresher training as an untracked row that never affects the status; 30 hours or 60 launches of instruction alone make the certificate current.
+    article: Instructor refresher training within the last three years is required in addition to the instruction.
+    cite: EASA SFCL.360(a)(1)(i)
+  - id: nine-year-demonstration
+    api: Does not evaluate the demonstration of instructional ability.
+    article: Within the last nine years the holder demonstrated the ability to instruct to a qualified FI(S); an assessment of competence (SFCL.345) also satisfies it.
+    cite: EASA SFCL.360(a)(2), (c)
+  - id: examiner-hours
+    api: Counts instruction given only.
+    article: Hours flown as FE(S) during skill tests, proficiency checks and assessments of competence are credited toward the 30 hours.
+    cite: EASA SFCL.360(b)
+  - id: resumption
+    api: Has no resumption path other than the instruction hours or launches.
+    article: A holder who does not comply resumes with refresher training and an assessment of competence (SFCL.345).
+    cite: EASA SFCL.360(d)
+  - id: authorities
+    api: Evaluates FI_S privileges on every licence, FAA and ultralight licences included.
+    article: The FI(S) certificate is a Part-SFCL certificate.
+    cite: EASA SFCL.360(a)
+
+notes: >-
+  Instruction is instruction given (dualGiven) plus examiner time (SFCL.360(b)) on GLIDER
+  and TMG flights; launches are those of flights with instruction given (a TMG's launch
+  count is its take-offs). Refresher training is an instructor_refresher event; the
+  demonstration of (a)(2) is a supervised_instruction event, and an assessment of
+  competence satisfies it too (c). The catalogue reads (d) as: an assessment of competence
+  within the last three years, with the refresher training, stands in for the instruction
+  hours or launches. A privilege with a recorded expiry date is valid through that date.

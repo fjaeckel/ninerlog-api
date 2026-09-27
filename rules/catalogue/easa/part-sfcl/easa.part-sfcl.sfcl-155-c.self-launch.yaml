@@ -1,0 +1,58 @@
+id: easa.part-sfcl.sfcl-155-c.self-launch
+title: SPL launch method recency, self-launch
+authority: easa
+instrument: Part-SFCL
+article: SFCL.155(c), (d)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.155(c)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-155.md
+  quote:
+    - "(c) In order to maintain the privileges for each launching method and in accordance with the requirements of paragraphs (a) and (b), SPL holders shall complete a minimum of five launches during the last two years, except for bungee launch, in which case they shall complete only two launches. In the case of self-launch, launches may be done in self-launch or through take-offs in TMGs or a combination of these."
+    - "(d) If SPL holders do not comply with the requirement in paragraph (c), in order to renew their privileges they shall perform the additional number of launches flying dual or solo under the supervision of an instructor."
+citations: [EASA SFCL.155(c), EASA SFCL.155(d)]
+
+applies_to:
+  subject: launch_method
+  classes: [GLIDER]
+  launchMethods: [self-launch]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: launches
+  metric: launches
+  filter:
+    any:
+      - { classes: [GLIDER], launchMethods: [$subject] }
+      - { classes: [TMG] }
+  min: 5
+  unit: launches
+  nameKey: requirement.launches
+  remedyKey: remedy.launch_method_dual
+  messages: { met: launch_method.progress, unmet: launch_method.progress }
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: launch_method.current }
+  - { id: lapsed, when: always, status: lapsed, messageKey: launch_method.lapsed }
+
+ruleDescriptionKey: sfcl_155_launch_method
+
+divergences:
+  - id: authorities
+    api: Also lists launch methods for GLIDER ratings recorded on DULV or DAeC licences.
+    article: SFCL.155 applies to SPL holders; ultralight associations issue no SPL.
+    cite: EASA SFCL.155(c)
+
+notes: >-
+  Self-launches on GLIDER flights and take-offs in TMGs (the TMG flight's launch count)
+  count together, as the article allows. The method is evaluated when the pilot has logged
+  a self-launch on a GLIDER flight or holds a LAUNCH_METHOD_TRAINED privilege for it; TMG
+  take-offs alone do not create it. The inventory suspected that self-launch recency might
+  be meant for self-launching sailplanes only; the verbatim text credits TMG take-offs
+  expressly, so the API's reading stands.

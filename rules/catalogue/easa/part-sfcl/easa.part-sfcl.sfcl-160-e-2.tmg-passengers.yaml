@@ -1,0 +1,83 @@
+id: easa.part-sfcl.sfcl-160-e-2.tmg-passengers
+title: SPL passenger recency, TMGs (day and night)
+authority: easa
+instrument: Part-SFCL
+article: SFCL.160(e)(2)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.160(e)(2)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-160.md
+  quote:
+    - "SPL holders shall carry passengers only if in the preceding 90 days they have carried out as PIC, at least:"
+    - "(2) three take-offs and landings in TMGs, if passengers are to be carried in a TMG. For carrying passengers at night in a TMG, at least one of those take-offs and landings shall be carried out at night."
+related_sources:
+  - cite: EASA SFCL.210(a)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+    file: sources/easa/sfcl-210.md
+    quote: "(a) SPL holders with privileges to fly TMGs shall only exercise their TMG privileges in VFR conditions at night if they hold a TMG night rating in accordance with this point."
+citations: [EASA SFCL.160(e)(2), EASA SFCL.210(a)]
+
+applies_to:
+  subject: passengers
+  classes: [TMG]
+  licenceKinds: [SPL, LAPL_S]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_days: 90 }
+filter: { classes: [TMG], roles: [pic] }
+
+requirements:
+  all_of:
+    - id: day
+      metric: takeoffs_and_landings
+      min: 3
+      unit: landings
+      nameKey: requirement.takeoffs_and_landings
+      remedyKey: remedy.fly_more
+    - id: night_takeoffs
+      when: { holds: { privileges: [TMG_NIGHT], sameLicence: true, valid: true } }
+      metric: takeoffs.night
+      min: 1
+      unit: takeoffs
+      nameKey: requirement.night_takeoffs
+      remedyKey: remedy.fly_more
+    - id: night_landings
+      when: { holds: { privileges: [TMG_NIGHT], sameLicence: true, valid: true } }
+      metric: landings.night
+      min: 1
+      unit: landings
+      nameKey: requirement.night_landings
+      remedyKey: remedy.fly_more
+
+stages:
+  - { id: not_current, when: { unmet: day }, status: expired, messageKey: pax.not_current, params: { needed: { needed: day } } }
+  - id: day_no_night_rating
+    when: { not: { holds: { privileges: [TMG_NIGHT], sameLicence: true, valid: true } } }
+    status: current
+    messageKey: pax.current_day_no_night_privilege
+  - { id: day_and_night, when: all_met, status: current, messageKey: pax.current_day_night }
+  - id: day_only
+    when: always
+    status: current
+    messageKey: pax.day_current_night_not
+    params: { needed: { needed: night_landings } }
+
+ruleDescriptionKey: easa_spl_tmg_pax
+
+divergences:
+  - id: takeoffs
+    api: Counts TMG landings only, by day and by night.
+    article: Three take-offs and landings, one of each at night for night passengers; the smaller of take-offs and landings counts.
+    cite: EASA SFCL.160(e)(2)
+
+notes: >-
+  One evaluation per authority for the TMG class on an SPL or LAPL(S); TMG passengers on a
+  Part-FCL licence follow FCL.060(b). A take-off or landing as PIC is one on a TMG flight
+  with PIC time. The night rows exist only while the pilot holds a TMG_NIGHT privilege on
+  the same licence, valid through its expiry date; without it the pilot may carry
+  passengers by day only (SFCL.210(a)). When the day requirement is met and the night one
+  is not, the status stays current for day passengers and the message says night is not.

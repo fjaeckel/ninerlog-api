@@ -1,0 +1,27 @@
+rule: de.luftpersv.96-4.ul-instructor
+name: window-day-before
+description: >-
+  The instruction flight and the refresher course of 9 January 2024, the day before the
+  rating's validity began, count toward nothing; one item alone is not enough.
+covers: [stage:not_met, n_of:extension:unmet, requirement:instruction_takeoffs_landings:unmet, requirement:refresher_course:unmet, window:before_expiry_months=36:edge-out, window:validity_period:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DAeC, type: UL }
+  privileges:
+    - { id: p-fi, licenceId: l-ul, kind: UL_INSTRUCTOR, issued: 2024-01-10 }
+  events:
+    - { date: 2024-01-09, kind: instructor_refresher }
+    - { date: 2026-03-01, kind: assessment_of_competence }
+  flights:
+    - { date: 2024-01-09, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 120, dualGiven: 120 }, takeoffs: { day: 20 }, landings: { day: 20 } }
+    - { date: 2025-05-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 180, dualGiven: 180 }, takeoffs: { day: 40 }, landings: { day: 40 } }
+expect:
+  - subject: { kind: privilege, id: p-fi }
+    status: expiring
+    messageKey: privilege.revalidation_not_met
+    messageParams: { date: "2027-01-10" }
+    requirements:
+      instruction_takeoffs_landings: { current: 40, met: false, remedyParams: { missing: 20, unit: landings } }
+      refresher_course: { current: 0, met: false, remedyKey: remedy.refresher_training }
+      assessment: { current: 1, met: true }

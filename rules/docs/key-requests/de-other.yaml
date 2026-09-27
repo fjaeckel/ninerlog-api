@@ -1,0 +1,6 @@
+# Key requests from the de-other porting family (German ultralights, LuftPersV, DULV/DAeC,
+# other.ninerlog). To be appended below "# --- family additions: de" in messages/keys.yaml.
+keys:
+  - { key: rating.ul_flights_kind_unknown, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "German ultralight recency (LuftPersV § 45, association rules under § 45(4)): the only ultralight flights in the window have no ultralight kind recorded, so the recency cannot be determined; set the aircraft's kind. The API reports such flights in ClassRatingCurrency.unclassifiedFlights." }
+  - { key: requirement.solo_time, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Solo time: PIC plus supervised solo (training programmes; the API's training.ul.solo_time item)." }
+  - { key: requirement.dual_time, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Dual instruction received (training programmes; the API's training.ul.dual_time item)." }

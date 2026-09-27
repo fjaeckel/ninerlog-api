@@ -1,0 +1,103 @@
+id: easa.part-fcl.fcl-740-pl.powered-lift
+title: Powered-lift type rating revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.740.PL(a)(1), (a)(2)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.740.PL(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-740-pl.md
+  quote:
+    - "(a) Revalidation. For revalidation of powered-lift type ratings, the applicant shall:"
+    - "(1) pass a proficiency check in accordance with Appendix 9 to this Part in the relevant type of powered-lift within the 3 months immediately preceding the expiry date of the rating;"
+    - "(2) complete during the period of validity of the rating, at least:"
+    - "(i) 10 route sectors as pilot of the relevant type of powered-lift aircraft; or"
+    - "(ii) 1 route sector as pilot of the relevant type of powered-lift aircraft or FFS, flown with an examiner. This route sector may be flown during the proficiency check."
+related_sources:
+  - cite: EASA FCL.010
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-010.md
+    quote: "‘Route sector’ means a flight comprising take-off, departure, cruise of not less than 15 minutes, arrival, approach and landing phases."
+  - cite: EASA FCL.740(a)(1)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-740.md
+    quote: "The validity period of class and type ratings shall be 1 year, except for single-pilot single-engine class ratings for which the validity period shall be 2 years, unless otherwise determined in the OSD."
+citations: [EASA FCL.740.PL(a)(1), EASA FCL.740.PL(a)(2), EASA FCL.010]
+
+applies_to:
+  subject: rating
+  classes: [POWERED_LIFT]
+  authorities: [EASA, LBA]
+
+window: { before_expiry_months: 12 }
+
+requirements:
+  all_of:
+    - id: proficiency_check
+      metric: events
+      window: { before_expiry_months: 3 }
+      filter:
+        eventKinds: [proficiency_check]
+        classes: [$subject]
+        typeDesignators: [$subject]
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+    - id: route_sectors
+      any_of:
+        - id: sectors
+          metric: route_sectors
+          filter: { classes: [$subject], typeDesignators: [$subject] }
+          min: 10
+          unit: sectors
+          nameKey: requirement.route_sectors
+          remedyKey: remedy.fly_more
+        - id: examiner_sector
+          metric: route_sectors
+          filter:
+            classes: [$subject]
+            typeDesignators: [$subject]
+            flags: { examinerOnBoard: true }
+            simulator: include
+            fstdTypes: [FFS]
+          min: 1
+          unit: sectors
+          nameKey: requirement.examiner_route_sector
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: rating.expired }
+  - { id: window_not_open, when: before_window, status: current, messageKey: rating.window_not_open, params: { date: window_opens_at } }
+  - id: met_expiring
+    when: { all: [all_met, { expires_within: { days: 90 } }] }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    params: { days: days_to_expiry }
+  - { id: met, when: all_met, status: current, messageKey: rating.revalidation_current }
+  - { id: undetermined, when: undetermined, status: unknown, messageKey: rating.type_not_identifiable }
+  - { id: not_met, when: always, status: expiring, messageKey: rating.revalidation_not_met_prof_check }
+
+divergences:
+  - id: revalidation
+    api: Reports powered-lift ratings by their expiry date only.
+    article: A powered-lift type rating is revalidated by a proficiency check in the 3 months before expiry and 10 route sectors (or 1 with an examiner) within the validity period.
+    cite: EASA FCL.740.PL(a)
+  - id: valid-through-expiry
+    api: Reports the rating expired on its expiry date.
+    article: The rating is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: EASA FCL.740(a)(1)
+
+notes: >-
+  Partial: the (a)(3) exemption for commercial air transport pilots is not modelled. The
+  type is the rating's typeDesignator; when the rating or the flights carry none, or a
+  flight has no recorded cruise time or FSTD type, the result is unknown
+  (rating.type_not_identifiable covers every such case). A route sector is a flight with a
+  cruise of at least 15 minutes (FCL.010). Type ratings are valid for 1 year
+  (FCL.740(a)(1)), so route sectors are counted in the 12 months before the recorded expiry.
+  The proficiency check is flown in the aircraft ((a)(1) names no FSTD). The 90-day expiring
+  threshold and the window_not_open stage are NinerLog presentation.

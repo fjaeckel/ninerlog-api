@@ -1,0 +1,20 @@
+id: easa.part-fcl.fcl-815.mountain
+title: Mountain rating recency
+authority: easa
+instrument: Part-FCL
+article: FCL.815(d)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.815(d)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-815.md
+  quote:
+    - "(d) In order to exercise the privileges of the mountain rating, the holder of the rating shall, during the last 2 years, have complied with either of the following conditions:"
+    - "(1) completed at least six landings on a surface designated to require a mountain rating;"
+    - "(2) passed a proficiency check that complies with the requirements in point (c). The completion of the proficiency check shall be entered in the logbook of the pilot and signed by the responsible examiner."
+applies_to: { subject: privilege, privilegeKinds: [MOUNTAIN] }
+notes: >-
+  The record does not say whether a landing was made on a surface designated to require a mountain rating, so condition (1) cannot be counted; encoding only the proficiency check would report pilots who fly the six landings as lapsed. See docs/vocab-requests/easa-fcl.md (mountain-surface landings).

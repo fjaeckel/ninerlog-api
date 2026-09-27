@@ -1,0 +1,22 @@
+id: faa.14cfr61.61-57-f.nvg
+title: Night vision goggle recent experience and proficiency check
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.57(f), (g)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.57(f)(1)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+  file: sources/faa/61.57.md
+  quote:
+    - "(1) A person may act as pilot in command in a night vision goggle operation with passengers on board only if, within 2 calendar months preceding the month of the flight, that person performs and logs the following tasks as the sole manipulator of the controls on a flight during a night vision goggle operation—"
+    - "(2) A person may act as pilot in command using night vision goggles only if, within the 4 calendar months preceding the month of the flight, that person performs and logs the tasks listed in paragraph (f)(1)(i) through (v) of this section as the sole manipulator of the controls during a night vision goggle operation."
+applies_to: { subject: privilege, privilegeKinds: [NVG], authorities: [FAA] }
+notes: >-
+  Not supported: the record does not mark flights as night vision goggle operations, nor the
+  NVG tasks (takeoffs and landings with each phase, hovering, area departures and arrivals,
+  aided-unaided transitions). A 61.57(g) NVG proficiency check could be an event once NVG
+  operations are recorded.

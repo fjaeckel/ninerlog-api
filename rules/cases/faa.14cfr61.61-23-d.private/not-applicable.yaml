@@ -1,0 +1,12 @@
+rule: faa.14cfr61.61-23-d.private
+name: not-applicable
+description: An FAA medical held by a pilot with only an EASA licence is not evaluated for FAA privileges; BasicMed has its own rule.
+asOf: 2026-08-16
+record:
+  holder: { dateOfBirth: 1990-01-01 }
+  licences:
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+  credentials:
+    - { id: c-3, type: FAA_CLASS3_MEDICAL, issued: 2024-06-10 }
+    - { id: c-bm, type: FAA_BASICMED, issued: 2024-06-10 }
+expect: []

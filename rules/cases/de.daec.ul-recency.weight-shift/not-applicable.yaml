@@ -1,0 +1,12 @@
+rule: de.daec.ul-recency.weight-shift
+name: not-applicable
+description: Trike ratings on DULV and LBA licences follow the DULV rule.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-dulv, authority: DULV, type: UL }
+    - { id: l-lba, authority: LBA, type: UL }
+  ratings:
+    - { id: r-ws-dulv, licenceId: l-dulv, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+    - { id: r-ws-lba, licenceId: l-lba, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+expect: []

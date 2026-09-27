@@ -1,0 +1,20 @@
+rule: de.dulv.ul-recency.powered-paraglider
+name: current-edge-in
+description: Thirty landings with powered paragliders in 24 months, the first on the first day of the window.
+covers: [stage:current, window:edge-in, requirement:landings:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DAeC, type: UL }
+  ratings:
+    - { id: r-ppg, licenceId: l-ul, class: ULTRALIGHT, ulKind: POWERED_PARAGLIDER }
+  flights:
+    - { date: 2024-09-15, class: ULTRALIGHT, ulKind: POWERED_PARAGLIDER, minutes: { total: 60, pic: 60 }, landings: { day: 10 } }
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: POWERED_PARAGLIDER, minutes: { total: 120, pic: 120 }, landings: { day: 20 } }
+expect:
+  - subject: { kind: rating, id: r-ppg, ulKind: POWERED_PARAGLIDER }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2026-09-15
+    requirements:
+      landings: { current: 30, required: 30, met: true }

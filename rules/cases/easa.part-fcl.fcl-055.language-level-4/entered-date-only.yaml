@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-055.language-level-4
+name: entered-date-only
+description: "Without an assessment date the entered expiry date is used."
+covers: [stage:valid]
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-lang, type: LANG_ICAO_LEVEL4, expires: 2027-01-31 }
+expect:
+  - subject: { kind: credential, id: c-lang }
+    status: current
+    expiresOn: 2027-01-31

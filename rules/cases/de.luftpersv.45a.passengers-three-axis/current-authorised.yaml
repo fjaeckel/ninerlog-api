@@ -1,0 +1,29 @@
+rule: de.luftpersv.45a.passengers-three-axis
+name: current-authorised
+description: >-
+  Three take-offs and landings on three-axis ultralights (one on a UL motorglider) in the
+  preceding 90 days, the first on the first day of the window, and a recorded passenger
+  authorisation: passengers may be carried by day until 15 September. No progress rows are
+  shown once the authorisation is held.
+covers: [stage:current, requirement:day:met, window:rolling_days=90:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL, issued: 2020-05-01 }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+  privileges:
+    - { id: p-pax, licenceId: l-ul, kind: UL_PASSENGER_AUTH, detail: THREE_AXIS }
+  flights:
+    - { date: 2026-06-17, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-01, class: ULTRALIGHT, ulKind: THREE_AXIS_MOTORGLIDER, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-08-02, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+expect:
+  - subject: { kind: passengers, id: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+    status: current
+    messageKey: pax.current_day_no_night_privilege
+    validUntil: 2026-09-15
+    requirements:
+      day: { current: 3, required: 3, met: true }
+      ul_xc_flights: { absent: true }
+      ul_xc_landing_flights: { absent: true }

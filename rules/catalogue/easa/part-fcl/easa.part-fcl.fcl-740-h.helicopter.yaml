@@ -1,0 +1,90 @@
+id: easa.part-fcl.fcl-740-h.helicopter
+title: Helicopter type rating revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.740.H(a)(1)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.740.H(a)(1)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-740-h.md
+  quote:
+    - "(a) Revalidation. For the revalidation of type ratings for helicopters, applicants shall comply with one of the following, as applicable:"
+    - "(1) they shall take the following steps:"
+    - "(i) within the validity period of the type rating, complete at least 2 hours as pilot in the relevant helicopter type;"
+    - "(ii) within the 3 months immediately preceding the expiry date of the type rating, pass a proficiency check:"
+    - "(A) which is conducted in accordance with Appendix 9 in the relevant type of helicopter or an FSTD representing that type;"
+    - "(B) the duration of which may be counted towards the flight time specified in point (i);"
+related_sources:
+  - cite: EASA FCL.740(a)(1)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-740.md
+    quote: "The validity period of class and type ratings shall be 1 year, except for single-pilot single-engine class ratings for which the validity period shall be 2 years, unless otherwise determined in the OSD."
+citations: [EASA FCL.740.H(a)(1)]
+
+applies_to:
+  subject: rating
+  classes: [HELICOPTER]
+  authorities: [EASA, LBA]
+
+window: { before_expiry_months: 12 }
+filter:
+  classes: [$subject]
+  typeDesignators: [$subject]
+
+requirements:
+  all_of:
+    - id: proficiency_check
+      metric: events
+      window: { before_expiry_months: 3 }
+      filter: { eventKinds: [proficiency_check], simulator: include }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+    - id: type_time
+      metric: minutes.total
+      min: 120
+      unit: minutes
+      nameKey: requirement.flight_time
+      remedyKey: remedy.fly_more
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: rating.expired }
+  - { id: window_not_open, when: before_window, status: current, messageKey: rating.window_not_open, params: { date: window_opens_at } }
+  - id: met_expiring
+    when: { all: [all_met, { expires_within: { days: 90 } }] }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    params: { days: days_to_expiry }
+  - { id: met, when: all_met, status: current, messageKey: rating.revalidation_current }
+  - { id: type_unknown, when: undetermined, status: unknown, messageKey: rating.type_not_identifiable }
+  - { id: not_met, when: always, status: expiring, messageKey: rating.revalidation_not_met_prof_check }
+
+divergences:
+  - id: revalidation
+    api: Reports helicopter ratings by their expiry date only.
+    article: A helicopter type rating is revalidated by 2 hours as pilot in the type within the validity period and a proficiency check in the 3 months before expiry.
+    cite: EASA FCL.740.H(a)(1)
+  - id: valid-through-expiry
+    api: Reports the rating expired on its expiry date.
+    article: The rating is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: EASA FCL.740(a)(1)
+
+notes: >-
+  Partial: only (a)(1) is encoded. The (a)(2)(ii) alternative for single-engine helicopters
+  up to 3 175 kg (6 hours as PIC and 1 hour of refresher training) is not offered, because
+  the record does not say whether the type is single-engine or its maximum take-off mass
+  (vocabulary request); pilots who revalidate that way see "not met" until they enter the
+  new expiry date. Group revalidation of SEP and SET types ((b), (c), (d)) is not modelled.
+  The type is the rating's typeDesignator; flights and checks count only on it, and when the
+  rating or the flights carry none the result is unknown. Helicopter type ratings are valid
+  for 1 year (FCL.740(a)(1)), so the 2 hours are counted in the 12 months before the
+  recorded expiry; FSTD time does not count toward them, a proficiency check in an FSTD
+  representing the type does count as the check, and a check flown in the helicopter counts
+  toward the 2 hours. The 90-day expiring threshold and the window_not_open stage are
+  NinerLog presentation.

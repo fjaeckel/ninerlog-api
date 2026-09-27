@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-57-b.night-passengers
+name: window-edges
+description: Night full-stop landings on 18 May count on 16 August; those on 17 May are outside the preceding 90 days.
+covers: [window:edge-in, window:edge-out, stage:landings_short]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2026-05-17, class: SEP_LAND, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 3 }, landings: { night: 3 }, fullStopNightLandings: 3, soleManipulator: true }
+    - { date: 2026-05-18, class: SEP_LAND, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 3 }, landings: { night: 3 }, fullStopNightLandings: 2, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: lapsed
+    messageKey: pax.night_not_current
+    messageParams: { needed: 1 }
+    requirements:
+      night_takeoffs: { current: 3, met: true }
+      full_stop_night_landings: { current: 2, met: false }

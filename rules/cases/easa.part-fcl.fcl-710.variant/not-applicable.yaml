@@ -1,0 +1,15 @@
+rule: easa.part-fcl.fcl-710.variant
+name: not-applicable
+description: TMG variants are exempt (FCL.710(da)); variants on FAA licences are not evaluated.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-tmg, licenceId: l-ppl, class: TMG, expires: 2027-06-30 }
+    - { id: r-faa, licenceId: l-faa, class: SEP_LAND }
+  variants:
+    - { id: v-tmg, ratingId: r-tmg, name: RETRACTABLE }
+    - { id: v-faa, ratingId: r-faa, name: ELECTRIC }
+expect: []

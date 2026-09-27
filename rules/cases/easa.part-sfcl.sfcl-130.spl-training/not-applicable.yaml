@@ -1,0 +1,10 @@
+rule: easa.part-sfcl.sfcl-130.spl-training
+name: not-applicable
+description: Without an EASA medical certificate (needed to fly solo) no SPL training progress is evaluated.
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-faa, type: FAA_CLASS3_MEDICAL }
+  flights:
+    - { date: 2026-04-01, class: GLIDER, launchMethod: winch, minutes: { total: 600, dual: 600 }, launches: 40, landings: { day: 40 } }
+expect: []

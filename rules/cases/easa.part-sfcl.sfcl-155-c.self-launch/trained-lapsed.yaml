@@ -1,0 +1,23 @@
+rule: easa.part-sfcl.sfcl-155-c.self-launch
+name: trained-lapsed
+description: >-
+  A trained self-launch never logged on a sailplane is evaluated from TMG take-offs; take-offs
+  the day before the window do not count, leaving three launches to fly dual or supervised.
+covers: [stage:lapsed, requirement:launches:unmet, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+  privileges:
+    - { id: p-sl, licenceId: l-spl, kind: LAUNCH_METHOD_TRAINED, detail: self-launch }
+  flights:
+    - { date: 2024-09-14, class: TMG, minutes: { total: 60, pic: 60 }, takeoffs: { day: 5 }, landings: { day: 5 }, launches: 5 }
+    - { date: 2026-04-01, class: TMG, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 }, launches: 2 }
+expect:
+  - subject: { kind: launch_method, id: r-gld, detail: self-launch }
+    status: lapsed
+    messageKey: launch_method.lapsed
+    requirements:
+      launches: { current: 2, met: false, remedyKey: remedy.launch_method_dual, remedyParams: { method: self-launch, missing: 3 } }

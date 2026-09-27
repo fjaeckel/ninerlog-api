@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-940-fi.revalidation
+name: not-applicable
+description: Other instructor certificates and the sailplane FI(S) are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-o, licenceId: l-1, kind: CRI, issued: 2024-01-15 }
+    - { id: p-fis, licenceId: l-1, kind: FI_S, issued: 2024-01-15 }
+    - { id: p-tri, licenceId: l-1, kind: TRI, issued: 2024-01-15 }
+expect: []

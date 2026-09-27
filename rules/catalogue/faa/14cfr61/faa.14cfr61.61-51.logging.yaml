@@ -1,0 +1,22 @@
+id: faa.14cfr61.61-51.logging
+title: Pilot logbooks
+authority: faa
+instrument: 14 CFR Part 61
+article: "61.51"
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.51(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.51
+  file: sources/faa/61.51.md
+  quote:
+    - "Each person must document and record the following time in a manner acceptable to the Administrator:"
+applies_to: { subject: licence, authorities: [FAA] }
+notes: >-
+  Definitional: 61.51 defines what is logged and how PIC, SIC, solo, instrument and training
+  time and simulator time are logged. It sets no currency of its own. The catalogue relies
+  on it through the record's inputs: sole manipulator (61.51(e)(1)(i)) as the
+  soleManipulator field, simulated instrument conditions for 61.57(c), and events and flags
+  for checks and reviews. Whether an entry was logged correctly is outside the catalogue.

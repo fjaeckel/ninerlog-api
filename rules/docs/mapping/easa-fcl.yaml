@@ -1,0 +1,51 @@
+# easa-fcl family mapping (Part-FCL powered aircraft, IR, LAPL, ratings, instructors,
+# examiners; Part-MED) for inventory/code-rules.yaml and inventory/articles-easa.yaml
+# maps_to. Append rule ids; do not replace existing ones.
+code_rules:
+  - { code_rule: easa.part-fcl.fcl-740-a.mep-set, maps_to: [easa.part-fcl.fcl-740-a.mep, easa.part-fcl.fcl-740-a.set] }
+  - { code_rule: easa.part-fcl.fcl-625-a.ir, maps_to: [easa.part-fcl.fcl-625-a.ir, easa.part-fcl.fcl-625-h.ir] }
+  - { code_rule: easa.part-fcl.class-rating-expiry, maps_to: [easa.part-fcl.fcl-740.validity, easa.part-fcl.fcl-740-h.helicopter, easa.part-fcl.fcl-740-pl.powered-lift, easa.part-fcl.fcl-740-as.airship] }
+  - { code_rule: easa.part-fcl.fcl-140-a.lapl-a, maps_to: [easa.part-fcl.fcl-140-a.lapl-a] }
+  - { code_rule: easa.part-fcl.fcl-060-b.passengers, maps_to: [easa.part-fcl.fcl-060-b.passengers, easa.part-fcl.fcl-060-b.night-passengers] }
+articles:
+  - { article: FCL.010, maps_to: [easa.part-fcl.fcl-740-a.mep, easa.part-fcl.fcl-740-pl.powered-lift, easa.part-fcl.fcl-060-b.night-passengers] }
+  - { article: FCL.035, maps_to: [easa.part-fcl.fcl-740-a.sep, easa.part-fcl.fcl-140-a.lapl-a] }
+  - { article: FCL.050, maps_to: [easa.part-fcl.fcl-050.records] }
+  - { article: FCL.055, maps_to: [easa.part-fcl.fcl-055.language-level-4, easa.part-fcl.fcl-055.language-level-5] }
+  - { article: FCL.060, maps_to: [easa.part-fcl.fcl-060-b.passengers, easa.part-fcl.fcl-060-b.night-passengers] }
+  - { article: FCL.065, maps_to: [easa.part-fcl.fcl-065.age-limits] }
+  - { article: FCL.105.A, maps_to: [easa.part-fcl.fcl-105-a.lapl-passengers] }
+  - { article: FCL.105.H, maps_to: [easa.part-fcl.fcl-105-h.lapl-h-privileges] }
+  - { article: FCL.140.A, maps_to: [easa.part-fcl.fcl-140-a.lapl-a, easa.part-fcl.fcl-710.variant] }
+  - { article: FCL.140.H, maps_to: [easa.part-fcl.fcl-140-h.lapl-h] }
+  - { article: FCL.625, maps_to: [easa.part-fcl.fcl-625-a.ir, easa.part-fcl.fcl-625-h.ir] }
+  - { article: FCL.625.A, maps_to: [easa.part-fcl.fcl-625-a.ir] }
+  - { article: FCL.625.H, maps_to: [easa.part-fcl.fcl-625-h.ir] }
+  - { article: FCL.625.As, maps_to: [easa.part-fcl.fcl-625-as.ir] }
+  - { article: FCL.710, maps_to: [easa.part-fcl.fcl-710.variant] }
+  - { article: FCL.740, maps_to: [easa.part-fcl.fcl-740.validity, easa.part-fcl.fcl-740-a.sep, easa.part-fcl.fcl-740-a.mep, easa.part-fcl.fcl-740-a.set, easa.part-fcl.fcl-740-h.helicopter, easa.part-fcl.fcl-740-pl.powered-lift, easa.part-fcl.fcl-740-as.airship] }
+  - { article: FCL.740.A, maps_to: [easa.part-fcl.fcl-740-a.mep, easa.part-fcl.fcl-740-a.set] }
+  - { article: FCL.740.H, maps_to: [easa.part-fcl.fcl-740-h.helicopter] }
+  - { article: FCL.740.PL, maps_to: [easa.part-fcl.fcl-740-pl.powered-lift] }
+  - { article: FCL.740.As, maps_to: [easa.part-fcl.fcl-740-as.airship] }
+  - { article: FCL.800, maps_to: [easa.part-fcl.fcl-800.aerobatic] }
+  - { article: FCL.805, maps_to: [easa.part-fcl.fcl-805.sailplane-towing, easa.part-fcl.fcl-805.banner-towing] }
+  - { article: FCL.810, maps_to: [easa.part-fcl.fcl-810.night-rating] }
+  - { article: FCL.815, maps_to: [easa.part-fcl.fcl-815.mountain] }
+  - { article: FCL.820, maps_to: [easa.part-fcl.fcl-820.flight-test] }
+  - { article: FCL.825, maps_to: [easa.part-fcl.fcl-825.eir] }
+  - { article: FCL.835, maps_to: [easa.part-fcl.fcl-835.bir] }
+  - { article: FCL.940, maps_to: [easa.part-fcl.fcl-940.validity, easa.part-fcl.fcl-940-fi.revalidation, easa.part-fcl.fcl-940-cri.revalidation] }
+  - { article: FCL.940.FI, maps_to: [easa.part-fcl.fcl-940-fi.revalidation] }
+  - { article: FCL.940.TRI, maps_to: [easa.part-fcl.fcl-940-tri.revalidation] }
+  - { article: FCL.940.CRI, maps_to: [easa.part-fcl.fcl-940-cri.revalidation] }
+  - { article: FCL.940.IRI, maps_to: [easa.part-fcl.fcl-940-fi.revalidation] }
+  - { article: FCL.940.SFI, maps_to: [easa.part-fcl.fcl-940-sfi.revalidation] }
+  - { article: FCL.940.MCCI, maps_to: [easa.part-fcl.fcl-940-mcci.revalidation] }
+  - { article: FCL.940.STI, maps_to: [easa.part-fcl.fcl-940-sti.revalidation] }
+  - { article: FCL.940.MI, maps_to: [easa.part-fcl.fcl-940-mi.validity] }
+  - { article: FCL.940.FTI, maps_to: [easa.part-fcl.fcl-940-fti.revalidation] }
+  - { article: FCL.1025, maps_to: [easa.part-fcl.fcl-1025.examiner] }
+  - { article: MED.A.020, maps_to: [easa.part-med.med-a-020.decrease-in-fitness] }
+  - { article: MED.A.030, maps_to: [easa.part-med.med-a-030.class-1, easa.part-med.med-a-030.class-2, easa.part-med.med-a-030.lapl] }
+  - { article: MED.A.045, maps_to: [easa.part-med.med-a-045.class-1, easa.part-med.med-a-045.class-2, easa.part-med.med-a-045.lapl] }

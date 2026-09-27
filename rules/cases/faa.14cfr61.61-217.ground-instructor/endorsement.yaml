@@ -1,0 +1,15 @@
+rule: faa.14cfr61.61-217.ground-instructor
+name: endorsement
+description: An instructor's endorsement of demonstrated knowledge in January 2026 counts.
+covers: [stage:current, requirement:endorsement:met, any_of:recent_activity:endorsement]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  privileges:
+    - { id: p-gi, licenceId: l-faa, kind: GROUND_INSTRUCTOR }
+  events:
+    - { date: 2026-01-10, kind: instructor_endorsement }
+expect:
+  - subject: { kind: privilege, id: p-gi }
+    status: current

@@ -1,0 +1,25 @@
+id: de.luftpersv.45b.flight-time-credit
+title: Ultralight flight time credit
+authority: de
+instrument: LuftPersV
+article: § 45b
+support: not_supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 45b
+  url: https://www.gesetze-im-internet.de/luftpersv/__45b.html
+  file: sources/de/luftpersv-45b.md
+  quote:
+    - "Als Flugzeiten für den Erwerb und die Erweiterung eines Luftfahrerscheins für Luftsportgeräteführer sowie den Nachweis für die Ausübung der Rechte aus diesem gelten, sofern in dieser Verordnung nichts anderes bestimmt ist:"
+    - "1. die Flugzeit als Fluglehrer während der Ausbildung und bei vorgeschriebenen Übungsflügen,"
+    - "4. die Flugzeit als Prüfer sowie"
+    - "5. die Flugzeit als Bewerber bei praktischen Prüfungen oder Befähigungsüberprüfungen."
+applies_to: { subject: rating, classes: [ULTRALIGHT], authorities: [LBA, DULV, DAEC] }
+notes: >-
+  Not a rule of its own: it says which flight time counts for issue and for exercising the
+  privileges. The recency rules count every logged flight time on the relevant aircraft
+  (total time), and PIC time as logged; time as instructor or examiner counts when it is
+  logged as flight time. There is no separate crediting of examiner or applicant time. The
+  training-progress rules (de.luftpersv.42.*) cite it for the time they count.

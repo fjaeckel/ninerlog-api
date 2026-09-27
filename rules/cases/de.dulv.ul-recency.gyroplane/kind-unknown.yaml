@@ -1,0 +1,18 @@
+rule: de.dulv.ul-recency.gyroplane
+name: kind-unknown
+description: Ultralight flights with no kind recorded cannot be counted as gyroplane flights; the recency is unknown.
+covers: [stage:kind_unknown, unknown:ulKinds]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-gyro, licenceId: l-ul, class: ULTRALIGHT, ulKind: GYROPLANE }
+  flights:
+    - { date: 2026-04-01, class: ULTRALIGHT, minutes: { total: 720, pic: 660, dual: 60 }, landings: { day: 12 } }
+expect:
+  - subject: { kind: rating, id: r-gyro }
+    status: unknown
+    messageKey: rating.ul_flights_kind_unknown
+    requirements:
+      total_time: { tracked: false }

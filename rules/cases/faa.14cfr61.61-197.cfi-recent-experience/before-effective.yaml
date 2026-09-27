@@ -1,0 +1,12 @@
+rule: faa.14cfr61.61-197.cfi-recent-experience
+name: before-effective
+description: Before 1 December 2024 flight instructor certificates expired and recent experience under the new 61.197 did not exist; nothing is evaluated.
+asOf: 2024-11-30
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-cfi, licenceId: l-faa, kind: CFI, issued: 2023-11-20 }
+  events:
+    - { date: 2024-06-01, kind: instructor_refresher }
+expect: []

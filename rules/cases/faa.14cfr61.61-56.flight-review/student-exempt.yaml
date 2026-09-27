@@ -1,0 +1,14 @@
+rule: faa.14cfr61.61-56.flight-review
+name: student-exempt
+description: A student pilot in training (with a current solo endorsement) needs no flight review.
+covers: [stage:student]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-student, authority: FAA, type: STUDENT }
+  events:
+    - { date: 2026-07-01, kind: solo_endorsement }
+expect:
+  - subject: { kind: flight_review, id: l-student }
+    status: not_applicable
+    messageKey: flight_review.not_applicable

@@ -1,0 +1,12 @@
+rule: de.dulv.ul-recency.powered-paraglider
+name: not-applicable
+description: A powered paraglider rating on an EASA licence and a UL sailplane rating are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-easa, authority: EASA, type: SPL }
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-easa-ppg, licenceId: l-easa, class: ULTRALIGHT, ulKind: POWERED_PARAGLIDER }
+    - { id: r-sail, licenceId: l-ul, class: ULTRALIGHT, ulKind: SAILPLANE }
+expect: []

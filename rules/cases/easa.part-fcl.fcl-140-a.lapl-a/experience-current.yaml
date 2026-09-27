@@ -1,0 +1,25 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: experience-current
+description: 12 h as PIC or dual including 12 take-offs and landings and 1 h of dual in aeroplanes or TMGs in the last 2 years keep the LAPL(A) current; SEP and TMG flights pool.
+covers: [stage:current, any_of:recency:experience, requirement:flight_time:met, requirement:takeoffs_landings:met, requirement:refresher_training:met, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-land, licenceId: l-lapl, class: SEP_LAND }
+  flights:
+    - { date: 2025-03-10, class: SEP_LAND, minutes: { total: 300, pic: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+    - { date: 2025-11-20, class: TMG, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-06-12, class: SEP_LAND, minutes: { total: 360, pic: 60, dual: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+expect:
+  - subject: { kind: rating, id: r-land, class: SEP_LAND }
+    status: current
+    messageKey: rating.recency_current
+    validUntil: 2027-03-10
+    requirements:
+      flight_time: { current: 720, required: 720, met: true }
+      takeoffs_landings: { current: 12, required: 12, met: true }
+      refresher_training: { current: 360, met: true }
+      proficiency_check: { current: 0, met: false, remedyKey: remedy.proficiency_check }
+      sep_land_time: { absent: true }

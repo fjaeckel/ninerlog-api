@@ -1,0 +1,17 @@
+rule: easa.part-fcl.fcl-835.bir
+name: expired-day-after
+description: "The day after its expiry date the BIR is expired."
+covers: [stage:expired, expiry:after]
+asOf: 2026-11-02
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: BIR, issued: 2025-11-01 }
+  flights:
+    - { date: 2026-08-10, class: SEP_LAND, minutes: { total: 90, pic: 90, ifr: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, approaches: 2, checkRating: BIR, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: privilege, id: p-1 }
+    status: expired
+    messageKey: privilege.expired
+    messageParams: { date: 2026-11-01 }

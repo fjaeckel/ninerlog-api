@@ -1,0 +1,18 @@
+rule: faa.14cfr61.61-57-a.tailwheel
+name: no-tailwheel-flights
+description: A pilot whose logbook shows only nosewheel airplanes is not flying a tailwheel airplane; the tailwheel condition does not apply.
+covers: [stage:no_tailwheel, requirement:tailwheel_flown:unmet, requirement:tailwheel_full_stop:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2026-07-20, class: SEP_LAND, tailwheel: false, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, fullStopLandings: 3, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: not_applicable
+    messageKey: pax.tailwheel_not_applicable
+    requirements:
+      tailwheel_flown: { current: 0, met: false, tracked: true }

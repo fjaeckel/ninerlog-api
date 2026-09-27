@@ -1,0 +1,15 @@
+rule: easa.part-med.med-a-045.lapl
+name: valid
+description: "A certificate issued on 2026-03-01 to a holder aged 45 (24 months) is valid until 2028-03-01."
+covers: [stage:valid, expiry:before]
+asOf: 2026-09-15
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_LAPL_MEDICAL, issued: 2026-03-01 }
+expect:
+  - subject: { kind: credential, id: c-med }
+    status: current
+    messageKey: credential.valid
+    messageParams: { date: 2028-03-01 }
+    expiresOn: 2028-03-01

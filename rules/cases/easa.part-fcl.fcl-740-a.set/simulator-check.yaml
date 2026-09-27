@@ -1,0 +1,18 @@
+rule: easa.part-fcl.fcl-740-a.set
+name: simulator-check
+description: A proficiency check in a simulator does not count for an SET rating.
+covers: [stage:not_met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-set, licenceId: l-ppl, class: SET_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-08-20, class: SET_LAND, isSimulator: true, fstdType: FFS, minutes: { total: 60 }, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, id: r-set }
+    status: expiring
+    messageKey: rating.revalidation_not_met_prof_check
+    requirements:
+      proficiency_check: { current: 0, met: false }

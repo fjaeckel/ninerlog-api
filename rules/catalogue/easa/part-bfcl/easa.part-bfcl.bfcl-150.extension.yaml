@@ -1,0 +1,18 @@
+id: easa.part-bfcl.bfcl-150.extension
+title: BPL extension to another balloon class or group
+authority: easa
+instrument: Part-BFCL
+article: BFCL.150
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA BFCL.150
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
+  file: sources/easa/bfcl-150.md
+  quote:
+    - "(a) The privileges of the BPL shall be limited to the class of balloon in which the skill test as specified in point BFCL.145 was taken, and, in the case of hot-air balloons, to group A of that class."
+applies_to: { subject: licence, licenceKinds: [BPL] }
+notes: >-
+  Balloons are not in the app: NinerLog records no balloon flights, no balloon class (hot-air, gas, mixed, hot-air airship) and no hot-air balloon group (A to D), so a rule could not tell which class or group a flight or check belongs to. The extension requirements (instruction flights, 100/200/300 hours as PIC per group, training course and skill test) need the class and group.

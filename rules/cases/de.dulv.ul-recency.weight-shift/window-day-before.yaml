@@ -1,0 +1,20 @@
+rule: de.dulv.ul-recency.weight-shift
+name: window-day-before
+description: The flight of 14 September 2024 is outside the 24 months, and three-axis PIC time does not count; the privileges lapse.
+covers: [stage:lapsed, window:edge-out, requirement:pic_time:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: LBA, type: UL }
+  ratings:
+    - { id: r-ws, licenceId: l-ul, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+  flights:
+    - { date: 2024-09-14, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 300, pic: 240, dual: 60 }, landings: { day: 4 } }
+    - { date: 2026-06-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 480, pic: 480 }, landings: { day: 2 } }
+    - { date: 2026-07-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 600, pic: 600 }, landings: { day: 12 } }
+expect:
+  - subject: { kind: rating, id: r-ws }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      pic_time: { current: 480, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 240, unit: minutes } }

@@ -1,0 +1,12 @@
+rule: easa.part-sfcl.sfcl-360.fi-s
+name: not-applicable
+description: An aeroplane FI certificate and an FI_S privilege on an FAA certificate are not evaluated.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-fi, licenceId: l-ppl, kind: FI }
+    - { id: p-faa, licenceId: l-faa, kind: FI_S }
+expect: []

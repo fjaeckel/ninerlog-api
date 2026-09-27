@@ -1,0 +1,15 @@
+rule: easa.part-fcl.fcl-940-mi.validity
+name: fi-expired
+description: "When the FI certificate has expired, the MI is no longer valid."
+covers: [stage:invalid]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: CPL(A) }
+  privileges:
+    - { id: p-mi, licenceId: l-1, kind: MI, expires: 2020-01-01 }
+    - { id: p-fi, licenceId: l-1, kind: FI, expires: 2026-09-14 }
+expect:
+  - subject: { kind: privilege, id: p-mi }
+    status: expired
+    messageKey: privilege.underlying_certificate_invalid

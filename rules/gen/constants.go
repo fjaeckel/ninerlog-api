@@ -5,8 +5,149 @@ package gen
 
 // Rule ids.
 const (
-	RuleEasaPartFclFcl740ASep       = "easa.part-fcl.fcl-740-a.sep"
-	RuleFaa14cfr61_61_57CInstrument = "faa.14cfr61.61-57-c.instrument"
+	RuleDeDaecUlRecencySailplane                 = "de.daec.ul-recency.sailplane"
+	RuleDeDaecUlRecencyWeightShift               = "de.daec.ul-recency.weight-shift"
+	RuleDeDulvUlRecencyGyroplane                 = "de.dulv.ul-recency.gyroplane"
+	RuleDeDulvUlRecencyPoweredParaglider         = "de.dulv.ul-recency.powered-paraglider"
+	RuleDeDulvUlRecencyWeightShift               = "de.dulv.ul-recency.weight-shift"
+	RuleDeLuftpersv1LicensedPersonnel            = "de.luftpersv.1.licensed-personnel"
+	RuleDeLuftpersv11ExerciseOfPrivileges        = "de.luftpersv.11.exercise-of-privileges"
+	RuleDeLuftpersv120LogbookCertification       = "de.luftpersv.120.logbook-certification"
+	RuleDeLuftpersv16_2UlStudentMedical          = "de.luftpersv.16-2.ul-student-medical"
+	RuleDeLuftpersv42ThreeAxisTraining           = "de.luftpersv.42.three-axis-training"
+	RuleDeLuftpersv42WeightShiftTraining         = "de.luftpersv.42.weight-shift-training"
+	RuleDeLuftpersv44_2DayOnly                   = "de.luftpersv.44-2.day-only"
+	RuleDeLuftpersv45_1MedicalAbove120kg         = "de.luftpersv.45-1.medical-above-120kg"
+	RuleDeLuftpersv45_2ThreeAxis                 = "de.luftpersv.45-2.three-axis"
+	RuleDeLuftpersv45_2aHelicopter               = "de.luftpersv.45-2a.helicopter"
+	RuleDeLuftpersv45KindRequired                = "de.luftpersv.45.kind-required"
+	RuleDeLuftpersv45aPassengers                 = "de.luftpersv.45a.passengers"
+	RuleDeLuftpersv45aPassengersThreeAxis        = "de.luftpersv.45a.passengers-three-axis"
+	RuleDeLuftpersv45bFlightTimeCredit           = "de.luftpersv.45b.flight-time-credit"
+	RuleDeLuftpersv8DocumentsCarried             = "de.luftpersv.8.documents-carried"
+	RuleDeLuftpersv84_5UlTowing                  = "de.luftpersv.84-5.ul-towing"
+	RuleDeLuftpersv9Validity                     = "de.luftpersv.9.validity"
+	RuleDeLuftpersv96_4UlInstructor              = "de.luftpersv.96-4.ul-instructor"
+	RuleDeLuftvzo1_4Ul120kgExemption             = "de.luftvzo.1-4.ul-120kg-exemption"
+	RuleEasaPartBfclBfcl035Credit                = "easa.part-bfcl.bfcl-035.credit"
+	RuleEasaPartBfclBfcl065Age70                 = "easa.part-bfcl.bfcl-065.age-70"
+	RuleEasaPartBfclBfcl115Privileges            = "easa.part-bfcl.bfcl-115.privileges"
+	RuleEasaPartBfclBfcl150Extension             = "easa.part-bfcl.bfcl-150.extension"
+	RuleEasaPartBfclBfcl160Recency               = "easa.part-bfcl.bfcl-160.recency"
+	RuleEasaPartBfclBfcl200Tethered              = "easa.part-bfcl.bfcl-200.tethered"
+	RuleEasaPartBfclBfcl210Night                 = "easa.part-bfcl.bfcl-210.night"
+	RuleEasaPartBfclBfcl215Commercial            = "easa.part-bfcl.bfcl-215.commercial"
+	RuleEasaPartBfclBfcl360FiB                   = "easa.part-bfcl.bfcl-360.fi-b"
+	RuleEasaPartBfclBfcl460FeB                   = "easa.part-bfcl.bfcl-460.fe-b"
+	RuleEasaPartFclFcl050Records                 = "easa.part-fcl.fcl-050.records"
+	RuleEasaPartFclFcl055LanguageLevel4          = "easa.part-fcl.fcl-055.language-level-4"
+	RuleEasaPartFclFcl055LanguageLevel5          = "easa.part-fcl.fcl-055.language-level-5"
+	RuleEasaPartFclFcl060BNightPassengers        = "easa.part-fcl.fcl-060-b.night-passengers"
+	RuleEasaPartFclFcl060BPassengers             = "easa.part-fcl.fcl-060-b.passengers"
+	RuleEasaPartFclFcl065AgeLimits               = "easa.part-fcl.fcl-065.age-limits"
+	RuleEasaPartFclFcl1025Examiner               = "easa.part-fcl.fcl-1025.examiner"
+	RuleEasaPartFclFcl105ALaplPassengers         = "easa.part-fcl.fcl-105-a.lapl-passengers"
+	RuleEasaPartFclFcl105HLaplHPrivileges        = "easa.part-fcl.fcl-105-h.lapl-h-privileges"
+	RuleEasaPartFclFcl140ALaplA                  = "easa.part-fcl.fcl-140-a.lapl-a"
+	RuleEasaPartFclFcl140HLaplH                  = "easa.part-fcl.fcl-140-h.lapl-h"
+	RuleEasaPartFclFcl205GA2Passengers           = "easa.part-fcl.fcl-205-g-a-2.passengers"
+	RuleEasaPartFclFcl240GBVariant               = "easa.part-fcl.fcl-240-g-b.variant"
+	RuleEasaPartFclFcl240GGpl                    = "easa.part-fcl.fcl-240-g.gpl"
+	RuleEasaPartFclFcl625AIr                     = "easa.part-fcl.fcl-625-a.ir"
+	RuleEasaPartFclFcl625AsIr                    = "easa.part-fcl.fcl-625-as.ir"
+	RuleEasaPartFclFcl625HIr                     = "easa.part-fcl.fcl-625-h.ir"
+	RuleEasaPartFclFcl710Variant                 = "easa.part-fcl.fcl-710.variant"
+	RuleEasaPartFclFcl740AMep                    = "easa.part-fcl.fcl-740-a.mep"
+	RuleEasaPartFclFcl740ASep                    = "easa.part-fcl.fcl-740-a.sep"
+	RuleEasaPartFclFcl740ASet                    = "easa.part-fcl.fcl-740-a.set"
+	RuleEasaPartFclFcl740AsAirship               = "easa.part-fcl.fcl-740-as.airship"
+	RuleEasaPartFclFcl740HHelicopter             = "easa.part-fcl.fcl-740-h.helicopter"
+	RuleEasaPartFclFcl740PlPoweredLift           = "easa.part-fcl.fcl-740-pl.powered-lift"
+	RuleEasaPartFclFcl740Validity                = "easa.part-fcl.fcl-740.validity"
+	RuleEasaPartFclFcl800Aerobatic               = "easa.part-fcl.fcl-800.aerobatic"
+	RuleEasaPartFclFcl805BannerTowing            = "easa.part-fcl.fcl-805.banner-towing"
+	RuleEasaPartFclFcl805SailplaneTowing         = "easa.part-fcl.fcl-805.sailplane-towing"
+	RuleEasaPartFclFcl810NightRating             = "easa.part-fcl.fcl-810.night-rating"
+	RuleEasaPartFclFcl815Mountain                = "easa.part-fcl.fcl-815.mountain"
+	RuleEasaPartFclFcl820FlightTest              = "easa.part-fcl.fcl-820.flight-test"
+	RuleEasaPartFclFcl825Eir                     = "easa.part-fcl.fcl-825.eir"
+	RuleEasaPartFclFcl835Bir                     = "easa.part-fcl.fcl-835.bir"
+	RuleEasaPartFclFcl940CriRevalidation         = "easa.part-fcl.fcl-940-cri.revalidation"
+	RuleEasaPartFclFcl940FiRevalidation          = "easa.part-fcl.fcl-940-fi.revalidation"
+	RuleEasaPartFclFcl940FtiRevalidation         = "easa.part-fcl.fcl-940-fti.revalidation"
+	RuleEasaPartFclFcl940McciRevalidation        = "easa.part-fcl.fcl-940-mcci.revalidation"
+	RuleEasaPartFclFcl940MiValidity              = "easa.part-fcl.fcl-940-mi.validity"
+	RuleEasaPartFclFcl940SfiRevalidation         = "easa.part-fcl.fcl-940-sfi.revalidation"
+	RuleEasaPartFclFcl940StiRevalidation         = "easa.part-fcl.fcl-940-sti.revalidation"
+	RuleEasaPartFclFcl940TriRevalidation         = "easa.part-fcl.fcl-940-tri.revalidation"
+	RuleEasaPartFclFcl940Validity                = "easa.part-fcl.fcl-940.validity"
+	RuleEasaPartMedMedA020DecreaseInFitness      = "easa.part-med.med-a-020.decrease-in-fitness"
+	RuleEasaPartMedMedA030Class1                 = "easa.part-med.med-a-030.class-1"
+	RuleEasaPartMedMedA030Class2                 = "easa.part-med.med-a-030.class-2"
+	RuleEasaPartMedMedA030Lapl                   = "easa.part-med.med-a-030.lapl"
+	RuleEasaPartMedMedA045Class1                 = "easa.part-med.med-a-045.class-1"
+	RuleEasaPartMedMedA045Class2                 = "easa.part-med.med-a-045.class-2"
+	RuleEasaPartMedMedA045Lapl                   = "easa.part-med.med-a-045.lapl"
+	RuleEasaPartSfclSfcl035Credit                = "easa.part-sfcl.sfcl-035.credit"
+	RuleEasaPartSfclSfcl065Age70                 = "easa.part-sfcl.sfcl-065.age-70"
+	RuleEasaPartSfclSfcl115A2Passengers          = "easa.part-sfcl.sfcl-115-a-2.passengers"
+	RuleEasaPartSfclSfcl115A3Commercial          = "easa.part-sfcl.sfcl-115-a-3.commercial"
+	RuleEasaPartSfclSfcl130SplTraining           = "easa.part-sfcl.sfcl-130.spl-training"
+	RuleEasaPartSfclSfcl150BTmgExtension         = "easa.part-sfcl.sfcl-150-b.tmg-extension"
+	RuleEasaPartSfclSfcl155ALaunchMethodTrained  = "easa.part-sfcl.sfcl-155-a.launch-method-trained"
+	RuleEasaPartSfclSfcl155CBungee               = "easa.part-sfcl.sfcl-155-c.bungee"
+	RuleEasaPartSfclSfcl155CLaunchMethod         = "easa.part-sfcl.sfcl-155-c.launch-method"
+	RuleEasaPartSfclSfcl155CSelfLaunch           = "easa.part-sfcl.sfcl-155-c.self-launch"
+	RuleEasaPartSfclSfcl160ASailplane            = "easa.part-sfcl.sfcl-160-a.sailplane"
+	RuleEasaPartSfclSfcl160BTmg                  = "easa.part-sfcl.sfcl-160-b.tmg"
+	RuleEasaPartSfclSfcl160E1SailplanePassengers = "easa.part-sfcl.sfcl-160-e-1.sailplane-passengers"
+	RuleEasaPartSfclSfcl160E2TmgPassengers       = "easa.part-sfcl.sfcl-160-e-2.tmg-passengers"
+	RuleEasaPartSfclSfcl200Aerobatic             = "easa.part-sfcl.sfcl-200.aerobatic"
+	RuleEasaPartSfclSfcl205FBannerTowing         = "easa.part-sfcl.sfcl-205-f.banner-towing"
+	RuleEasaPartSfclSfcl205FSailplaneTowing      = "easa.part-sfcl.sfcl-205-f.sailplane-towing"
+	RuleEasaPartSfclSfcl210TmgNight              = "easa.part-sfcl.sfcl-210.tmg-night"
+	RuleEasaPartSfclSfcl215CloudFlying           = "easa.part-sfcl.sfcl-215.cloud-flying"
+	RuleEasaPartSfclSfcl360FiS                   = "easa.part-sfcl.sfcl-360.fi-s"
+	RuleEasaPartSfclSfcl460FeS                   = "easa.part-sfcl.sfcl-460.fe-s"
+	RuleFaa14cfr61_61_101GRecreationalRecency    = "faa.14cfr61.61-101-g.recreational-recency"
+	RuleFaa14cfr61_61_110NightLimitation         = "faa.14cfr61.61-110.night-limitation"
+	RuleFaa14cfr61_61_19DCfiExpiry               = "faa.14cfr61.61-19-d.cfi-expiry"
+	RuleFaa14cfr61_61_195InstructorLimitations   = "faa.14cfr61.61-195.instructor-limitations"
+	RuleFaa14cfr61_61_197CfiRecentExperience     = "faa.14cfr61.61-197.cfi-recent-experience"
+	RuleFaa14cfr61_61_2ExerciseOfPrivilege       = "faa.14cfr61.61-2.exercise-of-privilege"
+	RuleFaa14cfr61_61_21CatIiIii                 = "faa.14cfr61.61-21.cat-ii-iii"
+	RuleFaa14cfr61_61_217GroundInstructor        = "faa.14cfr61.61-217.ground-instructor"
+	RuleFaa14cfr61_61_23AbMedicalRequired        = "faa.14cfr61.61-23-ab.medical-required"
+	RuleFaa14cfr61_61_23C3Basicmed               = "faa.14cfr61.61-23-c-3.basicmed"
+	RuleFaa14cfr61_61_23DCommercial              = "faa.14cfr61.61-23-d.commercial"
+	RuleFaa14cfr61_61_23DFirstClassAtp           = "faa.14cfr61.61-23-d.first-class-atp"
+	RuleFaa14cfr61_61_23DPrivate                 = "faa.14cfr61.61-23-d.private"
+	RuleFaa14cfr61_61_3RequiredDocuments         = "faa.14cfr61.61-3.required-documents"
+	RuleFaa14cfr61_61_303SportOperatingLimits    = "faa.14cfr61.61-303.sport-operating-limits"
+	RuleFaa14cfr61_61_31TypeAndEndorsements      = "faa.14cfr61.61-31.type-and-endorsements"
+	RuleFaa14cfr61_61_315IrNotApplicable         = "faa.14cfr61.61-315.ir-not-applicable"
+	RuleFaa14cfr61_61_51Logging                  = "faa.14cfr61.61-51.logging"
+	RuleFaa14cfr61_61_53MedicalDeficiency        = "faa.14cfr61.61-53.medical-deficiency"
+	RuleFaa14cfr61_61_55Sic                      = "faa.14cfr61.61-55.sic"
+	RuleFaa14cfr61_61_56FlightReview             = "faa.14cfr61.61-56.flight-review"
+	RuleFaa14cfr61_61_57AGliderPassengers        = "faa.14cfr61.61-57-a.glider-passengers"
+	RuleFaa14cfr61_61_57APassengers              = "faa.14cfr61.61-57-a.passengers"
+	RuleFaa14cfr61_61_57ATailwheel               = "faa.14cfr61.61-57-a.tailwheel"
+	RuleFaa14cfr61_61_57BNightPassengers         = "faa.14cfr61.61-57-b.night-passengers"
+	RuleFaa14cfr61_61_57C3GliderInstrument       = "faa.14cfr61.61-57-c-3.glider-instrument"
+	RuleFaa14cfr61_61_57CInstrument              = "faa.14cfr61.61-57-c.instrument"
+	RuleFaa14cfr61_61_57EExceptions              = "faa.14cfr61.61-57-e.exceptions"
+	RuleFaa14cfr61_61_57FNvg                     = "faa.14cfr61.61-57-f.nvg"
+	RuleFaa14cfr61_61_58PicProficiencyCheck      = "faa.14cfr61.61-58.pic-proficiency-check"
+	RuleFaa14cfr61_61_66Efvs                     = "faa.14cfr61.61-66.efvs"
+	RuleFaa14cfr61_61_69Towing                   = "faa.14cfr61.61-69.towing"
+	RuleFaa14cfr61_61_87NStudentSolo             = "faa.14cfr61.61-87-n.student-solo"
+	RuleFaa14cfr61_61_89StudentLimitations       = "faa.14cfr61.61-89.student-limitations"
+	RuleFaa14cfr68_68_9SpecialIssuance           = "faa.14cfr68.68-9.special-issuance"
+	RuleOtherNinerlogExpiryOnly                  = "other.ninerlog.expiry-only"
+	RuleOtherNinerlogExpiryOnlyFaaUltralight     = "other.ninerlog.expiry-only.faa-ultralight"
+	RuleOtherNinerlogPrivilegeExpiry             = "other.ninerlog.privilege-expiry"
+	RuleOtherNinerlogPrivilegeExpiryLaunchMethod = "other.ninerlog.privilege-expiry.launch-method"
 )
 
 // Message keys.
@@ -281,6 +422,147 @@ const (
 
 // RuleIDs lists every catalogue rule id.
 var RuleIDs = []string{
+	RuleDeDaecUlRecencySailplane,
+	RuleDeDaecUlRecencyWeightShift,
+	RuleDeDulvUlRecencyGyroplane,
+	RuleDeDulvUlRecencyPoweredParaglider,
+	RuleDeDulvUlRecencyWeightShift,
+	RuleDeLuftpersv1LicensedPersonnel,
+	RuleDeLuftpersv11ExerciseOfPrivileges,
+	RuleDeLuftpersv120LogbookCertification,
+	RuleDeLuftpersv16_2UlStudentMedical,
+	RuleDeLuftpersv42ThreeAxisTraining,
+	RuleDeLuftpersv42WeightShiftTraining,
+	RuleDeLuftpersv44_2DayOnly,
+	RuleDeLuftpersv45_1MedicalAbove120kg,
+	RuleDeLuftpersv45_2ThreeAxis,
+	RuleDeLuftpersv45_2aHelicopter,
+	RuleDeLuftpersv45KindRequired,
+	RuleDeLuftpersv45aPassengers,
+	RuleDeLuftpersv45aPassengersThreeAxis,
+	RuleDeLuftpersv45bFlightTimeCredit,
+	RuleDeLuftpersv8DocumentsCarried,
+	RuleDeLuftpersv84_5UlTowing,
+	RuleDeLuftpersv9Validity,
+	RuleDeLuftpersv96_4UlInstructor,
+	RuleDeLuftvzo1_4Ul120kgExemption,
+	RuleEasaPartBfclBfcl035Credit,
+	RuleEasaPartBfclBfcl065Age70,
+	RuleEasaPartBfclBfcl115Privileges,
+	RuleEasaPartBfclBfcl150Extension,
+	RuleEasaPartBfclBfcl160Recency,
+	RuleEasaPartBfclBfcl200Tethered,
+	RuleEasaPartBfclBfcl210Night,
+	RuleEasaPartBfclBfcl215Commercial,
+	RuleEasaPartBfclBfcl360FiB,
+	RuleEasaPartBfclBfcl460FeB,
+	RuleEasaPartFclFcl050Records,
+	RuleEasaPartFclFcl055LanguageLevel4,
+	RuleEasaPartFclFcl055LanguageLevel5,
+	RuleEasaPartFclFcl060BNightPassengers,
+	RuleEasaPartFclFcl060BPassengers,
+	RuleEasaPartFclFcl065AgeLimits,
+	RuleEasaPartFclFcl1025Examiner,
+	RuleEasaPartFclFcl105ALaplPassengers,
+	RuleEasaPartFclFcl105HLaplHPrivileges,
+	RuleEasaPartFclFcl140ALaplA,
+	RuleEasaPartFclFcl140HLaplH,
+	RuleEasaPartFclFcl205GA2Passengers,
+	RuleEasaPartFclFcl240GBVariant,
+	RuleEasaPartFclFcl240GGpl,
+	RuleEasaPartFclFcl625AIr,
+	RuleEasaPartFclFcl625AsIr,
+	RuleEasaPartFclFcl625HIr,
+	RuleEasaPartFclFcl710Variant,
+	RuleEasaPartFclFcl740AMep,
 	RuleEasaPartFclFcl740ASep,
+	RuleEasaPartFclFcl740ASet,
+	RuleEasaPartFclFcl740AsAirship,
+	RuleEasaPartFclFcl740HHelicopter,
+	RuleEasaPartFclFcl740PlPoweredLift,
+	RuleEasaPartFclFcl740Validity,
+	RuleEasaPartFclFcl800Aerobatic,
+	RuleEasaPartFclFcl805BannerTowing,
+	RuleEasaPartFclFcl805SailplaneTowing,
+	RuleEasaPartFclFcl810NightRating,
+	RuleEasaPartFclFcl815Mountain,
+	RuleEasaPartFclFcl820FlightTest,
+	RuleEasaPartFclFcl825Eir,
+	RuleEasaPartFclFcl835Bir,
+	RuleEasaPartFclFcl940CriRevalidation,
+	RuleEasaPartFclFcl940FiRevalidation,
+	RuleEasaPartFclFcl940FtiRevalidation,
+	RuleEasaPartFclFcl940McciRevalidation,
+	RuleEasaPartFclFcl940MiValidity,
+	RuleEasaPartFclFcl940SfiRevalidation,
+	RuleEasaPartFclFcl940StiRevalidation,
+	RuleEasaPartFclFcl940TriRevalidation,
+	RuleEasaPartFclFcl940Validity,
+	RuleEasaPartMedMedA020DecreaseInFitness,
+	RuleEasaPartMedMedA030Class1,
+	RuleEasaPartMedMedA030Class2,
+	RuleEasaPartMedMedA030Lapl,
+	RuleEasaPartMedMedA045Class1,
+	RuleEasaPartMedMedA045Class2,
+	RuleEasaPartMedMedA045Lapl,
+	RuleEasaPartSfclSfcl035Credit,
+	RuleEasaPartSfclSfcl065Age70,
+	RuleEasaPartSfclSfcl115A2Passengers,
+	RuleEasaPartSfclSfcl115A3Commercial,
+	RuleEasaPartSfclSfcl130SplTraining,
+	RuleEasaPartSfclSfcl150BTmgExtension,
+	RuleEasaPartSfclSfcl155ALaunchMethodTrained,
+	RuleEasaPartSfclSfcl155CBungee,
+	RuleEasaPartSfclSfcl155CLaunchMethod,
+	RuleEasaPartSfclSfcl155CSelfLaunch,
+	RuleEasaPartSfclSfcl160ASailplane,
+	RuleEasaPartSfclSfcl160BTmg,
+	RuleEasaPartSfclSfcl160E1SailplanePassengers,
+	RuleEasaPartSfclSfcl160E2TmgPassengers,
+	RuleEasaPartSfclSfcl200Aerobatic,
+	RuleEasaPartSfclSfcl205FBannerTowing,
+	RuleEasaPartSfclSfcl205FSailplaneTowing,
+	RuleEasaPartSfclSfcl210TmgNight,
+	RuleEasaPartSfclSfcl215CloudFlying,
+	RuleEasaPartSfclSfcl360FiS,
+	RuleEasaPartSfclSfcl460FeS,
+	RuleFaa14cfr61_61_101GRecreationalRecency,
+	RuleFaa14cfr61_61_110NightLimitation,
+	RuleFaa14cfr61_61_19DCfiExpiry,
+	RuleFaa14cfr61_61_195InstructorLimitations,
+	RuleFaa14cfr61_61_197CfiRecentExperience,
+	RuleFaa14cfr61_61_2ExerciseOfPrivilege,
+	RuleFaa14cfr61_61_21CatIiIii,
+	RuleFaa14cfr61_61_217GroundInstructor,
+	RuleFaa14cfr61_61_23AbMedicalRequired,
+	RuleFaa14cfr61_61_23C3Basicmed,
+	RuleFaa14cfr61_61_23DCommercial,
+	RuleFaa14cfr61_61_23DFirstClassAtp,
+	RuleFaa14cfr61_61_23DPrivate,
+	RuleFaa14cfr61_61_3RequiredDocuments,
+	RuleFaa14cfr61_61_303SportOperatingLimits,
+	RuleFaa14cfr61_61_31TypeAndEndorsements,
+	RuleFaa14cfr61_61_315IrNotApplicable,
+	RuleFaa14cfr61_61_51Logging,
+	RuleFaa14cfr61_61_53MedicalDeficiency,
+	RuleFaa14cfr61_61_55Sic,
+	RuleFaa14cfr61_61_56FlightReview,
+	RuleFaa14cfr61_61_57AGliderPassengers,
+	RuleFaa14cfr61_61_57APassengers,
+	RuleFaa14cfr61_61_57ATailwheel,
+	RuleFaa14cfr61_61_57BNightPassengers,
+	RuleFaa14cfr61_61_57C3GliderInstrument,
 	RuleFaa14cfr61_61_57CInstrument,
+	RuleFaa14cfr61_61_57EExceptions,
+	RuleFaa14cfr61_61_57FNvg,
+	RuleFaa14cfr61_61_58PicProficiencyCheck,
+	RuleFaa14cfr61_61_66Efvs,
+	RuleFaa14cfr61_61_69Towing,
+	RuleFaa14cfr61_61_87NStudentSolo,
+	RuleFaa14cfr61_61_89StudentLimitations,
+	RuleFaa14cfr68_68_9SpecialIssuance,
+	RuleOtherNinerlogExpiryOnly,
+	RuleOtherNinerlogExpiryOnlyFaaUltralight,
+	RuleOtherNinerlogPrivilegeExpiry,
+	RuleOtherNinerlogPrivilegeExpiryLaunchMethod,
 }

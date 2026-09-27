@@ -1,0 +1,34 @@
+id: easa.part-med.med-a-030.class-1
+title: Class 1 medical for CPL, MPL and ATPL
+authority: easa
+instrument: Part-MED
+article: MED.A.030(c)(5)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA MED.A.030(c)(5)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/med-a-030.md
+  quote:
+    - "(c) When exercising the privileges of a:"
+    - "(5) a commercial pilot licence (CPL), a multi-crew pilot licence (MPL) or an airline transport pilot licence (ATPL), the pilot shall hold a valid class 1 medical certificate."
+
+applies_to:
+  subject: licence
+  licenceKinds: [CPL_A, ATPL_A, MPL]
+  authorities: [EASA, LBA]
+
+stages:
+  - { id: valid_medical, when: { holds: { credentials: [EASA_CLASS1_MEDICAL], valid: true } }, status: current, messageKey: licence.valid }
+  - { id: no_valid_medical, when: { holds: { credentials: [EASA_CLASS1_MEDICAL, EASA_CLASS2_MEDICAL, EASA_LAPL_MEDICAL] } }, status: expired, messageKey: licence.medical_required }
+  - { id: no_medical_recorded, when: always, status: unknown, messageKey: licence.medical_not_recorded }
+
+notes: >-
+  Partial. A certificate of the required class or a higher one counts when it is not
+  expired on the date evaluated; its validity is the entered expiry date (a certificate
+  without one is taken as valid). The derived validity of MED.A.045 is evaluated by the
+  easa.part-med.med-a-045 rules, not here. When no EASA medical certificate is recorded at
+  all the result is unknown rather than expired, because many pilots do not record their
+  medical. A CPL(H) or ATPL(H) is not evaluated: the helicopter licence kind does not distinguish PPL(H), CPL(H), ATPL(H) and LAPL(H). The API does not evaluate which medical class a licence needs today.

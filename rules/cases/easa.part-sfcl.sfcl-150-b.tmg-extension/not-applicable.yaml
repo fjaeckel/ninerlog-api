@@ -1,0 +1,8 @@
+rule: easa.part-sfcl.sfcl-150-b.tmg-extension
+name: not-applicable
+description: A pilot without an SPL has no SPL to extend.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+expect: []

@@ -1,0 +1,40 @@
+id: easa.part-fcl.fcl-940.validity
+title: Instructor certificate validity (TRI, SFI, MCCI, STI, FTI)
+authority: easa
+instrument: Part-FCL
+article: FCL.940
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.940
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-940.md
+  quote: "With the exception of the MI, and without prejudice to points FCL.900 (b)(1) and FCL.915 (e)(2), instructor certificates shall be valid for a period of 3 years."
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [TRI, SFI, MCCI, STI, FTI]
+
+validity:
+  from: valid_from
+  periods:
+    - { months: 36 }
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: privilege.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: privilege.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: valid, when: always, status: current, messageKey: privilege.valid, params: { date: expiry_date } }
+
+notes: >-
+  Partial: only the 3-year validity is evaluated for these certificates; their revalidation
+  requirements (FCL.940.TRI, .SFI, .MCCI, .STI, .FTI) need data NinerLog does not record
+  (simulator sessions and hours as instructor in an FSTD, type rating course context,
+  flight-test hours) and are catalogued as not supported. The FI, IRI and CRI certificates
+  have their own rules, which include this validity; the MI follows the certificate it is
+  attached to (FCL.940.MI). The period runs from validFrom (else the issue date); the
+  effective expiry is the earlier of that and an entered expiry date. The exceptions of
+  FCL.900(b)(1) and FCL.915(e)(2) (specific certificates with a shorter validity) are not
+  modelled. The 90-day expiring threshold is NinerLog presentation.

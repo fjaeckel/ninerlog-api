@@ -1,0 +1,17 @@
+rule: easa.part-fcl.fcl-740-a.set
+name: valid-on-expiry-day
+description: On its expiry date the rating is still valid.
+covers: [expiry:on, stage:met_expiring]
+asOf: 2026-10-31
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-set, licenceId: l-ppl, class: SET_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-08-20, class: SET_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-set }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    messageParams: { days: 0 }

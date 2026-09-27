@@ -1,0 +1,18 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: valid-on-expiry-day
+description: "On its expiry date the rating is still valid."
+covers: [expiry:on, stage:met_expiring]
+asOf: 2026-10-31
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: R44, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-20, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-type, class: HELICOPTER }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    messageParams: { days: 0 }

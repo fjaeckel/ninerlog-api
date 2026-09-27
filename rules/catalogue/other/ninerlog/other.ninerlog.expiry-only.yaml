@@ -1,0 +1,48 @@
+id: other.ninerlog.expiry-only
+title: Rating expiry only (authorities without rules)
+authority: other
+instrument: NinerLog
+article: none (app policy)
+support: supported
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 9(1) (closest fit; NinerLog app policy with no regulation source)
+  url: https://www.gesetze-im-internet.de/luftpersv/__9.html
+  file: sources/de/luftpersv-9.md
+  quote: "Die Gültigkeitsdauer von Berechtigungen und Erweiterungen der Erlaubnis richtet sich nach den Vorschriften, die für die Erteilung der Berechtigung maßgeblich sind."
+
+applies_to:
+  subject: rating
+  excludeAuthorities: [EASA, FAA, LBA, DULV, DAEC]
+  excludeClasses: [GLIDER]
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date_manual }
+  - { id: expired, when: expired, status: expired, messageKey: rating.expired }
+  - { id: expiring, when: { expires_within: { days: 90 } }, status: expiring, messageKey: rating.expiring, params: { days: days_to_expiry } }
+  - { id: valid, when: always, status: current, messageKey: rating.valid_until }
+
+divergences:
+  - id: valid-through-expiry
+    api: Reports the rating expired on its expiry date.
+    article: A rating is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: DESIGN.md section 11, decision 2
+  - id: authority-case
+    api: Picks the rules by the exact, case-sensitive authority string, so a licence entered as "easa", "Faa" or " DULV " gets expiry-only tracking.
+    article: Authorities match case-insensitively after trimming (catalogue decision 3); such licences get their authority's rules, and only authorities the catalogue has no rules for fall back to expiry only.
+    cite: DESIGN.md section 11, decision 3
+
+notes: >-
+  The fallback for licences whose authority has no rule set in the catalogue (anything but
+  EASA, FAA, LBA, DULV and DAeC, including an empty authority): every rating except a glider
+  rating is tracked by its recorded expiry date only, with the 90-day warning the API uses.
+  Glider ratings of such licences follow the SFCL.160 rule in the API (another family). These
+  licences get no passenger currency and no flight review. The API sends no
+  ruleDescriptionKey; neither does the catalogue.
+  App policy, not a regulation. The schema requires a source and a source_kind, and the
+  vocabulary has no kind for NinerLog policy; the closest fit is LuftPersV § 9(1), which says
+  a rating's validity follows the provisions under which it was issued, so the date the
+  issuing authority wrote on it is what the app can rely on (vocabulary request filed:
+  docs/vocab-requests/de-other.md).

@@ -1,0 +1,18 @@
+rule: easa.part-fcl.fcl-105-a.lapl-passengers
+name: no-issue-date
+description: "Without the licence issue date the hours cannot be counted."
+covers: [stage:issue_date_missing]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-lapl, class: SEP_LAND }
+  flights:
+    - { date: 2025-06-01, class: SEP_LAND, minutes: { total: 600, pic: 600, dual: 0 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: passengers, id: l-lapl, class: SEP_LAND }
+    status: unknown
+    messageKey: pax.prerequisite_unknown
+    requirements:
+      pic_since_issue: { met: false, tracked: false }

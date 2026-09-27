@@ -1,0 +1,27 @@
+rule: faa.14cfr61.61-19-d.cfi-expiry
+name: old-certificates
+description: Three flight instructor certificates issued before 1 December 2024 on 31 October 2026 - one valid to 31 March 2027, one on its last day, one expired the day before.
+covers: [stage:valid, stage:expiring, stage:expired, expiry:before, expiry:on, expiry:after]
+asOf: 2026-10-31
+record:
+  licences:
+    - { id: l-a, authority: FAA, type: COMMERCIAL }
+    - { id: l-b, authority: FAA, type: COMMERCIAL }
+    - { id: l-c, authority: FAA, type: COMMERCIAL }
+  privileges:
+    - { id: p-before, licenceId: l-a, kind: CFI, issued: 2023-03-10, validFrom: 2025-03-10, expires: 2027-03-31 }
+    - { id: p-on, licenceId: l-b, kind: CFI, issued: 2024-10-02, expires: 2026-10-31 }
+    - { id: p-after, licenceId: l-c, kind: CFI, issued: 2024-09-15, expires: 2026-09-30 }
+expect:
+  - subject: { kind: privilege, id: p-before }
+    status: current
+    messageKey: privilege.valid
+    messageParams: { date: 2027-03-31 }
+  - subject: { kind: privilege, id: p-on }
+    status: expiring
+    messageKey: privilege.expiring
+    messageParams: { days: 0, date: 2026-10-31 }
+  - subject: { kind: privilege, id: p-after }
+    status: expired
+    messageKey: privilege.expired
+    messageParams: { date: 2026-09-30 }

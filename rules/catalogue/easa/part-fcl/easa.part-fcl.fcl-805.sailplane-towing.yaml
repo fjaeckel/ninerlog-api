@@ -1,0 +1,69 @@
+id: easa.part-fcl.fcl-805.sailplane-towing
+title: Sailplane towing rating recency (Part-FCL)
+authority: easa
+instrument: Part-FCL
+article: FCL.805(e), (f)
+support: supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.805(e)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-805.md
+  quote:
+    - "(e) In order to exercise the privileges of the sailplane or banner towing ratings, the holder of the rating shall have completed a minimum of 5 tows during the last 24 months."
+    - "(f) When the pilot does not comply with the requirement in (e), before resuming the exercise of his/her privileges, the pilot shall complete the missing tows with or under the supervision of an instructor."
+related_sources:
+  - cite: EASA FCL.805(a)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-805.md
+    quote: "(a) Holders of a pilot licence with privileges to fly aeroplanes or TMGs shall only tow sailplanes or banners when they hold the appropriate sailplane towing or banner towing rating."
+citations: [EASA FCL.805(e), EASA FCL.805(f)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [SAILPLANE_TOWING]
+  authorities: [EASA, LBA]
+  licenceKinds: [PPL_A, LAPL_A, CPL_A, ATPL_A, MPL]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: tows
+  metric: tows
+  filter:
+    categories: [aeroplane]
+    towKinds: [glider]
+  min: 5
+  unit: tows
+  nameKey: requirement.tows
+  remedyKey: remedy.privilege_with_instructor
+
+stages:
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: valid_until } }
+  - { id: lapsed, when: always, status: lapsed, messageKey: privilege.recency_not_met }
+
+
+divergences:
+  - id: fcl-805
+    api: Evaluates the sailplane towing privilege of every non-FAA licence under SFCL.205(c).
+    article: For holders of a Part-FCL aeroplane licence (LAPL(A), PPL(A), CPL(A), ATPL(A), MPL) the towing rating is FCL.805, with the same 5 tows in 24 months; SFCL.205 applies to sailplane licences.
+    cite: EASA FCL.805(e)
+  - id: tow-kind
+    api: Counts every tow flight, whatever was towed, toward both the sailplane and the banner towing privilege.
+    article: Only sailplane tows count toward the sailplane towing rating; a tow flight that does not record what was towed is unknown.
+    cite: EASA FCL.805(e)
+  - id: aeroplanes-only
+    api: Counts tow flights in any class except ultralights.
+    article: The rating is for towing with aeroplanes or TMGs.
+    cite: EASA FCL.805(a)
+
+notes: >-
+  A tow is counted from flights flagged as tow flights with the sailplane tow kind, using the
+  number of towed gliders when recorded (otherwise 1), in aeroplanes or TMGs (TMG is in
+  the aeroplane category). The (d) limitation to aeroplanes or TMGs as trained is not
+  checked. The expired stage reports an expiry date entered on the privilege; FCL.805 itself
+  sets no validity. When the tows are missing the pilot flies them with or under the
+  supervision of an instructor ((f)), hence the remedy.

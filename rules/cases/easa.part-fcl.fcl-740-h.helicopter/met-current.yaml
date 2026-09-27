@@ -1,0 +1,17 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: met-current
+description: "With 92 days to expiry, on the first day of the check window, a met rating is current."
+covers: [stage:met]
+asOf: 2026-09-30
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: R44, expires: 2026-12-31 }
+  flights:
+    - { date: 2026-03-10, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-09-30, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-type, class: HELICOPTER }
+    status: current
+    messageKey: rating.revalidation_current

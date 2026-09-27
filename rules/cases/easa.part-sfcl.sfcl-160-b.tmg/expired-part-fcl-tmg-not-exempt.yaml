@@ -1,0 +1,20 @@
+rule: easa.part-sfcl.sfcl-160-b.tmg
+name: expired-part-fcl-tmg-not-exempt
+description: >-
+  A Part-FCL TMG class rating that expired the day before does not exempt; neither does a
+  TMG rating on a DULV ultralight licence. SFCL.160(b) applies again.
+covers: [stage:lapsed]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+    - { id: r-ppl-tmg, licenceId: l-ppl, class: TMG, expires: 2026-09-14 }
+    - { id: r-ul-tmg, licenceId: l-ul, class: TMG }
+expect:
+  - subject: { kind: rating, id: r-tmg }
+    status: lapsed
+    messageKey: rating.recency_not_met

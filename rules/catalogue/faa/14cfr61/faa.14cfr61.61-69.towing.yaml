@@ -1,0 +1,72 @@
+id: faa.14cfr61.61-69.towing
+title: Glider towing recency
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.69(a)(6)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.69(a)(6)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.69
+  file: sources/faa/61.69.md
+  quote:
+    - "(a) No person may act as pilot in command for towing a glider or unpowered ultralight vehicle unless that person—"
+    - "(6) Within 24 calendar months before the flight has—"
+    - "(i) Made at least three actual or simulated tows of a glider or unpowered ultralight vehicle while accompanied by a qualified pilot who meets the requirements of this section; or"
+    - "(ii) Made at least three flights as pilot in command of a glider or unpowered ultralight vehicle towed by an aircraft."
+citations: [14 CFR 61.69(a)(6)(i), 14 CFR 61.69(a)(6)(ii)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [SAILPLANE_TOWING]
+  authorities: [FAA]
+
+window: { calendar_months: 24 }
+
+requirements:
+  id: towing_recency
+  any_of:
+    - id: tows_accompanied
+      metric: tows
+      min: 3
+      unit: tows
+      nameKey: requirement.tows
+      remedyKey: remedy.fly_more
+      filter: { towKinds: [glider, ul_glider], flags: { accompanied: true } }
+    - id: towed_glider_flights
+      metric: flights
+      min: 3
+      unit: flights
+      nameKey: requirement.towed_glider_flights
+      remedyKey: remedy.fly_more
+      filter: { classes: [GLIDER], roles: [pic], launchMethods: [aerotow] }
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: valid_until } }
+  - { id: not_logged, when: undetermined, status: unknown, messageKey: privilege.recency_not_logged }
+  - { id: not_met, when: always, status: lapsed, messageKey: privilege.recency_not_met }
+
+ruleDescriptionKey: faa_61_69_towing
+
+divergences:
+  - id: accompanied
+    api: Counts every logged tow flight.
+    article: The tows count only when flown while accompanied by a qualified pilot who meets 61.69 (flight flag accompanied).
+    cite: 14 CFR 61.69(a)(6)(i)
+  - id: tow-kind
+    api: Counts every tow flight except on ultralights, including banner tows.
+    article: Only tows of a glider or unpowered ultralight vehicle count; a tow flight that does not record what it towed is unknown.
+    cite: 14 CFR 61.69(a)(6)(i)
+
+notes: >-
+  Partial: only the (a)(6) recency is evaluated. The prerequisites (a)(1) powered-aircraft
+  certificate, (a)(2) 100 hours PIC in the towing aircraft's category, class and type, and
+  the (a)(3)-(a)(5) endorsements are one-time qualifications the record does not hold.
+  Simulated tows (towing procedures without a glider) cannot be told from other flights and
+  do not count. For (a)(6)(ii) only aerotowed GLIDER flights with PIC time count; towed
+  unpowered ultralight vehicles (hang gliders) have no class in the record. "Within 24
+  calendar months before the flight" is read as the 24 calendar months before the month of
+  the flight plus that month, as the API does. A recorded expiry date on the towing
+  privilege is not read here (FAA towing endorsements do not expire).

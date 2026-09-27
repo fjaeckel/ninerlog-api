@@ -1,0 +1,30 @@
+rule: easa.part-fcl.fcl-740-a.mep
+name: route-sector-cruise
+description: A flight with less than 15 minutes of cruise is not a route sector (FCL.010); a flight without a recorded cruise time is unknown, and a sector with an examiner in an FSTD of unknown type is unknown too, so the rating cannot be shown as current or not met.
+covers: [unknown:fstdTypes, stage:sectors_not_logged]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-mep, licenceId: l-ppl, class: MEP_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-01-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-02-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-03-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-04-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-05-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-06-10, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-06-20, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-07-05, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30 }
+    - { date: 2026-08-01, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 10 }
+    - { date: 2026-08-02, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-20, class: MEP_LAND, isSimulator: true, minutes: { total: 60 }, cruiseMinutes: 20, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, id: r-mep }
+    status: unknown
+    messageKey: rating.route_sectors_not_logged
+    requirements:
+      proficiency_check: { current: 1, met: true }
+      sectors: { current: 8, met: false, tracked: true }
+      examiner_sector: { current: 0, met: false, tracked: false }

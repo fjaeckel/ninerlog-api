@@ -1,0 +1,21 @@
+id: easa.part-fcl.fcl-140-h.lapl-h
+title: LAPL(H) recency
+authority: easa
+instrument: Part-FCL
+article: FCL.140.H(a)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.140.H(a)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-140-h.md
+  quote:
+    - "(a) Holders of an LAPL(H) shall exercise the privileges of their licence on a specific type only if in the last 12 months they have, in the relevant type, taken one of the following steps:"
+    - "(i) at least 6 hours of flight time on helicopters of that type as PIC, or flying dual or solo under the supervision of an instructor, including six take-offs, approaches and landings;"
+    - "(ii) a refresher training of at least 1 hour of total flight time with and to the satisfaction of an instructor who shall select those flight exercises that allow the applicant to refresh their competence in safely operating the aircraft and applying normal, abnormal and emergency procedures;"
+    - "(2) passed a proficiency check with an examiner on the specific type before resuming the exercise of the privileges of their licence. That proficiency check programme shall be based on the skill test for the LAPL(H)."
+applies_to: { subject: rating, classes: [HELICOPTER], licenceKinds: [HELICOPTER] }
+notes: >-
+  Expressible with existing metrics and filters (per type via typeDesignators, 12 rolling months, minutes.picOrDualOrSpic, takeoffs_and_landings, minutes.dual with FSTDs included, a proficiency check event), but the vocabulary's licence kinds map LAPL(H) to HELICOPTER together with PPL(H), CPL(H) and ATPL(H), so the rule cannot select LAPL(H) holders; applying it to every helicopter licence would report PPL(H) holders as lapsed. See docs/vocab-requests/easa-fcl.md (LAPL_H licence kind).

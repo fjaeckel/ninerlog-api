@@ -1,0 +1,18 @@
+id: easa.part-fcl.fcl-105-h.lapl-h-privileges
+title: LAPL(H) privileges
+authority: easa
+instrument: Part-FCL
+article: FCL.105.H
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.105.H
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-105-h.md
+  quote:
+    - "The privileges of the holder of an LAPL for helicopters are to act as PIC on single-engine helicopters with a maximum certificated take-off mass of 2 000 kg or less, carrying a maximum of 3 passengers, such that there are never more than 4 persons on board."
+applies_to: { subject: licence, licenceKinds: [HELICOPTER] }
+notes: >-
+  A scope of privileges (aircraft mass, number of passengers), not a recency or validity condition: it decides what a flight may be, not whether the pilot is current on a date. The record carries no passenger count, and the helicopter licence kind does not distinguish a LAPL(H).

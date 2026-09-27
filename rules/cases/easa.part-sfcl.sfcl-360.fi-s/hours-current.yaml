@@ -1,0 +1,30 @@
+rule: easa.part-sfcl.sfcl-360.fi-s
+name: hours-current
+description: >-
+  Refresher training on the first day of the 3-year window, 30 hours of instruction on
+  sailplanes and TMGs and a supervised instruction flight on the first day of the 9-year
+  window keep the FI(S) certificate current.
+covers: [stage:current, any_of:instruction:instruction_time, requirement:refresher:met, requirement:instruction_time:met, requirement:instruction_launches:unmet, requirement:resumption_assessment:unmet, requirement:demonstration:met, window:rolling_months=36:edge-in, window:rolling_months=108:edge-in, expiry:before]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fis, licenceId: l-spl, kind: FI_S, expires: 2029-12-31 }
+  events:
+    - { date: 2023-09-15, kind: instructor_refresher }
+    - { date: 2017-09-15, kind: supervised_instruction, class: GLIDER }
+  flights:
+    - { date: 2025-05-01, class: GLIDER, launchMethod: winch, minutes: { total: 1200, pic: 1200, dualGiven: 1200 }, launches: 40, landings: { day: 40 } }
+    - { date: 2025-08-01, class: TMG, minutes: { total: 600, pic: 600, dualGiven: 600 }, takeoffs: { day: 10 }, landings: { day: 10 }, launches: 10 }
+expect:
+  - subject: { kind: privilege, id: p-fis }
+    status: current
+    messageKey: privilege.recency_current
+    messageParams: { date: 2029-12-31 }
+    validUntil: 2026-09-15
+    requirements:
+      refresher: { current: 1, met: true }
+      instruction_time: { current: 1800, met: true }
+      instruction_launches: { current: 50, met: false }
+      demonstration: { current: 1, met: true }

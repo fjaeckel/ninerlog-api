@@ -1,0 +1,25 @@
+rule: easa.part-sfcl.sfcl-360.fi-s
+name: launches-and-examiner-time
+description: >-
+  Sixty launches with instruction given keep the certificate current; examiner time counts
+  toward the hours but not the launches; the certificate is valid on its expiry day.
+covers: [stage:current, any_of:instruction:instruction_launches, requirement:instruction_launches:met, requirement:instruction_time:unmet, expiry:on]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fis, licenceId: l-spl, kind: FI_S, expires: 2026-09-15 }
+  events:
+    - { date: 2025-02-01, kind: instructor_refresher }
+    - { date: 2022-06-01, kind: supervised_instruction }
+  flights:
+    - { date: 2026-04-01, class: GLIDER, launchMethod: winch, minutes: { total: 600, pic: 600, dualGiven: 600 }, launches: 60, landings: { day: 60 } }
+    - { date: 2026-05-01, class: GLIDER, launchMethod: winch, minutes: { total: 300, pic: 300, examiner: 300 }, launches: 12, landings: { day: 12 } }
+expect:
+  - subject: { kind: privilege, id: p-fis }
+    status: current
+    messageKey: privilege.recency_current
+    requirements:
+      instruction_time: { current: 900, met: false }
+      instruction_launches: { current: 60, met: true }

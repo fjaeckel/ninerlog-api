@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-060-b.passengers
+name: pilot-not-flying
+description: Landings on a flight where the pilot was not the pilot flying do not count; a flight without the pilot-flying field is unknown, and is not counted either.
+covers: [unknown:pilotFlying, stage:not_current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  flights:
+    - { date: 2026-08-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, pilotFlying: false }
+    - { date: 2026-08-10, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 }, pilotFlying: true }
+    - { date: 2026-08-20, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: passengers, id: l-ppl, class: SEP_LAND }
+    status: expired
+    messageKey: pax.not_current
+    messageParams: { needed: 1 }
+    requirements:
+      takeoffs_landings: { current: 2, met: false, tracked: true }

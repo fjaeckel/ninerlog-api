@@ -1,0 +1,47 @@
+id: faa.14cfr61.61-21.cat-ii-iii
+title: Category II and III pilot authorization duration
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.21(a)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.21(a)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.21
+  file: sources/faa/61.21.md
+  quote: "(a) A Category II pilot authorization or a Category III pilot authorization expires at the end of the sixth calendar month after the month in which it was issued or renewed."
+citations: [14 CFR 61.21(a)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [CAT_II, CAT_III]
+  authorities: [FAA]
+
+validity:
+  from: valid_from
+  periods:
+    - { months: 6, end_of_month: true }
+
+stages:
+  - { id: no_issue_date, when: no_expiry, status: unknown, messageKey: privilege.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 30 } }, status: expiring, messageKey: privilege.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: valid, when: always, status: current, messageKey: privilege.valid, params: { date: expiry_date } }
+
+ruleDescriptionKey: faa_cat_ii_iii
+
+divergences:
+  - id: derived-expiry
+    api: Uses only the expiry date entered for the authorization, and treats it as expired on that day.
+    article: A Category II or III authorization expires at the end of the sixth calendar month after the month it was issued or renewed; it is valid through that day, and the entered date is used only when earlier.
+    cite: 14 CFR 61.21(a)
+
+notes: >-
+  Partial. The validity runs from validFrom (the renewal date) or else the issue date. Not
+  modelled: renewal per aircraft type and the 12-calendar-month limit from the practical
+  test in that type (61.21(b)-(c)); a renewal test passed in the month before expiry counts
+  as passed in the expiry month (61.21(d)), which the pilot must reflect by recording the
+  renewal in the expiry month, otherwise the derived expiry is one month early. Part 121 and
+  135 authorizations are outside this section.

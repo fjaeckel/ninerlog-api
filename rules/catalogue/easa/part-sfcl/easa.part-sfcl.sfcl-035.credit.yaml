@@ -1,0 +1,18 @@
+id: easa.part-sfcl.sfcl-035.credit
+title: SPL crediting of flight time
+authority: easa
+instrument: Part-SFCL
+article: SFCL.035
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA SFCL.035
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+  file: sources/easa/sfcl-035.md
+  quote:
+    - "Applicants for an SPL or an associated privilege, rating or certificate shall be fully credited with all solo, dual instruction or PIC flight time on sailplanes towards the requirement of a total flight time for the licence, privilege, rating or certificate."
+applies_to: { subject: licence, licenceKinds: [SPL, LAPL_S] }
+notes: >-
+  A crediting principle for issue requirements, not a currency rule; the recency rules count solo (supervised), dual and PIC time where their articles say so. Nothing to evaluate on its own.

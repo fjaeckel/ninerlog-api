@@ -1,0 +1,28 @@
+rule: faa.14cfr61.61-57-a.passengers
+name: current-sole-manipulator
+description: Three takeoffs and landings as sole manipulator in an SEP land airplane allow passengers in that class through 29 September; they do not count for the MEP land class, and a dual flight where the instructor flew does not count either.
+covers: [stage:current, stage:not_current, requirement:takeoffs_landings:met, requirement:takeoffs_landings:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+    - { id: r-mep, licenceId: l-faa, class: MEP_LAND }
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2026-06-20, class: SEP_LAND, minutes: { total: 60, dual: 60 }, takeoffs: { day: 4 }, landings: { day: 4 }, soleManipulator: false }
+    - { date: 2026-07-01, class: SEP_LAND, minutes: { total: 90, pic: 90 }, takeoffs: { day: 3 }, landings: { day: 3 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: current
+    messageKey: pax.day_current
+    validUntil: 2026-09-29
+    requirements:
+      takeoffs_landings: { current: 3, required: 3, met: true, tracked: true, lastDate: 2026-07-01, validUntil: 2026-09-29 }
+  - subject: { kind: passengers, id: l-faa, class: MEP_LAND }
+    status: lapsed
+    messageKey: pax.not_current
+    messageParams: { needed: 3 }
+    requirements:
+      takeoffs_landings: { current: 0, met: false, tracked: true, remedyKey: remedy.fly_more, remedyParams: { missing: 3, unit: landings } }

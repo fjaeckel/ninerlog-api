@@ -1,0 +1,30 @@
+rule: de.luftpersv.84-5.ul-towing
+name: current-edge-in
+description: >-
+  Ten tows on ultralights in the last 24 months, the first on the first day of the window;
+  a trike and a three-axis ultralight both count, a Part-FCL SEP tow does not; a flight not
+  flagged as a tow flight never counts.
+covers: [stage:current, requirement:tows:met, window:edge-in, expiry:before]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-3ax, licenceId: l-ul, class: ULTRALIGHT, ulKind: THREE_AXIS }
+  privileges:
+    - { id: p-tow, licenceId: l-ul, kind: UL_TOWING, detail: THREE_AXIS, expires: 2030-01-01 }
+  flights:
+    - { date: 2024-09-15, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 60, pic: 60 }, towedGliders: 4, flags: { towFlight: true } }
+    - { date: 2025-05-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 30, pic: 30 }, towKind: banner, flags: { towFlight: true } }
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 90, pic: 90 }, towedGliders: 5, flags: { towFlight: true } }
+    - { date: 2026-05-02, class: SEP_LAND, minutes: { total: 90, pic: 90 }, towedGliders: 5, flags: { towFlight: true } }
+    - { date: 2026-05-03, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 90, pic: 90 } }
+expect:
+  - subject: { kind: privilege, id: p-tow, detail: THREE_AXIS }
+    status: current
+    messageKey: privilege.recency_current
+    messageParams: { date: "2030-01-01" }
+    expiresOn: 2030-01-01
+    validUntil: 2026-09-15
+    requirements:
+      tows: { current: 10, required: 10, met: true }

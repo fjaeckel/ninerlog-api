@@ -1,0 +1,18 @@
+id: easa.part-bfcl.bfcl-115.privileges
+title: BPL privileges and conditions
+authority: easa
+instrument: Part-BFCL
+article: BFCL.115
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA BFCL.115
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
+  file: sources/easa/bfcl-115.md
+  quote:
+    - "(c) BPL holders shall exercise BPL privileges only if they comply with the applicable recency requirements and only if their medical certificate, appropriate to the privileges exercised, is valid."
+applies_to: { subject: licence, licenceKinds: [BPL] }
+notes: >-
+  Balloons are not in the app: NinerLog records no balloon flights, no balloon class (hot-air, gas, mixed, hot-air airship) and no hot-air balloon group (A to D), so a rule could not tell which class or group a flight or check belongs to. (c) composes the recency rules and medical validity, which is an API consumer concern.

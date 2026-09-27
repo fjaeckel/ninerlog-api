@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-57-a.passengers
+name: takeoffs-short
+description: Four landings but only two takeoffs (the flight ended with a landing after an unlogged takeoff elsewhere) are not three takeoffs and three landings.
+covers: [stage:not_current, requirement:takeoffs_landings:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2026-08-01, class: SEP_LAND, minutes: { total: 120, pic: 120 }, takeoffs: { day: 2 }, landings: { day: 3, night: 1 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: lapsed
+    messageKey: pax.not_current
+    messageParams: { needed: 1 }
+    requirements:
+      takeoffs_landings: { current: 2, required: 3, met: false }

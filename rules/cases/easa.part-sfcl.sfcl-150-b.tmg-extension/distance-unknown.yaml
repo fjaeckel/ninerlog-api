@@ -1,0 +1,17 @@
+rule: easa.part-sfcl.sfcl-150-b.tmg-extension
+name: distance-unknown
+description: The solo cross-country flight has no recorded distance; completion cannot be confirmed.
+covers: [stage:distance_unknown, unknown:minDistanceKm]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  flights:
+    - { date: 2026-04-01, class: TMG, minutes: { total: 300, dual: 300 }, takeoffs: { day: 12 }, landings: { day: 12 }, launches: 12 }
+    - { date: 2026-05-01, class: TMG, minutes: { total: 150, spic: 150, crossCountry: 150 }, takeoffs: { day: 2 }, landings: { day: 2 }, launches: 2 }
+  events:
+    - { date: 2026-06-01, kind: skill_test, class: TMG }
+expect:
+  - subject: { kind: training, id: l-spl, detail: SPL_TMG_EXTENSION }
+    status: unknown
+    messageKey: training.distance_unknown

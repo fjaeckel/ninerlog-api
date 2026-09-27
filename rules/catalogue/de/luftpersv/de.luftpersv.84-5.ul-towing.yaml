@@ -1,0 +1,66 @@
+id: de.luftpersv.84-5.ul-towing
+title: Ultralight towing rating recency
+authority: de
+instrument: LuftPersV
+article: § 84(5)
+support: partial
+source_kind: national_law
+effective_from: null
+effective_to: null
+source:
+  cite: LuftPersV § 84(5)
+  url: https://www.gesetze-im-internet.de/luftpersv/__84.html
+  file: sources/de/luftpersv-84.md
+  quote:
+    - "Die Rechte aus einer im Luftfahrerschein eingetragenen Schleppberechtigung dürfen nur ausgeübt werden, wenn der Inhaber des Luftfahrerscheins mindestens zehn Schleppflüge in der jeweils eingetragen Art innerhalb der letzten 24 Monate durchgeführt hat."
+    - "Ist diese Voraussetzung nicht erfüllt, ist Absatz 2 Nr. 2 oder Absatz 3 Nr. 2 anzuwenden."
+related_sources:
+  - cite: LuftPersV § 84(1), (4)
+    url: https://www.gesetze-im-internet.de/luftpersv/__84.html
+    file: sources/de/luftpersv-84.md
+    quote:
+      - "Führer von motorgetriebenen Luftsportgeräten bedürfen zum Schleppen anderer Luftfahrzeuge oder anderer Gegenstände einer Berechtigung."
+      - "Die Schleppberechtigung wird unter Angabe der Art der Aufnahme und der Art des Schleppgegenstandes in den betreffenden Luftfahrerschein eingetragen."
+citations: [LuftPersV § 84(5)]
+
+applies_to:
+  subject: privilege
+  privilegeKinds: [UL_TOWING]
+
+window: { rolling_months: 24 }
+
+requirements:
+  all_of:
+    - id: tows
+      metric: tows
+      filter: { classes: [ULTRALIGHT] }
+      min: 10
+      unit: tows
+      nameKey: requirement.tows
+      remedyKey: remedy.fly_more
+
+stages:
+  - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: expiry_date } }
+  - { id: lapsed, when: always, status: lapsed, messageKey: privilege.recency_not_met, params: { date: expiry_date } }
+
+ruleDescriptionKey: dulv_ul_towing
+
+divergences:
+  - id: tows-any-ultralight
+    api: Counts only tows flown on ultralights of the kind stored in the privilege's detail, and none when the detail is empty.
+    article: Ten tows "in der jeweils eingetragen Art", the kind of tow (take-up method and towed object) entered with the rating, on a motorised ultralight; NinerLog cannot tell the kind of tow, so every tow flown on an ultralight counts.
+    cite: LuftPersV § 84(4), (5)
+
+notes: >-
+  The API presents this as a DULV towing rule (rule description dulv_ul_towing, kept for
+  parity); the requirement is statutory, § 84(5) LuftPersV, and applies whichever body issued
+  the licence. Partial: "in der jeweils eingetragen Art" refers to the kind of tow entered with the rating
+  (§ 84(4): the take-up method, with or without Fangschlepp, and the towed object). A record
+  privilege does not state it, so the tow type is not checked and all tows flown on
+  ultralights count; the ultralight kind in the privilege's detail is not used. When the
+  requirement is not met, § 84(5) second sentence sends the pilot back to the supervised tows
+  of § 84(2) Nr. 2 (five tows under an instructor) or (3) Nr. 2; the catalogue reports lapsed
+  with the missing tows and does not model the supervised tows as a restoring event. Tows are
+  flights flagged as tow flights, counted by towed gliders when recorded, else one. A recorded
+  expiry date is honoured (valid through that date), as in the API.

@@ -1,0 +1,23 @@
+id: easa.part-med.med-a-020.decrease-in-fitness
+title: Decrease in medical fitness
+authority: easa
+instrument: Part-MED
+article: MED.A.020(a), (b)
+support: not_supported
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA MED.A.020
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/med-a-020.md
+  quote:
+    - "(a) Licence holders shall not exercise the privileges of their licence and related ratings or certificates, and student pilots shall not fly solo, at any time when they:"
+    - "(1) are aware of any decrease in their medical fitness which might render them unable to safely exercise those privileges;"
+    - "(b) In addition, holders of a medical certificate shall, without undue delay and before exercising the privileges of their licence, seek aero-medical advice from the AeMC, AME or GMP, as applicable, when they:"
+applies_to: { subject: credential, credentialTypes: [EASA_CLASS1_MEDICAL, EASA_CLASS2_MEDICAL, EASA_LAPL_MEDICAL] }
+notes: >-
+  A self-assessment by the pilot on the day (awareness of reduced fitness, medication,
+  treatment, surgery, pregnancy, hospital admission, first need for corrective lenses).
+  NinerLog records none of these facts and must not guess them; the certificate's own
+  validity is evaluated by the easa.part-med.med-a-045 rules.

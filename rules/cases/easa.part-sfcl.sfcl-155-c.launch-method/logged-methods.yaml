@@ -1,0 +1,32 @@
+rule: easa.part-sfcl.sfcl-155-c.launch-method
+name: logged-methods
+description: >-
+  Each launch method logged on a sailplane is evaluated on its own: five winch launches,
+  the first on the window's first day, keep winch current; two aerotows in 24 months lapse
+  aerotow, to be restored with three launches dual or supervised. Car was never logged or
+  trained and is not listed; bungee and self-launch have their own rules.
+covers: [stage:current, stage:lapsed, requirement:launches:met, requirement:launches:unmet, window:edge-in]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-gld, licenceId: l-spl, class: GLIDER }
+  flights:
+    - { date: 2024-09-15, class: GLIDER, launchMethod: winch, minutes: { total: 10, pic: 10 }, launches: 1, landings: { day: 1 } }
+    - { date: 2026-05-01, class: GLIDER, launchMethod: winch, minutes: { total: 30, dual: 30 }, launches: 4, landings: { day: 4 } }
+    - { date: 2023-06-01, class: GLIDER, launchMethod: aerotow, minutes: { total: 90, pic: 90 }, launches: 6, landings: { day: 6 } }
+    - { date: 2026-06-01, class: GLIDER, launchMethod: aerotow, minutes: { total: 90, pic: 90 }, launches: 2, landings: { day: 2 } }
+    - { date: 2026-07-01, class: GLIDER, launchMethod: bungee, minutes: { total: 20, pic: 20 }, launches: 1, landings: { day: 1 } }
+expect:
+  - subject: { kind: launch_method, id: r-gld, detail: winch }
+    status: current
+    messageKey: launch_method.current
+    validUntil: 2026-09-15
+    requirements:
+      launches: { current: 5, required: 5, met: true, messageKey: launch_method.progress }
+  - subject: { kind: launch_method, id: r-gld, detail: aerotow }
+    status: lapsed
+    messageKey: launch_method.lapsed
+    requirements:
+      launches: { current: 2, met: false, messageKey: launch_method.progress, remedyKey: remedy.launch_method_dual, remedyParams: { method: aerotow, missing: 3 } }

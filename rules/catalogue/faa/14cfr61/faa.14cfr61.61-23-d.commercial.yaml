@@ -1,0 +1,59 @@
+id: faa.14cfr61.61-23-d.commercial
+title: First- and second-class medical duration for commercial privileges
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.23(d)(1)(iii), (d)(2)(i)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.23(d)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.23
+  file: sources/faa/61.23.md
+  quote:
+    - "(d) Duration of a medical certificate. Use the following table to determine duration for each class of medical certificate:"
+    - "Then your medical certificate expires, for that operation, at the end of the last day of the"
+    - "(1) A first-class medical certificate"
+    - "(iii) Any age"
+    - "a commercial pilot certificate (other than a commercial pilot certificate with a balloon rating when conducting flight training), a flight engineer certificate, or an air traffic control tower operator certificate"
+    - "(2) A second-class medical certificate"
+    - "an airline transport pilot certificate for second-in-command privileges (other than the operations specified in paragraph (d)(1) of this section), a commercial pilot certificate (other than a commercial pilot certificate with a balloon rating when conducting flight training), a flight engineer certificate, or an air traffic control tower operator certificate"
+    - "12th month after the month of the date of examination shown on the medical certificate."
+related_sources:
+  - cite: 14 CFR 61.23(a)(2)(ii)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.23
+    file: sources/faa/61.23.md
+    quote: "(ii) Privileges of a commercial pilot certificate in an aircraft other than a balloon or glider; or"
+citations: [14 CFR 61.23(d)(1)(iii), 14 CFR 61.23(d)(2)(i)]
+
+applies_to:
+  subject: credential
+  credentialTypes: [FAA_CLASS1_MEDICAL, FAA_CLASS2_MEDICAL]
+  holds: { licenceKinds: [FAA_COMMERCIAL, FAA_ATP] }
+
+validity:
+  from: issued
+  periods:
+    - { months: 12, end_of_month: true }
+
+stages:
+  - { id: no_exam_date, when: no_expiry, status: unknown, messageKey: credential.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: credential.expired, params: { date: expiry_date } }
+  - { id: expiring, when: { expires_within: { days: 30 } }, status: expiring, messageKey: credential.expiring, params: { days: days_to_expiry, date: expiry_date } }
+  - { id: valid, when: always, status: current, messageKey: credential.valid, params: { date: expiry_date } }
+
+ruleDescriptionKey: faa_medical_commercial
+
+divergences:
+  - id: derived-expiry
+    api: Uses only the expiry date entered for the medical, and treats it as expired on that day.
+    article: For commercial privileges (and ATP second-in-command privileges) a first- or second-class medical runs to the end of the 12th month after the month of the examination, whatever the age, and is valid through that last day; the entered date is used only when earlier.
+    cite: 14 CFR 61.23(d)(1)(iii), (d)(2)(i)
+
+notes: >-
+  Partial: evaluated for holders of a commercial or airline transport pilot certificate, for
+  the privileges that need at least a second-class medical. Commercial privileges in a
+  balloon or glider need none (61.23(b)); a certificate holding only those privileges still
+  gets this evaluation because the record does not say which privileges are exercised. The
+  issued date is the examination date.

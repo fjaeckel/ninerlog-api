@@ -1,0 +1,13 @@
+rule: easa.part-fcl.fcl-055.language-level-5
+name: expiring
+description: "90 days before expiry the endorsement shows as expiring."
+covers: [stage:expiring]
+asOf: 2029-01-15
+record:
+  credentials:
+    - { id: c-lang, type: LANG_ICAO_LEVEL5, issued: 2023-04-15 }
+expect:
+  - subject: { kind: credential, id: c-lang }
+    status: expiring
+    messageKey: credential.expiring
+    messageParams: { days: 90, date: 2029-04-15 }
