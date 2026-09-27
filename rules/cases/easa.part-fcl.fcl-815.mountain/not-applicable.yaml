@@ -1,0 +1,12 @@
+rule: easa.part-fcl.fcl-815.mountain
+name: not-applicable
+description: Only MOUNTAIN privileges on Part-FCL licences are evaluated; other privileges and FAA licences are not.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  privileges:
+    - { id: p-night, licenceId: l-ppl, kind: NIGHT }
+    - { id: p-faa, licenceId: l-faa, kind: MOUNTAIN }
+expect: []

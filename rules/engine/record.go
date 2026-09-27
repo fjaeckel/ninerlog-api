@@ -99,12 +99,14 @@ type Flight struct {
 	IsSimulator           bool     `yaml:"isSimulator,omitempty" json:"isSimulator,omitempty"`
 	FSTDType              string   `yaml:"fstdType,omitempty" json:"fstdType,omitempty"`
 	MTOMKg                *int     `yaml:"mtomKg,omitempty" json:"mtomKg,omitempty"`
+	Engines               *int     `yaml:"engines,omitempty" json:"engines,omitempty"`
 	Tailwheel             *bool    `yaml:"tailwheel,omitempty" json:"tailwheel,omitempty"`
 	Minutes               Minutes  `yaml:"minutes,omitempty" json:"minutes"`
 	Takeoffs              DayNight `yaml:"takeoffs,omitempty" json:"takeoffs"`
 	Landings              DayNight `yaml:"landings,omitempty" json:"landings"`
 	FullStopLandings      *int     `yaml:"fullStopLandings,omitempty" json:"fullStopLandings,omitempty"`
 	FullStopNightLandings *int     `yaml:"fullStopNightLandings,omitempty" json:"fullStopNightLandings,omitempty"`
+	MountainLandings      *int     `yaml:"mountainLandings,omitempty" json:"mountainLandings,omitempty"`
 	Launches              int      `yaml:"launches,omitempty" json:"launches"`
 	Approaches            int      `yaml:"approaches,omitempty" json:"approaches"`
 	Holds                 int      `yaml:"holds,omitempty" json:"holds"`

@@ -17,7 +17,10 @@ source:
 applies_to: { subject: type }
 notes: >-
   Not supported: the record does not say which type ratings are for aircraft certificated
-  for more than one pilot or turbojet-powered, and applies_to cannot select type-rated
-  ratings (see docs/vocab-requests/faa.md). The checks themselves would be proficiency_check
-  events with a type designator. The grace month either side of the due month (61.58(i)) and
-  the part 91K/121/125/135 exclusions are also not modelled.
+  for more than one pilot or turbojet-powered. Type-rated ratings can be selected
+  (applies_to.typeRated, added at integration), but not every FAA type rating falls under
+  61.58 (a large single-pilot turboprop needs a type rating and no PIC proficiency check), so
+  selecting all of them would report pilots as lapsed wrongly; a rating or aircraft field for
+  "multi-pilot or turbojet" is needed first. The checks themselves would be
+  proficiency_check events with a type designator. The grace month either side of the due
+  month (61.58(i)) and the part 91K/121/125/135 exclusions are also not modelled.

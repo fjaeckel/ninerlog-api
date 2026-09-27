@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-57-b.night-passengers-type
+name: other-type
+description: >-
+  Night takeoffs and full-stop landings in a Baron (BE55) do not count for the B350 type
+  rating; a night flight in the class without a type designator is unknown.
+covers: [stage:not_logged, unknown:typeDesignators]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-b350, licenceId: l-faa, class: MEP_LAND, typeDesignator: B350 }
+  flights:
+    - { date: 2026-07-01, class: MEP_LAND, typeDesignator: BE55, minutes: { total: 90, pic: 90, night: 90 }, takeoffs: { night: 3 }, landings: { night: 3 }, fullStopNightLandings: 3, soleManipulator: true }
+    - { date: 2026-07-20, class: MEP_LAND, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 3 }, landings: { night: 3 }, fullStopNightLandings: 3, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: MEP_LAND, detail: B350 }
+    status: unknown
+    messageKey: pax.experience_not_logged
+    requirements:
+      night_takeoffs: { tracked: false }
+      full_stop_night_landings: { tracked: false }

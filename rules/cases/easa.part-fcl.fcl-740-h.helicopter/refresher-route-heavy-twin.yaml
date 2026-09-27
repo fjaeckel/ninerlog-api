@@ -1,0 +1,23 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: refresher-route-heavy-twin
+description: >-
+  The same flying in an AW139 (two engines, 6 400 kg) does not open the refresher route: the type rating needs the proficiency check.
+covers: [stage:not_met, requirement:pic_time:unmet, requirement:refresher:unmet, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: A139, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-01-10, class: HELICOPTER, typeDesignator: A139, engines: 2, mtomKg: 6400, minutes: { total: 360, pic: 360 }, takeoffs: { day: 7 }, landings: { day: 7 } }
+    - { date: 2026-09-01, class: HELICOPTER, typeDesignator: A139, engines: 2, mtomKg: 6400, minutes: { total: 60, dual: 60 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+expect:
+  - subject: { kind: rating, id: r-type, class: HELICOPTER }
+    status: expiring
+    messageKey: rating.revalidation_not_met_prof_check
+    requirements:
+      proficiency_check: { current: 0, met: false }
+      type_time: { current: 420, met: true }
+      pic_time: { current: 0, met: false }
+      refresher: { current: 0, met: false }

@@ -19,21 +19,21 @@ const (
 
 // evalCtx evaluates one rule for one subject.
 type evalCtx struct {
-	cat     *Catalogue
-	v       *Vocabulary
-	p       *prepared
-	rule    *Rule
-	subj    subjectRef
-	asOf    Date
-	expiry  *Date
-	leaves  map[*Node]*leaf
-	restore []hookDate
-	resets  []Date
-	noReset bool
-	trace   *Trace
+	cat    *Catalogue
+	v      *Vocabulary
+	p      *prepared
+	rule   *Rule
+	subj   subjectRef
+	asOf   Date
+	expiry *Date
+	// validUntil is the evaluation's validUntil on asOf, set before the stages run.
+	validUntil *Date
+	leaves     map[*Node]*leaf
+	restore    []hookDate
+	trace      *Trace
 }
 
-// hookDate is one restored_by or resets event occurrence.
+// hookDate is one restored_by event occurrence.
 type hookDate struct {
 	date Date
 	kind string
@@ -65,14 +65,38 @@ type leafState struct {
 	unknown  []string
 }
 
-// Evaluate evaluates every applicable rule of the catalogue on asOf.
+// Evaluate evaluates every applicable rule of the catalogue on asOf. A rule's evaluation of
+// a subject is dropped when a rule that supersedes it evaluated the same subject.
 func Evaluate(c *Catalogue, rec *Record, asOf Date) []Evaluation {
-	var out []Evaluation
+	byRule := map[string][]Evaluation{}
+	seen := map[string]map[string]bool{}
 	for _, r := range c.Rules {
 		ev, _ := EvaluateRule(c, r, rec, asOf)
-		out = append(out, ev...)
+		byRule[r.ID] = ev
+		seen[r.ID] = map[string]bool{}
+		for _, e := range ev {
+			seen[r.ID][subjectKey(e.Subject)] = true
+		}
+	}
+	supersededBy := map[string][]string{}
+	for _, r := range c.Rules {
+		for _, id := range r.Supersedes {
+			supersededBy[id] = append(supersededBy[id], r.ID)
+		}
+	}
+	var out []Evaluation
+	for _, r := range c.Rules {
+		for _, e := range byRule[r.ID] {
+			if !slices.ContainsFunc(supersededBy[r.ID], func(by string) bool { return seen[by][subjectKey(e.Subject)] }) {
+				out = append(out, e)
+			}
+		}
 	}
 	return out
+}
+
+func subjectKey(s Subject) string {
+	return s.Kind + "|" + s.ID + "|" + s.Class + "|" + s.ULKind + "|" + s.Detail
 }
 
 // EvaluateRule evaluates one rule for every subject it applies to, with coverage traces.
@@ -101,11 +125,7 @@ func (e *evalCtx) run() Evaluation {
 	r := e.rule
 	e.expiry = e.effectiveExpiry()
 	e.restore = e.hookDates(r.RestoredBy)
-	for _, h := range e.hookDates(r.Resets) {
-		e.resets = append(e.resets, h.date)
-	}
 	e.buildLeaves()
-	e.traceResets()
 
 	ev := Evaluation{
 		RuleID:             r.ID,
@@ -139,6 +159,7 @@ func (e *evalCtx) run() Evaluation {
 	if root == triMet && e.moving() {
 		ev.ValidUntil = e.projectRoot()
 	}
+	e.validUntil = ev.ValidUntil
 	for _, st := range r.Stages {
 		if e.cond(&st.When, e.asOf, root) {
 			ev.Status, ev.MessageKey = st.Status, st.MessageKey
@@ -179,24 +200,6 @@ func (e *evalCtx) hookDates(hooks []EventHook) []hookDate {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].date.Before(out[j].date) })
 	return out
-}
-
-// traceResets records resets events that moved a window start on asOf.
-func (e *evalCtx) traceResets() {
-	r, ok := e.latestReset(e.asOf)
-	if !ok {
-		return
-	}
-	e.noReset = true
-	defer func() { e.noReset = false }()
-	for _, lf := range e.leaves {
-		if s, ok := e.windowRange(lf.window, e.asOf); ok && (s.open || r.After(s.from)) {
-			for _, h := range e.rule.Resets {
-				e.trace.Events = append(e.trace.Events, h.Event)
-			}
-			return
-		}
-	}
 }
 
 // buildLeaves resolves windows and filters and pre-filters items for every leaf.
@@ -476,7 +479,7 @@ func (e *evalCtx) moving() bool {
 	return false
 }
 
-// changeDates returns the dates after which the tree can turn unmet: item exits and resets.
+// changeDates returns the dates after which the tree can turn unmet: item and event exits.
 func (e *evalCtx) changeDates(only *leaf) []Date {
 	var out []Date
 	add := func(w *Window, x Date) {
@@ -496,9 +499,6 @@ func (e *evalCtx) changeDates(only *leaf) []Date {
 		for _, r := range e.restore {
 			add(e.rule.Window, r.date)
 		}
-	}
-	for _, r := range e.resets {
-		out = append(out, r)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
 	return slices.CompactFunc(out, func(a, b Date) bool { return a.Equal(b) })

@@ -8,13 +8,14 @@ source_kind: association
 effective_from: null
 effective_to: null
 source:
-  cite: LuftPersV § 45(4)
-  url: https://www.gesetze-im-internet.de/luftpersv/__45.html
-  file: sources/de/luftpersv-45.md
-  quote:
-    - "Die Rechte aus einem Luftfahrerschein für Luftsportgeräteführer nach § 1 Absatz 4 Satz 1 Nummer 1 der Luftverkehrs-Zulassungs-Ordnung sowie für Sprungfallschirmführer dürfen nur ausgeübt werden, wenn der Inhaber des Luftfahrerscheins eine ausreichende fliegerische Übung nachweist."
-    - "Die Einzelheiten legt der Beauftragte nach § 31c des Luftverkehrsgesetzes entsprechend § 42 Absatz 2 fest."
+  cite: DULV recency rule for weight-shift ultralights (document title not verified)
 related_sources:
+  - cite: LuftPersV § 45(4)
+    url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+    file: sources/de/luftpersv-45.md
+    quote:
+      - "Die Rechte aus einem Luftfahrerschein für Luftsportgeräteführer nach § 1 Absatz 4 Satz 1 Nummer 1 der Luftverkehrs-Zulassungs-Ordnung sowie für Sprungfallschirmführer dürfen nur ausgeübt werden, wenn der Inhaber des Luftfahrerscheins eine ausreichende fliegerische Übung nachweist."
+      - "Die Einzelheiten legt der Beauftragte nach § 31c des Luftverkehrsgesetzes entsprechend § 42 Absatz 2 fest."
   - cite: LuftVZO § 1(4)
     url: https://www.gesetze-im-internet.de/luftvzo/__1.html
     file: sources/de/luftvzo-1.md

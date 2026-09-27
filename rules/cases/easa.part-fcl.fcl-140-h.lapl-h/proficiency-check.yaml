@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-140-h.lapl-h
+name: proficiency-check
+description: >-
+  A proficiency check with an examiner on the R44 in the last 12 months keeps the LAPL(H) current without the hours.
+covers: [stage:current, any_of:recency:proficiency_check, requirement:proficiency_check:met, requirement:type_time:unmet, requirement:refresher:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-laplh, authority: EASA, type: LAPL(H) }
+  ratings:
+    - { id: r-r44, licenceId: l-laplh, class: HELICOPTER, typeDesignator: R44 }
+  flights:
+    - { date: 2026-06-01, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 }, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, id: r-r44 }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      proficiency_check: { current: 1, met: true }
+      type_time: { current: 60, met: false }
+      refresher: { current: 0, met: false }

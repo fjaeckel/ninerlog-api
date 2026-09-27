@@ -44,10 +44,11 @@ func (s *semantics) checkRule(r *engine.Rule) []string {
 	s.errs = nil
 	v := s.cat.Vocabulary
 	s.checkIdentity(r)
-	s.checkSource("source", r.Source)
+	s.checkPrimarySource(r)
 	for i, rs := range r.RelatedSources {
 		s.checkSource(fmt.Sprintf("related_sources[%d]", i), rs)
 	}
+	s.checkRelations(r)
 	s.checkAppliesTo(r)
 	if r.Window != nil {
 		s.checkWindow("window", r.Window)
@@ -118,9 +119,6 @@ func (s *semantics) checkRule(r *engine.Rule) []string {
 	for _, h := range r.RestoredBy {
 		s.checkHook("restored_by", h)
 	}
-	for _, h := range r.Resets {
-		s.checkHook("resets", h)
-	}
 	if r.RuleDescriptionKey != "" {
 		s.checkKey("ruleDescriptionKey", r.RuleDescriptionKey, "rule_description")
 	}
@@ -158,7 +156,74 @@ func (s *semantics) checkIdentity(r *engine.Rule) {
 	}
 }
 
+// maxAssociationQuote is the longest quote from an association document the gate accepts
+// (copyright hygiene: association documents are cited, never stored).
+const maxAssociationQuote = 300
+
+// checkPrimarySource applies the source rules of the rule's source_kind (DESIGN.md section 13).
+func (s *semantics) checkPrimarySource(r *engine.Rule) {
+	src := r.Source
+	switch r.SourceKind {
+	case "app_policy":
+		if src.File != "" || len(src.Quote) > 0 {
+			s.errorf("source: an app_policy rule has no source file and no quote; cite the policy only")
+		}
+		return
+	case "association":
+		if src.File != "" {
+			s.errorf("source.file: association documents are never stored in sources/; cite the document and put the delegating statute under related_sources")
+		}
+		for _, q := range src.Quote {
+			if n := len([]rune(normQuote(q))); n > maxAssociationQuote {
+				s.errorf("source.quote: an association quote may have at most %d characters (has %d)", maxAssociationQuote, n)
+			}
+		}
+		return
+	}
+	if strings.TrimSpace(src.URL) == "" {
+		s.errorf("source.url: a %s source needs the URL of the official text", r.SourceKind)
+	}
+	s.checkSource("source", src)
+}
+
+// checkRelations validates supersedes and group.
+func (s *semantics) checkRelations(r *engine.Rule) {
+	for _, id := range r.Supersedes {
+		if id == r.ID {
+			s.errorf("supersedes: a rule cannot supersede itself")
+		} else if _, ok := s.cat.Rule(id); !ok {
+			s.errorf("supersedes: rule %q does not exist", id)
+		}
+	}
+	if r.Group == "" {
+		return
+	}
+	s.use("rule_groups", r.Group)
+	if _, ok := s.cat.Vocabulary.RuleGroups[r.Group]; !ok {
+		s.errorf("group %q is not declared in vocabulary.yaml rule_groups", r.Group)
+	}
+	members := 0
+	for _, o := range s.cat.Rules {
+		if o.Group == r.Group {
+			members++
+		}
+	}
+	if members < 2 {
+		s.errorf("group %q has only this rule; a group needs at least two members", r.Group)
+	}
+}
+
 func (s *semantics) checkSource(where string, src engine.Source) {
+	if src.File == "" {
+		s.errorf("%s.file: the verbatim text must be stored under sources/", where)
+		return
+	}
+	if strings.TrimSpace(src.URL) == "" {
+		s.errorf("%s.url: the URL of the official text is required", where)
+	}
+	if len(src.Quote) == 0 {
+		s.errorf("%s.quote: quote the provision verbatim", where)
+	}
 	b, err := os.ReadFile(filepath.Join(s.root, src.File))
 	if err != nil {
 		s.errorf("%s.file: %v", where, err)
@@ -253,7 +318,6 @@ func (s *semantics) checkFilter(where string, f *engine.Filter, source string) {
 		s.values(where+".ulCredit.ulKinds", c.ULKinds, v.ULKinds, false)
 	}
 	s.values(where+".launchMethods", f.LaunchMethods, v.LaunchMethods, true)
-	s.values(where+".excludeLaunchMethods", f.ExcludeLaunchMethods, v.LaunchMethods, false)
 	s.values(where+".roles", f.Roles, v.Roles, false)
 	s.values(where+".withMinutes", f.WithMinutes, v.MinuteFields, false)
 	s.values(where+".withoutMinutes", f.WithoutMinutes, v.MinuteFields, false)
@@ -384,7 +448,7 @@ func (s *semantics) checkCondition(where string, c *engine.Condition, ids map[st
 			s.errorf("%s: condition %q is not in the vocabulary", where, x.Op)
 		}
 		switch x.Op {
-		case "met", "unmet", "untracked":
+		case "met", "unmet":
 			if ids != nil && !ids[x.Ref] {
 				s.errorf("%s: %s names requirement %q, which does not exist", where, x.Op, x.Ref)
 			}

@@ -14,24 +14,23 @@ func (e *evalCtx) cond(c *Condition, d Date, root tri) bool {
 		return root == triMet
 	case "undetermined":
 		return root == triUnknown
-	case "met", "unmet", "untracked":
+	case "met", "unmet":
 		st, ok := e.leafByID(c.Ref, d)
 		if !ok {
 			return false
 		}
-		switch c.Op {
-		case "met":
+		if c.Op == "met" {
 			return st.met
-		case "unmet":
-			return st.tracked && !st.met
 		}
-		return !st.tracked
+		return st.tracked && !st.met
 	case "expired":
 		return e.expiry != nil && d.After(*e.expiry)
 	case "no_expiry":
 		return e.expiry == nil
 	case "expires_within":
 		return e.expiry != nil && !d.After(*e.expiry) && d.DaysUntil(*e.expiry) <= c.Days
+	case "valid_until_within":
+		return e.validUntil != nil && !d.After(*e.validUntil) && d.DaysUntil(*e.validUntil) <= c.Days
 	case "before_window":
 		s, ok := e.windowRange(e.rule.Window, d)
 		return ok && !s.open && s.from.After(d)
@@ -62,7 +61,7 @@ func (e *evalCtx) cond(c *Condition, d Date, root tri) bool {
 }
 
 // ImplementedConditions lists the stage conditions cond understands.
-var ImplementedConditions = []string{"always", "all_met", "undetermined", "met", "unmet", "untracked", "expired", "no_expiry", "expires_within", "before_window", "met_within", "holds", "missing", "all", "any", "not"}
+var ImplementedConditions = []string{"always", "all_met", "undetermined", "met", "unmet", "expired", "no_expiry", "expires_within", "valid_until_within", "before_window", "met_within", "holds", "missing", "all", "any", "not"}
 
 func (e *evalCtx) leafByID(id string, d Date) (leafState, bool) {
 	for n, lf := range e.leaves {
@@ -156,6 +155,10 @@ func (e *evalCtx) params(src map[string]ParamSource, ev *Evaluation) map[string]
 			if ev.ValidUntil != nil {
 				out[name] = ev.ValidUntil.String()
 			}
+		case "days_to_valid_until":
+			if ev.ValidUntil != nil {
+				out[name] = e.asOf.DaysUntil(*ev.ValidUntil)
+			}
 		case "needed", "last_date":
 			for _, r := range ev.Requirements {
 				if r.ID != p.Ref {
@@ -173,7 +176,7 @@ func (e *evalCtx) params(src map[string]ParamSource, ev *Evaluation) map[string]
 }
 
 // ImplementedParamSources lists the param sources params understands.
-var ImplementedParamSources = []string{"days_to_expiry", "expiry_date", "window_opens_at", "valid_until", "needed", "last_date"}
+var ImplementedParamSources = []string{"days_to_expiry", "expiry_date", "window_opens_at", "valid_until", "days_to_valid_until", "needed", "last_date"}
 
 // derivedExpiry computes the validity end; nil when an input is missing.
 func (e *evalCtx) derivedExpiry(v *Validity) *Date {

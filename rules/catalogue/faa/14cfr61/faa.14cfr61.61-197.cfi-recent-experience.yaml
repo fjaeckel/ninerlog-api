@@ -43,6 +43,8 @@ related_sources:
       - "(b) If more than 3 calendar months have passed since the last month of the flight instructor's recent experience period, you must pass a practical test as prescribed in § 61.405(b) or § 61.183(h) for one of the ratings listed on your flight instructor certificate with a sport pilot rating."
 citations: [14 CFR 61.197(a), 14 CFR 61.197(b), 14 CFR 61.197(c), 14 CFR 61.199(a), 14 CFR 61.427]
 
+group: faa_cfi
+
 applies_to:
   subject: privilege
   privilegeKinds: [CFI]

@@ -4,14 +4,11 @@ authority: other
 instrument: NinerLog
 article: none (app policy)
 support: supported
-source_kind: national_law
+source_kind: app_policy
 effective_from: null
 effective_to: null
 source:
-  cite: LuftPersV § 9(1) (closest fit; NinerLog app policy with no regulation source)
-  url: https://www.gesetze-im-internet.de/luftpersv/__9.html
-  file: sources/de/luftpersv-9.md
-  quote: "Die Gültigkeitsdauer von Berechtigungen und Erweiterungen der Erlaubnis richtet sich nach den Vorschriften, die für die Erteilung der Berechtigung maßgeblich sind."
+  cite: "NinerLog app policy: ultralight ratings recorded on FAA certificates are tracked by their recorded expiry date"
 
 applies_to:
   subject: rating
@@ -35,8 +32,5 @@ notes: >-
   only, as in the API (faa.go faaSelectRule). 14 CFR Part 61 has no ultralight rating (Part
   103 vehicles need no pilot certificate), so no FAA rule applies. The API sends no
   ruleDescriptionKey; neither does the catalogue.
-  App policy, not a regulation. The schema requires a source and a source_kind, and the
-  vocabulary has no kind for NinerLog policy; the closest fit is LuftPersV § 9(1), which says
-  a rating's validity follows the provisions under which it was issued, so the date the
-  issuing authority wrote on it is what the app can rely on (vocabulary request filed:
-  docs/vocab-requests/de-other.md).
+  App policy, not a regulation: source_kind app_policy (no source file, no quote). The
+  evaluation cites the policy.

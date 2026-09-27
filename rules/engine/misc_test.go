@@ -187,23 +187,21 @@ func TestMetricsAllImplemented(t *testing.T) {
 			t.Errorf("%s: engine implements %v, vocabulary declares %v", section, impl[section], names)
 		}
 	}
-	two, one := 2, 1
-	dist := 12.5
+	two, one, three := 2, 1, 3
 	yes := true
 	f := &Flight{
 		Minutes:  Minutes{Total: 1, PIC: 2, Dual: 3, SPIC: 4, PICUS: 5, SIC: 6, DualGiven: 7, Examiner: 8, MultiPilot: 9, Night: 10, IFR: 11, ActualInstrument: 12, SimulatedInstrument: 13, CrossCountry: 14},
 		Takeoffs: DayNight{Day: 1, Night: 2}, Landings: DayNight{Day: 3, Night: 4},
 		FullStopLandings: &two, FullStopNightLandings: &one, Launches: 5, Approaches: 6, Holds: 7,
-		InterceptAndTrack: &yes, CruiseMinutes: &two, DistanceKm: &dist, Flags: Flags{TowFlight: true},
+		InterceptAndTrack: &yes, CruiseMinutes: &two, MountainLandings: &three, Flags: Flags{TowFlight: true},
 	}
 	want := map[string]float64{
 		"flights": 1, "route_sectors": 0, "minutes.total": 1, "minutes.pic": 2, "minutes.dual": 3, "minutes.spic": 4,
-		"minutes.picus": 5, "minutes.sic": 6, "minutes.dualGiven": 7, "minutes.examiner": 8, "minutes.multiPilot": 9,
-		"minutes.night": 10, "minutes.ifr": 11, "minutes.instrument": 25, "minutes.crossCountry": 14,
+		"minutes.dualGiven": 7, "minutes.ifr": 11,
 		"minutes.picOrDualOrSpic": 9, "minutes.dualOrSpic": 7, "minutes.picOrSpic": 6, "minutes.instructorOrExaminer": 15,
-		"takeoffs.total": 3, "takeoffs.day": 1, "takeoffs.night": 2, "landings.total": 7, "landings.day": 3, "landings.night": 4,
+		"takeoffs.total": 3, "takeoffs.night": 2, "landings.total": 7, "landings.night": 4, "mountain_landings": 3,
 		"takeoffs_and_landings": 3, "full_stop_landings": 2, "full_stop_night_landings": 1, "launches": 5, "approaches": 6,
-		"holds": 7, "intercept_and_track": 1, "not_recorded": 0, "training_flights": 1, "longest_training_flight_minutes": 1, "tows": 1, "distance_km": 12.5,
+		"holds": 7, "intercept_and_track": 1, "not_recorded": 0, "training_flights": 1, "longest_training_flight_minutes": 1, "tows": 1,
 	}
 	for name, fn := range flightMetricFuncs {
 		got := fn(f)
@@ -212,7 +210,7 @@ func TestMetricsAllImplemented(t *testing.T) {
 		}
 	}
 	empty := &Flight{}
-	for _, name := range []string{"route_sectors", "full_stop_landings", "full_stop_night_landings", "intercept_and_track", "distance_km"} {
+	for _, name := range []string{"route_sectors", "full_stop_landings", "full_stop_night_landings", "intercept_and_track", "mountain_landings"} {
 		if flightMetricFuncs[name](empty).known {
 			t.Errorf("%s of an empty flight must be unknown", name)
 		}
@@ -344,5 +342,31 @@ ratings: [{ id: r, licenceId: l, class: SEP_LAND, expires: 2026-10-31 }, { id: s
 	}
 	if res := RunCase(cat, &Case{Rule: "easa.part-fcl.fcl-740-a.sep", AsOf: MustDate("2026-01-01"), Expect: []Expect{{Subject: Subject{Kind: "rating"}}}}); !strings.Contains(strings.Join(res.Diffs, ""), "got none (evaluated: none)") {
 		t.Errorf("no evaluations: %v", res.Diffs)
+	}
+}
+
+// TestSupersedes checks that Evaluate drops a superseded rule's evaluation of a subject the
+// superseding rule evaluates, and keeps it for subjects only the superseded rule selects.
+func TestSupersedes(t *testing.T) {
+	cat, err := LoadCatalogue("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := record(t, `
+licences:
+  - { id: l-caa, authority: CAA, type: GPL }
+ratings:
+  - { id: r-gyro, licenceId: l-caa, class: GYROPLANE, expires: 2027-01-31 }
+  - { id: r-sep, licenceId: l-caa, class: SEP_LAND, expires: 2027-01-31 }
+`)
+	byRule := map[string][]string{}
+	for _, ev := range Evaluate(cat, rec, MustDate("2026-09-15")) {
+		byRule[ev.RuleID] = append(byRule[ev.RuleID], ev.Subject.ID)
+	}
+	if got := byRule["other.ninerlog.expiry-only"]; !slices.Equal(got, []string{"r-sep"}) {
+		t.Errorf("expiry-only keeps only the rating no superseding rule evaluates: %v", got)
+	}
+	if got := byRule["easa.part-fcl.fcl-240-g.gpl"]; !slices.Equal(got, []string{"r-gyro"}) {
+		t.Errorf("the GPL rule evaluates the gyroplane rating: %v", got)
 	}
 }

@@ -27,6 +27,8 @@ related_sources:
     quote: "(i) When exercising the pilot-in-command privileges of an airline transport pilot certificate;"
 citations: [14 CFR 61.23(d)(1)(i), 14 CFR 61.23(d)(1)(ii)]
 
+group: faa_medical_duration
+
 applies_to:
   subject: credential
   credentialTypes: [FAA_CLASS1_MEDICAL]

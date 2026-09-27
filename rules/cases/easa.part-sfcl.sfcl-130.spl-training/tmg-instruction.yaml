@@ -1,0 +1,29 @@
+rule: easa.part-sfcl.sfcl-130.spl-training
+name: tmg-instruction
+description: >-
+  Most of the instruction was flown in a TMG: it counts toward the 15 hours, the 10 hours
+  dual and the 45 launches, and a dual 120 km TMG cross-country flight is the qualifying
+  flight, but only 2 hours of dual instruction were flown in sailplanes other than TMGs.
+covers: [stage:in_progress, requirement:sailplane_dual:unmet, requirement:sailplane_instruction:met, requirement:dual_time:met, requirement:cross_country:met]
+asOf: 2026-09-15
+record:
+  credentials:
+    - { id: c-med, type: EASA_CLASS2_MEDICAL, expires: 2027-06-30 }
+  flights:
+    - { date: 2026-03-01, class: TMG, minutes: { total: 480, dual: 480 }, takeoffs: { day: 20 }, landings: { day: 20 }, launches: 20 }
+    - { date: 2026-03-15, class: TMG, minutes: { total: 120, dual: 120, crossCountry: 120 }, distanceKm: 120, takeoffs: { day: 2 }, landings: { day: 2 }, launches: 2 }
+    - { date: 2026-04-01, class: GLIDER, launchMethod: winch, minutes: { total: 120, dual: 120 }, launches: 15, landings: { day: 15 } }
+    - { date: 2026-05-01, class: GLIDER, launchMethod: winch, minutes: { total: 330, spic: 330 }, launches: 10, landings: { day: 10 } }
+expect:
+  - subject: { kind: training, detail: SPL }
+    status: lapsed
+    messageKey: training.in_progress
+    requirements:
+      instruction_time: { current: 1050, met: true }
+      dual_time: { current: 720, met: true }
+      supervised_solo_time: { current: 330, met: true }
+      launches: { current: 47, met: true }
+      sailplane_instruction: { current: 450, met: true }
+      sailplane_dual: { current: 120, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 60, unit: minutes } }
+      cross_country: { current: 1, met: true }
+      credit_sfcl130b: { absent: true }

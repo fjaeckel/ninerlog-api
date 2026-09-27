@@ -4,7 +4,7 @@ description: >-
   Ten hours as PIC on sailplanes and TMGs since the SPL was issued, starting on the issue
   day, meet the prerequisite; dual time does not count. Both the GLIDER and the TMG class
   are evaluated.
-covers: [stage:met, any_of:prerequisite:pax_prerequisite_time, requirement:pax_prerequisite_time:met, requirement:pax_prerequisite_launches:unmet, window:edge-in]
+covers: [stage:met, requirement:pax_competence_flight:untracked, any_of:prerequisite:pax_prerequisite_time, requirement:pax_prerequisite_time:met, requirement:pax_prerequisite_launches:unmet, window:edge-in]
 asOf: 2026-09-15
 record:
   licences:
@@ -23,6 +23,7 @@ expect:
     windowOpensAt: 2025-04-01
     requirements:
       pax_prerequisite_time: { current: 600, met: true }
+      pax_competence_flight: { tracked: false, met: false, messageKey: requirement.untracked }
       pax_prerequisite_launches: { current: 9, met: false }
   - subject: { kind: passengers, id: l-spl, class: TMG }
     status: current

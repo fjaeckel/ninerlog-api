@@ -1,0 +1,25 @@
+rule: easa.part-fcl.fcl-140-h.lapl-h
+name: experience
+description: >-
+  Six hours in the R44 with six take-offs and landings, including 1 hour of refresher training with an instructor split between an FSTD and the helicopter, in the last 12 months keep the LAPL(H) current on the R44; the first flight is on the first day of the window and one the day before no longer counts.
+covers: [stage:current, any_of:recency:experience, requirement:type_time:met, requirement:takeoffs_landings:met, requirement:refresher:met, requirement:proficiency_check:unmet, window:edge-in, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-laplh, authority: EASA, type: LAPL(H) }
+  ratings:
+    - { id: r-r44, licenceId: l-laplh, class: HELICOPTER, typeDesignator: R44 }
+  flights:
+    - { date: 2025-09-14, class: HELICOPTER, typeDesignator: R44, minutes: { total: 300, pic: 300 }, takeoffs: { day: 10 }, landings: { day: 10 } }
+    - { date: 2025-09-15, class: HELICOPTER, typeDesignator: R44, minutes: { total: 270, pic: 270 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+    - { date: 2026-04-10, class: HELICOPTER, typeDesignator: R44, isSimulator: true, fstdType: FNPT, minutes: { total: 30, dual: 30 } }
+    - { date: 2026-05-02, class: HELICOPTER, typeDesignator: R44, minutes: { total: 90, pic: 60, dual: 30 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+expect:
+  - subject: { kind: rating, id: r-r44 }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      type_time: { current: 360, met: true }
+      takeoffs_landings: { current: 6, met: true }
+      refresher: { current: 60, met: true }
+      proficiency_check: { current: 0, met: false }

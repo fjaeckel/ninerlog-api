@@ -1,0 +1,23 @@
+rule: easa.part-fcl.fcl-815.mountain
+name: lapsed
+description: >-
+  Four mountain landings and no check in 2 years: the rating may not be used; a proficiency check for another rating does not count, and a helicopter flight is not an aeroplane flight.
+covers: [stage:lapsed, requirement:mountain_landings:unmet, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-mtn, licenceId: l-ppl, kind: MOUNTAIN }
+  events:
+    - { date: 2026-01-10, kind: proficiency_check, class: SEP_LAND, rating: SEP_LAND }
+  flights:
+    - { date: 2026-06-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 4 }, landings: { day: 4 }, mountainLandings: 4 }
+    - { date: 2026-06-02, class: HELICOPTER, minutes: { total: 60, pic: 60 }, takeoffs: { day: 4 }, landings: { day: 4 }, mountainLandings: 4 }
+expect:
+  - subject: { kind: privilege, id: p-mtn }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+    requirements:
+      mountain_landings: { current: 4, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 2, unit: landings } }
+      proficiency_check: { current: 0, met: false }

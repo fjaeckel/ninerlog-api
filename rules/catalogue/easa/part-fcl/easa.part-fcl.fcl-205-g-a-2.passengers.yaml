@@ -15,6 +15,8 @@ source:
     - "(a) The privileges of the holder of a GPL are to act as PIC in gyroplanes:"
     - "(2) performing the carriage of passengers only when they have completed 10 hours of flight time as PIC on gyroplanes after the issuance of the licence."
 
+group: easa_fcl_passengers
+
 applies_to:
   subject: passengers
   classes: [GYROPLANE]

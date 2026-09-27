@@ -9,8 +9,8 @@ record:
   ratings:
     - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: R44, expires: 2026-10-31 }
   flights:
-    - { date: 2026-03-10, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
-    - { date: 2026-08-20, class: HELICOPTER, typeDesignator: R44, isSimulator: true, fstdType: FFS, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true } }
+    - { date: 2026-03-10, class: HELICOPTER, typeDesignator: R44, engines: 1, mtomKg: 1134, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-20, class: HELICOPTER, typeDesignator: R44, engines: 1, mtomKg: 1134, isSimulator: true, fstdType: FFS, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, flags: { proficiencyCheck: true } }
 expect:
   - subject: { kind: rating, id: r-type, class: HELICOPTER }
     status: expiring

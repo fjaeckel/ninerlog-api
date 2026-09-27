@@ -1,0 +1,14 @@
+rule: easa.part-fcl.fcl-140-h.lapl-h
+name: not-applicable
+description: >-
+  Helicopter type ratings on a PPL(H) follow FCL.740.H, not FCL.140.H; an aeroplane class on a
+  LAPL(A) is not a LAPL(H) type.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-pplh, authority: EASA, type: PPL(H) }
+    - { id: l-lapla, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-r44, licenceId: l-pplh, class: HELICOPTER, typeDesignator: R44, expires: 2027-03-31 }
+    - { id: r-sep, licenceId: l-lapla, class: SEP_LAND }
+expect: []

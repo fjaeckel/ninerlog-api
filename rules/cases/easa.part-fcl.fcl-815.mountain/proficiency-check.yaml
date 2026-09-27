@@ -1,0 +1,23 @@
+rule: easa.part-fcl.fcl-815.mountain
+name: proficiency-check
+description: >-
+  A mountain proficiency check a year ago keeps the rating current without mountain landings.
+covers: [stage:current, any_of:mountain:proficiency_check, requirement:proficiency_check:met, requirement:mountain_landings:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-mtn, licenceId: l-ppl, kind: MOUNTAIN }
+  events:
+    - { date: 2025-09-20, kind: proficiency_check, class: SEP_LAND, rating: MOUNTAIN }
+  flights:
+    - { date: 2026-05-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, mountainLandings: 0 }
+expect:
+  - subject: { kind: privilege, id: p-mtn }
+    status: current
+    messageKey: privilege.recency_current
+    validUntil: 2027-09-20
+    requirements:
+      proficiency_check: { current: 1, met: true }
+      mountain_landings: { current: 0, met: false }

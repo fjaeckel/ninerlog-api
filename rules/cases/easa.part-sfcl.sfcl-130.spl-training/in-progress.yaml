@@ -2,8 +2,8 @@ rule: easa.part-sfcl.sfcl-130.spl-training
 name: in-progress
 description: >-
   A student with 5 hours dual has open items; a 40 km solo cross-country flight is too short,
-  TMG instruction does not count, and 10 hours as PIC in aeroplanes earn a 1-hour credit.
-covers: [stage:in_progress, requirement:instruction_time:unmet, requirement:dual_time:unmet, requirement:supervised_solo_time:unmet, requirement:launches:unmet, requirement:cross_country:unmet, requirement:credit_sfcl130b:unmet]
+  TMG instruction counts toward the 15 hours but not toward the 7 hours in sailplanes, and 10 hours as PIC in aeroplanes earn a 1-hour credit.
+covers: [stage:in_progress, requirement:sailplane_instruction:unmet, requirement:instruction_time:unmet, requirement:dual_time:unmet, requirement:supervised_solo_time:unmet, requirement:launches:unmet, requirement:cross_country:unmet, requirement:credit_sfcl130b:unmet]
 asOf: 2026-09-15
 record:
   credentials:
@@ -13,16 +13,18 @@ record:
   flights:
     - { date: 2026-04-01, class: GLIDER, launchMethod: winch, minutes: { total: 300, dual: 300 }, launches: 20, landings: { day: 20 } }
     - { date: 2026-05-01, class: GLIDER, launchMethod: winch, minutes: { total: 90, spic: 90, crossCountry: 90 }, distanceKm: 40, launches: 1, landings: { day: 1 } }
-    - { date: 2026-05-02, class: TMG, minutes: { total: 300, dual: 300 }, takeoffs: { day: 10 }, landings: { day: 10 }, launches: 10 }
+    - { date: 2026-05-02, class: TMG, minutes: { total: 200, dual: 200 }, takeoffs: { day: 10 }, landings: { day: 10 }, launches: 10 }
     - { date: 2021-06-01, class: SEP_LAND, minutes: { total: 600, pic: 600 }, takeoffs: { day: 20 }, landings: { day: 20 } }
 expect:
   - subject: { kind: training, detail: SPL }
     status: lapsed
     messageKey: training.in_progress
     requirements:
-      instruction_time: { current: 390, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 510, unit: minutes } }
-      dual_time: { current: 300, met: false }
+      instruction_time: { current: 590, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 310, unit: minutes } }
+      sailplane_instruction: { current: 390, met: false }
+      sailplane_dual: { current: 300, met: true }
+      dual_time: { current: 500, met: false }
       supervised_solo_time: { current: 90, met: false }
-      launches: { current: 21, met: false }
+      launches: { current: 31, met: false }
       cross_country: { current: 0, met: false }
       credit_sfcl130b: { current: 60, met: false }

@@ -11,39 +11,51 @@ import (
 
 // Vocabulary is vocabulary.yaml.
 type Vocabulary struct {
-	Version              int                       `yaml:"version"`
-	CatalogueAuthorities []string                  `yaml:"catalogue_authorities"`
-	SourceKinds          map[string]string         `yaml:"source_kinds"`
-	SupportLevels        []string                  `yaml:"support_levels"`
-	RecordAuthorities    []string                  `yaml:"record_authorities"`
-	Categories           []string                  `yaml:"categories"`
-	Classes              map[string]ClassDef       `yaml:"classes"`
-	ULKinds              []string                  `yaml:"ul_kinds"`
-	LaunchMethods        []string                  `yaml:"launch_methods"`
-	FSTDTypes            []string                  `yaml:"fstd_types"`
-	TowKinds             []string                  `yaml:"tow_kinds"`
-	LicenceKinds         map[string]LicenceKindDef `yaml:"licence_kinds"`
-	PrivilegeKinds       []string                  `yaml:"privilege_kinds"`
-	CredentialTypes      []string                  `yaml:"credential_types"`
-	FlightFlags          []string                  `yaml:"flight_flags"`
-	EventKinds           map[string]EventKindDef   `yaml:"event_kinds"`
-	RecordFields         map[string]RecordFieldDef `yaml:"record_fields"`
-	MinuteFields         []string                  `yaml:"minute_fields"`
-	Subjects             map[string]SubjectDef     `yaml:"subjects"`
-	Statuses             map[string]string         `yaml:"statuses"`
-	Units                []string                  `yaml:"units"`
-	Metrics              map[string]MetricDef      `yaml:"metrics"`
-	Filters              map[string]FilterDef      `yaml:"filters"`
-	Roles                []string                  `yaml:"roles"`
-	Windows              map[string]WindowDef      `yaml:"windows"`
-	Combinators          map[string]string         `yaml:"combinators"`
-	StageConditions      map[string]string         `yaml:"stage_conditions"`
-	MissingInputs        []string                  `yaml:"missing_inputs"`
-	RuleEvents           map[string]string         `yaml:"rule_events"`
-	ParamSources         map[string]string         `yaml:"param_sources"`
-	Validity             ValidityDef               `yaml:"validity"`
-	Hatches              map[string]string         `yaml:"hatches"`
+	Version              int                          `yaml:"version"`
+	CatalogueAuthorities []string                     `yaml:"catalogue_authorities"`
+	SourceKinds          map[string]string            `yaml:"source_kinds"`
+	SupportLevels        []string                     `yaml:"support_levels"`
+	SourceOrigins        map[string]SourceOriginDef   `yaml:"source_origins"`
+	SourceForbidden      []string                     `yaml:"source_forbidden_markers"`
+	RecordAuthorities    []string                     `yaml:"record_authorities"`
+	Categories           []string                     `yaml:"categories"`
+	Classes              map[string]ClassDef          `yaml:"classes"`
+	ULKinds              []string                     `yaml:"ul_kinds"`
+	LaunchMethods        []string                     `yaml:"launch_methods"`
+	FSTDTypes            []string                     `yaml:"fstd_types"`
+	TowKinds             []string                     `yaml:"tow_kinds"`
+	LicenceKinds         map[string]LicenceKindDef    `yaml:"licence_kinds"`
+	PrivilegeKinds       []string                     `yaml:"privilege_kinds"`
+	CredentialTypes      []string                     `yaml:"credential_types"`
+	FlightFlags          []string                     `yaml:"flight_flags"`
+	EventKinds           map[string]EventKindDef      `yaml:"event_kinds"`
+	RecordFields         map[string]RecordFieldDef    `yaml:"record_fields"`
+	MinuteFields         []string                     `yaml:"minute_fields"`
+	Subjects             map[string]SubjectDef        `yaml:"subjects"`
+	Statuses             map[string]string            `yaml:"statuses"`
+	Units                []string                     `yaml:"units"`
+	Metrics              map[string]MetricDef         `yaml:"metrics"`
+	Filters              map[string]FilterDef         `yaml:"filters"`
+	Roles                []string                     `yaml:"roles"`
+	Windows              map[string]WindowDef         `yaml:"windows"`
+	Combinators          map[string]string            `yaml:"combinators"`
+	StageConditions      map[string]string            `yaml:"stage_conditions"`
+	MissingInputs        []string                     `yaml:"missing_inputs"`
+	RuleEvents           map[string]string            `yaml:"rule_events"`
+	ParamSources         map[string]string            `yaml:"param_sources"`
+	Validity             ValidityDef                  `yaml:"validity"`
+	Hatches              map[string]string            `yaml:"hatches"`
+	RuleGroups           map[string]string            `yaml:"rule_groups"`
+	ReservedFor          map[string]map[string]string `yaml:"reserved_for"`
 	aliasIndex           map[string]string
+}
+
+// SourceOriginDef is one allowed origin of the texts under sources/.
+type SourceOriginDef struct {
+	Directory   string   `yaml:"directory"`
+	Basis       string   `yaml:"basis"`
+	Attribution string   `yaml:"attribution"`
+	Hosts       []string `yaml:"hosts"`
 }
 
 // ClassDef describes an aircraft class.

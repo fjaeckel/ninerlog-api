@@ -2,8 +2,8 @@ id: easa.part-fcl.fcl-140-h.lapl-h
 title: LAPL(H) recency
 authority: easa
 instrument: Part-FCL
-article: FCL.140.H(a)
-support: not_supported
+article: FCL.140.H(a), (b)
+support: partial
 source_kind: regulation
 effective_from: null
 effective_to: null
@@ -16,6 +16,73 @@ source:
     - "(i) at least 6 hours of flight time on helicopters of that type as PIC, or flying dual or solo under the supervision of an instructor, including six take-offs, approaches and landings;"
     - "(ii) a refresher training of at least 1 hour of total flight time with and to the satisfaction of an instructor who shall select those flight exercises that allow the applicant to refresh their competence in safely operating the aircraft and applying normal, abnormal and emergency procedures;"
     - "(2) passed a proficiency check with an examiner on the specific type before resuming the exercise of the privileges of their licence. That proficiency check programme shall be based on the skill test for the LAPL(H)."
-applies_to: { subject: rating, classes: [HELICOPTER], licenceKinds: [HELICOPTER] }
+    - "(b) Applicants may choose to complete the refresher training referred to in point (a)(1)(ii) in the aircraft or an FSTD representing the relevant type, or in a combination of both."
+citations: [EASA FCL.140.H(a), EASA FCL.140.H(b)]
+
+applies_to:
+  subject: rating
+  classes: [HELICOPTER]
+  licenceKinds: [LAPL_H]
+  authorities: [EASA, LBA]
+
+window: { rolling_months: 12 }
+filter:
+  classes: [$subject]
+  typeDesignators: [$subject]
+
+requirements:
+  id: recency
+  any_of:
+    - id: experience
+      all_of:
+        - id: type_time
+          metric: minutes.picOrDualOrSpic
+          min: 360
+          unit: minutes
+          nameKey: requirement.flight_time
+          remedyKey: remedy.fly_more
+        - id: takeoffs_landings
+          metric: takeoffs_and_landings
+          min: 6
+          unit: landings
+          nameKey: requirement.takeoffs_and_landings
+          remedyKey: remedy.fly_more
+        - id: refresher
+          metric: minutes.dual
+          filter: { simulator: include }
+          min: 60
+          unit: minutes
+          nameKey: requirement.refresher_training
+          remedyKey: remedy.refresher_training
+    - id: proficiency_check
+      metric: events
+      filter: { eventKinds: [proficiency_check], simulator: include }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
+  - { id: type_unknown, when: undetermined, status: unknown, messageKey: rating.type_not_identifiable }
+  - { id: lapsed, when: always, status: lapsed, messageKey: rating.recency_not_met }
+
+ruleDescriptionKey: easa_lapl_h
+
+divergences:
+  - id: recency
+    api: Tracks a helicopter rating on a LAPL(H) by its recorded expiry date only, like a Part-FCL type rating.
+    article: A LAPL(H) holder exercises the privileges on a type only with 6 hours in the type (as PIC, dual or supervised solo) including 6 take-offs and landings plus 1 hour of refresher training, or a proficiency check on the type, in the last 12 months; the licence and its types do not expire.
+    cite: EASA FCL.140.H(a)
+
 notes: >-
-  Expressible with existing metrics and filters (per type via typeDesignators, 12 rolling months, minutes.picOrDualOrSpic, takeoffs_and_landings, minutes.dual with FSTDs included, a proficiency check event), but the vocabulary's licence kinds map LAPL(H) to HELICOPTER together with PPL(H), CPL(H) and ATPL(H), so the rule cannot select LAPL(H) holders; applying it to every helicopter licence would report PPL(H) holders as lapsed. See docs/vocab-requests/easa-fcl.md (LAPL_H licence kind).
+  Partial: per type, on helicopter ratings of a LAPL(H) (licence kind LAPL_H); the type is the
+  rating's typeDesignator, and flights, refresher training and checks count only on it (a
+  flight without a type designator is unknown input). The 12 months are rolling. The 6 hours
+  count PIC, dual and supervised solo time in the type; "six take-offs, approaches and
+  landings" is counted as the smaller of take-offs and landings (approaches are not recorded
+  separately for VFR flights). The refresher training is dual time received in the type, in
+  the aircraft or an FSTD ((b)); that the instructor chose the exercises and signed ((c)) is
+  taken as given. The proficiency check (a)(2) is a proficiency_check event on the type, also
+  in an FSTD. Helicopter ratings on a PPL(H), CPL(H) or ATPL(H) are type ratings under
+  FCL.740.H (easa.part-fcl.fcl-740-h.helicopter), which excludes LAPL(H).

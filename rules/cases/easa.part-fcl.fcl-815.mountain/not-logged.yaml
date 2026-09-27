@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-815.mountain
+name: not-logged
+description: >-
+  Flights in the window do not record whether any landing was on a mountain surface, so the recency cannot be decided: unknown, not lapsed.
+covers: [stage:not_logged, unknown:mountain_landings]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-mtn, licenceId: l-ppl, kind: MOUNTAIN }
+  flights:
+    - { date: 2026-06-01, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+expect:
+  - subject: { kind: privilege, id: p-mtn }
+    status: unknown
+    messageKey: privilege.recency_not_logged
+    requirements:
+      mountain_landings: { tracked: false, met: false }

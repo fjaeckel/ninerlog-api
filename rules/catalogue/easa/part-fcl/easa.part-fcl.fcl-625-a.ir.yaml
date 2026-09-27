@@ -33,7 +33,7 @@ applies_to:
   subject: rating
   classes: [IR]
   authorities: [EASA, LBA]
-  excludeLicenceKinds: [HELICOPTER]
+  excludeLicenceKinds: [HELICOPTER, LAPL_H]
 
 window: { before_expiry_months: 3 }
 

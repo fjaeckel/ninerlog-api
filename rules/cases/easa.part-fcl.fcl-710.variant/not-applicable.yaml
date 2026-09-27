@@ -1,15 +1,20 @@
 rule: easa.part-fcl.fcl-710.variant
 name: not-applicable
-description: TMG variants are exempt (FCL.710(da)); variants on FAA licences are not evaluated.
+description: >-
+  TMG variants are exempt (FCL.710(da)); gyroplane variants follow FCL.240.G(b)
+  (easa.part-fcl.fcl-240-g-b.variant); variants on FAA licences are not evaluated.
 asOf: 2026-09-15
 record:
   licences:
     - { id: l-ppl, authority: EASA, type: PPL(A) }
     - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-gpl, authority: EASA, type: GPL }
   ratings:
     - { id: r-tmg, licenceId: l-ppl, class: TMG, expires: 2027-06-30 }
     - { id: r-faa, licenceId: l-faa, class: SEP_LAND }
+    - { id: r-gyro, licenceId: l-gpl, class: GYROPLANE }
   variants:
     - { id: v-tmg, ratingId: r-tmg, name: RETRACTABLE }
     - { id: v-faa, ratingId: r-faa, name: ELECTRIC }
+    - { id: v-gyro, ratingId: r-gyro, name: ENCLOSED_COCKPIT }
 expect: []

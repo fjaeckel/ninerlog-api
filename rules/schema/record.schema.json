@@ -138,6 +138,7 @@
         "isSimulator": { "type": "boolean" },
         "fstdType": { "type": "string" },
         "mtomKg": { "$ref": "#/$defs/count" },
+        "engines": { "$ref": "#/$defs/count" },
         "tailwheel": { "type": "boolean" },
         "minutes": {
           "type": "object",
@@ -163,6 +164,7 @@
         "landings": { "$ref": "#/$defs/dayNight" },
         "fullStopLandings": { "$ref": "#/$defs/count" },
         "fullStopNightLandings": { "$ref": "#/$defs/count" },
+        "mountainLandings": { "$ref": "#/$defs/count" },
         "launches": { "$ref": "#/$defs/count" },
         "approaches": { "$ref": "#/$defs/count" },
         "holds": { "$ref": "#/$defs/count" },

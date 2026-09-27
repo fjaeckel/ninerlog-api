@@ -32,11 +32,14 @@ related_sources:
       - "(c) Receive a logbook endorsement from an authorized instructor certifying that you meet the training requirements in paragraph (a) of this section and are proficient in the operation of the aircraft at night in the category and class which the sport pilot seeks privileges."
 citations: [14 CFR 61.57(b)(1), 14 CFR 61.101(e)(6), 14 CFR 61.315(c)(5), 14 CFR 61.329]
 
+group: faa_passengers
+
 applies_to:
   subject: passengers
   authorities: [FAA]
   excludeClasses: [IR, GLIDER, ULTRALIGHT]
   excludeLicenceKinds: [FAA_STUDENT]
+  typeRated: false
 
 window: { rolling_days: 90 }
 
@@ -106,8 +109,8 @@ notes: >-
   Partial: night takeoffs are read from the logged night takeoffs, whose night may be the
   logbook's night (end of evening civil twilight) rather than the 61.57(b) period from 1
   hour after sunset to 1 hour before sunrise; full_stop_night_landings must be recorded for
-  that period. The type part of "category, class, and type" is not modelled (see
-  faa.14cfr61.61-57-a.passengers). Full flight simulators (61.57(b)(2)) need an approved
+  that period. Class ratings only (typeRated: false); a type rating is evaluated per type by
+  faa.14cfr61.61-57-b.night-passengers-type. Full flight simulators (61.57(b)(2)) need an approved
   part 142 course the record cannot show, so simulator sessions do not count. The (e)
   exceptions, including (e)(4) for turbine multi-pilot airplanes, are not modelled. Gliders
   are not evaluated (NinerLog records no night glider operations; the API did not evaluate

@@ -1,0 +1,22 @@
+rule: easa.part-fcl.fcl-140-h.lapl-h
+name: lapsed
+description: >-
+  Seven hours but only four take-offs and landings in the R44, and time in a Cabri G2 does not count for the R44: the LAPL(H) may not be used on the R44.
+covers: [stage:lapsed, requirement:takeoffs_landings:unmet, requirement:type_time:met, requirement:refresher:met, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-laplh, authority: EASA, type: LAPL(H) }
+  ratings:
+    - { id: r-r44, licenceId: l-laplh, class: HELICOPTER, typeDesignator: R44 }
+  flights:
+    - { date: 2026-03-01, class: HELICOPTER, typeDesignator: R44, minutes: { total: 420, pic: 360, dual: 60 }, takeoffs: { day: 4 }, landings: { day: 4 } }
+    - { date: 2026-03-02, class: HELICOPTER, typeDesignator: G2CA, minutes: { total: 120, pic: 120 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+expect:
+  - subject: { kind: rating, id: r-r44 }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      type_time: { current: 420, met: true }
+      takeoffs_landings: { current: 4, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 2, unit: landings } }
+      refresher: { current: 60, met: true }

@@ -257,7 +257,7 @@ rules:
       - status: suspected
         what: Route sectors counted as any flight in class, including dual/instructional flights and multi-leg rows as one.
     tests: [currency_test.go TestEASA_MEP_AllMet, TestEASA_MEP_InsufficientSectors_Expiring, TestEASA_MEP_WindowNotYetOpen, proficiency_check_test.go TestEASA_MEP_ProfCheckOnly_Current, TestEASA_MEP_NoProfCheck_NoExperience_Expiring, TestEASA_MEP_ProfCheckRequirement_InResponse, two_tier_test.go TestEASA_MEP_LookbackIs12Months, cross_class_test.go TestEASA_PPL_MEP_NotPooled]
-    maps_to:
+    maps_to: [easa.part-fcl.fcl-740-a.mep, easa.part-fcl.fcl-740-a.set]
 
   - id: easa.part-fcl.fcl-625-a.ir
     where:
@@ -308,7 +308,7 @@ rules:
       - status: suspected
         what: FSTD IFR time excluded from the IFR total.
     tests: [currency_test.go TestEASA_IR_Current, TestEASA_IR_InsufficientIFR_Expiring, TestEASA_IR_Expired, TestEASA_IR_WindowNotYetOpen, proficiency_check_test.go TestEASA_IR_*, lapl_spl_test.go TestEASA_Dispatch_IR_SameForAllLicenseTypes]
-    maps_to:
+    maps_to: [easa.part-fcl.fcl-625-a.ir, easa.part-fcl.fcl-625-h.ir]
 
   - id: easa.part-fcl.class-rating-expiry
     where:
@@ -331,7 +331,7 @@ rules:
       - EASA never evaluates an ULTRALIGHT rating's recency; UL ratings under EASA get expiry only and no passenger currency (service.go:124).
     suspected_divergence: []
     tests: [annex_i_credit_test.go TestEASA_ULTRALIGHTRatingStaysExpiryOnly, glider_ul_test.go TestEASA_ULClass_ExpiryOnly]
-    maps_to:
+    maps_to: [easa.part-fcl.fcl-740.validity, easa.part-fcl.fcl-740-h.helicopter, easa.part-fcl.fcl-140-h.lapl-h, easa.part-fcl.fcl-740-pl.powered-lift, easa.part-fcl.fcl-740-as.airship]
 
   - id: easa.part-fcl.fcl-140-a.lapl-a
     where:
@@ -391,7 +391,7 @@ rules:
       - status: suspected
         what: MEP/SET classes pooled for a LAPL although LAPL(A) privileges are SEP/TMG only (harmless unless such flights exist).
     tests: [lapl_spl_test.go TestEASA_LAPL_Current, TestEASA_LAPL_NoPICRequirement, TestEASA_LAPL_InsufficientHours, TestEASA_LAPL_RollingFromNow, cross_class_test.go TestEASA_LAPL_*, annex_i_credit_test.go TestEASA_LAPL_ULTimeCountsNotTrainingFlight, ul_recency_test.go TestLAPL_TrainingFlight_IsOneFlightOfAnHour, TestRollingRecencyUnmetIsLapsed, lapl_spl_test.go TestEASA_Dispatch_LAPL_UsesFCL140A]
-    maps_to:
+    maps_to: [easa.part-fcl.fcl-140-a.lapl-a]
 
   - id: easa.part-fcl.fcl-240-g.gpl
     where:
@@ -430,7 +430,7 @@ rules:
       - status: suspected
         what: Landings only, take-offs not counted.
     tests: [gpl_test.go TestGPL_Current, TestGPL_AnyLicenceTypeUsesGPLRule, TestGPL_AnnexIGyroplaneCredit, TestGPL_ProficiencyCheck]
-    maps_to:
+    maps_to: [easa.part-fcl.fcl-240-g.gpl]
 
   # ======================= EASA Part-SFCL rating rules =======================
 
@@ -479,7 +479,7 @@ rules:
       - status: suspected
         what: Non-GLIDER classes on an SPL licence (e.g. SEP_LAND) are evaluated as sailplanes.
     tests: [lapl_spl_test.go TestEASA_SPL_*, sfcl_supervised_solo_test.go, sfcl_ul_test.go TestSFCL160a_ULSailplaneAndMotorgliderPICHoursCount, glider_ul_test.go TestGermanULEvaluator_GliderUsesSPLRule, TestEASA_GliderClass_CountsGliderFlights, TestTowedFlights_IncludedOnlyForSailplaneRules, cross_class_test.go TestEASA_LAPL_GliderRatingUsesSPLRule, projection_test.go TestValidUntil_SPLLaunches, TestValidUntil_ProficiencyCheckAlternative]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-160-a.sailplane]
 
   - id: easa.part-sfcl.sfcl-155-c.launch-method
     where:
@@ -512,7 +512,7 @@ rules:
       - status: suspected
         what: TMG take-offs counted as self-launches; SFCL.155 self-launch recency may be meant for self-launching sailplanes only.
     tests: [lapl_spl_test.go TestEASA_SPL_LaunchMethodCurrency, TestEASA_SPL_LaunchMethodNeverUsedIsOmitted, glider_ul_test.go TestEASA_SPL_LaunchCountsUseRatingClass, projection_test.go TestRemedyKeys_LaunchMethodDual]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-155-c.launch-method, easa.part-sfcl.sfcl-155-c.self-launch, easa.part-sfcl.sfcl-155-c.bungee]
 
   - id: easa.part-sfcl.sfcl-155-a.launch-method-trained
     where:
@@ -540,7 +540,7 @@ rules:
       - Initial training counts (10 dual + 5 solo winch launches etc.) are not evaluated.
     suspected_divergence: []
     tests: [privileges_test.go TestService_TrainedLaunchMethods]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-155-a.launch-method-trained]
 
   - id: easa.part-sfcl.sfcl-160-b.tmg
     where:
@@ -578,7 +578,7 @@ rules:
       - status: suspected
         what: Landings only for "take-offs and landings".
     tests: [lapl_spl_test.go TestEASA_SPL_TMG_Current, TestEASA_SPL_TMG_Shortfalls, TestEASA_SPL_TMG_ProficiencyCheckAlternative, TestEASA_SPL_TMG_VsPPL_TMG, cross_class_test.go TestEASA_SPL_TMG_PoolsSailplanesNotAeroplanes, sfcl_ul_test.go TestSFCL160b_ULMotorgliderCountsTowardTMGHours]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-160-b.tmg]
 
   - id: easa.part-sfcl.sfcl-160-c.tmg-exemption
     where:
@@ -599,7 +599,7 @@ rules:
       - status: suspected
         what: The Part-FCL TMG rating's own validity (expired FCL.740.A rating, lapsed FCL.140.A recency) is not checked; an expired PPL TMG rating still exempts.
     tests: [sfcl_ul_test.go TestSFCL160c_PartFCLTMGExempts]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-160-b.tmg]
 
   # ======================= Passenger rules =======================
 
@@ -667,7 +667,7 @@ rules:
       - status: suspected
         what: A LAPL(A) holder with a night rating (FCL.810) is never evaluated for night passengers.
     tests: [two_tier_test.go TestEASA_PassengerCurrency_*, passenger_expiry_test.go TestPaxWindowStart*, TestPaxExpiryDate*, TestEASA_PassengerCurrency_*, TestPassengerCurrency_*, two_tier_test.go TestHasNightPrivilege, TestService_TwoTier_NoDuplicatePassengerCurrency, TestService_TwoTier_IR_NoPassengerCurrency]
-    maps_to:
+    maps_to: [easa.part-fcl.fcl-060-b.passengers, easa.part-fcl.fcl-060-b.night-passengers]
 
   - id: easa.part-fcl.fcl-205-g-a-2.gpl-passengers
     where:
@@ -695,7 +695,7 @@ rules:
       - status: suspected
         what: Licence re-issue resets the counting start (issue date of the stored licence).
     tests: [gpl_test.go TestGPL_PassengersNeed10hPICAfterIssue, TestHasNightPrivilege_GermanAndGPL]
-    maps_to:
+    maps_to: [easa.part-fcl.fcl-205-g-a-2.passengers]
 
   - id: easa.part-sfcl.sfcl-160-e-1.sailplane-passengers
     where:
@@ -716,7 +716,7 @@ rules:
       - status: suspected
         what: Counts landings of PIC flights, not launches as PIC; a winch series row with launches > landings or a flight with landings logged 0 differ.
     tests: [lapl_spl_test.go TestEASA_SPL_PassengerCurrencyCountsPICOnly, glider_ul_test.go TestEASA_Passenger_GliderClass_NoNightPrivilege, TestPassengerCurrency_TowedFlights]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-160-e-1.sailplane-passengers]
 
   - id: easa.part-sfcl.sfcl-160-e-2.tmg-passengers
     where:
@@ -748,7 +748,7 @@ rules:
       - status: suspected
         what: Landings only, take-offs not counted.
     tests: [lapl_spl_test.go TestEASA_SPL_PassengerCurrencyCountsPICOnly, privileges_test.go TestService_SPLPassengerPrivileges]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-160-e-2.tmg-passengers]
 
   - id: easa.part-sfcl.sfcl-115-a-2.passenger-prerequisites
     where:
@@ -773,7 +773,7 @@ rules:
       - status: suspected
         what: Not enforced; a re-issued licence resets the count (documented known gap).
     tests: [privileges_test.go TestService_SPLPassengerPrivileges]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-115-a-2.passengers]
 
   - id: faa.14cfr61.61-57-ab.passengers
     where:
@@ -812,7 +812,7 @@ rules:
       - status: suspected
         what: FFS/FTD alternatives (61.57(a)(3)?) not modelled; simulators excluded.
     tests: [two_tier_test.go TestFAA_PassengerCurrency_*, TestFAA_SportPilot_PassengerCurrency_NoNight, TestFAA_PrivatePilot_PassengerCurrency_HasNight, passenger_expiry_test.go TestFAA_PassengerCurrency_*]
-    maps_to:
+    maps_to: [faa.14cfr61.61-57-a.passengers, faa.14cfr61.61-57-a.tailwheel, faa.14cfr61.61-57-b.night-passengers, faa.14cfr61.61-57-a.passengers-type, faa.14cfr61.61-57-b.night-passengers-type]
 
   - id: faa.14cfr61.61-57-a.glider-passengers
     where:
@@ -833,7 +833,7 @@ rules:
       - status: suspected
         what: Sole manipulator approximated by pic_time > 0; take-offs not counted.
     tests: [faa_glider_test.go TestFAAGliderPassengerCurrency]
-    maps_to:
+    maps_to: [faa.14cfr61.61-57-a.glider-passengers]
 
   - id: de.luftpersv.45a.passengers
     where:
@@ -863,7 +863,7 @@ rules:
       - status: suspected
         what: Dual flights counted; §45a wording (as PIC?) not verified.
     tests: [german_ul_test.go TestGermanUL_PassengerCurrency_*, ul_recency_test.go TestGermanUL_PassengerCurrency_TakeoffsAndLandings, TestUnknownWhenULRatingHasNoKind_NoPassengerCurrency, passenger_expiry_test.go TestGermanUL_PassengerCurrency_ExpiryDate, glider_ul_test.go TestService_ULPassengerCurrency_GermanAuthorityOnly, TestService_GermanUL_PassengerPerKind]
-    maps_to:
+    maps_to: [de.luftpersv.45a.passengers-three-axis, de.luftpersv.45a.passengers]
 
   - id: de.luftpersv.84a.passenger-authorisation
     where:
@@ -890,7 +890,7 @@ rules:
       - Notification for pax.ul_authorisation_missing suppressed (service/notification.go:403).
     suspected_divergence: []
     tests: [privileges_test.go TestService_ULPassengerAuthorisation]
-    maps_to:
+    maps_to: [de.luftpersv.45a.passengers-three-axis, de.luftpersv.45a.passengers]
 
   # ======================= FAA rating rules =======================
 
@@ -928,7 +928,7 @@ rules:
       - status: suspected
         what: Same full-stop / sole-manipulator / takeoff gaps as the Tier-2 rule.
     tests: [currency_test.go TestFAA_Passenger_*, pipeline_test.go TestFullPipeline_FAAPilotMultiClass]
-    maps_to:
+    maps_to: [faa.14cfr61.61-57-a.passengers, faa.14cfr61.61-57-b.night-passengers]
 
   - id: faa.14cfr61.61-57-c.instrument
     where:
@@ -972,7 +972,7 @@ rules:
       - status: suspected
         what: Grace status "expiring" is treated as ready by readiness, although in the grace period the pilot may not act as PIC under IFR.
     tests: [currency_test.go TestFAA_IR_Current, TestFAA_IR_InsufficientIFR, TestFAA_IR_Expired, lapl_spl_test.go TestFAA_IR_GracePeriod_Within6Months_Current, TestFAA_IR_GracePeriod_NotMetAnywhere_Expired]
-    maps_to: faa.14cfr61.61-57-c.instrument
+    maps_to: [faa.14cfr61.61-57-c.instrument]
 
   - id: faa.14cfr61.61-315.ir-not-applicable
     where:
@@ -991,7 +991,7 @@ rules:
       - status: suspected
         what: Citation 61.315 covers sport pilots; recreational limitations are in 61.101.
     tests: [two_tier_test.go TestFAA_SportPilot_IR_Suppressed, TestFAA_RecreationalPilot_IR_Suppressed]
-    maps_to:
+    maps_to: [faa.14cfr61.61-315.ir-not-applicable]
 
   - id: faa.14cfr61.61-56.glider-rating
     where:
@@ -1028,7 +1028,7 @@ rules:
       - status: suspected
         what: 61.56(d) (a proficiency check / practical test / new rating counts as a flight review) not modelled - is_proficiency_check flights do not reset the review.
     tests: [faa_glider_test.go TestFAAGliderRating, TestFAAFlightReviewWindowStart]
-    maps_to:
+    maps_to: [faa.14cfr61.61-56.flight-review]
 
   - id: faa.14cfr61.61-56.flight-review
     where:
@@ -1062,7 +1062,7 @@ rules:
       - status: suspected
         what: Readiness does not include the flight review, so an FAA powered pilot with an expired review is reported ready.
     tests: [two_tier_test.go TestFAA_FlightReview_*, TestService_FAA_IncludesFlightReview, TestService_EASA_NoFlightReview, messages_test.go TestFlightReviewCarriesAKey]
-    maps_to:
+    maps_to: [faa.14cfr61.61-56.flight-review]
 
   - id: other.ninerlog.expiry-only
     where:
@@ -1084,7 +1084,7 @@ rules:
       - Unknown authority licences get no passenger currency and no flight review.
     suspected_divergence: []
     tests: [currency_test.go TestOtherEvaluator_*, TestServiceEvaluateAll_FallbackToOther, pipeline_test.go TestFullPipeline_UnknownAuthority]
-    maps_to:
+    maps_to: [other.ninerlog.expiry-only, other.ninerlog.expiry-only.faa-ultralight]
 
   # ======================= German ultralight rating rules =======================
 
@@ -1103,7 +1103,7 @@ rules:
       - No passenger currency is produced for such a rating (service.go:124).
     suspected_divergence: []
     tests: [german_ul_test.go TestGermanUL_UnknownWhenRatingHasNoKind, ul_recency_test.go TestUnknownWhenULRatingHasNoKind_NoPassengerCurrency]
-    maps_to:
+    maps_to: [de.luftpersv.45.kind-required]
 
   - id: de.luftpersv.45-2.three-axis
     where:
@@ -1144,7 +1144,7 @@ rules:
       - status: suspected
         what: Landings stand for take-offs and landings.
     tests: [german_ul_test.go TestGermanUL_ThreeAxis_*, TestGermanUL_ProficiencyCheck*, TestGermanUL_ZeroActivity, TestGermanUL_EvaluationFailed, ul_recency_test.go TestTrainingFlight_IsOneFlightOfAnHour, TestKindlessULFlights, projection_test.go TestValidUntil_GermanULThreeAxis]
-    maps_to:
+    maps_to: [de.luftpersv.45-2.three-axis]
 
   - id: de.luftpersv.45-2a.helicopter
     where: { definition: "internal/service/currency/german_ul.go:173-187 (germanULHelicopterRule)" }
@@ -1165,7 +1165,7 @@ rules:
     edge_cases: [unclassifiedFlights reported]
     suspected_divergence: []
     tests: [german_ul_test.go TestGermanUL_KindRules]
-    maps_to:
+    maps_to: [de.luftpersv.45-2a.helicopter]
 
   - id: de.luftpersv.45-4.gyroplane
     where: { definition: "internal/service/currency/german_ul.go:189-206 (germanULGyroplaneRule), 145-148" }
@@ -1189,7 +1189,7 @@ rules:
       - status: suspected
         what: Association rule (DULV) applied regardless of issuing association.
     tests: [german_ul_test.go TestGermanUL_Gyroplane_OnlyGyroTimeCounts, TestGermanUL_KindRules, gpl_test.go TestGermanULGyroplane_CountsGyroplaneClassTime]
-    maps_to:
+    maps_to: [de.dulv.ul-recency.gyroplane]
 
   - id: de.luftpersv.45-4.weight-shift-dulv
     where: { definition: "internal/service/currency/german_ul.go:208-220 (germanULTrikeDULVRule), 110-114" }
@@ -1206,7 +1206,7 @@ rules:
     edge_cases: [No proficiency-check alternative]
     suspected_divergence: []
     tests: [german_ul_test.go TestGermanUL_KindRules]
-    maps_to:
+    maps_to: [de.dulv.ul-recency.weight-shift]
 
   - id: de.luftpersv.45-4.weight-shift-daec
     where: { definition: "internal/service/currency/german_ul.go:222-235 (germanULTrikeDAeCRule)" }
@@ -1225,7 +1225,7 @@ rules:
       - status: suspected
         what: Untracked safety training means "current" can be reported without it.
     tests: [german_ul_test.go TestGermanUL_KindRules]
-    maps_to:
+    maps_to: [de.daec.ul-recency.weight-shift]
 
   - id: de.luftpersv.45-4.powered-paraglider
     where: { definition: "internal/service/currency/german_ul.go:237-249" }
@@ -1243,7 +1243,7 @@ rules:
       - status: suspected
         what: Landings stand for take-offs and landings.
     tests: [german_ul_test.go TestGermanUL_KindRules]
-    maps_to:
+    maps_to: [de.dulv.ul-recency.powered-paraglider]
 
   - id: de.luftpersv.45-4.sailplane
     where: { definition: "internal/service/currency/german_ul.go:251-263; countsTowed via germanULNativeCredit german_ul.go:134" }
@@ -1259,7 +1259,7 @@ rules:
     edge_cases: [UL SAILPLANE PIC time also credited toward SFCL.160(a)/(b) hours]
     suspected_divergence: []
     tests: [german_ul_test.go TestGermanUL_SailplaneCountsTowedLaunches, TestGermanUL_KindRules]
-    maps_to:
+    maps_to: [de.daec.ul-recency.sailplane]
 
   # ======================= Privilege rules =======================
 
@@ -1283,7 +1283,7 @@ rules:
       - Privileges never change a class rating's status.
     suspected_divergence: []
     tests: [privileges_test.go TestEvaluatePrivilege_Recency, TestEveryPrivilegeResultCarriesAKey]
-    maps_to:
+    maps_to: [other.ninerlog.privilege-expiry, other.ninerlog.privilege-expiry.launch-method]
 
   - id: easa.part-sfcl.sfcl-205-c.sailplane-towing
     where:
@@ -1309,7 +1309,7 @@ rules:
       - status: suspected
         what: SFCL.205 applied to any non-FAA licence; for PPL(A)/LAPL(A) holders towing in aeroplanes the recency is believed to be FCL.805.
     tests: [privileges_test.go TestEvaluatePrivilege_Recency]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-205-f.sailplane-towing]
 
   - id: easa.part-sfcl.sfcl-205-c.banner-towing
     where: { definition: "internal/service/currency/privileges.go:259-260" }
@@ -1326,7 +1326,7 @@ rules:
       - status: suspected
         what: Sailplane tows count toward banner towing and vice versa; FCL.805 for aeroplane licences.
     tests: [privileges_test.go TestEvaluatePrivilege_Recency]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-205-f.banner-towing]
 
   - id: faa.14cfr61.61-69.towing
     where: { definition: "internal/service/currency/privileges.go:262-283 (faaTowingRule)" }
@@ -1350,7 +1350,7 @@ rules:
       - status: suspected
         what: Calendar-month window may be one month longer than "preceding 24 calendar months"; also 61.69(a)(5) alternative with a qualified pilot not modelled.
     tests: [privileges_test.go TestEvaluatePrivilege_Recency]
-    maps_to:
+    maps_to: [faa.14cfr61.61-69.towing]
 
   - id: easa.part-sfcl.sfcl-215.cloud-flying
     where: { definition: "internal/service/currency/privileges.go:285-302 (sfclCloudFlyingRule)" }
@@ -1369,7 +1369,7 @@ rules:
       - status: suspected
         what: No proficiency-check alternative / restoration path modelled.
     tests: [privileges_test.go TestEvaluatePrivilege_Recency]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-215.cloud-flying]
 
   - id: easa.part-sfcl.sfcl-360.fi-s
     where: { definition: "internal/service/currency/privileges.go:304-322 (sfclFISRule)" }
@@ -1390,7 +1390,7 @@ rules:
       - status: suspected
         what: Status may be current without the refresher training the article may require in addition to (or instead of) the instruction hours.
     tests: [privileges_test.go TestEvaluatePrivilege_Recency]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-360.fi-s]
 
   - id: de.dulv.ul-towing
     where: { definition: "internal/service/currency/privileges.go:324-341 (dulvULTowingRule)" }
@@ -1405,7 +1405,7 @@ rules:
     edge_cases: [Detail nil -> no query, 0 tows -> lapsed]
     suspected_divergence: []
     tests: [privileges_test.go TestEvaluatePrivilege_Recency]
-    maps_to:
+    maps_to: [de.luftpersv.84-5.ul-towing]
 
   # ======================= Readiness =======================
 
@@ -1569,7 +1569,7 @@ rules:
       - status: suspected
         what: Straight-line distance understates tasks; out-and-return flights have no cross-country time.
     tests: [training/templates_test.go TestEvaluate, TestEvaluate_CreditNeverAffectsAllMet, training/service_test.go TestService_Progress, TestIsOtherCategoryLicence]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-130.spl-training]
 
   - id: easa.part-sfcl.sfcl-150-b.tmg-extension-training
     where: { definition: "internal/service/training/templates.go:28-30, 85-88, 211-218" }
@@ -1586,7 +1586,7 @@ rules:
     edge_cases: [Full-stop landing elsewhere approximated by cross-country time]
     suspected_divergence: []
     tests: [training/templates_test.go TestEvaluate]
-    maps_to:
+    maps_to: [easa.part-sfcl.sfcl-150-b.tmg-extension]
 
   - id: de.luftpersv.42.three-axis-training
     where: { definition: "internal/service/training/templates.go:32-33, 89-92, 219-225" }
@@ -1604,7 +1604,7 @@ rules:
       - status: suspected
         what: Post-licence PIC time counts as training time.
     tests: [training/templates_test.go TestEvaluate]
-    maps_to:
+    maps_to: [de.luftpersv.42.three-axis-training]
 
   - id: de.luftpersv.42.weight-shift-training
     where: { definition: "internal/service/training/templates.go:34-36, 93-96, 226-233" }
@@ -1621,7 +1621,7 @@ rules:
     edge_cases: []
     suspected_divergence: []
     tests: [training/templates_test.go TestEvaluate]
-    maps_to:
+    maps_to: [de.luftpersv.42.weight-shift-training]
 
 # ---------------------------------------------------------------------------------------
 adjacent_logic:

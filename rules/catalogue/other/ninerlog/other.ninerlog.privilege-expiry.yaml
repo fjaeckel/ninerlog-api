@@ -4,14 +4,11 @@ authority: other
 instrument: NinerLog
 article: none (app policy)
 support: supported
-source_kind: national_law
+source_kind: app_policy
 effective_from: null
 effective_to: null
 source:
-  cite: LuftPersV § 9(1) (closest fit; NinerLog app policy with no regulation source)
-  url: https://www.gesetze-im-internet.de/luftpersv/__9.html
-  file: sources/de/luftpersv-9.md
-  quote: "Die Gültigkeitsdauer von Berechtigungen und Erweiterungen der Erlaubnis richtet sich nach den Vorschriften, die für die Erteilung der Berechtigung maßgeblich sind."
+  cite: "NinerLog app policy: privileges without a recency rule are valid through their recorded expiry date"
 related_sources:
   - cite: LuftPersV § 84a(5)
     url: https://www.gesetze-im-internet.de/luftpersv/__84a.html
@@ -20,7 +17,7 @@ related_sources:
 
 applies_to:
   subject: privilege
-  privilegeKinds: [AEROBATIC_BASIC, AEROBATIC_ADVANCED, TMG_NIGHT, BI_S, FE_S, UL_PASSENGER_AUTH, UL_TYPE_BRIEFING]
+  privilegeKinds: [AEROBATIC_BASIC, AEROBATIC_ADVANCED, TMG_NIGHT, BI_S, UL_PASSENGER_AUTH, UL_TYPE_BRIEFING]
 
 stages:
   - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
@@ -35,10 +32,10 @@ notes: >-
   licence, which has no expiry, unless the Beauftragte limits it. The privilege kinds are
   the API's (privileges.go privilegeRuleFor returns no rule for them); when another family
   adds a rule for one of them (e.g. an examiner or instructor certificate), that kind should
-  leave this list so it is not evaluated twice. LAUNCH_METHOD_TRAINED has its own rule
+  leave this list so it is not evaluated twice (the overlap check enforces it). FE_S left the
+  list when easa.part-sfcl.sfcl-460.fe-s was written; an FE(S) certificate is a Part-SFCL
+  examiner certificate, so on FAA, DULV and DAeC licences, which that rule excludes, it is
+  not evaluated. LAUNCH_METHOD_TRAINED has its own rule
   description and lives in other.ninerlog.privilege-expiry.launch-method.
-  App policy, not a regulation. The schema requires a source and a source_kind, and the
-  vocabulary has no kind for NinerLog policy; the closest fit is LuftPersV § 9(1), which says
-  a rating's validity follows the provisions under which it was issued, so the date the
-  issuing authority wrote on it is what the app can rely on (vocabulary request filed:
-  docs/vocab-requests/de-other.md).
+  App policy, not a regulation: source_kind app_policy (no source file, no quote). The
+  evaluation cites the policy.

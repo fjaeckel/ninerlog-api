@@ -1,0 +1,25 @@
+rule: faa.14cfr61.61-57-a.passengers-type
+name: per-type
+description: >-
+  Two type ratings in the same class are two subjects: takeoffs and landings in the B350
+  make the pilot current for the B350 only; the CE525 type is not current.
+covers: [stage:current, stage:not_current, requirement:takeoffs_landings:met, requirement:takeoffs_landings:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: ATP }
+  ratings:
+    - { id: r-b350, licenceId: l-faa, class: MEP_LAND, typeDesignator: B350 }
+    - { id: r-c525, licenceId: l-faa, class: MEP_LAND, typeDesignator: C525 }
+  flights:
+    - { date: 2026-08-01, class: MEP_LAND, typeDesignator: B350, minutes: { total: 120, pic: 120 }, takeoffs: { day: 3 }, landings: { day: 3 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: MEP_LAND, detail: B350 }
+    status: current
+    messageKey: pax.day_current
+    requirements:
+      takeoffs_landings: { current: 3, met: true }
+  - subject: { kind: passengers, id: l-faa, class: MEP_LAND, detail: C525 }
+    status: lapsed
+    messageKey: pax.not_current
+    messageParams: { needed: 3 }

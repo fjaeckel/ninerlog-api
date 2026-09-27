@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: aircraft-data-unknown
+description: >-
+  Six hours as PIC and a refresher in the type, but the flights record neither the engine count nor the maximum take-off mass: NinerLog cannot tell whether the refresher route is open, so without a proficiency check the result is unknown.
+covers: [stage:type_unknown, unknown:maxEngines, unknown:maxMtomKg]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: R44, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-01-10, class: HELICOPTER, typeDesignator: R44, minutes: { total: 360, pic: 360 }, takeoffs: { day: 7 }, landings: { day: 7 } }
+    - { date: 2026-09-01, class: HELICOPTER, typeDesignator: R44, minutes: { total: 60, dual: 60 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+expect:
+  - subject: { kind: rating, id: r-type, class: HELICOPTER }
+    status: unknown
+    messageKey: rating.type_not_identifiable
+    requirements:
+      pic_time: { tracked: false }
+      refresher: { tracked: false }

@@ -13,6 +13,7 @@ source:
   file: sources/faa/61.217.md
   quote:
     - "The holder of a ground instructor certificate may not perform the duties of a ground instructor unless the person can show that one of the following occurred during the preceding 12 calendar months:"
+    - "(a) Employment or activity as a ground instructor giving pilot, flight instructor, or ground instructor training;"
     - "(b) Employment or activity as a flight instructor giving pilot, flight instructor, or ground instructor ground or flight training;"
     - "(c) Completion of an approved flight instructor refresher course and receipt of a graduation certificate for that course; or"
     - "(d) An endorsement from an authorized instructor certifying that the person has demonstrated knowledge in the subject areas prescribed under § 61.213(a)(3) and (a)(4), as appropriate."
@@ -33,6 +34,12 @@ window: { calendar_months: 12 }
 requirements:
   id: recent_activity
   any_of:
+    - id: ground_instruction
+      metric: not_recorded
+      min: 1
+      unit: events
+      nameKey: requirement.ground_instruction_activity
+      messages: { untracked: requirement.untracked }
     - id: flight_instruction
       metric: minutes.dualGiven
       min: 1
@@ -54,7 +61,7 @@ requirements:
 
 stages:
   - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: valid_until } }
-  - { id: not_met, when: always, status: lapsed, messageKey: privilege.recency_not_met }
+  - { id: not_logged, when: always, status: unknown, messageKey: privilege.recency_not_logged }
 
 ruleDescriptionKey: faa_ground_instructor
 
@@ -65,8 +72,11 @@ divergences:
     cite: 14 CFR 61.217
 
 notes: >-
-  Partial: (a) employment or activity as a ground instructor is not recorded; ground
-  training given as a flight instructor is not recorded either, so (b) counts only flight
-  instruction given (dualGiven time, also in a device). (c) is an instructor_refresher event,
+  Partial: (a) employment or activity as a ground instructor is not recorded; it is an
+  untracked alternative (metric not_recorded), so without a recorded flight instruction,
+  refresher course or endorsement the status is unknown (privilege.recency_not_logged), never
+  lapsed: NinerLog cannot tell whether the holder instructed on the ground. Ground training
+  given as a flight instructor is not recorded either, so (b) counts only flight instruction
+  given (dualGiven time, also in a device). (c) is an instructor_refresher event,
   (d) an instructor_endorsement event. The 12 calendar months are those before the month of
   asOf plus the month to date.

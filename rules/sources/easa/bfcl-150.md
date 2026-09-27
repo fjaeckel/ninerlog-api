@@ -2,7 +2,9 @@
 
 - Citation: Annex III (Part-BFCL), point BFCL.150
 - Regulation: Commission Regulation (EU) 2018/395 of 13 March 2018, as amended
-- Source: EUR-Lex consolidated text (official), retrieved from the EU Publications Office Cellar repository
+- Source: EUR-Lex consolidated text, retrieved from the EU Publications Office Cellar repository; a documentation tool, not authentic (only the Official Journal of the European Union is)
+- Origin: eu-legal-act
+- Attribution: © European Union, https://eur-lex.europa.eu (reused under Commission Decision 2011/833/EU)
 - URL: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115
 - Retrieved from: http://publications.europa.eu/resource/cellar/d3ee82f2-471d-11ec-91ac-01aa75ed71a1.0007.02/DOC_1
 - Consolidated version: 15.11.2021 (consolidated version CELEX 02018R0395-20211115; latest consolidation listed by the Publications Office on the retrieval date)

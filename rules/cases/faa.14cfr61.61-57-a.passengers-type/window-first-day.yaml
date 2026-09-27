@@ -1,0 +1,17 @@
+rule: faa.14cfr61.61-57-a.passengers-type
+name: window-first-day
+description: Per type (each rating carries a type designator, so it is a type rating). Takeoffs and landings on 18 May are within the preceding 90 days on 16 August; the pilot may carry passengers through that day only.
+covers: [window:edge-in, stage:current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: " faa ", type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND, typeDesignator: PC6 }
+  flights:
+    - { date: 2026-05-18, class: SEP_LAND, typeDesignator: PC6, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: current
+    messageKey: pax.day_current
+    validUntil: 2026-08-16

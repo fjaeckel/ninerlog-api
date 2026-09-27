@@ -1,25 +1,39 @@
 ninerlog-rules
 Copyright 2026 Frederic Jung and the NinerLog contributors
 
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+The catalogue (catalogue/, cases/, packs/, inventory/, messages/, vocabulary.yaml, schema/),
+the engine (engine/, gen/) and the tools (cmd/) are licensed under the Apache License,
+Version 2.0 (see LICENSE). The texts under sources/ are not licensed by us: each keeps its
+own status, described below and in sources/README.md, and is not relicensed under the
+Apache License.
 
 NOT LEGAL ADVICE. The catalogue encodes pilot currency, recency and validity rules as its
 authors read them. It can be wrong, incomplete or out of date, and it does not replace the
 official text, your competent authority, your examiner or your instructor. The pilot in
-command is responsible for meeting every requirement that applies to a flight.
+command is responsible for meeting every requirement that applies to a flight. Nothing in
+this NOTICE or in sources/README.md is legal advice about copyright either.
 
-Regulation texts quoted under sources/ and in catalogue rule files are taken verbatim from
-official publications, with the retrieval date recorded in each source file:
+Regulation texts under sources/ and the quotes in catalogue rule files are taken verbatim
+from the following publications, with the retrieval date recorded in each source file. All
+of them are consolidated, non-authoritative versions:
 
-- EUR-Lex (eur-lex.europa.eu), (c) European Union, 1998-2026: Commission Regulation (EU)
-  No 1178/2011 (Part-FCL, Part-MED), Commission Implementing Regulation (EU) 2018/1976
-  (Part-SFCL) and (EU) 2018/395 (Part-BFCL), consolidated versions. Reuse is authorised
-  under Commission Decision 2011/833/EU; only the texts published in the Official Journal
-  of the European Union are authentic.
-- eCFR (www.ecfr.gov), Title 14 Code of Federal Regulations, Parts 61 and 68. US federal
-  government works, not subject to copyright in the United States.
-- gesetze-im-internet.de, Bundesministerium der Justiz: Verordnung ueber Luftfahrtpersonal
-  (LuftPersV) and Luftverkehrs-Zulassungs-Ordnung (LuftVZO). Official texts of German
-  statutes and ordinances are not subject to copyright (section 5 UrhG).
+- EUR-Lex (eur-lex.europa.eu): Commission Regulation (EU) No 1178/2011 (Part-FCL,
+  Part-MED), Commission Implementing Regulation (EU) 2018/1976 (Part-SFCL) and Commission
+  Regulation (EU) 2018/395 (Part-BFCL). (c) European Union, https://eur-lex.europa.eu.
+  Reused under Commission Decision 2011/833/EU, without changes that distort their meaning.
+  Only the texts published in the Official Journal of the European Union are authentic.
+- eCFR (www.ecfr.gov): Title 14 Code of Federal Regulations, Parts 61 and 68. Works of the
+  US federal government, not subject to copyright in the United States (17 U.S.C. 105).
+  The authoritative texts are the Federal Register and the annual edition of the CFR.
+- gesetze-im-internet.de (Bundesministerium der Justiz): Verordnung ueber Luftfahrtpersonal
+  (LuftPersV) and Luftverkehrs-Zulassungs-Ordnung (LuftVZO). Official works not protected
+  by copyright (section 5(1) UrhG). The authoritative text is the Bundesgesetzblatt.
+
+Not stored under sources/:
+
+- EASA Acceptable Means of Compliance and Guidance Material are summarised in our own words
+  where relevant, never copied.
 - Association documents (DULV, DAeC) cited by rules under catalogue/de/dulv/ and
-  catalogue/de/daec/ remain the property of their publishers and are quoted for reference.
+  catalogue/de/daec/ remain the property of their publishers; they are cited by title and
+  quoted, if at all, in passages of at most 300 characters.
+- ICAO documents are cited by name only.

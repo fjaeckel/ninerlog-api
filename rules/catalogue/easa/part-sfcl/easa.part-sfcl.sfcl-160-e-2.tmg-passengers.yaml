@@ -21,6 +21,8 @@ related_sources:
     quote: "(a) SPL holders with privileges to fly TMGs shall only exercise their TMG privileges in VFR conditions at night if they hold a TMG night rating in accordance with this point."
 citations: [EASA SFCL.160(e)(2), EASA SFCL.210(a)]
 
+group: easa_sfcl_passengers
+
 applies_to:
   subject: passengers
   classes: [TMG]

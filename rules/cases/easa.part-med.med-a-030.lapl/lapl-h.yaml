@@ -1,0 +1,17 @@
+rule: easa.part-med.med-a-030.lapl
+name: lapl-h
+description: >-
+  A LAPL(H) needs at least a LAPL medical like the other LAPLs; a PPL(H) is not evaluated
+  here (it needs a class 2 medical).
+covers: [stage:valid_medical]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-laplh, authority: EASA, type: LAPL(H) }
+    - { id: l-pplh, authority: EASA, type: PPL(H) }
+  credentials:
+    - { id: c-1, type: EASA_LAPL_MEDICAL, expires: 2027-09-14 }
+expect:
+  - subject: { kind: licence, id: l-laplh }
+    status: current
+    messageKey: licence.valid

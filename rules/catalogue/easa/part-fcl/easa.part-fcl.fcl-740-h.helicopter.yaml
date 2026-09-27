@@ -2,7 +2,7 @@ id: easa.part-fcl.fcl-740-h.helicopter
 title: Helicopter type rating revalidation
 authority: easa
 instrument: Part-FCL
-article: FCL.740.H(a)(1)
+article: FCL.740.H(a)(1), (a)(2)
 support: partial
 source_kind: regulation
 effective_from: null
@@ -18,17 +18,23 @@ source:
     - "(ii) within the 3 months immediately preceding the expiry date of the type rating, pass a proficiency check:"
     - "(A) which is conducted in accordance with Appendix 9 in the relevant type of helicopter or an FSTD representing that type;"
     - "(B) the duration of which may be counted towards the flight time specified in point (i);"
+    - "(2) for type ratings for single-engine helicopters up to a maximum take-off mass of 3 175 kg, they shall meet one of the following conditions:"
+    - "(i) comply with point (a)(1);"
+    - "(ii) complete, in the relevant type of helicopter, both of the following:"
+    - "(A) within the validity period of the type rating, at least 6 hours as PIC;"
+    - "(B) within the 3 months immediately preceding the expiry date of the rating, a refresher training of at least 1 hour of total flight time with and to the satisfaction of an instructor who shall select those flight exercises that allow the applicant to refresh their competence in safely operating the aircraft and applying normal, abnormal and emergency procedures. Applicants may choose to complete the refresher training in the aircraft or an FSTD representing the relevant type, or in a combination of both."
 related_sources:
   - cite: EASA FCL.740(a)(1)
     url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
     file: sources/easa/fcl-740.md
     quote: "The validity period of class and type ratings shall be 1 year, except for single-pilot single-engine class ratings for which the validity period shall be 2 years, unless otherwise determined in the OSD."
-citations: [EASA FCL.740.H(a)(1)]
+citations: [EASA FCL.740.H(a)(1), EASA FCL.740.H(a)(2)]
 
 applies_to:
   subject: rating
   classes: [HELICOPTER]
   authorities: [EASA, LBA]
+  excludeLicenceKinds: [LAPL_H]
 
 window: { before_expiry_months: 12 }
 filter:
@@ -36,21 +42,41 @@ filter:
   typeDesignators: [$subject]
 
 requirements:
-  all_of:
-    - id: proficiency_check
-      metric: events
-      window: { before_expiry_months: 3 }
-      filter: { eventKinds: [proficiency_check], simulator: include }
-      min: 1
-      unit: check
-      nameKey: requirement.proficiency_check
-      remedyKey: remedy.proficiency_check
-    - id: type_time
-      metric: minutes.total
-      min: 120
-      unit: minutes
-      nameKey: requirement.flight_time
-      remedyKey: remedy.fly_more
+  id: revalidation
+  any_of:
+    - id: check_route
+      all_of:
+        - id: proficiency_check
+          metric: events
+          window: { before_expiry_months: 3 }
+          filter: { eventKinds: [proficiency_check], simulator: include }
+          min: 1
+          unit: check
+          nameKey: requirement.proficiency_check
+          remedyKey: remedy.proficiency_check
+        - id: type_time
+          metric: minutes.total
+          min: 120
+          unit: minutes
+          nameKey: requirement.flight_time
+          remedyKey: remedy.fly_more
+    - id: refresher_route
+      filter: { maxEngines: 1, maxMtomKg: 3175 }
+      all_of:
+        - id: pic_time
+          metric: minutes.pic
+          min: 360
+          unit: minutes
+          nameKey: requirement.pic_time
+          remedyKey: remedy.fly_more
+        - id: refresher
+          metric: minutes.dual
+          window: { before_expiry_months: 3 }
+          filter: { simulator: include }
+          min: 60
+          unit: minutes
+          nameKey: requirement.refresher_training
+          remedyKey: remedy.refresher_training
 
 stages:
   - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date }
@@ -68,7 +94,7 @@ stages:
 divergences:
   - id: revalidation
     api: Reports helicopter ratings by their expiry date only.
-    article: A helicopter type rating is revalidated by 2 hours as pilot in the type within the validity period and a proficiency check in the 3 months before expiry.
+    article: A helicopter type rating is revalidated by 2 hours as pilot in the type within the validity period and a proficiency check in the 3 months before expiry, or, for single-engine types up to 3 175 kg, by 6 hours as PIC in the type and 1 hour of refresher training in the 3 months before expiry.
     cite: EASA FCL.740.H(a)(1)
   - id: valid-through-expiry
     api: Reports the rating expired on its expiry date.
@@ -76,11 +102,13 @@ divergences:
     cite: EASA FCL.740(a)(1)
 
 notes: >-
-  Partial: only (a)(1) is encoded. The (a)(2)(ii) alternative for single-engine helicopters
-  up to 3 175 kg (6 hours as PIC and 1 hour of refresher training) is not offered, because
-  the record does not say whether the type is single-engine or its maximum take-off mass
-  (vocabulary request); pilots who revalidate that way see "not met" until they enter the
-  new expiry date. Group revalidation of SEP and SET types ((b), (c), (d)) is not modelled.
+  Partial: (a)(1) and (a)(2) are encoded as two routes. The (a)(2)(ii) route (6 hours as PIC
+  and 1 hour of refresher training, in the aircraft or an FSTD representing the type) counts
+  only flights whose engine count (flight field engines) is 1 and whose maximum take-off mass
+  (mtomKg) is at most 3 175 kg; for an FSTD session the fields describe the type it
+  represents. A flight in the type that records neither is unknown input, so without the
+  check route met the status is unknown (rating.type_not_identifiable) rather than not met:
+  NinerLog cannot tell whether the lighter route is open. Group revalidation of SEP and SET types ((b), (c), (d)) is not modelled.
   The type is the rating's typeDesignator; flights and checks count only on it, and when the
   rating or the flights carry none the result is unknown. Helicopter type ratings are valid
   for 1 year (FCL.740(a)(1)), so the 2 hours are counted in the 12 months before the

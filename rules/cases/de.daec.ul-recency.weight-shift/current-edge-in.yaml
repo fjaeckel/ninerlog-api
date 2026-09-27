@@ -3,7 +3,7 @@ name: current-edge-in
 description: >-
   Twelve hours and 12 landings on trikes in 24 months under the DAeC rule; dual time counts
   toward the hours. The first flight is on the first day of the window.
-covers: [stage:current, window:edge-in, requirement:total_time:met, requirement:landings:met]
+covers: [stage:current, requirement:safety_training:untracked, window:edge-in, requirement:total_time:met, requirement:landings:met]
 asOf: 2026-09-15
 record:
   licences:
@@ -21,3 +21,4 @@ expect:
     requirements:
       total_time: { current: 720, met: true }
       landings: { current: 12, met: true }
+      safety_training: { tracked: false, met: false, messageKey: requirement.untracked }

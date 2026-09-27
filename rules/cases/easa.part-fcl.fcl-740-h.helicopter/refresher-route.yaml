@@ -1,0 +1,25 @@
+rule: easa.part-fcl.fcl-740-h.helicopter
+name: refresher-route
+description: >-
+  An R44 (single-engine, 1 134 kg) type rating is revalidated without a proficiency check by 6 hours as PIC in the type within the validity period and 1 hour of refresher training with an instructor in the 3 months before expiry, part of it in an FSTD.
+covers: [stage:met_expiring, any_of:revalidation:refresher_route, requirement:pic_time:met, requirement:refresher:met, requirement:proficiency_check:unmet]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-type, licenceId: l-1, class: HELICOPTER, typeDesignator: R44, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-01-10, class: HELICOPTER, typeDesignator: R44, engines: 1, mtomKg: 1134, minutes: { total: 300, pic: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+    - { date: 2026-05-01, class: HELICOPTER, typeDesignator: R44, engines: 1, mtomKg: 1134, minutes: { total: 60, pic: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-08-15, class: HELICOPTER, typeDesignator: R44, engines: 1, mtomKg: 1134, isSimulator: true, fstdType: FNPT, minutes: { total: 30, dual: 30 } }
+    - { date: 2026-09-01, class: HELICOPTER, typeDesignator: R44, engines: 1, mtomKg: 1134, minutes: { total: 30, dual: 30 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+expect:
+  - subject: { kind: rating, id: r-type, class: HELICOPTER }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    messageParams: { days: 46 }
+    requirements:
+      proficiency_check: { current: 0, met: false }
+      pic_time: { current: 360, met: true }
+      refresher: { current: 60, met: true }

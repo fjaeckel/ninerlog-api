@@ -30,8 +30,9 @@ type Rule struct {
 	Requirements       *Node        `yaml:"requirements"`
 	Stages             []Stage      `yaml:"stages"`
 	RestoredBy         []EventHook  `yaml:"restored_by"`
-	Resets             []EventHook  `yaml:"resets"`
 	RuleDescriptionKey string       `yaml:"ruleDescriptionKey"`
+	Supersedes         []string     `yaml:"supersedes"`
+	Group              string       `yaml:"group"`
 	Divergences        []Divergence `yaml:"divergences"`
 	Notes              string       `yaml:"notes"`
 
@@ -94,6 +95,7 @@ type AppliesTo struct {
 	PrivilegeKinds      []string `yaml:"privilegeKinds"`
 	CredentialTypes     []string `yaml:"credentialTypes"`
 	LaunchMethods       []string `yaml:"launchMethods"`
+	TypeRated           *bool    `yaml:"typeRated"`
 	Programme           string   `yaml:"programme"`
 	Holds               *Holds   `yaml:"holds"`
 }
@@ -138,32 +140,32 @@ func (w Window) String() string {
 
 // Filter restricts the items a metric counts; the keys set are remembered for merging.
 type Filter struct {
-	Classes              []string        `yaml:"classes"`
-	ExcludeClasses       []string        `yaml:"excludeClasses"`
-	HeldClassPools       [][]string      `yaml:"heldClassPools"`
-	Categories           []string        `yaml:"categories"`
-	ULKinds              []string        `yaml:"ulKinds"`
-	ULCredit             []ULCredit      `yaml:"ulCredit"`
-	LaunchMethods        []string        `yaml:"launchMethods"`
-	ExcludeLaunchMethods []string        `yaml:"excludeLaunchMethods"`
-	TypeDesignators      []string        `yaml:"typeDesignators"`
-	Variants             []string        `yaml:"variants"`
-	Roles                []string        `yaml:"roles"`
-	WithMinutes          []string        `yaml:"withMinutes"`
-	WithoutMinutes       []string        `yaml:"withoutMinutes"`
-	Simulator            string          `yaml:"simulator"`
-	FSTDTypes            []string        `yaml:"fstdTypes"`
-	Flags                map[string]bool `yaml:"flags"`
-	MinMinutes           *int            `yaml:"minMinutes"`
-	MinLandings          *int            `yaml:"minLandings"`
-	MinDistanceKm        *float64        `yaml:"minDistanceKm"`
-	Tailwheel            *bool           `yaml:"tailwheel"`
-	SoleManipulator      *bool           `yaml:"soleManipulator"`
-	PilotFlying          *bool           `yaml:"pilotFlying"`
-	TowKinds             []string        `yaml:"towKinds"`
-	EventKinds           []string        `yaml:"eventKinds"`
-	EventRatings         []string        `yaml:"eventRatings"`
-	Any                  []*Filter       `yaml:"any"`
+	Classes         []string        `yaml:"classes"`
+	ExcludeClasses  []string        `yaml:"excludeClasses"`
+	HeldClassPools  [][]string      `yaml:"heldClassPools"`
+	Categories      []string        `yaml:"categories"`
+	ULKinds         []string        `yaml:"ulKinds"`
+	ULCredit        []ULCredit      `yaml:"ulCredit"`
+	LaunchMethods   []string        `yaml:"launchMethods"`
+	TypeDesignators []string        `yaml:"typeDesignators"`
+	Variants        []string        `yaml:"variants"`
+	Roles           []string        `yaml:"roles"`
+	WithMinutes     []string        `yaml:"withMinutes"`
+	WithoutMinutes  []string        `yaml:"withoutMinutes"`
+	Simulator       string          `yaml:"simulator"`
+	FSTDTypes       []string        `yaml:"fstdTypes"`
+	Flags           map[string]bool `yaml:"flags"`
+	MinLandings     *int            `yaml:"minLandings"`
+	MinDistanceKm   *float64        `yaml:"minDistanceKm"`
+	MaxEngines      *int            `yaml:"maxEngines"`
+	MaxMTOMKg       *int            `yaml:"maxMtomKg"`
+	Tailwheel       *bool           `yaml:"tailwheel"`
+	SoleManipulator *bool           `yaml:"soleManipulator"`
+	PilotFlying     *bool           `yaml:"pilotFlying"`
+	TowKinds        []string        `yaml:"towKinds"`
+	EventKinds      []string        `yaml:"eventKinds"`
+	EventRatings    []string        `yaml:"eventRatings"`
+	Any             []*Filter       `yaml:"any"`
 
 	keys map[string]bool
 }
@@ -365,9 +367,9 @@ func (c *Condition) UnmarshalYAML(n *yaml.Node) error {
 	c.Op = n.Content[0].Value
 	v := n.Content[1]
 	switch c.Op {
-	case "met", "unmet", "untracked", "missing":
+	case "met", "unmet", "missing":
 		c.Ref = v.Value
-	case "expires_within":
+	case "expires_within", "valid_until_within":
 		var d struct {
 			Days int `yaml:"days"`
 		}
@@ -416,7 +418,7 @@ type Holds struct {
 	Every        bool     `yaml:"every"`
 }
 
-// EventHook is a restored_by or resets entry.
+// EventHook is a restored_by entry.
 type EventHook struct {
 	Event  string  `yaml:"event"`
 	Filter *Filter `yaml:"filter"`

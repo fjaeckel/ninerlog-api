@@ -14,6 +14,9 @@ type report struct {
 	rules        map[string]*ruleReport
 	vocabUnused  map[string][]string
 	vocabUnimpl  map[string][]string
+	overlaps     []string
+	changelog    []string
+	sources      sourcesResult
 	orphanCases  []string
 	codeRules    inventoryResult
 	articles     map[string]inventoryResult
@@ -58,6 +61,7 @@ func (r *report) problems() int {
 	for _, rr := range r.rules {
 		n += rr.problems()
 	}
+	n += len(r.overlaps) + len(r.changelog) + len(r.sources.problems)
 	for _, l := range r.vocabUnused {
 		n += len(l)
 	}
@@ -126,6 +130,20 @@ func (r *report) print(w io.Writer, o options) {
 		summary(w, r, o)
 		return
 	}
+
+	section(w, "Overlaps: rules that can evaluate the same subject", len(r.overlaps))
+	list(w, r.overlaps)
+
+	origins := make([]string, 0, len(r.sources.origins))
+	for o, n := range r.sources.origins {
+		origins = append(origins, fmt.Sprintf("%s %d", o, n))
+	}
+	sort.Strings(origins)
+	section(w, "Sources: allowed origins only ("+strings.Join(origins, ", ")+")", len(r.sources.problems))
+	list(w, r.sources.problems)
+
+	section(w, "CHANGELOG: divergence references", len(r.changelog))
+	list(w, r.changelog)
 
 	section(w, "Vocabulary entries no rule uses", count(r.vocabUnused))
 	groups(w, r.vocabUnused)

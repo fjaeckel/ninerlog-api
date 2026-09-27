@@ -181,3 +181,101 @@ func TestProfileCoverage(t *testing.T) {
 		t.Error("missing profile must fail")
 	}
 }
+
+// TestContractChecks covers the checks added at integration: overlaps, groups, supersedes,
+// source kinds, reservations and CHANGELOG references (DESIGN.md section 13).
+func TestContractChecks(t *testing.T) {
+	root := t.TempDir()
+	vocab, err := os.ReadFile("../../vocabulary.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, "vocabulary.yaml"), string(vocab)+`
+reserved_for:
+  subjects: { privilege: "used by a rule, so the reservation is stale" }
+  units: { parsecs: "not declared" }
+`)
+	copyFile(t, "../../messages/keys.yaml", filepath.Join(root, "messages/keys.yaml"))
+	copyFile(t, "../../sources/faa/61.57.md", filepath.Join(root, "sources/faa/61.57.md"))
+	for _, s := range []string{"vocabulary", "messages", "rule", "record", "case", "pack"} {
+		copyFile(t, "../../schema/"+s+".schema.json", filepath.Join(root, "schema", s+".schema.json"))
+	}
+	writeFile(t, filepath.Join(root, "inventory/code-rules.yaml"), "rules: []\n")
+	rule := func(id, extra string) {
+		parts := strings.Split(id, ".")
+		writeFile(t, filepath.Join(root, "catalogue", parts[0], parts[1], id+".yaml"), `
+id: `+id+`
+title: Test
+authority: `+parts[0]+`
+instrument: Test
+article: Test
+support: supported
+`+extra+`
+stages:
+  - { when: always, status: current, messageKey: privilege.valid }
+`)
+	}
+	rule("faa.14cfr61.a", `source_kind: regulation
+source: { cite: x, url: "https://x", file: sources/faa/61.57.md, quote: "three takeoffs and three landings" }
+applies_to: { subject: privilege, privilegeKinds: [CFI, TOW_X] }
+group: nosuch_group
+supersedes: [faa.14cfr61.a, faa.14cfr61.gone]`)
+	rule("faa.14cfr61.b", `source_kind: regulation
+source: { cite: x, url: "https://x", file: sources/faa/61.57.md, quote: "three takeoffs and three landings" }
+applies_to: { subject: privilege, privilegeKinds: [CFI] }`)
+	rule("faa.14cfr61.c", `source_kind: regulation
+source: { cite: x, url: "https://x", file: sources/faa/61.57.md, quote: "three takeoffs and three landings" }
+applies_to: { subject: privilege, privilegeKinds: [CFI] }
+supersedes: [faa.14cfr61.b]
+group: faa_cfi`)
+	rule("de.dulv.d", `source_kind: association
+source: { cite: DULV rule, file: sources/faa/61.57.md, quote: "`+strings.Repeat("long ", 70)+`" }
+applies_to: { subject: licence, authorities: [DULV] }`)
+	rule("other.ninerlog.e", `source_kind: app_policy
+source: { cite: policy, quote: "no quotes for policy" }
+applies_to: { subject: licence, authorities: [FAA], licenceKinds: [FAA_SPORT] }`)
+	rule("faa.14cfr61.f", `source_kind: regulation
+source: { cite: x }
+applies_to: { subject: credential, credentialTypes: [FAA_BASICMED] }`)
+	writeFile(t, filepath.Join(root, "CHANGELOG.md"), "- `faa.14cfr61.b#nope` and `gone.x.y#z`\n- `faa.14cfr61.b#nope`\n")
+	writeFile(t, filepath.Join(root, "sources/README.md"), "# Sources\n")
+	writeFile(t, filepath.Join(root, "sources/faa/raw.xml"), "<xml/>\n")
+	writeFile(t, filepath.Join(root, "sources/faa/no-origin.md"), "# X\n\n- Source URL: https://www.ecfr.gov/x\n\n---\n\ntext\n")
+	writeFile(t, filepath.Join(root, "sources/de/amc.md"), "# AMC1 FCL.060\n\n- Origin: eu-legal-act\n- Attribution: none\n- URL: https://www.easa.europa.eu/document-library/easy-access-rules\n\n## Text\n\ncopied\n")
+	writeFile(t, filepath.Join(root, "sources/de/dulv.md"), "# Rule\n\n- Origin: de-amtliches-werk\n- Attribution: § 5(1) UrhG\n\n## DULV Ausbildungsrichtlinie\n\ntext\n")
+	var out bytes.Buffer
+	if code := run([]string{"-root", root, "-coverage=false"}, &out); code != 1 {
+		t.Fatalf("exit %d\n%s", code, out.String())
+	}
+	report := out.String()
+	for _, want := range []string{
+		"faa.14cfr61.a and faa.14cfr61.b can both evaluate the same privilege subject (privileges CFI)",
+		"group \"nosuch_group\" is not declared", "group \"faa_cfi\" has only this rule", "a rule cannot supersede itself",
+		"supersedes: rule \"faa.14cfr61.gone\" does not exist",
+		"association documents are never stored", "an association quote may have at most 300 characters",
+		"an app_policy rule has no source file and no quote", "schema validation failed",
+		"faa.14cfr61.b#nope: the rule has no such divergence", "gone.x.y#z: no such rule", "faa.14cfr61.b#nope is listed on more than one line",
+		"subjects.privilege (used by a rule; drop the reservation)", "units.parsecs (not declared)",
+		"sources/faa/raw.xml: only Markdown texts", "sources/faa/no-origin.md: header has no allowed origin",
+		"sources/de/amc.md: origin eu-legal-act belongs in sources/easa/", "sources/de/amc.md: header needs an \"- Attribution:\" line containing \"© European Union",
+		"which is not a host of origin eu-legal-act", "names \"AMC\" in its header or a heading", "names \"DULV\" in its header or a heading",
+	} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report misses %q", want)
+		}
+	}
+	if strings.Contains(report, "faa.14cfr61.b and faa.14cfr61.c can both") {
+		t.Error("supersedes must resolve the overlap of b and c")
+	}
+	t.Log(report)
+}
+
+func TestSelection(t *testing.T) {
+	s := selectValues([]string{"a", "b", "c"}, nil, []string{"b"}, nil)
+	if !s["a"] || s["b"] || !s["c"] {
+		t.Errorf("exclude: %v", s)
+	}
+	if got := sortedSel(selection{"1": true, "2": true, "3": true, "4": true, "5": true, "6": true, "7": true}); len(got) != 7 || got[6] != "... (7)" {
+		t.Errorf("sortedSel: %v", got)
+	}
+}

@@ -17,7 +17,7 @@ source:
 
 applies_to:
   subject: licence
-  licenceKinds: [LAPL_A, SPL, LAPL_S, BPL]
+  licenceKinds: [LAPL_A, LAPL_H, SPL, LAPL_S, BPL]
   authorities: [EASA, LBA]
 
 stages:
@@ -31,4 +31,4 @@ notes: >-
   without one is taken as valid). The derived validity of MED.A.045 is evaluated by the
   easa.part-med.med-a-045 rules, not here. When no EASA medical certificate is recorded at
   all the result is unknown rather than expired, because many pilots do not record their
-  medical. The class 2 requirement for commercial sailplane and balloon operations ((c)(3), (c)(4)) is not applied, because the record does not say whether the flying is commercial. A LAPL(H) is not evaluated: the helicopter licence kind does not distinguish it. Class 1 and class 2 certificates include the LAPL privileges (AMC1 MED.A.030). The API does not evaluate which medical class a licence needs today.
+  medical. The class 2 requirement for commercial sailplane and balloon operations ((c)(3), (c)(4)) is not applied, because the record does not say whether the flying is commercial. A LAPL(H) (licence kind LAPL_H) needs a LAPL medical like the other LAPLs; PPL(H), CPL(H) and ATPL(H) share the licence kind HELICOPTER and are not evaluated, because the class they need differs (class 2 for PPL(H), class 1 for CPL(H) and ATPL(H)). Class 1 and class 2 certificates include the LAPL privileges (AMC1 MED.A.030). The API does not evaluate which medical class a licence needs today.

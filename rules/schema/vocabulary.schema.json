@@ -4,12 +4,28 @@
   "title": "Closed vocabulary",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "catalogue_authorities", "source_kinds", "support_levels", "record_authorities", "categories", "classes", "ul_kinds", "launch_methods", "licence_kinds", "privilege_kinds", "credential_types", "flight_flags", "event_kinds", "record_fields", "minute_fields", "subjects", "statuses", "units", "metrics", "filters", "roles", "windows", "combinators", "stage_conditions", "rule_events", "param_sources", "validity", "hatches"],
+  "required": ["version", "catalogue_authorities", "source_kinds", "support_levels", "source_origins", "source_forbidden_markers", "record_authorities", "categories", "classes", "ul_kinds", "launch_methods", "licence_kinds", "privilege_kinds", "credential_types", "flight_flags", "event_kinds", "record_fields", "minute_fields", "subjects", "statuses", "units", "metrics", "filters", "roles", "windows", "combinators", "stage_conditions", "rule_events", "param_sources", "validity", "hatches"],
   "properties": {
     "version": { "type": "integer" },
     "catalogue_authorities": { "$ref": "#/$defs/names" },
     "source_kinds": { "$ref": "#/$defs/described" },
     "support_levels": { "$ref": "#/$defs/names" },
+    "source_origins": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["directory", "basis", "attribution", "hosts"],
+        "properties": {
+          "directory": { "type": "string", "minLength": 1 },
+          "basis": { "type": "string", "minLength": 1 },
+          "attribution": { "type": "string", "minLength": 1 },
+          "hosts": { "$ref": "#/$defs/names" }
+        }
+      }
+    },
+    "source_forbidden_markers": { "$ref": "#/$defs/names" },
     "record_authorities": { "$ref": "#/$defs/names" },
     "categories": { "$ref": "#/$defs/names" },
     "classes": {
@@ -128,7 +144,16 @@
         "period_fields": { "$ref": "#/$defs/names" }
       }
     },
-    "hatches": { "$ref": "#/$defs/described" }
+    "hatches": { "$ref": "#/$defs/described" },
+    "rule_groups": { "$ref": "#/$defs/described" },
+    "reserved_for": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": { "type": "string", "minLength": 1 }
+      }
+    }
   },
   "$defs": {
     "names": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },

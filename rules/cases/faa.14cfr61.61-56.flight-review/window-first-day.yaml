@@ -1,7 +1,7 @@
 rule: faa.14cfr61.61-56.flight-review
 name: window-first-day
-description: A review on 1 August 2024 is since the beginning of the 24th calendar month before August 2026; it holds through 31 August 2026.
-covers: [window:edge-in, stage:reviewed]
+description: A review on 1 August 2024 is since the beginning of the 24th calendar month before August 2026; it holds through 31 August 2026, 15 days away, so the review shows as expiring.
+covers: [window:edge-in, stage:expiring]
 asOf: 2026-08-16
 record:
   licences:
@@ -10,7 +10,7 @@ record:
     - { date: 2024-08-01, kind: flight_review, class: SEP_LAND }
 expect:
   - subject: { kind: flight_review, id: l-faa }
-    status: current
-    messageKey: flight_review.current
-    messageParams: { date: 2024-08-01 }
+    status: expiring
+    messageKey: flight_review.expiring
+    messageParams: { days: 15, date: 2026-08-31 }
     validUntil: 2026-08-31

@@ -27,6 +27,8 @@ related_sources:
     quote: "(ii) Privileges of a commercial pilot certificate in an aircraft other than a balloon or glider; or"
 citations: [14 CFR 61.23(d)(1)(iii), 14 CFR 61.23(d)(2)(i)]
 
+group: faa_medical_duration
+
 applies_to:
   subject: credential
   credentialTypes: [FAA_CLASS1_MEDICAL, FAA_CLASS2_MEDICAL]

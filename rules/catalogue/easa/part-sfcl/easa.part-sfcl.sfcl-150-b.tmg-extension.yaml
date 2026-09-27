@@ -18,6 +18,14 @@ source:
     - "(c) Holders of a licence issued in accordance with Annex I (Part-FCL) to Regulation (EU) No 1178/2011 shall receive full credit towards the requirements in paragraph (b) provided that they:"
     - "(1) hold a class rating for TMGs; or"
     - "(2) have TMG privileges and comply with the recency requirements in point FCL.140.A of Annex I (Part-FCL) to Regulation (EU) No 1178/2011."
+related_sources:
+  - cite: EASA SFCL.130(a)(2)(v)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
+    file: sources/easa/sfcl-130.md
+    quote:
+      - "(v) if privileges for TMGs are sought, at least six hours of flight instruction in TMGs, including at least:"
+      - "(A) four hours of dual flight instruction;"
+      - "(B) one solo cross-country flight of at least 150 km (80 NM) in a TMG, during which one full-stop landing at an aerodrome different from the aerodrome of departure shall be performed."
 citations: [EASA SFCL.150(b), EASA SFCL.150(c), EASA SFCL.130(a)(2)(v)]
 
 applies_to:
@@ -82,10 +90,10 @@ divergences:
     cite: EASA SFCL.130(a)(2)(v)
 
 notes: >-
-  Partial: the training elements of SFCL.130(a)(2)(v) are not in sources/ (TODO: verify);
-  the figures follow the API's template (6 hours of flight instruction in TMGs including 4
-  hours dual and one solo cross-country flight of at least 150 km, per ninerlog-api
-  docs/SAILPLANES.md). Instruction is dual plus supervised solo time on TMG flights; the
+  Partial: the training elements of SFCL.130(a)(2)(v), quoted as a related source, are 6
+  hours of flight instruction in TMGs including 4 hours dual and one solo cross-country flight
+  of at least 150 km in a TMG with a full-stop landing at an aerodrome other than the
+  aerodrome of departure; the landing away is not recorded and not checked. Instruction is dual plus supervised solo time on TMG flights; the
   solo cross-country flight is a TMG flight without dual time, with cross-country time and
   a recorded distance of at least 150 km. The skill test is a skill_test event in the TMG
   class. The SFCL.150(c) credit holds while the pilot holds a TMG class rating, within its

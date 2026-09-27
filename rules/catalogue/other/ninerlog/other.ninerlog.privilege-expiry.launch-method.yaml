@@ -4,18 +4,16 @@ authority: other
 instrument: NinerLog
 article: none (app policy)
 support: supported
-source_kind: national_law
+source_kind: app_policy
 effective_from: null
 effective_to: null
 source:
-  cite: LuftPersV § 9(1) (closest fit; NinerLog app policy with no regulation source)
-  url: https://www.gesetze-im-internet.de/luftpersv/__9.html
-  file: sources/de/luftpersv-9.md
-  quote: "Die Gültigkeitsdauer von Berechtigungen und Erweiterungen der Erlaubnis richtet sich nach den Vorschriften, die für die Erteilung der Berechtigung maßgeblich sind."
+  cite: "NinerLog app policy: a launch-method training privilege on a licence outside Part-SFCL is valid through its recorded expiry date"
 
 applies_to:
   subject: privilege
   privilegeKinds: [LAUNCH_METHOD_TRAINED]
+  authorities: [FAA, DULV, DAEC]
 
 stages:
   - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
@@ -24,12 +22,13 @@ stages:
 ruleDescriptionKey: sfcl_155_launch_method
 
 notes: >-
-  The LAUNCH_METHOD_TRAINED privilege records that the pilot was trained in a launch method;
-  as a privilege it is valid through its recorded expiry date, or indefinitely, with the rule
+  The LAUNCH_METHOD_TRAINED privilege records that the pilot was trained in a launch method.
+  On EASA, LBA and other licences it is the SFCL.155(a) training record, evaluated by
+  easa.part-sfcl.sfcl-155-a.launch-method-trained (which excludes FAA, DULV and DAeC like the
+  other Part-SFCL rules); this fallback covers it on FAA, DULV and DAeC licences, so each
+  privilege is evaluated by exactly one rule. As a privilege it is
+  valid through its recorded expiry date, or indefinitely, with the rule
   description sfcl_155_launch_method as in the API. The launch-method recency itself
   (SFCL.155) is evaluated per launch method by the Part-SFCL family, not here.
-  App policy, not a regulation. The schema requires a source and a source_kind, and the
-  vocabulary has no kind for NinerLog policy; the closest fit is LuftPersV § 9(1), which says
-  a rating's validity follows the provisions under which it was issued, so the date the
-  issuing authority wrote on it is what the app can rely on (vocabulary request filed:
-  docs/vocab-requests/de-other.md).
+  App policy, not a regulation: source_kind app_policy (no source file, no quote). The
+  evaluation cites the policy.

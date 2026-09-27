@@ -15,6 +15,8 @@ source:
     - "(1) Holders of a LAPL(A) shall carry passengers only if they have completed 10 hours of flight time as PIC on aeroplanes or TMG after the issuance of the licence."
     - "(2) Holders of a LAPL(A) who previously held an ATPL(A), an MPL(A), a CPL(A) or a PPL(A), are exempted from the requirements laid down in point (b)(1)."
 
+group: easa_fcl_passengers
+
 applies_to:
   subject: passengers
   classes: [SEP_LAND, SEP_SEA, TMG]

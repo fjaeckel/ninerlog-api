@@ -15,13 +15,16 @@ templates to copy:
 | You edit | You never edit |
 | --- | --- |
 | `catalogue/**`, `cases/**` for your family | `engine/`, `schema/`, `vocabulary.yaml`, `cmd/` |
-| `inventory/*.yaml` (`maps_to` of your entries only) | `gen/` (generated) |
-| `CHANGELOG.md` (your family's section) | other families' files |
-| `messages/keys.yaml`, appending below your family's anchor | existing keys |
-| `docs/vocab-requests/<family>.md` | `DESIGN.md` |
+| `docs/mapping/<family>.yaml` (your `maps_to`) | `gen/` (generated) |
+| `docs/changelog-fragments/<family>.md` | `CHANGELOG.md`, `inventory/*.yaml` |
+| `docs/key-requests/<family>.yaml` (new keys) | `messages/keys.yaml` |
+| `docs/vocab-requests/<family>.md` | `DESIGN.md`, `sources/` |
 
-Several agents work in parallel. Re-read a shared file (`keys.yaml`, `CHANGELOG.md`,
-`inventory/*.yaml`) immediately before each edit and change only your own lines.
+Several agents work in parallel, so porting agents never edit the shared files; the
+integration step merges the fragments (DESIGN.md 12.8, 13.12; each `docs/` directory has a
+README with the format). A single contributor working alone may edit `CHANGELOG.md`,
+`messages/keys.yaml` and `inventory/*.yaml` directly; the gate checks the result the same
+way.
 
 ## 1. Pick the id and the file
 
@@ -42,7 +45,13 @@ Article segment: the article number with dots and parentheses turned into hyphen
 one article yields several rules (`.sep`, `.bungee`, `.night`).
 
 `authority` must equal the first id segment; `source_kind` is `regulation`,
-`national_law` or `association` (DESIGN.md decision 4).
+`national_law`, `association` or `app_policy` (DESIGN.md decision 4 and 13.2):
+
+| source_kind | `source` | stored under `sources/` |
+| --- | --- | --- |
+| `regulation`, `national_law` | `cite`, `url`, `file`, verbatim `quote` | yes, with an allowed origin (13.13) |
+| `association` (DULV, DAeC) | `cite` naming the document; no `file`; preferably no `quote` (at most 300 characters) | never; the delegating statute goes under `related_sources` |
+| `app_policy` (NinerLog fallbacks) | `cite` naming the policy only | never |
 
 ## 2. Quote the source verbatim
 
@@ -86,8 +95,8 @@ notes: >-
 
 | subject | one evaluation per | selected by |
 | --- | --- | --- |
-| `rating` | rating | `classes`, `excludeClasses`, `ulKinds` (`none` = no kind), licence `authorities`, `excludeAuthorities`, `licenceKinds`, `excludeLicenceKinds` |
-| `passengers` | class (and ultralight kind) per authority; first licence wins | as `rating` |
+| `rating` | rating | `classes`, `excludeClasses`, `ulKinds` (`none` = no kind), `typeRated` (the rating has a type designator, or not), licence `authorities`, `excludeAuthorities`, `licenceKinds`, `excludeLicenceKinds` |
+| `passengers` | class (and ultralight kind) per authority; first licence wins; with `typeRated: true` one per class and type designator (subject `detail` = the designator) | as `rating` |
 | `licence` | licence | `authorities`, `licenceKinds` |
 | `privilege` | privilege | `privilegeKinds`, licence filters |
 | `credential` | certificate | `credentialTypes` |
@@ -116,8 +125,7 @@ Date-only, both ends inclusive; nothing after `asOf` ever counts.
 
 "Last 2 years" is `rolling_months: 24`. "Within the n calendar months preceding the month"
 is `calendar_months: n`. A requirement without a window inherits its parent's, then the
-rule's. `resets: [{ event: <kind> }]` starts every window no earlier than the latest such
-event.
+rule's.
 
 ### Requirements
 
@@ -164,14 +172,16 @@ Useful patterns:
 | "tows while accompanied" | `tows` with `flags: { accompanied: true }` |
 | "10 route sectors" | `route_sectors` (FCL.010: cruise of at least 15 min) |
 | "1 route sector with an examiner" | `route_sectors` with `flags: { examinerOnBoard: true }` |
-| "one flight of at least 60 minutes" | `flights` with `minMinutes: 60` |
 | "not flown that variant within 2 years" | subject `type`, `flights` with `variants: [$subject]`, `rolling_months: 24` |
 | Annex I (ultralight) hours credited to a class | `ulCredit: [{ class: SEP_LAND, ulKinds: [THREE_AXIS] }]` (add `minMtomKg`) |
 | "when holding both SEP(land) and TMG, either class counts" | `classes: [$subject]`, `heldClassPools: [[SEP_LAND, TMG]]` |
 | "at night, full stop" | `takeoffs.night` + `full_stop_night_landings` |
 | "sole manipulator", "pilot flying", tailwheel | `soleManipulator: true`, `pilotFlying: true`, `tailwheel: true` |
 | "in an FFS" allowed | `simulator: include` (and `fstdTypes: [FFS]`) |
-| something NinerLog cannot count | `metric: not_recorded` (always `tracked: false`, `requirement.untracked`) |
+| "single-engine types up to 3 175 kg" | `maxEngines: 1, maxMtomKg: 3175` (flight fields `engines`, `mtomKg`; absent is unknown) |
+| "landings on a surface designated to require a mountain rating" | `mountain_landings` |
+| "in an aircraft of the same type (if a type rating is required)" | two rules, `typeRated: false` (per class) and `typeRated: true` with `typeDesignators: [$subject]` (per type) |
+| something NinerLog cannot count | `metric: not_recorded` (always `tracked: false`, `messages: { untracked: requirement.untracked }`); as a required row the tree can never be met, so it is usually `informational: true` or one alternative of an `any_of` (then "not recorded" stays unknown, never lapsed) |
 | "2 of: 50 h instruction, refresher, assessment" | `n_of: { n: 2, of: [...] }` |
 | a Go-only computation | `escape_hatch: <name>` on a leaf (declared in `vocabulary.yaml`, implemented in `engine/hatches`); explain in `notes` |
 
@@ -208,10 +218,11 @@ must be `when: always`. Give stages `id`s when two share a status (coverage tags
 | `always` | always |
 | `all_met` | the tree is met (or restored by a `restored_by` event) |
 | `undetermined` | missing input: neither met nor definitely unmet |
-| `{ met: id }`, `{ unmet: id }`, `{ untracked: id }` | that requirement row is met / tracked and unmet / untracked |
+| `{ met: id }`, `{ unmet: id }` | that requirement row is met / tracked and unmet |
 | `expired` | the subject's expiry is before asOf (valid through the expiry date) |
 | `no_expiry` | no recorded or derivable expiry |
 | `{ expires_within: { days: n } }` | not expired and at most n days left |
+| `{ valid_until_within: { days: n } }` | the evaluation's validUntil (moving window, met on asOf) is at most n days away |
 | `before_window` | the anchored rule window opens after asOf |
 | `{ met_within: { calendar_months: n } }` | the tree was last met at most n months ago (also `rolling_months`, `rolling_days`) |
 | `{ holds: { classes \| licenceKinds \| privileges \| credentials: [...], ulKinds, sameLicence, valid, every } }` | the holder holds it |
@@ -220,18 +231,30 @@ must be `when: always`. Give stages `id`s when two share a status (coverage tags
 
 Statuses: `current`, `expiring`, `expired`, `lapsed`, `unknown`, `not_applicable`, as in
 `docs/CURRENCY_MESSAGES.md`. Params: `{ days: days_to_expiry }`, `{ date: expiry_date }`,
-`{ date: window_opens_at }`, `{ date: valid_until }`, `{ needed: { needed: <req id> } }`,
+`{ date: window_opens_at }`, `{ date: valid_until }`, `{ days: days_to_valid_until }`,
+`{ needed: { needed: <req id> } }`,
 `{ date: { last_date: <req id> } }`. Every non-optional param of the key must be supplied.
 
 `restored_by: [{ event: ipc, filter: {...} }]`: from the event date until the event would
 leave the rule's (moving) window the tree counts as met.
 
+### One subject, one rule (overlaps)
+
+The gate fails when two supported or partial rules can select the same subject (same
+subject kind with intersecting authorities, licence kinds, classes, ultralight kinds,
+`typeRated`, privilege kinds, credential types, launch methods, programme and effective
+period). Resolve it by narrowing `applies_to`, by `supersedes: [<rule id>]` on the more
+specific rule (the engine then drops the superseded rule's evaluation of that subject), or,
+when both rules state different conditions for the same subject, by a shared
+`group: <name>` declared in `vocabulary.yaml` `rule_groups` with a description of how the
+members combine.
+
 ### Message keys
 
 Use keys from `messages/keys.yaml`; keep the API's keys where the API emits one for the same
 statement (parity). Deprecated keys are rejected. If you need a key that is not there,
-append it below your family's anchor at the end of `keys.yaml` with `origin: catalogue`,
-`emitted: false`, `documented: false` and a `notes` line; never rename or remove one.
+request it in `docs/key-requests/<family>.yaml` with `origin: catalogue`, `emitted: false`,
+`documented: false` and a `notes` line; never rename or remove one.
 
 ### Divergences and the CHANGELOG
 
@@ -247,8 +270,10 @@ divergences:
     cite: EASA FCL.740.A(b)(1)(ii)(B)
 ```
 
-and one pilot-readable line in `CHANGELOG.md` under Unreleased that contains
-`` `<rule id>#<divergence id>` ``. The gate fails without it.
+and exactly one pilot-readable line (a fragment in `docs/changelog-fragments/<family>.md`,
+merged into `CHANGELOG.md` under Unreleased) that ends in `` `<rule id>#<divergence id>` ``.
+The gate fails without it, on a line naming a divergence that does not exist, and on a
+divergence listed twice. Divergence ids are stable: never rename one once released.
 
 ### not_supported entries
 
@@ -313,12 +338,13 @@ exercises; your `covers:` list must be a subset of what is observed.
 | tag | required for | a case hits it when |
 | --- | --- | --- |
 | `stage:<id or status>` | every stage | that stage decides the status |
-| `requirement:<id>:met` / `:unmet` | every leaf | the row is met / tracked and not met |
-| `any_of:<node>:<branch>` | every any_of branch | that branch is met and no sibling is |
+| `requirement:<id>:met` / `:unmet` | every leaf except `not_recorded` | the row is met / tracked and not met |
+| `requirement:<id>:untracked` | every `not_recorded` leaf (instead of met/unmet) | the row is shown untracked |
+| `any_of:<node>:<branch>` | every any_of branch that can be met (not informational, not `not_recorded`) | that branch is met and no sibling is |
 | `n_of:<node>:met` / `:unmet` | every n_of | the n_of is met / not met |
 | `window:edge-in` / `window:edge-out` | every bounded window (one window) | an item that passes the filters is dated on the window's first day / the day before |
 | `window:<kind>=<n>:edge-in` / `:edge-out` | when a rule uses several windows | as above, per window, e.g. `window:before_expiry_months=3:edge-in` |
-| `event:<kind>` | every `restored_by` / `resets` event | the event restores the tree / moves a window start on asOf |
+| `event:<kind>` | every `restored_by` event | the event restores the tree on asOf |
 | `unknown:<metric>` | every leaf metric with optional input | a leaf with that metric ends `tracked: false` |
 | `unknown:<filter>` | every filter with `absent: unknown` that a leaf uses | an item in a leaf's window is unknown because of that filter |
 | `expiry:before` / `expiry:on` / `expiry:after` | rules that use the expiry (anchored windows, expiry conditions, validity) | asOf is before / on / after the expiry date |

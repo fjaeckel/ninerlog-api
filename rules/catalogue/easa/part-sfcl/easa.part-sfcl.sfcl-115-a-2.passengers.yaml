@@ -19,6 +19,8 @@ source:
     - "(B) hold an FI(S) certificate in accordance with Subpart FI;"
 citations: [EASA SFCL.115(a)(2)(ii)]
 
+group: easa_sfcl_passengers
+
 applies_to:
   subject: passengers
   classes: [GLIDER, TMG]
@@ -29,20 +31,28 @@ window: { since_issue: licence }
 filter: { classes: [GLIDER, TMG], roles: [pic] }
 
 requirements:
-  id: prerequisite
-  any_of:
-    - id: pax_prerequisite_time
-      metric: minutes.pic
-      min: 600
-      unit: minutes
-      nameKey: requirement.pax_prerequisite_time
-      remedyKey: remedy.fly_more
-    - id: pax_prerequisite_launches
-      metric: launches
-      min: 30
-      unit: launches
-      nameKey: requirement.pax_prerequisite_launches
-      remedyKey: remedy.fly_more
+  all_of:
+    - id: prerequisite
+      any_of:
+        - id: pax_prerequisite_time
+          metric: minutes.pic
+          min: 600
+          unit: minutes
+          nameKey: requirement.pax_prerequisite_time
+          remedyKey: remedy.fly_more
+        - id: pax_prerequisite_launches
+          metric: launches
+          min: 30
+          unit: launches
+          nameKey: requirement.pax_prerequisite_launches
+          remedyKey: remedy.fly_more
+    - id: pax_competence_flight
+      informational: true
+      metric: not_recorded
+      min: 1
+      unit: flights
+      nameKey: requirement.pax_competence_flight
+      messages: { untracked: requirement.untracked }
 
 stages:
   - id: instructor
@@ -71,8 +81,9 @@ divergences:
 
 notes: >-
   Partial: the training flight demonstrating passenger competence to an FI(S) is not
-  recorded in NinerLog and is taken as met; a row for it (metric not_recorded) would make
-  the rule's coverage tags unreachable. SFCL.115(a)(2)(i) is the SFCL.160(e) rules. Counted
+  recorded in NinerLog; it is shown as an informational, untracked row
+  (pax_competence_flight, metric not_recorded, as the API shows it) and does not affect the
+  status, so the status reports only the hours or launches part of (A). SFCL.115(a)(2)(i) is the SFCL.160(e) rules. Counted
   since the recorded issue date of the SPL or LAPL(S) (a re-issued licence carries a later
   date than the one the article means), on GLIDER and TMG flights with PIC time; a TMG
   flight's launch count is its take-offs. Without a recorded issue date the prerequisite is

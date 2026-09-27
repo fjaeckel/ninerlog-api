@@ -2,20 +2,14 @@
 
 - Citation: Annex I (Part-FCL), point FCL.740.A
 - Regulation: Commission Regulation (EU) No 1178/2011 of 3 November 2011, as amended
-- Source: EUR-Lex consolidated text (official), retrieved from the EU Publications Office Cellar repository
+- Source: EUR-Lex consolidated text, retrieved from the EU Publications Office Cellar repository; a documentation tool, not authentic (only the Official Journal of the European Union is)
+- Origin: eu-legal-act
+- Attribution: © European Union, https://eur-lex.europa.eu (reused under Commission Decision 2011/833/EU)
 - URL: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
 - Retrieved from: http://publications.europa.eu/resource/cellar/1ec3ec96-7a68-11f1-bf5e-01aa75ed71a1.0002.02/DOC_2
 - Consolidated version: 30.04.2026 (consolidated version CELEX 02011R1178-20260430)
 - Retrieval date: 2026-09-27
 - Editorial handling: EUR-Lex consolidation markers (▼B, ▼Mn, ►Mn … ◄, ▼Cn) removed; paragraph labels joined to their text on one line; one paragraph per line. No words changed. A line of dashes marks text deleted by an amending act.
-
-## AMC/GM notes (not verbatim rule text)
-
-- FCL.010 defines 'Route sector' as a flight comprising take-off, departure, cruise of not less than 15 minutes, arrival, approach and landing phases; this governs what counts toward (a)(2)(i).
-- AMC1 FCL.740.A(b)(1)(ii)(C) (ED Decision 2025/002/R): content of the 1-hour refresher training (briefing on TEM, navigation, stall recovery; engine-failure and stall exercises). Does not change counting.
-- GM1 FCL.740.A (ED Decision 2022/014/R): an EBT practical assessment is assessed across the validity period; only the administrative completion falls within the 3 months before expiry.
-- GM2 FCL.740.A (ED Decision 2025/002/R): recommended safety awareness briefing of at least 15 minutes before refresher training or a proficiency check. Does not change counting.
-- FCL.035(a)(4): hours flown in Annex I (non-EASA, e.g. ultralight) aeroplanes/TMGs of the same category and class are credited toward the flight time requirements of (b)(1)(ii).
 
 ## Text
 

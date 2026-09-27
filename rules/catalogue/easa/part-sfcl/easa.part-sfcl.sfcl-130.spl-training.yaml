@@ -2,7 +2,7 @@ id: easa.part-sfcl.sfcl-130.spl-training
 title: SPL training course flight instruction
 authority: easa
 instrument: Part-SFCL
-article: SFCL.130(a), (b)
+article: SFCL.130(a)(2), (b)
 support: partial
 source_kind: regulation
 effective_from: null
@@ -11,7 +11,16 @@ source:
   cite: EASA SFCL.130
   url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
   file: sources/easa/sfcl-130.md
-  quote: "TODO: verify"
+  quote:
+    - "(2) at least 15 hours of flight instruction in sailplanes, including at least:"
+    - "(i) 10 hours of dual flight instruction which shall include the dual flight instruction as specified in paragraphs (iv)(A) or (v)(A), as applicable;"
+    - "(ii) two hours of supervised solo flight time;"
+    - "(iii) 45 launches or take-offs and landings;"
+    - "(iv) if privileges for sailplanes, excluding TMGs, are sought, at least seven hours of flight instruction in sailplanes, excluding TMGs, and including at least:"
+    - "(A) three hours of dual flight instruction;"
+    - "(a) one solo cross-country flight of at least 50 km (27 NM); or"
+    - "(b) one dual cross-country flight of at least 100 km (55 NM) which, by way of derogation from paragraph (2)(iv), may be completed in a TMG;"
+    - "(b) Applicants who hold a pilot licence for another category of aircraft, with the exception of balloons licence, shall be credited with 10 % of total flight time as PIC on such aircraft and up to a maximum of seven hours."
 related_sources:
   - cite: EASA SFCL.035
     url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115
@@ -21,7 +30,7 @@ related_sources:
     url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
     file: sources/easa/med-a-030.md
     quote: "(a) A student pilot shall not fly solo unless that student pilot holds a medical certificate, as required for the relevant licence."
-citations: [EASA SFCL.130(a), EASA SFCL.130(b)]
+citations: [EASA SFCL.130(a)(2), EASA SFCL.130(b)]
 
 applies_to:
   subject: training
@@ -34,21 +43,21 @@ requirements:
   all_of:
     - id: instruction_time
       metric: minutes.dualOrSpic
-      filter: { classes: [GLIDER] }
+      filter: { classes: [GLIDER, TMG] }
       min: 900
       unit: minutes
       nameKey: requirement.flight_instruction
       remedyKey: remedy.fly_more
     - id: dual_time
       metric: minutes.dual
-      filter: { classes: [GLIDER] }
+      filter: { classes: [GLIDER, TMG] }
       min: 600
       unit: minutes
       nameKey: requirement.dual_time
       remedyKey: remedy.fly_more
     - id: supervised_solo_time
       metric: minutes.spic
-      filter: { classes: [GLIDER] }
+      filter: { classes: [GLIDER, TMG] }
       min: 120
       unit: minutes
       nameKey: requirement.supervised_solo_time
@@ -56,7 +65,7 @@ requirements:
     - id: launches
       metric: launches
       filter:
-        classes: [GLIDER]
+        classes: [GLIDER, TMG]
         any:
           - { withMinutes: [dual] }
           - { withMinutes: [spic] }
@@ -64,12 +73,26 @@ requirements:
       unit: launches
       nameKey: requirement.launches
       remedyKey: remedy.fly_more
+    - id: sailplane_instruction
+      metric: minutes.dualOrSpic
+      filter: { classes: [GLIDER] }
+      min: 420
+      unit: minutes
+      nameKey: requirement.sailplane_instruction
+      remedyKey: remedy.fly_more
+    - id: sailplane_dual
+      metric: minutes.dual
+      filter: { classes: [GLIDER] }
+      min: 180
+      unit: minutes
+      nameKey: requirement.sailplane_dual
+      remedyKey: remedy.fly_more
     - id: cross_country
       metric: flights
       filter:
-        classes: [GLIDER]
+        classes: [GLIDER, TMG]
         any:
-          - { roles: [pic, spic], withoutMinutes: [dual], withMinutes: [crossCountry], minDistanceKm: 50 }
+          - { classes: [GLIDER], roles: [pic, spic], withoutMinutes: [dual], withMinutes: [crossCountry], minDistanceKm: 50 }
           - { withMinutes: [dual, crossCountry], minDistanceKm: 100 }
       min: 1
       unit: flights
@@ -77,7 +100,7 @@ requirements:
       remedyKey: remedy.fly_more
     - id: credit_sfcl130b
       informational: true
-      when: { holds: { licenceKinds: [PPL_A, LAPL_A, CPL_A, ATPL_A, MPL, GPL, HELICOPTER] } }
+      when: { holds: { licenceKinds: [PPL_A, LAPL_A, CPL_A, ATPL_A, MPL, GPL, HELICOPTER, LAPL_H] } }
       metric: minutes.pic
       filter: { classes: [SEP_LAND, SEP_SEA, MEP_LAND, MEP_SEA, SET_LAND, SET_SEA, HELICOPTER, GYROPLANE, POWERED_LIFT, AIRSHIP] }
       escape_hatch: sfcl-130b-credit
@@ -92,23 +115,30 @@ stages:
 
 
 divergences:
+  - id: tmg-instruction
+    api: Counts only sailplane (GLIDER) flights toward the 15 hours of instruction, the 10 hours dual, the 2 hours supervised solo and the 45 launches, and only a sailplane flight as the dual cross-country flight.
+    article: Sailplanes include TMGs; the 15 hours, 10 hours dual, 2 hours supervised solo and 45 launches or take-offs and landings may include TMG time, while at least 7 hours of instruction including 3 hours dual must be in sailplanes excluding TMGs, and the dual cross-country flight may be completed in a TMG.
+    cite: EASA SFCL.130(a)(2)
   - id: distance-unknown
     api: Counts a cross-country flight with no recorded distance as the qualifying flight (with a warning).
     article: The cross-country flight must reach the distance (50 km solo, 100 km dual); a flight without a recorded distance is unknown and never completes the programme.
     cite: EASA SFCL.130(a)
 
 notes: >-
-  Partial: the verbatim text of SFCL.130 is not in sources/ (TODO: verify); the figures
-  follow the API's template and ninerlog-api docs/SAILPLANES.md (15 hours of flight
-  instruction in sailplanes excluding TMGs, including 10 hours dual, 2 hours supervised
-  solo, 45 launches, and one solo cross-country flight of at least 50 km or one dual of at
-  least 100 km). Instruction is dual plus supervised solo (SPIC) time on GLIDER flights;
-  PIC time is not instruction. Launches are those of flights with dual or SPIC time. A
-  cross-country flight is a GLIDER flight with cross-country time and a recorded
-  distance. The SFCL.130(b) credit (10 % of PIC time on other aircraft categories, at most 7
-  hours, balloons excepted) is shown for holders of an aeroplane, gyroplane or helicopter
-  licence and never affects the status (escape hatch sfcl-130b-credit). The programme is
-  evaluated for holders of an EASA medical certificate (a student needs one to fly solo,
-  MED.A.030(a)), since a student holds no licence yet; the consumer decides which
-  programmes to show (the API selects them by discipline). Status: current when every item is met,
-  lapsed while items are open.
+  Partial: the programme for sailplane privileges (SFCL.130(a)(2) with (iv)); the TMG
+  training elements of (v) are the programme of easa.part-sfcl.sfcl-150-b.tmg-extension.
+  Instruction is dual plus supervised solo (SPIC) time; PIC time is not instruction. The 15
+  hours, 10 hours dual, 2 hours supervised solo and 45 launches count GLIDER and TMG flights
+  ("sailplanes" includes TMGs in Part-SFCL); the 7 hours of instruction and 3 hours dual of
+  (iv) count GLIDER flights only. Launches are those of flights with dual or SPIC time (for a
+  TMG the launches field holds the take-offs). The cross-country flight is a solo GLIDER
+  flight of at least 50 km or a dual GLIDER or TMG flight of at least 100 km, with
+  cross-country time and a recorded distance. Not modelled: the theoretical knowledge of
+  (a)(1) and whether the course was completed at an ATO or DTO. The SFCL.130(b) credit (10 %
+  of PIC time on other aircraft categories, at most 7 hours, balloons excepted) is shown for
+  holders of an aeroplane, gyroplane or helicopter licence and never affects the status
+  (escape hatch sfcl-130b-credit); its (b)(1) and (b)(2) limits are not applied. The
+  programme is evaluated for holders of an EASA medical certificate (a student needs one to
+  fly solo, MED.A.030(a)), since a student holds no licence yet; the consumer decides which
+  programmes to show (the API selects them by discipline). Status: current when every item is
+  met, lapsed while items are open.

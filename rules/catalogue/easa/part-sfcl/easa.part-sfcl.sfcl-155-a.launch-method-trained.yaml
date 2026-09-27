@@ -19,6 +19,7 @@ citations: [EASA SFCL.155(a), EASA SFCL.155(b)]
 applies_to:
   subject: privilege
   privilegeKinds: [LAUNCH_METHOD_TRAINED]
+  excludeAuthorities: [FAA, DULV, DAEC]
 
 stages:
   - { id: expired, when: expired, status: expired, messageKey: privilege.expired, params: { date: expiry_date } }
@@ -33,5 +34,7 @@ notes: >-
   training content of SFCL.155(a)(1)-(4) (10 dual and 5 supervised solo winch or car
   launches, 5 and 5 for aerotow or self-launch, 3 bungee launches) is not counted from the
   logbook, because training before NinerLog is usually not logged there. A trained method
-  becomes a launch_method subject of the SFCL.155(c) rules. The API's trained flag on the
+  becomes a launch_method subject of the SFCL.155(c) rules. Like the other Part-SFCL rules it
+  excludes FAA, DULV and DAeC licences; the privilege on those is covered by
+  other.ninerlog.privilege-expiry.launch-method. The API's trained flag on the
   sailplane rating's launch method rows is an API presentation and is not reproduced.

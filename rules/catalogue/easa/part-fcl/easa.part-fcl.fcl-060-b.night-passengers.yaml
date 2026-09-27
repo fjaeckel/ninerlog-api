@@ -22,6 +22,8 @@ related_sources:
     file: sources/easa/fcl-010.md
     quote: "‘Night’ means the period between the end of evening civil twilight and the beginning of morning civil twilight or such other period between sunset and sunrise as may be prescribed by the appropriate authority."
 
+group: easa_fcl_passengers
+
 applies_to:
   subject: passengers
   classes: [SEP_LAND, SEP_SEA, MEP_LAND, MEP_SEA, SET_LAND, SET_SEA, TMG, HELICOPTER, GYROPLANE, POWERED_LIFT, AIRSHIP]

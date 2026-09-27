@@ -3,7 +3,7 @@ title: Mountain rating recency
 authority: easa
 instrument: Part-FCL
 article: FCL.815(d)
-support: not_supported
+support: supported
 source_kind: regulation
 effective_from: null
 effective_to: null
@@ -15,6 +15,47 @@ source:
     - "(d) In order to exercise the privileges of the mountain rating, the holder of the rating shall, during the last 2 years, have complied with either of the following conditions:"
     - "(1) completed at least six landings on a surface designated to require a mountain rating;"
     - "(2) passed a proficiency check that complies with the requirements in point (c). The completion of the proficiency check shall be entered in the logbook of the pilot and signed by the responsible examiner."
-applies_to: { subject: privilege, privilegeKinds: [MOUNTAIN] }
+applies_to:
+  subject: privilege
+  privilegeKinds: [MOUNTAIN]
+  excludeAuthorities: [FAA, DULV, DAEC]
+
+window: { rolling_months: 24 }
+
+requirements:
+  id: mountain
+  any_of:
+    - id: mountain_landings
+      metric: mountain_landings
+      filter: { categories: [aeroplane] }
+      min: 6
+      unit: landings
+      nameKey: requirement.mountain_landings
+      remedyKey: remedy.fly_more
+    - id: proficiency_check
+      metric: events
+      filter: { eventKinds: [proficiency_check], eventRatings: [MOUNTAIN] }
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: privilege.recency_current, params: { date: valid_until } }
+  - { id: not_logged, when: undetermined, status: unknown, messageKey: privilege.recency_not_logged }
+  - { id: lapsed, when: always, status: lapsed, messageKey: privilege.recency_not_met }
+
+ruleDescriptionKey: easa_mountain
+
 notes: >-
-  The record does not say whether a landing was made on a surface designated to require a mountain rating, so condition (1) cannot be counted; encoding only the proficiency check would report pilots who fly the six landings as lapsed. See docs/vocab-requests/easa-fcl.md (mountain-surface landings).
+  The mountain rating (privilege MOUNTAIN) is exercised only with six landings on a surface
+  designated to require a mountain rating, or a mountain proficiency check, in the last 2
+  years (rolling 24 months). Mountain landings are the flight field mountainLandings on
+  aeroplane and TMG flights (FCL.815(a)); a flight in the window that does not record it is
+  unknown input, so without six recorded mountain landings or a check the status is unknown
+  rather than lapsed (privilege.recency_not_logged). The proficiency check is a
+  proficiency_check event (or a flight flagged proficiencyCheck) whose rating is MOUNTAIN;
+  that it followed point (c) and was signed by the examiner is taken as given when it is
+  logged. The wheel and ski privileges of (a)(1) to (a)(3) are not distinguished: the record
+  has one MOUNTAIN privilege. The API does not evaluate the mountain rating today, so there
+  is no divergence to list.

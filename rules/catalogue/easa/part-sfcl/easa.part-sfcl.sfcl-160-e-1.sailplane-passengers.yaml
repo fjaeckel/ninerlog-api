@@ -15,6 +15,8 @@ source:
     - "SPL holders shall carry passengers only if in the preceding 90 days they have carried out as PIC, at least:"
     - "(1) three launches in sailplanes, excluding TMGs, if passengers are to be carried in sailplanes, excluding TMGs; or"
 
+group: easa_sfcl_passengers
+
 applies_to:
   subject: passengers
   classes: [GLIDER]

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -72,6 +73,12 @@ func check(o options) (*report, error) {
 		}
 	}
 	checkVocabulary(cat.Vocabulary, sem.used, r)
+	r.overlaps = checkOverlaps(cat)
+	r.changelog = checkChangelog(cat, string(changelog))
+	r.sources, err = checkSources(o.root, cat.Vocabulary)
+	if err != nil {
+		return nil, err
+	}
 	r.codeRules, err = checkCodeRules(o.root, cat)
 	if err != nil {
 		return nil, err
@@ -94,6 +101,38 @@ func check(o options) (*report, error) {
 		r.coverage = "not measured (-coverage=false)"
 	}
 	return r, nil
+}
+
+// changelogRef matches a `<rule id>#<divergence id>` reference.
+var changelogRef = regexp.MustCompile("`([a-z0-9]+(?:\\.[a-z0-9-]+){2,})#([a-z0-9-]+)`")
+
+// checkChangelog reports CHANGELOG.md references to divergences that do not exist and
+// divergences listed on more than one line (one line per divergence, stable ids).
+func checkChangelog(cat *engine.Catalogue, text string) []string {
+	var out []string
+	seen := map[string]int{}
+	for _, line := range strings.Split(text, "\n") {
+		for _, m := range changelogRef.FindAllStringSubmatch(line, -1) {
+			ref := m[1] + "#" + m[2]
+			seen[ref]++
+			if seen[ref] == 2 {
+				out = append(out, ref+" is listed on more than one line")
+			}
+			if seen[ref] > 1 {
+				continue
+			}
+			r, ok := cat.Rule(m[1])
+			if !ok {
+				out = append(out, ref+": no such rule")
+				continue
+			}
+			if !slices.ContainsFunc(r.Divergences, func(d engine.Divergence) bool { return d.ID == m[2] }) {
+				out = append(out, ref+": the rule has no such divergence")
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // checkCases runs a rule's cases and derives the missing coverage tags.
@@ -153,12 +192,23 @@ func checkVocabulary(v *engine.Vocabulary, used map[string]map[string]bool, r *r
 		"rule_events":      keys(v.RuleEvents),
 		"param_sources":    keys(v.ParamSources),
 		"hatches":          keys(v.Hatches),
+		"rule_groups":      keys(v.RuleGroups),
 		"units":            v.Units,
+	}
+	for section, names := range v.ReservedFor {
+		for n := range names {
+			switch {
+			case !slices.Contains(declared[section], n):
+				r.vocabUnused["reserved_for"] = append(r.vocabUnused["reserved_for"], section+"."+n+" (not declared)")
+			case used[section][n]:
+				r.vocabUnused["reserved_for"] = append(r.vocabUnused["reserved_for"], section+"."+n+" (used by a rule; drop the reservation)")
+			}
+		}
 	}
 	impl := engine.Implemented()
 	for section, names := range declared {
 		for _, n := range names {
-			if !used[section][n] {
+			if !used[section][n] && v.ReservedFor[section][n] == "" {
 				r.vocabUnused[section] = append(r.vocabUnused[section], n)
 			}
 			if list, ok := impl[section]; ok && !slices.Contains(list, n) {

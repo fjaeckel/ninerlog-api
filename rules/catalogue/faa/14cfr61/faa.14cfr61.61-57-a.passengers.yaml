@@ -22,11 +22,14 @@ related_sources:
     quote: ["(a) A student pilot may not act as pilot in command of an aircraft:", "(1) That is carrying a passenger;"]
 citations: [14 CFR 61.57(a)(1)]
 
+group: faa_passengers
+
 applies_to:
   subject: passengers
   authorities: [FAA]
   excludeClasses: [IR, GLIDER, ULTRALIGHT]
   excludeLicenceKinds: [FAA_STUDENT]
+  typeRated: false
 
 window: { rolling_days: 90 }
 
@@ -74,10 +77,10 @@ divergences:
     cite: 14 CFR 61.89(a)(1)
 
 notes: >-
-  Partial: the type part of "category, class, and type (if a class or type rating is
-  required)" is not modelled, because a passengers subject cannot tell a type-rated aircraft
-  from a class-rated one (see docs/vocab-requests/faa.md); takeoffs and landings count per
-  class. 61.57(a) also applies to aircraft certificated for more than one pilot without
+  Partial: class ratings only (typeRated: false); takeoffs and landings count per class. A
+  rating that carries a type designator is a type rating and is evaluated per type by
+  faa.14cfr61.61-57-a.passengers-type ("category, class, and type (if a class or type rating
+  is required)"). 61.57(a) also applies to aircraft certificated for more than one pilot without
   passengers; that is not a separate subject. Takeoffs and landings in a full flight simulator
   or flight training device (61.57(a)(3)) need an approved part 142 course, which the record
   cannot show, so simulator sessions do not count. The (e) exceptions for part 119

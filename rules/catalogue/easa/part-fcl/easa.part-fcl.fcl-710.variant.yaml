@@ -26,7 +26,7 @@ citations: [EASA FCL.710(d), EASA FCL.710(da), EASA FCL.140.A(c)]
 
 applies_to:
   subject: type
-  excludeClasses: [TMG, ULTRALIGHT, GLIDER, BALLOON]
+  excludeClasses: [TMG, ULTRALIGHT, GLIDER, BALLOON, GYROPLANE]
   authorities: [EASA, LBA]
 
 window: { rolling_months: 24 }
@@ -62,3 +62,5 @@ notes: >-
   been flown in 2 years shows as not flown. FCL.140.A(c) (LAPL(A) SEP variants with a
   different engine type) states the same condition and is covered by this rule. The API
   does not evaluate variants today, so there is no divergence to list.
+  Gyroplane variants are excluded: FCL.240.G(b) is the gyroplane-specific variant rule
+  (easa.part-fcl.fcl-240-g-b.variant), so each variant is evaluated once.

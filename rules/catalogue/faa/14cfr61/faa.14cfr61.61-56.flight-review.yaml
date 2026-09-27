@@ -71,6 +71,11 @@ requirements:
 
 stages:
   - { id: student, when: { holds: { licenceKinds: [FAA_STUDENT], sameLicence: true } }, status: not_applicable, messageKey: flight_review.not_applicable }
+  - id: expiring
+    when: { all: [all_met, { valid_until_within: { days: 90 } }] }
+    status: expiring
+    messageKey: flight_review.expiring
+    params: { days: days_to_valid_until, date: valid_until }
   - { id: reviewed, when: { met: flight_review }, status: current, messageKey: flight_review.current, params: { date: { last_date: flight_review } } }
   - { id: check_substitute, when: { met: proficiency_check }, status: current, messageKey: flight_review.substituted, params: { date: { last_date: proficiency_check } } }
   - { id: program_substitute, when: all_met, status: current, messageKey: flight_review.substituted, params: { date: { last_date: proficiency_program } } }
@@ -100,13 +105,12 @@ divergences:
     api: Ignores flight reviews logged on simulator sessions.
     article: A flight simulator or flight training device may be used for the flight review (under an approved part 142 course), so a review logged on a device counts.
     cite: 14 CFR 61.56(i)
-  - id: no-expiring
-    api: Reports the review as expiring (flight_review.expiring) in the last 90 days of its validity.
-    article: The review is current until the end of the 24th calendar month; the evaluation's validUntil gives that date, but the vocabulary has no stage for "validUntil within n days" yet, so no expiring status is reported (see docs/vocab-requests/faa.md).
-    cite: 14 CFR 61.56(c)
 
 notes: >-
-  Partial: no expiring stage (vocabulary request). Evaluated once per pilot, on the first FAA
+  Partial: who gave the review and the logbook endorsement are not checked (below). The
+  review, check or program phase shows as expiring (flight_review.expiring, as the API does)
+  when the evaluation's validUntil, the end of the 24th calendar month, is at most 90 days
+  away. Evaluated once per pilot, on the first FAA
   certificate in the record. Reviews come from flight_review events (or flights flagged
   flightReview); (d) substitutes from proficiency_check and practical_test events (flags
   proficiencyCheck), (e) from proficiency_program_phase events. Who gave the review or check

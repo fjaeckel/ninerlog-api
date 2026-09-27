@@ -24,6 +24,8 @@ related_sources:
     quote: "(5) All hours flown in gyroplanes that fall within the scope of Annex I to Regulation (EU) 2018/1139 and which have a maximum certificated take-off mass of at least 450 kg shall be credited in full towards completing the 12 hours of flight time and 12 take-offs and landings in accordance with point FCL.240.G(a) but shall not be credited towards the requirement in point FCL.240.G(a)(1)(ii)."
 citations: [EASA FCL.240.G(a)(1), EASA FCL.240.G(a)(2), EASA FCL.035(a)(5)]
 
+supersedes: [other.ninerlog.expiry-only]
+
 applies_to:
   subject: rating
   classes: [GYROPLANE]

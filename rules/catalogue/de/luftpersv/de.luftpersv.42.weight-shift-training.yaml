@@ -2,20 +2,27 @@ id: de.luftpersv.42.weight-shift-training
 title: Ultralight licence training progress, weight-shift
 authority: de
 instrument: LuftPersV
-article: § 42 (not in sources/), § 45b
+article: § 42(5) no. 1, § 45b
 support: partial
 source_kind: national_law
 effective_from: null
 effective_to: null
 source:
-  cite: LuftPersV § 45b
-  url: https://www.gesetze-im-internet.de/luftpersv/__45b.html
-  file: sources/de/luftpersv-45b.md
+  cite: LuftPersV § 42(5) Nr. 1
+  url: https://www.gesetze-im-internet.de/luftpersv/__42.html
+  file: sources/de/luftpersv-42.md
   quote:
-    - "Als Flugzeiten für den Erwerb und die Erweiterung eines Luftfahrerscheins für Luftsportgeräteführer sowie den Nachweis für die Ausübung der Rechte aus diesem gelten, sofern in dieser Verordnung nichts anderes bestimmt ist:"
-    - "die Flugzeit als Schüler mit Fluglehrer,"
-    - "die Flugzeit als Luftfahrzeugführer bei vorgeschriebenen Übungsflügen mit Fluglehrer,"
-citations: [LuftPersV § 42, LuftPersV § 45b]
+    - "Die Ausbildung von Führern für schwerkraftgesteuerte Ultraleichtflugzeuge nach § 1 Abs. 1 Nr. 7 der Luftverkehrs-Zulassungs-Ordnung umfasst"
+    - "eine Gesamtflugzeit von 25 Flugstunden mit schwerkraftgesteuerten Ultraleichtflugzeugen; davon können bis zu zehn Flugstunden durch Flugzeit als verantwortlicher Führer von Flugzeugen, Hubschraubern, Motorseglern, Segelflugzeugen, aerodynamisch gesteuerten Ultraleichtflugzeugen, Hängegleitern oder Gleitsegeln ersetzt werden, wobei in der Gesamtflugzeit mindestens zehn Flugstunden mit Fluglehrer und fünf Flugstunden im Alleinflug enthalten sein müssen, sowie"
+related_sources:
+  - cite: LuftPersV § 45b
+    url: https://www.gesetze-im-internet.de/luftpersv/__45b.html
+    file: sources/de/luftpersv-45b.md
+    quote:
+      - "Als Flugzeiten für den Erwerb und die Erweiterung eines Luftfahrerscheins für Luftsportgeräteführer sowie den Nachweis für die Ausübung der Rechte aus diesem gelten, sofern in dieser Verordnung nichts anderes bestimmt ist:"
+      - "die Flugzeit als Schüler mit Fluglehrer,"
+      - "die Flugzeit als Luftfahrzeugführer bei vorgeschriebenen Übungsflügen mit Fluglehrer,"
+citations: [LuftPersV § 42(5) Nr. 1, LuftPersV § 45b]
 
 applies_to:
   subject: training
@@ -38,13 +45,15 @@ stages:
 notes: >-
   Partial: training progress toward the weight-shift ultralight licence, as the API shows it
   (programme UL_WEIGHT_SHIFT, items training.ul.total_time, training.ul.dual_time and
-  training.ul.solo_time): 25 hours of flight time (dual, supervised solo and PIC) including 10
-  hours dual and 5 hours solo, on trikes over the whole logbook. The text of § 42 LuftPersV is
-  not in sources/, so the hours could not be checked against it (TODO: verify); § 42(2)
-  appears to leave the training details to the Beauftragte (DULV, DAeC), in which case the
-  hours are an association rule. § 45b, quoted here, only says which flight time counts. As in
-  the API, PIC time flown after the licence was issued also counts (lifetime window), and the
-  programme is evaluated once for a holder with an ultralight licence record (licence kind UL);
-  the API decides from the pilot profile whether to show it. Ultralight flights with no kind are unknown input
-  and never counted. The catalogue uses requirement_name keys (requirement.flight_time,
-  requirement.dual_time, requirement.solo_time) for the API items training.ul.*.
+  training.ul.solo_time): the 25 hours of flight time including 10 hours with an instructor
+  and 5 hours solo of § 42(5) no. 1 LuftPersV, counted on trikes over the whole logbook. Not
+  modelled: the credit of up to 10 hours as PIC of other aircraft toward the 25 hours; and the
+  items of § 42(5) no. 2 (take-offs and landings at different aerodromes, outlanding exercises
+  and two cross-country flights of 100 km with an instructor, briefings), which the API does
+  not track. § 45b, quoted as a related source, says which flight time counts. As in the API,
+  PIC time flown after the licence was issued also counts (lifetime window), and the programme
+  is evaluated once for a holder with an ultralight licence record (licence kind UL); the API
+  decides from the pilot profile whether to show it. Ultralight flights with no kind are
+  unknown input and never counted. The catalogue uses requirement_name keys
+  (requirement.flight_time, requirement.dual_time, requirement.solo_time) for the API items
+  training.ul.*.

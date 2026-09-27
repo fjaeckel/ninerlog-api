@@ -59,9 +59,6 @@ func (e *evalCtx) windowRange(w *Window, d Date) (span, bool) {
 	default:
 		return span{}, false
 	}
-	if r, ok := e.latestReset(d); ok && !e.noReset && (s.open || r.After(s.from)) {
-		s.from, s.open = r, false
-	}
 	return s, true
 }
 
@@ -93,17 +90,4 @@ func windowExit(w *Window, x Date) Date {
 		c = c.AddDays(1)
 	}
 	return c
-}
-
-// latestReset returns the latest resets event on or before d.
-func (e *evalCtx) latestReset(d Date) (Date, bool) {
-	var out Date
-	found := false
-	for _, r := range e.resets {
-		if r.After(d) {
-			break
-		}
-		out, found = r, true
-	}
-	return out, found
 }

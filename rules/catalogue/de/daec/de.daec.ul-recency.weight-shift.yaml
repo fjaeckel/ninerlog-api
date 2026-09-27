@@ -8,13 +8,14 @@ source_kind: association
 effective_from: null
 effective_to: null
 source:
-  cite: LuftPersV § 45(4)
-  url: https://www.gesetze-im-internet.de/luftpersv/__45.html
-  file: sources/de/luftpersv-45.md
-  quote:
-    - "Die Rechte aus einem Luftfahrerschein für Luftsportgeräteführer nach § 1 Absatz 4 Satz 1 Nummer 1 der Luftverkehrs-Zulassungs-Ordnung sowie für Sprungfallschirmführer dürfen nur ausgeübt werden, wenn der Inhaber des Luftfahrerscheins eine ausreichende fliegerische Übung nachweist."
-    - "Die Einzelheiten legt der Beauftragte nach § 31c des Luftverkehrsgesetzes entsprechend § 42 Absatz 2 fest."
+  cite: DAeC recency rule for weight-shift ultralights (document title not verified)
 related_sources:
+  - cite: LuftPersV § 45(4)
+    url: https://www.gesetze-im-internet.de/luftpersv/__45.html
+    file: sources/de/luftpersv-45.md
+    quote:
+      - "Die Rechte aus einem Luftfahrerschein für Luftsportgeräteführer nach § 1 Absatz 4 Satz 1 Nummer 1 der Luftverkehrs-Zulassungs-Ordnung sowie für Sprungfallschirmführer dürfen nur ausgeübt werden, wenn der Inhaber des Luftfahrerscheins eine ausreichende fliegerische Übung nachweist."
+      - "Die Einzelheiten legt der Beauftragte nach § 31c des Luftverkehrsgesetzes entsprechend § 42 Absatz 2 fest."
   - cite: LuftVZO § 1(4)
     url: https://www.gesetze-im-internet.de/luftvzo/__1.html
     file: sources/de/luftvzo-1.md
@@ -34,6 +35,7 @@ requirements:
   all_of:
     - { id: total_time, metric: minutes.total, min: 720, unit: minutes, nameKey: requirement.total_time, remedyKey: remedy.fly_more }
     - { id: landings, metric: landings.total, min: 12, unit: landings, nameKey: requirement.landings, remedyKey: remedy.fly_more }
+    - { id: safety_training, informational: true, metric: not_recorded, min: 1, unit: training, nameKey: requirement.safety_training, messages: { untracked: requirement.untracked } }
 
 stages:
   - { id: current, when: all_met, status: current, messageKey: rating.recency_current }
@@ -55,9 +57,10 @@ notes: >-
   private and is not stored in sources/; its title and text were not verified for this port
   (TODO: verify), so the thresholds are those the API implements
   (internal/service/currency/german_ul.go germanULTrikeDAeCRule). The API description also
-  names a safety or performance training that it does not track; the catalogue does not
-  track it either (no record input, and its period is not known), so the rule can report
-  current without it. The API description says "12 Starts & Landungen" while it counts
+  names a safety or performance training that it does not track; the catalogue shows it as an
+  informational, untracked row (safety_training, metric not_recorded): there is no record
+  input for it and its period is not known, so it does not affect the status and the rule can
+  report current without it. The API description says "12 Starts & Landungen" while it counts
   landings only; the catalogue keeps landings until the document is checked.
   Ambiguity, § 45(4): it refers to "§ 1 Absatz 4 Satz 1 Nummer 1" LuftVZO, but LuftVZO § 1(4)
   Satz 1 has no numbered items; read literally it covers one- and two-seat sport aircraft of

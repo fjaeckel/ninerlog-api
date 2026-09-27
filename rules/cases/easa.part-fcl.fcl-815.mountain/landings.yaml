@@ -1,0 +1,24 @@
+rule: easa.part-fcl.fcl-815.mountain
+name: landings
+description: >-
+  Six landings on designated mountain surfaces in the last 2 years keep the mountain rating current; the first counted flight is on the first day of the window, and landings made the day before no longer count.
+covers: [stage:current, any_of:mountain:mountain_landings, requirement:mountain_landings:met, requirement:proficiency_check:unmet, window:edge-in, window:edge-out]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  privileges:
+    - { id: p-mtn, licenceId: l-ppl, kind: MOUNTAIN }
+  flights:
+    - { date: 2024-09-14, class: SEP_LAND, minutes: { total: 90, pic: 90 }, takeoffs: { day: 4 }, landings: { day: 4 }, mountainLandings: 4 }
+    - { date: 2024-09-15, class: SEP_LAND, minutes: { total: 90, pic: 90 }, takeoffs: { day: 3 }, landings: { day: 3 }, mountainLandings: 3 }
+    - { date: 2026-03-01, class: TMG, minutes: { total: 120, pic: 120 }, takeoffs: { day: 4 }, landings: { day: 4 }, mountainLandings: 3 }
+expect:
+  - subject: { kind: privilege, id: p-mtn }
+    status: current
+    messageKey: privilege.recency_current
+    messageParams: { date: 2026-09-15 }
+    validUntil: 2026-09-15
+    requirements:
+      mountain_landings: { current: 6, met: true }
+      proficiency_check: { current: 0, met: false }

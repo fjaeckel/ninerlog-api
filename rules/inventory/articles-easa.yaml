@@ -9,7 +9,7 @@ articles:
     source_file: sources/easa/fcl-010.md
     in_app: "partial"
     notes: "Route sector definition not applied: the app counts every flight as a route sector."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-740-a.mep, easa.part-fcl.fcl-740-pl.powered-lift, easa.part-fcl.fcl-060-b.night-passengers]
   - cite: "FCL.035"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
@@ -17,14 +17,14 @@ articles:
     source_file: sources/easa/fcl-035.md
     in_app: "partial"
     notes: "(a)(4) credits \"flight time requirements\" only, whereas (a)(5) explicitly adds take-offs and landings; the app also credits UL landings under (a)(4)."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-740-a.sep, easa.part-fcl.fcl-140-a.lapl-a]
   - cite: "FCL.050"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: licence
     summary: "Pilots shall keep a reliable record of all flights flown."
     source_file: sources/easa/fcl-050.md
     in_app: "yes"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-050.records]
   - cite: "FCL.055"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: credential
@@ -32,7 +32,7 @@ articles:
     source_file: sources/easa/fcl-055.md
     in_app: "partial"
     notes: "Language credential stored with a user-entered expiry; interval not derived from level."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-055.language-level-4, easa.part-fcl.fcl-055.language-level-5]
   - cite: "FCL.060"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: passengers
@@ -40,28 +40,28 @@ articles:
     source_file: sources/easa/fcl-060.md
     in_app: "partial"
     notes: "(b)(1)/(b)(2) implemented; (b)(3) cruise relief, (b)(4)/(b)(5) cross-type credit, FFS credit and (c) not implemented."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-060-b.passengers, easa.part-fcl.fcl-060-b.night-passengers]
   - cite: "FCL.065"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: licence
     summary: "No single-pilot commercial air transport from age 60 (HEMS derogation) and no CAT at all from age 65."
     source_file: sources/easa/fcl-065.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-065.age-limits]
   - cite: "FCL.105.A"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: passengers
     summary: "LAPL(A) privileges (max 3 passengers, MTOM <= 2000 kg); passengers only after 10 h PIC on aeroplanes/TMG after licence issue, unless a former PPL/CPL/ATPL/MPL holder."
     source_file: sources/easa/fcl-105-a.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-105-a.lapl-passengers]
   - cite: "FCL.105.H"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: licence
     summary: "LAPL(H) privileges: single-engine helicopters up to 2000 kg, max 3 passengers."
     source_file: sources/easa/fcl-105-h.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-105-h.lapl-h-privileges]
   - cite: "FCL.140.A"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: licence
@@ -69,21 +69,21 @@ articles:
     source_file: sources/easa/fcl-140-a.md
     in_app: "partial"
     notes: "(a) and (b) implemented; (c) variant with a different engine type not implemented."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-140-a.lapl-a, easa.part-fcl.fcl-710.variant]
   - cite: "FCL.140.H"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: licence
     summary: "LAPL(H) recency per type: in last 12 months 6 h (PIC, dual or supervised solo) incl. 6 take-offs, approaches and landings plus 1 h refresher, or a proficiency check on the type."
     source_file: sources/easa/fcl-140-h.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-140-h.lapl-h]
   - cite: "FCL.205.G"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: passengers
     summary: "GPL privileges; passengers only after 10 h PIC on gyroplanes after licence issue."
     source_file: sources/easa/fcl-205-g.md
     in_app: "yes"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-205-g-a-2.passengers]
   - cite: "FCL.240.G"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: licence
@@ -91,7 +91,7 @@ articles:
     source_file: sources/easa/fcl-240-g.md
     in_app: "partial"
     notes: "(b) variant with a different engine type not implemented."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-240-g.gpl, easa.part-fcl.fcl-240-g-b.variant]
   - cite: "FCL.625"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
@@ -99,7 +99,7 @@ articles:
     source_file: sources/easa/fcl-625.md
     in_app: "partial"
     notes: "App requires 10 h IFR in the 12 months before expiry, which appears nowhere in FCL.625/FCL.625.A; renewal and 7-year rule not implemented."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-625-a.ir, easa.part-fcl.fcl-625-h.ir]
   - cite: "FCL.625.A"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
@@ -107,28 +107,28 @@ articles:
     source_file: sources/easa/fcl-625-a.md
     in_app: "partial"
     notes: "See FCL.625: the app models IR(A) revalidation as 10 h IFR or a proficiency check."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-625-a.ir]
   - cite: "FCL.625.H"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
     summary: "IR(H) revalidation by proficiency check; FSTD use and cross-crediting between types."
     source_file: sources/easa/fcl-625-h.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-625-h.ir]
   - cite: "FCL.625.As"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
     summary: "IR(As) revalidation by proficiency check, alternate checks in an airship."
     source_file: sources/easa/fcl-625-as.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-625-as.ir]
   - cite: "FCL.710"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: type
     summary: "Differences training or familiarisation for variants; lapse after 2 years without flying a variant (further differences training or PC required)."
     source_file: sources/easa/fcl-710.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-710.variant]
   - cite: "FCL.740"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
@@ -136,7 +136,7 @@ articles:
     source_file: sources/easa/fcl-740.md
     in_app: "partial"
     notes: "Validity comes from user-entered expiry; renewal path not modelled."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-740.validity, easa.part-fcl.fcl-740-a.sep, easa.part-fcl.fcl-740-a.mep, easa.part-fcl.fcl-740-a.set, easa.part-fcl.fcl-740-h.helicopter, easa.part-fcl.fcl-740-pl.powered-lift, easa.part-fcl.fcl-740-as.airship]
   - cite: "FCL.740.A"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
@@ -144,35 +144,35 @@ articles:
     source_file: sources/easa/fcl-740-a.md
     in_app: "partial"
     notes: "SEP/TMG implemented. MEP/SET modelled as \"PC OR (10 route sectors + 1 h refresher)\": the rule requires a PC within 3 months AND route sectors for ME; SET requires a PC only; no refresher applies to ME/SET. Refresher exemption (b)(1)(ii)(C)(1)-(4) should be checked."
-    maps_to: [easa.part-fcl.fcl-740-a.sep]
+    maps_to: [easa.part-fcl.fcl-740-a.sep, easa.part-fcl.fcl-740-a.mep, easa.part-fcl.fcl-740-a.set]
   - cite: "FCL.740.H"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: type
     summary: "Helicopter type revalidation: 2 h on type in validity plus PC in last 3 months; SE <= 3175 kg alternatively 6 h PIC plus 1 h refresher; group revalidation for SEP/SET types."
     source_file: sources/easa/fcl-740-h.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-740-h.helicopter]
   - cite: "FCL.740.PL"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: type
     summary: "Powered-lift type revalidation: PC and 10 route sectors or 1 with an examiner."
     source_file: sources/easa/fcl-740-pl.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-740-pl.powered-lift]
   - cite: "FCL.740.As"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: type
     summary: "Airship type revalidation: PC in last 3 months and 2 h on type in validity period."
     source_file: sources/easa/fcl-740-as.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-740-as.airship]
   - cite: "FCL.800"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "Aerobatic rating: training requirements; no validity or recency."
     source_file: sources/easa/fcl-800.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-800.aerobatic]
   - cite: "FCL.805"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
@@ -180,14 +180,14 @@ articles:
     source_file: sources/easa/fcl-805.md
     in_app: "partial"
     notes: "Tow recency implemented via the SFCL.205 privilege rule; not distinguished for Part-FCL licence holders."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-805.sailplane-towing, easa.part-fcl.fcl-805.banner-towing]
   - cite: "FCL.810"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "Night rating training requirements for aeroplanes/TMGs/airships, helicopters and gyroplanes; no validity or recency."
     source_file: sources/easa/fcl-810.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-810.night-rating]
   - cite: "FCL.815"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
@@ -195,14 +195,14 @@ articles:
     source_file: sources/easa/fcl-815.md
     in_app: "partial"
     notes: "Only generic privilege expiry could apply; mountain rating is not a privilege kind in the app."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-815.mountain]
   - cite: "FCL.820"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "Flight test rating categories and privileges; no validity rule."
     source_file: sources/easa/fcl-820.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-820.flight-test]
   - cite: "FCL.825"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
@@ -210,98 +210,98 @@ articles:
     source_file: sources/easa/fcl-825.md
     in_app: "no"
     notes: "Historical; no longer in force."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-825.eir]
   - cite: "FCL.835"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: rating
     summary: "BIR: privileges and minima; valid 1 year; revalidate by PC in last 3 months or 6 h PIC under IFR incl. 3 approaches plus 1 h training flight (PC every alternate time); renewal."
     source_file: sources/easa/fcl-835.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-835.bir]
   - cite: "FCL.940"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "Instructor certificates (except MI) valid for 3 years."
     source_file: sources/easa/fcl-940.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940.validity, easa.part-fcl.fcl-940-fi.revalidation, easa.part-fcl.fcl-940-cri.revalidation]
   - cite: "FCL.940.FI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "FI revalidation: 2 of 3 (50 h instruction for FI(A)/(H)/(G), 20 h for FI(As); refresher; assessment of competence), AoC at least every alternate revalidation; renewal."
     source_file: sources/easa/fcl-940-fi.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-fi.revalidation]
   - cite: "FCL.940.TRI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "TRI revalidation per category: 2 of 3 (instruction sessions/hours, refresher, AoC), AoC every alternate time; renewal incl. route sectors or flight time."
     source_file: sources/easa/fcl-940-tri.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-tri.revalidation]
   - cite: "FCL.940.CRI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "CRI revalidation: 2 of 3 (10 h instruction as CRI, refresher, AoC), AoC every alternate time; renewal."
     source_file: sources/easa/fcl-940-cri.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-cri.revalidation]
   - cite: "FCL.940.IRI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "IRI revalidation and renewal follow the FI rules."
     source_file: sources/easa/fcl-940-iri.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-fi.revalidation]
   - cite: "FCL.940.SFI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "SFI revalidation: 2 of 3 (50 h in FSTDs incl. 15 h in last 12 months, refresher, AoC) plus type proficiency checks on an FFS; renewal."
     source_file: sources/easa/fcl-940-sfi.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-sfi.revalidation]
   - cite: "FCL.940.MCCI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "MCCI revalidation: FCL.930.MCCI(a)(3) requirements in the last 12 months of validity; renewal."
     source_file: sources/easa/fcl-940-mcci.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-mcci.revalidation]
   - cite: "FCL.940.STI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "STI revalidation: in last 12 months 3 h FSTD instruction and applicable proficiency check sections; renewal."
     source_file: sources/easa/fcl-940-sti.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-sti.revalidation]
   - cite: "FCL.940.MI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "MI certificate valid as long as the underlying FI, TRI or CRI certificate."
     source_file: sources/easa/fcl-940-mi.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-mi.validity]
   - cite: "FCL.940.FTI"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "FTI revalidation: 50 h flight tests (15 in last 12 months) and 5 h flight-test instruction, or refresher at an ATO; renewal."
     source_file: sources/easa/fcl-940-fti.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-940-fti.revalidation]
   - cite: "FCL.1025"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: privilege
     summary: "Examiner certificates valid 3 years; revalidation by 6 tests/checks, refresher course in last 12 months and one assessed test in last 12 months; renewal."
     source_file: sources/easa/fcl-1025.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-1025.examiner]
   - cite: "MED.A.020"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: credential
     summary: "Licence holders shall not exercise privileges when aware of decreased medical fitness; must seek aero-medical advice in listed cases."
     source_file: sources/easa/med-a-020.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-med.med-a-020.decrease-in-fitness]
   - cite: "MED.A.030"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: credential
@@ -309,7 +309,7 @@ articles:
     source_file: sources/easa/med-a-030.md
     in_app: "partial"
     notes: "Medical credential types exist; licence-to-class mapping and AMC1 inclusion of lower-class validities not evaluated."
-    maps_to: []
+    maps_to: [easa.part-med.med-a-030.class-1, easa.part-med.med-a-030.class-2, easa.part-med.med-a-030.lapl]
   - cite: "MED.A.045"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: credential
@@ -317,7 +317,7 @@ articles:
     source_file: sources/easa/med-a-045.md
     in_app: "partial"
     notes: "App stores user-entered expiry dates; it does not derive validity from class and age."
-    maps_to: []
+    maps_to: [easa.part-med.med-a-045.class-1, easa.part-med.med-a-045.class-2, easa.part-med.med-a-045.lapl]
   - cite: "SFCL.035"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: licence
@@ -325,14 +325,14 @@ articles:
     source_file: sources/easa/sfcl-035.md
     in_app: "no"
     notes: "Issue crediting only; contains no crediting of ultralight sailplanes."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-035.credit]
   - cite: "SFCL.065"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: licence
     summary: "SPL holders aged 70 or older shall not fly commercial passenger sailplane operations."
     source_file: sources/easa/sfcl-065.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-065.age-70]
   - cite: "SFCL.115"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: passengers
@@ -340,7 +340,15 @@ articles:
     source_file: sources/easa/sfcl-115.md
     in_app: "partial"
     notes: "(a)(2) implemented (training flight untracked); (a)(3) and (c) medical gate not evaluated."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-115-a-2.passengers, easa.part-sfcl.sfcl-115-a-3.commercial]
+  - cite: "SFCL.130"
+    url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
+    subject: training
+    summary: "SPL training course: 15 h flight instruction in sailplanes (10 h dual, 2 h supervised solo, 45 launches), with sailplane-only (7 h, 3 h dual, cross-country) or TMG (6 h, 4 h dual, 150 km solo cross-country) elements; credit for other licences."
+    source_file: sources/easa/sfcl-130.md
+    in_app: "partial"
+    notes: "Training progress for sailplane privileges and the TMG extension; theoretical knowledge and ATO/DTO not tracked. Added at integration (SFCL.130 text fetched then)."
+    maps_to: [easa.part-sfcl.sfcl-130.spl-training, easa.part-sfcl.sfcl-150-b.tmg-extension]
   - cite: "SFCL.150"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: licence
@@ -348,14 +356,14 @@ articles:
     source_file: sources/easa/sfcl-150.md
     in_app: "partial"
     notes: "Referenced by training templates only; no currency logic."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-150-b.tmg-extension]
   - cite: "SFCL.155"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: privilege
     summary: "Launch methods require specific training; to keep a method, 5 launches in last 2 years (bungee 2), self-launch creditable with TMG take-offs; lapsed methods renewed by extra launches with an instructor."
     source_file: sources/easa/sfcl-155.md
     in_app: "yes"
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-155-a.launch-method-trained, easa.part-sfcl.sfcl-155-c.launch-method, easa.part-sfcl.sfcl-155-c.self-launch, easa.part-sfcl.sfcl-155-c.bungee]
   - cite: "SFCL.160"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: licence
@@ -363,7 +371,7 @@ articles:
     source_file: sources/easa/sfcl-160.md
     in_app: "yes"
     notes: "App credits ultralight sailplane/motorglider PIC time toward (a)(1) and (b)(1); Part-SFCL text contains no Annex I crediting provision (unlike FCL.035(a)(4))."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-160-a.sailplane, easa.part-sfcl.sfcl-160-b.tmg, easa.part-sfcl.sfcl-160-e-1.sailplane-passengers, easa.part-sfcl.sfcl-160-e-2.tmg-passengers]
   - cite: "SFCL.200"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: privilege
@@ -371,14 +379,14 @@ articles:
     source_file: sources/easa/sfcl-200.md
     in_app: "no"
     notes: "Aerobatic privilege kinds exist in the app without currency logic, as none is required."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-200.aerobatic]
   - cite: "SFCL.205"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: privilege
     summary: "Sailplane/banner towing rating for TMG: issue requirements; 5 tows in the last 2 years; missing tows with an instructor."
     source_file: sources/easa/sfcl-205.md
     in_app: "yes"
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-205-f.sailplane-towing, easa.part-sfcl.sfcl-205-f.banner-towing]
   - cite: "SFCL.210"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: privilege
@@ -386,7 +394,7 @@ articles:
     source_file: sources/easa/sfcl-210.md
     in_app: "partial"
     notes: "Privilege gates the SFCL.160(e)(2) night passenger evaluation."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-210.tmg-night, easa.part-sfcl.sfcl-160-e-2.tmg-passengers]
   - cite: "SFCL.215"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: privilege
@@ -394,7 +402,7 @@ articles:
     source_file: sources/easa/sfcl-215.md
     in_app: "yes"
     notes: "(g) BIR/IR(A) credit not visibly implemented."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-215.cloud-flying]
   - cite: "SFCL.360"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: privilege
@@ -402,7 +410,7 @@ articles:
     source_file: sources/easa/sfcl-360.md
     in_app: "partial"
     notes: "Instruction hours/launches implemented; refresher and 9-year demonstration only reported."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-360.fi-s]
   - cite: "SFCL.460"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R1976-20211115"
     subject: privilege
@@ -410,74 +418,74 @@ articles:
     source_file: sources/easa/sfcl-460.md
     in_app: "partial"
     notes: "Only generic privilege expiry of the FE_S privilege."
-    maps_to: []
+    maps_to: [easa.part-sfcl.sfcl-460.fe-s]
   - cite: "BFCL.035"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: licence
     summary: "Balloon flight time credited toward BPL and associated privileges."
     source_file: sources/easa/bfcl-035.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-035.credit]
   - cite: "BFCL.065"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: licence
     summary: "BPL holders aged 70 or older shall not fly commercial passenger balloon operations."
     source_file: sources/easa/bfcl-065.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-065.age-70]
   - cite: "BFCL.115"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: licence
     summary: "BPL privileges: non-commercial PIC, commercial only with the BFCL.215 rating; privileges only with recency met and a valid medical."
     source_file: sources/easa/bfcl-115.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-115.privileges]
   - cite: "BFCL.150"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: licence
     summary: "Extension of BPL privileges to another hot-air balloon group or balloon class (training, hours, skill test)."
     source_file: sources/easa/bfcl-150.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-150.extension]
   - cite: "BFCL.160"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: licence
     summary: "BPL recency per class: 6 h PIC incl. 10 take-offs and landings in 24 months plus a training flight in 48 months, or a PC in 24 months; extra class requirements; hot-air group limits."
     source_file: sources/easa/bfcl-160.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-160.recency]
   - cite: "BFCL.200"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: privilege
     summary: "Tethered hot-air balloon flight rating: training; at least 1 tethered flight in the preceding 48 months."
     source_file: sources/easa/bfcl-200.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-200.tethered]
   - cite: "BFCL.210"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: privilege
     summary: "Balloon night rating: training requirements."
     source_file: sources/easa/bfcl-210.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-210.night]
   - cite: "BFCL.215"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: privilege
     summary: "Balloon commercial operation rating; for commercial passenger ballooning 3 flights in 180 days (or 1 supervised) and a PC or refresher in 24 months."
     source_file: sources/easa/bfcl-215.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-215.commercial]
   - cite: "BFCL.360"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: privilege
     summary: "FI(B) recency: refresher training and 6 h instruction in last 3 years; supervised instruction flight in last 9 years."
     source_file: sources/easa/bfcl-360.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-360.fi-b]
   - cite: "BFCL.460"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02018R0395-20211115"
     subject: privilege
     summary: "FE(B) certificate valid 5 years; revalidation by refresher course and a supervised test in last 24 months; renewal."
     source_file: sources/easa/bfcl-460.md
     in_app: "no"
-    maps_to: []
+    maps_to: [easa.part-bfcl.bfcl-460.fe-b]

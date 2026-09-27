@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-140-h.lapl-h
+name: type-not-recorded
+description: >-
+  Helicopter flights that record no type designator cannot be attributed to the R44; with nothing else logged the recency is unknown.
+covers: [stage:type_unknown, unknown:typeDesignators]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-laplh, authority: EASA, type: LAPL(H) }
+  ratings:
+    - { id: r-r44, licenceId: l-laplh, class: HELICOPTER, typeDesignator: R44 }
+  flights:
+    - { date: 2026-03-01, class: HELICOPTER, minutes: { total: 420, pic: 360, dual: 60 }, takeoffs: { day: 8 }, landings: { day: 8 } }
+expect:
+  - subject: { kind: rating, id: r-r44 }
+    status: unknown
+    messageKey: rating.type_not_identifiable
+    requirements:
+      type_time: { tracked: false }

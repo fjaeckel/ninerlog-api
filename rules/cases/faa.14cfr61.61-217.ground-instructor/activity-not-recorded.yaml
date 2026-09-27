@@ -1,7 +1,7 @@
 rule: faa.14cfr61.61-217.ground-instructor
-name: lapsed
-description: Instruction on 31 July 2025 is outside the 12 calendar months on 16 August 2026; the ground instructor may not perform the duties.
-covers: [stage:not_met, requirement:flight_instruction:unmet, window:edge-out]
+name: activity-not-recorded
+description: Instruction on 31 July 2025 is outside the 12 calendar months on 16 August 2026; nothing recorded shows recent activity, but ground instruction given is not recorded, so the status is unknown rather than lapsed.
+covers: [stage:not_logged, requirement:ground_instruction:untracked, requirement:flight_instruction:unmet, window:edge-out]
 asOf: 2026-08-16
 record:
   licences:
@@ -14,7 +14,8 @@ record:
     - { date: 2025-07-31, class: SEP_LAND, minutes: { total: 90, pic: 90, dualGiven: 90 } }
 expect:
   - subject: { kind: privilege, id: p-gi }
-    status: lapsed
-    messageKey: privilege.recency_not_met
+    status: unknown
+    messageKey: privilege.recency_not_logged
     requirements:
       flight_instruction: { current: 0, met: false }
+      ground_instruction: { tracked: false, met: false, messageKey: requirement.untracked }

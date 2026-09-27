@@ -25,6 +25,8 @@ related_sources:
     quote: "(c) SPL holders with privileges to fly on TMGs who also hold a licence including the privileges to fly on TMGs in accordance with the provisions of Annex I (Part-FCL) to Regulation (EU) No 1178/2011 shall be exempted from complying with paragraph (b)."
 citations: [EASA SFCL.160(b)(1), EASA SFCL.160(b)(2), EASA SFCL.160(c)]
 
+supersedes: [other.ninerlog.expiry-only]
+
 applies_to:
   subject: rating
   classes: [TMG]

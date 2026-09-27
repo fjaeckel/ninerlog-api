@@ -1,7 +1,8 @@
 name: Rules
 
 # The rules catalogue module (rules/). Runs only for changes under rules/.
-# The strict gate fails until every inventory entry and article is ported; see rules/README.md.
+# The strict gate (schema, cases, coverage tags, overlaps, sources provenance, CHANGELOG,
+# vocabulary, inventories, engine coverage) must pass; see rules/README.md.
 
 on:
   push:

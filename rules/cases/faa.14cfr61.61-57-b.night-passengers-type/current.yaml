@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-57-b.night-passengers-type
+name: current
+description: Per type (each rating carries a type designator, so it is a type rating). Three night takeoffs and three full-stop night landings as sole manipulator allow night passengers in that class; night touch-and-goes do not count as full-stop landings.
+covers: [stage:current, requirement:night_takeoffs:met, requirement:full_stop_night_landings:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND, typeDesignator: PC6 }
+  flights:
+    - { date: 2026-07-10, class: SEP_LAND, typeDesignator: PC6, minutes: { total: 60, pic: 60, night: 60 }, takeoffs: { night: 4 }, landings: { night: 4 }, fullStopNightLandings: 1, soleManipulator: true }
+    - { date: 2026-07-24, class: SEP_LAND, typeDesignator: PC6, minutes: { total: 60, pic: 60, night: 50 }, takeoffs: { day: 1, night: 2 }, landings: { night: 3 }, fullStopNightLandings: 2, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: current
+    messageKey: pax.night_current
+    validUntil: 2026-10-08
+    requirements:
+      night_takeoffs: { current: 6, met: true }
+      full_stop_night_landings: { current: 3, required: 3, met: true, tracked: true }

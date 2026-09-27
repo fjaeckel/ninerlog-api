@@ -155,9 +155,6 @@ func (e *evalCtx) matchFlight(f *resolvedFilter, fl *Flight) *matcher {
 	if f.Has("launchMethods") {
 		m.check(fl.LaunchMethod != "" && slices.Contains(f.LaunchMethods, fl.LaunchMethod))
 	}
-	if len(f.ExcludeLaunchMethods) > 0 {
-		m.check(!slices.Contains(f.ExcludeLaunchMethods, fl.LaunchMethod))
-	}
 	stringFilter(m, f.Has("typeDesignators"), "typeDesignators", f.TypeDesignators, fl.TypeDesignator)
 	stringFilter(m, f.Has("variants"), "variants", f.Variants, fl.Variant)
 	if len(f.Roles) > 0 {
@@ -182,9 +179,6 @@ func (e *evalCtx) matchFlight(f *resolvedFilter, fl *Flight) *matcher {
 		got, _ := fl.Flags.Get(name)
 		m.check(got == want)
 	}
-	if f.MinMinutes != nil {
-		m.check(fl.Minutes.Total >= *f.MinMinutes)
-	}
 	if f.MinLandings != nil {
 		m.check(fl.Landings.Total() >= *f.MinLandings)
 	}
@@ -195,6 +189,8 @@ func (e *evalCtx) matchFlight(f *resolvedFilter, fl *Flight) *matcher {
 			m.check(*fl.DistanceKm >= *f.MinDistanceKm)
 		}
 	}
+	maxFilter(m, "maxEngines", f.MaxEngines, fl.Engines)
+	maxFilter(m, "maxMtomKg", f.MaxMTOMKg, fl.MTOMKg)
 	boolFilter(m, "tailwheel", f.Tailwheel, fl.Tailwheel)
 	boolFilter(m, "soleManipulator", f.SoleManipulator, fl.SoleManipulator)
 	boolFilter(m, "pilotFlying", f.PilotFlying, fl.PilotFlying)
@@ -279,6 +275,18 @@ func stringFilter(m *matcher, on bool, name string, want []string, got string) {
 		return
 	}
 	m.check(slices.Contains(want, got))
+}
+
+// maxFilter matches when the recorded value is at most max; an absent value is unknown.
+func maxFilter(m *matcher, name string, max, got *int) {
+	if max == nil {
+		return
+	}
+	if got == nil {
+		m.unknownBy(name)
+		return
+	}
+	m.check(*got <= *max)
 }
 
 func boolFilter(m *matcher, name string, want, got *bool) {

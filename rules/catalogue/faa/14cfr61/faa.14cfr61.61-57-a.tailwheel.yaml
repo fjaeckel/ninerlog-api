@@ -17,6 +17,8 @@ source:
     - "if the aircraft to be flown is an airplane with a tailwheel, the takeoffs and landings must have been made to a full stop in an airplane with a tailwheel."
 citations: [14 CFR 61.57(a)(1)(i), 14 CFR 61.57(a)(1)(ii)]
 
+group: faa_passengers
+
 applies_to:
   subject: passengers
   authorities: [FAA]

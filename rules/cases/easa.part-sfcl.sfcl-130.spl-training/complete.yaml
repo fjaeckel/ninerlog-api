@@ -4,7 +4,7 @@ description: >-
   Fifteen hours of instruction with 10 hours dual, 2 hours supervised solo, 45 launches and
   a 55 km solo cross-country flight complete the SPL flight training; a PPL(A) holder with 70
   hours as PIC in aeroplanes is shown the full 7-hour credit.
-covers: [stage:complete, requirement:instruction_time:met, requirement:dual_time:met, requirement:supervised_solo_time:met, requirement:launches:met, requirement:cross_country:met, requirement:credit_sfcl130b:met]
+covers: [stage:complete, requirement:instruction_time:met, requirement:dual_time:met, requirement:supervised_solo_time:met, requirement:launches:met, requirement:sailplane_instruction:met, requirement:sailplane_dual:met, requirement:cross_country:met, requirement:credit_sfcl130b:met]
 asOf: 2026-09-15
 record:
   credentials:
@@ -25,5 +25,7 @@ expect:
       dual_time: { current: 600, met: true }
       supervised_solo_time: { current: 330, met: true }
       launches: { current: 46, met: true }
+      sailplane_instruction: { current: 930, met: true }
+      sailplane_dual: { current: 600, met: true }
       cross_country: { current: 1, met: true }
       credit_sfcl130b: { current: 420, required: 420, met: true }

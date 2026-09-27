@@ -1,0 +1,96 @@
+id: faa.14cfr61.61-57-b.night-passengers-type
+title: Night passenger recency, type-rated aircraft (full-stop takeoffs and landings)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.57(b)(1)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.57(b)(1)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+  file: sources/faa/61.57.md
+  quote:
+    - "no person may act as pilot in command of an aircraft carrying persons during the period beginning 1 hour after sunset and ending 1 hour before sunrise, unless within the preceding 90 days that person has made at least three takeoffs and three landings to a full stop during the period beginning 1 hour after sunset and ending 1 hour before sunrise, and—"
+    - "(i) That person acted as sole manipulator of the flight controls; and"
+    - "(ii) The required takeoffs and landings were performed in an aircraft of the same category, class, and type (if a class or type rating is required)."
+related_sources:
+  - cite: 14 CFR 61.101(e)(6)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.101
+    file: sources/faa/61.101.md
+    quote: ["(e) Except as provided in paragraphs (d) and (i) of this section, a recreational pilot may not act as pilot in command of an aircraft—", "(6) Between sunset and sunrise;"]
+  - cite: 14 CFR 61.315(c)(5)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.315
+    file: sources/faa/61.315.md
+    quote: ["(c) You may not act as pilot in command of an aircraft:", "(5) At night, except as provided in § 61.329."]
+  - cite: 14 CFR 61.329
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.329
+    file: sources/faa/61.329.md
+    quote:
+      - "You may act as pilot in command with a sport pilot certificate during night operations if you:"
+      - "(c) Receive a logbook endorsement from an authorized instructor certifying that you meet the training requirements in paragraph (a) of this section and are proficient in the operation of the aircraft at night in the category and class which the sport pilot seeks privileges."
+citations: [14 CFR 61.57(b)(1), 14 CFR 61.101(e)(6), 14 CFR 61.315(c)(5), 14 CFR 61.329]
+
+group: faa_passengers
+
+applies_to:
+  subject: passengers
+  authorities: [FAA]
+  excludeClasses: [IR, GLIDER, ULTRALIGHT]
+  excludeLicenceKinds: [FAA_STUDENT]
+  typeRated: true
+
+window: { rolling_days: 90 }
+
+requirements:
+  all_of:
+    - id: night_takeoffs
+      metric: takeoffs.night
+      min: 3
+      unit: takeoffs
+      nameKey: requirement.night_takeoffs
+      remedyKey: remedy.fly_more
+      filter: &night { classes: [$subject], typeDesignators: [$subject], soleManipulator: true }
+    - id: full_stop_night_landings
+      metric: full_stop_night_landings
+      min: 3
+      unit: landings
+      nameKey: requirement.full_stop_night_landings
+      remedyKey: remedy.fly_more
+      filter: *night
+
+stages:
+  - id: recreational_no_night
+    when: { holds: { licenceKinds: [FAA_RECREATIONAL], sameLicence: true } }
+    status: not_applicable
+    messageKey: pax.night_no_privilege
+  - id: sport_no_night
+    when:
+      all:
+        - { holds: { licenceKinds: [FAA_SPORT], sameLicence: true } }
+        - { not: { holds: { privileges: [SPORT_NIGHT], sameLicence: true, valid: true } } }
+    status: not_applicable
+    messageKey: pax.night_no_privilege
+  - { id: current, when: all_met, status: current, messageKey: pax.night_current }
+  - { id: not_logged, when: undetermined, status: unknown, messageKey: pax.experience_not_logged }
+  - { id: landings_short, when: { unmet: full_stop_night_landings }, status: lapsed, messageKey: pax.night_not_current, params: { needed: { needed: full_stop_night_landings } } }
+  - { id: takeoffs_short, when: always, status: lapsed, messageKey: pax.night_not_current, params: { needed: { needed: night_takeoffs } } }
+
+ruleDescriptionKey: faa_pax_day_night
+
+divergences:
+  - id: per-type
+    api: Counts night landings in any aircraft of the class, also for a type-rated aircraft.
+    article: For an aircraft that requires a type rating, the night takeoffs and full-stop landings must be performed in an aircraft of the same type.
+    cite: 14 CFR 61.57(b)(1)(ii)
+
+notes: >-
+  Partial: type ratings only (typeRated: true: the rating carries a type designator); one
+  evaluation per class and type designator on each FAA certificate. Night takeoffs and
+  full-stop night landings count on flights in the rating's class whose type designator equals
+  the rating's; a flight without a type designator is unknown input, never counted. Everything
+  else is as in faa.14cfr61.61-57-b.night-passengers (class ratings), including the
+  recreational and sport night privileges; a type rating on a recreational or sport
+  certificate is unusual but is handled the same way. The (e) exceptions, including (e)(4) for
+  turbine multi-pilot airplanes, are not modelled.

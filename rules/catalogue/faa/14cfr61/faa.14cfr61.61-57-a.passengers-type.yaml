@@ -1,0 +1,67 @@
+id: faa.14cfr61.61-57-a.passengers-type
+title: Passenger recency, takeoffs and landings (type-rated aircraft)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.57(a)(1)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.57(a)(1)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+  file: sources/faa/61.57.md
+  quote:
+    - "no person may act as a pilot in command of an aircraft carrying persons or of an aircraft certificated for more than one pilot flight crewmember unless that person has made at least three takeoffs and three landings within the preceding 90 days, and—"
+    - "(i) The person acted as the sole manipulator of the flight controls; and"
+    - "(ii) The required takeoffs and landings were performed in an aircraft of the same category, class, and type (if a class or type rating is required)"
+related_sources:
+  - cite: 14 CFR 61.89(a)(1)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.89
+    file: sources/faa/61.89.md
+    quote: ["(a) A student pilot may not act as pilot in command of an aircraft:", "(1) That is carrying a passenger;"]
+citations: [14 CFR 61.57(a)(1)]
+
+group: faa_passengers
+
+applies_to:
+  subject: passengers
+  authorities: [FAA]
+  excludeClasses: [IR, GLIDER, ULTRALIGHT]
+  excludeLicenceKinds: [FAA_STUDENT]
+  typeRated: true
+
+window: { rolling_days: 90 }
+
+requirements:
+  all_of:
+    - id: takeoffs_landings
+      metric: takeoffs_and_landings
+      min: 3
+      unit: landings
+      nameKey: requirement.takeoffs_and_landings
+      remedyKey: remedy.fly_more
+      filter: { classes: [$subject], typeDesignators: [$subject], soleManipulator: true }
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: pax.day_current }
+  - { id: not_logged, when: undetermined, status: unknown, messageKey: pax.experience_not_logged }
+  - { id: not_current, when: always, status: lapsed, messageKey: pax.not_current, params: { needed: { needed: takeoffs_landings } } }
+
+ruleDescriptionKey: faa_pax_day_night
+
+divergences:
+  - id: per-type
+    api: Counts takeoffs and landings in any aircraft of the class, also for a type-rated aircraft.
+    article: For an aircraft that requires a type rating, the takeoffs and landings must be performed in an aircraft of the same type.
+    cite: 14 CFR 61.57(a)(1)(ii)
+
+notes: >-
+  Partial: type ratings only (typeRated: true: the rating carries a type designator); one
+  evaluation per class and type designator on each FAA certificate. Takeoffs and landings count
+  on flights in the rating's class whose type designator equals the rating's; a flight in the
+  class without a type designator is unknown input, never counted. Everything else is as in
+  faa.14cfr61.61-57-a.passengers (class ratings): sole manipulator, the 90-day window, no
+  simulator credit without a part 142 course, students excluded. 61.57(a) also applies to
+  aircraft certificated for more than one pilot without passengers; that is not a separate
+  subject. The (e) exceptions are not modelled.

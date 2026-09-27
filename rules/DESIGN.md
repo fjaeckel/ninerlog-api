@@ -5,7 +5,8 @@ validity rules as audited plain text (YAML), plus an evaluator, a code generator
 coverage gate. It lives inside `ninerlog-api` for now and must be extractable at any time
 with `git subtree split --prefix=rules` and no code changes.
 
-Every contributor, human or agent, follows this document. Changing it is a design change:
+Every contributor, human or agent, follows this document; sections 11 to 13 amend the
+earlier ones and win where they disagree. Changing it is a design change:
 say so explicitly in the commit.
 
 ## 1. Independence
@@ -294,3 +295,121 @@ and an earlier one disagree, this section wins.
    `messages/keys.yaml` and `CHANGELOG.md`. Until then, key and changelog findings for a
    family's rules are expected in `rulescheck -report`.
 9. `effective_from` is set only when the source file states it; otherwise null.
+
+## 13. Integration of the first porting round (2026-09-27)
+
+The four porting families (easa-fcl, easa-sfcl, faa, de-other) were merged into one
+catalogue. Where this section and an earlier one disagree, this section wins. Every change
+to the contract made at integration, and why:
+
+1. **Coverage of rows NinerLog cannot count (gate rule fixed).** A leaf with an
+   `aggregate: none` metric (`not_recorded`) is always `tracked: false`, so the tags
+   `requirement:<id>:met` / `:unmet` required by section 7 were unreachable and porters had to
+   drop such rows. The gate now requires `requirement:<id>:untracked` for these leaves
+   instead (and no `unknown:not_recorded`), observes `:untracked` for every untracked row,
+   and derives no `any_of:<node>:<branch>` tag for a branch that is informational or a
+   `not_recorded` leaf, since neither can be met on its own. Restored with it: the
+   SFCL.115(a)(2) passenger-competence flight (informational row, as the API shows it); the
+   DAeC safety or performance training for weight-shift trikes (informational row); and the
+   FAA 61.217(a) ground-instructor activity (an untracked alternative, so a ground instructor
+   with no recorded activity is `unknown`, never `lapsed`). The FAA porter's 61.56 flight
+   review needed no restoration: every (d) and (e) alternative is an event NinerLog can count.
+2. **Source kinds.** `source_kind` gains `app_policy` (NinerLog fallbacks with no regulation
+   behind them: `source` has a `cite` only, no file, no quote). The four `other.ninerlog.*`
+   rules use it instead of borrowing LuftPersV § 9(1). `association` sources (DULV, DAeC)
+   are cited without a file, because association documents are never stored in `sources/`;
+   the delegating statute (LuftPersV § 45(4)) moved to `related_sources`. The gate limits an
+   association quote to 300 characters (copyright hygiene). `regulation` and `national_law`
+   sources, and every `related_sources` entry, still need url, file and a verbatim quote
+   (schema `storedSource`). `sources/README.md` records the copyright status of each origin.
+3. **Missing sources fetched.** `sources/de/luftpersv-42.md` (official XML) and
+   `sources/easa/sfcl-130.md` (EUR-Lex consolidation via the Cellar) were added. The
+   LuftPersV § 42 training rules now quote § 42(4) and (5) (their hours matched); the SFCL.130
+   rule quotes SFCL.130(a)(2) and (b), which showed that TMG instruction counts toward the
+   15 hours (new divergence `tmg-instruction`, new rows for the 7 hours and 3 hours dual in
+   sailplanes). SFCL.130 and LuftPersV § 42 were added to the article inventories.
+4. **Stage condition `valid_until_within: { days: n }`** with param source
+   `days_to_valid_until`: true when the evaluation has a validUntil at most n days after
+   asOf. The FAA flight review shows `expiring` in its last 90 days again, as the API does
+   (the former divergence `no-expiring` is gone).
+5. **Type-rated subjects.** `applies_to.typeRated: true|false` selects ratings with or
+   without a type designator. For `passengers` with `typeRated: true` there is one subject
+   per class and type designator, and the subject's `detail` is the type designator.
+   `faa.14cfr61.61-57-a.passengers-type` and `faa.14cfr61.61-57-b.night-passengers-type`
+   count takeoffs and landings per type; the class rules take `typeRated: false`. 61.58 stays
+   `not_supported`: not every FAA type rating is for a multi-pilot or turbojet aircraft, and
+   the record cannot tell which.
+6. **Licence kind `LAPL_H`** (alias `LAPL(H)`, no longer a `HELICOPTER` alias). FCL.140.H is
+   now a partial rule; FCL.740.H excludes LAPL(H); MED.A.030's LAPL rule covers it. Declined:
+   splitting `HELICOPTER` further into PPL(H), CPL(H) and ATPL(H) kinds for MED.A.030 class 1
+   and class 2; no rule other than MED.A.030 needs it and the request only asked for LAPL(H).
+   The MED.A.030 note says the helicopter licences are not evaluated.
+7. **Engine count and maximum take-off mass** are optional *flight* inputs (`flight.engines`,
+   existing `flight.mtomKg`) with filters `maxEngines` and `maxMtomKg` (absent = unknown),
+   not rating fields as requested: every other aircraft property the vocabulary reads is on
+   the flight, an FSTD session carries the data of the type it represents, and a filter keeps
+   missing data three-valued, which a boolean `when` on the rating could not. FCL.740.H
+   offers the (a)(2)(ii) route (6 hours as PIC and 1 hour refresher training) on flights of
+   single-engine types up to 3 175 kg; without the data the result is unknown.
+8. **Mountain landings**: optional `flight.mountainLandings` and metric `mountain_landings`.
+   FCL.815(d) is now supported (six landings on designated surfaces or a proficiency check in
+   24 months).
+9. **No double evaluation (new gate check "Overlaps").** Two supported or partial rules fail
+   the gate when they can select the same subject: same subject kind and intersecting
+   authorities (with the licence kinds they allow; DULV and DAeC licences are always `UL`),
+   classes, ultralight kinds, `typeRated`, privilege kinds, credential types, launch methods,
+   training programme and effective period. `holds` is not considered (conservative). An
+   overlap is resolved by `supersedes: [rule ids]` (the engine's `Evaluate` then drops the
+   superseded rule's evaluation of any subject the superseding rule evaluated) or by a shared
+   `group: <name>` declared in `vocabulary.yaml` `rule_groups`, whose description states how
+   the members combine and their precedence (every group so far: no precedence, each member
+   reports its own condition). A group needs two members. Resolutions of the overlaps found:
+   the Part-FCL, Part-SFCL and FAA passenger rules form the groups `easa_fcl_passengers`,
+   `easa_sfcl_passengers` and `faa_passengers`; the FAA medical durations
+   `faa_medical_duration`; the two FAA flight instructor regimes `faa_cfi`;
+   `easa.part-fcl.fcl-240-g.gpl` and `easa.part-sfcl.sfcl-160-b.tmg` supersede
+   `other.ninerlog.expiry-only` (licences of other authorities); FE_S left
+   `other.ninerlog.privilege-expiry`; LAUNCH_METHOD_TRAINED is evaluated by
+   `easa.part-sfcl.sfcl-155-a.launch-method-trained` except on FAA, DULV and DAeC licences,
+   where `other.ninerlog.privilege-expiry.launch-method` takes it; FCL.710 excludes
+   gyroplanes (FCL.240.G(b) covers them); FCL.140.H applies to EASA and LBA licences like
+   FCL.740.H. `other.ninerlog.expiry-only.faa-ultralight` overlaps nothing (Part 61 has no
+   ultralight rating) and stays.
+10. **Unused vocabulary pruned, reservations possible.** Removed because no rule and no article
+    in scope needs them: metrics `distance_km`, `landings.day`, `takeoffs.day`,
+    `minutes.crossCountry`, `minutes.examiner`, `minutes.instrument`, `minutes.multiPilot`,
+    `minutes.night`, `minutes.picus`, `minutes.sic`; filters `excludeLaunchMethods`,
+    `minMinutes`; stage condition `untracked` (a `not_recorded` row is always untracked);
+    rule event `resets` (engine code removed too); units `flight`, `km`. Section 12.7's
+    reservation is `reserved_for: { <section>: { <name>: <article or reason> } }` at the top
+    of `vocabulary.yaml`; the gate accepts a reserved unused entry and fails on a
+    reservation for an undeclared or used entry. Nothing is reserved today. Re-adding an
+    entry follows section 5.
+11. **CHANGELOG**: grouped by authority, one line per divergence ending in the stable id
+    `<rule id>#<divergence id>`. The gate now also fails on a line naming a divergence that
+    does not exist and on a divergence listed on more than one line.
+12. **Parallel-work directories** (`docs/key-requests/`, `docs/changelog-fragments/`,
+    `docs/mapping/`, `docs/vocab-requests/`) stay, empty between rounds, each with a README
+    describing its format and how the integration step merges it.
+13. **Only safe material is kept (copyright hygiene, enforced).** `vocabulary.yaml`
+    `source_origins` is an allow-list of the origins a file under `sources/` may have:
+    `us-federal` (17 U.S.C. § 105: US federal works are not copyrighted), `de-amtliches-werk`
+    (§ 5(1) UrhG: statutes and ordinances are not protected) and `eu-legal-act` (Commission
+    Decision 2011/833/EU: reuse with the attribution "© European Union,
+    https://eur-lex.europa.eu" and without distorting the meaning). Every file declares its
+    origin and attribution in its header (retrofitted to all 113 files; the verbatim text
+    was not touched), and the gate section "Sources" fails on a file that is not Markdown
+    (no raw XML or HTML downloads), has no allowed origin, sits outside its origin's
+    directory, lacks the attribution, cites a URL outside the origin's hosts, or names AMC,
+    GM, Easy Access Rules, ICAO, DULV, DAeC or an association in its header or a heading.
+    The own-words AMC/GM summaries that 19 EASA source headers carried moved to
+    `docs/amc-gm-notes.md`, so `sources/` holds only allowed-origin text. Association
+    sources should carry no quote; the gate caps one at 300 characters. The catalogue's
+    quotes, notes and divergences were scanned for verbatim AMC/GM or association text; none
+    was found (the quoted passages in notes are statute text or NinerLog's own API strings).
+    NOTICE and `sources/README.md` state the status of each origin; the catalogue, engine and
+    tools are Apache-2.0, the texts under `sources/` keep their own status.
+14. **Strict gate.** With the above, `go run ./cmd/rulescheck -strict` passes; CI enforces
+    it for every change under `rules/`. Open items that need a human (association document
+    titles and thresholds, marked `TODO: verify` in the DULV and DAeC rules) do not fail it,
+    because those rules are `partial` and their notes say so.

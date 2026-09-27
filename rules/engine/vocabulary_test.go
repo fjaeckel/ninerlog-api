@@ -66,24 +66,23 @@ flights:
 	wantStatus(t, evs, 1, "current", "pax.current_day_night_ir_waived")
 }
 
-func TestLicenceSubjectSinceIssueNOfResets(t *testing.T) {
+func TestLicenceSubjectSinceIssueNOf(t *testing.T) {
 	c := testCatalogue(t, `
 id: test.x.licence
 support: partial
 `+src+`
 applies_to: { subject: licence, licenceKinds: [GPL] }
 window: { since_issue: licence }
-resets: [{ event: refresher_training }]
 requirements:
   id: two
   n_of:
     n: 2
     of:
       - { id: pic, metric: minutes.pic, min: 600, unit: minutes, nameKey: requirement.pic_time_since_issue }
-      - { id: xc, metric: minutes.crossCountry, min: 60, unit: minutes, nameKey: requirement.cross_country_flights, filter: { withMinutes: [crossCountry], withoutMinutes: [dual] } }
+      - { id: xc, metric: minutes.total, min: 400, unit: minutes, nameKey: requirement.cross_country_flights, filter: { withMinutes: [crossCountry], withoutMinutes: [dual] } }
       - { id: ifr, metric: minutes.ifr, min: 60, unit: minutes, nameKey: requirement.ifr_time, window: { lifetime: true } }
-      - { id: competence, metric: not_recorded, min: 1, unit: flight, nameKey: requirement.pax_competence_flight, informational: true, messages: { untracked: requirement.untracked } }
-      - { id: info, metric: minutes.night, min: 1, unit: minutes, nameKey: requirement.night_time, informational: true, messages: { met: training.met, unmet: training.not_met, untracked: requirement.untracked } }
+      - { id: competence, metric: not_recorded, min: 1, unit: flights, nameKey: requirement.pax_competence_flight, informational: true, messages: { untracked: requirement.untracked } }
+      - { id: info, metric: minutes.ifr, min: 100, unit: minutes, nameKey: requirement.ifr_time, informational: true, messages: { met: training.met, unmet: training.not_met, untracked: requirement.untracked } }
 stages:
   - { id: ok, when: all_met, status: current, messageKey: licence.recency_current }
   - { id: no, when: always, status: lapsed, messageKey: licence.recency_not_met }
@@ -92,8 +91,6 @@ stages:
 licences:
   - { id: g, authority: EASA, type: GPL, issued: 2025-01-10 }
   - { id: p, authority: EASA, type: PPL }
-events:
-  - { date: 2025-06-01, kind: refresher_training }
 flights:
   - { date: 2025-01-09, class: GYROPLANE, minutes: { total: 600, pic: 600, crossCountry: 600, ifr: 60 } }
   - { date: 2025-06-01, class: GYROPLANE, minutes: { total: 300, pic: 300, crossCountry: 30 } }
@@ -105,9 +102,9 @@ flights:
 	}
 	wantStatus(t, evs, 0, "current", "licence.recency_current")
 	if r := row(t, evs[0], "pic"); r.Current != 600 {
-		t.Errorf("reset window counts from 2025-06-01: %+v", r)
+		t.Errorf("the window counts from the licence issue on 2025-01-10: %+v", r)
 	}
-	if r := row(t, evs[0], "xc"); r.Current != 30 || r.Met {
+	if r := row(t, evs[0], "xc"); r.Current != 300 || r.Met {
 		t.Errorf("xc counts solo cross-country only: %+v", r)
 	}
 	if r := row(t, evs[0], "competence"); r.Tracked || r.Met || r.MessageKey != "requirement.untracked" {
@@ -116,14 +113,14 @@ flights:
 	if r := row(t, evs[0], "info"); r.MessageKey != "training.not_met" {
 		t.Errorf("informational row: %+v", r)
 	}
-	for _, tag := range []string{"n_of:two:met", "event:refresher_training", "window:edge-in"} {
+	for _, tag := range []string{"n_of:two:met", "window:edge-out", "requirement:competence:untracked"} {
 		if !hasTag(tags, tag) {
 			t.Errorf("missing %s in %v", tag, tags)
 		}
 	}
 	evs, tags = evalOne(t, c, `
 licences: [{ id: g, authority: EASA, type: GPL, issued: 2025-01-10 }]
-flights: [{ date: 2025-01-10, class: GYROPLANE, minutes: { total: 60, pic: 60, night: 10 } }]
+flights: [{ date: 2025-01-10, class: GYROPLANE, minutes: { total: 120, pic: 60, ifr: 120 } }]
 `, "2026-01-01")
 	wantStatus(t, evs, 0, "lapsed", "licence.recency_not_met")
 	if !hasTag(tags, "n_of:two:unmet") || row(t, evs[0], "info").MessageKey != "training.met" {
@@ -452,7 +449,7 @@ requirements:
       filter:
         any:
           - { classes: [$subject], launchMethods: [$subject] }
-          - { classes: [TMG], excludeLaunchMethods: [winch, aerotow, car, bungee] }
+          - { classes: [TMG], launchMethods: [self-launch] }
 stages:
   - { id: ok, when: all_met, status: current, messageKey: launch_method.current }
   - { id: no, when: always, status: lapsed, messageKey: launch_method.lapsed }
@@ -464,7 +461,7 @@ privileges: [{ id: p, licenceId: l, kind: LAUNCH_METHOD_TRAINED, detail: Self-La
 flights:
   - { date: 2026-01-01, class: GLIDER, launchMethod: winch, launches: 6, minutes: { total: 60 } }
   - { date: 2026-01-02, class: GLIDER, launchMethod: bungee, launches: 2, minutes: { total: 60 } }
-  - { date: 2026-01-03, class: TMG, launches: 4, minutes: { total: 60 } }
+  - { date: 2026-01-03, class: TMG, launchMethod: self-launch, launches: 4, minutes: { total: 60 } }
   - { date: 2026-01-04, class: TMG, launchMethod: aerotow, launches: 4, minutes: { total: 60 } }
   - { date: 2027-01-05, class: GLIDER, launchMethod: aerotow, launches: 1, minutes: { total: 60 } }
 `
@@ -500,11 +497,10 @@ filter: { simulator: include, fstdTypes: [FFS] }
 requirements:
   all_of:
     - { id: kind, metric: minutes.total, min: 60, unit: minutes, nameKey: requirement.total_time, filter: { ulKinds: [$subject] } }
-    - { id: type, metric: flights, min: 1, unit: flights, nameKey: requirement.variant_flown, filter: { typeDesignators: [C42], minMinutes: 30, minLandings: 2 } }
+    - { id: type, metric: flights, min: 1, unit: flights, nameKey: requirement.variant_flown, filter: { typeDesignators: [C42], minLandings: 3 } }
     - { id: tail, metric: full_stop_landings, min: 1, unit: landings, nameKey: requirement.tailwheel_full_stop_landings, filter: { tailwheel: true, pilotFlying: true } }
     - { id: night, metric: full_stop_night_landings, min: 1, unit: landings, nameKey: requirement.full_stop_night_landings }
     - { id: sectors, metric: route_sectors, min: 2, unit: sectors, nameKey: requirement.route_sectors }
-    - { id: dist, metric: distance_km, min: 100, unit: km, nameKey: requirement.ul_xc_distance }
     - { id: sim, metric: flights, min: 1, unit: flights, nameKey: requirement.flight_time, filter: { simulator: only } }
     - { id: longest, metric: longest_training_flight_minutes, min: 60, unit: minutes, nameKey: requirement.training_flight }
     - { id: training, metric: training_flights, min: 2, unit: flights, nameKey: requirement.training_flights }
@@ -523,7 +519,7 @@ ratings:
 flights:
   - { date: 2026-01-10, class: ULTRALIGHT, ulKind: THREE_AXIS, typeDesignator: C42, tailwheel: true, pilotFlying: true, fullStopLandings: 2, fullStopNightLandings: 1, cruiseMinutes: 20, distanceKm: 120.5, minutes: { total: 90, dual: 90 }, landings: { day: 2 } }
   - { date: 2026-01-11, class: ULTRALIGHT, ulKind: THREE_AXIS, typeDesignator: C42, cruiseMinutes: 10, minutes: { total: 20, dual: 20 }, landings: { day: 3 } }
-  - { date: 2026-01-12, class: ULTRALIGHT, minutes: { total: 30 }, cruiseMinutes: 30 }
+  - { date: 2026-01-12, class: ULTRALIGHT, minutes: { total: 30 }, cruiseMinutes: 30, landings: { day: 3 } }
   - { date: 2026-01-13, class: SEP_LAND, isSimulator: true, fstdType: FFS, minutes: { total: 60 } }
   - { date: 2026-01-14, class: SEP_LAND, isSimulator: true, minutes: { total: 60 } }
   - { date: 2026-01-15, class: ULTRALIGHT, ulKind: GYROPLANE, mtomKg: 500, minutes: { total: 30 } }
@@ -539,7 +535,7 @@ flights:
 	for _, want := range []struct {
 		id  string
 		cur float64
-	}{{"kind", 150}, {"type", 1}, {"tail", 2}, {"night", 1}, {"sectors", 2}, {"dist", 120.5}, {"sim", 1}, {"longest", 90}, {"training", 2}, {"credit", 90}} {
+	}{{"kind", 150}, {"type", 1}, {"tail", 2}, {"night", 1}, {"sectors", 2}, {"sim", 1}, {"longest", 90}, {"training", 2}, {"credit", 90}} {
 		if r := row(t, evs[0], want.id); r.Current != want.cur {
 			t.Errorf("%s: current %v, want %v", want.id, r.Current, want.cur)
 		}
@@ -565,11 +561,11 @@ support: supported
 `+src+`
 applies_to: { subject: rating, classes: [SEP_LAND], holds: { credentials: [EASA_CLASS2_MEDICAL], valid: true } }
 window: { rolling_days: 90 }
-requirements: { all_of: [{ id: l, metric: landings.day, min: 3, unit: landings, nameKey: requirement.day_landings }, { id: n, metric: takeoffs.night, min: 0, unit: takeoffs, nameKey: requirement.night_takeoffs }, { id: d, metric: takeoffs.day, min: 0, unit: takeoffs, nameKey: requirement.takeoffs }] }
+requirements: { all_of: [{ id: l, metric: landings.total, min: 3, unit: landings, nameKey: requirement.day_landings }, { id: n, metric: takeoffs.night, min: 0, unit: takeoffs, nameKey: requirement.night_takeoffs }, { id: d, metric: takeoffs.total, min: 0, unit: takeoffs, nameKey: requirement.takeoffs }] }
 stages:
   - { id: ok, when: { met: l }, status: current, messageKey: rating.recency_current }
   - { id: grace, when: { met_within: { `+span+` } }, status: expiring, messageKey: rating.expiring, params: { days: days_to_expiry } }
-  - { id: no, when: { any: [{ untracked: l }, always] }, status: lapsed, messageKey: rating.recency_not_met }
+  - { id: no, when: { any: [{ unmet: l }, always] }, status: lapsed, messageKey: rating.recency_not_met }
 `)
 		rec := `
 licences: [{ id: l, authority: EASA, type: PPL }]

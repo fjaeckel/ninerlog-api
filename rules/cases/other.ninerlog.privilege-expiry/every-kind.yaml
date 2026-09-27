@@ -1,8 +1,8 @@
 rule: other.ninerlog.privilege-expiry
 name: every-kind
 description: >-
-  Aerobatic, TMG night, BI(S), FE(S), UL passenger and UL type-briefing privileges are all
-  tracked by expiry; towing, cloud flying, FI(S) and launch-method privileges have their own
+  Aerobatic, TMG night, BI(S), UL passenger and UL type-briefing privileges are all tracked
+  by expiry; towing, cloud flying, FI(S), FE(S) and launch-method privileges have their own
   rules.
 asOf: 2026-09-15
 record:
@@ -26,5 +26,4 @@ expect:
   - { subject: { kind: privilege, id: p-aero2 }, status: current, messageKey: privilege.valid }
   - { subject: { kind: privilege, id: p-tmgn }, status: current, messageKey: privilege.valid }
   - { subject: { kind: privilege, id: p-bis }, status: expired, messageKey: privilege.expired, messageParams: { date: "2026-01-01" } }
-  - { subject: { kind: privilege, id: p-fes }, status: current, messageKey: privilege.valid }
   - { subject: { kind: privilege, id: p-type, detail: C42 }, status: current, messageKey: privilege.valid }

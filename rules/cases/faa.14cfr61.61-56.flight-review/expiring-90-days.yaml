@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-56.flight-review
+name: expiring-90-days
+description: A review on 10 November 2024 holds through 30 November 2026; on 1 September 2026 that is 90 days away, the first day of the expiring period.
+covers: [stage:expiring]
+asOf: 2026-09-01
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  events:
+    - { date: 2024-11-10, kind: flight_review, class: SEP_LAND }
+expect:
+  - subject: { kind: flight_review, id: l-faa }
+    status: expiring
+    messageKey: flight_review.expiring
+    messageParams: { days: 90, date: 2026-11-30 }
+    validUntil: 2026-11-30

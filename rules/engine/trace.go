@@ -119,6 +119,11 @@ func RequiredTags(r *Rule, v *Vocabulary) []string {
 		}
 		f = MergeFilter(f, n.Filter)
 		if n.IsLeaf() {
+			if v.Metrics[n.Metric].Aggregate == "none" {
+				// aggregate none: the untracked tag only.
+				set["requirement:"+n.ID+":untracked"] = true
+				return
+			}
 			set["requirement:"+n.ID+":met"] = true
 			set["requirement:"+n.ID+":unmet"] = true
 			if v.Metrics[n.Metric].Optional {
@@ -134,6 +139,9 @@ func RequiredTags(r *Rule, v *Vocabulary) []string {
 		switch n.Combinator() {
 		case "any_of":
 			for _, c := range n.Children() {
+				if c.Informational || c.IsLeaf() && v.Metrics[c.Metric].Aggregate == "none" {
+					continue
+				}
 				set["any_of:"+n.ID+":"+c.ID] = true
 			}
 		case "n_of":
@@ -154,9 +162,6 @@ func RequiredTags(r *Rule, v *Vocabulary) []string {
 		set[windowTag(ws, w, "edge-out")] = true
 	}
 	for _, h := range r.RestoredBy {
-		set["event:"+h.Event] = true
-	}
-	for _, h := range r.Resets {
 		set["event:"+h.Event] = true
 	}
 	if UsesExpiry(r) {
@@ -183,9 +188,7 @@ func ObservedTags(r *Rule, t *Trace) []string {
 		set["stage:"+t.Stage] = true
 	}
 	for id, st := range t.Requirements {
-		if st != "untracked" {
-			set["requirement:"+id+":"+st] = true
-		}
+		set["requirement:"+id+":"+st] = true
 	}
 	for _, a := range t.AnyOf {
 		set["any_of:"+a] = true

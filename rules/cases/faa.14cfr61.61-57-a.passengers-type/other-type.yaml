@@ -1,0 +1,23 @@
+rule: faa.14cfr61.61-57-a.passengers-type
+name: other-type
+description: >-
+  A pilot type-rated on the King Air 350 (B350) flew three takeoffs and landings in a Baron
+  (BE55), the same MEP land class: they count for the class rating, not for the B350 type.
+  A flight in the class that records no type designator cannot be attributed and is unknown.
+covers: [stage:not_logged, unknown:typeDesignators]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-mep, licenceId: l-faa, class: MEP_LAND }
+    - { id: r-b350, licenceId: l-faa, class: MEP_LAND, typeDesignator: B350 }
+  flights:
+    - { date: 2026-07-01, class: MEP_LAND, typeDesignator: BE55, minutes: { total: 90, pic: 90 }, takeoffs: { day: 3 }, landings: { day: 3 }, soleManipulator: true }
+    - { date: 2026-07-20, class: MEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: MEP_LAND, detail: B350 }
+    status: unknown
+    messageKey: pax.experience_not_logged
+    requirements:
+      takeoffs_landings: { current: 0, met: false, tracked: false }

@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-57-b.night-passengers-type
+name: landings-short
+description: Per type (each rating carries a type designator, so it is a type rating). Six night landings of which only one to a full stop leave the pilot two full-stop night landings short.
+covers: [stage:landings_short, requirement:full_stop_night_landings:unmet, requirement:night_takeoffs:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND, typeDesignator: PC6 }
+  flights:
+    - { date: 2026-08-01, class: SEP_LAND, typeDesignator: PC6, minutes: { total: 90, pic: 90, night: 90 }, takeoffs: { night: 6 }, landings: { night: 6 }, fullStopNightLandings: 1, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, id: l-faa, class: SEP_LAND }
+    status: lapsed
+    messageKey: pax.night_not_current
+    messageParams: { needed: 2 }
+    requirements:
+      full_stop_night_landings: { current: 1, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 2, unit: landings } }

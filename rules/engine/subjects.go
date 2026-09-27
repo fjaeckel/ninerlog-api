@@ -46,6 +46,9 @@ func ratingMatches(a *AppliesTo, r *Rating) bool {
 	if slices.Contains(a.ExcludeClasses, r.Class) {
 		return false
 	}
+	if a.TypeRated != nil && *a.TypeRated != (r.TypeDesignator != "") {
+		return false
+	}
 	if len(a.ULKinds) > 0 {
 		k := r.ULKind
 		if k == "" {
@@ -94,14 +97,21 @@ func (p *prepared) subjects(r *Rule, v *Vocabulary, asOf Date) []subjectRef {
 		}
 	case "passengers":
 		seen := map[string]bool{}
+		perType := a.TypeRated != nil && *a.TypeRated
 		for _, rt := range p.matchingRatings(a) {
 			key := normAuthority(p.licenceOf(rt.LicenceID).Authority) + "|" + rt.Class + "|" + rt.ULKind
+			if perType {
+				key += "|" + rt.TypeDesignator
+			}
 			if seen[key] {
 				continue
 			}
 			seen[key] = true
 			s := p.ratingSubject("passengers", rt)
 			s.ID = rt.LicenceID
+			if perType {
+				s.Detail = rt.TypeDesignator
+			}
 			s.issued, s.validFrom, s.expires = nil, nil, nil
 			out = append(out, s)
 		}

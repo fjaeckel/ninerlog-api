@@ -36,25 +36,12 @@ func (metrics) metricRouteSectors(f *Flight) mv {
 	return boolCount(*f.CruiseMinutes >= 15)
 }
 
-func (metrics) metricMinutesTotal(f *Flight) mv      { return known(f.Minutes.Total) }
-func (metrics) metricMinutesPic(f *Flight) mv        { return known(f.Minutes.PIC) }
-func (metrics) metricMinutesDual(f *Flight) mv       { return known(f.Minutes.Dual) }
-func (metrics) metricMinutesSpic(f *Flight) mv       { return known(f.Minutes.SPIC) }
-func (metrics) metricMinutesPicus(f *Flight) mv      { return known(f.Minutes.PICUS) }
-func (metrics) metricMinutesSic(f *Flight) mv        { return known(f.Minutes.SIC) }
-func (metrics) metricMinutesDualGiven(f *Flight) mv  { return known(f.Minutes.DualGiven) }
-func (metrics) metricMinutesExaminer(f *Flight) mv   { return known(f.Minutes.Examiner) }
-func (metrics) metricMinutesMultiPilot(f *Flight) mv { return known(f.Minutes.MultiPilot) }
-func (metrics) metricMinutesNight(f *Flight) mv      { return known(f.Minutes.Night) }
-func (metrics) metricMinutesIfr(f *Flight) mv        { return known(f.Minutes.IFR) }
-func (metrics) metricMinutesCrossCountry(f *Flight) mv {
-	return known(f.Minutes.CrossCountry)
-}
-
-func (metrics) metricMinutesInstrument(f *Flight) mv {
-	return known(f.Minutes.ActualInstrument + f.Minutes.SimulatedInstrument)
-}
-
+func (metrics) metricMinutesTotal(f *Flight) mv     { return known(f.Minutes.Total) }
+func (metrics) metricMinutesPic(f *Flight) mv       { return known(f.Minutes.PIC) }
+func (metrics) metricMinutesDual(f *Flight) mv      { return known(f.Minutes.Dual) }
+func (metrics) metricMinutesSpic(f *Flight) mv      { return known(f.Minutes.SPIC) }
+func (metrics) metricMinutesDualGiven(f *Flight) mv { return known(f.Minutes.DualGiven) }
+func (metrics) metricMinutesIfr(f *Flight) mv       { return known(f.Minutes.IFR) }
 func (metrics) metricMinutesPicOrDualOrSpic(f *Flight) mv {
 	return known(f.Minutes.PIC + f.Minutes.Dual + f.Minutes.SPIC)
 }
@@ -72,10 +59,8 @@ func (metrics) metricMinutesInstructorOrExaminer(f *Flight) mv {
 }
 
 func (metrics) metricTakeoffsTotal(f *Flight) mv { return known(f.Takeoffs.Total()) }
-func (metrics) metricTakeoffsDay(f *Flight) mv   { return known(f.Takeoffs.Day) }
 func (metrics) metricTakeoffsNight(f *Flight) mv { return known(f.Takeoffs.Night) }
 func (metrics) metricLandingsTotal(f *Flight) mv { return known(f.Landings.Total()) }
-func (metrics) metricLandingsDay(f *Flight) mv   { return known(f.Landings.Day) }
 func (metrics) metricLandingsNight(f *Flight) mv { return known(f.Landings.Night) }
 
 func (metrics) metricTakeoffsAndLandings(f *Flight) mv {
@@ -84,6 +69,7 @@ func (metrics) metricTakeoffsAndLandings(f *Flight) mv {
 
 func (metrics) metricFullStopLandings(f *Flight) mv      { return optInt(f.FullStopLandings) }
 func (metrics) metricFullStopNightLandings(f *Flight) mv { return optInt(f.FullStopNightLandings) }
+func (metrics) metricMountainLandings(f *Flight) mv      { return optInt(f.MountainLandings) }
 func (metrics) metricLaunches(f *Flight) mv              { return known(f.Launches) }
 func (metrics) metricApproaches(f *Flight) mv            { return known(f.Approaches) }
 func (metrics) metricHolds(f *Flight) mv                 { return known(f.Holds) }
@@ -112,13 +98,6 @@ func (metrics) metricTows(f *Flight) mv {
 		return known(*f.TowedGliders)
 	}
 	return known(1)
-}
-
-func (metrics) metricDistanceKm(f *Flight) mv {
-	if f.DistanceKm == nil {
-		return mv{}
-	}
-	return mv{v: *f.DistanceKm, known: true}
 }
 
 func (metrics) metricNotRecorded(*Flight) mv { return mv{} }

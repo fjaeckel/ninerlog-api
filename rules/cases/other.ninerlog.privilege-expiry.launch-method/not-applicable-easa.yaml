@@ -1,0 +1,12 @@
+rule: other.ninerlog.privilege-expiry.launch-method
+name: not-applicable-easa
+description: >-
+  On an EASA SPL the launch-method training privilege is the SFCL.155(a) record, evaluated by
+  easa.part-sfcl.sfcl-155-a.launch-method-trained; the fallback does not evaluate it.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-1, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-1, licenceId: l-1, kind: LAUNCH_METHOD_TRAINED, detail: winch }
+expect: []
