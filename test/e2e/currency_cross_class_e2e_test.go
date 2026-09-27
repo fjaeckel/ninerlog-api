@@ -2,7 +2,10 @@
 
 package e2e_test
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // ─── Cross-class crediting — FCL.140.A / FCL.740.A(b)(1) ────────────────────
 
@@ -24,6 +27,19 @@ func createRecencyFlightsCur(t *testing.T, c *E2EClient, reg, acType string) {
 		"landings":    1,
 		"crewMembers": []map[string]interface{}{{"name": "FI", "role": "Instructor"}},
 	})
+}
+
+// lastDayInWindowCur returns the last date whose rolling window of the given years still contains date.
+func lastDayInWindowCur(date string, years int) string {
+	d, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		panic(err)
+	}
+	end := d.AddDate(years, 0, 0)
+	for end.AddDate(-years, 0, 0).After(d) {
+		end = end.AddDate(0, 0, -1)
+	}
+	return end.Format("2006-01-02")
 }
 
 func countedClassesCur(rc map[string]interface{}) []string {
@@ -69,6 +85,7 @@ func TestEASA_LAPL_TMGCountsTowardSEP(t *testing.T) {
 		if !containsStr(counted, "SEP_LAND") || !containsStr(counted, "TMG") || containsStr(counted, "GLIDER") {
 			t.Errorf("%s countedClasses = %v, want aeroplane classes + TMG", ct, counted)
 		}
+		assertStr(t, ct+" recencyExpiresOn", rc["recencyExpiresOn"], lastDayInWindowCur(pastDate(230), 2))
 	}
 
 	pc := findPaxCur(result, "SEP_LAND")
@@ -93,6 +110,9 @@ func TestEASA_LAPL_GliderNotCounted(t *testing.T) {
 		t.Fatal("LAPL SEP_LAND not found")
 	}
 	assertStr(t, "status", rc["status"], "expiring")
+	if rc["recencyExpiresOn"] != nil {
+		t.Errorf("recencyExpiresOn = %v, want absent while not current", rc["recencyExpiresOn"])
+	}
 }
 
 // TestEASA_LAPL_ProficiencyCheck — a LAPL(A) proficiency check alone satisfies FCL.140.A(a)(2).
@@ -121,6 +141,7 @@ func TestEASA_LAPL_ProficiencyCheck(t *testing.T) {
 	}
 	assertBool(t, "profCheck.met", gb(req, "met"), true)
 	assertStr(t, "profCheck.messageKey", req["messageKey"], "requirement.prof_check_completed")
+	assertStr(t, "recencyExpiresOn", rc["recencyExpiresOn"], lastDayInWindowCur(pastDate(20), 2))
 }
 
 // TestEASA_LAPL_LandSeaSplit — SEP(land)+SEP(sea) holders need 1h and 6 landings in each class.

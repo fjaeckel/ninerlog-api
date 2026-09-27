@@ -3708,6 +3708,18 @@ type ClassRatingCurrency struct {
 		TrainingFlights *int `json:"trainingFlights,omitempty"`
 	} `json:"progress,omitempty"`
 
+	// RecencyExpiresOn For rolling-window recency rules (EASA LAPL FCL.140.A, SPL SFCL.160,
+	// GPL FCL.240.G, German ultralight LuftPersV §45, FAA §61.57), the
+	// last date the rule stays met if the pilot does not fly again — the
+	// date the first requirement falls short as flights age out of the
+	// window, or the proficiency check does, whichever is later. Set
+	// only while `status` is `current`; omitted for expiry-anchored
+	// revalidation rules, whose limit is `expiryDate`.
+	//
+	//
+	// Example: 2027-05-31
+	RecencyExpiresOn *openapi_types.Date `json:"recencyExpiresOn,omitempty"`
+
 	// RegulatoryAuthority Authority from the parent license (determines which currency rules apply)
 	RegulatoryAuthority string `json:"regulatoryAuthority"`
 
