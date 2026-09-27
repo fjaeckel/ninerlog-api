@@ -240,3 +240,25 @@ scope, apart from the recency and experience they require.
 - Do not commit, push, or create branches. The coordinator commits.
 - Run `go test ./...` inside `rules/` before you finish, and report its output.
 - Report: files written, anything that did not fit this contract, and open questions.
+
+## 11. Decisions (2026-09-27, open to review)
+
+1. **Dates, not instants.** Every window works on calendar dates. `rolling_days: n` covers
+   `asOf - n days` through `asOf`, both inclusive; `rolling_months` and
+   `before_expiry_months` likewise include their first day. No clock time is involved.
+2. **Valid through the expiry date.** A rating, certificate, privilege or medical with
+   expiry date D is valid on D and expired from D + 1, uniformly. (Today the API treats
+   ratings and medicals as expired on D but privileges and the flight review as valid on D.)
+3. **Authorities match case-insensitively** after trimming (`easa`, `EASA`, ` Easa `).
+4. **Rule sources have a kind**: `regulation` (EU, CFR), `national_law` (LuftPersV),
+   `association` (DULV, DAeC rules with no statute behind them). Association rules live
+   under `catalogue/de/dulv/` and `catalogue/de/daec/` and cite the association document.
+5. **Scope of the gate.** Regulation-derived rules, including training-programme
+   requirements (subject `training`), are in the catalogue and the coverage gate. API
+   consumers that compose rules (readiness, the night privilege flag, the UL night save
+   warning) stay in the API; their inventory entries are marked `scope: consumer` and are
+   excluded from gate check 3.
+6. **Divergences are fixed in the catalogue, not copied.** The catalogue encodes the
+   article as written. Each deliberate difference from today's API behaviour is a
+   `divergence` entry in the rule file (what the API does, what the article says, citation)
+   and a CHANGELOG line. The parity harness lists them by name.

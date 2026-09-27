@@ -1,0 +1,279 @@
+# FAA articles in scope (DESIGN.md sections 8 and 9).
+# Verbatim text: rules/sources/faa/<section>.md, fetched from the eCFR versioner API
+# (Title 14 "up to date as of" 2026-09-24), retrieved 2026-09-27.
+# in_app judged against internal/service/currency and internal/models on 2026-09-27.
+# maps_to is filled in when a catalogue rule is written.
+articles:
+  - cite: 14 CFR 61.2
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.2
+    subject: licence
+    summary: No privileges while a certificate, rating or medical is expired, suspended or revoked; exercising privileges needs the recent-experience and medical requirements of Part 61 (validity vs currency).
+    source_file: sources/faa/61.2.md
+    in_app: partial
+    notes: App evaluates rating currency and medical expiry separately; no combined validity/currency gate per operation.
+    maps_to: []
+
+  - cite: 14 CFR 61.3
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.3
+    subject: licence
+    summary: A pilot must hold and carry the appropriate pilot certificate and, where required, a medical certificate or U.S. driver's license, and hold required ratings and authorizations.
+    source_file: sources/faa/61.3.md
+    in_app: partial
+    notes: Readiness checks medical expiry dates as entered; no check of which operation needs which document.
+    maps_to: []
+
+  - cite: 14 CFR 61.19
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.19
+    subject: licence
+    summary: Pilot and ground instructor certificates do not expire; flight instructor certificates issued on or after 1 Dec 2024 have no expiration date, older ones expire 24 calendar months after issue, renewal or reinstatement.
+    source_file: sources/faa/61.19.md
+    in_app: partial
+    notes: App only honours a user-entered licence expiry date; no rule for pre/post 2024-12-01 CFI certificates.
+    maps_to: []
+
+  - cite: 14 CFR 61.21
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.21
+    subject: privilege
+    summary: Category II and III pilot authorizations expire at the end of the sixth calendar month after issue or renewal; renewal is by practical test per type, not beyond 12 calendar months from the test in that type.
+    source_file: sources/faa/61.21.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.23
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.23
+    subject: credential
+    summary: Which operations need a first, second or third class medical, which need none (gliders, balloons, non-PIC CFI), which may use a driver's license or BasicMed, and the medical duration table by class, age (under/over 40) and privilege exercised.
+    source_file: sources/faa/61.23.md
+    in_app: partial
+    notes: App stores FAA class 1/2/3 medicals with a user-entered expiry; no derivation of expiry from exam date, age and operation, no class step-down, no BasicMed (c)(3) course 24 / exam 48 calendar-month checks.
+    maps_to: []
+
+  - cite: 14 CFR 61.31
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.31
+    subject: type
+    summary: Type rating required for large and turbojet aircraft; one-time training endorsements for complex, high-performance, pressurized high-altitude and tailwheel airplanes (no recurring currency).
+    source_file: sources/faa/61.31.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.51
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.51
+    subject: licence
+    summary: What must be logged and how PIC, SIC, solo, instrument, training and simulator time may be logged and credited toward recency.
+    source_file: sources/faa/61.51.md
+    in_app: partial
+    notes: Relevant only for which logged events count (e.g. simulated instrument conditions, sole manipulator PIC). eCFR shows an amendment link to 89 FR 80050 (1 Oct 2024) in this section.
+    maps_to: []
+
+  - cite: 14 CFR 61.53
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.53
+    subject: credential
+    summary: A pilot may not act as PIC or required crew while knowing of a medical condition that would make the operation unsafe, whether or not a medical certificate is held.
+    source_file: sources/faa/61.53.md
+    in_app: "no"
+    notes: Self-assessment; not computable from the record. Catalogue as not_supported.
+    maps_to: []
+
+  - cite: 14 CFR 61.55
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.55
+    subject: type
+    summary: To serve as SIC of a multi-pilot aircraft a pilot needs the SIC type rating and, within the previous 12 calendar months, type familiarization and specified takeoffs/landings and manoeuvres.
+    source_file: sources/faa/61.55.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.56
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.56
+    subject: flight_review
+    summary: No PIC unless a flight review (1 h flight + 1 h ground; three glider instructional flights may replace the flight part) was completed since the start of the 24th calendar month before the flight; a proficiency check/practical test or a WINGS phase substitutes; student pilots with a solo endorsement are exempt.
+    source_file: sources/faa/61.56.md
+    in_app: partial
+    notes: App tracks only flights flagged is_flight_review; practical tests, proficiency checks (d) and FAA-sponsored proficiency program phases (e) are not credited. App treats three glider instructional flights (b) as a full substitute for the review, but (b) only replaces the 1 h of flight training (ground training and endorsement still required). Window logic (end of 24th calendar month) matches. Evaluated per pilot, but App invokes it from the glider rating path too.
+    maps_to: []
+
+  - cite: 14 CFR 61.57
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+    subject: passengers
+    summary: PIC recent experience - (a) 3 takeoffs and landings in 90 days in same category/class/type to carry persons (tailwheel to a full stop); (b) 3 full-stop takeoffs and landings between 1 h after sunset and 1 h before sunrise in 90 days for night passengers; (c) instrument tasks within the 6 calendar months preceding the month of the flight; (d) IPC after more than 6 further calendar months; (e) exceptions; (f)/(g) NVG.
+    source_file: sources/faa/61.57.md
+    in_app: partial
+    notes: >-
+      (a) App counts landings by class only, not type, and ignores tailwheel full-stop.
+      (b) App counts all night landings, not full-stop ones, and uses the logged night definition rather than 1 h after sunset to 1 h before sunrise.
+      (c) App uses a rolling 6-month window from today instead of the 6 calendar months preceding the month of the flight, requires only approaches and holds (no intercept/track), and does not distinguish category (airplane/helicopter/powered-lift/airship) or (c)(2)-(5) FSTD/ATD options.
+      (d) App's 12-month grace is a rolling 12 months of cumulative tasks; the rule is "failed for more than six calendar months" after the (c) window; a logged IPC (is_ipc) is not used as a restoring event.
+      (e), (f), (g) not implemented.
+    maps_to: []
+
+  - cite: 14 CFR 61.58
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.58
+    subject: type
+    summary: PIC of an aircraft type certificated for more than one pilot or turbojet-powered needs a PIC proficiency check within 12 calendar months in such an aircraft and within 24 calendar months in the specific type.
+    source_file: sources/faa/61.58.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.66
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.66
+    subject: privilege
+    summary: EFVS operations need training and an endorsement, plus EFVS recent experience within the 6 calendar months preceding the month of the flight, or refresher training / proficiency check.
+    source_file: sources/faa/61.66.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.69
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.69
+    subject: privilege
+    summary: To tow a glider or unpowered ultralight a pilot needs a powered-aircraft certificate, 100 h PIC, endorsements, and within 24 calendar months 3 accompanied actual/simulated tows or 3 flights as PIC of an aero-towed glider.
+    source_file: sources/faa/61.69.md
+    in_app: partial
+    notes: App checks only the (a)(6) recency (3 tows as tow pilot, or 3 aerotowed glider flights as PIC, 24 calendar months). (a)(6)(i) speaks of tows "while accompanied by a qualified pilot"; App counts any logged tow. Prerequisites (a)(1)-(5) not checked.
+    maps_to: []
+
+  - cite: 14 CFR 61.87
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.87
+    subject: privilege
+    summary: Student pilot solo needs make-and-model solo endorsements; solo privileges require an instructor endorsement within the preceding 90 days; night solo needs specific training and endorsement.
+    source_file: sources/faa/61.87.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.89
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.89
+    subject: passengers
+    summary: Student pilots may not carry passengers, fly for hire, or fly below stated visibility, and are further restricted at night and with no visual reference.
+    source_file: sources/faa/61.89.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.101
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.101
+    subject: passengers
+    summary: Recreational pilots may carry at most one passenger, may not fly at night or in most controlled airspace without endorsements, and need instructor flight training if under 400 h and no PIC time in the preceding 180 days.
+    source_file: sources/faa/61.101.md
+    in_app: partial
+    notes: App suppresses night and IR for recreational certificates; the one-passenger limit and the 180-day/400 h PIC recency check are not implemented.
+    maps_to: []
+
+  - cite: 14 CFR 61.110
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.110
+    subject: licence
+    summary: Pilots certificated without the night training (Alaska residents, or private pilots missing 61.109 night requirements) carry a "Night flying prohibited" limitation; for Alaska the certificate becomes invalid 12 calendar months after issue until night training is done.
+    source_file: sources/faa/61.110.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.113
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.113
+    subject: credential
+    summary: Private pilot PIC limits (no compensation, pro rata cost sharing) and paragraph (i) BasicMed - PIC without a medical certificate under aircraft (≤7 occupants, ≤6 passengers, ≤12,500 lb), altitude (≤18,000 ft MSL) and speed (≤250 kt) limits.
+    source_file: sources/faa/61.113.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.195
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.195
+    subject: privilege
+    summary: Flight instructor limits and qualifications - hours per day, required ratings, and experience needed to train for certain certificates or give certain endorsements.
+    source_file: sources/faa/61.195.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.197
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.197
+    subject: privilege
+    summary: Flight instructor privileges require recent experience within 24 calendar months (practical test, 5 endorsements with 80 % pass rate, check-pilot role, refresher course within 3 calendar months, military check, or WINGS activity); pre-Dec-2024 certificates are renewed the same way before expiry.
+    source_file: sources/faa/61.197.md
+    in_app: "no"
+    notes: Rule changed by Amdt. 61-155 (89 FR 80051, 1 Oct 2024) from certificate expiry/renewal to a recent-experience period.
+    maps_to: []
+
+  - cite: 14 CFR 61.199
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.199
+    subject: privilege
+    summary: A flight instructor who lapsed reinstates privileges by refresher course (within 3 calendar months of lapse) or a CFI practical test (more than 3 months), or a military check within 6 calendar months.
+    source_file: sources/faa/61.199.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.217
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.217
+    subject: privilege
+    summary: A ground instructor may act only with instructing activity, a refresher course, or an endorsement within the preceding 12 calendar months.
+    source_file: sources/faa/61.217.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.303
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.303
+    subject: licence
+    summary: Table of which sport-pilot limits and endorsements apply depending on whether the pilot holds a medical, only a U.S. driver's license, or neither, and which certificate is held; driver's-license conditions.
+    source_file: sources/faa/61.303.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.315
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.315
+    subject: passengers
+    summary: Sport pilot limits - at most one passenger, no night except under 61.329, no Class A, no compensation, altitude/visibility limits, endorsements for VH, retractable gear and controllable pitch, no aircraft needing a type rating.
+    source_file: sources/faa/61.315.md
+    in_app: partial
+    notes: App suppresses IR and night for sport certificates; since Amdt. 61-159 (effective 2025-10-22) night is allowed with the 61.329 endorsement, so the blanket night suppression is now wrong. One-passenger limit not enforced.
+    maps_to: []
+
+  - cite: 14 CFR 61.329
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.329
+    subject: privilege
+    summary: A sport pilot may fly at night after 3 h of night training (including 10 full-stop night takeoffs and landings), with a medical or BasicMed, and an instructor endorsement for the category and class.
+    source_file: sources/faa/61.329.md
+    in_app: "no"
+    notes: New section (Amdt. 61-159, 90 FR 35215, 24 Jul 2025). Contradicts HasNightPrivilege returning false for FAA sport pilots.
+    maps_to: []
+
+  - cite: 14 CFR 61.425
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.425
+    subject: privilege
+    summary: Sport-rated flight instructors establish recent experience under 61.197; pre-Dec-2024 certificates must do so before expiry or be reinstated under 61.427.
+    source_file: sources/faa/61.425.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 61.427
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.427
+    subject: privilege
+    summary: A lapsed sport-rated flight instructor reinstates by refresher course within 3 calendar months or by a practical test after that.
+    source_file: sources/faa/61.427.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 68.1
+    url: https://www.ecfr.gov/current/title-14/part-68/section-68.1
+    subject: credential
+    summary: Part 68 sets the medical education and examination requirements for flying under BasicMed (61.113(i)) without a Part 67 medical.
+    source_file: sources/faa/68.1.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 68.3
+    url: https://www.ecfr.gov/current/title-14/part-68/section-68.3
+    subject: credential
+    summary: Content of the BasicMed medical education course and the completion certificate and forms that must be kept and sent to the FAA (the 24-calendar-month interval is in 61.23(c)(3)).
+    source_file: sources/faa/68.3.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 68.5
+    url: https://www.ecfr.gov/current/title-14/part-68/section-68.5
+    subject: credential
+    summary: The BasicMed comprehensive medical examination is done by a State-licensed physician using the 68.7 checklist (the 48-calendar-month interval is in 61.23(c)(3)).
+    source_file: sources/faa/68.5.md
+    in_app: "no"
+    maps_to: []
+
+  - cite: 14 CFR 68.9
+    url: https://www.ecfr.gov/current/title-14/part-68/section-68.9
+    subject: credential
+    summary: Pilots with certain mental, neurological or cardiovascular conditions must complete a special issuance once before using BasicMed; some must re-certify specialist care every 2 years.
+    source_file: sources/faa/68.9.md
+    in_app: "no"
+    maps_to: []

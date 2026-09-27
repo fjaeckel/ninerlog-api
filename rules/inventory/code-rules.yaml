@@ -1,0 +1,1803 @@
+# Inventory of every currency, recency, validity, passenger, privilege, flight-review,
+# readiness and training-progress rule the NinerLog API evaluates today (DESIGN.md section 8).
+# Parity baseline: anything evaluated by Go code and missing here is lost on the port.
+#
+# Paths are relative to the ninerlog-api root. Line numbers refer to branch
+# feature/rules-catalogue at the time of writing.
+# "suspected_divergence" entries are suspicions from reading code, comments and docs only;
+# no regulation text was read to write them. Each must be checked against sources/.
+
+meta:
+  generated_for: rules/DESIGN.md section 8
+  scope_note: >-
+    Custom currency rules (internal/service/currency/custom.go, custom_service.go) are
+    pilot-defined and OUT of scope; they are listed under out_of_scope only.
+  shared_conventions:
+    statuses: [current, expiring, expired, lapsed, unknown]
+    status_meaning:
+      current: may exercise privileges
+      expiring: expiry approaching, or expiry-anchored revalidation experience not yet met, or FAA IR grace / FAA night-only shortfall
+      expired: past a date expiry, FAA 61.57 currency not met, passenger day requirement unmet
+      lapsed: rolling recency rule unmet (licence stays valid); also privileges with unmet recency
+      unknown: no data / evaluation failed / not applicable (messageKey disambiguates)
+    now: >-
+      All rules read "now" from context (clock.go:17 nowFrom); EvaluateAsOf runs at noon UTC
+      on the requested date (clock.go:30 dateAt, service.go:54).
+    rolling_window_since: >-
+      windowRollingNow: since = now.AddDate(-years,-months,-days) (engine.go:138). since
+      carries the clock time of now (noon for as-of evaluations); SQL compares f.date (DATE)
+      >= since, and the daily cache uses !midnightUTC(date).Before(since) (daily.go:70), so a
+      flight flown exactly N years/months/days before the evaluation date is OUTSIDE the
+      window unless now is exactly midnight. lastDayCounted (daily.go:250) mirrors this.
+    expiry_anchored_since: since = rating.ExpiryDate.AddDate(-1,0,0) (easa.go:126,182,252)
+    expiry_check: >-
+      ClassRating.IsExpiredAt(now) = ExpiryDate.Before(now) (models/class_rating.go:81); the
+      expiry date is stored at 00:00 so a rating is already "expired" during its expiry day
+      (as-of evaluations run at 12:00). IsExpiringSoonAt(now,90) = ExpiryDate <
+      now+90d and not expired (class_rating.go:94). daysUntil = int(hours/24) truncated
+      (clock.go:25).
+    global_flight_filters: >-
+      Every flight read excludes is_simulator and is_passenger flights. Class reads INNER JOIN
+      aircraft by (user_id, registration) and match upper(trim(aircraft_class)); flights on
+      registrations not in the fleet never count toward a class rule. GetProgressAll and the
+      IR proficiency-check lookup do NOT join aircraft, so they count flights on unknown
+      aircraft (currency_flight_data.go:170-178, 203-210).
+    towed_launch_exclusion: >-
+      Towed launches = winch, aerotow, car, bungee (models/launch_method.go:40). They are
+      counted only when includeTowedFlights(classType, sailplane) is true: the rating class is
+      GLIDER or the rule is flagged countsTowed / the licence is a sailplane licence
+      (engine.go:327-329; SQL currency_flight_data.go:104,115,149,243). scopeByClassOverride
+      rules (SPL TMG) never include towed (engine.go:232). Proficiency checks exclude towed
+      launches except on GLIDER aircraft (currency_flight_data.go:216). Launch counts by method
+      ignore the towed filter (currency_flight_data.go:272-297).
+    remedies: >-
+      After every rating evaluation annotateRemedies (projection.go:63-81) sets on each unmet
+      requirement with a nameKey: unit "check" -> remedy.proficiency_check (no params); unit
+      "review" -> none; nameKey requirement.training_flight or requirement.tmg_training_flight
+      -> remedy.training_flight (no params); otherwise remedy.fly_more {missing:
+      ceil(required-current), unit}. Every unmet launch method -> remedy.launch_method_dual
+      {method, missing}.
+    valid_until_projection: >-
+      Only when the provider is a dailyCache (always in Service.evaluateAll when the Postgres
+      provider is used) and the rule window is windowRollingNow (projection.go:13-50): the
+      rule is re-evaluated at every date a recorded flight date leaves the window; each met
+      requirement / met launch method / current rating gets validUntil = last such date on
+      which it is still met. Expiry-anchored and expiry-only rules get none. Passenger
+      currency uses its own dayExpiresOn/nightExpiresOn (passenger_expiry.go).
+
+# ---------------------------------------------------------------------------------------
+# Dispatch: how a (licence, class rating) pair reaches a rule. Needed to reproduce selection.
+# ---------------------------------------------------------------------------------------
+dispatch:
+  registry:
+    where: cmd/api/main.go:256-262; internal/service/currency/evaluator.go:120-155; service.go:180-185
+    logic: >-
+      Registry keyed by the exact, case-sensitive license.RegulatoryAuthority string:
+      "EASA" -> EASAEvaluator, "FAA" -> FAAEvaluator, "" -> OtherEvaluator, "LBA", "DULV",
+      "DAeC", "DAEC" -> GermanULEvaluator. Any other string (including "easa", "Faa",
+      "daec", "EASA " with whitespace, "FOCA", "CAA") -> OtherEvaluator fallback.
+    edge_cases:
+      - Authority matching is case-sensitive here while HasNightPrivilege (faa.go:266) and ClassifyLicence upper-case it; a licence entered as "easa" gets expiry-only rules but EASA night logic.
+      - OtherEvaluator implements neither passenger nor flight-review interfaces, so unknown authorities get no passenger currency (tested TestService_TwoTier_OtherAuthority_NoPassengerCurrency).
+  licence_classification:
+    where: internal/models/licence_kind.go:66-95
+    logic: >-
+      ClassifyLicence(type, authority): authority DULV/DAEC (upper, trimmed) or a type naming
+      UL ("UL", "UL ...", "UL-...", contains ULTRALIGHT/ULTRALEICHT) -> UL; exact table
+      PPL/PPL(A)->PPL_A, LAPL/LAPL(A)->LAPL_A, CPL(A), ATPL(A), MPL(A), SPL, LAPL(S), GPL,
+      SPORT, RECREATIONAL, PRIVATE, COMMERCIAL, ATP, GLIDER (FAA glider), IR/IR(A)/IR(H),
+      EXAMINER/CFI/CFII/MEI and FI/CRI/IRI/TRI/SFI/MCCI/FE/CRE/IRE/TRE[(x)] -> INSTRUCTOR;
+      suffix (H) -> HELICOPTER; else UNKNOWN. Currency calls pass authority "" (easa.go:38,44,
+      gpl.go:45, faa.go:259,265) so DULV/DAeC authority alone does not make a type UL there.
+    tests: [internal/models/licence_kind_test.go, internal/service/currency/licence_classifier_test.go TestLicenceClassifierWrappers, two_tier_test.go TestEASALicenceTypeSpellings]
+  easa:
+    where: internal/service/currency/easa.go:51-92
+    order:
+      - class IR -> easa.part-fcl.fcl-625-a.ir (any licence type)
+      - class GLIDER -> easa.part-sfcl.sfcl-160-a.sailplane (any licence type)
+      - class GYROPLANE -> easa.part-fcl.fcl-240-g.gpl (any licence type)
+      - class ULTRALIGHT -> easa.part-fcl.class-rating-expiry (expiry only)
+      - licence kind LAPL_A -> easa.part-fcl.fcl-140-a.lapl-a (every remaining class incl. MEP/SET/OTHER)
+      - licence kind SPL or LAPL_S, class TMG -> easa.part-sfcl.sfcl-160-b.tmg
+      - licence kind SPL or LAPL_S, any other class (SEP_LAND, OTHER...) -> easa.part-sfcl.sfcl-160-a.sailplane
+      - SEP_LAND, SEP_SEA, TMG -> easa.part-fcl.fcl-740-a.sep-tmg
+      - MEP_LAND, MEP_SEA, SET_LAND, SET_SEA -> easa.part-fcl.fcl-740-a.mep-set
+      - anything else (OTHER, unknown) -> easa.part-fcl.class-rating-expiry
+    tests: [lapl_spl_test.go TestEASA_Dispatch_*, glider_ul_test.go TestGliderULClass_RuleSelection, gpl_test.go TestGPL_AnyLicenceTypeUsesGPLRule]
+  faa:
+    where: internal/service/currency/faa.go:33-51
+    order:
+      - class ULTRALIGHT -> other.ninerlog.expiry-only
+      - class IR and upper(licenseType) in {SPORT, RECREATIONAL} (exact, untrimmed) -> faa.14cfr61.61-315.ir-not-applicable
+      - class IR otherwise -> faa.14cfr61.61-57-c.instrument
+      - upper(licenseType) == GLIDER or class GLIDER -> faa.14cfr61.61-56.glider-rating
+      - everything else (SEP, MEP, SET, TMG, GYROPLANE, OTHER) -> faa.14cfr61.61-57-ab.rating
+  german_ul:
+    where: internal/service/currency/german_ul.go:63-71, 104-122
+    order:
+      - class != ULTRALIGHT -> delegated to EASAEvaluator.EvaluateWithPeers (EASA dispatch above)
+      - ULTRALIGHT with no ul_kind -> de.luftpersv.45.kind-required
+      - HELICOPTER -> de.luftpersv.45-2a.helicopter
+      - GYROPLANE -> de.luftpersv.45-4.gyroplane
+      - WEIGHT_SHIFT and trimmed authority equalFold "DAeC" -> de.luftpersv.45-4.weight-shift-daec
+      - WEIGHT_SHIFT otherwise (LBA, DULV) -> de.luftpersv.45-4.weight-shift-dulv
+      - POWERED_PARAGLIDER -> de.luftpersv.45-4.powered-paraglider
+      - SAILPLANE -> de.luftpersv.45-4.sailplane
+      - default (THREE_AXIS) -> de.luftpersv.45-2.three-axis
+  other:
+    where: internal/service/currency/other.go:26-33
+    order:
+      - class GLIDER -> easa.part-sfcl.sfcl-160-a.sailplane (EASA rule reused, no peers)
+      - everything else -> other.ninerlog.expiry-only
+  service_orchestration:
+    where: internal/service/currency/service.go:60-177
+    logic: >-
+      For each licence, for each class rating: evaluate (HolderAware > PeerAware > plain;
+      peers = ratings on the same licence, held = ratings on all licences); then apply the
+      SFCL.160(c) exemption, then the SFCL.155(a) trained-launch overlay; then passenger
+      currency once per key class:authority[:ulKind] (first licence wins), skipping IR, UL
+      outside GermanULEvaluator and UL with no kind; then privilege overlays on the passenger
+      result. Flight review evaluated once, from the first licence whose evaluator implements
+      FlightReviewEvaluator (FAA). Privileges evaluated for every licence when a
+      PrivilegeLister is wired and readable. A licence whose ratings fail to load is skipped
+      silently (service.go:81-83).
+
+# ---------------------------------------------------------------------------------------
+rules:
+# ---------------------------------------------------------------------------------------
+
+  # ======================= EASA Part-FCL rating rules =======================
+
+  - id: easa.part-fcl.fcl-740-a.sep-tmg
+    where:
+      definition: internal/service/currency/easa.go:96-158 (easaSEPTMGRule)
+      class_pool: internal/service/currency/credited_classes.go:20-27 (easaSEPTMGClasses)
+      ul_credit: internal/service/currency/credited_classes.go:42-53 (easaAnnexICredit)
+      window_guard: internal/service/currency/easa.go:648-659 (applyClosedWindow)
+    article: [EASA FCL.740.A(b)(1), EASA FCL.035(a)(4)]
+    ruleDescriptionKey: easa_sep_tmg
+    subject:
+      kind: rating
+      classes: [SEP_LAND, SEP_SEA, TMG]
+      authorities: [EASA, "LBA/DULV/DAeC (non-UL ratings delegated to EASA)"]
+      licence_kinds: every kind except LAPL_A, SPL, LAPL_S (PPL, CPL, ATPL, MPL, unknown, UL-type licences holding such a class)
+      selection: easa.go:84-86
+    window:
+      kind: before_expiry_months
+      value: 12
+      code: "since := rating.ExpiryDate.AddDate(-1, 0, 0)  (easa.go:126)"
+      closed_window: >-
+        If now < since the result is current / rating.window_not_open {date: since} with no
+        requirements (applyClosedWindow). windowOpensAt=since and windowOpen are set on every
+        result that reaches the window step.
+    requirements:
+      all_of:
+        - { id: total_time, nameKey: requirement.total_time, metric: minutes.total, min: 720, unit: minutes }
+        - { id: pic_time, nameKey: requirement.pic_time, metric: minutes.pic, min: 360, unit: minutes }
+        - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 12, unit: landings }
+        - { id: refresher, nameKey: requirement.refresher_training, metric: 'minutes.dual (sum of dual_time)', min: 60, unit: minutes }
+      filters: >-
+        Classes: [rating class], or [SEP_LAND, TMG] when the rating is SEP_LAND or TMG and
+        the same licence holds both SEP_LAND and TMG ratings (peers). SEP_SEA never pooled.
+        Towed launches excluded. Plus Annex I UL credit: THREE_AXIS flights when SEP_LAND is
+        counted, THREE_AXIS_MOTORGLIDER when TMG is counted; UL flights add total, PIC,
+        landings, flights, IFR, night, approaches, holds, launches but NOT dual/SPIC/training
+        flights (addProgress withDual=false, engine.go:250-273).
+    stages:
+      - { when: expiryDate is null, status: unknown, messageKey: rating.no_expiry_date }
+      - { when: now < expiry-12mo, status: current, messageKey: rating.window_not_open, params: [date] }
+      - { when: flight data read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: 'expired (expiry < now)', status: expired, messageKey: rating.expired }
+      - { when: not all requirements met, status: expiring, messageKey: rating.revalidation_not_met }
+      - { when: all met and expiry within 90 days, status: expiring, messageKey: rating.revalidation_expiring_met, params: [days] }
+      - { when: all met, status: current, messageKey: rating.revalidation_current }
+    messages: [rating.no_expiry_date, rating.window_not_open, rating.evaluation_failed, rating.expired, rating.revalidation_not_met, rating.revalidation_expiring_met, rating.revalidation_current, requirement.progress, remedy.fly_more]
+    output_fields: [windowOpensAt, windowOpen, countedClasses (when pooled), creditedUltralightKinds, progress]
+    edge_cases:
+      - Pooling needs BOTH SEP_LAND and TMG ratings on the same licence; when called without peers (Evaluate) nothing is pooled.
+      - UL credit is time and landings only; the refresher never counts UL dual time (FCL.035(a)(4) reading, docs/DOMAIN.md Ultralights).
+      - UL credit only for aircraft with an explicit ul_kind; kindless UL flights never credited.
+      - An expired rating reports expired even if the experience is met; renewal is not modelled.
+      - Unmet requirements before expiry report "expiring", not lapsed (rating still valid until expiry).
+      - Refresher is cumulative dual minutes across flights, not one flight (TestRefresherTraining_StaysCumulative).
+      - No validUntil projection (expiry-anchored).
+    suspected_divergence:
+      - status: suspected
+        what: No proficiency-check alternative. FCL.740.A(b)(1) is believed to allow revalidation by a proficiency check within the 3 months before expiry OR by experience; the code only evaluates experience.
+      - status: suspected
+        what: Counts landings only; the rule is believed to require 12 take-offs AND 12 landings. Takeoffs are not read.
+      - status: suspected
+        what: Refresher "with an FI or CRI" is approximated by any dual_time; instructor qualification and the ATO-aircraft condition are not checked (UL dual excluded by design).
+      - status: suspected
+        what: Rating treated as expired on its expiry date itself (ExpiryDate 00:00 before now); validity is usually understood to run through the expiry date.
+    tests: [currency_test.go TestEASA_SEP_*, TestEASA_TMG_Current, two_tier_test.go TestEASA_SEP_LookbackIs12Months_NotFlights, cross_class_test.go TestEASA_PPL_SEPLandAndTMG_Pooled, TestEASA_PPL_SEPLandOnly_TMGNotCounted, TestEASA_PPL_SEPSea_NotPooledWithTMG, TestEASA_PooledRules_ExcludeTowedLaunches, annex_i_credit_test.go TestEASA_SEP_ThreeAxisULTimeAndLandingsCount, TestEASA_SEP_ULRefresherDoesNotCount, TestEASA_AnnexICredit_ByClass, ul_recency_test.go TestRefresherTraining_StaysCumulative, TestExpiryAnchoredRevalidationUnmetStaysExpiring, projection_test.go TestValidUntil_ExpiryAnchoredRuleOmitted]
+    maps_to:
+
+  - id: easa.part-fcl.fcl-740-a.mep-set
+    where:
+      definition: internal/service/currency/easa.go:160-232 (easaMEPSETRule)
+    article: [EASA FCL.740.A(b)(2) (as cited in code)]
+    ruleDescriptionKey: easa_mep_set
+    subject:
+      kind: rating
+      classes: [MEP_LAND, MEP_SEA, SET_LAND, SET_SEA]
+      authorities: [EASA, LBA/DULV/DAeC via delegation]
+      licence_kinds: all except LAPL_A, SPL, LAPL_S
+      selection: easa.go:87-88
+    window:
+      kind: before_expiry_months
+      value: 12
+      code: "since := rating.ExpiryDate.AddDate(-1, 0, 0)  (easa.go:182); closed-window guard as SEP"
+    requirements:
+      any_of:
+        - all_of:
+            - { id: route_sectors, nameKey: requirement.route_sectors, metric: flights, min: 10, unit: flights }
+            - { id: refresher, nameKey: requirement.refresher_training, metric: minutes.dual, min: 60, unit: minutes }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: 'proficiency_checks (latest is_proficiency_check flight on the rating class since window start)', min: 1, unit: check }
+      filters: rating class only, towed excluded, no UL credit; route sectors = COUNT of flights in class, any role (dual included).
+    stages:
+      - { when: expiryDate is null, status: unknown, messageKey: rating.no_expiry_date }
+      - { when: now < expiry-12mo, status: current, messageKey: rating.window_not_open, params: [date] }
+      - { when: data read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: expired, status: expired, messageKey: rating.expired }
+      - { when: neither experience nor check, status: expiring, messageKey: rating.revalidation_not_met_prof_check }
+      - { when: met and expiry within 90 days, status: expiring, messageKey: rating.revalidation_expiring_met, params: [days] }
+      - { when: met, status: current, messageKey: rating.revalidation_current }
+    requirement_messages:
+      proficiency_check: "requirement.prof_check_completed {date} when found, else requirement.prof_check_missing"
+    messages: [rating.no_expiry_date, rating.window_not_open, rating.evaluation_failed, rating.expired, rating.revalidation_not_met_prof_check, rating.revalidation_expiring_met, rating.revalidation_current, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.proficiency_check]
+    edge_cases:
+      - Proficiency-check lookup error is swallowed (profCheckDate, _ := ...) and treated as "no check" (easa.go:199).
+      - Proficiency check anywhere in the 12-month window counts.
+    suspected_divergence:
+      - status: suspected
+        what: Revalidation by 10 route sectors + refresher without a proficiency check. For single-pilot multi-engine class ratings a proficiency check within the 3 months before expiry is believed mandatory; route sectors look like a type-rating / SET provision.
+      - status: suspected
+        what: Proficiency check accepted anywhere in the 12 months before expiry instead of the 3-month revalidation window.
+      - status: suspected
+        what: Route sectors counted as any flight in class, including dual/instructional flights and multi-leg rows as one.
+    tests: [currency_test.go TestEASA_MEP_AllMet, TestEASA_MEP_InsufficientSectors_Expiring, TestEASA_MEP_WindowNotYetOpen, proficiency_check_test.go TestEASA_MEP_ProfCheckOnly_Current, TestEASA_MEP_NoProfCheck_NoExperience_Expiring, TestEASA_MEP_ProfCheckRequirement_InResponse, two_tier_test.go TestEASA_MEP_LookbackIs12Months, cross_class_test.go TestEASA_PPL_MEP_NotPooled]
+    maps_to:
+
+  - id: easa.part-fcl.fcl-625-a.ir
+    where:
+      definition: internal/service/currency/easa.go:234-306 (easaIRRule)
+      data: internal/repository/postgres/currency_flight_data.go:170-178 (GetProgressAll), 202-210 (IR proficiency check, no class filter)
+    article: [EASA FCL.625.A (as cited in code)]
+    ruleDescriptionKey: easa_ir
+    subject:
+      kind: rating
+      classes: [IR]
+      authorities: [EASA, LBA/DULV/DAeC via delegation]
+      licence_kinds: all (dispatch before licence type)
+      selection: easa.go:55-57
+    window:
+      kind: before_expiry_months
+      value: 12
+      code: "since := rating.ExpiryDate.AddDate(-1, 0, 0) (easa.go:252); closed-window guard"
+    requirements:
+      all_of:
+        - { id: ifr_time, nameKey: requirement.ifr_time, metric: minutes.ifr, min: 600, unit: minutes }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: 'proficiency_checks (any class, no aircraft join)', min: 1, unit: check }
+      filters: >-
+        All flights except simulators, passenger flights and flights on GLIDER or UL
+        SAILPLANE aircraft (notSailplaneFlightSQL); flights on aircraft not in the fleet count.
+    stages:
+      - { when: expiryDate is null, status: unknown, messageKey: rating.no_expiry_date }
+      - { when: now < expiry-12mo, status: current, messageKey: rating.window_not_open, params: [date] }
+      - { when: data read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: expired, status: expired, messageKey: rating.expired }
+      - { when: ifr unmet and no check, status: expiring, messageKey: rating.ir_hours_and_check_not_met }
+      - { when: ifr unmet, status: expiring, messageKey: rating.ir_hours_not_met }
+      - { when: check missing, status: expiring, messageKey: rating.ir_check_not_met }
+      - { when: met and expiry within 90 days, status: expiring, messageKey: rating.revalidation_expiring_met, params: [days] }
+      - { when: met, status: current, messageKey: rating.revalidation_current }
+    messages: [rating.no_expiry_date, rating.window_not_open, rating.evaluation_failed, rating.expired, rating.ir_hours_and_check_not_met, rating.ir_hours_not_met, rating.ir_check_not_met, rating.revalidation_expiring_met, rating.revalidation_current, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.proficiency_check]
+    edge_cases:
+      - Sailplane IFR time (cloud flying) never counts (GLIDER and UL SAILPLANE excluded).
+      - Proficiency check error swallowed as "no check".
+      - IR ratings never get passenger currency (service.go:121).
+      - A valid IR (non-nil, unexpired expiry) waives the FCL.060(b) night passenger requirement on the same licence (see easa.part-fcl.fcl-060-b.passengers).
+    suspected_divergence:
+      - status: suspected
+        what: 10 h IFR flight time requirement; FCL.625.A revalidation is believed to be a proficiency check only (the 10 h may come from another provision, e.g. IR(A) with one-per-two-years check alternation).
+      - status: suspected
+        what: Any is_proficiency_check flight in any class (an SEP class-rating check, even a glider check) satisfies the IR proficiency check; FSTD checks are excluded because simulators are filtered.
+      - status: suspected
+        what: Proficiency check accepted anywhere in 12 months before expiry rather than the 3-month window.
+      - status: suspected
+        what: FSTD IFR time excluded from the IFR total.
+    tests: [currency_test.go TestEASA_IR_Current, TestEASA_IR_InsufficientIFR_Expiring, TestEASA_IR_Expired, TestEASA_IR_WindowNotYetOpen, proficiency_check_test.go TestEASA_IR_*, lapl_spl_test.go TestEASA_Dispatch_IR_SameForAllLicenseTypes]
+    maps_to:
+
+  - id: easa.part-fcl.class-rating-expiry
+    where:
+      definition: internal/service/currency/easa.go:308-332 (easaExpiryOnlyRule)
+    article: []
+    ruleDescriptionKey: ""
+    subject:
+      kind: rating
+      classes: [ULTRALIGHT (under EASA), OTHER, any class not listed in EASA dispatch]
+      authorities: [EASA, LBA/DULV/DAeC for non-UL classes that fall through]
+    window: none (expiry only)
+    requirements: none
+    stages:
+      - { when: expiryDate is null, status: unknown, messageKey: rating.no_expiry_date }
+      - { when: expired, status: expired, messageKey: rating.expired }
+      - { when: expiry within 90 days, status: expiring, messageKey: rating.expiring, params: [days] }
+      - { when: always, status: current, messageKey: rating.valid_until }
+    messages: [rating.no_expiry_date, rating.expired, rating.expiring, rating.valid_until]
+    edge_cases:
+      - EASA never evaluates an ULTRALIGHT rating's recency; UL ratings under EASA get expiry only and no passenger currency (service.go:124).
+    suspected_divergence: []
+    tests: [annex_i_credit_test.go TestEASA_ULTRALIGHTRatingStaysExpiryOnly, glider_ul_test.go TestEASA_ULClass_ExpiryOnly]
+    maps_to:
+
+  - id: easa.part-fcl.fcl-140-a.lapl-a
+    where:
+      definition: internal/service/currency/easa.go:334-395 (easaLAPLRule)
+      land_sea_split: internal/service/currency/easa.go:397-419 (easaLAPLLandSeaReqs)
+      class_pool: internal/service/currency/credited_classes.go:5-16
+    article: [EASA FCL.140.A(a)(1), FCL.140.A(a)(2), FCL.140.A(b), FCL.035(a)(4)]
+    ruleDescriptionKey: easa_lapl
+    subject:
+      kind: rating
+      classes: every class on a LAPL(A) licence except IR, GLIDER, GYROPLANE, ULTRALIGHT
+      licence_kinds: ['LAPL_A ("LAPL", "LAPL(A)" case/space-insensitive)']
+      authorities: [EASA, LBA/DULV/DAeC delegated]
+      selection: easa.go:70-73
+    window:
+      kind: rolling_months
+      value: 24
+      code: "rt.since = windowSpec{windowRollingNow, years: 2}.rollingSince(now) = now.AddDate(-2,0,0) (easa.go:348,358)"
+    requirements:
+      any_of:
+        - all_of:
+            - { id: total_time, nameKey: requirement.total_time, metric: minutes.total, min: 720, unit: minutes }
+            - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 12, unit: landings }
+            - { id: training_flight, nameKey: requirement.training_flight, metric: longest_training_flight_minutes, min: 60, unit: minutes }
+            - conditional: when the SAME licence holds both SEP_LAND and SEP_SEA ratings
+              all_of:
+                - { id: sep_land_time, nameKey: requirement.sep_land_time, metric: 'minutes.total (SEP_LAND only, no UL)', min: 60, unit: minutes }
+                - { id: sep_land_landings, nameKey: requirement.sep_land_landings, metric: 'landings.total (SEP_LAND only)', min: 6, unit: landings }
+                - { id: sep_sea_time, nameKey: requirement.sep_sea_time, metric: 'minutes.total (SEP_SEA only)', min: 60, unit: minutes }
+                - { id: sep_sea_landings, nameKey: requirement.sep_sea_landings, metric: 'landings.total (SEP_SEA only)', min: 6, unit: landings }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: proficiency_checks on any pooled class, min: 1, unit: check }
+      filters: >-
+        Pool = SEP_LAND, SEP_SEA, MEP_LAND, MEP_SEA, SET_LAND, SET_SEA, TMG always (not only
+        rated classes); towed excluded; Annex I UL credit THREE_AXIS (as SEP_LAND) and
+        THREE_AXIS_MOTORGLIDER (as TMG) for time and landings only. GLIDER never counts.
+        Training flight = longest total_time of a single flight with dual_time > 0 on the
+        pooled classes (UL flights excluded from it).
+    stages:
+      - { when: 'data read error (incl. land/sea split read)', status: unknown, messageKey: rating.evaluation_failed }
+      - { when: experience met or check found, status: current, messageKey: rating.recency_current }
+      - { when: otherwise, status: lapsed, messageKey: rating.recency_not_met }
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.training_flight, remedy.proficiency_check]
+    output_fields: [countedClasses (the 7-class pool), creditedUltralightKinds, validUntil, requirements.validUntil]
+    edge_cases:
+      - No PIC-time requirement.
+      - rating.expiryDate is ignored entirely; a LAPL class rating with a past expiry date can report current.
+      - The land/sea split is appended only when both ratings are peers on the same licence.
+      - Proficiency check error swallowed as none (easa.go:379).
+      - Training flight is ONE flight of >= 60 min total time with some dual; three 20-minute dual circuits do not meet it (TestLAPL_TrainingFlight_IsOneFlightOfAnHour).
+    suspected_divergence:
+      - status: suspected
+        what: Total time counts every role (SIC, PICUS, examiner...) via total_time; FCL.140.A(a)(1) is believed to count flight time as PIC (or dual / supervised solo).
+      - status: suspected
+        what: Counts landings only; the article speaks of take-offs and landings.
+      - status: suspected
+        what: rating expiry ignored; if a LAPL rating record carries an expiry date it never produces expired.
+      - status: suspected
+        what: MEP/SET classes pooled for a LAPL although LAPL(A) privileges are SEP/TMG only (harmless unless such flights exist).
+    tests: [lapl_spl_test.go TestEASA_LAPL_Current, TestEASA_LAPL_NoPICRequirement, TestEASA_LAPL_InsufficientHours, TestEASA_LAPL_RollingFromNow, cross_class_test.go TestEASA_LAPL_*, annex_i_credit_test.go TestEASA_LAPL_ULTimeCountsNotTrainingFlight, ul_recency_test.go TestLAPL_TrainingFlight_IsOneFlightOfAnHour, TestRollingRecencyUnmetIsLapsed, lapl_spl_test.go TestEASA_Dispatch_LAPL_UsesFCL140A]
+    maps_to:
+
+  - id: easa.part-fcl.fcl-240-g.gpl
+    where:
+      definition: internal/service/currency/gpl.go:21-41 (easaGPLRule), 15-19 (gplAnnexICredit)
+      finalize: internal/service/currency/engine.go:394-426 (recencyFinalize(true))
+    article: [EASA FCL.240.G(a), FCL.035(a)(5)]
+    ruleDescriptionKey: easa_gpl
+    subject:
+      kind: rating
+      classes: [GYROPLANE]
+      licence_kinds: any (selection by class, easa.go:64-65)
+      authorities: [EASA, LBA/DULV/DAeC delegated]
+    window:
+      kind: rolling_months
+      value: 24
+      code: "windowSpec{windowRollingNow, years: 2}"
+    requirements:
+      any_of:
+        - all_of:
+            - { id: total_time, nameKey: requirement.total_time, metric: minutes.total, min: 720, unit: minutes }
+            - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 12, unit: landings }
+            - { id: refresher, nameKey: requirement.refresher_training, metric: 'minutes.dual (cumulative)', min: 60, unit: minutes }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: 'proficiency_checks on GYROPLANE (UL checks not counted, credit not native)', min: 1, unit: check }
+      filters: GYROPLANE class, towed excluded; UL GYROPLANE with mtom_kg >= 450 add time and landings (not dual); UL without mtom not credited.
+    stages:
+      - { when: data read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: experience met or check, status: current, messageKey: rating.recency_current }
+      - { when: otherwise, status: lapsed, messageKey: rating.recency_not_met }
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.proficiency_check]
+    edge_cases:
+      - Unlike other recency rules the proficiency-check lookup error here is NOT swallowed (recencyFinalize returns evaluation_failed).
+      - Rating expiry ignored.
+    suspected_divergence:
+      - status: suspected
+        what: Total time counts every role; the rule text (per code comment) is "as PIC, dual or supervised solo".
+      - status: suspected
+        what: Landings only, take-offs not counted.
+    tests: [gpl_test.go TestGPL_Current, TestGPL_AnyLicenceTypeUsesGPLRule, TestGPL_AnnexIGyroplaneCredit, TestGPL_ProficiencyCheck]
+    maps_to:
+
+  # ======================= EASA Part-SFCL rating rules =======================
+
+  - id: easa.part-sfcl.sfcl-160-a.sailplane
+    where:
+      definition: internal/service/currency/easa.go:421-486 (easaSPLRule)
+      extra_credit: internal/service/currency/easa.go:488-498 (easaSPLExtraCredit)
+      ul_pic_credit: internal/service/currency/engine.go:198-207 (ulHoursCredit)
+    article: [EASA SFCL.160(a)(1), SFCL.160(a)(2), AMC1 SFCL.160]
+    ruleDescriptionKey: easa_spl
+    subject:
+      kind: rating
+      classes: GLIDER on any licence under EASA / LBA / DULV / DAeC / unknown authority; every non-TMG class on an SPL or LAPL(S) licence
+      selection: easa.go:62-63, 76-81; other.go:28-29
+    window:
+      kind: rolling_months
+      value: 24
+      code: "windowSpec{windowRollingNow, years: 2}"
+    requirements:
+      any_of:
+        - all_of:
+            - { id: flight_time, nameKey: requirement.flight_time, metric: minutes.picOrDualOrSpic, min: 300, unit: minutes, counted_on: "rating class (towed included) + TMG (GLIDER rating only; towed excluded; PIC+dual+SPIC) + UL SAILPLANE and UL THREE_AXIS_MOTORGLIDER PIC minutes (towed included)" }
+            - { id: launches, nameKey: requirement.launches, metric: launches, min: 15, unit: launches, counted_on: 'rating class only, towed included' }
+            - { id: training_flights, nameKey: requirement.training_flights, metric: 'training_flights (flights with dual_time > 0)', min: 2, unit: flights, counted_on: rating class only }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: 'proficiency_checks on the rating class (towed allowed on GLIDER)', min: 1, unit: check }
+    stages:
+      - { when: 'data read error (sailplane, TMG or UL read)', status: unknown, messageKey: rating.evaluation_failed }
+      - { when: experience met or check, status: current, messageKey: rating.recency_current }
+      - { when: otherwise, status: lapsed, messageKey: rating.recency_not_met }
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.proficiency_check, launch_method.progress, remedy.launch_method_dual]
+    output_fields: [launchMethodCurrency (see easa.part-sfcl.sfcl-155-c.launch-method), "countedClasses [GLIDER, TMG]", "creditedUltralightKinds [SAILPLANE, THREE_AXIS_MOTORGLIDER]", validUntil]
+    edge_cases:
+      - Supervised solo counts toward hours as SPIC time (spic_time); a solo logged as PIC counts as PIC.
+      - Training flights are a count of flights with any dual time; no minimum duration.
+      - Launches = stored launches, else takeoffs_day+takeoffs_night, at least 1 per flight (launchCountSQL).
+      - TMG time and UL PIC time count only toward the 5 h, never launches or training flights; UL dual/SPIC never counted.
+      - Extra credit (TMG, UL) only for a GLIDER rating; an SEP_LAND rating on an SPL licence counts only SEP_LAND flights under this rule.
+      - Proficiency check error swallowed (easa.go:478).
+      - Rating expiry ignored.
+      - Service overlay - SFCL.155(a) trained launch methods (easa.part-sfcl.sfcl-155-a.launch-method-trained) applied to every result with ruleDescriptionKey easa_spl when privileges are readable.
+    suspected_divergence:
+      - status: suspected
+        what: Proficiency check "with an FE(S) on a sailplane, excluding TMGs" is matched by any is_proficiency_check flight on the rating class; examiner not checked.
+      - status: suspected
+        what: Training flights "with an FI(S)" approximated by dual_time > 0.
+      - status: suspected
+        what: Non-GLIDER classes on an SPL licence (e.g. SEP_LAND) are evaluated as sailplanes.
+    tests: [lapl_spl_test.go TestEASA_SPL_*, sfcl_supervised_solo_test.go, sfcl_ul_test.go TestSFCL160a_ULSailplaneAndMotorgliderPICHoursCount, glider_ul_test.go TestGermanULEvaluator_GliderUsesSPLRule, TestEASA_GliderClass_CountsGliderFlights, TestTowedFlights_IncludedOnlyForSailplaneRules, cross_class_test.go TestEASA_LAPL_GliderRatingUsesSPLRule, projection_test.go TestValidUntil_SPLLaunches, TestValidUntil_ProficiencyCheckAlternative]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-155-c.launch-method
+    where:
+      definition: internal/service/currency/easa.go:509-551 (launchMethods, launchMethodRequired, easaLaunchMethodCurrency)
+      remedy: internal/service/currency/projection.go:71-80
+    article: [EASA SFCL.155(c), SFCL.155(d) (remedy)]
+    subject:
+      kind: launch_method (per method on a sailplane rating result)
+      parent_rule: easa.part-sfcl.sfcl-160-a.sailplane
+    window:
+      kind: rolling_months
+      value: 24
+      code: same since as the parent rule
+    requirements:
+      per_method:
+        methods_order: [winch, car, aerotow, self-launch, bungee]
+        listed_when: the method was EVER logged on the rating class (GetLaunchCounts since zero time), or a LAUNCH_METHOD_TRAINED privilege exists (overlay)
+        metric: launches by method on the rating class since window start (towed not filtered); self-launch adds the TMG launches in the window (only for GLIDER ratings, from the extra-credit TMG read)
+        min: "5; bungee 2"
+    stages:
+      - { when: 'count >= required', met: true, messageKey: launch_method.progress }
+      - { when: otherwise, met: false, messageKey: launch_method.progress, remedy: "remedy.launch_method_dual {method, missing}" }
+    messages: [launch_method.progress, remedy.launch_method_dual, readiness.launch_method_current]
+    edge_cases:
+      - Launch-count read errors silently return no launch methods at all (easa.go:524-531).
+      - Launch method status never changes the rating status (informational).
+      - validUntil per met method via projection.
+      - Launch method string is the stored lower-case value; flights without launch_method are ignored.
+    suspected_divergence:
+      - status: suspected
+        what: TMG take-offs counted as self-launches; SFCL.155 self-launch recency may be meant for self-launching sailplanes only.
+    tests: [lapl_spl_test.go TestEASA_SPL_LaunchMethodCurrency, TestEASA_SPL_LaunchMethodNeverUsedIsOmitted, glider_ul_test.go TestEASA_SPL_LaunchCountsUseRatingClass, projection_test.go TestRemedyKeys_LaunchMethodDual]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-155-a.launch-method-trained
+    where:
+      overlay: internal/service/currency/service_privileges.go:69-109 (applyTrainedLaunchMethods); service.go:113-115
+      privilege_status: internal/service/currency/privileges.go:132-134
+    article: [EASA SFCL.155(a)]
+    ruleDescriptionKey: sfcl_155_launch_method (on the privilege result)
+    subject:
+      kind: privilege (LAUNCH_METHOD_TRAINED, detail = launch method) and launch_method overlay
+    window: "privilege: none; added launch-method rows use the SPL window (24 months) for self-launch TMG launches"
+    requirements: none (marks trained)
+    stages:
+      - { when: privilege expired, status: expired, messageKey: privilege.expired }
+      - { when: otherwise, status: current, messageKey: privilege.valid }
+    overlay_logic: >-
+      For a rating result with ruleDescriptionKey easa_spl: rebuild launchMethodCurrency in
+      launchMethods order; keep logged methods; add trained-but-never-logged methods with 0
+      launches (self-launch: TMG launches in the last 24 months, towed excluded), met =
+      launches >= required, remedy.launch_method_dual when unmet; set trained=true for methods
+      with a LAUNCH_METHOD_TRAINED privilege on the rating's own licence (any expiry state).
+    messages: [privilege.valid, privilege.expired, launch_method.progress, remedy.launch_method_dual]
+    edge_cases:
+      - Trained flag ignores whether the privilege is expired.
+      - Added rows get no validUntil (overlay runs after projection).
+      - Initial training counts (10 dual + 5 solo winch launches etc.) are not evaluated.
+    suspected_divergence: []
+    tests: [privileges_test.go TestService_TrainedLaunchMethods]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-160-b.tmg
+    where:
+      definition: internal/service/currency/easa.go:571-639 (easaSPLTMGRule), 500-507 (easaSPLTMGExtraCredit)
+    article: [EASA SFCL.160(b)(1), SFCL.160(b)(2), AMC1 SFCL.160]
+    ruleDescriptionKey: easa_spl_tmg
+    subject:
+      kind: rating
+      classes: [TMG]
+      licence_kinds: [SPL, LAPL_S]
+      selection: easa.go:76-79
+    window:
+      kind: rolling_months
+      value: 24
+      code: "windowSpec{windowRollingNow, years: 2}"
+    requirements:
+      any_of:
+        - all_of:
+            - { id: flight_time, nameKey: requirement.flight_time, metric: minutes.picOrDualOrSpic, min: 720, unit: minutes, counted_on: "TMG (towed excluded) + GLIDER PIC+dual+SPIC (towed included) + UL SAILPLANE PIC + UL THREE_AXIS_MOTORGLIDER PIC" }
+            - { id: tmg_time, nameKey: requirement.tmg_time, metric: minutes.picOrDualOrSpic, min: 360, unit: minutes, counted_on: "TMG + UL THREE_AXIS_MOTORGLIDER PIC" }
+            - { id: tmg_landings, nameKey: requirement.tmg_landings, metric: landings.total, min: 12, unit: landings, counted_on: TMG only }
+            - { id: tmg_training_flight, nameKey: requirement.tmg_training_flight, metric: longest_training_flight_minutes, min: 60, unit: minutes, counted_on: TMG only }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: proficiency_checks on TMG, min: 1, unit: check }
+    stages:
+      - { when: 'SFCL.160(c) exemption applies (service)', status: current, messageKey: rating.sfcl_tmg_exempt }
+      - { when: data read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: experience met or check, status: current, messageKey: rating.recency_current }
+      - { when: otherwise, status: lapsed, messageKey: rating.recency_not_met }
+    messages: [rating.sfcl_tmg_exempt, rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.training_flight, remedy.proficiency_check]
+    edge_cases:
+      - Proficiency check error swallowed (easa.go:633).
+      - Distinct from PPL TMG (FCL.740.A) - TestEASA_SPL_TMG_VsPPL_TMG.
+      - Rating expiry ignored.
+    suspected_divergence:
+      - status: suspected
+        what: Landings only for "take-offs and landings".
+    tests: [lapl_spl_test.go TestEASA_SPL_TMG_Current, TestEASA_SPL_TMG_Shortfalls, TestEASA_SPL_TMG_ProficiencyCheckAlternative, TestEASA_SPL_TMG_VsPPL_TMG, cross_class_test.go TestEASA_SPL_TMG_PoolsSailplanesNotAeroplanes, sfcl_ul_test.go TestSFCL160b_ULMotorgliderCountsTowardTMGHours]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-160-c.tmg-exemption
+    where:
+      condition: internal/service/currency/service.go:187-205 (holdsPartFCLTMG)
+      apply: internal/service/currency/service.go:110-112; easa.go:795-802 (applySFCLTMGExemption)
+    article: [EASA SFCL.160(c)]
+    subject:
+      kind: rating (modifier of easa.part-sfcl.sfcl-160-b.tmg)
+    window: none
+    requirements: none
+    stages:
+      - { when: "user holds a TMG class rating on any licence evaluated by EASAEvaluator or GermanULEvaluator whose type is neither SPL/LAPL(S) nor a UL licence type", status: current, messageKey: rating.sfcl_tmg_exempt, effect: "requirements and validUntil cleared" }
+    messages: [rating.sfcl_tmg_exempt]
+    edge_cases:
+      - Applied after evaluation, so it overrides evaluation_failed too.
+      - Any licence type not classified as SPL/LAPL(S)/UL counts, including unknown types.
+    suspected_divergence:
+      - status: suspected
+        what: The Part-FCL TMG rating's own validity (expired FCL.740.A rating, lapsed FCL.140.A recency) is not checked; an expired PPL TMG rating still exempts.
+    tests: [sfcl_ul_test.go TestSFCL160c_PartFCLTMGExempts]
+    maps_to:
+
+  # ======================= Passenger rules =======================
+
+  - id: easa.part-fcl.fcl-060-b.passengers
+    where:
+      definition: internal/service/currency/easa.go:661-777 (EASAEvaluator.EvaluatePassengerCurrency)
+      ir_waiver: internal/service/currency/easa.go:779-793 (hasValidIRRating)
+      night_privilege: internal/service/currency/faa.go:262-282 (HasNightPrivilege)
+      window: internal/service/currency/passenger_expiry.go:9-16
+      expiry: internal/service/currency/passenger_expiry.go:36-55
+    article: [EASA FCL.060(b)(1), FCL.060(b)(2)(i), FCL.060(b)(2)(ii)]
+    ruleDescriptionKey: easa_pax
+    subject:
+      kind: passengers
+      classes: every non-IR class with a rating under EASA or delegated German authority (SEP, MEP, SET, TMG on non-sailplane licence, OTHER, GYROPLANE); not GLIDER, not TMG on SPL/LAPL(S) (variants below)
+      once_per: class + authority string (first licence wins)
+    window:
+      kind: rolling_days
+      value: 90
+      code: "midnight UTC of today .AddDate(0,0,-90) (paxWindowStart); a landing on day D counts through D+90 inclusive"
+    requirements:
+      day:
+        - { id: day, metric: 'landings.total (day + night) on the class, towed excluded, any role', min: 3, unit: landings }
+      night:
+        applies_when: HasNightPrivilege(licenseType, authority) and class != GLIDER
+        requirement: { id: night, metric: landings.night on the class, min: 1, unit: landings }
+        waived_when: the same licence carries an IR rating with a non-nil expiry that is not expired (hasValidIRRating uses time.Now, not the as-of instant)
+    stages: see stages_day, stages_night and summary_message_order
+    stages_day:
+      - { when: data read error, dayStatus: unknown, nightStatus: unknown, messageKey: pax.evaluation_failed }
+      - { when: 'landings >= 3', dayStatus: current }
+      - { when: otherwise, dayStatus: expired }
+    stages_night:
+      - { when: no night privilege, nightStatus: unknown }
+      - { when: valid IR, nightStatus: current }
+      - { when: 'night landings >= 1', nightStatus: current }
+      - { when: otherwise, nightStatus: expired }
+    summary_message_order:
+      - { when: 'GPL shortfall (gyroplane variant)', messageKey: pax.gpl_experience_not_met, params: [needed] }
+      - { when: day not current, messageKey: pax.not_current, params: [needed = 3 - landings] }
+      - { when: no night privilege, messageKey: pax.current_day_no_night_privilege }
+      - { when: valid IR, messageKey: pax.current_day_night_ir_waived }
+      - { when: night current, messageKey: pax.current_day_night }
+      - { when: otherwise, messageKey: pax.day_current_night_not, params: [needed = 1] }
+    output_fields: [dayLandings, nightLandings, dayRequired 3, nightRequired 1 or 0 (IR), nightPrivilege, dayExpiresOn, nightExpiresOn (only with night privilege and not waived)]
+    expiry_logic: >-
+      Walk landing days newest first accumulating the counted landings; the date where the
+      running total first reaches the requirement + 90 days is the expiry (last current day).
+      Nil when unmet or required == 0.
+    messages: [pax.evaluation_failed, pax.not_current, pax.current_day_no_night_privilege, pax.current_day_night_ir_waived, pax.current_day_night, pax.day_current_night_not]
+    edge_cases:
+      - Night privilege false for LAPL(A), SPL/LAPL(S), GPL, DULV/DAeC authorities, LBA + UL licence, FAA sport/recreational/glider; PPL etc. true.
+      - IR waiver only from an IR on the SAME licence; IR without expiry date does not waive (TestEASA_PassengerCurrency_IRWithNoExpiryDoesNotExempt).
+      - Never pooled across classes; UL time never credited.
+      - Night landings count toward day too.
+    suspected_divergence:
+      - status: suspected
+        what: Counts landings only (not take-offs and approaches) and counts dual flights; FCL.060(b)(1) is believed to require the pilot as sole manipulator of the controls.
+      - status: suspected
+        what: FFS time excluded (simulators filtered) although FCL.060(b)(1) is believed to accept an FFS.
+      - status: suspected
+        what: The phrase same type or class is approximated by aircraft_class; type-rated aircraft classed OTHER pool across types.
+      - status: suspected
+        what: hasValidIRRating uses wall-clock time (r.IsExpired()) - as-of / readiness evaluations use today's IR validity, not the requested date.
+      - status: suspected
+        what: A LAPL(A) holder with a night rating (FCL.810) is never evaluated for night passengers.
+    tests: [two_tier_test.go TestEASA_PassengerCurrency_*, passenger_expiry_test.go TestPaxWindowStart*, TestPaxExpiryDate*, TestEASA_PassengerCurrency_*, TestPassengerCurrency_*, two_tier_test.go TestHasNightPrivilege, TestService_TwoTier_NoDuplicatePassengerCurrency, TestService_TwoTier_IR_NoPassengerCurrency]
+    maps_to:
+
+  - id: easa.part-fcl.fcl-205-g-a-2.gpl-passengers
+    where:
+      definition: internal/service/currency/easa.go:742-757, 761-762; gpl.go:7-9
+    article: [EASA FCL.205.G(a)(2)]
+    ruleDescriptionKey: easa_pax
+    subject:
+      kind: passengers
+      classes: [GYROPLANE]
+      licence_kinds: GPL only (when licence type classifies as GPL)
+    window:
+      kind: since_issue
+      code: "GetProgressByAircraftClass(GYROPLANE, includeTowed=false, since=license.IssueDate)"
+    requirements:
+      - { id: gpl_pic, metric: minutes.pic on GYROPLANE since licence issue, min: 600, unit: minutes }
+      - plus the FCL.060(b) day rule (night not applicable for GPL)
+    stages:
+      - { when: read error, dayStatus: unknown, nightStatus: unknown, messageKey: pax.evaluation_failed }
+      - { when: PIC minutes < 600, dayStatus: expired, dayExpiresOn: null, messageKey: pax.gpl_experience_not_met, params: ["needed = 600 - PIC minutes"] }
+    messages: [pax.gpl_experience_not_met, pax.evaluation_failed]
+    edge_cases:
+      - UL gyroplane PIC time does not count toward the 10 h.
+      - A PPL holder's GYROPLANE rating does not get this check (and keeps night privilege).
+    suspected_divergence:
+      - status: suspected
+        what: Licence re-issue resets the counting start (issue date of the stored licence).
+    tests: [gpl_test.go TestGPL_PassengersNeed10hPICAfterIssue, TestHasNightPrivilege_GermanAndGPL]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-160-e-1.sailplane-passengers
+    where:
+      definition: internal/service/currency/easa.go:687-693, 705
+    article: [EASA SFCL.160(e)(1)]
+    ruleDescriptionKey: easa_spl_pax
+    subject:
+      kind: passengers
+      classes: GLIDER on any EASA / delegated licence (PPL with GLIDER rating included)
+    window: { kind: rolling_days, value: 90, code: paxWindowStart }
+    requirements:
+      - { id: day, metric: 'landings.total on landing days of GLIDER flights with pic_time > 0, towed included', min: 3, unit: landings }
+    stages: same day stages as easa_pax; night privilege always false for GLIDER -> nightStatus unknown, pax.current_day_no_night_privilege when current
+    messages: [pax.evaluation_failed, pax.not_current, pax.current_day_no_night_privilege]
+    edge_cases:
+      - Overlay adds SFCL.115(a)(2) prerequisite rows (see easa.part-sfcl.sfcl-115-a-2.passenger-prerequisites).
+    suspected_divergence:
+      - status: suspected
+        what: Counts landings of PIC flights, not launches as PIC; a winch series row with launches > landings or a flight with landings logged 0 differ.
+    tests: [lapl_spl_test.go TestEASA_SPL_PassengerCurrencyCountsPICOnly, glider_ul_test.go TestEASA_Passenger_GliderClass_NoNightPrivilege, TestPassengerCurrency_TowedFlights]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-160-e-2.tmg-passengers
+    where:
+      definition: internal/service/currency/easa.go:694-698, 705
+      night_overlay: internal/service/currency/service_privileges.go:124-126, 146-168 (applyTMGNightPassengers)
+    article: [EASA SFCL.160(e)(2), SFCL.210 (TMG night privilege)]
+    ruleDescriptionKey: easa_spl_tmg_pax
+    subject:
+      kind: passengers
+      classes: [TMG]
+      licence_kinds: [SPL, LAPL_S]
+    window: { kind: rolling_days, value: 90 }
+    requirements:
+      - { id: day, metric: 'landings.total on TMG landing days with pic_time > 0 (towed INCLUDED because licence is a sailplane licence)', min: 3, unit: landings }
+      - { id: night, applies_when: an unexpired TMG_NIGHT privilege on the licence, metric: landings.night on the same PIC-only TMG days, min: 1, unit: landings }
+    stages:
+      - { when: read error, dayStatus: unknown, messageKey: pax.evaluation_failed }
+      - { when: day unmet, dayStatus: expired, messageKey: pax.not_current, params: [needed] }
+      - { when: 'day met, no TMG_NIGHT', nightStatus: unknown, messageKey: pax.current_day_no_night_privilege }
+      - { when: 'day met, TMG_NIGHT, night >= 1', nightStatus: current, messageKey: pax.current_day_night, nightExpiresOn: set }
+      - { when: 'day met, TMG_NIGHT, night < 1', nightStatus: expired, messageKey: pax.day_current_night_not, params: [needed = 1] }
+    messages: [pax.evaluation_failed, pax.not_current, pax.current_day_no_night_privilege, pax.current_day_night, pax.day_current_night_not]
+    edge_cases:
+      - TMG_NIGHT overlay only runs when privileges were loaded; nightPrivilege set true, nightRequired 1.
+      - When day is not current the night status is still set but the message stays pax.not_current.
+    suspected_divergence:
+      - status: suspected
+        what: Towed launches on TMG flights are counted (includeTowedFlights(TMG, sailplane licence) = true); TMGs are not towed, likely harmless.
+      - status: suspected
+        what: Landings only, take-offs not counted.
+    tests: [lapl_spl_test.go TestEASA_SPL_PassengerCurrencyCountsPICOnly, privileges_test.go TestService_SPLPassengerPrivileges]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-115-a-2.passenger-prerequisites
+    where:
+      definition: internal/service/currency/privileges.go:343-358 (spl115PassengerPrerequisites); service_privileges.go:118-123
+    article: [EASA SFCL.115(a)(2)]
+    subject:
+      kind: passengers (informational requirement rows on easa_spl_pax and easa_spl_tmg_pax)
+    window:
+      kind: since_issue
+      code: "since = midnightUTC(license.IssueDate)"
+    requirements:
+      any_of_informational:
+        - { id: pax_prerequisite_time, nameKey: requirement.pax_prerequisite_time, metric: 'minutes.pic on GLIDER+TMG flights with pic_time > 0', min: 600, unit: minutes, remedy: remedy.fly_more }
+        - { id: pax_prerequisite_launches, nameKey: requirement.pax_prerequisite_launches, metric: launches of those flights, min: 30, unit: launches, remedy: remedy.fly_more }
+        - { id: pax_competence_flight, nameKey: requirement.pax_competence_flight, untracked: true, unit: flight, messageKey: requirement.untracked }
+    stages: none (rows never change dayStatus)
+    messages: [requirement.progress, requirement.untracked, remedy.fly_more]
+    edge_cases:
+      - Rows only when the provider implements PrivilegeDataProvider and privileges loaded; read errors drop the rows silently.
+      - No validUntil (window nil).
+    suspected_divergence:
+      - status: suspected
+        what: Not enforced; a re-issued licence resets the count (documented known gap).
+    tests: [privileges_test.go TestService_SPLPassengerPrivileges]
+    maps_to:
+
+  - id: faa.14cfr61.61-57-ab.passengers
+    where:
+      definition: internal/service/currency/faa.go:284-360 (FAAEvaluator.EvaluatePassengerCurrency)
+    article: [14 CFR 61.57(a), 61.57(b)]
+    ruleDescriptionKey: faa_pax_day_night
+    subject:
+      kind: passengers
+      classes: every non-IR class on an FAA licence except GLIDER and except on a GLIDER licence type (see glider variant)
+    window: { kind: rolling_days, value: 90, code: 'paxWindowStart (midnight UTC)' }
+    requirements:
+      day: { metric: 'landings.total (day + night), any role, towed excluded', min: 3, unit: landings }
+      night:
+        applies_when: HasNightPrivilege (false for SPORT, RECREATIONAL, GLIDER licence types)
+        metric: landings.night (any, not only full-stop)
+        min: 3
+        unit: landings
+    stages:
+      - { when: read error, dayStatus: unknown, nightStatus: unknown, messageKey: pax.evaluation_failed }
+      - { when: no night privilege and day met, nightStatus: unknown, messageKey: pax.current_day_no_night_privilege }
+      - { when: no night privilege and day unmet, dayStatus: expired, messageKey: pax.not_current, params: [needed] }
+      - { when: day and night met, messageKey: pax.current_day_night }
+      - { when: 'day met, night unmet', nightStatus: expired, messageKey: pax.day_current_night_not, params: ["needed = 3 - night"] }
+      - { when: day unmet, dayStatus: expired, messageKey: pax.not_current, params: ["needed = 3 - landings"] }
+    messages: [pax.evaluation_failed, pax.current_day_no_night_privilege, pax.not_current, pax.current_day_night, pax.day_current_night_not]
+    edge_cases:
+      - nightRequired set to 0 without night privilege; RuleDescription names the licence type.
+      - NightExpiresOn computed with paxExpiryDate (nil when requirement 0).
+    suspected_divergence:
+      - status: suspected
+        what: 61.57(b) night requires full-stop landings (and night take-offs) in the 1-hour-after-sunset window; code counts any logged night landings and no take-offs. Full-stop data is not stored.
+      - status: suspected
+        what: Sole manipulator of the controls not enforced for powered aircraft (dual flights count).
+      - status: suspected
+        what: Tailwheel full-stop requirement (61.57(a)(1)(ii)) and "type, if a type rating is required" not modelled.
+      - status: suspected
+        what: FFS/FTD alternatives (61.57(a)(3)?) not modelled; simulators excluded.
+    tests: [two_tier_test.go TestFAA_PassengerCurrency_*, TestFAA_SportPilot_PassengerCurrency_NoNight, TestFAA_PrivatePilot_PassengerCurrency_HasNight, passenger_expiry_test.go TestFAA_PassengerCurrency_*]
+    maps_to:
+
+  - id: faa.14cfr61.61-57-a.glider-passengers
+    where:
+      definition: internal/service/currency/faa.go:288, 306-312
+    article: [14 CFR 61.57(a)]
+    ruleDescriptionKey: faa_glider
+    subject:
+      kind: passengers
+      classes: GLIDER on any FAA licence, and every class on an FAA licence whose type equalFold "GLIDER"
+    window: { kind: rolling_days, value: 90 }
+    requirements:
+      day: { metric: 'landings.total on landing days of flights with pic_time > 0, towed included', min: 3, unit: landings }
+    stages: as faa.14cfr61.61-57-ab.passengers without night (glider class or GLIDER licence -> no night privilege)
+    messages: [pax.evaluation_failed, pax.current_day_no_night_privilege, pax.not_current]
+    edge_cases:
+      - A non-GLIDER class on a GLIDER licence type also gets PIC-only counting and towed inclusion.
+    suspected_divergence:
+      - status: suspected
+        what: Sole manipulator approximated by pic_time > 0; take-offs not counted.
+    tests: [faa_glider_test.go TestFAAGliderPassengerCurrency]
+    maps_to:
+
+  - id: de.luftpersv.45a.passengers
+    where:
+      definition: internal/service/currency/german_ul.go:265-338 (EvaluateRatingPassengerCurrencyForHolder)
+      expiry: internal/service/currency/passenger_expiry.go:57-82
+    article: [LuftPersV §45a, §44(2) (no night), §84a (authorisation, separate)]
+    ruleDescriptionKey: ul_pax
+    subject:
+      kind: passengers
+      classes: ULTRALIGHT with ul_kind, per kind, authorities LBA/DULV/DAeC/DAEC
+      once_per: ULTRALIGHT:authority:kind
+    window: { kind: rolling_days, value: 90 }
+    requirements:
+      - { id: day, metric: "min(landings.total, takeoffs) on UL of AircraftKindsForRating(kind) (THREE_AXIS also THREE_AXIS_MOTORGLIDER), plus kindless UL when kindlessULCounts; towed only for SAILPLANE kind; any role", min: 3, unit: "takeoffs and landings" }
+    stages:
+      - { when: rating has no kind, dayStatus: unknown, nightStatus: unknown, messageKey: 'rating.ul_kind_required (service omits it)' }
+      - { when: read error, dayStatus: unknown, messageKey: pax.evaluation_failed }
+      - { when: 'count >= 3', dayStatus: current, messageKey: pax.current_day_privilege_separate }
+      - { when: otherwise, dayStatus: expired, messageKey: pax.not_current, params: ["needed = 3 - count"] }
+    output_fields: [ulKind, dayLandings = min count, nightStatus unknown, nightRequired 0, dayExpiresOn = earlier of takeoff and landing expiry]
+    messages: [rating.ul_kind_required, pax.evaluation_failed, pax.current_day_privilege_separate, pax.not_current]
+    edge_cases:
+      - Takeoffs per flight = GREATEST(takeoffs_day + takeoffs_night, 1).
+      - SEP/TMG landings never count.
+      - Non-UL ratings on such a licence delegate to easa_pax.
+    suspected_divergence:
+      - status: suspected
+        what: Dual flights counted; §45a wording (as PIC?) not verified.
+    tests: [german_ul_test.go TestGermanUL_PassengerCurrency_*, ul_recency_test.go TestGermanUL_PassengerCurrency_TakeoffsAndLandings, TestUnknownWhenULRatingHasNoKind_NoPassengerCurrency, passenger_expiry_test.go TestGermanUL_PassengerCurrency_ExpiryDate, glider_ul_test.go TestService_ULPassengerCurrency_GermanAuthorityOnly, TestService_GermanUL_PassengerPerKind]
+    maps_to:
+
+  - id: de.luftpersv.84a.passenger-authorisation
+    where:
+      overlay: internal/service/currency/service_privileges.go:127-143
+      progress: internal/service/currency/privileges.go:360-380 (ulPassengerAuthorisationProgress)
+    article: [LuftPersV §84a]
+    subject:
+      kind: passengers (overlay on ul_pax) and privilege UL_PASSENGER_AUTH
+    window: { kind: lifetime, code: "since = time.Time{}" }
+    requirements:
+      informational_all_of:
+        - { id: ul_xc_flights, nameKey: requirement.ul_xc_flights, metric: 'flights with dual_time > 0 and cross_country_time > 0 on UL of the kind', min: 5, unit: flights, remedy: remedy.fly_more }
+        - { id: ul_xc_landing_flights, nameKey: requirement.ul_xc_landing_flights, metric: 'those flights with landings_day+landings_night >= 2', min: 2, unit: flights, remedy: remedy.fly_more }
+        - { id: ul_xc_distance, nameKey: requirement.ul_xc_distance, metric: "round(sum(distance NM) * 1.852) km", min: 200, unit: km, remedy: remedy.fly_more }
+    stages:
+      - { when: unexpired UL_PASSENGER_AUTH on the licence and day current, messageKey: pax.current_day_no_night_privilege }
+      - { when: 'unexpired UL_PASSENGER_AUTH, day unmet', keep: pax.not_current }
+      - { when: 'no authorisation, day current', dayStatus: unknown, messageKey: pax.ul_authorisation_missing, requirements: progress rows }
+      - { when: 'no authorisation, day unmet', keep: expired pax.not_current, requirements: progress rows }
+    messages: [pax.current_day_no_night_privilege, pax.ul_authorisation_missing, requirement.progress, remedy.fly_more]
+    edge_cases:
+      - Only when privileges loaded; progress rows only when PrivilegeDataProvider present and the read succeeds.
+      - Kindless UL aircraft never counted (ULKinds filter); intermediate landing approximated by >= 2 landings; round-trip distance 0.
+      - Notification for pax.ul_authorisation_missing suppressed (service/notification.go:403).
+    suspected_divergence: []
+    tests: [privileges_test.go TestService_ULPassengerAuthorisation]
+    maps_to:
+
+  # ======================= FAA rating rules =======================
+
+  - id: faa.14cfr61.61-57-ab.rating
+    where:
+      definition: internal/service/currency/faa.go:55-99 (faaPassengerRatingRule)
+    article: [14 CFR 61.57(a), 61.57(b)]
+    ruleDescriptionKey: faa_pax_day_night
+    subject:
+      kind: rating
+      classes: every FAA class except ULTRALIGHT, IR, GLIDER (and every class on a GLIDER licence)
+    window:
+      kind: rolling_days
+      value: 90
+      code: "now.AddDate(0,0,-90) with clock time (NOT paxWindowStart midnight) (faa.go:62,69)"
+    requirements:
+      all_of:
+        - { id: day_landings, nameKey: requirement.day_landings, metric: 'landings.total (day+night)', min: 3, unit: landings }
+        - { id: night_landings, nameKey: requirement.night_landings, metric: landings.night, min: 3, unit: landings }
+      filters: rating class, towed excluded, any role
+    stages:
+      - { when: read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: day unmet, status: expired, messageKey: rating.pax_not_current, params: ["needed = 3 - landings"] }
+      - { when: night unmet, status: expiring, messageKey: rating.pax_day_current_night_not, params: ["needed = 3 - night"] }
+      - { when: both met, status: current, messageKey: rating.pax_current_day_night }
+    messages: [rating.evaluation_failed, rating.pax_not_current, rating.pax_day_current_night_not, rating.pax_current_day_night, requirement.progress, remedy.fly_more]
+    edge_cases:
+      - rating.expiryDate ignored.
+      - Tier 1 duplicates Tier 2 passenger logic with a different window anchor (clock time vs midnight).
+    suspected_divergence:
+      - status: suspected
+        what: A rating's ability to fly is made to depend on passenger currency; 61.57(a)/(b) only restricts carrying passengers. An FAA pilot with no landings in 90 days shows the SEP rating "expired" (readiness not ready) though solo flight is legal.
+      - status: suspected
+        what: Night requirement applied regardless of HasNightPrivilege (Sport/Recreational SEP ratings show "expiring" for missing night landings).
+      - status: suspected
+        what: Same full-stop / sole-manipulator / takeoff gaps as the Tier-2 rule.
+    tests: [currency_test.go TestFAA_Passenger_*, pipeline_test.go TestFullPipeline_FAAPilotMultiClass]
+    maps_to:
+
+  - id: faa.14cfr61.61-57-c.instrument
+    where:
+      definition: internal/service/currency/faa.go:101-159 (faaInstrumentRule)
+    article: [14 CFR 61.57(c)(1), 61.57(d) (as cited)]
+    ruleDescriptionKey: faa_ir
+    subject:
+      kind: rating
+      classes: [IR]
+      licence_kinds: FAA licences except type SPORT/RECREATIONAL
+    window:
+      kind: rolling_months
+      value: 6
+      code: "now.AddDate(0,-6,0) (faa.go:110,118); grace check since12 = now.AddDate(-1,0,0) (faa.go:144)"
+    requirements:
+      all_of:
+        - { id: approaches, nameKey: requirement.approaches, metric: 'approaches (approaches_count)', min: 6, unit: approaches }
+        - { id: holds, nameKey: requirement.holds, metric: holds, min: 1, unit: holds }
+      filters: GetProgressAll (all classes except GLIDER / UL SAILPLANE; simulators excluded; unknown aircraft included)
+    stages:
+      - { when: read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: expiryDate set and expired, status: expired, messageKey: rating.expired }
+      - { when: 6-month totals met, status: current, messageKey: rating.ir_current }
+      - { when: '12-month totals >= 6 approaches and >= 1 hold', status: expiring, messageKey: rating.ir_lapsed_safety_pilot, ruleDescription: overridden English text }
+      - { when: 'otherwise (incl. 12-month read error)', status: expired, messageKey: rating.ir_expired_ipc, ruleDescription: overridden English text }
+    messages: [rating.evaluation_failed, rating.expired, rating.ir_current, rating.ir_lapsed_safety_pilot, rating.ir_expired_ipc, requirement.progress, remedy.fly_more]
+    edge_cases:
+      - The 12-month read error is swallowed and treated as "not met" -> ir_expired_ipc.
+      - validUntil projection applies (windowRollingNow), re-evaluating the grace branch at each projected date.
+    suspected_divergence:
+      - status: suspected
+        what: 61.57(c) uses the preceding 6 CALENDAR months; code uses rolling months (AddDate(0,-6,0)).
+      - status: suspected
+        what: Grace logic sums 12 rolling months instead of "was current and lapsed less than 6 calendar months ago"; 3 approaches 11 months ago + 3 last month shows "lapsed, recoverable" though never current.
+      - status: suspected
+        what: is_ipc is never read; an IPC never restores currency, so a pilot who passed an IPC stays ir_expired_ipc until 6 approaches + hold are logged.
+      - status: suspected
+        what: Intercepting and tracking courses (61.57(c)(1)) not tracked.
+      - status: suspected
+        what: FFS/FTD/ATD time (61.57(c)(2)-(5)) excluded because simulators are filtered out.
+      - status: suspected
+        what: Grace status "expiring" is treated as ready by readiness, although in the grace period the pilot may not act as PIC under IFR.
+    tests: [currency_test.go TestFAA_IR_Current, TestFAA_IR_InsufficientIFR, TestFAA_IR_Expired, lapl_spl_test.go TestFAA_IR_GracePeriod_Within6Months_Current, TestFAA_IR_GracePeriod_NotMetAnywhere_Expired]
+    maps_to:
+
+  - id: faa.14cfr61.61-315.ir-not-applicable
+    where:
+      definition: internal/service/currency/faa.go:244-254 (faaSuppressedIRRule), 39-43
+    article: [14 CFR 61.315]
+    ruleDescriptionKey: faa_ir
+    subject: { kind: rating, classes: [IR], licence_kinds: [SPORT, RECREATIONAL (exact upper-case match, untrimmed)] }
+    window: none
+    requirements: none
+    stages:
+      - { when: always, status: unknown, messageKey: rating.ir_not_applicable }
+    messages: [rating.ir_not_applicable]
+    edge_cases:
+      - Recreational pilot IR privileges are also suppressed although 61.315 is the sport-pilot section (suspected mis-citation).
+    suspected_divergence:
+      - status: suspected
+        what: Citation 61.315 covers sport pilots; recreational limitations are in 61.101.
+    tests: [two_tier_test.go TestFAA_SportPilot_IR_Suppressed, TestFAA_RecreationalPilot_IR_Suppressed]
+    maps_to:
+
+  - id: faa.14cfr61.61-56.glider-rating
+    where:
+      definition: internal/service/currency/faa.go:161-242 (faaGliderRule, faaFlightReviewWindowStart, flightReviewRequirement)
+    article: [14 CFR 61.56(a), 61.56(b), 61.56(c)]
+    ruleDescriptionKey: faa_flight_review
+    subject:
+      kind: rating
+      classes: GLIDER on any FAA licence, any class on an FAA GLIDER licence type
+    window:
+      kind: calendar_months
+      value: 24
+      code: "since = first day of the month 24 months before now's month (faa.go:221-223), used for the 61.56(b) alternative; flight review itself: last is_flight_review flight ever"
+    requirements:
+      any_of:
+        - { id: flight_review, nameKey: requirement.flight_review, metric: 'last flight review (any class)', met: "review status current or expiring", unit: review, messageKey: "requirement.prof_check_completed {date} / requirement.prof_check_missing", remedy: none }
+        - { id: instructional_flights, nameKey: requirement.training_flights, metric: 'training_flights (dual_time > 0) on GLIDER incl. towed', min: 3, unit: flights }
+    stages:
+      - { when: flight review read error or progress read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: review current, status: current, messageKey: flight_review.current, params: [date] }
+      - { when: 3 instructional glider flights in window, status: current, messageKey: rating.flight_review_glider_alternative }
+      - { when: 'review exists (expiring or expired)', status: review status, messageKey: 'flight_review.expiring {days,date} / flight_review.expired {date}' }
+      - { when: no review, status: expired, messageKey: flight_review.none_on_record }
+    messages: [rating.evaluation_failed, flight_review.current, flight_review.expiring, flight_review.expired, flight_review.none_on_record, rating.flight_review_glider_alternative, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more]
+    edge_cases:
+      - An expiring review outranks nothing; order is current review > glider alternative > review status > none.
+      - Landings never change the rating status (passengers reported separately).
+      - No validUntil projection (window kind is windowRollingNow with zero duration, so projectValidUntil returns early).
+    suspected_divergence:
+      - status: suspected
+        what: 61.56(b) substitutes three instructional flights for the 1 hour of FLIGHT training only; ground training and the logbook endorsement are still required, so three dual flights alone do not constitute a flight review.
+      - status: suspected
+        what: The alternative flights may straddle the window start and carry no expiry; the flights must have been part of one review.
+      - status: suspected
+        what: 61.56(d) (a proficiency check / practical test / new rating counts as a flight review) not modelled - is_proficiency_check flights do not reset the review.
+    tests: [faa_glider_test.go TestFAAGliderRating, TestFAAFlightReviewWindowStart]
+    maps_to:
+
+  - id: faa.14cfr61.61-56.flight-review
+    where:
+      definition: internal/service/currency/faa.go:362-415 (EvaluateFlightReview, faaFlightReviewStatus)
+      service: internal/service/currency/service.go:152-158
+      data: internal/repository/postgres/currency_flight_data.go:180-196
+    article: [14 CFR 61.56(c)]
+    subject:
+      kind: flight_review (per pilot, once per response, from the first FAA licence)
+    window:
+      kind: calendar_months
+      value: 24
+      code: "expiresOn = time.Date(y, month+25, 0) = last day of the 24th month after the completion month; validUntil = expiresOn + 1 day (faa.go:390-395)"
+    requirements:
+      - { id: flight_review, metric: 'date of latest non-simulator, non-passenger flight with is_flight_review, any class' }
+    stages:
+      - { when: read error, status: unknown, messageKey: flight_review.evaluation_failed }
+      - { when: no review, status: expired, messageKey: flight_review.none_on_record }
+      - { when: 'now >= expiresOn+1d', status: expired, messageKey: flight_review.expired, params: [date = completion] }
+      - { when: "days until expiresOn+1d <= 90 (int(hours/24))", status: expiring, messageKey: flight_review.expiring, params: [days, date] }
+      - { when: otherwise, status: current, messageKey: flight_review.current, params: [date] }
+    output_fields: [lastCompleted, expiresOn]
+    messages: [flight_review.evaluation_failed, flight_review.none_on_record, flight_review.expired, flight_review.expiring, flight_review.current]
+    edge_cases:
+      - Ignores the 61.56(b) glider alternative (a glider rating can be current while flightReview is expired).
+      - Evaluated for every FAA pilot including glider-only; not evaluated for EASA/German/other authorities.
+      - Validity runs through the whole last day of the 24th month (TestFAA_FlightReview_ExpiryBoundary).
+    suspected_divergence:
+      - status: suspected
+        what: 61.56(d)/(e) substitutes (proficiency check, practical test, WINGS) not recognised.
+      - status: suspected
+        what: Readiness does not include the flight review, so an FAA powered pilot with an expired review is reported ready.
+    tests: [two_tier_test.go TestFAA_FlightReview_*, TestService_FAA_IncludesFlightReview, TestService_EASA_NoFlightReview, messages_test.go TestFlightReviewCarriesAKey]
+    maps_to:
+
+  - id: other.ninerlog.expiry-only
+    where:
+      definition: internal/service/currency/other.go:35-59 (otherExpiryRule)
+    article: []
+    ruleDescriptionKey: ""
+    subject:
+      kind: rating
+      classes: every class of an unregistered authority except GLIDER; FAA ULTRALIGHT
+    window: none
+    requirements: none
+    stages:
+      - { when: expiryDate is null, status: unknown, messageKey: rating.no_expiry_date_manual }
+      - { when: expired, status: expired, messageKey: rating.expired }
+      - { when: expiry within 90 days, status: expiring, messageKey: rating.expiring, params: [days] }
+      - { when: always, status: current, messageKey: rating.valid_until }
+    messages: [rating.no_expiry_date_manual, rating.expired, rating.expiring, rating.valid_until]
+    edge_cases:
+      - Unknown authority licences get no passenger currency and no flight review.
+    suspected_divergence: []
+    tests: [currency_test.go TestOtherEvaluator_*, TestServiceEvaluateAll_FallbackToOther, pipeline_test.go TestFullPipeline_UnknownAuthority]
+    maps_to:
+
+  # ======================= German ultralight rating rules =======================
+
+  - id: de.luftpersv.45.kind-required
+    where:
+      definition: internal/service/currency/german_ul.go:93-101 (germanULKindRequiredRule), 67-69
+    article: [LuftPersV §45]
+    ruleDescriptionKey: ""
+    subject: { kind: rating, classes: [ULTRALIGHT], ulKind: null, authorities: [LBA, DULV, DAeC, DAEC] }
+    window: none
+    requirements: none
+    stages:
+      - { when: always, status: unknown, messageKey: rating.ul_kind_required }
+    messages: [rating.ul_kind_required]
+    edge_cases:
+      - No passenger currency is produced for such a rating (service.go:124).
+    suspected_divergence: []
+    tests: [german_ul_test.go TestGermanUL_UnknownWhenRatingHasNoKind, ul_recency_test.go TestUnknownWhenULRatingHasNoKind_NoPassengerCurrency]
+    maps_to:
+
+  - id: de.luftpersv.45-2.three-axis
+    where:
+      definition: internal/service/currency/german_ul.go:155-171 (germanULRule), 124-143 (germanULNativeCredit, germanULSEPTMGClasses)
+      finalize: internal/service/currency/engine.go:394-426
+      kindless: internal/service/currency/german_ul.go:73-91 (kindlessULCounts); engine.go:277-287 (countUnclassifiedUL)
+    article: [LuftPersV §45(2), §45(3)]
+    ruleDescriptionKey: ul_luftpersv
+    subject: { kind: rating, classes: [ULTRALIGHT], ulKind: 'THREE_AXIS (and default for unexpected kinds)', authorities: [LBA, DULV, DAeC, DAEC] }
+    window: { kind: rolling_months, value: 24, code: "windowSpec{windowRollingNow, years: 2}" }
+    requirements:
+      any_of:
+        - all_of:
+            - { id: total_time, nameKey: requirement.total_time, metric: minutes.total, min: 720, unit: minutes }
+            - { id: pic_time, nameKey: requirement.pic_time, metric: minutes.pic, min: 360, unit: minutes }
+            - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 12, unit: landings }
+            - { id: training_flight, nameKey: requirement.training_flight, metric: 'longest_training_flight_minutes (UL only)', min: 60, unit: minutes }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: "latest check on SEP_LAND/TMG (towed excluded) or on native UL kinds", min: 1, unit: check }
+      filters: >-
+        SEP_LAND + TMG class flights (towed excluded) add total, PIC, landings but NOT dual,
+        SPIC, training flights (classesNoDual) - their total_time still counts even when
+        dual. Native UL: THREE_AXIS + THREE_AXIS_MOTORGLIDER aircraft, plus kindless UL when
+        every UL rating the user holds (all licences) has one and the same kind; towed
+        excluded; dual counted.
+    stages:
+      - { when: any read error, status: unknown, messageKey: rating.evaluation_failed }
+      - { when: experience met or check, status: current, messageKey: rating.recency_current }
+      - { when: otherwise, status: lapsed, messageKey: rating.recency_not_met }
+    output_fields: [unclassifiedFlights (kindless UL flights in window not counted), creditedUltralightKinds, "countedClasses [SEP_LAND, TMG]", validUntil]
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.training_flight, remedy.proficiency_check]
+    edge_cases:
+      - Training flight must be on a UL (SEP dual does not meet it, TestGermanUL_ThreeAxis_DualOnSEPDoesNotCount).
+      - Proficiency check on SEP counts (TestGermanUL_ProficiencyCheckOnSEPCountsForThreeAxis).
+      - Rating expiry ignored.
+    suspected_divergence:
+      - status: suspected
+        what: Dual flights on SEP/TMG still add their total_time to the 12 h while their dual/training flag is dropped; check §45(2) wording.
+      - status: suspected
+        what: Landings stand for take-offs and landings.
+    tests: [german_ul_test.go TestGermanUL_ThreeAxis_*, TestGermanUL_ProficiencyCheck*, TestGermanUL_ZeroActivity, TestGermanUL_EvaluationFailed, ul_recency_test.go TestTrainingFlight_IsOneFlightOfAnHour, TestKindlessULFlights, projection_test.go TestValidUntil_GermanULThreeAxis]
+    maps_to:
+
+  - id: de.luftpersv.45-2a.helicopter
+    where: { definition: "internal/service/currency/german_ul.go:173-187 (germanULHelicopterRule)" }
+    article: [LuftPersV §45(2a), §45(3)]
+    ruleDescriptionKey: ul_luftpersv_helicopter
+    subject: { kind: rating, classes: [ULTRALIGHT], ulKind: HELICOPTER }
+    window: { kind: rolling_months, value: 12, code: "years: 1" }
+    requirements:
+      any_of:
+        - all_of:
+            - { id: total_time, nameKey: requirement.total_time, metric: minutes.total, min: 360, unit: minutes }
+            - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 6, unit: landings }
+            - { id: training_flight, nameKey: requirement.training_flight, metric: longest_training_flight_minutes, min: 60, unit: minutes }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: check on native UL kind, min: 1, unit: check }
+      filters: native UL HELICOPTER (+ kindless when unique kind), no Part-FCL classes
+    stages: [ "read error -> unknown rating.evaluation_failed", "met -> current rating.recency_current", "else -> lapsed rating.recency_not_met" ]
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.training_flight, remedy.proficiency_check]
+    edge_cases: [unclassifiedFlights reported]
+    suspected_divergence: []
+    tests: [german_ul_test.go TestGermanUL_KindRules]
+    maps_to:
+
+  - id: de.luftpersv.45-4.gyroplane
+    where: { definition: "internal/service/currency/german_ul.go:189-206 (germanULGyroplaneRule), 145-148" }
+    article: [LuftPersV §45(4) (DULV rule)]
+    ruleDescriptionKey: ul_gyroplane
+    subject: { kind: rating, classes: [ULTRALIGHT], ulKind: GYROPLANE, authorities: "all German UL authorities (not only DULV)" }
+    window: { kind: rolling_months, value: 24 }
+    requirements:
+      any_of:
+        - all_of:
+            - { id: total_time, nameKey: requirement.total_time, metric: minutes.total, min: 720, unit: minutes }
+            - { id: pic_time, nameKey: requirement.pic_time, metric: minutes.pic, min: 360, unit: minutes }
+            - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 12, unit: landings }
+            - { id: training_flight, nameKey: requirement.training_flight, metric: 'longest_training_flight_minutes (UL gyro only)', min: 60, unit: minutes }
+        - { id: proficiency_check, nameKey: requirement.proficiency_check, metric: check on GYROPLANE class or UL gyro, min: 1, unit: check }
+      filters: GYROPLANE class (no dual, towed excluded) + native UL GYROPLANE
+    stages: [ "read error -> unknown rating.evaluation_failed", "met -> current rating.recency_current", "else -> lapsed rating.recency_not_met" ]
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, requirement.prof_check_completed, requirement.prof_check_missing, remedy.fly_more, remedy.training_flight, remedy.proficiency_check]
+    edge_cases: [Applies for DAeC/LBA too although documented as DULV rule]
+    suspected_divergence:
+      - status: suspected
+        what: Association rule (DULV) applied regardless of issuing association.
+    tests: [german_ul_test.go TestGermanUL_Gyroplane_OnlyGyroTimeCounts, TestGermanUL_KindRules, gpl_test.go TestGermanULGyroplane_CountsGyroplaneClassTime]
+    maps_to:
+
+  - id: de.luftpersv.45-4.weight-shift-dulv
+    where: { definition: "internal/service/currency/german_ul.go:208-220 (germanULTrikeDULVRule), 110-114" }
+    article: [LuftPersV §45(4) (DULV rule)]
+    ruleDescriptionKey: ul_trike_dulv
+    subject: { kind: rating, classes: [ULTRALIGHT], ulKind: WEIGHT_SHIFT, authorities: "any German UL authority not equalFold DAeC (LBA, DULV)" }
+    window: { kind: rolling_months, value: 24 }
+    requirements:
+      all_of:
+        - { id: pic_time, nameKey: requirement.pic_time, metric: minutes.pic, min: 720, unit: minutes }
+      filters: native UL WEIGHT_SHIFT (+ kindless)
+    stages: [ "read error -> unknown rating.evaluation_failed", "met -> current rating.recency_current", "else -> lapsed rating.recency_not_met" ]
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, remedy.fly_more]
+    edge_cases: [No proficiency-check alternative]
+    suspected_divergence: []
+    tests: [german_ul_test.go TestGermanUL_KindRules]
+    maps_to:
+
+  - id: de.luftpersv.45-4.weight-shift-daec
+    where: { definition: "internal/service/currency/german_ul.go:222-235 (germanULTrikeDAeCRule)" }
+    article: [LuftPersV §45(4) (DAeC rule)]
+    ruleDescriptionKey: ul_trike_daec
+    subject: { kind: rating, classes: [ULTRALIGHT], ulKind: WEIGHT_SHIFT, authorities: "trimmed authority equalFold DAeC" }
+    window: { kind: rolling_months, value: 24 }
+    requirements:
+      all_of:
+        - { id: total_time, nameKey: requirement.total_time, metric: minutes.total, min: 720, unit: minutes }
+        - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 12, unit: landings }
+    stages: [ "read error -> unknown rating.evaluation_failed", "met -> current rating.recency_current", "else -> lapsed rating.recency_not_met" ]
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, remedy.fly_more]
+    edge_cases: [Safety/performance training required by DAeC is not tracked (description only)]
+    suspected_divergence:
+      - status: suspected
+        what: Untracked safety training means "current" can be reported without it.
+    tests: [german_ul_test.go TestGermanUL_KindRules]
+    maps_to:
+
+  - id: de.luftpersv.45-4.powered-paraglider
+    where: { definition: "internal/service/currency/german_ul.go:237-249" }
+    article: [LuftPersV §45(4)]
+    ruleDescriptionKey: ul_powered_paraglider
+    subject: { kind: rating, classes: [ULTRALIGHT], ulKind: POWERED_PARAGLIDER }
+    window: { kind: rolling_months, value: 24 }
+    requirements:
+      all_of:
+        - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 30, unit: landings }
+    stages: [ "read error -> unknown rating.evaluation_failed", "met -> current rating.recency_current", "else -> lapsed rating.recency_not_met" ]
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, remedy.fly_more]
+    edge_cases: [Powered paragliders may use a name instead of a registration; joins still by registration string]
+    suspected_divergence:
+      - status: suspected
+        what: Landings stand for take-offs and landings.
+    tests: [german_ul_test.go TestGermanUL_KindRules]
+    maps_to:
+
+  - id: de.luftpersv.45-4.sailplane
+    where: { definition: "internal/service/currency/german_ul.go:251-263; countsTowed via germanULNativeCredit german_ul.go:134" }
+    article: [LuftPersV §45(4) (DAeC rule)]
+    ruleDescriptionKey: ul_sailplane
+    subject: { kind: rating, classes: [ULTRALIGHT], ulKind: SAILPLANE }
+    window: { kind: rolling_months, value: 12 }
+    requirements:
+      all_of:
+        - { id: landings, nameKey: requirement.landings, metric: landings.total, min: 5, unit: landings, filters: towed launches included }
+    stages: [ "read error -> unknown rating.evaluation_failed", "met -> current rating.recency_current", "else -> lapsed rating.recency_not_met" ]
+    messages: [rating.evaluation_failed, rating.recency_current, rating.recency_not_met, requirement.progress, remedy.fly_more]
+    edge_cases: [UL SAILPLANE PIC time also credited toward SFCL.160(a)/(b) hours]
+    suspected_divergence: []
+    tests: [german_ul_test.go TestGermanUL_SailplaneCountsTowedLaunches, TestGermanUL_KindRules]
+    maps_to:
+
+  # ======================= Privilege rules =======================
+
+  - id: other.ninerlog.privilege-expiry
+    where:
+      definition: internal/service/currency/privileges.go:114-168 (EvaluatePrivilege), 93-112 (privilegeRuleFor)
+      expiry: internal/models/licence_privilege.go:128-131 (IsExpiredOn, date-only)
+    article: []
+    ruleDescriptionKey: privilege_expiry
+    subject:
+      kind: privilege
+      privilege_kinds: [AEROBATIC_BASIC, AEROBATIC_ADVANCED, TMG_NIGHT, BI_S, FE_S, UL_PASSENGER_AUTH, UL_TYPE_BRIEFING, LAUNCH_METHOD_TRAINED (key sfcl_155_launch_method)]
+    window: none
+    requirements: none
+    stages:
+      - { when: "expiresOn set and DateOnly(expiresOn) < DateOnly(now)", status: expired, messageKey: privilege.expired, params: [date] }
+      - { when: always, status: current, messageKey: privilege.valid, params: [date if expiresOn] }
+    messages: [privilege.expired, privilege.valid]
+    edge_cases:
+      - Valid THROUGH the expiry date (date-only compare), unlike class ratings.
+      - Privileges never change a class rating's status.
+    suspected_divergence: []
+    tests: [privileges_test.go TestEvaluatePrivilege_Recency, TestEveryPrivilegeResultCarriesAKey]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-205-c.sailplane-towing
+    where:
+      definition: internal/service/currency/privileges.go:242-257 (towRule, sfclTowingRule); 170-230 (rollingWindow, countRow)
+      data: internal/repository/postgres/currency_privilege_data.go:14-86
+    article: [EASA SFCL.205(c)]
+    ruleDescriptionKey: sfcl_205_towing
+    subject: { kind: privilege, privilege_kinds: [SAILPLANE_TOWING], authorities: "every licence whose authority is not equalFold FAA" }
+    window: { kind: rolling_months, value: 24, code: "now.AddDate(0,-24,0) (privileges.go:183); validUntil = reachedDate.AddDate(0,24,-1)" }
+    requirements:
+      - { id: tows, nameKey: requirement.tows, metric: 'tows (launches of is_tow_flight flights, any non-UL class)', min: 5, unit: tows, remedy: "remedy.privilege_with_instructor {missing, unit}" }
+    stages:
+      - { when: privilege expired, status: expired, messageKey: privilege.expired }
+      - { when: no PrivilegeDataProvider, status: unknown, messageKey: privilege.evaluation_failed }
+      - { when: read error, status: unknown, messageKey: privilege.evaluation_failed, requirements: cleared }
+      - { when: met, status: current, messageKey: privilege.recency_current, params: [date (optional)] }
+      - { when: otherwise, status: lapsed, messageKey: privilege.recency_not_met, params: [date (optional)] }
+    messages: [privilege.expired, privilege.evaluation_failed, privilege.recency_current, privilege.recency_not_met, requirement.progress, remedy.privilege_with_instructor]
+    edge_cases:
+      - Banner and sailplane tows share is_tow_flight.
+      - Tow flights still count as ordinary flights in class-rating aggregates; only this privilege query filters is_tow_flight (UL excluded).
+    suspected_divergence:
+      - status: suspected
+        what: SFCL.205 applied to any non-FAA licence; for PPL(A)/LAPL(A) holders towing in aeroplanes the recency is believed to be FCL.805.
+    tests: [privileges_test.go TestEvaluatePrivilege_Recency]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-205-c.banner-towing
+    where: { definition: "internal/service/currency/privileges.go:259-260" }
+    article: [EASA SFCL.205(c)]
+    ruleDescriptionKey: sfcl_205_banner_towing
+    subject: { kind: privilege, privilege_kinds: [BANNER_TOWING], authorities: all }
+    window: { kind: rolling_months, value: 24 }
+    requirements:
+      - { id: tows, nameKey: requirement.tows, metric: 'tows (same is_tow_flight flag)', min: 5, unit: tows, remedy: remedy.privilege_with_instructor }
+    stages: same as sailplane towing
+    messages: [privilege.expired, privilege.evaluation_failed, privilege.recency_current, privilege.recency_not_met, requirement.progress, remedy.privilege_with_instructor]
+    edge_cases: [Also applied on FAA licences (no FAA branch)]
+    suspected_divergence:
+      - status: suspected
+        what: Sailplane tows count toward banner towing and vice versa; FCL.805 for aeroplane licences.
+    tests: [privileges_test.go TestEvaluatePrivilege_Recency]
+    maps_to:
+
+  - id: faa.14cfr61.61-69.towing
+    where: { definition: "internal/service/currency/privileges.go:262-283 (faaTowingRule)" }
+    article: [14 CFR 61.69(a)(5) (as cited)]
+    ruleDescriptionKey: faa_61_69_towing
+    subject: { kind: privilege, privilege_kinds: [SAILPLANE_TOWING], authorities: "equalFold FAA" }
+    window:
+      kind: calendar_months
+      value: 24
+      code: "since = first day of month of now.AddDate(0,-24,0) (privileges.go:179-181); validUntil = last day of the 24th month after the reached date (privileges.go:189-191)"
+    requirements:
+      any_of:
+        - { id: tows, nameKey: requirement.tows, metric: 'tows (is_tow_flight, non-UL)', min: 3, unit: tows, remedy: remedy.fly_more }
+        - { id: towed_glider_flights, nameKey: requirement.towed_glider_flights, metric: 'launches of GLIDER flights with pic_time > 0 and launch_method aerotow', min: 3, unit: flights, remedy: remedy.fly_more }
+    stages: same as sailplane towing
+    messages: [privilege.expired, privilege.evaluation_failed, privilege.recency_current, privilege.recency_not_met, requirement.progress, remedy.fly_more]
+    edge_cases:
+      - Window includes the current month plus 24 preceding months (starts on the 1st of the month 24 months ago).
+      - Other 61.69 prerequisites (100 h PIC, endorsement) not evaluated; unpowered UL tows not distinguished.
+    suspected_divergence:
+      - status: suspected
+        what: Calendar-month window may be one month longer than "preceding 24 calendar months"; also 61.69(a)(5) alternative with a qualified pilot not modelled.
+    tests: [privileges_test.go TestEvaluatePrivilege_Recency]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-215.cloud-flying
+    where: { definition: "internal/service/currency/privileges.go:285-302 (sfclCloudFlyingRule)" }
+    article: [EASA SFCL.215]
+    ruleDescriptionKey: sfcl_215_cloud_flying
+    subject: { kind: privilege, privilege_kinds: [CLOUD_FLYING] }
+    window: { kind: rolling_months, value: 24 }
+    requirements:
+      any_of:
+        - { id: cloud_flying_time, nameKey: requirement.cloud_flying_time, metric: 'minutes.ifr on GLIDER flights with pic_time > 0 and ifr_time > 0', min: 60, unit: minutes, remedy: remedy.privilege_with_instructor }
+        - { id: cloud_flying_flights, nameKey: requirement.cloud_flying_flights, metric: count of those flights, min: 5, unit: flights, remedy: remedy.privilege_with_instructor }
+    stages: same as sailplane towing
+    messages: [privilege.expired, privilege.evaluation_failed, privilege.recency_current, privilege.recency_not_met, requirement.progress, remedy.privilege_with_instructor]
+    edge_cases: [TMG and UL sailplane flights excluded; IFR time on a sailplane is read as cloud flying]
+    suspected_divergence:
+      - status: suspected
+        what: No proficiency-check alternative / restoration path modelled.
+    tests: [privileges_test.go TestEvaluatePrivilege_Recency]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-360.fi-s
+    where: { definition: "internal/service/currency/privileges.go:304-322 (sfclFISRule)" }
+    article: [EASA SFCL.360]
+    ruleDescriptionKey: sfcl_360_fi_s
+    subject: { kind: privilege, privilege_kinds: [FI_S] }
+    window: { kind: rolling_months, value: 36 }
+    requirements:
+      any_of:
+        - { id: instruction_time, nameKey: requirement.instruction_time, metric: 'minutes.dualGiven on GLIDER+TMG flights with dual_given_time > 0', min: 1800, unit: minutes, remedy: remedy.fly_more }
+        - { id: instruction_launches, nameKey: requirement.instruction_launches, metric: launches of those flights, min: 60, unit: launches, remedy: remedy.fly_more }
+      informational:
+        - { id: fi_refresher, nameKey: requirement.fi_refresher, untracked: true, unit: training, messageKey: requirement.untracked }
+    stages: same as sailplane towing
+    messages: [privilege.expired, privilege.evaluation_failed, privilege.recency_current, privilege.recency_not_met, requirement.progress, requirement.untracked, remedy.fly_more]
+    edge_cases: [Refresher and 9-year assessment of competence not tracked; untracked row never affects status]
+    suspected_divergence:
+      - status: suspected
+        what: Status may be current without the refresher training the article may require in addition to (or instead of) the instruction hours.
+    tests: [privileges_test.go TestEvaluatePrivilege_Recency]
+    maps_to:
+
+  - id: de.dulv.ul-towing
+    where: { definition: "internal/service/currency/privileges.go:324-341 (dulvULTowingRule)" }
+    article: [DULV towing authorisation (Schleppberechtigung); no statute cited]
+    ruleDescriptionKey: dulv_ul_towing
+    subject: { kind: privilege, privilege_kinds: [UL_TOWING], detail: UL rating kind }
+    window: { kind: rolling_months, value: 24 }
+    requirements:
+      - { id: tows, nameKey: requirement.tows, metric: 'tows on UL of AircraftKindsForRating(detail) with is_tow_flight', min: 10, unit: tows, remedy: remedy.fly_more }
+    stages: same as sailplane towing
+    messages: [privilege.expired, privilege.evaluation_failed, privilege.recency_current, privilege.recency_not_met, requirement.progress, remedy.fly_more]
+    edge_cases: [Detail nil -> no query, 0 tows -> lapsed]
+    suspected_divergence: []
+    tests: [privileges_test.go TestEvaluatePrivilege_Recency]
+    maps_to:
+
+  # ======================= Readiness =======================
+
+  - id: other.ninerlog.readiness.rating
+    where: { definition: "internal/service/readiness/readiness.go:218-254 (ratingItem), 105-170 (Evaluate), 193-204 (ratingCovers)" }
+    article: []
+    subject: { kind: 'readiness item "rating", for each rating from EvaluateAsOf(date)' }
+    window: "date from today to today+366 days (utcDate), else ErrInvalidDate; EvaluateAsOf runs at noon UTC on the date"
+    requirements: none (reads the rating evaluation)
+    messages: [any rating messageKey, remedy.fly_more, remedy.training_flight, remedy.proficiency_check]
+    stages:
+      - { when: status current or expiring, ready: true, reasonKey: rating messageKey, params: rating messageParams }
+      - { when: status lapsed, ready: false, reasonKey: "remedyKey of the first unmet row whose remedy is not remedy.proficiency_check, else remedy.proficiency_check", params: remedyParams }
+      - { when: expired or unknown, ready: false, reasonKey: rating messageKey }
+    edge_cases:
+      - With aircraftReg only ratings whose own class equals the aircraft class are listed (a UL rating with a kind must cover the aircraft kind; kindless UL rating covers all UL). IR never matches an aircraft.
+      - Unknown registration -> ErrAircraftNotFound (404).
+    suspected_divergence:
+      - status: suspected
+        what: Status expiring is ready - fine for EASA revalidation, wrong for the FAA IR grace period (rating.ir_lapsed_safety_pilot) and FAA night-only shortfall is irrelevant to solo flight but FAA day-expired blocks readiness although only passengers are restricted.
+      - status: suspected
+        what: FAA flight review and licence privileges are not readiness items.
+    tests: [readiness_test.go TestEvaluate_Items, TestEvaluate_AircraftFilter, TestEvaluate_Date, TestEvaluate_Errors]
+    maps_to:
+
+  - id: other.ninerlog.readiness.launch-method
+    where: { definition: "internal/service/readiness/readiness.go:256-277 (launchMethodItem), 136-151" }
+    article: [EASA SFCL.155(c), SFCL.155(d)]
+    subject: { kind: 'readiness item "launch_method", once per method across ratings (first rating wins)' }
+    window: as easa.part-sfcl.sfcl-155-c.launch-method, evaluated as of the date
+    requirements: none (reads launchMethodCurrency)
+    stages:
+      - { when: met, ready: true, status: current, reasonKey: readiness.launch_method_current, params: "date = validUntil when set" }
+      - { when: otherwise, ready: false, status: lapsed, reasonKey: remedy.launch_method_dual, params: [method, missing] }
+    messages: [readiness.launch_method_current, remedy.launch_method_dual]
+    edge_cases:
+      - Launch methods of every listed rating appear even when aircraftReg selects a GLIDER only; filtered through ratingCovers of the parent rating.
+      - Trained-but-never-logged methods added by the SFCL.155(a) overlay have no validUntil, so no date param.
+    suspected_divergence: []
+    tests: [readiness_test.go TestEvaluate_Items]
+    maps_to:
+
+  - id: other.ninerlog.readiness.passengers
+    where: { definition: "internal/service/readiness/readiness.go:279-290, 153-160, 206-216" }
+    subject: { kind: 'readiness item "passengers", only when passengers=true' }
+    article: []
+    window: as the passenger rule, evaluated as of the date
+    requirements: none (reads PassengerCurrency.dayStatus)
+    messages: [any passenger messageKey]
+    stages:
+      - { when: dayStatus current, ready: true, reasonKey: passenger messageKey }
+      - { when: otherwise, ready: false, status: dayStatus, reasonKey: passenger messageKey }
+    edge_cases:
+      - Night status ignored entirely (no night readiness item).
+      - pax.ul_authorisation_missing gives dayStatus unknown -> not ready.
+    suspected_divergence:
+      - status: suspected
+        what: No way to ask about night passenger carriage.
+    tests: [readiness_test.go TestEvaluate_Passengers]
+    maps_to:
+
+  - id: other.ninerlog.readiness.medical
+    where: { definition: "internal/service/readiness/readiness.go:292-336 (credentialItem, latestMedicals); internal/models/credential.go:50-66" }
+    article: []
+    subject:
+      kind: credential
+      credential_types: [EASA_CLASS1_MEDICAL, EASA_CLASS2_MEDICAL, EASA_LAPL_MEDICAL, FAA_CLASS1_MEDICAL, FAA_CLASS2_MEDICAL, FAA_CLASS3_MEDICAL]
+    window: "one item per medical type: the certificate expiring last (no expiry counts as last)"
+    requirements: none (expiry date only)
+    messages: [readiness.credential_valid, readiness.credential_expired]
+    stages:
+      - { when: "expiryDate null or not before date+12h", ready: true, status: valid, reasonKey: readiness.credential_valid, params: "date = expiry if set" }
+      - { when: otherwise, ready: false, status: expired, reasonKey: readiness.credential_expired, params: [date] }
+    edge_cases:
+      - Expired on the expiry date itself (expiry 00:00 before noon).
+      - Informational only; no medical is tied to a licence or class; language, radio and security credentials ignored.
+    suspected_divergence:
+      - status: suspected
+        what: Medical validity (age-dependent periods, class downgrade e.g. FAA class 1 privileges decaying to class 3, BasicMed Part 68, LAPL medical, German 120 kg UL exemption) is not computed - only the user-entered expiry date is used.
+      - status: suspected
+        what: Credential treated as expired on its expiry date.
+    tests: [readiness_test.go TestEvaluate_Medicals]
+    maps_to:
+
+  # ======================= Night privilege and save-time checks =======================
+
+  - id: other.ninerlog.night-privilege
+    where: { definition: "internal/service/currency/faa.go:262-282 (HasNightPrivilege)" }
+    article: [14 CFR 61.315/61.101 (sport/recreational), FCL.810, LuftPersV §44(2)]
+    subject: { kind: 'licence (gate for night passenger evaluation)' }
+    window: none
+    requirements: none
+    messages: [pax.current_day_no_night_privilege (downstream)]
+    stages: see logic
+    logic:
+      - { when: "authority FAA and kind in {FAA_SPORT, FAA_RECREATIONAL, FAA_GLIDER}", night: false }
+      - { when: "authority EASA and kind SPL or LAPL_S", night: false }
+      - { when: "authority EASA and kind LAPL_A", night: false }
+      - { when: "authority DULV or DAEC, or authority LBA and kind UL", night: false }
+      - { when: 'kind GPL (any authority)', night: false }
+      - { when: otherwise, night: true }
+      - { note: "EASA and FAA passenger rules additionally force night off for class GLIDER" }
+    edge_cases:
+      - Authority compared upper-case here; an "LBA" SPL gets night privilege (EASA branch only for authority EASA).
+    suspected_divergence:
+      - status: suspected
+        what: LAPL(A) / SPL holders with a night rating (FCL.810 / SFCL.210 via TMG_NIGHT only for SPL TMG) are always excluded.
+    tests: [two_tier_test.go TestHasNightPrivilege, german_ul_test.go TestHasNightPrivilege_ULAuthorities, gpl_test.go TestHasNightPrivilege_GermanAndGPL]
+    maps_to:
+
+  - id: de.luftpersv.44-2.ul-night-flight-warning
+    where: { definition: "internal/service/save_warnings.go:87-103 (checkULNightFlight)" }
+    article: [LuftPersV §44(2)]
+    subject: { kind: 'flight save warning (not a currency result)' }
+    window: per flight
+    requirements: none
+    stages: see logic
+    messages: [ul_night_flight (warning code, not a message key)]
+    logic: >-
+      Warning ul_night_flight (severity warning) when a non-simulator flight on a fleet
+      aircraft of class ULTRALIGHT logs night_time > 0 or landings_night > 0; params
+      nightTime, landingsNight, registration, ulKind.
+    edge_cases: [Aircraft not in fleet or non-UL never warn]
+    suspected_divergence: []
+    tests: [internal/service/save_warnings_test.go]
+    maps_to:
+
+  # ======================= Training progress programmes =======================
+
+  - id: easa.part-sfcl.sfcl-130.spl-training
+    where: { definition: "internal/service/training/templates.go:17-53, 80-84, 184-210; service.go:37-107; repository/postgres/training.go:22-34, 65-78" }
+    article: [EASA SFCL.130(a), SFCL.130(b)]
+    subject: { kind: 'training programme SPL, discipline SAILPLANE' }
+    window: lifetime (all crewed GLIDER flights; FSTD and passenger flights excluded; fleet aircraft only)
+    requirements:
+      all_of:
+        - { key: training.spl.instruction_time, metric: minutes.dual + minutes.spic, min: 900, unit: minutes }
+        - { key: training.spl.dual_time, metric: minutes.dual, min: 600, unit: minutes }
+        - { key: training.spl.supervised_solo_time, metric: minutes.spic, min: 120, unit: minutes }
+        - { key: training.spl.launches, metric: launches of flights with dual or SPIC time, min: 45, unit: launches }
+        - { key: training.spl.cross_country, metric: "one flight with cross_country_time > 0 that is solo (no dual, PIC+SPIC > 0) with distance >= 50 km, or dual with distance >= 100 km; distance 0 (unknown) also qualifies", min: 1, unit: flights }
+      informational:
+        - { key: training.spl.credit_sfcl130b, metric: "min(10% of PIC minutes on non GLIDER/TMG/UL aircraft, 420)", required: 420, unit: minutes, only_when: 'pilot holds an aeroplane, GPL or helicopter licence kind' }
+    stages:
+      - { item: met, messageKey: training.met }
+      - { item: not met, messageKey: training.not_met }
+      - { item: xc met only by unknown distance, messageKey: training.cross_country_distance_unknown }
+      - { item: 'credit > 0', messageKey: training.credit_available }
+      - { item: credit 0, messageKey: training.credit_none }
+      - { programme: allMet = every non-informational item met }
+    selection: "programme listed when the SAILPLANE discipline status is training, or requested explicitly"
+    messages: [training.met, training.not_met, training.cross_country_distance_unknown, training.credit_available, training.credit_none, training.programme.spl]
+    edge_cases: [signedFlights counts flights with a completed signature (informational); credit never reduces other items]
+    suspected_divergence:
+      - status: suspected
+        what: Straight-line distance understates tasks; out-and-return flights have no cross-country time.
+    tests: [training/templates_test.go TestEvaluate, TestEvaluate_CreditNeverAffectsAllMet, training/service_test.go TestService_Progress, TestIsOtherCategoryLicence]
+    maps_to:
+
+  - id: easa.part-sfcl.sfcl-150-b.tmg-extension-training
+    where: { definition: "internal/service/training/templates.go:28-30, 85-88, 211-218" }
+    article: [EASA SFCL.150(b)]
+    subject: { kind: 'training programme SPL_TMG_EXTENSION, discipline TMG' }
+    window: lifetime (TMG flights)
+    requirements:
+      all_of:
+        - { key: training.tmg.instruction_time, metric: minutes.dual + minutes.spic, min: 360, unit: minutes }
+        - { key: training.tmg.dual_time, metric: minutes.dual, min: 240, unit: minutes }
+        - { key: training.tmg.solo_cross_country, metric: "one solo flight with cross_country_time > 0 and distance >= 150 km or unknown", min: 1, unit: flights }
+    stages: as easa.part-sfcl.sfcl-130.spl-training (training.met / training.not_met / training.cross_country_distance_unknown; allMet over all items)
+    messages: [training.met, training.not_met, training.cross_country_distance_unknown, training.programme.spl_tmg_extension]
+    edge_cases: [Full-stop landing elsewhere approximated by cross-country time]
+    suspected_divergence: []
+    tests: [training/templates_test.go TestEvaluate]
+    maps_to:
+
+  - id: de.luftpersv.42.three-axis-training
+    where: { definition: "internal/service/training/templates.go:32-33, 89-92, 219-225" }
+    article: [LuftPersV §42]
+    subject: { kind: 'training programme UL_THREE_AXIS, discipline ULTRALIGHT' }
+    window: lifetime (UL THREE_AXIS + THREE_AXIS_MOTORGLIDER flights; kindless never)
+    requirements:
+      all_of:
+        - { key: training.ul.total_time, metric: minutes.dual + minutes.pic + minutes.spic, min: 1800, unit: minutes }
+        - { key: training.ul.solo_time, metric: minutes.pic + minutes.spic, min: 300, unit: minutes }
+    stages: training.met when current >= required, else training.not_met; allMet over all items
+    messages: [training.met, training.not_met, training.programme.ul_three_axis]
+    edge_cases: []
+    suspected_divergence:
+      - status: suspected
+        what: Post-licence PIC time counts as training time.
+    tests: [training/templates_test.go TestEvaluate]
+    maps_to:
+
+  - id: de.luftpersv.42.weight-shift-training
+    where: { definition: "internal/service/training/templates.go:34-36, 93-96, 226-233" }
+    article: [LuftPersV §42]
+    subject: { kind: 'training programme UL_WEIGHT_SHIFT, discipline ULTRALIGHT' }
+    window: lifetime (UL WEIGHT_SHIFT flights)
+    requirements:
+      all_of:
+        - { key: training.ul.total_time, metric: minutes.dual + minutes.pic + minutes.spic, min: 1500, unit: minutes }
+        - { key: training.ul.dual_time, metric: minutes.dual, min: 600, unit: minutes }
+        - { key: training.ul.solo_time, metric: minutes.pic + minutes.spic, min: 300, unit: minutes }
+    stages: training.met when current >= required, else training.not_met; allMet over all items
+    messages: [training.met, training.not_met, training.programme.ul_weight_shift]
+    edge_cases: []
+    suspected_divergence: []
+    tests: [training/templates_test.go TestEvaluate]
+    maps_to:
+
+# ---------------------------------------------------------------------------------------
+adjacent_logic:
+  # Not rules to port, but consumers / neighbours whose behaviour depends on rule output.
+  - what: Notifications consume currency results
+    where: internal/service/notification.go:266-293, 318-393, 395-478, 480-545
+    note: >-
+      Rating expiry warnings at the user's warning days, revalidation/recency notice when
+      status is expiring/expired/lapsed, passenger notice when dayStatus != current (except
+      pax.ul_authorisation_missing), night notice when nightPrivilege and night not current,
+      flight review warnings, privilege expiry warnings; credential expiry warnings at warning
+      days (notification.go:218-250). Keys rendered by pkg/email/currency_messages.go.
+  - what: Pilot profile discipline recency (not regulatory)
+    where: internal/service/pilotprofile/derive.go:15-16, 190
+    note: 24-month evidence window, cutoff = midnight today minus 24 months; drives active/dormant/training statuses and which training programmes appear.
+  - what: Credit scope for licence logbooks
+    where: internal/service/currency/credit_scope.go:21-122
+    note: Reuses each rule's classes / ulCredit / extraCredit to decide which flights are "credited" in a licence logbook; must stay consistent with catalogue crediting.
+  - what: Save-time aircraft warnings
+    where: internal/service/save_warnings.go:105-125
+    note: ul_mtom_exceeds_600 (MTOM > 600 kg, warning) and ul_120kg_class (MTOM <= 120 kg, info).
+
+out_of_scope:
+  - id: custom-currency-rules
+    where: internal/service/currency/custom.go, custom_service.go, internal/repository/postgres/custom_currency_data.go
+    reason: Pilot-authored rules (user data), no regulatory basis; keep in the API.
+
+# ---------------------------------------------------------------------------------------
+message_keys:
+  rating:
+    - { key: rating.no_expiry_date, params: [], emitted_by: [easa sep-tmg, mep-set, ir, class-rating-expiry] }
+    - { key: rating.no_expiry_date_manual, params: [], emitted_by: [other expiry-only] }
+    - { key: rating.evaluation_failed, params: [], emitted_by: [all flight-reading rating rules] }
+    - { key: rating.expired, params: [], emitted_by: [sep-tmg, mep-set, ir, expiry-only rules, faa ir (with expiry date)] }
+    - { key: rating.expiring, params: [days], emitted_by: [expiry-only rules] }
+    - { key: rating.valid_until, params: [], emitted_by: [expiry-only rules] }
+    - { key: rating.window_not_open, params: [date], emitted_by: [sep-tmg, mep-set, ir] }
+    - { key: rating.revalidation_not_met, params: [], emitted_by: [sep-tmg] }
+    - { key: rating.revalidation_not_met_prof_check, params: [], emitted_by: [mep-set] }
+    - { key: rating.revalidation_expiring_met, params: [days], emitted_by: [sep-tmg, mep-set, ir] }
+    - { key: rating.revalidation_current, params: [], emitted_by: [sep-tmg, mep-set, ir] }
+    - { key: rating.recency_not_met, params: [], emitted_by: [lapl, spl, spl-tmg, gpl, german ul kinds] }
+    - { key: rating.recency_current, params: [], emitted_by: [lapl, spl, spl-tmg, gpl, german ul kinds] }
+    - { key: rating.sfcl_tmg_exempt, params: [], emitted_by: [sfcl-160-c] }
+    - { key: rating.ul_kind_required, params: [], emitted_by: [de kind-required, de 45a passengers (rating without kind)] }
+    - { key: rating.ir_hours_and_check_not_met, params: [], emitted_by: [easa ir] }
+    - { key: rating.ir_hours_not_met, params: [], emitted_by: [easa ir] }
+    - { key: rating.ir_check_not_met, params: [], emitted_by: [easa ir] }
+    - { key: rating.ir_current, params: [], emitted_by: [faa ir] }
+    - { key: rating.ir_lapsed_safety_pilot, params: [], emitted_by: [faa ir] }
+    - { key: rating.ir_expired_ipc, params: [], emitted_by: [faa ir] }
+    - { key: rating.ir_not_applicable, params: [], emitted_by: [faa 61.315] }
+    - { key: rating.pax_not_current, params: [needed], emitted_by: [faa 61-57-ab rating] }
+    - { key: rating.pax_day_current_night_not, params: [needed], emitted_by: [faa 61-57-ab rating] }
+    - { key: rating.pax_current_day_night, params: [], emitted_by: [faa 61-57-ab rating] }
+    - { key: rating.flight_review_glider_alternative, params: [], emitted_by: [faa glider rating] }
+    - { key: "flight_review.* (current/expiring/expired/none_on_record)", params: "as flight_review", emitted_by: [faa glider rating] }
+  passenger:
+    - { key: pax.evaluation_failed, params: [] }
+    - { key: pax.not_current, params: [needed] }
+    - { key: pax.current_day_no_night_privilege, params: [] }
+    - { key: pax.current_day_night_ir_waived, params: [] }
+    - { key: pax.current_day_night, params: [] }
+    - { key: pax.day_current_night_not, params: [needed] }
+    - { key: pax.current_day_privilege_separate, params: [] }
+    - { key: pax.gpl_experience_not_met, params: [needed (minutes)] }
+    - { key: pax.ul_authorisation_missing, params: [] }
+  privilege:
+    - { key: privilege.valid, params: [date (optional)] }
+    - { key: privilege.expired, params: [date] }
+    - { key: privilege.recency_current, params: [date (optional)] }
+    - { key: privilege.recency_not_met, params: [date (optional)] }
+    - { key: privilege.evaluation_failed, params: [] }
+  flight_review:
+    - { key: flight_review.evaluation_failed, params: [] }
+    - { key: flight_review.none_on_record, params: [] }
+    - { key: flight_review.expired, params: [date] }
+    - { key: flight_review.expiring, params: [days, date] }
+    - { key: flight_review.current, params: [date] }
+  requirement_message:
+    - { key: requirement.progress, params: [] }
+    - { key: requirement.prof_check_completed, params: [date] }
+    - { key: requirement.prof_check_missing, params: [] }
+    - { key: requirement.untracked, params: [] }
+  requirement_name:
+    - requirement.total_time
+    - requirement.pic_time
+    - requirement.ifr_time
+    - requirement.landings
+    - requirement.day_landings
+    - requirement.night_landings
+    - requirement.refresher_training
+    - requirement.training_flight
+    - requirement.proficiency_check
+    - requirement.approaches
+    - requirement.holds
+    - requirement.route_sectors
+    - requirement.launches
+    - requirement.sep_land_time
+    - requirement.sep_land_landings
+    - requirement.sep_sea_time
+    - requirement.sep_sea_landings
+    - requirement.flight_time
+    - requirement.training_flights
+    - requirement.tmg_time
+    - requirement.tmg_landings
+    - requirement.tmg_training_flight
+    - requirement.flight_review
+    - requirement.tows
+    - requirement.towed_glider_flights
+    - requirement.cloud_flying_time
+    - requirement.cloud_flying_flights
+    - requirement.instruction_time
+    - requirement.instruction_launches
+    - requirement.fi_refresher
+    - requirement.pax_prerequisite_time
+    - requirement.pax_prerequisite_launches
+    - requirement.pax_competence_flight
+    - requirement.ul_xc_flights
+    - requirement.ul_xc_landing_flights
+    - requirement.ul_xc_distance
+  launch_method:
+    - { key: launch_method.progress, params: [] }
+  remedy:
+    - { key: remedy.fly_more, params: [missing, unit] }
+    - { key: remedy.training_flight, params: [] }
+    - { key: remedy.proficiency_check, params: [] }
+    - { key: remedy.launch_method_dual, params: [method, missing] }
+    - { key: remedy.privilege_with_instructor, params: [missing, unit] }
+  readiness:
+    - { key: readiness.launch_method_current, params: [date] }
+    - { key: readiness.credential_valid, params: [date (optional)] }
+    - { key: readiness.credential_expired, params: [date] }
+  rule_description:
+    rating: [easa_sep_tmg, easa_mep_set, easa_ir, easa_lapl, easa_spl, easa_spl_tmg, easa_gpl, faa_pax_day_night, faa_ir, faa_flight_review, ul_luftpersv, ul_luftpersv_helicopter, ul_gyroplane, ul_trike_dulv, ul_trike_daec, ul_powered_paraglider, ul_sailplane, '"" (expiry-only and kind-required rules carry no key)']
+    passenger: [easa_pax, easa_spl_pax, easa_spl_tmg_pax, faa_pax_day_night, faa_glider, ul_pax]
+    privilege: [privilege_expiry, sfcl_155_launch_method, sfcl_205_towing, sfcl_205_banner_towing, faa_61_69_towing, sfcl_215_cloud_flying, sfcl_360_fi_s, dulv_ul_towing]
+  training:
+    item_message: [training.met, training.not_met, training.cross_country_distance_unknown, training.credit_available, training.credit_none]
+    item_key: [training.spl.instruction_time, training.spl.dual_time, training.spl.supervised_solo_time, training.spl.launches, training.spl.cross_country, training.spl.credit_sfcl130b, training.tmg.instruction_time, training.tmg.dual_time, training.tmg.solo_cross_country, training.ul.total_time, training.ul.dual_time, training.ul.solo_time]
+    title: [training.programme.spl, training.programme.spl_tmg_extension, training.programme.ul_three_axis, training.programme.ul_weight_shift]
+  save_warning_codes: [ul_night_flight, ul_mtom_exceeds_600, ul_120kg_class]
+  units_emitted: [minutes, landings, flights, check, review, approaches, holds, launches, tows, km, training, flight]
+  stale_doc_note: docs/CURRENCY_MESSAGES.md status table still lists rating.glider_not_current, which is no longer emitted.
+
+# ---------------------------------------------------------------------------------------
+metrics:
+  # Every value the code computes from flights. SQL in internal/repository/postgres/.
+  # Common filter on all: NOT is_simulator AND NOT is_passenger.
+  - { id: flights, definition: "COUNT(*)", where: "currency_flight_data.go:40", used_by: [route sectors (MEP/SET)] }
+  - { id: minutes.total, definition: "SUM(total_time)", where: "currency_flight_data.go:41", used_by: [SEP/TMG, LAPL, GPL, German UL] }
+  - { id: minutes.pic, definition: "SUM(pic_time)", where: "currency_flight_data.go:42", used_by: [SEP/TMG, German UL, trike DULV, GPL passengers, SPL hours] }
+  - { id: minutes.ifr, definition: "SUM(ifr_time)", where: "currency_flight_data.go:43", used_by: [EASA IR] }
+  - { id: minutes.dual, definition: "SUM(dual_time) (dual received; field InstructorMinutes)", where: "currency_flight_data.go:44", used_by: [refresher training, SPL hours] }
+  - { id: minutes.night, definition: "SUM(night_time)", where: "currency_flight_data.go:45", used_by: [computed, unused by rules] }
+  - { id: landings.total, definition: "SUM(landings_day + landings_night)", where: "currency_flight_data.go:46", used_by: [most rules] }
+  - { id: landings.day, definition: "SUM(landings_day)", where: "currency_flight_data.go:47", used_by: [computed, unused (the day_landings requirement uses total)] }
+  - { id: landings.night, definition: "SUM(landings_night)", where: "currency_flight_data.go:48", used_by: [FAA Tier-1 night] }
+  - { id: approaches, definition: "SUM(approaches_count)", where: "currency_flight_data.go:49", used_by: [FAA IR] }
+  - { id: holds, definition: "SUM(holds)", where: "currency_flight_data.go:50", used_by: [FAA IR] }
+  - { id: launches, definition: "SUM(COALESCE(launches, GREATEST(takeoffs_day + takeoffs_night, 1)))", where: "currency_flight_data.go:29, 51", used_by: [SPL launches, privileges, training] }
+  - { id: minutes.spic, definition: "SUM(spic_time)", where: "currency_flight_data.go:52", used_by: [SPL/SPL-TMG hours, training] }
+  - { id: training_flights, definition: "COUNT(*) FILTER (WHERE dual_time > 0)", where: "currency_flight_data.go:53", used_by: [SPL 2 training flights, FAA 61.56(b)] }
+  - { id: longest_training_flight_minutes, definition: "MAX(total_time) FILTER (WHERE dual_time > 0)", where: "currency_flight_data.go:54", used_by: [LAPL, SPL-TMG, German UL training flight] }
+  - { id: minutes.picOrDualOrSpic, definition: "pic + dual + spic (derived)", where: "internal/service/currency/engine.go:63-64", used_by: [SFCL.160(a)(b) hours] }
+  - { id: ul_credited_pic_minutes, definition: "PIC minutes on UL of given kinds, towed included", where: "internal/service/currency/engine.go:198-207", used_by: [SFCL.160 hours credit] }
+  - { id: unclassified_ul_flights, definition: "flights on UL aircraft with no kind in the window when not counted", where: "internal/service/currency/engine.go:275-287", used_by: [German UL output field] }
+  - { id: last_proficiency_check, definition: "MAX date of is_proficiency_check flight since window start on classes (IR: any flight, no join; others: towed excluded unless GLIDER)", where: "currency_flight_data.go:198-232", used_by: [MEP/SET, IR, LAPL, SPL, SPL-TMG, GPL, German UL] }
+  - { id: last_proficiency_check_ul, definition: "same on UL selector", where: "currency_flight_data.go:120-137", used_by: [German UL native] }
+  - { id: last_flight_review, definition: "MAX date of is_flight_review flight, lifetime, any class", where: "currency_flight_data.go:180-196", used_by: [FAA 61.56] }
+  - { id: launches_by_method, definition: "per launch_method SUM(launchCountSQL) on one class, towed not filtered, launch_method non-empty", where: "currency_flight_data.go:272-297; daily: currency_flight_data_daily.go:100-105", used_by: [SFCL.155(c)] }
+  - { id: landing_days, definition: "per date SUM(landings_day), SUM(landings_night) on one class, optional pic_time > 0, towed filter, HAVING landings > 0, newest first", where: "currency_flight_data.go:234-256", used_by: [EASA/FAA passengers, SPL passengers, TMG night overlay] }
+  - { id: landing_days_ul_with_takeoffs, definition: "per date landings plus SUM(GREATEST(takeoffs_day + takeoffs_night, 1)) on UL selector", where: "currency_flight_data.go:139-168", used_by: [LuftPersV 45a] }
+  - { id: pax_takeoffs_and_landings_min, definition: "min(total landings, total takeoffs)", where: "internal/service/currency/german_ul.go:322-323", used_by: [LuftPersV 45a] }
+  - { id: gpl_pic_since_issue, definition: "PIC minutes on GYROPLANE since licence IssueDate", where: "internal/service/currency/easa.go:745", used_by: [FCL.205.G(a)(2)] }
+  - { id: activity_days, definition: "per date: COUNT(*), SUM(pic_time), SUM(ifr_time), SUM(dual_given_time), SUM(launchCountSQL), COUNT(landings >= 2), SUM(distance NM); filters classes/ulKinds, ExcludeUL, is_tow_flight, ifr_time>0, pic_time>0, dual_given_time>0, dual_time>0, cross_country_time>0, launch_method", where: "currency_privilege_data.go:14-86", used_by: [privileges, SFCL.115, 84a] }
+  - { id: tows, definition: "launches of is_tow_flight flights (non-UL, or UL of kind)", where: "internal/service/currency/privileges.go:243-253, 326-341", used_by: [SFCL.205, 61.69, DULV] }
+  - { id: towed_glider_flights, definition: "launches of GLIDER flights with pic_time > 0 and launch_method aerotow", where: "internal/service/currency/privileges.go:271-279", used_by: [61.69] }
+  - { id: cloud_flying_minutes_and_flights, definition: "IFR minutes / flights on GLIDER with pic_time>0 and ifr_time>0", where: "internal/service/currency/privileges.go:288-301", used_by: [SFCL.215] }
+  - { id: instruction_given, definition: "dual_given minutes / launches on GLIDER+TMG flights with dual_given_time > 0", where: "internal/service/currency/privileges.go:307-321", used_by: [SFCL.360] }
+  - { id: ul_xc_dual_flights, definition: "count, count with >= 2 landings, round(sum NM * 1.852) km of UL flights of kind with dual and cross-country time, lifetime", where: "internal/service/currency/privileges.go:363-380", used_by: [LuftPersV 84a] }
+  - { id: spl115_pic_minutes_and_launches, definition: "PIC minutes / launches on GLIDER+TMG PIC flights since licence issue", where: "internal/service/currency/privileges.go:346-358", used_by: [SFCL.115(a)(2)] }
+  - { id: training_totals, definition: "per programme: sum dual, pic, spic; launches of flights with dual or spic; signed flights; solo/dual cross-country found/verified by km threshold", where: "internal/service/training/templates.go:99-155; repository/postgres/training.go:22-34", used_by: [training programmes] }
+  - { id: other_category_pic_minutes, definition: "SUM(pic_time) on aircraft not GLIDER/TMG/ULTRALIGHT (unclassed and not-in-fleet included via LEFT JOIN)", where: "internal/repository/postgres/training.go:64-78", used_by: [SFCL.130(b) credit] }
+  - { id: not_computed_but_stored, definition: "is_ipc, actual_instrument_time, simulated_instrument_time, takeoffs (except UL pax and launch fallback), cross_country_time (only privileges/training), multi_pilot, sic, picus, examiner times are never read by currency rules", where: "internal/models/flight.go:117; repository/postgres/flight.go:194", used_by: [] }
