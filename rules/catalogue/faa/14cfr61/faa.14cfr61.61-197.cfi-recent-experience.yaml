@@ -78,7 +78,7 @@ ruleDescriptionKey: faa_cfi
 
 divergences:
   - id: recent-experience
-    api: Treats a flight instructor privilege without an expiry date as valid indefinitely.
+    api: Has no CFI privilege kind, so a flight instructor certificate cannot be recorded as a privilege and its recent experience is never evaluated.
     article: A flight instructor certificate issued on or after 1 December 2024 has no expiration date, but its privileges may be exercised only with recent experience (a flight instructor practical test or an approved refresher course) within the preceding 24 calendar months; afterwards they must be reinstated under 61.199.
     cite: 14 CFR 61.197(a), (c)
 

@@ -1,0 +1,15 @@
+rule: easa.part-med.med-a-045.class-2
+name: entered-expiry-day
+description: >-
+  On the expiry date the pilot entered, which is also the derived one, the certificate is
+  still valid.
+covers: [expiry:on, stage:revalidation_window]
+asOf: 2028-03-01
+record:
+  holder: { dateOfBirth: 1980-05-20 }
+  credentials:
+    - { id: c-med, type: EASA_CLASS2_MEDICAL, issued: 2026-03-01, expires: 2028-03-01 }
+expect:
+  - subject: { kind: credential, detail: EASA_CLASS2_MEDICAL, id: c-med }
+    status: expiring
+    messageKey: credential.revalidation_window_open

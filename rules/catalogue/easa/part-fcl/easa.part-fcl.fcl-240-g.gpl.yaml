@@ -89,6 +89,10 @@ divergences:
     api: Also evaluates GYROPLANE ratings recorded on DULV or DAeC licences with the GPL rule.
     article: FCL.240.G applies to GPL holders; ultralight associations issue no GPL (ultralight gyroplanes are the ULTRALIGHT class).
     cite: EASA FCL.240.G(a)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last 2 years includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: EASA FCL.240.G(a)
 
 notes: >-
   One evaluation per GYROPLANE rating (the class or type of gyroplane). Ultralight

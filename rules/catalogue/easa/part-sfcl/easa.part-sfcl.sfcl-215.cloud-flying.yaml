@@ -79,6 +79,10 @@ divergences:
     api: Evaluates CLOUD_FLYING privileges on every licence, FAA and ultralight licences included.
     article: Cloud flying privileges are SPL privileges.
     cite: EASA SFCL.215(a)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last two years includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: EASA SFCL.215(e)
 
 notes: >-
   Cloud flying time is the IFR time of a GLIDER flight (NinerLog reads IFR time on a

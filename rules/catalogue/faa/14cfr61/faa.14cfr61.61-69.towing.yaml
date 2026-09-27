@@ -59,6 +59,10 @@ divergences:
     api: Counts every tow flight except on ultralights, including banner tows.
     article: Only tows of a glider or unpowered ultralight vehicle count; a tow flight that does not record what it towed is unknown.
     cite: 14 CFR 61.69(a)(6)(i)
+  - id: towed-gliders
+    api: Counts a tow flight's launches (its take-offs, at least one), whatever number of tows it records.
+    article: The article counts three tows, not flights; a tow flight that records several towed gliders counts each tow (one when the number is not recorded).
+    cite: 14 CFR 61.69(a)(6)
 
 notes: >-
   Partial: only the (a)(6) recency is evaluated. The prerequisites (a)(1) powered-aircraft

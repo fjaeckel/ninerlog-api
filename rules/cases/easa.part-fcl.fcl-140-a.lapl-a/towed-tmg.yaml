@@ -1,0 +1,22 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: towed-tmg
+description: TMG flights launched by winch count toward the recency like any other TMG flight.
+covers: [any_of:recency:experience, requirement:flight_time:met, requirement:proficiency_check:unmet, requirement:refresher_training:met, requirement:takeoffs_landings:met, stage:current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-tmg, licenceId: l-lapl, class: TMG }
+  flights:
+    - { date: 2026-03-10, class: TMG, minutes: { total: 360, pic: 300, dual: 60 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+    - { date: 2026-05-10, class: TMG, launchMethod: winch, minutes: { total: 360, pic: 360 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+expect:
+  - subject: { kind: rating, class: TMG, id: r-tmg }
+    status: current
+    messageKey: rating.recency_current
+    requirements:
+      flight_time: { current: 720, met: true }
+      takeoffs_landings: { current: 12, met: true }
+      refresher_training: { current: 60, met: true }
+      proficiency_check: { current: 0, met: false }

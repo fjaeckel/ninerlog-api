@@ -49,6 +49,14 @@ divergences:
     api: Evaluates SAILPLANE_TOWING under SFCL.205 on every licence that is not an FAA licence, including PPL(A) and LAPL(A).
     article: SFCL.205 is the towing rating of SPL holders with TMG privileges; towing ratings on Part-FCL aeroplane licences follow FCL.805.
     cite: EASA SFCL.205(a)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last two years includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: EASA SFCL.205(f)
+  - id: towed-gliders
+    api: Counts a tow flight's launches (its take-offs, at least one), whatever number of tows it records.
+    article: The article counts five tows, not flights; a tow flight that records several towed gliders counts each tow (one when the number is not recorded).
+    cite: EASA SFCL.205(f)
 
 notes: >-
   Five tows as tug pilot in the last 24 months: the towedGliders of flights flagged as tow

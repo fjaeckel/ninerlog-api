@@ -1,0 +1,26 @@
+rule: easa.part-sfcl.sfcl-160-b.tmg
+name: ultralight-not-credited
+description: >-
+  Hours on ultralight motorgliders count neither toward the 12 hours nor toward the 6 hours
+  on TMGs.
+covers: [requirement:flight_time:unmet, requirement:proficiency_check:unmet, requirement:tmg_takeoffs_landings:met, requirement:tmg_time:unmet, requirement:tmg_training_flight:met, stage:lapsed]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-spl, class: TMG }
+  flights:
+    - { date: 2026-02-01, class: TMG, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 }, launches: 2 }
+    - { date: 2026-03-01, class: TMG, minutes: { total: 120, pic: 120 }, takeoffs: { day: 10 }, landings: { day: 10 }, launches: 10 }
+    - { date: 2026-05-01, class: ULTRALIGHT, ulKind: THREE_AXIS_MOTORGLIDER, minutes: { total: 540, pic: 540 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+expect:
+  - subject: { kind: rating, class: TMG, id: r-tmg }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 180, met: false }
+      tmg_time: { current: 180, met: false }
+      tmg_takeoffs_landings: { current: 12, met: true }
+      tmg_training_flight: { current: 60, met: true }
+      proficiency_check: { current: 0, met: false }

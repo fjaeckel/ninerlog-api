@@ -1,0 +1,22 @@
+rule: de.luftpersv.45a.passengers
+name: towed-launches
+description: >-
+  Three take-offs and landings in 90 days on trikes launched by winch count toward
+  passenger recency like any other.
+covers: [requirement:day:met, stage:current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL, issued: 2020-05-01 }
+  ratings:
+    - { id: r-ul, licenceId: l-ul, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+  privileges:
+    - { id: p-pax, licenceId: l-ul, kind: UL_PASSENGER_AUTH, detail: WEIGHT_SHIFT }
+  flights:
+    - { date: 2026-08-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, launchMethod: winch, minutes: { total: 90, pic: 90 }, takeoffs: { day: 3 }, landings: { day: 3 } }
+expect:
+  - subject: { kind: passengers, class: ULTRALIGHT, id: l-ul, ulKind: WEIGHT_SHIFT }
+    status: current
+    messageKey: pax.current_day_no_night_privilege
+    requirements:
+      day: { current: 3, met: true }

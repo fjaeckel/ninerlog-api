@@ -1,0 +1,24 @@
+rule: de.luftpersv.45a.passengers
+name: takeoffs-not-logged
+description: >-
+  Three landings in 90 days on trikes, but one of the three flights logs no take-off: only
+  the logged take-offs count, so the pilot has two take-offs and landings.
+covers: [requirement:day:unmet, stage:not_current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL, issued: 2020-05-01 }
+  ratings:
+    - { id: r-ul, licenceId: l-ul, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT }
+  privileges:
+    - { id: p-pax, licenceId: l-ul, kind: UL_PASSENGER_AUTH, detail: WEIGHT_SHIFT }
+  flights:
+    - { date: 2026-08-01, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-02, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 30, pic: 30 }, takeoffs: { day: 1 }, landings: { day: 1 } }
+    - { date: 2026-08-03, class: ULTRALIGHT, ulKind: WEIGHT_SHIFT, minutes: { total: 30, pic: 30 }, landings: { day: 1 } }
+expect:
+  - subject: { kind: passengers, class: ULTRALIGHT, id: l-ul, ulKind: WEIGHT_SHIFT }
+    status: expired
+    messageKey: pax.not_current
+    requirements:
+      day: { current: 2, met: false }

@@ -1,0 +1,23 @@
+rule: easa.part-fcl.fcl-740-a.mep
+name: towed-launch-recorded
+description: >-
+  An MEP flight recorded with an aerotow launch method (imported data) still counts as a
+  route sector; the proficiency check and two sectors do not yet revalidate the rating.
+covers: [expiry:before, requirement:examiner_sector:unmet, requirement:proficiency_check:met, requirement:sectors:unmet, stage:not_met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-mep, licenceId: l-ppl, class: MEP_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: MEP_LAND, minutes: { total: 600, pic: 600 }, takeoffs: { day: 9 }, landings: { day: 9 }, cruiseMinutes: 400 }
+    - { date: 2026-08-20, class: MEP_LAND, launchMethod: aerotow, minutes: { total: 60, pic: 60 }, takeoffs: { day: 1 }, landings: { day: 1 }, cruiseMinutes: 30, flags: { proficiencyCheck: true } }
+expect:
+  - subject: { kind: rating, class: MEP_LAND, id: r-mep }
+    status: expiring
+    messageKey: rating.revalidation_not_met_prof_check
+    requirements:
+      proficiency_check: { current: 1, met: true }
+      sectors: { current: 2, met: false }
+      examiner_sector: { current: 0, met: false }

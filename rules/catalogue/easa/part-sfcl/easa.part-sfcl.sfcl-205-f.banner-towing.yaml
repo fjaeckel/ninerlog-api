@@ -51,6 +51,14 @@ divergences:
     api: Tells the pilot to fly the missing tows with an instructor.
     article: The resumption with or under the supervision of an instructor in SFCL.205(g) is written for the sailplane towing rating only; for banner towing the article only requires the five tows.
     cite: EASA SFCL.205(g)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last two years includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: EASA SFCL.205(f)
+  - id: towed-gliders
+    api: Counts a tow flight's launches (its take-offs, at least one), whatever number of tows it records.
+    article: The article counts five tows, not flights; a tow flight that records several towed gliders counts each tow (one when the number is not recorded).
+    cite: EASA SFCL.205(f)
 
 notes: >-
   Five tows as tug pilot in the last 24 months: the towedGliders of flights flagged as tow

@@ -34,7 +34,7 @@ ruleDescriptionKey: faa_cat_ii_iii
 
 divergences:
   - id: derived-expiry
-    api: Uses only the expiry date entered for the authorization, and treats it as expired on that day.
+    api: Has no CAT_II or CAT_III privilege kind, so an authorization cannot be recorded and its expiry is never evaluated.
     article: A Category II or III authorization expires at the end of the sixth calendar month after the month it was issued or renewed; it is valid through that day, and the entered date is used only when earlier.
     cite: 14 CFR 61.21(a)
 

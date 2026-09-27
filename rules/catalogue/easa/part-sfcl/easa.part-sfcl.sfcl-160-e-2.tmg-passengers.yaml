@@ -75,6 +75,10 @@ divergences:
     api: Counts TMG landings only, by day and by night.
     article: Three take-offs and landings, one of each at night for night passengers; the smaller of take-offs and landings counts.
     cite: EASA SFCL.160(e)(2)
+  - id: authorities
+    api: Also evaluates TMG passenger recency for TMG ratings on sailplane licences recorded under DULV or DAeC.
+    article: SFCL.160(e) applies to SPL holders; ultralight associations issue no SPL.
+    cite: EASA SFCL.160(e)
 
 notes: >-
   One evaluation per authority for the TMG class on an SPL or LAPL(S); TMG passengers on a

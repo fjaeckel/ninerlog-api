@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-060-b.night-passengers
+name: ir-valid-on-date
+description: >-
+  Evaluated for 1 June 2019, an IR valid until 30 June 2020 waives the night take-off and
+  landing on that date, however the IR stands today.
+covers: [requirement:night_landings:unmet, requirement:night_takeoffs:unmet, stage:ir_waiver]
+asOf: 2019-06-01
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2020-06-30 }
+    - { id: r-ir, licenceId: l-ppl, class: IR, expires: 2020-06-30 }
+expect:
+  - subject: { kind: passengers, class: SEP_LAND, id: l-ppl }
+    status: current
+    messageKey: pax.night_waived_ir
+    requirements:
+      night_takeoffs: { current: 0, met: false }
+      night_landings: { current: 0, met: false }

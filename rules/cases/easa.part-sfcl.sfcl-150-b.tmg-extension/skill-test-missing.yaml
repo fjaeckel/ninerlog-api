@@ -1,0 +1,22 @@
+rule: easa.part-sfcl.sfcl-150-b.tmg-extension
+name: skill-test-missing
+description: >-
+  Six hours of TMG instruction with 4 hours dual and a 160 km solo cross-country flight are
+  flown, but without the skill test in a TMG the extension is not complete.
+covers: [requirement:dual_time:met, requirement:instruction_time:met, requirement:skill_test:unmet, requirement:solo_cross_country:met, stage:in_progress]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  flights:
+    - { date: 2026-04-01, class: TMG, minutes: { total: 240, dual: 240 }, takeoffs: { day: 12 }, landings: { day: 12 }, launches: 12 }
+    - { date: 2026-05-01, class: TMG, minutes: { total: 150, spic: 150, crossCountry: 150 }, distanceKm: 160, takeoffs: { day: 2 }, landings: { day: 2 }, launches: 2 }
+expect:
+  - subject: { kind: training, detail: SPL_TMG_EXTENSION, id: l-spl }
+    status: lapsed
+    messageKey: training.in_progress
+    requirements:
+      instruction_time: { current: 390, met: true }
+      dual_time: { current: 240, met: true }
+      solo_cross_country: { current: 1, met: true }
+      skill_test: { current: 0, met: false }

@@ -1,0 +1,24 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: ultralight-takeoffs
+description: >-
+  Twelve hours including three-axis ultralight hours, but eight of the twelve take-offs and
+  landings were flown on the ultralight: they count toward the hours only.
+covers: [requirement:flight_time:met, requirement:proficiency_check:unmet, requirement:refresher_training:met, requirement:takeoffs_landings:unmet, stage:lapsed]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-land, licenceId: l-lapl, class: SEP_LAND }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 240, pic: 180, dual: 60 }, takeoffs: { day: 4 }, landings: { day: 4 } }
+    - { date: 2026-05-10, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 480, pic: 480 }, takeoffs: { day: 8 }, landings: { day: 8 } }
+expect:
+  - subject: { kind: rating, class: SEP_LAND, id: r-land }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 720, met: true }
+      takeoffs_landings: { current: 4, met: false }
+      refresher_training: { current: 60, met: true }
+      proficiency_check: { current: 0, met: false }

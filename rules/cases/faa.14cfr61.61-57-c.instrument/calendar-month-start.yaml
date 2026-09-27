@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: calendar-month-start
+description: >-
+  Tasks flown on 5 February, earlier than six months back to the day but within the 6
+  calendar months before August, still count on 16 August.
+covers: [requirement:approaches:met, requirement:holds:met, requirement:intercept_track:met, stage:current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2026-02-05, class: MEP_LAND, minutes: { total: 120, pic: 120, actualInstrument: 60 }, approaches: 6, holds: 1, interceptAndTrack: true }
+expect:
+  - subject: { kind: rating, class: IR, id: r-ir }
+    status: current
+    messageKey: rating.ir_current
+    requirements:
+      approaches: { current: 6, met: true }
+      holds: { current: 1, met: true }
+      intercept_track: { current: 1, met: true }

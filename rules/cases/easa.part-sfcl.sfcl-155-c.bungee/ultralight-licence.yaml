@@ -1,0 +1,15 @@
+rule: easa.part-sfcl.sfcl-155-c.bungee
+name: ultralight-licence
+description: >-
+  A GLIDER rating recorded on a DULV ultralight licence is not an SPL privilege; its bungee
+  launches are not listed under SFCL.155.
+covers: []
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ul, authority: DULV, type: UL }
+  ratings:
+    - { id: r-gld, licenceId: l-ul, class: GLIDER }
+  flights:
+    - { date: 2026-06-01, class: GLIDER, launchMethod: bungee, minutes: { total: 60, pic: 60 }, launches: 2, landings: { day: 2 } }
+expect: []

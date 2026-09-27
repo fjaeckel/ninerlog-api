@@ -67,7 +67,7 @@ ruleDescriptionKey: faa_ground_instructor
 
 divergences:
   - id: recent-experience
-    api: Treats a ground instructor privilege without an expiry date as valid indefinitely.
+    api: Has no GROUND_INSTRUCTOR privilege kind, so a ground instructor certificate cannot be recorded as a privilege and its recent experience is never evaluated.
     article: A ground instructor may perform the duties only with instructing activity, an approved flight instructor refresher course or an instructor's endorsement during the preceding 12 calendar months.
     cite: 14 CFR 61.217
 

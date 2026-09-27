@@ -109,6 +109,10 @@ divergences:
     api: Leaves out SEP(land), TMG and ultralight flights launched by winch, aerotow, car or bungee.
     article: Every flight in an aerodynamically controlled ultralight, TMG or single-engine piston land aeroplane counts; no launch method is excluded.
     cite: LuftPersV § 45(2)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last 24 months ("innerhalb der letzten 24 Monate") includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: LuftPersV § 45(2)
 
 notes: >-
   The 12 hours, 6 hours as PIC and the take-offs and landings count on three-axis ultralights

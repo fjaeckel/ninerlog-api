@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: expiry-recorded
+description: >-
+  FAA ratings do not expire: an expiry date recorded on the instrument rating is ignored and
+  the recent tasks keep the pilot current.
+covers: [expiry:after, requirement:approaches:met, requirement:holds:met, requirement:intercept_track:met, stage:current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR, expires: 2026-01-31 }
+  flights:
+    - { date: 2026-06-05, class: MEP_LAND, minutes: { total: 120, pic: 120, actualInstrument: 60 }, approaches: 6, holds: 1, interceptAndTrack: true }
+expect:
+  - subject: { kind: rating, class: IR, id: r-ir }
+    status: current
+    messageKey: rating.ir_current
+    requirements:
+      approaches: { current: 6, met: true }
+      holds: { current: 1, met: true }
+      intercept_track: { current: 1, met: true }

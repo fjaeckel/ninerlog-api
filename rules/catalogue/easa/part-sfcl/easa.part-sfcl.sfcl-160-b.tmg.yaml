@@ -103,6 +103,10 @@ divergences:
     api: Also evaluates TMG ratings on sailplane licences recorded under DULV or DAeC.
     article: SFCL.160 applies to SPL holders; ultralight associations issue no SPL.
     cite: EASA SFCL.160(b)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last 24 months includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: EASA SFCL.160(b)
 
 notes: >-
   The article does not name the aircraft for the 12 hours; the catalogue reads them as

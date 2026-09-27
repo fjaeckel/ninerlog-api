@@ -45,6 +45,10 @@ divergences:
     api: Also lists launch methods for GLIDER ratings recorded on DULV or DAeC licences.
     article: SFCL.155 applies to SPL holders; ultralight associations issue no SPL.
     cite: EASA SFCL.155(c)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last two years includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: EASA SFCL.155(c)
 
 notes: >-
   One evaluation per launch method on a GLIDER rating: every method the pilot has logged on

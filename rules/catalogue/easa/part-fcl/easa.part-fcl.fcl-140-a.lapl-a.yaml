@@ -141,6 +141,10 @@ divergences:
     api: Also evaluates LAPL(A) class privileges recorded on DULV or DAeC licences.
     article: FCL.140.A applies to the LAPL(A), issued by EASA member-state authorities such as the LBA.
     cite: EASA FCL.140.A(a)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last 2 years includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: EASA FCL.140.A(a)
 
 notes: >-
   Partial: FCL.140.A(c) (a variant with a different type of engine not flown within 2 years)

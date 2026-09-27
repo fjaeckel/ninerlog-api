@@ -15,7 +15,7 @@ vocabulary entry, inventory entry, source file and CHANGELOG reference is green,
 statement coverage is above 95 %. CI (`.github/workflows/rules.yml`) enforces it for every
 change under `rules/`.
 
-On 2026-09-27 the catalogue holds 145 rules and 612 cases:
+On 2026-09-27 the catalogue holds 145 rules and 646 cases:
 
 | Authority | supported | partial | not_supported | total |
 | --- | --- | --- | --- | --- |

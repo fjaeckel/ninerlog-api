@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-060-b.night-passengers
+name: ffs-night
+description: A night take-off and landing as pilot flying in an FFS representing the class allow night passengers.
+covers: [requirement:night_landings:met, requirement:night_takeoffs:met, stage:current]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  flights:
+    - { date: 2026-08-10, class: SEP_LAND, isSimulator: true, fstdType: FFS, minutes: { total: 60 }, takeoffs: { night: 1 }, landings: { night: 1 }, pilotFlying: true }
+expect:
+  - subject: { kind: passengers, class: SEP_LAND, id: l-ppl }
+    status: current
+    messageKey: pax.night_current
+    requirements:
+      night_takeoffs: { current: 1, met: true }
+      night_landings: { current: 1, met: true }

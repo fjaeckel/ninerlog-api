@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: ultralight-tasks
+description: >-
+  Approaches and holds flown in an ultralight do not count toward instrument recency, which
+  is kept in airplanes, helicopters, powered-lift or airships.
+covers: [requirement:approaches:unmet, requirement:holds:unmet, requirement:intercept_track:unmet, stage:ipc_required]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: COMMERCIAL }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2026-06-05, class: ULTRALIGHT, ulKind: THREE_AXIS, minutes: { total: 120, pic: 120, simulatedInstrument: 60 }, approaches: 6, holds: 1, interceptAndTrack: true }
+expect:
+  - subject: { kind: rating, class: IR, id: r-ir }
+    status: expired
+    messageKey: rating.ir_expired_ipc
+    requirements:
+      approaches: { current: 0, met: false }
+      holds: { current: 0, met: false }
+      intercept_track: { current: 0, met: false }

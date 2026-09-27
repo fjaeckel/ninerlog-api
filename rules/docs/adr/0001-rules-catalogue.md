@@ -33,7 +33,7 @@ it:
 - missing input was treated as zero, so a pilot whose logbook did not record something could
   be shown current.
 
-The catalogue now records 180 such differences, each as a named divergence with the
+The catalogue now records 205 such differences, each as a named divergence with the
 article's wording and a pilot-readable CHANGELOG line. A second consumer is coming: the iOS
 app must evaluate currency offline, and it must reach the same result as the API.
 

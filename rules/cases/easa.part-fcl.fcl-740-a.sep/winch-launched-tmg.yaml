@@ -1,0 +1,25 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: winch-launched-tmg
+description: TMG flights launched by winch count toward the 12 hours like any other TMG flight.
+covers: [any_of:refresher:refresher_training, any_of:revalidation:experience, expiry:before, requirement:landings:met, requirement:pic_time:met, requirement:proficiency_check:unmet, requirement:refresher_exemption:unmet, requirement:refresher_training:met, requirement:takeoffs:met, requirement:total_time:met, stage:met_expiring]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-tmg, licenceId: l-ppl, class: TMG, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: TMG, minutes: { total: 360, pic: 300, dual: 60 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+    - { date: 2026-05-10, class: TMG, launchMethod: winch, minutes: { total: 360, pic: 360 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+expect:
+  - subject: { kind: rating, class: TMG, id: r-tmg }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    requirements:
+      proficiency_check: { current: 0, met: false }
+      total_time: { current: 720, met: true }
+      pic_time: { current: 660, met: true }
+      takeoffs: { current: 12, met: true }
+      landings: { current: 12, met: true }
+      refresher_training: { current: 60, met: true }
+      refresher_exemption: { current: 0, met: false }

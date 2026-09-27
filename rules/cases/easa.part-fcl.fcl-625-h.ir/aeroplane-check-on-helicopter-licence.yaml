@@ -1,0 +1,20 @@
+rule: easa.part-fcl.fcl-625-h.ir
+name: aeroplane-check-on-helicopter-licence
+description: >-
+  An IR on a PPL(H) is an IR(H): an IR check in an aeroplane and IFR time in an aeroplane do
+  not revalidate it.
+covers: [expiry:before, requirement:proficiency_check:unmet, stage:not_met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-h, authority: EASA, type: PPL(H) }
+  ratings:
+    - { id: r-ir, licenceId: l-h, class: IR, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-08-20, class: MEP_LAND, minutes: { total: 600, pic: 600, ifr: 600 }, takeoffs: { day: 1 }, landings: { day: 1 }, checkRating: IR, flags: { proficiencyCheck: true, examinerOnBoard: true } }
+expect:
+  - subject: { kind: rating, class: IR, id: r-ir }
+    status: expiring
+    messageKey: rating.ir_check_not_met
+    requirements:
+      proficiency_check: { current: 0, met: false }

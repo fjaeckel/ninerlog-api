@@ -47,6 +47,10 @@ divergences:
     api: Counts ultralight flights with no kind when every ultralight rating the pilot holds has one and the same kind.
     article: The licence covers the ultralight kind entered in it; a flight whose ultralight kind is not recorded cannot be attributed and is reported as unknown input, never counted.
     cite: LuftPersV § 44(2)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the 24 months before the evaluation date includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: DULV recency rule for weight-shift ultralights (document title not verified)
 
 notes: >-
   Partial: association rule. The number (12 hours as PIC on weight-shift trikes in 24 months,

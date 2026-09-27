@@ -1,0 +1,13 @@
+rule: easa.part-sfcl.sfcl-160-b.tmg
+name: ultralight-licence
+description: A TMG rating on a sailplane licence recorded under the DAeC is not evaluated under SFCL.160(b).
+covers: []
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-daec, authority: DAeC, type: SPL }
+  ratings:
+    - { id: r-tmg, licenceId: l-daec, class: TMG }
+  flights:
+    - { date: 2026-03-01, class: TMG, minutes: { total: 120, pic: 120 }, takeoffs: { day: 4 }, landings: { day: 4 }, launches: 4 }
+expect: []

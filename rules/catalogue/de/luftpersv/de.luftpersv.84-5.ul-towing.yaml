@@ -51,6 +51,14 @@ divergences:
     api: Counts only tows flown on ultralights of the kind stored in the privilege's detail, and none when the detail is empty.
     article: Ten tows "in der jeweils eingetragen Art", the kind of tow (take-up method and towed object) entered with the rating, on a motorised ultralight; NinerLog cannot tell the kind of tow, so every tow flown on an ultralight counts.
     cite: LuftPersV § 84(4), (5)
+  - id: window-first-day
+    api: Starts the 24-month window at noon on its first day, so a flight on that day does not count.
+    article: The period of the last 24 months includes its first day (catalogue decision 1), so a flight on that day counts.
+    cite: LuftPersV § 84(5)
+  - id: towed-gliders
+    api: Counts a tow flight's launches (its take-offs, at least one), whatever number of tows it records.
+    article: The article counts ten tows, not flights; a tow flight that records several towed gliders counts each tow (one when the number is not recorded).
+    cite: LuftPersV § 84(5)
 
 notes: >-
   The API presents this as a DULV towing rule (rule description dulv_ul_towing, kept for

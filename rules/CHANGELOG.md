@@ -66,6 +66,7 @@ announce rules the API does not evaluate today.
 - With both SEP(land) and SEP(sea), each class now needs 1 hour and 6 take-offs and landings. `easa.part-fcl.fcl-140-a.lapl-a#land-sea-takeoffs`
 - Flights count whatever their launch method. `easa.part-fcl.fcl-140-a.lapl-a#towed-launches`
 - LAPL(A) privileges recorded on a DULV or DAeC licence are no longer evaluated. `easa.part-fcl.fcl-140-a.lapl-a#authorities`
+- A flight on the first day of the 2 years now counts; before, the period started at noon on that day. `easa.part-fcl.fcl-140-a.lapl-a#window-first-day`
 
 #### Passenger recency (EASA FCL.060(b))
 
@@ -107,6 +108,8 @@ announce rules the API does not evaluate today.
 - The banner towing rating of an aeroplane licence now follows FCL.805. `easa.part-fcl.fcl-805.banner-towing#fcl-805`
 - Only banner tows count toward the banner towing rating. `easa.part-fcl.fcl-805.banner-towing#tow-kind`
 - Only banner tows flown in an aeroplane or TMG count. `easa.part-fcl.fcl-805.banner-towing#aeroplanes-only`
+- A tow on the first day of the 24 months now counts; before, the period started at noon on that day. *Banner towing rating recency (Part-FCL).* `easa.part-fcl.fcl-805.banner-towing#window-first-day`
+- A tow on the first day of the 24 months now counts; before, the period started at noon on that day. *Sailplane towing rating recency (Part-FCL).* `easa.part-fcl.fcl-805.sailplane-towing#window-first-day`
 
 #### Medical certificates (EASA MED.A.045)
 
@@ -122,6 +125,7 @@ announce rules the API does not evaluate today.
 - Hours on ultralight sailplanes and ultralight motorgliders no longer count toward the 5 hours; Part-SFCL has no rule crediting Annex I aircraft. `easa.part-sfcl.sfcl-160-a.sailplane#no-ul-credit`
 - Only GLIDER ratings are evaluated as sailplane privileges; an SEP or other rating recorded on an SPL is no longer treated as a sailplane rating. `easa.part-sfcl.sfcl-160-a.sailplane#glider-class-only`
 - GLIDER ratings recorded on a DULV or DAeC ultralight licence are no longer evaluated as SPL privileges. `easa.part-sfcl.sfcl-160-a.sailplane#authorities`
+- A flight on the first day of the 24 months now counts; before, the period started at noon on that day. `easa.part-sfcl.sfcl-160-a.sailplane#window-first-day`
 
 #### SPL TMG recency (EASA SFCL.160(b), (c))
 
@@ -129,12 +133,14 @@ announce rules the API does not evaluate today.
 - Ultralight sailplane and motorglider hours no longer count toward the 12 hours or the 6 hours on TMGs. `easa.part-sfcl.sfcl-160-b.tmg#no-ul-credit`
 - The exemption for pilots who also hold a Part-FCL TMG rating now needs that rating to be within its expiry date and on a PPL(A), LAPL(A), CPL(A), ATPL(A) or MPL. `easa.part-sfcl.sfcl-160-b.tmg#exemption-valid-rating`
 - TMG ratings on sailplane licences recorded under DULV or DAeC are no longer evaluated. `easa.part-sfcl.sfcl-160-b.tmg#authorities`
+- A flight on the first day of the 24 months now counts; before, the period started at noon on that day. `easa.part-sfcl.sfcl-160-b.tmg#window-first-day`
 
 #### SPL passengers (EASA SFCL.160(e), SFCL.115(a)(2))
 
 - Sailplane passenger recency now counts your launches as PIC, not your landings: a winch series logged as one row counts every launch. `easa.part-sfcl.sfcl-160-e-1.sailplane-passengers#launches`
 - Sailplane passenger recency is no longer evaluated for GLIDER ratings on DULV or DAeC licences. `easa.part-sfcl.sfcl-160-e-1.sailplane-passengers#authorities`
 - TMG passenger recency now needs three take-offs as well as three landings as PIC, and for night passengers one take-off and one landing at night. `easa.part-sfcl.sfcl-160-e-2.tmg-passengers#takeoffs`
+- TMG passenger recency is no longer evaluated for TMG ratings on sailplane licences recorded under DULV or DAeC. `easa.part-sfcl.sfcl-160-e-2.tmg-passengers#authorities`
 - The 10 hours or 30 launches as PIC since your SPL was issued are now required before you carry passengers, not only shown. `easa.part-sfcl.sfcl-115-a-2.passengers#enforced`
 - An FI(S) certificate satisfies that prerequisite on its own. `easa.part-sfcl.sfcl-115-a-2.passengers#fi-s-alternative`
 
@@ -143,6 +149,9 @@ announce rules the API does not evaluate today.
 - Launch methods of GLIDER ratings on DULV or DAeC licences are no longer listed. *SPL launch method recency, winch, car and aerotow.* `easa.part-sfcl.sfcl-155-c.launch-method#authorities`
 - Launch methods of GLIDER ratings on DULV or DAeC licences are no longer listed. *SPL launch method recency, self-launch.* `easa.part-sfcl.sfcl-155-c.self-launch#authorities`
 - Launch methods of GLIDER ratings on DULV or DAeC licences are no longer listed. *SPL launch method recency, bungee.* `easa.part-sfcl.sfcl-155-c.bungee#authorities`
+- A launch on the first day of the two years now counts; before, the period started at noon on that day. *SPL launch method recency, winch, car and aerotow.* `easa.part-sfcl.sfcl-155-c.launch-method#window-first-day`
+- A launch on the first day of the two years now counts; before, the period started at noon on that day. *SPL launch method recency, self-launch.* `easa.part-sfcl.sfcl-155-c.self-launch#window-first-day`
+- A launch on the first day of the two years now counts; before, the period started at noon on that day. *SPL launch method recency, bungee.* `easa.part-sfcl.sfcl-155-c.bungee#window-first-day`
 
 #### Gyroplanes (EASA FCL.240.G, FCL.205.G)
 
@@ -150,6 +159,7 @@ announce rules the API does not evaluate today.
 - The 12 take-offs and landings now need 12 take-offs as well as 12 landings. `easa.part-fcl.fcl-240-g.gpl#takeoffs`
 - GYROPLANE ratings on DULV or DAeC licences are no longer evaluated as GPL recency. `easa.part-fcl.fcl-240-g.gpl#authorities`
 - New: each SPG variant you extended your GPL to shows whether you flew it in the last 2 years (FCL.240.G(b)).
+- A flight on the first day of the 2 years now counts; before, the period started at noon on that day. `easa.part-fcl.fcl-240-g.gpl#window-first-day`
 
 #### Towing ratings (EASA SFCL.205)
 
@@ -158,6 +168,10 @@ announce rules the API does not evaluate today.
 - SFCL.205 now applies only to towing ratings on an SPL; towing ratings on a PPL(A) or LAPL(A) follow FCL.805. *Sailplane towing rating recency.* `easa.part-sfcl.sfcl-205-f.sailplane-towing#licence-scope`
 - SFCL.205 now applies only to towing ratings on an SPL; towing ratings on a PPL(A) or LAPL(A) follow FCL.805. *Banner towing rating recency.* `easa.part-sfcl.sfcl-205-f.banner-towing#licence-scope`
 - A lapsed banner towing rating asks for the missing tows, without the instructor that SFCL.205(g) requires only for sailplane towing. `easa.part-sfcl.sfcl-205-f.banner-towing#remedy`
+- A tow on the first day of the two years now counts; before, the period started at noon on that day. *Sailplane towing rating recency.* `easa.part-sfcl.sfcl-205-f.sailplane-towing#window-first-day`
+- A tow on the first day of the two years now counts; before, the period started at noon on that day. *Banner towing rating recency.* `easa.part-sfcl.sfcl-205-f.banner-towing#window-first-day`
+- A tow flight that records several towed sailplanes now counts one tow for each; one without a count is one tow. *Sailplane towing rating recency.* `easa.part-sfcl.sfcl-205-f.sailplane-towing#towed-gliders`
+- A tow flight that records several towed sailplanes now counts one tow for each; one without a count is one tow. *Banner towing rating recency.* `easa.part-sfcl.sfcl-205-f.banner-towing#towed-gliders`
 
 #### Cloud flying (EASA SFCL.215)
 
@@ -165,6 +179,7 @@ announce rules the API does not evaluate today.
 - Cloud flights with an FI(S) (dual) now count, as the way back after a lapse. `easa.part-sfcl.sfcl-215.cloud-flying#dual-with-instructor`
 - A valid BIR or IR(A) now fully credits the cloud flying recency. `easa.part-sfcl.sfcl-215.cloud-flying#bir-ir-credit`
 - Cloud flying privileges on FAA or ultralight licences are no longer evaluated. `easa.part-sfcl.sfcl-215.cloud-flying#authorities`
+- A cloud flight on the first day of the two years now counts; before, the period started at noon on that day. `easa.part-sfcl.sfcl-215.cloud-flying#window-first-day`
 
 #### FI(S) and FE(S) certificates (EASA SFCL.360, SFCL.460)
 
@@ -230,6 +245,7 @@ announce rules the API does not evaluate today.
 
 - Tows count toward towing recency only when flown accompanied by a qualified tow pilot. `faa.14cfr61.61-69.towing#accompanied`
 - Only tows of gliders or unpowered ultralights count, not banner tows; a tow flight that does not say what it towed is not counted. `faa.14cfr61.61-69.towing#tow-kind`
+- A tow flight that records several towed gliders now counts one tow for each; one without a count is one tow. `faa.14cfr61.61-69.towing#towed-gliders`
 
 #### Instrument rating on sport and recreational certificates (FAA 14 CFR 61.315, 61.101)
 
@@ -254,11 +270,13 @@ announce rules the API does not evaluate today.
 - The 12 hours now need 12 take-offs as well as 12 landings. `de.luftpersv.45-2.three-axis#takeoffs`
 - Ultralight flights without an ultralight kind no longer count, even when you hold only one ultralight kind; if they are all you flew, your recency shows as unknown and asks you to set the aircraft's kind. `de.luftpersv.45-2.three-axis#kindless-ul`
 - SEP, TMG and ultralight flights count whatever their launch method (winch, aerotow, car or bungee). `de.luftpersv.45-2.three-axis#towed-launches`
+- A flight on the first day of the 24 months now counts; before, the period started at noon on that day. `de.luftpersv.45-2.three-axis#window-first-day`
 
 #### German ultralights, helicopter recency (LuftPersV § 45(2a), (3))
 
 - The 6 hours now need 6 take-offs as well as 6 landings. `de.luftpersv.45-2a.helicopter#takeoffs`
 - Ultralight flights without an ultralight kind no longer count toward UL helicopter recency. `de.luftpersv.45-2a.helicopter#kindless-ul`
+- A flight on the first day of the 12 months now counts; before, the period started at noon on that day. `de.luftpersv.45-2a.helicopter#window-first-day`
 
 #### German ultralights, association recency rules (DULV, DAeC under LuftPersV § 45(4))
 
@@ -267,6 +285,11 @@ announce rules the API does not evaluate today.
 - Ultralight flights without an ultralight kind no longer count toward gyroplane, trike, powered paraglider or UL sailplane recency; if they are all you flew, your recency shows as unknown. *Ultralight recency, weight-shift trikes (DAeC).* `de.daec.ul-recency.weight-shift#kindless-ul`
 - Ultralight flights without an ultralight kind no longer count toward gyroplane, trike, powered paraglider or UL sailplane recency; if they are all you flew, your recency shows as unknown. *Ultralight recency, powered paragliders.* `de.dulv.ul-recency.powered-paraglider#kindless-ul`
 - Ultralight flights without an ultralight kind no longer count toward gyroplane, trike, powered paraglider or UL sailplane recency; if they are all you flew, your recency shows as unknown. *Ultralight recency, ultralight sailplanes (DAeC).* `de.daec.ul-recency.sailplane#kindless-ul`
+- A flight on the first day of the 12 or 24 months now counts; before, the period started at noon on that day. *Ultralight recency, gyroplanes (DULV).* `de.dulv.ul-recency.gyroplane#window-first-day`
+- A flight on the first day of the 12 or 24 months now counts; before, the period started at noon on that day. *Ultralight recency, weight-shift trikes (DULV).* `de.dulv.ul-recency.weight-shift#window-first-day`
+- A flight on the first day of the 12 or 24 months now counts; before, the period started at noon on that day. *Ultralight recency, weight-shift trikes (DAeC).* `de.daec.ul-recency.weight-shift#window-first-day`
+- A flight on the first day of the 12 or 24 months now counts; before, the period started at noon on that day. *Ultralight recency, powered paragliders.* `de.dulv.ul-recency.powered-paraglider#window-first-day`
+- A flight on the first day of the 12 or 24 months now counts; before, the period started at noon on that day. *Ultralight recency, ultralight sailplanes (DAeC).* `de.daec.ul-recency.sailplane#window-first-day`
 
 #### German ultralights, passengers (LuftPersV § 45a, § 84a)
 
@@ -285,6 +308,8 @@ announce rules the API does not evaluate today.
 #### German ultralights, towing rating (LuftPersV § 84(5))
 
 - The 10 tows in 24 months are the statutory rule of § 84(5), and every tow you flew on an ultralight counts, whatever ultralight kind is stored with the rating. `de.luftpersv.84-5.ul-towing#tows-any-ultralight`
+- A flight on the first day of the 24 months now counts; before, the period started at noon on that day. `de.luftpersv.84-5.ul-towing#window-first-day`
+- A tow flight that records several towed gliders now counts one tow for each; one without a count is one tow. `de.luftpersv.84-5.ul-towing#towed-gliders`
 
 #### German ultralights, instructor rating (LuftPersV § 96(4))
 

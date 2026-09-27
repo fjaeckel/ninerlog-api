@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-57-b.night-passengers
+name: none-at-night
+description: >-
+  A pilot with day landings only has lapsed night passenger recency; the certificate stays
+  valid.
+covers: [requirement:full_stop_night_landings:untracked, requirement:night_takeoffs:unmet, stage:takeoffs_short, unknown:full_stop_night_landings]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+  flights:
+    - { date: 2026-07-10, class: SEP_LAND, minutes: { total: 60, pic: 60 }, takeoffs: { day: 3 }, landings: { day: 3 }, soleManipulator: true }
+expect:
+  - subject: { kind: passengers, class: SEP_LAND, id: l-faa }
+    status: lapsed
+    messageKey: pax.night_not_current
+    requirements:
+      night_takeoffs: { current: 0, met: false }
+      full_stop_night_landings: { current: 0, met: false }

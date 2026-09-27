@@ -1,0 +1,41 @@
+rule: easa.part-fcl.fcl-140-a.lapl-a
+name: land-sea-takeoffs-short
+description: >-
+  With SEP(land) and SEP(sea), the sea class has six landings but only four take-offs: each
+  class needs six take-offs and six landings.
+covers: [requirement:flight_time:met, requirement:proficiency_check:unmet, requirement:refresher_training:met, requirement:sep_land_takeoffs_landings:met, requirement:sep_land_time:met, requirement:sep_sea_takeoffs_landings:unmet, requirement:sep_sea_time:met, requirement:takeoffs_landings:unmet, stage:lapsed]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+  ratings:
+    - { id: r-land, licenceId: l-lapl, class: SEP_LAND }
+    - { id: r-sea, licenceId: l-lapl, class: SEP_SEA }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 360, pic: 300, dual: 60 }, takeoffs: { day: 6 }, landings: { day: 6 } }
+    - { date: 2026-05-10, class: SEP_SEA, minutes: { total: 360, pic: 300, dual: 60 }, takeoffs: { day: 4 }, landings: { day: 6 } }
+expect:
+  - subject: { kind: rating, class: SEP_LAND, id: r-land }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 720, met: true }
+      takeoffs_landings: { current: 10, met: false }
+      refresher_training: { current: 120, met: true }
+      sep_land_time: { current: 360, met: true }
+      sep_land_takeoffs_landings: { current: 6, met: true }
+      sep_sea_time: { current: 360, met: true }
+      sep_sea_takeoffs_landings: { current: 4, met: false }
+      proficiency_check: { current: 0, met: false }
+  - subject: { kind: rating, class: SEP_SEA, id: r-sea }
+    status: lapsed
+    messageKey: rating.recency_not_met
+    requirements:
+      flight_time: { current: 720, met: true }
+      takeoffs_landings: { current: 10, met: false }
+      refresher_training: { current: 120, met: true }
+      sep_land_time: { current: 360, met: true }
+      sep_land_takeoffs_landings: { current: 6, met: true }
+      sep_sea_time: { current: 360, met: true }
+      sep_sea_takeoffs_landings: { current: 4, met: false }
+      proficiency_check: { current: 0, met: false }

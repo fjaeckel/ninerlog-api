@@ -1,0 +1,28 @@
+rule: easa.part-sfcl.sfcl-360.fi-s
+name: demonstration-missing
+description: >-
+  Refresher training and 30 hours of instruction in the last three years, but no
+  demonstration of instructional ability or assessment of competence in the last nine years:
+  the FI(S) privileges may not be exercised.
+covers: [any_of:instruction:instruction_time, expiry:before, requirement:demonstration:unmet, requirement:instruction_launches:unmet, requirement:instruction_time:met, requirement:refresher:met, requirement:resumption_assessment:unmet, stage:lapsed]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-spl, authority: EASA, type: SPL }
+  privileges:
+    - { id: p-fis, licenceId: l-spl, kind: FI_S, expires: 2029-12-31 }
+  events:
+    - { date: 2025-09-15, kind: instructor_refresher }
+    - { date: 2016-09-14, kind: supervised_instruction, class: GLIDER }
+  flights:
+    - { date: 2025-05-01, class: GLIDER, launchMethod: winch, minutes: { total: 1800, pic: 1800, dualGiven: 1800 }, launches: 40, landings: { day: 40 } }
+expect:
+  - subject: { kind: privilege, id: p-fis }
+    status: lapsed
+    messageKey: privilege.recency_not_met
+    requirements:
+      refresher: { current: 1, met: true }
+      instruction_time: { current: 1800, met: true }
+      instruction_launches: { current: 40, met: false }
+      resumption_assessment: { current: 0, met: false }
+      demonstration: { current: 0, met: false }
