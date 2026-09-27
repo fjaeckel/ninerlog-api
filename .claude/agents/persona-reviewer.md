@@ -27,6 +27,8 @@ PR, a plan, a feature area or a persona. If the sibling repo is checked out
 4. Guards: for Mark (G1), Anna (G2) and Ruth (G3), state whether anything they see or get
    from the API changed. A change for gliding/UL that alters a guard's experience without
    saying so is a finding.
+   Core: for Tom (C1), Claudia (C2), Ines (C3) and Heinz (C4), do the same when the change
+   touches shared screens, currency, import/export or display formats.
 5. Regulation: any rule cited in code or docs must match the article text quoted in
    `docs/SAILPLANES.md` / `docs/DOMAIN.md`. Flag counting that differs from the text (one
    flight vs cumulative minutes, launches vs landings, per kind vs pooled).
