@@ -1,0 +1,20 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: never-current-no-grace
+description: Three approaches eleven months ago and three last month were never six in one window; there is no grace period to be in.
+covers: [stage:ipc_required, requirement:approaches:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2025-09-20, class: SEP_LAND, minutes: { total: 60, pic: 60 }, approaches: 3, holds: 1, interceptAndTrack: true }
+    - { date: 2026-07-20, class: SEP_LAND, minutes: { total: 60, pic: 60 }, approaches: 3, holds: 1, interceptAndTrack: true }
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: expired
+    messageKey: rating.ir_expired_ipc
+    requirements:
+      approaches: { current: 3, met: false }
+      holds: { current: 1, met: true }

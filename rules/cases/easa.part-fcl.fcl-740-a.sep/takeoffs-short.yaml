@@ -1,0 +1,21 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: takeoffs-short
+description: Twelve landings but only eight take-offs do not complete the experience route.
+covers: [requirement:takeoffs:unmet, requirement:landings:met, stage:not_met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 300, pic: 300 }, takeoffs: { day: 3 }, landings: { day: 5 } }
+    - { date: 2026-05-20, class: SEP_LAND, minutes: { total: 60, dual: 60 }, takeoffs: { day: 1 }, landings: { day: 2 } }
+    - { date: 2026-06-12, class: SEP_LAND, minutes: { total: 360, pic: 60, dual: 300 }, takeoffs: { day: 4 }, landings: { day: 5 } }
+expect:
+  - subject: { kind: rating, id: r-sep }
+    status: expiring
+    messageKey: rating.revalidation_not_met
+    requirements:
+      takeoffs: { current: 8, met: false }
+      landings: { current: 12, met: true }

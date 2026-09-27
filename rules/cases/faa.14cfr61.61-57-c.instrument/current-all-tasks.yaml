@@ -1,0 +1,22 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: current-all-tasks
+description: Six approaches, a hold and a tracking task in March keep the pilot current through 30 September.
+covers: [stage:current, requirement:approaches:met, requirement:holds:met, requirement:intercept_track:met]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 90, pic: 90, simulatedInstrument: 60 }, approaches: 4, holds: 1, interceptAndTrack: true }
+    - { date: 2026-03-24, class: SEP_LAND, minutes: { total: 60, pic: 60, simulatedInstrument: 45 }, approaches: 2, interceptAndTrack: false }
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: current
+    messageKey: rating.ir_current
+    validUntil: 2026-09-30
+    requirements:
+      approaches: { current: 6, required: 6, met: true, tracked: true, validUntil: 2026-09-30, lastDate: 2026-03-24 }
+      holds: { current: 1, met: true, validUntil: 2026-09-30 }
+      intercept_track: { current: 1, met: true, tracked: true }

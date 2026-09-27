@@ -103,7 +103,7 @@ articles:
       (c) App uses a rolling 6-month window from today instead of the 6 calendar months preceding the month of the flight, requires only approaches and holds (no intercept/track), and does not distinguish category (airplane/helicopter/powered-lift/airship) or (c)(2)-(5) FSTD/ATD options.
       (d) App's 12-month grace is a rolling 12 months of cumulative tasks; the rule is "failed for more than six calendar months" after the (c) window; a logged IPC (is_ipc) is not used as a restoring event.
       (e), (f), (g) not implemented.
-    maps_to: []
+    maps_to: [faa.14cfr61.61-57-c.instrument]
 
   - cite: 14 CFR 61.58
     url: https://www.ecfr.gov/current/title-14/part-61/section-61.58

@@ -1,0 +1,26 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: sep-land-and-tmg-pooled
+description: A pilot holding SEP(land) and TMG on the same licence may fly the requirements in either class and revalidates both (FCL.740.A(b)(2)).
+covers: [stage:met_expiring]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: LBA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2026-10-31 }
+    - { id: r-tmg, licenceId: l-ppl, class: TMG, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 300, pic: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+    - { date: 2026-05-20, class: TMG, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-06-12, class: TMG, minutes: { total: 360, pic: 60, dual: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+expect:
+  - subject: { kind: rating, id: r-sep }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    requirements:
+      total_time: { current: 720, met: true }
+  - subject: { kind: rating, id: r-tmg, class: TMG }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    requirements:
+      total_time: { current: 720, met: true }

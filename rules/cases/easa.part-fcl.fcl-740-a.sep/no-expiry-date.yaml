@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: no-expiry-date
+description: Without an expiry date the window cannot be placed; the pilot must enter the date.
+covers: [stage:no_expiry]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND }
+  flights:
+    - { date: 2026-05-20, class: SEP_LAND, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+expect:
+  - subject: { kind: rating, id: r-sep }
+    status: unknown
+    messageKey: rating.no_expiry_date
+    requirements:
+      total_time: { met: false, tracked: false }
+      proficiency_check: { met: false, tracked: false }

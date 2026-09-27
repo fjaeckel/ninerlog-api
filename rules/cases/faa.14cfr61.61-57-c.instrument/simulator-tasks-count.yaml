@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: simulator-tasks-count
+description: Tasks flown in a flight training device representing an airplane count; a glider flight does not.
+covers: [stage:current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2026-07-01, class: SEP_LAND, isSimulator: true, fstdType: FTD, minutes: { total: 90, simulatedInstrument: 90 }, approaches: 6, holds: 1, interceptAndTrack: true }
+    - { date: 2026-07-05, class: GLIDER, minutes: { total: 120, pic: 120 }, approaches: 2 }
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: current
+    messageKey: rating.ir_current
+    requirements:
+      approaches: { current: 6, met: true }

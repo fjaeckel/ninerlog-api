@@ -1,0 +1,304 @@
+# The closed vocabulary (DESIGN.md section 5). Rules may only use what is declared here.
+# Adding an entry means: this file, the engine implementation, `go generate ./...`, and at
+# least one case that exercises it. `rulescheck` fails on entries no rule uses and on
+# entries the engine does not implement.
+version: 1
+
+# ---------------------------------------------------------------------------------------
+# Rule metadata domains
+# ---------------------------------------------------------------------------------------
+catalogue_authorities: [easa, faa, de, other]
+source_kinds:
+  regulation: EU regulation or US CFR text (EUR-Lex, eCFR)
+  national_law: national statute or ordinance (gesetze-im-internet.de)
+  association: association rule with no statute behind it (DULV, DAeC)
+support_levels: [supported, partial, not_supported]
+
+# Licence authority strings as they appear in a record (matched case-insensitively after
+# trimming, DESIGN.md decision 3).
+record_authorities: [EASA, FAA, LBA, DULV, DAEC]
+
+# ---------------------------------------------------------------------------------------
+# Value domains (not subject to the unused-entry check)
+# ---------------------------------------------------------------------------------------
+categories: [aeroplane, helicopter, powered_lift, airship, sailplane, gyroplane, balloon, ultralight, other]
+
+classes:
+  SEP_LAND: { category: aeroplane }
+  SEP_SEA: { category: aeroplane }
+  MEP_LAND: { category: aeroplane }
+  MEP_SEA: { category: aeroplane }
+  SET_LAND: { category: aeroplane }
+  SET_SEA: { category: aeroplane }
+  TMG: { category: aeroplane }
+  IR: { category: other }
+  GLIDER: { category: sailplane }
+  GYROPLANE: { category: gyroplane }
+  HELICOPTER: { category: helicopter }
+  POWERED_LIFT: { category: powered_lift }
+  AIRSHIP: { category: airship }
+  BALLOON: { category: balloon }
+  ULTRALIGHT: { category: ultralight }
+  OTHER: { category: other }
+
+ul_kinds: [THREE_AXIS, THREE_AXIS_MOTORGLIDER, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE]
+
+launch_methods: [winch, car, aerotow, self-launch, bungee]
+
+fstd_types: [FFS, FTD, FNPT, ATD, BITD]
+
+tow_kinds: [glider, banner, ul_glider]
+
+# Licence kinds; a record licence without `kind` is classified from `type` by these
+# aliases (upper-cased, whitespace removed). Authorities DULV and DAEC always yield UL.
+licence_kinds:
+  PPL_A: { aliases: [PPL, PPL(A)] }
+  LAPL_A: { aliases: [LAPL, LAPL(A)] }
+  CPL_A: { aliases: [CPL, CPL(A)] }
+  ATPL_A: { aliases: [ATPL, ATPL(A)] }
+  MPL: { aliases: [MPL, MPL(A)] }
+  SPL: { aliases: [SPL] }
+  LAPL_S: { aliases: [LAPL(S)] }
+  GPL: { aliases: [GPL] }
+  BPL: { aliases: [BPL, LAPL(B)] }
+  HELICOPTER: { aliases: [PPL(H), CPL(H), ATPL(H), LAPL(H)] }
+  UL: { aliases: [UL, ULTRALIGHT, ULTRALEICHT, SPL-UL, LUFTSPORTGERÄTEFÜHRER] }
+  FAA_STUDENT: { aliases: [STUDENT] }
+  FAA_SPORT: { aliases: [SPORT] }
+  FAA_RECREATIONAL: { aliases: [RECREATIONAL] }
+  FAA_PRIVATE: { aliases: [PRIVATE] }
+  FAA_COMMERCIAL: { aliases: [COMMERCIAL] }
+  FAA_ATP: { aliases: [ATP] }
+  FAA_GLIDER: { aliases: [GLIDER] }
+  IR: { aliases: [IR, IR(A), IR(H)] }
+  INSTRUCTOR: { aliases: [FI, CRI, IRI, TRI, SFI, MCCI, STI, FTI, MI, FE, CRE, IRE, TRE, SFE, FIE, "FI(A)", "FI(S)", "FI(H)", "FI(B)", CFI, CFII, MEI, EXAMINER] }
+
+privilege_kinds: [SAILPLANE_TOWING, BANNER_TOWING, CLOUD_FLYING, AEROBATIC_BASIC, AEROBATIC_ADVANCED, TMG_NIGHT, NIGHT, MOUNTAIN, FLIGHT_TEST, FI_S, BI_S, FE_S, FI, CRI, IRI, TRI, SFI, MCCI, STI, MI, FTI, EXAMINER, CFI, GROUND_INSTRUCTOR, UL_INSTRUCTOR, UL_PASSENGER_AUTH, UL_TOWING, UL_TYPE_BRIEFING, LAUNCH_METHOD_TRAINED, BIR, CAT_II, CAT_III, EFVS, NVG, TETHERED_BALLOON, BALLOON_COMMERCIAL, SPORT_NIGHT]
+
+credential_types: [EASA_CLASS1_MEDICAL, EASA_CLASS2_MEDICAL, EASA_LAPL_MEDICAL, FAA_CLASS1_MEDICAL, FAA_CLASS2_MEDICAL, FAA_CLASS3_MEDICAL, FAA_BASICMED, US_DRIVERS_LICENSE, LANG_ICAO_LEVEL4, LANG_ICAO_LEVEL5, LANG_ICAO_LEVEL6, SEC_CLEARANCE_ZUP, SEC_CLEARANCE_ZUBB, RADIO_BZF2, RADIO_BZF1, RADIO_AZF, OTHER]
+
+# Flight flags (booleans, absent = false).
+flight_flags: [proficiencyCheck, flightReview, ipc, trainingFlight, towFlight, outlanding, instructorOnBoard, examinerOnBoard, accompanied]
+
+# Event kinds. Events come from `record.events` and from flight flags (`from_flag`); a
+# flag-derived event carries the flight's date, class, ulKind, typeDesignator, variant,
+# isSimulator and `checkRating` as `rating`.
+event_kinds:
+  proficiency_check: { from_flag: proficiencyCheck }
+  flight_review: { from_flag: flightReview }
+  ipc: { from_flag: ipc }
+  skill_test: {}
+  practical_test: {}
+  ebt_assessment: {}
+  assessment_of_competence: {}
+  differences_training: {}
+  familiarisation: {}
+  refresher_training: {}
+  instructor_refresher: {}
+  examiner_refresher: {}
+  supervised_instruction: {}
+  proficiency_program_phase: {}
+  basicmed_course: {}
+  basicmed_exam: {}
+  solo_endorsement: {}
+  instructor_endorsement: {}
+  language_assessment: {}
+
+# ---------------------------------------------------------------------------------------
+# Record input fields (DESIGN.md section 4). `optional: true` means absent = unknown.
+# ---------------------------------------------------------------------------------------
+record_fields:
+  holder.dateOfBirth: { type: date, optional: true }
+  flight.date: { type: date }
+  flight.class: { type: class }
+  flight.ulKind: { type: ul_kind, optional: true }
+  flight.typeDesignator: { type: string, optional: true }
+  flight.variant: { type: string, optional: true }
+  flight.registration: { type: string, optional: true }
+  flight.launchMethod: { type: launch_method, optional: true }
+  flight.isSimulator: { type: bool }
+  flight.fstdType: { type: fstd_type, optional: true }
+  flight.mtomKg: { type: int, optional: true }
+  flight.tailwheel: { type: bool, optional: true }
+  flight.minutes: { type: minutes }
+  flight.takeoffs: { type: day_night }
+  flight.landings: { type: day_night }
+  flight.fullStopLandings: { type: int, optional: true }
+  flight.fullStopNightLandings: { type: int, optional: true }
+  flight.launches: { type: int }
+  flight.approaches: { type: int }
+  flight.holds: { type: int }
+  flight.interceptAndTrack: { type: bool, optional: true }
+  flight.cruiseMinutes: { type: int, optional: true }
+  flight.soleManipulator: { type: bool, optional: true }
+  flight.pilotFlying: { type: bool, optional: true }
+  flight.towKind: { type: tow_kind, optional: true }
+  flight.towedGliders: { type: int, optional: true }
+  flight.distanceKm: { type: number, optional: true }
+  flight.checkRating: { type: string, optional: true }
+  flight.flags: { type: flags }
+  event.date: { type: date }
+  event.kind: { type: event_kind }
+  event.class: { type: class, optional: true }
+  event.rating: { type: string, optional: true }
+
+minute_fields: [total, pic, dual, spic, picus, sic, dualGiven, examiner, multiPilot, night, ifr, actualInstrument, simulatedInstrument, crossCountry]
+
+# ---------------------------------------------------------------------------------------
+# Rule vocabulary (subject to the unused-entry and implemented-entry checks)
+# ---------------------------------------------------------------------------------------
+subjects:
+  rating: { description: "One class, type or instrument rating on a licence.", expiry: true }
+  licence: { description: "One licence.", expiry: true }
+  privilege: { description: "One licence privilege (towing, cloud flying, instructor certificate ...).", expiry: true }
+  credential: { description: "One medical, language or other certificate; validity may be derived.", expiry: true }
+  passengers: { description: "Carrying passengers in one class (and ultralight kind); one subject per class and authority." }
+  flight_review: { description: "The pilot's flight review; one subject per holder." }
+  training: { description: "One training programme (subject detail = programme)." }
+  type: { description: "One variant within a class or type rating (record.variants)." }
+  launch_method: { description: "One sailplane launch method on a rating (trained privilege or ever logged)." }
+
+statuses:
+  current: may exercise the privileges
+  expiring: expiry approaching, expiry-anchored revalidation not yet met, or a grace period
+  expired: past a date expiry, or a restoring event is required
+  lapsed: rolling recency not met; the licence stays valid
+  unknown: not determinable (missing data); the messageKey says what is missing
+  not_applicable: the rule does not apply to this subject
+
+units: [minutes, landings, takeoffs, flights, check, review, approaches, holds, launches, tows, km, training, flight, sectors, events]
+
+# Metrics are counters over the flights (or events) in a window after filtering.
+# source: flights | events. aggregate: sum | max | min_of_sums | none (always untracked).
+# reads: record fields the value depends on; optional: some input may be absent (unknown).
+metrics:
+  flights: { source: flights, aggregate: sum, reads: [], units: [flights, sectors, tows, launches] , description: "Number of flights." }
+  route_sectors: { source: flights, aggregate: sum, reads: [flight.cruiseMinutes], optional: true, units: [sectors, flights], description: "Flights with a cruise of at least 15 minutes (FCL.010 route sector)." }
+  minutes.total: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Total flight time." }
+  minutes.pic: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Time as PIC." }
+  minutes.dual: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Dual instruction received." }
+  minutes.spic: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Supervised solo (SPIC) time." }
+  minutes.picus: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "PIC under supervision." }
+  minutes.sic: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Co-pilot / SIC time." }
+  minutes.dualGiven: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Instruction given as instructor." }
+  minutes.examiner: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Time as examiner." }
+  minutes.multiPilot: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Multi-pilot time." }
+  minutes.night: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Night time." }
+  minutes.ifr: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "IFR time." }
+  minutes.instrument: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Actual plus simulated instrument time." }
+  minutes.crossCountry: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Cross-country time." }
+  minutes.picOrDualOrSpic: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "PIC + dual + supervised solo (\"as PIC or flying dual or solo under supervision\")." }
+  minutes.dualOrSpic: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Dual + supervised solo (flight instruction)." }
+  minutes.picOrSpic: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "PIC + supervised solo (solo time)." }
+  minutes.instructorOrExaminer: { source: flights, aggregate: sum, reads: [flight.minutes], units: [minutes], description: "Instruction given + examiner time." }
+  takeoffs.total: { source: flights, aggregate: sum, reads: [flight.takeoffs], units: [takeoffs], description: "Day + night take-offs." }
+  takeoffs.day: { source: flights, aggregate: sum, reads: [flight.takeoffs], units: [takeoffs], description: "Day take-offs." }
+  takeoffs.night: { source: flights, aggregate: sum, reads: [flight.takeoffs], units: [takeoffs], description: "Night take-offs." }
+  landings.total: { source: flights, aggregate: sum, reads: [flight.landings], units: [landings], description: "Day + night landings." }
+  landings.day: { source: flights, aggregate: sum, reads: [flight.landings], units: [landings], description: "Day landings." }
+  landings.night: { source: flights, aggregate: sum, reads: [flight.landings], units: [landings], description: "Night landings." }
+  takeoffs_and_landings: { source: flights, aggregate: min_of_sums, reads: [flight.takeoffs, flight.landings], units: [landings, takeoffs], description: "The smaller of total take-offs and total landings (\"3 take-offs and 3 landings\")." }
+  full_stop_landings: { source: flights, aggregate: sum, reads: [flight.fullStopLandings], optional: true, units: [landings], description: "Landings to a full stop (day or night)." }
+  full_stop_night_landings: { source: flights, aggregate: sum, reads: [flight.fullStopNightLandings], optional: true, units: [landings], description: "Night landings to a full stop." }
+  launches: { source: flights, aggregate: sum, reads: [flight.launches], units: [launches], description: "Launches (for self-launching aircraft and TMGs: take-offs)." }
+  approaches: { source: flights, aggregate: sum, reads: [flight.approaches], units: [approaches], description: "Instrument approaches." }
+  holds: { source: flights, aggregate: sum, reads: [flight.holds], units: [holds], description: "Holding procedures." }
+  intercept_and_track: { source: flights, aggregate: sum, reads: [flight.interceptAndTrack], optional: true, units: [flights], description: "Flights on which intercepting and tracking courses was performed." }
+  training_flights: { source: flights, aggregate: sum, reads: [flight.minutes], units: [flights], description: "Flights with dual instruction received." }
+  longest_training_flight_minutes: { source: flights, aggregate: max, reads: [flight.minutes], units: [minutes], description: "Total time of the longest flight with dual instruction received." }
+  tows: { source: flights, aggregate: sum, reads: [flight.flags, flight.towedGliders], units: [tows], description: "Tows flown as tug pilot: towedGliders of flights flagged towFlight, 1 when not stated." }
+  distance_km: { source: flights, aggregate: sum, reads: [flight.distanceKm], optional: true, units: [km], description: "Distance flown." }
+  not_recorded: { source: flights, aggregate: none, reads: [], optional: true, units: [flight, flights, training, check, events, landings], description: "A requirement NinerLog cannot count from the record (e.g. the SFCL.115(a)(2) passenger-competence flight); always tracked: false, never met (requirement.untracked)." }
+  events: { source: events, aggregate: sum, reads: [event.kind], units: [events, check, review, training, flight, flights], description: "Events (checks, reviews, courses, tests); filter with eventKinds." }
+
+# Filters restrict the items a metric counts. absent: what happens when the field a filter
+# reads is missing on an item (unknown makes the item unknown, never zero).
+filters:
+  classes: { applies_to: [flights, events], reads: [flight.class], values: classes, subject_ref: true, description: "Item class in the list; $subject = the subject's class." }
+  excludeClasses: { applies_to: [flights, events], reads: [flight.class], values: classes, description: "Item class not in the list." }
+  heldClassPools: { applies_to: [flights, events], reads: [flight.class], values: class_pools, description: "Extends classes: every pool containing a counted class adds the pool's classes the holder rates on the subject's licence (FCL.740.A(b)(2))." }
+  categories: { applies_to: [flights, events], reads: [flight.class], values: categories, description: "Category of the item's class." }
+  ulKinds: { applies_to: [flights, events], reads: [flight.ulKind], values: ul_kinds, subject_ref: true, absent: unknown, description: "Ultralight kind; an ULTRALIGHT item with no kind is unknown." }
+  ulCredit: { applies_to: [flights], reads: [flight.ulKind, flight.mtomKg], values: ul_credit, absent: unknown, description: "Adds ultralight flights of listed kinds when the mapped class is counted (FCL.035(a)(4)/(5)); minMtomKg with absent mass is unknown." }
+  launchMethods: { applies_to: [flights], reads: [flight.launchMethod], values: launch_methods, subject_ref: true, absent: no_match, description: "Launch method in the list." }
+  excludeLaunchMethods: { applies_to: [flights], reads: [flight.launchMethod], values: launch_methods, absent: match, description: "Launch method not in the list." }
+  typeDesignators: { applies_to: [flights, events], reads: [flight.typeDesignator], values: string, subject_ref: true, absent: unknown, description: "Aircraft type designator." }
+  variants: { applies_to: [flights, events], reads: [flight.variant], values: string, subject_ref: true, absent: unknown, description: "Variant within a class or type (FCL.710)." }
+  roles: { applies_to: [flights], reads: [flight.minutes], values: roles, description: "Any listed role has time on the flight." }
+  withMinutes: { applies_to: [flights], reads: [flight.minutes], values: minute_fields, description: "Every listed minute field is positive on the flight." }
+  withoutMinutes: { applies_to: [flights], reads: [flight.minutes], values: minute_fields, description: "Every listed minute field is zero on the flight." }
+  simulator: { applies_to: [flights, events], reads: [flight.isSimulator], values: [exclude, only, include], description: "Simulator (FSTD) items; default exclude." }
+  fstdTypes: { applies_to: [flights], reads: [flight.fstdType], values: fstd_types, absent: unknown, description: "FSTD type of a simulator flight." }
+  flags: { applies_to: [flights], reads: [flight.flags], values: flight_flags, description: "Flight flags that must have the given value." }
+  minMinutes: { applies_to: [flights], reads: [flight.minutes], values: int, description: "Per-flight total time of at least n minutes." }
+  minLandings: { applies_to: [flights], reads: [flight.landings], values: int, description: "Per-flight landings of at least n." }
+  minDistanceKm: { applies_to: [flights], reads: [flight.distanceKm], values: number, absent: unknown, description: "Per-flight distance of at least n km." }
+  tailwheel: { applies_to: [flights], reads: [flight.tailwheel], values: bool, absent: unknown, description: "Aircraft has a tailwheel." }
+  soleManipulator: { applies_to: [flights], reads: [flight.soleManipulator], values: bool, absent: unknown, description: "Pilot was the sole manipulator of the controls." }
+  pilotFlying: { applies_to: [flights], reads: [flight.pilotFlying], values: bool, absent: unknown, description: "Pilot was pilot flying." }
+  towKinds: { applies_to: [flights], reads: [flight.towKind], values: tow_kinds, absent: unknown, description: "What a tow flight towed." }
+  eventKinds: { applies_to: [events], reads: [event.kind], values: event_kinds, description: "Event kind in the list (required with the events metric)." }
+  eventRatings: { applies_to: [events], reads: [event.rating], values: string, absent: no_match, description: "Rating the event was for (e.g. IR)." }
+  any: { applies_to: [flights, events], reads: [], values: filters, description: "Alternatives: an item matches when it matches any listed filter object." }
+
+roles: [pic, dual, spic, picus, sic, instructor, examiner]
+
+# Windows: date-only, inclusive (DESIGN.md decision 1). moving windows follow asOf and
+# give validUntil projections.
+windows:
+  rolling_days: { param: int, moving: true, description: "asOf - n days through asOf." }
+  rolling_months: { param: int, moving: true, description: "asOf - n months (end of month clamped) through asOf." }
+  calendar_months: { param: int, moving: true, description: "First day of the nth calendar month before the month of asOf through asOf." }
+  before_expiry_months: { param: int, anchor: expiry, description: "Expiry - n months through the expiry date (and not after asOf)." }
+  validity_period: { param: bool, anchor: expiry, description: "Subject validFrom (else issued) through the expiry date." }
+  since_issue: { param: [licence, subject], anchor: issue, description: "Issue date of the licence or the subject itself through asOf." }
+  lifetime: { param: bool, description: "Every item up to asOf." }
+
+combinators:
+  all_of: every child met
+  any_of: at least one child met
+  n_of: at least n children met
+
+# Stage `when` conditions (evaluated top to bottom; first hit sets status and messageKey).
+stage_conditions:
+  always: always true
+  all_met: the requirement tree is met (or restored by a restored_by event)
+  undetermined: the requirement tree is neither met nor definitely unmet (missing data)
+  met: "{ met: <requirement id> }"
+  unmet: "{ unmet: <requirement id> } — tracked and not met"
+  untracked: "{ untracked: <requirement id> }"
+  expired: the subject's expiry date is before asOf (valid through the expiry date)
+  no_expiry: the subject's expiry is neither recorded nor derivable
+  expires_within: "{ expires_within: { days: n } } — not expired, expiry within n days"
+  before_window: the rule window (anchored) opens after asOf
+  met_within: "{ met_within: { calendar_months|rolling_months|rolling_days: n } } — last met within n units before asOf"
+  holds: "{ holds: { classes|licenceKinds|privileges|credentials, ulKinds?, sameLicence?, valid?, every? } }"
+  missing: "{ missing: date_of_birth } — an input the rule needs is absent"
+  all: "{ all: [conditions] }"
+  any: "{ any: [conditions] }"
+  not: "{ not: condition }"
+
+missing_inputs: [date_of_birth]
+
+# Rule-level event hooks.
+rule_events:
+  restored_by: "[{ event: <kind>, filter? }] — the tree counts as met from the event date until the event would leave the rule window"
+  resets: "[{ event: <kind>, filter? }] — windows start no earlier than the latest such event"
+
+# Sources for stage messageParams and requirement remedyParams.
+param_sources:
+  days_to_expiry: days from asOf to the expiry date
+  expiry_date: the subject's expiry date
+  window_opens_at: first day of the rule window
+  needed: "{ needed: <requirement id> } — ceil(required - current), at least 0"
+  last_date: "{ last_date: <requirement id> } — latest counted item in the window"
+  valid_until: the evaluation's validUntil
+
+# Derived validity (credentials, certificates): periods by age at the anchor date.
+validity:
+  anchors: [issued, valid_from]
+  period_conditions: [age_under, age_at_least]
+  period_fields: [months, cap_at_age, end_of_month]
+
+hatches:
+  sfcl-130b-credit: "SFCL.130(b): 10 % of the PIC time on other aircraft categories, at most 7 hours."

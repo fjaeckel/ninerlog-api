@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: valid-on-expiry-day
+description: On its expiry date the rating is still valid (catalogue decision 2); 0 days remain.
+covers: [expiry:on, stage:met_expiring]
+asOf: 2026-10-31
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 300, pic: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+    - { date: 2026-05-20, class: SEP_LAND, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-06-12, class: SEP_LAND, minutes: { total: 360, pic: 60, dual: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+expect:
+  - subject: { kind: rating, id: r-sep }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    messageParams: { days: 0 }

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ninerlog.com/schema/rules/pack.schema.json",
+  "title": "Authority pack",
+  "description": "packs/<authority>.yaml: presentation data for one authority (class names, fly/no-fly gates, layout). Rules are not defined here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["authority", "rules"],
+  "properties": {
+    "authority": { "type": "string" },
+    "title": { "type": "string" },
+    "classNames": { "type": "object", "additionalProperties": { "type": "string" } },
+    "rules": { "type": "array", "items": { "type": "string" } },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "rules"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "rules": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "layout": { "type": "array", "items": { "type": "object" } }
+  }
+}

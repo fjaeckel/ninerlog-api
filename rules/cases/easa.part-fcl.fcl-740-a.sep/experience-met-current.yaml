@@ -1,0 +1,19 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: experience-met-current
+description: With more than 90 days to expiry the met rating is current. The authority matches whatever its case and spacing.
+covers: [stage:met, any_of:revalidation:experience]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: " Easa ", type: PPL }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2027-06-30 }
+  flights:
+    - { date: 2026-07-05, class: SEP_LAND, minutes: { total: 300, pic: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+    - { date: 2026-07-20, class: SEP_LAND, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-08-10, class: SEP_LAND, minutes: { total: 360, pic: 60, dual: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+expect:
+  - subject: { kind: rating, id: r-sep }
+    status: current
+    messageKey: rating.revalidation_current
+    windowOpensAt: 2026-06-30

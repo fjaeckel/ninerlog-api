@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ninerlog.com/schema/rules/record.schema.json",
+  "title": "Engine input record",
+  "description": "The neutral record the engine evaluates (DESIGN.md section 4). Optional fields that are absent are unknown, never zero.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "holder": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "dateOfBirth": { "$ref": "#/$defs/date" } }
+    },
+    "licences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "authority", "type"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "authority": { "type": "string" },
+          "type": { "type": "string" },
+          "kind": { "type": "string" },
+          "number": { "type": "string" },
+          "issued": { "$ref": "#/$defs/date" },
+          "expires": { "$ref": "#/$defs/date" }
+        }
+      }
+    },
+    "ratings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "licenceId", "class"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "licenceId": { "$ref": "#/$defs/id" },
+          "class": { "type": "string" },
+          "ulKind": { "type": "string" },
+          "typeDesignator": { "type": "string" },
+          "issued": { "$ref": "#/$defs/date" },
+          "validFrom": { "$ref": "#/$defs/date" },
+          "expires": { "$ref": "#/$defs/date" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "privileges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "licenceId", "kind"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "licenceId": { "$ref": "#/$defs/id" },
+          "kind": { "type": "string" },
+          "detail": { "type": "string" },
+          "issued": { "$ref": "#/$defs/date" },
+          "validFrom": { "$ref": "#/$defs/date" },
+          "expires": { "$ref": "#/$defs/date" }
+        }
+      }
+    },
+    "credentials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "type": { "type": "string" },
+          "issued": { "$ref": "#/$defs/date" },
+          "validFrom": { "$ref": "#/$defs/date" },
+          "expires": { "$ref": "#/$defs/date" }
+        }
+      }
+    },
+    "variants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "ratingId", "name"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "ratingId": { "$ref": "#/$defs/id" },
+          "name": { "type": "string" },
+          "issued": { "$ref": "#/$defs/date" }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["date", "kind"],
+        "properties": {
+          "id": { "type": "string" },
+          "date": { "$ref": "#/$defs/date" },
+          "kind": { "type": "string" },
+          "class": { "type": "string" },
+          "ulKind": { "type": "string" },
+          "typeDesignator": { "type": "string" },
+          "variant": { "type": "string" },
+          "rating": { "type": "string" },
+          "isSimulator": { "type": "boolean" }
+        }
+      }
+    },
+    "flights": { "type": "array", "items": { "$ref": "#/$defs/flight" } }
+  },
+  "$defs": {
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "id": { "type": "string", "minLength": 1 },
+    "count": { "type": "integer", "minimum": 0 },
+    "dayNight": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "day": { "$ref": "#/$defs/count" }, "night": { "$ref": "#/$defs/count" } }
+    },
+    "flight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["date", "class"],
+      "properties": {
+        "date": { "$ref": "#/$defs/date" },
+        "class": { "type": "string" },
+        "ulKind": { "type": "string" },
+        "typeDesignator": { "type": "string" },
+        "variant": { "type": "string" },
+        "registration": { "type": "string" },
+        "launchMethod": { "type": "string" },
+        "isSimulator": { "type": "boolean" },
+        "fstdType": { "type": "string" },
+        "mtomKg": { "$ref": "#/$defs/count" },
+        "tailwheel": { "type": "boolean" },
+        "minutes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "total": { "$ref": "#/$defs/count" },
+            "pic": { "$ref": "#/$defs/count" },
+            "dual": { "$ref": "#/$defs/count" },
+            "spic": { "$ref": "#/$defs/count" },
+            "picus": { "$ref": "#/$defs/count" },
+            "sic": { "$ref": "#/$defs/count" },
+            "dualGiven": { "$ref": "#/$defs/count" },
+            "examiner": { "$ref": "#/$defs/count" },
+            "multiPilot": { "$ref": "#/$defs/count" },
+            "night": { "$ref": "#/$defs/count" },
+            "ifr": { "$ref": "#/$defs/count" },
+            "actualInstrument": { "$ref": "#/$defs/count" },
+            "simulatedInstrument": { "$ref": "#/$defs/count" },
+            "crossCountry": { "$ref": "#/$defs/count" }
+          }
+        },
+        "takeoffs": { "$ref": "#/$defs/dayNight" },
+        "landings": { "$ref": "#/$defs/dayNight" },
+        "fullStopLandings": { "$ref": "#/$defs/count" },
+        "fullStopNightLandings": { "$ref": "#/$defs/count" },
+        "launches": { "$ref": "#/$defs/count" },
+        "approaches": { "$ref": "#/$defs/count" },
+        "holds": { "$ref": "#/$defs/count" },
+        "interceptAndTrack": { "type": "boolean" },
+        "cruiseMinutes": { "$ref": "#/$defs/count" },
+        "soleManipulator": { "type": "boolean" },
+        "pilotFlying": { "type": "boolean" },
+        "towKind": { "type": "string" },
+        "towedGliders": { "$ref": "#/$defs/count" },
+        "distanceKm": { "type": "number", "minimum": 0 },
+        "checkRating": { "type": "string" },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "proficiencyCheck": { "type": "boolean" },
+            "flightReview": { "type": "boolean" },
+            "ipc": { "type": "boolean" },
+            "trainingFlight": { "type": "boolean" },
+            "towFlight": { "type": "boolean" },
+            "outlanding": { "type": "boolean" },
+            "instructorOnBoard": { "type": "boolean" },
+            "examinerOnBoard": { "type": "boolean" },
+            "accompanied": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: tracking-not-logged
+description: Approaches and holds are met but no flight records whether courses were intercepted and tracked; the status is unknown, not current.
+covers: [unknown:intercept_and_track, stage:tasks_not_logged]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2026-05-10, class: SEP_LAND, minutes: { total: 90, pic: 90, simulatedInstrument: 60 }, approaches: 6, holds: 2 }
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: unknown
+    messageKey: rating.ir_tasks_not_logged
+    requirements:
+      approaches: { current: 6, met: true }
+      holds: { current: 2, met: true }
+      intercept_track: { current: 0, met: false, tracked: false }

@@ -1,0 +1,16 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: ipc-required
+description: One day after the grace period the pilot needs an instrument proficiency check.
+covers: [stage:ipc_required]
+asOf: 2027-02-01
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR, expires: 2030-01-01 }
+  flights:
+    - { date: 2026-01-15, class: SEP_LAND, minutes: { total: 120, pic: 120, simulatedInstrument: 90 }, approaches: 6, holds: 1, interceptAndTrack: true }
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: expired
+    messageKey: rating.ir_expired_ipc

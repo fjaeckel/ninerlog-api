@@ -1,0 +1,283 @@
+# Every message, requirement-name, remedy and rule-description key (DESIGN.md section 4).
+# Mirrors ninerlog-api docs/CURRENCY_MESSAGES.md. Fields:
+#   kind       message | requirement_name | requirement_message | remedy | rule_description |
+#              readiness | training_title | training_item | training_message
+#   params     messageParams / remedyParams names; a trailing ? marks an optional param
+#   origin     api (the API emits or emitted it) | catalogue (added by this module)
+#   emitted    the API emits it today
+#   documented listed in docs/CURRENCY_MESSAGES.md
+#   deprecated no longer emitted; rules must not use it
+# Porting agents append new keys only under the anchor for their family at the end.
+keys:
+
+  # --- rating messages ---
+  - { key: rating.no_expiry_date, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.no_expiry_date_manual, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.evaluation_failed, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.expired, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.expiring, kind: message, params: [days], origin: api, emitted: true, documented: true }
+  - { key: rating.valid_until, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.window_not_open, kind: message, params: [date], origin: api, emitted: true, documented: true }
+  - { key: rating.revalidation_not_met, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.revalidation_not_met_prof_check, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.revalidation_expiring_met, kind: message, params: [days], origin: api, emitted: true, documented: true }
+  - { key: rating.revalidation_current, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.recency_not_met, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.recency_current, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.sfcl_tmg_exempt, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.ul_kind_required, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.ir_hours_and_check_not_met, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.ir_hours_not_met, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.ir_check_not_met, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.ir_current, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.ir_lapsed_safety_pilot, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.ir_expired_ipc, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.ir_not_applicable, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.pax_not_current, kind: message, params: [needed], origin: api, emitted: true, documented: true }
+  - { key: rating.pax_day_current_night_not, kind: message, params: [needed], origin: api, emitted: true, documented: true }
+  - { key: rating.pax_current_day_night, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.flight_review_glider_alternative, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: rating.glider_not_current, kind: message, params: [], origin: api, emitted: false, documented: true, deprecated: true, notes: "Listed in the CURRENCY_MESSAGES.md status table but no longer emitted (FAA glider ratings follow the flight review)." }
+  - { key: rating.glider_current, kind: message, params: [], origin: api, emitted: false, documented: true, deprecated: true, notes: "Documented as no longer sent." }
+
+  # --- passenger messages ---
+  - { key: pax.evaluation_failed, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: pax.not_current, kind: message, params: [needed], origin: api, emitted: true, documented: true }
+  - { key: pax.current_day_no_night_privilege, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: pax.current_day_night_ir_waived, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: pax.current_day_night, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: pax.day_current_night_not, kind: message, params: [needed], origin: api, emitted: true, documented: true }
+  - { key: pax.current_day_privilege_separate, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: pax.gpl_experience_not_met, kind: message, params: [needed], origin: api, emitted: true, documented: true }
+  - { key: pax.ul_authorisation_missing, kind: message, params: [], origin: api, emitted: true, documented: true }
+
+  # --- privilege messages ---
+  - { key: privilege.valid, kind: message, params: ["date?"], origin: api, emitted: true, documented: true }
+  - { key: privilege.expired, kind: message, params: [date], origin: api, emitted: true, documented: true }
+  - { key: privilege.recency_current, kind: message, params: ["date?"], origin: api, emitted: true, documented: true }
+  - { key: privilege.recency_not_met, kind: message, params: ["date?"], origin: api, emitted: true, documented: true }
+  - { key: privilege.evaluation_failed, kind: message, params: [], origin: api, emitted: true, documented: true }
+
+  # --- flight review messages ---
+  - { key: flight_review.evaluation_failed, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: flight_review.none_on_record, kind: message, params: [], origin: api, emitted: true, documented: true }
+  - { key: flight_review.expired, kind: message, params: [date], origin: api, emitted: true, documented: true }
+  - { key: flight_review.expiring, kind: message, params: [days, date], origin: api, emitted: true, documented: true }
+  - { key: flight_review.current, kind: message, params: [date], origin: api, emitted: true, documented: true }
+
+  # --- requirement messages ---
+  - { key: requirement.progress, kind: requirement_message, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.prof_check_completed, kind: requirement_message, params: [date], origin: api, emitted: true, documented: true }
+  - { key: requirement.prof_check_missing, kind: requirement_message, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.untracked, kind: requirement_message, params: [], origin: api, emitted: true, documented: true }
+  - { key: launch_method.progress, kind: requirement_message, params: [], origin: api, emitted: true, documented: true }
+
+  # --- requirement names ---
+  - { key: requirement.total_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.pic_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.ifr_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.landings, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.day_landings, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.night_landings, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.refresher_training, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.training_flight, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.proficiency_check, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.approaches, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.holds, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.route_sectors, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.launches, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.sep_land_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.sep_land_landings, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.sep_sea_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.sep_sea_landings, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.flight_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.training_flights, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.tmg_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.tmg_landings, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.tmg_training_flight, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.flight_review, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.tows, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.towed_glider_flights, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.cloud_flying_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.cloud_flying_flights, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.instruction_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.instruction_launches, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.fi_refresher, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.pax_prerequisite_time, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.pax_prerequisite_launches, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.pax_competence_flight, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.ul_xc_flights, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.ul_xc_landing_flights, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.ul_xc_distance, kind: requirement_name, params: [], origin: api, emitted: true, documented: true }
+  - { key: requirement.launches_and_landings, kind: requirement_name, params: [], origin: api, emitted: false, documented: true, deprecated: true, notes: "Documented as no longer sent (was the FAA glider 61.57(a) row)." }
+
+  # --- remedies ---
+  - { key: remedy.fly_more, kind: remedy, params: [missing, unit], origin: api, emitted: true, documented: true }
+  - { key: remedy.training_flight, kind: remedy, params: [], origin: api, emitted: true, documented: true }
+  - { key: remedy.proficiency_check, kind: remedy, params: [], origin: api, emitted: true, documented: true }
+  - { key: remedy.launch_method_dual, kind: remedy, params: [method, missing], origin: api, emitted: true, documented: true }
+  - { key: remedy.privilege_with_instructor, kind: remedy, params: [missing, unit], origin: api, emitted: true, documented: true }
+
+  # --- readiness (API consumer keys) ---
+  - { key: readiness.launch_method_current, kind: readiness, params: [date], origin: api, emitted: true, documented: true }
+  - { key: readiness.credential_valid, kind: readiness, params: ["date?"], origin: api, emitted: true, documented: true }
+  - { key: readiness.credential_expired, kind: readiness, params: [date], origin: api, emitted: true, documented: true }
+
+  # --- rule descriptions ---
+  - { key: easa_sep_tmg, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: easa_mep_set, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: easa_ir, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: easa_lapl, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: easa_spl, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: easa_spl_tmg, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: easa_gpl, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: faa_pax_day_night, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: faa_ir, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: faa_flight_review, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: ul_luftpersv, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: ul_luftpersv_helicopter, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: ul_gyroplane, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: ul_trike_dulv, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: ul_trike_daec, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: ul_powered_paraglider, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: ul_sailplane, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: easa_pax, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: ul_pax, kind: rule_description, params: [], origin: api, emitted: true, documented: false, notes: "Emitted as ruleDescriptionKey but not listed in CURRENCY_MESSAGES.md." }
+  - { key: easa_spl_pax, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: easa_spl_tmg_pax, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: faa_glider, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: privilege_expiry, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: sfcl_155_launch_method, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: sfcl_205_towing, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: sfcl_205_banner_towing, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: faa_61_69_towing, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: sfcl_215_cloud_flying, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: sfcl_360_fi_s, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+  - { key: dulv_ul_towing, kind: rule_description, params: [], origin: api, emitted: true, documented: true }
+
+  # --- training ---
+  - { key: training.programme.spl, kind: training_title, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.programme.spl_tmg_extension, kind: training_title, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.programme.ul_three_axis, kind: training_title, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.programme.ul_weight_shift, kind: training_title, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.spl.instruction_time, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.spl.dual_time, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.spl.supervised_solo_time, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.spl.launches, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.spl.cross_country, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.spl.credit_sfcl130b, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.tmg.instruction_time, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.tmg.dual_time, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.tmg.solo_cross_country, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.ul.total_time, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.ul.dual_time, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.ul.solo_time, kind: training_item, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.met, kind: training_message, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.not_met, kind: training_message, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.cross_country_distance_unknown, kind: training_message, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.credit_available, kind: training_message, params: [], origin: api, emitted: true, documented: true }
+  - { key: training.credit_none, kind: training_message, params: [], origin: api, emitted: true, documented: true }
+
+  # --- catalogue: rating ---
+  - { key: rating.ir_tasks_not_logged, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "FAA 61.57(c): approaches and holds met, intercepting and tracking not recorded." }
+  - { key: rating.revalidation_not_met_expired_check_required, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Rating expired; renewal requires a proficiency check (FCL.740(b))." }
+  - { key: rating.renewal_required, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Rating expired; renewal path applies." }
+  - { key: rating.not_applicable, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "The rule does not apply to this rating." }
+
+  # --- catalogue: passengers ---
+  - { key: pax.day_current, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Day passenger recency met (night evaluated by a separate rule)." }
+  - { key: pax.night_current, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Night passenger recency met." }
+  - { key: pax.night_not_current, kind: message, params: [needed], origin: catalogue, emitted: false, documented: false, notes: "Night passenger recency short by needed." }
+  - { key: pax.night_waived_ir, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Night passenger recency waived: the pilot holds an IR (FCL.060(b)(2)(ii))." }
+  - { key: pax.night_no_privilege, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "The licence has no night privilege." }
+  - { key: pax.prerequisite_not_met, kind: message, params: [needed], origin: catalogue, emitted: false, documented: false, notes: "Passenger prerequisite since licence issue not met." }
+
+  # --- catalogue: licence ---
+  - { key: licence.valid, kind: message, params: ["date?"], origin: catalogue, emitted: false, documented: false, notes: "Licence valid." }
+  - { key: licence.expired, kind: message, params: [date], origin: catalogue, emitted: false, documented: false, notes: "Licence past its expiry date." }
+  - { key: licence.recency_current, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Licence recency met." }
+  - { key: licence.recency_not_met, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Licence recency not met; privileges may not be exercised." }
+  - { key: licence.not_applicable, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Rule does not apply to this licence." }
+
+  # --- catalogue: privilege ---
+  - { key: privilege.expiring, kind: message, params: [days, date], origin: catalogue, emitted: false, documented: false, notes: "Privilege expiry approaching." }
+  - { key: privilege.revalidation_current, kind: message, params: ["date?"], origin: catalogue, emitted: false, documented: false, notes: "Revalidation requirements met." }
+  - { key: privilege.revalidation_not_met, kind: message, params: ["date?"], origin: catalogue, emitted: false, documented: false, notes: "Revalidation requirements not yet met." }
+  - { key: privilege.no_expiry_date, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "No expiry date recorded or derivable." }
+  - { key: privilege.not_applicable, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Rule does not apply to this privilege." }
+
+  # --- catalogue: credential ---
+  - { key: credential.valid, kind: message, params: ["date?"], origin: catalogue, emitted: false, documented: false, notes: "Certificate valid; date is its expiry." }
+  - { key: credential.expiring, kind: message, params: [days, date], origin: catalogue, emitted: false, documented: false, notes: "Certificate expiry approaching." }
+  - { key: credential.revalidation_window_open, kind: message, params: [days, date], origin: catalogue, emitted: false, documented: false, notes: "Revalidation examination may be taken now (e.g. MED.A.045(b))." }
+  - { key: credential.expired, kind: message, params: [date], origin: catalogue, emitted: false, documented: false, notes: "Certificate past its expiry date." }
+  - { key: credential.no_expiry_date, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Expiry neither recorded nor derivable." }
+  - { key: credential.date_of_birth_required, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Validity depends on age; the date of birth is not recorded." }
+  - { key: credential.not_applicable, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Rule does not apply to this certificate." }
+
+  # --- catalogue: flight review ---
+  - { key: flight_review.substituted, kind: message, params: [date], origin: catalogue, emitted: false, documented: false, notes: "A proficiency check, practical test or proficiency-program phase stands in for the flight review (61.56(d)/(e))." }
+  - { key: flight_review.not_applicable, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Flight review not required (e.g. student pilot, 61.56(g))." }
+
+  # --- catalogue: type and variant ---
+  - { key: type.current, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Variant flown within the period." }
+  - { key: type.not_flown, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Variant not flown within the period; differences training, a proficiency check or refresher training is required (FCL.710(d))." }
+  - { key: type.unknown, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Variant flights not identifiable (no variant recorded)." }
+
+  # --- catalogue: launch method ---
+  - { key: launch_method.current, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Launch method recency met (SFCL.155(c))." }
+  - { key: launch_method.lapsed, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Launch method recency not met; fly the missing launches dual or supervised (SFCL.155(d))." }
+
+  # --- catalogue: training ---
+  - { key: training.all_met, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Every programme item met." }
+  - { key: training.in_progress, kind: message, params: [], origin: catalogue, emitted: false, documented: false, notes: "Programme items still open." }
+
+  # --- catalogue: requirement names ---
+  - { key: requirement.takeoffs, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Take-offs." }
+  - { key: requirement.night_takeoffs, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Take-offs at night." }
+  - { key: requirement.full_stop_landings, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Landings to a full stop." }
+  - { key: requirement.full_stop_night_landings, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Night landings to a full stop." }
+  - { key: requirement.takeoffs_and_landings, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Take-offs and landings (the smaller count)." }
+  - { key: requirement.night_takeoffs_and_landings, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Night take-offs and landings." }
+  - { key: requirement.intercept_track, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Intercepting and tracking courses." }
+  - { key: requirement.refresher_exemption, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "A check, test or assessment that exempts from refresher training (FCL.740.A(b)(1)(ii)(C))." }
+  - { key: requirement.examiner_route_sector, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Route sector flown with an examiner." }
+  - { key: requirement.ipc, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Instrument proficiency check." }
+  - { key: requirement.skill_test, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Skill or practical test." }
+  - { key: requirement.practical_test, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Practical test." }
+  - { key: requirement.assessment_of_competence, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Assessment of competence." }
+  - { key: requirement.refresher_course, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Refresher course or seminar." }
+  - { key: requirement.instructor_refresher, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Instructor refresher training." }
+  - { key: requirement.examiner_refresher, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Examiner refresher course." }
+  - { key: requirement.supervised_instruction, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Instruction flight under supervision (assessment)." }
+  - { key: requirement.instruction_given, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Flight instruction given." }
+  - { key: requirement.instruction_sessions, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Instruction sessions given." }
+  - { key: requirement.variant_flown, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Flights on the variant." }
+  - { key: requirement.differences_training, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Differences training or familiarisation." }
+  - { key: requirement.basicmed_course, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "BasicMed medical education course." }
+  - { key: requirement.basicmed_exam, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "BasicMed comprehensive medical examination." }
+  - { key: requirement.proficiency_program, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Phase of an FAA-sponsored pilot proficiency program." }
+  - { key: requirement.tailwheel_full_stop_landings, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Full-stop landings in a tailwheel aeroplane." }
+  - { key: requirement.instrument_time, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Instrument time." }
+  - { key: requirement.night_time, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Night time." }
+  - { key: requirement.cross_country_flights, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Cross-country flights." }
+  - { key: requirement.pic_time_since_issue, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Time as PIC since licence issue." }
+  - { key: requirement.launches_as_pic, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Launches as PIC." }
+  - { key: requirement.tethered_flights, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Tethered balloon flights." }
+  - { key: requirement.mountain_landings, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Landings on designated mountain surfaces." }
+  - { key: requirement.flight_tests, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Flight tests." }
+  - { key: requirement.tests_conducted, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Tests or checks conducted as examiner." }
+  - { key: requirement.route_sector_cruise, kind: requirement_name, params: [], origin: catalogue, emitted: false, documented: false, notes: "Route sectors (cruise of at least 15 minutes)." }
+
+  # --- catalogue: remedies ---
+  - { key: remedy.ipc, kind: remedy, params: [], origin: catalogue, emitted: false, documented: false, notes: "Take an instrument proficiency check." }
+  - { key: remedy.flight_review, kind: remedy, params: [], origin: catalogue, emitted: false, documented: false, notes: "Complete a flight review." }
+  - { key: remedy.differences_training, kind: remedy, params: [], origin: catalogue, emitted: false, documented: false, notes: "Complete differences training, a proficiency check or refresher training on the variant." }
+  - { key: remedy.refresher_training, kind: remedy, params: [], origin: catalogue, emitted: false, documented: false, notes: "Complete refresher training with an instructor." }
+  - { key: remedy.renew_credential, kind: remedy, params: [], origin: catalogue, emitted: false, documented: false, notes: "Renew the certificate." }
+
+  # --- family additions: easa-part-fcl (append below this line) ---
+  # --- family additions: easa-part-sfcl-bfcl (append below this line) ---
+  # --- family additions: easa-part-med (append below this line) ---
+  # --- family additions: faa (append below this line) ---
+  # --- family additions: de (append below this line) ---

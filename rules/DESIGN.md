@@ -262,3 +262,35 @@ scope, apart from the recency and experience they require.
    article as written. Each deliberate difference from today's API behaviour is a
    `divergence` entry in the rule file (what the API does, what the article says, citation)
    and a CHANGELOG line. The parity harness lists them by name.
+
+## 12. Amendments after the foundation (2026-09-27)
+
+The foundation build showed where sections 4–7 were too thin or wrong. Where this section
+and an earlier one disagree, this section wins.
+
+1. **Record (section 4)** also has: `holder.dateOfBirth` (optional), non-flight `events`
+   (proficiency checks, skill tests, seminars, assessments of competence), aircraft
+   `variants`, `validFrom`, and several optional flight fields listed in
+   `schema/record.schema.json`, which is the authoritative definition.
+2. **Requirement rows carry `messageKey`**, as the API sends today. A `launch_method`
+   subject exists.
+3. **Stage conditions (section 5)** also include `holds` (a named condition such as the IR
+   night waiver, the SFCL.160(c) exemption, the §84a authorisation) and `undetermined` (a
+   required input is unknown). A missing optional input is three-valued: never met.
+4. **Windows:** `calendar_months: n` covers the n calendar months before the month of
+   `asOf` plus the current month to date. `rolling_months` snaps to the end of the month.
+5. **FAA 61.57(c) grace:** instrument currency lapses six calendar months after the
+   requirement was last met; the grace runs from that date, not over a 12-month sum. The
+   example in section 6 is superseded by the reference rule file.
+6. **Coverage tags (section 7):** `stage:<stage-id>` rather than status; per-window
+   `window:<id>:edge-in|edge-out` for rules with several windows; `unknown:` tags for
+   filters that read optional inputs, not only metrics. Tags are derived from what each
+   case exercises, and a case's `covers:` must match.
+7. **Unused vocabulary** entries left after porting are pruned or listed with a reason in
+   `vocabulary.yaml` (`reserved_for: <article>`); the gate accepts reserved entries.
+8. **Parallel porting.** Porting agents do not edit shared files. New message keys go to
+   `docs/key-requests/<family>.yaml` and changelog lines to
+   `docs/changelog-fragments/<family>.md`; the integration step merges them into
+   `messages/keys.yaml` and `CHANGELOG.md`. Until then, key and changelog findings for a
+   family's rules are expected in `rulescheck -report`.
+9. `effective_from` is set only when the source file states it; otherwise null.

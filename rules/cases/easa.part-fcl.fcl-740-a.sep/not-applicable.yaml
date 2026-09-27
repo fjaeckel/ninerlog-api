@@ -1,0 +1,18 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: not-applicable
+description: LAPL and SPL privileges follow FCL.140.A and SFCL.160; FAA and DULV licences and MEP ratings are not evaluated here.
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-lapl, authority: EASA, type: LAPL(A) }
+    - { id: l-spl, authority: EASA, type: SPL }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+    - { id: l-dulv, authority: DULV, type: UL }
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-lapl, licenceId: l-lapl, class: SEP_LAND, expires: 2026-10-31 }
+    - { id: r-spl, licenceId: l-spl, class: TMG, expires: 2026-10-31 }
+    - { id: r-faa, licenceId: l-faa, class: SEP_LAND }
+    - { id: r-dulv, licenceId: l-dulv, class: SEP_LAND, expires: 2026-10-31 }
+    - { id: r-mep, licenceId: l-ppl, class: MEP_LAND, expires: 2026-10-31 }
+expect: []

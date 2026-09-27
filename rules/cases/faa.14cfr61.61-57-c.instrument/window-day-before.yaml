@@ -1,0 +1,21 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: window-day-before
+description: Tasks flown on 31 January fall outside the window on 16 August; the pilot met the requirement until 31 July and is in the grace period.
+covers: [window:edge-out, stage:grace, requirement:approaches:unmet, requirement:holds:unmet, requirement:intercept_track:unmet]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2026-01-31, class: SEP_LAND, minutes: { total: 120, pic: 120, simulatedInstrument: 90 }, approaches: 6, holds: 1, interceptAndTrack: true }
+    - { date: 2026-06-02, class: SEP_LAND, minutes: { total: 60, pic: 60 }, approaches: 0, interceptAndTrack: false }
+expect:
+  - subject: { kind: rating, id: r-ir }
+    status: expiring
+    messageKey: rating.ir_lapsed_safety_pilot
+    requirements:
+      approaches: { current: 0, required: 6, met: false, tracked: true, remedyKey: remedy.fly_more, remedyParams: { missing: 6, unit: approaches } }
+      holds: { current: 0, met: false, remedyKey: remedy.fly_more, remedyParams: { missing: 1, unit: holds } }
+      intercept_track: { current: 0, met: false, tracked: true, remedyKey: remedy.fly_more, remedyParams: { missing: 1, unit: flights } }

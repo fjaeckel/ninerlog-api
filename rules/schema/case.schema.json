@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ninerlog.com/schema/rules/case.schema.json",
+  "title": "Rule case",
+  "description": "One record, one asOf and the expected evaluations of one rule (DESIGN.md section 7). Absent expectation fields are not compared; expect: [] asserts that the rule evaluates nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rule", "name", "asOf", "record", "expect"],
+  "properties": {
+    "rule": { "type": "string", "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+){2,}$" },
+    "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "description": { "type": "string" },
+    "covers": { "type": "array", "items": { "type": "string", "pattern": "^(stage|requirement|any_of|n_of|window|event|unknown|expiry):" } },
+    "asOf": { "$ref": "record.schema.json#/$defs/date" },
+    "record": { "$ref": "record.schema.json" },
+    "expect": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject"],
+        "properties": {
+          "subject": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind"],
+            "properties": {
+              "kind": { "type": "string" },
+              "id": { "type": "string" },
+              "class": { "type": "string" },
+              "ulKind": { "type": "string" },
+              "detail": { "type": "string" }
+            }
+          },
+          "status": { "enum": ["current", "expiring", "expired", "lapsed", "unknown", "not_applicable"] },
+          "messageKey": { "type": "string" },
+          "messageParams": { "type": "object" },
+          "expiresOn": { "$ref": "record.schema.json#/$defs/date" },
+          "windowOpensAt": { "$ref": "record.schema.json#/$defs/date" },
+          "validUntil": { "$ref": "record.schema.json#/$defs/date" },
+          "requirements": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "current": { "type": "number" },
+                "required": { "type": "number" },
+                "met": { "type": "boolean" },
+                "tracked": { "type": "boolean" },
+                "validUntil": { "$ref": "record.schema.json#/$defs/date" },
+                "lastDate": { "$ref": "record.schema.json#/$defs/date" },
+                "messageKey": { "type": "string" },
+                "remedyKey": { "type": "string" },
+                "remedyParams": { "type": "object" },
+                "absent": { "const": true }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

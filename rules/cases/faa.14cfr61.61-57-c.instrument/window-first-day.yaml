@@ -1,0 +1,19 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: window-first-day
+description: Tasks flown on 1 February, the first day of the 6 calendar months before August, still count; the pilot stays current through 31 August.
+covers: [window:edge-in, stage:current]
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-faa, authority: " faa ", type: COMMERCIAL }
+  ratings:
+    - { id: r-ir, licenceId: l-faa, class: IR }
+  flights:
+    - { date: 2026-02-01, class: MEP_LAND, minutes: { total: 120, pic: 120, actualInstrument: 60 }, approaches: 6, holds: 1, interceptAndTrack: true }
+expect:
+  - subject: { kind: rating, id: r-ir, class: IR }
+    status: current
+    messageKey: rating.ir_current
+    validUntil: 2026-08-31
+    requirements:
+      approaches: { current: 6, met: true }

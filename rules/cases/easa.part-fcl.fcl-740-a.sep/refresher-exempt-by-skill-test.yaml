@@ -1,0 +1,22 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: refresher-exempt-by-skill-test
+description: A skill test in another aeroplane class exempts from the refresher training; one in a helicopter would not.
+covers: [any_of:refresher:refresher_exemption, requirement:refresher_exemption:met]
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2026-10-31 }
+  events:
+    - { date: 2026-02-01, kind: skill_test, class: MEP_LAND }
+    - { date: 2026-02-02, kind: skill_test, class: HELICOPTER }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 720, pic: 360, sic: 360 }, takeoffs: { day: 12 }, landings: { day: 12 } }
+expect:
+  - subject: { kind: rating, id: r-sep }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    requirements:
+      refresher_training: { current: 0, met: false }
+      refresher_exemption: { current: 1, met: true, lastDate: 2026-02-01 }

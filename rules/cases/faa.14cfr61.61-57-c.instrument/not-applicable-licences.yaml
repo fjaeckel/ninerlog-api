@@ -1,0 +1,14 @@
+rule: faa.14cfr61.61-57-c.instrument
+name: not-applicable-licences
+description: An IR on a sport certificate and an EASA IR are not evaluated by this rule; neither is an FAA SEP rating.
+asOf: 2026-08-16
+record:
+  licences:
+    - { id: l-sport, authority: FAA, type: SPORT }
+    - { id: l-easa, authority: EASA, type: PPL(A) }
+    - { id: l-faa, authority: FAA, type: PRIVATE }
+  ratings:
+    - { id: r-sport-ir, licenceId: l-sport, class: IR }
+    - { id: r-easa-ir, licenceId: l-easa, class: IR }
+    - { id: r-sep, licenceId: l-faa, class: SEP_LAND }
+expect: []

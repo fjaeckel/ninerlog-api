@@ -211,7 +211,7 @@ rules:
       - status: suspected
         what: Rating treated as expired on its expiry date itself (ExpiryDate 00:00 before now); validity is usually understood to run through the expiry date.
     tests: [currency_test.go TestEASA_SEP_*, TestEASA_TMG_Current, two_tier_test.go TestEASA_SEP_LookbackIs12Months_NotFlights, cross_class_test.go TestEASA_PPL_SEPLandAndTMG_Pooled, TestEASA_PPL_SEPLandOnly_TMGNotCounted, TestEASA_PPL_SEPSea_NotPooledWithTMG, TestEASA_PooledRules_ExcludeTowedLaunches, annex_i_credit_test.go TestEASA_SEP_ThreeAxisULTimeAndLandingsCount, TestEASA_SEP_ULRefresherDoesNotCount, TestEASA_AnnexICredit_ByClass, ul_recency_test.go TestRefresherTraining_StaysCumulative, TestExpiryAnchoredRevalidationUnmetStaysExpiring, projection_test.go TestValidUntil_ExpiryAnchoredRuleOmitted]
-    maps_to:
+    maps_to: easa.part-fcl.fcl-740-a.sep
 
   - id: easa.part-fcl.fcl-740-a.mep-set
     where:
@@ -972,7 +972,7 @@ rules:
       - status: suspected
         what: Grace status "expiring" is treated as ready by readiness, although in the grace period the pilot may not act as PIC under IFR.
     tests: [currency_test.go TestFAA_IR_Current, TestFAA_IR_InsufficientIFR, TestFAA_IR_Expired, lapl_spl_test.go TestFAA_IR_GracePeriod_Within6Months_Current, TestFAA_IR_GracePeriod_NotMetAnywhere_Expired]
-    maps_to:
+    maps_to: faa.14cfr61.61-57-c.instrument
 
   - id: faa.14cfr61.61-315.ir-not-applicable
     where:
@@ -1410,6 +1410,7 @@ rules:
   # ======================= Readiness =======================
 
   - id: other.ninerlog.readiness.rating
+    scope: consumer  # DESIGN.md decision 5: composed by the API, excluded from gate check 3
     where: { definition: "internal/service/readiness/readiness.go:218-254 (ratingItem), 105-170 (Evaluate), 193-204 (ratingCovers)" }
     article: []
     subject: { kind: 'readiness item "rating", for each rating from EvaluateAsOf(date)' }
@@ -1432,6 +1433,7 @@ rules:
     maps_to:
 
   - id: other.ninerlog.readiness.launch-method
+    scope: consumer  # DESIGN.md decision 5: composed by the API, excluded from gate check 3
     where: { definition: "internal/service/readiness/readiness.go:256-277 (launchMethodItem), 136-151" }
     article: [EASA SFCL.155(c), SFCL.155(d)]
     subject: { kind: 'readiness item "launch_method", once per method across ratings (first rating wins)' }
@@ -1449,6 +1451,7 @@ rules:
     maps_to:
 
   - id: other.ninerlog.readiness.passengers
+    scope: consumer  # DESIGN.md decision 5: composed by the API, excluded from gate check 3
     where: { definition: "internal/service/readiness/readiness.go:279-290, 153-160, 206-216" }
     subject: { kind: 'readiness item "passengers", only when passengers=true' }
     article: []
@@ -1468,6 +1471,7 @@ rules:
     maps_to:
 
   - id: other.ninerlog.readiness.medical
+    scope: consumer  # DESIGN.md decision 5: composed by the API, excluded from gate check 3
     where: { definition: "internal/service/readiness/readiness.go:292-336 (credentialItem, latestMedicals); internal/models/credential.go:50-66" }
     article: []
     subject:
@@ -1493,6 +1497,7 @@ rules:
   # ======================= Night privilege and save-time checks =======================
 
   - id: other.ninerlog.night-privilege
+    scope: consumer  # DESIGN.md decision 5: composed by the API, excluded from gate check 3
     where: { definition: "internal/service/currency/faa.go:262-282 (HasNightPrivilege)" }
     article: [14 CFR 61.315/61.101 (sport/recreational), FCL.810, LuftPersV §44(2)]
     subject: { kind: 'licence (gate for night passenger evaluation)' }
@@ -1517,6 +1522,7 @@ rules:
     maps_to:
 
   - id: de.luftpersv.44-2.ul-night-flight-warning
+    scope: consumer  # DESIGN.md decision 5: composed by the API, excluded from gate check 3
     where: { definition: "internal/service/save_warnings.go:87-103 (checkULNightFlight)" }
     article: [LuftPersV §44(2)]
     subject: { kind: 'flight save warning (not a currency result)' }

@@ -1,0 +1,107 @@
+id: faa.14cfr61.61-57-c.instrument
+title: Instrument experience (IFR recency)
+authority: faa
+instrument: 14 CFR Part 61
+article: 61.57(c)(1), (c)(2), (d)(1)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: 14 CFR 61.57(c)(1)
+  url: https://www.ecfr.gov/current/title-14/part-61/section-61.57
+  file: sources/faa/61.57.md
+  quote:
+    - "Within the 6 calendar months preceding the month of the flight, that person performed and logged at least the following tasks and iterations in an airplane, powered-lift, helicopter, or airship, as appropriate, for the instrument rating privileges to be maintained in actual weather conditions, or under simulated conditions using a view-limiting device that involves having performed the following—"
+    - "(i) Six instrument approaches."
+    - "(ii) Holding procedures and tasks."
+    - "(iii) Intercepting and tracking courses through the use of navigational electronic systems."
+    - "A pilot may accomplish the requirements in paragraph (c)(1) of this section in a full flight simulator, flight training device, or aviation training device provided the device represents the category of aircraft for the instrument rating privileges to be maintained and the pilot performs the tasks and iterations in simulated instrument conditions."
+    - "a person who has failed to meet the instrument experience requirements of paragraph (c) of this section for more than six calendar months may reestablish instrument currency only by completing an instrument proficiency check."
+related_sources:
+  - cite: 14 CFR 61.19(c)(1)
+    url: https://www.ecfr.gov/current/title-14/part-61/section-61.19
+    file: sources/faa/61.19.md
+    quote: "A pilot certificate (including a student pilot certificate issued after April 1, 2016) issued under this part is issued without an expiration date."
+citations: [14 CFR 61.57(c)(1), 14 CFR 61.57(c)(2), 14 CFR 61.57(d)(1)]
+
+applies_to:
+  subject: rating
+  classes: [IR]
+  authorities: [FAA]
+  excludeLicenceKinds: [FAA_SPORT, FAA_RECREATIONAL]
+
+window: { calendar_months: 6 }
+filter:
+  categories: [aeroplane, helicopter, powered_lift, airship]
+  simulator: include
+
+requirements:
+  all_of:
+    - id: approaches
+      metric: approaches
+      min: 6
+      unit: approaches
+      nameKey: requirement.approaches
+      remedyKey: remedy.fly_more
+    - id: holds
+      metric: holds
+      min: 1
+      unit: holds
+      nameKey: requirement.holds
+      remedyKey: remedy.fly_more
+    - id: intercept_track
+      metric: intercept_and_track
+      min: 1
+      unit: flights
+      nameKey: requirement.intercept_track
+      remedyKey: remedy.fly_more
+
+stages:
+  - { id: current, when: all_met, status: current, messageKey: rating.ir_current }
+  - { id: tasks_not_logged, when: undetermined, status: unknown, messageKey: rating.ir_tasks_not_logged }
+  - { id: grace, when: { met_within: { calendar_months: 6 } }, status: expiring, messageKey: rating.ir_lapsed_safety_pilot }
+  - { id: ipc_required, when: always, status: expired, messageKey: rating.ir_expired_ipc }
+
+restored_by:
+  - { event: ipc, filter: { simulator: include } }
+
+ruleDescriptionKey: faa_ir
+
+divergences:
+  - id: calendar-months
+    api: Counts the tasks of the last 6 rolling months from the evaluation instant (now.AddDate(0,-6,0)).
+    article: The tasks count from the first day of the 6th calendar month before the month of the flight; tasks flown in January keep the pilot current through 31 July.
+    cite: 14 CFR 61.57(c)(1)
+  - id: intercept-track
+    api: Requires only 6 approaches and 1 hold; intercepting and tracking courses is not read.
+    article: Intercepting and tracking courses is a third required task. When no flight in the window records it, the rating is reported unknown (rating.ir_tasks_not_logged), never current.
+    cite: 14 CFR 61.57(c)(1)(iii)
+  - id: grace-period
+    api: Reports the grace status when 6 approaches and 1 hold add up over the last 12 rolling months, even if the pilot was never current.
+    article: The grace status holds only while the pilot has failed the experience requirement for at most six calendar months, counted from the last day the requirement was met.
+    cite: 14 CFR 61.57(d)(1)
+  - id: ipc-restores
+    api: Ignores logged instrument proficiency checks; a pilot stays rating.ir_expired_ipc until 6 approaches and a hold are logged again.
+    article: An instrument proficiency check re-establishes currency; the pilot is current from the check through the end of the 6th calendar month after its month.
+    cite: 14 CFR 61.57(d)(1)
+  - id: fstd
+    api: Excludes simulator sessions from the task counts.
+    article: Tasks flown in a full flight simulator, flight training device or aviation training device representing the category count.
+    cite: 14 CFR 61.57(c)(2)
+  - id: category
+    api: Counts tasks in every class except gliders and ultralight sailplanes, including ultralights.
+    article: Counts tasks in an airplane, powered-lift, helicopter or airship (or a device representing one).
+    cite: 14 CFR 61.57(c)(1)
+  - id: no-expiry
+    api: Reports rating.expired when an expiry date is recorded on the rating and has passed.
+    article: FAA pilot certificates and their ratings are issued without an expiration date; a recorded date is ignored.
+    cite: 14 CFR 61.19(c)(1)
+
+notes: >-
+  Partial: the tasks are counted in any of the four categories, because a record's IR rating
+  does not name the category whose privileges are maintained. Gliders (61.57(c)(3)) are a
+  separate rule. The (e) exceptions for part 121/125/135 operations are not modelled. An
+  instrument proficiency check (flight flag ipc, or an ipc event) in an aircraft or a device
+  restores currency; 61.57(d)(2)-(3) conditions on who gives it are taken as met.
+  Sport and recreational certificates carry no instrument privileges and are excluded here.

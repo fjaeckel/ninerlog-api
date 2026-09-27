@@ -1,0 +1,40 @@
+rule: easa.part-fcl.fcl-740-a.sep
+name: experience-met-expiring
+description: 12 h, 6 h PIC, 12 take-offs and landings and 1 h of dual in the 12 months before expiry revalidate the rating; with 46 days left it is shown as expiring.
+covers:
+  - stage:met_expiring
+  - any_of:revalidation:experience
+  - any_of:refresher:refresher_training
+  - requirement:total_time:met
+  - requirement:pic_time:met
+  - requirement:takeoffs:met
+  - requirement:landings:met
+  - requirement:refresher_training:met
+  - requirement:proficiency_check:unmet
+  - requirement:refresher_exemption:unmet
+  - expiry:before
+asOf: 2026-09-15
+record:
+  licences:
+    - { id: l-ppl, authority: EASA, type: PPL(A) }
+  ratings:
+    - { id: r-sep, licenceId: l-ppl, class: SEP_LAND, expires: 2026-10-31 }
+  flights:
+    - { date: 2026-03-10, class: SEP_LAND, minutes: { total: 300, pic: 300 }, takeoffs: { day: 5 }, landings: { day: 5 } }
+    - { date: 2026-05-20, class: SEP_LAND, minutes: { total: 60, dual: 60 }, takeoffs: { day: 2 }, landings: { day: 2 } }
+    - { date: 2026-06-12, class: SEP_LAND, minutes: { total: 360, pic: 60, dual: 300 }, takeoffs: { day: 4, night: 1 }, landings: { day: 4, night: 1 } }
+expect:
+  - subject: { kind: rating, id: r-sep, class: SEP_LAND }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    messageParams: { days: 46 }
+    expiresOn: 2026-10-31
+    windowOpensAt: 2025-10-31
+    requirements:
+      proficiency_check: { current: 0, required: 1, met: false, tracked: true, remedyKey: remedy.proficiency_check }
+      total_time: { current: 720, required: 720, met: true }
+      pic_time: { current: 360, required: 360, met: true }
+      takeoffs: { current: 12, met: true }
+      landings: { current: 12, met: true }
+      refresher_training: { current: 360, required: 60, met: true, lastDate: 2026-06-12 }
+      refresher_exemption: { current: 0, met: false }

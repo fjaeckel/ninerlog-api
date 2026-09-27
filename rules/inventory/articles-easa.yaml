@@ -144,7 +144,7 @@ articles:
     source_file: sources/easa/fcl-740-a.md
     in_app: "partial"
     notes: "SEP/TMG implemented. MEP/SET modelled as \"PC OR (10 route sectors + 1 h refresher)\": the rule requires a PC within 3 months AND route sectors for ME; SET requires a PC only; no refresher applies to ME/SET. Refresher exemption (b)(1)(ii)(C)(1)-(4) should be checked."
-    maps_to: []
+    maps_to: [easa.part-fcl.fcl-740-a.sep]
   - cite: "FCL.740.H"
     url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430"
     subject: type

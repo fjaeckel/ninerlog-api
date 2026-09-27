@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ninerlog.com/schema/rules/messages.schema.json",
+  "title": "Message keys",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["keys"],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "kind", "params", "origin", "emitted", "documented"],
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$" },
+          "kind": { "enum": ["message", "requirement_name", "requirement_message", "remedy", "rule_description", "readiness", "training_title", "training_item", "training_message"] },
+          "params": { "type": "array", "items": { "type": "string", "pattern": "^[a-z]+\\??$" } },
+          "origin": { "enum": ["api", "catalogue"] },
+          "emitted": { "type": "boolean" },
+          "documented": { "type": "boolean" },
+          "deprecated": { "type": "boolean" },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

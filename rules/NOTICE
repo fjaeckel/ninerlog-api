@@ -1,0 +1,25 @@
+ninerlog-rules
+Copyright 2026 Frederic Jung and the NinerLog contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+NOT LEGAL ADVICE. The catalogue encodes pilot currency, recency and validity rules as its
+authors read them. It can be wrong, incomplete or out of date, and it does not replace the
+official text, your competent authority, your examiner or your instructor. The pilot in
+command is responsible for meeting every requirement that applies to a flight.
+
+Regulation texts quoted under sources/ and in catalogue rule files are taken verbatim from
+official publications, with the retrieval date recorded in each source file:
+
+- EUR-Lex (eur-lex.europa.eu), (c) European Union, 1998-2026: Commission Regulation (EU)
+  No 1178/2011 (Part-FCL, Part-MED), Commission Implementing Regulation (EU) 2018/1976
+  (Part-SFCL) and (EU) 2018/395 (Part-BFCL), consolidated versions. Reuse is authorised
+  under Commission Decision 2011/833/EU; only the texts published in the Official Journal
+  of the European Union are authentic.
+- eCFR (www.ecfr.gov), Title 14 Code of Federal Regulations, Parts 61 and 68. US federal
+  government works, not subject to copyright in the United States.
+- gesetze-im-internet.de, Bundesministerium der Justiz: Verordnung ueber Luftfahrtpersonal
+  (LuftPersV) and Luftverkehrs-Zulassungs-Ordnung (LuftVZO). Official texts of German
+  statutes and ordinances are not subject to copyright (section 5 UrhG).
+- Association documents (DULV, DAeC) cited by rules under catalogue/de/dulv/ and
+  catalogue/de/daec/ remain the property of their publishers and are quoted for reference.

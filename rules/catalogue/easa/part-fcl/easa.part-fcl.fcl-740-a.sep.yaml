@@ -1,0 +1,167 @@
+id: easa.part-fcl.fcl-740-a.sep
+title: SEP and TMG class rating revalidation
+authority: easa
+instrument: Part-FCL
+article: FCL.740.A(b)(1), (b)(2); FCL.035(a)(4)
+support: partial
+source_kind: regulation
+effective_from: null
+effective_to: null
+source:
+  cite: EASA FCL.740.A(b)(1)
+  url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+  file: sources/easa/fcl-740-a.md
+  quote:
+    - "(1) SEP aeroplane class ratings and TMG class ratings. For the revalidation of SEP aeroplane class ratings or TMG class ratings, applicants shall:"
+    - "(i) within the 3 months preceding the expiry date of the rating, pass a proficiency check in the relevant class in accordance with Appendix 9 to this Part with an examiner; or"
+    - "(ii) within the 12 months preceding the expiry date of the rating, complete 12 hours of flight time in the relevant class, including the following:"
+    - "(A) 6 hours as PIC;"
+    - "(B) 12 take-offs and 12 landings;"
+    - "(C) refresher training of at least 1 hour of total flight time with and to the satisfaction of a flight instructor (FI) or a class rating instructor (CRI) who shall select those flight exercises that allow the applicant to refresh their competence in safely operating the aircraft and applying normal, abnormal and emergency procedures. Applicants shall be exempted from this refresher training if they have passed any of the following, in any class or type of aeroplane:"
+    - "(1) a class or type rating proficiency check;"
+    - "(2) a skill test;"
+    - "(3) an EBT practical assessment;"
+    - "(4) an assessment of competence."
+    - "(2) When applicants hold both an SEP aeroplane-land class rating and a TMG class rating, they may complete the requirements of point (1) in either class or a combination of those classes, and achieve revalidation of both ratings."
+related_sources:
+  - cite: EASA FCL.035(a)(4)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-035.md
+    quote:
+      - "All hours flown in aeroplanes or TMGs that are subject to a decision of a Member State taken in accordance with points (a) or (c) of Article 2(8) of Regulation (EU) 2018/1139 or that fall within the scope of Annex I to that Regulation shall be credited in full towards fulfilling the flight time requirements of point FCL.140.A(a)(1) and point FCL.740.A(b)(1)(ii) of this Annex"
+      - "(i) the aeroplane or TMG concerned is of the same category and class as the Part-FCL aircraft in respect of which the hours flown are to be credited;"
+  - cite: EASA FCL.740(a)(1)
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02011R1178-20260430
+    file: sources/easa/fcl-740.md
+    quote: "The validity period of class and type ratings shall be 1 year, except for single-pilot single-engine class ratings for which the validity period shall be 2 years, unless otherwise determined in the OSD."
+citations: [EASA FCL.740.A(b)(1), EASA FCL.740.A(b)(2), EASA FCL.035(a)(4)]
+
+applies_to:
+  subject: rating
+  classes: [SEP_LAND, SEP_SEA, TMG]
+  authorities: [EASA, LBA]
+  excludeLicenceKinds: [LAPL_A, SPL, LAPL_S]
+
+window: { before_expiry_months: 12 }
+
+requirements:
+  id: revalidation
+  any_of:
+    - id: proficiency_check
+      metric: events
+      window: { before_expiry_months: 3 }
+      filter:
+        eventKinds: [proficiency_check]
+        classes: [$subject]
+        heldClassPools: [[SEP_LAND, TMG]]
+      min: 1
+      unit: check
+      nameKey: requirement.proficiency_check
+      remedyKey: remedy.proficiency_check
+    - id: experience
+      all_of:
+        - id: total_time
+          metric: minutes.total
+          filter: &time_filter
+            classes: [$subject]
+            heldClassPools: [[SEP_LAND, TMG]]
+            ulCredit:
+              - { class: SEP_LAND, ulKinds: [THREE_AXIS] }
+              - { class: TMG, ulKinds: [THREE_AXIS_MOTORGLIDER] }
+          min: 720
+          unit: minutes
+          nameKey: requirement.total_time
+          remedyKey: remedy.fly_more
+        - id: pic_time
+          metric: minutes.pic
+          filter: *time_filter
+          min: 360
+          unit: minutes
+          nameKey: requirement.pic_time
+          remedyKey: remedy.fly_more
+        - id: takeoffs
+          metric: takeoffs.total
+          filter: &class_filter
+            classes: [$subject]
+            heldClassPools: [[SEP_LAND, TMG]]
+          min: 12
+          unit: takeoffs
+          nameKey: requirement.takeoffs
+          remedyKey: remedy.fly_more
+        - id: landings
+          metric: landings.total
+          filter: *class_filter
+          min: 12
+          unit: landings
+          nameKey: requirement.landings
+          remedyKey: remedy.fly_more
+        - id: refresher
+          any_of:
+            - id: refresher_training
+              metric: minutes.dual
+              filter: *class_filter
+              min: 60
+              unit: minutes
+              nameKey: requirement.refresher_training
+              remedyKey: remedy.fly_more
+            - id: refresher_exemption
+              metric: events
+              filter:
+                eventKinds: [proficiency_check, skill_test, ebt_assessment, assessment_of_competence]
+                categories: [aeroplane]
+              min: 1
+              unit: check
+              nameKey: requirement.refresher_exemption
+
+stages:
+  - { id: no_expiry, when: no_expiry, status: unknown, messageKey: rating.no_expiry_date }
+  - { id: expired, when: expired, status: expired, messageKey: rating.expired }
+  - { id: window_not_open, when: before_window, status: current, messageKey: rating.window_not_open, params: { date: window_opens_at } }
+  - id: met_expiring
+    when: { all: [all_met, { expires_within: { days: 90 } }] }
+    status: expiring
+    messageKey: rating.revalidation_expiring_met
+    params: { days: days_to_expiry }
+  - { id: met, when: all_met, status: current, messageKey: rating.revalidation_current }
+  - { id: not_met, when: always, status: expiring, messageKey: rating.revalidation_not_met }
+
+ruleDescriptionKey: easa_sep_tmg
+
+divergences:
+  - id: proficiency-check
+    api: Evaluates the experience route only; a proficiency check never revalidates an SEP or TMG rating.
+    article: A proficiency check in the relevant class within the 3 months before expiry revalidates the rating on its own.
+    cite: EASA FCL.740.A(b)(1)(i)
+  - id: takeoffs
+    api: Counts landings only.
+    article: The experience route needs 12 take-offs and 12 landings.
+    cite: EASA FCL.740.A(b)(1)(ii)(B)
+  - id: refresher-exemption
+    api: Always requires the 1 hour of refresher training.
+    article: A class or type rating proficiency check, skill test, EBT practical assessment or assessment of competence in any aeroplane class or type exempts from the refresher training.
+    cite: EASA FCL.740.A(b)(1)(ii)(C)
+  - id: ul-credit-time-only
+    api: Credits Annex I (ultralight) three-axis and motorglider flights toward time and landings.
+    article: Annex I hours are credited toward the flight time requirements only; take-offs, landings and the refresher training are flown in the Part-FCL class.
+    cite: EASA FCL.035(a)(4)
+  - id: valid-through-expiry
+    api: Reports the rating expired on its expiry date.
+    article: The rating is valid through its expiry date and expired from the next day (catalogue decision 2).
+    cite: EASA FCL.740.A(b)(1)
+  - id: towed-launches
+    api: Excludes flights with a winch, aerotow, car or bungee launch from the class pool.
+    article: Every flight in the relevant class counts; no launch method is excluded.
+    cite: EASA FCL.740.A(b)(1)(ii)
+  - id: authorities
+    api: Also evaluates SEP and TMG ratings recorded on DULV or DAeC licences.
+    article: FCL.740.A applies to Part-FCL class ratings, issued by EASA member-state authorities such as the LBA; ultralight associations issue none.
+    cite: EASA FCL.740.A(b)(1)
+
+notes: >-
+  Partial: FCL.740.A(b)(4) (SEP land and sea pooling with 1 hour of PIC time and 6 take-offs
+  and landings in each class) is not encoded; each SEP class is revalidated from its own
+  flights here, as in the API. The refresher training is counted as dual time received in
+  the relevant class; that the instructor holds an FI or CRI certificate is taken as met.
+  The article does not say when an exempting check must have been passed; the catalogue
+  reads it as within the 12 months before expiry, the same period as (b)(1)(ii). The 90-day
+  expiring threshold and the window_not_open stage are NinerLog presentation, not the article.
