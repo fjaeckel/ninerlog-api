@@ -38,6 +38,10 @@ type UserRepository interface {
 	// UpdateLastLogin stamps the last successful login.
 	UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error
 
+	// TouchLastActive stamps last_active_at with `at` unless the stored value
+	// is already newer than `at` minus `granularity`.
+	TouchLastActive(ctx context.Context, id uuid.UUID, at time.Time, granularity time.Duration) error
+
 	// MarkEmailVerified flips the email_verified flag to true.
 	// ConsumeRecoveryCode atomically removes a recovery code hash, returning
 	// true only for the caller that actually removed it.

@@ -73,6 +73,7 @@ Routes are wired in `cmd/api/main.go`:
 ```go
 api := router.Group("/api/v1")
 api.Use(middleware.AuthMiddlewareWithState(jwtManager, /* public path allow-list */, authService.AccessTokenState))
+api.Use(middleware.RecordActivity(authService.RecordActivity)) // users.last_active_at, throttled
 api.Use(generalRateLimit)                                                     // every route
 api.Use(middleware.RateLimitByPath(expensiveRateLimit, /* exports, previews */))
 api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q"))

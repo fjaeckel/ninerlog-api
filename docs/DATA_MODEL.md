@@ -45,7 +45,7 @@ flowchart TD
 
 ## Core entities
 
-### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50)
+### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50, 74)
 
 The account holder. Notable fields:
 
@@ -56,6 +56,10 @@ The account holder. Notable fields:
   the 2FA second factor, passkeys, OIDC, and the sign-up verification link — but
   not by a token refresh. See
   [AUTHENTICATION.md](AUTHENTICATION.md#login).
+- Activity: `users.last_active_at` (migration 74; not on the Go model) is the last
+  authenticated API request, written by the `RecordActivity` middleware at most once
+  per five minutes per account and by every login. Exposed only as `lastActiveAt` in
+  the admin user list. See [AUTHENTICATION.md](AUTHENTICATION.md#last-active).
 - Display preferences: `TimeDisplayFormat` (`HH:MM` vs decimal hours), `DateFormat`,
   `ClockFormat` (`24h` | `12h` for times of day; default `24h`), `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`).
 - Recency indicators: `RecencyPerModel`, `RecencyPerRegistration` — which informational

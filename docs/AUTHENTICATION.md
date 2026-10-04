@@ -296,6 +296,20 @@ account the password step alone does not stamp it; `POST /auth/2fa/login` does,
 once the second factor passes. A token refresh never stamps it: it renews a
 session an earlier login established.
 
+#### Last active
+
+**Last active** (`users.last_active_at`, exposed as `lastActiveAt` in the admin
+user list) answers what last login cannot once sessions persist for weeks: when
+the account was last used. `middleware.RecordActivity` runs after
+`AuthMiddleware` on every authenticated `/api/v1` request and calls
+`AuthService.RecordActivity`, which writes at most once per
+`service.ActivityGranularity` (five minutes) per account. An in-process map skips
+the database inside that window; the `UPDATE` itself is conditional on the stored
+value being older than the window, so several replicas do not multiply the
+writes. Every login stamps it alongside `last_login_at`. Public paths, including
+`/auth/refresh`, never stamp it — but the request a refreshed client makes next
+does. A failed write is logged and never fails the request.
+
 ---
 
 ### Token Refresh
