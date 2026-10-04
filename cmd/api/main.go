@@ -529,6 +529,9 @@ func main() {
 		"/sign/:token",
 	}, authService.AccessTokenState))
 
+	// Throttled users.last_active_at stamp for authenticated requests.
+	api.Use(middleware.RecordActivity(authService.RecordActivity))
+
 	if os.Getenv("DISABLE_RATE_LIMIT") != "true" {
 		// Coarse global limiter on every authenticated route, keyed by user ID.
 		generalRateLimit := middleware.NewUserRateLimitMiddleware("general", 120, 1*time.Minute)

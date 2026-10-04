@@ -2441,6 +2441,9 @@ type AdminUser struct {
 	FlightCount int                `json:"flightCount"`
 	Id          openapi_types.UUID `json:"id"`
 
+	// LastActiveAt Last authenticated API request, or the last sign-in if later. Recorded at a granularity of five minutes, so a session kept alive by refresh tokens still shows when the account was last used.
+	LastActiveAt *time.Time `json:"lastActiveAt,omitempty"`
+
 	// LastLoginAt Last successful sign-in. Recorded for every path that issues a session: password login, the second factor, a passkey, OIDC, and the sign-up verification link (following it signs the new account in). Not updated by a token refresh.
 	LastLoginAt *time.Time `json:"lastLoginAt,omitempty"`
 

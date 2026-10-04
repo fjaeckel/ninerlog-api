@@ -43,7 +43,7 @@ flowchart TD
     C[Client] -->|HTTP request| GR
     GR["Gin router (cmd/api/main.go)<br/>global middleware chain:<br/>Metrics → Recovery(+metrics) → gin.Logger → CORS → SecurityHeaders"]
     GR --> G
-    G["/api/v1 group<br/>AuthMiddleware (validates JWT and session state, sets userID; allow-list for public paths)<br/>Rate limiters: coarse per-user limit on every route,<br/>tighter budgets on /auth, /admin, exports, imports, flight search"]
+    G["/api/v1 group<br/>AuthMiddleware (validates JWT and session state, sets userID; allow-list for public paths)<br/>RecordActivity (throttled users.last_active_at stamp)<br/>Rate limiters: coarse per-user limit on every route,<br/>tighter budgets on /auth, /admin, exports, imports, flight search"]
     G --> D["Generated route dispatch<br/>(internal/api/generated, registered against APIHandler)"]
     D --> HM["Handler method (internal/api/handlers/flight.go)<br/>getUserIDFromContext · bind & validate body · call service"]
     HM --> SV["Service (internal/service/flight.go)<br/>ownership & business-rule validation<br/>auto-calculations (flightrules / flightcalc) · call repository"]

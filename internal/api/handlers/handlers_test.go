@@ -261,6 +261,10 @@ func (m *mockUserRepo) ResetFailedLoginAttempts(_ context.Context, _ uuid.UUID) 
 func (m *mockUserRepo) LockAccount(_ context.Context, _ uuid.UUID, _ time.Time) error {
 	return nil
 }
+func (m *mockUserRepo) TouchLastActive(context.Context, uuid.UUID, time.Time, time.Duration) error {
+	return nil
+}
+
 func (m *mockUserRepo) UpdateLastLogin(_ context.Context, id uuid.UUID, at time.Time) error {
 	if u, ok := m.users[id]; ok {
 		stamp := at

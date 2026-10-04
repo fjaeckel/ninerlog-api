@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/mail"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -77,6 +78,8 @@ type AuthService struct {
 	jwtManager            *jwt.Manager
 	twoFactor             TwoFactorValidator
 	sessionPolicy         SessionPolicy
+	// lastActive holds the last last_active_at write per user ID.
+	lastActive sync.Map
 }
 
 // NewAuthService constructs the service. twoFactor may be nil, in which case a
@@ -708,6 +711,26 @@ func (s *AuthService) RecordLogin(ctx context.Context, user *models.User) {
 	}
 	user.LastLoginAt = &now
 	user.UpdatedAt = now
+	s.lastActive.Store(user.ID, now)
+}
+
+// ActivityGranularity is the minimum spacing between last_active_at writes
+// for one account.
+const ActivityGranularity = 5 * time.Minute
+
+// RecordActivity stamps an authenticated request on the account's
+// last_active_at, at most once per ActivityGranularity. Failure is logged and
+// swallowed.
+func (s *AuthService) RecordActivity(ctx context.Context, userID uuid.UUID) {
+	now := time.Now()
+	if v, ok := s.lastActive.Load(userID); ok && now.Sub(v.(time.Time)) < ActivityGranularity {
+		return
+	}
+	if err := s.userRepo.TouchLastActive(ctx, userID, now, ActivityGranularity); err != nil {
+		slog.Warn("failed to record last activity", "user_id", userID, "error", err)
+		return
+	}
+	s.lastActive.Store(userID, now)
 }
 
 // GenerateTokensForUser starts a session for a user whose identity has already

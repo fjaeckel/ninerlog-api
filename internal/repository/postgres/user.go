@@ -260,10 +260,22 @@ func (r *UserRepository) ResetFailedLoginAttempts(ctx context.Context, id uuid.U
 func (r *UserRepository) UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error {
 	query := `
 		UPDATE users
-		SET last_login_at = $1, updated_at = $1
+		SET last_login_at = $1, last_active_at = $1, updated_at = $1
 		WHERE id = $2
 	`
 	_, err := r.db.ExecContext(ctx, query, at, id)
+	return err
+}
+
+// TouchLastActive stamps last_active_at unless it is already within
+// granularity of at. A missing row is not an error.
+func (r *UserRepository) TouchLastActive(ctx context.Context, id uuid.UUID, at time.Time, granularity time.Duration) error {
+	query := `
+		UPDATE users
+		SET last_active_at = $1
+		WHERE id = $2 AND (last_active_at IS NULL OR last_active_at < $3)
+	`
+	_, err := r.db.ExecContext(ctx, query, at, id, at.Add(-granularity))
 	return err
 }
 
