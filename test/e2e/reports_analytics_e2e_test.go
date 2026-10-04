@@ -642,6 +642,33 @@ func TestReportsAnalyticsBaseline(t *testing.T) {
 	}
 }
 
+// The country roll-up, distinct counts and airport records must cover every
+// visited airport; the limit only trims the ranked byAirport list.
+func TestReportsAnalyticsCountriesIgnoreLimit(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("analytics-countries"), "SecurePass123!", "Analytics Countries")
+	seedAnalyticsLogbook(t, c) // EDNY (DE) x3, EDDS (DE) x1, LSZH (CH) x1
+
+	a := getAnalytics(t, c, "?months=0&limit=1")
+
+	if len(a.ByAirport) != 1 {
+		t.Errorf("Expected limit=1 to trim byAirport to 1 row, got %d", len(a.ByAirport))
+	}
+	if a.Totals.DistinctAirports != 3 {
+		t.Errorf("Expected 3 distinct airports regardless of limit, got %d", a.Totals.DistinctAirports)
+	}
+	if a.Totals.DistinctCountries != 2 {
+		t.Errorf("Expected 2 distinct countries regardless of limit, got %d", a.Totals.DistinctCountries)
+	}
+	got := map[string]int{}
+	for _, row := range a.ByCountry {
+		got[row.Country] = row.Airports
+	}
+	if got["DE"] != 2 || got["CH"] != 1 {
+		t.Errorf("Expected DE=2 and CH=1 airports in byCountry, got %v", got)
+	}
+}
+
 func TestReportsAnalyticsValidationAndAuth(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("analytics-validation"), "SecurePass123!", "Analytics Validation")
