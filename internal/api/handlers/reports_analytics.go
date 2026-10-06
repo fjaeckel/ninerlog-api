@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -29,12 +28,11 @@ const (
 	defaultAnalyticsRowLimit = 25
 	maxAnalyticsRowLimit     = 200
 	maxAnalyticsMonths       = 600
-	// allAirportsLimit loads every visited airport. The country roll-up,
-	// distinct counts and airport records must see the full set; only the
-	// returned byAirport list is trimmed to the requested limit.
-	allAirportsLimit = math.MaxInt32
-	isoDate          = "2006-01-02"
-	isoMonth         = "2006-01"
+	// allAirports loads every visited airport; byAirport is trimmed to the
+	// requested limit after the country roll-up, totals and records.
+	allAirports = 0
+	isoDate     = "2006-01-02"
+	isoMonth    = "2006-01"
 )
 
 // analyticsAllTime reports whether a months parameter covers all time.
@@ -129,7 +127,7 @@ func (h *APIHandler) GetFlightAnalytics(c *gin.Context, params generated.GetFlig
 			return
 		}},
 		{"airports", func() (err error) {
-			out.ByAirport, err = h.analyticsByAirport(ctx, userID, months, allAirportsLimit)
+			out.ByAirport, err = h.analyticsByAirport(ctx, userID, months, allAirports)
 			return
 		}},
 		{"routes", func() (err error) { out.ByRoute, err = h.analyticsByRoute(ctx, userID, months, limit); return }},

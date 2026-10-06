@@ -524,6 +524,9 @@ yearly series, breakdowns, patterns, records), scoped by `months` (0 = all time)
 the snapshot's cutoff date, so they agree with `GET /users/me/statistics`; the contribution
 is reported separately as `baseline`. Per-month, per-aircraft and per-airport breakdowns
 cover logged flights only — there is nothing to attribute a snapshot to.
+`limit` caps the ranked lists only: `byCountry`, `totals.distinctAirports`,
+`totals.distinctCountries` and the airport records (`homeBase`, `farthestAirport`) are
+computed from every visited airport, not just the returned `byAirport` rows.
 `totals.crossCountryPicMinutes` sums, per flight, the smaller of PIC and cross-country
 time; the snapshot has no such split, so it covers logged flights only too.
 
