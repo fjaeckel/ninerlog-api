@@ -592,6 +592,9 @@ func TestStartRefresher_RefetchesOnInterval(t *testing.T) {
 	ourAirportsURL, mwggURL = srv.URL, srv.URL // JSON decode of CSV fails; CSV source carries the reload
 	SetTestDB(nil)
 	t.Cleanup(func() {
+		// Waits for an in-flight reload before clearing the database.
+		reloadMu.Lock()
+		reloadMu.Unlock() //nolint:staticcheck // SA2001: barrier
 		ourAirportsURL, mwggURL = origCSV, origJSON
 		SetTestDB(nil)
 	})

@@ -5399,7 +5399,7 @@ type FlightSessionEvent struct {
 	// Example: D-EFGH
 	AircraftReg *string `json:"aircraftReg,omitempty"`
 
-	// Icao Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock). Takes precedence over lat/lon.
+	// Icao Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock), as a 4-character ICAO code or a known airport identifier such as DE-0249. Takes precedence over lat/lon.
 	//
 	// Example: EDDF
 	Icao *string `json:"icao,omitempty"`

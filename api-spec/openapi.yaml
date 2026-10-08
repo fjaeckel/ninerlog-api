@@ -8591,10 +8591,10 @@ components:
           description: Aircraft registration. Can be sent with any event; required by the time the session goes on blocks.
         icao:
           type: [string, 'null']
-          minLength: 4
-          maxLength: 4
+          minLength: 1
+          maxLength: 10
           example: EDDF
-          description: Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock). Takes precedence over lat/lon.
+          description: Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock), as a 4-character ICAO code or a known airport identifier such as DE-0249. Takes precedence over lat/lon.
         lat:
           type: [number, 'null']
           format: double
