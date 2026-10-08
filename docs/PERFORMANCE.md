@@ -66,11 +66,11 @@ flight response, so all three read paths are indexed rather than scanned.
 |-----------|------|-------|
 | `Lookup` (exact identifier) | ~100 ns/op | Single map hit into an atomically swapped snapshot |
 | `LookupByName` (import) | ~1 µs/op | Folds the name, then one map hit |
-| `Nearest` (coordinates) | ~25 µs/op | 1°×1° grid index; a full haversine scan over ~50k airports would be ~100x slower |
-| `Search` (prefix, then name) | O(log n) + name scan | Binary search over the identifier-sorted list, then a scan of pre-folded names; ~3 ms when nothing matches |
+| `Nearest` (coordinates) | ~25 µs/op | 1°×1° grid index; a full haversine scan over ~49k airports would be ~100x slower |
+| `Search` (prefix, then name) | O(log n) + name scan | Binary search over the identifier-sorted list, then a scan of pre-folded names; ~2 ms when nothing matches |
 
 Full reload (both datasets fetched in parallel, merged and re-indexed): ~1 s on a
-warm connection, ~50k airports, ~22 MB heap. The gzip pack is ~1.4 MB. Reloads never block readers — the new
+warm connection, ~49k airports, ~21 MB heap. The gzip pack is ~1.3 MB. Reloads never block readers — the new
 snapshot is built off to the side and swapped in with one atomic store.
 
 Run with `go test -bench . ./internal/airports/`.

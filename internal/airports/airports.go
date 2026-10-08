@@ -266,8 +266,8 @@ func LoadedAt() time.Time {
 
 // LookupByName returns the airport whose name matches name, folded for case,
 // diacritics and punctuation, either in full or without trailing generic
-// words such as "Airfield" or "Glider Field". It returns nil when no airport
-// or more than one matches.
+// words such as "Airfield" or "Glider Field"; both forms need at least two
+// words. It returns nil when no airport or more than one matches.
 func LookupByName(name string) *AirportInfo {
 	s := current.Load()
 	if s == nil {

@@ -18,15 +18,24 @@ var genericNameWords = map[string]bool{
 	"sonderlandeplatz": true, "segelfluggelande": true, "segelflugplatz": true,
 }
 
+// letterFolds maps letters without a canonical decomposition to ASCII.
+var letterFolds = map[rune]string{
+	'ß': "ss", 'ł': "l", 'Ł': "l", 'ø': "o", 'Ø': "o", 'æ': "ae", 'Æ': "ae",
+	'œ': "oe", 'Œ': "oe", 'đ': "d", 'Đ': "d", 'ð': "d", 'Ð': "d", 'ı': "i",
+	'þ': "th", 'Þ': "th", 'ħ': "h", 'Ħ': "h",
+}
+
 // foldName lower-cases s, strips diacritics and reduces it to single-space
 // separated runs of letters and digits.
 func foldName(s string) string {
 	var b strings.Builder
 	for _, r := range norm.NFD.String(s) {
+		if f, ok := letterFolds[r]; ok {
+			b.WriteString(f)
+			continue
+		}
 		switch {
 		case unicode.Is(unicode.Mn, r):
-		case r == 'ß':
-			b.WriteString("ss")
 		case unicode.IsLetter(r) || unicode.IsDigit(r):
 			b.WriteRune(unicode.ToLower(r))
 		default:

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -196,10 +197,11 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 	return result, body.n, nil
 }
 
-// validIdent reports whether ident is a non-empty code of upper-case
-// letters, digits and hyphens, at most 10 characters long.
+// validIdent reports whether ident is a code of upper-case letters, digits
+// and hyphens that is either 4 characters long or a hyphenated local
+// identifier of at most 10 characters.
 func validIdent(ident string) bool {
-	if ident == "" || len(ident) > 10 {
+	if len(ident) != 4 && (len(ident) > 10 || !strings.Contains(ident, "-")) {
 		return false
 	}
 	for _, r := range ident {

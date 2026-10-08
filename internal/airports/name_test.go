@@ -11,6 +11,8 @@ func TestFoldName(t *testing.T) {
 		{"  Großenhain  ", "grossenhain"},
 		{"Grandpa's field", "grandpa s field"},
 		{"Saint-Étienne – Bouthéon", "saint etienne boutheon"},
+		{"Łódź Lublinek", "lodz lublinek"},
+		{"Ærø Flyveplads", "aero flyveplads"},
 		{"", ""},
 	}
 	for _, tt := range tests {
@@ -37,12 +39,12 @@ func TestShortNameKey(t *testing.T) {
 }
 
 func TestValidIdent(t *testing.T) {
-	for _, id := range []string{"EDDF", "DE-0249", "00AK", "K00", "US-1234"} {
+	for _, id := range []string{"EDDF", "DE-0249", "00AK", "US-1234", "AB-1"} {
 		if !validIdent(id) {
 			t.Errorf("validIdent(%q) = false, want true", id)
 		}
 	}
-	for _, id := range []string{"", "bad ident", "de-0249", "ABCDEFGHIJK", "EDD F"} {
+	for _, id := range []string{"", "K00", "02T", "bad ident", "de-0249", "AB-CDEFGHIJ", "EDD F"} {
 		if validIdent(id) {
 			t.Errorf("validIdent(%q) = true, want false", id)
 		}
@@ -55,10 +57,14 @@ func TestLookupByName(t *testing.T) {
 		"EDHS":    {Name: "Stade Airport", Latitude: 53.56, Longitude: 9.5},
 		"US-0001": {Name: "Twin Oaks Airport", Latitude: 40, Longitude: -80},
 		"US-0002": {Name: "Twin Oaks Airfield", Latitude: 41, Longitude: -81},
+		"XX-0001": {Name: "Bienenfarm", Latitude: 10, Longitude: 10},
+		"EPLL":    {Name: "Łódź Władysław Reymont Airport", Latitude: 51.7, Longitude: 19.4},
 	})
 	defer SetTestDB(nil)
 
 	tests := []struct{ in, want string }{
+		{"Lodz Wladyslaw Reymont", "EPLL"},
+		{"Bienenfarm", ""},
 		{"Konz Könen", "DE-0249"},
 		{"konz-konen", "DE-0249"},
 		{"Konz-Könen Glider Field", "DE-0249"},

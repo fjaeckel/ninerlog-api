@@ -329,7 +329,7 @@ func TestImportTemplates_MyFlightbookEndToEnd(t *testing.T) {
 
 // A Vereinsflieger place without an ICAO code resolves to the airport carrying
 // that name, and one matching no airport imports as its name, not as a code
-// built from its first word (#256).
+// built from its first word.
 func TestImportTemplates_VereinsfliegerPlaceWithoutICAO(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("import-vf-noicao"), "SecurePass123!", "VF")

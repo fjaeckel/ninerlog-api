@@ -333,7 +333,7 @@ func TestNormalizeLocation(t *testing.T) {
 		{"Rendsburg-Schachtholm EDXR", "EDXR"},
 		// Embedded token that isn't a known airport: free text is preserved
 		{"Somewhere (ZZZZ)", "Somewhere (ZZZZ)"},
-		// A name word that happens to be a known code is not a code (#256)
+		// A name word that is a known code in title case stays a name
 		{"Konz Könen", "Konz Könen"},
 		{"Frankfurt-Hahn", "Frankfurt-Hahn"},
 		{"Könen Konz", "Könen Konz"},
@@ -354,6 +354,8 @@ func TestNormalizeLocation_LocalIdentAndName(t *testing.T) {
 		"EDHE":    {ICAO: "EDHE", Name: "Uetersen/Heist Airfield", Latitude: 53.65, Longitude: 9.7},
 		"US-0001": {ICAO: "US-0001", Name: "Twin Oaks Airport", Latitude: 40, Longitude: -80},
 		"US-0002": {ICAO: "US-0002", Name: "Twin Oaks Airfield", Latitude: 41, Longitude: -81},
+		"HAHN":    {ICAO: "HAHN", Name: "Unrelated Airport", Latitude: 0, Longitude: 1},
+		"EDFH":    {ICAO: "EDFH", Name: "Frankfurt-Hahn Airport", Latitude: 49.9, Longitude: 7.3},
 	})
 	defer airports.SetTestDB(nil)
 
@@ -367,6 +369,9 @@ func TestNormalizeLocation_LocalIdentAndName(t *testing.T) {
 		{"Konz Könen", "DE-0249"},
 		{"Konz-Könen Glider Field", "DE-0249"},
 		{"uetersen heist", "EDHE"},
+		// All-caps values resolve by name before any token is read as a code
+		{"KONZ KÖNEN", "DE-0249"},
+		{"FRANKFURT-HAHN", "EDFH"},
 		// A code in the value still wins over the name
 		{"Uetersen EDHE", "EDHE"},
 		// Ambiguous, single-word and unknown names stay free text
@@ -374,6 +379,21 @@ func TestNormalizeLocation_LocalIdentAndName(t *testing.T) {
 		{"Konz", "KONZ"},
 		{"Konz Wiese", "Konz Wiese"},
 		{"XX-9999", "XX-9999"},
+	}
+	for _, tt := range tests {
+		if got := normalizeLocation(tt.input); got != tt.want {
+			t.Errorf("normalizeLocation(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeLocation_AllCapsWithoutDatabase(t *testing.T) {
+	airports.SetTestDB(nil)
+	tests := []struct{ input, want string }{
+		{"KONZ KÖNEN", "KONZ KÖNEN"},
+		{"FRANKFURT HAHN", "FRANKFURT HAHN"},
+		{"EDOI Bienenfarm", "EDOI"},
+		{"Uetersen EDHE", "EDHE"},
 	}
 	for _, tt := range tests {
 		if got := normalizeLocation(tt.input); got != tt.want {

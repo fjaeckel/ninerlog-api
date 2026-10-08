@@ -8618,7 +8618,7 @@ components:
       properties:
         icao:
           type: string
-          description: ICAO airport code
+          description: Airport identifier — the 4-character ICAO code, or the OurAirports local identifier (e.g. DE-0249) for a field without one
           example: EDDF
         name:
           type: string

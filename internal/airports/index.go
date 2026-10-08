@@ -3,6 +3,7 @@ package airports
 import (
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -78,7 +79,9 @@ func newSnapshot(records map[string]AirportInfo, loadedAt time.Time) *snapshot {
 		s.byICAO[a.ICAO] = int32(i)
 		f := foldName(a.Name)
 		s.folded = append(s.folded, f)
-		s.addName(f, int32(i))
+		if strings.Contains(f, " ") {
+			s.addName(f, int32(i))
+		}
 		s.addName(shortNameKey(f), int32(i))
 		c := cellOf(a.Latitude, a.Longitude)
 		s.grid[c] = append(s.grid[c], int32(i))

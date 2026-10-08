@@ -2868,7 +2868,7 @@ type Airport struct {
 	// Example: 364
 	Elevation *int `json:"elevation,omitempty"`
 
-	// Icao ICAO airport code
+	// Icao Airport identifier — the 4-character ICAO code, or the OurAirports local identifier (e.g. DE-0249) for a field without one
 	//
 	// Example: EDDF
 	Icao string `json:"icao"`

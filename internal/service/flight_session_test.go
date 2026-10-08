@@ -452,6 +452,17 @@ func TestFlightSessionAcceptsKnownLocalIdent(t *testing.T) {
 	if other.DepartureICAO != nil {
 		t.Errorf("DepartureICAO = %v, want nil for an unknown non-ICAO ident", *other.DepartureICAO)
 	}
+
+	odd, _, err := svc.RecordEvent(context.Background(), uuid.New(), FlightSessionEventInput{
+		Type: models.FlightSessionEventOffBlock,
+		ICAO: strPtr("AB-1"),
+	})
+	if err != nil {
+		t.Fatalf("offblock failed: %v", err)
+	}
+	if odd.DepartureICAO != nil {
+		t.Errorf("DepartureICAO = %v, want nil for an unknown 4-char non-alphanumeric code", *odd.DepartureICAO)
+	}
 }
 
 func TestFlightSessionDiscard(t *testing.T) {

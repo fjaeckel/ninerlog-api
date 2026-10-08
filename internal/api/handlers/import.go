@@ -1790,6 +1790,15 @@ var icaoLikePattern = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
 // code, e.g. "EDDF" in "Frankfurt (EDDF)".
 var icaoTokenPattern = regexp.MustCompile(`^[A-Z0-9]{4}$`)
 
+// localIdentPattern matches a hyphenated local airport identifier such as
+// "DE-0249".
+var localIdentPattern = regexp.MustCompile(`^[A-Za-z0-9]+-[A-Za-z0-9-]+$`)
+
+// hasLower reports whether s contains a lower-case letter.
+func hasLower(s string) bool {
+	return strings.IndexFunc(s, unicode.IsLower) >= 0
+}
+
 // locationTokens splits a location into runs of Unicode letters and digits.
 func locationTokens(val string) []string {
 	return strings.FieldsFunc(val, func(r rune) bool {
@@ -1817,16 +1826,21 @@ var trailingICAOPattern = regexp.MustCompile(`\S\s+([A-Z0-9]{4})$`)
 
 // normalizeLocation cleans a departure/arrival location from an import row.
 // Values that look like an airport code (<=4 alphanumeric chars) or are a
-// known airport identifier are upper-cased; longer free-text values are
-// scanned for an embedded upper-case 4-char token resolving to a known
-// airport, then matched against airport names; anything else keeps its
-// original casing.
+// known local identifier are upper-cased; a value naming exactly one airport
+// takes its identifier; otherwise an embedded upper-case 4-char token
+// resolving to a known airport is used, and in mixed-case values a leading or
+// trailing upper-case 4-char token; anything else keeps its original casing.
 func normalizeLocation(val string) string {
 	trimmed := strings.TrimSpace(val)
 	if icaoLikePattern.MatchString(trimmed) {
 		return strings.ToUpper(trimmed)
 	}
-	if ap := airports.Lookup(trimmed); ap != nil {
+	if len(trimmed) <= 10 && localIdentPattern.MatchString(trimmed) {
+		if ap := airports.Lookup(trimmed); ap != nil {
+			return ap.ICAO
+		}
+	}
+	if ap := airports.LookupByName(trimmed); ap != nil {
 		return ap.ICAO
 	}
 	for _, tok := range locationTokens(trimmed) {
@@ -1846,14 +1860,14 @@ func normalizeLocation(val string) string {
 	// Storing the long form is not a crash (the column takes 100 characters)
 	// but it is silently wrong: night and solar calculations, distance,
 	// cross-country detection and airport statistics all need an exact match.
+	if !hasLower(trimmed) {
+		return trimmed
+	}
 	if m := leadingICAOPattern.FindStringSubmatch(trimmed); m != nil {
 		return m[1]
 	}
 	if m := trailingICAOPattern.FindStringSubmatch(trimmed); m != nil {
 		return m[1]
-	}
-	if ap := airports.LookupByName(trimmed); ap != nil {
-		return ap.ICAO
 	}
 
 	return trimmed
