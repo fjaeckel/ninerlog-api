@@ -326,3 +326,43 @@ func TestImportTemplates_MyFlightbookEndToEnd(t *testing.T) {
 		}
 	})
 }
+
+// A Vereinsflieger place without an ICAO code imports as its name, not as a
+// code built from its first word (#256).
+func TestImportTemplates_VereinsfliegerPlaceWithoutICAO(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-vf-noicao"), "SecurePass123!", "VF")
+
+	csv := "\"Datum\";\"Lfz.\";\"Pilot\";\"Begleiter/FI\";\"Start\";\"Landung\";\"Flugzeit\";\"Startort\";\"Landeort\";\"Landungen\";\"S.-Art\";\"Flugart\";\"Abr.\";\"Verein\";\"Bemerkung\"\n" +
+		fmt.Sprintf("\"%s\";\"D-MABC\";\"Rivera, Alex\";\"\";\"09:12\";\"10:47\";\"95\";\"Konz Könen\";\"Uetersen EDHE\";\"1\";\"E\";\"N\";\"K\";\"\";\"\"\n", todayGerman())
+
+	resp := uploadCSV(t, c, "vereinsflieger.csv", csv)
+	requireStatus(t, resp, http.StatusOK)
+	var upload map[string]interface{}
+	resp.JSON(&upload)
+
+	prev := c.POST("/imports/preview", map[string]interface{}{
+		"uploadToken":    upload["uploadToken"],
+		"mappings":       upload["suggestedMappings"],
+		"skipDuplicates": false,
+	})
+	requireStatus(t, prev, http.StatusOK)
+	var result map[string]interface{}
+	prev.JSON(&result)
+
+	flights, _ := result["flights"].([]interface{})
+	if len(flights) != 1 {
+		t.Fatalf("previewed %d rows, want 1: %s", len(flights), string(prev.Body))
+	}
+	row := flights[0].(map[string]interface{})
+	if row["status"] == "error" {
+		t.Fatalf("row errored: %v", row["errors"])
+	}
+	flight := row["flight"].(map[string]interface{})
+	if flight["departureIcao"] != "Konz Könen" {
+		t.Errorf("departureIcao = %v, want \"Konz Könen\"", flight["departureIcao"])
+	}
+	if flight["arrivalIcao"] != "EDHE" {
+		t.Errorf("arrivalIcao = %v, want EDHE", flight["arrivalIcao"])
+	}
+}

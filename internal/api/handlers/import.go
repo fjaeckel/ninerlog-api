@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
@@ -1785,9 +1786,16 @@ func normalizeDecimalSeparator(val string) string {
 // up to four alphanumeric characters.
 var icaoLikePattern = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
 
-// icaoTokenPattern extracts a standalone 4-character alphanumeric token from
-// free-text location values, e.g. "EDDF" out of "Frankfurt (EDDF)".
-var icaoTokenPattern = regexp.MustCompile(`\b[A-Za-z0-9]{4}\b`)
+// icaoTokenPattern matches a whole token that is a four-character upper-case
+// code, e.g. "EDDF" in "Frankfurt (EDDF)".
+var icaoTokenPattern = regexp.MustCompile(`^[A-Z0-9]{4}$`)
+
+// locationTokens splits a location into runs of Unicode letters and digits.
+func locationTokens(val string) []string {
+	return strings.FieldsFunc(val, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+}
 
 // leadingICAOPattern matches a value that opens with a bare four-character
 // upper-case code followed by free text, e.g. "EDOI Bienenfarm".
@@ -1809,18 +1817,17 @@ var trailingICAOPattern = regexp.MustCompile(`\S\s+([A-Z0-9]{4})$`)
 
 // normalizeLocation cleans a departure/arrival location from an import row.
 // Values that look like an airport code (<=4 alphanumeric chars) are
-// upper-cased; longer free-text values are scanned for an embedded 4-char
-// token resolving to a known airport; values with no recognizable ICAO
+// upper-cased; longer free-text values are scanned for an embedded upper-case
+// 4-char token resolving to a known airport; values with no recognizable ICAO
 // substring keep their original casing.
 func normalizeLocation(val string) string {
 	trimmed := strings.TrimSpace(val)
 	if icaoLikePattern.MatchString(trimmed) {
 		return strings.ToUpper(trimmed)
 	}
-	for _, tok := range icaoTokenPattern.FindAllString(trimmed, -1) {
-		code := strings.ToUpper(tok)
-		if airports.Lookup(code) != nil {
-			return code
+	for _, tok := range locationTokens(trimmed) {
+		if icaoTokenPattern.MatchString(tok) && airports.Lookup(tok) != nil {
+			return tok
 		}
 	}
 
