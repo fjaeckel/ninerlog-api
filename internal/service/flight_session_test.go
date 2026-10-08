@@ -424,6 +424,36 @@ func TestFlightSessionGPSResolvesNearestAirport(t *testing.T) {
 	}
 }
 
+func TestFlightSessionAcceptsKnownLocalIdent(t *testing.T) {
+	airports.SetTestDB(map[string]airports.AirportInfo{
+		"DE-0249": {Name: "Konz-Könen Glider Field", Latitude: 49.68, Longitude: 6.54},
+	})
+	defer airports.SetTestDB(nil)
+	svc, _, _, _ := newTestFlightSessionService(t)
+
+	session, _, err := svc.RecordEvent(context.Background(), uuid.New(), FlightSessionEventInput{
+		Type: models.FlightSessionEventOffBlock,
+		ICAO: strPtr("de-0249"),
+	})
+	if err != nil {
+		t.Fatalf("offblock failed: %v", err)
+	}
+	if session.DepartureICAO == nil || *session.DepartureICAO != "DE-0249" {
+		t.Errorf("DepartureICAO = %v, want DE-0249", session.DepartureICAO)
+	}
+
+	other, _, err := svc.RecordEvent(context.Background(), uuid.New(), FlightSessionEventInput{
+		Type: models.FlightSessionEventOffBlock,
+		ICAO: strPtr("XX-9999"),
+	})
+	if err != nil {
+		t.Fatalf("offblock failed: %v", err)
+	}
+	if other.DepartureICAO != nil {
+		t.Errorf("DepartureICAO = %v, want nil for an unknown non-ICAO ident", *other.DepartureICAO)
+	}
+}
+
 func TestFlightSessionDiscard(t *testing.T) {
 	svc, _, _, _ := newTestFlightSessionService(t)
 	userID := uuid.New()

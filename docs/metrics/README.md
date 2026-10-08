@@ -95,7 +95,7 @@ Full reference (including the fetch/merge internals): [`../METRICS.md`](../METRI
 | `airport_db_reload_total` | Counter | `result` | `success`, `partial`, `failed`, `rejected` |
 | `airport_db_airports` | Gauge | — | Airports in the active snapshot |
 | `airport_db_age_seconds` | Gauge | — | Age of the active snapshot (staleness signal) |
-| `airport_lookup_total` | Counter | `operation`, `result` | `lookup`/`search`/`nearest` × `hit`/`miss`/`unavailable` |
+| `airport_lookup_total` | Counter | `operation`, `result` | `lookup`/`name`/`search`/`nearest` × `hit`/`miss`/`unavailable`, plus `ambiguous` for `name` |
 
 ### Email delivery
 

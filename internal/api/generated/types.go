@@ -7038,7 +7038,7 @@ type ListAircraftParams struct {
 
 // SearchAirportsParams defines parameters for SearchAirports.
 type SearchAirportsParams struct {
-	// Q Search query (ICAO code prefix)
+	// Q Search query (identifier prefix or start of a name word)
 	Q     string `form:"q" json:"q"`
 	Limit *int   `form:"limit,omitempty" json:"limit,omitempty"`
 }

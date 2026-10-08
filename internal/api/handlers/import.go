@@ -1816,14 +1816,18 @@ var leadingICAOPattern = regexp.MustCompile(`^([A-Z0-9]{4})\s+\S`)
 var trailingICAOPattern = regexp.MustCompile(`\S\s+([A-Z0-9]{4})$`)
 
 // normalizeLocation cleans a departure/arrival location from an import row.
-// Values that look like an airport code (<=4 alphanumeric chars) are
-// upper-cased; longer free-text values are scanned for an embedded upper-case
-// 4-char token resolving to a known airport; values with no recognizable ICAO
-// substring keep their original casing.
+// Values that look like an airport code (<=4 alphanumeric chars) or are a
+// known airport identifier are upper-cased; longer free-text values are
+// scanned for an embedded upper-case 4-char token resolving to a known
+// airport, then matched against airport names; anything else keeps its
+// original casing.
 func normalizeLocation(val string) string {
 	trimmed := strings.TrimSpace(val)
 	if icaoLikePattern.MatchString(trimmed) {
 		return strings.ToUpper(trimmed)
+	}
+	if ap := airports.Lookup(trimmed); ap != nil {
+		return ap.ICAO
 	}
 	for _, tok := range locationTokens(trimmed) {
 		if icaoTokenPattern.MatchString(tok) && airports.Lookup(tok) != nil {
@@ -1847,6 +1851,9 @@ func normalizeLocation(val string) string {
 	}
 	if m := trailingICAOPattern.FindStringSubmatch(trimmed); m != nil {
 		return m[1]
+	}
+	if ap := airports.LookupByName(trimmed); ap != nil {
+		return ap.ICAO
 	}
 
 	return trimmed

@@ -264,10 +264,33 @@ func LoadedAt() time.Time {
 	return s.loadedAt
 }
 
-// Search returns airports whose ICAO code starts with prefix
-// (case-insensitive), in ICAO order, up to limit results.
-func Search(prefix string, limit int) []AirportInfo {
-	if prefix == "" || limit <= 0 {
+// LookupByName returns the airport whose name matches name, folded for case,
+// diacritics and punctuation, either in full or without trailing generic
+// words such as "Airfield" or "Glider Field". It returns nil when no airport
+// or more than one matches.
+func LookupByName(name string) *AirportInfo {
+	s := current.Load()
+	if s == nil {
+		nameUnavailable.Inc()
+		return nil
+	}
+	a, ambiguous := s.lookupName(name)
+	switch {
+	case a != nil:
+		nameHit.Inc()
+	case ambiguous:
+		nameAmbiguous.Inc()
+	default:
+		nameMiss.Inc()
+	}
+	return a
+}
+
+// Search returns airports whose ICAO code starts with query
+// (case-insensitive), in ICAO order, followed by airports with a name word
+// starting with query, up to limit results.
+func Search(query string, limit int) []AirportInfo {
+	if strings.TrimSpace(query) == "" || limit <= 0 {
 		return nil
 	}
 	s := current.Load()
@@ -276,7 +299,8 @@ func Search(prefix string, limit int) []AirportInfo {
 		return nil
 	}
 	start := time.Now()
-	results := s.searchPrefix(strings.ToUpper(prefix), limit)
+	results := s.searchPrefix(strings.ToUpper(strings.TrimSpace(query)), limit)
+	results = s.searchName(query, results, limit)
 	searchDuration.Observe(time.Since(start).Seconds())
 	if len(results) == 0 {
 		searchMiss.Inc()

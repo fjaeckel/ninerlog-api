@@ -347,6 +347,41 @@ func TestNormalizeLocation(t *testing.T) {
 	}
 }
 
+func TestNormalizeLocation_LocalIdentAndName(t *testing.T) {
+	airports.SetTestDB(map[string]airports.AirportInfo{
+		"KONZ":    {ICAO: "KONZ", Name: "Grosse Ile Municipal Airport", Latitude: 42.1, Longitude: -83.2},
+		"DE-0249": {ICAO: "DE-0249", Name: "Konz-Könen Glider Field", Latitude: 49.68, Longitude: 6.54},
+		"EDHE":    {ICAO: "EDHE", Name: "Uetersen/Heist Airfield", Latitude: 53.65, Longitude: 9.7},
+		"US-0001": {ICAO: "US-0001", Name: "Twin Oaks Airport", Latitude: 40, Longitude: -80},
+		"US-0002": {ICAO: "US-0002", Name: "Twin Oaks Airfield", Latitude: 41, Longitude: -81},
+	})
+	defer airports.SetTestDB(nil)
+
+	tests := []struct {
+		input, want string
+	}{
+		// Known local identifiers are upper-cased
+		{"de-0249", "DE-0249"},
+		{"DE-0249", "DE-0249"},
+		// Free text naming exactly one airport resolves to it
+		{"Konz Könen", "DE-0249"},
+		{"Konz-Könen Glider Field", "DE-0249"},
+		{"uetersen heist", "EDHE"},
+		// A code in the value still wins over the name
+		{"Uetersen EDHE", "EDHE"},
+		// Ambiguous, single-word and unknown names stay free text
+		{"Twin Oaks", "Twin Oaks"},
+		{"Konz", "KONZ"},
+		{"Konz Wiese", "Konz Wiese"},
+		{"XX-9999", "XX-9999"},
+	}
+	for _, tt := range tests {
+		if got := normalizeLocation(tt.input); got != tt.want {
+			t.Errorf("normalizeLocation(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestParseBoolish(t *testing.T) {
 	tests := []struct {
 		input string

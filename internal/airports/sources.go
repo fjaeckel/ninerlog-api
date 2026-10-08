@@ -92,7 +92,8 @@ func get(ctx context.Context, url string) (*http.Response, *countingReader, erro
 }
 
 // fetchOurAirports downloads the OurAirports CSV and parses it into a map
-// keyed by ICAO code.
+// keyed by ident: the ICAO code, or the OurAirports local identifier (e.g.
+// "DE-0249") for a field with neither an ICAO nor a 4-char GPS code.
 //
 // CSV columns: id, ident, type, name, latitude_deg, longitude_deg,
 // elevation_ft, continent, iso_country, iso_region, municipality,
@@ -148,10 +149,14 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 		ident := field(record, "ident")
 		apType := field(record, "type")
 
-		// Keep only 4-char ICAO identifiers; drop heliports and closed fields.
-		if len(ident) != 4 {
+		if !validIdent(ident) {
 			continue
 		}
+		// Drop local idents of fields that also carry a 4-char GPS code.
+		if len(ident) != 4 && len(field(record, "gps_code")) == 4 {
+			continue
+		}
+		// Drop heliports and closed fields.
 		if apType == "heliport" || apType == "closed" {
 			continue
 		}
@@ -189,6 +194,20 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 		return nil, body.n, failure("empty", "parsed 0 airports from CSV")
 	}
 	return result, body.n, nil
+}
+
+// validIdent reports whether ident is a non-empty code of upper-case
+// letters, digits and hyphens, at most 10 characters long.
+func validIdent(ident string) bool {
+	if ident == "" || len(ident) > 10 {
+		return false
+	}
+	for _, r := range ident {
+		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 // mwggAirport is one entry of the mwgg/Airports JSON object, which is keyed

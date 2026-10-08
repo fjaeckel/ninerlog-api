@@ -258,7 +258,13 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   (`internal/airports`), plus route and airport-activity statistics (`maps.go`).
   The database merges two upstream datasets — OurAirports (CSV) and mwgg/Airports
   (JSON) — record by record, keeping the more complete entry for each ICAO code and
-  filling its gaps from the other. It is loaded at startup and refetched every
+  filling its gaps from the other. Fields without an ICAO code (many glider and
+  ultralight sites) are kept under their OurAirports local identifier, e.g. `DE-0249`
+  for Konz-Könen, so flights from them get night time, landing classification and
+  distance like any other. A field whose local identifier comes with a 4-character GPS
+  code (US FAA identifiers such as `06N`/`K06N`) is left to that code, so it is not
+  listed twice. Search matches identifier prefixes first, then words of the
+  airport name. It is loaded at startup and refetched every
   `AIRPORT_REFRESH_INTERVAL` (default 24h); a failed refresh keeps the data already in
   memory. See [METRICS.md](./METRICS.md) for the fetch/load/lookup metrics it exposes.
   Clients that need offline nearest-airport matching (the iOS Share Extension) download
@@ -378,9 +384,11 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   from the value's own shape rather than by an airport-database lookup — the database is
   fetched at startup and refreshed in the background, and depending on it would make the
   same file import differently on different instances. Only a token written in capitals
-  counts as a code: a place without one ("Konz Könen", a glider or ultralight field) is
-  kept as its free-text name, never matched to whichever airport shares its first four
-  letters.
+  counts as a code, never whichever airport shares a place's first four letters. A place
+  without one ("Konz Könen") is matched against airport names — case, diacritics and
+  punctuation folded, trailing words such as "Glider Field" or "Flugplatz" ignored when
+  at least two words remain — and takes the identifier of the one airport it names
+  (`DE-0249`). A name that matches no airport, or several, is kept as free text.
 
   They also turned up five importer defects a header row cannot expose: a UTF-8 BOM breaking
   quoted-header parsing, bare four-digit clock times (`1003`) reaching Postgres unparsed,

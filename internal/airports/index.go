@@ -15,6 +15,11 @@ type snapshot struct {
 	list []AirportInfo
 	// byICAO maps an upper-case ICAO code to its index in list.
 	byICAO map[string]int32
+	// byName maps each name key to the index of the airport carrying it, or
+	// ambiguousName when several do.
+	byName map[string]int32
+	// folded holds each airport's folded name, parallel to list.
+	folded []string
 	// grid buckets airports into 1°×1° cells for nearest.
 	grid map[gridCell][]int32
 
@@ -34,6 +39,21 @@ type gridCell struct {
 	lon int16
 }
 
+// ambiguousName marks a name key carried by more than one airport.
+const ambiguousName int32 = -1
+
+// addName indexes airport i under key; an empty key is ignored.
+func (s *snapshot) addName(key string, i int32) {
+	if key == "" {
+		return
+	}
+	if j, ok := s.byName[key]; ok && j != i {
+		s.byName[key] = ambiguousName
+		return
+	}
+	s.byName[key] = i
+}
+
 func cellOf(lat, lon float64) gridCell {
 	return gridCell{lat: int16(math.Floor(lat)), lon: int16(math.Floor(lon))}
 }
@@ -43,6 +63,8 @@ func newSnapshot(records map[string]AirportInfo, loadedAt time.Time) *snapshot {
 	s := &snapshot{
 		list:     make([]AirportInfo, 0, len(records)),
 		byICAO:   make(map[string]int32, len(records)),
+		byName:   make(map[string]int32, len(records)),
+		folded:   make([]string, 0, len(records)),
 		grid:     make(map[gridCell][]int32, len(records)/8+1),
 		loadedAt: loadedAt,
 	}
@@ -54,6 +76,10 @@ func newSnapshot(records map[string]AirportInfo, loadedAt time.Time) *snapshot {
 	for i := range s.list {
 		a := &s.list[i]
 		s.byICAO[a.ICAO] = int32(i)
+		f := foldName(a.Name)
+		s.folded = append(s.folded, f)
+		s.addName(f, int32(i))
+		s.addName(shortNameKey(f), int32(i))
 		c := cellOf(a.Latitude, a.Longitude)
 		s.grid[c] = append(s.grid[c], int32(i))
 	}
@@ -75,6 +101,42 @@ func (s *snapshot) lookup(icao string) *AirportInfo {
 	}
 	a := s.list[i]
 	return &a
+}
+
+// lookupName returns the single airport whose name key equals the folded
+// name; ambiguous reports that several airports carry the key.
+func (s *snapshot) lookupName(name string) (a *AirportInfo, ambiguous bool) {
+	i, ok := s.byName[foldName(name)]
+	if !ok {
+		return nil, false
+	}
+	if i == ambiguousName {
+		return nil, true
+	}
+	ap := s.list[i]
+	return &ap, false
+}
+
+// searchName appends to results, up to limit, airports whose folded name has
+// a word starting with the folded query, skipping codes already in results.
+func (s *snapshot) searchName(query string, results []AirportInfo, limit int) []AirportInfo {
+	q := foldName(query)
+	if q == "" {
+		return results
+	}
+	seen := make(map[string]bool, len(results))
+	for _, a := range results {
+		seen[a.ICAO] = true
+	}
+	for i := range s.list {
+		if len(results) >= limit {
+			break
+		}
+		if !seen[s.list[i].ICAO] && nameMatches(s.folded[i], q) {
+			results = append(results, s.list[i])
+		}
+	}
+	return results
 }
 
 // searchPrefix returns up to limit airports whose ICAO code starts with

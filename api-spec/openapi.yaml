@@ -3299,11 +3299,13 @@ paths:
         - name: icaoCode
           in: path
           required: true
-          description: ICAO airport code (4 characters)
+          description: >-
+            Airport identifier: the 4-character ICAO code, or the OurAirports
+            local identifier (e.g. DE-0249) for a field without one
           schema:
             type: string
-            minLength: 4
-            maxLength: 4
+            minLength: 1
+            maxLength: 10
             example: EDDF
       responses:
         '200':
@@ -3321,7 +3323,10 @@ paths:
     get:
       tags: [Maps]
       summary: Search airports
-      description: Search airports by ICAO code prefix
+      description: >-
+        Search airports by identifier prefix, then by name. Identifier-prefix
+        matches come first in identifier order, followed by airports with a
+        name word starting with the query (case- and diacritic-insensitive).
       operationId: searchAirports
       security:
         - bearerAuth: []
@@ -3329,11 +3334,11 @@ paths:
         - name: q
           in: query
           required: true
-          description: Search query (ICAO code prefix)
+          description: Search query (identifier prefix or start of a name word)
           schema:
             type: string
             minLength: 1
-            maxLength: 4
+            maxLength: 64
             example: EDD
         - name: limit
           in: query

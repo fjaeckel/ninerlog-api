@@ -130,7 +130,8 @@ var (
 	)
 
 	// LookupTotal counts read-path operations.
-	// Operations: lookup, search, nearest. Results: hit, miss, unavailable.
+	// Operations: lookup, name, search, nearest. Results: hit, miss,
+	// unavailable, and ambiguous for name.
 	LookupTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "airport_lookup_total",
@@ -184,6 +185,11 @@ var (
 	lookupHit         = LookupTotal.WithLabelValues("lookup", "hit")
 	lookupMiss        = LookupTotal.WithLabelValues("lookup", "miss")
 	lookupUnavailable = LookupTotal.WithLabelValues("lookup", "unavailable")
+
+	nameHit         = LookupTotal.WithLabelValues("name", "hit")
+	nameMiss        = LookupTotal.WithLabelValues("name", "miss")
+	nameAmbiguous   = LookupTotal.WithLabelValues("name", "ambiguous")
+	nameUnavailable = LookupTotal.WithLabelValues("name", "unavailable")
 
 	searchHit         = LookupTotal.WithLabelValues("search", "hit")
 	searchMiss        = LookupTotal.WithLabelValues("search", "miss")
