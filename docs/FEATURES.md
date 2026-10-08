@@ -377,7 +377,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   writes its places as "ICAO Name" ("EDOI Bienenfarm"), so the leading code is extracted
   from the value's own shape rather than by an airport-database lookup — the database is
   fetched at startup and refreshed in the background, and depending on it would make the
-  same file import differently on different instances.
+  same file import differently on different instances. Only a token written in capitals
+  counts as a code: a place without one ("Konz Könen", a glider or ultralight field) is
+  kept as its free-text name, never matched to whichever airport shares its first four
+  letters.
 
   They also turned up five importer defects a header row cannot expose: a UTF-8 BOM breaking
   quoted-header parsing, bare four-digit clock times (`1003`) reaching Postgres unparsed,

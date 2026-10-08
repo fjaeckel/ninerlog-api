@@ -306,6 +306,8 @@ func TestNormalizeLocation(t *testing.T) {
 	airports.SetTestDB(map[string]airports.AirportInfo{
 		"EDDF": {ICAO: "EDDF", Name: "Frankfurt Airport", Latitude: 50.0333, Longitude: 8.5706},
 		"EDXR": {ICAO: "EDXR", Name: "Rendsburg-Schachtholm", Latitude: 54.3, Longitude: 9.5},
+		"KONZ": {ICAO: "KONZ", Name: "Grosse Ile Municipal Airport", Latitude: 42.1, Longitude: -83.2},
+		"HAHN": {ICAO: "HAHN", Name: "Unrelated Airport", Latitude: 0, Longitude: 0},
 	})
 	defer airports.SetTestDB(nil)
 
@@ -331,6 +333,12 @@ func TestNormalizeLocation(t *testing.T) {
 		{"Rendsburg-Schachtholm EDXR", "EDXR"},
 		// Embedded token that isn't a known airport: free text is preserved
 		{"Somewhere (ZZZZ)", "Somewhere (ZZZZ)"},
+		// A name word that happens to be a known code is not a code (#256)
+		{"Konz Könen", "Konz Könen"},
+		{"Frankfurt-Hahn", "Frankfurt-Hahn"},
+		{"Könen Konz", "Könen Konz"},
+		{"Frankfurt (eddf)", "Frankfurt (eddf)"},
+		{"Könen (EDDF)", "EDDF"},
 	}
 	for _, tt := range tests {
 		if got := normalizeLocation(tt.input); got != tt.want {
