@@ -2878,6 +2878,11 @@ type Airport struct {
 	// Example: 50.033333
 	Latitude float64 `json:"latitude"`
 
+	// LocalCode National airport code containing a digit (e.g. FAA 5M6, French ULM LF0723), when the field has one distinct from its identifier
+	//
+	// Example: LF0723
+	LocalCode *string `json:"localCode,omitempty"`
+
 	// Longitude Longitude in decimal degrees
 	//
 	// Example: 8.570556
@@ -7038,7 +7043,7 @@ type ListAircraftParams struct {
 
 // SearchAirportsParams defines parameters for SearchAirports.
 type SearchAirportsParams struct {
-	// Q Search query (identifier prefix or start of a name word)
+	// Q Search query (identifier or local-code prefix, or start of a name word)
 	Q     string `form:"q" json:"q"`
 	Limit *int   `form:"limit,omitempty" json:"limit,omitempty"`
 }

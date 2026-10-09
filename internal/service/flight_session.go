@@ -163,13 +163,17 @@ func (s *FlightSessionService) resolveOccurredAt(clientTime *time.Time) (time.Ti
 	return t, nil
 }
 
-// resolveAirport returns the event's airport: an explicit ICAO code or known
-// airport identifier wins, otherwise GPS coordinates are resolved to the
-// nearest known airport.
+// resolveAirport returns the event's airport: an explicit code resolving to a
+// known airport (ICAO, then local code) wins, then an unknown 4-char code,
+// otherwise GPS coordinates are resolved to the nearest known airport.
 func (s *FlightSessionService) resolveAirport(input FlightSessionEventInput) *string {
 	if input.ICAO != nil {
 		code := strings.ToUpper(strings.TrimSpace(*input.ICAO))
-		if icaoCodePattern.MatchString(code) || airports.Lookup(code) != nil {
+		if ap := airports.LookupCode(code); ap != nil {
+			ident := ap.ICAO
+			return &ident
+		}
+		if icaoCodePattern.MatchString(code) {
 			return &code
 		}
 	}

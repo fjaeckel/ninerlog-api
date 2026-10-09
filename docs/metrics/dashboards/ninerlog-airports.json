@@ -262,7 +262,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(increase(airport_lookup_total{job=\"$job\", operation!=\"name\", result=\"unavailable\"}[1h]))",
+          "expr": "sum(increase(airport_lookup_total{job=\"$job\", operation!~\"name|code\", result=\"unavailable\"}[1h]))",
           "legendFormat": "unavailable (1h)"
         }
       ]
@@ -303,7 +303,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(airport_lookup_total{job=\"$job\", operation!=\"name\", result=\"hit\"}[1h])) / clamp_min(sum(rate(airport_lookup_total{job=\"$job\", operation!=\"name\"}[1h])), 0.0001)",
+          "expr": "sum(rate(airport_lookup_total{job=\"$job\", operation!~\"name|code\", result=\"hit\"}[1h])) / clamp_min(sum(rate(airport_lookup_total{job=\"$job\", operation!~\"name|code\"}[1h])), 0.0001)",
           "legendFormat": "hit ratio"
         }
       ]

@@ -21,6 +21,11 @@ type snapshot struct {
 	byName map[string]int32
 	// folded holds each airport's folded name, parallel to list.
 	folded []string
+	// byLocal maps each local code to the index of the airport carrying it,
+	// or ambiguousName when several do.
+	byLocal map[string]int32
+	// locals lists the unambiguous local codes in code order.
+	locals []localEntry
 	// grid buckets airports into 1°×1° cells for nearest.
 	grid map[gridCell][]int32
 
@@ -38,6 +43,12 @@ type snapshot struct {
 type gridCell struct {
 	lat int16
 	lon int16
+}
+
+// localEntry is one local code and the index of its airport.
+type localEntry struct {
+	code string
+	idx  int32
 }
 
 // ambiguousName marks a name key carried by more than one airport.
@@ -65,6 +76,7 @@ func newSnapshot(records map[string]AirportInfo, loadedAt time.Time) *snapshot {
 		list:     make([]AirportInfo, 0, len(records)),
 		byICAO:   make(map[string]int32, len(records)),
 		byName:   make(map[string]int32, len(records)),
+		byLocal:  make(map[string]int32),
 		folded:   make([]string, 0, len(records)),
 		grid:     make(map[gridCell][]int32, len(records)/8+1),
 		loadedAt: loadedAt,
@@ -83,9 +95,22 @@ func newSnapshot(records map[string]AirportInfo, loadedAt time.Time) *snapshot {
 			s.addName(f, int32(i))
 		}
 		s.addName(shortNameKey(f), int32(i))
+		if a.LocalCode != "" {
+			if _, ok := s.byLocal[a.LocalCode]; ok {
+				s.byLocal[a.LocalCode] = ambiguousName
+			} else {
+				s.byLocal[a.LocalCode] = int32(i)
+			}
+		}
 		c := cellOf(a.Latitude, a.Longitude)
 		s.grid[c] = append(s.grid[c], int32(i))
 	}
+	for code, i := range s.byLocal {
+		if i != ambiguousName {
+			s.locals = append(s.locals, localEntry{code: code, idx: i})
+		}
+	}
+	sort.Slice(s.locals, func(i, j int) bool { return s.locals[i].code < s.locals[j].code })
 	return s
 }
 
@@ -104,6 +129,44 @@ func (s *snapshot) lookup(icao string) *AirportInfo {
 	}
 	a := s.list[i]
 	return &a
+}
+
+// lookupCode returns the airport whose ICAO code equals code, otherwise the
+// single airport whose local code does; ambiguous reports that several
+// airports carry the local code.
+func (s *snapshot) lookupCode(code string) (a *AirportInfo, ambiguous bool) {
+	if ap := s.lookup(code); ap != nil {
+		return ap, false
+	}
+	i, ok := s.byLocal[code]
+	if !ok {
+		return nil, false
+	}
+	if i == ambiguousName {
+		return nil, true
+	}
+	ap := s.list[i]
+	return &ap, false
+}
+
+// searchLocal appends to results, up to limit, airports whose unambiguous
+// local code starts with prefix, skipping codes already in results.
+func (s *snapshot) searchLocal(prefix string, results []AirportInfo, limit int) []AirportInfo {
+	seen := make(map[string]bool, len(results))
+	for _, a := range results {
+		seen[a.ICAO] = true
+	}
+	start := sort.Search(len(s.locals), func(i int) bool { return s.locals[i].code >= prefix })
+	for i := start; i < len(s.locals) && len(results) < limit; i++ {
+		if !strings.HasPrefix(s.locals[i].code, prefix) {
+			break
+		}
+		a := s.list[s.locals[i].idx]
+		if !seen[a.ICAO] {
+			results = append(results, a)
+		}
+	}
+	return results
 }
 
 // lookupName returns the single airport whose name key equals the folded

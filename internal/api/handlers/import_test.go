@@ -356,6 +356,7 @@ func TestNormalizeLocation_LocalIdentAndName(t *testing.T) {
 		"US-0002": {ICAO: "US-0002", Name: "Twin Oaks Airfield", Latitude: 41, Longitude: -81},
 		"HAHN":    {ICAO: "HAHN", Name: "Unrelated Airport", Latitude: 0, Longitude: 1},
 		"EDFH":    {ICAO: "EDFH", Name: "Frankfurt-Hahn Airport", Latitude: 49.9, Longitude: 7.3},
+		"FR-0009": {ICAO: "FR-0009", Name: "Altisurface Notre-Dame-des-Neiges", Latitude: 45, Longitude: 6, LocalCode: "LF0723"},
 	})
 	defer airports.SetTestDB(nil)
 
@@ -372,6 +373,12 @@ func TestNormalizeLocation_LocalIdentAndName(t *testing.T) {
 		// All-caps values resolve by name before any token is read as a code
 		{"KONZ KÖNEN", "DE-0249"},
 		{"FRANKFURT-HAHN", "EDFH"},
+		// Unique local codes resolve exactly
+		{"lf0723", "FR-0009"},
+		// Words inside free text are never read as codes
+		{"KONZ WIESE", "KONZ WIESE"},
+		{"Konz KONZ Wiese", "Konz KONZ Wiese"},
+		{"Altisurface (LF0723)", "FR-0009"},
 		// A code in the value still wins over the name
 		{"Uetersen EDHE", "EDHE"},
 		// Ambiguous, single-word and unknown names stay free text

@@ -61,6 +61,16 @@ func TestAirportSearch(t *testing.T) {
 		}
 	})
 
+	t.Run("search by local code", func(t *testing.T) {
+		resp := c.GET("/airports/search?q=LF0723")
+		requireStatus(t, resp, http.StatusOK)
+		var results []map[string]interface{}
+		resp.JSON(&results)
+		if len(results) == 0 || results[0]["icao"] != "FR-0009" || results[0]["localCode"] != "LF0723" {
+			t.Errorf("Search(LF0723) = %v, want FR-0009 with localCode LF0723", results)
+		}
+	})
+
 	t.Run("search by name", func(t *testing.T) {
 		resp := c.GET("/airports/search?q=K%C3%B6nen&limit=50")
 		requireStatus(t, resp, http.StatusOK)

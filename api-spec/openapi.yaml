@@ -3324,9 +3324,10 @@ paths:
       tags: [Maps]
       summary: Search airports
       description: >-
-        Search airports by identifier prefix, then by name. Identifier-prefix
-        matches come first in identifier order, followed by airports with a
-        name word starting with the query (case- and diacritic-insensitive).
+        Search airports by identifier prefix, then local-code prefix, then
+        name. Identifier-prefix matches come first in identifier order, then
+        local-code prefix matches in code order, then airports with a name word
+        starting with the query (case- and diacritic-insensitive).
       operationId: searchAirports
       security:
         - bearerAuth: []
@@ -3334,7 +3335,7 @@ paths:
         - name: q
           in: query
           required: true
-          description: Search query (identifier prefix or start of a name word)
+          description: Search query (identifier or local-code prefix, or start of a name word)
           schema:
             type: string
             minLength: 1
@@ -8642,6 +8643,10 @@ components:
           type: string
           description: Country code (ISO 3166-1 alpha-2)
           example: DE
+        localCode:
+          type: string
+          description: National airport code containing a digit (e.g. FAA 5M6, French ULM LF0723), when the field has one distinct from its identifier
+          example: LF0723
 
     AirportPackStatus:
       type: object

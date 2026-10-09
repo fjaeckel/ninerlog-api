@@ -227,6 +227,8 @@ func testCSVData() string {
 		"4,DE-0249,small_airport,Konz-Könen Glider Field,49.675969,6.543002,725,EU,DE,DE-SL,Konz,no,,,,,,",
 		"7,bad ident,small_airport,Invalid Ident,1,1,0,NA,US,US-XX,Nowhere,no,,,,,,",
 		"8,06N,small_airport,Randall Airport,41.43,-74.39,523,NA,US,US-NY,Middletown,no,K06N,,06N,,,",
+		"9,FR-0009,small_airport,Altisurface Notre-Dame-des-Neiges,45.1,6.2,5000,EU,FR,FR-ARA,,no,,,LF0723,,,",
+		"10,0C7,small_airport,Clashing GPS Code,41.5,-89.1,700,NA,US,US-IL,Mendota,no,EDDM,,0C7,,,",
 		"5,HELI,heliport,Helipad One,1,1,0,NA,US,US-XX,Nowhere,no,HELI,,,,,",
 		"6,CLSD,closed,Closed Airport,1,1,0,NA,US,US-XX,Nowhere,no,CLSD,,,,,",
 	}, "\n")
@@ -279,10 +281,19 @@ func TestFetchOurAirports_Success(t *testing.T) {
 		t.Errorf("fetchOurAirports() size = %d, want > 0", size)
 	}
 
-	// ICAO codes and local idents; no heliports, closed airports, invalid idents
-	// or local idents of fields with a 4-char GPS code.
-	if len(result) != 4 {
-		t.Errorf("fetchOurAirports() count = %d, want 4 (EDDF, KJFK, EDDM, DE-0249)", len(result))
+	// ICAO codes, GPS codes and local idents; no heliports, closed airports,
+	// invalid idents or GPS codes another row carries.
+	if len(result) != 6 {
+		t.Errorf("fetchOurAirports() count = %d, want 6 (EDDF, KJFK, EDDM, DE-0249, FR-0009, K06N)", len(result))
+	}
+	if k := result["K06N"]; k.Name != "Randall Airport" || k.LocalCode != "06N" {
+		t.Errorf("K06N = %+v, want Randall Airport with local code 06N", k)
+	}
+	if m := result["EDDM"]; m.Name != "Munich Airport" {
+		t.Errorf("EDDM = %+v, want Munich Airport kept over a clashing GPS code", m)
+	}
+	if fr := result["FR-0009"]; fr.LocalCode != "LF0723" {
+		t.Errorf("FR-0009.LocalCode = %q, want LF0723", fr.LocalCode)
 	}
 	if konz, ok := result["DE-0249"]; !ok || konz.Name != "Konz-Könen Glider Field" {
 		t.Errorf("DE-0249 = %+v, want Konz-Könen Glider Field", konz)
@@ -441,9 +452,9 @@ func TestReload_MergesBothSources(t *testing.T) {
 		t.Fatalf("Reload() error = %v", err)
 	}
 
-	// EDDF (both), KJFK + EDDM + DE-0249 (OurAirports only), LOWW (mwgg only)
-	if Count() != 5 {
-		t.Errorf("Count() = %d, want 5", Count())
+	// EDDF (both), KJFK + EDDM + DE-0249 + FR-0009 + K06N (OurAirports only), LOWW (mwgg only)
+	if Count() != 7 {
+		t.Errorf("Count() = %d, want 7", Count())
 	}
 
 	eddf := Lookup("EDDF")
@@ -542,8 +553,8 @@ func TestInit_LoadsOnce(t *testing.T) {
 	})
 
 	Init()
-	if Count() != 5 {
-		t.Errorf("Init() loaded %d airports, want 5", Count())
+	if Count() != 7 {
+		t.Errorf("Init() loaded %d airports, want 7", Count())
 	}
 
 	// A second Init() must not refetch.

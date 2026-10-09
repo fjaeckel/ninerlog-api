@@ -1786,24 +1786,17 @@ func normalizeDecimalSeparator(val string) string {
 // up to four alphanumeric characters.
 var icaoLikePattern = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
 
-// icaoTokenPattern matches a whole token that is a four-character upper-case
-// code, e.g. "EDDF" in "Frankfurt (EDDF)".
-var icaoTokenPattern = regexp.MustCompile(`^[A-Z0-9]{4}$`)
+// codeShapePattern matches a value shaped like an airport code: 1-10
+// letters, digits and hyphens.
+var codeShapePattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,10}$`)
 
-// localIdentPattern matches a hyphenated local airport identifier such as
-// "DE-0249".
-var localIdentPattern = regexp.MustCompile(`^[A-Za-z0-9]+-[A-Za-z0-9-]+$`)
+// parenCodePattern matches a value ending in an upper-case code in
+// parentheses, e.g. "Frankfurt (EDDF)".
+var parenCodePattern = regexp.MustCompile(`\(([A-Z0-9-]{3,10})\)$`)
 
 // hasLower reports whether s contains a lower-case letter.
 func hasLower(s string) bool {
 	return strings.IndexFunc(s, unicode.IsLower) >= 0
-}
-
-// locationTokens splits a location into runs of Unicode letters and digits.
-func locationTokens(val string) []string {
-	return strings.FieldsFunc(val, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	})
 }
 
 // leadingICAOPattern matches a value that opens with a bare four-character
@@ -1825,33 +1818,35 @@ var leadingICAOPattern = regexp.MustCompile(`^([A-Z0-9]{4})\s+\S`)
 var trailingICAOPattern = regexp.MustCompile(`\S\s+([A-Z0-9]{4})$`)
 
 // normalizeLocation cleans a departure/arrival location from an import row.
-// Values that look like an airport code (<=4 alphanumeric chars) or are a
-// known local identifier are upper-cased; a value naming exactly one airport
-// takes its identifier; otherwise an embedded upper-case 4-char token
-// resolving to a known airport is used, and in mixed-case values a leading or
-// trailing upper-case 4-char token; anything else keeps its original casing.
+// A value shaped like a code resolves exactly to an ICAO code, then to a
+// unique local code, and is otherwise upper-cased when <=4 alphanumerics. A
+// longer value takes the identifier of the one airport it names, or of the
+// code in trailing parentheses. In mixed-case values a leading or trailing
+// upper-case 4-char token is the code. Anything else keeps its original
+// casing.
 func normalizeLocation(val string) string {
 	trimmed := strings.TrimSpace(val)
-	if icaoLikePattern.MatchString(trimmed) {
-		return strings.ToUpper(trimmed)
-	}
-	if len(trimmed) <= 10 && localIdentPattern.MatchString(trimmed) {
-		if ap := airports.Lookup(trimmed); ap != nil {
+	if codeShapePattern.MatchString(trimmed) {
+		if ap := airports.LookupCode(trimmed); ap != nil {
 			return ap.ICAO
 		}
+		if icaoLikePattern.MatchString(trimmed) {
+			return strings.ToUpper(trimmed)
+		}
+		return trimmed
 	}
 	if ap := airports.LookupByName(trimmed); ap != nil {
 		return ap.ICAO
 	}
-	for _, tok := range locationTokens(trimmed) {
-		if icaoTokenPattern.MatchString(tok) && airports.Lookup(tok) != nil {
-			return tok
+	if m := parenCodePattern.FindStringSubmatch(trimmed); m != nil {
+		if ap := airports.LookupCode(m[1]); ap != nil {
+			return ap.ICAO
 		}
 	}
 
-	// No airport database hit. Fall back to the shape of the value itself: a
-	// leading four-character upper-case code followed by a name is how SkyDemon
-	// writes every place ("EDOI Bienenfarm").
+	// A leading four-character upper-case code followed by a name is how
+	// SkyDemon writes every place ("EDOI Bienenfarm"); Vereinsflieger writes
+	// the name first ("Uetersen EDHE").
 	//
 	// This has to work without a database lookup. The airport data is fetched
 	// at startup and refreshed in the background, so relying on it alone makes

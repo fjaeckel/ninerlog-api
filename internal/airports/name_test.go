@@ -125,3 +125,66 @@ func TestSearch_ByName(t *testing.T) {
 		t.Errorf("Search(konz, 1) = %v, want KONZ only", r)
 	}
 }
+
+func TestLocalCode(t *testing.T) {
+	tests := []struct{ code, ident, want string }{
+		{"LF0723", "FR-0009", "LF0723"},
+		{" 5m6 ", "0MI1", "5M6"},
+		{"A01", "AU-0002", "A01"},
+		{"SEE", "KSEE", ""},
+		{"EDDF", "EDDF", ""},
+		{"AB-12", "XX-0001", ""},
+		{"", "XX-0001", ""},
+	}
+	for _, tt := range tests {
+		if got := localCode(tt.code, tt.ident); got != tt.want {
+			t.Errorf("localCode(%q, %q) = %q, want %q", tt.code, tt.ident, got, tt.want)
+		}
+	}
+}
+
+func TestLookupCode(t *testing.T) {
+	SetTestDB(map[string]AirportInfo{
+		"EDDF":    {Name: "Frankfurt Airport", Latitude: 50, Longitude: 8},
+		"FR-0009": {Name: "Altisurface Notre-Dame-des-Neiges", Latitude: 45, Longitude: 6, LocalCode: "LF0723"},
+		"XX-0001": {Name: "Shadowed", Latitude: 1, Longitude: 1, LocalCode: "EDDF"},
+		"US-0001": {Name: "Strip One", Latitude: 40, Longitude: -80, LocalCode: "1N7"},
+		"BR-0001": {Name: "Strip Two", Latitude: -10, Longitude: -50, LocalCode: "1N7"},
+	})
+	defer SetTestDB(nil)
+
+	tests := []struct{ in, want string }{
+		{"EDDF", "EDDF"},
+		{"lf0723", "FR-0009"},
+		{"FR-0009", "FR-0009"},
+		{"1N7", ""},
+		{"ZZZZ", ""},
+	}
+	for _, tt := range tests {
+		got := ""
+		if a := LookupCode(tt.in); a != nil {
+			got = a.ICAO
+		}
+		if got != tt.want {
+			t.Errorf("LookupCode(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+
+	var codes []string
+	for _, a := range Search("LF07", 10) {
+		codes = append(codes, a.ICAO)
+	}
+	if want := []string{"FR-0009"}; !reflect.DeepEqual(codes, want) {
+		t.Errorf("Search(LF07) = %v, want %v", codes, want)
+	}
+	if r := Search("1N", 10); len(r) != 0 {
+		t.Errorf("Search(1N) = %v, want none for an ambiguous local code", r)
+	}
+}
+
+func TestLookupCode_NilDB(t *testing.T) {
+	SetTestDB(nil)
+	if a := LookupCode("EDDF"); a != nil {
+		t.Errorf("LookupCode with nil db = %v, want nil", a)
+	}
+}

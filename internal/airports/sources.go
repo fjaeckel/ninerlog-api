@@ -93,8 +93,8 @@ func get(ctx context.Context, url string) (*http.Response, *countingReader, erro
 }
 
 // fetchOurAirports downloads the OurAirports CSV and parses it into a map
-// keyed by ident: the ICAO code, or the OurAirports local identifier (e.g.
-// "DE-0249") for a field with neither an ICAO nor a 4-char GPS code.
+// keyed by the ICAO code, else the 4-char GPS code, else the hyphenated
+// OurAirports local identifier (e.g. "DE-0249").
 //
 // CSV columns: id, ident, type, name, latitude_deg, longitude_deg,
 // elevation_ft, continent, iso_country, iso_region, municipality,
@@ -137,6 +137,7 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 	}
 
 	result := make(map[string]AirportInfo, 30000)
+	byGPSCode := make(map[string][]AirportInfo)
 
 	for {
 		record, err := reader.Read()
@@ -150,11 +151,12 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 		ident := field(record, "ident")
 		apType := field(record, "type")
 
-		if !validIdent(ident) {
-			continue
+		// Key fields with a non-ICAO ident and a 4-char GPS code by the GPS code.
+		byGPS := false
+		if gps := field(record, "gps_code"); len(ident) != 4 && len(gps) == 4 && validIdent(gps) {
+			ident, byGPS = gps, true
 		}
-		// Drop local idents of fields that also carry a 4-char GPS code.
-		if len(ident) != 4 && len(field(record, "gps_code")) == 4 {
+		if !validIdent(ident) {
 			continue
 		}
 		// Drop heliports and closed fields.
@@ -178,7 +180,7 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 			}
 		}
 
-		result[ident] = AirportInfo{
+		info := AirportInfo{
 			ICAO:      ident,
 			Name:      field(record, "name"),
 			Latitude:  lat,
@@ -187,7 +189,19 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 			Country:   field(record, "iso_country"),
 			IATA:      field(record, "iata_code"),
 			City:      field(record, "municipality"),
+			LocalCode: localCode(field(record, "local_code"), ident),
 			Source:    sourceOurAirports,
+		}
+		if byGPS {
+			byGPSCode[ident] = append(byGPSCode[ident], info)
+			continue
+		}
+		result[ident] = info
+	}
+	// GPS-keyed fields fill only codes no other row carries.
+	for code, infos := range byGPSCode {
+		if _, taken := result[code]; !taken && len(infos) == 1 {
+			result[code] = infos[0]
 		}
 	}
 
@@ -210,6 +224,28 @@ func validIdent(ident string) bool {
 		}
 	}
 	return true
+}
+
+// localCode returns code upper-cased when it is 1-10 letters and digits with
+// at least one digit and differs from ident, otherwise "".
+func localCode(code, ident string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if code == "" || len(code) > 10 || code == ident {
+		return ""
+	}
+	digit := false
+	for _, r := range code {
+		switch {
+		case r >= '0' && r <= '9':
+			digit = true
+		case r < 'A' || r > 'Z':
+			return ""
+		}
+	}
+	if !digit {
+		return ""
+	}
+	return code
 }
 
 // mwggAirport is one entry of the mwgg/Airports JSON object, which is keyed
