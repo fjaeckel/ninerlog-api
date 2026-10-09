@@ -64,12 +64,14 @@ flight response, so all three read paths are indexed rather than scanned.
 
 | Operation | Cost | Notes |
 |-----------|------|-------|
-| `Lookup` (exact ICAO) | ~100 ns/op | Single map hit into an atomically swapped snapshot |
-| `Nearest` (coordinates) | ~25 µs/op | 1°×1° grid index; a full haversine scan over ~35k airports would be ~100x slower |
-| `Search` (ICAO prefix) | O(log n) + matches | Binary search over the ICAO-sorted list |
+| `Lookup` (exact identifier) | ~100 ns/op | Single map hit into an atomically swapped snapshot |
+| `LookupCode` (import, sessions) | ~100 ns/op | Identifier map, then local-code map |
+| `LookupByName` (import) | ~1 µs/op | Folds the name, then one map hit |
+| `Nearest` (coordinates) | ~25 µs/op | 1°×1° grid index; a full haversine scan over ~51k airports would be ~100x slower |
+| `Search` (prefixes, then name) | O(log n) + name scan | Binary search over the identifier- and local-code-sorted lists, then a scan of pre-folded names; ~2–5 ms when nothing matches |
 
-Full reload (both datasets fetched in parallel, merged and re-indexed): ~300 ms on a
-warm connection, ~35k airports, ~17 MB heap. Reloads never block readers — the new
+Full reload (both datasets fetched in parallel, merged and re-indexed): ~1 s on a
+warm connection, ~51k airports, ~24 MB heap. The gzip pack is ~1.4 MB. Reloads never block readers — the new
 snapshot is built off to the side and swapped in with one atomic store.
 
 Run with `go test -bench . ./internal/airports/`.

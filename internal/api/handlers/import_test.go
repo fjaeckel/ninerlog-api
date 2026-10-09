@@ -333,12 +333,74 @@ func TestNormalizeLocation(t *testing.T) {
 		{"Rendsburg-Schachtholm EDXR", "EDXR"},
 		// Embedded token that isn't a known airport: free text is preserved
 		{"Somewhere (ZZZZ)", "Somewhere (ZZZZ)"},
-		// A name word that happens to be a known code is not a code (#256)
+		// A name word that is a known code in title case stays a name
 		{"Konz Könen", "Konz Könen"},
 		{"Frankfurt-Hahn", "Frankfurt-Hahn"},
 		{"Könen Konz", "Könen Konz"},
 		{"Frankfurt (eddf)", "Frankfurt (eddf)"},
 		{"Könen (EDDF)", "EDDF"},
+	}
+	for _, tt := range tests {
+		if got := normalizeLocation(tt.input); got != tt.want {
+			t.Errorf("normalizeLocation(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeLocation_LocalIdentAndName(t *testing.T) {
+	airports.SetTestDB(map[string]airports.AirportInfo{
+		"KONZ":    {ICAO: "KONZ", Name: "Grosse Ile Municipal Airport", Latitude: 42.1, Longitude: -83.2},
+		"DE-0249": {ICAO: "DE-0249", Name: "Konz-Könen Glider Field", Latitude: 49.68, Longitude: 6.54},
+		"EDHE":    {ICAO: "EDHE", Name: "Uetersen/Heist Airfield", Latitude: 53.65, Longitude: 9.7},
+		"US-0001": {ICAO: "US-0001", Name: "Twin Oaks Airport", Latitude: 40, Longitude: -80},
+		"US-0002": {ICAO: "US-0002", Name: "Twin Oaks Airfield", Latitude: 41, Longitude: -81},
+		"HAHN":    {ICAO: "HAHN", Name: "Unrelated Airport", Latitude: 0, Longitude: 1},
+		"EDFH":    {ICAO: "EDFH", Name: "Frankfurt-Hahn Airport", Latitude: 49.9, Longitude: 7.3},
+		"FR-0009": {ICAO: "FR-0009", Name: "Altisurface Notre-Dame-des-Neiges", Latitude: 45, Longitude: 6, LocalCode: "LF0723"},
+	})
+	defer airports.SetTestDB(nil)
+
+	tests := []struct {
+		input, want string
+	}{
+		// Known local identifiers are upper-cased
+		{"de-0249", "DE-0249"},
+		{"DE-0249", "DE-0249"},
+		// Free text naming exactly one airport resolves to it
+		{"Konz Könen", "DE-0249"},
+		{"Konz-Könen Glider Field", "DE-0249"},
+		{"uetersen heist", "EDHE"},
+		// All-caps values resolve by name before any token is read as a code
+		{"KONZ KÖNEN", "DE-0249"},
+		{"FRANKFURT-HAHN", "EDFH"},
+		// Unique local codes resolve exactly
+		{"lf0723", "FR-0009"},
+		// Words inside free text are never read as codes
+		{"KONZ WIESE", "KONZ WIESE"},
+		{"Konz KONZ Wiese", "Konz KONZ Wiese"},
+		{"Altisurface (LF0723)", "FR-0009"},
+		// A code in the value still wins over the name
+		{"Uetersen EDHE", "EDHE"},
+		// Ambiguous, single-word and unknown names stay free text
+		{"Twin Oaks", "Twin Oaks"},
+		{"Konz", "KONZ"},
+		{"Konz Wiese", "Konz Wiese"},
+		{"XX-9999", "XX-9999"},
+	}
+	for _, tt := range tests {
+		if got := normalizeLocation(tt.input); got != tt.want {
+			t.Errorf("normalizeLocation(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeLocation_AllCapsWithoutDatabase(t *testing.T) {
+	airports.SetTestDB(nil)
+	tests := []struct{ input, want string }{
+		{"KONZ KÖNEN", "KONZ KÖNEN"},
+		{"FRANKFURT HAHN", "FRANKFURT HAHN"},
+		{"EDOI Bienenfarm", "EDOI"},
+		{"Uetersen EDHE", "EDHE"},
 	}
 	for _, tt := range tests {
 		if got := normalizeLocation(tt.input); got != tt.want {

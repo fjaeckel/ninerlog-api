@@ -224,7 +224,11 @@ func testCSVData() string {
 		"1,EDDF,large_airport,Frankfurt Airport,50.0333,8.5706,364,EU,DE,DE-HE,Frankfurt,yes,EDDF,FRA,,,,",
 		"2,KJFK,large_airport,John F Kennedy Intl,40.6399,-73.7787,13,NA,US,US-NY,New York,yes,KJFK,JFK,,,,",
 		"3,EDDM,medium_airport,Munich Airport,48.3538,11.7861,1487,EU,DE,DE-BY,Munich,yes,EDDM,MUC,,,,",
-		"4,XX,small_airport,Too Short ICAO,1,1,0,NA,US,US-XX,Nowhere,no,XX,,,,,",
+		"4,DE-0249,small_airport,Konz-Könen Glider Field,49.675969,6.543002,725,EU,DE,DE-SL,Konz,no,,,,,,",
+		"7,bad ident,small_airport,Invalid Ident,1,1,0,NA,US,US-XX,Nowhere,no,,,,,,",
+		"8,06N,small_airport,Randall Airport,41.43,-74.39,523,NA,US,US-NY,Middletown,no,K06N,,06N,,,",
+		"9,FR-0009,small_airport,Altisurface Notre-Dame-des-Neiges,45.1,6.2,5000,EU,FR,FR-ARA,,no,,,LF0723,,,",
+		"10,0C7,small_airport,Clashing GPS Code,41.5,-89.1,700,NA,US,US-IL,Mendota,no,EDDM,,0C7,,,",
 		"5,HELI,heliport,Helipad One,1,1,0,NA,US,US-XX,Nowhere,no,HELI,,,,,",
 		"6,CLSD,closed,Closed Airport,1,1,0,NA,US,US-XX,Nowhere,no,CLSD,,,,,",
 	}, "\n")
@@ -277,9 +281,22 @@ func TestFetchOurAirports_Success(t *testing.T) {
 		t.Errorf("fetchOurAirports() size = %d, want > 0", size)
 	}
 
-	// Only 4-char ICAO codes, no heliports, no closed airports.
-	if len(result) != 3 {
-		t.Errorf("fetchOurAirports() count = %d, want 3 (EDDF, KJFK, EDDM)", len(result))
+	// ICAO codes, GPS codes and local idents; no heliports, closed airports,
+	// invalid idents or GPS codes another row carries.
+	if len(result) != 6 {
+		t.Errorf("fetchOurAirports() count = %d, want 6 (EDDF, KJFK, EDDM, DE-0249, FR-0009, K06N)", len(result))
+	}
+	if k := result["K06N"]; k.Name != "Randall Airport" || k.LocalCode != "06N" {
+		t.Errorf("K06N = %+v, want Randall Airport with local code 06N", k)
+	}
+	if m := result["EDDM"]; m.Name != "Munich Airport" {
+		t.Errorf("EDDM = %+v, want Munich Airport kept over a clashing GPS code", m)
+	}
+	if fr := result["FR-0009"]; fr.LocalCode != "LF0723" {
+		t.Errorf("FR-0009.LocalCode = %q, want LF0723", fr.LocalCode)
+	}
+	if konz, ok := result["DE-0249"]; !ok || konz.Name != "Konz-Könen Glider Field" {
+		t.Errorf("DE-0249 = %+v, want Konz-Könen Glider Field", konz)
 	}
 
 	eddf, ok := result["EDDF"]
@@ -435,9 +452,9 @@ func TestReload_MergesBothSources(t *testing.T) {
 		t.Fatalf("Reload() error = %v", err)
 	}
 
-	// EDDF (both), KJFK + EDDM (OurAirports only), LOWW (mwgg only)
-	if Count() != 4 {
-		t.Errorf("Count() = %d, want 4", Count())
+	// EDDF (both), KJFK + EDDM + DE-0249 + FR-0009 + K06N (OurAirports only), LOWW (mwgg only)
+	if Count() != 7 {
+		t.Errorf("Count() = %d, want 7", Count())
 	}
 
 	eddf := Lookup("EDDF")
@@ -536,8 +553,8 @@ func TestInit_LoadsOnce(t *testing.T) {
 	})
 
 	Init()
-	if Count() != 4 {
-		t.Errorf("Init() loaded %d airports, want 4", Count())
+	if Count() != 7 {
+		t.Errorf("Init() loaded %d airports, want 7", Count())
 	}
 
 	// A second Init() must not refetch.
@@ -586,6 +603,9 @@ func TestStartRefresher_RefetchesOnInterval(t *testing.T) {
 	ourAirportsURL, mwggURL = srv.URL, srv.URL // JSON decode of CSV fails; CSV source carries the reload
 	SetTestDB(nil)
 	t.Cleanup(func() {
+		// Waits for an in-flight reload before clearing the database.
+		reloadMu.Lock()
+		reloadMu.Unlock() //nolint:staticcheck // SA2001: barrier
 		ourAirportsURL, mwggURL = origCSV, origJSON
 		SetTestDB(nil)
 	})

@@ -3299,11 +3299,13 @@ paths:
         - name: icaoCode
           in: path
           required: true
-          description: ICAO airport code (4 characters)
+          description: >-
+            Airport identifier: the 4-character ICAO code, or the OurAirports
+            local identifier (e.g. DE-0249) for a field without one
           schema:
             type: string
-            minLength: 4
-            maxLength: 4
+            minLength: 1
+            maxLength: 10
             example: EDDF
       responses:
         '200':
@@ -3321,7 +3323,11 @@ paths:
     get:
       tags: [Maps]
       summary: Search airports
-      description: Search airports by ICAO code prefix
+      description: >-
+        Search airports by identifier prefix, then local-code prefix, then
+        name. Identifier-prefix matches come first in identifier order, then
+        local-code prefix matches in code order, then airports with a name word
+        starting with the query (case- and diacritic-insensitive).
       operationId: searchAirports
       security:
         - bearerAuth: []
@@ -3329,11 +3335,11 @@ paths:
         - name: q
           in: query
           required: true
-          description: Search query (ICAO code prefix)
+          description: Search query (identifier or local-code prefix, or start of a name word)
           schema:
             type: string
             minLength: 1
-            maxLength: 4
+            maxLength: 64
             example: EDD
         - name: limit
           in: query
@@ -8586,10 +8592,10 @@ components:
           description: Aircraft registration. Can be sent with any event; required by the time the session goes on blocks.
         icao:
           type: [string, 'null']
-          minLength: 4
-          maxLength: 4
+          minLength: 1
+          maxLength: 10
           example: EDDF
-          description: Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock). Takes precedence over lat/lon.
+          description: Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock), as a 4-character ICAO code or a known airport identifier such as DE-0249. Takes precedence over lat/lon.
         lat:
           type: [number, 'null']
           format: double
@@ -8613,7 +8619,7 @@ components:
       properties:
         icao:
           type: string
-          description: ICAO airport code
+          description: Airport identifier — the 4-character ICAO code, or the OurAirports local identifier (e.g. DE-0249) for a field without one
           example: EDDF
         name:
           type: string
@@ -8637,6 +8643,10 @@ components:
           type: string
           description: Country code (ISO 3166-1 alpha-2)
           example: DE
+        localCode:
+          type: string
+          description: National airport code containing a digit (e.g. FAA 5M6, French ULM LF0723), when the field has one distinct from its identifier
+          example: LF0723
 
     AirportPackStatus:
       type: object

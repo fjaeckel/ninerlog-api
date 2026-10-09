@@ -2868,7 +2868,7 @@ type Airport struct {
 	// Example: 364
 	Elevation *int `json:"elevation,omitempty"`
 
-	// Icao ICAO airport code
+	// Icao Airport identifier — the 4-character ICAO code, or the OurAirports local identifier (e.g. DE-0249) for a field without one
 	//
 	// Example: EDDF
 	Icao string `json:"icao"`
@@ -2877,6 +2877,11 @@ type Airport struct {
 	//
 	// Example: 50.033333
 	Latitude float64 `json:"latitude"`
+
+	// LocalCode National airport code containing a digit (e.g. FAA 5M6, French ULM LF0723), when the field has one distinct from its identifier
+	//
+	// Example: LF0723
+	LocalCode *string `json:"localCode,omitempty"`
 
 	// Longitude Longitude in decimal degrees
 	//
@@ -5399,7 +5404,7 @@ type FlightSessionEvent struct {
 	// Example: D-EFGH
 	AircraftReg *string `json:"aircraftReg,omitempty"`
 
-	// Icao Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock). Takes precedence over lat/lon.
+	// Icao Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock), as a 4-character ICAO code or a known airport identifier such as DE-0249. Takes precedence over lat/lon.
 	//
 	// Example: EDDF
 	Icao *string `json:"icao,omitempty"`
@@ -7038,7 +7043,7 @@ type ListAircraftParams struct {
 
 // SearchAirportsParams defines parameters for SearchAirports.
 type SearchAirportsParams struct {
-	// Q Search query (ICAO code prefix)
+	// Q Search query (identifier or local-code prefix, or start of a name word)
 	Q     string `form:"q" json:"q"`
 	Limit *int   `form:"limit,omitempty" json:"limit,omitempty"`
 }

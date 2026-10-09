@@ -258,7 +258,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   (`internal/airports`), plus route and airport-activity statistics (`maps.go`).
   The database merges two upstream datasets — OurAirports (CSV) and mwgg/Airports
   (JSON) — record by record, keeping the more complete entry for each ICAO code and
-  filling its gaps from the other. It is loaded at startup and refetched every
+  filling its gaps from the other. Fields without an ICAO code (many glider and
+  ultralight sites) are kept under their hyphenated OurAirports local identifier, e.g.
+  `DE-0249` for Konz-Könen, so flights from them get night time, landing classification and
+  distance like any other. A field whose local identifier comes with a 4-character GPS
+  code (US FAA `06N` → `K06N`, Brazilian fields → `SNxx`) is keyed by that code and merges
+  with the mwgg entry for it, so it is not listed twice; a GPS code another row already
+  carries is not used. National codes containing a digit (FAA `5M6`, French ULM
+  `LF0723`, Brazilian `MT1059`, Australian `A01`) are kept as each airport's `localCode`;
+  letters-only national codes are not, as they collide with words ("SEE") and IATA
+  codes. IATA codes are never used for matching. Search matches identifier prefixes
+  first, then local-code prefixes, then words of the airport name. It is loaded at startup and refetched every
   `AIRPORT_REFRESH_INTERVAL` (default 24h); a failed refresh keeps the data already in
   memory. See [METRICS.md](./METRICS.md) for the fetch/load/lookup metrics it exposes.
   Clients that need offline nearest-airport matching (the iOS Share Extension) download
@@ -377,10 +387,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   writes its places as "ICAO Name" ("EDOI Bienenfarm"), so the leading code is extracted
   from the value's own shape rather than by an airport-database lookup — the database is
   fetched at startup and refreshed in the background, and depending on it would make the
-  same file import differently on different instances. Only a token written in capitals
-  counts as a code: a place without one ("Konz Könen", a glider or ultralight field) is
-  kept as its free-text name, never matched to whichever airport shares its first four
-  letters.
+  same file import differently on different instances. Places are matched exactly, never
+  by scanning words inside free text: a value shaped like a code resolves to an ICAO
+  code, then to a unique local code (`LF0723` → `FR-0009`); a longer value takes the
+  identifier of the one airport whose name it is — case, diacritics and punctuation
+  folded, trailing words such as "Glider Field" or "Flugplatz" ignored, at least two
+  words required ("Konz Könen" or "KONZ KÖNEN" → `DE-0249`) — or of a code in trailing
+  parentheses ("Frankfurt (EDDF)"). The SkyDemon and Vereinsflieger shapes, a capitalised
+  4-character code before or after a mixed-case name, are the only places a code is
+  taken from inside a value; in an all-capitals value case carries no signal, so they
+  are not applied there ("KONZ WIESE" stays free text). A value that matches nothing,
+  or several airports, is kept as free text.
 
   They also turned up five importer defects a header row cannot expose: a UTF-8 BOM breaking
   quoted-header parsing, bare four-digit clock times (`1003`) reaching Postgres unparsed,

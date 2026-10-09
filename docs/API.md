@@ -509,6 +509,13 @@ every device the pilot signs in on, and they travel in the JSON export.
 Airport lookup/search, route and airport statistics, trends, and stats-by-class, plus
 the downloadable airport pack:
 
+- `GET /airports/{icaoCode}` — one airport by identifier: the ICAO code, or the
+  OurAirports local identifier (e.g. `DE-0249`) for a field without one.
+- `GET /airports/search?q=` — identifier-prefix matches first, in identifier order, then
+  local-code prefix matches (`LF07` → `LF0723`), then airports with a name word starting
+  with `q` (case- and diacritic-insensitive), up to `limit`. Each airport carries its
+  `localCode` when it has one, for autocomplete display.
+
 - `GET /airports/pack` — the complete merged airport database as a gzip-compressed JSON
   envelope `{etag, generatedAt, count, airports}` with `airports` sorted by ICAO code,
   for clients that need offline nearest-airport matching (the iOS Share Extension).

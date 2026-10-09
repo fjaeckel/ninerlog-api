@@ -31,6 +31,9 @@ type AirportInfo struct {
 	IATA string
 	// City is the served municipality.
 	City string
+	// LocalCode is the national airport code (e.g. FAA "5M6", French ULM
+	// "LF0723"), set only when it contains a digit and differs from ICAO.
+	LocalCode string
 	// Timezone is the IANA zone name (e.g. "Europe/Berlin"), available for
 	// airports covered by the mwgg dataset.
 	Timezone string
@@ -264,10 +267,55 @@ func LoadedAt() time.Time {
 	return s.loadedAt
 }
 
-// Search returns airports whose ICAO code starts with prefix
-// (case-insensitive), in ICAO order, up to limit results.
-func Search(prefix string, limit int) []AirportInfo {
-	if prefix == "" || limit <= 0 {
+// LookupCode returns the airport whose ICAO code equals code
+// (case-insensitive), otherwise the single airport whose local code does. It
+// returns nil when neither matches or several airports share the local code.
+func LookupCode(code string) *AirportInfo {
+	s := current.Load()
+	if s == nil {
+		codeUnavailable.Inc()
+		return nil
+	}
+	a, ambiguous := s.lookupCode(strings.ToUpper(strings.TrimSpace(code)))
+	switch {
+	case a != nil:
+		codeHit.Inc()
+	case ambiguous:
+		codeAmbiguous.Inc()
+	default:
+		codeMiss.Inc()
+	}
+	return a
+}
+
+// LookupByName returns the airport whose name matches name, folded for case,
+// diacritics and punctuation, either in full or without trailing generic
+// words such as "Airfield" or "Glider Field"; both forms need at least two
+// words. It returns nil when no airport or more than one matches.
+func LookupByName(name string) *AirportInfo {
+	s := current.Load()
+	if s == nil {
+		nameUnavailable.Inc()
+		return nil
+	}
+	a, ambiguous := s.lookupName(name)
+	switch {
+	case a != nil:
+		nameHit.Inc()
+	case ambiguous:
+		nameAmbiguous.Inc()
+	default:
+		nameMiss.Inc()
+	}
+	return a
+}
+
+// Search returns airports whose ICAO code starts with query
+// (case-insensitive), in ICAO order, then airports whose local code starts
+// with query, in code order, then airports with a name word starting with
+// query, up to limit results.
+func Search(query string, limit int) []AirportInfo {
+	if strings.TrimSpace(query) == "" || limit <= 0 {
 		return nil
 	}
 	s := current.Load()
@@ -276,7 +324,10 @@ func Search(prefix string, limit int) []AirportInfo {
 		return nil
 	}
 	start := time.Now()
-	results := s.searchPrefix(strings.ToUpper(prefix), limit)
+	prefix := strings.ToUpper(strings.TrimSpace(query))
+	results := s.searchPrefix(prefix, limit)
+	results = s.searchLocal(prefix, results, limit)
+	results = s.searchName(query, results, limit)
 	searchDuration.Observe(time.Since(start).Seconds())
 	if len(results) == 0 {
 		searchMiss.Inc()

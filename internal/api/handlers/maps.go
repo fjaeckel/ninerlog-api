@@ -262,5 +262,8 @@ func toGeneratedAirport(a *airports.AirportInfo) generated.Airport {
 	if a.Country != "" {
 		ap.Country = &a.Country
 	}
+	if a.LocalCode != "" {
+		ap.LocalCode = &a.LocalCode
+	}
 	return ap
 }

@@ -50,6 +50,42 @@ func TestAirportSearch(t *testing.T) {
 	t.Run("nonexistent airport", func(t *testing.T) {
 		assertStatus(t, c.GET("/airports/ZZZZ"), http.StatusNotFound)
 	})
+
+	t.Run("field without an ICAO code by local identifier", func(t *testing.T) {
+		resp := c.GET("/airports/DE-0249")
+		requireStatus(t, resp, http.StatusOK)
+		var ap map[string]interface{}
+		resp.JSON(&ap)
+		if ap["icao"] != "DE-0249" {
+			t.Errorf("Expected DE-0249, got %v", ap["icao"])
+		}
+	})
+
+	t.Run("search by local code", func(t *testing.T) {
+		resp := c.GET("/airports/search?q=LF0723")
+		requireStatus(t, resp, http.StatusOK)
+		var results []map[string]interface{}
+		resp.JSON(&results)
+		if len(results) == 0 || results[0]["icao"] != "FR-0009" || results[0]["localCode"] != "LF0723" {
+			t.Errorf("Search(LF0723) = %v, want FR-0009 with localCode LF0723", results)
+		}
+	})
+
+	t.Run("search by name", func(t *testing.T) {
+		resp := c.GET("/airports/search?q=K%C3%B6nen&limit=50")
+		requireStatus(t, resp, http.StatusOK)
+		var results []map[string]interface{}
+		resp.JSON(&results)
+		found := false
+		for _, a := range results {
+			if a["icao"] == "DE-0249" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("Search(Könen) did not return DE-0249: %v", results)
+		}
+	})
 }
 
 func TestReports(t *testing.T) {
