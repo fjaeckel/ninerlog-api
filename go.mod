@@ -1,6 +1,6 @@
 module github.com/fjaeckel/ninerlog-api
 
-go 1.27.0
+go 1.27.2
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -85,7 +85,7 @@ require (
 	go.mongodb.org/mongo-driver/v2 v2.8.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/arch v0.29.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
