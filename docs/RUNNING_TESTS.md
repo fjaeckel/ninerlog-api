@@ -5,7 +5,7 @@ This guide covers how to run the NinerLog API test suites.
 ## Prerequisites
 
 **Local development:**
-- Go 1.27.0+
+- Go 1.27.2+
 - Docker & Docker Compose (for integration and E2E tests)
 
 **Docker only (no local Go needed):**
