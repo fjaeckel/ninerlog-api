@@ -8546,6 +8546,16 @@ components:
           type: [string, 'null']
           example: EDDH
           description: Arrival airport, provided explicitly or resolved from GPS coordinates
+        departureAirportName:
+          type: [string, 'null']
+          readOnly: true
+          example: Frankfurt am Main Airport
+          description: Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+        arrivalAirportName:
+          type: [string, 'null']
+          readOnly: true
+          example: Hamburg Airport
+          description: Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
         offBlockAt:
           type: [string, 'null']
           format: date-time
@@ -11630,6 +11640,14 @@ components:
         arrivalIcao:
           type: string
           example: LSZH
+        departureAirportName:
+          type: [string, 'null']
+          example: Kiel-Holtenau Airport
+          description: Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+        arrivalAirportName:
+          type: [string, 'null']
+          example: Zürich Airport
+          description: Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
         flights:
           type: integer
         totalMinutes:
@@ -11784,6 +11802,12 @@ components:
           type: [string, 'null']
         arrivalIcao:
           type: [string, 'null']
+        departureAirportName:
+          type: [string, 'null']
+          description: Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+        arrivalAirportName:
+          type: [string, 'null']
+          description: Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
         totalMinutes:
           type: integer
         distanceNm:

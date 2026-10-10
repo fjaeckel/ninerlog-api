@@ -65,10 +65,12 @@ type analyticsResponse struct {
 		Flights  int    `json:"flights"`
 	} `json:"byCountry"`
 	ByRoute []struct {
-		DepartureIcao string  `json:"departureIcao"`
-		ArrivalIcao   string  `json:"arrivalIcao"`
-		Flights       int     `json:"flights"`
-		DistanceNm    float64 `json:"distanceNm"`
+		DepartureIcao        string  `json:"departureIcao"`
+		ArrivalIcao          string  `json:"arrivalIcao"`
+		DepartureAirportName *string `json:"departureAirportName"`
+		ArrivalAirportName   *string `json:"arrivalAirportName"`
+		Flights              int     `json:"flights"`
+		DistanceNm           float64 `json:"distanceNm"`
 	} `json:"byRoute"`
 	ByInstructor []struct {
 		Name         string `json:"name"`
@@ -357,6 +359,11 @@ func TestReportsAnalyticsTotalsAndBreakdowns(t *testing.T) {
 	}
 	if edny.Country == nil || *edny.Country != "DE" {
 		t.Errorf("Expected EDNY country DE, got %v", edny.Country)
+	}
+	for _, r := range a.ByRoute {
+		if r.DepartureIcao == "EDNY" && (r.DepartureAirportName == nil || *r.DepartureAirportName == "") {
+			t.Errorf("route %s-%s: departure name not resolved", r.DepartureIcao, r.ArrivalIcao)
+		}
 	}
 	if a.Records.HomeBase == nil || *a.Records.HomeBase != "EDNY" {
 		t.Errorf("Expected home base EDNY, got %v", a.Records.HomeBase)

@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/flightsearch"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -285,8 +286,38 @@ func Label(groupBy, key string) string {
 		if _, err := fmt.Sscanf(key, "%d", &d); err == nil && d >= 1 && d <= 7 {
 			return weekdays[d-1]
 		}
+	case models.ReportGroupDeparture, models.ReportGroupArrival:
+		return airports.DisplayName(key)
+	case models.ReportGroupRoute:
+		return routeLabel(key)
 	}
 	return key
+}
+
+// routeLabel names the OurAirports local identifiers in a "DEP-ARR" route key,
+// joining the two places with " – "; a key without one is returned as is.
+func routeLabel(key string) string {
+	best, bestDep, bestArr := 0, "", ""
+	for i := 0; i < len(key); i++ {
+		if key[i] != '-' {
+			continue
+		}
+		dep, arr := key[:i], key[i+1:]
+		n := 0
+		if airports.DisplayName(dep) != dep {
+			n++
+		}
+		if airports.DisplayName(arr) != arr {
+			n++
+		}
+		if n > best {
+			best, bestDep, bestArr = n, dep, arr
+		}
+	}
+	if best == 0 {
+		return key
+	}
+	return airports.DisplayName(bestDep) + " – " + airports.DisplayName(bestArr)
 }
 
 func buildResult(def models.CustomReportDefinition, groups []repository.CustomReportGroup, start, end *time.Time, now time.Time) *models.CustomReportResult {

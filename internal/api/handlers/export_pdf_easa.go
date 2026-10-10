@@ -269,8 +269,8 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 			f := rd.f
 			cells := []string{
 				f.Date.Format("02.01.06"),
-				safeStr(f.DepartureICAO), fmtTime(f.OffBlockTime),
-				safeStr(f.ArrivalICAO), fmtTime(f.OnBlockTime),
+				exportPlace(f.DepartureICAO), fmtTime(f.OffBlockTime),
+				exportPlace(f.ArrivalICAO), fmtTime(f.OnBlockTime),
 				f.AircraftType, f.AircraftReg,
 				fmtDec(rd.spSE), fmtDec(rd.spME), fmtDec(rd.mp),
 				fmtDec(f.TotalTime),
@@ -344,8 +344,8 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 			f := rd.f
 			cells := []string{
 				f.Date.Format("02.01.06"),
-				safeStr(f.DepartureICAO), fmtTime(f.OffBlockTime),
-				safeStr(f.ArrivalICAO), fmtTime(f.OnBlockTime),
+				exportPlace(f.DepartureICAO), fmtTime(f.OffBlockTime),
+				exportPlace(f.ArrivalICAO), fmtTime(f.OnBlockTime),
 				f.AircraftType, f.AircraftReg,
 				fmtDec(rd.spSE), fmtDec(rd.spME), fmtDec(rd.mp),
 				fmtDec(f.TotalTime),

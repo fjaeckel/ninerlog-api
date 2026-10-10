@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
@@ -404,11 +405,22 @@ func TestRankedGroupingSortsAndLimits(t *testing.T) {
 }
 
 func TestLabel(t *testing.T) {
+	airports.SetTestDB(map[string]airports.AirportInfo{
+		"DE-0249": {Name: "Konz-Könen Glider Field", Latitude: 49.68, Longitude: 6.54},
+		"EDDF":    {Name: "Frankfurt Airport", Latitude: 50, Longitude: 8},
+	})
+	defer airports.SetTestDB(nil)
 	for _, tt := range []struct{ by, key, want string }{
 		{"month", "2026-01", "Jan 2026"},
 		{"dayOfWeek", "7", "Sunday"},
 		{"dayOfWeek", "9", "9"},
 		{"route", "EDDF-EDDM", "EDDF-EDDM"},
+		{"route", "DE-0249-EDHE", "Konz-Könen Glider Field – EDHE"},
+		{"route", "EDHE-DE-0249", "EDHE – Konz-Könen Glider Field"},
+		{"route", "DE-0249-DE-0249", "Konz-Könen Glider Field – Konz-Könen Glider Field"},
+		{"route", "XX-9999-EDHE", "XX-9999-EDHE"},
+		{"departure", "DE-0249", "Konz-Könen Glider Field"},
+		{"arrival", "EDDF", "EDDF"},
 		{"registration", "", "(none)"},
 	} {
 		if got := Label(tt.by, tt.key); got != tt.want {
