@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -265,6 +266,28 @@ func LoadedAt() time.Time {
 		return time.Time{}
 	}
 	return s.loadedAt
+}
+
+// localIdentPattern matches an OurAirports local identifier such as
+// "DE-0249".
+var localIdentPattern = regexp.MustCompile(`^[A-Z]{2}-[A-Z0-9]+$`)
+
+// IsLocalIdent reports whether code is an OurAirports local identifier.
+func IsLocalIdent(code string) bool {
+	return localIdentPattern.MatchString(code)
+}
+
+// DisplayName returns location as written in a logbook: the airport name for
+// a known OurAirports local identifier, otherwise location unchanged.
+func DisplayName(location string) string {
+	code := strings.TrimSpace(location)
+	if !IsLocalIdent(code) {
+		return location
+	}
+	if a := Lookup(code); a != nil && a.Name != "" {
+		return a.Name
+	}
+	return location
 }
 
 // LookupCode returns the airport whose ICAO code equals code

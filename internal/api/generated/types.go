@@ -3023,14 +3023,20 @@ type AnalyticsCountryRow struct {
 type AnalyticsFlightRef struct {
 	AircraftReg  *string `json:"aircraftReg,omitempty"`
 	AircraftType *string `json:"aircraftType,omitempty"`
-	ArrivalIcao  *string `json:"arrivalIcao,omitempty"`
+
+	// ArrivalAirportName Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
+	ArrivalAirportName *string `json:"arrivalAirportName,omitempty"`
+	ArrivalIcao        *string `json:"arrivalIcao,omitempty"`
 
 	// Date Example: 2026-05-17
-	Date          string             `json:"date"`
-	DepartureIcao *string            `json:"departureIcao,omitempty"`
-	DistanceNm    float64            `json:"distanceNm"`
-	Id            openapi_types.UUID `json:"id"`
-	TotalMinutes  int                `json:"totalMinutes"`
+	Date string `json:"date"`
+
+	// DepartureAirportName Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+	DepartureAirportName *string            `json:"departureAirportName,omitempty"`
+	DepartureIcao        *string            `json:"departureIcao,omitempty"`
+	DistanceNm           float64            `json:"distanceNm"`
+	Id                   openapi_types.UUID `json:"id"`
+	TotalMinutes         int                `json:"totalMinutes"`
 }
 
 // AnalyticsGroupRow defines model for AnalyticsGroupRow.
@@ -3157,8 +3163,18 @@ type AnalyticsRecords struct {
 
 // AnalyticsRouteRow defines model for AnalyticsRouteRow.
 type AnalyticsRouteRow struct {
+	// ArrivalAirportName Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
+	//
+	// Example: Zürich Airport
+	ArrivalAirportName *string `json:"arrivalAirportName,omitempty"`
+
 	// ArrivalIcao Example: LSZH
 	ArrivalIcao string `json:"arrivalIcao"`
+
+	// DepartureAirportName Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+	//
+	// Example: Kiel-Holtenau Airport
+	DepartureAirportName *string `json:"departureAirportName,omitempty"`
 
 	// DepartureIcao Example: EDNY
 	DepartureIcao string `json:"departureIcao"`
@@ -5361,11 +5377,21 @@ type FlightSession struct {
 	// Example: D-EFGH
 	AircraftReg *string `json:"aircraftReg,omitempty"`
 
+	// ArrivalAirportName Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
+	//
+	// Example: Hamburg Airport
+	ArrivalAirportName *string `json:"arrivalAirportName,omitempty"`
+
 	// ArrivalIcao Arrival airport, provided explicitly or resolved from GPS coordinates
 	//
 	// Example: EDDH
 	ArrivalIcao *string   `json:"arrivalIcao,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
+
+	// DepartureAirportName Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+	//
+	// Example: Frankfurt am Main Airport
+	DepartureAirportName *string `json:"departureAirportName,omitempty"`
 
 	// DepartureIcao Departure airport, provided explicitly or resolved from GPS coordinates
 	//

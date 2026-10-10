@@ -186,7 +186,11 @@ rules.
   `arrivalAirportName`, resolved per request from the in-memory airport database
   (`internal/airports`) for display. Only the location itself is stored; the names are
   `null` when it does not resolve — off-airport glider and helicopter sites are stored as
-  free text — and clients then show the raw stored value.
+  free text — and clients then show the raw stored value. The open flight session and the
+  analytics route rows carry the same names. A location stored as an OurAirports local
+  identifier (`DE-0249`) is shown by its name everywhere — the identifier is neither the
+  place in full nor a recognised designator — and the web UI shortens a long name only
+  where space is tight; ICAO and national codes are shown as codes.
 
 ## Currency
 
@@ -328,7 +332,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   regress: a pilot moving between installations, restoring an archived export, or splitting a
   logbook across accounts depends on it. All four export layouts round-trip, each detected as
   its own template — standard → `NINERLOG_CSV`, EASA → `EASA_CSV`, FAA → `FAA_CSV`,
-  vsimakhin/web-logbook → `WEB_LOGBOOK_CSV`.
+  vsimakhin/web-logbook → `WEB_LOGBOOK_CSV`. A field without an ICAO code is exported by
+  its full name and re-imported by exact name match, so it comes back as its identifier
+  only when no other airport carries the same name (about 92% of such fields; every
+  German one). The JSON export keeps the identifier and round-trips it exactly.
 
   Two levels of coverage, both mandatory:
   `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers
@@ -423,6 +430,13 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_pdf_signature.go`,
   `export_crew.go`, `export_vcard.go`) — CSV, JSON, PDF (rendered with
   `go-pdf/fpdf`) and vCard.
+  Places are written as AMC1 FCL.050 asks: "in full or the internationally recognised
+  three or four letter designator". An OurAirports local identifier (`DE-0249`) is
+  neither, so every CSV and PDF logbook export and custom-report label writes that
+  airport's full name instead ("Konz-Könen Glider Field"), never abbreviated; ICAO
+  codes, national codes and free-text places are written as stored. A PDF cell whose
+  text does not fit shrinks its font and wraps within the row rather than overflowing or
+  being cut. The JSON export keeps the stored identifier.
   PDF logbooks come in EASA AMC1 FCL.050 and FAA 14 CFR § 61.51 layouts, each as
   a book-style two-page spread (default) or a condensed single-page landscape
   layout, in A4/A5/Letter. Every page carries per-page / carried-forward /

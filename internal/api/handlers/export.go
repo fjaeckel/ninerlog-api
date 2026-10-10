@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -211,13 +212,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 	csvWrite(w, headers)
 
 	for _, f := range flights {
-		dep, arr := "", ""
-		if f.DepartureICAO != nil {
-			dep = *f.DepartureICAO
-		}
-		if f.ArrivalICAO != nil {
-			arr = *f.ArrivalICAO
-		}
+		dep, arr := exportPlace(f.DepartureICAO), exportPlace(f.ArrivalICAO)
 		offBlock, onBlock, depTime, arrTime := "", "", "", ""
 		if f.OffBlockTime != nil {
 			offBlock = *f.OffBlockTime
@@ -326,8 +321,8 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, us
 	csvWrite(w, headers)
 
 	for _, f := range flights {
-		dep := safeStrCSV(f.DepartureICAO)
-		arr := safeStrCSV(f.ArrivalICAO)
+		dep := exportPlace(f.DepartureICAO)
+		arr := exportPlace(f.ArrivalICAO)
 		depTime := fmtTimeCSV(f.OffBlockTime)
 		arrTime := fmtTimeCSV(f.OnBlockTime)
 		picName := flightrules.DisplayPICName(f, userName)
@@ -383,8 +378,8 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 	csvWrite(w, headers)
 
 	for _, f := range flights {
-		dep := safeStrCSV(f.DepartureICAO)
-		arr := safeStrCSV(f.ArrivalICAO)
+		dep := exportPlace(f.DepartureICAO)
+		arr := exportPlace(f.ArrivalICAO)
 
 		remarks := flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview)
 
@@ -412,11 +407,13 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 	}
 }
 
-func safeStrCSV(s *string) string {
+// exportPlace returns a stored departure/arrival location as written in an
+// export: the airport name for an OurAirports local identifier.
+func exportPlace(s *string) string {
 	if s == nil {
 		return ""
 	}
-	return *s
+	return airports.DisplayName(*s)
 }
 
 func fmtTimeCSV(s *string) string {
