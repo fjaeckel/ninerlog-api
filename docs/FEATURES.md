@@ -332,10 +332,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   regress: a pilot moving between installations, restoring an archived export, or splitting a
   logbook across accounts depends on it. All four export layouts round-trip, each detected as
   its own template — standard → `NINERLOG_CSV`, EASA → `EASA_CSV`, FAA → `FAA_CSV`,
-  vsimakhin/web-logbook → `WEB_LOGBOOK_CSV`. A field without an ICAO code is exported by
-  its full name and re-imported by exact name match, so it comes back as its identifier
-  only when no other airport carries the same name (about 92% of such fields; every
-  German one). The JSON export keeps the identifier and round-trips it exactly.
+  vsimakhin/web-logbook → `WEB_LOGBOOK_CSV`. The standard layout writes places as stored,
+  OurAirports local identifiers (`DE-0249`) included, so it round-trips them exactly. The
+  EASA, FAA and web-logbook layouts write such a field's full name, which re-imports by
+  exact name match and comes back as its identifier only when no other airport carries
+  the same name (about 92% of such fields; every German one). The JSON export keeps the
+  identifier as well.
 
   Two levels of coverage, both mandatory:
   `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers
@@ -432,9 +434,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `go-pdf/fpdf`) and vCard.
   Places are written as AMC1 FCL.050 asks: "in full or the internationally recognised
   three or four letter designator". An OurAirports local identifier (`DE-0249`) is
-  neither, so every CSV and PDF logbook export and custom-report label writes that
-  airport's full name instead ("Konz-Könen Glider Field"), never abbreviated; ICAO
-  codes, national codes and free-text places are written as stored. A PDF cell whose
+  neither, so the PDF logbooks, the EASA, FAA and web-logbook CSVs and custom-report
+  labels write that airport's full name instead ("Konz-Könen Glider Field"), never
+  abbreviated; ICAO codes, national codes and free-text places are written as stored.
+  NinerLog's own standard CSV is the interchange format and writes the identifier. A PDF cell whose
   text does not fit shrinks its font and wraps within the row rather than overflowing or
   being cut. The JSON export keeps the stored identifier.
   PDF logbooks come in EASA AMC1 FCL.050 and FAA 14 CFR § 61.51 layouts, each as
