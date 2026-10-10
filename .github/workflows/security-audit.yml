@@ -39,7 +39,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      GOSEC_VERSION: v2.27.1
+      GOSEC_VERSION: v2.29.0
+      XTOOLS_VERSION: v0.51.0
 
     steps:
       - name: Checkout repository
@@ -54,22 +55,11 @@ jobs:
       - name: Install gosec
         run: |
           set -euo pipefail
-          version="${GOSEC_VERSION#v}"
-          goos="$(go env GOOS)"
-          goarch="$(go env GOARCH)"
-          archive="gosec_${version}_${goos}_${goarch}.tar.gz"
-          base_url="https://github.com/securego/gosec/releases/download/${GOSEC_VERSION}"
-
-          curl -fsSLo "$RUNNER_TEMP/$archive" "$base_url/$archive"
-          curl -fsSLo "$RUNNER_TEMP/gosec_checksums.txt" "$base_url/gosec_${version}_checksums.txt"
-
-          (
-            cd "$RUNNER_TEMP"
-            grep " ${archive}$" gosec_checksums.txt | sha256sum -c -
-          )
-
-          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" gosec
-          chmod +x "$RUNNER_TEMP/gosec"
+          mkdir -p "$RUNNER_TEMP/gosec-build"
+          cd "$RUNNER_TEMP/gosec-build"
+          go mod init gosec-build
+          go get "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}" "golang.org/x/tools@${XTOOLS_VERSION}"
+          go build -o "$RUNNER_TEMP/gosec" github.com/securego/gosec/v2/cmd/gosec
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
       - name: Run gosec
