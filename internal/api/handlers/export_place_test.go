@@ -28,7 +28,6 @@ func TestExportPlace_NamesLocalIdents(t *testing.T) {
 		write    func(w *csv.Writer)
 		dep, arr string
 	}{
-		{"standard", func(w *csv.Writer) { writeStandardCSV(w, flights, prefs) }, "From", "To"},
 		{"easa", func(w *csv.Writer) { writeEASACSV(w, flights, prefs, "Pilot") }, "Dep Place", "Arr Place"},
 		{"faa", func(w *csv.Writer) { writeFAACSV(w, flights, prefs) }, "From", "To"},
 		{"weblogbook", func(w *csv.Writer) { writeWebLogbookCSV(w, flights, "Pilot") }, "Departure Place", "Arrival Place"},
@@ -43,6 +42,32 @@ func TestExportPlace_NamesLocalIdents(t *testing.T) {
 				t.Errorf("%s = %q, want the ICAO code", tt.arr, got)
 			}
 		})
+	}
+}
+
+func TestStandardCSV_KeepsLocalIdentifier(t *testing.T) {
+	airports.SetTestDB(map[string]airports.AirportInfo{
+		"DE-0249": {ICAO: "DE-0249", Name: "Konz-Könen Glider Field", Latitude: 49.68, Longitude: 6.54},
+		"US-0001": {ICAO: "US-0001", Name: "Allen Airport", Latitude: 40, Longitude: -80},
+		"US-0002": {ICAO: "US-0002", Name: "Allen Airport", Latitude: 41, Longitude: -81},
+	})
+	defer airports.SetTestDB(nil)
+
+	dep, arr := "DE-0249", "US-0002"
+	flights := []*models.Flight{{ID: uuid.New(), Date: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+		AircraftReg: "D-MABC", AircraftType: "C42", TotalTime: 60, DepartureICAO: &dep, ArrivalICAO: &arr}}
+	records := renderCSV(t, func(w *csv.Writer) {
+		writeStandardCSV(w, flights, exportPrefs{DateFormat: "YYYY-MM-DD", DecimalSeparator: "dot"})
+	})
+
+	for col, want := range map[string]string{"From": "DE-0249", "To": "US-0002"} {
+		got := column(t, records, records[1], col)
+		if got != want {
+			t.Errorf("%s = %q, want %q", col, got, want)
+		}
+		if back := normalizeLocation(got); back != want {
+			t.Errorf("%s re-imports as %q, want %q", col, back, want)
+		}
 	}
 }
 

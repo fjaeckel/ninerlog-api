@@ -212,7 +212,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 	csvWrite(w, headers)
 
 	for _, f := range flights {
-		dep, arr := exportPlace(f.DepartureICAO), exportPlace(f.ArrivalICAO)
+		dep, arr := safeStr(f.DepartureICAO), safeStr(f.ArrivalICAO)
 		offBlock, onBlock, depTime, arrTime := "", "", "", ""
 		if f.OffBlockTime != nil {
 			offBlock = *f.OffBlockTime
