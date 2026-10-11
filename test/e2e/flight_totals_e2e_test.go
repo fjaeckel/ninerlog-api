@@ -4,11 +4,15 @@ package e2e_test
 
 import (
 	"net/http"
+	"net/url"
 	"testing"
 )
 
 type flightListTotals struct {
-	Data   []map[string]interface{} `json:"data"`
+	Data       []map[string]interface{} `json:"data"`
+	Pagination struct {
+		Total int `json:"total"`
+	} `json:"pagination"`
 	Totals struct {
 		Flights     int     `json:"flights"`
 		TotalTime   int     `json:"totalTime"`
@@ -83,6 +87,34 @@ func TestFlightListTotals(t *testing.T) {
 		}
 		if len(page.MonthTotals) != 2 {
 			t.Errorf("filtered monthTotals = %+v, want July and August", page.MonthTotals)
+		}
+	})
+
+	t.Run("totals follow a free-text search", func(t *testing.T) {
+		resp := c.GET("/flights?search=D-EOTH")
+		requireStatus(t, resp, http.StatusOK)
+		var page flightListTotals
+		resp.JSON(&page)
+
+		if page.Totals.Flights != 1 || page.Totals.TotalTime != 45 {
+			t.Errorf("search totals = %+v, want 1 flight / 45 min", page.Totals)
+		}
+		if len(page.MonthTotals) != 1 || page.MonthTotals[0].Totals.Flights != 1 {
+			t.Errorf("search monthTotals = %+v, want August with only the matching flight", page.MonthTotals)
+		}
+	})
+
+	t.Run("totals follow an advanced query", func(t *testing.T) {
+		resp := c.GET("/flights?q=" + url.QueryEscape("reg:D-ETOT AND total>=90"))
+		requireStatus(t, resp, http.StatusOK)
+		var page flightListTotals
+		resp.JSON(&page)
+
+		if page.Totals.Flights != 1 || page.Totals.TotalTime != 90 {
+			t.Errorf("query totals = %+v, want 1 flight / 90 min", page.Totals)
+		}
+		if page.Pagination.Total != page.Totals.Flights {
+			t.Errorf("pagination.total = %d, totals.flights = %d; want equal", page.Pagination.Total, page.Totals.Flights)
 		}
 	})
 

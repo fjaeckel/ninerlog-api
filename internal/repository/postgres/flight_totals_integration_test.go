@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/flightsearch"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
@@ -74,6 +75,39 @@ func TestFlightTotalsIntegration(t *testing.T) {
 		}
 		if totals.Flights != 2 || totals.TotalTime != 150 {
 			t.Errorf("filtered totals = %d flights, %d min; want 2, 150", totals.Flights, totals.TotalTime)
+		}
+	})
+
+	t.Run("honours a free-text search", func(t *testing.T) {
+		search := "PA28"
+		totals, err := flightRepo.TotalsByUserID(ctx, user.ID, &repository.FlightQueryOptions{Search: &search})
+		if err != nil {
+			t.Fatalf("TotalsByUserID: %v", err)
+		}
+		if totals.Flights != 1 || totals.TotalTime != 45 {
+			t.Errorf("search totals = %d flights, %d min; want 1, 45", totals.Flights, totals.TotalTime)
+		}
+	})
+
+	t.Run("honours an advanced query, per month too", func(t *testing.T) {
+		q, err := flightsearch.Parse("night>0 OR ifr>0")
+		if err != nil {
+			t.Fatalf("Parse: %v", err)
+		}
+		opts := &repository.FlightQueryOptions{Query: q}
+		totals, err := flightRepo.TotalsByUserID(ctx, user.ID, opts)
+		if err != nil {
+			t.Fatalf("TotalsByUserID: %v", err)
+		}
+		if totals.Flights != 2 || totals.TotalTime != 150 {
+			t.Errorf("query totals = %d flights, %d min; want 2, 150", totals.Flights, totals.TotalTime)
+		}
+		months, err := flightRepo.MonthTotalsByUserID(ctx, user.ID, opts, []time.Time{day(7, 1), day(8, 1)})
+		if err != nil {
+			t.Fatalf("MonthTotalsByUserID: %v", err)
+		}
+		if len(months) != 2 || months[1].Flights != 1 || months[1].TotalTime != 90 {
+			t.Errorf("query month totals = %+v, want July and August with one flight each", months)
 		}
 	})
 
