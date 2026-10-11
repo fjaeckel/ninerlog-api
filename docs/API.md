@@ -379,7 +379,10 @@ user's whole fleet first and reports the outcome as `aircraftNormalized` and
 `aircraftConflicts`. Flight responses include the read-only
 `departureAirportName` / `arrivalAirportName`, resolved per request from the airport
 database and `null` when the stored location does not resolve; they are response-only and
-are not accepted on create or update. The open flight session (`/flight-sessions/current`)
+are not accepted on create or update. Flight responses (`GET /flights`, `GET`/`POST`/`PUT
+/flights/{id}`) also carry the read-only `displayPicName`: the PIC name the logbook exports
+print, resolved by `flightrules.DisplayPICName` — `picName`, else the instructor or a
+third-party PIC from the crew, else `"SELF"`; `null` for an FSTD session. The open flight session (`/flight-sessions/current`)
 and the analytics `byRoute` rows and flight records carry the same two names. `GET /flights` carries the filter, search, sort and
 pagination parameters, plus `updatedSince` for delta sync. Its flights include
 `crewMembers` (loaded for the whole page in one query), so a client can show crew in the
