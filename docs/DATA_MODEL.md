@@ -76,7 +76,9 @@ The account holder. Notable fields:
   cannot render. The always-present columns — date, route, aircraft, total time — are
   deliberately not part of the vocabulary. Besides times, function, landings and remarks
   it covers the people on a flight (`picName`, `instructorName`, `crew`) and other details
-  (`approaches`, `distance`, `launchMethod`).
+  (`takeoffLandingTime`, `takeoffs`, `approaches`, `approachTypes`, `holds`, `distance`,
+  `waypoints`, `launchMethod`, `fstdType`, `checks`, `signed`, `endorsements`,
+  `instructorComments`).
 
 Sensitive fields (`PasswordHash`, `TwoFactorSecret`, `RecoveryCodes`,
 `FailedLoginAttempts`, `LockedUntil`) are tagged `json:"-"` so they never leak through the

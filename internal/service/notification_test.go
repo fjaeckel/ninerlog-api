@@ -229,6 +229,12 @@ func (m *mockNotifFlightRepo) DeleteAllByUserID(ctx context.Context, userID uuid
 func (m *mockNotifFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	return 0, nil
 }
+func (m *mockNotifFlightRepo) TotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
+	return &models.FlightTotals{}, nil
+}
+func (m *mockNotifFlightRepo) MonthTotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, months []time.Time) ([]models.FlightMonthTotals, error) {
+	return nil, nil
+}
 func (m *mockNotifFlightRepo) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
 	return &models.FlightStatistics{}, nil
 }

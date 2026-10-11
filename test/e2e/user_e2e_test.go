@@ -239,7 +239,9 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		resp := c.PATCH("/users/me", map[string]interface{}{
 			"flightListColumnMode": "custom",
 			"flightListColumns": []string{
-				"launchMethod", "crew", "instructorName", "picName", "distance", "approaches",
+				"remarks", "instructorComments", "endorsements", "signed", "checks", "fstdType",
+				"launchMethod", "crew", "instructorName", "picName", "waypoints", "distance", "holds",
+				"approachTypes", "approaches", "takeoffs", "takeoffLandingTime",
 				"groundTrainingTime", "simulatedInstrumentTime", "actualInstrumentTime",
 			},
 		})
@@ -248,7 +250,9 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		resp.JSON(&u)
 		want := []string{
 			"actualInstrumentTime", "simulatedInstrumentTime", "groundTrainingTime",
-			"approaches", "distance", "picName", "instructorName", "crew", "launchMethod",
+			"takeoffLandingTime", "takeoffs", "approaches", "approachTypes", "holds", "distance",
+			"waypoints", "picName", "instructorName", "crew", "launchMethod", "fstdType", "checks",
+			"signed", "endorsements", "instructorComments", "remarks",
 		}
 		if got := columnsOf(t, u); !reflect.DeepEqual(got, want) {
 			t.Errorf("flightListColumns = %v, want %v", got, want)
