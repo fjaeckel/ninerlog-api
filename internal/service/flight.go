@@ -155,6 +155,15 @@ func (s *FlightService) CountFlights(ctx context.Context, userID uuid.UUID, opts
 	return s.flightRepo.CountByUserID(ctx, userID, opts)
 }
 
+// FlightNeighbors locates one of the user's flights in their filtered,
+// sorted flights list.
+func (s *FlightService) FlightNeighbors(ctx context.Context, userID, flightID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightNeighbors, error) {
+	if _, err := s.GetFlight(ctx, flightID, userID); err != nil {
+		return nil, err
+	}
+	return s.flightRepo.NeighborsByUserID(ctx, userID, flightID, opts)
+}
+
 // FlightTotals sums the flight columns over the user's filtered flights.
 func (s *FlightService) FlightTotals(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
 	return s.flightRepo.TotalsByUserID(ctx, userID, opts)

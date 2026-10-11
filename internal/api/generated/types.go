@@ -2112,6 +2112,45 @@ func (e ListFlightsParamsSortOrder) Valid() bool {
 	}
 }
 
+// Defines values for GetFlightNeighborsParamsSortBy.
+const (
+	GetFlightNeighborsParamsSortByCreatedAt GetFlightNeighborsParamsSortBy = "createdAt"
+	GetFlightNeighborsParamsSortByDate      GetFlightNeighborsParamsSortBy = "date"
+	GetFlightNeighborsParamsSortByTotalTime GetFlightNeighborsParamsSortBy = "totalTime"
+)
+
+// Valid indicates whether the value is a known member of the GetFlightNeighborsParamsSortBy enum.
+func (e GetFlightNeighborsParamsSortBy) Valid() bool {
+	switch e {
+	case GetFlightNeighborsParamsSortByCreatedAt:
+		return true
+	case GetFlightNeighborsParamsSortByDate:
+		return true
+	case GetFlightNeighborsParamsSortByTotalTime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetFlightNeighborsParamsSortOrder.
+const (
+	GetFlightNeighborsParamsSortOrderAsc  GetFlightNeighborsParamsSortOrder = "asc"
+	GetFlightNeighborsParamsSortOrderDesc GetFlightNeighborsParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the GetFlightNeighborsParamsSortOrder enum.
+func (e GetFlightNeighborsParamsSortOrder) Valid() bool {
+	switch e {
+	case GetFlightNeighborsParamsSortOrderAsc:
+		return true
+	case GetFlightNeighborsParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExportCustomReportParamsFormat.
 const (
 	Csv ExportCustomReportParamsFormat = "csv"
@@ -5386,6 +5425,25 @@ type FlightMonthTotals struct {
 	Totals FlightTotals `json:"totals"`
 }
 
+// FlightNeighbors defines model for FlightNeighbors.
+type FlightNeighbors struct {
+	// NextId The flight listed directly after this one; null at the end of the list
+	NextId *openapi_types.UUID `json:"nextId"`
+
+	// Position 1-based position of this flight in the list; null when it does not match the filters
+	//
+	// Example: 3
+	Position *int `json:"position"`
+
+	// PreviousId The flight listed directly before this one; null at the start of the list
+	PreviousId *openapi_types.UUID `json:"previousId"`
+
+	// Total Number of flights in the list
+	//
+	// Example: 142
+	Total int `json:"total"`
+}
+
 // FlightReviewStatus defines model for FlightReviewStatus.
 type FlightReviewStatus struct {
 	// ExpiresOn Last date the flight review remains valid — the final day of the 24th calendar month after it was completed (inclusive)
@@ -7601,6 +7659,51 @@ type ListFlightsParamsSortBy string
 
 // ListFlightsParamsSortOrder defines parameters for ListFlights.
 type ListFlightsParamsSortOrder string
+
+// GetFlightNeighborsParams defines parameters for GetFlightNeighbors.
+type GetFlightNeighborsParams struct {
+	// StartDate As on GET /flights
+	StartDate *openapi_types.Date `form:"startDate,omitempty" json:"startDate,omitempty"`
+
+	// EndDate As on GET /flights
+	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
+
+	// AircraftReg As on GET /flights
+	AircraftReg *string `form:"aircraftReg,omitempty" json:"aircraftReg,omitempty"`
+
+	// DepartureIcao As on GET /flights
+	DepartureIcao *string `form:"departureIcao,omitempty" json:"departureIcao,omitempty"`
+
+	// ArrivalIcao As on GET /flights
+	ArrivalIcao *string `form:"arrivalIcao,omitempty" json:"arrivalIcao,omitempty"`
+
+	// IsPic As on GET /flights
+	IsPic *bool `form:"isPic,omitempty" json:"isPic,omitempty"`
+
+	// IsDual As on GET /flights
+	IsDual *bool `form:"isDual,omitempty" json:"isDual,omitempty"`
+
+	// Search As on GET /flights
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Q Advanced search query, as on GET /flights
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// SortBy As on GET /flights
+	SortBy *GetFlightNeighborsParamsSortBy `form:"sortBy,omitempty" json:"sortBy,omitempty"`
+
+	// SortOrder As on GET /flights
+	SortOrder *GetFlightNeighborsParamsSortOrder `form:"sortOrder,omitempty" json:"sortOrder,omitempty"`
+
+	// LogbookLicenseId As on GET /flights
+	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
+}
+
+// GetFlightNeighborsParamsSortBy defines parameters for GetFlightNeighbors.
+type GetFlightNeighborsParamsSortBy string
+
+// GetFlightNeighborsParamsSortOrder defines parameters for GetFlightNeighbors.
+type GetFlightNeighborsParamsSortOrder string
 
 // ListImportsParams defines parameters for ListImports.
 type ListImportsParams struct {

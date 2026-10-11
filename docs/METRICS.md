@@ -25,7 +25,7 @@ below are for:
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `SEARCH_RATE_LIMIT_PER_MINUTE` | `60` | Requests per minute per user for flight search (`GET /flights?q=`). Values that are unparseable or `<= 0` are ignored with a warning and the default is kept — a limiter of zero would reject every search |
+| `SEARCH_RATE_LIMIT_PER_MINUTE` | `60` | Requests per minute per user for flight search (`GET /flights?q=` and `GET /flights/{id}/neighbors?q=`). Values that are unparseable or `<= 0` are ignored with a warning and the default is kept — a limiter of zero would reject every search |
 | `DISABLE_RATE_LIMIT` | unset | `true` disables **all** rate limiting. Intended for tests and local development |
 
 ## Metric Reference

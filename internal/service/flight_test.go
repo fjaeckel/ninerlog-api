@@ -84,6 +84,10 @@ func (m *mockFlightRepo) DeleteAllByUserID(ctx context.Context, userID uuid.UUID
 	return count, nil
 }
 
+func (m *mockFlightRepo) NeighborsByUserID(_ context.Context, _, _ uuid.UUID, _ *repository.FlightQueryOptions) (*models.FlightNeighbors, error) {
+	return &models.FlightNeighbors{}, nil
+}
+
 func (m *mockFlightRepo) TotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
 	totals := &models.FlightTotals{}
 	for _, flight := range m.flights {

@@ -305,6 +305,15 @@ type FlightMonthTotals struct {
 	FlightTotals
 }
 
+// FlightNeighbors locates one flight in an ordered, filtered flights list.
+type FlightNeighbors struct {
+	PreviousID *uuid.UUID
+	NextID     *uuid.UUID
+	// Position is 1-based; nil when the flight is not in the list.
+	Position *int
+	Total    int
+}
+
 // CurrencyData holds landing/flight counts for currency calculation
 type CurrencyData struct {
 	Flights       int

@@ -703,6 +703,26 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 
 	query, args, argNum = appendFlightFilters(query, args, argNum, opts)
 
+	query += " ORDER BY " + flightOrderBy(opts)
+
+	// Pagination
+	if opts != nil && opts.PageSize > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argNum)
+		args = append(args, opts.PageSize)
+		argNum++
+
+		if opts.Page > 1 {
+			offset := (opts.Page - 1) * opts.PageSize
+			query += fmt.Sprintf(" OFFSET $%d", argNum)
+			args = append(args, offset)
+		}
+	}
+
+	return query, args
+}
+
+// flightOrderBy returns the flights list's ORDER BY terms for opts.
+func flightOrderBy(opts *repository.FlightQueryOptions) string {
 	// Sorting — map camelCase API field names to snake_case DB columns
 	sortColumn := "date"
 	sortDirection := "DESC"
@@ -724,28 +744,41 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 	if sortDirection == "ASC" {
 		nullsOrder = "NULLS FIRST"
 	}
-	query += fmt.Sprintf(
-		" ORDER BY %s %s, off_block_time %s %s, created_at %s, id %s",
+	return fmt.Sprintf(
+		"%s %s, off_block_time %s %s, created_at %s, id %s",
 		sortColumn, sortDirection,
 		sortDirection, nullsOrder,
 		sortDirection,
 		sortDirection,
 	)
+}
 
-	// Pagination
-	if opts != nil && opts.PageSize > 0 {
-		query += fmt.Sprintf(" LIMIT $%d", argNum)
-		args = append(args, opts.PageSize)
-		argNum++
+func (r *flightRepository) NeighborsByUserID(ctx context.Context, userID, flightID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightNeighbors, error) {
+	inner := "SELECT id, " +
+		"LAG(id) OVER w AS prev_id, LEAD(id) OVER w AS next_id, ROW_NUMBER() OVER w AS pos " +
+		"FROM flights WHERE user_id = $1"
+	args := []interface{}{userID}
+	inner, args, argNum := appendFlightFilters(inner, args, 2, opts)
+	inner += " WINDOW w AS (ORDER BY " + flightOrderBy(opts) + ")"
 
-		if opts.Page > 1 {
-			offset := (opts.Page - 1) * opts.PageSize
-			query += fmt.Sprintf(" OFFSET $%d", argNum)
-			args = append(args, offset)
-		}
+	query := fmt.Sprintf(
+		"WITH ordered AS (%s) "+
+			"SELECT o.prev_id, o.next_id, o.pos, (SELECT COUNT(*) FROM ordered) "+
+			"FROM (SELECT 1) AS one LEFT JOIN ordered o ON o.id = $%d",
+		inner, argNum,
+	)
+	args = append(args, flightID)
+
+	var n models.FlightNeighbors
+	var pos sql.NullInt64
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&n.PreviousID, &n.NextID, &pos, &n.Total); err != nil {
+		return nil, err
 	}
-
-	return query, args
+	if pos.Valid {
+		p := int(pos.Int64)
+		n.Position = &p
+	}
+	return &n, nil
 }
 
 func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error) {

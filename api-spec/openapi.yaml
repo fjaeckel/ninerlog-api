@@ -2943,6 +2943,108 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /flights/{flightId}/neighbors:
+    get:
+      tags:
+        - Flights
+      summary: Previous and next flight in a list
+      description: >-
+        The flights directly before and after this one in the flights list
+        described by the query parameters, which take the same filter and sort
+        values as GET /flights. The order is exactly the list's, so stepping
+        through it visits every flight of the list once, across page
+        boundaries. When the flight does not match the filters, previousId,
+        nextId and position are null. With q set, the request counts against
+        the search rate limit.
+      operationId: getFlightNeighbors
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+        - name: startDate
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+            format: date
+        - name: aircraftReg
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+        - name: departureIcao
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+            maxLength: 100
+        - name: arrivalIcao
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+            maxLength: 100
+        - name: isPic
+          in: query
+          description: As on GET /flights
+          schema:
+            type: boolean
+        - name: isDual
+          in: query
+          description: As on GET /flights
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Advanced search query, as on GET /flights
+          schema:
+            type: string
+            maxLength: 1000
+        - name: sortBy
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+            enum: [date, totalTime, createdAt]
+            default: date
+        - name: sortOrder
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: logbookLicenseId
+          in: query
+          description: As on GET /flights
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The flight's neighbours in the list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightNeighbors'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /flights/{flightId}/signatures:
     get:
       tags:
@@ -8508,6 +8610,33 @@ components:
           type: number
           format: double
           description: Nautical miles
+
+    FlightNeighbors:
+      type: object
+      required:
+        - previousId
+        - nextId
+        - position
+        - total
+      properties:
+        previousId:
+          type: [string, 'null']
+          format: uuid
+          description: The flight listed directly before this one; null at the start of the list
+        nextId:
+          type: [string, 'null']
+          format: uuid
+          description: The flight listed directly after this one; null at the end of the list
+        position:
+          type: [integer, 'null']
+          minimum: 1
+          example: 3
+          description: 1-based position of this flight in the list; null when it does not match the filters
+        total:
+          type: integer
+          minimum: 0
+          example: 142
+          description: Number of flights in the list
 
     FlightMonthTotals:
       type: object

@@ -446,6 +446,59 @@ func (h *APIHandler) GetFlight(c *gin.Context, flightId generated.FlightId) {
 	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))
 }
 
+// GetFlightNeighbors implements GET /flights/{flightId}/neighbors
+func (h *APIHandler) GetFlightNeighbors(c *gin.Context, flightId generated.FlightId, params generated.GetFlightNeighborsParams) {
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	opts := &repository.FlightQueryOptions{SortBy: "date", SortOrder: "desc"}
+	if err := h.applyFlightFilters(c.Request.Context(), userID, flightFilterParams{
+		StartDate:        params.StartDate,
+		EndDate:          params.EndDate,
+		AircraftReg:      params.AircraftReg,
+		DepartureIcao:    params.DepartureIcao,
+		ArrivalIcao:      params.ArrivalIcao,
+		IsPic:            params.IsPic,
+		IsDual:           params.IsDual,
+		Search:           params.Search,
+		Q:                params.Q,
+		LogbookLicenseId: params.LogbookLicenseId,
+	}, opts); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid search query: "+err.Error())
+		return
+	}
+	if params.SortBy != nil {
+		opts.SortBy = string(*params.SortBy)
+	}
+	if params.SortOrder != nil {
+		opts.SortOrder = string(*params.SortOrder)
+	}
+
+	n, err := h.flightService.FlightNeighbors(c.Request.Context(), userID, uuid.UUID(flightId), opts)
+	if err != nil {
+		if errors.Is(err, service.ErrFlightNotFound) || errors.Is(err, service.ErrUnauthorizedFlight) {
+			h.sendError(c, http.StatusNotFound, "Flight not found")
+			return
+		}
+		h.sendError(c, http.StatusInternalServerError, "Failed to locate flight")
+		return
+	}
+
+	resp := generated.FlightNeighbors{Position: n.Position, Total: n.Total}
+	if n.PreviousID != nil {
+		id := openapi_types.UUID(*n.PreviousID)
+		resp.PreviousId = &id
+	}
+	if n.NextID != nil {
+		id := openapi_types.UUID(*n.NextID)
+		resp.NextId = &id
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 // UpdateFlight implements PUT /flights/{flightId}
 // (PUT /flights/{flightId})
 func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {

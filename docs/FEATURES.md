@@ -146,6 +146,8 @@ roles, IFR, FSTD, remarks). See [DOMAIN.md](./DOMAIN.md) for the calculation and
 rules.
 
 - CRUD: `POST/GET/PUT/DELETE /flights`.
+- Previous/next: `GET /flights/{id}/neighbors` locates a flight in the list described by
+  the `GET /flights` filter and sort parameters — see [API.md](./API.md).
 - List totals: `GET /flights` returns `totals` (column sums over every flight matching the
   filters) and `monthTotals` (the same per month, for the months on the page) next to
   `pagination` — see [API.md](./API.md).

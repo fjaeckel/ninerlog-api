@@ -229,6 +229,10 @@ func (m *mockNotifFlightRepo) DeleteAllByUserID(ctx context.Context, userID uuid
 func (m *mockNotifFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	return 0, nil
 }
+func (m *mockNotifFlightRepo) NeighborsByUserID(_ context.Context, _, _ uuid.UUID, _ *repository.FlightQueryOptions) (*models.FlightNeighbors, error) {
+	return &models.FlightNeighbors{}, nil
+}
+
 func (m *mockNotifFlightRepo) TotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
 	return &models.FlightTotals{}, nil
 }

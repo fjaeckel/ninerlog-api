@@ -558,6 +558,7 @@ func main() {
 		searchRateLimit := middleware.NewUserRateLimitMiddleware(
 			"search", envInt("SEARCH_RATE_LIMIT_PER_MINUTE", 60), 1*time.Minute)
 		api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q"))
+		api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/neighbors", "q"))
 
 		authRateLimit := middleware.NewRateLimitMiddleware("auth", 10, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(authRateLimit,

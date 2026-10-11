@@ -496,6 +496,10 @@ func (m *mockFlightRepo) CountByUserID(_ context.Context, userID uuid.UUID, opts
 	}
 	return count, nil
 }
+func (m *mockFlightRepo) NeighborsByUserID(_ context.Context, _, _ uuid.UUID, _ *repository.FlightQueryOptions) (*models.FlightNeighbors, error) {
+	return &models.FlightNeighbors{}, nil
+}
+
 func (m *mockFlightRepo) TotalsByUserID(_ context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
 	totals := &models.FlightTotals{}
 	for _, f := range m.flights {

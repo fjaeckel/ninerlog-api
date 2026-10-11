@@ -118,7 +118,7 @@ listed there with the reason.
   | Limiter | Budget | Applies to | Keyed by |
   |---|---|---|---|
   | `general` | 120/min | every `/api/v1` route | user ID (IP when unauthenticated) |
-  | `search` | `SEARCH_RATE_LIMIT_PER_MINUTE`, default 60/min | `GET /flights` **with** a `q` parameter | user ID |
+  | `search` | `SEARCH_RATE_LIMIT_PER_MINUTE`, default 60/min | `GET /flights` and `GET /flights/{id}/neighbors` **with** a `q` parameter | user ID |
   | `expensive` | 15/min | `/exports/pdf`, `/custom-currency/preview`, `/reports/custom/preview`, `/reports/custom/{id}/export`, `/imports/*`, and **writes** to `/…/files*` | user ID |
   | `file_read` | `FILE_READ_RATE_LIMIT_PER_MINUTE`, default 90/min | **reads** of `/…/files*` | user ID |
   | `auth` | 10/min | login, register, refresh, password reset, 2FA, WebAuthn | client IP |
@@ -392,6 +392,14 @@ only computed for a date-sorted list without `updatedSince` (otherwise it is an 
 array), and `updatedSince` narrows `totals` like any other filter, so a delta-sync
 response sums only the changed flights. See
 [FEATURES.md](./FEATURES.md#flight-logging).
+
+`GET /flights/{id}/neighbors` takes the same filter and sort parameters as `GET /flights`
+and returns `previousId`, `nextId`, the flight's 1-based `position` and the list's `total`,
+so a client can step through a filtered, sorted list one flight at a time without
+holding its pages. It numbers the matching flights with a window function over the
+list's own `ORDER BY` (shared through `flightOrderBy`), so the order is exactly the
+list's. A flight that does not match the filters gets `null` neighbours and position; a
+flight the user does not own is a 404.
 
 `POST /flights` creates either a flight or an FSTD (simulator) session, chosen by
 `isSimulator`. Which fields are mandatory depends on the kind, so they are conditionally

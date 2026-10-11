@@ -196,6 +196,9 @@ type FlightRepository interface {
 	// per calendar month, for the given months only
 	MonthTotalsByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions, months []time.Time) ([]models.FlightMonthTotals, error)
 
+	// NeighborsByUserID locates a flight in the filtered, sorted flights list
+	NeighborsByUserID(ctx context.Context, userID, flightID uuid.UUID, opts *FlightQueryOptions) (*models.FlightNeighbors, error)
+
 	// GetStatsByUserID returns aggregated flight statistics for a user
 	GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error)
 

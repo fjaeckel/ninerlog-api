@@ -341,6 +341,9 @@ type ServerInterface interface {
 	// UpdateFlight Update flight
 	// (PUT /flights/{flightId})
 	UpdateFlight(c *gin.Context, flightId FlightId)
+	// GetFlightNeighbors Previous and next flight in a list
+	// (GET /flights/{flightId}/neighbors)
+	GetFlightNeighbors(c *gin.Context, flightId FlightId, params GetFlightNeighborsParams)
 	// ListFlightSignatures List signature history for a flight
 	// (GET /flights/{flightId}/signatures)
 	ListFlightSignatures(c *gin.Context, flightId FlightId)
@@ -3030,6 +3033,130 @@ func (siw *ServerInterfaceWrapper) UpdateFlight(c *gin.Context) {
 	siw.Handler.UpdateFlight(c, flightId)
 }
 
+// GetFlightNeighbors operation middleware
+func (siw *ServerInterfaceWrapper) GetFlightNeighbors(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFlightNeighborsParams
+
+	// ------------- Optional query parameter "startDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "startDate", c.Request.URL.Query(), &params.StartDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter startDate: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", c.Request.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter endDate: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "aircraftReg" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "aircraftReg", c.Request.URL.Query(), &params.AircraftReg, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftReg: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "departureIcao" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "departureIcao", c.Request.URL.Query(), &params.DepartureIcao, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departureIcao: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "arrivalIcao" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "arrivalIcao", c.Request.URL.Query(), &params.ArrivalIcao, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter arrivalIcao: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "isPic" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "isPic", c.Request.URL.Query(), &params.IsPic, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter isPic: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "isDual" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "isDual", c.Request.URL.Query(), &params.IsDual, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter isDual: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", c.Request.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter search: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "sortBy" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sortBy", c.Request.URL.Query(), &params.SortBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sortBy: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "sortOrder" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sortOrder", c.Request.URL.Query(), &params.SortOrder, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sortOrder: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "logbookLicenseId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "logbookLicenseId", c.Request.URL.Query(), &params.LogbookLicenseId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter logbookLicenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFlightNeighbors(c, flightId, params)
+}
+
 // ListFlightSignatures operation middleware
 func (siw *ServerInterfaceWrapper) ListFlightSignatures(c *gin.Context) {
 
@@ -4523,6 +4650,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)
 	router.GET(options.BaseURL+"/flights/:flightId", wrapper.GetFlight)
 	router.PUT(options.BaseURL+"/flights/:flightId", wrapper.UpdateFlight)
+	router.GET(options.BaseURL+"/flights/:flightId/neighbors", wrapper.GetFlightNeighbors)
 	router.GET(options.BaseURL+"/flights/:flightId/signatures", wrapper.ListFlightSignatures)
 	router.POST(options.BaseURL+"/flights/:flightId/signatures", wrapper.CreateSignatureRequest)
 	router.POST(options.BaseURL+"/flights/:flightId/signatures/live", wrapper.SignFlightLive)
