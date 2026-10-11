@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
@@ -419,19 +420,23 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.PICName = flightrules.ResolvePICNameForSave(&flight, userName)
 	}
 
-	if err := h.flightService.CreateFlightChecked(c.Request.Context(), &flight, service.FlightWriteOptions{
+	createOpts := service.FlightWriteOptions{
 		UserName: userName,
 		Facts:    h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg),
-	}); err != nil {
+	}
+	if len(flight.CrewMembers) > 0 {
+		createOpts.Crew = &flight.CrewMembers
+		createOpts.BeforeWrite = func(ctx context.Context) error {
+			h.linkCrewMembers(ctx, userID, &flight)
+			return nil
+		}
+	}
+	if err := h.flightService.CreateFlightChecked(c.Request.Context(), &flight, createOpts); err != nil {
 		if h.sendOverrideError(c, err) {
 			return
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
-	}
-	// Persist crew members. A new flight with no crew has nothing to clear.
-	if len(flight.CrewMembers) > 0 {
-		h.persistNewFlightCrew(c, userID, &flight)
 	}
 	c.JSON(http.StatusCreated, withDisplayPICName(convertToGeneratedFlight(&flight), &flight, h.getUserNameFromContext(c)))
 }
@@ -652,7 +657,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		Facts:    h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg),
 	}
 	if req.CorrectionReason != nil {
-		if len(*req.CorrectionReason) > maxReasonLen {
+		if utf8.RuneCountInString(*req.CorrectionReason) > maxReasonLen {
 			h.sendError(c, http.StatusBadRequest, "correctionReason is too long")
 			return
 		}
@@ -661,8 +666,11 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	// An update that did not carry a crewMembers key leaves the existing
 	// rows alone; otherwise the crew is replaced with the flight update.
 	if req.CrewMembers != nil {
-		h.linkCrewMembers(c, userID, flight)
 		opts.Crew = &flight.CrewMembers
+		opts.BeforeWrite = func(ctx context.Context) error {
+			h.linkCrewMembers(ctx, userID, flight)
+			return nil
+		}
 	}
 
 	if err := h.flightService.UpdateFlightWith(c.Request.Context(), flight, userID, opts); err != nil {
@@ -706,7 +714,7 @@ func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId, p
 	if params.Reason != nil {
 		reason = *params.Reason
 	}
-	if len(reason) > maxReasonLen {
+	if utf8.RuneCountInString(reason) > maxReasonLen {
 		h.sendError(c, http.StatusBadRequest, "reason is too long")
 		return
 	}

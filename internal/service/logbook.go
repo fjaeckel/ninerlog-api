@@ -19,7 +19,8 @@ import (
 var (
 	// ErrStrictModeRequired is returned when an action needs strict logbook mode on.
 	ErrStrictModeRequired = errors.New("strict logbook mode is off")
-	// ErrCertificationInFuture is returned when a certification date is after today.
+	// ErrCertificationInFuture is returned when a certification date is after
+	// today at UTC+14, the latest timezone on Earth.
 	ErrCertificationInFuture = errors.New("certification date is in the future")
 	// ErrCertificationBeforeLatest is returned when a certification date is
 	// earlier than the latest one.
@@ -31,6 +32,9 @@ var (
 	// above its auto-calculated one under a rule that allows only reductions.
 	ErrOverrideExceedsCalculated = errors.New("override exceeds the calculated value")
 )
+
+// latestUTCOffset is the UTC offset of the earliest calendar day on Earth.
+const latestUTCOffset = 14 * time.Hour
 
 // OverrideExceedsError names the flight fields whose override is too high.
 type OverrideExceedsError struct {
@@ -207,7 +211,7 @@ func (s *LogbookService) CreateCertification(ctx context.Context, userID uuid.UU
 		return nil, ErrStrictModeRequired
 	}
 	through = dateOnly(through)
-	if through.After(dateOnly(s.now())) {
+	if through.After(dateOnly(s.now().UTC().Add(latestUTCOffset))) {
 		return nil, ErrCertificationInFuture
 	}
 	latest, err := s.repo.LatestCertifiedThrough(ctx, userID)
@@ -231,26 +235,55 @@ type EditClassification struct {
 	DefaultReason string
 }
 
+// StrictState is a user's strict-mode state, read once for a write.
+type StrictState struct {
+	Strict          bool
+	Assessment      logbookrules.Assessment
+	LatestCertified *time.Time
+}
+
+// LoadState reads the user's strict-mode state. For a user who is not in
+// strict mode only the mode is read.
+func (s *LogbookService) LoadState(ctx context.Context, userID uuid.UUID) (*StrictState, error) {
+	mode, err := s.repo.GetMode(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !mode.Strict {
+		return &StrictState{}, nil
+	}
+	assessment, err := s.assess(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	latest, err := s.repo.LatestCertifiedThrough(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &StrictState{Strict: true, Assessment: assessment, LatestCertified: latest}, nil
+}
+
 // ClassifyEdit decides whether updating existing into updated is a
 // correction. updated may be nil for a delete, which skips the override rule.
 func (s *LogbookService) ClassifyEdit(ctx context.Context, userID uuid.UUID, existing, updated *models.Flight) (EditClassification, error) {
-	mode, err := s.repo.GetMode(ctx, userID)
+	state, err := s.LoadState(ctx, userID)
 	if err != nil {
 		return EditClassification{}, err
 	}
-	if !mode.Strict {
+	return s.ClassifyEditWith(ctx, state, existing, updated)
+}
+
+// ClassifyEditWith is ClassifyEdit against an already loaded state.
+func (s *LogbookService) ClassifyEditWith(ctx context.Context, state *StrictState, existing, updated *models.Flight) (EditClassification, error) {
+	if !state.Strict {
 		return EditClassification{}, nil
 	}
 	result := EditClassification{Strict: true}
 
 	now := s.now()
-	assessment, err := s.assess(ctx, userID)
-	if err != nil {
-		return result, err
-	}
 	lon := s.lonOf(existing)
 
-	if now.After(assessment.Deadline(existing.CreatedAt, existing.Date, lon)) {
+	if now.After(state.Assessment.Deadline(existing.CreatedAt, existing.Date, lon)) {
 		result.IsCorrection = true
 	}
 
@@ -273,11 +306,7 @@ func (s *LogbookService) ClassifyEdit(ctx context.Context, userID uuid.UUID, exi
 		result.DefaultReason = strings.TrimSpace(*latestVoid.VoidedReason)
 	}
 
-	latest, err := s.repo.LatestCertifiedThrough(ctx, userID)
-	if err != nil {
-		return result, err
-	}
-	if latest != nil {
+	if latest := state.LatestCertified; latest != nil {
 		earliest := dateOnly(existing.Date)
 		if updated != nil && dateOnly(updated.Date).Before(earliest) {
 			earliest = dateOnly(updated.Date)
@@ -292,6 +321,20 @@ func (s *LogbookService) ClassifyEdit(ctx context.Context, userID uuid.UUID, exi
 		result.IsCorrection = true
 	}
 	return result, nil
+}
+
+// RenameCorrections returns, per flight, whether rewriting its crew counts as
+// a correction under the normal correction rules.
+func (s *LogbookService) RenameCorrections(ctx context.Context, state *StrictState, flights []*models.Flight) (map[uuid.UUID]bool, error) {
+	out := make(map[uuid.UUID]bool, len(flights))
+	for _, f := range flights {
+		class, err := s.ClassifyEditWith(ctx, state, f, nil)
+		if err != nil {
+			return nil, err
+		}
+		out[f.ID] = class.IsCorrection
+	}
+	return out, nil
 }
 
 func voidedAfter(a, b *models.FlightSignature) bool {
@@ -360,18 +403,17 @@ func (s *LogbookService) CheckDownwardOverrides(ctx context.Context, userID uuid
 	if !hasOverride(flight) {
 		return nil
 	}
-	mode, err := s.repo.GetMode(ctx, userID)
+	state, err := s.LoadState(ctx, userID)
 	if err != nil {
 		return err
 	}
-	if !mode.Strict {
-		return nil
-	}
-	assessment, err := s.assess(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if !assessment.OverridesDownwardOnly {
+	return s.CheckDownwardOverridesWith(state, previous, flight, userName, facts)
+}
+
+// CheckDownwardOverridesWith is CheckDownwardOverrides against an already
+// loaded state.
+func (s *LogbookService) CheckDownwardOverridesWith(state *StrictState, previous, flight *models.Flight, userName string, facts *flightrules.AircraftFacts) error {
+	if !state.Strict || !state.Assessment.OverridesDownwardOnly || !hasOverride(flight) {
 		return nil
 	}
 

@@ -14,6 +14,8 @@ import (
 // Mock license repository
 type mockLicenseRepo struct {
 	licenses map[uuid.UUID]*models.License
+	// listCalls counts GetByUserID calls.
+	listCalls int
 }
 
 func newMockLicenseRepo() *mockLicenseRepo {
@@ -39,6 +41,7 @@ func (m *mockLicenseRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Li
 }
 
 func (m *mockLicenseRepo) GetByUserID(ctx context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.License, error) {
+	m.listCalls++
 	var result []*models.License
 	for _, license := range m.licenses {
 		if license.UserID == userID && (updatedSince == nil || license.UpdatedAt.After(*updatedSince)) {

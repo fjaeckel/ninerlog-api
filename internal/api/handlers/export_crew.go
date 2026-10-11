@@ -5,34 +5,19 @@ import (
 	"log/slog"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
-	"github.com/fjaeckel/ninerlog-api/internal/repository"
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 // linkCrewMembers links a flight's crew to the user's contacts, creating
 // contacts for names that are new. Failures are logged and swallowed. See
 // ContactService.LinkCrewMembers for the linking rules.
-func (h *APIHandler) linkCrewMembers(c *gin.Context, userID uuid.UUID, flight *models.Flight) {
+func (h *APIHandler) linkCrewMembers(ctx context.Context, userID uuid.UUID, flight *models.Flight) {
 	if len(flight.CrewMembers) == 0 || h.contactService == nil {
 		return
 	}
-	if _, err := h.contactService.LinkCrewMembers(c.Request.Context(), userID, flight.CrewMembers); err != nil {
+	if _, err := h.contactService.LinkCrewMembers(ctx, userID, flight.CrewMembers); err != nil {
 		slog.Warn("failed to link crew members to contacts",
 			"flightId", flight.ID, "error", err)
-	}
-}
-
-// persistNewFlightCrew links and writes the crew of a flight that was just
-// created. Failures are logged and swallowed.
-func (h *APIHandler) persistNewFlightCrew(c *gin.Context, userID uuid.UUID, flight *models.Flight) {
-	if h.flightCrewRepo == nil {
-		return
-	}
-	h.linkCrewMembers(c, userID, flight)
-	ctx := repository.WithChangeSource(c.Request.Context(), repository.ChangeSourceCreate)
-	if err := h.flightCrewRepo.SetCrewMembers(ctx, flight.ID, flight.CrewMembers); err != nil {
-		slog.Warn("failed to save crew members", "flightId", flight.ID, "error", err)
 	}
 }
 

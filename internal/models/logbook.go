@@ -65,3 +65,9 @@ type FlightRevision struct {
 	IsCorrection bool            `json:"isCorrection"`
 	ChangedAt    time.Time       `json:"changedAt"`
 }
+
+// FlightState is a flight row and its crew in the JSON shape revisions store.
+type FlightState struct {
+	Snapshot json.RawMessage
+	Crew     json.RawMessage
+}

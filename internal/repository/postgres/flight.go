@@ -223,12 +223,32 @@ func placeholders(first, n int) string {
 }
 
 func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) error {
+	return r.CreateWithCrew(ctx, flight, nil)
+}
+
+// CreateWithCrew inserts the flight and its crew in one transaction.
+func (r *flightRepository) CreateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error {
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := insertFlightRow(ctx, tx, flight); err != nil {
+		return err
+	}
+	if err := insertCrewMembers(ctx, tx, flight.ID, crew); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func insertFlightRow(ctx context.Context, db queryExecer, flight *models.Flight) error {
 	args := append(flightInsertArgs(flight), nullableTime(flight.CreatedAt))
 	query := `INSERT INTO flights (` + flightInsertColumns + `, created_at)
 		VALUES (` + placeholders(1, len(args)-1) + fmt.Sprintf(", COALESCE($%d::timestamptz, now()))", len(args)) + `
 		RETURNING id, created_at, updated_at`
 
-	return r.db.QueryRowContext(ctx, query, args...).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
+	return db.QueryRowContext(ctx, query, args...).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
 }
 
 func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error) {

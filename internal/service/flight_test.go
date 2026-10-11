@@ -30,6 +30,10 @@ func (m *mockFlightRepo) Create(ctx context.Context, flight *models.Flight) erro
 	return nil
 }
 
+func (m *mockFlightRepo) CreateWithCrew(ctx context.Context, flight *models.Flight, _ []models.FlightCrewMember) error {
+	return m.Create(ctx, flight)
+}
+
 func (m *mockFlightRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error) {
 	flight, exists := m.flights[id]
 	if !exists {

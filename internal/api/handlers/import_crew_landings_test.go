@@ -91,6 +91,7 @@ func newImportConfirmEnv(t *testing.T, userName string) *importConfirmEnv {
 	h.aircraftService = service.NewAircraftService(env.aircraft)
 	h.flightImportRepo = &stubFlightImportRepo{}
 	h.flightCrewRepo = env.crew
+	env.flights.crew = env.crew
 	return env
 }
 

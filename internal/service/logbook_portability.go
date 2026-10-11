@@ -105,7 +105,10 @@ func (in LogbookImport) Validate() error {
 		if rev.RevisionNo < 1 {
 			return invalidLogbookEntry("flightRevisions", i, "revision number %d", rev.RevisionNo)
 		}
-		if _, err := rewriteSnapshotIDs(rev.Snapshot, uuid.Nil, uuid.Nil); err != nil {
+		if _, err := parseSnapshotSummary(rev.Snapshot); err != nil {
+			return invalidLogbookEntry("flightRevisions", i, "snapshot: %v", err)
+		}
+		if _, err := DiffFlightStates(rev.Snapshot, rev.CrewSnapshot, rev.Snapshot, rev.CrewSnapshot); err != nil {
 			return invalidLogbookEntry("flightRevisions", i, "snapshot: %v", err)
 		}
 		if _, err := stripCrewContactIDs(rev.CrewSnapshot); err != nil {
@@ -210,11 +213,12 @@ func ImportLogbook(ctx context.Context, w repository.LogbookRestoreWriter, userI
 // rewriteSnapshotIDs points a stored flight snapshot at the restored flight
 // and user.
 func rewriteSnapshotIDs(raw json.RawMessage, flightID, userID uuid.UUID) (json.RawMessage, error) {
-	obj := map[string]json.RawMessage{}
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &obj); err != nil {
-			return nil, err
-		}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, err
+	}
+	if obj == nil {
+		return nil, errors.New("snapshot is not a JSON object")
 	}
 	id, _ := json.Marshal(flightID)
 	uid, _ := json.Marshal(userID)

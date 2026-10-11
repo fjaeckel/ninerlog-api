@@ -237,6 +237,7 @@ func (pl *restorePlan) planContacts(p *Payload) (map[string]uuid.UUID, error) {
 // planFlights plans flights and their crew. A crew name matching a contact
 // links to it; any other valid name gets a contact of its own.
 func (pl *restorePlan) planFlights(p *Payload, contactIDs map[string]uuid.UUID) error {
+	now := time.Now()
 	pl.flights = make([]*models.Flight, 0, len(p.Flights))
 	pl.flightIDs = make(map[uuid.UUID]uuid.UUID, len(p.Flights))
 	for i, src := range p.Flights {
@@ -245,6 +246,7 @@ func (pl *restorePlan) planFlights(p *Payload, contactIDs map[string]uuid.UUID) 
 		}
 		f := *src
 		f.ID = uuid.New()
+		f.CreatedAt = restoredCreatedAt(src.CreatedAt, now)
 		if src.ID != uuid.Nil {
 			pl.flightIDs[src.ID] = f.ID
 		}
@@ -416,4 +418,13 @@ func (pl *restorePlan) planLogbook(p *Payload) error {
 	}
 	pl.logbook = in
 	return nil
+}
+
+// restoredCreatedAt returns the creation time a restored flight keeps: the
+// backup's value, never later than now.
+func restoredCreatedAt(backup, now time.Time) time.Time {
+	if backup.IsZero() || backup.After(now) {
+		return now
+	}
+	return backup
 }

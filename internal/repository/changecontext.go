@@ -8,7 +8,6 @@ const (
 	ChangeSourceRecalc         = "recalc"
 	ChangeSourceAircraftRename = "aircraft_rename"
 	ChangeSourceImport         = "import"
-	ChangeSourceCreate         = "create"
 )
 
 // ChangeContext describes why a write touches flights or their crew.

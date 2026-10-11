@@ -37,11 +37,11 @@ func TestUpdateWithCrewRename_SkipsSignedFlights(t *testing.T) {
 
 	// The expectation matches only a rename carrying f.signature_id IS NULL.
 	mock.ExpectExec(`UPDATE flight_crew_members fcm\s+SET name = \$1\s+FROM flights f\s+WHERE fcm\.flight_id = f\.id\s+AND fcm\.contact_id = \$2\s+AND f\.user_id = \$3\s+AND f\.signature_id IS NULL`).
-		WithArgs(contact.Name, contact.ID, contact.UserID).
+		WithArgs(contact.Name, contact.ID, contact.UserID, sqlmock.AnyArg(), false).
 		WillReturnResult(sqlmock.NewResult(0, 3))
 	mock.ExpectCommit()
 
-	renamed, err := repo.UpdateWithCrewRename(ctx, contact)
+	renamed, err := repo.UpdateWithCrewRename(ctx, contact, nil)
 	if err != nil {
 		t.Fatalf("UpdateWithCrewRename() error = %v", err)
 	}
@@ -72,7 +72,7 @@ func TestUpdateWithCrewRename_DuplicateNameRollsBack(t *testing.T) {
 
 	_, err = repo.UpdateWithCrewRename(context.Background(), &models.Contact{
 		ID: uuid.New(), UserID: uuid.New(), Name: "Anna Berg",
-	})
+	}, nil)
 	if !errors.Is(err, repository.ErrDuplicate) {
 		t.Errorf("UpdateWithCrewRename() error = %v, want repository.ErrDuplicate", err)
 	}

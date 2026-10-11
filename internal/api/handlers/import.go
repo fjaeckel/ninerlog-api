@@ -21,7 +21,6 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
-	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
@@ -604,7 +603,28 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		newFlight := buildImportedFlight(userID, flight, extras)
 		flightcalc.ApplyAutoCalculations(&newFlight, userName, fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)])
 
-		if err := h.flightService.CreateFlight(c.Request.Context(), &newFlight); err != nil {
+		createOpts := service.FlightWriteOptions{}
+		if len(newFlight.CrewMembers) > 0 {
+			createOpts.Crew = &newFlight.CrewMembers
+			createOpts.BeforeWrite = func(ctx context.Context) error {
+				if err := crewLinker.Link(ctx, newFlight.CrewMembers); err != nil {
+					slog.Warn("import: failed to link crew members to contacts",
+						"flightId", newFlight.ID, "error", err)
+				}
+				return nil
+			}
+		}
+		err := h.flightService.CreateFlightWith(c.Request.Context(), &newFlight, createOpts)
+		crewSaved := true
+		if err != nil && createOpts.Crew != nil {
+			crewErr := err
+			if err = h.flightService.CreateFlightWith(c.Request.Context(), &newFlight, service.FlightWriteOptions{}); err == nil {
+				slog.Warn("import: failed to save crew members",
+					"flightId", newFlight.ID, "error", crewErr)
+				crewSaved = false
+			}
+		}
+		if err != nil {
 			importErrors = append(importErrors, struct {
 				Field    string  `json:"field"`
 				Message  string  `json:"message"`
@@ -614,27 +634,13 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			errored++
 			continue
 		}
-
-		// Link crew to contacts and persist the crew rows. Same pathway as
-		// flight create/update, so an imported logbook and a hand-logged one
-		// produce the same address book.
-		if len(newFlight.CrewMembers) > 0 && h.flightCrewRepo != nil {
-			if err := crewLinker.Link(c.Request.Context(), newFlight.CrewMembers); err != nil {
-				slog.Warn("import: failed to link crew members to contacts",
-					"flightId", newFlight.ID, "error", err)
-			}
-			if err := h.flightCrewRepo.SetCrewMembers(
-				repository.WithChangeSource(c.Request.Context(), repository.ChangeSourceCreate),
-				newFlight.ID, newFlight.CrewMembers); err != nil {
-				slog.Warn("import: failed to save crew members",
-					"flightId", newFlight.ID, "error", err)
-				importErrors = append(importErrors, struct {
-					Field    string  `json:"field"`
-					Message  string  `json:"message"`
-					RawValue *string `json:"rawValue,omitempty"`
-					RowIndex int     `json:"rowIndex"`
-				}{Field: "crewMembers", Message: "Flight imported, but its crew members could not be saved", RowIndex: rowIdx})
-			}
+		if !crewSaved {
+			importErrors = append(importErrors, struct {
+				Field    string  `json:"field"`
+				Message  string  `json:"message"`
+				RawValue *string `json:"rawValue,omitempty"`
+				RowIndex int     `json:"rowIndex"`
+			}{Field: "crewMembers", Message: "Flight imported, but its crew members could not be saved", RowIndex: rowIdx})
 		}
 
 		importedIDs = append(importedIDs, openapi_types.UUID(newFlight.ID))

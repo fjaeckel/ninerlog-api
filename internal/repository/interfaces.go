@@ -174,6 +174,9 @@ type FlightRepository interface {
 	// Create creates a new flight
 	Create(ctx context.Context, flight *models.Flight) error
 
+	// CreateWithCrew creates a flight and its crew in one transaction
+	CreateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error
+
 	// GetByID retrieves a flight by its ID
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error)
 
@@ -429,7 +432,9 @@ type ContactRepository interface {
 	// UpdateWithCrewRename updates the contact and carries a name change into
 	// the crew rows of the user's unsigned flights, returning the number of
 	// crew rows rewritten. Signed flights keep the name they were signed with.
-	UpdateWithCrewRename(ctx context.Context, contact *models.Contact) (int, error)
+	// rename, when non-nil, sets the reason and correction flags recorded on
+	// the flight revisions the rewrite produces.
+	UpdateWithCrewRename(ctx context.Context, contact *models.Contact, rename *CrewRename) (int, error)
 	// RolesByContact maps each of the user's contacts to the distinct crew
 	// roles it has been logged in, most-used first.
 	RolesByContact(ctx context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error)
@@ -670,6 +675,10 @@ type LogbookRepository interface {
 	// belongs to another user.
 	CurrentFlightState(ctx context.Context, userID, flightID uuid.UUID) (snapshot, crew json.RawMessage, err error)
 
+	// CurrentFlightStates returns the current state of each of the user's
+	// flights among flightIDs; flights that do not exist are absent.
+	CurrentFlightStates(ctx context.Context, userID uuid.UUID, flightIDs []uuid.UUID) (map[uuid.UUID]models.FlightState, error)
+
 	// ListRevisions returns the revisions of one flight, oldest first.
 	ListRevisions(ctx context.Context, userID, flightID uuid.UUID) ([]models.FlightRevision, error)
 
@@ -679,4 +688,16 @@ type LogbookRepository interface {
 
 	// ListVoided returns the user's delete revisions, newest first.
 	ListVoided(ctx context.Context, userID uuid.UUID) ([]models.FlightRevision, error)
+}
+
+// CrewRename describes how a contact rename is recorded on the revisions of
+// the flights whose crew it rewrites. A nil *CrewRename records the rewrite
+// without a reason and without correction flags.
+type CrewRename struct {
+	// Reason is stored on every revision the rename writes.
+	Reason string
+	// Corrections, when set, receives the flights the rename rewrites (id,
+	// date, createdAt and departure only) and returns the ids of those that
+	// count as corrections.
+	Corrections func(ctx context.Context, flights []*models.Flight) (map[uuid.UUID]bool, error)
 }

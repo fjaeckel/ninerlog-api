@@ -25,6 +25,13 @@ var (
 
 type ContactService struct {
 	contactRepo repository.ContactRepository
+	logbook     *LogbookService
+}
+
+// SetLogbookService attaches the strict logbook mode rules used to classify
+// the flights a contact rename rewrites.
+func (s *ContactService) SetLogbookService(l *LogbookService) {
+	s.logbook = l
 }
 
 func NewContactService(contactRepo repository.ContactRepository) *ContactService {
@@ -200,7 +207,20 @@ func (s *ContactService) UpdateContact(ctx context.Context, contact *models.Cont
 	}
 	contact.UserID = existing.UserID
 
-	renamed, err := s.contactRepo.UpdateWithCrewRename(ctx, contact)
+	rename := &repository.CrewRename{Reason: crewRenameReason(existing.Name, contact.Name)}
+	if s.logbook != nil && existing.Name != contact.Name {
+		state, err := s.logbook.LoadState(ctx, userID)
+		if err != nil {
+			return 0, err
+		}
+		if state.Strict {
+			rename.Corrections = func(ctx context.Context, flights []*models.Flight) (map[uuid.UUID]bool, error) {
+				return s.logbook.RenameCorrections(ctx, state, flights)
+			}
+		}
+	}
+
+	renamed, err := s.contactRepo.UpdateWithCrewRename(ctx, contact, rename)
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicate) {
 			return 0, ErrContactNameExists
@@ -229,4 +249,13 @@ func (s *ContactService) DeleteContact(ctx context.Context, id, userID uuid.UUID
 		return ErrUnauthorizedContact
 	}
 	return s.contactRepo.Delete(ctx, id)
+}
+
+// crewRenameReason is the reason recorded on flight revisions written by a
+// contact rename.
+func crewRenameReason(oldName, newName string) string {
+	if oldName == newName {
+		return "Crew names updated to contact: " + newName
+	}
+	return "Crew contact renamed: " + oldName + " \u2192 " + newName
 }

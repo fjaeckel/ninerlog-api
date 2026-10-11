@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
@@ -23,10 +25,7 @@ type FieldChange struct {
 }
 
 // CrewEntry is a crew member as shown in a crewMembers change.
-type CrewEntry struct {
-	Name string `json:"name"`
-	Role string `json:"role"`
-}
+type CrewEntry = models.CrewKey
 
 // RevisionView is a stored revision with the fields it changed.
 type RevisionView struct {
@@ -83,6 +82,9 @@ func decodeObject(raw json.RawMessage) (map[string]any, error) {
 	if err := dec.Decode(&out); err != nil {
 		return nil, err
 	}
+	if out == nil {
+		return nil, errors.New("not a JSON object")
+	}
 	return out, nil
 }
 
@@ -94,12 +96,7 @@ func decodeCrew(raw json.RawMessage) ([]CrewEntry, error) {
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		return nil, err
 	}
-	sort.SliceStable(entries, func(i, j int) bool {
-		if entries[i].Role != entries[j].Role {
-			return entries[i].Role < entries[j].Role
-		}
-		return entries[i].Name < entries[j].Name
-	})
+	models.SortCrewKeys(entries)
 	return entries, nil
 }
 
@@ -146,16 +143,47 @@ func DiffFlightStates(oldSnap json.RawMessage, oldCrew json.RawMessage, newSnap 
 	if err != nil {
 		return nil, err
 	}
-	if !reflect.DeepEqual(crewKeys(oc), crewKeys(nc)) {
-		changes = append(changes, FieldChange{Field: "crewMembers", OldValue: crewKeys(oc), NewValue: crewKeys(nc)})
+	if !models.SameCrewKeys(oc, nc) {
+		changes = append(changes, FieldChange{Field: "crewMembers", OldValue: orEmptyCrew(oc), NewValue: orEmptyCrew(nc)})
 	}
 	return changes, nil
 }
 
-func crewKeys(entries []CrewEntry) []CrewEntry {
-	out := make([]CrewEntry, 0, len(entries))
-	out = append(out, entries...)
-	return out
+func orEmptyCrew(entries []CrewEntry) []CrewEntry {
+	if entries == nil {
+		return []CrewEntry{}
+	}
+	return entries
+}
+
+// revisionViews turns one flight's revisions (oldest first) into views, each
+// diffed against the next state: the following revision's snapshot, or current
+// when the flight still exists. A revision that cannot be diffed keeps an
+// empty change list.
+func revisionViews(revs []models.FlightRevision, current *models.FlightState) []RevisionView {
+	views := make([]RevisionView, len(revs))
+	for i := range revs {
+		views[i] = RevisionView{FlightRevision: revs[i], Changes: []FieldChange{}}
+		if revs[i].Kind == models.RevisionKindDelete {
+			continue
+		}
+		var next models.FlightState
+		switch {
+		case i+1 < len(revs):
+			next = models.FlightState{Snapshot: revs[i+1].Snapshot, Crew: revs[i+1].CrewSnapshot}
+		case current != nil:
+			next = *current
+		default:
+			continue
+		}
+		changes, err := DiffFlightStates(revs[i].Snapshot, revs[i].CrewSnapshot, next.Snapshot, next.Crew)
+		if err != nil {
+			slog.Warn("flight revision cannot be diffed", "revisionId", revs[i].ID, "flightId", revs[i].FlightID, "error", err)
+			continue
+		}
+		views[i].Changes = changes
+	}
+	return views
 }
 
 // ListRevisions returns the flight's revisions newest first, each with the
@@ -175,34 +203,55 @@ func (s *LogbookService) ListRevisions(ctx context.Context, userID, flightID uui
 		return nil, ErrFlightNotFound
 	}
 
-	views := make([]RevisionView, len(revs))
-	for i := range revs {
-		views[i] = RevisionView{FlightRevision: revs[i], Changes: []FieldChange{}}
-		if revs[i].Kind == models.RevisionKindDelete {
-			continue
-		}
-		nextSnap, nextCrew := curSnap, curCrew
-		hasNext := exists
-		if i+1 < len(revs) {
-			nextSnap, nextCrew, hasNext = revs[i+1].Snapshot, revs[i+1].CrewSnapshot, true
-		}
-		if !hasNext {
-			continue
-		}
-		changes, err := DiffFlightStates(revs[i].Snapshot, revs[i].CrewSnapshot, nextSnap, nextCrew)
-		if err != nil {
-			return nil, err
-		}
-		views[i].Changes = changes
+	var current *models.FlightState
+	if exists {
+		current = &models.FlightState{Snapshot: curSnap, Crew: curCrew}
 	}
-
+	views := revisionViews(revs, current)
 	for i, j := 0, len(views)-1; i < j; i, j = i+1, j-1 {
 		views[i], views[j] = views[j], views[i]
 	}
 	return views, nil
 }
 
-// ListVoided returns the user's deleted flights, newest first.
+// snapshotSummary is the part of a stored flight snapshot the voided list and
+// the exports read.
+type snapshotSummary struct {
+	ID            string  `json:"id"`
+	Date          string  `json:"date"`
+	AircraftReg   string  `json:"aircraft_reg"`
+	AircraftType  string  `json:"aircraft_type"`
+	DepartureICAO *string `json:"departure_icao"`
+	ArrivalICAO   *string `json:"arrival_icao"`
+	TotalTime     int     `json:"total_time"`
+	Remarks       *string `json:"remarks"`
+
+	date time.Time
+}
+
+// parseSnapshotSummary reads the summary fields of a flight snapshot. The
+// snapshot must be a JSON object with a valid id and a YYYY-MM-DD date.
+func parseSnapshotSummary(raw json.RawMessage) (snapshotSummary, error) {
+	var out snapshotSummary
+	if trimmed := bytes.TrimSpace(raw); len(trimmed) == 0 || trimmed[0] != '{' {
+		return out, errors.New("snapshot is not a JSON object")
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return out, err
+	}
+	if _, err := uuid.Parse(out.ID); err != nil {
+		return out, fmt.Errorf("snapshot id: %w", err)
+	}
+	date, err := time.Parse("2006-01-02", out.Date)
+	if err != nil {
+		return out, fmt.Errorf("snapshot date: %w", err)
+	}
+	out.date = date
+	return out, nil
+}
+
+// ListVoided returns the user's deleted flights, newest first. A void record
+// whose snapshot cannot be read is logged and left out.
 func (s *LogbookService) ListVoided(ctx context.Context, userID uuid.UUID) ([]VoidedFlight, error) {
 	revs, err := s.repo.ListVoided(ctx, userID)
 	if err != nil {
@@ -210,21 +259,10 @@ func (s *LogbookService) ListVoided(ctx context.Context, userID uuid.UUID) ([]Vo
 	}
 	out := make([]VoidedFlight, 0, len(revs))
 	for _, rev := range revs {
-		var snap struct {
-			Date          string  `json:"date"`
-			AircraftReg   string  `json:"aircraft_reg"`
-			AircraftType  string  `json:"aircraft_type"`
-			DepartureICAO *string `json:"departure_icao"`
-			ArrivalICAO   *string `json:"arrival_icao"`
-			TotalTime     int     `json:"total_time"`
-			Remarks       *string `json:"remarks"`
-		}
-		if err := json.Unmarshal(rev.Snapshot, &snap); err != nil {
-			return nil, err
-		}
-		date, err := time.Parse("2006-01-02", snap.Date)
+		snap, err := parseSnapshotSummary(rev.Snapshot)
 		if err != nil {
-			return nil, err
+			slog.Warn("void record has an unreadable snapshot", "revisionId", rev.ID, "flightId", rev.FlightID, "error", err)
+			continue
 		}
 		out = append(out, VoidedFlight{
 			FlightID:      rev.FlightID,
@@ -233,7 +271,7 @@ func (s *LogbookService) ListVoided(ctx context.Context, userID uuid.UUID) ([]Vo
 			Reason:        rev.Reason,
 			Source:        rev.Source,
 			IsCorrection:  rev.IsCorrection,
-			Date:          date,
+			Date:          snap.date,
 			AircraftReg:   snap.AircraftReg,
 			AircraftType:  snap.AircraftType,
 			DepartureICAO: snap.DepartureICAO,

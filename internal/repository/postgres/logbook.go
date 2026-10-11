@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type logbookRepository struct {
@@ -221,6 +222,29 @@ func (r *logbookRepository) CurrentFlightState(ctx context.Context, userID, flig
 		return nil, nil, err
 	}
 	return snapshot, crew, nil
+}
+
+func (r *logbookRepository) CurrentFlightStates(ctx context.Context, userID uuid.UUID, flightIDs []uuid.UUID) (map[uuid.UUID]models.FlightState, error) {
+	out := make(map[uuid.UUID]models.FlightState, len(flightIDs))
+	if len(flightIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT f.id, to_jsonb(f), flight_revision_crew(f.id) FROM flights f
+		  WHERE f.user_id = $1 AND f.id = ANY($2)`, userID, pq.Array(flightIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id uuid.UUID
+		var snapshot, crew []byte
+		if err := rows.Scan(&id, &snapshot, &crew); err != nil {
+			return nil, err
+		}
+		out[id] = models.FlightState{Snapshot: snapshot, Crew: crew}
+	}
+	return out, rows.Err()
 }
 
 func (r *logbookRepository) ListRevisions(ctx context.Context, userID, flightID uuid.UUID) ([]models.FlightRevision, error) {

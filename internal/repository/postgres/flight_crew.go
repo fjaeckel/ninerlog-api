@@ -34,6 +34,11 @@ func replaceCrewMembers(ctx context.Context, db execer, flightID uuid.UUID, memb
 	if _, err := db.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id = $1`, flightID); err != nil {
 		return err
 	}
+	return insertCrewMembers(ctx, db, flightID, members)
+}
+
+// insertCrewMembers inserts members as the flight's crew rows.
+func insertCrewMembers(ctx context.Context, db execer, flightID uuid.UUID, members []models.FlightCrewMember) error {
 	const query = `
 		INSERT INTO flight_crew_members (id, flight_id, contact_id, name, role)
 		VALUES ($1, $2, $3, $4, $5)

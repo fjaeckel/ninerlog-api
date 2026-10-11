@@ -456,7 +456,7 @@ rules. Nothing below is recorded outside strict mode.
 | `GET /logbook/mode` | `strict`, `since`, the shortest `draftWindow` (`flight_day` / `hours_48`), `overridesDownwardOnly`, `latestCertifiedThrough`, the licences that require (`requiredBy`) or suggest (`suggestedBy`) strict mode with their `basis`, and every switch (`events`, oldest first). |
 | `PUT /logbook/mode` | `{strict}`. Stores a `manual` event only when the state changes; switching on sets `since`. Switching off is always allowed, also while a licence requires strict mode. |
 | `GET /logbook/certifications` | The user's "certified through" statements, newest first. |
-| `POST /logbook/certifications` | `{certifiedThrough}` (a date). `201`; `409` `strict_mode_required` when strict mode is off; `422` `certification_in_future` or `certification_before_latest`. |
+| `POST /logbook/certifications` | `{certifiedThrough}` (a date). `201`; `409` `strict_mode_required` when strict mode is off; `422` `certification_in_future` (later than today at UTC+14) or `certification_before_latest`. |
 | `GET /flights/{flightId}/revisions` | The flight's revisions, newest first, each with `changes` (field, old value, new value) computed on the server against the next state (the next revision, or the current flight and crew for the newest). Field names are the `Flight` schema's camelCase names; the crew appears as one `crewMembers` change of `{name, role}` arrays. A delete revision has no changes. Owner only (`404` otherwise); works for a deleted flight while a void record exists. |
 | `GET /flights/voided` | The user's deleted flights, newest first, with the reason and the flight's last state. |
 
@@ -466,7 +466,7 @@ edit that is a correction without a reason (and without a voided signature to ta
 `POST /flights` and `PUT /flights/{flightId}` answer `422` with
 `code: override_exceeds_calculated` and one `details[].field` per override that exceeds its
 calculated value. A completed signature still locks the flight (`409`), and
-`DELETE /flights/{flightId}?reason=` (max 500 characters) stores the reason on the void
+`DELETE /flights/{flightId}?reason=` (max 500 characters, counted as characters, not bytes) stores the reason on the void
 record; a delete is never a `422`.
 
 Signature responses carry `fieldsHash` (SHA-256 of the signed fields, stored when the signature
@@ -707,10 +707,12 @@ run in one database transaction, so a failure writes nothing.
   the restored ids (a deleted flight's void records share one fresh id), keep their revision
   number, kind, source, reason, correction flag and time, and lose crew contact links. Mode
   switches and certifications keep their timestamps; a restored flight keeps its
-  `createdAt`. A strict backup switches a non-strict account to strict mode with an `import`
-  event. A revision with an unreadable snapshot, an unknown kind or trigger, or a
-  certification with an unreadable date fails the restore with `400`. The result reports
-  `flightRevisionsImported` and `logbookCertificationsImported`.
+  `createdAt`, never later than the time of the restore. A strict backup switches a
+  non-strict account to strict mode with an `import` event. A revision whose snapshot is not
+  a JSON object with a valid `id` and `YYYY-MM-DD` `date` (or whose crew snapshot is
+  malformed), an unknown kind or trigger, or a certification with an unreadable date fails
+  the restore with `400`. The result reports `flightRevisionsImported` and
+  `logbookCertificationsImported`.
 - In a strict account `replace` keeps the history: the wipe runs with change source `import`
   and reason "Replaced by backup restore", so every deleted flight gets a void record, and
   existing revisions, mode switches and certifications stay; the backup's are added.

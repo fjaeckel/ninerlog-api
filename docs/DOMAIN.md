@@ -431,9 +431,16 @@ nothing. Deletes are classified by rules 1 to 3 and stored on the void record; a
 never refused for lack of a reason.
 
 Changes the system makes are never classified and never need a reason: recalculation
-(`recalc`), an aircraft re-registration that renames flights (`aircraft_rename`) and imports
-(`import`). They are recorded with their source so exports and the history card can label
-them as system changes.
+(`recalc`) and an aircraft re-registration that renames flights (`aircraft_rename`). They are
+recorded with their source so exports and the history card can label them as system changes.
+Imports create new flights and record no revision; `import` stays a valid stored source so
+revisions restored from another installation keep it.
+
+Renaming a contact rewrites the crew names on the user's unsigned flights (signed flights
+keep the name they were signed with). The rewrite is a `user_edit` with the automatic reason
+`Crew contact renamed: <old> → <new>`; it never needs a user-supplied reason and is never
+refused. Each affected flight is classified with rules 1 to 3, and flights that are
+corrections are stored with `is_correction`.
 
 ### Overrides under a Swiss licence
 
@@ -448,7 +455,8 @@ are not rechecked.
 ### Certification
 
 `POST /logbook/certifications` records that the pilot certifies the logbook through a date
-(AMC1 FCL.050 (e)(2)). The date may not be in the future (`certification_in_future`) nor
+(AMC1 FCL.050 (e)(2)). The date may not be later than today at UTC+14, the latest timezone on Earth, so a pilot
+anywhere can certify the current day (`certification_in_future`), nor
 earlier than the latest certification (`certification_before_latest`), and strict mode must
 be on (`409` `strict_mode_required`). Certifying does not lock flights; later edits to
 flights on or before the date are corrections (rule 3).
@@ -459,7 +467,7 @@ Capture is a database concern, not application code: flights are also changed by
 that never pass through a service (bulk operations, cascades, raw SQL). Migration 79 puts
 `BEFORE` triggers on `flights` and `flight_crew_members` that store a pre-image of the flight
 and its crew once per transaction, only when the owner is in strict mode, the flight was not
-inserted in the same transaction and the change source is not `create`. A deferred
+inserted in the same transaction. A deferred
 constraint trigger compares the pre-image with the final state at `COMMIT` and writes one
 revision per flight per transaction only if something other than `updated_at` and
 `signature_id` (or the crew's names and roles) changed.
@@ -471,8 +479,10 @@ settings `ninerlog.change_source`, `ninerlog.change_reason` and `ninerlog.change
 (`applyChangeContext`); a write with no change context is stored with source `unknown`.
 Two consequences for code: a logical user edit must be **one transaction** (the flight update
 and the crew replacement are done by `FlightRepository.UpdateWithCrew`, otherwise one edit
-would yield several revisions), and crew rows written for a newly created flight must carry
-source `create`.
+would yield several revisions), and a new flight and its crew must be written in **one
+transaction** (`FlightRepository.CreateWithCrew`), so the "inserted in this transaction"
+check covers the crew rows too. Contacts are linked to the crew only after every check of the
+write has passed, so a rejected request creates no contacts.
 
 ### Signed fields hash
 
@@ -488,8 +498,9 @@ signature that was attested.
 
 Only a user in strict mode gets the audit trail in an export; the state is read when the
 export is made, so switching strict mode off returns the standard output while the recorded
-history stays. `LogbookService.ExportHistory` assembles it from `ListRevisions` and
-`ListVoided`, so the diff and ordering match `GET /flights/{id}/revisions`.
+history stays. `LogbookService.ExportHistory` assembles it from the user's revisions and the current
+state of the edited flights in two queries, with the same diff as
+`GET /flights/{id}/revisions`, and from `ListVoided`.
 
 - **CSV** (standard, EASA, FAA): `corrected` (`yes` when the flight has a correction
   revision) and `last_corrected_at` (latest correction, RFC 3339 UTC).
@@ -513,9 +524,16 @@ Revision numbers, snapshots (with `id` and `user_id` rewritten), sources, reason
 flags and timestamps are kept; crew snapshots lose their contact links. If the backup was
 strict and the account is not, strict mode is switched on with an `import` event after the
 backup's own events. A restored flight keeps its `createdAt`, because it anchors the draft
-window. A revision with an unreadable snapshot or crew snapshot, an unknown kind or trigger,
-or a certification with an unreadable date rejects the whole restore with `400`, naming the
-section and position.
+window, but never later than the time of the restore (a missing value counts as the restore
+time).
+
+A revision whose `snapshot` is not a JSON object with a valid `id` and a `YYYY-MM-DD` `date`,
+whose summary fields (`aircraft_reg`, `total_time`, ...) have the wrong type, or whose
+`crewSnapshot` is not a list of `{name, role}` objects, an unknown kind or trigger, or a
+certification with an unreadable date rejects the whole restore with `400`, naming the
+section and position. Revisions are append-only and cannot be repaired later, so the readers
+(the voided list, the change log, the exports) skip a record they cannot read, or show it with
+no field changes, and log it instead of failing the whole response.
 
 The restore transaction carries change source `import`. With `mode=replace` it also carries
 the reason "Replaced by backup restore": history is append-only and a replace never deletes

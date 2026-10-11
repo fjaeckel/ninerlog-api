@@ -203,7 +203,7 @@ func (m *mockContactRepo) Update(_ context.Context, c *models.Contact) error {
 	m.contacts[c.ID] = c
 	return nil
 }
-func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact) (int, error) {
+func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact, _ *repository.CrewRename) (int, error) {
 	return 0, m.Update(ctx, c)
 }
 func (m *mockContactRepo) RolesByContact(_ context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error) {
@@ -423,6 +423,11 @@ type mockFlightRepo struct {
 	// lastOpts records the options the handler built, so tests can assert
 	// that a query parameter actually reached the repository layer.
 	lastOpts *repository.FlightQueryOptions
+	// crew, when set, receives the crew CreateWithCrew writes; an error
+	// removes the flight again.
+	crew interface {
+		SetCrewMembers(ctx context.Context, flightID uuid.UUID, members []models.FlightCrewMember) error
+	}
 }
 
 func newMockFlightRepo() *mockFlightRepo {
@@ -434,6 +439,18 @@ func (m *mockFlightRepo) Create(_ context.Context, f *models.Flight) error {
 	f.CreatedAt = time.Now()
 	f.UpdatedAt = time.Now()
 	m.flights[f.ID] = f
+	return nil
+}
+func (m *mockFlightRepo) CreateWithCrew(ctx context.Context, f *models.Flight, crew []models.FlightCrewMember) error {
+	if err := m.Create(ctx, f); err != nil {
+		return err
+	}
+	if m.crew != nil && len(crew) > 0 {
+		if err := m.crew.SetCrewMembers(ctx, f.ID, crew); err != nil {
+			delete(m.flights, f.ID)
+			return err
+		}
+	}
 	return nil
 }
 func (m *mockFlightRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Flight, error) {

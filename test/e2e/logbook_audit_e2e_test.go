@@ -428,8 +428,8 @@ func TestLogbookCertifications(t *testing.T) {
 
 	switchStrict(t, c, true)
 
-	t.Run("a future date is rejected", func(t *testing.T) {
-		r := post(futureDate(1))
+	t.Run("a date beyond today at UTC+14 is rejected", func(t *testing.T) {
+		r := post(futureDate(2))
 		requireStatus(t, r, http.StatusUnprocessableEntity)
 		if code := errorCode(t, r); code != "certification_in_future" {
 			t.Errorf("code = %q", code)

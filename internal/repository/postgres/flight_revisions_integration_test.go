@@ -66,14 +66,10 @@ func TestFlightRevisionCaptureIntegration(t *testing.T) {
 			LandingsDay:   1,
 			TakeoffsDay:   1,
 		}
-		if err := flightRepo.Create(ctx, f); err != nil {
-			t.Fatalf("create flight: %v", err)
-		}
-		createCtx := repository.WithChangeSource(ctx, repository.ChangeSourceCreate)
-		if err := crewRepo.SetCrewMembers(createCtx, f.ID, []models.FlightCrewMember{
+		if err := flightRepo.CreateWithCrew(ctx, f, []models.FlightCrewMember{
 			{Name: "Pat Instructor", Role: models.CrewRole("Instructor")},
 		}); err != nil {
-			t.Fatalf("create crew: %v", err)
+			t.Fatalf("create flight: %v", err)
 		}
 		return f
 	}

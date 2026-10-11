@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"encoding/json"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -61,28 +61,41 @@ func (s *LogbookService) ExportHistory(ctx context.Context, userID uuid.UUID) (*
 		LastCorrectedAt: lastCorrections(all),
 	}
 
+	edited := map[uuid.UUID]bool{}
 	flightIDs := []uuid.UUID{}
-	seen := map[uuid.UUID]bool{}
 	for _, rev := range all {
-		if rev.Kind != models.RevisionKindUpdate || seen[rev.FlightID] {
-			continue
+		if rev.Kind == models.RevisionKindUpdate && !edited[rev.FlightID] {
+			edited[rev.FlightID] = true
+			flightIDs = append(flightIDs, rev.FlightID)
 		}
-		seen[rev.FlightID] = true
-		flightIDs = append(flightIDs, rev.FlightID)
+	}
+	byFlight := map[uuid.UUID][]models.FlightRevision{}
+	for _, rev := range all {
+		if edited[rev.FlightID] {
+			byFlight[rev.FlightID] = append(byFlight[rev.FlightID], rev)
+		}
+	}
+	for _, revs := range byFlight {
+		sort.SliceStable(revs, func(i, j int) bool { return revs[i].RevisionNo < revs[j].RevisionNo })
+	}
+	current, err := s.repo.CurrentFlightStates(ctx, userID, flightIDs)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, flightID := range flightIDs {
-		views, err := s.ListRevisions(ctx, userID, flightID)
-		if err != nil {
-			return nil, err
+		var state *models.FlightState
+		if st, ok := current[flightID]; ok {
+			state = &st
 		}
-		for _, view := range views {
+		for _, view := range revisionViews(byFlight[flightID], state) {
 			if view.Kind != models.RevisionKindUpdate {
 				continue
 			}
 			entry, err := exportRevisionOf(view)
 			if err != nil {
-				return nil, err
+				slog.Warn("flight revision has an unreadable snapshot", "revisionId", view.ID, "flightId", view.FlightID, "error", err)
+				continue
 			}
 			history.Revisions = append(history.Revisions, entry)
 		}
@@ -107,16 +120,7 @@ func (s *LogbookService) ExportHistory(ctx context.Context, userID uuid.UUID) (*
 }
 
 func exportRevisionOf(view RevisionView) (ExportRevision, error) {
-	var snap struct {
-		Date          string  `json:"date"`
-		AircraftReg   string  `json:"aircraft_reg"`
-		DepartureICAO *string `json:"departure_icao"`
-		ArrivalICAO   *string `json:"arrival_icao"`
-	}
-	if err := json.Unmarshal(view.Snapshot, &snap); err != nil {
-		return ExportRevision{}, err
-	}
-	date, err := time.Parse("2006-01-02", snap.Date)
+	snap, err := parseSnapshotSummary(view.Snapshot)
 	if err != nil {
 		return ExportRevision{}, err
 	}
@@ -124,7 +128,7 @@ func exportRevisionOf(view RevisionView) (ExportRevision, error) {
 		FlightID:      view.FlightID,
 		RevisionNo:    view.RevisionNo,
 		ChangedAt:     view.ChangedAt,
-		Date:          date,
+		Date:          snap.date,
 		AircraftReg:   snap.AircraftReg,
 		DepartureICAO: snap.DepartureICAO,
 		ArrivalICAO:   snap.ArrivalICAO,

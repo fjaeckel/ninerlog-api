@@ -195,9 +195,35 @@ func TestRestore_FlightKeepsItsCreatedAt(t *testing.T) {
 	p := samplePayload()
 	created := time.Date(2025, 12, 31, 7, 0, 0, 0, time.UTC)
 	p.Flights[0].CreatedAt = created
+	p.Flights[1].CreatedAt = time.Now().Add(72 * time.Hour)
 	store := restorefake.New()
 
+	before := time.Now()
 	_, err := NewRestorer(store).Restore(context.Background(), uuid.New(), p, RestoreModeRestore)
 	require.NoError(t, err)
 	assert.True(t, store.State.Flights[0].CreatedAt.Equal(created))
+	assert.False(t, store.State.Flights[1].CreatedAt.Before(before))
+	assert.False(t, store.State.Flights[1].CreatedAt.After(time.Now()), "a future createdAt is clamped to the restore time")
+}
+
+func TestRestoredCreatedAt(t *testing.T) {
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	past := now.Add(-48 * time.Hour)
+	tests := []struct {
+		name   string
+		backup time.Time
+		want   time.Time
+	}{
+		{"past value is kept", past, past},
+		{"value equal to now is kept", now, now},
+		{"future value is clamped to now", now.Add(24 * time.Hour), now},
+		{"missing value becomes now", time.Time{}, now},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := restoredCreatedAt(tt.backup, now); !got.Equal(tt.want) {
+				t.Errorf("restoredCreatedAt() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

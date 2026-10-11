@@ -80,9 +80,6 @@ DECLARE
     born_here BOOLEAN;
     src       TEXT := NULLIF(current_setting('ninerlog.change_source', true), '');
 BEGIN
-    IF src = 'create' THEN
-        RETURN;
-    END IF;
     IF EXISTS (SELECT 1 FROM flight_revision_pending WHERE tx_id = txid_current() AND flight_id = fid) THEN
         RETURN;
     END IF;

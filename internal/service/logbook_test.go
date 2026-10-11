@@ -21,6 +21,12 @@ type fakeLogbookRepo struct {
 	certs     []models.LogbookCertification
 	revisions []models.FlightRevision
 	current   map[uuid.UUID][2]json.RawMessage
+
+	getModeCalls          int
+	currentStateCalls     int
+	currentStatesCalls    int
+	listRevisionsCalls    int
+	listUserRevisionCalls int
 }
 
 func newFakeLogbookRepo() *fakeLogbookRepo {
@@ -38,6 +44,7 @@ func (f *fakeLogbookRepo) mode(userID uuid.UUID) *models.LogbookMode {
 }
 
 func (f *fakeLogbookRepo) GetMode(_ context.Context, userID uuid.UUID) (*models.LogbookMode, error) {
+	f.getModeCalls++
 	m := *f.mode(userID)
 	return &m, nil
 }
@@ -121,7 +128,19 @@ func (f *fakeLogbookRepo) LatestCertifiedThrough(_ context.Context, userID uuid.
 	return latest, nil
 }
 
+func (f *fakeLogbookRepo) CurrentFlightStates(_ context.Context, _ uuid.UUID, flightIDs []uuid.UUID) (map[uuid.UUID]models.FlightState, error) {
+	f.currentStatesCalls++
+	out := map[uuid.UUID]models.FlightState{}
+	for _, id := range flightIDs {
+		if state, ok := f.current[id]; ok {
+			out[id] = models.FlightState{Snapshot: state[0], Crew: state[1]}
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeLogbookRepo) CurrentFlightState(_ context.Context, _, flightID uuid.UUID) (json.RawMessage, json.RawMessage, error) {
+	f.currentStateCalls++
 	state, ok := f.current[flightID]
 	if !ok {
 		return nil, nil, repository.ErrNotFound
@@ -130,6 +149,7 @@ func (f *fakeLogbookRepo) CurrentFlightState(_ context.Context, _, flightID uuid
 }
 
 func (f *fakeLogbookRepo) ListRevisions(_ context.Context, userID, flightID uuid.UUID) ([]models.FlightRevision, error) {
+	f.listRevisionsCalls++
 	out := []models.FlightRevision{}
 	for _, r := range f.revisions {
 		if r.UserID == userID && r.FlightID == flightID {
@@ -141,6 +161,7 @@ func (f *fakeLogbookRepo) ListRevisions(_ context.Context, userID, flightID uuid
 }
 
 func (f *fakeLogbookRepo) ListUserRevisions(_ context.Context, userID uuid.UUID) ([]models.FlightRevision, error) {
+	f.listUserRevisionCalls++
 	out := []models.FlightRevision{}
 	for _, r := range f.revisions {
 		if r.UserID == userID {
@@ -372,7 +393,8 @@ func TestLogbookService_CreateCertification(t *testing.T) {
 		wantErr error
 	}{
 		{"strict mode off", false, nil, today, ErrStrictModeRequired},
-		{"future date", true, nil, today.AddDate(0, 0, 1), ErrCertificationInFuture},
+		{"future date", true, nil, today.AddDate(0, 0, 2), ErrCertificationInFuture},
+		{"tomorrow is already today at UTC+14", true, nil, today.AddDate(0, 0, 1), nil},
 		{"before the latest", true, &today, today.AddDate(0, 0, -1), ErrCertificationBeforeLatest},
 		{"today", true, nil, today, nil},
 		{"same as the latest", true, &today, today, nil},
@@ -478,7 +500,7 @@ func TestLogbookService_ListVoided(t *testing.T) {
 	e := newLogbookEnv(t, true)
 	snap := func(reg string) json.RawMessage {
 		b, _ := json.Marshal(map[string]any{
-			"date": "2026-03-01", "aircraft_reg": reg, "aircraft_type": "C172",
+			"id": uuid.NewString(), "date": "2026-03-01", "aircraft_reg": reg, "aircraft_type": "C172",
 			"departure_icao": "EDDF", "arrival_icao": nil, "total_time": 80, "remarks": "r",
 		})
 		return b
@@ -528,7 +550,7 @@ func TestLogbookService_ImportLogbook(t *testing.T) {
 	ctx := context.Background()
 	oldFlight, deletedFlight, restoredFlight := uuid.New(), uuid.New(), uuid.New()
 	snap := func(id uuid.UUID) json.RawMessage {
-		b, _ := json.Marshal(map[string]any{"id": id, "user_id": uuid.New(), "total_time": 60})
+		b, _ := json.Marshal(map[string]any{"id": id, "user_id": uuid.New(), "date": "2026-03-01", "total_time": 60})
 		return b
 	}
 	crew := json.RawMessage(`[{"name":"Pat","role":"Instructor","contactId":"` + uuid.NewString() + `"}]`)

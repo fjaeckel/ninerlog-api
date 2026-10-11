@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"reflect"
-	"sort"
 	"strings"
 	"time"
 
@@ -63,27 +61,35 @@ type FlightWriteOptions struct {
 	CorrectionReason string
 	// Source is the change source recorded for the write; empty means user_edit.
 	Source string
-	// Crew, when non-nil, replaces the flight's crew in the same transaction.
+	// Crew, when non-nil, is written with the flight in the same transaction.
 	Crew *[]models.FlightCrewMember
+	// BeforeWrite runs after every check has passed, right before the write.
+	BeforeWrite func(ctx context.Context) error
 }
 
 // CreateFlight creates a new flight log entry
 func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight) error {
-	return s.createFlight(ctx, flight)
+	return s.CreateFlightWith(ctx, flight, FlightWriteOptions{})
 }
 
 // CreateFlightChecked creates a flight entered by the user, rejecting
 // overrides that strict-mode rules do not allow.
 func (s *FlightService) CreateFlightChecked(ctx context.Context, flight *models.Flight, opts FlightWriteOptions) error {
-	if s.logbook != nil {
-		if err := s.logbook.CheckDownwardOverrides(ctx, flight.UserID, nil, flight, opts.UserName, opts.Facts); err != nil {
+	if s.logbook != nil && hasOverride(flight) {
+		state, err := s.logbook.LoadState(ctx, flight.UserID)
+		if err != nil {
+			return err
+		}
+		if err := s.logbook.CheckDownwardOverridesWith(state, nil, flight, opts.UserName, opts.Facts); err != nil {
 			return err
 		}
 	}
-	return s.createFlight(ctx, flight)
+	return s.CreateFlightWith(ctx, flight, opts)
 }
 
-func (s *FlightService) createFlight(ctx context.Context, flight *models.Flight) error {
+// CreateFlightWith validates the flight and writes it together with opts.Crew
+// in one transaction.
+func (s *FlightService) CreateFlightWith(ctx context.Context, flight *models.Flight, opts FlightWriteOptions) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 
 	// Validate text field lengths
@@ -101,7 +107,16 @@ func (s *FlightService) createFlight(ctx context.Context, flight *models.Flight)
 		return err
 	}
 
-	return s.flightRepo.Create(ctx, flight)
+	if opts.BeforeWrite != nil {
+		if err := opts.BeforeWrite(ctx); err != nil {
+			return err
+		}
+	}
+	var crew []models.FlightCrewMember
+	if opts.Crew != nil {
+		crew = *opts.Crew
+	}
+	return s.flightRepo.CreateWithCrew(ctx, flight, crew)
 }
 
 // GetFlight retrieves a flight by ID and verifies user ownership
@@ -182,15 +197,19 @@ func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Fli
 	}
 	change := repository.ChangeContext{Source: source}
 
-	if source == repository.ChangeSourceUserEdit && s.logbook != nil && s.changesFlight(ctx, existing, flight, opts.Crew) {
-		if err := s.logbook.CheckDownwardOverrides(ctx, userID, existing, flight, opts.UserName, opts.Facts); err != nil {
-			return err
-		}
-		class, err := s.logbook.ClassifyEdit(ctx, userID, existing, flight)
+	if source == repository.ChangeSourceUserEdit && s.logbook != nil {
+		state, err := s.logbook.LoadState(ctx, userID)
 		if err != nil {
 			return err
 		}
-		if class.Strict {
+		if state.Strict && s.changesFlight(ctx, existing, flight, opts.Crew) {
+			if err := s.logbook.CheckDownwardOverridesWith(state, existing, flight, opts.UserName, opts.Facts); err != nil {
+				return err
+			}
+			class, err := s.logbook.ClassifyEditWith(ctx, state, existing, flight)
+			if err != nil {
+				return err
+			}
 			reason := strings.TrimSpace(opts.CorrectionReason)
 			if reason == "" {
 				reason = class.DefaultReason
@@ -205,6 +224,11 @@ func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Fli
 		}
 	}
 
+	if opts.BeforeWrite != nil {
+		if err := opts.BeforeWrite(ctx); err != nil {
+			return err
+		}
+	}
 	ctx = repository.WithChangeContext(ctx, change)
 	if opts.Crew != nil {
 		return s.flightRepo.UpdateWithCrew(ctx, flight, *opts.Crew)
@@ -228,7 +252,7 @@ func (s *FlightService) changesFlight(ctx context.Context, existing, updated *mo
 	if err != nil {
 		return true
 	}
-	return !sameCrew(current, *crew)
+	return !models.SameCrew(current, *crew)
 }
 
 // flightRowsEqual compares two flights on everything a revision records.
@@ -242,18 +266,6 @@ func flightRowsEqual(a, b *models.Flight) bool {
 	xj, errX := json.Marshal(x)
 	yj, errY := json.Marshal(y)
 	return errX == nil && errY == nil && bytes.Equal(xj, yj)
-}
-
-func sameCrew(a, b []models.FlightCrewMember) bool {
-	key := func(list []models.FlightCrewMember) []string {
-		out := make([]string, 0, len(list))
-		for _, m := range list {
-			out = append(out, string(m.Role)+"\x00"+m.Name)
-		}
-		sort.Strings(out)
-		return out
-	}
-	return reflect.DeepEqual(key(a), key(b))
 }
 
 // DeleteFlight deletes a flight and verifies user ownership
