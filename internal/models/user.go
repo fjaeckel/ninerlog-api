@@ -75,8 +75,17 @@ var FlightListColumns = []string{
 	"multiPilotTime",
 	"soloTime",
 	"simulatedFlightTime",
+	"actualInstrumentTime",
+	"simulatedInstrumentTime",
+	"groundTrainingTime",
 	"function",
 	"landings",
+	"approaches",
+	"distance",
+	"picName",
+	"instructorName",
+	"crew",
+	"launchMethod",
 	"remarks",
 }
 

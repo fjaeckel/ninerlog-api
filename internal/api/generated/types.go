@@ -1040,30 +1040,47 @@ func (e FlightCreateLaunchMethod) Valid() bool {
 
 // Defines values for FlightListColumn.
 const (
-	FlightListColumnCrossCountryTime    FlightListColumn = "crossCountryTime"
-	FlightListColumnDualGivenTime       FlightListColumn = "dualGivenTime"
-	FlightListColumnDualTime            FlightListColumn = "dualTime"
-	FlightListColumnExaminerTime        FlightListColumn = "examinerTime"
-	FlightListColumnFunction            FlightListColumn = "function"
-	FlightListColumnIfrTime             FlightListColumn = "ifrTime"
-	FlightListColumnLandings            FlightListColumn = "landings"
-	FlightListColumnMultiPilotTime      FlightListColumn = "multiPilotTime"
-	FlightListColumnNightTime           FlightListColumn = "nightTime"
-	FlightListColumnOffOnBlock          FlightListColumn = "offOnBlock"
-	FlightListColumnPicTime             FlightListColumn = "picTime"
-	FlightListColumnPicusTime           FlightListColumn = "picusTime"
-	FlightListColumnReliefTime          FlightListColumn = "reliefTime"
-	FlightListColumnRemarks             FlightListColumn = "remarks"
-	FlightListColumnSicTime             FlightListColumn = "sicTime"
-	FlightListColumnSimulatedFlightTime FlightListColumn = "simulatedFlightTime"
-	FlightListColumnSoloTime            FlightListColumn = "soloTime"
-	FlightListColumnSpicTime            FlightListColumn = "spicTime"
+	FlightListColumnActualInstrumentTime    FlightListColumn = "actualInstrumentTime"
+	FlightListColumnApproaches              FlightListColumn = "approaches"
+	FlightListColumnCrew                    FlightListColumn = "crew"
+	FlightListColumnCrossCountryTime        FlightListColumn = "crossCountryTime"
+	FlightListColumnDistance                FlightListColumn = "distance"
+	FlightListColumnDualGivenTime           FlightListColumn = "dualGivenTime"
+	FlightListColumnDualTime                FlightListColumn = "dualTime"
+	FlightListColumnExaminerTime            FlightListColumn = "examinerTime"
+	FlightListColumnFunction                FlightListColumn = "function"
+	FlightListColumnGroundTrainingTime      FlightListColumn = "groundTrainingTime"
+	FlightListColumnIfrTime                 FlightListColumn = "ifrTime"
+	FlightListColumnInstructorName          FlightListColumn = "instructorName"
+	FlightListColumnLandings                FlightListColumn = "landings"
+	FlightListColumnLaunchMethod            FlightListColumn = "launchMethod"
+	FlightListColumnMultiPilotTime          FlightListColumn = "multiPilotTime"
+	FlightListColumnNightTime               FlightListColumn = "nightTime"
+	FlightListColumnOffOnBlock              FlightListColumn = "offOnBlock"
+	FlightListColumnPicName                 FlightListColumn = "picName"
+	FlightListColumnPicTime                 FlightListColumn = "picTime"
+	FlightListColumnPicusTime               FlightListColumn = "picusTime"
+	FlightListColumnReliefTime              FlightListColumn = "reliefTime"
+	FlightListColumnRemarks                 FlightListColumn = "remarks"
+	FlightListColumnSicTime                 FlightListColumn = "sicTime"
+	FlightListColumnSimulatedFlightTime     FlightListColumn = "simulatedFlightTime"
+	FlightListColumnSimulatedInstrumentTime FlightListColumn = "simulatedInstrumentTime"
+	FlightListColumnSoloTime                FlightListColumn = "soloTime"
+	FlightListColumnSpicTime                FlightListColumn = "spicTime"
 )
 
 // Valid indicates whether the value is a known member of the FlightListColumn enum.
 func (e FlightListColumn) Valid() bool {
 	switch e {
+	case FlightListColumnActualInstrumentTime:
+		return true
+	case FlightListColumnApproaches:
+		return true
+	case FlightListColumnCrew:
+		return true
 	case FlightListColumnCrossCountryTime:
+		return true
+	case FlightListColumnDistance:
 		return true
 	case FlightListColumnDualGivenTime:
 		return true
@@ -1073,15 +1090,23 @@ func (e FlightListColumn) Valid() bool {
 		return true
 	case FlightListColumnFunction:
 		return true
+	case FlightListColumnGroundTrainingTime:
+		return true
 	case FlightListColumnIfrTime:
 		return true
+	case FlightListColumnInstructorName:
+		return true
 	case FlightListColumnLandings:
+		return true
+	case FlightListColumnLaunchMethod:
 		return true
 	case FlightListColumnMultiPilotTime:
 		return true
 	case FlightListColumnNightTime:
 		return true
 	case FlightListColumnOffOnBlock:
+		return true
+	case FlightListColumnPicName:
 		return true
 	case FlightListColumnPicTime:
 		return true
@@ -1094,6 +1119,8 @@ func (e FlightListColumn) Valid() bool {
 	case FlightListColumnSicTime:
 		return true
 	case FlightListColumnSimulatedFlightTime:
+		return true
+	case FlightListColumnSimulatedInstrumentTime:
 		return true
 	case FlightListColumnSoloTime:
 		return true

@@ -74,7 +74,9 @@ The account holder. Notable fields:
   `NormalizeFlightListColumns` (applied in `AuthService.UpdateUser`) deduplicates,
   reorders and drops unknown keys, so the column never stores something the clients
   cannot render. The always-present columns — date, route, aircraft, total time — are
-  deliberately not part of the vocabulary.
+  deliberately not part of the vocabulary. Besides times, function, landings and remarks
+  it covers the people on a flight (`picName`, `instructorName`, `crew`) and other details
+  (`approaches`, `distance`, `launchMethod`).
 
 Sensitive fields (`PasswordHash`, `TwoFactorSecret`, `RecoveryCodes`,
 `FailedLoginAttempts`, `LockedUntil`) are tagged `json:"-"` so they never leak through the

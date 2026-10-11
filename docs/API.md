@@ -381,7 +381,9 @@ user's whole fleet first and reports the outcome as `aircraftNormalized` and
 database and `null` when the stored location does not resolve; they are response-only and
 are not accepted on create or update. The open flight session (`/flight-sessions/current`)
 and the analytics `byRoute` rows and flight records carry the same two names. `GET /flights` carries the filter, search, sort and
-pagination parameters, plus `updatedSince` for delta sync. See
+pagination parameters, plus `updatedSince` for delta sync. Its flights include
+`crewMembers` (loaded for the whole page in one query), so a client can show crew in the
+list without fetching each flight. See
 [FEATURES.md](./FEATURES.md#flight-logging).
 
 `POST /flights` creates either a flight or an FSTD (simulator) session, chosen by

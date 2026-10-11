@@ -95,8 +95,17 @@ func TestFlightListColumnsIsStable(t *testing.T) {
 		"multiPilotTime",
 		"soloTime",
 		"simulatedFlightTime",
+		"actualInstrumentTime",
+		"simulatedInstrumentTime",
+		"groundTrainingTime",
 		"function",
 		"landings",
+		"approaches",
+		"distance",
+		"picName",
+		"instructorName",
+		"crew",
+		"launchMethod",
 		"remarks",
 	}
 	if !reflect.DeepEqual(FlightListColumns, want) {

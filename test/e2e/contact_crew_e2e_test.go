@@ -32,6 +32,27 @@ func TestContactDeletionWithCrewReferences(t *testing.T) {
 	r.JSON(&flt)
 	fltID := flt["id"].(string)
 
+	t.Run("flight list carries crew", func(t *testing.T) {
+		r := c.GET("/flights")
+		requireStatus(t, r, 200)
+		var page struct {
+			Data []map[string]interface{} `json:"data"`
+		}
+		r.JSON(&page)
+		for _, f := range page.Data {
+			if f["id"] != fltID {
+				continue
+			}
+			crew, ok := f["crewMembers"].([]interface{})
+			if !ok || len(crew) != 1 {
+				t.Fatalf("crewMembers in list = %v, want one member", f["crewMembers"])
+			}
+			assertStr(t, "crew name in list", crew[0].(map[string]interface{})["name"], "Instructor Linked")
+			return
+		}
+		t.Fatalf("flight %s missing from GET /flights", fltID)
+	})
+
 	// Deleting a contact is always allowed; the crew row keeps the name it
 	// was logged with.
 	t.Run("delete contact used as crew", func(t *testing.T) {

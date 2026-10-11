@@ -134,6 +134,7 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
+	h.attachCrewMembers(c.Request.Context(), flights)
 
 	flightList := make([]generated.Flight, 0, len(flights))
 	for _, f := range flights {

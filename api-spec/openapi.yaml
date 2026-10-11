@@ -2685,7 +2685,9 @@ paths:
       tags:
         - Flights
       summary: List flights
-      description: Get flights for the authenticated user
+      description: >-
+        Get flights for the authenticated user. Each flight carries its
+        crewMembers, as on GET /flights/{id}.
       operationId: listFlights
       security:
         - bearerAuth: []
@@ -6131,8 +6133,17 @@ components:
         - multiPilotTime
         - soloTime
         - simulatedFlightTime
+        - actualInstrumentTime
+        - simulatedInstrumentTime
+        - groundTrainingTime
         - function
         - landings
+        - approaches
+        - distance
+        - picName
+        - instructorName
+        - crew
+        - launchMethod
         - remarks
       example: picTime
 
