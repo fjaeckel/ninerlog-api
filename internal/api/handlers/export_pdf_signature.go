@@ -206,8 +206,22 @@ func (d *pdfDoc) drawEndorsement(x, y, w, h float64, remarks string, sig *models
 		pdf.SetXY(x, y)
 		// Truncated rather than shrunk, so a signed row's remark reads at the
 		// same size as the rows above and below it.
-		text := d.fitText("", g.fontBody, g.fontBody, remarks, avail-2*pdf.GetCellMargin())
-		pdf.CellFormat(avail, h, text, "", 0, "L", false, 0, "")
+		room := avail - 2*pdf.GetCellMargin()
+		body, tail := remarks, ""
+		if m := d.strict.marker(sig.FlightID); m != "" && strings.HasSuffix(remarks, m) {
+			body = strings.TrimRight(strings.TrimSuffix(remarks, m), " ")
+			tail = d.tr(" " + m)
+			if body == "" {
+				tail = d.tr(m)
+			}
+			pdf.SetFont("Helvetica", "", g.fontBody)
+			room -= pdf.GetStringWidth(tail)
+		}
+		text := d.fitText("", g.fontBody, g.fontBody, body, room)
+		if tail != "" && body == "" {
+			text = ""
+		}
+		pdf.CellFormat(avail, h, text+tail, "", 0, "L", false, 0, "")
 	}
 
 	// Wash and gold edge marker set the block apart from free-text remarks.
@@ -272,6 +286,16 @@ func (d *pdfDoc) drawEndorsement(x, y, w, h float64, remarks string, sig *models
 	pdf.SetCellMargin(0)
 	defer pdf.SetCellMargin(cellMargin)
 
+	metaCands := []string{meta, metaShort}
+	if hash := shortSignatureHash(sig); d.strict != nil && hash != "" {
+		full := "#" + hash
+		if meta != "" {
+			full = meta + " · #" + hash
+		}
+		metaCands = []string{full, "#" + hash}
+		meta = full
+	}
+
 	switch {
 	case textW >= sigTwoLineMinW && h >= sigTwoLineMinRow && meta != "":
 		lineH := (h - 0.8) / 2
@@ -280,7 +304,7 @@ func (d *pdfDoc) drawEndorsement(x, y, w, h float64, remarks string, sig *models
 		pdf.CellFormat(textW, lineH, d.fitName("B", g.fontBody-0.6, 3.0, name, textW), "", 0, "L", false, 0, "")
 		setText(pdf, colMuted)
 		pdf.SetXY(textX, y+0.4+lineH)
-		pdf.CellFormat(textW, lineH, d.fitAny("", g.fontBody-1.2, 2.8, textW, meta, metaShort), "", 0, "L", false, 0, "")
+		pdf.CellFormat(textW, lineH, d.fitAny("", g.fontBody-1.2, 2.8, textW, metaCands...), "", 0, "L", false, 0, "")
 	case textW >= sigOneLineMinW:
 		setText(pdf, colBand)
 		pdf.SetXY(textX, y)

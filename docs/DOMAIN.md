@@ -484,6 +484,24 @@ and PIC names, and the crew sorted by role then name, serialised in a fixed fiel
 recomputed on read, so an entry edited after its signature was voided no longer matches the
 signature that was attested.
 
+### Exports
+
+Only a user in strict mode gets the audit trail in an export; the state is read when the
+export is made, so switching strict mode off returns the standard output while the recorded
+history stays. `LogbookService.ExportHistory` assembles it from `ListRevisions` and
+`ListVoided`, so the diff and ordering match `GET /flights/{id}/revisions`.
+
+- **CSV** (standard, EASA, FAA): `corrected` (`yes` when the flight has a correction
+  revision) and `last_corrected_at` (latest correction, RFC 3339 UTC).
+- **PDF** (EASA, FAA, both layouts): flights with a correction revision end their remarks in
+  `†n`; `n` numbers those flights in print order and is the `REF` of their rows in the
+  appendix. The marker is placed after truncation, so it is never cut. The appendix lists
+  every `update` revision (corrections and system changes alike), the voided entries and the
+  mode switches, and each signature's first 12 hash characters. Voided entries and the change
+  log cover the whole logbook, not only the exported flights.
+- Standard-mode documents are byte-identical to the output before strict mode existed; the
+  PDF labels stay English.
+
 ### Backup and restore
 
 The JSON backup (`GET /users/me/data`) carries `logbookMode` (state and every switch event),

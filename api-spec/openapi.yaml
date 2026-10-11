@@ -3923,7 +3923,7 @@ paths:
     get:
       tags: [Export]
       summary: Export flights as CSV
-      description: Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats.
+      description: Export flight data as a CSV file — every flight, or every flight matching the `GET /flights` filters given (never paginated). Supports EASA (AMC1 FCL.050 columns), FAA (ASA/Jeppesen columns), standard (ForeFlight-compatible), and weblogbook (the column layout of vsimakhin/web-logbook's own CSV export, so its "Apply Web Logbook Mapping" import profile maps every column in one click) formats. In strict logbook mode the standard, easa and faa formats end in two extra columns, `corrected` (`yes` or `no`) and `last_corrected_at` (the time of the latest correction as RFC 3339 UTC, empty when none). Standard-mode output has no such columns.
       operationId: exportFlightsCSV
       security:
         - bearerAuth: []
@@ -4159,6 +4159,16 @@ paths:
         on the summary page disclose both facts. A `logbookLicenseId`-filtered
         export covers part of the logbook, so the career-wide snapshot is left
         out of it.
+
+        In strict logbook mode (`GET /logbook/mode`) the easa and faa formats also
+        carry the audit trail. The remarks of every flight with a correction end in
+        a `†n` marker that refers to the appendix. After the totals summary the
+        appendix lists the logbook history (the date history has been recorded since
+        and every mode switch with its trigger), a change log with every recorded
+        update (date, flight, field, old and new value, reason, whether it was a
+        correction, and the source of system changes), the voided entries, and the
+        first 12 hex characters of the fields hash of each signed entry. Appendix
+        labels are English. Standard-mode and summary output is unchanged.
       operationId: exportFlightsPDF
       security:
         - bearerAuth: []

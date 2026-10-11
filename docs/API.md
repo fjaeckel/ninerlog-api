@@ -746,6 +746,11 @@ pagination. An invalid `q` returns 400. `totals=true` appends one totals row aft
 flight: `Total (N flights)` in the first column and the sum of every time, count and distance
 column in that layout's format. A file with a totals row is a report, not an import source.
 
+In strict logbook mode the standard, EASA and FAA layouts end in two more columns:
+`corrected` (`yes` or `no`) and `last_corrected_at` (the latest correction as RFC 3339
+UTC, empty when the flight has none); the totals row is padded to match. A standard-mode
+user gets the unchanged layout, byte for byte. The web-logbook layout never carries them.
+
 `GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,
 email, phone, notes, the contact's logged crew roles as `CATEGORIES`, and a stable `UID`
 so a re-import updates existing cards instead of duplicating them.
@@ -767,6 +772,25 @@ so a re-import updates existing cards instead of duplicating them.
   the page: fewer rows print larger and airier, more rows denser. Clamped to
   what stays legible on the chosen page size; ignored for `summary`.
 - `logbookLicenseId` — restrict flights to the aircraft classes of one licence.
+
+**Strict logbook mode adds the audit trail** to the `easa` and `faa` formats (both layouts);
+a standard-mode user's PDF is unchanged and `summary` never carries it:
+
+- the remarks of every flight with at least one correction revision end in `†n`, where `n`
+  is the 1-based index into the appendix's `REF` column. The marker is kept when the
+  remarks are truncated to the column and next to an instructor endorsement block;
+- after the totals summary, an appendix: *Logbook History* (`History recorded since <date>`
+  and every mode switch with its date, on/off and trigger), *Change Log* (every `update`
+  revision, one row per changed field: revision time, flight date, registration, route,
+  field, old -> new, reason, correction yes/no, and the source, with recalculation,
+  aircraft re-registration and import labelled `System: ...`), *Voided Entries*
+  (deleted-at, flight date, registration, route, total, reason) and, when any signed
+  entry carries a fields hash, *Signature Hashes*;
+- the first 12 hex characters of `fieldsHash` print after the credential and date in each
+  endorsement block (and in *Signature Hashes*, which survives a block too narrow for it);
+- every page footer carries `History recorded since <date>`.
+
+Labels in the PDF are English, like the rest of the PDF.
 
 **Every logged row is printed**, co-pilot (SIC) flights included. Co-pilot time
 is part of total time of flight, and the EASA layout has a CO-PILOT column for it

@@ -206,6 +206,9 @@ type pdfDoc struct {
 	sigs     map[uuid.UUID]*models.FlightSignature
 	sigInks  map[uuid.UUID]sigInk
 	sigBytes int
+
+	// Audit trail of a strict-mode export; nil in standard mode.
+	strict *strictExport
 }
 
 func newDoc(g pageGeometry, regulation, holder, cert string) *pdfDoc {
@@ -700,14 +703,23 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		}
 	}
 
+	var strict *strictExport
+	if format != "summary" {
+		strict, err = h.loadStrictExport(c.Request.Context(), userID, flights)
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to retrieve logbook history")
+			return
+		}
+	}
+
 	var pdf *fpdf.Fpdf
 	switch format {
 	case "faa":
-		pdf = generateFAAPDF(flights, geom, userName, layout, baseline, sigs)
+		pdf = generateFAAPDFWith(flights, geom, userName, layout, baseline, sigs, strict)
 	case "summary":
 		pdf = generateSummaryPDF(flights, geom, userName, baseline)
 	default:
-		pdf = generateEASAPDF(flights, geom, h, c, userID, layout, baseline, sigs)
+		pdf = generateEASAPDF(flights, geom, h, c, userID, layout, baseline, sigs, strict)
 	}
 	name := fmt.Sprintf("ninerlog_%s_%s_%s_%s.pdf",
 		format, layout, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02"))

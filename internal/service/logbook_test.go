@@ -760,3 +760,94 @@ func TestFlightService_ChangeContextOnWrites(t *testing.T) {
 		}
 	})
 }
+
+func TestLogbookService_ExportHistory(t *testing.T) {
+	flightA, flightB, deleted := uuid.New(), uuid.New(), uuid.New()
+	snap := func(id uuid.UUID, date string, total int) json.RawMessage {
+		b, _ := json.Marshal(map[string]any{
+			"id": id, "date": date, "aircraft_reg": "D-EABC", "departure_icao": "EDDF", "arrival_icao": "EDDM",
+			"total_time": total, "all_landings": 1,
+		})
+		return b
+	}
+	reason := "typo"
+
+	t.Run("standard mode has no history", func(t *testing.T) {
+		e := newLogbookEnv(t, false)
+		h, err := e.logbook.ExportHistory(context.Background(), e.userID)
+		if err != nil || h != nil {
+			t.Fatalf("history = %+v err = %v", h, err)
+		}
+	})
+
+	t.Run("strict mode collects revisions, corrections and void records", func(t *testing.T) {
+		e := newLogbookEnv(t, true)
+		since := testNow.Add(-72 * time.Hour)
+		e.lbRepo.mode(e.userID).Since = &since
+		e.lbRepo.events = []models.LogbookModeEvent{{UserID: e.userID, Strict: true, Trigger: "manual", CreatedAt: since}}
+		first, second := testNow.Add(-2*time.Hour), testNow.Add(-time.Hour)
+		e.lbRepo.revisions = []models.FlightRevision{
+			{ID: uuid.New(), UserID: e.userID, FlightID: flightB, RevisionNo: 1, Kind: "update", Snapshot: snap(flightB, "2026-05-02", 30), Source: "recalc", ChangedAt: first},
+			{ID: uuid.New(), UserID: e.userID, FlightID: flightA, RevisionNo: 1, Kind: "update", Snapshot: snap(flightA, "2026-05-01", 60), Source: "user_edit", Reason: &reason, IsCorrection: true, ChangedAt: first},
+			{ID: uuid.New(), UserID: e.userID, FlightID: flightA, RevisionNo: 2, Kind: "update", Snapshot: snap(flightA, "2026-05-01", 70), Source: "user_edit", IsCorrection: true, ChangedAt: second},
+			{ID: uuid.New(), UserID: e.userID, FlightID: deleted, RevisionNo: 1, Kind: "delete", Snapshot: snap(deleted, "2026-04-01", 20), Source: "user_edit", ChangedAt: second},
+			{ID: uuid.New(), UserID: uuid.New(), FlightID: uuid.New(), RevisionNo: 1, Kind: "update", Snapshot: snap(uuid.New(), "2026-01-01", 5), Source: "user_edit", ChangedAt: second},
+		}
+		e.lbRepo.current[flightA] = [2]json.RawMessage{snap(flightA, "2026-05-01", 80), json.RawMessage("[]")}
+		e.lbRepo.current[flightB] = [2]json.RawMessage{snap(flightB, "2026-05-02", 35), json.RawMessage("[]")}
+
+		h, err := e.logbook.ExportHistory(context.Background(), e.userID)
+		if err != nil || h == nil {
+			t.Fatalf("history = %+v err = %v", h, err)
+		}
+		if h.Since == nil || !h.Since.Equal(since) || len(h.Events) != 1 {
+			t.Fatalf("since = %v events = %d", h.Since, len(h.Events))
+		}
+		if len(h.Revisions) != 3 {
+			t.Fatalf("revisions = %d", len(h.Revisions))
+		}
+		if h.Revisions[0].FlightID != flightA || h.Revisions[0].RevisionNo != 1 || h.Revisions[1].RevisionNo != 2 || h.Revisions[2].FlightID != flightB {
+			t.Fatalf("order = %+v", h.Revisions)
+		}
+		if got := h.Revisions[0].Changes; len(got) != 1 || got[0].Field != "totalTime" {
+			t.Fatalf("changes = %+v", got)
+		}
+		if len(h.LastCorrectedAt) != 1 || !h.LastCorrectedAt[flightA].Equal(second) {
+			t.Fatalf("lastCorrectedAt = %v", h.LastCorrectedAt)
+		}
+		if len(h.Voided) != 1 || h.Voided[0].FlightID != deleted {
+			t.Fatalf("voided = %+v", h.Voided)
+		}
+	})
+}
+
+func TestLogbookService_LastCorrectedAt(t *testing.T) {
+	flightID := uuid.New()
+	older, newer := testNow.Add(-2*time.Hour), testNow.Add(-time.Hour)
+	revs := []models.FlightRevision{
+		{FlightID: flightID, RevisionNo: 1, Kind: "update", IsCorrection: true, ChangedAt: older},
+		{FlightID: flightID, RevisionNo: 2, Kind: "update", IsCorrection: true, ChangedAt: newer},
+		{FlightID: flightID, RevisionNo: 3, Kind: "update", IsCorrection: false, ChangedAt: testNow},
+		{FlightID: uuid.New(), RevisionNo: 1, Kind: "update", ChangedAt: testNow},
+		{FlightID: uuid.New(), RevisionNo: 1, Kind: "delete", IsCorrection: true, ChangedAt: testNow},
+	}
+
+	e := newLogbookEnv(t, false)
+	for i := range revs {
+		revs[i].UserID = e.userID
+	}
+	e.lbRepo.revisions = revs
+
+	if got, strict, err := e.logbook.LastCorrectedAt(context.Background(), e.userID); err != nil || strict || got != nil {
+		t.Fatalf("standard mode: got=%v strict=%v err=%v", got, strict, err)
+	}
+
+	e.lbRepo.mode(e.userID).Strict = true
+	got, strict, err := e.logbook.LastCorrectedAt(context.Background(), e.userID)
+	if err != nil || !strict {
+		t.Fatalf("strict=%v err=%v", strict, err)
+	}
+	if len(got) != 1 || !got[flightID].Equal(newer) {
+		t.Fatalf("lastCorrectedAt = %v", got)
+	}
+}
