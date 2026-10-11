@@ -1040,48 +1040,95 @@ func (e FlightCreateLaunchMethod) Valid() bool {
 
 // Defines values for FlightListColumn.
 const (
-	FlightListColumnCrossCountryTime    FlightListColumn = "crossCountryTime"
-	FlightListColumnDualGivenTime       FlightListColumn = "dualGivenTime"
-	FlightListColumnDualTime            FlightListColumn = "dualTime"
-	FlightListColumnExaminerTime        FlightListColumn = "examinerTime"
-	FlightListColumnFunction            FlightListColumn = "function"
-	FlightListColumnIfrTime             FlightListColumn = "ifrTime"
-	FlightListColumnLandings            FlightListColumn = "landings"
-	FlightListColumnMultiPilotTime      FlightListColumn = "multiPilotTime"
-	FlightListColumnNightTime           FlightListColumn = "nightTime"
-	FlightListColumnOffOnBlock          FlightListColumn = "offOnBlock"
-	FlightListColumnPicTime             FlightListColumn = "picTime"
-	FlightListColumnPicusTime           FlightListColumn = "picusTime"
-	FlightListColumnReliefTime          FlightListColumn = "reliefTime"
-	FlightListColumnRemarks             FlightListColumn = "remarks"
-	FlightListColumnSicTime             FlightListColumn = "sicTime"
-	FlightListColumnSimulatedFlightTime FlightListColumn = "simulatedFlightTime"
-	FlightListColumnSoloTime            FlightListColumn = "soloTime"
-	FlightListColumnSpicTime            FlightListColumn = "spicTime"
+	FlightListColumnActualInstrumentTime    FlightListColumn = "actualInstrumentTime"
+	FlightListColumnApproachTypes           FlightListColumn = "approachTypes"
+	FlightListColumnApproaches              FlightListColumn = "approaches"
+	FlightListColumnChecks                  FlightListColumn = "checks"
+	FlightListColumnCrew                    FlightListColumn = "crew"
+	FlightListColumnCrossCountryTime        FlightListColumn = "crossCountryTime"
+	FlightListColumnDistance                FlightListColumn = "distance"
+	FlightListColumnDualGivenTime           FlightListColumn = "dualGivenTime"
+	FlightListColumnDualTime                FlightListColumn = "dualTime"
+	FlightListColumnEndorsements            FlightListColumn = "endorsements"
+	FlightListColumnExaminerTime            FlightListColumn = "examinerTime"
+	FlightListColumnFstdType                FlightListColumn = "fstdType"
+	FlightListColumnFunction                FlightListColumn = "function"
+	FlightListColumnGroundTrainingTime      FlightListColumn = "groundTrainingTime"
+	FlightListColumnHolds                   FlightListColumn = "holds"
+	FlightListColumnIfrTime                 FlightListColumn = "ifrTime"
+	FlightListColumnInstructorComments      FlightListColumn = "instructorComments"
+	FlightListColumnInstructorName          FlightListColumn = "instructorName"
+	FlightListColumnLandings                FlightListColumn = "landings"
+	FlightListColumnLaunchMethod            FlightListColumn = "launchMethod"
+	FlightListColumnMultiPilotTime          FlightListColumn = "multiPilotTime"
+	FlightListColumnNightTime               FlightListColumn = "nightTime"
+	FlightListColumnOffOnBlock              FlightListColumn = "offOnBlock"
+	FlightListColumnPicName                 FlightListColumn = "picName"
+	FlightListColumnPicTime                 FlightListColumn = "picTime"
+	FlightListColumnPicusTime               FlightListColumn = "picusTime"
+	FlightListColumnReliefTime              FlightListColumn = "reliefTime"
+	FlightListColumnRemarks                 FlightListColumn = "remarks"
+	FlightListColumnSicTime                 FlightListColumn = "sicTime"
+	FlightListColumnSigned                  FlightListColumn = "signed"
+	FlightListColumnSimulatedFlightTime     FlightListColumn = "simulatedFlightTime"
+	FlightListColumnSimulatedInstrumentTime FlightListColumn = "simulatedInstrumentTime"
+	FlightListColumnSoloTime                FlightListColumn = "soloTime"
+	FlightListColumnSpicTime                FlightListColumn = "spicTime"
+	FlightListColumnTakeoffLandingTime      FlightListColumn = "takeoffLandingTime"
+	FlightListColumnTakeoffs                FlightListColumn = "takeoffs"
+	FlightListColumnWaypoints               FlightListColumn = "waypoints"
 )
 
 // Valid indicates whether the value is a known member of the FlightListColumn enum.
 func (e FlightListColumn) Valid() bool {
 	switch e {
+	case FlightListColumnActualInstrumentTime:
+		return true
+	case FlightListColumnApproachTypes:
+		return true
+	case FlightListColumnApproaches:
+		return true
+	case FlightListColumnChecks:
+		return true
+	case FlightListColumnCrew:
+		return true
 	case FlightListColumnCrossCountryTime:
+		return true
+	case FlightListColumnDistance:
 		return true
 	case FlightListColumnDualGivenTime:
 		return true
 	case FlightListColumnDualTime:
 		return true
+	case FlightListColumnEndorsements:
+		return true
 	case FlightListColumnExaminerTime:
+		return true
+	case FlightListColumnFstdType:
 		return true
 	case FlightListColumnFunction:
 		return true
+	case FlightListColumnGroundTrainingTime:
+		return true
+	case FlightListColumnHolds:
+		return true
 	case FlightListColumnIfrTime:
 		return true
+	case FlightListColumnInstructorComments:
+		return true
+	case FlightListColumnInstructorName:
+		return true
 	case FlightListColumnLandings:
+		return true
+	case FlightListColumnLaunchMethod:
 		return true
 	case FlightListColumnMultiPilotTime:
 		return true
 	case FlightListColumnNightTime:
 		return true
 	case FlightListColumnOffOnBlock:
+		return true
+	case FlightListColumnPicName:
 		return true
 	case FlightListColumnPicTime:
 		return true
@@ -1093,11 +1140,21 @@ func (e FlightListColumn) Valid() bool {
 		return true
 	case FlightListColumnSicTime:
 		return true
+	case FlightListColumnSigned:
+		return true
 	case FlightListColumnSimulatedFlightTime:
+		return true
+	case FlightListColumnSimulatedInstrumentTime:
 		return true
 	case FlightListColumnSoloTime:
 		return true
 	case FlightListColumnSpicTime:
+		return true
+	case FlightListColumnTakeoffLandingTime:
+		return true
+	case FlightListColumnTakeoffs:
+		return true
+	case FlightListColumnWaypoints:
 		return true
 	default:
 		return false
@@ -5318,6 +5375,17 @@ type FlightCrewMemberInput struct {
 // Example: picTime
 type FlightListColumn string
 
+// FlightMonthTotals defines model for FlightMonthTotals.
+type FlightMonthTotals struct {
+	// Month Calendar month (YYYY-MM)
+	//
+	// Example: 2026-08
+	Month string `json:"month"`
+
+	// Totals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
+	Totals FlightTotals `json:"totals"`
+}
+
 // FlightReviewStatus defines model for FlightReviewStatus.
 type FlightReviewStatus struct {
 	// ExpiresOn Last date the flight review remains valid — the final day of the 24th calendar month after it was completed (inclusive)
@@ -5477,6 +5545,87 @@ type FlightSignatureMethod string
 
 // FlightSignatureStatus defines model for FlightSignature.Status.
 type FlightSignatureStatus string
+
+// FlightTotals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
+type FlightTotals struct {
+	// ActualInstrumentTime Minutes
+	ActualInstrumentTime int `json:"actualInstrumentTime"`
+
+	// Approaches Sum of approachesCount
+	Approaches int `json:"approaches"`
+
+	// CrossCountryTime Minutes
+	CrossCountryTime int `json:"crossCountryTime"`
+
+	// Distance Nautical miles
+	Distance float64 `json:"distance"`
+
+	// DualGivenTime Minutes
+	DualGivenTime int `json:"dualGivenTime"`
+
+	// DualTime Minutes
+	DualTime int `json:"dualTime"`
+
+	// ExaminerTime Minutes
+	ExaminerTime int `json:"examinerTime"`
+
+	// Flights Number of flights matching the filters
+	Flights int `json:"flights"`
+
+	// GroundTrainingTime Minutes
+	GroundTrainingTime int `json:"groundTrainingTime"`
+
+	// Holds Count
+	Holds int `json:"holds"`
+
+	// IfrTime Minutes
+	IfrTime int `json:"ifrTime"`
+
+	// LandingsDay Count
+	LandingsDay int `json:"landingsDay"`
+
+	// LandingsNight Count
+	LandingsNight int `json:"landingsNight"`
+
+	// MultiPilotTime Minutes
+	MultiPilotTime int `json:"multiPilotTime"`
+
+	// NightTime Minutes
+	NightTime int `json:"nightTime"`
+
+	// PicTime Minutes
+	PicTime int `json:"picTime"`
+
+	// PicusTime Minutes
+	PicusTime int `json:"picusTime"`
+
+	// ReliefTime Minutes
+	ReliefTime int `json:"reliefTime"`
+
+	// SicTime Minutes
+	SicTime int `json:"sicTime"`
+
+	// SimulatedFlightTime Minutes
+	SimulatedFlightTime int `json:"simulatedFlightTime"`
+
+	// SimulatedInstrumentTime Minutes
+	SimulatedInstrumentTime int `json:"simulatedInstrumentTime"`
+
+	// SoloTime Minutes
+	SoloTime int `json:"soloTime"`
+
+	// SpicTime Minutes
+	SpicTime int `json:"spicTime"`
+
+	// TakeoffsDay Count
+	TakeoffsDay int `json:"takeoffsDay"`
+
+	// TakeoffsNight Count
+	TakeoffsNight int `json:"takeoffsNight"`
+
+	// TotalTime Minutes
+	TotalTime int `json:"totalTime"`
+}
 
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
@@ -6313,8 +6462,11 @@ type PaginatedBackupRuns struct {
 
 // PaginatedFlights defines model for PaginatedFlights.
 type PaginatedFlights struct {
-	Data       []Flight `json:"data"`
-	Pagination struct {
+	Data []Flight `json:"data"`
+
+	// MonthTotals Column sums per calendar month over every flight matching the filters, for each month that has a flight on the returned page. Ordered by month, oldest first. Empty unless the list is sorted by date and updatedSince is not set.
+	MonthTotals []FlightMonthTotals `json:"monthTotals"`
+	Pagination  struct {
 		// Page Current page (1-indexed)
 		//
 		// Example: 1
@@ -6335,6 +6487,9 @@ type PaginatedFlights struct {
 		// Example: 8
 		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
+
+	// Totals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
+	Totals FlightTotals `json:"totals"`
 }
 
 // PaginatedImports defines model for PaginatedImports.

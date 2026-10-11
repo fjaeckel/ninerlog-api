@@ -2685,7 +2685,11 @@ paths:
       tags:
         - Flights
       summary: List flights
-      description: Get flights for the authenticated user
+      description: >-
+        Get flights for the authenticated user. Each flight carries its
+        crewMembers, as on GET /flights/{id}. The response also carries the
+        column totals over all matching flights and per month for the months
+        on the page.
       operationId: listFlights
       security:
         - bearerAuth: []
@@ -6131,8 +6135,27 @@ components:
         - multiPilotTime
         - soloTime
         - simulatedFlightTime
+        - actualInstrumentTime
+        - simulatedInstrumentTime
+        - groundTrainingTime
         - function
         - landings
+        - takeoffLandingTime
+        - takeoffs
+        - approaches
+        - approachTypes
+        - holds
+        - distance
+        - waypoints
+        - picName
+        - instructorName
+        - crew
+        - launchMethod
+        - fstdType
+        - checks
+        - signed
+        - endorsements
+        - instructorComments
         - remarks
       example: picTime
 
@@ -8372,12 +8395,153 @@ components:
             path: github.com/oapi-codegen/nullable
           x-go-type-skip-optional-pointer: true
 
+    FlightTotals:
+      type: object
+      description: >-
+        Column sums over every flight matching the request's filters, not just
+        the returned page. updatedSince is a filter too, so a delta request
+        sums only the changed flights. Times are in minutes.
+      required:
+        - flights
+        - totalTime
+        - picTime
+        - dualTime
+        - nightTime
+        - ifrTime
+        - crossCountryTime
+        - sicTime
+        - picusTime
+        - spicTime
+        - reliefTime
+        - dualGivenTime
+        - examinerTime
+        - multiPilotTime
+        - soloTime
+        - simulatedFlightTime
+        - actualInstrumentTime
+        - simulatedInstrumentTime
+        - groundTrainingTime
+        - landingsDay
+        - landingsNight
+        - takeoffsDay
+        - takeoffsNight
+        - approaches
+        - holds
+        - distance
+      properties:
+        flights:
+          type: integer
+          description: Number of flights matching the filters
+        totalTime:
+          type: integer
+          description: Minutes
+        picTime:
+          type: integer
+          description: Minutes
+        dualTime:
+          type: integer
+          description: Minutes
+        nightTime:
+          type: integer
+          description: Minutes
+        ifrTime:
+          type: integer
+          description: Minutes
+        crossCountryTime:
+          type: integer
+          description: Minutes
+        sicTime:
+          type: integer
+          description: Minutes
+        picusTime:
+          type: integer
+          description: Minutes
+        spicTime:
+          type: integer
+          description: Minutes
+        reliefTime:
+          type: integer
+          description: Minutes
+        dualGivenTime:
+          type: integer
+          description: Minutes
+        examinerTime:
+          type: integer
+          description: Minutes
+        multiPilotTime:
+          type: integer
+          description: Minutes
+        soloTime:
+          type: integer
+          description: Minutes
+        simulatedFlightTime:
+          type: integer
+          description: Minutes
+        actualInstrumentTime:
+          type: integer
+          description: Minutes
+        simulatedInstrumentTime:
+          type: integer
+          description: Minutes
+        groundTrainingTime:
+          type: integer
+          description: Minutes
+        landingsDay:
+          type: integer
+          description: Count
+        landingsNight:
+          type: integer
+          description: Count
+        takeoffsDay:
+          type: integer
+          description: Count
+        takeoffsNight:
+          type: integer
+          description: Count
+        approaches:
+          type: integer
+          description: Sum of approachesCount
+        holds:
+          type: integer
+          description: Count
+        distance:
+          type: number
+          format: double
+          description: Nautical miles
+
+    FlightMonthTotals:
+      type: object
+      required:
+        - month
+        - totals
+      properties:
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          example: '2026-08'
+          description: Calendar month (YYYY-MM)
+        totals:
+          $ref: '#/components/schemas/FlightTotals'
+
     PaginatedFlights:
       type: object
       required:
         - data
         - pagination
+        - totals
+        - monthTotals
       properties:
+        totals:
+          $ref: '#/components/schemas/FlightTotals'
+        monthTotals:
+          type: array
+          description: >-
+            Column sums per calendar month over every flight matching the
+            filters, for each month that has a flight on the returned page.
+            Ordered by month, oldest first. Empty unless the list is sorted by
+            date and updatedSince is not set.
+          items:
+            $ref: '#/components/schemas/FlightMonthTotals'
         data:
           type: array
           items:

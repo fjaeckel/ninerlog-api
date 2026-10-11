@@ -146,6 +146,9 @@ roles, IFR, FSTD, remarks). See [DOMAIN.md](./DOMAIN.md) for the calculation and
 rules.
 
 - CRUD: `POST/GET/PUT/DELETE /flights`.
+- List totals: `GET /flights` returns `totals` (column sums over every flight matching the
+  filters) and `monthTotals` (the same per month, for the months on the page) next to
+  `pagination` — see [API.md](./API.md).
 - Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
