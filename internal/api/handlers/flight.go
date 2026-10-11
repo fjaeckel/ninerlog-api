@@ -136,10 +136,13 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	}
 	h.attachCrewMembers(c.Request.Context(), flights)
 
-	monthTotals, err := h.flightService.FlightMonthTotals(c.Request.Context(), userID, opts, flightMonths(flights))
-	if err != nil {
-		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
-		return
+	monthTotals := []models.FlightMonthTotals{}
+	if opts.SortBy == "date" && opts.UpdatedSince == nil {
+		monthTotals, err = h.flightService.FlightMonthTotals(c.Request.Context(), userID, opts, flightMonths(flights))
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
+			return
+		}
 	}
 
 	flightList := make([]generated.Flight, 0, len(flights))

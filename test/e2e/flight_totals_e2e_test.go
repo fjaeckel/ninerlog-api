@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 )
 
 type flightListTotals struct {
@@ -115,6 +116,35 @@ func TestFlightListTotals(t *testing.T) {
 		}
 		if page.Pagination.Total != page.Totals.Flights {
 			t.Errorf("pagination.total = %d, totals.flights = %d; want equal", page.Pagination.Total, page.Totals.Flights)
+		}
+	})
+
+	t.Run("month totals are skipped when the list is not in date order", func(t *testing.T) {
+		resp := c.GET("/flights?sortBy=totalTime")
+		requireStatus(t, resp, http.StatusOK)
+		var page flightListTotals
+		resp.JSON(&page)
+
+		if page.MonthTotals == nil || len(page.MonthTotals) != 0 {
+			t.Errorf("monthTotals = %v, want an empty array", page.MonthTotals)
+		}
+		if page.Totals.Flights != 3 {
+			t.Errorf("totals.flights = %d, want 3", page.Totals.Flights)
+		}
+	})
+
+	t.Run("a delta request skips month totals and sums only changed flights", func(t *testing.T) {
+		since := url.QueryEscape(time.Now().Add(-time.Hour).UTC().Format(time.RFC3339))
+		resp := c.GET("/flights?updatedSince=" + since)
+		requireStatus(t, resp, http.StatusOK)
+		var page flightListTotals
+		resp.JSON(&page)
+
+		if len(page.MonthTotals) != 0 {
+			t.Errorf("monthTotals = %v, want none on a delta request", page.MonthTotals)
+		}
+		if page.Totals.Flights != len(page.Data) {
+			t.Errorf("totals.flights = %d, want the %d changed flights", page.Totals.Flights, len(page.Data))
 		}
 	})
 

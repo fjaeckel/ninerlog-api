@@ -11,7 +11,6 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
 
 type flightRepository struct {
@@ -551,17 +550,25 @@ func (r *flightRepository) MonthTotalsByUserID(ctx context.Context, userID uuid.
 	if len(months) == 0 {
 		return []models.FlightMonthTotals{}, nil
 	}
-	starts := make([]string, 0, len(months))
-	for _, m := range months {
-		starts = append(starts, time.Date(m.Year(), m.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02"))
+	wanted := make(map[string]bool, len(months))
+	var first, last time.Time
+	for i, m := range months {
+		start := time.Date(m.Year(), m.Month(), 1, 0, 0, 0, 0, time.UTC)
+		wanted[start.Format("2006-01")] = true
+		if i == 0 || start.Before(first) {
+			first = start
+		}
+		if i == 0 || start.After(last) {
+			last = start
+		}
 	}
 
 	query := "SELECT date_trunc('month', date)::date, " + flightTotalsColumns + " FROM flights WHERE user_id = $1"
 	args := []interface{}{userID}
 	var argNum int
 	query, args, argNum = appendFlightFilters(query, args, 2, opts)
-	query += fmt.Sprintf(" AND date_trunc('month', date)::date = ANY($%d::date[])", argNum)
-	args = append(args, pq.Array(starts))
+	query += fmt.Sprintf(" AND date >= $%d::date AND date < $%d::date", argNum, argNum+1)
+	args = append(args, first.Format("2006-01-02"), last.AddDate(0, 1, 0).Format("2006-01-02"))
 	query += " GROUP BY 1 ORDER BY 1"
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -577,7 +584,9 @@ func (r *flightRepository) MonthTotalsByUserID(ctx context.Context, userID uuid.
 		if err := rows.Scan(dest...); err != nil {
 			return nil, err
 		}
-		result = append(result, mt)
+		if wanted[mt.Month.Format("2006-01")] {
+			result = append(result, mt)
+		}
 	}
 	return result, rows.Err()
 }

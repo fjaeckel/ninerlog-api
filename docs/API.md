@@ -387,7 +387,10 @@ list without fetching each flight. The response also carries `totals` — the co
 (times in minutes, landings, takeoffs, approaches, holds, distance) over **every** flight
 matching the filters, not just the page — and `monthTotals`, the same sums per calendar
 month for each month that has a flight on the page, so a month heading is complete even
-when the month spans two pages. `pagination.total` equals `totals.flights`. See
+when the month spans two pages. `pagination.total` equals `totals.flights`. `monthTotals` is
+only computed for a date-sorted list without `updatedSince` (otherwise it is an empty
+array), and `updatedSince` narrows `totals` like any other filter, so a delta-sync
+response sums only the changed flights. See
 [FEATURES.md](./FEATURES.md#flight-logging).
 
 `POST /flights` creates either a flight or an FSTD (simulator) session, chosen by

@@ -5382,7 +5382,7 @@ type FlightMonthTotals struct {
 	// Example: 2026-08
 	Month string `json:"month"`
 
-	// Totals Column sums over every flight matching the request's filters, not just the returned page. Times are in minutes.
+	// Totals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
 	Totals FlightTotals `json:"totals"`
 }
 
@@ -5546,7 +5546,7 @@ type FlightSignatureMethod string
 // FlightSignatureStatus defines model for FlightSignature.Status.
 type FlightSignatureStatus string
 
-// FlightTotals Column sums over every flight matching the request's filters, not just the returned page. Times are in minutes.
+// FlightTotals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
 type FlightTotals struct {
 	// ActualInstrumentTime Minutes
 	ActualInstrumentTime int `json:"actualInstrumentTime"`
@@ -6464,7 +6464,7 @@ type PaginatedBackupRuns struct {
 type PaginatedFlights struct {
 	Data []Flight `json:"data"`
 
-	// MonthTotals Column sums per calendar month over every flight matching the filters, for each month that has a flight on the returned page. Ordered by month, oldest first.
+	// MonthTotals Column sums per calendar month over every flight matching the filters, for each month that has a flight on the returned page. Ordered by month, oldest first. Empty unless the list is sorted by date and updatedSince is not set.
 	MonthTotals []FlightMonthTotals `json:"monthTotals"`
 	Pagination  struct {
 		// Page Current page (1-indexed)
@@ -6488,7 +6488,7 @@ type PaginatedFlights struct {
 		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
 
-	// Totals Column sums over every flight matching the request's filters, not just the returned page. Times are in minutes.
+	// Totals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
 	Totals FlightTotals `json:"totals"`
 }
 

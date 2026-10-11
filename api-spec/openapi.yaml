@@ -8399,7 +8399,8 @@ components:
       type: object
       description: >-
         Column sums over every flight matching the request's filters, not just
-        the returned page. Times are in minutes.
+        the returned page. updatedSince is a filter too, so a delta request
+        sums only the changed flights. Times are in minutes.
       required:
         - flights
         - totalTime
@@ -8537,7 +8538,8 @@ components:
           description: >-
             Column sums per calendar month over every flight matching the
             filters, for each month that has a flight on the returned page.
-            Ordered by month, oldest first.
+            Ordered by month, oldest first. Empty unless the list is sorted by
+            date and updatedSince is not set.
           items:
             $ref: '#/components/schemas/FlightMonthTotals'
         data:
