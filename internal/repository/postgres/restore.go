@@ -15,9 +15,10 @@ import (
 // Rows per multi-row INSERT; each chunk stays far below PostgreSQL's limit of
 // 65535 bind parameters per statement.
 const (
-	flightInsertChunk  = 500
-	contactInsertChunk = 1000
-	crewInsertChunk    = 1000
+	flightInsertChunk   = 500
+	contactInsertChunk  = 1000
+	crewInsertChunk     = 1000
+	revisionInsertChunk = 1000
 )
 
 // queryExecer is the part of *sql.DB and *sql.Tx that single-row inserts use.
@@ -52,6 +53,9 @@ func (s *restoreStore) InRestoreTx(ctx context.Context, userID uuid.UUID, fn fun
 	}
 	if _, err := tx.ExecContext(ctx,
 		`SELECT pg_advisory_xact_lock(hashtextextended('user-data-restore:' || $1::text, 0))`, userID); err != nil {
+		return err
+	}
+	if err := applyChangeContext(ctx, tx); err != nil {
 		return err
 	}
 
@@ -158,12 +162,19 @@ func (t *restoreTx) InsertFlights(ctx context.Context, flights []*models.Flight)
 	for start := 0; start < len(flights); start += flightInsertChunk {
 		chunk := flights[start:min(start+flightInsertChunk, len(flights))]
 		var args []any
-		for _, f := range chunk {
+		var rows strings.Builder
+		for i, f := range chunk {
+			first := len(args) + 1
 			args = append(args, f.ID)
 			args = append(args, flightInsertArgs(f)...)
+			args = append(args, nullableTime(f.CreatedAt))
+			if i > 0 {
+				rows.WriteString(", ")
+			}
+			fmt.Fprintf(&rows, "(%s, COALESCE($%d::timestamptz, now()))",
+				placeholders(first, len(args)-first), len(args))
 		}
-		query := `INSERT INTO flights (id, ` + flightInsertColumns + `) VALUES ` +
-			valueRows(len(chunk), len(args)/len(chunk))
+		query := `INSERT INTO flights (id, ` + flightInsertColumns + `, created_at) VALUES ` + rows.String()
 		if _, err := t.tx.ExecContext(ctx, query, args...); err != nil {
 			return err
 		}
@@ -186,6 +197,30 @@ func (t *restoreTx) InsertCrewMembers(ctx context.Context, members []models.Flig
 		}
 	}
 	return nil
+}
+
+func (t *restoreTx) logbook() *logbookRepository {
+	return &logbookRepository{tx: t.tx}
+}
+
+func (t *restoreTx) SetStrict(ctx context.Context, userID uuid.UUID, strict bool, trigger string, licenseID *uuid.UUID) (bool, error) {
+	return t.logbook().SetStrict(ctx, userID, strict, trigger, licenseID)
+}
+
+func (t *restoreTx) RestoreStrictSince(ctx context.Context, userID uuid.UUID, since time.Time) error {
+	return t.logbook().RestoreStrictSince(ctx, userID, since)
+}
+
+func (t *restoreTx) ImportModeEvent(ctx context.Context, event *models.LogbookModeEvent) (bool, error) {
+	return t.logbook().ImportModeEvent(ctx, event)
+}
+
+func (t *restoreTx) ImportCertification(ctx context.Context, c *models.LogbookCertification) (bool, error) {
+	return t.logbook().ImportCertification(ctx, c)
+}
+
+func (t *restoreTx) ImportRevisions(ctx context.Context, revs []models.FlightRevision) (int, error) {
+	return t.logbook().ImportRevisions(ctx, revs)
 }
 
 // valueRows renders "($1, $2), ($3, $4), ..." for rows of perRow parameters.

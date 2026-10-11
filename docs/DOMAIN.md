@@ -355,6 +355,114 @@ two fleet entries and two sets of statistics. Full design, the table-maintenance
 and the `POST /flights/recalculate` migration path are in
 [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 
+## Strict logbook mode and the flight audit trail
+
+Some authorities expect a logbook that shows what an entry said before it was corrected.
+Strict logbook mode is the opt-in setting that makes NinerLog keep that history. It is a
+per-user flag (`users.strict_logbook`); standard mode is unchanged and records nothing.
+
+What strict mode adds, and only in strict mode:
+
+- every committed change to a flight or its crew is kept as a **revision** (the state
+  before the change), and a deleted flight is kept as a **void record**;
+- the pilot can **certify** the logbook through a date.
+
+Switching strict mode off stops recording; history already captured stays with the logbook
+and is never deleted, except together with the account. History starts when strict mode is
+switched on (`strict_logbook_since`); there are no baseline revisions for older entries.
+
+### Licence rule registry (`internal/service/logbookrules`)
+
+The registry maps a licence to the authority's rules. It is keyed on the licence's
+**issuing country** (`licenses.issuing_country`, never inferred), the licence type and, for
+the EASA fallback, the regulatory authority. A licence without an issuing country has no
+rule, ever. Saving a licence (create or patch) runs the registry; if any licence now
+**requires** strict mode and the user is not strict, strict mode is switched on with a
+`licence` event naming the saved licence. It is never switched off automatically, and the
+user may switch it off by hand even while a licence requires it.
+
+| Country | Licence types | Requirement | Draft window | Basis |
+| --- | --- | --- | --- | --- |
+| CH | any | required | `hours_48` | FOCA Accepted Logbook Formats §2.3(7) |
+| DE | not UL | required | `flight_day` | NfL 2212-21 §4.3.2 |
+| DE | UL | suggested | | §120 LuftPersV |
+| AT | national: UL, hang glider, paraglider, national glider | required | `flight_day` | ZLPV 2006 Anlage 6 |
+| AT | other (Part-FCL) | suggested | | AMC1 FCL.050 (e)(2) |
+| AU | any | required | `flight_day` | CASR 61.355, RAAP 13 |
+| NZ | any | required | `flight_day` | Part 61.29(e) |
+| JP | any | required | `flight_day` | 国空乗390号 |
+| UY | any | required | `flight_day` | RAU 61.51 |
+| DK, BR, GB, US | any | suggested | | BL 6-04 §3.2.6 / CIV Digital / printed extracts / AC 120-78B |
+| other country, authority EASA | any | suggested | | AMC1 FCL.050 (e)(2) |
+| anything else | | none | | |
+
+Ultralight detection mirrors the frontend's `looksLikeULLicence` (the upper-cased, trimmed
+type is `UL`, starts with `UL ` or `UL-`, or contains `ULTRALIGHT` / `ULTRALEICHT`). A
+suggested licence is surfaced in `GET /logbook/mode` (`suggestedBy`) but never switches
+anything on. With several requiring licences the **earliest** deadline applies per flight,
+and the reported `draftWindow` is the shortest (`flight_day` before `hours_48`). Strict mode
+switched on by hand, with no requiring licence, uses `flight_day`.
+
+### Certification
+
+`POST /logbook/certifications` records that the pilot certifies the logbook through a date
+(AMC1 FCL.050 (e)(2)). The date may not be in the future (`certification_in_future`) nor
+earlier than the latest certification (`certification_before_latest`), and strict mode must
+be on (`409` `strict_mode_required`). Certifying does not lock flights.
+
+### How history is captured
+
+Capture is a database concern, not application code: flights are also changed by routes
+that never pass through a service (bulk operations, cascades, raw SQL). Migration 79 puts
+`BEFORE` triggers on `flights` and `flight_crew_members` that store a pre-image of the flight
+and its crew once per transaction, only when the owner is in strict mode, the flight was not
+inserted in the same transaction and the change source is not `create`. A deferred
+constraint trigger compares the pre-image with the final state at `COMMIT` and writes one
+revision per flight per transaction only if something other than `updated_at` and
+`signature_id` (or the crew's names and roles) changed.
+
+The application supplies the change source, reason and correction flag through
+`repository.ChangeContext` on the `context.Context`. Every postgres write that touches
+`flights` or `flight_crew_members` runs in a transaction that first sets the transaction-local
+settings `ninerlog.change_source`, `ninerlog.change_reason` and `ninerlog.change_correction`
+(`applyChangeContext`); a write with no change context is stored with source `unknown`.
+Two consequences for code: a logical user edit must be **one transaction** (the flight update
+and the crew replacement are done by `FlightRepository.UpdateWithCrew`, otherwise one edit
+would yield several revisions), and crew rows written for a newly created flight must carry
+source `create`.
+
+### Signed fields hash
+
+When a signature completes (live or token flow), for every user, the SHA-256 of the flight's
+signed fields is stored in `flight_signatures.signed_fields_hash`: the date, aircraft,
+route, block and flight times, every time column, landings and takeoffs, remarks, instructor
+and PIC names, and the crew sorted by role then name, serialised in a fixed field order
+(`service.SignedFieldsHash`). Signature responses carry `fieldsHash` and a `fieldsHashValid`
+recomputed on read, so an entry edited after its signature was voided no longer matches the
+signature that was attested.
+
+### Backup and restore
+
+The JSON backup (`GET /users/me/data`) carries `logbookMode` (state and every switch event),
+`flightRevisions` and `logbookCertifications`, so cloud backups carry them too. A restore
+(`POST /users/me/data`) writes them in the same transaction as the rest of the backup
+(`service.ImportLogbook` through `repository.RestoreTx`). It remaps each revision's `flightId`
+to the restored flight; revisions of a deleted flight get one fresh id per original flight.
+Revision numbers, snapshots (with `id` and `user_id` rewritten), sources, reasons, correction
+flags and timestamps are kept; crew snapshots lose their contact links. If the backup was
+strict and the account is not, strict mode is switched on with an `import` event after the
+backup's own events. A restored flight keeps its `createdAt`, because it anchors the draft
+window. A revision with an unreadable snapshot or crew snapshot, an unknown kind or trigger,
+or a certification with an unreadable date rejects the whole restore with `400`, naming the
+section and position.
+
+The restore transaction carries change source `import`. With `mode=replace` it also carries
+the reason "Replaced by backup restore": history is append-only and a replace never deletes
+it. In a strict account the wipe therefore leaves a void record for every deleted flight, and
+the existing revisions, mode switches and certifications stay; the backup's history is added
+after them, identical mode switches and certifications only once. A replace into a non-strict
+account records nothing for the wiped flights, because capture only runs in strict mode.
+
 ## Currency engine
 
 **Currency** answers the regulator's question: *given recent flying, is this pilot
@@ -709,6 +817,7 @@ authority that reuses existing aggregates.
 ## Where this connects
 
 - Flights feed currency, statistics, reports, maps, and exports.
+- Strict logbook mode records the history of every flight (see [Strict logbook mode](#strict-logbook-mode-and-the-flight-audit-trail)).
 - Class-rating and credential expiry dates feed both the currency engine and the
   notification system (see [FEATURES.md](./FEATURES.md#notifications)).
 - The HTTP surface for currency is `GET /currency` and `GET /licenses/{id}/currency`

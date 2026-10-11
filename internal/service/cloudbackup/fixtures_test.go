@@ -49,6 +49,8 @@ func TestRestore_CommittedBackupsStillRestore(t *testing.T) {
 			assert.True(t, res.NotificationPreferencesImported)
 			assert.True(t, res.FlightBaselineImported)
 			assert.Zero(t, res.ContactsCreated)
+			assert.Equal(t, len(p.FlightRevisions), res.FlightRevisionsImported)
+			assert.Equal(t, len(p.LogbookCertifications), res.LogbookCertificationsImported)
 		})
 	}
 }
@@ -66,6 +68,7 @@ func TestRestore_CommittedBackupHasEverySection(t *testing.T) {
 	for _, section := range []string{
 		"flights", "aircraft", "licenses", "credentials", "contacts",
 		"customCurrencyRules", "customReports", "notificationPreferences", "flightBaseline",
+		"logbookMode", "flightRevisions", "logbookCertifications",
 	} {
 		assert.Contains(t, doc, section)
 	}

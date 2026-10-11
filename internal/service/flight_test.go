@@ -57,6 +57,10 @@ func (m *mockFlightRepo) Update(ctx context.Context, flight *models.Flight) erro
 	return nil
 }
 
+func (m *mockFlightRepo) UpdateWithCrew(ctx context.Context, flight *models.Flight, _ []models.FlightCrewMember) error {
+	return m.Update(ctx, flight)
+}
+
 func (m *mockFlightRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	if _, exists := m.flights[id]; !exists {
 		return repository.ErrNotFound

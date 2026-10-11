@@ -86,6 +86,7 @@ func fullPayload() *Payload {
 
 	license := filled[models.License]("License")
 	license.ID = uuid.New()
+	license.IssuingCountry = ptr("CH")
 	rating := filled[models.ClassRating]("ClassRating")
 	rating.ClassType = models.ClassTypeUL
 	rating.ULKind = ptr(models.ULKindThreeAxis)
@@ -127,6 +128,17 @@ func fullPayload() *Payload {
 			EmailEnabled: true, EnabledCategories: []string{"rating_expiry", "currency_night"}, WarningDays: []int64{30, 7}, CheckHour: 6,
 		},
 		FlightBaseline: filled[FlightBaseline]("Baseline"),
+		LogbookMode: &LogbookMode{Strict: false, Events: []LogbookModeEvent{
+			{Strict: true, Trigger: models.LogbookTriggerManual, CreatedAt: fillTime},
+			{Strict: false, Trigger: models.LogbookTriggerManual, CreatedAt: fillTime.Add(time.Hour)},
+		}},
+		FlightRevisions: []FlightRevision{{
+			FlightID: flight.ID, RevisionNo: 1, Kind: models.RevisionKindUpdate,
+			Snapshot:     json.RawMessage(`{"id":"` + flight.ID.String() + `","date":"2026-02-03","aircraft_reg":"D-EABC","total_time":7}`),
+			CrewSnapshot: json.RawMessage(`[{"name":"Crew Person","role":"Instructor"}]`),
+			Source:       "user_edit", Reason: ptr("typo"), IsCorrection: true, ChangedAt: fillTime,
+		}},
+		LogbookCertifications: []LogbookCertification{{CertifiedThrough: "2026-02-01", CertifiedAt: fillTime}},
 	}
 }
 
@@ -166,12 +178,31 @@ func payloadFromState(st restorefake.State) *Payload {
 	}
 	p.NotificationPreferences = NewNotificationPreferences(st.Prefs)
 	p.FlightBaseline = NewFlightBaseline(st.Baseline)
+	p.LogbookMode = &LogbookMode{Strict: st.Strict, Since: st.StrictSince, Events: []LogbookModeEvent{}}
+	for _, e := range st.ModeEvents {
+		p.LogbookMode.Events = append(p.LogbookMode.Events, LogbookModeEvent{
+			Strict: e.Strict, Trigger: e.Trigger, LicenseID: e.LicenseID, CreatedAt: e.CreatedAt,
+		})
+	}
+	for _, r := range st.Revisions {
+		p.FlightRevisions = append(p.FlightRevisions, FlightRevision{
+			FlightID: r.FlightID, RevisionNo: r.RevisionNo, Kind: r.Kind, Snapshot: r.Snapshot,
+			CrewSnapshot: r.CrewSnapshot, Source: r.Source, Reason: r.Reason,
+			IsCorrection: r.IsCorrection, ChangedAt: r.ChangedAt,
+		})
+	}
+	for _, c := range st.Certifications {
+		p.LogbookCertifications = append(p.LogbookCertifications, LogbookCertification{
+			CertifiedThrough: c.CertifiedThrough.Format("2006-01-02"), CertifiedAt: c.CertifiedAt,
+		})
+	}
 	return p
 }
 
 var identityKeys = map[string]bool{
 	"id": true, "userId": true, "createdAt": true, "updatedAt": true,
 	"flightId": true, "licenseId": true, "exportedAt": true, "signatureId": true,
+	"user_id": true,
 }
 
 // normalize reduces an exported payload to what must survive a restore:

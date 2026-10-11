@@ -31,6 +31,7 @@ func TestUpdateWithCrewRename_SkipsSignedFlights(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("UPDATE contacts").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -64,6 +65,7 @@ func TestUpdateWithCrewRename_DuplicateNameRollsBack(t *testing.T) {
 	repo := NewContactRepository(db)
 
 	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("UPDATE contacts").
 		WillReturnError(&pq.Error{Code: "23505", Constraint: "idx_contacts_user_lower_name"})
 	mock.ExpectRollback()

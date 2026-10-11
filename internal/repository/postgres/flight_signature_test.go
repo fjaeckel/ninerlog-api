@@ -101,7 +101,7 @@ func TestFlightSignatureGetByTokenHash(t *testing.T) {
 		"instructor_email", "email_sent_at", "email_send_count", "contact_id",
 		"instructor_name", "instructor_credential_no", "signature_image", "signed_at",
 		"signer_ip", "signer_user_agent",
-		"voided_at", "voided_reason",
+		"voided_at", "voided_reason", "signed_fields_hash",
 		"created_at", "updated_at",
 	}).AddRow(
 		id, flightID, userID, "deferred", "pending",
@@ -109,7 +109,7 @@ func TestFlightSignatureGetByTokenHash(t *testing.T) {
 		nil, nil, 0, nil,
 		nil, nil, nil, nil,
 		nil, nil,
-		nil, nil,
+		nil, nil, nil,
 		now, now,
 	)
 

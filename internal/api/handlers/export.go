@@ -449,6 +449,7 @@ func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 		CustomCurrency: h.customCurrencyService,
 		CustomReports:  h.customReportService,
 		Notifications:  h.notificationService,
+		Logbook:        h.logbookService,
 		AttachCrew:     h.AttachCrewMembers,
 	}
 }

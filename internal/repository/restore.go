@@ -40,8 +40,9 @@ func (a RestoreAttachments) Any() bool {
 
 // RestoreStore runs a restore inside one database transaction.
 type RestoreStore interface {
-	// InRestoreTx runs fn in a transaction serialised per user. A nil return
-	// commits; any error rolls everything fn wrote back and is returned.
+	// InRestoreTx runs fn in a transaction serialised per user, with the
+	// change context carried by ctx applied. A nil return commits; any error
+	// rolls everything fn wrote back and is returned.
 	InRestoreTx(ctx context.Context, userID uuid.UUID, fn func(tx RestoreTx) error) error
 }
 
@@ -74,4 +75,8 @@ type RestoreTx interface {
 
 	UpsertNotificationPreferences(ctx context.Context, prefs *models.NotificationPreferences) error
 	UpsertFlightBaseline(ctx context.Context, baseline *models.FlightBaseline) error
+
+	// LogbookRestoreWriter writes strict logbook mode, its switch events,
+	// flight revisions and certifications.
+	LogbookRestoreWriter
 }

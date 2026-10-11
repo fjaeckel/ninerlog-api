@@ -62,6 +62,8 @@ tags:
     description: Aircraft database management
   - name: Flights
     description: Flight log entries
+  - name: Logbook
+    description: Strict logbook mode, flight revision history and logbook certification
   - name: Flight Sessions
     description: Live tap-to-log capture of block/flight times from mobile devices
   - name: Statistics
@@ -1548,7 +1550,10 @@ paths:
       tags:
         - Licenses
       summary: Update license
-      description: Update license information
+      description: |
+        Update license information. Saving a licence whose rules require strict logbook
+        mode, with `issuingCountry` set, switches the owner to strict mode
+        (see `GET /logbook/mode`).
       operationId: updateLicense
       security:
         - bearerAuth: []
@@ -1571,6 +1576,14 @@ paths:
                   type: string
                 requiresSeparateLogbook:
                   type: boolean
+                issuingCountry:
+                  type: [string, 'null']
+                  pattern: '^[A-Z]{2}$'
+                  description: ISO 3166-1 alpha-2; null clears it
+                  x-go-type: nullable.Nullable[string]
+                  x-go-type-import:
+                    path: github.com/oapi-codegen/nullable
+                  x-go-type-skip-optional-pointer: true
       responses:
         '200':
           description: License updated successfully
@@ -2888,6 +2901,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: In strict mode under a Swiss licence, a manual override raises an auto-calculated time (`code` = `override_exceeds_calculated`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /flights/{flightId}:
     get:
@@ -2916,7 +2935,18 @@ paths:
       tags:
         - Flights
       summary: Update flight
-      description: Update an existing flight log entry
+      description: |
+        Update an existing flight log entry.
+
+        In strict logbook mode the edit is classified before it is written. It is a
+        correction when it happens after the draft window (48 hours after the entry was
+        created under a Swiss licence, otherwise the end of the flight day), when the
+        flight has ever carried a completed signature, when the flight date is on or
+        before the latest `certifiedThrough`, or when it sets an `*Override` value after
+        the flight day. A correction needs `correctionReason`; after a voided signature
+        the void reason is reused when none is given. Every change is recorded as a
+        revision (`GET /flights/{flightId}/revisions`). Outside strict mode nothing is
+        recorded and `correctionReason` is ignored.
       operationId: updateFlight
       security:
         - bearerAuth: []
@@ -2947,17 +2977,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '422':
+          description: |
+            The edit breaks a strict-mode rule. `code` is `correction_reason_required` when the
+            edit is a correction and carries no `correctionReason`, or
+            `override_exceeds_calculated` when a Swiss licence allows a manual override only
+            to reduce an auto-calculated time.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
     delete:
       tags:
         - Flights
       summary: Delete flight
-      description: Delete a flight log entry
+      description: |
+        Delete a flight log entry. In strict logbook mode the flight's last state is kept
+        as a void record (`GET /flights/voided`) together with the optional `reason`.
       operationId: deleteFlight
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/FlightId'
+        - name: reason
+          in: query
+          required: false
+          description: Why the flight is deleted; stored on the void record in strict mode
+          schema:
+            type: string
+            maxLength: 500
       responses:
         '204':
           description: Flight deleted successfully
@@ -2967,6 +3016,167 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: Flight is locked by a completed instructor signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /flights/{flightId}/revisions:
+    get:
+      tags:
+        - Logbook
+      summary: List a flight's revision history
+      description: |
+        Every recorded change to the flight, newest first, each with the fields it
+        changed. Revisions are recorded only while the owner is in strict logbook mode.
+        Works for deleted flights too, as long as a void record exists.
+      operationId: listFlightRevisions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FlightId'
+      responses:
+        '200':
+          description: Revisions, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FlightRevision'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /flights/voided:
+    get:
+      tags:
+        - Logbook
+      summary: List deleted flights kept as void records
+      description: Flights deleted while the owner was in strict logbook mode, most recently deleted first.
+      operationId: listVoidedFlights
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Void records, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VoidedFlight'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logbook/mode:
+    get:
+      tags:
+        - Logbook
+      summary: Get the logbook mode
+      description: |
+        Whether strict logbook mode is on, which licences require or suggest it, the
+        draft window that applies, and every past switch.
+      operationId: getLogbookMode
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logbook mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogbookMode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags:
+        - Logbook
+      summary: Switch strict logbook mode on or off
+      description: |
+        Switches strict logbook mode. Turning it off stops recording; history already
+        captured stays with the logbook. Every switch is stored as an event and printed
+        in the PDF export. A no-op switch returns the current mode and stores nothing.
+      operationId: updateLogbookMode
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogbookModeUpdate'
+      responses:
+        '200':
+          description: Logbook mode after the switch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogbookMode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logbook/certifications:
+    get:
+      tags:
+        - Logbook
+      summary: List logbook certifications
+      description: Past "certified through" statements, newest first.
+      operationId: listLogbookCertifications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Certifications, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LogbookCertification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Logbook
+      summary: Certify the logbook through a date
+      description: |
+        The pilot certifies that the logbook is complete and correct through
+        `certifiedThrough` (AMC1 FCL.050 (e)(2)). Later edits to flights on or before
+        that date are corrections. Certifying does not lock flights. Strict mode only.
+      operationId: createLogbookCertification
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogbookCertificationCreate'
+      responses:
+        '201':
+          description: Certification stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogbookCertification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Strict logbook mode is off (`code` = `strict_mode_required`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: |
+            `certifiedThrough` is in the future (`code` = `certification_in_future`) or earlier
+            than the latest certification (`code` = `certification_before_latest`).
           content:
             application/json:
               schema:
@@ -3855,8 +4065,9 @@ paths:
 
         Exports everything the user owns as a JSON backup file: flights (with
         crew), aircraft, licences and class ratings, credentials, contacts,
-        custom currency rules, custom reports, notification preferences and the
-        carried-forward hours baseline.
+        custom currency rules, custom reports, notification preferences, the
+        carried-forward hours baseline, and the strict logbook mode with its flight
+        revisions, mode switches and logbook certifications.
 
         This is the same payload a cloud backup run writes, and
         `POST /users/me/data` restores every section of it.
@@ -4682,8 +4893,10 @@ paths:
       description: |
         Exports everything the user owns as a JSON backup file: flights (with
         crew), aircraft, licences and class ratings, credentials, contacts,
-        custom currency rules, custom reports, notification preferences and the
-        carried-forward hours baseline. The response is a file download.
+        custom currency rules, custom reports, notification preferences, the
+        carried-forward hours baseline, and the strict logbook mode with its
+        flight revisions, mode switches and logbook certifications. The
+        response is a file download.
 
         This is the same payload a cloud backup run writes, and
         `POST /users/me/data` restores every section of it. Binary document
@@ -4716,9 +4929,10 @@ paths:
         authenticated user's account. Every section the backup carries is
         recreated: aircraft, licences, class ratings, credentials, flights and
         crew members, contacts, custom currency rules, custom reports,
-        notification preferences and the carried-forward hours baseline. New
-        UUIDs are assigned, so a backup restores into any NinerLog
-        installation, including the one it came from.
+        notification preferences, the carried-forward hours baseline, and the
+        strict logbook mode with its flight revisions, mode switches and
+        logbook certifications. New UUIDs are assigned, so a backup restores
+        into any NinerLog installation, including the one it came from.
 
         **The restore is all-or-nothing.** It runs in a single database
         transaction: on any failure nothing is written, and the response is a
@@ -4738,6 +4952,21 @@ paths:
           It is refused with `409 replace_would_drop_attachments` while the
           account holds licence or credential document files or signed
           flights, because those are not part of the backup and would be lost.
+
+        **Logbook history.** Flight revisions follow their flights to the
+        restored ids (the void records of a deleted flight share one fresh id)
+        and keep their number, kind, source, reason, correction flag and time;
+        mode switches and certifications keep their timestamps, and a restored
+        flight keeps its `createdAt`. A strict backup switches a non-strict
+        account to strict mode with an `import` event. A revision with an
+        unreadable snapshot, an unknown kind or trigger, or a certification with
+        an unreadable date fails the whole restore with `400`.
+
+        In a strict account `replace` never deletes history: the wipe is
+        recorded with source `import` and reason "Replaced by backup restore",
+        so every deleted flight gets a void record, and the existing revisions,
+        mode switches and certifications are kept. The backup's history is then
+        added.
 
         Notification preferences and the flight baseline are single-row
         settings; a backup that carries them overwrites the current values.
@@ -6713,6 +6942,11 @@ components:
           type: boolean
           default: false
           description: Whether this license requires a separate logbook (e.g., SPL, Ultralight)
+        issuingCountry:
+          type: [string, 'null']
+          pattern: '^[A-Z]{2}$'
+          example: DE
+          description: ISO 3166-1 alpha-2 code of the state that issued the licence. Never inferred; a licence without it never switches strict logbook mode on.
         createdAt:
           type: string
           format: date-time
@@ -6750,6 +6984,11 @@ components:
         requiresSeparateLogbook:
           type: boolean
           default: false
+        issuingCountry:
+          type: [string, 'null']
+          pattern: '^[A-Z]{2}$'
+          example: DE
+          description: ISO 3166-1 alpha-2 code of the state that issued the licence. Never inferred; a licence without it never switches strict logbook mode on.
 
     Aircraft:
       type: object
@@ -7990,6 +8229,10 @@ components:
           items:
             $ref: '#/components/schemas/FlightCrewMemberInput'
           description: People on board this flight
+        correctionReason:
+          type: string
+          maxLength: 500
+          description: Why the entry is corrected. Required when a strict-mode edit is a correction; ignored otherwise.
 
     Statistics:
       type: object
@@ -10398,7 +10641,14 @@ components:
         - flightBaselineImported
         - mode
         - warnings
+        - flightRevisionsImported
+        - logbookCertificationsImported
       properties:
+        flightRevisionsImported:
+          type: integer
+          description: Flight revisions restored, remapped to the restored flight ids
+        logbookCertificationsImported:
+          type: integer
         aircraftImported:
           type: integer
           description: Number of aircraft created from the backup
@@ -10487,6 +10737,8 @@ components:
         - contacts
         - customCurrencyRules
         - customReports
+        - flightRevisions
+        - logbookCertifications
       properties:
         exportedAt:
           type: string
@@ -10535,6 +10787,115 @@ components:
           $ref: '#/components/schemas/NotificationPreferences'
         flightBaseline:
           $ref: '#/components/schemas/BackupFlightBaseline'
+        logbookMode:
+          $ref: '#/components/schemas/BackupLogbookMode'
+        flightRevisions:
+          type: array
+          description: >-
+            Every recorded flight revision, by flight then revision number. A
+            revision names its flight by the id in this backup, or by the id of
+            a deleted flight no longer in it.
+          items:
+            $ref: '#/components/schemas/BackupFlightRevision'
+        logbookCertifications:
+          type: array
+          description: Logbook certifications, oldest certified date first
+          items:
+            $ref: '#/components/schemas/BackupLogbookCertification'
+
+    BackupLogbookMode:
+      type: object
+      description: Strict logbook mode with every switch, oldest first
+      required:
+        - strict
+        - events
+      properties:
+        strict:
+          type: boolean
+        since:
+          type: string
+          format: date-time
+          description: When strict mode was last switched on
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/BackupLogbookModeEvent'
+
+    BackupLogbookModeEvent:
+      type: object
+      required:
+        - strict
+        - trigger
+        - createdAt
+      properties:
+        strict:
+          type: boolean
+          description: The mode after the switch
+        trigger:
+          type: string
+          enum: [licence, manual, import]
+        licenseId:
+          type: string
+          format: uuid
+          description: The licence's id in this backup
+        createdAt:
+          type: string
+          format: date-time
+
+    BackupFlightRevision:
+      type: object
+      required:
+        - flightId
+        - revisionNo
+        - kind
+        - snapshot
+        - crewSnapshot
+        - source
+        - isCorrection
+        - changedAt
+      properties:
+        flightId:
+          type: string
+          format: uuid
+        revisionNo:
+          type: integer
+          minimum: 1
+        kind:
+          type: string
+          enum: [update, delete]
+        snapshot:
+          type: object
+          additionalProperties: true
+          description: The flight row before the change, with snake_case column names
+        crewSnapshot:
+          type: array
+          description: The crew before the change
+          items:
+            type: object
+            additionalProperties: true
+        source:
+          type: string
+          enum: [user_edit, recalc, aircraft_rename, import, unknown]
+        reason:
+          type: string
+        isCorrection:
+          type: boolean
+        changedAt:
+          type: string
+          format: date-time
+
+    BackupLogbookCertification:
+      type: object
+      required:
+        - certifiedThrough
+        - certifiedAt
+      properties:
+        certifiedThrough:
+          type: string
+          format: date
+        certifiedAt:
+          type: string
+          format: date-time
 
     BackupLicenseWithRatings:
       type: object
@@ -10588,6 +10949,10 @@ components:
           example: EASA
         requiresSeparateLogbook:
           type: boolean
+        issuingCountry:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: ISO 3166-1 alpha-2 country that issued the licence
         createdAt:
           type: string
           format: date-time
@@ -11292,7 +11657,27 @@ components:
         - totalCustomReports
         - cloudBackupDestinations
         - importsByFormat
+        - strictLogbookUsers
+        - flightRevisions
+        - flightCorrections
+        - voidedFlights
+        - logbookCertifications
       properties:
+        strictLogbookUsers:
+          type: integer
+          description: Users with strict logbook mode on
+        flightRevisions:
+          type: integer
+          description: Flight revisions across all users (counts only, never contents)
+        flightCorrections:
+          type: integer
+          description: Revisions classified as corrections
+        voidedFlights:
+          type: integer
+          description: Deleted flights kept as void records
+        logbookCertifications:
+          type: integer
+          description: Logbook "certified through" statements
         totalUsers:
           type: integer
         totalFlights:
@@ -12214,12 +12599,207 @@ components:
           format: date-time
         voidedReason:
           type: [string, 'null']
+        fieldsHash:
+          type: [string, 'null']
+          description: SHA-256 (hex) over the canonical signed fields, stored when the signature completed. Null for signatures completed before hashing existed and for incomplete ones.
+          example: 9f2c4e1ab07d3f5e8c6b2a1d0e9f8c7b6a5d4e3f2c1b0a9e8d7c6b5a4f3e2d1c
+        fieldsHashValid:
+          type: boolean
+          description: Whether the flight's current signed fields still hash to `fieldsHash`. Omitted when there is no hash.
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+
+    FlightRevisionChange:
+      type: object
+      required: [field, oldValue, newValue]
+      properties:
+        field:
+          type: string
+          description: Flight field name as in the `Flight` schema (camelCase), or `crewMembers`
+          example: totalTime
+        oldValue:
+          description: Value before the change (any JSON type, null when unset)
+        newValue:
+          description: Value after the change (any JSON type, null when unset)
+
+    FlightRevision:
+      type: object
+      required: [id, flightId, revisionNo, kind, source, isCorrection, changedAt, changes]
+      properties:
+        id:
+          type: string
+          format: uuid
+        flightId:
+          type: string
+          format: uuid
+        revisionNo:
+          type: integer
+          minimum: 1
+        kind:
+          type: string
+          enum: [update, delete]
+        source:
+          type: string
+          enum: [user_edit, recalc, aircraft_rename, import, unknown]
+          description: What made the change; recalc, aircraft_rename and import are system changes
+        reason:
+          type: [string, 'null']
+        isCorrection:
+          type: boolean
+        changedAt:
+          type: string
+          format: date-time
+        changes:
+          type: array
+          description: Fields this change altered, old to new. Empty for a delete.
+          items:
+            $ref: '#/components/schemas/FlightRevisionChange'
+
+    VoidedFlight:
+      type: object
+      required: [flightId, revisionId, deletedAt, source, date, aircraftReg, aircraftType, totalTime, isCorrection]
+      properties:
+        flightId:
+          type: string
+          format: uuid
+        revisionId:
+          type: string
+          format: uuid
+        deletedAt:
+          type: string
+          format: date-time
+        reason:
+          type: [string, 'null']
+        source:
+          type: string
+          enum: [user_edit, recalc, aircraft_rename, import, unknown]
+        isCorrection:
+          type: boolean
+        date:
+          type: string
+          format: date
+        aircraftReg:
+          type: string
+        aircraftType:
+          type: string
+        departureIcao:
+          type: [string, 'null']
+        arrivalIcao:
+          type: [string, 'null']
+        totalTime:
+          type: integer
+          description: Minutes
+        remarks:
+          type: [string, 'null']
+
+    LogbookModeLicence:
+      type: object
+      required: [licenseId, regulatoryAuthority, licenseType, issuingCountry, draftWindow, basis]
+      properties:
+        licenseId:
+          type: string
+          format: uuid
+        regulatoryAuthority:
+          type: string
+        licenseType:
+          type: string
+        issuingCountry:
+          type: string
+          example: DE
+        draftWindow:
+          type: [string, 'null']
+          enum: [flight_day, hours_48, 'null']
+          description: Free-edit window this licence's rules allow; null when the licence only suggests strict mode
+        basis:
+          type: string
+          description: The rule the registry row cites
+          example: NfL 2212-21 §4.3.2
+
+    LogbookModeEvent:
+      type: object
+      required: [strict, trigger, createdAt]
+      properties:
+        strict:
+          type: boolean
+          description: The mode after the switch
+        trigger:
+          type: string
+          enum: [licence, manual, import]
+        licenseId:
+          type: [string, 'null']
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    LogbookMode:
+      type: object
+      required: [strict, requiredBy, suggestedBy, events, overridesDownwardOnly]
+      properties:
+        strict:
+          type: boolean
+        since:
+          type: [string, 'null']
+          format: date-time
+          description: When strict mode was last switched on; history starts here
+        draftWindow:
+          type: [string, 'null']
+          enum: [flight_day, hours_48, 'null']
+          description: The shortest free-edit window across requiring licences; flight_day when strict mode was switched on by hand
+        overridesDownwardOnly:
+          type: boolean
+          description: True under a Swiss licence, whose rules allow manual overrides only to reduce a calculated time
+        latestCertifiedThrough:
+          type: [string, 'null']
+          format: date
+        requiredBy:
+          type: array
+          description: Licences whose rules require strict mode
+          items:
+            $ref: '#/components/schemas/LogbookModeLicence'
+        suggestedBy:
+          type: array
+          description: Licences whose rules suggest strict mode without requiring it
+          items:
+            $ref: '#/components/schemas/LogbookModeLicence'
+        events:
+          type: array
+          description: Every switch, oldest first
+          items:
+            $ref: '#/components/schemas/LogbookModeEvent'
+
+    LogbookModeUpdate:
+      type: object
+      required: [strict]
+      properties:
+        strict:
+          type: boolean
+
+    LogbookCertification:
+      type: object
+      required: [id, certifiedThrough, certifiedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        certifiedThrough:
+          type: string
+          format: date
+        certifiedAt:
+          type: string
+          format: date-time
+
+    LogbookCertificationCreate:
+      type: object
+      required: [certifiedThrough]
+      properties:
+        certifiedThrough:
+          type: string
+          format: date
 
     SignatureRequestCreated:
       description: A FlightSignature plus the one-time signing URL. The URL is only ever returned from the create/resend calls that generated it — it is not retrievable again afterwards, so the owner must copy/share it (or its QR code) immediately, or resend to get a fresh one.

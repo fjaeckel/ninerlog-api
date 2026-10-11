@@ -424,7 +424,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	}
 	// Persist crew members. A new flight with no crew has nothing to clear.
 	if len(flight.CrewMembers) > 0 {
-		h.persistCrewMembers(c, userID, &flight)
+		h.persistNewFlightCrew(c, userID, &flight)
 	}
 	c.JSON(http.StatusCreated, withDisplayPICName(convertToGeneratedFlight(&flight), &flight, h.getUserNameFromContext(c)))
 }
@@ -640,7 +640,15 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.PICName = flightrules.ResolvePICNameForSave(flight, userName)
 	}
 
-	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
+	var opts service.FlightWriteOptions
+	// An update that did not carry a crewMembers key leaves the existing
+	// rows alone; otherwise the crew is replaced with the flight update.
+	if req.CrewMembers != nil {
+		h.linkCrewMembers(c, userID, flight)
+		opts.Crew = &flight.CrewMembers
+	}
+
+	if err := h.flightService.UpdateFlightWith(c.Request.Context(), flight, userID, opts); err != nil {
 		if errors.Is(err, service.ErrFlightLocked) {
 			h.sendError(c, http.StatusConflict, "This flight is locked by a completed signature. Void the signature to make changes.")
 			return
@@ -653,11 +661,6 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		return
 	}
 
-	// Persist crew members if they were updated. An update that did not carry
-	// a crewMembers key leaves the existing rows alone.
-	if req.CrewMembers != nil {
-		h.persistCrewMembers(c, userID, flight)
-	}
 	if req.CrewMembers == nil {
 		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
 	}
@@ -667,14 +670,23 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 // DeleteFlight implements DELETE /flights/{flightId}
 // (DELETE /flights/{flightId})
-func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId) {
+func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId, params generated.DeleteFlightParams) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	if err := h.flightService.DeleteFlight(c.Request.Context(), uuid.UUID(flightId), userID); err != nil {
+	reason := ""
+	if params.Reason != nil {
+		reason = *params.Reason
+	}
+	if len(reason) > maxReasonLen {
+		h.sendError(c, http.StatusBadRequest, "reason is too long")
+		return
+	}
+
+	if err := h.flightService.DeleteFlightWithReason(c.Request.Context(), uuid.UUID(flightId), userID, reason); err != nil {
 		if errors.Is(err, service.ErrFlightLocked) {
 			h.sendError(c, http.StatusConflict, "This flight is locked by a completed signature. Void the signature to make changes.")
 			return
@@ -690,6 +702,9 @@ func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId) {
 	// OpenAPI spec requires 204 No Content for successful DELETE
 	c.Status(http.StatusNoContent)
 }
+
+// maxReasonLen bounds the delete reason.
+const maxReasonLen = 500
 
 // Helper functions
 

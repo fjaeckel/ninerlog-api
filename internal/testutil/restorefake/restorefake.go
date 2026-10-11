@@ -25,6 +25,12 @@ type State struct {
 	Reports     []*models.CustomReport
 	Prefs       *models.NotificationPreferences
 	Baseline    *models.FlightBaseline
+
+	Strict         bool
+	StrictSince    *time.Time
+	ModeEvents     []models.LogbookModeEvent
+	Revisions      []models.FlightRevision
+	Certifications []models.LogbookCertification
 }
 
 func (s State) clone() State {
@@ -40,6 +46,12 @@ func (s State) clone() State {
 		Reports:     append([]*models.CustomReport(nil), s.Reports...),
 		Prefs:       s.Prefs,
 		Baseline:    s.Baseline,
+
+		Strict:         s.Strict,
+		StrictSince:    s.StrictSince,
+		ModeEvents:     append([]models.LogbookModeEvent(nil), s.ModeEvents...),
+		Revisions:      append([]models.FlightRevision(nil), s.Revisions...),
+		Certifications: append([]models.LogbookCertification(nil), s.Certifications...),
 	}
 }
 
@@ -54,6 +66,9 @@ type Store struct {
 
 	Commits   int
 	Rollbacks int
+
+	// ChangeContext is the change context carried into the last transaction.
+	ChangeContext repository.ChangeContext
 }
 
 // Operation names accepted by FailAt.
@@ -72,6 +87,10 @@ const (
 	OpCrew             = "insert_crew_members"
 	OpPrefs            = "upsert_notification_preferences"
 	OpBaseline         = "upsert_flight_baseline"
+	OpSetStrict        = "set_strict"
+	OpModeEvent        = "import_mode_event"
+	OpRevisions        = "import_revisions"
+	OpCertification    = "import_certification"
 )
 
 // New creates an empty store.
@@ -83,6 +102,7 @@ func (s *Store) InRestoreTx(ctx context.Context, userID uuid.UUID, fn func(tx re
 	defer s.mu.Unlock()
 
 	before := s.State.clone()
+	s.ChangeContext, _ = repository.ChangeContextFrom(ctx)
 	tx := &tx{store: s, calls: map[string]int{}}
 	if err := fn(tx); err != nil {
 		s.State = before
@@ -134,8 +154,11 @@ func (t *tx) WipeContent(ctx context.Context, userID uuid.UUID) error {
 		return err
 	}
 	st := &t.store.State
-	prefs, baseline := st.Prefs, st.Baseline
-	*st = State{Prefs: prefs, Baseline: baseline}
+	*st = State{
+		Prefs: st.Prefs, Baseline: st.Baseline,
+		Strict: st.Strict, StrictSince: st.StrictSince,
+		ModeEvents: st.ModeEvents, Revisions: st.Revisions, Certifications: st.Certifications,
+	}
 	return nil
 }
 
@@ -239,4 +262,77 @@ func (t *tx) UpsertFlightBaseline(ctx context.Context, b *models.FlightBaseline)
 	}
 	t.store.State.Baseline = b
 	return nil
+}
+
+func (t *tx) SetStrict(ctx context.Context, userID uuid.UUID, strict bool, trigger string, licenseID *uuid.UUID) (bool, error) {
+	if err := t.hit(OpSetStrict); err != nil {
+		return false, err
+	}
+	st := &t.store.State
+	if st.Strict == strict {
+		return false, nil
+	}
+	now := time.Now()
+	st.Strict = strict
+	if strict {
+		st.StrictSince = &now
+	}
+	st.ModeEvents = append(st.ModeEvents, models.LogbookModeEvent{
+		ID: uuid.New(), UserID: userID, Strict: strict, Trigger: trigger, LicenseID: licenseID, CreatedAt: now,
+	})
+	return true, nil
+}
+
+func (t *tx) RestoreStrictSince(ctx context.Context, userID uuid.UUID, since time.Time) error {
+	if t.store.State.Strict {
+		t.store.State.StrictSince = &since
+	}
+	return nil
+}
+
+func (t *tx) ImportModeEvent(ctx context.Context, e *models.LogbookModeEvent) (bool, error) {
+	if err := t.hit(OpModeEvent); err != nil {
+		return false, err
+	}
+	for _, existing := range t.store.State.ModeEvents {
+		if existing.Strict == e.Strict && existing.Trigger == e.Trigger && existing.CreatedAt.Equal(e.CreatedAt) {
+			return false, nil
+		}
+	}
+	ensureID(&e.ID)
+	t.store.State.ModeEvents = append(t.store.State.ModeEvents, *e)
+	return true, nil
+}
+
+func (t *tx) ImportRevisions(ctx context.Context, revs []models.FlightRevision) (int, error) {
+	if err := t.hit(OpRevisions); err != nil {
+		return 0, err
+	}
+	stored := 0
+next:
+	for _, rev := range revs {
+		for _, existing := range t.store.State.Revisions {
+			if existing.FlightID == rev.FlightID && existing.RevisionNo == rev.RevisionNo {
+				continue next
+			}
+		}
+		ensureID(&rev.ID)
+		t.store.State.Revisions = append(t.store.State.Revisions, rev)
+		stored++
+	}
+	return stored, nil
+}
+
+func (t *tx) ImportCertification(ctx context.Context, c *models.LogbookCertification) (bool, error) {
+	if err := t.hit(OpCertification); err != nil {
+		return false, err
+	}
+	for _, existing := range t.store.State.Certifications {
+		if existing.CertifiedThrough.Equal(c.CertifiedThrough) && existing.CertifiedAt.Equal(c.CertifiedAt) {
+			return false, nil
+		}
+	}
+	ensureID(&c.ID)
+	t.store.State.Certifications = append(t.store.State.Certifications, *c)
+	return true, nil
 }

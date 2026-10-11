@@ -1,10 +1,13 @@
 package cloudbackup
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
@@ -35,13 +38,16 @@ type restorePlan struct {
 	contactsSkipped  int
 	contactsCreated  int
 
-	flights []*models.Flight
-	crew    []models.FlightCrewMember
+	flights   []*models.Flight
+	flightIDs map[uuid.UUID]uuid.UUID
+	crew      []models.FlightCrewMember
 
 	rules    []*models.CustomCurrencyRule
 	reports  []*models.CustomReport
 	prefs    *models.NotificationPreferences
 	baseline *models.FlightBaseline
+
+	logbook service.LogbookImport
 
 	warnings warningList
 }
@@ -100,6 +106,9 @@ func buildRestorePlan(userID uuid.UUID, p *Payload) (*restorePlan, error) {
 		return nil, err
 	}
 	pl.planSettings(p)
+	if err := pl.planLogbook(p); err != nil {
+		return nil, err
+	}
 	return pl, nil
 }
 
@@ -144,6 +153,11 @@ func (pl *restorePlan) planLicenses(p *Payload) error {
 		if err := models.ValidateLicenseTextFields(&lic); err != nil {
 			return invalidEntry("licenses", i, err)
 		}
+		country, err := service.NormalizeIssuingCountry(lic.IssuingCountry)
+		if err != nil {
+			return invalidEntry("licenses", i, err)
+		}
+		lic.IssuingCountry = country
 		if err := lic.Validate(); err != nil {
 			pl.warnings.add("licenses", i, "restored although it no longer passes validation: %s", err)
 		}
@@ -224,12 +238,16 @@ func (pl *restorePlan) planContacts(p *Payload) (map[string]uuid.UUID, error) {
 // links to it; any other valid name gets a contact of its own.
 func (pl *restorePlan) planFlights(p *Payload, contactIDs map[string]uuid.UUID) error {
 	pl.flights = make([]*models.Flight, 0, len(p.Flights))
+	pl.flightIDs = make(map[uuid.UUID]uuid.UUID, len(p.Flights))
 	for i, src := range p.Flights {
 		if src == nil {
 			return invalidEntry("flights", i, nil)
 		}
 		f := *src
 		f.ID = uuid.New()
+		if src.ID != uuid.Nil {
+			pl.flightIDs[src.ID] = f.ID
+		}
 		f.UserID = pl.userID
 		f.SignatureID = nil
 		f.AircraftReg = registration.Canonical(f.AircraftReg)
@@ -358,4 +376,44 @@ func (pl *restorePlan) planSettings(p *Payload) {
 			pl.warnings.add("flightBaseline", 0, "restored although it no longer passes validation: %s", err)
 		}
 	}
+}
+
+// planLogbook plans strict logbook mode, its switch events, the flight
+// revisions and the certifications. Licence ids are mapped when applied.
+func (pl *restorePlan) planLogbook(p *Payload) error {
+	in := service.LogbookImport{FlightIDs: pl.flightIDs}
+	if m := p.LogbookMode; m != nil {
+		in.Strict = m.Strict
+		in.Since = m.Since
+		for _, e := range m.Events {
+			in.Events = append(in.Events, models.LogbookModeEvent{
+				Strict: e.Strict, Trigger: e.Trigger, LicenseID: e.LicenseID, CreatedAt: e.CreatedAt,
+			})
+		}
+	}
+	for _, r := range p.FlightRevisions {
+		in.Revisions = append(in.Revisions, models.FlightRevision{
+			FlightID: r.FlightID, RevisionNo: r.RevisionNo, Kind: r.Kind,
+			Snapshot: r.Snapshot, CrewSnapshot: r.CrewSnapshot, Source: r.Source,
+			Reason: r.Reason, IsCorrection: r.IsCorrection, ChangedAt: r.ChangedAt,
+		})
+	}
+	for i, c := range p.LogbookCertifications {
+		through, err := time.Parse("2006-01-02", c.CertifiedThrough)
+		if err != nil {
+			return invalidEntry("logbookCertifications", i, err)
+		}
+		in.Certifications = append(in.Certifications, models.LogbookCertification{
+			CertifiedThrough: through, CertifiedAt: c.CertifiedAt,
+		})
+	}
+	if err := in.Validate(); err != nil {
+		var entry *service.LogbookImportError
+		if errors.As(err, &entry) {
+			return invalidEntry(entry.Section, entry.Index, err)
+		}
+		return &InvalidBackupError{Message: "Invalid logbook history in backup", Detail: err.Error()}
+	}
+	pl.logbook = in
+	return nil
 }

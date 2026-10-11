@@ -350,7 +350,12 @@ func main() {
 
 	adminRepo := postgres.NewAdminRepository(db)
 	adminRoleService := service.NewAdminRoleService(adminRepo, adminEmail)
+	logbookRepo := postgres.NewLogbookRepository(db)
+	flightSignatureRepo := postgres.NewFlightSignatureRepository(db)
+	logbookService := service.NewLogbookService(logbookRepo, licenseRepo, flightRepo, flightSignatureRepo)
+
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminRoleService)
+	apiHandler.SetLogbookService(logbookService)
 	apiHandler.SetOIDCService(oidcService)
 	apiHandler.SetCustomCurrencyService(customCurrencyService)
 	apiHandler.SetCustomReportService(customreport.NewService(
@@ -373,8 +378,8 @@ func main() {
 	apiHandler.SetEmailSender(emailSender)
 	flightSessionService := service.NewFlightSessionService(flightSessionRepo, aircraftRepo, flightService)
 	apiHandler.SetFlightSessionService(flightSessionService)
-	flightSignatureRepo := postgres.NewFlightSignatureRepository(db)
 	flightSignatureService := service.NewFlightSignatureService(flightSignatureRepo, flightRepo, userRepo)
+	flightSignatureService.SetCrewRepository(flightCrewRepo)
 	apiHandler.SetFlightSignatureService(flightSignatureService)
 	// Licence/credential reference files (JPEG, PNG, PDF).
 	// DOCUMENT_FILES_ENABLED=false turns the feature off: every /files

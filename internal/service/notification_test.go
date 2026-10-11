@@ -254,7 +254,10 @@ func (m *mockNotifFlightRepo) GetByUserID(ctx context.Context, userID uuid.UUID,
 	return nil, nil
 }
 func (m *mockNotifFlightRepo) Update(ctx context.Context, flight *models.Flight) error { return nil }
-func (m *mockNotifFlightRepo) Delete(ctx context.Context, id uuid.UUID) error          { return nil }
+func (m *mockNotifFlightRepo) UpdateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error {
+	return nil
+}
+func (m *mockNotifFlightRepo) Delete(ctx context.Context, id uuid.UUID) error { return nil }
 func (m *mockNotifFlightRepo) SetSignatureLock(ctx context.Context, flightID uuid.UUID, signatureID *uuid.UUID) error {
 	return nil
 }

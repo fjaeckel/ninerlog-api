@@ -210,6 +210,13 @@ func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *m
 	}
 	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
 
+	renameReason := "Crew contact renamed"
+	if err := applyChangeContext(repository.WithChangeContext(ctx, repository.ChangeContext{
+		Source: repository.ChangeSourceUserEdit, Reason: &renameReason,
+	}), tx); err != nil {
+		return 0, err
+	}
+
 	now := time.Now()
 	result, err := tx.ExecContext(ctx, contactUpdateQuery,
 		contact.Name, contact.Email, contact.Phone, contact.Notes, now, contact.ID,

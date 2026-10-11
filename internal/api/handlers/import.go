@@ -21,6 +21,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
@@ -622,7 +623,9 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 				slog.Warn("import: failed to link crew members to contacts",
 					"flightId", newFlight.ID, "error", err)
 			}
-			if err := h.flightCrewRepo.SetCrewMembers(c.Request.Context(), newFlight.ID, newFlight.CrewMembers); err != nil {
+			if err := h.flightCrewRepo.SetCrewMembers(
+				repository.WithChangeSource(c.Request.Context(), repository.ChangeSourceCreate),
+				newFlight.ID, newFlight.CrewMembers); err != nil {
 				slog.Warn("import: failed to save crew members",
 					"flightId", newFlight.ID, "error", err)
 				importErrors = append(importErrors, struct {

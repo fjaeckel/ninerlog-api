@@ -342,15 +342,21 @@ type ServerInterface interface {
 	// RecalculateFlights Recalculate all flights
 	// (POST /flights/recalculate)
 	RecalculateFlights(c *gin.Context)
+	// ListVoidedFlights List deleted flights kept as void records
+	// (GET /flights/voided)
+	ListVoidedFlights(c *gin.Context)
 	// DeleteFlight Delete flight
 	// (DELETE /flights/{flightId})
-	DeleteFlight(c *gin.Context, flightId FlightId)
+	DeleteFlight(c *gin.Context, flightId FlightId, params DeleteFlightParams)
 	// GetFlight Get flight details
 	// (GET /flights/{flightId})
 	GetFlight(c *gin.Context, flightId FlightId)
 	// UpdateFlight Update flight
 	// (PUT /flights/{flightId})
 	UpdateFlight(c *gin.Context, flightId FlightId)
+	// ListFlightRevisions List a flight's revision history
+	// (GET /flights/{flightId}/revisions)
+	ListFlightRevisions(c *gin.Context, flightId FlightId)
 	// ListFlightSignatures List signature history for a flight
 	// (GET /flights/{flightId}/signatures)
 	ListFlightSignatures(c *gin.Context, flightId FlightId)
@@ -443,6 +449,18 @@ type ServerInterface interface {
 	// GetLicenseStatistics Get license statistics
 	// (GET /licenses/{licenseId}/statistics)
 	GetLicenseStatistics(c *gin.Context, licenseId LicenseId, params GetLicenseStatisticsParams)
+	// ListLogbookCertifications List logbook certifications
+	// (GET /logbook/certifications)
+	ListLogbookCertifications(c *gin.Context)
+	// CreateLogbookCertification Certify the logbook through a date
+	// (POST /logbook/certifications)
+	CreateLogbookCertification(c *gin.Context)
+	// GetLogbookMode Get the logbook mode
+	// (GET /logbook/mode)
+	GetLogbookMode(c *gin.Context)
+	// UpdateLogbookMode Switch strict logbook mode on or off
+	// (PUT /logbook/mode)
+	UpdateLogbookMode(c *gin.Context)
 	// GetAirportStats Get airport statistics
 	// (GET /reports/airport-stats)
 	GetAirportStats(c *gin.Context)
@@ -3031,6 +3049,19 @@ func (siw *ServerInterfaceWrapper) RecalculateFlights(c *gin.Context) {
 	siw.Handler.RecalculateFlights(c)
 }
 
+// ListVoidedFlights operation middleware
+func (siw *ServerInterfaceWrapper) ListVoidedFlights(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListVoidedFlights(c)
+}
+
 // DeleteFlight operation middleware
 func (siw *ServerInterfaceWrapper) DeleteFlight(c *gin.Context) {
 
@@ -3046,6 +3077,17 @@ func (siw *ServerInterfaceWrapper) DeleteFlight(c *gin.Context) {
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteFlightParams
+
+	// ------------- Optional query parameter "reason" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "reason", c.Request.URL.Query(), &params.Reason, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reason: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3053,7 +3095,7 @@ func (siw *ServerInterfaceWrapper) DeleteFlight(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.DeleteFlight(c, flightId)
+	siw.Handler.DeleteFlight(c, flightId, params)
 }
 
 // GetFlight operation middleware
@@ -3104,6 +3146,31 @@ func (siw *ServerInterfaceWrapper) UpdateFlight(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateFlight(c, flightId)
+}
+
+// ListFlightRevisions operation middleware
+func (siw *ServerInterfaceWrapper) ListFlightRevisions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "flightId" -------------
+	var flightId FlightId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "flightId", c.Param("flightId"), &flightId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter flightId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListFlightRevisions(c, flightId)
 }
 
 // ListFlightSignatures operation middleware
@@ -3910,6 +3977,58 @@ func (siw *ServerInterfaceWrapper) GetLicenseStatistics(c *gin.Context) {
 	siw.Handler.GetLicenseStatistics(c, licenseId, params)
 }
 
+// ListLogbookCertifications operation middleware
+func (siw *ServerInterfaceWrapper) ListLogbookCertifications(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListLogbookCertifications(c)
+}
+
+// CreateLogbookCertification operation middleware
+func (siw *ServerInterfaceWrapper) CreateLogbookCertification(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateLogbookCertification(c)
+}
+
+// GetLogbookMode operation middleware
+func (siw *ServerInterfaceWrapper) GetLogbookMode(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetLogbookMode(c)
+}
+
+// UpdateLogbookMode operation middleware
+func (siw *ServerInterfaceWrapper) UpdateLogbookMode(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateLogbookMode(c)
+}
+
 // GetAirportStats operation middleware
 func (siw *ServerInterfaceWrapper) GetAirportStats(c *gin.Context) {
 
@@ -4667,6 +4786,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/flights/:flightId", wrapper.DeleteFlight)
 	router.GET(options.BaseURL+"/flights/:flightId", wrapper.GetFlight)
 	router.PUT(options.BaseURL+"/flights/:flightId", wrapper.UpdateFlight)
+	router.GET(options.BaseURL+"/flights/:flightId/revisions", wrapper.ListFlightRevisions)
+	router.GET(options.BaseURL+"/flights/voided", wrapper.ListVoidedFlights)
+	router.GET(options.BaseURL+"/logbook/mode", wrapper.GetLogbookMode)
+	router.PUT(options.BaseURL+"/logbook/mode", wrapper.UpdateLogbookMode)
+	router.GET(options.BaseURL+"/logbook/certifications", wrapper.ListLogbookCertifications)
+	router.POST(options.BaseURL+"/logbook/certifications", wrapper.CreateLogbookCertification)
 	router.GET(options.BaseURL+"/flights/:flightId/signatures", wrapper.ListFlightSignatures)
 	router.POST(options.BaseURL+"/flights/:flightId/signatures", wrapper.CreateSignatureRequest)
 	router.POST(options.BaseURL+"/flights/:flightId/signatures/live", wrapper.SignFlightLive)

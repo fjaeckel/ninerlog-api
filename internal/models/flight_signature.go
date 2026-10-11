@@ -71,6 +71,8 @@ type FlightSignature struct {
 	VoidedAt     *time.Time
 	VoidedReason *string
 
+	SignedFieldsHash *string
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

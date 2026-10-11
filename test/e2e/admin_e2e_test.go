@@ -55,6 +55,11 @@ func TestAdminEndpoints(t *testing.T) {
 		if s["totalCustomReports"] == nil {
 			t.Error("Expected totalCustomReports")
 		}
+		for _, key := range []string{"strictLogbookUsers", "flightRevisions", "flightCorrections", "voidedFlights", "logbookCertifications"} {
+			if _, ok := s[key].(float64); !ok {
+				t.Errorf("Expected numeric %s, got %v", key, s[key])
+			}
+		}
 		cbd, ok := s["cloudBackupDestinations"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("Expected cloudBackupDestinations object, got %T", s["cloudBackupDestinations"])

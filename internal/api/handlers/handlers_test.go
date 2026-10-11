@@ -468,6 +468,9 @@ func (m *mockFlightRepo) Update(_ context.Context, f *models.Flight) error {
 	m.flights[f.ID] = f
 	return nil
 }
+func (m *mockFlightRepo) UpdateWithCrew(ctx context.Context, f *models.Flight, _ []models.FlightCrewMember) error {
+	return m.Update(ctx, f)
+}
 func (m *mockFlightRepo) Delete(_ context.Context, id uuid.UUID) error {
 	delete(m.flights, id)
 	return nil
@@ -1819,7 +1822,7 @@ func TestDeleteFlight_Unauthorized(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("DELETE", "/flights/"+uuid.New().String(), nil)
 
-	h.DeleteFlight(c, uuid.New())
+	h.DeleteFlight(c, uuid.New(), generated.DeleteFlightParams{})
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("DeleteFlight(unauth) status = %d, want 401", w.Code)
@@ -1834,7 +1837,7 @@ func TestDeleteFlight_NotFound(t *testing.T) {
 	c := authenticatedContext(w, userID)
 	c.Request = httptest.NewRequest("DELETE", "/flights/"+uuid.New().String(), nil)
 
-	h.DeleteFlight(c, uuid.New())
+	h.DeleteFlight(c, uuid.New(), generated.DeleteFlightParams{})
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("DeleteFlight(nonexistent) status = %d, want 404", w.Code)

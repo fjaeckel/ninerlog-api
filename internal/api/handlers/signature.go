@@ -47,7 +47,16 @@ func convertToGeneratedFlightSignature(s *models.FlightSignature) generated.Flig
 	out.SignedAt = s.SignedAt
 	out.VoidedAt = s.VoidedAt
 	out.VoidedReason = s.VoidedReason
+	out.FieldsHash = s.SignedFieldsHash
 	return out
+}
+
+// withFieldsHashValidity sets fieldsHashValid on each converted signature that
+// carries a hash.
+func withFieldsHashValidity(out *generated.FlightSignature, valid map[uuid.UUID]bool) {
+	if v, ok := valid[uuid.UUID(out.Id)]; ok {
+		out.FieldsHashValid = &v
+	}
 }
 
 func signatureRequestCreatedResponse(s *models.FlightSignature, signURL string) generated.SignatureRequestCreated {
@@ -110,9 +119,16 @@ func (h *APIHandler) ListFlightSignatures(c *gin.Context, flightId generated.Fli
 		h.sendSignatureServiceError(c, err)
 		return
 	}
+	valid, err := h.flightSignatureService.VerifyFieldsHashes(c.Request.Context(), uuid.UUID(flightId), userID, sigs)
+	if err != nil {
+		h.sendSignatureServiceError(c, err)
+		return
+	}
 	out := make([]generated.FlightSignature, 0, len(sigs))
 	for _, s := range sigs {
-		out = append(out, convertToGeneratedFlightSignature(s))
+		converted := convertToGeneratedFlightSignature(s)
+		withFieldsHashValidity(&converted, valid)
+		out = append(out, converted)
 	}
 	c.JSON(http.StatusOK, out)
 }
@@ -129,7 +145,14 @@ func (h *APIHandler) GetFlightSignature(c *gin.Context, flightId generated.Fligh
 		h.sendSignatureServiceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, convertToGeneratedFlightSignature(sig))
+	valid, err := h.flightSignatureService.VerifyFieldsHashes(c.Request.Context(), uuid.UUID(flightId), userID, []*models.FlightSignature{sig})
+	if err != nil {
+		h.sendSignatureServiceError(c, err)
+		return
+	}
+	converted := convertToGeneratedFlightSignature(sig)
+	withFieldsHashValidity(&converted, valid)
+	c.JSON(http.StatusOK, converted)
 }
 
 // GetFlightSignatureImage implements GET /flights/{flightId}/signatures/{signatureId}/image

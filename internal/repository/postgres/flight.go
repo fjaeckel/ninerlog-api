@@ -117,6 +117,14 @@ func timeToString(t *time.Time) *string {
 	return &s
 }
 
+// nullableTime maps the zero time to SQL NULL.
+func nullableTime(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t
+}
+
 // flightInsertColumns lists the flights columns written on insert, in the
 // order flightInsertArgs supplies them.
 const flightInsertColumns = `
@@ -215,9 +223,9 @@ func placeholders(first, n int) string {
 }
 
 func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) error {
-	args := flightInsertArgs(flight)
-	query := `INSERT INTO flights (` + flightInsertColumns + `)
-		VALUES (` + placeholders(1, len(args)) + `)
+	args := append(flightInsertArgs(flight), nullableTime(flight.CreatedAt))
+	query := `INSERT INTO flights (` + flightInsertColumns + `, created_at)
+		VALUES (` + placeholders(1, len(args)-1) + fmt.Sprintf(", COALESCE($%d::timestamptz, now()))", len(args)) + `
 		RETURNING id, created_at, updated_at`
 
 	return r.db.QueryRowContext(ctx, query, args...).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
@@ -351,6 +359,34 @@ func (r *flightRepository) GetByUserID(ctx context.Context, userID uuid.UUID, op
 }
 
 func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) error {
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := updateFlightRow(ctx, tx, flight); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// UpdateWithCrew updates the flight and replaces its crew in one transaction.
+func (r *flightRepository) UpdateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error {
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := updateFlightRow(ctx, tx, flight); err != nil {
+		return err
+	}
+	if err := replaceCrewMembers(ctx, tx, flight.ID, crew); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func updateFlightRow(ctx context.Context, db execer, flight *models.Flight) error {
 	approachesJSON, err := json.Marshal(flight.Approaches)
 	if err != nil {
 		approachesJSON = []byte("[]")
@@ -383,7 +419,7 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		WHERE id = $61
 	`
 
-	result, err := r.db.ExecContext(
+	result, err := db.ExecContext(
 		ctx, query,
 		flight.Date,
 		flight.AircraftReg,
@@ -464,9 +500,13 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 }
 
 func (r *flightRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM flights WHERE id = $1`
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
 
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := tx.ExecContext(ctx, `DELETE FROM flights WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
@@ -480,18 +520,28 @@ func (r *flightRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return repository.ErrNotFound
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (r *flightRepository) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	// Crew members are deleted explicitly; the FK also cascades.
-	_, _ = r.db.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id IN (SELECT id FROM flights WHERE user_id = $1)`, userID)
-
-	result, err := r.db.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1`, userID)
+	tx, err := beginChangeTx(ctx, r.db)
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected()
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id IN (SELECT id FROM flights WHERE user_id = $1)`, userID); err != nil {
+		return 0, err
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1`, userID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return n, tx.Commit()
 }
 
 func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -32,6 +33,15 @@ func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repos
 		flightRepo:   flightRepo,
 		baselineRepo: baselineRepo,
 	}
+}
+
+// FlightWriteOptions carries what a user-facing flight write needs beyond the
+// flight itself.
+type FlightWriteOptions struct {
+	// Source is the change source recorded for the write; empty means user_edit.
+	Source string
+	// Crew, when non-nil, replaces the flight's crew in the same transaction.
+	Crew *[]models.FlightCrewMember
 }
 
 // CreateFlight creates a new flight log entry
@@ -81,6 +91,13 @@ func (s *FlightService) ListFlights(ctx context.Context, userID uuid.UUID, opts 
 
 // UpdateFlight updates a flight and verifies user ownership
 func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight, userID uuid.UUID) error {
+	return s.UpdateFlightWith(ctx, flight, userID, FlightWriteOptions{})
+}
+
+// UpdateFlightWith updates a flight and verifies user ownership. The write
+// carries opts.Source as its change source and replaces the crew in the same
+// transaction when opts.Crew is set.
+func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Flight, userID uuid.UUID, opts FlightWriteOptions) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 
 	// Verify ownership
@@ -120,11 +137,27 @@ func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight,
 	flight.UserID = existing.UserID
 	flight.CreatedAt = existing.CreatedAt
 
+	source := opts.Source
+	if source == "" {
+		source = repository.ChangeSourceUserEdit
+	}
+	change := repository.ChangeContext{Source: source}
+
+	ctx = repository.WithChangeContext(ctx, change)
+	if opts.Crew != nil {
+		return s.flightRepo.UpdateWithCrew(ctx, flight, *opts.Crew)
+	}
 	return s.flightRepo.Update(ctx, flight)
 }
 
 // DeleteFlight deletes a flight and verifies user ownership
 func (s *FlightService) DeleteFlight(ctx context.Context, flightID, userID uuid.UUID) error {
+	return s.DeleteFlightWithReason(ctx, flightID, userID, "")
+}
+
+// DeleteFlightWithReason deletes a flight and verifies user ownership. In
+// strict logbook mode the reason is stored on the void record.
+func (s *FlightService) DeleteFlightWithReason(ctx context.Context, flightID, userID uuid.UUID, reason string) error {
 	// Verify ownership
 	flight, err := s.flightRepo.GetByID(ctx, flightID)
 	if err != nil {
@@ -142,12 +175,16 @@ func (s *FlightService) DeleteFlight(ctx context.Context, flightID, userID uuid.
 		return ErrFlightLocked
 	}
 
-	return s.flightRepo.Delete(ctx, flightID)
+	change := repository.ChangeContext{Source: repository.ChangeSourceUserEdit}
+	if reason = strings.TrimSpace(reason); reason != "" {
+		change.Reason = &reason
+	}
+	return s.flightRepo.Delete(repository.WithChangeContext(ctx, change), flightID)
 }
 
 // DeleteAllFlights deletes all flights for a user
 func (s *FlightService) DeleteAllFlights(ctx context.Context, userID uuid.UUID) (int64, error) {
-	return s.flightRepo.DeleteAllByUserID(ctx, userID)
+	return s.flightRepo.DeleteAllByUserID(repository.WithChangeSource(ctx, repository.ChangeSourceUserEdit), userID)
 }
 
 // CountFlights counts flights for a user with optional filters

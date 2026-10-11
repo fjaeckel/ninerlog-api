@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -74,15 +75,21 @@ func (h *APIHandler) CreateLicense(c *gin.Context) {
 	if req.RequiresSeparateLogbook != nil {
 		license.RequiresSeparateLogbook = *req.RequiresSeparateLogbook
 	}
+	license.IssuingCountry = req.IssuingCountry
 
 	if err := h.licenseService.CreateLicense(c.Request.Context(), &license); err != nil {
 		if errors.Is(err, service.ErrInvalidLicense) {
 			h.sendError(c, http.StatusBadRequest, "Invalid license data: ensure all required fields are provided")
 			return
 		}
+		if errors.Is(err, service.ErrInvalidIssuingCountry) {
+			h.sendError(c, http.StatusBadRequest, "issuingCountry must be a two-letter ISO 3166-1 code")
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to create license")
 		return
 	}
+	h.syncStrictLogbook(c, userID, license.ID)
 
 	c.JSON(http.StatusCreated, convertToGeneratedLicense(&license))
 }
@@ -151,13 +158,30 @@ func (h *APIHandler) UpdateLicense(c *gin.Context, licenseId generated.LicenseId
 	if req.RequiresSeparateLogbook != nil {
 		license.RequiresSeparateLogbook = *req.RequiresSeparateLogbook
 	}
+	applyNullable(&license.IssuingCountry, req.IssuingCountry)
 
 	if err := h.licenseService.UpdateLicense(c.Request.Context(), license, userID); err != nil {
+		if errors.Is(err, service.ErrInvalidIssuingCountry) {
+			h.sendError(c, http.StatusBadRequest, "issuingCountry must be a two-letter ISO 3166-1 code")
+			return
+		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to update license")
 		return
 	}
+	h.syncStrictLogbook(c, userID, license.ID)
 
 	c.JSON(http.StatusOK, convertToGeneratedLicense(license))
+}
+
+// syncStrictLogbook switches strict logbook mode on when a saved licence
+// requires it. Failures are logged and do not fail the licence save.
+func (h *APIHandler) syncStrictLogbook(c *gin.Context, userID, licenseID uuid.UUID) {
+	if h.logbookService == nil {
+		return
+	}
+	if err := h.logbookService.SyncFromLicences(c.Request.Context(), userID, licenseID); err != nil {
+		slog.Warn("failed to apply licence logbook rules", "licenseId", licenseID, "error", err)
+	}
 }
 
 // DeleteLicense implements DELETE /licenses/{licenseId}
@@ -315,6 +339,7 @@ func convertToGeneratedLicense(lic *models.License) generated.License {
 		IssueDate:               openapi_types.Date{Time: lic.IssueDate},
 		IssuingAuthority:        lic.IssuingAuthority,
 		RequiresSeparateLogbook: &reqSepLogbook,
+		IssuingCountry:          lic.IssuingCountry,
 		CreatedAt:               lic.CreatedAt,
 		UpdatedAt:               lic.UpdatedAt,
 	}

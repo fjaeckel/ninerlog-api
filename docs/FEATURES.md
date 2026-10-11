@@ -198,6 +198,20 @@ rules.
   place in full nor a recognised designator — and the web UI shortens a long name only
   where space is tight; ICAO and national codes are shown as codes.
 
+### Strict logbook mode and flight history
+
+An opt-in mode for pilots whose authority expects a traceable logbook. In strict mode every
+change to a flight is kept as a revision (what it said before, who or what changed it,
+when, why), a deleted flight is kept as a void record, and the pilot can certify the logbook
+through a date. A licence from CH, DE (not ultralight), AT (national), AU, NZ, JP
+or UY switches the mode on when it is saved with its `issuingCountry`; DK, BR, GB, US and
+other EASA states only suggest it. The user can switch it on or off at any time
+(`/logbook/mode`); history already recorded is kept. Revisions, void records, mode switches
+and certifications are part of the JSON export, the import and cloud backups. Signatures
+store a hash of the fields they attested. Rules, the licence registry and the capture
+mechanism are described in
+[DOMAIN.md](./DOMAIN.md#strict-logbook-mode-and-the-flight-audit-trail).
+
 ## Currency
 
 `GET /currency` and `GET /licenses/{id}/currency` evaluate regulatory currency via the
@@ -490,13 +504,15 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Full backup / restore** (`GET /users/me/data`, `POST /users/me/data`; the old
   `GET /exports/json` and `POST /imports/json` are deprecated aliases) — everything the
   pilot owns in one document: flights with crew, aircraft, licences and class ratings,
-  credentials, contacts, custom currency rules, custom reports, notification preferences and
-  the carried-forward hours baseline. `cloudbackup.Payload` is the single definition of that
+  credentials, contacts, custom currency rules, custom reports, notification preferences,
+  the carried-forward hours baseline, and the strict logbook mode with its flight revisions,
+  mode switches and certifications. `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
   carry the same data. A restore is one transaction: all of it or none. It needs an empty
   account (`409 account_not_empty` otherwise, so restoring twice never doubles the logbook),
   or `mode=replace`, which wipes the account's collections first and is refused while
-  document files or signed flights exist. IDs are regenerated, so a backup moves between
+  document files or signed flights exist; in a strict account a replace records a void
+  record for every wiped flight and keeps the existing history. IDs are regenerated, so a backup moves between
   installations; a custom report scoped to a licence is re-pointed at that licence's
   restored copy, or loses the scope if the backup does not carry it. A backup from any
   released export restores: outdated custom rules come back paused with a warning in the
@@ -591,7 +607,9 @@ Admin-only endpoints (caller must be an admin — the `users.is_admin` flag or t
   counts flights whose owner was carried rather than crewing
   (see [DOMAIN.md](./DOMAIN.md#passenger-flights)), each kept apart for the same reason
   the logbook keeps them apart. `totalCustomReports` counts saved custom reports across all
-  users. Config view also reports `registrationPrefixCount`
+  users. `strictLogbookUsers`, `flightRevisions`, `flightCorrections`, `voidedFlights` and
+  `logbookCertifications` count strict-mode users and their audit trail rows (counts only,
+  never contents). Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than
   fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).

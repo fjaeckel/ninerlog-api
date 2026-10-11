@@ -62,3 +62,16 @@ const (
 	// version of the payload than this server reads.
 	BackupVersionUnsupported = "backup_version_unsupported"
 )
+
+const (
+	// StrictModeRequired — a logbook certification was requested while
+	// strict logbook mode is off.
+	StrictModeRequired = "strict_mode_required"
+
+	// CertificationInFuture — the certified-through date lies after today.
+	CertificationInFuture = "certification_in_future"
+
+	// CertificationBeforeLatest — the certified-through date is earlier than
+	// the latest certification.
+	CertificationBeforeLatest = "certification_before_latest"
+)

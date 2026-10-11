@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/google/uuid"
 )
 
@@ -28,9 +29,10 @@ func (m RestoreMode) Valid() bool {
 
 // Limits on a single restore.
 const (
-	MaxRestoreFlights  = 100000
-	MaxRestoreContacts = 100000
-	MaxRestoreEntities = 2000
+	MaxRestoreFlights   = 100000
+	MaxRestoreContacts  = 100000
+	MaxRestoreRevisions = 100000
+	MaxRestoreEntities  = 2000
 
 	maxRestoreWarnings = 1000
 )
@@ -101,6 +103,8 @@ type RestoreResult struct {
 	CustomReportsImported           int              `json:"customReportsImported"`
 	NotificationPreferencesImported bool             `json:"notificationPreferencesImported"`
 	FlightBaselineImported          bool             `json:"flightBaselineImported"`
+	FlightRevisionsImported         int              `json:"flightRevisionsImported"`
+	LogbookCertificationsImported   int              `json:"logbookCertificationsImported"`
 	Warnings                        []RestoreWarning `json:"warnings"`
 }
 
@@ -137,7 +141,7 @@ func (r *Restorer) Restore(ctx context.Context, userID uuid.UUID, p *Payload, mo
 	}
 
 	var result *RestoreResult
-	err = r.store.InRestoreTx(ctx, userID, func(tx repository.RestoreTx) error {
+	err = r.store.InRestoreTx(restoreChangeContext(ctx, mode), userID, func(tx repository.RestoreTx) error {
 		var err error
 		result, err = plan.apply(ctx, tx, mode)
 		return err
@@ -146,6 +150,21 @@ func (r *Restorer) Restore(ctx context.Context, userID uuid.UUID, p *Payload, mo
 		return nil, err
 	}
 	return result, nil
+}
+
+// ReplaceReason is the reason recorded on the void record of every flight a
+// replace-mode restore deletes in strict logbook mode.
+const ReplaceReason = "Replaced by backup restore"
+
+// restoreChangeContext marks the restore's flight writes as an import; a
+// replace carries ReplaceReason.
+func restoreChangeContext(ctx context.Context, mode RestoreMode) context.Context {
+	cc := repository.ChangeContext{Source: repository.ChangeSourceImport}
+	if mode == RestoreModeReplace {
+		reason := ReplaceReason
+		cc.Reason = &reason
+	}
+	return repository.WithChangeContext(ctx, cc)
 }
 
 // checkEnvelope validates format, version and section sizes.
@@ -167,12 +186,22 @@ func checkEnvelope(p *Payload) error {
 		{"credentials", len(p.Credentials), MaxRestoreEntities},
 		{"custom currency rules", len(p.CustomCurrencyRules), MaxRestoreEntities},
 		{"custom reports", len(p.CustomReports), MaxRestoreEntities},
+		{"flight revisions", len(p.FlightRevisions), MaxRestoreRevisions},
+		{"logbook certifications", len(p.LogbookCertifications), MaxRestoreEntities},
+		{"logbook mode events", logbookEventCount(p), MaxRestoreEntities},
 	} {
 		if s.n > s.limit {
 			return tooMany(s.name, s.n, s.limit)
 		}
 	}
 	return nil
+}
+
+func logbookEventCount(p *Payload) int {
+	if p.LogbookMode == nil {
+		return 0
+	}
+	return len(p.LogbookMode.Events)
 }
 
 // checkVersion accepts an absent version and any major version up to
@@ -285,6 +314,16 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		}
 	}
 
+	pl.logbook.LicenseIDs = licenseIDs
+	logbook, err := service.ImportLogbook(ctx, tx, pl.userID, pl.logbook)
+	var entry *service.LogbookImportError
+	if errors.As(err, &entry) {
+		return nil, invalidEntry(entry.Section, entry.Index, err)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("restore logbook history: %w", err)
+	}
+
 	return &RestoreResult{
 		Mode:                            mode,
 		AircraftImported:                len(pl.aircraft),
@@ -301,6 +340,8 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		CustomReportsImported:           len(pl.reports),
 		NotificationPreferencesImported: pl.prefs != nil,
 		FlightBaselineImported:          pl.baseline != nil,
+		FlightRevisionsImported:         logbook.Revisions,
+		LogbookCertificationsImported:   logbook.Certifications,
 		Warnings:                        pl.warnings.list(),
 	}, nil
 }

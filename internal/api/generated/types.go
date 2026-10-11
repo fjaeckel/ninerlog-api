@@ -294,6 +294,72 @@ func (e BackupFlightLaunchMethod) Valid() bool {
 	}
 }
 
+// Defines values for BackupFlightRevisionKind.
+const (
+	BackupFlightRevisionKindDelete BackupFlightRevisionKind = "delete"
+	BackupFlightRevisionKindUpdate BackupFlightRevisionKind = "update"
+)
+
+// Valid indicates whether the value is a known member of the BackupFlightRevisionKind enum.
+func (e BackupFlightRevisionKind) Valid() bool {
+	switch e {
+	case BackupFlightRevisionKindDelete:
+		return true
+	case BackupFlightRevisionKindUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BackupFlightRevisionSource.
+const (
+	BackupFlightRevisionSourceAircraftRename BackupFlightRevisionSource = "aircraft_rename"
+	BackupFlightRevisionSourceImport         BackupFlightRevisionSource = "import"
+	BackupFlightRevisionSourceRecalc         BackupFlightRevisionSource = "recalc"
+	BackupFlightRevisionSourceUnknown        BackupFlightRevisionSource = "unknown"
+	BackupFlightRevisionSourceUserEdit       BackupFlightRevisionSource = "user_edit"
+)
+
+// Valid indicates whether the value is a known member of the BackupFlightRevisionSource enum.
+func (e BackupFlightRevisionSource) Valid() bool {
+	switch e {
+	case BackupFlightRevisionSourceAircraftRename:
+		return true
+	case BackupFlightRevisionSourceImport:
+		return true
+	case BackupFlightRevisionSourceRecalc:
+		return true
+	case BackupFlightRevisionSourceUnknown:
+		return true
+	case BackupFlightRevisionSourceUserEdit:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BackupLogbookModeEventTrigger.
+const (
+	BackupLogbookModeEventTriggerImport  BackupLogbookModeEventTrigger = "import"
+	BackupLogbookModeEventTriggerLicence BackupLogbookModeEventTrigger = "licence"
+	BackupLogbookModeEventTriggerManual  BackupLogbookModeEventTrigger = "manual"
+)
+
+// Valid indicates whether the value is a known member of the BackupLogbookModeEventTrigger enum.
+func (e BackupLogbookModeEventTrigger) Valid() bool {
+	switch e {
+	case BackupLogbookModeEventTriggerImport:
+		return true
+	case BackupLogbookModeEventTriggerLicence:
+		return true
+	case BackupLogbookModeEventTriggerManual:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackupPayloadFormat.
 const (
 	NinerLogJSONBackup BackupPayloadFormat = "NinerLog JSON Backup"
@@ -1254,6 +1320,51 @@ func (e FlightReviewStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for FlightRevisionKind.
+const (
+	FlightRevisionKindDelete FlightRevisionKind = "delete"
+	FlightRevisionKindUpdate FlightRevisionKind = "update"
+)
+
+// Valid indicates whether the value is a known member of the FlightRevisionKind enum.
+func (e FlightRevisionKind) Valid() bool {
+	switch e {
+	case FlightRevisionKindDelete:
+		return true
+	case FlightRevisionKindUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FlightRevisionSource.
+const (
+	FlightRevisionSourceAircraftRename FlightRevisionSource = "aircraft_rename"
+	FlightRevisionSourceImport         FlightRevisionSource = "import"
+	FlightRevisionSourceRecalc         FlightRevisionSource = "recalc"
+	FlightRevisionSourceUnknown        FlightRevisionSource = "unknown"
+	FlightRevisionSourceUserEdit       FlightRevisionSource = "user_edit"
+)
+
+// Valid indicates whether the value is a known member of the FlightRevisionSource enum.
+func (e FlightRevisionSource) Valid() bool {
+	switch e {
+	case FlightRevisionSourceAircraftRename:
+		return true
+	case FlightRevisionSourceImport:
+		return true
+	case FlightRevisionSourceRecalc:
+		return true
+	case FlightRevisionSourceUnknown:
+		return true
+	case FlightRevisionSourceUserEdit:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FlightSessionStatus.
 const (
 	FlightSessionStatusCompleted FlightSessionStatus = "completed"
@@ -1614,6 +1725,63 @@ func (e ImportTemplateRegions) Valid() bool {
 	case EASA:
 		return true
 	case FAA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogbookModeDraftWindow.
+const (
+	LogbookModeDraftWindowFlightDay LogbookModeDraftWindow = "flight_day"
+	LogbookModeDraftWindowHours48   LogbookModeDraftWindow = "hours_48"
+)
+
+// Valid indicates whether the value is a known member of the LogbookModeDraftWindow enum.
+func (e LogbookModeDraftWindow) Valid() bool {
+	switch e {
+	case LogbookModeDraftWindowFlightDay:
+		return true
+	case LogbookModeDraftWindowHours48:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogbookModeEventTrigger.
+const (
+	LogbookModeEventTriggerImport  LogbookModeEventTrigger = "import"
+	LogbookModeEventTriggerLicence LogbookModeEventTrigger = "licence"
+	LogbookModeEventTriggerManual  LogbookModeEventTrigger = "manual"
+)
+
+// Valid indicates whether the value is a known member of the LogbookModeEventTrigger enum.
+func (e LogbookModeEventTrigger) Valid() bool {
+	switch e {
+	case LogbookModeEventTriggerImport:
+		return true
+	case LogbookModeEventTriggerLicence:
+		return true
+	case LogbookModeEventTriggerManual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogbookModeLicenceDraftWindow.
+const (
+	LogbookModeLicenceDraftWindowFlightDay LogbookModeLicenceDraftWindow = "flight_day"
+	LogbookModeLicenceDraftWindowHours48   LogbookModeLicenceDraftWindow = "hours_48"
+)
+
+// Valid indicates whether the value is a known member of the LogbookModeLicenceDraftWindow enum.
+func (e LogbookModeLicenceDraftWindow) Valid() bool {
+	switch e {
+	case LogbookModeLicenceDraftWindowFlightDay:
+		return true
+	case LogbookModeLicenceDraftWindowHours48:
 		return true
 	default:
 		return false
@@ -2007,6 +2175,33 @@ func (e UserTimeDisplayFormat) Valid() bool {
 	case UserTimeDisplayFormatDecimal:
 		return true
 	case UserTimeDisplayFormatHm:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VoidedFlightSource.
+const (
+	VoidedFlightSourceAircraftRename VoidedFlightSource = "aircraft_rename"
+	VoidedFlightSourceImport         VoidedFlightSource = "import"
+	VoidedFlightSourceRecalc         VoidedFlightSource = "recalc"
+	VoidedFlightSourceUnknown        VoidedFlightSource = "unknown"
+	VoidedFlightSourceUserEdit       VoidedFlightSource = "user_edit"
+)
+
+// Valid indicates whether the value is a known member of the VoidedFlightSource enum.
+func (e VoidedFlightSource) Valid() bool {
+	switch e {
+	case VoidedFlightSourceAircraftRename:
+		return true
+	case VoidedFlightSourceImport:
+		return true
+	case VoidedFlightSourceRecalc:
+		return true
+	case VoidedFlightSourceUnknown:
+		return true
+	case VoidedFlightSourceUserEdit:
 		return true
 	default:
 		return false
@@ -2645,15 +2840,27 @@ type AdminStats struct {
 		Total int `json:"total"`
 	} `json:"cloudBackupDestinations"`
 	DisabledAccounts int `json:"disabledAccounts"`
+
+	// FlightCorrections Revisions classified as corrections
+	FlightCorrections int `json:"flightCorrections"`
+
+	// FlightRevisions Flight revisions across all users (counts only, never contents)
+	FlightRevisions  int `json:"flightRevisions"`
 	FlightsThisMonth int `json:"flightsThisMonth"`
 
 	// ImportsByFormat Completed imports grouped by the detected source format, i.e. which logbook pilots are migrating from. Keys are ImportFormat values; formats nobody has imported are omitted.
 	//
 	// Example: {"CSV":2,"FOREFLIGHT_CSV":12,"MYFLIGHTBOOK_CSV":4}
-	ImportsByFormat  map[string]int `json:"importsByFormat"`
-	LockedAccounts   int            `json:"lockedAccounts"`
-	NewUsersThisWeek int            `json:"newUsersThisWeek"`
-	TotalAircraft    int            `json:"totalAircraft"`
+	ImportsByFormat map[string]int `json:"importsByFormat"`
+	LockedAccounts  int            `json:"lockedAccounts"`
+
+	// LogbookCertifications Logbook "certified through" statements
+	LogbookCertifications int `json:"logbookCertifications"`
+	NewUsersThisWeek      int `json:"newUsersThisWeek"`
+
+	// StrictLogbookUsers Users with strict logbook mode on
+	StrictLogbookUsers int `json:"strictLogbookUsers"`
+	TotalAircraft      int `json:"totalAircraft"`
 
 	// TotalContacts Contacts across all users. Grows on its own as flights are logged, since crew names are turned into contacts automatically.
 	TotalContacts    int `json:"totalContacts"`
@@ -2672,6 +2879,9 @@ type AdminStats struct {
 	// TotalSimulatorSessions FSTD (simulator) sessions across all users. Recorded separately from flights and never summed into flight time (EASA AMC1 FCL.050).
 	TotalSimulatorSessions int `json:"totalSimulatorSessions"`
 	TotalUsers             int `json:"totalUsers"`
+
+	// VoidedFlights Deleted flights kept as void records
+	VoidedFlights int `json:"voidedFlights"`
 }
 
 // AdminUser defines model for AdminUser.
@@ -4203,6 +4413,29 @@ type BackupFlightBaseline struct {
 	TotalMinutes        int       `json:"totalMinutes"`
 }
 
+// BackupFlightRevision defines model for BackupFlightRevision.
+type BackupFlightRevision struct {
+	ChangedAt time.Time `json:"changedAt"`
+
+	// CrewSnapshot The crew before the change
+	CrewSnapshot []map[string]interface{} `json:"crewSnapshot"`
+	FlightId     openapi_types.UUID       `json:"flightId"`
+	IsCorrection bool                     `json:"isCorrection"`
+	Kind         BackupFlightRevisionKind `json:"kind"`
+	Reason       *string                  `json:"reason,omitempty"`
+	RevisionNo   int                      `json:"revisionNo"`
+
+	// Snapshot The flight row before the change, with snake_case column names
+	Snapshot map[string]interface{}     `json:"snapshot"`
+	Source   BackupFlightRevisionSource `json:"source"`
+}
+
+// BackupFlightRevisionKind defines model for BackupFlightRevision.Kind.
+type BackupFlightRevisionKind string
+
+// BackupFlightRevisionSource defines model for BackupFlightRevision.Source.
+type BackupFlightRevisionSource string
+
 // BackupLicense defines model for BackupLicense.
 type BackupLicense struct {
 	CreatedAt time.Time          `json:"createdAt"`
@@ -4213,6 +4446,9 @@ type BackupLicense struct {
 
 	// IssuingAuthority Example: EASA
 	IssuingAuthority string `json:"issuingAuthority"`
+
+	// IssuingCountry ISO 3166-1 alpha-2 country that issued the licence
+	IssuingCountry *string `json:"issuingCountry,omitempty"`
 
 	// LicenseNumber Example: PPL-123456
 	LicenseNumber string `json:"licenseNumber"`
@@ -4233,6 +4469,36 @@ type BackupLicenseWithRatings struct {
 	License      BackupLicense       `json:"license"`
 }
 
+// BackupLogbookCertification defines model for BackupLogbookCertification.
+type BackupLogbookCertification struct {
+	CertifiedAt      time.Time          `json:"certifiedAt"`
+	CertifiedThrough openapi_types.Date `json:"certifiedThrough"`
+}
+
+// BackupLogbookMode Strict logbook mode with every switch, oldest first
+type BackupLogbookMode struct {
+	Events []BackupLogbookModeEvent `json:"events"`
+
+	// Since When strict mode was last switched on
+	Since  *time.Time `json:"since,omitempty"`
+	Strict bool       `json:"strict"`
+}
+
+// BackupLogbookModeEvent defines model for BackupLogbookModeEvent.
+type BackupLogbookModeEvent struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// LicenseId The licence's id in this backup
+	LicenseId *openapi_types.UUID `json:"licenseId,omitempty"`
+
+	// Strict The mode after the switch
+	Strict  bool                          `json:"strict"`
+	Trigger BackupLogbookModeEventTrigger `json:"trigger"`
+}
+
+// BackupLogbookModeEventTrigger defines model for BackupLogbookModeEvent.Trigger.
+type BackupLogbookModeEventTrigger string
+
 // BackupPayload A NinerLog JSON backup, as written by `GET /users/me/data` and by every cloud backup run, and as read by `POST /users/me/data`. A restore also accepts older backups that lack `version` or the later sections.
 type BackupPayload struct {
 	Aircraft            []Aircraft                 `json:"aircraft"`
@@ -4248,12 +4514,21 @@ type BackupPayload struct {
 
 	// FlightBaseline The carried-forward hours snapshot
 	FlightBaseline *BackupFlightBaseline `json:"flightBaseline,omitempty"`
-	Flights        []BackupFlight        `json:"flights"`
+
+	// FlightRevisions Every recorded flight revision, by flight then revision number. A revision names its flight by the id in this backup, or by the id of a deleted flight no longer in it.
+	FlightRevisions []BackupFlightRevision `json:"flightRevisions"`
+	Flights         []BackupFlight         `json:"flights"`
 
 	// Format Always `NinerLog JSON Backup`
-	Format                  BackupPayloadFormat        `json:"format"`
-	Licenses                []BackupLicenseWithRatings `json:"licenses"`
-	NotificationPreferences *NotificationPreferences   `json:"notificationPreferences,omitempty"`
+	Format   BackupPayloadFormat        `json:"format"`
+	Licenses []BackupLicenseWithRatings `json:"licenses"`
+
+	// LogbookCertifications Logbook certifications, oldest certified date first
+	LogbookCertifications []BackupLogbookCertification `json:"logbookCertifications"`
+
+	// LogbookMode Strict logbook mode with every switch, oldest first
+	LogbookMode             *BackupLogbookMode       `json:"logbookMode,omitempty"`
+	NotificationPreferences *NotificationPreferences `json:"notificationPreferences,omitempty"`
 
 	// Version Payload version, `<major>.<minor>`. A restore refuses a major version newer than the server's.
 	//
@@ -6149,6 +6424,43 @@ type FlightReviewStatus struct {
 // FlightReviewStatusStatus Flight review currency status
 type FlightReviewStatusStatus string
 
+// FlightRevision defines model for FlightRevision.
+type FlightRevision struct {
+	ChangedAt time.Time `json:"changedAt"`
+
+	// Changes Fields this change altered, old to new. Empty for a delete.
+	Changes      []FlightRevisionChange `json:"changes"`
+	FlightId     openapi_types.UUID     `json:"flightId"`
+	Id           openapi_types.UUID     `json:"id"`
+	IsCorrection bool                   `json:"isCorrection"`
+	Kind         FlightRevisionKind     `json:"kind"`
+	Reason       *string                `json:"reason,omitempty"`
+	RevisionNo   int                    `json:"revisionNo"`
+
+	// Source What made the change; recalc, aircraft_rename and import are system changes
+	Source FlightRevisionSource `json:"source"`
+}
+
+// FlightRevisionKind defines model for FlightRevision.Kind.
+type FlightRevisionKind string
+
+// FlightRevisionSource What made the change; recalc, aircraft_rename and import are system changes
+type FlightRevisionSource string
+
+// FlightRevisionChange defines model for FlightRevisionChange.
+type FlightRevisionChange struct {
+	// Field Flight field name as in the `Flight` schema (camelCase), or `crewMembers`
+	//
+	// Example: totalTime
+	Field string `json:"field"`
+
+	// NewValue Value after the change (any JSON type, null when unset)
+	NewValue interface{} `json:"newValue"`
+
+	// OldValue Value before the change (any JSON type, null when unset)
+	OldValue interface{} `json:"oldValue"`
+}
+
 // FlightRoute defines model for FlightRoute.
 type FlightRoute struct {
 	ArrivalCoords struct {
@@ -6261,9 +6573,17 @@ type FlightSessionEventType string
 
 // FlightSignature defines model for FlightSignature.
 type FlightSignature struct {
-	CreatedAt                  time.Time            `json:"createdAt"`
-	EmailSendCount             int                  `json:"emailSendCount"`
-	EmailSentAt                *time.Time           `json:"emailSentAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	EmailSendCount int        `json:"emailSendCount"`
+	EmailSentAt    *time.Time `json:"emailSentAt,omitempty"`
+
+	// FieldsHash SHA-256 (hex) over the canonical signed fields, stored when the signature completed. Null for signatures completed before hashing existed and for incomplete ones.
+	//
+	// Example: 9f2c4e1ab07d3f5e8c6b2a1d0e9f8c7b6a5d4e3f2c1b0a9e8d7c6b5a4f3e2d1c
+	FieldsHash *string `json:"fieldsHash,omitempty"`
+
+	// FieldsHashValid Whether the flight's current signed fields still hash to `fieldsHash`. Omitted when there is no hash.
+	FieldsHashValid            *bool                `json:"fieldsHashValid,omitempty"`
 	FlightId                   openapi_types.UUID   `json:"flightId"`
 	Id                         openapi_types.UUID   `json:"id"`
 	InstructorCredentialNumber *string              `json:"instructorCredentialNumber,omitempty"`
@@ -6378,6 +6698,9 @@ type FlightUpdate struct {
 
 	// ArrivalTime Landing time in UTC
 	ArrivalTime nullable.Nullable[string] `json:"arrivalTime,omitempty"`
+
+	// CorrectionReason Why the entry is corrected. Required when a strict-mode edit is a correction; ignored otherwise.
+	CorrectionReason *string `json:"correctionReason,omitempty"`
 
 	// CrewMembers People on board this flight
 	CrewMembers *[]FlightCrewMemberInput `json:"crewMembers,omitempty"`
@@ -6614,11 +6937,15 @@ type ImportJSONResult struct {
 	// FlightBaselineImported Whether the backup carried a carried-forward hours baseline that was applied
 	FlightBaselineImported bool `json:"flightBaselineImported"`
 
+	// FlightRevisionsImported Flight revisions restored, remapped to the restored flight ids
+	FlightRevisionsImported int `json:"flightRevisionsImported"`
+
 	// FlightsImported Example: 27
 	FlightsImported int `json:"flightsImported"`
 
 	// LicensesImported Example: 2
-	LicensesImported int `json:"licensesImported"`
+	LicensesImported              int `json:"licensesImported"`
+	LogbookCertificationsImported int `json:"logbookCertificationsImported"`
 
 	// Mode The mode the restore ran in
 	Mode ImportJSONResultMode `json:"mode"`
@@ -7006,6 +7333,11 @@ type License struct {
 	// Example: EASA
 	IssuingAuthority string `json:"issuingAuthority"`
 
+	// IssuingCountry ISO 3166-1 alpha-2 code of the state that issued the licence. Never inferred; a licence without it never switches strict logbook mode on.
+	//
+	// Example: DE
+	IssuingCountry *string `json:"issuingCountry,omitempty"`
+
 	// LicenseNumber Example: PPL-123456
 	LicenseNumber string `json:"licenseNumber"`
 
@@ -7037,6 +7369,11 @@ type LicenseCreate struct {
 	// IssuingAuthority Example: EASA
 	IssuingAuthority string `json:"issuingAuthority"`
 
+	// IssuingCountry ISO 3166-1 alpha-2 code of the state that issued the licence. Never inferred; a licence without it never switches strict logbook mode on.
+	//
+	// Example: DE
+	IssuingCountry *string `json:"issuingCountry,omitempty"`
+
 	// LicenseNumber Example: PPL-123456
 	LicenseNumber string `json:"licenseNumber"`
 
@@ -7046,6 +7383,82 @@ type LicenseCreate struct {
 	// RegulatoryAuthority Example: EASA
 	RegulatoryAuthority     string `json:"regulatoryAuthority"`
 	RequiresSeparateLogbook *bool  `json:"requiresSeparateLogbook,omitempty"`
+}
+
+// LogbookCertification defines model for LogbookCertification.
+type LogbookCertification struct {
+	CertifiedAt      time.Time          `json:"certifiedAt"`
+	CertifiedThrough openapi_types.Date `json:"certifiedThrough"`
+	Id               openapi_types.UUID `json:"id"`
+}
+
+// LogbookCertificationCreate defines model for LogbookCertificationCreate.
+type LogbookCertificationCreate struct {
+	CertifiedThrough openapi_types.Date `json:"certifiedThrough"`
+}
+
+// LogbookMode defines model for LogbookMode.
+type LogbookMode struct {
+	// DraftWindow The shortest free-edit window across requiring licences; flight_day when strict mode was switched on by hand
+	DraftWindow *LogbookModeDraftWindow `json:"draftWindow,omitempty"`
+
+	// Events Every switch, oldest first
+	Events                 []LogbookModeEvent  `json:"events"`
+	LatestCertifiedThrough *openapi_types.Date `json:"latestCertifiedThrough,omitempty"`
+
+	// OverridesDownwardOnly True under a Swiss licence, whose rules allow manual overrides only to reduce a calculated time
+	OverridesDownwardOnly bool `json:"overridesDownwardOnly"`
+
+	// RequiredBy Licences whose rules require strict mode
+	RequiredBy []LogbookModeLicence `json:"requiredBy"`
+
+	// Since When strict mode was last switched on; history starts here
+	Since  *time.Time `json:"since,omitempty"`
+	Strict bool       `json:"strict"`
+
+	// SuggestedBy Licences whose rules suggest strict mode without requiring it
+	SuggestedBy []LogbookModeLicence `json:"suggestedBy"`
+}
+
+// LogbookModeDraftWindow The shortest free-edit window across requiring licences; flight_day when strict mode was switched on by hand
+type LogbookModeDraftWindow string
+
+// LogbookModeEvent defines model for LogbookModeEvent.
+type LogbookModeEvent struct {
+	CreatedAt time.Time           `json:"createdAt"`
+	LicenseId *openapi_types.UUID `json:"licenseId,omitempty"`
+
+	// Strict The mode after the switch
+	Strict  bool                    `json:"strict"`
+	Trigger LogbookModeEventTrigger `json:"trigger"`
+}
+
+// LogbookModeEventTrigger defines model for LogbookModeEvent.Trigger.
+type LogbookModeEventTrigger string
+
+// LogbookModeLicence defines model for LogbookModeLicence.
+type LogbookModeLicence struct {
+	// Basis The rule the registry row cites
+	//
+	// Example: NfL 2212-21 §4.3.2
+	Basis string `json:"basis"`
+
+	// DraftWindow Free-edit window this licence's rules allow; null when the licence only suggests strict mode
+	DraftWindow *LogbookModeLicenceDraftWindow `json:"draftWindow"`
+
+	// IssuingCountry Example: DE
+	IssuingCountry      string             `json:"issuingCountry"`
+	LicenseId           openapi_types.UUID `json:"licenseId"`
+	LicenseType         string             `json:"licenseType"`
+	RegulatoryAuthority string             `json:"regulatoryAuthority"`
+}
+
+// LogbookModeLicenceDraftWindow Free-edit window this licence's rules allow; null when the licence only suggests strict mode
+type LogbookModeLicenceDraftWindow string
+
+// LogbookModeUpdate defines model for LogbookModeUpdate.
+type LogbookModeUpdate struct {
+	Strict bool `json:"strict"`
 }
 
 // MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
@@ -7469,9 +7882,17 @@ type SharedCustomCurrencyRule struct {
 
 // SignatureRequestCreated A FlightSignature plus the one-time signing URL. The URL is only ever returned from the create/resend calls that generated it — it is not retrievable again afterwards, so the owner must copy/share it (or its QR code) immediately, or resend to get a fresh one.
 type SignatureRequestCreated struct {
-	CreatedAt                  time.Time            `json:"createdAt"`
-	EmailSendCount             int                  `json:"emailSendCount"`
-	EmailSentAt                *time.Time           `json:"emailSentAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	EmailSendCount int        `json:"emailSendCount"`
+	EmailSentAt    *time.Time `json:"emailSentAt,omitempty"`
+
+	// FieldsHash SHA-256 (hex) over the canonical signed fields, stored when the signature completed. Null for signatures completed before hashing existed and for incomplete ones.
+	//
+	// Example: 9f2c4e1ab07d3f5e8c6b2a1d0e9f8c7b6a5d4e3f2c1b0a9e8d7c6b5a4f3e2d1c
+	FieldsHash *string `json:"fieldsHash,omitempty"`
+
+	// FieldsHashValid Whether the flight's current signed fields still hash to `fieldsHash`. Omitted when there is no hash.
+	FieldsHashValid            *bool                `json:"fieldsHashValid,omitempty"`
 	FlightId                   openapi_types.UUID   `json:"flightId"`
 	Id                         openapi_types.UUID   `json:"id"`
 	InstructorCredentialNumber *string              `json:"instructorCredentialNumber,omitempty"`
@@ -7845,6 +8266,28 @@ type VoidSignatureRequest struct {
 	// Reason Example: Entered wrong dual time, correcting before re-signing
 	Reason string `json:"reason"`
 }
+
+// VoidedFlight defines model for VoidedFlight.
+type VoidedFlight struct {
+	AircraftReg   string             `json:"aircraftReg"`
+	AircraftType  string             `json:"aircraftType"`
+	ArrivalIcao   *string            `json:"arrivalIcao,omitempty"`
+	Date          openapi_types.Date `json:"date"`
+	DeletedAt     time.Time          `json:"deletedAt"`
+	DepartureIcao *string            `json:"departureIcao,omitempty"`
+	FlightId      openapi_types.UUID `json:"flightId"`
+	IsCorrection  bool               `json:"isCorrection"`
+	Reason        *string            `json:"reason,omitempty"`
+	Remarks       *string            `json:"remarks,omitempty"`
+	RevisionId    openapi_types.UUID `json:"revisionId"`
+	Source        VoidedFlightSource `json:"source"`
+
+	// TotalTime Minutes
+	TotalTime int `json:"totalTime"`
+}
+
+// VoidedFlightSource defines model for VoidedFlight.Source.
+type VoidedFlightSource string
 
 // WebAuthnCredential defines model for WebAuthnCredential.
 type WebAuthnCredential struct {
@@ -8413,6 +8856,12 @@ type ListFlightsParamsSortBy string
 // ListFlightsParamsSortOrder defines parameters for ListFlights.
 type ListFlightsParamsSortOrder string
 
+// DeleteFlightParams defines parameters for DeleteFlight.
+type DeleteFlightParams struct {
+	// Reason Why the flight is deleted; stored on the void record in strict mode
+	Reason *string `form:"reason,omitempty" json:"reason,omitempty"`
+}
+
 // ListImportsParams defines parameters for ListImports.
 type ListImportsParams struct {
 	// Page Page number (1-indexed)
@@ -8447,11 +8896,14 @@ type ListLicensesParams struct {
 
 // UpdateLicenseJSONBody defines parameters for UpdateLicense.
 type UpdateLicenseJSONBody struct {
-	IssuingAuthority        *string `json:"issuingAuthority,omitempty"`
-	LicenseNumber           *string `json:"licenseNumber,omitempty"`
-	LicenseType             *string `json:"licenseType,omitempty"`
-	RegulatoryAuthority     *string `json:"regulatoryAuthority,omitempty"`
-	RequiresSeparateLogbook *bool   `json:"requiresSeparateLogbook,omitempty"`
+	IssuingAuthority *string `json:"issuingAuthority,omitempty"`
+
+	// IssuingCountry ISO 3166-1 alpha-2; null clears it
+	IssuingCountry          nullable.Nullable[string] `json:"issuingCountry,omitempty"`
+	LicenseNumber           *string                   `json:"licenseNumber,omitempty"`
+	LicenseType             *string                   `json:"licenseType,omitempty"`
+	RegulatoryAuthority     *string                   `json:"regulatoryAuthority,omitempty"`
+	RequiresSeparateLogbook *bool                     `json:"requiresSeparateLogbook,omitempty"`
 }
 
 // GetLicenseStatisticsParams defines parameters for GetLicenseStatistics.
@@ -8757,6 +9209,12 @@ type CreateClassRatingJSONRequestBody = ClassRatingCreate
 
 // UpdateClassRatingJSONRequestBody defines body for UpdateClassRating for application/json ContentType.
 type UpdateClassRatingJSONRequestBody = ClassRatingUpdate
+
+// CreateLogbookCertificationJSONRequestBody defines body for CreateLogbookCertification for application/json ContentType.
+type CreateLogbookCertificationJSONRequestBody = LogbookCertificationCreate
+
+// UpdateLogbookModeJSONRequestBody defines body for UpdateLogbookMode for application/json ContentType.
+type UpdateLogbookModeJSONRequestBody = LogbookModeUpdate
 
 // CreateCustomReportJSONRequestBody defines body for CreateCustomReport for application/json ContentType.
 type CreateCustomReportJSONRequestBody = CustomReportInput

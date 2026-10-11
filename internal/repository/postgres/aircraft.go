@@ -207,6 +207,10 @@ func (r *aircraftRepository) UpdateWithFlightRename(ctx context.Context, aircraf
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := applyChangeContext(repository.WithChangeSource(ctx, repository.ChangeSourceAircraftRename), tx); err != nil {
+		return 0, err
+	}
+
 	now := time.Now()
 	result, err := tx.ExecContext(ctx, aircraftUpdateQuery, aircraftUpdateArgs(aircraft, now)...)
 	if err != nil {

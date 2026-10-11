@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -15,6 +16,9 @@ var (
 	ErrInvalidLicense       = errors.New("invalid license data")
 	ErrLicenseAlreadyExists = errors.New("license already exists")
 	ErrUnauthorizedAccess   = errors.New("unauthorized access to license")
+	// ErrInvalidIssuingCountry is returned for an issuing country that is not
+	// an ISO 3166-1 alpha-2 code.
+	ErrInvalidIssuingCountry = errors.New("issuing country must be a two-letter ISO 3166-1 code")
 )
 
 type LicenseService struct {
@@ -35,8 +39,29 @@ func (s *LicenseService) CreateLicense(ctx context.Context, license *models.Lice
 	if err := models.ValidateLicenseTextFields(license); err != nil {
 		return err
 	}
+	country, err := NormalizeIssuingCountry(license.IssuingCountry)
+	if err != nil {
+		return err
+	}
+	license.IssuingCountry = country
 
 	return s.licenseRepo.Create(ctx, license)
+}
+
+// NormalizeIssuingCountry upper-cases an ISO 3166-1 alpha-2 code; a blank
+// value clears it.
+func NormalizeIssuingCountry(country *string) (*string, error) {
+	if country == nil {
+		return nil, nil
+	}
+	code := strings.ToUpper(strings.TrimSpace(*country))
+	if code == "" {
+		return nil, nil
+	}
+	if len(code) != 2 || code[0] < 'A' || code[0] > 'Z' || code[1] < 'A' || code[1] > 'Z' {
+		return nil, ErrInvalidIssuingCountry
+	}
+	return &code, nil
 }
 
 // GetLicense retrieves a license by ID and verifies user ownership
@@ -89,6 +114,11 @@ func (s *LicenseService) UpdateLicense(ctx context.Context, license *models.Lice
 	existing.LicenseNumber = license.LicenseNumber
 	existing.IssuingAuthority = license.IssuingAuthority
 	existing.RequiresSeparateLogbook = license.RequiresSeparateLogbook
+	country, err := NormalizeIssuingCountry(license.IssuingCountry)
+	if err != nil {
+		return err
+	}
+	existing.IssuingCountry = country
 
 	if err := models.ValidateLicenseTextFields(existing); err != nil {
 		return err

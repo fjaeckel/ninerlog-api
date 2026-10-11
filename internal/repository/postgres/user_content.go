@@ -48,6 +48,10 @@ func (r *userContentRepository) DeleteAllContent(ctx context.Context, userID uui
 	}
 	defer func() { _ = tx.Rollback() }() // no-op once committed
 
+	if err := applyChangeContext(repository.WithChangeSource(ctx, repository.ChangeSourceUserEdit), tx); err != nil {
+		return err
+	}
+
 	for _, q := range queries {
 		if _, err := tx.ExecContext(ctx, q, userID); err != nil {
 			slog.Error("bulk delete failed, rolling back", "user_id", userID, "error", err)
@@ -68,6 +72,10 @@ func (r *userContentRepository) DeleteFlightsAndHistory(ctx context.Context, use
 		return 0, err
 	}
 	defer func() { _ = tx.Rollback() }() // no-op once committed
+
+	if err := applyChangeContext(repository.WithChangeSource(ctx, repository.ChangeSourceUserEdit), tx); err != nil {
+		return 0, err
+	}
 
 	for _, q := range []string{wipeCrewQuery, wipeImportsQuery} {
 		if _, err := tx.ExecContext(ctx, q, userID); err != nil {

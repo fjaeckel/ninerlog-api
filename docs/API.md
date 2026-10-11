@@ -350,6 +350,12 @@ is ignored rather than rejected, and the response always echoes what was stored.
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings
 (`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
 
+`issuingCountry` (ISO 3166-1 alpha-2, normalised to upper case; JSON `null` or a blank value
+on `PATCH` clears it; anything else is a `400`) names the state that issued the licence. It is
+never inferred. After a create or patch the licence rule registry runs: if any of the user's
+licences now requires strict logbook mode and the user is not strict, strict mode is switched
+on with a `licence` event. See [DOMAIN.md](./DOMAIN.md#strict-logbook-mode-and-the-flight-audit-trail).
+
 ### Aircraft
 CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`. `registration`
 is normalised on write into the canonical notation of its state of registry (`pkg/registration`);
@@ -439,6 +445,26 @@ never stored as a passenger flight. The four appear on flight responses, in
 `totals` of `GET /reports/analytics`, as custom-currency metrics
 and as logbook query fields. See
 [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
+
+### Logbook (strict mode and flight history)
+Strict logbook mode keeps the history of every flight; see [DOMAIN.md](./DOMAIN.md#strict-logbook-mode-and-the-flight-audit-trail) for the
+rules. Nothing below is recorded outside strict mode.
+
+| Operation | Behaviour |
+| --- | --- |
+| `GET /logbook/mode` | `strict`, `since`, the shortest `draftWindow` (`flight_day` / `hours_48`), `overridesDownwardOnly`, `latestCertifiedThrough`, the licences that require (`requiredBy`) or suggest (`suggestedBy`) strict mode with their `basis`, and every switch (`events`, oldest first). |
+| `PUT /logbook/mode` | `{strict}`. Stores a `manual` event only when the state changes; switching on sets `since`. Switching off is always allowed, also while a licence requires strict mode. |
+| `GET /logbook/certifications` | The user's "certified through" statements, newest first. |
+| `POST /logbook/certifications` | `{certifiedThrough}` (a date). `201`; `409` `strict_mode_required` when strict mode is off; `422` `certification_in_future` or `certification_before_latest`. |
+| `GET /flights/{flightId}/revisions` | The flight's revisions, newest first, each with `changes` (field, old value, new value) computed on the server against the next state (the next revision, or the current flight and crew for the newest). Field names are the `Flight` schema's camelCase names; the crew appears as one `crewMembers` change of `{name, role}` arrays. A delete revision has no changes. Owner only (`404` otherwise); works for a deleted flight while a void record exists. |
+| `GET /flights/voided` | The user's deleted flights, newest first, with the reason and the flight's last state. |
+
+`DELETE /flights/{flightId}?reason=` (max 500 characters) stores the reason on the void
+record. A completed signature still locks the flight (`409`).
+
+Signature responses carry `fieldsHash` (SHA-256 of the signed fields, stored when the signature
+completed) and `fieldsHashValid` (recomputed on `GET /flights/{id}/signatures[/{sid}]`;
+omitted when there is no hash).
 
 ### Credentials
 CRUD on `/credentials` (medicals, language proficiency, clearances, and the German radio
@@ -640,8 +666,10 @@ its `{deleted}` response. The frontend moves to the new routes in its own PR; th
 still calls the old ones, so they are not removed.
 
 **Backup content.** Flights (with crew), aircraft, licences and class ratings, credentials,
-contacts, custom currency rules, custom reports, notification preferences and the
-carried-forward hours baseline. It is the same payload a cloud backup run writes
+contacts, custom currency rules, custom reports, notification preferences, the
+carried-forward hours baseline, and the strict logbook mode with its flight revisions, mode
+switches and logbook certifications (`logbookMode`, `flightRevisions`,
+`logbookCertifications`). It is the same payload a cloud backup run writes
 (`cloudbackup.Payload` is the single definition of both; `BackupPayload` in the spec mirrors
 it, and `payload_spec_test.go` fails when they drift). Binary document files and instructor
 signatures are not part of it.
@@ -668,6 +696,17 @@ run in one database transaction, so a failure writes nothing.
   `warnings` array of the result as `{section, index, message}` (at most 1000 are listed). A
   row the database cannot store, such as an unknown crew role or an over-long name, fails the
   restore with `400` naming the section and position.
+- The logbook history is restored in the same transaction. Revisions follow their flights to
+  the restored ids (a deleted flight's void records share one fresh id), keep their revision
+  number, kind, source, reason, correction flag and time, and lose crew contact links. Mode
+  switches and certifications keep their timestamps; a restored flight keeps its
+  `createdAt`. A strict backup switches a non-strict account to strict mode with an `import`
+  event. A revision with an unreadable snapshot, an unknown kind or trigger, or a
+  certification with an unreadable date fails the restore with `400`. The result reports
+  `flightRevisionsImported` and `logbookCertificationsImported`.
+- In a strict account `replace` keeps the history: the wipe runs with change source `import`
+  and reason "Replaced by backup restore", so every deleted flight gets a void record, and
+  existing revisions, mode switches and certifications stay; the backup's are added.
 - Errors never carry internal text. Unreadable JSON, a wrong `format` and invalid entries are
   `400`; a body over the limit is `413`; an unsupported version is `422`.
 
@@ -774,7 +813,9 @@ career-wide snapshot is deliberately left out of it.
 ### Admin
 User management (list, disable/enable, unlock, reset 2FA, delete), platform stats,
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,
-unverified-account sweep), email deliverability, and announcements.
+unverified-account sweep), email deliverability, and announcements. `GET /admin/stats` also
+counts `strictLogbookUsers`, `flightRevisions`, `flightCorrections`, `voidedFlights` and
+`logbookCertifications` (counts only, never contents).
 
 Email deliverability: `GET /admin/email/deliveries` is the per-send log of what SMTP
 said, `GET /admin/email/suppressions` lists addresses that refused mail permanently,
