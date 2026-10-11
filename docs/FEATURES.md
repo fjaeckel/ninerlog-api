@@ -202,8 +202,10 @@ rules.
 
 An opt-in mode for pilots whose authority expects a traceable logbook. In strict mode every
 change to a flight is kept as a revision (what it said before, who or what changed it,
-when, why), a deleted flight is kept as a void record, and the pilot can certify the logbook
-through a date. A licence from CH, DE (not ultralight), AT (national), AU, NZ, JP
+when, why), a deleted flight is kept as a void record, an edit after the draft window, after
+a signature or inside a certified range is marked as a correction and needs a reason, and
+the pilot can certify the logbook through a date. A Swiss licence additionally allows manual
+overrides only downward. A licence from CH, DE (not ultralight), AT (national), AU, NZ, JP
 or UY switches the mode on when it is saved with its `issuingCountry`; DK, BR, GB, US and
 other EASA states only suggest it. The user can switch it on or off at any time
 (`/logbook/mode`); history already recorded is kept. Revisions, void records, mode switches

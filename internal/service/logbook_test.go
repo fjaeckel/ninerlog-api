@@ -253,6 +253,7 @@ func newLogbookEnv(t *testing.T, strict bool, licenceCountries ...string) *logbo
 	}
 	e.logbook = NewLogbookService(e.lbRepo, e.licenses, e.flights, e.sigs)
 	e.logbook.now = func() time.Time { return testNow }
+	e.logbook.departureLon = func(string) (float64, bool) { return 0, false }
 	e.lbRepo.mode(e.userID).Strict = strict
 	for _, country := range licenceCountries {
 		c := country

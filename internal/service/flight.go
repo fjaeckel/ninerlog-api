@@ -1,13 +1,18 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/google/uuid"
 )
@@ -26,6 +31,8 @@ var (
 type FlightService struct {
 	flightRepo   repository.FlightRepository
 	baselineRepo repository.FlightBaselineRepository
+	logbook      *LogbookService
+	crewRepo     repository.FlightCrewRepository
 }
 
 func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repository.FlightBaselineRepository) *FlightService {
@@ -35,9 +42,25 @@ func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repos
 	}
 }
 
+// SetLogbookService attaches the strict logbook mode rules.
+func (s *FlightService) SetLogbookService(l *LogbookService) {
+	s.logbook = l
+}
+
+// SetCrewRepository attaches the crew repository used to tell a no-op save
+// from a crew change.
+func (s *FlightService) SetCrewRepository(r repository.FlightCrewRepository) {
+	s.crewRepo = r
+}
+
 // FlightWriteOptions carries what a user-facing flight write needs beyond the
 // flight itself.
 type FlightWriteOptions struct {
+	// UserName and Facts feed the auto-calculation used to check overrides.
+	UserName string
+	Facts    *flightrules.AircraftFacts
+	// CorrectionReason is the pilot's reason for a strict-mode correction.
+	CorrectionReason string
 	// Source is the change source recorded for the write; empty means user_edit.
 	Source string
 	// Crew, when non-nil, replaces the flight's crew in the same transaction.
@@ -46,6 +69,21 @@ type FlightWriteOptions struct {
 
 // CreateFlight creates a new flight log entry
 func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight) error {
+	return s.createFlight(ctx, flight)
+}
+
+// CreateFlightChecked creates a flight entered by the user, rejecting
+// overrides that strict-mode rules do not allow.
+func (s *FlightService) CreateFlightChecked(ctx context.Context, flight *models.Flight, opts FlightWriteOptions) error {
+	if s.logbook != nil {
+		if err := s.logbook.CheckDownwardOverrides(ctx, flight.UserID, nil, flight, opts.UserName, opts.Facts); err != nil {
+			return err
+		}
+	}
+	return s.createFlight(ctx, flight)
+}
+
+func (s *FlightService) createFlight(ctx context.Context, flight *models.Flight) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 
 	// Validate text field lengths
@@ -94,9 +132,10 @@ func (s *FlightService) UpdateFlight(ctx context.Context, flight *models.Flight,
 	return s.UpdateFlightWith(ctx, flight, userID, FlightWriteOptions{})
 }
 
-// UpdateFlightWith updates a flight and verifies user ownership. The write
-// carries opts.Source as its change source and replaces the crew in the same
-// transaction when opts.Crew is set.
+// UpdateFlightWith updates a flight and verifies user ownership. In strict
+// logbook mode a user edit is classified first: a correction without a reason
+// returns ErrCorrectionReasonRequired and writes nothing. System sources
+// (recalc, aircraft_rename, import) are never classified.
 func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Flight, userID uuid.UUID, opts FlightWriteOptions) error {
 	flight.AircraftReg = registration.Canonical(flight.AircraftReg)
 
@@ -143,11 +182,78 @@ func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Fli
 	}
 	change := repository.ChangeContext{Source: source}
 
+	if source == repository.ChangeSourceUserEdit && s.logbook != nil && s.changesFlight(ctx, existing, flight, opts.Crew) {
+		if err := s.logbook.CheckDownwardOverrides(ctx, userID, existing, flight, opts.UserName, opts.Facts); err != nil {
+			return err
+		}
+		class, err := s.logbook.ClassifyEdit(ctx, userID, existing, flight)
+		if err != nil {
+			return err
+		}
+		if class.Strict {
+			reason := strings.TrimSpace(opts.CorrectionReason)
+			if reason == "" {
+				reason = class.DefaultReason
+			}
+			if class.IsCorrection && reason == "" {
+				return ErrCorrectionReasonRequired
+			}
+			if reason != "" {
+				change.Reason = &reason
+			}
+			change.IsCorrection = class.IsCorrection
+		}
+	}
+
 	ctx = repository.WithChangeContext(ctx, change)
 	if opts.Crew != nil {
 		return s.flightRepo.UpdateWithCrew(ctx, flight, *opts.Crew)
 	}
 	return s.flightRepo.Update(ctx, flight)
+}
+
+// changesFlight reports whether writing updated (and crew, when non-nil)
+// alters the stored flight.
+func (s *FlightService) changesFlight(ctx context.Context, existing, updated *models.Flight, crew *[]models.FlightCrewMember) bool {
+	if !flightRowsEqual(existing, updated) {
+		return true
+	}
+	if crew == nil {
+		return false
+	}
+	if s.crewRepo == nil {
+		return true
+	}
+	current, err := s.crewRepo.GetByFlightID(ctx, existing.ID)
+	if err != nil {
+		return true
+	}
+	return !sameCrew(current, *crew)
+}
+
+// flightRowsEqual compares two flights on everything a revision records.
+func flightRowsEqual(a, b *models.Flight) bool {
+	x, y := *a, *b
+	for _, f := range []*models.Flight{&x, &y} {
+		f.UpdatedAt = time.Time{}
+		f.CrewMembers = nil
+		f.SignatureID = nil
+	}
+	xj, errX := json.Marshal(x)
+	yj, errY := json.Marshal(y)
+	return errX == nil && errY == nil && bytes.Equal(xj, yj)
+}
+
+func sameCrew(a, b []models.FlightCrewMember) bool {
+	key := func(list []models.FlightCrewMember) []string {
+		out := make([]string, 0, len(list))
+		for _, m := range list {
+			out = append(out, string(m.Role)+"\x00"+m.Name)
+		}
+		sort.Strings(out)
+		return out
+	}
+	return reflect.DeepEqual(key(a), key(b))
 }
 
 // DeleteFlight deletes a flight and verifies user ownership
@@ -179,6 +285,14 @@ func (s *FlightService) DeleteFlightWithReason(ctx context.Context, flightID, us
 	if reason = strings.TrimSpace(reason); reason != "" {
 		change.Reason = &reason
 	}
+	if s.logbook != nil {
+		class, err := s.logbook.ClassifyEdit(ctx, userID, flight, nil)
+		if err != nil {
+			return err
+		}
+		change.IsCorrection = class.Strict && class.IsCorrection
+	}
+
 	return s.flightRepo.Delete(repository.WithChangeContext(ctx, change), flightID)
 }
 

@@ -365,7 +365,9 @@ What strict mode adds, and only in strict mode:
 
 - every committed change to a flight or its crew is kept as a **revision** (the state
   before the change), and a deleted flight is kept as a **void record**;
-- the pilot can **certify** the logbook through a date.
+- a late edit is classified as a **correction** and needs a reason;
+- the pilot can **certify** the logbook through a date;
+- under a Swiss licence, manual overrides may only **reduce** a calculated value.
 
 Switching strict mode off stops recording; history already captured stays with the logbook
 and is never deleted, except together with the account. History starts when strict mode is
@@ -403,12 +405,53 @@ anything on. With several requiring licences the **earliest** deadline applies p
 and the reported `draftWindow` is the shortest (`flight_day` before `hours_48`). Strict mode
 switched on by hand, with no requiring licence, uses `flight_day`.
 
+### Draft window and corrections
+
+A flight entry may be edited freely until its **draft deadline**:
+
+- `hours_48`: 48 hours after the row's `created_at`;
+- `flight_day`: the end of the flight's date in the departure airport's mean solar offset
+  (`round(longitude / 15)` hours; an unknown airport counts as UTC).
+
+For a `user_edit` update of a flight owned by a strict-mode user, the edit is a
+**correction** if any of these holds:
+
+1. now is after the draft deadline (the earliest across requiring licences);
+2. the flight has ever carried a signature with status `completed` or `voided`;
+3. the flight's date (existing or new, whichever is earlier) is on or before the latest
+   `certified_through`;
+4. a `*Override` flag goes from false to true, or an overridden value changes, and now is
+   after the end of the flight day.
+
+A correction needs a non-blank `correctionReason`; the void reason of the latest voided
+signature stands in when none is given. Without either, `PUT /flights/{id}` answers `422`
+`correction_reason_required` and writes nothing. The classification is stored on the revision
+(`is_correction`) with the reason. A save that changes nothing is not classified and records
+nothing. Deletes are classified by rules 1 to 3 and stored on the void record; a delete is
+never refused for lack of a reason.
+
+Changes the system makes are never classified and never need a reason: recalculation
+(`recalc`), an aircraft re-registration that renames flights (`aircraft_rename`) and imports
+(`import`). They are recorded with their source so exports and the history card can label
+them as system changes.
+
+### Overrides under a Swiss licence
+
+When a requiring licence is Swiss (`overridesDownwardOnly` in `GET /logbook/mode`), each
+`*Override` value that a create or update sets or changes must not exceed the
+auto-calculated value (FOCA: calculated times "may only reduce"). The service computes the
+calculated value on a copy of the flight with the override flags and values cleared and
+`flightcalc.ApplyAutoCalculations` run. A violation is `422` `override_exceeds_calculated`
+with one `details[].field` per offending field. Overrides already stored and left unchanged
+are not rechecked.
+
 ### Certification
 
 `POST /logbook/certifications` records that the pilot certifies the logbook through a date
 (AMC1 FCL.050 (e)(2)). The date may not be in the future (`certification_in_future`) nor
 earlier than the latest certification (`certification_before_latest`), and strict mode must
-be on (`409` `strict_mode_required`). Certifying does not lock flights.
+be on (`409` `strict_mode_required`). Certifying does not lock flights; later edits to
+flights on or before the date are corrections (rule 3).
 
 ### How history is captured
 
@@ -817,7 +860,8 @@ authority that reuses existing aggregates.
 ## Where this connects
 
 - Flights feed currency, statistics, reports, maps, and exports.
-- Strict logbook mode records the history of every flight (see [Strict logbook mode](#strict-logbook-mode-and-the-flight-audit-trail)).
+- Strict logbook mode records the history of every flight and decides which late edits
+  are corrections (see [Strict logbook mode](#strict-logbook-mode-and-the-flight-audit-trail)).
 - Class-rating and credential expiry dates feed both the currency engine and the
   notification system (see [FEATURES.md](./FEATURES.md#notifications)).
 - The HTTP surface for currency is `GET /currency` and `GET /licenses/{id}/currency`

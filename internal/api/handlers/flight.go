@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/flightsearch"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -418,7 +419,13 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.PICName = flightrules.ResolvePICNameForSave(&flight, userName)
 	}
 
-	if err := h.flightService.CreateFlight(c.Request.Context(), &flight); err != nil {
+	if err := h.flightService.CreateFlightChecked(c.Request.Context(), &flight, service.FlightWriteOptions{
+		UserName: userName,
+		Facts:    h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg),
+	}); err != nil {
+		if h.sendOverrideError(c, err) {
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
 	}
@@ -640,7 +647,17 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.PICName = flightrules.ResolvePICNameForSave(flight, userName)
 	}
 
-	var opts service.FlightWriteOptions
+	opts := service.FlightWriteOptions{
+		UserName: userName,
+		Facts:    h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg),
+	}
+	if req.CorrectionReason != nil {
+		if len(*req.CorrectionReason) > maxReasonLen {
+			h.sendError(c, http.StatusBadRequest, "correctionReason is too long")
+			return
+		}
+		opts.CorrectionReason = *req.CorrectionReason
+	}
 	// An update that did not carry a crewMembers key leaves the existing
 	// rows alone; otherwise the crew is replaced with the flight update.
 	if req.CrewMembers != nil {
@@ -655,6 +672,14 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 		if errors.Is(err, service.ErrFlightNotFound) || errors.Is(err, service.ErrUnauthorizedFlight) {
 			h.sendError(c, http.StatusNotFound, "Flight not found")
+			return
+		}
+		if errors.Is(err, service.ErrCorrectionReasonRequired) {
+			h.sendCodedError(c, http.StatusUnprocessableEntity, errcode.CorrectionReasonRequired,
+				"This change is a correction and needs a correctionReason")
+			return
+		}
+		if h.sendOverrideError(c, err) {
 			return
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update flight")
@@ -703,8 +728,27 @@ func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId, p
 	c.Status(http.StatusNoContent)
 }
 
-// maxReasonLen bounds the delete reason.
+// maxReasonLen bounds correctionReason and the delete reason.
 const maxReasonLen = 500
+
+// sendOverrideError answers 422 override_exceeds_calculated for err and
+// reports whether it did.
+func (h *APIHandler) sendOverrideError(c *gin.Context, err error) bool {
+	var oe *service.OverrideExceedsError
+	if !errors.As(err, &oe) {
+		return false
+	}
+	details := make([]map[string]string, 0, len(oe.Fields))
+	for _, f := range oe.Fields {
+		details = append(details, map[string]string{
+			"field":   f,
+			"message": "A manual override may only reduce the calculated value",
+		})
+	}
+	h.sendCodedError(c, http.StatusUnprocessableEntity, errcode.OverrideExceedsCalculated,
+		"A manual override exceeds the calculated value", details...)
+	return true
+}
 
 // Helper functions
 

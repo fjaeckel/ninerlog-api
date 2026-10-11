@@ -447,7 +447,8 @@ and as logbook query fields. See
 [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
 
 ### Logbook (strict mode and flight history)
-Strict logbook mode keeps the history of every flight; see [DOMAIN.md](./DOMAIN.md#strict-logbook-mode-and-the-flight-audit-trail) for the
+Strict logbook mode keeps the history of every flight and classifies late edits as
+corrections; see [DOMAIN.md](./DOMAIN.md#strict-logbook-mode-and-the-flight-audit-trail) for the
 rules. Nothing below is recorded outside strict mode.
 
 | Operation | Behaviour |
@@ -459,8 +460,14 @@ rules. Nothing below is recorded outside strict mode.
 | `GET /flights/{flightId}/revisions` | The flight's revisions, newest first, each with `changes` (field, old value, new value) computed on the server against the next state (the next revision, or the current flight and crew for the newest). Field names are the `Flight` schema's camelCase names; the crew appears as one `crewMembers` change of `{name, role}` arrays. A delete revision has no changes. Owner only (`404` otherwise); works for a deleted flight while a void record exists. |
 | `GET /flights/voided` | The user's deleted flights, newest first, with the reason and the flight's last state. |
 
+`PUT /flights/{flightId}` accepts `correctionReason` (max 500 characters). In strict mode an
+edit that is a correction without a reason (and without a voided signature to take it from) is
+`422` with `code: correction_reason_required`, and nothing is written. Under a Swiss licence
+`POST /flights` and `PUT /flights/{flightId}` answer `422` with
+`code: override_exceeds_calculated` and one `details[].field` per override that exceeds its
+calculated value. A completed signature still locks the flight (`409`), and
 `DELETE /flights/{flightId}?reason=` (max 500 characters) stores the reason on the void
-record. A completed signature still locks the flight (`409`).
+record; a delete is never a `422`.
 
 Signature responses carry `fieldsHash` (SHA-256 of the signed fields, stored when the signature
 completed) and `fieldsHashValid` (recomputed on `GET /flights/{id}/signatures[/{sid}]`;

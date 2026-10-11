@@ -74,4 +74,12 @@ const (
 	// CertificationBeforeLatest — the certified-through date is earlier than
 	// the latest certification.
 	CertificationBeforeLatest = "certification_before_latest"
+
+	// CorrectionReasonRequired — an edit of a flight outside its draft
+	// window, signed or certified, was sent without a correctionReason.
+	CorrectionReasonRequired = "correction_reason_required"
+
+	// OverrideExceedsCalculated — an overridden time is greater than the
+	// calculated value under a licence that allows overrides only downward.
+	OverrideExceedsCalculated = "override_exceeds_calculated"
 )

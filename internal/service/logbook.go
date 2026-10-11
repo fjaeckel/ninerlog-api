@@ -3,10 +3,15 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
+	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/internal/service/logbookrules"
 	"github.com/google/uuid"
 )
@@ -19,7 +24,24 @@ var (
 	// ErrCertificationBeforeLatest is returned when a certification date is
 	// earlier than the latest one.
 	ErrCertificationBeforeLatest = errors.New("certification date is before the latest certification")
+	// ErrCorrectionReasonRequired is returned when a strict-mode edit is a
+	// correction and carries no reason.
+	ErrCorrectionReasonRequired = errors.New("a correction needs a reason")
+	// ErrOverrideExceedsCalculated is returned when an override raises a value
+	// above its auto-calculated one under a rule that allows only reductions.
+	ErrOverrideExceedsCalculated = errors.New("override exceeds the calculated value")
 )
+
+// OverrideExceedsError names the flight fields whose override is too high.
+type OverrideExceedsError struct {
+	Fields []string
+}
+
+func (e *OverrideExceedsError) Error() string {
+	return fmt.Sprintf("%v: %s", ErrOverrideExceedsCalculated, strings.Join(e.Fields, ", "))
+}
+
+func (e *OverrideExceedsError) Unwrap() error { return ErrOverrideExceedsCalculated }
 
 // LogbookService owns strict logbook mode, the licence rule registry lookups,
 // correction classification, certifications and revision history.
@@ -29,7 +51,8 @@ type LogbookService struct {
 	flightRepo  repository.FlightRepository
 	sigRepo     repository.FlightSignatureRepository
 
-	now func() time.Time
+	now          func() time.Time
+	departureLon func(location string) (float64, bool)
 }
 
 // NewLogbookService creates the logbook service.
@@ -40,12 +63,25 @@ func NewLogbookService(
 	sigRepo repository.FlightSignatureRepository,
 ) *LogbookService {
 	return &LogbookService{
-		repo:        repo,
-		licenseRepo: licenseRepo,
-		flightRepo:  flightRepo,
-		sigRepo:     sigRepo,
-		now:         time.Now,
+		repo:         repo,
+		licenseRepo:  licenseRepo,
+		flightRepo:   flightRepo,
+		sigRepo:      sigRepo,
+		now:          time.Now,
+		departureLon: airportLongitude,
 	}
+}
+
+func airportLongitude(location string) (float64, bool) {
+	location = strings.TrimSpace(location)
+	if location == "" {
+		return 0, false
+	}
+	ap := airports.LookupCode(location)
+	if ap == nil {
+		return 0, false
+	}
+	return ap.Longitude, true
 }
 
 // ModeView is a user's logbook mode with the licences that bear on it.
@@ -188,7 +224,182 @@ func (s *LogbookService) CreateCertification(ctx context.Context, userID uuid.UU
 	return cert, nil
 }
 
+// EditClassification is the verdict on a strict-mode edit or delete.
+type EditClassification struct {
+	Strict        bool
+	IsCorrection  bool
+	DefaultReason string
+}
+
+// ClassifyEdit decides whether updating existing into updated is a
+// correction. updated may be nil for a delete, which skips the override rule.
+func (s *LogbookService) ClassifyEdit(ctx context.Context, userID uuid.UUID, existing, updated *models.Flight) (EditClassification, error) {
+	mode, err := s.repo.GetMode(ctx, userID)
+	if err != nil {
+		return EditClassification{}, err
+	}
+	if !mode.Strict {
+		return EditClassification{}, nil
+	}
+	result := EditClassification{Strict: true}
+
+	now := s.now()
+	assessment, err := s.assess(ctx, userID)
+	if err != nil {
+		return result, err
+	}
+	lon := s.lonOf(existing)
+
+	if now.After(assessment.Deadline(existing.CreatedAt, existing.Date, lon)) {
+		result.IsCorrection = true
+	}
+
+	sigs, err := s.sigRepo.ListByFlightID(ctx, existing.ID)
+	if err != nil {
+		return result, err
+	}
+	var latestVoid *models.FlightSignature
+	for _, sig := range sigs {
+		if sig.Status != models.SignatureStatusCompleted && sig.Status != models.SignatureStatusVoided {
+			continue
+		}
+		result.IsCorrection = true
+		if sig.Status == models.SignatureStatusVoided && sig.VoidedReason != nil &&
+			(latestVoid == nil || voidedAfter(sig, latestVoid)) {
+			latestVoid = sig
+		}
+	}
+	if latestVoid != nil {
+		result.DefaultReason = strings.TrimSpace(*latestVoid.VoidedReason)
+	}
+
+	latest, err := s.repo.LatestCertifiedThrough(ctx, userID)
+	if err != nil {
+		return result, err
+	}
+	if latest != nil {
+		earliest := dateOnly(existing.Date)
+		if updated != nil && dateOnly(updated.Date).Before(earliest) {
+			earliest = dateOnly(updated.Date)
+		}
+		if !earliest.After(dateOnly(*latest)) {
+			result.IsCorrection = true
+		}
+	}
+
+	if updated != nil && overridesTouched(existing, updated) &&
+		now.After(logbookrules.FlightDayEnd(existing.Date, lon)) {
+		result.IsCorrection = true
+	}
+	return result, nil
+}
+
+func voidedAfter(a, b *models.FlightSignature) bool {
+	if a.VoidedAt == nil {
+		return false
+	}
+	return b.VoidedAt == nil || a.VoidedAt.After(*b.VoidedAt)
+}
+
+func (s *LogbookService) lonOf(f *models.Flight) float64 {
+	if f.DepartureICAO == nil {
+		return 0
+	}
+	lon, _ := s.departureLon(*f.DepartureICAO)
+	return lon
+}
+
 func dateOnly(t time.Time) time.Time {
 	y, m, d := t.Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+type overrideField struct {
+	name  string
+	flag  func(*models.Flight) *bool
+	value func(*models.Flight) *int
+}
+
+var overrideFields = []overrideField{
+	{"nightTime", func(f *models.Flight) *bool { return &f.NightTimeOverride }, func(f *models.Flight) *int { return &f.NightTime }},
+	{"crossCountryTime", func(f *models.Flight) *bool { return &f.CrossCountryTimeOverride }, func(f *models.Flight) *int { return &f.CrossCountryTime }},
+	{"takeoffsDay", func(f *models.Flight) *bool { return &f.TakeoffsDayOverride }, func(f *models.Flight) *int { return &f.TakeoffsDay }},
+	{"takeoffsNight", func(f *models.Flight) *bool { return &f.TakeoffsNightOverride }, func(f *models.Flight) *int { return &f.TakeoffsNight }},
+	{"landingsDay", func(f *models.Flight) *bool { return &f.LandingsDayOverride }, func(f *models.Flight) *int { return &f.LandingsDay }},
+	{"landingsNight", func(f *models.Flight) *bool { return &f.LandingsNightOverride }, func(f *models.Flight) *int { return &f.LandingsNight }},
+	{"sicTime", func(f *models.Flight) *bool { return &f.SICTimeOverride }, func(f *models.Flight) *int { return &f.SICTime }},
+	{"multiPilotTime", func(f *models.Flight) *bool { return &f.MultiPilotTimeOverride }, func(f *models.Flight) *int { return &f.MultiPilotTime }},
+}
+
+// overrideChanged reports whether the field is overridden in updated and was
+// not, or had another value, in previous (nil previous means a new flight).
+func overrideChanged(f overrideField, previous, updated *models.Flight) bool {
+	if !*f.flag(updated) {
+		return false
+	}
+	if previous == nil || !*f.flag(previous) {
+		return true
+	}
+	return *f.value(previous) != *f.value(updated)
+}
+
+func overridesTouched(previous, updated *models.Flight) bool {
+	for _, f := range overrideFields {
+		if overrideChanged(f, previous, updated) {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckDownwardOverrides rejects overrides that exceed the auto-calculated
+// value when the user is in strict mode under a rule that allows overrides
+// only downward. previous is nil for a new flight; only overrides that are
+// new or changed against it are checked.
+func (s *LogbookService) CheckDownwardOverrides(ctx context.Context, userID uuid.UUID, previous, flight *models.Flight, userName string, facts *flightrules.AircraftFacts) error {
+	if !hasOverride(flight) {
+		return nil
+	}
+	mode, err := s.repo.GetMode(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !mode.Strict {
+		return nil
+	}
+	assessment, err := s.assess(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !assessment.OverridesDownwardOnly {
+		return nil
+	}
+
+	calculated := *flight
+	calculated.CrewMembers = append([]models.FlightCrewMember(nil), flight.CrewMembers...)
+	for _, f := range overrideFields {
+		*f.flag(&calculated) = false
+		*f.value(&calculated) = 0
+	}
+	flightcalc.ApplyAutoCalculations(&calculated, userName, facts)
+
+	var exceeded []string
+	for _, f := range overrideFields {
+		if overrideChanged(f, previous, flight) && *f.value(flight) > *f.value(&calculated) {
+			exceeded = append(exceeded, f.name)
+		}
+	}
+	if len(exceeded) > 0 {
+		return &OverrideExceedsError{Fields: exceeded}
+	}
+	return nil
+}
+
+func hasOverride(f *models.Flight) bool {
+	for _, o := range overrideFields {
+		if *o.flag(f) {
+			return true
+		}
+	}
+	return false
 }
