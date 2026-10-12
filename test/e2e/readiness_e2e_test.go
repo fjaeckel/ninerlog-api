@@ -297,7 +297,8 @@ func TestReadiness(t *testing.T) {
 			query string
 			want  int
 		}{
-			{"yesterday", "date=" + pastDate(1), http.StatusBadRequest},
+			{"two days ago", "date=" + time.Now().UTC().AddDate(0, 0, -2).Format("2006-01-02"), http.StatusBadRequest},
+			{"yesterday UTC", "date=" + time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02"), http.StatusOK},
 			{"367 days ahead", "date=" + time.Now().UTC().AddDate(0, 0, 367).Format("2006-01-02"), http.StatusBadRequest},
 			{"not a date", "date=next-saturday", http.StatusBadRequest},
 			{"unknown aircraft", "aircraftReg=D-NONE", http.StatusNotFound},

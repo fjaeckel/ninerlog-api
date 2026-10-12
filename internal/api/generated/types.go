@@ -10171,7 +10171,8 @@ type ListCredentialsParams struct {
 
 // GetCurrencyReadinessParams defines parameters for GetCurrencyReadiness.
 type GetCurrencyReadinessParams struct {
-	// Date Date to answer for, from today to 366 days ahead (UTC). Defaults to today.
+	// Date Calendar date to answer for, from the day before today's UTC date to 366 days
+	// after it. Defaults to today (UTC).
 	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
 
 	// AircraftReg Registration of one of the caller's aircraft; restricts the answer to it.
