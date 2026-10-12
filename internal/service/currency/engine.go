@@ -336,7 +336,8 @@ func evalRatingRule(ctx context.Context, rule *ratingRule, rating *models.ClassR
 	return evalRatingRuleWithPeers(ctx, rule, rating, license, nil, dp)
 }
 
-// evalRatingRuleWithPeers is evalRatingRule with the other class ratings on the license.
+// evalRatingRuleWithPeers is evalRatingRule with the other class ratings on the
+// license, adding the lapse date of a current rolling-window rule.
 func evalRatingRuleWithPeers(ctx context.Context, rule *ratingRule, rating *models.ClassRating, license *models.License, peers []*models.ClassRating, dp FlightDataProvider) ClassRatingCurrency {
 	return evalRatingRuleForHolder(ctx, rule, rating, license, peers, peers, dp)
 }

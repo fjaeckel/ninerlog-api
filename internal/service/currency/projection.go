@@ -7,8 +7,8 @@ import (
 )
 
 // projectValidUntil sets ValidUntil on the met requirements and met launch
-// methods of a rolling-window result and, when current, on the result: the
-// last date each stays met with no further flying. eval re-evaluates the
+// methods of a rolling-window result and, when current, RecencyExpiresOn on
+// the result: the last date each stays met with no further flying. eval re-evaluates the
 // rule at the instant its context carries.
 func projectValidUntil(ctx context.Context, w windowSpec, result *ClassRatingCurrency, cache *dailyCache, eval func(context.Context) ClassRatingCurrency) {
 	if w.kind != windowRollingNow || (w.years == 0 && w.months == 0 && w.days == 0) {
@@ -46,7 +46,7 @@ func projectValidUntil(ctx context.Context, w windowSpec, result *ClassRatingCur
 	for i, d := range lmLast {
 		result.LaunchMethodCurrency[i].ValidUntil = dateString(d)
 	}
-	result.ValidUntil = dateString(ratingLast)
+	result.RecencyExpiresOn = dateString(ratingLast)
 }
 
 // dateString formats a date as YYYY-MM-DD, nil for nil.

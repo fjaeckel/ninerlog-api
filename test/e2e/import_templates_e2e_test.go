@@ -326,3 +326,50 @@ func TestImportTemplates_MyFlightbookEndToEnd(t *testing.T) {
 		}
 	})
 }
+
+// A Vereinsflieger place without an ICAO code resolves to the airport carrying
+// that name, and one matching no airport imports as its name, not as a code
+// built from its first word.
+func TestImportTemplates_VereinsfliegerPlaceWithoutICAO(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-vf-noicao"), "SecurePass123!", "VF")
+
+	header := "\"Datum\";\"Lfz.\";\"Pilot\";\"Begleiter/FI\";\"Start\";\"Landung\";\"Flugzeit\";\"Startort\";\"Landeort\";\"Landungen\";\"S.-Art\";\"Flugart\";\"Abr.\";\"Verein\";\"Bemerkung\"\n"
+	row := func(dep, arr, start string) string {
+		return fmt.Sprintf("\"%s\";\"D-MABC\";\"Rivera, Alex\";\"\";\"%s\";\"10:47\";\"95\";\"%s\";\"%s\";\"1\";\"E\";\"N\";\"K\";\"\";\"\"\n", todayGerman(), start, dep, arr)
+	}
+	csv := header + row("Konz Könen", "Uetersen EDHE", "09:12") + row("Konz Wiesenstreifen", "Uetersen EDHE", "08:12")
+
+	resp := uploadCSV(t, c, "vereinsflieger.csv", csv)
+	requireStatus(t, resp, http.StatusOK)
+	var upload map[string]interface{}
+	resp.JSON(&upload)
+
+	prev := c.POST("/imports/preview", map[string]interface{}{
+		"uploadToken":    upload["uploadToken"],
+		"mappings":       upload["suggestedMappings"],
+		"skipDuplicates": false,
+	})
+	requireStatus(t, prev, http.StatusOK)
+	var result map[string]interface{}
+	prev.JSON(&result)
+
+	flights, _ := result["flights"].([]interface{})
+	if len(flights) != 2 {
+		t.Fatalf("previewed %d rows, want 2: %s", len(flights), string(prev.Body))
+	}
+	want := []string{"DE-0249", "Konz Wiesenstreifen"}
+	for i, f := range flights {
+		row := f.(map[string]interface{})
+		if row["status"] == "error" {
+			t.Fatalf("row %d errored: %v", i, row["errors"])
+		}
+		flight := row["flight"].(map[string]interface{})
+		if flight["departureIcao"] != want[i] {
+			t.Errorf("row %d departureIcao = %v, want %q", i, flight["departureIcao"], want[i])
+		}
+		if flight["arrivalIcao"] != "EDHE" {
+			t.Errorf("row %d arrivalIcao = %v, want EDHE", i, flight["arrivalIcao"])
+		}
+	}
+}

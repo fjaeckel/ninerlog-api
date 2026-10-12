@@ -65,10 +65,12 @@ type analyticsResponse struct {
 		Flights  int    `json:"flights"`
 	} `json:"byCountry"`
 	ByRoute []struct {
-		DepartureIcao string  `json:"departureIcao"`
-		ArrivalIcao   string  `json:"arrivalIcao"`
-		Flights       int     `json:"flights"`
-		DistanceNm    float64 `json:"distanceNm"`
+		DepartureIcao        string  `json:"departureIcao"`
+		ArrivalIcao          string  `json:"arrivalIcao"`
+		DepartureAirportName *string `json:"departureAirportName"`
+		ArrivalAirportName   *string `json:"arrivalAirportName"`
+		Flights              int     `json:"flights"`
+		DistanceNm           float64 `json:"distanceNm"`
 	} `json:"byRoute"`
 	ByInstructor []struct {
 		Name         string `json:"name"`
@@ -358,6 +360,11 @@ func TestReportsAnalyticsTotalsAndBreakdowns(t *testing.T) {
 	if edny.Country == nil || *edny.Country != "DE" {
 		t.Errorf("Expected EDNY country DE, got %v", edny.Country)
 	}
+	for _, r := range a.ByRoute {
+		if r.DepartureIcao == "EDNY" && (r.DepartureAirportName == nil || *r.DepartureAirportName == "") {
+			t.Errorf("route %s-%s: departure name not resolved", r.DepartureIcao, r.ArrivalIcao)
+		}
+	}
 	if a.Records.HomeBase == nil || *a.Records.HomeBase != "EDNY" {
 		t.Errorf("Expected home base EDNY, got %v", a.Records.HomeBase)
 	}
@@ -639,6 +646,33 @@ func TestReportsAnalyticsBaseline(t *testing.T) {
 	}
 	if last := recent.Monthly[len(recent.Monthly)-1].CumulativeMinutes; last != 30060 {
 		t.Errorf("Expected the cumulative curve to reach 30060 career minutes, got %d", last)
+	}
+}
+
+// The country roll-up, distinct counts and airport records must cover every
+// visited airport; the limit only trims the ranked byAirport list.
+func TestReportsAnalyticsCountriesIgnoreLimit(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("analytics-countries"), "SecurePass123!", "Analytics Countries")
+	seedAnalyticsLogbook(t, c) // EDNY (DE) x3, EDDS (DE) x1, LSZH (CH) x1
+
+	a := getAnalytics(t, c, "?months=0&limit=1")
+
+	if len(a.ByAirport) != 1 {
+		t.Errorf("Expected limit=1 to trim byAirport to 1 row, got %d", len(a.ByAirport))
+	}
+	if a.Totals.DistinctAirports != 3 {
+		t.Errorf("Expected 3 distinct airports regardless of limit, got %d", a.Totals.DistinctAirports)
+	}
+	if a.Totals.DistinctCountries != 2 {
+		t.Errorf("Expected 2 distinct countries regardless of limit, got %d", a.Totals.DistinctCountries)
+	}
+	got := map[string]int{}
+	for _, row := range a.ByCountry {
+		got[row.Country] = row.Airports
+	}
+	if got["DE"] != 2 || got["CH"] != 1 {
+		t.Errorf("Expected DE=2 and CH=1 airports in byCountry, got %v", got)
 	}
 }
 

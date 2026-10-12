@@ -624,8 +624,8 @@ leaves the window, assuming no further flights, and reports:
   last date the newest qualifying flight still counts; for a proficiency check, the check's
   date + window − 1 day.
 - `LaunchMethodCurrency.validUntil` on each met method, the same way.
-- `ClassRatingCurrency.validUntil` on a `current` result — the last date the rating stays
-  current. Where the rule accepts alternatives (experience rows **or** a proficiency
+- `ClassRatingCurrency.recencyExpiresOn` on a `current` result — the last date the rating
+  stays current. Where the rule accepts alternatives (experience rows **or** a proficiency
   check), that is the latest date on which either alternative still holds, not the
   earliest row.
 

@@ -140,6 +140,10 @@ rating follows the §61.56 flight review, and §61.57(a) is reported as passenge
 under `ruleDescriptionKey` `faa_glider` ([SAILPLANES.md](./SAILPLANES.md#faa-gliders-14-cfr-part-61)).
 Clients may drop their strings.
 
+The date a current rolling-window recency rule lapses is **not** in the message — read
+`recencyExpiresOn` and render it yourself. See
+[DOMAIN.md](./DOMAIN.md#recency-projection-validuntil-and-remedies).
+
 ## `PassengerCurrency.messageKey`
 
 | Key | Params | Meaning |
@@ -211,7 +215,7 @@ The sailplane rules (see [SAILPLANES.md](./SAILPLANES.md)) use these keys:
 ## `validUntil`
 
 `CurrencyRequirement.validUntil`, `LaunchMethodCurrency.validUntil` and
-`ClassRatingCurrency.validUntil` are dates, not keys: the last day a met row, a met launch
+`ClassRatingCurrency.recencyExpiresOn` are dates, not keys: the last day a met row, a met launch
 method or a `current` rating stays met if the pilot does not fly again. They are present
 only on rolling-window rules (LAPL, SPL, SPL TMG, GPL, German UL, FAA §61.57) and only when
 met; expiry-anchored rules (FCL.740.A, FCL.625.A) rely on `expiryDate`. A rating's date is

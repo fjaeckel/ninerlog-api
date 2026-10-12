@@ -63,9 +63,10 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		return
 	}
 
+	userName := h.getUserNameFromContext(c)
 	out := make([]generated.Flight, 0, len(flights))
 	for _, f := range flights {
-		out = append(out, convertToGeneratedFlight(f))
+		out = append(out, withDisplayPICName(convertToGeneratedFlight(f), f, userName))
 	}
 	c.JSON(http.StatusCreated, generated.FlightBatchResult{Flights: out})
 }

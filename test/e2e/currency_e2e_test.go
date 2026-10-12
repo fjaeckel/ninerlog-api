@@ -1096,8 +1096,8 @@ func TestEASA_SPL_InsufficientLaunches(t *testing.T) {
 		t.Fatal("SPL SEP_LAND not found")
 	}
 	assertStr(t, "status", rc["status"], "lapsed")
-	if _, ok := rc["validUntil"]; ok {
-		t.Errorf("lapsed rating carries validUntil %v", rc["validUntil"])
+	if _, ok := rc["recencyExpiresOn"]; ok {
+		t.Errorf("lapsed rating carries recencyExpiresOn %v", rc["recencyExpiresOn"])
 	}
 	launches := getReq(rc, "requirement.launches")
 	assertStr(t, "launches.remedyKey", launches["remedyKey"], "remedy.fly_more")

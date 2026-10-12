@@ -147,7 +147,7 @@ The in-memory airport database (`internal/airports`) merges two upstream dataset
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `airport_lookup_total` | Counter | `operation`, `result` | Read-path calls. Operations: `lookup` (exact ICAO), `search` (ICAO prefix), `nearest` (coordinates). Results: `hit`, `miss`, `unavailable` (no database loaded) |
+| `airport_lookup_total` | Counter | `operation`, `result` | Read-path calls. Operations: `lookup` (exact identifier), `code` (ICAO, then unique local code; import and flight sessions), `name` (exact name, import), `search` (identifier prefix, local-code prefix, then name), `nearest` (coordinates). Results: `hit`, `miss`, `unavailable` (no database loaded), and for `code` and `name` also `ambiguous` (several airports carry the local code or name). The airport dashboard's hit-ratio and "served without a database" panels exclude `code` and `name`, which probe import values |
 | `airport_lookup_duration_seconds` | Histogram | `operation` | Latency of the scanning operations (`search`, `nearest`) only — the exact-match path is a single map hit and is not timed |
 
 **Downloadable pack**

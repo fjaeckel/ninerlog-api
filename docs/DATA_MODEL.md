@@ -47,7 +47,7 @@ flowchart TD
 
 ## Core entities
 
-### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50)
+### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50, 74)
 
 The account holder. Notable fields:
 
@@ -58,6 +58,10 @@ The account holder. Notable fields:
   the 2FA second factor, passkeys, OIDC, and the sign-up verification link — but
   not by a token refresh. See
   [AUTHENTICATION.md](AUTHENTICATION.md#login).
+- Activity: `users.last_active_at` (migration 74; not on the Go model) is the last
+  authenticated API request, written by the `RecordActivity` middleware at most once
+  per five minutes per account and by every login. Exposed only as `lastActiveAt` in
+  the admin user list. See [AUTHENTICATION.md](AUTHENTICATION.md#last-active).
 - Display preferences: `TimeDisplayFormat` (`HH:MM` vs decimal hours), `DateFormat`,
   `ClockFormat` (`24h` | `12h` for times of day; default `24h`), `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`).
 - Recency indicators: `RecencyPerModel`, `RecencyPerRegistration` — which informational
@@ -72,7 +76,11 @@ The account holder. Notable fields:
   `NormalizeFlightListColumns` (applied in `AuthService.UpdateUser`) deduplicates,
   reorders and drops unknown keys, so the column never stores something the clients
   cannot render. The always-present columns — date, route, aircraft, total time — are
-  deliberately not part of the vocabulary.
+  deliberately not part of the vocabulary. Besides times, function, landings and remarks
+  it covers the people on a flight (`picName`, `instructorName`, `crew`) and other details
+  (`takeoffLandingTime`, `takeoffs`, `approaches`, `approachTypes`, `holds`, `distance`,
+  `waypoints`, `launchMethod`, `fstdType`, `checks`, `signed`, `endorsements`,
+  `instructorComments`).
 
 Sensitive fields (`PasswordHash`, `TwoFactorSecret`, `RecoveryCodes`,
 `FailedLoginAttempts`, `LockedUntil`) are tagged `json:"-"` so they never leak through the
@@ -131,7 +139,7 @@ kilograms. FCL.035(a)(5) credits an `ULTRALIGHT` gyroplane of at least 450 kg to
 recency; see [DOMAIN.md](./DOMAIN.md#gyroplanes-gpl). Migration 73 also normalises free-text
 `GYROPLANE`, `GYROCOPTER` and `TRAGSCHRAUBER` aircraft classes to `GYROPLANE`.
 
-### AircraftReminder (`internal/models/aircraft_reminder.go`, migration 75)
+### AircraftReminder (`internal/models/aircraft_reminder.go`, migration 77)
 
 A dated item on one of the user's aircraft. `user_id` and `aircraft_id` both cascade, so
 deleting the aircraft or the account removes its reminders.
@@ -335,7 +343,7 @@ order set by `PUT /reports/custom/order`; new reports are appended after the hig
 (`internal/repository/postgres/custom_report.go`) reusing `appendFlightFilters`, the same
 filter builder `GET /flights` uses.
 
-### PilotProfile (`internal/models/pilot_profile.go`, migration 74)
+### PilotProfile (`internal/models/pilot_profile.go`, migration 76)
 
 One row per user in `pilot_profiles` (`user_id` primary key, `ON DELETE CASCADE`), holding only
 what the pilot chose for the adaptive disciplines: `mode` (`adaptive` or `everything`, CHECK

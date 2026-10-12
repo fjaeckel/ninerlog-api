@@ -797,6 +797,6 @@ func hasValidIRRating(ratings []*models.ClassRating) bool {
 func applySFCLTMGExemption(result *ClassRatingCurrency) {
 	result.Status = StatusCurrent
 	result.Requirements = nil
-	result.ValidUntil = nil
+	result.RecencyExpiresOn = nil
 	result.setMsg(MsgRatingSFCLTMGExempt, nil)
 }
