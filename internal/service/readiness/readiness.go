@@ -137,18 +137,24 @@ func (s *Service) Evaluate(ctx context.Context, userID uuid.UUID, req Request) (
 	}
 
 	var launchItems []Item
-	seenMethods := map[string]bool{}
+	var launchSources []currency.LaunchMethodCurrency
+	methodIndex := map[string]int{}
 	for _, r := range status.Ratings {
 		if ac != nil && !ratingCovers(r, ac) {
 			continue
 		}
 		report.Items = append(report.Items, ratingItem(r))
 		for _, lm := range r.LaunchMethodCurrency {
-			if seenMethods[lm.Method] {
+			i, seen := methodIndex[lm.Method]
+			if !seen {
+				methodIndex[lm.Method] = len(launchItems)
+				launchItems = append(launchItems, launchMethodItem(r, lm))
+				launchSources = append(launchSources, lm)
 				continue
 			}
-			seenMethods[lm.Method] = true
-			launchItems = append(launchItems, launchMethodItem(r, lm))
+			if launchMethodBetter(lm, launchSources[i]) {
+				launchItems[i], launchSources[i] = launchMethodItem(r, lm), lm
+			}
 		}
 	}
 	if ac != nil && len(report.Items) == 0 {
@@ -271,6 +277,18 @@ func noRatingItem(ac *models.Aircraft) Item {
 		it.ClassType = &class
 	}
 	return it
+}
+
+// launchMethodBetter reports whether a answers for its method better than b:
+// met over unmet, then the later validUntil.
+func launchMethodBetter(a, b currency.LaunchMethodCurrency) bool {
+	if a.Met != b.Met {
+		return a.Met
+	}
+	if !a.Met || a.ValidUntil == nil {
+		return false
+	}
+	return b.ValidUntil == nil || *a.ValidUntil > *b.ValidUntil
 }
 
 // launchMethodItem answers for one SFCL.155 launch method.

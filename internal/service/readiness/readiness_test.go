@@ -183,6 +183,43 @@ func TestEvaluate_AircraftFilter(t *testing.T) {
 	}
 }
 
+func TestEvaluate_LaunchMethodPrefersMet(t *testing.T) {
+	early, late := "2026-12-01", "2027-03-01"
+	spl := rating(models.ClassTypeGlider, currency.StatusCurrent, nil)
+	spl.LaunchMethodCurrency = []currency.LaunchMethodCurrency{
+		{Method: "winch", Launches: 2, Required: 5, RemedyKey: currency.RemedyLaunchMethodDual},
+		{Method: "aerotow", Launches: 5, Required: 5, Met: true, ValidUntil: &early},
+	}
+	lapls := rating(models.ClassTypeGlider, currency.StatusCurrent, nil)
+	lapls.LaunchMethodCurrency = []currency.LaunchMethodCurrency{
+		{Method: "winch", Launches: 6, Required: 5, Met: true, ValidUntil: &early},
+		{Method: "aerotow", Launches: 7, Required: 5, Met: true, ValidUntil: &late},
+	}
+	resp := &currency.CurrencyStatusResponse{Ratings: []currency.ClassRatingCurrency{spl, lapls}}
+	rep, err := newService(&fakeCurrency{resp: resp}, nil).Evaluate(context.Background(), userID, Request{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]Item{}
+	for _, it := range rep.Items {
+		if it.Kind == KindLaunchMethod {
+			got[*it.LaunchMethod] = it
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("launch items = %+v", got)
+	}
+	if w := got["winch"]; !w.Ready || *w.ClassRatingID != lapls.ClassRatingID {
+		t.Errorf("winch = %+v, want the met one", w)
+	}
+	if a := got["aerotow"]; *a.Params.Date != late {
+		t.Errorf("aerotow until %s, want %s", *a.Params.Date, late)
+	}
+	if it := rep.Items[2]; *it.LaunchMethod != "winch" {
+		t.Errorf("first launch item = %s, want winch in first-seen order", *it.LaunchMethod)
+	}
+}
+
 func TestEvaluate_NoRating(t *testing.T) {
 	svc := newService(&fakeCurrency{resp: status()}, nil)
 	rep, err := svc.Evaluate(context.Background(), userID, Request{AircraftReg: "D-MGYR"})
