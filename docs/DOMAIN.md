@@ -276,7 +276,7 @@ have to compute them by hand. The entry point is
 - **Pilot role** — `flightrules.DetermineRole(flight, userName, aircraft)` resolves the
   user to PIC, dual received, dual given, co-pilot or passenger. `aircraft` is the fleet
   entry for the registration flown (`flightrules.AircraftFacts`), resolved by the caller
-  via `service.AircraftFactsFor`; `nil` means the registration has no fleet entry. See
+  via `service.AircraftFactsFor` or `AircraftService.AircraftFactsLookup` (one fleet load per request); `nil` means the registration has no fleet entry. See
   [Who may log co-pilot time](#who-may-log-co-pilot-time). Dual given is resolved from a
   self-listed `Instructor` or a third-party `Student`; a pilot listing themselves as
   `Student` (e.g. a supervised solo with `SPICTime`/`PICUSTime`) stays PIC and logs no

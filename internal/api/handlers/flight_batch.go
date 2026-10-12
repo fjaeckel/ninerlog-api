@@ -33,7 +33,7 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 	}
 
 	flights := make([]*models.Flight, 0, len(req.Legs))
-	facts := h.fleetFactsLookup(c.Request.Context(), userID)
+	facts := h.aircraftService.AircraftFactsLookup(c.Request.Context(), userID)
 	for i, leg := range req.Legs {
 		body := batchLegCreate(req.Template, leg)
 		flight, errMsg := h.flightFromCreate(c, userID, &body, facts)
