@@ -583,6 +583,21 @@ the `GLIDER` class never reports night privilege — under EASA and FAA alike, s
 rating on an FAA Private licence has no night requirement while that licence's SEP rating
 keeps one.
 
+### Rating recency expiry (`recencyExpiresOn`)
+
+A `ClassRatingCurrency` evaluated by a rolling-window recency rule (window kind
+`windowRollingNow` in `engine.go`: EASA LAPL FCL.140.A, SPL SFCL.160, GPL FCL.240.G, the
+German ultralight rules, FAA §61.57) carries `recencyExpiresOn` while its `status` is
+`current`: the last day the rule is still met if the pilot never flies again. The engine
+finds it by re-evaluating the same rule at midnight UTC of later dates
+(`recencyLapseDate`), binary-searching the span from today to one full window ahead — so
+every requirement, the proficiency-check alternative and any rule-specific status logic are
+honoured without a second implementation. With no new flights the window only loses
+flights, so currency can only switch off once, which is what makes the search valid. The
+flight whose departure breaks the first requirement is the binding one; a proficiency
+check extends the date to its own window end when that is later. Expiry-anchored
+revalidation rules (FCL.740.A, FCL.625.A) omit the field — their limit is `expiryDate`.
+
 ### Regulatory differences (EASA vs FAA)
 
 The two main rule sets differ substantially, which is why each has its own evaluator:

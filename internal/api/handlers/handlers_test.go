@@ -261,6 +261,10 @@ func (m *mockUserRepo) ResetFailedLoginAttempts(_ context.Context, _ uuid.UUID) 
 func (m *mockUserRepo) LockAccount(_ context.Context, _ uuid.UUID, _ time.Time) error {
 	return nil
 }
+func (m *mockUserRepo) TouchLastActive(context.Context, uuid.UUID, time.Time, time.Duration) error {
+	return nil
+}
+
 func (m *mockUserRepo) UpdateLastLogin(_ context.Context, id uuid.UUID, at time.Time) error {
 	if u, ok := m.users[id]; ok {
 		stamp := at
@@ -491,6 +495,19 @@ func (m *mockFlightRepo) CountByUserID(_ context.Context, userID uuid.UUID, opts
 		}
 	}
 	return count, nil
+}
+func (m *mockFlightRepo) TotalsByUserID(_ context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
+	totals := &models.FlightTotals{}
+	for _, f := range m.flights {
+		if f.UserID == userID && matchesUpdatedSince(f, opts) {
+			totals.Flights++
+			totals.TotalTime += f.TotalTime
+		}
+	}
+	return totals, nil
+}
+func (m *mockFlightRepo) MonthTotalsByUserID(_ context.Context, _ uuid.UUID, _ *repository.FlightQueryOptions, _ []time.Time) ([]models.FlightMonthTotals, error) {
+	return []models.FlightMonthTotals{}, nil
 }
 func (m *mockFlightRepo) GetStatsByUserID(_ context.Context, userID uuid.UUID, _, _ *time.Time) (*models.FlightStatistics, error) {
 	return &models.FlightStatistics{}, nil

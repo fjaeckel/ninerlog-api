@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/go-pdf/fpdf"
 )
@@ -129,10 +130,10 @@ func customReportSummary(def models.CustomReportDefinition, res *models.CustomRe
 		filters = append(filters, "Registration: "+*f.AircraftReg)
 	}
 	if f.DepartureICAO != nil {
-		filters = append(filters, "From: "+*f.DepartureICAO)
+		filters = append(filters, "From: "+airports.DisplayName(*f.DepartureICAO))
 	}
 	if f.ArrivalICAO != nil {
-		filters = append(filters, "To: "+*f.ArrivalICAO)
+		filters = append(filters, "To: "+airports.DisplayName(*f.ArrivalICAO))
 	}
 	if f.Role != nil {
 		filters = append(filters, "Role: "+strings.ToUpper(*f.Role))

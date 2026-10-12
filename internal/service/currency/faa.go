@@ -66,7 +66,7 @@ var faaPassengerRatingRule = ratingRule{
 		{nameKey: ReqKeyNightLandings, metric: mNightLandings, threshold: 3, unit: "landings"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(rt.now)
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -115,7 +115,7 @@ var faaInstrumentRule = ratingRule{
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(rt.now)
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -141,7 +141,7 @@ var faaInstrumentRule = ratingRule{
 			// 0-6 months: current (checked above)
 			// 6-12 months: can regain by practice with safety pilot
 			// >12 months: IPC required
-			since12 := time.Now().AddDate(-1, 0, 0)
+			since12 := rt.now.AddDate(-1, 0, 0)
 			progress12, err12 := rt.dp.GetProgressAll(ctx, rt.license.UserID, since12)
 			if err12 == nil && (progress12.Approaches >= 6 && progress12.Holds >= 1) {
 				// Met within 12 months but not within 6 — lapsed but recoverable
@@ -175,7 +175,7 @@ var faaGliderRule = ratingRule{
 		{nameKey: ReqKeyTrainingFlights, metric: mTrainingFlights, threshold: 3, unit: "flights"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		now := time.Now()
+		now := rt.now
 		rt.since = faaFlightReviewWindowStart(now)
 		lastReview, err := rt.dp.GetLastFlightReview(ctx, rt.license.UserID)
 		if err != nil {

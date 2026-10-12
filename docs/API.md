@@ -73,6 +73,7 @@ Routes are wired in `cmd/api/main.go`:
 ```go
 api := router.Group("/api/v1")
 api.Use(middleware.AuthMiddlewareWithState(jwtManager, /* public path allow-list */, authService.AccessTokenState))
+api.Use(middleware.RecordActivity(authService.RecordActivity)) // users.last_active_at, throttled
 api.Use(generalRateLimit)                                                     // every route
 api.Use(middleware.RateLimitByPath(expensiveRateLimit, /* exports, previews */))
 api.Use(middleware.RateLimitByPathWithQueryParam(searchRateLimit, "/flights", "q"))
@@ -412,8 +413,21 @@ user's whole fleet first and reports the outcome as `aircraftNormalized` and
 `aircraftConflicts`. Flight responses include the read-only
 `departureAirportName` / `arrivalAirportName`, resolved per request from the airport
 database and `null` when the stored location does not resolve; they are response-only and
-are not accepted on create or update. `GET /flights` carries the filter, search, sort and
-pagination parameters, plus `updatedSince` for delta sync. See
+are not accepted on create or update. Flight responses (`GET /flights`, `GET`/`POST`/`PUT
+/flights/{id}`) also carry the read-only `displayPicName`: the PIC name the logbook exports
+print, resolved by `flightrules.DisplayPICName` — `picName`, else the instructor or a
+third-party PIC from the crew, else `"SELF"`; `null` for an FSTD session. The open flight session (`/flight-sessions/current`)
+and the analytics `byRoute` rows and flight records carry the same two names. `GET /flights` carries the filter, search, sort and
+pagination parameters, plus `updatedSince` for delta sync. Its flights include
+`crewMembers` (loaded for the whole page in one query), so a client can show crew in the
+list without fetching each flight. The response also carries `totals` — the column sums
+(times in minutes, landings, takeoffs, approaches, holds, distance) over **every** flight
+matching the filters, not just the page — and `monthTotals`, the same sums per calendar
+month for each month that has a flight on the page, so a month heading is complete even
+when the month spans two pages. `pagination.total` equals `totals.flights`. `monthTotals` is
+only computed for a date-sorted list without `updatedSince` (otherwise it is an empty
+array), and `updatedSince` narrows `totals` like any other filter, so a delta-sync
+response sums only the changed flights. See
 [FEATURES.md](./FEATURES.md#flight-logging).
 
 `POST /flights` creates either a flight or an FSTD (simulator) session, chosen by
@@ -568,6 +582,13 @@ every device the pilot signs in on, and they travel in the JSON export.
 Airport lookup/search, route and airport statistics, trends, and stats-by-class, plus
 the downloadable airport pack:
 
+- `GET /airports/{icaoCode}` — one airport by identifier: the ICAO code, or the
+  OurAirports local identifier (e.g. `DE-0249`) for a field without one.
+- `GET /airports/search?q=` — identifier-prefix matches first, in identifier order, then
+  local-code prefix matches (`LF07` → `LF0723`), then airports with a name word starting
+  with `q` (case- and diacritic-insensitive), up to `limit`. Each airport carries its
+  `localCode` when it has one, for autocomplete display.
+
 - `GET /airports/pack` — the complete merged airport database as a gzip-compressed JSON
   envelope `{etag, generatedAt, count, airports}` with `airports` sorted by ICAO code,
   for clients that need offline nearest-airport matching (the iOS Share Extension).
@@ -583,6 +604,9 @@ yearly series, breakdowns, patterns, records), scoped by `months` (0 = all time)
 the snapshot's cutoff date, so they agree with `GET /users/me/statistics`; the contribution
 is reported separately as `baseline`. Per-month, per-aircraft and per-airport breakdowns
 cover logged flights only — there is nothing to attribute a snapshot to.
+`limit` caps the ranked lists only: `byCountry`, `totals.distinctAirports`,
+`totals.distinctCountries` and the airport records (`homeBase`, `farthestAirport`) are
+computed from every visited airport, not just the returned `byAirport` rows.
 `totals.crossCountryPicMinutes` sums, per flight, the smaller of PIC and cross-country
 time; the snapshot has no such split, so it covers logged flights only too.
 

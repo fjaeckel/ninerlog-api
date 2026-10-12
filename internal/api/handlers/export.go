@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -212,13 +213,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 	csvWrite(w, headers)
 
 	for _, f := range flights {
-		dep, arr := "", ""
-		if f.DepartureICAO != nil {
-			dep = *f.DepartureICAO
-		}
-		if f.ArrivalICAO != nil {
-			arr = *f.ArrivalICAO
-		}
+		dep, arr := safeStr(f.DepartureICAO), safeStr(f.ArrivalICAO)
 		offBlock, onBlock, depTime, arrTime := "", "", "", ""
 		if f.OffBlockTime != nil {
 			offBlock = *f.OffBlockTime
@@ -305,7 +300,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 			prefs.formatDecimal(f.SPICTime),
 			prefs.formatDecimal(f.ExaminerTime),
 			prefs.formatDecimal(f.ReliefTime),
-			safeStrCSV(f.LaunchMethod),
+			safeStr(f.LaunchMethod),
 		}
 		csvWrite(w, row)
 	}
@@ -328,8 +323,8 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, us
 	csvWrite(w, headers)
 
 	for _, f := range flights {
-		dep := safeStrCSV(f.DepartureICAO)
-		arr := safeStrCSV(f.ArrivalICAO)
+		dep := exportPlace(f.DepartureICAO)
+		arr := exportPlace(f.ArrivalICAO)
 		depClock, arrClock := logbookClocks(f)
 		depTime := fmtTimeCSV(depClock)
 		arrTime := fmtTimeCSV(arrClock)
@@ -386,8 +381,8 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 	csvWrite(w, headers)
 
 	for _, f := range flights {
-		dep := safeStrCSV(f.DepartureICAO)
-		arr := safeStrCSV(f.ArrivalICAO)
+		dep := exportPlace(f.DepartureICAO)
+		arr := exportPlace(f.ArrivalICAO)
 
 		remarks := flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview)
 
@@ -415,11 +410,13 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 	}
 }
 
-func safeStrCSV(s *string) string {
+// exportPlace returns a stored departure/arrival location as written in an
+// export: the airport name for an OurAirports local identifier.
+func exportPlace(s *string) string {
 	if s == nil {
 		return ""
 	}
-	return *s
+	return airports.DisplayName(*s)
 }
 
 // logbookClocks returns the departure and arrival clock times a logbook row

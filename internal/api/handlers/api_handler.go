@@ -142,7 +142,7 @@ func (h *APIHandler) getUserIDFromContext(c *gin.Context) (uuid.UUID, error) {
 // Instructor → Dual received".
 func (h *APIHandler) getUserNameFromContext(c *gin.Context) string {
 	userID, err := h.getUserIDFromContext(c)
-	if err != nil {
+	if err != nil || h.authService == nil {
 		return ""
 	}
 	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
