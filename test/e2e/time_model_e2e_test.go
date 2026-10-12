@@ -174,6 +174,20 @@ func TestTimeModel_BlockTimes(t *testing.T) {
 		requireStatus(t, r, http.StatusCreated)
 	})
 
+	t.Run("A2 block times unchanged: clearing the only pair is a 400", func(t *testing.T) {
+		r := c.POST("/flights", timeModelFlight(map[string]interface{}{
+			"aircraftType": "C172", "offBlockTime": "08:00", "onBlockTime": "09:00",
+		}))
+		requireStatus(t, r, http.StatusCreated)
+		var f map[string]interface{}
+		r.JSON(&f)
+		r = c.PUT("/flights/"+f["id"].(string), map[string]interface{}{"offBlockTime": nil, "onBlockTime": nil})
+		requireStatus(t, r, http.StatusBadRequest)
+		if !strings.Contains(string(r.Body), "offBlockTime and onBlockTime, or departureTime and arrivalTime, are required") {
+			t.Errorf("body = %s, want the missing-times message", r.Body)
+		}
+	})
+
 	t.Run("A2 block times unchanged: bad block time format", func(t *testing.T) {
 		r := c.POST("/flights", timeModelFlight(map[string]interface{}{
 			"offBlockTime": "nope", "onBlockTime": "09:00",

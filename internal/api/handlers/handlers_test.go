@@ -1877,6 +1877,75 @@ func TestUpdateFlight_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestUpdateFlight_ClockPairs(t *testing.T) {
+	tests := []struct {
+		name       string
+		create     string
+		update     string
+		wantStatus int
+		wantMsg    string
+		wantTotal  int
+	}{
+		{
+			name:       "clearing the only pair is rejected like create",
+			create:     `"offBlockTime":"10:00:00","onBlockTime":"11:00:00"`,
+			update:     `{"offBlockTime":null,"onBlockTime":null}`,
+			wantStatus: http.StatusBadRequest,
+			wantMsg:    models.ErrFlightTimesMissing.Error(),
+		},
+		{
+			name:       "clearing a lone half of the only pair is rejected",
+			create:     `"offBlockTime":"10:00:00","onBlockTime":"11:00:00"`,
+			update:     `{"onBlockTime":null}`,
+			wantStatus: http.StatusBadRequest,
+			wantMsg:    "offBlockTime requires onBlockTime",
+		},
+		{
+			name:       "clearing block times falls back to take-off and landing",
+			create:     `"offBlockTime":"10:00:00","onBlockTime":"11:00:00","departureTime":"10:10:00","arrivalTime":"10:50:00"`,
+			update:     `{"offBlockTime":null,"onBlockTime":null}`,
+			wantStatus: http.StatusOK,
+			wantTotal:  40,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := setupTestHandler()
+			userID := uuid.New()
+			cw := httptest.NewRecorder()
+			cc := authenticatedContext(cw, userID)
+			cc.Request = httptest.NewRequest("POST", "/flights", bytes.NewBufferString(
+				`{"date":"2026-05-09","aircraftReg":"D-EABC","aircraftType":"C172","departureIcao":"EDDF","arrivalIcao":"EDDF","landings":1,`+tt.create+`}`))
+			cc.Request.Header.Set("Content-Type", "application/json")
+			h.CreateFlight(cc)
+			if cw.Code != http.StatusCreated {
+				t.Fatalf("create status = %d: %s", cw.Code, cw.Body.String())
+			}
+			var created generated.Flight
+			_ = json.Unmarshal(cw.Body.Bytes(), &created)
+
+			w := httptest.NewRecorder()
+			c := authenticatedContext(w, userID)
+			c.Request = httptest.NewRequest("PUT", "/flights/"+created.Id.String(), bytes.NewBufferString(tt.update))
+			c.Request.Header.Set("Content-Type", "application/json")
+			h.UpdateFlight(c, created.Id)
+			if w.Code != tt.wantStatus {
+				t.Fatalf("update status = %d, want %d: %s", w.Code, tt.wantStatus, w.Body.String())
+			}
+			if tt.wantMsg != "" && !strings.Contains(w.Body.String(), tt.wantMsg) {
+				t.Errorf("body = %s, want it to contain %q", w.Body.String(), tt.wantMsg)
+			}
+			if tt.wantStatus == http.StatusOK {
+				var got generated.Flight
+				_ = json.Unmarshal(w.Body.Bytes(), &got)
+				if got.TotalTime != tt.wantTotal {
+					t.Errorf("totalTime = %d, want %d", got.TotalTime, tt.wantTotal)
+				}
+			}
+		})
+	}
+}
+
 func TestListFlights_Unauthorized(t *testing.T) {
 	h, _ := setupTestHandler()
 

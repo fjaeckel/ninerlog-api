@@ -3125,7 +3125,11 @@ paths:
       tags:
         - Flights
       summary: Update flight
-      description: Update an existing flight log entry
+      description: |
+        Update an existing flight log entry. A body that sets or clears `offBlockTime`,
+        `onBlockTime`, `departureTime` or `arrivalTime` must leave a flight (not an FSTD
+        session) with a complete time pair, as on `POST /flights`; otherwise 400 with the
+        same message.
       operationId: updateFlight
       security:
         - bearerAuth: []

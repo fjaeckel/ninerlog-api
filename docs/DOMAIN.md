@@ -340,6 +340,8 @@ Validation is layered:
 Before these, `POST /flights` checks the request shape (`handlers/flight_kind.go`): the
 fields a flight or an FSTD session requires, and for a flight the time pair via
 `models.FlightClocks.Validate()` (`ErrFlightTimesMissing`, `ErrFlightTimePairIncomplete`).
+`PUT /flights/{id}` runs the same check on the merged flight when the body sets or clears
+any clock time.
 
 Validation failures surface as sentinel errors (e.g. `ErrInvalidFlight`,
 `ErrInvalidTimeDistribution`) that handlers map to HTTP 400.
