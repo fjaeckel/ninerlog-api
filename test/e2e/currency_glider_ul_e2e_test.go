@@ -87,7 +87,7 @@ func TestEASA_GliderClass_Current(t *testing.T) {
 	if _, ok := launches["remedyKey"]; ok {
 		t.Errorf("met launches row carries remedyKey %v", launches["remedyKey"])
 	}
-	assertStr(t, "rating validUntil", rc["validUntil"], launchesUntil)
+	assertStr(t, "rating recencyExpiresOn", rc["recencyExpiresOn"], launchesUntil)
 	check := getReq(rc, "requirement.proficiency_check")
 	assertStr(t, "proficiency_check.remedyKey", check["remedyKey"], "remedy.proficiency_check")
 	if _, ok := check["validUntil"]; ok {
