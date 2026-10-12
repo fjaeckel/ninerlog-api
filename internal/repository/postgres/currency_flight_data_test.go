@@ -190,7 +190,7 @@ func TestLaunchCounting_ReadsStoredLaunches(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p, mock, done := newCurrencyDataProvider(t)
 			defer done()
-			mock.ExpectQuery(regexp.QuoteMeta("COALESCE(f.launches, GREATEST(f.takeoffs_day + f.takeoffs_night, 1))")).
+			mock.ExpectQuery(regexp.QuoteMeta("COALESCE(f.launches, CASE WHEN f.is_simulator OR f.is_passenger THEN 0 ELSE GREATEST(f.takeoffs_day + f.takeoffs_night, 1) END)")).
 				WillReturnRows(tt.rows)
 			if err := tt.query(p, uuid.New(), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 				t.Fatalf("query: %v", err)
