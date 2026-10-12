@@ -150,6 +150,7 @@ func (m *mockAircraftRepo) CountByUserID(_ context.Context, userID uuid.UUID) (i
 type mockContactRepo struct {
 	contacts          map[uuid.UUID]*models.Contact
 	findOrCreateCalls int
+	findOrCreateErr   error
 }
 
 func newMockContactRepo() *mockContactRepo {
@@ -189,6 +190,9 @@ func (m *mockContactRepo) GetByExactName(_ context.Context, userID uuid.UUID, na
 }
 func (m *mockContactRepo) FindOrCreateByName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error) {
 	m.findOrCreateCalls++
+	if m.findOrCreateErr != nil {
+		return nil, false, m.findOrCreateErr
+	}
 	if existing, err := m.GetByExactName(ctx, userID, name); err == nil {
 		return existing, false, nil
 	}

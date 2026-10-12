@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -249,4 +251,59 @@ func TestCreateFlightBatch_CrewLinkedOnceAfterInsert(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestCreateFlightBatch_ClientContactIDsWhenLinkingFails(t *testing.T) {
+	h, _ := setupTestHandler()
+	contacts := newMockContactRepo()
+	contacts.findOrCreateErr = errors.New("db down")
+	h.contactService = service.NewContactService(contacts)
+	userID := uuid.New()
+	owned := &models.Contact{ID: uuid.New(), UserID: userID, Name: "Anna Lehrer"}
+	foreign := &models.Contact{ID: uuid.New(), UserID: uuid.New(), Name: "Carl Fremd"}
+	contacts.contacts[owned.ID] = owned
+	contacts.contacts[foreign.ID] = foreign
+
+	template := `{"date":"2026-05-09","aircraftReg":"D-1234","aircraftType":"ASK21",
+		"departureIcao":"Hausen am Albis","arrivalIcao":"Hausen am Albis","launchMethod":"winch",
+		"crewMembers":[{"name":"Anna Lehrer","role":"Instructor","contactId":"` + owned.ID.String() + `"},
+			{"name":"Carl Fremd","role":"Passenger","contactId":"` + foreign.ID.String() + `"},
+			{"name":"Bea Neu","role":"Passenger"}]}`
+	w := postFlightBatch(t, h, &userID, `{"template":`+template+`,"legs":`+winchLegs(2)+`}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
+	var res generated.FlightBatchResult
+	if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	for i, f := range res.Flights {
+		if f.CrewMembers == nil || len(*f.CrewMembers) != 3 {
+			t.Fatalf("leg %d crew = %+v", i, f.CrewMembers)
+		}
+		got := map[string]*uuid.UUID{}
+		for _, m := range *f.CrewMembers {
+			got[m.Name] = (*uuid.UUID)(m.ContactId)
+		}
+		if id := got["Anna Lehrer"]; id == nil || *id != owned.ID {
+			t.Errorf("leg %d owned contactId = %v, want %s", i, id, owned.ID)
+		}
+		if id := got["Carl Fremd"]; id != nil {
+			t.Errorf("leg %d foreign contactId = %s, want none", i, id)
+		}
+		if id := got["Bea Neu"]; id != nil {
+			t.Errorf("leg %d unlinked contactId = %s, want none", i, id)
+		}
+	}
+}
+
+func TestKeepOwnedCrewContacts_NoContactService(t *testing.T) {
+	h, _ := setupTestHandler()
+	h.contactService = nil
+	id := uuid.New()
+	crew := []models.FlightCrewMember{{Name: "Anna", ContactID: &id}}
+	h.keepOwnedCrewContacts(context.Background(), uuid.New(), crew)
+	if crew[0].ContactID != nil {
+		t.Errorf("contactId = %s, want cleared without a contact service", crew[0].ContactID)
+	}
 }

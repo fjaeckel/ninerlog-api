@@ -44,10 +44,9 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 	}
 
 	crew := append([]models.FlightCrewMember(nil), flights[0].CrewMembers...)
+	h.keepOwnedCrewContacts(c.Request.Context(), userID, crew)
 	for _, f := range flights {
-		for i := range f.CrewMembers {
-			f.CrewMembers[i].ContactID = nil
-		}
+		f.CrewMembers = append([]models.FlightCrewMember(nil), crew...)
 	}
 
 	if err := h.flightService.CreateFlightBatch(c.Request.Context(), flights); err != nil {
@@ -69,7 +68,7 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 
 // linkBatchCrew links the template crew to the user's contacts once and
 // writes the linked crew to every stored leg. Failures are logged and
-// swallowed.
+// swallowed, leaving the crew as inserted.
 func (h *APIHandler) linkBatchCrew(c *gin.Context, userID uuid.UUID, flights []*models.Flight, crew []models.FlightCrewMember) {
 	if len(crew) == 0 || h.contactService == nil {
 		return

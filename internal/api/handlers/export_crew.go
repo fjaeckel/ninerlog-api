@@ -23,12 +23,33 @@ func (h *APIHandler) persistCrewMembers(c *gin.Context, userID uuid.UUID, flight
 		if _, err := h.contactService.LinkCrewMembers(ctx, userID, flight.CrewMembers); err != nil {
 			slog.Warn("failed to link crew members to contacts",
 				"flightId", flight.ID, "error", err)
+			h.keepOwnedCrewContacts(ctx, userID, flight.CrewMembers)
 		}
+	} else {
+		h.keepOwnedCrewContacts(ctx, userID, flight.CrewMembers)
 	}
 
 	// An empty list is written too, clearing the crew.
 	if err := h.flightCrewRepo.SetCrewMembers(ctx, flight.ID, flight.CrewMembers); err != nil {
 		slog.Warn("failed to save crew members", "flightId", flight.ID, "error", err)
+	}
+}
+
+// keepOwnedCrewContacts clears every member's contactId that is not one of
+// userID's contacts, or cannot be checked.
+func (h *APIHandler) keepOwnedCrewContacts(ctx context.Context, userID uuid.UUID, members []models.FlightCrewMember) {
+	for i := range members {
+		id := members[i].ContactID
+		if id == nil {
+			continue
+		}
+		if h.contactService == nil {
+			members[i].ContactID = nil
+			continue
+		}
+		if _, err := h.contactService.GetContact(ctx, *id, userID); err != nil {
+			members[i].ContactID = nil
+		}
 	}
 }
 
