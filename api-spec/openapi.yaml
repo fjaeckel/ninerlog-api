@@ -5036,8 +5036,8 @@ paths:
         winch launches at one site. Each leg is the template with the leg's fields laid over
         it (`departureTime`, `arrivalTime`, and `landings`, `launches`, `remarks` when sent),
         and is validated exactly like `POST /flights`: the same required fields, time pairs
-        and bounds. The template's `offBlockTime` and `onBlockTime` are not applied to any
-        leg; each leg's times are its take-off and landing.
+        and bounds. A leg that carries a take-off or landing time does not take the
+        template's `offBlockTime` and `onBlockTime`; its times are its own.
 
         All legs are stored in one transaction. When any leg is invalid the response is 400
         with a message naming the zero-based leg index (`Leg 2: …`) and no flight is created.

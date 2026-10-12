@@ -63,7 +63,7 @@ func TestCreateFlightBatch_Handler(t *testing.T) {
 			wantLegs:   6,
 		},
 		{
-			name:   "template block times do not reach the legs",
+			name:   "template block times do not reach legs with their own times",
 			userID: &userID,
 			body: `{"template":{"date":"2026-05-09","aircraftReg":"D-1234","aircraftType":"ASK21",
 				"departureIcao":"Hausen am Albis","arrivalIcao":"Hausen am Albis","launchMethod":"winch",

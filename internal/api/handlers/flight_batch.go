@@ -103,12 +103,15 @@ func (h *APIHandler) sendBatchError(c *gin.Context, err error) {
 	}
 }
 
-// batchLegCreate returns the create body of one leg: the template without its
-// block times, with the leg's fields laid over it.
+// batchLegCreate returns the create body of one leg: the template with the
+// leg's fields laid over it, without the template's block times when the leg
+// carries a take-off or landing time.
 func batchLegCreate(template generated.FlightCreate, leg generated.FlightBatchLeg) generated.FlightCreate {
 	body := template
-	body.OffBlockTime = nil
-	body.OnBlockTime = nil
+	if leg.DepartureTime != nil || leg.ArrivalTime != nil {
+		body.OffBlockTime = nil
+		body.OnBlockTime = nil
+	}
 	if leg.DepartureTime != nil {
 		body.DepartureTime = leg.DepartureTime
 	}
