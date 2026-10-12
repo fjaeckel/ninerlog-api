@@ -110,7 +110,7 @@ const MaxFlightBatchLegs = 50
 
 // ErrInvalidFlightBatch is returned for a batch with no legs or more than
 // MaxFlightBatchLegs.
-var ErrInvalidFlightBatch = errors.New("a batch needs between 1 and 50 legs")
+var ErrInvalidFlightBatch = fmt.Errorf("a batch needs between 1 and %d legs", MaxFlightBatchLegs)
 
 // FlightBatchLegError reports the invalid leg of a batch by its zero-based
 // index. Err is the validation error CreateFlight returns for that leg.
