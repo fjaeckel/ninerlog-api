@@ -1877,7 +1877,9 @@ paths:
       parameters:
         - name: date
           in: query
-          description: Date to answer for, from today to 366 days ahead (UTC). Defaults to today.
+          description: |
+            Calendar date to answer for, from the day before today's UTC date to 366 days
+            after it. Defaults to today (UTC).
           schema:
             type: string
             format: date

@@ -629,7 +629,8 @@ carries `remedyKey` and `remedyParams`. See
 `GET /currency/readiness?date=&aircraftReg=&passengers=` answers "may I fly on this date?"
 per rating, launch method, passengers (only with `passengers=true`) and medical
 certificate, evaluating currency as of `date` on the flights already on record. `date`
-defaults to today (UTC) and must lie between today and 366 days ahead, else `400`; a
+defaults to today (UTC) and must lie between the day before today (UTC) and 366 days
+ahead, else `400`; a
 malformed date is `400`. `aircraftReg` restricts the answer to the ratings whose own class
 (and ultralight kind) covers that aircraft; a registration that is not one of the caller's
 aircraft is `404`. Response: `ReadinessReport {date, aircraftReg?, items: ReadinessItem[]}`.

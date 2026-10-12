@@ -657,8 +657,9 @@ the pilot has not used; a client shows them where the rating is not current. Key
 
 ### Readiness (`GET /currency/readiness`)
 
-`internal/service/readiness` answers "may I fly on this date?" for a date from today to
-366 days ahead. It calls `currency.Service.EvaluateAsOf`, which runs `EvaluateAll` with the
+`internal/service/readiness` answers "may I fly on this date?" for a calendar date from the
+day before today's UTC date (so a pilot west of UTC can ask for their local today) to 366
+days after it. It calls `currency.Service.EvaluateAsOf`, which runs `EvaluateAll` with the
 context's clock set to that date: the flights on record are counted as if the pilot does
 not fly again before it, so a rolling row whose `validUntil` is before the date is unmet
 on it, and a rating or medical whose expiry date is on or before the date is expired, as

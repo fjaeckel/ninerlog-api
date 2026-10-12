@@ -259,7 +259,8 @@ func TestEvaluate_Date(t *testing.T) {
 		{"next Saturday", ptr(saturday), nil, saturday},
 		{"366 days ahead", ptr(today.AddDate(0, 0, 366)), nil, today.AddDate(0, 0, 366)},
 		{"367 days ahead", ptr(today.AddDate(0, 0, 367)), ErrInvalidDate, time.Time{}},
-		{"yesterday", ptr(today.AddDate(0, 0, -1)), ErrInvalidDate, time.Time{}},
+		{"yesterday UTC", ptr(today.AddDate(0, 0, -1)), nil, today.AddDate(0, 0, -1)},
+		{"two days ago", ptr(today.AddDate(0, 0, -2)), ErrInvalidDate, time.Time{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

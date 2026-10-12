@@ -19,9 +19,12 @@ import (
 // MaxDaysAhead is how far ahead a readiness date may lie.
 const MaxDaysAhead = 366
 
+// MaxDaysBehind is how far before today's UTC date a readiness date may lie.
+const MaxDaysBehind = 1
+
 var (
-	// ErrInvalidDate is returned for a date before today or more than
-	// MaxDaysAhead days ahead.
+	// ErrInvalidDate is returned for a date more than MaxDaysBehind days
+	// before today (UTC) or more than MaxDaysAhead days ahead.
 	ErrInvalidDate = errors.New("readiness date out of range")
 	// ErrAircraftNotFound is returned when aircraftReg names none of the
 	// caller's aircraft.
@@ -110,7 +113,7 @@ func (s *Service) Evaluate(ctx context.Context, userID uuid.UUID, req Request) (
 	if req.Date != nil {
 		date = utcDate(*req.Date)
 	}
-	if date.Before(today) || date.After(today.AddDate(0, 0, MaxDaysAhead)) {
+	if date.Before(today.AddDate(0, 0, -MaxDaysBehind)) || date.After(today.AddDate(0, 0, MaxDaysAhead)) {
 		return nil, ErrInvalidDate
 	}
 
