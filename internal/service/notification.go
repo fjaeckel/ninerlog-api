@@ -615,9 +615,12 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 
 // sendWarningForDays checks warning day thresholds and sends the first matching notification
 func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *models.NotificationPreferences, category models.NotificationCategory, refID uuid.UUID, refType string, daysUntilExpiry int, expiryDate *time.Time, subject, body, userEmail string) {
+	if !inWarningWindow(prefs, daysUntilExpiry) {
+		return
+	}
 	for _, warningDay := range prefs.WarningDays {
 		wd := int(warningDay)
-		if daysUntilExpiry <= wd && daysUntilExpiry >= 0 {
+		if daysUntilExpiry <= wd {
 			sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(category), refID, wd, expiryDate)
 			if err != nil || sent {
 				continue
