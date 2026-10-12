@@ -207,7 +207,7 @@ func renderFAASpread(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 			cells := []string{
 				f.Date.Format("01/02/06"),
 				f.AircraftType, f.AircraftReg,
-				safeStr(f.DepartureICAO), safeStr(f.ArrivalICAO),
+				exportPlace(f.DepartureICAO), exportPlace(f.ArrivalICAO),
 				fmt.Sprintf("%d", f.LandingsDay),
 				fmt.Sprintf("%d", f.LandingsNight),
 				fmt.Sprintf("%d", f.ApproachesCount),
@@ -308,7 +308,7 @@ func renderFAASingle(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 			cells := []string{
 				f.Date.Format("01/02/06"),
 				f.AircraftType, f.AircraftReg,
-				safeStr(f.DepartureICAO), safeStr(f.ArrivalICAO),
+				exportPlace(f.DepartureICAO), exportPlace(f.ArrivalICAO),
 				faaDec(f.SoloTime),
 				faaDec(f.PICTime),
 				faaDec(flightrules.FAASICColumnTime(f)),

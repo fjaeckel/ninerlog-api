@@ -61,6 +61,9 @@ fixtures (`scripts/screenshots/fixtures.mjs`, one fixture set per persona).
 
 Primary personas (P1–P6) are the gliding and ultralight pilots this work is for. Guard
 personas (G1–G3) are there to stop the gliding and UL work from degrading everyone else.
+Core personas (C1–C4) are the powered-aeroplane pilots most accounts belong to: an FAA
+instrument pilot, an EASA aircraft owner, a flight instructor and a pilot migrating decades
+of records.
 
 ### P1 — Lena, club glider pilot
 
@@ -257,6 +260,144 @@ performance/tailwheel aircraft flags, SEP crediting.
   from the answer.
 - R2: If she skips it, she sees the full app (fail-open), never an empty shell.
 
+### C1 — Tom, FAA private pilot with an instrument rating
+
+- 52, US engineer, owns a Cessna 182T (`N734TB`) based at Frederick, Maryland (`KFDK`).
+- **Licence:** FAA Private Pilot, airplane single-engine land, instrument airplane. FAA third-
+  class medical.
+- **Volume:** ~60 h a year, mostly IFR trips across the Mid-Atlantic, some legs at night.
+- **Preferences:** `MM/DD/YYYY`, 12-hour clock, decimal hours, dot as decimal separator.
+- **Disciplines:** `AEROPLANE`, `IFR` active.
+
+**Jobs**
+1. "Am I legal to fly IFR with my family tonight?" — flight review, §61.57(a)/(b) passenger
+   currency with full-stop night landings, §61.57(c) instrument currency.
+2. Log a trip with approaches, holds and night time as fast as his old paper logbook.
+3. Hand the examiner or insurer a logbook that looks like the ASA/Jeppesen one they know.
+4. Fly into small US fields that have no ICAO code (`W29`, `1O2`).
+
+**Must see:** the §61.56 flight review and when it lapses; §61.57(c) approaches and holds in the
+6 calendar months; night passenger currency counted in full-stop landings; FAA terms (ASEL,
+IPC, flight review) and US formats everywhere.
+
+**Must fold away:** EASA revalidation windows and FCL references, launch methods, UL kinds,
+multi-crew, German radio licences.
+
+**Acceptance scenarios**
+- T1: Every date, time and duration he sees, in the app, the PDF and the CSV, follows his
+  preferences (`03/31/2027`, `5:40 PM`, `1.3`).
+- T2: The dashboard's "What you can fly today" includes the flight review: with it lapsed, no
+  airplane row says he may fly.
+- T3: Logging an IPC (`isIpc`) with approaches and a hold restores instrument currency that
+  lapsed more than 12 months ago; §61.57(c) counts calendar months.
+- T4: Night passenger currency counts only full-stop night landings (§61.57(b)).
+- T5: With an FAA licence, the logbook PDF defaults to the FAA layout without `format=faa`.
+- T6: A flight to `W29` or `1O2` keeps the identifier and gets coordinates, distance and night
+  time like any ICAO airport.
+- T7: No screen he visits in a normal week says "SEP (Land)", "revalidation" or "FCL";
+  classes read as FAA classes (ASEL).
+
+### C2 — Claudia, PPL(A) aircraft owner with SEP, MEP and IR
+
+- 48, dentist in Mannheim, owns a Mooney M20J (`D-EMCK`), rents a school PA-44 Seminole
+  (`D-GSEM`) to keep her MEP rating.
+- **Licence:** EASA PPL(A) with SEP, MEP and IR(A) (single- and multi-engine). Class 2 medical,
+  ICAO level 5, BZF I.
+- **Volume:** ~100 h a year, IFR business and family trips in Germany and neighbouring
+  countries; one MEP/IR proficiency check a year.
+- **Disciplines:** `AEROPLANE`, `IFR` active.
+
+**Jobs**
+1. Keep three ratings with three different revalidation rules valid without a spreadsheet.
+2. Keep her own aircraft airworthy: ARC, annual inspection, ELT battery, insurance.
+3. "Can I take my family to Zürich on Friday night?" — FCL.060(b) with the IR waiver.
+4. Show the flight school and the examiner what she has flown in the Seminole.
+
+**Must see:** SEP (FCL.740.A(b)(1)), MEP and IR (FCL.625.A) each with its own expiry, window and
+check; aircraft reminders on the dashboard before they are due; IFR time, approaches and
+holds on every flight form.
+
+**Must fold away:** launch methods, UL kinds, multi-crew, SIC and relief time, training
+progress.
+
+**Acceptance scenarios**
+- O1: SEP, MEP and IR each show their own expiry and revalidation window; an MEP or IR
+  proficiency check on a flight revalidates exactly the ratings it covers.
+- O2: MEP revalidation requires the proficiency check (FCL.740.A); route sectors alone do not
+  revalidate it.
+- O3: IR revalidation follows FCL.625.A — a proficiency check in the 3 months before expiry —
+  and asks for no experience the rule does not require.
+- O4: An ARC due in 23 days shows on the dashboard and in a reminder email; completing it rolls
+  the due date by its interval.
+- O5: With a valid IR her passenger currency needs no night landing (FCL.060(b)(2)); without it,
+  one night landing in 90 days.
+- O6: Hobbs or tach time can be recorded per flight and drives hour-based reminders
+  (50 h / 100 h checks), next to the date-based ones.
+
+### C3 — Ines, full-time flight instructor FI(A)
+
+- 38, FI(A) at an approved training organisation in Egelsbach, CPL(A) with SEP and night.
+- **Students:** 6 PPL(A) and 2 LAPL(A) students at a time, 3–5 lessons a day in C172s and a
+  DA40; occasional refresher flights for club pilots (she flew Heinz's, C4).
+- **Volume:** ~800 flights and ~900 h of instruction a year.
+- **Disciplines:** `AEROPLANE`, `INSTRUCTOR` active.
+
+**Jobs**
+1. Log five lessons at the end of the day in minutes, each with the student and the exercise.
+2. Sign her students' flights in their logbooks, many a day, without a login per student.
+3. Keep her FI(A) certificate valid (FCL.940.FI): instruction hours, seminar, assessment of
+   competence, 3-year validity.
+4. Answer "how many hours have I given, and to whom?" for the ATO and her own CV.
+
+**Must see:** dual given time as the primary time; the student as crew on every lesson; her
+FI(A) validity and what FCL.940.FI still needs; instruction given per student.
+
+**Must fold away:** launch methods, UL kinds, multi-crew, IFR sections unless she logs IFR.
+
+**Acceptance scenarios**
+- I1: Logging a lesson with a student from contacts sets dual given time and the student
+  crew role in one step, and "log another like this" keeps aircraft, student and airfield.
+- I2: Her FI(A) (FCL.940.FI) is a recorded privilege with an expiry and its revalidation
+  requirements (instruction hours, refresher seminar, assessment of competence), like FI(S).
+- I3: She can sign several students' flights in one session, with her own passkey, and each
+  student's logbook shows her signature.
+- I4: Reports show instruction given per student and per programme, not only per instructor
+  received.
+- I5: A PPL(A) or LAPL(A) student's training progress (FCL.210.A / FCL.110.A) is tracked like
+  the SPL's.
+
+### C4 — Heinz, 40 years of flying, migrating in
+
+- 68, retired pharmacist in Aachen, PPL since 1986 (converted to EASA PPL(A) in 2012), SEP with
+  night, ~3,200 h.
+- **Records:** four paper logbooks 1986–2011, carried in as one initial-hours snapshot; 2011
+  onward (~1,550 flights) imported from his previous logbook app.
+- **Aircraft:** a 1/4 syndicate share in a PA-28 (`D-EHVG`), club C172; two inactive aircraft
+  from the import.
+- **Disciplines:** `AEROPLANE` active.
+
+**Jobs**
+1. Move 40 years of records in one evening and trust the totals match his paper logbook.
+2. Re-run the import after fixing a mapping without doubling any flight.
+3. Keep using NinerLog on 10,000 flights as quickly as on 100.
+4. Print a logbook for the examiner that carries his paper totals forward.
+
+**Must see:** the initial snapshot on every total with its cut-off date; import preview with
+duplicates flagged; lifetime totals that reconcile with the snapshot plus imported flights.
+
+**Must fold away:** everything Claudia folds away, plus IFR.
+
+**Acceptance scenarios**
+- H1: Totals, reports and the PDF read snapshot + imported flights, and say which part is
+  which; the sums reconcile to the minute.
+- H2: Importing the same file twice, or restoring the same JSON backup twice, creates no
+  duplicate flight.
+- H3: An import of 10,000 rows previews and commits within a minute, and a failure part-way
+  leaves no partial import.
+- H4: With 10,000 flights, the flights list, search, dashboard and currency page each answer in
+  under a second.
+- H5: Inactive aircraft from the import stay attached to their flights and fold out of pickers.
+
 ---
 
 ## 4. The persona check
@@ -272,6 +413,7 @@ the procedure.
 | Can any persona lose access to something they have data for? | Every gated change |
 | Which acceptance scenarios does it close, and are they tested? | Every feature |
 | Does it pass all three guard personas unchanged? | Every gliding/UL change |
+| Does it pass the four core personas unchanged? | Every change to shared screens, currency or import |
 
 ## 5. Changing this document
 

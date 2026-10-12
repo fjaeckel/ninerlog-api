@@ -263,7 +263,8 @@ type ReportsRepository interface {
 	// ByCategory returns the overlapping capability rollups.
 	ByCategory(ctx context.Context, userID uuid.UUID, months int) ([]*AnalyticsGroupRow, error)
 
-	// ByAirport returns the top `limit` airports by distinct flights.
+	// ByAirport returns the top `limit` airports by distinct flights, or
+	// every visited airport when limit is zero or less.
 	ByAirport(ctx context.Context, userID uuid.UUID, months, limit int) ([]*AnalyticsAirportRow, error)
 
 	// ByRoute returns the top `limit` routes by flight count.

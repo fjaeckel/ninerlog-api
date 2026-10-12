@@ -49,10 +49,14 @@ func newReportScope(userID uuid.UUID, months int) reportScope {
 }
 
 // withLimit returns the scope args plus a row limit, and the placeholder that
-// refers to it.
+// refers to it. A limit of zero or less yields `LIMIT ALL` and binds no
+// parameter.
 func (s reportScope) withLimit(limit int) ([]any, string) {
 	args := make([]any, 0, len(s.args)+1)
 	args = append(args, s.args...)
+	if limit <= 0 {
+		return args, "ALL"
+	}
 	args = append(args, limit)
 	return args, fmt.Sprintf("$%d", len(args))
 }

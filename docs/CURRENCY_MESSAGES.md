@@ -137,6 +137,10 @@ rating follows the §61.56 flight review, and §61.57(a) is reported as passenge
 under `ruleDescriptionKey` `faa_glider` ([SAILPLANES.md](./SAILPLANES.md#faa-gliders-14-cfr-part-61)).
 Clients may drop their strings.
 
+The date a current rolling-window recency rule lapses is **not** in the message — read
+`recencyExpiresOn` and render it yourself. See
+[DOMAIN.md](./DOMAIN.md#rating-recency-expiry-recencyexpireson).
+
 ## `PassengerCurrency.messageKey`
 
 | Key | Params | Meaning |

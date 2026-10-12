@@ -171,7 +171,7 @@ func (r *adminRepository) InsertAuditLog(ctx context.Context, entry *repository.
 func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, offset int) ([]*repository.AdminUserRow, int, error) {
 	countQuery := "SELECT COUNT(*) FROM users"
 	dataQuery := `
-		SELECT u.id, u.email, u.name, u.created_at, u.last_login_at,
+		SELECT u.id, u.email, u.name, u.created_at, u.last_login_at, u.last_active_at,
 		       u.email_verified, u.two_factor_enabled, u.disabled, u.failed_login_attempts,
 		       u.locked_until, u.verification_reminder_sent_at,
 		       EXISTS (SELECT 1 FROM email_suppressions es WHERE es.email = u.email) as email_suppressed,
@@ -205,7 +205,7 @@ func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, o
 	var users []*repository.AdminUserRow
 	for rows.Next() {
 		u := &repository.AdminUserRow{}
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.CreatedAt, &u.LastLoginAt,
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.CreatedAt, &u.LastLoginAt, &u.LastActiveAt,
 			&u.EmailVerified, &u.TwoFactorEnabled, &u.Disabled, &u.FailedLoginAttempts,
 			&u.LockedUntil, &u.VerificationReminderSentAt, &u.EmailSuppressed,
 			&u.FlightCount, &u.AircraftCount); err != nil {

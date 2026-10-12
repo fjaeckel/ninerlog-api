@@ -357,7 +357,7 @@ var easaLAPLRule = ratingRule{
 		{nameKey: ReqKeyTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(rt.now)
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -441,7 +441,7 @@ var easaSPLRule = ratingRule{
 		{nameKey: ReqKeyTrainingFlights, metric: mTrainingFlights, threshold: 2, unit: "flights"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(rt.now)
 		sailplane, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -591,7 +591,7 @@ var easaSPLTMGRule = ratingRule{
 		{nameKey: ReqKeyTMGTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(time.Now())
+		rt.since = rt.rule.window.rollingSince(rt.now)
 		tmg, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -797,5 +797,6 @@ func hasValidIRRating(ratings []*models.ClassRating) bool {
 func applySFCLTMGExemption(result *ClassRatingCurrency) {
 	result.Status = StatusCurrent
 	result.Requirements = nil
+	result.RecencyExpiresOn = nil
 	result.setMsg(MsgRatingSFCLTMGExempt, nil)
 }

@@ -88,6 +88,10 @@ func (m *mock2FAUserRepo) MarkEmailVerified(ctx context.Context, id uuid.UUID) e
 	return nil
 }
 
+func (m *mock2FAUserRepo) TouchLastActive(context.Context, uuid.UUID, time.Time, time.Duration) error {
+	return nil
+}
+
 func (m *mock2FAUserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error {
 	if u, ok := m.users[id]; ok {
 		stamp := at

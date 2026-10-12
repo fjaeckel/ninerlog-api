@@ -126,5 +126,11 @@ func convertToGeneratedFlightSession(s *models.FlightSession) generated.FlightSe
 		id := openapi_types.UUID(*s.FlightID)
 		resp.FlightId = &id
 	}
+	if s.DepartureICAO != nil {
+		resp.DepartureAirportName = lookupAirportName(*s.DepartureICAO)
+	}
+	if s.ArrivalICAO != nil {
+		resp.ArrivalAirportName = lookupAirportName(*s.ArrivalICAO)
+	}
 	return resp
 }
