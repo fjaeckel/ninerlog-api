@@ -73,6 +73,9 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 		if row.LastLoginAt != nil {
 			adminUser.LastLoginAt = row.LastLoginAt
 		}
+		if row.LastActiveAt != nil {
+			adminUser.LastActiveAt = row.LastActiveAt
+		}
 		// The reminder timestamp is what the retention clock counts from, so
 		// the deletion date is derived rather than stored. Both are reported
 		// only while the account is still unverified: on a verified account the

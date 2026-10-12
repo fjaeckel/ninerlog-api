@@ -122,17 +122,19 @@ func mustLen(t *testing.T, v any, n int) {
 
 // logFlight is one flight in a flightLog.
 type logFlight struct {
-	date      time.Time
-	class     models.ClassType
-	ulKind    *models.ULKind
-	launch    string
-	total     int
-	pic       int
-	dual      int
-	landings  int
-	night     int
-	takeoffs  int
-	profCheck bool
+	date       time.Time
+	class      models.ClassType
+	ulKind     *models.ULKind
+	launch     string
+	total      int
+	pic        int
+	dual       int
+	landings   int
+	night      int
+	takeoffs   int
+	approaches int
+	holds      int
+	profCheck  bool
 }
 
 // flightLog is a DailyFlightDataProvider computing every read from a flight list.
@@ -146,7 +148,7 @@ func (l *flightLog) progressOf(f logFlight) Progress {
 	p := Progress{
 		Flights: 1, TotalMinutes: f.total, PICMinutes: f.pic, InstructorMinutes: f.dual,
 		Landings: f.landings + f.night, DayLandings: f.landings, NightLandings: f.night,
-		Launches: max(f.takeoffs, 1),
+		Launches: max(f.takeoffs, 1), Approaches: f.approaches, Holds: f.holds,
 	}
 	if f.dual > 0 {
 		p.TrainingFlights = 1
@@ -450,14 +452,14 @@ func TestValidUntil_SPLLaunches(t *testing.T) {
 	})
 
 	t.Run("rating validUntil is the earliest experience row", func(t *testing.T) {
-		mustNotNil(t, r.ValidUntil)
+		mustNotNil(t, r.RecencyExpiresOn)
 		earliest := ""
 		for _, req := range r.Requirements {
 			if req.ValidUntil != nil && (earliest == "" || *req.ValidUntil < earliest) {
 				earliest = *req.ValidUntil
 			}
 		}
-		checkEqual(t, earliest, *r.ValidUntil)
+		checkEqual(t, earliest, *r.RecencyExpiresOn)
 	})
 
 	t.Run("launch method validUntil", func(t *testing.T) {
@@ -495,7 +497,7 @@ func TestValidUntil_ProficiencyCheckAlternative(t *testing.T) {
 	mustTrue(t, req.Met)
 	checkEqual(t, check.AddDate(2, 0, -1).Format("2006-01-02"), *req.ValidUntil)
 	// The rating stays current while either alternative is met.
-	checkEqual(t, *req.ValidUntil, *r.ValidUntil)
+	checkEqual(t, *req.ValidUntil, *r.RecencyExpiresOn)
 }
 
 func TestValidUntil_ExpiryAnchoredRuleOmitted(t *testing.T) {
@@ -509,7 +511,7 @@ func TestValidUntil_ExpiryAnchoredRuleOmitted(t *testing.T) {
 	}
 	r := evalAll(t, &flightLog{flights: fs}, license, rating).Ratings[0]
 	mustNotEmpty(t, r.Requirements)
-	checkNil(t, r.ValidUntil)
+	checkNil(t, r.RecencyExpiresOn)
 	for _, req := range r.Requirements {
 		checkNil(t, req.ValidUntil, req.NameKey)
 	}
@@ -656,7 +658,7 @@ func TestEvaluateAsOf(t *testing.T) {
 		checkEqual(t, 1, *lr.RemedyParams.Missing, "the three oldest of 17 launches aged out, leaving 14")
 
 		// validUntil agrees with the as-of evaluation.
-		until, _ := time.Parse("2006-01-02", *now.Ratings[0].ValidUntil)
+		until, _ := time.Parse("2006-01-02", *now.Ratings[0].RecencyExpiresOn)
 		onDay, _ := svc.EvaluateAsOf(context.Background(), license.UserID, until)
 		checkEqual(t, StatusCurrent, onDay.Ratings[0].Status)
 		dayAfter, _ := svc.EvaluateAsOf(context.Background(), license.UserID, until.AddDate(0, 0, 1))
@@ -731,6 +733,6 @@ func TestValidUntil_GermanULThreeAxis(t *testing.T) {
 	landings := requirement(t, r, ReqKeyLandings)
 	// 13 landings with the training flight: the twelfth newest is the 10-months-ago flight.
 	checkEqual(t, today().AddDate(0, -10, -1).AddDate(2, 0, -1).Format("2006-01-02"), *landings.ValidUntil, "landings")
-	mustNotNil(t, r.ValidUntil)
-	checkEqual(t, *landings.ValidUntil, *r.ValidUntil, "rating")
+	mustNotNil(t, r.RecencyExpiresOn)
+	checkEqual(t, *landings.ValidUntil, *r.RecencyExpiresOn, "rating")
 }

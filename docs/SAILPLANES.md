@@ -373,7 +373,7 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
 ### Privileges
 
 Ratings, endorsements and authorisations beside the class ratings are recorded as licence
-privileges (`/licenses/{licenseId}/privileges`, table `licence_privileges`, migration 77).
+privileges (`/licenses/{licenseId}/privileges`, table `licence_privileges`, migration 79).
 `GET /currency` evaluates each one into `privileges[]`
 (`internal/service/currency/privileges.go`, a rule per kind). Every privilege is `expired`
 past its `expiresOn`; otherwise its recency rule decides between `current` and `lapsed`,

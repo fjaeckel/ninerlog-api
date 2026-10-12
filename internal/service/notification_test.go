@@ -149,6 +149,10 @@ func (m *mockNotifUserRepo) MarkEmailVerified(ctx context.Context, id uuid.UUID)
 	return nil
 }
 
+func (m *mockNotifUserRepo) TouchLastActive(context.Context, uuid.UUID, time.Time, time.Duration) error {
+	return nil
+}
+
 func (m *mockNotifUserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error {
 	return nil
 }
@@ -227,6 +231,12 @@ func (m *mockNotifFlightRepo) DeleteAllByUserID(ctx context.Context, userID uuid
 }
 func (m *mockNotifFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	return 0, nil
+}
+func (m *mockNotifFlightRepo) TotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
+	return &models.FlightTotals{}, nil
+}
+func (m *mockNotifFlightRepo) MonthTotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, months []time.Time) ([]models.FlightMonthTotals, error) {
+	return nil, nil
 }
 func (m *mockNotifFlightRepo) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
 	return &models.FlightStatistics{}, nil

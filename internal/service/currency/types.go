@@ -41,7 +41,10 @@ type ClassRatingCurrency struct {
 	// once now >= WindowOpensAt; while false, flight experience does not
 	// yet count toward this rating's revalidation and Requirements is
 	// suppressed.
-	WindowOpen           bool                   `json:"windowOpen"`
+	WindowOpen bool `json:"windowOpen"`
+	// RecencyExpiresOn is the last date a rolling-window recency rule stays
+	// met with no further flying. Set only while the rule is current.
+	RecencyExpiresOn     *string                `json:"recencyExpiresOn,omitempty"`
 	MessageKey           string                 `json:"messageKey"`
 	MessageParams        *MessageParams         `json:"messageParams,omitempty"`
 	RuleDescription      string                 `json:"ruleDescription,omitempty"`
@@ -58,9 +61,6 @@ type ClassRatingCurrency struct {
 	// UnclassifiedFlights counts flights in the window on ULTRALIGHT aircraft
 	// with no kind that the rule did not count.
 	UnclassifiedFlights int `json:"unclassifiedFlights,omitempty"`
-	// ValidUntil is the last date a current rolling-recency result stays
-	// current with no further flying.
-	ValidUntil *string `json:"validUntil,omitempty"`
 }
 
 // Progress holds progress metrics toward currency requirements (all times in minutes)

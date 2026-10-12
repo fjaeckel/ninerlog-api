@@ -5,8 +5,9 @@ description: Check a feature, field, currency rule, export, report or skill agai
 
 # Persona check
 
-`docs/PERSONAS.md` is binding on this repo and `ninerlog-frontend`. Nine personas — six
-gliding/UL pilots and three guards — each with jobs, "must see", "must fold away" and
+`docs/PERSONAS.md` is binding on this repo and `ninerlog-frontend`. Thirteen personas — six
+gliding/UL pilots, three guards and four core powered-aeroplane pilots (C1 Tom, FAA IR;
+C2 Claudia, EASA owner with SEP/MEP/IR; C3 Ines, FI(A); C4 Heinz, migrating 40 years) — each with jobs, "must see", "must fold away" and
 numbered acceptance scenarios (L1, M3, A2 …). **A change is not done until you have run it
 against them.**
 
@@ -34,6 +35,7 @@ Answer each in the PR description. "n/a" needs a reason.
 | B6 | Is the status honest? `current` must mean the persona may legally fly. | FAA glider passenger rule reported as rating status |
 | B7 | Does the change feed the discipline derivation (licence, rating, aircraft, flights)? If it adds a new signal, is `Derive` updated? | A new licence type the classifier never recognises |
 | B8 | Is it unchanged for the guard personas G1–G3? | New required field on every flight |
+| B9 | Does it hold for the core personas C1–C4: FAA rules and formats, owner reminders, instruction given, 10,000 flights and repeated imports? | An EASA-only term in an FAA response (T7); a re-import that duplicates flights (H2) |
 
 Regulation claims in code or docs cite the article (e.g. `SFCL.160(b)(1)(iii)`,
 `LuftPersV §45`) and belong in `docs/SAILPLANES.md` / `docs/DOMAIN.md`, per `aviation-domain`.

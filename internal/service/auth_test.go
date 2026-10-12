@@ -23,6 +23,8 @@ type mockUserRepo struct {
 	// oidcLinked marks accounts that authenticate through a provider. The
 	// production queries exclude them in SQL; the mock excludes them here.
 	oidcLinked map[uuid.UUID]bool
+	// touches records every TouchLastActive call.
+	touches []uuid.UUID
 }
 
 func newMockUserRepo() *mockUserRepo {
@@ -147,6 +149,11 @@ func (m *mockUserRepo) ResetFailedLoginAttempts(ctx context.Context, id uuid.UUI
 }
 
 func (m *mockUserRepo) LockAccount(ctx context.Context, id uuid.UUID, until time.Time) error {
+	return nil
+}
+
+func (m *mockUserRepo) TouchLastActive(_ context.Context, id uuid.UUID, _ time.Time, _ time.Duration) error {
+	m.touches = append(m.touches, id)
 	return nil
 }
 
@@ -1391,6 +1398,53 @@ func TestLoginRecordsLastLogin(t *testing.T) {
 	}
 	if stored.LastLoginAt == nil {
 		t.Error("Login did not persist the last login")
+	}
+}
+
+// RecordActivity writes at most once per ActivityGranularity per account.
+func TestRecordActivityThrottlesWrites(t *testing.T) {
+	userRepo := newMockUserRepo()
+	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
+	authService := service.NewAuthService(userRepo, newMockRefreshTokenRepo(), newMockPasswordResetRepo(),
+		newMockEmailVerificationRepo(), jwtManager, service.NewTwoFactorService(userRepo, jwtManager, nil),
+		service.SessionPolicy{})
+	ctx := context.Background()
+
+	alice, bob := uuid.New(), uuid.New()
+	authService.RecordActivity(ctx, alice)
+	authService.RecordActivity(ctx, alice)
+	authService.RecordActivity(ctx, bob)
+
+	if len(userRepo.touches) != 2 {
+		t.Fatalf("expected 2 writes (one per account), got %d", len(userRepo.touches))
+	}
+	if userRepo.touches[0] != alice || userRepo.touches[1] != bob {
+		t.Errorf("unexpected write order: %v", userRepo.touches)
+	}
+}
+
+// A login stamps activity, so a request right after it writes nothing more.
+func TestRecordActivitySkippedRightAfterLogin(t *testing.T) {
+	userRepo := newMockUserRepo()
+	jwtManager := jwt.NewManager("test-secret", "test-refresh-secret", 15*time.Minute, 7*24*time.Hour)
+	authService := service.NewAuthService(userRepo, newMockRefreshTokenRepo(), newMockPasswordResetRepo(),
+		newMockEmailVerificationRepo(), jwtManager, service.NewTwoFactorService(userRepo, jwtManager, nil),
+		service.SessionPolicy{})
+	ctx := context.Background()
+
+	if _, _, err := authService.Register(ctx, service.RegisterInput{
+		Email: "activity@example.com", Password: "Password1234!", Name: "Activity",
+	}); err != nil {
+		t.Fatalf("Registration failed: %v", err)
+	}
+	user, _, err := authService.Login(ctx, service.LoginInput{Email: "activity@example.com", Password: "Password1234!"})
+	if err != nil {
+		t.Fatalf("Login failed: %v", err)
+	}
+
+	authService.RecordActivity(ctx, user.ID)
+	if len(userRepo.touches) != 0 {
+		t.Errorf("expected no activity write right after login, got %d", len(userRepo.touches))
 	}
 }
 

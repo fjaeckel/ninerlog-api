@@ -51,8 +51,8 @@ func writeWebLogbookCSV(w *csv.Writer, flights []*models.Flight, userName string
 		} else {
 			_, simType, simTime = flightrules.FSTDFields(f, "02/01/2006", fmtHM)
 
-			dep = safeStrCSV(f.DepartureICAO)
-			arr = safeStrCSV(f.ArrivalICAO)
+			dep = exportPlace(f.DepartureICAO)
+			arr = exportPlace(f.ArrivalICAO)
 			depClock, arrClock := logbookClocks(f)
 			depTime = webLogbookClock(depClock)
 			arrTime = webLogbookClock(arrClock)

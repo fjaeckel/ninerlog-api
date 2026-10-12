@@ -48,6 +48,7 @@ func (h *APIHandler) attachCrewMembers(ctx context.Context, flights []*models.Fl
 	}
 	byID, err := h.flightCrewRepo.GetByFlightIDs(ctx, ids)
 	if err != nil {
+		slog.Warn("failed to load crew members", "flights", len(ids), "error", err)
 		return
 	}
 	for _, f := range flights {

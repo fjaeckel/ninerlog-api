@@ -238,6 +238,17 @@ func (s *FlightService) CountFlights(ctx context.Context, userID uuid.UUID, opts
 	return s.flightRepo.CountByUserID(ctx, userID, opts)
 }
 
+// FlightTotals sums the flight columns over the user's filtered flights.
+func (s *FlightService) FlightTotals(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
+	return s.flightRepo.TotalsByUserID(ctx, userID, opts)
+}
+
+// FlightMonthTotals sums the flight columns over the user's filtered flights
+// for each of the given months that has any.
+func (s *FlightService) FlightMonthTotals(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, months []time.Time) ([]models.FlightMonthTotals, error) {
+	return s.flightRepo.MonthTotalsByUserID(ctx, userID, opts, months)
+}
+
 // GetStatsByUserID returns aggregated statistics for a user. The optional
 // initial-hours snapshot (baseline) is added on top when:
 //   - the user has a baseline, AND

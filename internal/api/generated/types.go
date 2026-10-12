@@ -1298,48 +1298,95 @@ func (e FlightCreateLaunchMethod) Valid() bool {
 
 // Defines values for FlightListColumn.
 const (
-	FlightListColumnCrossCountryTime    FlightListColumn = "crossCountryTime"
-	FlightListColumnDualGivenTime       FlightListColumn = "dualGivenTime"
-	FlightListColumnDualTime            FlightListColumn = "dualTime"
-	FlightListColumnExaminerTime        FlightListColumn = "examinerTime"
-	FlightListColumnFunction            FlightListColumn = "function"
-	FlightListColumnIfrTime             FlightListColumn = "ifrTime"
-	FlightListColumnLandings            FlightListColumn = "landings"
-	FlightListColumnMultiPilotTime      FlightListColumn = "multiPilotTime"
-	FlightListColumnNightTime           FlightListColumn = "nightTime"
-	FlightListColumnOffOnBlock          FlightListColumn = "offOnBlock"
-	FlightListColumnPicTime             FlightListColumn = "picTime"
-	FlightListColumnPicusTime           FlightListColumn = "picusTime"
-	FlightListColumnReliefTime          FlightListColumn = "reliefTime"
-	FlightListColumnRemarks             FlightListColumn = "remarks"
-	FlightListColumnSicTime             FlightListColumn = "sicTime"
-	FlightListColumnSimulatedFlightTime FlightListColumn = "simulatedFlightTime"
-	FlightListColumnSoloTime            FlightListColumn = "soloTime"
-	FlightListColumnSpicTime            FlightListColumn = "spicTime"
+	FlightListColumnActualInstrumentTime    FlightListColumn = "actualInstrumentTime"
+	FlightListColumnApproachTypes           FlightListColumn = "approachTypes"
+	FlightListColumnApproaches              FlightListColumn = "approaches"
+	FlightListColumnChecks                  FlightListColumn = "checks"
+	FlightListColumnCrew                    FlightListColumn = "crew"
+	FlightListColumnCrossCountryTime        FlightListColumn = "crossCountryTime"
+	FlightListColumnDistance                FlightListColumn = "distance"
+	FlightListColumnDualGivenTime           FlightListColumn = "dualGivenTime"
+	FlightListColumnDualTime                FlightListColumn = "dualTime"
+	FlightListColumnEndorsements            FlightListColumn = "endorsements"
+	FlightListColumnExaminerTime            FlightListColumn = "examinerTime"
+	FlightListColumnFstdType                FlightListColumn = "fstdType"
+	FlightListColumnFunction                FlightListColumn = "function"
+	FlightListColumnGroundTrainingTime      FlightListColumn = "groundTrainingTime"
+	FlightListColumnHolds                   FlightListColumn = "holds"
+	FlightListColumnIfrTime                 FlightListColumn = "ifrTime"
+	FlightListColumnInstructorComments      FlightListColumn = "instructorComments"
+	FlightListColumnInstructorName          FlightListColumn = "instructorName"
+	FlightListColumnLandings                FlightListColumn = "landings"
+	FlightListColumnLaunchMethod            FlightListColumn = "launchMethod"
+	FlightListColumnMultiPilotTime          FlightListColumn = "multiPilotTime"
+	FlightListColumnNightTime               FlightListColumn = "nightTime"
+	FlightListColumnOffOnBlock              FlightListColumn = "offOnBlock"
+	FlightListColumnPicName                 FlightListColumn = "picName"
+	FlightListColumnPicTime                 FlightListColumn = "picTime"
+	FlightListColumnPicusTime               FlightListColumn = "picusTime"
+	FlightListColumnReliefTime              FlightListColumn = "reliefTime"
+	FlightListColumnRemarks                 FlightListColumn = "remarks"
+	FlightListColumnSicTime                 FlightListColumn = "sicTime"
+	FlightListColumnSigned                  FlightListColumn = "signed"
+	FlightListColumnSimulatedFlightTime     FlightListColumn = "simulatedFlightTime"
+	FlightListColumnSimulatedInstrumentTime FlightListColumn = "simulatedInstrumentTime"
+	FlightListColumnSoloTime                FlightListColumn = "soloTime"
+	FlightListColumnSpicTime                FlightListColumn = "spicTime"
+	FlightListColumnTakeoffLandingTime      FlightListColumn = "takeoffLandingTime"
+	FlightListColumnTakeoffs                FlightListColumn = "takeoffs"
+	FlightListColumnWaypoints               FlightListColumn = "waypoints"
 )
 
 // Valid indicates whether the value is a known member of the FlightListColumn enum.
 func (e FlightListColumn) Valid() bool {
 	switch e {
+	case FlightListColumnActualInstrumentTime:
+		return true
+	case FlightListColumnApproachTypes:
+		return true
+	case FlightListColumnApproaches:
+		return true
+	case FlightListColumnChecks:
+		return true
+	case FlightListColumnCrew:
+		return true
 	case FlightListColumnCrossCountryTime:
+		return true
+	case FlightListColumnDistance:
 		return true
 	case FlightListColumnDualGivenTime:
 		return true
 	case FlightListColumnDualTime:
 		return true
+	case FlightListColumnEndorsements:
+		return true
 	case FlightListColumnExaminerTime:
+		return true
+	case FlightListColumnFstdType:
 		return true
 	case FlightListColumnFunction:
 		return true
+	case FlightListColumnGroundTrainingTime:
+		return true
+	case FlightListColumnHolds:
+		return true
 	case FlightListColumnIfrTime:
 		return true
+	case FlightListColumnInstructorComments:
+		return true
+	case FlightListColumnInstructorName:
+		return true
 	case FlightListColumnLandings:
+		return true
+	case FlightListColumnLaunchMethod:
 		return true
 	case FlightListColumnMultiPilotTime:
 		return true
 	case FlightListColumnNightTime:
 		return true
 	case FlightListColumnOffOnBlock:
+		return true
+	case FlightListColumnPicName:
 		return true
 	case FlightListColumnPicTime:
 		return true
@@ -1351,11 +1398,21 @@ func (e FlightListColumn) Valid() bool {
 		return true
 	case FlightListColumnSicTime:
 		return true
+	case FlightListColumnSigned:
+		return true
 	case FlightListColumnSimulatedFlightTime:
+		return true
+	case FlightListColumnSimulatedInstrumentTime:
 		return true
 	case FlightListColumnSoloTime:
 		return true
 	case FlightListColumnSpicTime:
+		return true
+	case FlightListColumnTakeoffLandingTime:
+		return true
+	case FlightListColumnTakeoffs:
+		return true
+	case FlightListColumnWaypoints:
 		return true
 	default:
 		return false
@@ -3024,6 +3081,9 @@ type AdminUser struct {
 	FlightCount int                `json:"flightCount"`
 	Id          openapi_types.UUID `json:"id"`
 
+	// LastActiveAt Last authenticated API request, or the last sign-in if later. Recorded at a granularity of five minutes, so a session kept alive by refresh tokens still shows when the account was last used.
+	LastActiveAt *time.Time `json:"lastActiveAt,omitempty"`
+
 	// LastLoginAt Last successful sign-in. Recorded for every path that issues a session: password login, the second factor, a passkey, OIDC, and the sign-up verification link (following it signs the new account in). Not updated by a token refresh.
 	LastLoginAt *time.Time `json:"lastLoginAt,omitempty"`
 
@@ -3563,7 +3623,7 @@ type Airport struct {
 	// Example: 364
 	Elevation *int `json:"elevation,omitempty"`
 
-	// Icao ICAO airport code
+	// Icao Airport identifier — the 4-character ICAO code, or the OurAirports local identifier (e.g. DE-0249) for a field without one
 	//
 	// Example: EDDF
 	Icao string `json:"icao"`
@@ -3572,6 +3632,11 @@ type Airport struct {
 	//
 	// Example: 50.033333
 	Latitude float64 `json:"latitude"`
+
+	// LocalCode National airport code containing a digit (e.g. FAA 5M6, French ULM LF0723), when the field has one distinct from its identifier
+	//
+	// Example: LF0723
+	LocalCode *string `json:"localCode,omitempty"`
 
 	// Longitude Longitude in decimal degrees
 	//
@@ -3713,14 +3778,20 @@ type AnalyticsCountryRow struct {
 type AnalyticsFlightRef struct {
 	AircraftReg  *string `json:"aircraftReg,omitempty"`
 	AircraftType *string `json:"aircraftType,omitempty"`
-	ArrivalIcao  *string `json:"arrivalIcao,omitempty"`
+
+	// ArrivalAirportName Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
+	ArrivalAirportName *string `json:"arrivalAirportName,omitempty"`
+	ArrivalIcao        *string `json:"arrivalIcao,omitempty"`
 
 	// Date Example: 2026-05-17
-	Date          string             `json:"date"`
-	DepartureIcao *string            `json:"departureIcao,omitempty"`
-	DistanceNm    float64            `json:"distanceNm"`
-	Id            openapi_types.UUID `json:"id"`
-	TotalMinutes  int                `json:"totalMinutes"`
+	Date string `json:"date"`
+
+	// DepartureAirportName Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+	DepartureAirportName *string            `json:"departureAirportName,omitempty"`
+	DepartureIcao        *string            `json:"departureIcao,omitempty"`
+	DistanceNm           float64            `json:"distanceNm"`
+	Id                   openapi_types.UUID `json:"id"`
+	TotalMinutes         int                `json:"totalMinutes"`
 }
 
 // AnalyticsGroupRow defines model for AnalyticsGroupRow.
@@ -3847,8 +3918,18 @@ type AnalyticsRecords struct {
 
 // AnalyticsRouteRow defines model for AnalyticsRouteRow.
 type AnalyticsRouteRow struct {
+	// ArrivalAirportName Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
+	//
+	// Example: Zürich Airport
+	ArrivalAirportName *string `json:"arrivalAirportName,omitempty"`
+
 	// ArrivalIcao Example: LSZH
 	ArrivalIcao string `json:"arrivalIcao"`
+
+	// DepartureAirportName Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+	//
+	// Example: Kiel-Holtenau Airport
+	DepartureAirportName *string `json:"departureAirportName,omitempty"`
 
 	// DepartureIcao Example: EDNY
 	DepartureIcao string `json:"departureIcao"`
@@ -4414,6 +4495,18 @@ type ClassRatingCurrency struct {
 		TrainingFlights *int `json:"trainingFlights,omitempty"`
 	} `json:"progress,omitempty"`
 
+	// RecencyExpiresOn For rolling-window recency rules (EASA LAPL FCL.140.A, SPL SFCL.160,
+	// GPL FCL.240.G, German ultralight LuftPersV §45, FAA §61.57), the
+	// last date the rule stays met if the pilot does not fly again — the
+	// date the first requirement falls short as flights age out of the
+	// window, or the proficiency check does, whichever is later. Set
+	// only while `status` is `current`; omitted for expiry-anchored
+	// revalidation rules, whose limit is `expiryDate`.
+	//
+	//
+	// Example: 2027-05-31
+	RecencyExpiresOn *openapi_types.Date `json:"recencyExpiresOn,omitempty"`
+
 	// RegulatoryAuthority Authority from the parent license (determines which currency rules apply)
 	RegulatoryAuthority string `json:"regulatoryAuthority"`
 
@@ -4448,16 +4541,6 @@ type ClassRatingCurrency struct {
 	//
 	// Example: 3
 	UnclassifiedFlights *int `json:"unclassifiedFlights,omitempty"`
-
-	// ValidUntil For a `current` result of a rolling-window rule (LAPL FCL.140.A, SPL SFCL.160,
-	// GPL FCL.240.G, German UL LuftPersV §45, FAA 14 CFR 61.57), the last date it stays
-	// current if the pilot does not fly again — the latest date on which any accepted
-	// alternative (the experience rows, or a proficiency check) is still met. Omitted
-	// otherwise, and for expiry-anchored rules, where `expiryDate` governs.
-	//
-	//
-	// Example: 2027-05-31
-	ValidUntil *openapi_types.Date `json:"validUntil,omitempty"`
 
 	// WindowOpen Only meaningful when `windowOpensAt` is set. True if the
 	// revalidation experience window is currently open
@@ -5569,6 +5652,11 @@ type Flight struct {
 	// Example: 14:30:00
 	DepartureTime *string `json:"departureTime,omitempty"`
 
+	// DisplayPicName The pilot-in-command to show for this flight, resolved like the logbook exports: picName, else the instructor (instructorName, then an Instructor, Examiner or PIC crew member other than the user), else "SELF" for the user. A stale "Self" picName gives way to a known instructor. Null for an FSTD session. Not stored and not accepted on create or update.
+	//
+	// Example: SELF
+	DisplayPicName *string `json:"displayPicName,omitempty"`
+
 	// Distance Distance in nautical miles. Auto-calculated from airport coordinates.
 	//
 	// Example: 185.3
@@ -6281,6 +6369,17 @@ type FlightCrewMemberInput struct {
 // Example: picTime
 type FlightListColumn string
 
+// FlightMonthTotals defines model for FlightMonthTotals.
+type FlightMonthTotals struct {
+	// Month Calendar month (YYYY-MM)
+	//
+	// Example: 2026-08
+	Month string `json:"month"`
+
+	// Totals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
+	Totals FlightTotals `json:"totals"`
+}
+
 // FlightReviewStatus defines model for FlightReviewStatus.
 type FlightReviewStatus struct {
 	// ExpiresOn Last date the flight review remains valid — the final day of the 24th calendar month after it was completed (inclusive)
@@ -6340,11 +6439,21 @@ type FlightSession struct {
 	// Example: D-EFGH
 	AircraftReg *string `json:"aircraftReg,omitempty"`
 
+	// ArrivalAirportName Airport name resolved live from the airport database. Null when arrivalIcao does not resolve.
+	//
+	// Example: Hamburg Airport
+	ArrivalAirportName *string `json:"arrivalAirportName,omitempty"`
+
 	// ArrivalIcao Arrival airport, provided explicitly or resolved from GPS coordinates
 	//
 	// Example: EDDH
 	ArrivalIcao *string   `json:"arrivalIcao,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
+
+	// DepartureAirportName Airport name resolved live from the airport database. Null when departureIcao does not resolve.
+	//
+	// Example: Frankfurt am Main Airport
+	DepartureAirportName *string `json:"departureAirportName,omitempty"`
 
 	// DepartureIcao Departure airport, provided explicitly or resolved from GPS coordinates
 	//
@@ -6383,7 +6492,7 @@ type FlightSessionEvent struct {
 	// Example: D-EFGH
 	AircraftReg *string `json:"aircraftReg,omitempty"`
 
-	// Icao Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock). Takes precedence over lat/lon.
+	// Icao Explicit airport for this event (departure for offblock/takeoff, arrival for landing/onblock), as a 4-character ICAO code or a known airport identifier such as DE-0249. Takes precedence over lat/lon.
 	//
 	// Example: EDDF
 	Icao *string `json:"icao,omitempty"`
@@ -6430,6 +6539,87 @@ type FlightSignatureMethod string
 
 // FlightSignatureStatus defines model for FlightSignature.Status.
 type FlightSignatureStatus string
+
+// FlightTotals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
+type FlightTotals struct {
+	// ActualInstrumentTime Minutes
+	ActualInstrumentTime int `json:"actualInstrumentTime"`
+
+	// Approaches Sum of approachesCount
+	Approaches int `json:"approaches"`
+
+	// CrossCountryTime Minutes
+	CrossCountryTime int `json:"crossCountryTime"`
+
+	// Distance Nautical miles
+	Distance float64 `json:"distance"`
+
+	// DualGivenTime Minutes
+	DualGivenTime int `json:"dualGivenTime"`
+
+	// DualTime Minutes
+	DualTime int `json:"dualTime"`
+
+	// ExaminerTime Minutes
+	ExaminerTime int `json:"examinerTime"`
+
+	// Flights Number of flights matching the filters
+	Flights int `json:"flights"`
+
+	// GroundTrainingTime Minutes
+	GroundTrainingTime int `json:"groundTrainingTime"`
+
+	// Holds Count
+	Holds int `json:"holds"`
+
+	// IfrTime Minutes
+	IfrTime int `json:"ifrTime"`
+
+	// LandingsDay Count
+	LandingsDay int `json:"landingsDay"`
+
+	// LandingsNight Count
+	LandingsNight int `json:"landingsNight"`
+
+	// MultiPilotTime Minutes
+	MultiPilotTime int `json:"multiPilotTime"`
+
+	// NightTime Minutes
+	NightTime int `json:"nightTime"`
+
+	// PicTime Minutes
+	PicTime int `json:"picTime"`
+
+	// PicusTime Minutes
+	PicusTime int `json:"picusTime"`
+
+	// ReliefTime Minutes
+	ReliefTime int `json:"reliefTime"`
+
+	// SicTime Minutes
+	SicTime int `json:"sicTime"`
+
+	// SimulatedFlightTime Minutes
+	SimulatedFlightTime int `json:"simulatedFlightTime"`
+
+	// SimulatedInstrumentTime Minutes
+	SimulatedInstrumentTime int `json:"simulatedInstrumentTime"`
+
+	// SoloTime Minutes
+	SoloTime int `json:"soloTime"`
+
+	// SpicTime Minutes
+	SpicTime int `json:"spicTime"`
+
+	// TakeoffsDay Count
+	TakeoffsDay int `json:"takeoffsDay"`
+
+	// TakeoffsNight Count
+	TakeoffsNight int `json:"takeoffsNight"`
+
+	// TotalTime Minutes
+	TotalTime int `json:"totalTime"`
+}
 
 // FlightUpdate defines model for FlightUpdate.
 type FlightUpdate struct {
@@ -7463,8 +7653,11 @@ type PaginatedBackupRuns struct {
 
 // PaginatedFlights defines model for PaginatedFlights.
 type PaginatedFlights struct {
-	Data       []Flight `json:"data"`
-	Pagination struct {
+	Data []Flight `json:"data"`
+
+	// MonthTotals Column sums per calendar month over every flight matching the filters, for each month that has a flight on the returned page. Ordered by month, oldest first. Empty unless the list is sorted by date and updatedSince is not set.
+	MonthTotals []FlightMonthTotals `json:"monthTotals"`
+	Pagination  struct {
 		// Page Current page (1-indexed)
 		//
 		// Example: 1
@@ -7485,6 +7678,9 @@ type PaginatedFlights struct {
 		// Example: 8
 		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
+
+	// Totals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
+	Totals FlightTotals `json:"totals"`
 }
 
 // PaginatedImports defines model for PaginatedImports.
@@ -8457,7 +8653,7 @@ type ListAllAircraftRemindersParams struct {
 
 // SearchAirportsParams defines parameters for SearchAirports.
 type SearchAirportsParams struct {
-	// Q Search query (ICAO code prefix)
+	// Q Search query (identifier or local-code prefix, or start of a name word)
 	Q     string `form:"q" json:"q"`
 	Limit *int   `form:"limit,omitempty" json:"limit,omitempty"`
 }

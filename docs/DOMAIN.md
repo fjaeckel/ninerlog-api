@@ -656,8 +656,8 @@ leaves the window, assuming no further flights, and reports:
   last date the newest qualifying flight still counts; for a proficiency check, the check's
   date + window − 1 day.
 - `LaunchMethodCurrency.validUntil` on each met method, the same way.
-- `ClassRatingCurrency.validUntil` on a `current` result — the last date the rating stays
-  current. Where the rule accepts alternatives (experience rows **or** a proficiency
+- `ClassRatingCurrency.recencyExpiresOn` on a `current` result — the last date the rating
+  stays current. Where the rule accepts alternatives (experience rows **or** a proficiency
   check), that is the latest date on which either alternative still holds, not the
   earliest row.
 
@@ -880,7 +880,7 @@ hour credit and the known gaps — are described in [SAILPLANES.md](./SAILPLANES
 
 ### Licence privileges
 
-A licence carries privileges beside its class ratings (`licence_privileges`, migration 77;
+A licence carries privileges beside its class ratings (`licence_privileges`, migration 79;
 `/licenses/{licenseId}/privileges`): towing, cloud flying, aerobatics, TMG night, FI(S),
 BI(S), FE(S), trained launch methods, the German UL passenger authorisation, UL towing and
 UL type briefings. `models.LicencePrivilege.Validate` holds the kind rules: a

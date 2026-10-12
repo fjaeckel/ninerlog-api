@@ -63,10 +63,11 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		return
 	}
 
+	userName := h.getUserNameFromContext(c)
 	warnings := h.flightService.CheckFlights(c.Request.Context(), userID, flights)
 	out := make([]generated.Flight, 0, len(flights))
 	for i, f := range flights {
-		g := convertToGeneratedFlight(f)
+		g := withDisplayPICName(convertToGeneratedFlight(f), f, userName)
 		g.Warnings = convertToGeneratedWarnings(warnings[i])
 		out = append(out, g)
 	}

@@ -567,6 +567,102 @@ func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, 
 	return count, err
 }
 
+const flightTotalsColumns = `
+	COUNT(*),
+	COALESCE(SUM(total_time), 0),
+	COALESCE(SUM(pic_time), 0),
+	COALESCE(SUM(dual_time), 0),
+	COALESCE(SUM(night_time), 0),
+	COALESCE(SUM(ifr_time), 0),
+	COALESCE(SUM(cross_country_time), 0),
+	COALESCE(SUM(sic_time), 0),
+	COALESCE(SUM(picus_time), 0),
+	COALESCE(SUM(spic_time), 0),
+	COALESCE(SUM(relief_time), 0),
+	COALESCE(SUM(dual_given_time), 0),
+	COALESCE(SUM(examiner_time), 0),
+	COALESCE(SUM(multi_pilot_time), 0),
+	COALESCE(SUM(solo_time), 0),
+	COALESCE(SUM(simulated_flight_time), 0),
+	COALESCE(SUM(actual_instrument_time), 0),
+	COALESCE(SUM(simulated_instrument_time), 0),
+	COALESCE(SUM(ground_training_time), 0),
+	COALESCE(SUM(landings_day), 0),
+	COALESCE(SUM(landings_night), 0),
+	COALESCE(SUM(takeoffs_day), 0),
+	COALESCE(SUM(takeoffs_night), 0),
+	COALESCE(SUM(approaches_count), 0),
+	COALESCE(SUM(holds), 0),
+	COALESCE(SUM(distance), 0)`
+
+func flightTotalsDest(t *models.FlightTotals) []interface{} {
+	return []interface{}{
+		&t.Flights, &t.TotalTime, &t.PICTime, &t.DualTime, &t.NightTime, &t.IFRTime,
+		&t.CrossCountryTime, &t.SICTime, &t.PICUSTime, &t.SPICTime, &t.ReliefTime,
+		&t.DualGivenTime, &t.ExaminerTime, &t.MultiPilotTime, &t.SoloTime,
+		&t.SimulatedFlightTime, &t.ActualInstrumentTime, &t.SimulatedInstrumentTime,
+		&t.GroundTrainingTime, &t.LandingsDay, &t.LandingsNight, &t.TakeoffsDay,
+		&t.TakeoffsNight, &t.Approaches, &t.Holds, &t.Distance,
+	}
+}
+
+func (r *flightRepository) TotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
+	query := "SELECT " + flightTotalsColumns + " FROM flights WHERE user_id = $1"
+	args := []interface{}{userID}
+	query, args, _ = appendFlightFilters(query, args, 2, opts)
+
+	var totals models.FlightTotals
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(flightTotalsDest(&totals)...); err != nil {
+		return nil, err
+	}
+	return &totals, nil
+}
+
+func (r *flightRepository) MonthTotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, months []time.Time) ([]models.FlightMonthTotals, error) {
+	if len(months) == 0 {
+		return []models.FlightMonthTotals{}, nil
+	}
+	wanted := make(map[string]bool, len(months))
+	var first, last time.Time
+	for i, m := range months {
+		start := time.Date(m.Year(), m.Month(), 1, 0, 0, 0, 0, time.UTC)
+		wanted[start.Format("2006-01")] = true
+		if i == 0 || start.Before(first) {
+			first = start
+		}
+		if i == 0 || start.After(last) {
+			last = start
+		}
+	}
+
+	query := "SELECT date_trunc('month', date)::date, " + flightTotalsColumns + " FROM flights WHERE user_id = $1"
+	args := []interface{}{userID}
+	var argNum int
+	query, args, argNum = appendFlightFilters(query, args, 2, opts)
+	query += fmt.Sprintf(" AND date >= $%d::date AND date < $%d::date", argNum, argNum+1)
+	args = append(args, first.Format("2006-01-02"), last.AddDate(0, 1, 0).Format("2006-01-02"))
+	query += " GROUP BY 1 ORDER BY 1"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := []models.FlightMonthTotals{}
+	for rows.Next() {
+		var mt models.FlightMonthTotals
+		dest := append([]interface{}{&mt.Month}, flightTotalsDest(&mt.FlightTotals)...)
+		if err := rows.Scan(dest...); err != nil {
+			return nil, err
+		}
+		if wanted[mt.Month.Format("2006-01")] {
+			result = append(result, mt)
+		}
+	}
+	return result, rows.Err()
+}
+
 func (r *flightRepository) GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error) {
 	query := `
 		SELECT

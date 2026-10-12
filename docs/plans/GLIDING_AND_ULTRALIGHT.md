@@ -188,7 +188,7 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-23. Batch circuits and "log another"** (api + fe; needs D2)
 
-- API — **implemented** (migration 76): a nullable `launches` column with
+- API — **implemented** (migration 78): a nullable `launches` column with
   `launchesOverride`, derived from the take-off count and read by every launch count in
   the currency engine; the D2 "one line" series entry is a single flight with `launches`
   set. `POST /flights/batch`: a `FlightCreate` template plus 1–50
@@ -217,7 +217,7 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-25. Glider flight facts** (api + fe; `migration-author` for the columns)
 
-- API — **implemented** (migration 76): flight flags `isOutlanding` and `isTowFlight`, plus
+- API — **implemented** (migration 78): flight flags `isOutlanding` and `isTowFlight`, plus
   `releaseHeightM` (0–20000 m). Cross-country is no longer derived from departure ≠ arrival
   when `isOutlanding` is set. All three, and `launches`, go into the JSON backup, the
   standard CSV layout, CSV import, logbook search and custom-currency filters.
@@ -228,7 +228,7 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 - Closes P1 and J2 (partly).
 
 **WP-26. Sailplane ratings and privileges** (api + fe) — **API half implemented**
-(migration 77, `/licenses/{id}/privileges`, `privileges[]` on `GET /currency`, backup and
+(migration 79, `/licenses/{id}/privileges`, `privileges[]` on `GET /currency`, backup and
 restore inside the licence entry, admin count `licencePrivileges`); rules in
 [SAILPLANES.md](../SAILPLANES.md#privileges), keys in
 [CURRENCY_MESSAGES.md](../CURRENCY_MESSAGES.md#privilegecurrencymessagekey). Cloud-flying time
@@ -284,7 +284,7 @@ open.
 ### Wave 3: ultralight experience
 
 **WP-30. Aircraft reminders** (api + fe; `migration-author`) — **API half implemented**
-(migration 75, `/aircraft/{id}/reminders`, `/aircraft-reminders`, notification category
+(migration 77, `/aircraft/{id}/reminders`, `/aircraft-reminders`, notification category
 `aircraft_reminder`, backup/restore, admin count); semantics in
 [DOMAIN.md](../DOMAIN.md#aircraft-reminders). No job was added (the existing notification
 checker carries it), so no new metric. Attaching documents to aircraft is not part of it.

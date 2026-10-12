@@ -121,6 +121,9 @@ func fillGaps(base, other AirportInfo) AirportInfo {
 	if base.City == "" {
 		base.City = other.City
 	}
+	if base.LocalCode == "" {
+		base.LocalCode = other.LocalCode
+	}
 	if base.Timezone == "" {
 		base.Timezone = other.Timezone
 	}

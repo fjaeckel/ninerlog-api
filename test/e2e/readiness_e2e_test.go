@@ -176,12 +176,12 @@ func TestReadiness(t *testing.T) {
 		}
 
 		rc := findRatingCur(getCurrencyStatus(t, c), "GLIDER")
-		until, ok := rc["validUntil"].(string)
+		until, ok := rc["recencyExpiresOn"].(string)
 		if !ok {
-			t.Fatalf("GLIDER rating has no validUntil: %v", rc)
+			t.Fatalf("GLIDER rating has no recencyExpiresOn: %v", rc)
 		}
 		launches := getReq(rc, "requirement.launches")
-		assertStr(t, "rating validUntil is the launches row's", launches["validUntil"], until)
+		assertStr(t, "rating recencyExpiresOn is the launches row's validUntil", launches["validUntil"], until)
 		assertStr(t, "launches validUntil", until, time.Now().AddDate(0, 0, -660).AddDate(2, 0, -1).Format("2006-01-02"))
 		on := getReadiness(t, c, url.Values{"date": {until}})
 		assertBool(t, "ready on validUntil", gb(readinessItems(on, "rating")["GLIDER"], "ready"), true)
@@ -254,8 +254,8 @@ func TestReadiness(t *testing.T) {
 		assertStr(t, "SEP status", item["status"], "expiring")
 
 		rc := findRatingCur(getCurrencyStatus(t, c), "SEP_LAND")
-		if _, ok := rc["validUntil"]; ok {
-			t.Errorf("FCL.740.A rating carries validUntil: %v", rc["validUntil"])
+		if _, ok := rc["recencyExpiresOn"]; ok {
+			t.Errorf("FCL.740.A rating carries recencyExpiresOn: %v", rc["recencyExpiresOn"])
 		}
 		for _, r := range rc["requirements"].([]interface{}) {
 			if _, ok := r.(map[string]interface{})["validUntil"]; ok {
