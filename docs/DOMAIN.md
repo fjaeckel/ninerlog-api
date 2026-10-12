@@ -838,7 +838,9 @@ Passenger currency (FCL.060(b)) is never pooled: it requires "the same type or c
 
 `logbookLicenseId` on `GET /flights`, `GET /exports/csv`, `GET /exports/pdf` and custom
 reports scopes the flights to one licence's logbook. `service.LogbookScope` resolves it,
-and every caller gets the same answer. It classifies each flight by its aircraft:
+and every caller gets the same answer. It classifies each flight by its aircraft, matched
+by stored registration: a powered paraglider's cleaned form, any other aircraft's canonical
+form (`Aircraft.CanonicalRegistration`):
 
 - **Native.** The aircraft class, trimmed and upper-cased (`models.NormalizeAircraftClass`),
   equals the class of one of the licence's ratings. An `ULTRALIGHT` rating with a kind

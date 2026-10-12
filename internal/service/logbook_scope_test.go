@@ -251,6 +251,18 @@ func TestLogbookScopeApply(t *testing.T) {
 		assertRegs(t, "AircraftRegistrations", opts.AircraftRegistrations, "DEABC")
 	})
 
+	t.Run("powered paraglider wings with colliding canonical forms both listed", func(t *testing.T) {
+		fx := newLogbookFixture()
+		fx.addAircraft("DMAXA", "ULTRALIGHT", kindPtr(models.ULKindPoweredParaglider))
+		fx.addAircraft("D MAXA", "ULTRALIGHT", kindPtr(models.ULKindPoweredParaglider))
+		licID := fx.license("DULV", "UL", rated(models.ClassTypeUL, kindPtr(models.ULKindPoweredParaglider)))
+		opts := &repository.FlightQueryOptions{}
+		if err := fx.scope.Apply(context.Background(), fx.userID, licID, opts); err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+		assertRegs(t, "AircraftRegistrations", opts.AircraftRegistrations, "D MAXA", "DMAXA")
+	})
+
 	t.Run("licence without ratings leaves opts unfiltered", func(t *testing.T) {
 		fx := newLogbookFixture()
 		licID := fx.license("EASA", "PPL")
@@ -294,6 +306,27 @@ func assertRegs(t *testing.T, field string, got []string, want ...string) {
 		if g[i] != want[i] {
 			t.Errorf("%s = %v, want %v", field, g, want)
 			return
+		}
+	}
+}
+
+func TestLogbookScopeClassify_PoweredParagliderWingsByStoredForm(t *testing.T) {
+	fx := newLogbookFixture()
+	fx.addAircraft("DMAXA", "ULTRALIGHT", kindPtr(models.ULKindPoweredParaglider))
+	fx.addAircraft("D MAXA", "ULTRALIGHT", kindPtr(models.ULKindPoweredParaglider))
+	fx.addAircraft("D-MAXA", "SEP_LAND", nil)
+	licID := fx.license("DULV", "UL", rated(models.ClassTypeUL, kindPtr(models.ULKindPoweredParaglider)))
+	lb, err := fx.scope.Resolve(context.Background(), fx.userID, licID)
+	if err != nil || lb == nil {
+		t.Fatalf("Resolve = %v, %v", lb, err)
+	}
+	for reg, want := range map[string]service.LogbookMembership{
+		"DMAXA":  service.LogbookNative,
+		"D MAXA": service.LogbookNative,
+		"D-MAXA": service.LogbookExcluded,
+	} {
+		if got := lb.Classify(flightOn(reg, "")); got != want {
+			t.Errorf("Classify(%q) = %v, want %v", reg, got, want)
 		}
 	}
 }
