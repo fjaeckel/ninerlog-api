@@ -82,3 +82,14 @@ func TestCredentialTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestCredentialIsExpiredAt_ValidThroughExpiryDay(t *testing.T) {
+	expiry := time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)
+	c := &Credential{ExpiryDate: &expiry}
+	if c.IsExpiredAt(time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)) {
+		t.Error("IsExpiredAt(expiry day noon) = true, want false")
+	}
+	if !c.IsExpiredAt(time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC)) {
+		t.Error("IsExpiredAt(day after expiry) = false, want true")
+	}
+}

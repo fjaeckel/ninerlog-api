@@ -77,12 +77,12 @@ func (cr *ClassRating) IsExpired() bool {
 	return cr.IsExpiredAt(time.Now())
 }
 
-// IsExpiredAt reports whether the class rating has expired at now.
+// IsExpiredAt reports whether the class rating's expiry date is before the UTC date of now.
 func (cr *ClassRating) IsExpiredAt(now time.Time) bool {
 	if cr.ExpiryDate == nil {
 		return false
 	}
-	return cr.ExpiryDate.Before(now)
+	return DateOnly(*cr.ExpiryDate).Before(DateOnly(now))
 }
 
 // IsExpiringSoon checks if the class rating expires within N days

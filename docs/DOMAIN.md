@@ -621,6 +621,10 @@ Every evaluator reads "now" from the context (`nowFrom`, `clock.go`), never from
 expiry checks (`ClassRating.IsExpiredAt`), countdowns, the closed revalidation window and
 the passenger window all follow it. An as-of evaluation runs at noon UTC on the date.
 
+An expiry date is the last day a rating or credential is valid: `ClassRating.IsExpiredAt`
+and `Credential.IsExpiredAt` compare UTC calendar dates, so a rating expiring today is
+still valid today and expired from tomorrow.
+
 For a rule with a rolling window (`windowRollingNow`: LAPL FCL.140.A, SPL SFCL.160(a)/(b),
 GPL FCL.240.G, German UL LuftPersV §45, FAA §61.57 day/night and IR), the engine
 (`projection.go`) re-evaluates the rule in memory at every date on which a flight on record
@@ -662,7 +666,7 @@ day before today's UTC date (so a pilot west of UTC can ask for their local toda
 days after it. It calls `currency.Service.EvaluateAsOf`, which runs `EvaluateAll` with the
 context's clock set to that date: the flights on record are counted as if the pilot does
 not fly again before it, so a rolling row whose `validUntil` is before the date is unmet
-on it, and a rating or medical whose expiry date is on or before the date is expired, as
+on it, and a rating or medical whose expiry date is before the date is expired, as
 `GET /currency` would report it that day. The answer is a list of items:
 
 | Item | Ready when | Reason key |

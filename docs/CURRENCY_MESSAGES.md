@@ -323,7 +323,7 @@ The credential type is not repeated: look it up by `credentialId`. Lena's Saturd
 | --- | --- | --- |
 | `readiness.launch_method_current` | `date` | The launch method is current on the date, until `date` |
 | `readiness.credential_valid` | `date`? | The medical certificate is valid on the date |
-| `readiness.credential_expired` | `date` | The medical certificate expired on `date`, on or before the date asked |
+| `readiness.credential_expired` | `date` | The medical certificate's expiry date `date` is before the date asked |
 | `readiness.no_rating` | — | None of the pilot's ratings covers the aircraft asked about, so it may not be flown as pilot in command |
 
 ## Adding a key

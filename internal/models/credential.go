@@ -47,12 +47,12 @@ func (c *Credential) IsExpired() bool {
 	return c.IsExpiredAt(time.Now())
 }
 
-// IsExpiredAt reports whether the credential has expired at now.
+// IsExpiredAt reports whether the credential's expiry date is before the UTC date of now.
 func (c *Credential) IsExpiredAt(now time.Time) bool {
 	if c.ExpiryDate == nil {
 		return false
 	}
-	return c.ExpiryDate.Before(now)
+	return DateOnly(*c.ExpiryDate).Before(DateOnly(now))
 }
 
 // IsMedical reports whether the credential is a medical certificate.
