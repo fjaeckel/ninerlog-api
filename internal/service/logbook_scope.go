@@ -154,7 +154,8 @@ func (s *LogbookScope) Apply(ctx context.Context, userID, licenseID uuid.UUID, o
 	}
 	regs := make([]string, 0, len(lb.aircraft))
 	untowed := []string{}
-	for reg, ac := range lb.aircraft {
+	for _, ac := range lb.aircraft {
+		reg := ac.CanonicalRegistration(ac.Registration)
 		if lb.isNative(ac) {
 			regs = append(regs, reg)
 			continue

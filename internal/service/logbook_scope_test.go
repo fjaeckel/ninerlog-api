@@ -240,6 +240,17 @@ func TestLogbookScopeApply(t *testing.T) {
 		assertRegs(t, "UntowedAircraftRegistrations", opts.UntowedAircraftRegistrations)
 	})
 
+	t.Run("powered paraglider listed as stored, not canonicalised", func(t *testing.T) {
+		fx := newLogbookFixture()
+		fx.addAircraft("DEABC", "ULTRALIGHT", kindPtr(models.ULKindPoweredParaglider))
+		licID := fx.license("DULV", "UL", rated(models.ClassTypeUL, kindPtr(models.ULKindPoweredParaglider)))
+		opts := &repository.FlightQueryOptions{}
+		if err := fx.scope.Apply(context.Background(), fx.userID, licID, opts); err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+		assertRegs(t, "AircraftRegistrations", opts.AircraftRegistrations, "DEABC")
+	})
+
 	t.Run("licence without ratings leaves opts unfiltered", func(t *testing.T) {
 		fx := newLogbookFixture()
 		licID := fx.license("EASA", "PPL")
