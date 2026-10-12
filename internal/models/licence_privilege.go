@@ -12,6 +12,7 @@ import (
 // LicencePrivilegeKind is the kind of a privilege recorded on a licence.
 type LicencePrivilegeKind string
 
+// #nosec G101
 const (
 	PrivilegeSailplaneTowing     LicencePrivilegeKind = "SAILPLANE_TOWING"
 	PrivilegeBannerTowing        LicencePrivilegeKind = "BANNER_TOWING"
