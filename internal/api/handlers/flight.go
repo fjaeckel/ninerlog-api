@@ -252,7 +252,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
-	facts := h.fleetFactsLookup(c.Request.Context(), userID)
+	facts := h.aircraftService.AircraftFactsLookup(c.Request.Context(), userID)
 	flight, errMsg := h.flightFromCreate(c, userID, &req, facts)
 	if errMsg != "" {
 		h.sendError(c, http.StatusBadRequest, errMsg)
@@ -277,22 +277,6 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	out := withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c))
 	out.Warnings = convertToGeneratedWarnings(h.flightService.CheckFlights(c.Request.Context(), userID, []*models.Flight{flight})[0])
 	c.JSON(http.StatusCreated, out)
-}
-
-// fleetFactsLookup returns the fleet facts lookup for userID, loading the
-// fleet at most once across calls.
-func (h *APIHandler) fleetFactsLookup(ctx context.Context, userID uuid.UUID) func(reg string) *flightrules.AircraftFacts {
-	var index map[string]*flightrules.AircraftFacts
-	return func(reg string) *flightrules.AircraftFacts {
-		key := service.NormalizeRegistrationKey(reg)
-		if key == "" {
-			return nil
-		}
-		if index == nil {
-			index = h.aircraftService.AircraftFactsIndexFor(ctx, userID)
-		}
-		return index[key]
-	}
 }
 
 // flightFromCreate builds the flight a create body describes and applies the
@@ -679,7 +663,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	userName := h.getUserNameFromContext(c)
 
-	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+	facts := h.aircraftService.AircraftFactsLookup(c.Request.Context(), userID)(flight.AircraftReg)
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
 	flightcalc.ApplyAutoCalculations(flight, userName, facts)

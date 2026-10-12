@@ -45,15 +45,6 @@ func AircraftFactsFor(ctx context.Context, repo repository.AircraftRepository, u
 	return AircraftFactsIndex(fleet)[key]
 }
 
-// AircraftFactsFor resolves the fleet facts for one registration, returning
-// nil when the user's fleet holds no matching aircraft.
-func (s *AircraftService) AircraftFactsFor(ctx context.Context, userID uuid.UUID, registration string) *flightrules.AircraftFacts {
-	if s == nil {
-		return nil
-	}
-	return AircraftFactsFor(ctx, s.aircraftRepo, userID, registration)
-}
-
 // AircraftFactsIndexFor returns the fleet facts for every aircraft the user
 // owns, keyed by upper-cased registration.
 func (s *AircraftService) AircraftFactsIndexFor(ctx context.Context, userID uuid.UUID) map[string]*flightrules.AircraftFacts {
@@ -65,4 +56,20 @@ func (s *AircraftService) AircraftFactsIndexFor(ctx context.Context, userID uuid
 		return map[string]*flightrules.AircraftFacts{}
 	}
 	return AircraftFactsIndex(fleet)
+}
+
+// AircraftFactsLookup returns a lookup of the user's fleet facts by
+// registration, loading the fleet at most once across calls.
+func (s *AircraftService) AircraftFactsLookup(ctx context.Context, userID uuid.UUID) func(registration string) *flightrules.AircraftFacts {
+	var index map[string]*flightrules.AircraftFacts
+	return func(registration string) *flightrules.AircraftFacts {
+		key := NormalizeRegistrationKey(registration)
+		if key == "" {
+			return nil
+		}
+		if index == nil {
+			index = s.AircraftFactsIndexFor(ctx, userID)
+		}
+		return index[key]
+	}
 }
