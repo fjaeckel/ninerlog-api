@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -140,6 +141,27 @@ func (s *ContactService) LinkCrewMembers(ctx context.Context, userID uuid.UUID, 
 	l := s.NewCrewLinker(userID)
 	err := l.Link(ctx, members)
 	return l.Created(), err
+}
+
+// KeepOwnedContacts clears, in place, each member's ContactID that is missing
+// or belongs to another user. Any other lookup error is returned with the
+// remaining members unchanged.
+func (s *ContactService) KeepOwnedContacts(ctx context.Context, userID uuid.UUID, members []models.FlightCrewMember) error {
+	for i := range members {
+		id := members[i].ContactID
+		if id == nil {
+			continue
+		}
+		_, err := s.GetContact(ctx, *id, userID)
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrContactNotFound), errors.Is(err, ErrUnauthorizedContact):
+			members[i].ContactID = nil
+		default:
+			return fmt.Errorf("check crew contact: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *ContactService) GetContact(ctx context.Context, id, userID uuid.UUID) (*models.Contact, error) {

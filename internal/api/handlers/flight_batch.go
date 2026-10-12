@@ -45,7 +45,11 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 	}
 
 	crew := append([]models.FlightCrewMember(nil), flights[0].CrewMembers...)
-	h.keepOwnedCrewContacts(c.Request.Context(), userID, crew)
+	if err := h.keepOwnedCrewContacts(c.Request.Context(), userID, crew); err != nil {
+		slog.Warn("failed to check crew contacts", "error", err)
+		h.sendError(c, http.StatusInternalServerError, "Failed to create flights")
+		return
+	}
 	for _, f := range flights {
 		f.CrewMembers = append([]models.FlightCrewMember(nil), crew...)
 	}
@@ -68,25 +72,25 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 }
 
 // linkBatchCrew links the template crew to the user's contacts once and
-// writes the linked crew to every stored leg. Failures are logged and
-// swallowed, leaving the crew as inserted.
+// writes the linked crew to every stored leg. A leg keeps its crew as
+// inserted when linking or its write fails.
 func (h *APIHandler) linkBatchCrew(c *gin.Context, userID uuid.UUID, flights []*models.Flight, crew []models.FlightCrewMember) {
-	if len(crew) == 0 || h.contactService == nil {
+	if len(crew) == 0 || h.contactService == nil || h.flightCrewRepo == nil {
 		return
 	}
 	ctx := c.Request.Context()
-	if _, err := h.contactService.LinkCrewMembers(ctx, userID, crew); err != nil {
+	linked := append([]models.FlightCrewMember(nil), crew...)
+	if _, err := h.contactService.LinkCrewMembers(ctx, userID, linked); err != nil {
 		slog.Warn("failed to link crew members to contacts", "error", err)
 		return
 	}
 	for _, f := range flights {
-		f.CrewMembers = append([]models.FlightCrewMember(nil), crew...)
-		if h.flightCrewRepo == nil {
+		members := append([]models.FlightCrewMember(nil), linked...)
+		if err := h.flightCrewRepo.SetCrewMembers(ctx, f.ID, members); err != nil {
+			slog.Warn("failed to save crew members", "flightId", f.ID, "error", err)
 			continue
 		}
-		if err := h.flightCrewRepo.SetCrewMembers(ctx, f.ID, f.CrewMembers); err != nil {
-			slog.Warn("failed to save crew members", "flightId", f.ID, "error", err)
-		}
+		f.CrewMembers = members
 	}
 }
 
