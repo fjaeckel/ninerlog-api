@@ -112,6 +112,10 @@ fixture keeps passing while covering a surface the API cannot produce.
 | `rating.glider_not_current` | `needed` | FAA glider: launches short |
 | `rating.glider_current` | — | FAA glider: launches met |
 
+The date a current rolling-window recency rule lapses is **not** in the message — read
+`recencyExpiresOn` and render it yourself. See
+[DOMAIN.md](./DOMAIN.md#rating-recency-expiry-recencyexpireson).
+
 ## `PassengerCurrency.messageKey`
 
 | Key | Params | Meaning |

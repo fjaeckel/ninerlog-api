@@ -122,28 +122,49 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		opts.SortOrder = string(*params.SortOrder)
 	}
 
-	// Get total count for pagination
-	total, err := h.flightService.CountFlights(c.Request.Context(), userID, opts)
+	totals, err := h.flightService.FlightTotals(c.Request.Context(), userID, opts)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to count flights")
 		return
 	}
+	total := totals.Flights
 
 	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, opts)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
 		return
 	}
+	h.attachCrewMembers(c.Request.Context(), flights)
 
+	monthTotals := []models.FlightMonthTotals{}
+	if opts.SortBy == "date" && opts.UpdatedSince == nil {
+		monthTotals, err = h.flightService.FlightMonthTotals(c.Request.Context(), userID, opts, flightMonths(flights))
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
+			return
+		}
+	}
+
+	userName := h.getUserNameFromContext(c)
 	flightList := make([]generated.Flight, 0, len(flights))
 	for _, f := range flights {
-		flightList = append(flightList, convertToGeneratedFlight(f))
+		flightList = append(flightList, withDisplayPICName(convertToGeneratedFlight(f), f, userName))
 	}
 
 	totalPages := (total + opts.PageSize - 1) / opts.PageSize
 
+	months := make([]generated.FlightMonthTotals, 0, len(monthTotals))
+	for _, mt := range monthTotals {
+		months = append(months, generated.FlightMonthTotals{
+			Month:  mt.Month.Format("2006-01"),
+			Totals: convertFlightTotals(mt.FlightTotals),
+		})
+	}
+
 	response := generated.PaginatedFlights{
-		Data: flightList,
+		Data:        flightList,
+		Totals:      convertFlightTotals(*totals),
+		MonthTotals: months,
 		Pagination: struct {
 			Page       int "json:\"page\""
 			PageSize   int "json:\"pageSize\""
@@ -158,6 +179,51 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// flightMonths returns the distinct calendar months the flights fall in.
+func flightMonths(flights []*models.Flight) []time.Time {
+	seen := make(map[time.Time]bool)
+	months := make([]time.Time, 0)
+	for _, f := range flights {
+		m := time.Date(f.Date.Year(), f.Date.Month(), 1, 0, 0, 0, 0, time.UTC)
+		if !seen[m] {
+			seen[m] = true
+			months = append(months, m)
+		}
+	}
+	return months
+}
+
+func convertFlightTotals(t models.FlightTotals) generated.FlightTotals {
+	return generated.FlightTotals{
+		Flights:                 t.Flights,
+		TotalTime:               t.TotalTime,
+		PicTime:                 t.PICTime,
+		DualTime:                t.DualTime,
+		NightTime:               t.NightTime,
+		IfrTime:                 t.IFRTime,
+		CrossCountryTime:        t.CrossCountryTime,
+		SicTime:                 t.SICTime,
+		PicusTime:               t.PICUSTime,
+		SpicTime:                t.SPICTime,
+		ReliefTime:              t.ReliefTime,
+		DualGivenTime:           t.DualGivenTime,
+		ExaminerTime:            t.ExaminerTime,
+		MultiPilotTime:          t.MultiPilotTime,
+		SoloTime:                t.SoloTime,
+		SimulatedFlightTime:     t.SimulatedFlightTime,
+		ActualInstrumentTime:    t.ActualInstrumentTime,
+		SimulatedInstrumentTime: t.SimulatedInstrumentTime,
+		GroundTrainingTime:      t.GroundTrainingTime,
+		LandingsDay:             t.LandingsDay,
+		LandingsNight:           t.LandingsNight,
+		TakeoffsDay:             t.TakeoffsDay,
+		TakeoffsNight:           t.TakeoffsNight,
+		Approaches:              t.Approaches,
+		Holds:                   t.Holds,
+		Distance:                t.Distance,
+	}
 }
 
 // CreateFlight implements POST /flights
@@ -348,7 +414,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	if len(flight.CrewMembers) > 0 {
 		h.persistCrewMembers(c, userID, &flight)
 	}
-	c.JSON(http.StatusCreated, convertToGeneratedFlight(&flight))
+	c.JSON(http.StatusCreated, withDisplayPICName(convertToGeneratedFlight(&flight), &flight, h.getUserNameFromContext(c)))
 }
 
 // GetFlight implements GET /flights/{flightId}
@@ -378,7 +444,7 @@ func (h *APIHandler) GetFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 	}
 
-	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))
+	c.JSON(http.StatusOK, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))
 }
 
 // UpdateFlight implements PUT /flights/{flightId}
@@ -580,8 +646,11 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.CrewMembers != nil {
 		h.persistCrewMembers(c, userID, flight)
 	}
+	if req.CrewMembers == nil {
+		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
+	}
 
-	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))
+	c.JSON(http.StatusOK, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))
 }
 
 // DeleteFlight implements DELETE /flights/{flightId}
@@ -625,6 +694,14 @@ func lookupAirportName(location string) *string {
 		return nil
 	}
 	return strPtr(ap.Name)
+}
+
+// withDisplayPICName sets gf.DisplayPicName from f via flightrules.DisplayPICName.
+func withDisplayPICName(gf generated.Flight, f *models.Flight, userName string) generated.Flight {
+	if name := flightrules.DisplayPICName(f, userName); name != "" {
+		gf.DisplayPicName = &name
+	}
+	return gf
 }
 
 func convertToGeneratedFlight(f *models.Flight) generated.Flight {

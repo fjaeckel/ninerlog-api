@@ -38,6 +38,10 @@ type UserRepository interface {
 	// UpdateLastLogin stamps the last successful login.
 	UpdateLastLogin(ctx context.Context, id uuid.UUID, at time.Time) error
 
+	// TouchLastActive stamps last_active_at with `at` unless the stored value
+	// is already newer than `at` minus `granularity`.
+	TouchLastActive(ctx context.Context, id uuid.UUID, at time.Time, granularity time.Duration) error
+
 	// MarkEmailVerified flips the email_verified flag to true.
 	// ConsumeRecoveryCode atomically removes a recovery code hash, returning
 	// true only for the caller that actually removed it.
@@ -184,6 +188,13 @@ type FlightRepository interface {
 
 	// CountByUserID counts flights for a user with optional filters
 	CountByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions) (int, error)
+
+	// TotalsByUserID sums the flight columns over the filtered flights
+	TotalsByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions) (*models.FlightTotals, error)
+
+	// MonthTotalsByUserID sums the flight columns over the filtered flights,
+	// per calendar month, for the given months only
+	MonthTotalsByUserID(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions, months []time.Time) ([]models.FlightMonthTotals, error)
 
 	// GetStatsByUserID returns aggregated flight statistics for a user
 	GetStatsByUserID(ctx context.Context, userID uuid.UUID, startDate, endDate *time.Time) (*models.FlightStatistics, error)

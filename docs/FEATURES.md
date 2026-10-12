@@ -146,6 +146,9 @@ roles, IFR, FSTD, remarks). See [DOMAIN.md](./DOMAIN.md) for the calculation and
 rules.
 
 - CRUD: `POST/GET/PUT/DELETE /flights`.
+- List totals: `GET /flights` returns `totals` (column sums over every flight matching the
+  filters) and `monthTotals` (the same per month, for the months on the page) next to
+  `pagination` — see [API.md](./API.md).
 - Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
@@ -186,7 +189,11 @@ rules.
   `arrivalAirportName`, resolved per request from the in-memory airport database
   (`internal/airports`) for display. Only the location itself is stored; the names are
   `null` when it does not resolve — off-airport glider and helicopter sites are stored as
-  free text — and clients then show the raw stored value.
+  free text — and clients then show the raw stored value. The open flight session and the
+  analytics route rows carry the same names. A location stored as an OurAirports local
+  identifier (`DE-0249`) is shown by its name everywhere — the identifier is neither the
+  place in full nor a recognised designator — and the web UI shortens a long name only
+  where space is tight; ICAO and national codes are shown as codes.
 
 ## Currency
 
@@ -258,7 +265,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   (`internal/airports`), plus route and airport-activity statistics (`maps.go`).
   The database merges two upstream datasets — OurAirports (CSV) and mwgg/Airports
   (JSON) — record by record, keeping the more complete entry for each ICAO code and
-  filling its gaps from the other. It is loaded at startup and refetched every
+  filling its gaps from the other. Fields without an ICAO code (many glider and
+  ultralight sites) are kept under their hyphenated OurAirports local identifier, e.g.
+  `DE-0249` for Konz-Könen, so flights from them get night time, landing classification and
+  distance like any other. A field whose local identifier comes with a 4-character GPS
+  code (US FAA `06N` → `K06N`, Brazilian fields → `SNxx`) is keyed by that code and merges
+  with the mwgg entry for it, so it is not listed twice; a GPS code another row already
+  carries is not used. National codes containing a digit (FAA `5M6`, French ULM
+  `LF0723`, Brazilian `MT1059`, Australian `A01`) are kept as each airport's `localCode`;
+  letters-only national codes are not, as they collide with words ("SEE") and IATA
+  codes. IATA codes are never used for matching. Search matches identifier prefixes
+  first, then local-code prefixes, then words of the airport name. It is loaded at startup and refetched every
   `AIRPORT_REFRESH_INTERVAL` (default 24h); a failed refresh keeps the data already in
   memory. See [METRICS.md](./METRICS.md) for the fetch/load/lookup metrics it exposes.
   Clients that need offline nearest-airport matching (the iOS Share Extension) download
@@ -318,7 +335,12 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   regress: a pilot moving between installations, restoring an archived export, or splitting a
   logbook across accounts depends on it. All four export layouts round-trip, each detected as
   its own template — standard → `NINERLOG_CSV`, EASA → `EASA_CSV`, FAA → `FAA_CSV`,
-  vsimakhin/web-logbook → `WEB_LOGBOOK_CSV`.
+  vsimakhin/web-logbook → `WEB_LOGBOOK_CSV`. The standard layout writes places as stored,
+  OurAirports local identifiers (`DE-0249`) included, so it round-trips them exactly. The
+  EASA, FAA and web-logbook layouts write such a field's full name, which re-imports by
+  exact name match and comes back as its identifier only when no other airport carries
+  the same name (about 92% of such fields; every German one). The JSON export keeps the
+  identifier as well.
 
   Two levels of coverage, both mandatory:
   `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers
@@ -377,7 +399,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   writes its places as "ICAO Name" ("EDOI Bienenfarm"), so the leading code is extracted
   from the value's own shape rather than by an airport-database lookup — the database is
   fetched at startup and refreshed in the background, and depending on it would make the
-  same file import differently on different instances.
+  same file import differently on different instances. Places are matched exactly, never
+  by scanning words inside free text: a value shaped like a code resolves to an ICAO
+  code, then to a unique local code (`LF0723` → `FR-0009`); a longer value takes the
+  identifier of the one airport whose name it is — case, diacritics and punctuation
+  folded, trailing words such as "Glider Field" or "Flugplatz" ignored, at least two
+  words required ("Konz Könen" or "KONZ KÖNEN" → `DE-0249`) — or of a code in trailing
+  parentheses ("Frankfurt (EDDF)"). The SkyDemon and Vereinsflieger shapes, a capitalised
+  4-character code before or after a mixed-case name, are the only places a code is
+  taken from inside a value; in an all-capitals value case carries no signal, so they
+  are not applied there ("KONZ WIESE" stays free text). A value that matches nothing,
+  or several airports, is kept as free text.
 
   They also turned up five importer defects a header row cannot expose: a UTF-8 BOM breaking
   quoted-header parsing, bare four-digit clock times (`1003`) reaching Postgres unparsed,
@@ -403,6 +435,14 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_pdf_signature.go`,
   `export_crew.go`, `export_vcard.go`) — CSV, JSON, PDF (rendered with
   `go-pdf/fpdf`) and vCard.
+  Places are written as AMC1 FCL.050 asks: "in full or the internationally recognised
+  three or four letter designator". An OurAirports local identifier (`DE-0249`) is
+  neither, so the PDF logbooks, the EASA, FAA and web-logbook CSVs and custom-report
+  labels write that airport's full name instead ("Konz-Könen Glider Field"), never
+  abbreviated; ICAO codes, national codes and free-text places are written as stored.
+  NinerLog's own standard CSV is the interchange format and writes the identifier. A PDF cell whose
+  text does not fit shrinks its font and wraps within the row rather than overflowing or
+  being cut. The JSON export keeps the stored identifier.
   PDF logbooks come in EASA AMC1 FCL.050 and FAA 14 CFR § 61.51 layouts, each as
   a book-style two-page spread (default) or a condensed single-page landscape
   layout, in A4/A5/Letter. Every page carries per-page / carried-forward /

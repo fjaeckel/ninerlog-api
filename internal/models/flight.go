@@ -269,6 +269,42 @@ type FlightStatistics struct {
 	ReliefMinutes       int
 }
 
+// FlightTotals holds the column sums of a filtered set of flights.
+type FlightTotals struct {
+	Flights                 int
+	TotalTime               int
+	PICTime                 int
+	DualTime                int
+	NightTime               int
+	IFRTime                 int
+	CrossCountryTime        int
+	SICTime                 int
+	PICUSTime               int
+	SPICTime                int
+	ReliefTime              int
+	DualGivenTime           int
+	ExaminerTime            int
+	MultiPilotTime          int
+	SoloTime                int
+	SimulatedFlightTime     int
+	ActualInstrumentTime    int
+	SimulatedInstrumentTime int
+	GroundTrainingTime      int
+	LandingsDay             int
+	LandingsNight           int
+	TakeoffsDay             int
+	TakeoffsNight           int
+	Approaches              int
+	Holds                   int
+	Distance                float64
+}
+
+// FlightMonthTotals holds the column sums of one calendar month.
+type FlightMonthTotals struct {
+	Month time.Time
+	FlightTotals
+}
+
 // CurrencyData holds landing/flight counts for currency calculation
 type CurrencyData struct {
 	Flights       int

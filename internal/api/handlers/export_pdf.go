@@ -414,6 +414,10 @@ func (d *pdfDoc) drawDataRow(widths []float64, cells, align []string, rowIdx int
 			pdf.CellFormat(w, g.rowH, "", "1", 0, a, zebra, 0, "")
 			continue
 		}
+		if pdf.GetStringWidth(d.tr(val)) > w-2*pdf.GetCellMargin() {
+			d.drawFittedCell(w, g.rowH, val, a, zebra)
+			continue
+		}
 		pdf.CellFormat(w, g.rowH, d.tr(val), "1", 0, a, zebra, 0, "")
 	}
 	pdf.Ln(-1)
@@ -432,6 +436,80 @@ func (d *pdfDoc) drawDataRow(widths []float64, cells, align []string, rowIdx int
 		d.drawEndorsement(xLast, y0, widths[last], g.rowH, val, sig)
 		pdf.SetXY(nx, ny)
 	}
+}
+
+// fitMinFont is the smallest font size drawFittedCell shrinks text to.
+const fitMinFont = 2.5
+
+// drawFittedCell draws a bordered cell whose text is wider than w: the font
+// shrinks toward fitMinFont and the text wraps onto as many lines as the cell
+// height holds, never truncated. The cursor ends to the right of the cell.
+func (d *pdfDoc) drawFittedCell(w, h float64, val, align string, fill bool) {
+	g, pdf := d.g, d.pdf
+	x, y := pdf.GetX(), pdf.GetY()
+	pdf.CellFormat(w, h, "", "1", 0, align, fill, 0, "")
+	inner := w - 2*pdf.GetCellMargin()
+
+	size := g.fontBody
+	var lines []string
+	var lineH float64
+	for {
+		pdf.SetFont("Helvetica", "", size)
+		lineH = size * 0.3528 * 1.1
+		lines = d.wrapText(val, inner)
+		if float64(len(lines))*lineH <= h || size <= fitMinFont {
+			break
+		}
+		size -= 0.25
+	}
+
+	top := y + (h-float64(len(lines))*lineH)/2
+	for i, line := range lines {
+		pdf.SetXY(x, top+float64(i)*lineH)
+		pdf.CellFormat(w, lineH, d.tr(line), "", 0, align, false, 0, "")
+	}
+	pdf.SetFont("Helvetica", "", g.fontBody)
+	pdf.SetXY(x+w, y)
+}
+
+// wrapText splits s into lines no wider than maxW in the current font,
+// breaking at spaces and, inside a word wider than maxW, after its last
+// fitting hyphen or else between runes.
+func (d *pdfDoc) wrapText(s string, maxW float64) []string {
+	pdf := d.pdf
+	fits := func(t string) bool { return pdf.GetStringWidth(d.tr(t)) <= maxW }
+	var lines []string
+	line := ""
+	for _, word := range strings.Fields(s) {
+		cand := word
+		if line != "" {
+			cand = line + " " + word
+		}
+		if fits(cand) {
+			line = cand
+			continue
+		}
+		if line != "" {
+			lines = append(lines, line)
+		}
+		for !fits(word) {
+			r := []rune(word)
+			n := len(r) - 1
+			for n > 1 && !fits(string(r[:n])) {
+				n--
+			}
+			if k := strings.LastIndex(string(r[:n]), "-"); k > 0 {
+				n = len([]rune(string(r[:n])[:k+1]))
+			}
+			lines = append(lines, string(r[:n]))
+			word = string(r[n:])
+		}
+		line = word
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 // drawTotalsRow draws one bold totals row. The first `span` columns merge
