@@ -238,7 +238,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
-	flight, errMsg := h.flightFromCreate(c, userID, &req)
+	flight, errMsg := h.flightFromCreate(c, userID, &req, h.fleetFactsLookup(c.Request.Context(), userID))
 	if errMsg != "" {
 		h.sendError(c, http.StatusBadRequest, errMsg)
 		return
@@ -257,9 +257,26 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	c.JSON(http.StatusCreated, out)
 }
 
+// fleetFactsLookup returns the fleet facts lookup for userID, loading the
+// fleet at most once across calls.
+func (h *APIHandler) fleetFactsLookup(ctx context.Context, userID uuid.UUID) func(reg string) *flightrules.AircraftFacts {
+	var index map[string]*flightrules.AircraftFacts
+	return func(reg string) *flightrules.AircraftFacts {
+		key := service.NormalizeRegistrationKey(reg)
+		if key == "" {
+			return nil
+		}
+		if index == nil {
+			index = h.aircraftService.AircraftFactsIndexFor(ctx, userID)
+		}
+		return index[key]
+	}
+}
+
 // flightFromCreate builds the flight a create body describes and applies the
-// auto-calculations. Returns a 400 message when the body is malformed.
-func (h *APIHandler) flightFromCreate(c *gin.Context, userID uuid.UUID, req *generated.FlightCreate) (*models.Flight, string) {
+// auto-calculations with facts. Returns a 400 message when the body is
+// malformed.
+func (h *APIHandler) flightFromCreate(c *gin.Context, userID uuid.UUID, req *generated.FlightCreate, facts func(reg string) *flightrules.AircraftFacts) (*models.Flight, string) {
 	// Parse date
 	flightDate, err := time.Parse("2006-01-02", req.Date.String())
 	if err != nil {
@@ -422,8 +439,7 @@ func (h *APIHandler) flightFromCreate(c *gin.Context, userID uuid.UUID, req *gen
 	userName := h.getUserNameFromContext(c)
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
-	flightcalc.ApplyAutoCalculations(&flight, userName,
-		h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg))
+	flightcalc.ApplyAutoCalculations(&flight, userName, facts(flight.AircraftReg))
 
 	// Auto-set PIC name via centralised rule. Runs AFTER crew parsing and
 	// auto-calc so IsPIC/IsDual + CrewMembers are populated.

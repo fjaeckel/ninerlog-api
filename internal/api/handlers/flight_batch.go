@@ -33,9 +33,10 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 	}
 
 	flights := make([]*models.Flight, 0, len(req.Legs))
+	facts := h.fleetFactsLookup(c.Request.Context(), userID)
 	for i, leg := range req.Legs {
 		body := batchLegCreate(req.Template, leg)
-		flight, errMsg := h.flightFromCreate(c, userID, &body)
+		flight, errMsg := h.flightFromCreate(c, userID, &body, facts)
 		if errMsg != "" {
 			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Leg %d: %s", i, errMsg))
 			return

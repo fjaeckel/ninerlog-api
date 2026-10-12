@@ -307,3 +307,20 @@ func TestKeepOwnedCrewContacts_NoContactService(t *testing.T) {
 		t.Errorf("contactId = %s, want cleared without a contact service", crew[0].ContactID)
 	}
 }
+
+func TestCreateFlightBatch_FleetLoadedOnce(t *testing.T) {
+	h, _ := setupTestHandler()
+	aircraft := newMockAircraftRepo()
+	h.aircraftService = service.NewAircraftService(aircraft)
+	userID := uuid.New()
+	ask := "GLIDER"
+	aircraft.aircraft[uuid.New()] = &models.Aircraft{ID: uuid.New(), UserID: userID, Registration: "D-1234", AircraftClass: &ask}
+
+	w := postFlightBatch(t, h, &userID, `{"template":`+lenaTemplate+`,"legs":`+winchLegs(6)+`}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
+	if aircraft.getByUserIDCalls != 1 {
+		t.Errorf("fleet loaded %d times for 6 legs, want 1", aircraft.getByUserIDCalls)
+	}
+}
