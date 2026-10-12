@@ -4779,6 +4779,11 @@ type Flight struct {
 	// Example: 14:30:00
 	DepartureTime *string `json:"departureTime,omitempty"`
 
+	// DisplayPicName The pilot-in-command to show for this flight, resolved like the logbook exports: picName, else the instructor (instructorName, then an Instructor, Examiner or PIC crew member other than the user), else "SELF" for the user. A stale "Self" picName gives way to a known instructor. Null for an FSTD session. Not stored and not accepted on create or update.
+	//
+	// Example: SELF
+	DisplayPicName *string `json:"displayPicName,omitempty"`
+
 	// Distance Distance in nautical miles. Auto-calculated from airport coordinates.
 	//
 	// Example: 185.3

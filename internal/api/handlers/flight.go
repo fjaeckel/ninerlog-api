@@ -145,9 +145,10 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		}
 	}
 
+	userName := h.getUserNameFromContext(c)
 	flightList := make([]generated.Flight, 0, len(flights))
 	for _, f := range flights {
-		flightList = append(flightList, convertToGeneratedFlight(f))
+		flightList = append(flightList, withDisplayPICName(convertToGeneratedFlight(f), f, userName))
 	}
 
 	totalPages := (total + opts.PageSize - 1) / opts.PageSize
@@ -413,7 +414,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	if len(flight.CrewMembers) > 0 {
 		h.persistCrewMembers(c, userID, &flight)
 	}
-	c.JSON(http.StatusCreated, convertToGeneratedFlight(&flight))
+	c.JSON(http.StatusCreated, withDisplayPICName(convertToGeneratedFlight(&flight), &flight, h.getUserNameFromContext(c)))
 }
 
 // GetFlight implements GET /flights/{flightId}
@@ -443,7 +444,7 @@ func (h *APIHandler) GetFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 	}
 
-	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))
+	c.JSON(http.StatusOK, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))
 }
 
 // UpdateFlight implements PUT /flights/{flightId}
@@ -645,8 +646,11 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.CrewMembers != nil {
 		h.persistCrewMembers(c, userID, flight)
 	}
+	if req.CrewMembers == nil {
+		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
+	}
 
-	c.JSON(http.StatusOK, convertToGeneratedFlight(flight))
+	c.JSON(http.StatusOK, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))
 }
 
 // DeleteFlight implements DELETE /flights/{flightId}
@@ -690,6 +694,14 @@ func lookupAirportName(location string) *string {
 		return nil
 	}
 	return strPtr(ap.Name)
+}
+
+// withDisplayPICName sets gf.DisplayPicName from f via flightrules.DisplayPICName.
+func withDisplayPICName(gf generated.Flight, f *models.Flight, userName string) generated.Flight {
+	if name := flightrules.DisplayPICName(f, userName); name != "" {
+		gf.DisplayPicName = &name
+	}
+	return gf
 }
 
 func convertToGeneratedFlight(f *models.Flight) generated.Flight {
