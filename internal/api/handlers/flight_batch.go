@@ -28,7 +28,7 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		return
 	}
 	if len(req.Legs) == 0 || len(req.Legs) > service.MaxFlightBatchLegs {
-		h.sendError(c, http.StatusBadRequest, fmt.Sprintf("legs must hold between 1 and %d entries", service.MaxFlightBatchLegs))
+		h.sendError(c, http.StatusBadRequest, service.ErrInvalidFlightBatch.Error())
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *APIHandler) sendBatchError(c *gin.Context, err error) {
 	case errors.As(err, &legErr):
 		h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Leg %d: %v", legErr.Index, legErr.Err))
 	case errors.Is(err, service.ErrInvalidFlightBatch):
-		h.sendError(c, http.StatusBadRequest, fmt.Sprintf("legs must hold between 1 and %d entries", service.MaxFlightBatchLegs))
+		h.sendError(c, http.StatusBadRequest, service.ErrInvalidFlightBatch.Error())
 	default:
 		h.sendError(c, http.StatusInternalServerError, "Failed to create flights")
 	}

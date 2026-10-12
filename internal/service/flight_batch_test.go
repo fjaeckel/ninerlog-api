@@ -195,7 +195,7 @@ func TestCreateFlightBatch_FleetLoadedOnce(t *testing.T) {
 }
 
 func TestErrInvalidFlightBatchNamesMax(t *testing.T) {
-	want := fmt.Sprintf("between 1 and %d legs", MaxFlightBatchLegs)
+	want := fmt.Sprintf("legs must hold between 1 and %d entries", MaxFlightBatchLegs)
 	if !strings.Contains(ErrInvalidFlightBatch.Error(), want) {
 		t.Errorf("ErrInvalidFlightBatch = %q, want it to contain %q", ErrInvalidFlightBatch, want)
 	}
