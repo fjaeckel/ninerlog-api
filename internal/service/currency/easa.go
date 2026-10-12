@@ -672,7 +672,7 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 	since := paxWindowStart(nowFrom(ctx))
 
 	hasNightPrivilege := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority) && classType != models.ClassTypeGlider
-	hasValidIR := hasValidIRRating(peerRatings)
+	hasValidIR := hasValidIRRating(ctx, peerRatings)
 
 	result := PassengerCurrency{
 		ClassType:           classType,
@@ -777,14 +777,15 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 }
 
 // hasValidIRRating returns true if the given list of class ratings contains a
-// current Instrument Rating — one with a non-nil expiry date that has not yet
-// passed. Ratings without an expiry date count as not current.
-func hasValidIRRating(ratings []*models.ClassRating) bool {
+// current Instrument Rating — one with a non-nil expiry date that has not
+// passed at the evaluation instant. Ratings without an expiry date count as
+// not current.
+func hasValidIRRating(ctx context.Context, ratings []*models.ClassRating) bool {
 	for _, r := range ratings {
 		if r == nil || r.ClassType != models.ClassTypeIR {
 			continue
 		}
-		if r.ExpiryDate == nil || r.IsExpired() {
+		if r.ExpiryDate == nil || r.IsExpiredAt(nowFrom(ctx)) {
 			continue
 		}
 		return true
