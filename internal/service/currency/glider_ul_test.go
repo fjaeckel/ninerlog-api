@@ -3,6 +3,7 @@ package currency
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
@@ -228,5 +229,27 @@ func TestEASA_Passenger_GliderClass_NoNightPrivilege(t *testing.T) {
 	}
 	if pax.DayStatus != StatusCurrent {
 		t.Errorf("DayStatus = %s, want current", pax.DayStatus)
+	}
+}
+
+func TestEASA_Passenger_IRWaiverAsOf(t *testing.T) {
+	expiry := time.Now().AddDate(0, 0, 10)
+	ir := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, ExpiryDate: &expiry}
+	license := &models.License{UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	tests := []struct {
+		name string
+		ctx  context.Context
+		want int
+	}{
+		{"IR valid now waives night landings", context.Background(), 0},
+		{"IR expired on the date asked does not", withNow(context.Background(), dateAt(time.Now().AddDate(0, 0, 30))), 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pax := NewEASAEvaluator().EvaluatePassengerCurrency(tt.ctx, models.ClassTypeSEPLand, license, []*models.ClassRating{ir}, newMockFlightDataProvider())
+			if pax.NightRequired != tt.want {
+				t.Errorf("NightRequired = %d, want %d", pax.NightRequired, tt.want)
+			}
+		})
 	}
 }
