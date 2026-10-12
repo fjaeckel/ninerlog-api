@@ -45,6 +45,7 @@ const (
 
 // Logbook is a licence's resolved logbook.
 type Logbook struct {
+	// aircraft is keyed by stored registration (Aircraft.CanonicalRegistration).
 	aircraft map[string]*models.Aircraft
 	ratings  []logbookRating
 }
@@ -78,7 +79,7 @@ func (s *LogbookScope) Resolve(ctx context.Context, userID, licenseID uuid.UUID)
 	}
 	lb := &Logbook{aircraft: make(map[string]*models.Aircraft, len(aircraftList))}
 	for _, ac := range aircraftList {
-		lb.aircraft[registration.Canonical(ac.Registration)] = ac
+		lb.aircraft[ac.CanonicalRegistration(ac.Registration)] = ac
 	}
 	for _, cr := range classRatings {
 		r := logbookRating{rating: cr}
@@ -96,7 +97,7 @@ func (lb *Logbook) Classify(f *models.Flight) LogbookMembership {
 	if f == nil {
 		return LogbookExcluded
 	}
-	ac := lb.aircraft[registration.Canonical(f.AircraftReg)]
+	ac := lb.aircraftFor(f.AircraftReg)
 	if ac == nil {
 		return LogbookExcluded
 	}
@@ -110,6 +111,15 @@ func (lb *Logbook) Classify(f *models.Flight) LogbookMembership {
 		}
 	}
 	return LogbookExcluded
+}
+
+// aircraftFor returns the aircraft a flight registration is stored against:
+// a powered paraglider by its cleaned form, any other by registration.Canonical.
+func (lb *Logbook) aircraftFor(reg string) *models.Aircraft {
+	if ac := lb.aircraft[registration.Clean(reg)]; ac != nil && ac.IsPoweredParaglider() {
+		return ac
+	}
+	return lb.aircraft[registration.Canonical(reg)]
 }
 
 // isNative reports whether ac is of a rating's own class; an ULTRALIGHT
@@ -154,8 +164,7 @@ func (s *LogbookScope) Apply(ctx context.Context, userID, licenseID uuid.UUID, o
 	}
 	regs := make([]string, 0, len(lb.aircraft))
 	untowed := []string{}
-	for _, ac := range lb.aircraft {
-		reg := ac.CanonicalRegistration(ac.Registration)
+	for reg, ac := range lb.aircraft {
 		if lb.isNative(ac) {
 			regs = append(regs, reg)
 			continue
