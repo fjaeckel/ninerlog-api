@@ -25,8 +25,9 @@ func NewCurrencyFlightDataProvider(db *sql.DB) currency.FlightDataProvider {
 }
 
 // launchCountSQL is a flight's launch count over flights aliased f: the stored
-// launches, else its take-offs with at least one per flight.
-const launchCountSQL = `COALESCE(f.launches, GREATEST(f.takeoffs_day + f.takeoffs_night, 1))`
+// launches, else 0 on a simulator or passenger row, else its take-offs with at
+// least one.
+const launchCountSQL = `COALESCE(f.launches, CASE WHEN f.is_simulator OR f.is_passenger THEN 0 ELSE GREATEST(f.takeoffs_day + f.takeoffs_night, 1) END)`
 
 // progressSelect aggregates a Progress row over flights aliased f.
 const progressSelect = `

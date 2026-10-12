@@ -121,9 +121,8 @@ func appendFlightFilters(query string, args []interface{}, argNum int, opts *rep
 	return appendRegistrationFilter(query, args, argNum, opts)
 }
 
-// flightLaunchesSQL reads a flight's launches, falling back to its take-offs
-// (at least one) on rows stored without a launch count.
-const flightLaunchesSQL = `COALESCE(launches, CASE WHEN is_simulator OR is_passenger THEN 0 ELSE GREATEST(takeoffs_day + takeoffs_night, 1) END)`
+// flightLaunchesSQL is launchCountSQL over the unaliased flights table.
+var flightLaunchesSQL = strings.ReplaceAll(launchCountSQL, "f.", "")
 
 // timeToString converts a *time.Time (from a PostgreSQL TIME column) to a *string in HH:MM:SS format.
 func timeToString(t *time.Time) *string {
