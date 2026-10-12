@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -189,5 +191,12 @@ func TestCreateFlightBatch_FleetLoadedOnce(t *testing.T) {
 		if f.AircraftReg != "DEABC" {
 			t.Errorf("leg %d registration = %q, want DEABC", i, f.AircraftReg)
 		}
+	}
+}
+
+func TestErrInvalidFlightBatchNamesMax(t *testing.T) {
+	want := fmt.Sprintf("between 1 and %d legs", MaxFlightBatchLegs)
+	if !strings.Contains(ErrInvalidFlightBatch.Error(), want) {
+		t.Errorf("ErrInvalidFlightBatch = %q, want it to contain %q", ErrInvalidFlightBatch, want)
 	}
 }
