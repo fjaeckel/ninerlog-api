@@ -151,7 +151,9 @@ Winch circuits can be logged two ways:
 launch method, crew, departure and arrival, remarks …) and 1–50 `legs`. Each leg carries
 its take-off (`departureTime`) and landing (`arrivalTime`), and may carry `landings`
 (default: the template's, else 1), `launches` and `remarks`. Each leg is the template with
-the leg laid over it and is validated exactly like `POST /flights`; the legs are stored in
+the leg laid over it and is validated exactly like `POST /flights`; the template's
+`offBlockTime`/`onBlockTime` are dropped, so a leg's total time always spans its own
+take-off and landing. The legs are stored in
 one database transaction, so an invalid leg rejects the whole batch with a 400 naming the
 zero-based leg index and nothing is created. The response lists the created flights in leg
 order. Lena's six 8-minute winch circuits are one request: six flights, 48 minutes, six
