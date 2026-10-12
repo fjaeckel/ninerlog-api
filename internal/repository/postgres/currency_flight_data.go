@@ -24,13 +24,23 @@ func NewCurrencyFlightDataProvider(db *sql.DB) currency.FlightDataProvider {
 	return &currencyFlightDataProvider{db: db}
 }
 
-// launchCountSQL is a flight's launch count over flights aliased f: the stored
-// launches, else 0 on a simulator or passenger row, else its take-offs with at
-// least one.
-const launchCountSQL = `COALESCE(f.launches, CASE WHEN f.is_simulator OR f.is_passenger THEN 0 ELSE GREATEST(f.takeoffs_day + f.takeoffs_night, 1) END)`
+// launchCountExpr is a flight's launch count over flights aliased alias, or
+// the unaliased flights table for "": the stored launches, else 0 on a
+// simulator or passenger row, else its take-offs with at least one.
+func launchCountExpr(alias string) string {
+	p := ""
+	if alias != "" {
+		p = alias + "."
+	}
+	return "COALESCE(" + p + "launches, CASE WHEN " + p + "is_simulator OR " + p + "is_passenger THEN 0 ELSE GREATEST(" +
+		p + "takeoffs_day + " + p + "takeoffs_night, 1) END)"
+}
+
+// launchCountSQL is launchCountExpr over flights aliased f.
+var launchCountSQL = launchCountExpr("f")
 
 // progressSelect aggregates a Progress row over flights aliased f.
-const progressSelect = `
+var progressSelect = `
 			COUNT(*) as flights,
 			COALESCE(SUM(f.total_time), 0) as total_minutes,
 			COALESCE(SUM(f.pic_time), 0) as pic_minutes,
