@@ -246,8 +246,9 @@ func TestAdminEndpoints(t *testing.T) {
 		requireStatus(t, listResp, http.StatusOK)
 		var list struct {
 			Data []struct {
-				Email       string  `json:"email"`
-				LastLoginAt *string `json:"lastLoginAt"`
+				Email        string  `json:"email"`
+				LastLoginAt  *string `json:"lastLoginAt"`
+				LastActiveAt *string `json:"lastActiveAt"`
 			} `json:"data"`
 		}
 		listResp.JSON(&list)
@@ -260,6 +261,9 @@ func TestAdminEndpoints(t *testing.T) {
 			found = true
 			if u.LastLoginAt == nil || *u.LastLoginAt == "" {
 				t.Error("Expected lastLoginAt to be set after sign-up verification")
+			}
+			if u.LastActiveAt == nil || *u.LastActiveAt == "" {
+				t.Error("Expected lastActiveAt to be set after sign-up verification")
 			}
 		}
 		if !found {

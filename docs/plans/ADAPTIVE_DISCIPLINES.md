@@ -1,7 +1,7 @@
 # Plan: adaptive disciplines ("toolkits")
 
 **Status: phases 0 and 1 implemented; phases 2 onward proposed.** Phase 0
-(`models.ClassifyLicence`) and phase 1 (migration 000074, `GET/PATCH /users/me/pilot-profile`,
+(`models.ClassifyLicence`) and phase 1 (migration 000076, `GET/PATCH /users/me/pilot-profile`,
 `pilotprofile.Derive`, export/import, admin stat) are in the API; the implemented derivation is
 documented in [DOMAIN.md](../DOMAIN.md#pilot-profile-and-disciplines) and wins where it is more
 precise than this plan. This is otherwise a forward-looking plan. Where it describes

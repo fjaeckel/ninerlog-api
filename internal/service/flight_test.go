@@ -84,6 +84,21 @@ func (m *mockFlightRepo) DeleteAllByUserID(ctx context.Context, userID uuid.UUID
 	return count, nil
 }
 
+func (m *mockFlightRepo) TotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (*models.FlightTotals, error) {
+	totals := &models.FlightTotals{}
+	for _, flight := range m.flights {
+		if flight.UserID == userID {
+			totals.Flights++
+			totals.TotalTime += flight.TotalTime
+		}
+	}
+	return totals, nil
+}
+
+func (m *mockFlightRepo) MonthTotalsByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, months []time.Time) ([]models.FlightMonthTotals, error) {
+	return []models.FlightMonthTotals{}, nil
+}
+
 func (m *mockFlightRepo) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {
 	count := 0
 	for _, flight := range m.flights {

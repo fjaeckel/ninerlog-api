@@ -233,6 +233,32 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		}
 	})
 
+	t.Run("people and detail columns are accepted", func(t *testing.T) {
+		c := NewE2EClient(t)
+		registerAndLogin(t, c, uniqueEmail("flc-people"), "SecurePass123!", "Columns People")
+		resp := c.PATCH("/users/me", map[string]interface{}{
+			"flightListColumnMode": "custom",
+			"flightListColumns": []string{
+				"remarks", "instructorComments", "endorsements", "signed", "checks", "fstdType",
+				"launchMethod", "crew", "instructorName", "picName", "waypoints", "distance", "holds",
+				"approachTypes", "approaches", "takeoffs", "takeoffLandingTime",
+				"groundTrainingTime", "simulatedInstrumentTime", "actualInstrumentTime",
+			},
+		})
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		want := []string{
+			"actualInstrumentTime", "simulatedInstrumentTime", "groundTrainingTime",
+			"takeoffLandingTime", "takeoffs", "approaches", "approachTypes", "holds", "distance",
+			"waypoints", "picName", "instructorName", "crew", "launchMethod", "fstdType", "checks",
+			"signed", "endorsements", "instructorComments", "remarks",
+		}
+		if got := columnsOf(t, u); !reflect.DeepEqual(got, want) {
+			t.Errorf("flightListColumns = %v, want %v", got, want)
+		}
+	})
+
 	t.Run("an empty custom selection is honoured, not treated as auto", func(t *testing.T) {
 		c := NewE2EClient(t)
 		registerAndLogin(t, c, uniqueEmail("flc-none"), "SecurePass123!", "Columns None")

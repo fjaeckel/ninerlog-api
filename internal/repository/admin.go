@@ -65,6 +65,7 @@ type AdminUserRow struct {
 	Name                       string
 	CreatedAt                  time.Time
 	LastLoginAt                *time.Time
+	LastActiveAt               *time.Time
 	EmailVerified              bool
 	TwoFactorEnabled           bool
 	Disabled                   bool
