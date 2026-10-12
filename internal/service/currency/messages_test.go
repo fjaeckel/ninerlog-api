@@ -40,7 +40,7 @@ var knownMessageKeys = map[string]bool{
 	RemedyFlyMore:                  true, RemedyTrainingFlight: true,
 	RemedyProficiencyCheck: true, RemedyLaunchMethodDual: true,
 	MsgReadinessLaunchMethodCurrent: true, MsgReadinessCredentialValid: true,
-	MsgReadinessCredentialExpired: true,
+	MsgReadinessCredentialExpired: true, MsgReadinessNoRating: true,
 	MsgPaxULAuthorisationMissing:  true,
 	MsgPrivilegeValid:             true, MsgPrivilegeExpired: true,
 	MsgPrivilegeRecencyCurrent: true, MsgPrivilegeRecencyNotMet: true,

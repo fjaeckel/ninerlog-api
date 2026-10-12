@@ -147,6 +147,7 @@ const (
 	MsgReadinessLaunchMethodCurrent = "readiness.launch_method_current"
 	MsgReadinessCredentialValid     = "readiness.credential_valid"
 	MsgReadinessCredentialExpired   = "readiness.credential_expired"
+	MsgReadinessNoRating            = "readiness.no_rating"
 )
 
 // MessageParams carries the variable parts of a message that are not already

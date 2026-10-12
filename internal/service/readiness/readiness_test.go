@@ -56,12 +56,15 @@ func rating(class models.ClassType, status currency.Status, ul *models.ULKind) c
 	}
 }
 
-// fleet is Lena's glider, Mark's SEP, Mehmet's three-axis UL and Sabine's trike.
+// fleet is Lena's glider, Mark's SEP, Mehmet's three-axis UL, Sabine's trike,
+// a club TMG and a UL gyroplane no rating covers.
 var fleet = fakeAircraft{
 	aircraft("D-1234", models.ClassTypeGlider, nil),
 	aircraft("D-EABC", models.ClassTypeSEPLand, nil),
 	aircraft("D-MXYZ", models.ClassTypeUL, kind(models.ULKindThreeAxis)),
 	aircraft("D-MTRK", models.ClassTypeUL, kind(models.ULKindWeightShift)),
+	aircraft("D-KTMG", models.ClassTypeTMG, nil),
+	aircraft("D-MGYR", models.ClassTypeUL, kind(models.ULKindGyroplane)),
 }
 
 func status() *currency.CurrencyStatusResponse {
@@ -150,6 +153,10 @@ func TestEvaluate_AircraftFilter(t *testing.T) {
 			},
 		},
 		{
+			name: "TMG with no TMG rating answers no rating", reg: "D-KTMG", passengers: true,
+			want: []itemKey{{KindRating, models.ClassTypeTMG, ""}},
+		},
+		{
 			name: "no aircraft answers every rating", passengers: false,
 			want: []itemKey{
 				{KindRating, models.ClassTypeGlider, ""},
@@ -173,6 +180,22 @@ func TestEvaluate_AircraftFilter(t *testing.T) {
 				t.Errorf("items = %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestEvaluate_NoRating(t *testing.T) {
+	svc := newService(&fakeCurrency{resp: status()}, nil)
+	rep, err := svc.Evaluate(context.Background(), userID, Request{AircraftReg: "D-MGYR"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Items) != 1 {
+		t.Fatalf("items = %+v, want one", rep.Items)
+	}
+	it := rep.Items[0]
+	if it.Kind != KindRating || it.Ready || it.Status != "unknown" || it.ReasonKey != currency.MsgReadinessNoRating ||
+		it.ClassRatingID != nil || *it.ClassType != models.ClassTypeUL || *it.ULKind != models.ULKindGyroplane {
+		t.Errorf("item = %+v", it)
 	}
 }
 

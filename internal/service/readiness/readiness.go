@@ -151,6 +151,9 @@ func (s *Service) Evaluate(ctx context.Context, userID uuid.UUID, req Request) (
 			launchItems = append(launchItems, launchMethodItem(r, lm))
 		}
 	}
+	if ac != nil && len(report.Items) == 0 {
+		report.Items = append(report.Items, noRatingItem(ac))
+	}
 	report.Items = append(report.Items, launchItems...)
 
 	if req.Passengers {
@@ -252,6 +255,20 @@ func ratingItem(r currency.ClassRatingCurrency) Item {
 	}
 	if check != nil {
 		it.ReasonKey, it.Params = check.RemedyKey, check.RemedyParams
+	}
+	return it
+}
+
+// noRatingItem answers for an aircraft no rating covers.
+func noRatingItem(ac *models.Aircraft) Item {
+	it := Item{
+		Kind:      KindRating,
+		ULKind:    ac.ULKind,
+		Status:    string(currency.StatusUnknown),
+		ReasonKey: currency.MsgReadinessNoRating,
+	}
+	if class := models.NormalizeAircraftClass(ac.AircraftClass); class != "" {
+		it.ClassType = &class
 	}
 	return it
 }
