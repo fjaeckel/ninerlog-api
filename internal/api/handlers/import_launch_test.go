@@ -124,6 +124,21 @@ func TestCollectTowedLaunchRegs(t *testing.T) {
 	}
 }
 
+func TestImportLaunchFilter_UsesGivenTowedRegs(t *testing.T) {
+	h, _ := setupTestHandler()
+	session := &uploadSession{aircraft: []map[string]string{{"AircraftID": "N172SP", "Class": "airplane_single_engine_land"}}}
+	filter := h.importLaunchFilter(context.Background(), uuid.New(), session, map[string]bool{"N12345": true})
+	for reg, want := range map[string]bool{"N12345": true, "N172SP": false} {
+		r := reg
+		winch := generated.FlightCreateLaunchMethod("winch")
+		f := generated.FlightCreate{AircraftReg: &r, LaunchMethod: &winch}
+		filter(&f)
+		if got := f.LaunchMethod != nil; got != want {
+			t.Errorf("%s: launch method kept = %v, want %v", reg, got, want)
+		}
+	}
+}
+
 // TestConfirmImport_L2VereinsfliegerGliders imports the Vereinsflieger glider
 // sample through ConfirmImport: launch methods come from S.-Art and the
 // auto-created aircraft are classed from the registration or the launch.

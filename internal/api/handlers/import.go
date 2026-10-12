@@ -335,7 +335,8 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	var flights []generated.ImportPreviewFlight
 	validCount, dupCount, errCount := 0, 0, 0
 	auxColumns := sessionAuxColumns(session)
-	filterLaunch := h.importLaunchFilter(c.Request.Context(), userID, session, mappingLookup, nil)
+	filterLaunch := h.importLaunchFilter(c.Request.Context(), userID, session,
+		collectTowedLaunchRegs(session.rows, mappingLookup, nil))
 
 	for i, row := range session.rows {
 		flight, _, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
@@ -573,7 +574,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		strictState = state
 	}
 
-	filterLaunch := h.importLaunchFilter(c.Request.Context(), userID, session, mappingLookup, isSelected)
+	filterLaunch := h.importLaunchFilter(c.Request.Context(), userID, session, towedRegs)
 
 	for i, row := range session.rows {
 		rowIdx := i + 1
@@ -1610,8 +1611,9 @@ func collectAircraftFromRows(rows []map[string]string, mappings map[string]gener
 
 // importLaunchFilter returns a function that clears a flight's launch method
 // unless models.LaunchMethodApplies to its aircraft: the fleet entry when the
-// user has one, otherwise the class the import infers for it.
-func (h *APIHandler) importLaunchFilter(ctx context.Context, userID uuid.UUID, session *uploadSession, mappings map[string]generated.ImportColumnMapping, isSelected func(rowIdx int) bool) func(*generated.FlightCreate) {
+// user has one, otherwise the class the import infers for it from towed, the
+// collectTowedLaunchRegs result.
+func (h *APIHandler) importLaunchFilter(ctx context.Context, userID uuid.UUID, session *uploadSession, towed map[string]bool) func(*generated.FlightCreate) {
 	fleet := make(map[string]*models.Aircraft)
 	if list, err := h.aircraftService.ListAircraft(ctx, userID); err == nil {
 		for _, a := range list {
@@ -1624,7 +1626,6 @@ func (h *APIHandler) importLaunchFilter(ctx context.Context, userID uuid.UUID, s
 			sourceClass[reg] = importtemplate.ForeFlightAircraftClass(acRow["Class"])
 		}
 	}
-	towed := collectTowedLaunchRegs(session.rows, mappings, isSelected)
 	return func(f *generated.FlightCreate) {
 		if f.LaunchMethod == nil || f.AircraftReg == nil {
 			return
