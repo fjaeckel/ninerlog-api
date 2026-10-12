@@ -1013,7 +1013,11 @@ same native match as a licence logbook: a `GLIDER` aircraft selects `GLIDER` rat
 their launch methods, an `SEP_LAND` aircraft `SEP_LAND` ratings, an `ULTRALIGHT` aircraft
 the `ULTRALIGHT` ratings whose kind covers the aircraft's kind (a rating with no kind covers
 every ultralight and reports `unknown`). Credited classes do not select a rating: flying a
-TMG needs a TMG rating, whatever a glider rating counts. IR ratings are answered only
+TMG needs a TMG rating, whatever a glider rating counts. This holds for LAPL(A) too: its
+FCL.140.A recency pools aeroplanes and TMG, but its privileges extend to a TMG only through
+the FCL.135.A extension, recorded as a TMG rating. When no rating covers the aircraft, a
+single `rating` item answers with `ready: false`, status `unknown`, `readiness.no_rating`
+and the aircraft's `classType` and `ulKind`, no `classRatingId`. IR ratings are answered only
 without an aircraft. Passenger items follow the same class and kind match and appear only
 when `passengers=true`. Launch methods are listed once per method.
 

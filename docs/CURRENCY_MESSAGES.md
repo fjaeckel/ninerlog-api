@@ -312,6 +312,7 @@ reused from the tables above wherever one says the right thing:
 | --- | --- | --- | --- |
 | `rating` | `current` or `expiring` | the rating's `messageKey` (for example `rating.recency_current`, `rating.revalidation_not_met`, `rating.expired`) | the rating's `messageParams` |
 | `rating`, status `lapsed` | no | the remedy of the first unmet experience row, else `remedy.proficiency_check` | its `remedyParams` |
+| `rating`, status `unknown`, no `classRatingId` | no | `readiness.no_rating`: with `aircraftReg`, no rating covers the aircraft; `classType` and `ulKind` are the aircraft's | — |
 | `launch_method` | met | `readiness.launch_method_current` | `date`: the method's `validUntil` |
 | `launch_method` | not met, status `lapsed` | `remedy.launch_method_dual` | `method`, `missing` |
 | `passengers` | day status `current` | the passenger `messageKey` (`pax.not_current` with `needed` when short) | the passenger `messageParams` |
@@ -328,6 +329,7 @@ The credential type is not repeated: look it up by `credentialId`. Lena's Saturd
 | `readiness.launch_method_current` | `date` | The launch method is current on the date, until `date` |
 | `readiness.credential_valid` | `date`? | The medical certificate is valid on the date |
 | `readiness.credential_expired` | `date` | The medical certificate expired on `date`, on or before the date asked |
+| `readiness.no_rating` | — | None of the pilot's ratings covers the aircraft asked about, so it may not be flown as pilot in command |
 
 ## Adding a key
 

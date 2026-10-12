@@ -268,6 +268,15 @@ func TestReadiness(t *testing.T) {
 		assertBool(t, "SEP ready after expiry", gb(expired, "ready"), false)
 		assertStr(t, "SEP status after expiry", expired["status"], "expired")
 		assertStr(t, "SEP reasonKey after expiry", expired["reasonKey"], "rating.expired")
+
+		createAircraftCur(t, c, "D-KTMG", "SF25", "TMG")
+		tmg := readinessItems(getReadiness(t, c, url.Values{"aircraftReg": {"D-KTMG"}}), "rating")
+		if len(tmg) != 1 || tmg["TMG"] == nil {
+			t.Fatalf("TMG rating items = %v, want one no-rating item", tmg)
+		}
+		assertBool(t, "TMG ready without a TMG rating", gb(tmg["TMG"], "ready"), false)
+		assertStr(t, "TMG status", tmg["TMG"]["status"], "unknown")
+		assertStr(t, "TMG reasonKey", tmg["TMG"]["reasonKey"], "readiness.no_rating")
 	})
 
 	t.Run("expired medical is not ready on the date", func(t *testing.T) {
