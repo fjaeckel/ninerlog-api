@@ -122,8 +122,8 @@ func appendFlightFilters(query string, args []interface{}, argNum int, opts *rep
 	return appendRegistrationFilter(query, args, argNum, opts)
 }
 
-// flightLaunchesSQL is launchCountSQL over the unaliased flights table.
-var flightLaunchesSQL = strings.ReplaceAll(launchCountSQL, "f.", "")
+// flightLaunchesSQL is launchCountExpr over the unaliased flights table.
+var flightLaunchesSQL = launchCountExpr("")
 
 // timeToString converts a *time.Time (from a PostgreSQL TIME column) to a *string in HH:MM:SS format.
 func timeToString(t *time.Time) *string {
