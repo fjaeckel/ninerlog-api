@@ -98,6 +98,12 @@ Diagrams: `docs/ARCHITECTURE.md`. Package reference: `docs/PACKAGES.md`.
    write-ups, exploit fixtures, or commit/PR text describing an unfixed weakness. Write them to
    the gitignored `security-audits/` and report privately (`SECURITY.md`, or a GitHub Security
    Advisory). Fixes get pushed; findings do not. See `.claude/skills/security-audit/SKILL.md`.
+11. **Every feature answers to the personas** in `docs/PERSONAS.md` — binding on both repos.
+   Name the personas a change serves and the acceptance scenarios it closes; guard personas
+   (airline, PPL converting, empty account) must stay unchanged. Features serve disciplines:
+   only pilots who hold, fly or train toward a rating should meet its features, and nothing
+   they have data for is ever hidden. See `.claude/skills/personas/SKILL.md`; roadmap in
+   `docs/plans/`.
 
 ## Delegation
 
@@ -112,6 +118,7 @@ delegate execution once the shape of the change is settled.
 | `docs-syncer` | Bringing `docs/` back in line with an implemented change |
 | `code-locator` | "Where does X live?" — returns a `file:line` inventory, read-only |
 | `gate-runner` | `fmt`/`lint`/`test`/`migrate-check` — reports failures verbatim, fixes nothing |
+| `persona-reviewer` | Checks a change, PR or plan against `docs/PERSONAS.md`; reports, fixes nothing |
 
 Give implementers the full contract (fields, status codes, ownership rules) up front — they are
 told not to invent missing decisions.

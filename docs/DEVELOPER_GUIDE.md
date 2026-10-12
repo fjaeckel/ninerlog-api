@@ -71,6 +71,9 @@ Topic-specific deep dives already in this repo:
 - **[SAILPLANES.md](./SAILPLANES.md)** — gliders, self-launching sailplanes and TMGs:
   aircraft classification, Part-SFCL launch-method and recency rules (SFCL.155, SFCL.160)
   and how the currency engine implements them.
+- **[PERSONAS.md](./PERSONAS.md)** — binding on both repos: the pilots every feature is
+  checked against, their acceptance scenarios, and the relevance invariants. Forward-looking
+  plans built on them are in [plans/](./plans/).
 - **[CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md)** — binding contract with
   `ninerlog-frontend` and `ninerlog-ios` on currency message keys and their params.
   Read before adding or changing anything the currency engine says to a pilot.
