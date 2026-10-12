@@ -66,7 +66,8 @@ func (m *mockCredentialRepo) Delete(_ context.Context, id uuid.UUID) error {
 }
 
 type mockAircraftRepo struct {
-	aircraft map[uuid.UUID]*models.Aircraft
+	aircraft         map[uuid.UUID]*models.Aircraft
+	getByUserIDCalls int
 }
 
 func newMockAircraftRepo() *mockAircraftRepo {
@@ -88,6 +89,7 @@ func (m *mockAircraftRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Air
 	return a, nil
 }
 func (m *mockAircraftRepo) GetByUserID(_ context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error) {
+	m.getByUserIDCalls++
 	var out []*models.Aircraft
 	for _, a := range m.aircraft {
 		if a.UserID == userID && (updatedSince == nil || a.UpdatedAt.After(*updatedSince)) {

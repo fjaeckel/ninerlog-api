@@ -33,9 +33,10 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 	}
 
 	flights := make([]*models.Flight, 0, len(req.Legs))
+	facts := h.fleetFactsLookup(c.Request.Context(), userID)
 	for i, leg := range req.Legs {
 		body := batchLegCreate(req.Template, leg)
-		flight, errMsg := h.flightFromCreate(c, userID, &body)
+		flight, errMsg := h.flightFromCreate(c, userID, &body, facts)
 		if errMsg != "" {
 			h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Leg %d: %s", i, errMsg))
 			return
@@ -46,7 +47,7 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 	crew := append([]models.FlightCrewMember(nil), flights[0].CrewMembers...)
 	opts := service.FlightWriteOptions{
 		UserName: h.getUserNameFromContext(c),
-		Facts:    h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flights[0].AircraftReg),
+		Facts:    facts(flights[0].AircraftReg),
 	}
 	if len(crew) > 0 && h.contactService != nil {
 		opts.BeforeWrite = func(ctx context.Context, repos repository.TxRepos) error {

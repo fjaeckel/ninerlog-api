@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -253,4 +254,21 @@ func TestCreateFlightBatch_CrewLinkedOnceInTransaction(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestCreateFlightBatch_FleetLoadedOnce(t *testing.T) {
+	h, _ := setupTestHandler()
+	aircraft := newMockAircraftRepo()
+	h.aircraftService = service.NewAircraftService(aircraft)
+	userID := uuid.New()
+	ask := "GLIDER"
+	aircraft.aircraft[uuid.New()] = &models.Aircraft{ID: uuid.New(), UserID: userID, Registration: "D-1234", AircraftClass: &ask}
+
+	w := postFlightBatch(t, h, &userID, `{"template":`+lenaTemplate+`,"legs":`+winchLegs(6)+`}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
+	if aircraft.getByUserIDCalls != 1 {
+		t.Errorf("fleet loaded %d times for 6 legs, want 1", aircraft.getByUserIDCalls)
+	}
 }
