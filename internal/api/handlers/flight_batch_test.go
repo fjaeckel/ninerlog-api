@@ -61,6 +61,15 @@ func TestCreateFlightBatch_Handler(t *testing.T) {
 			wantLegs:   6,
 		},
 		{
+			name:   "template block times do not reach the legs",
+			userID: &userID,
+			body: `{"template":{"date":"2026-05-09","aircraftReg":"D-1234","aircraftType":"ASK21",
+				"departureIcao":"Hausen am Albis","arrivalIcao":"Hausen am Albis","launchMethod":"winch",
+				"offBlockTime":"09:00:00","onBlockTime":"12:00:00"},"legs":` + winchLegs(3) + `}`,
+			wantStatus: http.StatusCreated,
+			wantLegs:   3,
+		},
+		{
 			name:       "unauthenticated",
 			body:       `{"template":` + lenaTemplate + `,"legs":` + winchLegs(1) + `}`,
 			wantStatus: http.StatusUnauthorized,
