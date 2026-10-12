@@ -164,3 +164,30 @@ func TestCreateFlight_DerivesLaunches(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateFlightBatch_FleetLoadedOnce(t *testing.T) {
+	userID := uuid.New()
+	fleet := &sessionAircraftRepo{aircraft: []*models.Aircraft{
+		ulAircraft(userID, "DEABC", models.ULKindPoweredParaglider, nil),
+	}}
+	repo := newMockFlightRepo()
+	svc := NewFlightService(repo, nil)
+	svc.SetAircraftRepository(fleet)
+
+	legs := make([]*models.Flight, 5)
+	for i := range legs {
+		legs[i] = winchCircuit(userID)
+		legs[i].AircraftReg = "deabc"
+	}
+	if err := svc.CreateFlightBatch(context.Background(), legs); err != nil {
+		t.Fatalf("CreateFlightBatch: %v", err)
+	}
+	if fleet.getByUserCall != 1 {
+		t.Errorf("fleet loaded %d times, want 1", fleet.getByUserCall)
+	}
+	for i, f := range legs {
+		if f.AircraftReg != "DEABC" {
+			t.Errorf("leg %d registration = %q, want DEABC", i, f.AircraftReg)
+		}
+	}
+}

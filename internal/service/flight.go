@@ -54,21 +54,34 @@ func (s *FlightService) CreateFlight(ctx context.Context, flight *models.Flight)
 // canonicalFlightRegistration returns raw cleaned when that names a powered
 // paraglider in userID's fleet, else registration.Canonical(raw).
 func (s *FlightService) canonicalFlightRegistration(ctx context.Context, userID uuid.UUID, raw string) string {
-	canonical := registration.Canonical(raw)
-	cleaned := registration.Clean(raw)
-	if canonical == cleaned || s.aircraftRepo == nil {
-		return canonical
-	}
-	fleet, err := s.aircraftRepo.GetByUserID(ctx, userID, nil)
-	if err != nil {
-		return canonical
-	}
-	for _, ac := range fleet {
-		if ac.IsPoweredParaglider() && ac.Registration == cleaned {
+	return s.flightRegistrations(ctx, userID)(raw)
+}
+
+// flightRegistrations returns canonicalFlightRegistration for userID, loading
+// the fleet at most once across calls.
+func (s *FlightService) flightRegistrations(ctx context.Context, userID uuid.UUID) func(raw string) string {
+	var ppg map[string]bool
+	return func(raw string) string {
+		canonical := registration.Canonical(raw)
+		cleaned := registration.Clean(raw)
+		if canonical == cleaned || s.aircraftRepo == nil {
+			return canonical
+		}
+		if ppg == nil {
+			ppg = map[string]bool{}
+			if fleet, err := s.aircraftRepo.GetByUserID(ctx, userID, nil); err == nil {
+				for _, ac := range fleet {
+					if ac.IsPoweredParaglider() {
+						ppg[ac.Registration] = true
+					}
+				}
+			}
+		}
+		if ppg[cleaned] {
 			return cleaned
 		}
+		return canonical
 	}
-	return canonical
 }
 
 // prepareFlight normalises a flight for storage and validates it. Every
@@ -112,27 +125,25 @@ func (e *FlightBatchLegError) Error() string {
 
 func (e *FlightBatchLegError) Unwrap() error { return e.Err }
 
-// ValidateFlightBatch prepares every leg as CreateFlight does. Returns
+// CreateFlightBatch prepares every leg as CreateFlight does, then stores all
+// of them with their crew members in one transaction. Returns
 // ErrInvalidFlightBatch for a wrong leg count, or a *FlightBatchLegError for
-// the first invalid leg.
-func (s *FlightService) ValidateFlightBatch(ctx context.Context, flights []*models.Flight) error {
+// the first invalid leg; nothing is stored then.
+func (s *FlightService) CreateFlightBatch(ctx context.Context, flights []*models.Flight) error {
 	if len(flights) == 0 || len(flights) > MaxFlightBatchLegs {
 		return ErrInvalidFlightBatch
 	}
+	canonical := map[uuid.UUID]func(string) string{}
 	for i, f := range flights {
-		f.AircraftReg = s.canonicalFlightRegistration(ctx, f.UserID, f.AircraftReg)
+		reg, ok := canonical[f.UserID]
+		if !ok {
+			reg = s.flightRegistrations(ctx, f.UserID)
+			canonical[f.UserID] = reg
+		}
+		f.AircraftReg = reg(f.AircraftReg)
 		if err := prepareFlight(f); err != nil {
 			return &FlightBatchLegError{Index: i, Err: err}
 		}
-	}
-	return nil
-}
-
-// CreateFlightBatch validates every leg, then stores all of them with their
-// crew members in one transaction. Nothing is stored when any leg is invalid.
-func (s *FlightService) CreateFlightBatch(ctx context.Context, flights []*models.Flight) error {
-	if err := s.ValidateFlightBatch(ctx, flights); err != nil {
-		return err
 	}
 	return s.flightRepo.CreateBatch(ctx, flights)
 }

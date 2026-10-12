@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // CreateFlightBatch implements POST /flights/batch
@@ -42,19 +43,10 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		flights = append(flights, flight)
 	}
 
-	if err := h.flightService.ValidateFlightBatch(c.Request.Context(), flights); err != nil {
-		h.sendBatchError(c, err)
-		return
-	}
-
-	if h.contactService != nil {
-		for _, f := range flights {
-			if len(f.CrewMembers) == 0 {
-				continue
-			}
-			if _, err := h.contactService.LinkCrewMembers(c.Request.Context(), userID, f.CrewMembers); err != nil {
-				slog.Warn("failed to link crew members to contacts", "error", err)
-			}
+	crew := append([]models.FlightCrewMember(nil), flights[0].CrewMembers...)
+	for _, f := range flights {
+		for i := range f.CrewMembers {
+			f.CrewMembers[i].ContactID = nil
 		}
 	}
 
@@ -62,6 +54,7 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		h.sendBatchError(c, err)
 		return
 	}
+	h.linkBatchCrew(c, userID, flights, crew)
 
 	userName := h.getUserNameFromContext(c)
 	warnings := h.flightService.CheckFlights(c.Request.Context(), userID, flights)
@@ -72,6 +65,29 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		out = append(out, g)
 	}
 	c.JSON(http.StatusCreated, generated.FlightBatchResult{Flights: out})
+}
+
+// linkBatchCrew links the template crew to the user's contacts once and
+// writes the linked crew to every stored leg. Failures are logged and
+// swallowed.
+func (h *APIHandler) linkBatchCrew(c *gin.Context, userID uuid.UUID, flights []*models.Flight, crew []models.FlightCrewMember) {
+	if len(crew) == 0 || h.contactService == nil {
+		return
+	}
+	ctx := c.Request.Context()
+	if _, err := h.contactService.LinkCrewMembers(ctx, userID, crew); err != nil {
+		slog.Warn("failed to link crew members to contacts", "error", err)
+		return
+	}
+	for _, f := range flights {
+		f.CrewMembers = append([]models.FlightCrewMember(nil), crew...)
+		if h.flightCrewRepo == nil {
+			continue
+		}
+		if err := h.flightCrewRepo.SetCrewMembers(ctx, f.ID, f.CrewMembers); err != nil {
+			slog.Warn("failed to save crew members", "flightId", f.ID, "error", err)
+		}
+	}
 }
 
 // sendBatchError maps a batch service error to its response.

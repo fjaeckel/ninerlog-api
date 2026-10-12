@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -198,4 +200,53 @@ func TestBatchLegCreate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateFlightBatch_CrewLinkedOnceAfterInsert(t *testing.T) {
+	crewTemplate := `{"date":"2026-05-09","aircraftReg":"D-1234","aircraftType":"ASK21",
+		"departureIcao":"Hausen am Albis","arrivalIcao":"Hausen am Albis","launchMethod":"winch",
+		"crewMembers":[{"name":"Anna Lehrer","role":"Instructor"}]}`
+	body := `{"template":` + crewTemplate + `,"legs":` + winchLegs(3) + `}`
+
+	t.Run("failed insert creates no contact", func(t *testing.T) {
+		h, _ := setupTestHandler()
+		contacts := newMockContactRepo()
+		flights := newMockFlightRepo()
+		flights.createBatchErr = errors.New("tx aborted")
+		h.contactService = service.NewContactService(contacts)
+		h.flightService = service.NewFlightService(flights, nil)
+		userID := uuid.New()
+
+		w := postFlightBatch(t, h, &userID, body)
+		if w.Code != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500: %s", w.Code, w.Body.String())
+		}
+		if len(contacts.contacts) != 0 {
+			t.Errorf("%d contacts created by a failed batch, want 0", len(contacts.contacts))
+		}
+	})
+
+	t.Run("template crew linked once for every leg", func(t *testing.T) {
+		h, _ := setupTestHandler()
+		contacts := newMockContactRepo()
+		h.contactService = service.NewContactService(contacts)
+		userID := uuid.New()
+
+		w := postFlightBatch(t, h, &userID, body)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+		}
+		if contacts.findOrCreateCalls != 1 || len(contacts.contacts) != 1 {
+			t.Fatalf("%d lookups, %d contacts; want 1, 1", contacts.findOrCreateCalls, len(contacts.contacts))
+		}
+		var res generated.FlightBatchResult
+		if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+			t.Fatal(err)
+		}
+		for i, f := range res.Flights {
+			if f.CrewMembers == nil || len(*f.CrewMembers) != 1 || (*f.CrewMembers)[0].ContactId == nil {
+				t.Errorf("leg %d crew = %+v, want one linked member", i, f.CrewMembers)
+			}
+		}
+	})
 }

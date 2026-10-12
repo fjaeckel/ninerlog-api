@@ -148,7 +148,8 @@ func (m *mockAircraftRepo) CountByUserID(_ context.Context, userID uuid.UUID) (i
 }
 
 type mockContactRepo struct {
-	contacts map[uuid.UUID]*models.Contact
+	contacts          map[uuid.UUID]*models.Contact
+	findOrCreateCalls int
 }
 
 func newMockContactRepo() *mockContactRepo {
@@ -187,6 +188,7 @@ func (m *mockContactRepo) GetByExactName(_ context.Context, userID uuid.UUID, na
 	return nil, repository.ErrNotFound
 }
 func (m *mockContactRepo) FindOrCreateByName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error) {
+	m.findOrCreateCalls++
 	if existing, err := m.GetByExactName(ctx, userID, name); err == nil {
 		return existing, false, nil
 	}
@@ -416,7 +418,8 @@ func (m *mockEmailVerificationRepo) DeleteExpired(_ context.Context) error      
 // ---- Mock flight repo ----
 
 type mockFlightRepo struct {
-	flights map[uuid.UUID]*models.Flight
+	flights        map[uuid.UUID]*models.Flight
+	createBatchErr error
 	// lastOpts records the options the handler built, so tests can assert
 	// that a query parameter actually reached the repository layer.
 	lastOpts *repository.FlightQueryOptions
@@ -434,6 +437,9 @@ func (m *mockFlightRepo) Create(_ context.Context, f *models.Flight) error {
 	return nil
 }
 func (m *mockFlightRepo) CreateBatch(ctx context.Context, flights []*models.Flight) error {
+	if m.createBatchErr != nil {
+		return m.createBatchErr
+	}
 	for _, f := range flights {
 		if err := m.Create(ctx, f); err != nil {
 			return err
