@@ -137,3 +137,9 @@ func dateOnlyPtr(t *time.Time) *time.Time {
 	d := DateOnly(*t)
 	return &d
 }
+
+// DateOnly returns t's calendar date at 00:00 UTC.
+func DateOnly(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}

@@ -27,10 +27,6 @@ type AdminStats struct {
 	ActiveSessions int
 	// TotalCustomReports counts saved custom reports across all users.
 	TotalCustomReports int
-	// TotalAircraftReminders counts aircraft reminders across all users;
-	// OverdueAircraftReminders those due before today.
-	TotalAircraftReminders   int
-	OverdueAircraftReminders int
 	// LicencePrivilegesByKind maps privilege kind to count across all users.
 	// Never nil; kinds nobody has recorded are absent.
 	LicencePrivilegesByKind map[string]int

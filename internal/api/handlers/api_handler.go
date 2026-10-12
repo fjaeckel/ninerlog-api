@@ -75,9 +75,6 @@ type APIHandler struct {
 	// pilotProfileService is wired in cmd/api/main.go via
 	// SetPilotProfileService.
 	pilotProfileService *pilotprofile.Service
-	// aircraftReminderService is wired in cmd/api/main.go via
-	// SetAircraftReminderService.
-	aircraftReminderService *service.AircraftReminderService
 	// soaringSeasonService is wired in cmd/api/main.go via
 	// SetSoaringSeasonService.
 	soaringSeasonService *service.SoaringSeasonService

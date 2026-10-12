@@ -45,10 +45,6 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM credentials"), &stats.TotalCredentials)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flight_imports"), &stats.TotalImports)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM custom_reports"), &stats.TotalCustomReports)
-	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM aircraft_reminders"), &stats.TotalAircraftReminders)
-	r.scanCount(r.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM aircraft_reminders WHERE due_date < $1::DATE", now.UTC().Format("2006-01-02"),
-	), &stats.OverdueAircraftReminders)
 	r.scanGroupedCounts(ctx, "SELECT kind, COUNT(*) FROM licence_privileges GROUP BY kind", stats.LicencePrivilegesByKind)
 
 	// Flights this month

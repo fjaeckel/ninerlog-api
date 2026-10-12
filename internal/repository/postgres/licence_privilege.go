@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -117,3 +118,10 @@ func (r *LicencePrivilegeRepository) Delete(ctx context.Context, id uuid.UUID) e
 }
 
 var _ repository.LicencePrivilegeRepository = (*LicencePrivilegeRepository)(nil)
+
+func dateParam(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.Format("2006-01-02")
+}

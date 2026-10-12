@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/oapi-codegen/nullable"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -150,4 +151,16 @@ func (h *APIHandler) DeleteLicencePrivilege(c *gin.Context, licenseId generated.
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// nullablePatch splits a nullable field into a value and a clear flag.
+func nullablePatch[T any](n nullable.Nullable[T]) (*T, bool) {
+	if !n.IsSpecified() {
+		return nil, false
+	}
+	if n.IsNull() {
+		return nil, true
+	}
+	v, _ := n.Get()
+	return &v, false
 }

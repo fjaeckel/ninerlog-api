@@ -50,8 +50,6 @@ type DefaultJSONBuilder struct {
 	Notifications  *service.NotificationService
 	// PilotProfiles backs the pilotProfile section; nil omits it.
 	PilotProfiles *pilotprofile.Service
-	// AircraftReminders backs the aircraftReminders section; nil omits it.
-	AircraftReminders *service.AircraftReminderService
 	// Privileges backs licenses[].privileges; nil omits them.
 	Privileges *service.LicencePrivilegeService
 	// AttachCrew is called with the flight slice before serialisation.
@@ -166,11 +164,6 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 	if err != nil {
 		return Payload{}, err
 	}
-	reminders, err := b.gatherAircraftReminders(ctx, userID)
-	if err != nil {
-		return Payload{}, err
-	}
-
 	return Payload{
 		ExportedAt:              now.Format(time.RFC3339),
 		Version:                 b.versionOrDefault(),
@@ -182,7 +175,6 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		Contacts:                contacts,
 		CustomCurrencyRules:     rules,
 		CustomReports:           reports,
-		AircraftReminders:       reminders,
 		NotificationPreferences: prefs,
 		FlightBaseline:          NewFlightBaseline(b.gatherBaseline(ctx, userID)),
 		PilotProfile:            profile,
@@ -249,21 +241,6 @@ func (b *DefaultJSONBuilder) gatherCustomReports(ctx context.Context, userID uui
 		reports = append(reports, CustomReport{Name: r.Name, Definition: r.Definition})
 	}
 	return reports, nil
-}
-
-// gatherAircraftReminders returns the user's aircraft reminders, sorted by id.
-func (b *DefaultJSONBuilder) gatherAircraftReminders(ctx context.Context, userID uuid.UUID) ([]*models.AircraftReminder, error) {
-	if b.AircraftReminders == nil {
-		return nil, nil
-	}
-	reminders, err := b.AircraftReminders.ListAll(ctx, userID, nil)
-	if err != nil {
-		return nil, fmt.Errorf("list aircraft reminders: %w", err)
-	}
-	sort.SliceStable(reminders, func(i, j int) bool {
-		return reminders[i].ID.String() < reminders[j].ID.String()
-	})
-	return reminders, nil
 }
 
 // gatherPrivileges returns a licence's privileges, sorted by id.

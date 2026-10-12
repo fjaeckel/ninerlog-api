@@ -48,8 +48,6 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	stats.DisabledAccounts = adminStats.DisabledAccounts
 	stats.ActiveSessions = adminStats.ActiveSessions
 	stats.TotalCustomReports = adminStats.TotalCustomReports
-	stats.AircraftReminders.Total = adminStats.TotalAircraftReminders
-	stats.AircraftReminders.Overdue = adminStats.OverdueAircraftReminders
 	stats.LicencePrivileges.ByKind = adminStats.LicencePrivilegesByKind
 	if stats.LicencePrivileges.ByKind == nil {
 		stats.LicencePrivileges.ByKind = map[string]int{}

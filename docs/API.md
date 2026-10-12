@@ -395,27 +395,6 @@ carry a name as its `registration`; it is uppercased and trimmed but never rewri
 `POST` and `PATCH` responses carry `warnings` for `ul_mtom_exceeds_600` and `ul_120kg_class`
 (see [Save warnings](#save-warnings)).
 
-#### Aircraft reminders
-Dated items on an aircraft — `ANNUAL_INSPECTION` (Jahresnachprüfung), `INSURANCE`,
-`RESCUE_SYSTEM_REPACK`, `RESCUE_ROCKET_EXPIRY`, `ARC`, `ELT_BATTERY` and `CUSTOM` (which
-requires a `label`, max 100 chars).
-
-| Method & path | Result |
-| --- | --- |
-| `GET /aircraft/{aircraftId}/reminders` | the aircraft's reminders, ordered by `dueDate` |
-| `POST /aircraft/{aircraftId}/reminders` | `201` with the reminder |
-| `PATCH /aircraft/{aircraftId}/reminders/{reminderId}` | partial update; `null` clears `label`, `intervalMonths`, `lastDoneOn`, `notes` |
-| `DELETE /aircraft/{aircraftId}/reminders/{reminderId}` | `204` |
-| `POST /aircraft/{aircraftId}/reminders/{reminderId}/complete` | body `{doneOn?}` (default today, UTC); returns the reminder |
-| `GET /aircraft-reminders?dueWithinDays=N` | all of the caller's reminders across aircraft, by `dueDate`; `N` (0–3650) keeps those due within N days, overdue included |
-
-Every response carries `aircraftRegistration`, `status` (`ok` / `due_soon` within 30 days,
-today included / `overdue`) and `daysUntilDue` (negative when overdue), computed against
-today in UTC. `intervalMonths` is 1–240, `notes` max 1000 chars; a violation is a `400`, as is
-a `dueWithinDays` outside 0–3650. An aircraft or reminder that does not exist, belongs to
-another user, or (for a reminder) sits on another aircraft is a `404`, never a `403`.
-Completion semantics are in [DOMAIN.md](./DOMAIN.md#aircraft-reminders).
-
 `pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
 rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
 `registration ASC` and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
@@ -805,10 +784,7 @@ the pilot profile replace what the account currently has (`pilotProfileImported`
 summary). A pilot profile with an unknown mode or intent is a 400; disciplines this version
 does not know are dropped. All IDs are regenerated, so a backup restores into any
 installation including the one it came from. A custom currency rule's sharing state is never
-carried over: a restored rule is private until shared again. Aircraft reminders attach to the
-restored aircraft, or to the existing aircraft of the same registration when that one was
-skipped; a reminder whose aircraft cannot be resolved, or that matches one already on the
-aircraft by kind, label and due date, is skipped and counted in `aircraftRemindersSkipped`.
+carried over: a restored rule is private until shared again.
 Licence privileges are revalidated and attached to their restored licence
 (`licencePrivilegesImported`); an invalid one is a 400.
 

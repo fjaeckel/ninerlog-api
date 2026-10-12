@@ -27,7 +27,6 @@ var exported = map[string]string{
 	"flights":                  "Flights",
 	"flight_crew_members":      "Flights[].CrewMembers",
 	"aircraft":                 "Aircraft",
-	"aircraft_reminders":       "AircraftReminders",
 	"licenses":                 "Licenses[].License",
 	"class_ratings":            "Licenses[].ClassRatings",
 	"licence_privileges":       "Licenses[].Privileges",

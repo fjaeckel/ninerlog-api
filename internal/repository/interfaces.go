@@ -396,24 +396,6 @@ type AircraftRepository interface {
 	GetRecencyRowsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftRecencyRow, error)
 }
 
-// AircraftReminderRepository persists aircraft reminders. Every read fills
-// AircraftRegistration from the owning aircraft and returns rows ordered by
-// due date, then id.
-type AircraftReminderRepository interface {
-	Create(ctx context.Context, reminder *models.AircraftReminder) error
-	// GetByID returns ErrNotFound when no reminder has the id.
-	GetByID(ctx context.Context, id uuid.UUID) (*models.AircraftReminder, error)
-	ListByAircraft(ctx context.Context, aircraftID uuid.UUID) ([]*models.AircraftReminder, error)
-	// ListByUser returns the user's reminders across aircraft; a non-nil
-	// dueOnOrBefore keeps only those due on or before that date.
-	ListByUser(ctx context.Context, userID uuid.UUID, dueOnOrBefore *time.Time) ([]*models.AircraftReminder, error)
-	// Update writes kind, label, due date, interval, last-done date and notes;
-	// ErrNotFound when the row is gone.
-	Update(ctx context.Context, reminder *models.AircraftReminder) error
-	// Delete returns ErrNotFound when no reminder has the id.
-	Delete(ctx context.Context, id uuid.UUID) error
-}
-
 // LicencePrivilegeRepository persists licence privileges. Lists are ordered
 // by kind, then detail, then id.
 type LicencePrivilegeRepository interface {
