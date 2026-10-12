@@ -1019,7 +1019,9 @@ the FCL.135.A extension, recorded as a TMG rating. When no rating covers the air
 single `rating` item answers with `ready: false`, status `unknown`, `readiness.no_rating`
 and the aircraft's `classType` and `ulKind`, no `classRatingId`. IR ratings are answered only
 without an aircraft. Passenger items follow the same class and kind match and appear only
-when `passengers=true`. Launch methods are listed once per method.
+when `passengers=true`. Launch methods are listed once per method, in first-seen order,
+answered by the rating on which the method is met with the latest `validUntil` (any rating
+when none meets it).
 
 Medical certificates (EASA Class 1, Class 2, LAPL; FAA Class 1–3) are listed with or
 without an aircraft, the one expiring last per type, and are informational: no rule ties a
