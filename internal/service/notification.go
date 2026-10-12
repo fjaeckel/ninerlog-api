@@ -278,6 +278,11 @@ func (s *NotificationService) checkPrivilegeExpiry(ctx context.Context, prefs *m
 	if p.ExpiresOn == nil || !prefs.IsCategoryEnabled(models.NotifCategoryRatingExpiry) {
 		return
 	}
+	expiry := *p.ExpiresOn
+	days := int(time.Until(expiry).Hours() / 24)
+	if !inWarningWindow(prefs, days) {
+		return
+	}
 	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
 	if err != nil {
 		return
@@ -286,8 +291,6 @@ func (s *NotificationService) checkPrivilegeExpiry(ctx context.Context, prefs *m
 	if p.Detail != nil {
 		name += " (" + *p.Detail + ")"
 	}
-	expiry := *p.ExpiresOn
-	days := int(time.Until(expiry).Hours() / 24)
 	subject, body := email.Templates(user.PreferredLocale).RatingExpiry(email.RatingExpiryParams{
 		UserName:      userName,
 		LicenseType:   p.LicenseType,
@@ -640,6 +643,20 @@ func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *mod
 			break // Only send one warning per item per check
 		}
 	}
+}
+
+// inWarningWindow reports whether sendWarningForDays would consider an item
+// daysUntilExpiry days from expiry.
+func inWarningWindow(prefs *models.NotificationPreferences, daysUntilExpiry int) bool {
+	if daysUntilExpiry < 0 {
+		return false
+	}
+	for _, wd := range prefs.WarningDays {
+		if daysUntilExpiry <= int(wd) {
+			return true
+		}
+	}
+	return false
 }
 
 func strPtr(s string) *string {
