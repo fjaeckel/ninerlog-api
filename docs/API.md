@@ -476,8 +476,10 @@ Every 400 below carries its message in `error`:
 On `PUT /flights/{id}`, changing either block time recomputes `totalTime` from the stored
 flight's pair (block first, else take-off/landing); on a flight without both block times,
 changing `departureTime` or `arrivalTime` recomputes it too. A `totalTime` in the body is
-applied only when neither applies. An update that leaves the flight without a complete pair
-keeps its stored `totalTime`. See [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
+applied only when neither applies. An update that sets or clears any of the four times must
+leave the flight (not an FSTD session) with a complete pair; otherwise it is the same 400 as
+on create. An update that sends no time keeps a stored flight without a pair, and its
+`totalTime`, as it is. See [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
 
 An FSTD session responds with `0` in every flight-time field and never contributes to
 statistics, reports, the fleet list or currency — session time is recorded separately and is never summed with flight time

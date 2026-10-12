@@ -3174,7 +3174,10 @@ paths:
         - Flights
       summary: Update flight
       description: |
-        Update an existing flight log entry.
+        Update an existing flight log entry. A body that sets or clears `offBlockTime`,
+        `onBlockTime`, `departureTime` or `arrivalTime` must leave a flight (not an FSTD
+        session) with a complete time pair, as on `POST /flights`; otherwise 400 with the
+        same message.
 
         In strict logbook mode the edit is classified before it is written. It is a
         correction when it happens after the draft window (48 hours after the flight

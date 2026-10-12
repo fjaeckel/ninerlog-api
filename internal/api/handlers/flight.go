@@ -643,6 +643,12 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	_, _, source, hasPair := clocks.Pair()
 	blockUpdated := req.OffBlockTime.IsSpecified() || req.OnBlockTime.IsSpecified()
 	airborneUpdated := req.DepartureTime.IsSpecified() || req.ArrivalTime.IsSpecified()
+	if !flight.IsSimulator && (blockUpdated || airborneUpdated) {
+		if err := clocks.Validate(); err != nil {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	if hasPair && (blockUpdated || (airborneUpdated && source == models.FlightTimeSourceAirborne)) {
 		totalTime, _, err := clocks.TotalMinutes()
 		if err != nil {
