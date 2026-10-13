@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -45,10 +46,14 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 	}
 
 	crew := append([]models.FlightCrewMember(nil), flights[0].CrewMembers...)
-	if err := h.keepOwnedCrewContacts(c.Request.Context(), userID, crew); err != nil {
-		slog.Warn("failed to check crew contacts", "error", err)
-		h.sendError(c, http.StatusInternalServerError, "Failed to create flights")
-		return
+	var crewLinker *service.CrewLinker
+	if len(crew) > 0 {
+		crewLinker, err = h.checkCrewContacts(c.Request.Context(), userID, crew)
+		if err != nil {
+			slog.Warn("failed to check crew contacts", "error", err)
+			h.sendError(c, http.StatusInternalServerError, "Failed to create flights")
+			return
+		}
 	}
 	for _, f := range flights {
 		f.CrewMembers = append([]models.FlightCrewMember(nil), crew...)
@@ -58,7 +63,7 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 		h.sendBatchError(c, err)
 		return
 	}
-	h.linkBatchCrew(c, userID, flights, crew)
+	h.linkBatchCrew(c.Request.Context(), crewLinker, flights, crew)
 
 	userName := h.getUserNameFromContext(c)
 	warnings := h.flightService.CheckFlights(c.Request.Context(), userID, flights)
@@ -71,27 +76,53 @@ func (h *APIHandler) CreateFlightBatch(c *gin.Context) {
 	c.JSON(http.StatusCreated, generated.FlightBatchResult{Flights: out})
 }
 
-// linkBatchCrew links the template crew to the user's contacts once and
-// writes the linked crew to every stored leg. A leg keeps its crew as
-// inserted when linking or its write fails.
-func (h *APIHandler) linkBatchCrew(c *gin.Context, userID uuid.UUID, flights []*models.Flight, crew []models.FlightCrewMember) {
-	if len(crew) == 0 || h.contactService == nil || h.flightCrewRepo == nil {
+// linkBatchCrew links the template crew to the user's contacts once and,
+// when that links a member, writes the linked crew to every stored leg in one
+// transaction. The legs keep their crew as inserted when linking or the write
+// fails.
+func (h *APIHandler) linkBatchCrew(ctx context.Context, linker *service.CrewLinker, flights []*models.Flight, crew []models.FlightCrewMember) {
+	if linker == nil || len(crew) == 0 || h.flightCrewRepo == nil {
 		return
 	}
-	ctx := c.Request.Context()
 	linked := append([]models.FlightCrewMember(nil), crew...)
-	if _, err := h.contactService.LinkCrewMembers(ctx, userID, linked); err != nil {
+	if err := linker.Link(ctx, linked); err != nil {
 		slog.Warn("failed to link crew members to contacts", "error", err)
 		return
 	}
-	for _, f := range flights {
-		members := append([]models.FlightCrewMember(nil), linked...)
-		if err := h.flightCrewRepo.SetCrewMembers(ctx, f.ID, members); err != nil {
-			slog.Warn("failed to save crew members", "flightId", f.ID, "error", err)
-			continue
-		}
-		f.CrewMembers = members
+	if sameCrew(linked, crew) {
+		return
 	}
+	ids := make([]uuid.UUID, len(flights))
+	for i, f := range flights {
+		ids[i] = f.ID
+	}
+	if err := h.flightCrewRepo.SetCrewMembersForFlights(ctx, ids, linked); err != nil {
+		slog.Warn("failed to save crew members", "error", err)
+		return
+	}
+	for _, f := range flights {
+		f.CrewMembers = append([]models.FlightCrewMember(nil), linked...)
+	}
+}
+
+// sameCrew reports whether a and b list the same names and contactIds in order.
+func sameCrew(a, b []models.FlightCrewMember) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Name != b[i].Name || !sameContact(a[i].ContactID, b[i].ContactID) {
+			return false
+		}
+	}
+	return true
+}
+
+func sameContact(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // sendBatchError maps a batch service error to its response.

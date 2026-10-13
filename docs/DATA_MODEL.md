@@ -220,12 +220,14 @@ than of which entry point the pilot used. `POST /contacts` is for filling in ema
 phone, and returns 409 on a name that already exists rather than creating a second row.
 
 A crew `contactId` sent by the client is kept only when it names one of the pilot's own
-contacts (`ContactService.KeepOwnedContacts` when linking fails, `CrewLinker` otherwise);
-a missing or foreign one is cleared and the name linked as usual. If ownership cannot be
-checked (a database error), nothing is cleared: `POST /flights/batch` fails with 500 and
-stores nothing, and a single create or update leaves the stored crew as it was and returns
-it. A batch links the template crew after the insert; a leg whose linked crew cannot be
-written keeps, and returns, the crew as inserted.
+contacts; a missing or foreign one is cleared and the name linked as usual. Ownership is
+checked before the flight is stored (`CrewLinker.KeepOwned`), and the same linker then
+links names without trusting a contact twice. If ownership cannot be checked (a database
+error), nothing is stored: a single create or update fails with 500, as does
+`POST /flights/batch`. When linking itself fails after the save, members keep their
+checked `contactId` and the rest stay unlinked. A batch links the template crew once after
+the insert and, only when that links a member, rewrites every leg's crew in one
+transaction; if that write fails, every leg keeps, and returns, the crew as inserted.
 
 ### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63, 66, 76)
 

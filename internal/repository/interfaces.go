@@ -447,6 +447,9 @@ type ContactRepository interface {
 // FlightCrewRepository defines the interface for flight crew member data access
 type FlightCrewRepository interface {
 	SetCrewMembers(ctx context.Context, flightID uuid.UUID, members []models.FlightCrewMember) error
+	// SetCrewMembersForFlights replaces the crew of every flight in flightIDs
+	// with members, in one transaction.
+	SetCrewMembersForFlights(ctx context.Context, flightIDs []uuid.UUID, members []models.FlightCrewMember) error
 	GetByFlightID(ctx context.Context, flightID uuid.UUID) ([]models.FlightCrewMember, error)
 	GetByFlightIDs(ctx context.Context, flightIDs []uuid.UUID) (map[uuid.UUID][]models.FlightCrewMember, error)
 	DeleteByFlightID(ctx context.Context, flightID uuid.UUID) error

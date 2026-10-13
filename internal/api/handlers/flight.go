@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -244,13 +245,23 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
+	var crewLinker *service.CrewLinker
+	if len(flight.CrewMembers) > 0 {
+		crewLinker, err = h.checkCrewContacts(c.Request.Context(), userID, flight.CrewMembers)
+		if err != nil {
+			slog.Warn("failed to check crew contacts", "error", err)
+			h.sendError(c, http.StatusInternalServerError, "Failed to create flight")
+			return
+		}
+	}
+
 	if err := h.flightService.CreateFlight(c.Request.Context(), flight); err != nil {
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
 	}
 	// Persist crew members. A new flight with no crew has nothing to clear.
 	if len(flight.CrewMembers) > 0 {
-		h.persistCrewMembers(c, userID, flight)
+		h.persistCrewMembers(c.Request.Context(), crewLinker, flight)
 	}
 	out := withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c))
 	out.Warnings = convertToGeneratedWarnings(h.flightService.CheckFlights(c.Request.Context(), userID, []*models.Flight{flight})[0])
@@ -655,6 +666,16 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.PICName = flightrules.ResolvePICNameForSave(flight, userName)
 	}
 
+	var crewLinker *service.CrewLinker
+	if req.CrewMembers != nil {
+		crewLinker, err = h.checkCrewContacts(c.Request.Context(), userID, flight.CrewMembers)
+		if err != nil {
+			slog.Warn("failed to check crew contacts", "flightId", flight.ID, "error", err)
+			h.sendError(c, http.StatusInternalServerError, "Failed to update flight")
+			return
+		}
+	}
+
 	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
 		if errors.Is(err, service.ErrFlightLocked) {
 			h.sendError(c, http.StatusConflict, "This flight is locked by a completed signature. Void the signature to make changes.")
@@ -671,7 +692,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	// Persist crew members if they were updated. An update that did not carry
 	// a crewMembers key leaves the existing rows alone.
 	if req.CrewMembers != nil {
-		h.persistCrewMembers(c, userID, flight)
+		h.persistCrewMembers(c.Request.Context(), crewLinker, flight)
 	}
 	if req.CrewMembers == nil {
 		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})

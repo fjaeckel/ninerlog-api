@@ -72,13 +72,15 @@ type CrewLinker struct {
 	svc    *ContactService
 	userID uuid.UUID
 	// cache is keyed by lower-cased name.
-	cache   map[string]*models.Contact
+	cache map[string]*models.Contact
+	// owned holds contact IDs already confirmed as userID's.
+	owned   map[uuid.UUID]bool
 	created int
 }
 
 // NewCrewLinker returns a linker for one user.
 func (s *ContactService) NewCrewLinker(userID uuid.UUID) *CrewLinker {
-	return &CrewLinker{svc: s, userID: userID, cache: make(map[string]*models.Contact)}
+	return &CrewLinker{svc: s, userID: userID, cache: make(map[string]*models.Contact), owned: make(map[uuid.UUID]bool)}
 }
 
 // Created reports how many contacts this linker has had to create.
@@ -100,12 +102,12 @@ func (l *CrewLinker) Link(ctx context.Context, members []models.FlightCrewMember
 		}
 
 		if members[i].ContactID != nil {
-			owned, err := l.svc.contactRepo.GetByID(ctx, *members[i].ContactID)
-			if err == nil && owned.UserID == l.userID {
-				continue
-			}
-			if err != nil && !errors.Is(err, repository.ErrNotFound) {
+			owned, err := l.ownsContact(ctx, *members[i].ContactID)
+			if err != nil {
 				return err
+			}
+			if owned {
+				continue
 			}
 			members[i].ContactID = nil
 		}
@@ -143,25 +145,48 @@ func (s *ContactService) LinkCrewMembers(ctx context.Context, userID uuid.UUID, 
 	return l.Created(), err
 }
 
-// KeepOwnedContacts clears, in place, each member's ContactID that is missing
-// or belongs to another user. Any other lookup error is returned with the
+// KeepOwned clears, in place, each member's ContactID that is missing or
+// belongs to another user. Any other lookup error is returned with the
 // remaining members unchanged.
-func (s *ContactService) KeepOwnedContacts(ctx context.Context, userID uuid.UUID, members []models.FlightCrewMember) error {
+func (l *CrewLinker) KeepOwned(ctx context.Context, members []models.FlightCrewMember) error {
 	for i := range members {
 		id := members[i].ContactID
 		if id == nil {
 			continue
 		}
-		_, err := s.GetContact(ctx, *id, userID)
-		switch {
-		case err == nil:
-		case errors.Is(err, ErrContactNotFound), errors.Is(err, ErrUnauthorizedContact):
+		owned, err := l.ownsContact(ctx, *id)
+		if err != nil {
+			return err
+		}
+		if !owned {
 			members[i].ContactID = nil
-		default:
-			return fmt.Errorf("check crew contact: %w", err)
 		}
 	}
 	return nil
+}
+
+// ownsContact reports whether id is one of the linker's user's contacts; a
+// missing contact is not owned. Other lookup errors are returned.
+func (l *CrewLinker) ownsContact(ctx context.Context, id uuid.UUID) (bool, error) {
+	if l.owned[id] {
+		return true, nil
+	}
+	_, err := l.svc.GetContact(ctx, id, l.userID)
+	switch {
+	case err == nil:
+		l.owned[id] = true
+		return true, nil
+	case errors.Is(err, ErrContactNotFound), errors.Is(err, ErrUnauthorizedContact):
+		return false, nil
+	default:
+		return false, fmt.Errorf("check crew contact: %w", err)
+	}
+}
+
+// KeepOwnedContacts clears, in place, each member's ContactID that is missing
+// or belongs to another user. See CrewLinker.KeepOwned.
+func (s *ContactService) KeepOwnedContacts(ctx context.Context, userID uuid.UUID, members []models.FlightCrewMember) error {
+	return s.NewCrewLinker(userID).KeepOwned(ctx, members)
 }
 
 func (s *ContactService) GetContact(ctx context.Context, id, userID uuid.UUID) (*models.Contact, error) {

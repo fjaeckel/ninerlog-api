@@ -298,12 +298,12 @@ func TestCreateFlightBatch_ClientContactIDsWhenLinkingFails(t *testing.T) {
 	}
 }
 
-func TestKeepOwnedCrewContacts_NoContactService(t *testing.T) {
+func TestCheckCrewContacts_NoContactService(t *testing.T) {
 	h, _ := setupTestHandler()
 	h.contactService = nil
 	id := uuid.New()
 	crew := []models.FlightCrewMember{{Name: "Anna", ContactID: &id}}
-	if err := h.keepOwnedCrewContacts(context.Background(), uuid.New(), crew); err != nil {
+	if _, err := h.checkCrewContacts(context.Background(), uuid.New(), crew); err != nil {
 		t.Fatal(err)
 	}
 	if crew[0].ContactID != nil {
@@ -330,8 +330,9 @@ func TestCreateFlightBatch_FleetLoadedOnce(t *testing.T) {
 
 type mockFlightCrewRepo struct {
 	crew map[uuid.UUID][]models.FlightCrewMember
-	// setErr, when set, fails SetCrewMembers for the flights it reports true.
-	setErr func(flightID uuid.UUID) bool
+	// setErr, when set, fails a write that touches a flight it reports true for.
+	setErr             func(flightID uuid.UUID) bool
+	setForFlightsCalls int
 }
 
 func newMockFlightCrewRepo() *mockFlightCrewRepo {
@@ -343,6 +344,19 @@ func (m *mockFlightCrewRepo) SetCrewMembers(_ context.Context, flightID uuid.UUI
 		return errors.New("db down")
 	}
 	m.crew[flightID] = append([]models.FlightCrewMember(nil), members...)
+	return nil
+}
+
+func (m *mockFlightCrewRepo) SetCrewMembersForFlights(_ context.Context, flightIDs []uuid.UUID, members []models.FlightCrewMember) error {
+	m.setForFlightsCalls++
+	for _, id := range flightIDs {
+		if m.setErr != nil && m.setErr(id) {
+			return errors.New("db down")
+		}
+	}
+	for _, id := range flightIDs {
+		m.crew[id] = append([]models.FlightCrewMember(nil), members...)
+	}
 	return nil
 }
 
@@ -371,6 +385,7 @@ func TestCreateFlightBatch_FailedCrewWriteKeepsInsertedCrew(t *testing.T) {
 	crewRepo := newMockFlightCrewRepo()
 	calls := 0
 	crewRepo.setErr = func(uuid.UUID) bool { calls++; return calls == 2 }
+	crewRepo.crew = map[uuid.UUID][]models.FlightCrewMember{}
 	h.flightCrewRepo = crewRepo
 	userID := uuid.New()
 	template := `{"date":"2026-05-09","aircraftReg":"D-1234","aircraftType":"ASK21",
@@ -389,10 +404,37 @@ func TestCreateFlightBatch_FailedCrewWriteKeepsInsertedCrew(t *testing.T) {
 		if f.CrewMembers == nil || len(*f.CrewMembers) != 1 {
 			t.Fatalf("leg %d crew = %+v", i, f.CrewMembers)
 		}
-		linked := (*f.CrewMembers)[0].ContactId != nil
-		if want := i != 1; linked != want {
-			t.Errorf("leg %d linked = %v, want %v", i, linked, want)
+		if (*f.CrewMembers)[0].ContactId != nil {
+			t.Errorf("leg %d linked after a failed write, want the crew as inserted", i)
 		}
+	}
+	if len(crewRepo.crew) != 0 {
+		t.Errorf("crew rewritten for %d legs, want none", len(crewRepo.crew))
+	}
+}
+
+func TestCreateFlightBatch_LinkedCrewNotRewritten(t *testing.T) {
+	h, _ := setupTestHandler()
+	contacts := newMockContactRepo()
+	h.contactService = service.NewContactService(contacts)
+	crewRepo := newMockFlightCrewRepo()
+	h.flightCrewRepo = crewRepo
+	userID := uuid.New()
+	owned := &models.Contact{ID: uuid.New(), UserID: userID, Name: "Anna Lehrer"}
+	contacts.contacts[owned.ID] = owned
+	template := `{"date":"2026-05-09","aircraftReg":"D-1234","aircraftType":"ASK21",
+		"departureIcao":"Hausen am Albis","arrivalIcao":"Hausen am Albis","launchMethod":"winch",
+		"crewMembers":[{"name":"Anna Lehrer","role":"Instructor","contactId":"` + owned.ID.String() + `"}]}`
+
+	w := postFlightBatch(t, h, &userID, `{"template":`+template+`,"legs":`+winchLegs(4)+`}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
+	}
+	if crewRepo.setForFlightsCalls != 0 {
+		t.Errorf("crew rewritten %d times, want 0 when linking changed nothing", crewRepo.setForFlightsCalls)
+	}
+	if contacts.getByIDCalls != 1 {
+		t.Errorf("contact looked up %d times, want 1", contacts.getByIDCalls)
 	}
 }
 
@@ -417,32 +459,55 @@ func TestCreateFlightBatch_ContactCheckErrorStoresNothing(t *testing.T) {
 	}
 }
 
-func TestPersistCrewMembers_ContactCheckErrorKeepsStoredCrew(t *testing.T) {
+func TestCreateFlight_ContactCheckErrorStoresNothing(t *testing.T) {
+	h, _ := setupTestHandler()
+	flights := newMockFlightRepo()
+	h.flightService = service.NewFlightService(flights, nil)
+	contacts := newMockContactRepo()
+	contacts.getByIDErr = errors.New("db down")
+	h.contactService = service.NewContactService(contacts)
+	h.flightCrewRepo = newMockFlightCrewRepo()
+	userID := uuid.New()
+	body := `{"date":"2026-05-09","aircraftReg":"D-1234","aircraftType":"ASK21",
+		"departureIcao":"Hausen am Albis","arrivalIcao":"Hausen am Albis",
+		"departureTime":"10:00","arrivalTime":"10:08","landings":1,
+		"crewMembers":[{"name":"Anna Lehrer","role":"Instructor","contactId":"` + uuid.NewString() + `"}]}`
+
+	w := httptest.NewRecorder()
+	c := authenticatedContext(w, userID)
+	c.Request = httptest.NewRequest("POST", "/flights", bytes.NewBufferString(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.CreateFlight(c)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500: %s", w.Code, w.Body.String())
+	}
+	if len(flights.flights) != 0 {
+		t.Errorf("%d flights stored, want 0", len(flights.flights))
+	}
+}
+
+func TestPersistCrewMembers_LinkErrorKeepsCheckedContacts(t *testing.T) {
 	h, _ := setupTestHandler()
 	contacts := newMockContactRepo()
 	contacts.findOrCreateErr = errors.New("db down")
-	contacts.getByIDErr = errors.New("db down")
 	h.contactService = service.NewContactService(contacts)
 	crewRepo := newMockFlightCrewRepo()
 	h.flightCrewRepo = crewRepo
 	userID := uuid.New()
-	flightID := uuid.New()
-	stored := uuid.New()
-	crewRepo.crew[flightID] = []models.FlightCrewMember{{Name: "Anna", ContactID: &stored}}
+	owned := &models.Contact{ID: uuid.New(), UserID: userID, Name: "Anna"}
+	contacts.contacts[owned.ID] = owned
 
-	other := uuid.New()
-	flight := &models.Flight{ID: flightID, UserID: userID,
-		CrewMembers: []models.FlightCrewMember{{Name: "Anna", ContactID: &other}, {Name: "Bea"}}}
-	w := httptest.NewRecorder()
-	c := authenticatedContext(w, userID)
-	c.Request = httptest.NewRequest("PUT", "/flights", nil)
-	h.persistCrewMembers(c, userID, flight)
-
-	got := crewRepo.crew[flightID]
-	if len(got) != 1 || got[0].ContactID == nil || *got[0].ContactID != stored {
-		t.Errorf("stored crew = %+v, want the earlier crew unchanged", got)
+	flight := &models.Flight{ID: uuid.New(), UserID: userID,
+		CrewMembers: []models.FlightCrewMember{{Name: "Anna", ContactID: &owned.ID}, {Name: "Bea"}}}
+	linker, err := h.checkCrewContacts(context.Background(), userID, flight.CrewMembers)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(flight.CrewMembers) != 1 || *flight.CrewMembers[0].ContactID != stored {
-		t.Errorf("flight crew = %+v, want the stored crew", flight.CrewMembers)
+	h.persistCrewMembers(context.Background(), linker, flight)
+
+	got := crewRepo.crew[flight.ID]
+	if len(got) != 2 || got[0].ContactID == nil || *got[0].ContactID != owned.ID || got[1].ContactID != nil {
+		t.Errorf("stored crew = %+v, want Anna linked and Bea unlinked", got)
 	}
 }

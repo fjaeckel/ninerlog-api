@@ -5,24 +5,40 @@ import (
 	"log/slog"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
-	"github.com/gin-gonic/gin"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/google/uuid"
 )
 
-// persistCrewMembers links a flight's crew to the user's contacts — creating
-// contacts for names that are new — and writes the crew rows. On a failure
-// the stored crew is left as is and loaded into flight. See
+// checkCrewContacts clears every member's contactId that is not one of
+// userID's contacts, or every contactId without a contact service, and
+// returns the linker that checked them.
+func (h *APIHandler) checkCrewContacts(ctx context.Context, userID uuid.UUID, members []models.FlightCrewMember) (*service.CrewLinker, error) {
+	if h.contactService == nil {
+		for i := range members {
+			members[i].ContactID = nil
+		}
+		return nil, nil
+	}
+	linker := h.contactService.NewCrewLinker(userID)
+	if err := linker.KeepOwned(ctx, members); err != nil {
+		return nil, err
+	}
+	return linker, nil
+}
+
+// persistCrewMembers links a flight's crew to the user's contacts with
+// linker — creating contacts for names that are new — and writes the crew
+// rows. A member keeps its checked contactId when linking fails; on a failed
+// write the stored crew is loaded into flight. See
 // ContactService.LinkCrewMembers for the linking rules.
-func (h *APIHandler) persistCrewMembers(c *gin.Context, userID uuid.UUID, flight *models.Flight) {
+func (h *APIHandler) persistCrewMembers(ctx context.Context, linker *service.CrewLinker, flight *models.Flight) {
 	if h.flightCrewRepo == nil {
 		return
 	}
-	ctx := c.Request.Context()
-
-	if err := h.linkCrewContacts(ctx, userID, flight.CrewMembers); err != nil {
-		slog.Warn("failed to check crew contacts", "flightId", flight.ID, "error", err)
-		h.reloadCrewMembers(ctx, flight)
-		return
+	if linker != nil && len(flight.CrewMembers) > 0 {
+		if err := linker.Link(ctx, flight.CrewMembers); err != nil {
+			slog.Warn("failed to link crew members to contacts", "flightId", flight.ID, "error", err)
+		}
 	}
 
 	// An empty list is written too, clearing the crew.
@@ -30,31 +46,6 @@ func (h *APIHandler) persistCrewMembers(c *gin.Context, userID uuid.UUID, flight
 		slog.Warn("failed to save crew members", "flightId", flight.ID, "error", err)
 		h.reloadCrewMembers(ctx, flight)
 	}
-}
-
-// linkCrewContacts links members to userID's contacts, or, when linking
-// fails, keeps only the contactIds userID owns.
-func (h *APIHandler) linkCrewContacts(ctx context.Context, userID uuid.UUID, members []models.FlightCrewMember) error {
-	if len(members) > 0 && h.contactService != nil {
-		_, err := h.contactService.LinkCrewMembers(ctx, userID, members)
-		if err == nil {
-			return nil
-		}
-		slog.Warn("failed to link crew members to contacts", "error", err)
-	}
-	return h.keepOwnedCrewContacts(ctx, userID, members)
-}
-
-// keepOwnedCrewContacts clears every member's contactId that is not one of
-// userID's contacts, or every contactId without a contact service.
-func (h *APIHandler) keepOwnedCrewContacts(ctx context.Context, userID uuid.UUID, members []models.FlightCrewMember) error {
-	if h.contactService == nil {
-		for i := range members {
-			members[i].ContactID = nil
-		}
-		return nil
-	}
-	return h.contactService.KeepOwnedContacts(ctx, userID, members)
 }
 
 // reloadCrewMembers replaces flight.CrewMembers with the stored crew rows.

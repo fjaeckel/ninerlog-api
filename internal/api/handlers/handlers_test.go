@@ -154,6 +154,7 @@ type mockContactRepo struct {
 	findOrCreateCalls int
 	findOrCreateErr   error
 	getByIDErr        error
+	getByIDCalls      int
 }
 
 func newMockContactRepo() *mockContactRepo {
@@ -168,6 +169,7 @@ func (m *mockContactRepo) Create(_ context.Context, c *models.Contact) error {
 	return nil
 }
 func (m *mockContactRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Contact, error) {
+	m.getByIDCalls++
 	if m.getByIDErr != nil {
 		return nil, m.getByIDErr
 	}
