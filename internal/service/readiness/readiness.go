@@ -198,8 +198,7 @@ func (s *Service) findAircraft(ctx context.Context, userID uuid.UUID, reg string
 
 // utcDate returns midnight UTC on t's UTC date.
 func utcDate(t time.Time) time.Time {
-	t = t.UTC()
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	return models.DateOnly(t)
 }
 
 // ratingCovers reports whether a rating's own class covers ac; an ULTRALIGHT

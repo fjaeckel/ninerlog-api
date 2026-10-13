@@ -113,3 +113,26 @@ func TestClassRatingIsExpiredAt_ValidThroughExpiryDay(t *testing.T) {
 		}
 	}
 }
+
+func TestClassRatingIsExpiredAt_JudgesByUTCDate(t *testing.T) {
+	berlin := time.FixedZone("CEST", 2*60*60)
+	expiry := time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC)
+	cr := &ClassRating{ExpiryDate: &expiry}
+	if cr.IsExpiredAt(time.Date(2026, 10, 14, 0, 30, 0, 0, berlin)) {
+		t.Error("00:30 CEST on the 14th is still the 13th in UTC")
+	}
+	if !cr.IsExpiredAt(time.Date(2026, 10, 14, 2, 30, 0, 0, berlin)) {
+		t.Error("02:30 CEST on the 14th is the 14th in UTC")
+	}
+}
+
+func TestClassRatingIsExpiringSoonAt_CalendarDays(t *testing.T) {
+	expiry := time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
+	cr := &ClassRating{ExpiryDate: &expiry}
+	if !cr.IsExpiringSoonAt(time.Date(2026, 10, 13, 23, 0, 0, 0, time.UTC), 7) {
+		t.Error("expiry 7 days out is within 7 days")
+	}
+	if cr.IsExpiringSoonAt(time.Date(2026, 10, 12, 23, 0, 0, 0, time.UTC), 7) {
+		t.Error("expiry 8 days out is not within 7 days")
+	}
+}

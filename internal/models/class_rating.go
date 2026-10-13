@@ -90,11 +90,11 @@ func (cr *ClassRating) IsExpiringSoon(days int) bool {
 	return cr.IsExpiringSoonAt(time.Now(), days)
 }
 
-// IsExpiringSoonAt reports whether the class rating expires within days of now.
+// IsExpiringSoonAt reports whether the class rating expires within days of the UTC date of now.
 func (cr *ClassRating) IsExpiringSoonAt(now time.Time, days int) bool {
 	if cr.ExpiryDate == nil {
 		return false
 	}
-	threshold := now.AddDate(0, 0, days)
-	return cr.ExpiryDate.Before(threshold) && !cr.IsExpiredAt(now)
+	threshold := DateOnly(now).AddDate(0, 0, days)
+	return !DateOnly(*cr.ExpiryDate).After(threshold) && !cr.IsExpiredAt(now)
 }
