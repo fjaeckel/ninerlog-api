@@ -26,7 +26,7 @@ require (
 	github.com/ulule/limiter/v3 v3.11.2
 	golang.org/x/crypto v0.57.0
 	golang.org/x/oauth2 v0.37.0
-	golang.org/x/text v0.42.0
+	golang.org/x/text v0.43.0
 )
 
 require (
