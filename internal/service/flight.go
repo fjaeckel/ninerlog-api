@@ -127,18 +127,17 @@ func (e *FlightBatchLegError) Unwrap() error { return e.Err }
 
 // CreateFlightBatch prepares every leg as CreateFlight does, then stores all
 // of them with their crew members in one transaction. Returns
-// ErrInvalidFlightBatch for a wrong leg count, or a *FlightBatchLegError for
-// the first invalid leg; nothing is stored then.
+// ErrInvalidFlightBatch for a wrong leg count or legs of different users, or
+// a *FlightBatchLegError for the first invalid leg; nothing is stored then.
 func (s *FlightService) CreateFlightBatch(ctx context.Context, flights []*models.Flight) error {
 	if len(flights) == 0 || len(flights) > MaxFlightBatchLegs {
 		return ErrInvalidFlightBatch
 	}
-	canonical := map[uuid.UUID]func(string) string{}
+	userID := flights[0].UserID
+	reg := s.flightRegistrations(ctx, userID)
 	for i, f := range flights {
-		reg, ok := canonical[f.UserID]
-		if !ok {
-			reg = s.flightRegistrations(ctx, f.UserID)
-			canonical[f.UserID] = reg
+		if f.UserID != userID {
+			return ErrInvalidFlightBatch
 		}
 		f.AircraftReg = reg(f.AircraftReg)
 		if err := prepareFlight(f); err != nil {
