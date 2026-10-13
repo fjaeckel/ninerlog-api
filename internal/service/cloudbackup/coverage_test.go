@@ -29,12 +29,14 @@ var exported = map[string]string{
 	"aircraft":                 "Aircraft",
 	"licenses":                 "Licenses[].License",
 	"class_ratings":            "Licenses[].ClassRatings",
+	"licence_privileges":       "Licenses[].Privileges",
 	"credentials":              "Credentials",
 	"contacts":                 "Contacts",
 	"custom_currency_rules":    "CustomCurrencyRules",
 	"custom_reports":           "CustomReports",
 	"notification_preferences": "NotificationPreferences",
 	"flight_baselines":         "FlightBaseline",
+	"pilot_profiles":           "PilotProfile",
 }
 
 // exempt maps a table to the reason its rows are not part of a user's backup.

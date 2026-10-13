@@ -2,7 +2,8 @@
 
 What NinerLog needs to know about gliders, self-launching sailplanes and touring motor
 gliders (TMGs): how to classify the aircraft, which EASA rules apply to their flights, and
-how the currency engine implements each point. The general engine design is in
+how the currency engine implements each point. FAA gliders are covered in
+[FAA gliders](#faa-gliders-14-cfr-part-61). The general engine design is in
 [DOMAIN.md](./DOMAIN.md#currency-engine).
 
 Source: Commission Implementing Regulation (EU) 2018/1976, Annex III (Part-SFCL), added by
@@ -61,6 +62,181 @@ SFCL.155(d): a pilot who lapses flies the missing launches dual or supervised so
 Winch, car, aerotow and bungee are **towed** launches: they count only toward a `GLIDER`
 rating or a sailplane-licence rule, never toward a powered class, its proficiency check or
 its passenger currency. Self-launches are not towed.
+
+### Launch method in and out
+
+Every write path accepts only those five values (`models.ValidateFlightTextFields`,
+`ErrInvalidLaunchMethod`); the service trims and lower-cases the value first and treats a
+blank one as none. A flight create or update with any other value is a 400, and so is a
+`POST /imports/json` restore: the restore stops at that flight with
+`Failed to import flight on <date> (<reg>): invalid launch method: <value>`, like any other
+invalid flight in a backup.
+
+CSV import maps a launch column to the `launchMethod` import field
+(`importtemplate.ParseLaunchMethod`, case-insensitive, trimmed):
+
+| Cell | Launch method |
+| --- | --- |
+| `W`, `Winde`, `Windenstart`, `winch` | `winch` |
+| `F`, `F-Schlepp`, `Flugzeugschlepp`, `aerotow` | `aerotow` |
+| `E`, `Eigenstart`, `self-launch` | `self-launch` |
+| `A`, `Autoschlepp`, `car` | `car` |
+| `G`, `Gummiseil`, `Gummiseilstart`, `bungee` | `bungee` |
+
+The single letters are Vereinsflieger's `S.-Art` codes; the generic German `Startart`
+header and English `Launch Method`/`Launch Type` headers are recognised too. Any other
+value imports the flight with no launch method; the row does not fail.
+
+An imported launch method (from a launch column or a `[Launch: …]` remarks marker) is kept
+only when `models.LaunchMethodApplies` to the flight's aircraft: the class already in the
+fleet, or for an aircraft the import creates, the class it infers. It applies to no class
+at all, `GLIDER`, `TMG`, and `ULTRALIGHT` with no kind or kind `SAILPLANE` or
+`THREE_AXIS_MOTORGLIDER`; for every other class (`SEP*`, `MEP*`, `SET*`, `GYROPLANE`, other
+ultralight kinds, `OTHER`) it is dropped. Vereinsflieger writes `E` for powered aircraft
+too, so a club Cessna classed `SEP_LAND` imports with no launch method and no launch marker
+in its remarks. The preview applies the same rule. `POST`/`PUT /flights` do not: a launch
+method entered by hand is stored whatever the aircraft.
+
+Exports: the standard CSV layout has a `LaunchMethod` column, followed by the glider flight
+facts and the aircraft's `AircraftClass`/`ULKind`. The EASA, FAA and
+vsimakhin/web-logbook CSV layouts and the EASA and FAA PDFs have no launch column, so
+`flightrules.CombinedRemarks` appends `[Launch: <method>]` to the remarks cell after the
+function-time annotations. On import a `[Launch: <method>]` marker in a remarks column is
+read back as the launch method (a launch column wins) and removed from the remarks, so all
+four CSV layouts round-trip it. The JSON backup carries the field as is. The sailplane PDF
+has its own launch columns and prints no marker; see [Printed logbook](#printed-logbook).
+
+Aircraft an import creates get a class so the currency engine counts their flights; see
+[Aircraft class on import](./AIRCRAFT_REGISTRATIONS.md#aircraft-class-on-import). A towed
+launch on an aircraft with no other class evidence makes it `GLIDER`.
+
+### Flight times: take-off to landing
+
+Glider flights have no block time: there is no engine start or chocks, so AMC1 SFCL.050
+records the departure and arrival times as take-off and landing. A flight is logged with
+`departureTime` (take-off) and `arrivalTime` (landing) alone; `offBlockTime` and
+`onBlockTime` stay empty. `totalTime` is then take-off to landing (block time wins only
+when both block times are present, as a TMG pilot may record them), and night time,
+night take-offs/landings, cross-country time and every recency count derive from the same
+pair. The EASA exports print take-off and landing in their departure/arrival time
+columns, an import of a take-off/landing-only logbook needs no block columns, and
+tap-to-log opens a session at `takeoff` and completes it at `landing`. See
+[DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
+
+### Launches and series entries
+
+`Flight.launches` is the number of launches a flight row records. It is derived as the
+take-off count (day + night, which is one per landing), at least one for a flight, and 0
+for an FSTD session or a passenger flight. A pilot may set it, which sets
+`launchesOverride`; `null` on `PUT` returns it to derivation. A row stored before the field
+existed has no value and counts its take-offs, at least one.
+
+Every launch count in the currency engine reads it: the 15 launches of SFCL.160(a)(1)(i)
+and the per-method SFCL.155(c) counts (`GetProgressByAircraftClass`, `GetLaunchCounts`).
+TMG take-offs toward self-launch count the TMG flights' launches the same way.
+
+Winch circuits can be logged two ways:
+
+- **One row per circuit** (the default). Each circuit is a flight with its own take-off
+  and landing, one launch each. `POST /flights/batch` logs a series of them at once; see
+  [Batch circuits](#batch-circuits).
+- **One row for the series**, as AMC1 FCL.050 allows for a series of flights on one day
+  at one site: a single flight whose take-off and landing span the series, with
+  `launches` set to the number of launches (and `landings` to the number of landings).
+  Six winch launches in one row count as six launches for SFCL.155 and SFCL.160.
+
+### Batch circuits
+
+`POST /flights/batch` takes a `template` (a full flight create body: date, aircraft,
+launch method, crew, departure and arrival, remarks …) and 1–50 `legs`. Each leg carries
+its take-off (`departureTime`) and landing (`arrivalTime`), and may carry `landings`
+(default: the template's, else 1), `launches` and `remarks`. Each leg is the template with
+the leg laid over it and is validated exactly like `POST /flights`; a leg that carries
+a take-off or landing time drops the template's `offBlockTime`/`onBlockTime`, so its total
+time spans its own take-off and landing. The legs are stored in
+one database transaction, so an invalid leg rejects the whole batch with a 400 naming the
+zero-based leg index and nothing is created. The response lists the created flights in leg
+order. Lena's six 8-minute winch circuits are one request: six flights, 48 minutes, six
+launches.
+
+### Outlandings, tow flights and release height
+
+- `isOutlanding` marks a landing away from the planned site (Außenlandung). An outlanding
+  is not a cross-country flight by virtue of its landing place, so no cross-country time
+  is derived from departure ≠ arrival; a cross-country time the pilot enters is kept.
+- `isTowFlight` marks a flight on which the pilot flew the tug, towing a sailplane. It is
+  meaningful on a powered aircraft and is not validated beyond being a boolean. The
+  towing privileges count it (SFCL.205, 14 CFR 61.69, DULV; see [Privileges](#privileges)).
+- `releaseHeightM` is the tow or winch release height in whole metres, 0–20000; anything
+  else is a 400.
+
+All three, and `launches` with its override flag, travel in the JSON backup, the standard
+CSV layout (`Launches`, `Outlanding`, `TowFlight`, `ReleaseHeightM` after `LaunchMethod`),
+the sailplane PDF (outlanding and release height as remarks markers) and CSV import (`Starts`/`Launches`, `Außenlandung`/`Outlanding`, `Tow Flight`,
+`Release Height`; a boolean reads true for `true`, `yes`, `ja`, `x`, `1` or a positive
+number). An imported launch count is stored as the pilot's value. They are logbook query
+fields (`launches`, `outlanding`, `towflight`, `releaseHeight`), and `is_outlanding` and
+`is_tow_flight` are custom-currency filters beside the `launches` metric.
+
+### Printed logbook
+
+`GET /exports/pdf?format=sailplane` prints an AMC1 SFCL.050 logbook, one landscape page per
+batch of flights:
+
+| Column | Source |
+| --- | --- |
+| Date | `date` |
+| Aircraft: type, registration | `aircraftType`, `aircraftReg` |
+| Take-off: place, time | `departureIcao`, `departureTime` |
+| Landing: place, time | `arrivalIcao`, `arrivalTime` |
+| Flight time | `totalTime` (take-off to landing) |
+| Launch: method, launches | `launchMethod` (`Winch`, `Aerotow`, `Self-launch`, `Car`, `Bungee`), `launches` |
+| Pilot function time: PIC, dual, FI(S) | PIC + PICUS + SPIC, `dualTime`, `dualGivenTime` |
+| Remarks and endorsements | `flightrules.SailplaneRemarks`: remarks, endorsements, function-time annotations, `[Outlanding]`, `[Release <n> m]` |
+
+The take-off and landing columns print `departureTime`/`arrivalTime`; a flight with only
+block times prints those. There are no single-/multi-pilot, night, IFR or FSTD columns and
+no `[Launch: …]` marker. Every page ends with the three totals rows (this page, previous
+pages, total time) for flight time, launches, PIC, dual and FI(S) time, and the pilot's
+certification and signature line. A totals summary page follows: flights, flight time,
+launches in total and per method, PIC, dual, FI(S) time and outlandings. A prior-experience
+baseline opens the time balances; it has no launch count, so the launch totals cover logged
+flights only and the summary says so. Instructor sign-offs print in the remarks cell as in
+the EASA layout.
+
+The licence-scoped export (`logbookLicenseId`) picks this layout by itself for an SPL,
+LAPL(S) or FAA glider licence (`service.LogbookFormatForLicence`); an explicit `format`
+wins. The `layout` parameter (spread/single) does not apply.
+
+## Statistics
+
+Soaring statistics count **soaring flights**: flights whose aircraft (matched by
+registration in the pilot's fleet) is classed `GLIDER`, is an `ULTRALIGHT` of kind
+`SAILPLANE`, or is classed `TMG` when the flight has a launch method. FSTD sessions and
+passenger flights never count, and neither do flights on a registration missing from the
+fleet. The rule is one SQL predicate (`soaringFlightSQL`,
+`internal/repository/postgres/soaring.go`) shared by both surfaces below, so they agree.
+
+- `GET /reports/soaring-season?year=YYYY` — the dashboard season card: one calendar year
+  (UTC, default the current year, 1900 to next year, else 400) with flights, launches,
+  launches per method (`winch`, `aerotow`, `selfLaunch`, `car`, `bungee`, and
+  `unspecified` for soaring flights without a method), total and average minutes,
+  outlandings, the longest flight by total time, and the five departure places with the
+  most soaring flights. A year without soaring flights is all zeros, not an error.
+- Custom reports (`/reports/custom`) take the metrics `launches` (the launch count of
+  soaring flights only, so a pilot's aeroplane take-offs never read as launches),
+  `outlandings` and `towFlights` (flights marked `isOutlanding` / `isTowFlight`, any
+  aircraft), and the groupings `launchMethod`, `aircraftClass` and `ulKind`. CSV and PDF
+  exports add a soaring column only when the report charts it or its total is not zero.
+
+Launches read `Flight.launches` exactly as the currency engine does (`launchCountSQL`: the
+stored count, else the take-offs, at least one).
+
+The longest flight is by total time. Neither surface uses `flights.distance`: it is the
+great-circle distance between departure and arrival airports, 0 for a local or
+out-and-return soaring flight and unknown for an outlanding field, so it says nothing about
+the distance flown. A soaring distance metric waits for a flown or task distance (IGC
+import, WP-27).
 
 ## Recency (SFCL.160)
 
@@ -128,28 +304,52 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
 
 | Rule | Requirement (`nameKey`) | Measured as | Classes |
 | --- | --- | --- | --- |
-| SFCL.160(a)(1) | `requirement.flight_time` ≥ 300 min | PIC + dual minutes | `GLIDER` + `TMG` |
-| SFCL.160(a)(1)(i) | `requirement.launches` ≥ 15 | take-offs, at least one per flight | `GLIDER` |
+| SFCL.160(a)(1) | `requirement.flight_time` ≥ 300 min | PIC + dual + SPIC minutes | `GLIDER` + `TMG` |
+| SFCL.160(a)(1)(i) | `requirement.launches` ≥ 15 | the flights' `launches` | `GLIDER` |
 | SFCL.160(a)(1)(ii) | `requirement.training_flights` ≥ 2 | flights with dual time | `GLIDER` |
 | SFCL.160(a)(2) | `requirement.proficiency_check` | a proficiency check flight in 24 months | `GLIDER` |
-| SFCL.160(b)(1) | `requirement.flight_time` ≥ 720 min | PIC + dual minutes | `GLIDER` + `TMG` |
-| SFCL.160(b)(1)(i) | `requirement.tmg_time` ≥ 360 min | PIC + dual minutes | `TMG` |
+| SFCL.160(b)(1) | `requirement.flight_time` ≥ 720 min | PIC + dual + SPIC minutes | `GLIDER` + `TMG` |
+| SFCL.160(b)(1)(i) | `requirement.tmg_time` ≥ 360 min | PIC + dual + SPIC minutes | `TMG` |
 | SFCL.160(b)(1)(ii) | `requirement.tmg_landings` ≥ 12 | landings | `TMG` |
 | SFCL.160(b)(1)(iii) | `requirement.tmg_training_flight` ≥ 60 min | longest total time of a flight with dual time | `TMG` |
 | SFCL.160(b)(2) | `requirement.proficiency_check` | a proficiency check flight in 24 months | `TMG` |
 | SFCL.160(c) | `rating.sfcl_tmg_exempt`, no requirements | the pilot holds a `TMG` rating on a Part-FCL licence | — |
-| SFCL.155(c) | `launchMethodCurrency[]` | take-offs per `launchMethod`; `self-launch` adds `TMG` take-offs | `GLIDER` (+ `TMG`) |
+| SFCL.155(c) | `launchMethodCurrency[]` | `launches` per `launchMethod`; `self-launch` adds the `TMG` flights' launches | `GLIDER` (+ `TMG`) |
+| SFCL.155(a) | `launchMethodCurrency[].trained` | a `LAUNCH_METHOD_TRAINED` privilege for the method on the rating's licence | — |
 | SFCL.160(e)(1) | passenger currency, `easa_spl_pax` | landing days of flights with PIC time | `GLIDER` |
-| SFCL.160(e)(2) | passenger currency, `easa_spl_tmg_pax` | landing days of flights with PIC time | `TMG`, SPL licence only |
+| SFCL.160(e)(2) | passenger currency, `easa_spl_tmg_pax` | landing days of flights with PIC time; night landings when the licence holds `TMG_NIGHT` | `TMG`, SPL licence only |
+| SFCL.115(a)(2) | passenger currency `requirements`, informational | PIC minutes and launches since the licence's issue date | `GLIDER` + `TMG` |
 
-- Recency is met by either all experience rows or the proficiency check.
-- A supervised solo flight has no instructor on board, so NinerLog logs it as PIC time.
+- Recency is met by either all experience rows or the proficiency check. When neither is,
+  the rating reports status `lapsed` with `rating.recency_not_met`: the licence stays valid,
+  its privileges may not be exercised until recency is restored. `expired` is reserved for a
+  date expiry.
+- <a id="supervised-solo"></a>**Supervised solo.** "Solo under the supervision of an
+  FI(S)" counts toward the hours of SFCL.160(a)(1) and (b)(1). A student logs it as
+  `spicTime` (student pilot-in-command), which carves out of PIC time, and the hours rows
+  sum PIC, dual and SPIC minutes (`progress.spicMinutes`). A supervised solo logged as PIC
+  time counts as PIC time. SPIC time on `ULTRALIGHT` aircraft is not credited, like their
+  dual time.
 - The glider rule applies to a `GLIDER` rating on any licence and to every non-TMG rating
   on an `SPL` or `LAPL(S)` licence; only a `GLIDER` rating pools TMG hours.
 - `launchMethodCurrency` lists every method the pilot has ever logged on the rating's
-  class, so a lapsed method shows as `0 / 5`. It is informational: the rating status does
-  not depend on it, because NinerLog doesn't know which methods the pilot is trained for.
+  class, so a lapsed method shows as `0 / 5`, and every method with a
+  `LAUNCH_METHOD_TRAINED` privilege on the rating's licence, logged or not (a trained
+  `self-launch` never logged on a sailplane counts the TMG take-offs in the window).
+  `trained` marks the methods the pilot recorded training for (SFCL.155(a)). It is
+  informational: the rating status does not depend on it.
 - Passenger currency for `GLIDER` never reports night privilege.
+- Each met row and each met launch method carries `validUntil`, the last day it holds if
+  the pilot does not fly again: with exactly 15 launches the launches row lasts until the
+  oldest of them + 24 months − 1 day, a method with 5 launches until its fifth-newest
+  launch + 24 months − 1 day. An unmet launch method carries
+  `remedy.launch_method_dual` with the missing count: SFCL.155(d) lets the pilot restore it
+  by flying the missing launches dual or solo under supervision.
+- `GET /currency/readiness?aircraftReg=D-1234&passengers=true&date=…` answers a club
+  pilot's "legal this Saturday?" (L4): the `GLIDER` rating, each launch method she has
+  logged, sailplane passenger recency and her medical, evaluated on the flights already on
+  record as of that date. A `GLIDER` aircraft selects `GLIDER` ratings only; a `TMG`
+  selects the SPL or Part-FCL `TMG` rating. See [DOMAIN.md](./DOMAIN.md#readiness-get-currencyreadiness).
 - SFCL.160(c) is applied by `Service.EvaluateAll`: an SPL TMG result is reported current
   with `rating.sfcl_tmg_exempt` when any EASA-evaluated licence that is neither a sailplane
   nor an ultralight licence (PPL, LAPL, CPL, ATPL) carries a `TMG` rating.
@@ -160,10 +360,131 @@ Code: `internal/service/currency/easa.go` (`easaSPLRule`, `easaSPLTMGRule`,
   flight needs an ORA.ATO.135-authorised aircraft. The result lists the kinds in
   `creditedUltralightKinds`.
 
+- Passenger currency for `TMG` on an SPL reports night privilege only when the licence holds
+  a current `TMG_NIGHT` privilege (SFCL.210). Night status then needs one night landing as
+  PIC in the preceding 90 days (SFCL.160(e)(2)), with `nightExpiresOn`, and the message is
+  `pax.current_day_night` or `pax.day_current_night_not`.
+- Sailplane and SPL TMG passenger currency carry the SFCL.115(a)(2) prerequisites in
+  `requirements`: `requirement.pax_prerequisite_time` (600 minutes as PIC) and
+  `requirement.pax_prerequisite_launches` (30 launches as PIC), alternatives counted on
+  `GLIDER` and `TMG` flights with PIC time since the licence's `issueDate`, and
+  `requirement.pax_competence_flight`, which is not tracked (`requirement.untracked`). The
+  rows never change `dayStatus`: a re-issued licence carries a later issue date than the
+  one the rule means.
+
+### Privileges
+
+Ratings, endorsements and authorisations beside the class ratings are recorded as licence
+privileges (`/licenses/{licenseId}/privileges`, table `licence_privileges`, migration 78).
+`GET /currency` evaluates each one into `privileges[]`
+(`internal/service/currency/privileges.go`, a rule per kind). Every privilege is `expired`
+past its `expiresOn`; otherwise its recency rule decides between `current` and `lapsed`,
+and a kind without one is `current` (`privilege.valid`). `messageParams.date` is the expiry
+date when there is one.
+
+| Kind | Rule (`ruleDescriptionKey`) | Rows | Counts |
+| --- | --- | --- | --- |
+| `SAILPLANE_TOWING` on a non-FAA licence | SFCL.205(c) (`sfcl_205_towing`) | `requirement.tows` ≥ 5 in 24 months | take-offs of `isTowFlight` flights on any class except `ULTRALIGHT` |
+| `SAILPLANE_TOWING` on an FAA licence | 14 CFR 61.69(a)(5) (`faa_61_69_towing`) | `requirement.tows` ≥ 3, or `requirement.towed_glider_flights` ≥ 3, in 24 calendar months | tows as above; launches of `aerotow` `GLIDER` flights with PIC time |
+| `BANNER_TOWING` | SFCL.205(c) (`sfcl_205_banner_towing`) | `requirement.tows` ≥ 5 in 24 months | the same tow flights as sailplane towing |
+| `CLOUD_FLYING` | SFCL.215 (`sfcl_215_cloud_flying`) | `requirement.cloud_flying_time` ≥ 60 minutes or `requirement.cloud_flying_flights` ≥ 5 in 24 months | `ifrTime` of `GLIDER` flights with PIC time |
+| `FI_S` | SFCL.360 (`sfcl_360_fi_s`) | `requirement.instruction_time` ≥ 1800 minutes or `requirement.instruction_launches` ≥ 60 in 3 years; `requirement.fi_refresher` (untracked) | `dualGivenTime` and launches of `GLIDER` and `TMG` flights with instruction given |
+| `LAUNCH_METHOD_TRAINED` | SFCL.155(a) (`sfcl_155_launch_method`) | none; marks `launchMethodCurrency[].trained` | — |
+| `TMG_NIGHT` | expiry (`privilege_expiry`) | none; enables SPL TMG night passengers | — |
+| `AEROBATIC_BASIC`, `AEROBATIC_ADVANCED`, `BI_S`, `FE_S` | expiry (`privilege_expiry`) | none | — |
+
+The ultralight kinds (`UL_PASSENGER_AUTH`, `UL_TOWING`, `UL_TYPE_BRIEFING`) are described
+in [DOMAIN.md](./DOMAIN.md#ultralights).
+
+- **Tows** are the take-offs of a tow flight (its `launches` when set), so a series row on
+  the tug counts each tow. Banner tows have no flag of their own: a sailplane tow counts
+  toward banner towing and the reverse.
+- **Cloud flying time is IFR time on a sailplane.** A sailplane logs no IFR time otherwise,
+  so NinerLog reads `ifrTime` on a `GLIDER` flight as time exercising cloud-flying
+  privileges; log cloud flying there. TMGs are excluded, as are flights without PIC time.
+- **SFCL.360 instruction** is `dualGivenTime`; a flight with instruction given counts its
+  launches toward the 60.
+- A met row carries `validUntil` (the date the newest counted flights reach the threshold,
+  plus the window, minus one day; for 61.69 the last day of the 24th calendar month after
+  it). An unmet SFCL.205 or SFCL.215 row carries `remedy.privilege_with_instructor`: fly the
+  missing amount dual or under the supervision of an instructor. Other unmet rows carry
+  `remedy.fly_more`.
+- A privilege never changes a class rating's status. Petra's towing, cloud flying and FI(S)
+  sit next to her SEP revalidation (P job 3); her tow flights never count toward it or
+  toward her `GLIDER` rating (P3).
+- A privilege with an `expiresOn` gets the rating-expiry email (category `rating_expiry`) at
+  the pilot's warning days.
+
 ### Known gaps
 
-- SFCL.160(e)(2) night passenger carriage in a TMG is not evaluated for SPL holders.
-- SFCL.155(a) initial launch-method training and SFCL.115(a)(2) passenger prerequisites are
-  not tracked.
-- "Solo under the supervision of an FI(S)" logged without PIC time (e.g. a student's SPIC
-  column) is not counted toward the hour requirements.
+- SFCL.155(a) initial launch-method training counts (10 dual + 5 supervised solo winch
+  launches, …) are not evaluated; a `LAUNCH_METHOD_TRAINED` privilege records the outcome.
+- SFCL.115(a)(2) is reported, not enforced (see above); the passenger-competence training
+  flight is not tracked.
+- The SFCL.360 refresher and the 9-year FI(S) assessment of competence are not tracked;
+  `requirement.fi_refresher` is informational.
+- SFCL.215 has no proficiency-check alternative in NinerLog: an `isProficiencyCheck` flight
+  on a sailplane is the SFCL.160 check.
+- Banner and sailplane tows share `isTowFlight`.
+
+## FAA gliders (14 CFR Part 61)
+
+A glider rating under FAA rules has no recency rule of its own. Whether the pilot may act
+as PIC depends on the §61.56 flight review; whether they may carry passengers depends on
+§61.57(a). The two are reported separately, like every other FAA rating.
+
+### §61.56 flight review
+
+> (a) … a flight review consists of a minimum of 1 hour of flight training and 1 hour of
+> ground training. … (b) Glider pilots may substitute a minimum of three instructional
+> flights in a glider, each of which includes a flight to traffic pattern altitude, in lieu
+> of the 1 hour of flight training required in paragraph (a) of this section.
+
+A flight review is valid until the end of the 24th calendar month after the month it was
+completed in (§61.56(c)).
+
+### §61.57(a) passengers
+
+> … no person may act as a pilot in command of an aircraft carrying passengers … unless
+> that person has made at least three takeoffs and three landings within the preceding 90
+> days, and— (i) The person acted as the sole manipulator of the flight controls; and
+> (ii) The required takeoffs and landings were performed in an aircraft of the same
+> category, class, and type (if a type rating is required).
+
+§61.57(a) governs passengers only. It does not decide whether a glider pilot may fly solo.
+Night passenger currency (§61.57(b)) does not apply to gliders.
+
+### How NinerLog implements it
+
+Code: `internal/service/currency/faa.go` (`faaGliderRule`, `EvaluatePassengerCurrency`,
+`EvaluateFlightReview`). The glider rule applies to a `GLIDER` rating on any FAA licence
+and to every rating on an FAA `GLIDER` licence.
+
+| Rule | Where | Measured as | Classes |
+| --- | --- | --- | --- |
+| §61.56(a) | rating, `requirement.flight_review` | the latest flight flagged `isFlightReview`, on any class | all |
+| §61.56(b) | rating, `requirement.training_flights` ≥ 3 | flights with dual time since the first day of the calendar month 24 months ago | `GLIDER`, towed launches included |
+| §61.57(a) | passenger currency, `faa_glider` | landing days of flights with PIC time in the last 90 days | the rating's class, towed launches included |
+| §61.56 (per pilot) | `flightReview` | the latest `isFlightReview` flight | all |
+
+- The rating is `current` when the flight review is current or the §61.56(b) row is met;
+  otherwise it takes the flight review's status (`expiring`, `expired`), or `expired` with
+  `flight_review.none_on_record` when no review is logged. Its `ruleDescriptionKey` is
+  `faa_flight_review`; see [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md) for the keys.
+- Landings in the last 90 days never change the rating status.
+- "Sole manipulator of the controls" is approximated by PIC time: dual flights do not count
+  toward passenger currency.
+- Passenger currency for `GLIDER` never reports night privilege, on any FAA licence.
+- The top-level `flightReview` is per pilot and ignores the §61.56(b) alternative; a glider
+  rating can therefore be `current` while `flightReview` is `expired`.
+
+### Known gaps
+
+- The §61.56(b) alternative is inferred from dual flights only. The 1 hour of ground
+  training, the flight to traffic pattern altitude and the instructor's endorsement are not
+  recorded, and the alternative carries no expiry date.
+- The alternative counts all three flights in the window, so a set of flights straddling
+  its start is not recognised.
+- §61.69 towing recency is evaluated for a `SAILPLANE_TOWING` privilege on an FAA licence
+  ([Privileges](#privileges)); the other §61.69 prerequisites (100 hours PIC, the
+  endorsement) are not, and unpowered ultralight tows are not told apart from glider tows.

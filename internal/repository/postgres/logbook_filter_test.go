@@ -54,4 +54,52 @@ func TestAppendRegistrationFilter(t *testing.T) {
 			t.Errorf("Expected argNum 4, got %d", argNum)
 		}
 	})
+
+	towed := "COALESCE(launch_method, '') NOT IN ('winch', 'aerotow', 'car', 'bungee')"
+	cases := []struct {
+		name    string
+		regs    []string
+		untowed []string
+		want    string
+		args    []interface{}
+	}{
+		{
+			name:    "M2 credited registrations exclude towed launches",
+			regs:    []string{"D-MXYZ"},
+			untowed: []string{"D-EABC", "D-KTMG"},
+			want:    "WHERE user_id = $1 AND (UPPER(aircraft_reg) IN ($2) OR (UPPER(aircraft_reg) IN ($3, $4) AND " + towed + "))",
+			args:    []interface{}{"u", "D-MXYZ", "D-EABC", "D-KTMG"},
+		},
+		{
+			name:    "only credited registrations",
+			untowed: []string{"D-EABC"},
+			want:    "WHERE user_id = $1 AND (UPPER(aircraft_reg) IN ($2) AND " + towed + ")",
+			args:    []interface{}{"u", "D-EABC"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := &repository.FlightQueryOptions{
+				FilterByRegistrations:        true,
+				AircraftRegistrations:        tc.regs,
+				UntowedAircraftRegistrations: tc.untowed,
+			}
+			q, args, argNum := appendRegistrationFilter("WHERE user_id = $1", []interface{}{"u"}, 2, opts)
+			if q != tc.want {
+				t.Errorf("Unexpected query.\n got: %q\nwant: %q", q, tc.want)
+			}
+			if len(args) != len(tc.args) {
+				t.Fatalf("args = %v, want %v", args, tc.args)
+			}
+			for i := range args {
+				if args[i] != tc.args[i] {
+					t.Errorf("args = %v, want %v", args, tc.args)
+					break
+				}
+			}
+			if argNum != len(tc.args)+1 {
+				t.Errorf("argNum = %d, want %d", argNum, len(tc.args)+1)
+			}
+		})
+	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
+	"github.com/fjaeckel/ninerlog-api/internal/service/pilotprofile"
 	"github.com/google/uuid"
 )
 
@@ -47,6 +48,10 @@ type DefaultJSONBuilder struct {
 	CustomCurrency *currency.CustomService
 	CustomReports  *customreport.Service
 	Notifications  *service.NotificationService
+	// PilotProfiles backs the pilotProfile section; nil omits it.
+	PilotProfiles *pilotprofile.Service
+	// Privileges backs licenses[].privileges; nil omits them.
+	Privileges *service.LicencePrivilegeService
 	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
 	AttachCrew func(ctx context.Context, flights []*models.Flight)
@@ -116,9 +121,14 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		sort.SliceStable(ratings, func(i, j int) bool {
 			return ratings[i].ID.String() < ratings[j].ID.String()
 		})
+		privileges, perr := b.gatherPrivileges(ctx, userID, lic.ID)
+		if perr != nil {
+			return Payload{}, perr
+		}
 		licensesWithRatings = append(licensesWithRatings, LicenseWithRatings{
 			License:      lic,
 			ClassRatings: ratings,
+			Privileges:   privileges,
 		})
 	}
 
@@ -150,6 +160,10 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		return Payload{}, err
 	}
 
+	profile, err := b.gatherPilotProfile(ctx, userID)
+	if err != nil {
+		return Payload{}, err
+	}
 	return Payload{
 		ExportedAt:              now.Format(time.RFC3339),
 		Version:                 b.versionOrDefault(),
@@ -163,7 +177,20 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		CustomReports:           reports,
 		NotificationPreferences: prefs,
 		FlightBaseline:          NewFlightBaseline(b.gatherBaseline(ctx, userID)),
+		PilotProfile:            profile,
 	}, nil
+}
+
+// gatherPilotProfile returns the user's stored pilot profile, or nil if they have none.
+func (b *DefaultJSONBuilder) gatherPilotProfile(ctx context.Context, userID uuid.UUID) (*PilotProfile, error) {
+	if b.PilotProfiles == nil {
+		return nil, nil
+	}
+	p, err := b.PilotProfiles.Settings(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get pilot profile: %w", err)
+	}
+	return NewPilotProfile(p), nil
 }
 
 // gatherContacts returns the user's address book, sorted by id.
@@ -214,6 +241,21 @@ func (b *DefaultJSONBuilder) gatherCustomReports(ctx context.Context, userID uui
 		reports = append(reports, CustomReport{Name: r.Name, Definition: r.Definition})
 	}
 	return reports, nil
+}
+
+// gatherPrivileges returns a licence's privileges, sorted by id.
+func (b *DefaultJSONBuilder) gatherPrivileges(ctx context.Context, userID, licenseID uuid.UUID) ([]*models.LicencePrivilege, error) {
+	if b.Privileges == nil {
+		return nil, nil
+	}
+	privileges, err := b.Privileges.List(ctx, userID, licenseID)
+	if err != nil {
+		return nil, fmt.Errorf("list licence privileges: %w", err)
+	}
+	sort.SliceStable(privileges, func(i, j int) bool {
+		return privileges[i].ID.String() < privileges[j].ID.String()
+	})
+	return privileges, nil
 }
 
 // gatherNotificationPreferences returns the user's notification settings.

@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,8 @@ type mockContactRepo struct {
 	crewRenames int
 	// lookups counts GetByExactName calls.
 	lookups int
+	// getByIDErr, when set, is returned by GetByID.
+	getByIDErr error
 }
 
 func newMockContactRepo() *mockContactRepo {
@@ -72,6 +75,9 @@ func (m *mockContactRepo) RolesByContact(ctx context.Context, userID uuid.UUID) 
 }
 
 func (m *mockContactRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Contact, error) {
+	if m.getByIDErr != nil {
+		return nil, m.getByIDErr
+	}
 	c, ok := m.contacts[id]
 	if !ok {
 		return nil, repository.ErrNotFound
@@ -442,5 +448,50 @@ func TestListContacts_Empty(t *testing.T) {
 	}
 	if len(contacts) != 0 {
 		t.Errorf("ListContacts() count = %d, want 0", len(contacts))
+	}
+}
+
+func TestKeepOwnedContacts(t *testing.T) {
+	userID := uuid.New()
+	repo := newMockContactRepo()
+	owned := &models.Contact{ID: uuid.New(), UserID: userID, Name: "Anna"}
+	foreign := &models.Contact{ID: uuid.New(), UserID: uuid.New(), Name: "Carl"}
+	repo.contacts[owned.ID] = owned
+	repo.contacts[foreign.ID] = foreign
+	svc := service.NewContactService(repo)
+	missing := uuid.New()
+
+	crew := []models.FlightCrewMember{
+		{Name: "Anna", ContactID: &owned.ID},
+		{Name: "Carl", ContactID: &foreign.ID},
+		{Name: "Gone", ContactID: &missing},
+		{Name: "Bea"},
+	}
+	if err := svc.KeepOwnedContacts(context.Background(), userID, crew); err != nil {
+		t.Fatalf("KeepOwnedContacts() error = %v", err)
+	}
+	if crew[0].ContactID == nil || *crew[0].ContactID != owned.ID {
+		t.Errorf("owned contactId = %v, want %s", crew[0].ContactID, owned.ID)
+	}
+	for _, m := range crew[1:] {
+		if m.ContactID != nil {
+			t.Errorf("%s contactId = %s, want cleared", m.Name, m.ContactID)
+		}
+	}
+}
+
+func TestKeepOwnedContacts_TransientErrorKeepsLinks(t *testing.T) {
+	userID := uuid.New()
+	repo := newMockContactRepo()
+	repo.getByIDErr = errors.New("db down")
+	svc := service.NewContactService(repo)
+	id := uuid.New()
+	crew := []models.FlightCrewMember{{Name: "Anna", ContactID: &id}}
+
+	if err := svc.KeepOwnedContacts(context.Background(), userID, crew); err == nil {
+		t.Fatal("KeepOwnedContacts() error = nil, want the lookup error")
+	}
+	if crew[0].ContactID == nil || *crew[0].ContactID != id {
+		t.Errorf("contactId = %v, want %s kept", crew[0].ContactID, id)
 	}
 }

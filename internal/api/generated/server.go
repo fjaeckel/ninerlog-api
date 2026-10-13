@@ -260,6 +260,9 @@ type ServerInterface interface {
 	// GetAllCurrencyStatus Get currency status for all class ratings
 	// (GET /currency)
 	GetAllCurrencyStatus(c *gin.Context)
+	// GetCurrencyReadiness Answer "may I fly on this date?"
+	// (GET /currency/readiness)
+	GetCurrencyReadiness(c *gin.Context, params GetCurrencyReadinessParams)
 	// ListCustomCurrencyRules List the caller's custom currency rules
 	// (GET /custom-currency)
 	ListCustomCurrencyRules(c *gin.Context)
@@ -326,6 +329,9 @@ type ServerInterface interface {
 	// CreateFlight Create flight log
 	// (POST /flights)
 	CreateFlight(c *gin.Context)
+	// CreateFlightBatch Log a batch of flights
+	// (POST /flights/batch)
+	CreateFlightBatch(c *gin.Context)
 	// DeleteAllFlights Delete all flights
 	// (DELETE /flights/delete-all)
 	DeleteAllFlights(c *gin.Context)
@@ -416,6 +422,18 @@ type ServerInterface interface {
 	// GetLicenseFile Download a licence reference image
 	// (GET /licenses/{licenseId}/files/{fileId})
 	GetLicenseFile(c *gin.Context, licenseId LicenseId, fileId DocumentFileId)
+	// ListLicencePrivileges List privileges recorded on a licence
+	// (GET /licenses/{licenseId}/privileges)
+	ListLicencePrivileges(c *gin.Context, licenseId LicenseId)
+	// CreateLicencePrivilege Record a privilege on a licence
+	// (POST /licenses/{licenseId}/privileges)
+	CreateLicencePrivilege(c *gin.Context, licenseId LicenseId)
+	// DeleteLicencePrivilege Delete a licence privilege
+	// (DELETE /licenses/{licenseId}/privileges/{privilegeId})
+	DeleteLicencePrivilege(c *gin.Context, licenseId LicenseId, privilegeId PrivilegeId)
+	// UpdateLicencePrivilege Update a licence privilege
+	// (PATCH /licenses/{licenseId}/privileges/{privilegeId})
+	UpdateLicencePrivilege(c *gin.Context, licenseId LicenseId, privilegeId PrivilegeId)
 	// ListClassRatings List class ratings for a license
 	// (GET /licenses/{licenseId}/ratings)
 	ListClassRatings(c *gin.Context, licenseId LicenseId)
@@ -467,6 +485,9 @@ type ServerInterface interface {
 	// GetFlightRoutes Get flight routes for map
 	// (GET /reports/routes)
 	GetFlightRoutes(c *gin.Context)
+	// GetSoaringSeason Get a soaring season summary
+	// (GET /reports/soaring-season)
+	GetSoaringSeason(c *gin.Context, params GetSoaringSeasonParams)
 	// GetStatsByClass Get statistics by aircraft class and category
 	// (GET /reports/stats-by-class)
 	GetStatsByClass(c *gin.Context, params GetStatsByClassParams)
@@ -512,6 +533,12 @@ type ServerInterface interface {
 	// GetNotificationHistory Get notification history
 	// (GET /users/me/notifications/history)
 	GetNotificationHistory(c *gin.Context, params GetNotificationHistoryParams)
+	// GetPilotProfile Get the pilot profile (disciplines / toolkits)
+	// (GET /users/me/pilot-profile)
+	GetPilotProfile(c *gin.Context)
+	// UpdatePilotProfile Update the pilot profile
+	// (PATCH /users/me/pilot-profile)
+	UpdatePilotProfile(c *gin.Context)
 	// GetMyStatistics Get current user's flight statistics
 	// (GET /users/me/statistics)
 	GetMyStatistics(c *gin.Context, params GetMyStatisticsParams)
@@ -2245,6 +2272,49 @@ func (siw *ServerInterfaceWrapper) GetAllCurrencyStatus(c *gin.Context) {
 	siw.Handler.GetAllCurrencyStatus(c)
 }
 
+// GetCurrencyReadiness operation middleware
+func (siw *ServerInterfaceWrapper) GetCurrencyReadiness(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCurrencyReadinessParams
+
+	// ------------- Optional query parameter "date" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", c.Request.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter date: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "aircraftReg" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "aircraftReg", c.Request.URL.Query(), &params.AircraftReg, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter aircraftReg: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "passengers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "passengers", c.Request.URL.Query(), &params.Passengers, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter passengers: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCurrencyReadiness(c, params)
+}
+
 // ListCustomCurrencyRules operation middleware
 func (siw *ServerInterfaceWrapper) ListCustomCurrencyRules(c *gin.Context) {
 
@@ -2927,6 +2997,19 @@ func (siw *ServerInterfaceWrapper) CreateFlight(c *gin.Context) {
 	}
 
 	siw.Handler.CreateFlight(c)
+}
+
+// CreateFlightBatch operation middleware
+func (siw *ServerInterfaceWrapper) CreateFlightBatch(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateFlightBatch(c)
 }
 
 // DeleteAllFlights operation middleware
@@ -3658,6 +3741,124 @@ func (siw *ServerInterfaceWrapper) GetLicenseFile(c *gin.Context) {
 	siw.Handler.GetLicenseFile(c, licenseId, fileId)
 }
 
+// ListLicencePrivileges operation middleware
+func (siw *ServerInterfaceWrapper) ListLicencePrivileges(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListLicencePrivileges(c, licenseId)
+}
+
+// CreateLicencePrivilege operation middleware
+func (siw *ServerInterfaceWrapper) CreateLicencePrivilege(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateLicencePrivilege(c, licenseId)
+}
+
+// DeleteLicencePrivilege operation middleware
+func (siw *ServerInterfaceWrapper) DeleteLicencePrivilege(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "privilegeId" -------------
+	var privilegeId PrivilegeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "privilegeId", c.Param("privilegeId"), &privilegeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter privilegeId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteLicencePrivilege(c, licenseId, privilegeId)
+}
+
+// UpdateLicencePrivilege operation middleware
+func (siw *ServerInterfaceWrapper) UpdateLicencePrivilege(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "licenseId" -------------
+	var licenseId LicenseId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "licenseId", c.Param("licenseId"), &licenseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter licenseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "privilegeId" -------------
+	var privilegeId PrivilegeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "privilegeId", c.Param("privilegeId"), &privilegeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter privilegeId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateLicencePrivilege(c, licenseId, privilegeId)
+}
+
 // ListClassRatings operation middleware
 func (siw *ServerInterfaceWrapper) ListClassRatings(c *gin.Context) {
 
@@ -4069,6 +4270,33 @@ func (siw *ServerInterfaceWrapper) GetFlightRoutes(c *gin.Context) {
 	siw.Handler.GetFlightRoutes(c)
 }
 
+// GetSoaringSeason operation middleware
+func (siw *ServerInterfaceWrapper) GetSoaringSeason(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSoaringSeasonParams
+
+	// ------------- Optional query parameter "year" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "year", c.Request.URL.Query(), &params.Year, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter year: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSoaringSeason(c, params)
+}
+
 // GetStatsByClass operation middleware
 func (siw *ServerInterfaceWrapper) GetStatsByClass(c *gin.Context) {
 
@@ -4376,6 +4604,32 @@ func (siw *ServerInterfaceWrapper) GetNotificationHistory(c *gin.Context) {
 	siw.Handler.GetNotificationHistory(c, params)
 }
 
+// GetPilotProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetPilotProfile(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPilotProfile(c)
+}
+
+// UpdatePilotProfile operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePilotProfile(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdatePilotProfile(c)
+}
+
 // GetMyStatistics operation middleware
 func (siw *ServerInterfaceWrapper) GetMyStatistics(c *gin.Context) {
 
@@ -4473,6 +4727,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/users/me/baseline", wrapper.DeleteMyBaseline)
 	router.GET(options.BaseURL+"/users/me/baseline", wrapper.GetMyBaseline)
 	router.PUT(options.BaseURL+"/users/me/baseline", wrapper.PutMyBaseline)
+	router.GET(options.BaseURL+"/users/me/pilot-profile", wrapper.GetPilotProfile)
+	router.PATCH(options.BaseURL+"/users/me/pilot-profile", wrapper.UpdatePilotProfile)
 	router.GET(options.BaseURL+"/users/me/statistics", wrapper.GetMyStatistics)
 	router.GET(options.BaseURL+"/licenses", wrapper.ListLicenses)
 	router.POST(options.BaseURL+"/licenses", wrapper.CreateLicense)
@@ -4486,6 +4742,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/licenses/:licenseId/statistics", wrapper.GetLicenseStatistics)
 	router.GET(options.BaseURL+"/licenses/:licenseId/currency", wrapper.GetLicenseCurrency)
 	router.GET(options.BaseURL+"/currency", wrapper.GetAllCurrencyStatus)
+	router.GET(options.BaseURL+"/currency/readiness", wrapper.GetCurrencyReadiness)
 	router.GET(options.BaseURL+"/custom-currency", wrapper.ListCustomCurrencyRules)
 	router.POST(options.BaseURL+"/custom-currency", wrapper.CreateCustomCurrencyRule)
 	router.POST(options.BaseURL+"/custom-currency/preview", wrapper.PreviewCustomCurrencyRule)
@@ -4502,6 +4759,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/licenses/:licenseId/ratings", wrapper.CreateClassRating)
 	router.DELETE(options.BaseURL+"/licenses/:licenseId/ratings/:ratingId", wrapper.DeleteClassRating)
 	router.PATCH(options.BaseURL+"/licenses/:licenseId/ratings/:ratingId", wrapper.UpdateClassRating)
+	router.GET(options.BaseURL+"/licenses/:licenseId/privileges", wrapper.ListLicencePrivileges)
+	router.POST(options.BaseURL+"/licenses/:licenseId/privileges", wrapper.CreateLicencePrivilege)
+	router.DELETE(options.BaseURL+"/licenses/:licenseId/privileges/:privilegeId", wrapper.DeleteLicencePrivilege)
+	router.PATCH(options.BaseURL+"/licenses/:licenseId/privileges/:privilegeId", wrapper.UpdateLicencePrivilege)
 	router.GET(options.BaseURL+"/credentials", wrapper.ListCredentials)
 	router.POST(options.BaseURL+"/credentials", wrapper.CreateCredential)
 	router.DELETE(options.BaseURL+"/credentials/:credentialId", wrapper.DeleteCredential)
@@ -4553,6 +4814,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/reports/trends", wrapper.GetFlightTrends)
 	router.GET(options.BaseURL+"/reports/stats-by-class", wrapper.GetStatsByClass)
 	router.GET(options.BaseURL+"/reports/analytics", wrapper.GetFlightAnalytics)
+	router.GET(options.BaseURL+"/reports/soaring-season", wrapper.GetSoaringSeason)
 	router.GET(options.BaseURL+"/reports/custom", wrapper.ListCustomReports)
 	router.POST(options.BaseURL+"/reports/custom", wrapper.CreateCustomReport)
 	router.POST(options.BaseURL+"/reports/custom/preview", wrapper.PreviewCustomReport)
@@ -4570,6 +4832,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/contacts/:contactId", wrapper.UpdateContact)
 	router.DELETE(options.BaseURL+"/flights/delete-all", wrapper.DeleteAllFlights)
 	router.DELETE(options.BaseURL+"/users/me/data", wrapper.DeleteAllUserData)
+	router.POST(options.BaseURL+"/flights/batch", wrapper.CreateFlightBatch)
 	router.POST(options.BaseURL+"/flights/recalculate", wrapper.RecalculateFlights)
 	router.DELETE(options.BaseURL+"/flight-sessions/current", wrapper.DiscardCurrentFlightSession)
 	router.GET(options.BaseURL+"/flight-sessions/current", wrapper.GetCurrentFlightSession)

@@ -28,6 +28,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider/webdav"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
+	"github.com/fjaeckel/ninerlog-api/internal/service/pilotprofile"
 	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/cryptoutil"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
@@ -229,6 +230,7 @@ func main() {
 	credentialService := service.NewCredentialService(credentialRepo)
 	aircraftRepo := postgres.NewAircraftRepository(db)
 	aircraftService := service.NewAircraftService(aircraftRepo)
+	flightService.SetAircraftRepository(aircraftRepo)
 	notifRepo := postgres.NewNotificationRepository(db)
 	smtpConfig := email.LoadSMTPConfig()
 	emailSender := email.NewSender(smtpConfig)
@@ -254,6 +256,9 @@ func main() {
 	ulEval := currency.NewGermanULEvaluator()
 	currencyRegistry.RegisterMulti(ulEval, ulEval.Authorities()...)
 	currencyService := currency.NewService(currencyRegistry, licenseRepo, classRatingRepo, flightDataProvider)
+	licencePrivilegeRepo := postgres.NewLicencePrivilegeRepository(db)
+	currencyService.SetPrivilegeSource(licencePrivilegeRepo)
+	licencePrivilegeService := service.NewLicencePrivilegeService(licencePrivilegeRepo, licenseRepo)
 
 	// Custom (user-authored) currency rules
 	customCurrencyRepo := postgres.NewCustomCurrencyRuleRepository(db)
@@ -341,9 +346,15 @@ func main() {
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
 	apiHandler.SetOIDCService(oidcService)
 	apiHandler.SetCustomCurrencyService(customCurrencyService)
+	apiHandler.SetPilotProfileService(pilotprofile.NewService(
+		postgres.NewPilotProfileRepository(db),
+		postgres.NewDisciplineEvidenceSource(db),
+		licenseRepo, classRatingRepo, aircraftRepo,
+	))
+	apiHandler.SetLicencePrivilegeService(licencePrivilegeService)
 	apiHandler.SetCustomReportService(customreport.NewService(
 		postgres.NewCustomReportRepository(db),
-		service.NewLogbookScope(classRatingService, aircraftService),
+		service.NewLogbookScope(licenseService, classRatingService, aircraftService, currencyService),
 	))
 	// Repositories the handler uses directly (admin console, reports, import
 	// history, announcements, bulk wipes) — no raw *sql.DB reaches a handler.
@@ -351,6 +362,7 @@ func main() {
 	apiHandler.SetAnnouncementRepository(postgres.NewAnnouncementRepository(db))
 	apiHandler.SetFlightImportRepository(postgres.NewFlightImportRepository(db))
 	apiHandler.SetReportsRepository(postgres.NewReportsRepository(db))
+	apiHandler.SetSoaringSeasonService(service.NewSoaringSeasonService(postgres.NewSoaringRepository(db)))
 	apiHandler.SetUserContentRepository(postgres.NewUserContentRepository(db))
 	apiHandler.SetEmailSender(emailSender)
 	flightSessionService := service.NewFlightSessionService(flightSessionRepo, aircraftRepo, flightService)

@@ -48,10 +48,24 @@ func (h *APIHandler) GetAdminStats(c *gin.Context) {
 	stats.DisabledAccounts = adminStats.DisabledAccounts
 	stats.ActiveSessions = adminStats.ActiveSessions
 	stats.TotalCustomReports = adminStats.TotalCustomReports
+	stats.LicencePrivileges.ByKind = adminStats.LicencePrivilegesByKind
+	if stats.LicencePrivileges.ByKind == nil {
+		stats.LicencePrivileges.ByKind = map[string]int{}
+	}
+	for _, count := range stats.LicencePrivileges.ByKind {
+		stats.LicencePrivileges.Total += count
+	}
 	stats.ImportsByFormat = adminStats.ImportsByFormat
 	stats.CloudBackupDestinations.ByProvider = adminStats.BackupDestinationsByProvider
 	for _, count := range adminStats.BackupDestinationsByProvider {
 		stats.CloudBackupDestinations.Total += count
+	}
+	stats.PilotProfiles.EverythingMode = adminStats.PilotProfilesEverythingMode
+	stats.PilotProfiles.Overrides = make(map[string]generated.AdminPilotProfileOverrideCounts, len(adminStats.PilotProfileOverrides))
+	for discipline, byIntent := range adminStats.PilotProfileOverrides {
+		stats.PilotProfiles.Overrides[discipline] = generated.AdminPilotProfileOverrideCounts{
+			On: byIntent["on"], Off: byIntent["off"], Goal: byIntent["goal"],
+		}
 	}
 
 	c.JSON(http.StatusOK, stats)

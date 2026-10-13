@@ -36,11 +36,13 @@ type importJSONBackup struct {
 	CustomReports           []cloudbackup.CustomReport           `json:"customReports"`
 	NotificationPreferences *cloudbackup.NotificationPreferences `json:"notificationPreferences"`
 	FlightBaseline          *cloudbackup.FlightBaseline          `json:"flightBaseline"`
+	PilotProfile            *cloudbackup.PilotProfile            `json:"pilotProfile"`
 }
 
 type importLicenseBundle struct {
-	License      models.License       `json:"license"`
-	ClassRatings []models.ClassRating `json:"classRatings"`
+	License      models.License            `json:"license"`
+	ClassRatings []models.ClassRating      `json:"classRatings"`
+	Privileges   []models.LicencePrivilege `json:"privileges"`
 }
 
 // Caps on a single restore. A logbook far beyond these sizes is not a realistic
@@ -72,10 +74,14 @@ type importJSONSummary struct {
 	CustomCurrencyRulesImported int `json:"customCurrencyRulesImported"`
 	// CustomReportsImported counts saved custom reports restored.
 	CustomReportsImported int `json:"customReportsImported"`
+	// LicencePrivilegesImported counts licence privileges restored.
+	LicencePrivilegesImported int `json:"licencePrivilegesImported"`
 	// NotificationPreferencesImported and FlightBaselineImported report
 	// whether those single-row settings were present and restored.
 	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
 	FlightBaselineImported          bool `json:"flightBaselineImported"`
+	// PilotProfileImported reports whether a pilot profile was present and restored.
+	PilotProfileImported bool `json:"pilotProfileImported"`
 }
 
 // ImportDataJSON implements POST /imports/json. It restores a NinerLog JSON
@@ -119,6 +125,15 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 	if n := len(body.Licenses); n > maxRestoreEntities {
 		h.sendError(c, http.StatusBadRequest,
 			fmt.Sprintf("Backup contains too many licenses (%d, max %d)", n, maxRestoreEntities))
+		return
+	}
+	privilegeCount := 0
+	for _, bundle := range body.Licenses {
+		privilegeCount += len(bundle.Privileges)
+	}
+	if privilegeCount > maxRestoreEntities {
+		h.sendError(c, http.StatusBadRequest,
+			fmt.Sprintf("Backup contains too many licence privileges (%d, max %d)", privilegeCount, maxRestoreEntities))
 		return
 	}
 	if n := len(body.Credentials); n > maxRestoreEntities {
@@ -226,6 +241,22 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 				return
 			}
 			summary.ClassRatingsImported++
+		}
+
+		if h.licencePrivilegeService != nil {
+			for _, p := range bundle.Privileges {
+				if _, err := h.licencePrivilegeService.Create(ctx, userID, lic.ID, service.LicencePrivilegeInput{
+					Kind: p.Kind, Detail: p.Detail, IssuedOn: p.IssuedOn, ExpiresOn: p.ExpiresOn, Notes: p.Notes,
+				}); err != nil {
+					if errors.Is(err, models.ErrInvalidLicencePrivilege) || errors.Is(err, models.ErrFieldTooLong) {
+						h.sendError(c, http.StatusBadRequest, fmt.Sprintf("Failed to import licence privilege %q: %v", p.Kind, err))
+						return
+					}
+					h.sendError(c, http.StatusInternalServerError, "Failed to import licence privilege")
+					return
+				}
+				summary.LicencePrivilegesImported++
+			}
 		}
 	}
 
@@ -359,6 +390,19 @@ func (h *APIHandler) ImportDataJSON(c *gin.Context) {
 			return
 		}
 		summary.FlightBaselineImported = true
+	}
+
+	// --- Pilot profile ---
+	if p := body.PilotProfile; p != nil && h.pilotProfileService != nil {
+		if err := h.pilotProfileService.Replace(ctx, userID, p.ToModel(userID)); err != nil {
+			if errors.Is(err, models.ErrInvalidPilotProfile) {
+				h.sendError(c, http.StatusBadRequest, "Failed to import pilot profile: unknown mode or intent")
+				return
+			}
+			h.sendError(c, http.StatusInternalServerError, "Failed to import pilot profile")
+			return
+		}
+		summary.PilotProfileImported = true
 	}
 
 	c.JSON(http.StatusOK, summary)

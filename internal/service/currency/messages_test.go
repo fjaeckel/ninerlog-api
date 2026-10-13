@@ -20,13 +20,14 @@ var knownMessageKeys = map[string]bool{
 	MsgRatingRevalidationNotMet: true, MsgRatingRevalidationNotMetProfCheck: true,
 	MsgRatingRevalidationExpiringMet: true, MsgRatingRevalidationCurrent: true,
 	MsgRatingRecencyNotMet: true, MsgRatingRecencyCurrent: true, MsgRatingSFCLTMGExempt: true,
+	MsgRatingULKindRequired:        true,
 	MsgRatingIRHoursAndCheckNotMet: true, MsgRatingIRHoursNotMet: true,
 	MsgRatingIRCheckNotMet: true, MsgRatingIRCurrent: true,
 	MsgRatingIRLapsedSafetyPilot: true, MsgRatingIRExpiredIPC: true,
 	MsgRatingIRNotApplicable: true, MsgRatingPaxNotCurrent: true,
 	MsgRatingPaxDayCurrentNightNo: true, MsgRatingPaxCurrentDayNight: true,
-	MsgRatingGliderNotCurrent: true, MsgRatingGliderCurrent: true,
-	MsgPaxEvaluationFailed: true, MsgPaxNotCurrent: true,
+	MsgRatingFlightReviewGliderAlt: true,
+	MsgPaxEvaluationFailed:         true, MsgPaxNotCurrent: true,
 	MsgPaxCurrentDayNoNight: true, MsgPaxCurrentDayNightIRWaived: true,
 	MsgPaxCurrentDayNight: true, MsgPaxDayCurrentNightNot: true,
 	MsgPaxGPLExperienceNotMet: true, MsgPaxCurrentPrivilegeSeparat: true,
@@ -36,6 +37,16 @@ var knownMessageKeys = map[string]bool{
 	MsgRequirementProgress: true, MsgRequirementProfCheckCompleted: true,
 	MsgRequirementProfCheckMissing: true,
 	MsgLaunchMethodProgress:        true,
+	RemedyFlyMore:                  true, RemedyTrainingFlight: true,
+	RemedyProficiencyCheck: true, RemedyLaunchMethodDual: true,
+	MsgReadinessLaunchMethodCurrent: true, MsgReadinessCredentialValid: true,
+	MsgReadinessCredentialExpired: true, MsgReadinessNoRating: true,
+	MsgPaxULAuthorisationMissing: true,
+	MsgPrivilegeValid:            true, MsgPrivilegeExpired: true,
+	MsgPrivilegeRecencyCurrent: true, MsgPrivilegeRecencyNotMet: true,
+	MsgPrivilegeEvaluationFailed:  true,
+	MsgRequirementUntracked:       true,
+	RemedyPrivilegeWithInstructor: true,
 }
 
 var knownNameKeys = map[string]bool{
@@ -43,9 +54,14 @@ var knownNameKeys = map[string]bool{
 	ReqKeyLandings: true, ReqKeyDayLandings: true, ReqKeyNightLandings: true,
 	ReqKeyRefresherTraining: true, ReqKeyTrainingFlight: true,
 	ReqKeyProficiencyCheck: true, ReqKeyApproaches: true, ReqKeyHolds: true,
-	ReqKeyRouteSectors: true, ReqKeyLaunches: true, ReqKeyLaunchesAndLanding: true,
+	ReqKeyRouteSectors: true, ReqKeyLaunches: true,
 	ReqKeyFlightTime: true, ReqKeyTrainingFlights: true, ReqKeyTMGTime: true,
-	ReqKeyTMGLandings: true, ReqKeyTMGTrainingFlight: true,
+	ReqKeyTMGLandings: true, ReqKeyTMGTrainingFlight: true, ReqKeyFlightReview: true,
+	ReqKeyTows: true, ReqKeyTowedGliderFlights: true, ReqKeyCloudFlyingTime: true,
+	ReqKeyCloudFlyingFlights: true, ReqKeyInstructionTime: true, ReqKeyInstructionLaunches: true,
+	ReqKeyFIRefresher: true, ReqKeyPaxPrerequisiteTime: true, ReqKeyPaxPrerequisiteLaunches: true,
+	ReqKeyPaxCompetenceFlight: true, ReqKeyULXCFlights: true, ReqKeyULXCLandingFlights: true,
+	ReqKeyULXCDistance: true,
 }
 
 // evaluatorCase is one (authority, licenseType) pair to sweep.
@@ -97,10 +113,22 @@ func checkKeys(t *testing.T, label string, r ClassRatingCurrency) {
 		} else if !knownMessageKeys[req.MessageKey] {
 			t.Errorf("%s: requirement[%d] MessageKey %q not in catalogue", label, i, req.MessageKey)
 		}
+		if req.Met && req.RemedyKey != "" {
+			t.Errorf("%s: requirement[%d] is met but has RemedyKey %q", label, i, req.RemedyKey)
+		}
+		if req.RemedyKey != "" && !knownMessageKeys[req.RemedyKey] {
+			t.Errorf("%s: requirement[%d] RemedyKey %q not in catalogue", label, i, req.RemedyKey)
+		}
+		if !req.Met && req.RemedyKey == "" && req.NameKey != ReqKeyFlightReview {
+			t.Errorf("%s: requirement[%d] %s is unmet with no RemedyKey", label, i, req.NameKey)
+		}
 	}
 	for i, lm := range r.LaunchMethodCurrency {
 		if lm.MessageKey != MsgLaunchMethodProgress {
 			t.Errorf("%s: launchMethod[%d] MessageKey = %q", label, i, lm.MessageKey)
+		}
+		if !lm.Met && lm.RemedyKey != RemedyLaunchMethodDual {
+			t.Errorf("%s: launchMethod[%d] RemedyKey = %q", label, i, lm.RemedyKey)
 		}
 	}
 }
@@ -137,7 +165,7 @@ func TestEveryRatingResultCarriesAKey(t *testing.T) {
 				dp2 := newMockFlightDataProvider()
 				dp2.progressByClass[ct] = &Progress{
 					TotalMinutes: 6000, PICMinutes: 6000, IFRMinutes: 6000,
-					InstructorMinutes: 600, Landings: 40, NightLandings: 20,
+					InstructorMinutes: 600, LongestTrainingFlightMinutes: 60, Landings: 40, NightLandings: 20,
 					DayLandings: 20, Flights: 40, Approaches: 20, Holds: 10,
 				}
 				dp2.progressAll = dp2.progressByClass[ct]
@@ -222,7 +250,7 @@ func TestMessageParamsMatchKeys(t *testing.T) {
 	}
 	needsNeeded := map[string]bool{
 		MsgRatingPaxNotCurrent: true, MsgRatingPaxDayCurrentNightNo: true,
-		MsgRatingGliderNotCurrent: true, MsgPaxNotCurrent: true,
+		MsgPaxNotCurrent:         true,
 		MsgPaxDayCurrentNightNot: true,
 	}
 	needsDate := map[string]bool{
@@ -245,7 +273,7 @@ func TestMessageParamsMatchKeys(t *testing.T) {
 				license := &models.License{ID: uuid.New(), UserID: uuid.New(), RegulatoryAuthority: ec.authority, LicenseType: ec.licenseType}
 				rating := &models.ClassRating{ID: uuid.New(), LicenseID: license.ID, ClassType: ct, ExpiryDate: futureDate(exp)}
 				dp := newMockFlightDataProvider()
-				dp.progressByClass[ct] = &Progress{TotalMinutes: 6000, PICMinutes: 6000, IFRMinutes: 6000, InstructorMinutes: 600, Landings: 40, NightLandings: 20, Flights: 40, Approaches: 20, Holds: 10}
+				dp.progressByClass[ct] = &Progress{TotalMinutes: 6000, PICMinutes: 6000, IFRMinutes: 6000, InstructorMinutes: 600, LongestTrainingFlightMinutes: 60, Landings: 40, NightLandings: 20, Flights: 40, Approaches: 20, Holds: 10}
 				dp.progressAll = dp.progressByClass[ct]
 				dp.lastProficiencyCheck = futureDate(0)
 				r := ec.eval.Evaluate(ctx, rating, license, dp)

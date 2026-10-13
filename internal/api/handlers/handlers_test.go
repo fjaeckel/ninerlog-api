@@ -66,7 +66,8 @@ func (m *mockCredentialRepo) Delete(_ context.Context, id uuid.UUID) error {
 }
 
 type mockAircraftRepo struct {
-	aircraft map[uuid.UUID]*models.Aircraft
+	aircraft         map[uuid.UUID]*models.Aircraft
+	getByUserIDCalls int
 }
 
 func newMockAircraftRepo() *mockAircraftRepo {
@@ -88,6 +89,7 @@ func (m *mockAircraftRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Air
 	return a, nil
 }
 func (m *mockAircraftRepo) GetByUserID(_ context.Context, userID uuid.UUID, updatedSince *time.Time) ([]*models.Aircraft, error) {
+	m.getByUserIDCalls++
 	var out []*models.Aircraft
 	for _, a := range m.aircraft {
 		if a.UserID == userID && (updatedSince == nil || a.UpdatedAt.After(*updatedSince)) {
@@ -148,7 +150,11 @@ func (m *mockAircraftRepo) CountByUserID(_ context.Context, userID uuid.UUID) (i
 }
 
 type mockContactRepo struct {
-	contacts map[uuid.UUID]*models.Contact
+	contacts          map[uuid.UUID]*models.Contact
+	findOrCreateCalls int
+	findOrCreateErr   error
+	getByIDErr        error
+	getByIDCalls      int
 }
 
 func newMockContactRepo() *mockContactRepo {
@@ -163,6 +169,10 @@ func (m *mockContactRepo) Create(_ context.Context, c *models.Contact) error {
 	return nil
 }
 func (m *mockContactRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Contact, error) {
+	m.getByIDCalls++
+	if m.getByIDErr != nil {
+		return nil, m.getByIDErr
+	}
 	c, ok := m.contacts[id]
 	if !ok {
 		return nil, repository.ErrNotFound
@@ -187,6 +197,10 @@ func (m *mockContactRepo) GetByExactName(_ context.Context, userID uuid.UUID, na
 	return nil, repository.ErrNotFound
 }
 func (m *mockContactRepo) FindOrCreateByName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, bool, error) {
+	m.findOrCreateCalls++
+	if m.findOrCreateErr != nil {
+		return nil, false, m.findOrCreateErr
+	}
 	if existing, err := m.GetByExactName(ctx, userID, name); err == nil {
 		return existing, false, nil
 	}
@@ -416,7 +430,8 @@ func (m *mockEmailVerificationRepo) DeleteExpired(_ context.Context) error      
 // ---- Mock flight repo ----
 
 type mockFlightRepo struct {
-	flights map[uuid.UUID]*models.Flight
+	flights        map[uuid.UUID]*models.Flight
+	createBatchErr error
 	// lastOpts records the options the handler built, so tests can assert
 	// that a query parameter actually reached the repository layer.
 	lastOpts *repository.FlightQueryOptions
@@ -431,6 +446,17 @@ func (m *mockFlightRepo) Create(_ context.Context, f *models.Flight) error {
 	f.CreatedAt = time.Now()
 	f.UpdatedAt = time.Now()
 	m.flights[f.ID] = f
+	return nil
+}
+func (m *mockFlightRepo) CreateBatch(ctx context.Context, flights []*models.Flight) error {
+	if m.createBatchErr != nil {
+		return m.createBatchErr
+	}
+	for _, f := range flights {
+		if err := m.Create(ctx, f); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 func (m *mockFlightRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Flight, error) {
@@ -1866,6 +1892,75 @@ func TestUpdateFlight_InvalidBody(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("UpdateFlight(badBody) status = %d, want 400", w.Code)
+	}
+}
+
+func TestUpdateFlight_ClockPairs(t *testing.T) {
+	tests := []struct {
+		name       string
+		create     string
+		update     string
+		wantStatus int
+		wantMsg    string
+		wantTotal  int
+	}{
+		{
+			name:       "clearing the only pair is rejected like create",
+			create:     `"offBlockTime":"10:00:00","onBlockTime":"11:00:00"`,
+			update:     `{"offBlockTime":null,"onBlockTime":null}`,
+			wantStatus: http.StatusBadRequest,
+			wantMsg:    models.ErrFlightTimesMissing.Error(),
+		},
+		{
+			name:       "clearing a lone half of the only pair is rejected",
+			create:     `"offBlockTime":"10:00:00","onBlockTime":"11:00:00"`,
+			update:     `{"onBlockTime":null}`,
+			wantStatus: http.StatusBadRequest,
+			wantMsg:    "offBlockTime requires onBlockTime",
+		},
+		{
+			name:       "clearing block times falls back to take-off and landing",
+			create:     `"offBlockTime":"10:00:00","onBlockTime":"11:00:00","departureTime":"10:10:00","arrivalTime":"10:50:00"`,
+			update:     `{"offBlockTime":null,"onBlockTime":null}`,
+			wantStatus: http.StatusOK,
+			wantTotal:  40,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := setupTestHandler()
+			userID := uuid.New()
+			cw := httptest.NewRecorder()
+			cc := authenticatedContext(cw, userID)
+			cc.Request = httptest.NewRequest("POST", "/flights", bytes.NewBufferString(
+				`{"date":"2026-05-09","aircraftReg":"D-EABC","aircraftType":"C172","departureIcao":"EDDF","arrivalIcao":"EDDF","landings":1,`+tt.create+`}`))
+			cc.Request.Header.Set("Content-Type", "application/json")
+			h.CreateFlight(cc)
+			if cw.Code != http.StatusCreated {
+				t.Fatalf("create status = %d: %s", cw.Code, cw.Body.String())
+			}
+			var created generated.Flight
+			_ = json.Unmarshal(cw.Body.Bytes(), &created)
+
+			w := httptest.NewRecorder()
+			c := authenticatedContext(w, userID)
+			c.Request = httptest.NewRequest("PUT", "/flights/"+created.Id.String(), bytes.NewBufferString(tt.update))
+			c.Request.Header.Set("Content-Type", "application/json")
+			h.UpdateFlight(c, created.Id)
+			if w.Code != tt.wantStatus {
+				t.Fatalf("update status = %d, want %d: %s", w.Code, tt.wantStatus, w.Body.String())
+			}
+			if tt.wantMsg != "" && !strings.Contains(w.Body.String(), tt.wantMsg) {
+				t.Errorf("body = %s, want it to contain %q", w.Body.String(), tt.wantMsg)
+			}
+			if tt.wantStatus == http.StatusOK {
+				var got generated.Flight
+				_ = json.Unmarshal(w.Body.Bytes(), &got)
+				if got.TotalTime != tt.wantTotal {
+					t.Errorf("totalTime = %d, want %d", got.TotalTime, tt.wantTotal)
+				}
+			}
+		})
 	}
 }
 

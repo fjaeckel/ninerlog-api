@@ -27,12 +27,20 @@ type AdminStats struct {
 	ActiveSessions int
 	// TotalCustomReports counts saved custom reports across all users.
 	TotalCustomReports int
+	// LicencePrivilegesByKind maps privilege kind to count across all users.
+	// Never nil; kinds nobody has recorded are absent.
+	LicencePrivilegesByKind map[string]int
 	// ImportsByFormat maps import_format value to import count. Never nil;
 	// formats with no imports are absent.
 	ImportsByFormat map[string]int
 	// BackupDestinationsByProvider maps provider name to destination count.
 	// Never nil.
 	BackupDestinationsByProvider map[string]int
+	// PilotProfilesEverythingMode counts users whose pilot profile shows everything.
+	PilotProfilesEverythingMode int
+	// PilotProfileOverrides maps discipline to explicit intent (on, off, goal) to user
+	// count. Never nil; disciplines nobody has overridden are absent.
+	PilotProfileOverrides map[string]map[string]int
 }
 
 // AdminAuditLogEntry is one admin action, joined with the acting and target

@@ -171,6 +171,10 @@ type FlightRepository interface {
 	// Create creates a new flight
 	Create(ctx context.Context, flight *models.Flight) error
 
+	// CreateBatch creates the flights and their crew members in one
+	// transaction; on error nothing is stored.
+	CreateBatch(ctx context.Context, flights []*models.Flight) error
+
 	// GetByID retrieves a flight by its ID
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error)
 
@@ -234,6 +238,9 @@ type FlightQueryOptions struct {
 	// FilterByRegistrations=true matches no flights. Applied at the SQL level.
 	FilterByRegistrations bool
 	AircraftRegistrations []string
+	// UntowedAircraftRegistrations also match under FilterByRegistrations,
+	// for flights without a towed launch (models.TowedLaunchMethods).
+	UntowedAircraftRegistrations []string
 }
 
 // FlightSessionRepository defines the interface for in-progress flight
@@ -389,6 +396,20 @@ type AircraftRepository interface {
 	GetRecencyRowsByUserID(ctx context.Context, userID uuid.UUID) ([]*models.AircraftRecencyRow, error)
 }
 
+// LicencePrivilegeRepository persists licence privileges. Lists are ordered
+// by kind, then detail, then id.
+type LicencePrivilegeRepository interface {
+	Create(ctx context.Context, privilege *models.LicencePrivilege) error
+	// GetByID returns ErrNotFound when no privilege has the id.
+	GetByID(ctx context.Context, id uuid.UUID) (*models.LicencePrivilege, error)
+	ListByLicense(ctx context.Context, licenseID uuid.UUID) ([]*models.LicencePrivilege, error)
+	ListByUser(ctx context.Context, userID uuid.UUID) ([]*models.LicencePrivilege, error)
+	// Update writes kind, detail, dates and notes; ErrNotFound when the row is gone.
+	Update(ctx context.Context, privilege *models.LicencePrivilege) error
+	// Delete returns ErrNotFound when no privilege has the id.
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
 // NotificationRepository defines the interface for notification data access
 type NotificationRepository interface {
 	GetPreferences(ctx context.Context, userID uuid.UUID) (*models.NotificationPreferences, error)
@@ -426,6 +447,9 @@ type ContactRepository interface {
 // FlightCrewRepository defines the interface for flight crew member data access
 type FlightCrewRepository interface {
 	SetCrewMembers(ctx context.Context, flightID uuid.UUID, members []models.FlightCrewMember) error
+	// SetCrewMembersForFlights replaces the crew of every flight in flightIDs
+	// with members, in one transaction.
+	SetCrewMembersForFlights(ctx context.Context, flightIDs []uuid.UUID, members []models.FlightCrewMember) error
 	GetByFlightID(ctx context.Context, flightID uuid.UUID) ([]models.FlightCrewMember, error)
 	GetByFlightIDs(ctx context.Context, flightIDs []uuid.UUID) (map[uuid.UUID][]models.FlightCrewMember, error)
 	DeleteByFlightID(ctx context.Context, flightID uuid.UUID) error
@@ -606,4 +630,19 @@ type CustomReportRepository interface {
 	// Aggregate groups the user's flights matching opts by groupBy (a
 	// models.ReportGroup* value). Pagination and sorting in opts are ignored.
 	Aggregate(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions, groupBy string) ([]CustomReportGroup, error)
+}
+
+// PilotProfileRepository stores pilot profile settings, one row per user.
+type PilotProfileRepository interface {
+	// Get returns the user's stored profile, or ErrNotFound when none is stored.
+	Get(ctx context.Context, userID uuid.UUID) (*models.PilotProfile, error)
+	// Upsert creates or replaces the user's profile.
+	Upsert(ctx context.Context, profile *models.PilotProfile) error
+}
+
+// DisciplineEvidenceSource reads the flight aggregate discipline derivation runs on.
+type DisciplineEvidenceSource interface {
+	// GetDisciplineFlightGroups aggregates the user's flights per normalised aircraft class
+	// and ultralight kind in one query.
+	GetDisciplineFlightGroups(ctx context.Context, userID uuid.UUID) ([]models.DisciplineFlightGroup, error)
 }

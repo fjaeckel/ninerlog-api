@@ -119,3 +119,54 @@ func TestCustomReportSummary(t *testing.T) {
 		t.Fatalf("line 1 = %q", lines[1])
 	}
 }
+
+func TestCustomReportExportSoaringColumns(t *testing.T) {
+	tests := []struct {
+		name   string
+		metric string
+		totals models.CustomReportTotals
+		want   []string
+		absent []string
+	}{
+		{"A2 powered report keeps its columns", "nightTime", models.CustomReportTotals{Flights: 2, TotalTime: 120},
+			nil, []string{"Launches", "Outlandings", "Tow flights"}},
+		{"L soaring totals add their columns", "flights", models.CustomReportTotals{Flights: 7, Launches: 7, Outlandings: 1},
+			[]string{"Launches", "Outlandings"}, []string{"Tow flights"}},
+		{"report metric column is always present", "towFlights", models.CustomReportTotals{},
+			[]string{"Tow flights"}, []string{"Launches", "Outlandings"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := &models.CustomReportResult{GroupBy: models.ReportGroupLaunchMethod, Metric: tt.metric, Totals: tt.totals}
+			res.Rows = []models.CustomReportRow{{Key: "winch", Label: "Winch", CustomReportTotals: tt.totals}}
+			out, err := renderCustomReportCSV(res)
+			if err != nil {
+				t.Fatal(err)
+			}
+			records, err := csv.NewReader(bytes.NewReader(out)).ReadAll()
+			if err != nil {
+				t.Fatal(err)
+			}
+			header := strings.Join(records[0], "|")
+			if records[0][0] != "Launch method" {
+				t.Errorf("group title = %q", records[0][0])
+			}
+			for _, w := range tt.want {
+				if !strings.Contains(header, w) {
+					t.Errorf("header %q lacks %q", header, w)
+				}
+			}
+			for _, a := range tt.absent {
+				if strings.Contains(header, a) {
+					t.Errorf("header %q has %q", header, a)
+				}
+			}
+			if len(records[1]) != len(records[0]) {
+				t.Errorf("row width %d != header width %d", len(records[1]), len(records[0]))
+			}
+			if _, err := renderCustomReportPDF(&models.CustomReport{Name: "Launches"}, res); err != nil {
+				t.Fatalf("pdf: %v", err)
+			}
+		})
+	}
+}

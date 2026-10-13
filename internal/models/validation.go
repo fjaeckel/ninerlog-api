@@ -49,6 +49,9 @@ func ValidateFlightTextFields(f *Flight) error {
 			return err
 		}
 	}
+	if f.LaunchMethod != nil && *f.LaunchMethod != "" && !IsValidLaunchMethod(*f.LaunchMethod) {
+		return fmt.Errorf("%w: %s", ErrInvalidLaunchMethod, *f.LaunchMethod)
+	}
 	// Validate approach entries
 	for _, a := range f.Approaches {
 		if !ValidApproachTypes[a.Type] {

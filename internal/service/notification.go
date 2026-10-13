@@ -266,6 +266,39 @@ func (s *NotificationService) checkCurrencyNotifications(ctx context.Context, pr
 	if currencyStatus.FlightReview != nil {
 		s.checkFlightReviewNotification(ctx, prefs, *currencyStatus.FlightReview, userEmail, userName)
 	}
+
+	for _, p := range currencyStatus.Privileges {
+		s.checkPrivilegeExpiry(ctx, prefs, p, userEmail, userName)
+	}
+}
+
+// checkPrivilegeExpiry sends the rating expiry warning for a licence
+// privilege with an expiry date.
+func (s *NotificationService) checkPrivilegeExpiry(ctx context.Context, prefs *models.NotificationPreferences, p currency.PrivilegeCurrency, userEmail, userName string) {
+	if p.ExpiresOn == nil || !prefs.IsCategoryEnabled(models.NotifCategoryRatingExpiry) {
+		return
+	}
+	expiry := *p.ExpiresOn
+	days := int(time.Until(expiry).Hours() / 24)
+	if !inWarningWindow(prefs, days) {
+		return
+	}
+	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
+	if err != nil {
+		return
+	}
+	name := string(p.Kind)
+	if p.Detail != nil {
+		name += " (" + *p.Detail + ")"
+	}
+	subject, body := email.Templates(user.PreferredLocale).RatingExpiry(email.RatingExpiryParams{
+		UserName:      userName,
+		LicenseType:   p.LicenseType,
+		ClassType:     name,
+		ExpiryDate:    formatDateForUser(expiry, user.DateFormat),
+		DaysRemaining: days,
+	})
+	s.sendWarningForDays(ctx, prefs, models.NotifCategoryRatingExpiry, p.PrivilegeID, "licence_privilege", days, &expiry, subject, body, userEmail)
 }
 
 func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *models.NotificationPreferences, rating currency.ClassRatingCurrency, userEmail, userName string) {
@@ -298,9 +331,8 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 		}
 	}
 
-	// Revalidation currency notification (EASA — requirements not met approaching expiry)
-	if (rating.Status == currency.StatusExpiring || rating.Status == currency.StatusExpired) &&
-		prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
+	// Revalidation or recency not met
+	if ratingRequirementsNotMet(rating.Status) && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
 		// Reference is the class rating ID; no expiry date key.
 		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyRevalidation), rating.ClassRatingID, 0, nil)
 		if err != nil || sent {
@@ -335,6 +367,17 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 	}
 }
 
+// ratingRequirementsNotMet reports whether a rating status calls for the
+// revalidation/recency notice: expiring, expired or lapsed.
+func ratingRequirementsNotMet(status currency.Status) bool {
+	switch status {
+	case currency.StatusExpiring, currency.StatusExpired, currency.StatusLapsed:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs *models.NotificationPreferences, pax currency.PassengerCurrency, userEmail, userName string) {
 	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
 	if err != nil {
@@ -343,7 +386,7 @@ func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs 
 	tmpl := email.Templates(user.PreferredLocale)
 
 	// Day passenger currency
-	if pax.DayStatus != currency.StatusCurrent && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
+	if pax.DayStatus != currency.StatusCurrent && pax.MessageKey != currency.MsgPaxULAuthorisationMissing && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
 		// Generate a stable reference ID from class type + authority
 		refID := uuidFromString(string(pax.ClassType) + ":" + pax.RegulatoryAuthority + ":day")
 		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyPassenger), refID, 0, nil)
@@ -572,9 +615,12 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 
 // sendWarningForDays checks warning day thresholds and sends the first matching notification
 func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *models.NotificationPreferences, category models.NotificationCategory, refID uuid.UUID, refType string, daysUntilExpiry int, expiryDate *time.Time, subject, body, userEmail string) {
+	if !inWarningWindow(prefs, daysUntilExpiry) {
+		return
+	}
 	for _, warningDay := range prefs.WarningDays {
 		wd := int(warningDay)
-		if daysUntilExpiry <= wd && daysUntilExpiry >= 0 {
+		if daysUntilExpiry <= wd {
 			sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(category), refID, wd, expiryDate)
 			if err != nil || sent {
 				continue
@@ -600,6 +646,20 @@ func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *mod
 			break // Only send one warning per item per check
 		}
 	}
+}
+
+// inWarningWindow reports whether sendWarningForDays would consider an item
+// daysUntilExpiry days from expiry.
+func inWarningWindow(prefs *models.NotificationPreferences, daysUntilExpiry int) bool {
+	if daysUntilExpiry < 0 {
+		return false
+	}
+	for _, wd := range prefs.WarningDays {
+		if daysUntilExpiry <= int(wd) {
+			return true
+		}
+	}
+	return false
 }
 
 func strPtr(s string) *string {

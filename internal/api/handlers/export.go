@@ -17,6 +17,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 )
 
@@ -183,7 +184,8 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 			csvWrite(w, webLogbookCSVTotals(flights))
 		}
 	default:
-		writeStandardCSV(w, flights, prefs)
+		aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+		writeStandardCSV(w, flights, prefs, fleetByRegistration(aircraftList))
 		if totals {
 			csvWrite(w, standardCSVTotals(flights, prefs))
 		}
@@ -192,7 +194,9 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 	w.Flush()
 }
 
-func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
+// writeStandardCSV writes the standard layout; fleet maps canonical
+// registrations to the aircraft whose class and UL kind fill the last columns.
+func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, fleet map[string]*models.Aircraft) {
 	// Header row — compatible with ForeFlight import format
 	headers := []string{
 		"Date", "AircraftID", "AircraftType", "From", "To", "Route",
@@ -208,6 +212,8 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 		"IFRTime", "Remarks",
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
+		"LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM",
+		"AircraftClass", "ULKind",
 	}
 	csvWrite(w, headers)
 
@@ -299,7 +305,14 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 			prefs.formatDecimal(f.SPICTime),
 			prefs.formatDecimal(f.ExaminerTime),
 			prefs.formatDecimal(f.ReliefTime),
+			safeStr(f.LaunchMethod),
+			fmt.Sprintf("%d", f.Launches),
+			fmt.Sprintf("%t", f.IsOutlanding),
+			fmt.Sprintf("%t", f.IsTowFlight),
+			optionalIntCSV(f.ReleaseHeightM),
 		}
+		acClass, ulKind := aircraftClassCSV(fleet[registration.Canonical(f.AircraftReg)])
+		row = append(row, acClass, ulKind)
 		csvWrite(w, row)
 	}
 }
@@ -323,8 +336,9 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, us
 	for _, f := range flights {
 		dep := exportPlace(f.DepartureICAO)
 		arr := exportPlace(f.ArrivalICAO)
-		depTime := fmtTimeCSV(f.OffBlockTime)
-		arrTime := fmtTimeCSV(f.OnBlockTime)
+		depClock, arrClock := logbookClocks(f)
+		depTime := fmtTimeCSV(depClock)
+		arrTime := fmtTimeCSV(arrClock)
 		picName := flightrules.DisplayPICName(f, userName)
 
 		// SP-SE / SP-ME / MP from the centralised rule; acClass is empty
@@ -407,6 +421,19 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 	}
 }
 
+// aircraftClassCSV returns the normalized class and, for an ultralight, the
+// UL kind of ac; both blank for a nil aircraft.
+func aircraftClassCSV(ac *models.Aircraft) (class, ulKind string) {
+	if ac == nil {
+		return "", ""
+	}
+	class = string(models.NormalizeAircraftClass(ac.AircraftClass))
+	if models.IsULClass(ac.AircraftClass) && ac.ULKind != nil {
+		ulKind = string(*ac.ULKind)
+	}
+	return class, ulKind
+}
+
 // exportPlace returns a stored departure/arrival location as written in an
 // export: the airport name for an OurAirports local identifier.
 func exportPlace(s *string) string {
@@ -414,6 +441,13 @@ func exportPlace(s *string) string {
 		return ""
 	}
 	return airports.DisplayName(*s)
+}
+
+// logbookClocks returns the departure and arrival clock times a logbook row
+// prints (models.FlightClocks.LogbookClocks).
+func logbookClocks(f *models.Flight) (departure, arrival *string) {
+	d, a := models.ClocksOf(f).LogbookClocks()
+	return &d, &a
 }
 
 func fmtTimeCSV(s *string) string {
@@ -451,7 +485,9 @@ func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 		CustomCurrency: h.customCurrencyService,
 		CustomReports:  h.customReportService,
 		Notifications:  h.notificationService,
+		PilotProfiles:  h.pilotProfileService,
 		AttachCrew:     h.AttachCrewMembers,
+		Privileges:     h.licencePrivilegeService,
 	}
 }
 
@@ -478,4 +514,12 @@ func (h *APIHandler) ExportDataJSON(c *gin.Context) {
 	if err := encoder.Encode(backup); err != nil {
 		slog.Error("json export encode error", "error", err)
 	}
+}
+
+// optionalIntCSV formats v, or "" when nil.
+func optionalIntCSV(v *int) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", *v)
 }

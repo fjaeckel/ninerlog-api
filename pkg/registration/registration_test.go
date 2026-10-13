@@ -230,3 +230,20 @@ func TestLookup(t *testing.T) {
 		t.Error("Lookup(\"QQ\") matched, want no entry")
 	}
 }
+
+func TestClean(t *testing.T) {
+	tests := []struct{ raw, want string }{
+		{"PPG-Viper", "PPG-VIPER"},
+		{"  my   paramotor ", "MY PARAMOTOR"},
+		{"Apco", "APCO"},
+		{"deabc", "DEABC"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			if got := Clean(tt.raw); got != tt.want {
+				t.Errorf("Clean(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}

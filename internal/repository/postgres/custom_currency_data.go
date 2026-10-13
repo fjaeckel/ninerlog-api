@@ -41,6 +41,7 @@ var customMetricSQL = map[string]string{
 	"night_takeoffs":     "COALESCE(SUM(f.takeoffs_night), 0)",
 	"approaches":         "COALESCE(SUM(f.approaches_count), 0)",
 	"holds":              "COALESCE(SUM(f.holds), 0)",
+	"launches":           "COALESCE(SUM(" + launchCountSQL + "), 0)",
 }
 
 // customMetricRowSQL maps a metric to its per-flight (non-aggregated)
@@ -67,6 +68,7 @@ var customMetricRowSQL = map[string]string{
 	"night_takeoffs":     "f.takeoffs_night",
 	"approaches":         "f.approaches_count",
 	"holds":              "f.holds",
+	"launches":           launchCountSQL,
 }
 
 // customFilterColumn maps value-bearing filter fields (eq/in) to their SQL column.
@@ -87,6 +89,8 @@ var customBoolPredicate = map[string]string{
 	"has_night":                 "f.night_time > 0",
 	"has_ifr":                   "f.ifr_time > 0",
 	"is_cross_country":          "f.cross_country_time > 0",
+	"is_outlanding":             "f.is_outlanding = true",
+	"is_tow_flight":             "f.is_tow_flight = true",
 }
 
 // customCurrencyDataProvider implements currency.CustomFlightDataProvider.

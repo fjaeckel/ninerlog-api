@@ -191,9 +191,15 @@ func TestFSTDSessions(t *testing.T) {
 		requireStatus(t, r, 400)
 	})
 
-	t.Run("flight still requires its route and block times", func(t *testing.T) {
+	t.Run("flight still requires its route and a time pair", func(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{
 			"date": today(), "aircraftReg": "D-EFLY", "aircraftType": "C172",
+		})
+		requireStatus(t, r, 400)
+
+		r = c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftReg": "D-EFLY", "aircraftType": "C172",
+			"departureIcao": "EDNY", "arrivalIcao": "EDDS", "landings": 1,
 		})
 		requireStatus(t, r, 400)
 	})

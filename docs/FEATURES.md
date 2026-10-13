@@ -75,9 +75,25 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   may hold several licenses across authorities.
 - **Class ratings** (`internal/service/class_rating.go`) — nested under a license;
   `ClassType` enum and `ExpiryDate` drive currency and notifications.
+- **Licence privileges** (`internal/service/licence_privilege.go`,
+  `/licenses/{id}/privileges`) — ratings and authorisations beside the class ratings:
+  sailplane and banner towing, cloud flying, aerobatics, TMG night, FI(S), BI(S), FE(S),
+  launch methods trained for, the German UL passenger authorisation (§84a), UL towing per
+  kind and UL type briefings (Einweisung) per aircraft type, each with optional issue and
+  expiry dates and notes. Their currency is on `GET /currency`.
 - **Aircraft** (`internal/service/aircraft.go`) — the pilot's aircraft; the aircraft class
   links flights to the correct currency bucket, and an ultralight's kind decides what its
   flights are credited toward.
+- **Pilot profile / toolkits** (`internal/service/pilotprofile`, `GET/PATCH
+  /users/me/pilot-profile`) — which of the ten disciplines (aeroplane, TMG, sailplane,
+  ultralight, gyroplane, helicopter, IFR, multi-crew, instructor, simulator) are relevant to
+  the pilot, derived on every read from licences, ratings, fleet and the last 24 months of
+  flights, each with the evidence that explains it. A discipline is `active`, `training`
+  (dual-only flying without the rating, or intent "training toward"), `dormant` (flown, but not
+  in the last 24 months — even with the licence) or `off`. The pilot can turn each on, off or mark it as a training
+  goal, acknowledge a toolkit that switched itself on, or switch to "show everything".
+  Clients use it to fold features that serve none of the pilot's disciplines; the API itself
+  hides nothing. Rules: [DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines).
 - **Credentials** (`internal/service/credential.go`) — medicals, language proficiency,
   security clearances, German radio certificates (BZF II / BZF I / AZF); expiry feeds
   notifications.
@@ -146,9 +162,24 @@ roles, IFR, FSTD, remarks). See [DOMAIN.md](./DOMAIN.md) for the calculation and
 rules.
 
 - CRUD: `POST/GET/PUT/DELETE /flights`.
+- Time model: a flight is logged with block times (off-block/on-block), with take-off and
+  landing times, or with both. Total time is the block span when present, otherwise
+  take-off to landing, so a glider, TMG or ultralight pilot who logs only take-off and
+  landing gets the same totals, night split, cross-country time, currency credit, import
+  and exports as a block-timed flight. Tap-to-log sessions follow suit: a `takeoff` event
+  with no open session opens one and the `landing` event completes it. See
+  [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
 - List totals: `GET /flights` returns `totals` (column sums over every flight matching the
   filters) and `monthTotals` (the same per month, for the months on the page) next to
   `pagination` — see [API.md](./API.md).
+- Batch circuits: `POST /flights/batch` logs a series of flights — typically winch
+  circuits at one site — from one template (aircraft, launch method, crew, site) and one
+  take-off/landing pair per leg, 1–50 legs, validated like single creates and stored
+  atomically. See [SAILPLANES.md](./SAILPLANES.md#batch-circuits).
+- Glider flight facts: a launch count (derived from the take-offs, or set by the pilot to
+  log a series of launches on one row), an outlanding flag that stops cross-country time
+  being derived, a tow-flight flag for tug pilots and the release height in metres. See
+  [SAILPLANES.md](./SAILPLANES.md#launches-and-series-entries).
 - Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
@@ -202,8 +233,23 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 `internal/api/handlers/currency.go`). Full design in
 [DOMAIN.md](./DOMAIN.md#currency-engine).
 
+- **Status `lapsed`** — an unmet rolling recency rule (LAPL(A), SPL, SPL TMG, GPL, German UL)
+  reports `lapsed`: the licence is valid, its privileges are not exercisable until recency is
+  restored. `expiring` stays for an approaching expiry date or unmet expiry-anchored
+  revalidation, `expired` for a past expiry date. Lapsed ratings get the recency notice email.
+- **How long, and what is missing** — on rolling recency rules every met requirement and launch
+  method carries `validUntil`, and a current rating `recencyExpiresOn`, the last day it holds without further
+  flying, and every unmet one a remedy key ("fly 3 more launches", "one training flight of
+  an hour", "a proficiency check", SFCL.155(d) "2 aerotow launches dual or supervised
+  solo").
+- **Ready to fly?** — `GET /currency/readiness` answers for a date up to a year ahead,
+  optionally for one aircraft and with passengers: rating, each launch method, passengers
+  and medical certificate, each ready or not with the reason. A glider selects the glider
+  rating and its launch methods, an SEP aircraft the SEP rating, an ultralight the rating of
+  its kind (`internal/service/readiness`).
 - **Cross-class crediting** — EASA LAPL(A) recency counts flights on every aeroplane class
-  and TMG together (FCL.140.A), and accepts a LAPL(A) proficiency check instead; a PPL/CPL/ATPL
+  and TMG together (FCL.140.A), with the training flight being one flight of at least an hour
+  with an instructor, and accepts a LAPL(A) proficiency check instead; a PPL/CPL/ATPL
   holding both SEP(land) and TMG ratings revalidates both from flights in either class
   (FCL.740.A(b)(1)). No custom rule is needed. The rating result lists the pooled classes in
   `countedClasses`. Details in [DOMAIN.md](./DOMAIN.md#credited-classes).
@@ -212,8 +258,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   UL time and landings count toward EASA SEP/TMG revalidation and LAPL(A) recency, the
   instructor flight does not (FCL.035(a)(4)); German UL recency and passenger recency are
   evaluated per kind (LuftPersV §45, §45a), with SEP(land)/TMG time counting toward
-  three-axis recency. UL sailplane and UL motorglider PIC hours count toward SPL recency
-  (AMC1 SFCL.160). Details in [DOMAIN.md](./DOMAIN.md#ultralights).
+  three-axis recency. The §45 training flight is one flight of at least an hour with an
+  instructor; §45a counts take-offs and landings. A UL rating with no kind is not evaluated
+  (the pilot is asked to set it), and flights on a UL with no kind count only for a pilot
+  whose UL ratings are all of one kind — otherwise the rating reports them as unclassified.
+  UL sailplane and UL motorglider PIC hours count toward SPL recency
+  (AMC1 SFCL.160). A powered paraglider needs no registration: its aircraft takes a name
+  (`PPG-Viper`) that is never rewritten, and its flights log under that name. Night time or
+  night landings on a UL flight save with a `ul_night_flight` warning (no night privilege),
+  and an aircraft's MTOM above 600 kg or at most 120 kg is flagged on save
+  (`ul_mtom_exceeds_600`, `ul_120kg_class`). Serves Sabine (S2) and Mehmet (M4) in
+  [PERSONAS.md](./PERSONAS.md). Details in [DOMAIN.md](./DOMAIN.md#ultralights).
 - **Gyroplanes (GPL)** — a `GYROPLANE` class rating follows FCL.240.G; ultralight gyroplanes of
   at least 450 kg MTOM count toward its time and landings (FCL.035(a)(5)); passenger carriage
   needs 10h PIC after licence issue. See [DOMAIN.md](./DOMAIN.md#gyroplanes-gpl).
@@ -222,9 +277,26 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 
 - **Sailplanes and TMGs** — a `GLIDER` rating follows Part-SFCL recency (SFCL.160(a)): 5 h
   on sailplanes including TMGs, 15 launches and 2 training flights with an instructor on
-  gliders, or a proficiency check. An SPL `TMG` rating follows SFCL.160(b). Launch recency
-  is reported per method (SFCL.155(c)), with TMG take-offs counting toward self-launch.
+  gliders, or a proficiency check. An SPL `TMG` rating follows SFCL.160(b). The hours count
+  PIC, dual and supervised solo (SPIC) time. Launches are the flights' launch counts, so a
+  series entry counts every launch in it. Launch recency is reported per method
+  (SFCL.155(c)), with TMG take-offs counting toward self-launch.
   Details in [SAILPLANES.md](./SAILPLANES.md).
+- **Privileges** — each licence privilege is evaluated next to the ratings: SFCL.205 towing
+  (5 tows in 24 months, from tow flights), FAA §61.69 tow recency, SFCL.215 cloud flying
+  (1 h or 5 flights, from IFR time on gliders), SFCL.360 FI(S) instruction (30 h or 60
+  launches in 3 years, with the refresher shown as not tracked), DULV UL towing (10 tows
+  per kind), and expiry for the rest, with `validUntil` and remedies. Launch methods the
+  pilot is trained for are marked on the glider rating and shown even before the first
+  launch; SPL passenger currency shows the SFCL.115(a)(2) prerequisites and, with a TMG
+  night privilege, night passengers in a TMG (SFCL.160(e)(2)); German UL passenger
+  currency is only current with the §84a authorisation recorded, and shows the progress
+  toward it otherwise. Privileges with an expiry date get the rating-expiry email. Details
+  in [SAILPLANES.md](./SAILPLANES.md#privileges).
+- **FAA gliders** — an FAA glider rating is current on the §61.56 flight review, or on three
+  instructional glider flights in the same 24 calendar months (§61.56(b)). §61.57(a) is shown
+  as passenger currency only, counting landings as PIC, with no night requirement on any FAA
+  licence. Details in [SAILPLANES.md](./SAILPLANES.md#faa-gliders-14-cfr-part-61).
 
 - **Custom currency rules** (`/custom-currency`, `internal/service/currency/custom*.go`,
   `internal/api/handlers/custom_currency.go`) — a pilot writes their own rule as a
@@ -241,21 +313,31 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Statistics** — hour totals and breakdowns per user/license (`reports.go`,
   `admin_dashboard.go`, service aggregation).
 - **Reports** — `GET /reports/analytics` backs the whole Reports page from one request
-  (`reports_analytics.go`); trends and stats-by-class live in `reports.go`.
+  (`reports_analytics.go`); trends and stats-by-class live in `reports.go`. Stats-by-class
+  splits its `ULTRALIGHT` row by UL kind (`byUlKind`), so trike and three-axis hours are
+  never shown as one pool; the standard CSV export carries `AircraftClass` and `ULKind`
+  columns for the same reason.
 - **Custom reports** (`/reports/custom`, `internal/service/customreport`,
   `internal/api/handlers/custom_report*.go`) — a pilot saves a flight filter plus a grouping
   (`month`, `year`, `dayOfWeek`, `aircraftType`, `registration`, `departure`, `arrival`,
-  `route`) and one of nine metrics as a named report (`custom_reports`, definition stored as
+  `route`, `launchMethod`, `aircraftClass`, `ulKind`) and one of thirteen metrics
+  (including the soaring counts `launches`, `outlandings` and `towFlights`) as a named report (`custom_reports`, definition stored as
   JSONB, up to 100 per account), and re-runs it on demand or exports it alone as CSV or PDF
   (`custom_report_export.go`; the PDF adds a filter summary and a bar chart, the CSV
   neutralises formula-leading cells). Time groupings are gap-filled and chronological;
   the others are ranked by the chosen metric and capped (default 20, max 100). Aggregation
   reuses the `NOT is_simulator AND NOT is_passenger` flight-time rule everywhere else in the
   app applies (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)); a `logbookLicenseId`
-  filter reuses the same licence → allowed-registrations resolution
-  (`internal/service/logbook_scope.go`) as `GET /flights?logbookLicenseId`. Reports are
+  filter reuses the same licence logbook scope
+  (`internal/service/logbook_scope.go`, [DOMAIN.md](./DOMAIN.md#licence-logbooks)) as
+  `GET /flights?logbookLicenseId`. Reports are
   stored server-side per user, so they follow the pilot to every device and travel in the
   JSON export.
+- **Soaring season** (`GET /reports/soaring-season`, `internal/service/soaring_season.go`,
+  `internal/repository/postgres/soaring.go`) — one calendar year of glider, UL sailplane
+  and launched TMG flights for the dashboard season card: launches by method, hours,
+  average and longest flight, outlandings and the top five sites. The scope and why it
+  ignores airport-to-airport distance are in [SAILPLANES.md](./SAILPLANES.md#statistics).
 - **Initial hours** — a per-user snapshot of pre-existing experience (`FlightBaseline`).
   It is added to the totals of both the statistics endpoint and the Reports analytics
   totals whenever the requested range reaches back to its cutoff date, so the dashboard
@@ -326,6 +408,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   cross-country column is imported as the pilot's own value and stored with its override
   flag set (capped at block time), so a logbook brought from another product keeps the
   night and cross-country hours it was signed with instead of having them re-derived.
+  A row's total time is its block span when both block times parse, otherwise its
+  total-time column, otherwise its take-off to landing span — so a glider or ultralight
+  logbook with only take-off and landing columns imports without block times. In the
+  EASA CSV, EASA PDF and vsimakhin/web-logbook exports the departure/arrival time columns
+  print the block times, or take-off and landing for a flight without both block times;
+  the standard CSV keeps its four time columns separate and leaves the block ones empty.
+  A launch-method column (Vereinsflieger `S.-Art` W/F/E/A/G, German `Startart`, English
+  `Launch Method`) maps to `launchMethod`; an unknown code imports the flight without one.
+  Launch-count (`Starts`, `Launches`), outlanding (`Außenlandung`, `Outlanding`), tow-flight
+  and release-height columns map to the glider flight facts.
+  See [SAILPLANES.md](./SAILPLANES.md#launch-method-in-and-out).
 
   Adding a logbook means adding a `Template` in `importtemplate/sources.go`, the matching
   `ImportFormat` member in `api-spec/openapi.yaml`, and the value in the `import_format`
@@ -340,7 +433,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   EASA, FAA and web-logbook layouts write such a field's full name, which re-imports by
   exact name match and comes back as its identifier only when no other airport carries
   the same name (about 92% of such fields; every German one). The JSON export keeps the
-  identifier as well.
+  identifier as well. The launch method round-trips in all four: the standard layout's
+  `LaunchMethod` column, and a `[Launch: <method>]` remarks marker in the others. The
+  standard layout also round-trips the launch count, outlanding, tow-flight and
+  release-height columns.
 
   Two levels of coverage, both mandatory:
   `internal/api/handlers/export_import_roundtrip_test.go` drives the real export writers
@@ -426,15 +522,19 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   the flight rows' registration/type columns). Rows skipped as duplicates still
   contribute their aircraft, so re-importing a file backfills a fleet an earlier import
   left empty. Registrations are keyed in canonical notation while collecting them, so a
-  file that spells one aircraft two ways yields one fleet entry, not two. The confirm
+  file that spells one aircraft two ways yields one fleet entry, not two. A created aircraft
+  gets a class from the file's own class column, else from a German registration
+  (`D-1234` glider, `D-M…` ultralight), else `GLIDER` when its flights were towed — see
+  [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md#aircraft-class-on-import); an
+  existing aircraft is never reclassified. The confirm
   response reports both counts as `contactsCreated` and `aircraftCreated`.
   Restoring a JSON backup does the same: contacts are not carried in the backup format, so
   the crew names are re-linked by name against the destination account's address book and
   created where they are new, reported as `contactsCreated` in the restore summary.
 - **Export** (`export.go`, `export_pdf.go`, `export_pdf_easa.go`,
-  `export_pdf_faa.go`, `export_pdf_baseline.go`, `export_pdf_signature.go`,
-  `export_crew.go`, `export_vcard.go`) — CSV, JSON, PDF (rendered with
-  `go-pdf/fpdf`) and vCard.
+  `export_pdf_faa.go`, `export_pdf_discipline.go`, `export_pdf_baseline.go`,
+  `export_pdf_signature.go`, `export_crew.go`, `export_vcard.go`) — CSV, JSON, PDF
+  (rendered with `go-pdf/fpdf`) and vCard.
   Places are written as AMC1 FCL.050 asks: "in full or the internationally recognised
   three or four letter designator". An OurAirports local identifier (`DE-0249`) is
   neither, so the PDF logbooks, the EASA, FAA and web-logbook CSVs and custom-report
@@ -445,7 +545,13 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   being cut. The JSON export keeps the stored identifier.
   PDF logbooks come in EASA AMC1 FCL.050 and FAA 14 CFR § 61.51 layouts, each as
   a book-style two-page spread (default) or a condensed single-page landscape
-  layout, in A4/A5/Letter. Every page carries per-page / carried-forward /
+  layout, in A4/A5/Letter. Glider and ultralight pilots get their own one-page
+  layouts: `sailplane` (AMC1 SFCL.050 — take-off/landing, flight time, launch
+  method, launches, PIC/dual/FI(S), outlanding and release height in the remarks) and
+  `ultralight` (registration, type, UL kind, flight time, landings,
+  PIC/dual/instruction given), neither with IFR, night or multi-pilot columns. A
+  licence logbook export picks them by itself for an SPL/LAPL(S)/FAA glider or an
+  ultralight licence (see [DOMAIN.md](./DOMAIN.md#printed-logbook-layouts)). Every page carries per-page / carried-forward /
   running totals and a signature strip. The initial-hours snapshot (below) opens
   the carried-forward balance, so the TOTAL TIME row is a career total and not
   just what NinerLog holds; the columns a snapshot cannot supply are documented
@@ -459,14 +565,20 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   sign-off in its remarks column — the captured ink, the signer's name and their
   credential number — so a printed logbook carries its endorsements the way a paper
   one does; `export_pdf_signature.go` holds the block's layout ladder and the raster
-  bounds it embeds within.
+  bounds it embeds within. A licence logbook (`logbookLicenseId`) prints the flights on
+  the licence's rated classes, with ultralights filtered by the rating's kind. It also
+  prints flights credited toward the licence from other classes, each marked `[Credited]`:
+  SEP(land) and TMG flights in a German three-axis UL logbook, or three-axis UL flights
+  in a PPL's. A towed launch is never credited toward a powered rating. Single-engine
+  turbine (`SET*`) time goes in the SP-SE column. See
+  [DOMAIN.md](./DOMAIN.md#licence-logbooks).
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.
 - **Full backup / restore** (`GET /exports/json`, `POST /imports/json`) — everything the
-  pilot owns in one document: flights with crew, aircraft, licences and class ratings,
-  credentials, contacts, custom currency rules, custom reports, notification preferences and
-  the carried-forward hours baseline. `cloudbackup.Payload` is the single definition of that
+  pilot owns in one document: flights with crew, aircraft, licences with
+  their class ratings and privileges, credentials, contacts, custom currency rules, custom reports, notification
+  preferences, the carried-forward hours baseline and the pilot profile's intents. `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
   carry the same data. Restores are additive and regenerate all IDs, so a backup moves
   between installations; a custom report scoped to a licence is re-pointed at that licence's
@@ -534,7 +646,9 @@ Admin-only endpoints (caller must match `ADMIN_EMAIL`; enforced by the admin mid
   counts flights whose owner was carried rather than crewing
   (see [DOMAIN.md](./DOMAIN.md#passenger-flights)), each kept apart for the same reason
   the logbook keeps them apart. `totalCustomReports` counts saved custom reports across all
-  users. Config view also reports `registrationPrefixCount`
+  users; `licencePrivileges` reports the `total` and the count per kind (`byKind`) of licence
+  privileges across all users. `pilotProfiles` reports how many users switched the pilot profile to show
+  everything and, per discipline, how many set it explicitly on, off or as a training goal. Config view also reports `registrationPrefixCount`
   and `registrationPrefixesReviewed` — the size of the vendored nationality-mark table
   and when it was last checked against upstream, since the table is vendored rather than
   fetched (see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md)).

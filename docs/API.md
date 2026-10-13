@@ -229,7 +229,8 @@ apart), so nullable fields could not be cleared through the API at all, and two 
 workarounds existed instead: sending `""` to a text field, and the literal string `"null"` for
 `Flight.launchMethod`. Both are retired now that real `null` works; `launchMethod` accepts only
 `winch`, `aerotow`, `self-launch`, `car` or `bungee` in the spec's `enum`, and `null` clears it
-like any other nullable field.
+like any other nullable field. The service enforces the enum on every write path, so any other
+value is a 400 on `POST`/`PUT /flights` and fails a `POST /imports/json` restore.
 
 ## Delta sync (`updatedSince`)
 
@@ -345,9 +346,41 @@ them) and `DELETE /users/me` confirms with `confirmEmail` instead of `password`.
 `flightListColumns` for the flights-list columns). An unrecognised value for any of these
 is ignored rather than rejected, and the response always echoes what was stored.
 
+`GET /users/me/pilot-profile` returns the pilot profile: for each of the ten disciplines
+(`AEROPLANE`, `TMG`, `SAILPLANE`, `ULTRALIGHT`, `GYROPLANE`, `HELICOPTER`, `IFR`, `MULTI_CREW`,
+`INSTRUCTOR`, `SIMULATOR`, always in that order) its `status` (`active`, `training`, `dormant`,
+`off`), the pilot's `intent` (`auto`, `on`, `off`, `goal`), the `evidence` behind it, `ulKinds`
+and `acknowledgedAt`, plus `mode` (`adaptive` or `everything`) and `pendingAcknowledgement`.
+Evidence is derived on every read (rules in
+[DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines)); a `GET` never stores anything.
+`PATCH /users/me/pilot-profile` is an idempotent merge of `mode`, `intents` (a partial map of
+discipline to intent) and `acknowledge` (disciplines), and returns the full profile. An
+unknown mode, discipline or intent is a 400 and changes nothing. Clients must treat a
+discipline value they do not know as `active`.
+
 ### Licenses
 CRUD on `/licenses`, per-license statistics and currency, and nested class ratings
 (`/licenses/{id}/ratings`). `GET /licenses` accepts `updatedSince`.
+
+#### Licence privileges
+Ratings, endorsements and authorisations on a licence beside its class ratings: `SAILPLANE_TOWING`,
+`BANNER_TOWING`, `CLOUD_FLYING`, `AEROBATIC_BASIC`, `AEROBATIC_ADVANCED`, `TMG_NIGHT`, `FI_S`,
+`BI_S`, `FE_S`, `UL_PASSENGER_AUTH`, `UL_TOWING`, `UL_TYPE_BRIEFING`, `LAUNCH_METHOD_TRAINED`.
+
+| Method & path | Result |
+| --- | --- |
+| `GET /licenses/{licenseId}/privileges` | the licence's privileges, by kind then detail |
+| `POST /licenses/{licenseId}/privileges` | `201` with the privilege |
+| `PATCH /licenses/{licenseId}/privileges/{privilegeId}` | partial update; `null` clears `detail`, `issuedOn`, `expiresOn`, `notes` |
+| `DELETE /licenses/{licenseId}/privileges/{privilegeId}` | `204` |
+
+Body: `kind`, `detail?` (≤ 100 chars), `issuedOn?`, `expiresOn?` (not before `issuedOn`),
+`notes?` (≤ 1000 chars). `detail` is required for `LAUNCH_METHOD_TRAINED` (a launch method,
+stored lower-case), `UL_TOWING` (an ultralight rating kind, stored upper-case) and
+`UL_TYPE_BRIEFING` (the aircraft type). A violation is a `400` naming the rule. A licence or
+privilege that does not exist, belongs to another user, or (for a privilege) sits on another
+licence is a `404`, never a `403`. Deleting the licence deletes its privileges. Their
+currency is `privileges[]` on `GET /currency`; see [SAILPLANES.md](./SAILPLANES.md#privileges).
 
 ### Aircraft
 CRUD on `/aircraft`. `GET /aircraft` is paginated and accepts `updatedSince`. `registration`
@@ -357,7 +390,10 @@ see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md). `ulKind` is kept o
 (`Invalid ultralight kind`). Class ratings take the same `ulKind` on `POST` and `PATCH
 /licenses/{id}/ratings`, without the aircraft-only `THREE_AXIS_MOTORGLIDER`.
 `maxTakeoffMassKg` (1–1,000,000, nullable) records the aircraft's MTOM; out of range is a `400`
-(`Invalid maximum take-off mass`).
+(`Invalid maximum take-off mass`). An `ULTRALIGHT` aircraft of kind `POWERED_PARAGLIDER` may
+carry a name as its `registration`; it is uppercased and trimmed but never rewritten.
+`POST` and `PATCH` responses carry `warnings` for `ul_mtom_exceeds_600` and `ul_120kg_class`
+(see [Save warnings](#save-warnings)).
 
 `pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
 rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
@@ -367,14 +403,17 @@ fleet list, an aircraft picker — must page until `pagination.page` reaches
 `pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
 
 ### Flights
-CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
-(re-run auto-calculations respecting overrides). `nightTime`, `crossCountryTime`,
-`takeoffsDay`, `takeoffsNight`, `sicTime` and `multiPilotTime` are auto-calculated unless
-the request carries them: a number stores that value and sets the matching
-`*Override` flag, JSON `null` on `PUT` clears the flag so the server derives the value
-again, and an omitted field changes nothing. Every flight response reports the eight
-override flags. `aircraftReg` is normalised the same way
-as `registration` on create/update. `POST /flights/recalculate` also canonicalises the
+CRUD on `/flights`, plus `POST /flights/batch`, `DELETE /flights/delete-all` and
+`POST /flights/recalculate` (re-run auto-calculations respecting overrides). `nightTime`,
+`crossCountryTime`, `takeoffsDay`, `takeoffsNight`, `launches`, `sicTime` and
+`multiPilotTime` are auto-calculated unless the request carries them: a number stores that
+value and sets the matching `*Override` flag, JSON `null` on `PUT` clears the flag so the
+server derives the value again, and an omitted field changes nothing. Every flight response
+reports the nine override flags. `aircraftReg` is normalised the same way
+as `registration` on create/update; a value naming a powered paraglider in the pilot's fleet
+keeps that name. `POST /flights`, `PUT /flights/{id}` and every leg of `POST /flights/batch`
+carry `warnings` when a save-time check fires (`ul_night_flight`, see
+[Save warnings](#save-warnings)). `POST /flights/recalculate` also canonicalises the
 user's whole fleet first and reports the outcome as `aircraftNormalized` and
 `aircraftConflicts`. Flight responses include the read-only
 `departureAirportName` / `arrivalAirportName`, resolved per request from the airport
@@ -402,12 +441,36 @@ rather than unconditionally required and a mismatch is a 400:
 
 | `isSimulator` | Required | Rejected |
 | --- | --- | --- |
-| absent / `false` | `aircraftReg`, `departureIcao`, `arrivalIcao`, `offBlockTime`, `onBlockTime`, `landings` | `-` |
+| absent / `false` | `aircraftReg`, `departureIcao`, `arrivalIcao`, `landings`, and a time pair (below) | `-` |
 | `true` | `fstdType`, `simulatedFlightTime` (> 0) | `aircraftReg`, `departureIcao`, `arrivalIcao`, `offBlockTime`, `onBlockTime`, `landings` |
 
-`date` and `aircraftType` are required for both. A session responds with `0` in every
-flight-time field and never contributes to statistics, reports, the fleet list or currency
-— session time is recorded separately and is never summed with flight time
+`date` and `aircraftType` are required for both.
+
+A flight needs at least one complete **time pair**: block times (`offBlockTime` +
+`onBlockTime`) or take-off and landing times (`departureTime` + `arrivalTime`). Both pairs
+may be sent. The response `totalTime` is the block span when both block times are present,
+otherwise the take-off to landing span; an end earlier than its start crosses midnight UTC.
+Night time, night take-offs/landings and cross-country time are derived from the same pair.
+Every 400 below carries its message in `error`:
+
+| Body | Result |
+| --- | --- |
+| block pair, with or without take-off/landing | 201, `totalTime` = block span |
+| take-off/landing pair only | 201, `totalTime` = take-off to landing |
+| neither pair, no time at all | 400 `offBlockTime and onBlockTime, or departureTime and arrivalTime, are required for a flight` |
+| one half of a pair and no complete pair (e.g. only `offBlockTime`) | 400 `incomplete time pair: offBlockTime requires onBlockTime; …` |
+| unparseable or identical times in the pair used | 400 `Invalid block times format` / `Invalid take-off/landing times format` |
+
+On `PUT /flights/{id}`, changing either block time recomputes `totalTime` from the stored
+flight's pair (block first, else take-off/landing); on a flight without both block times,
+changing `departureTime` or `arrivalTime` recomputes it too. A `totalTime` in the body is
+applied only when neither applies. An update that sets or clears any of the four times must
+leave the flight (not an FSTD session) with a complete pair; otherwise it is the same 400 as
+on create. An update that sends no time keeps a stored flight without a pair, and its
+`totalTime`, as it is. See [DOMAIN.md](./DOMAIN.md#total-time-and-pilot-function-time).
+
+An FSTD session responds with `0` in every flight-time field and never contributes to
+statistics, reports, the fleet list or currency — session time is recorded separately and is never summed with flight time
 (EASA AMC1 FCL.050). See [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions).
 
 Flight responses carry a read-only `isPassenger`. It is `true` when another person is
@@ -432,6 +495,24 @@ never stored as a passenger flight. The four appear on flight responses, in
 `totals` of `GET /reports/analytics`, as custom-currency metrics
 and as logbook query fields. See
 [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
+
+### Save warnings
+
+Some rules are reported rather than enforced. The record is saved as sent, and the create or
+update response of that record carries an optional `warnings` array of `SaveWarning`:
+`code` (a `SaveWarningCode`), `severity` (`warning` or `info`) and `params` (values for the
+message). The field is absent when no check fired, and never present on `GET`, lists or
+delta sync: it describes the save, not the record. Clients show the message and keep the
+record; nothing needs to be resent.
+
+| Code | Severity | Returned by | `params` |
+| --- | --- | --- | --- |
+| `ul_night_flight` | warning | `POST /flights`, `PUT /flights/{id}`, each leg of `POST /flights/batch` | `nightTime` (minutes), `landingsNight`, `registration`, `ulKind` (when the aircraft has one) |
+| `ul_mtom_exceeds_600` | warning | `POST /aircraft`, `PATCH /aircraft/{id}` | `mtomKg`, `limitKg` (600) |
+| `ul_120kg_class` | info | `POST /aircraft`, `PATCH /aircraft/{id}` | `mtomKg`, `limitKg` (120) |
+
+When each fires: [DOMAIN.md](./DOMAIN.md#ultralights). Imports, flight sessions and
+`POST /flights/recalculate` save without reporting warnings.
 
 ### Credentials
 CRUD on `/credentials` (medicals, language proficiency, clearances, and the German radio
@@ -489,10 +570,72 @@ than the rating's own class count toward it (EASA LAPL(A) and SEP(land)+TMG pool
 [DOMAIN.md](./DOMAIN.md#credited-classes)); the field is absent otherwise. It carries
 `creditedUltralightKinds` when ultralight flights count too: `THREE_AXIS` /
 `THREE_AXIS_MOTORGLIDER` toward EASA SEP/TMG and LAPL(A) time and landings (FCL.035(a)(4)), or
-the kinds a German `ULTRALIGHT` rating covers. A German ultralight passenger currency entry
-carries `ulKind`, one entry per kind (see [DOMAIN.md](./DOMAIN.md#ultralights)). GYROPLANE
+the kinds a German `ULTRALIGHT` rating covers, and `unclassifiedFlights` when flights on
+ultralights with no kind were not counted. A German ultralight passenger currency entry
+carries `ulKind`, one entry per kind; a UL rating with no kind has none and reports `unknown`
+with `rating.ul_kind_required` (see [DOMAIN.md](./DOMAIN.md#ultralights)). `status` is one of
+`current`, `expiring`, `expired`, `lapsed` (rolling recency not met, licence still valid) and
+`unknown`. GYROPLANE
 ratings follow FCL.240.G, and an SPL TMG rating may carry `rating.sfcl_tmg_exempt`; see
 [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md).
+
+`GET /currency` also carries `privileges[]` (one `PrivilegeCurrency` per licence privilege:
+`privilegeId`, `licenseId`, `kind`, `detail`, `status` `current`/`lapsed`/`expired`/`unknown`,
+`messageKey`, `messageParams`, `requirements`, `ruleDescriptionKey`), absent when the pilot has
+recorded none. Launch-method rows carry `trained`, passenger entries may carry informational
+`requirements` (SFCL.115(a)(2), LuftPersV §84a), and a German UL passenger entry without a
+recorded `UL_PASSENGER_AUTH` reports `unknown` with `pax.ul_authorisation_missing` where it
+would otherwise be current. See [SAILPLANES.md](./SAILPLANES.md#privileges) and
+[DOMAIN.md](./DOMAIN.md#ultralights).
+
+**Glider flight facts.** Every flight carries `launches` (with `launchesOverride`),
+`isOutlanding`, `isTowFlight` and an optional `releaseHeightM`:
+
+| Field | Create / update | Effect |
+| --- | --- | --- |
+| `launches` | integer ≥ 0; `null` on `PUT` returns it to derivation | Derived as the take-off count (at least 1; 0 for an FSTD session or passenger flight). Launch recency (SFCL.155(c), SFCL.160(a)(1)(i)) counts it. A series of launches on one row sends the count. |
+| `isOutlanding` | boolean, default `false` | A landing away from the planned site: no cross-country time is derived from departure ≠ arrival. A `crossCountryTime` the pilot sends still wins. |
+| `isTowFlight` | boolean, default `false` | The pilot flew the tug. Counted by the towing privileges (SFCL.205, 14 CFR 61.69, DULV). |
+| `releaseHeightM` | integer 0–20000 or `null` | Release height in metres; outside the range is a 400 (`release height must be between 0 and 20000 m`). |
+
+A negative `launches` is a 400 (`launches cannot be negative`). All four travel in the JSON
+backup, the standard CSV layout and CSV import, and are logbook query fields (`launches`,
+`outlanding`, `towflight`, `releaseHeight`). See [SAILPLANES.md](./SAILPLANES.md#launches-and-series-entries).
+
+`POST /flights/batch` logs a series of circuits in one request: `{template, legs}`, where
+`template` is a `FlightCreate` body and each of the 1–50 `legs` carries `departureTime`,
+`arrivalTime` and optionally `landings` (default: the template's, else 1), `launches` and
+`remarks`, which replace the template's. Every leg is validated exactly like
+`POST /flights`, and all legs are stored in one transaction with their crew. It responds
+201 `{flights: [...]}` in leg order. Failures, all 400 unless noted, create nothing:
+
+| Condition | Response |
+| --- | --- |
+| no legs or more than 50 | 400 `legs must hold between 1 and 50 entries` |
+| a leg fails the create-shape or time-pair check | 400 `Leg <i>: <message as on POST /flights>` |
+| a leg fails model validation (e.g. `releaseHeightM` out of range, negative `launches`, invalid launch method) | 400 `Leg <i>: <validation error>` |
+| database error | 500 `Failed to create flights` |
+| no bearer token | 401 |
+
+`<i>` is the zero-based leg index. The endpoint carries the `general` rate limit like
+`POST /flights`, and honours `Idempotency-Key`.
+
+On rolling-window rules (LAPL, SPL, SPL TMG, GPL, German UL, FAA §61.57) each met
+requirement and each met launch method carry `validUntil`, and a `current` rating
+`recencyExpiresOn`: the last date they stay met with no further flying; every unmet regulatory row and launch method
+carries `remedyKey` and `remedyParams`. See
+[DOMAIN.md](./DOMAIN.md#recency-projection-validuntil-and-remedies).
+
+`GET /currency/readiness?date=&aircraftReg=&passengers=` answers "may I fly on this date?"
+per rating, launch method, passengers (only with `passengers=true`) and medical
+certificate, evaluating currency as of `date` on the flights already on record. `date`
+defaults to today (UTC) and must lie between the day before today (UTC) and 366 days
+ahead, else `400`; a
+malformed date is `400`. `aircraftReg` restricts the answer to the ratings whose own class
+(and ultralight kind) covers that aircraft; a registration that is not one of the caller's
+aircraft is `404`. Response: `ReadinessReport {date, aircraftReg?, items: ReadinessItem[]}`.
+Semantics in [DOMAIN.md](./DOMAIN.md#readiness-get-currencyreadiness), keys in
+[CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md#readiness-get-currencyreadiness).
 
 ### Custom Currency
 User-authored currency rules under `/custom-currency` — a rule is a declarative document (a
@@ -522,6 +665,10 @@ every device the pilot signs in on, and they travel in the JSON export.
 Airport lookup/search, route and airport statistics, trends, and stats-by-class, plus
 the downloadable airport pack:
 
+- `GET /reports/stats-by-class` — per-class rollups (`byClass`), most minutes first. The
+  `ULTRALIGHT` row keeps its class key and totals and adds `byUlKind`: the same figures per
+  UL kind, most minutes first, with `ulKind: null` for ultralights with no kind set. Other
+  rows have no `byUlKind`.
 - `GET /airports/{icaoCode}` — one airport by identifier: the ICAO code, or the
   OurAirports local identifier (e.g. `DE-0249`) for a field without one.
 - `GET /airports/search?q=` — identifier-prefix matches first, in identifier order, then
@@ -550,6 +697,16 @@ computed from every visited airport, not just the returned `byAirport` rows.
 `totals.crossCountryPicMinutes` sums, per flight, the smaller of PIC and cross-country
 time; the snapshot has no such split, so it covers logged flights only too.
 
+`GET /reports/soaring-season?year=YYYY` (`getSoaringSeason`) — one calendar year of the
+caller's soaring flights for the dashboard season card: `flights`, `launches`,
+`launchesByMethod` (`winch`, `aerotow`, `selfLaunch`, `car`, `bungee`, `unspecified`),
+`totalMinutes`, `averageFlightMinutes` (rounded), `outlandings`, `longestFlight`
+(`flightId`, `date`, `minutes`, `aircraftReg`; by total time, absent when the year has no
+soaring flight) and `sites` (top five departure places, `{place, flights}`). `year`
+defaults to the current UTC year; outside 1900 to next year it is a **400**. A year without
+soaring flights answers 200 with zeros. The soaring-flight scope is in
+[SAILPLANES.md](./SAILPLANES.md#statistics).
+
 ### Custom Reports
 User-defined flight reports under `/reports/custom` — a flight filter (`CustomReportFilter`,
 the same semantics as the matching `GET /flights` query parameters) plus a `groupBy`
@@ -569,18 +726,25 @@ dimension and one `metric`, saved and re-run on demand. An account holds at most
 
 `groupBy` is either a time dimension (`month`, `year`, `dayOfWeek`) — chronological,
 gap-filled across the window, and always covering all 7 weekdays for `dayOfWeek` — or a
-ranked dimension (`aircraftType`, `registration`, `departure`, `arrival`, `route`) — sorted
+ranked dimension (`aircraftType`, `registration`, `departure`, `arrival`, `route`,
+`launchMethod`, `aircraftClass`, `ulKind`) — sorted
 by the report's `metric` descending, then by key, and capped at `limit` (default 20, max
 100; groups left out are reported as `otherGroups` but still counted in `totals`). The
 `window.kind` values are `all`, `lastMonths` (the current calendar month plus `months - 1`
 before it), `yearToDate` and `range`; relative windows are resolved in UTC on every run, so
 `startDate`/`endDate` in the result can shift between calls to the same saved report.
+`aircraftClass` and `ulKind` read the aircraft of the flight's registration in the caller's
+fleet (`ulKind` only for `ULTRALIGHT` aircraft); flights without a value group under the
+empty key, labelled `(none)`.
 
 Every row and the `totals` carry every metric regardless of the report's chosen one;
 `value` just repeats that metric for charting. Duration metrics count only flights that are
 flight time — FSTD sessions and passenger flights are excluded, the same rule as elsewhere
 (see [DOMAIN.md](./DOMAIN.md#fstd-simulator-sessions)) — except `fstdTime`, which sums FSTD
-session time separately.
+session time separately. `launches` sums the launch count of soaring flights only (the
+scope of `GET /reports/soaring-season`); `outlandings` and `towFlights` count flights marked
+`isOutlanding` / `isTowFlight`. CSV and PDF exports carry these three columns only when the
+report charts one of them or its total is not zero.
 
 Reports are stored server-side per user (`custom_reports`), so they travel in the JSON
 export; a licence-scoped report is re-pointed at the restored licence or loses the scope
@@ -591,7 +755,8 @@ CRUD and search on `/contacts` (reusable crew/instructor records). `GET /contact
 accepts `updatedSince`.
 
 Contacts are keyed by name — unique per user, case-insensitive, whitespace-trimmed — and
-are created automatically for every crew name written by `POST`/`PUT /flights`, import
+are created automatically for every crew name written by `POST`/`PUT /flights`,
+`POST /flights/batch` (once the legs are stored; a rejected batch creates none), import
 confirm and backup restore. So:
 
 - `POST /contacts` returns **409** if the user already has that name. It is for adding
@@ -609,18 +774,23 @@ confirm and backup restore. So:
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
 history) and export to CSV, JSON, PDF, and vCard.
 
-`GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, licences and
-class ratings, credentials, contacts, custom currency rules, notification preferences and the
-carried-forward hours baseline. It is the same payload a cloud backup run writes
+`GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, aircraft
+reminders, licences with their class ratings and privileges (`licenses[].privileges`), credentials, contacts, custom currency rules, custom
+reports, notification preferences, the carried-forward hours baseline and the pilot profile
+(mode, intents and acknowledgements; never the derived evidence). It is the same payload a cloud backup run writes
 (`cloudbackup.Payload` is the single definition of both), and `POST /imports/json` restores
 every section of it.
 
 Restores are additive — nothing existing is deleted, aircraft are skipped when the
-registration already exists and contacts when the name does — with two exceptions that are
-single-row settings rather than collections: notification preferences and the flight baseline
-replace what the account currently has. All IDs are regenerated, so a backup restores into any
+registration already exists and contacts when the name does — with three exceptions that are
+single-row settings rather than collections: notification preferences, the flight baseline and
+the pilot profile replace what the account currently has (`pilotProfileImported` in the
+summary). A pilot profile with an unknown mode or intent is a 400; disciplines this version
+does not know are dropped. All IDs are regenerated, so a backup restores into any
 installation including the one it came from. A custom currency rule's sharing state is never
 carried over: a restored rule is private until shared again.
+Licence privileges are revalidated and attached to their restored licence
+(`licencePrivilegesImported`); an invalid one is a 400.
 
 Anything a user owns belongs in this payload. `internal/service/cloudbackup/coverage_test.go`
 classifies every table in `db/migrations` as either exported (naming its payload section) or
@@ -635,6 +805,15 @@ chronological order. It also accepts every `GET /flights` filter — `q`, `searc
 pagination. An invalid `q` returns 400. `totals=true` appends one totals row after the last
 flight: `Total (N flights)` in the first column and the sum of every time, count and distance
 column in that layout's format. A file with a totals row is a report, not an import source.
+The standard layout ends with `LaunchMethod`, `Launches`, `Outlanding`, `TowFlight` and
+`ReleaseHeightM`, then `AircraftClass` (normalized, e.g. `ULTRALIGHT`) and `ULKind` from the
+fleet aircraft of the flight's registration — both blank for a registration not in the
+fleet, `ULKind` blank for anything but a kinded ultralight. Import does not read the two
+class columns. The other layouts have no launch column and append `[Launch: <method>]` to
+the remarks cell, as the PDFs do. `POST /imports/confirm` reads either back into
+`launchMethod`, and maps the glider-fact columns to the `launches`, `isOutlanding`,
+`isTowFlight` and `releaseHeightM` import fields (also from German `Starts` and
+`Außenlandung`); an imported launch count is stored with its override flag set.
 
 `GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,
 email, phone, notes, the contact's logged crew roles as `CATEGORIES`, and a stable `UID`
@@ -643,20 +822,34 @@ so a re-import updates existing cards instead of duplicating them.
 `GET /exports/pdf` renders the logbook as a print-ready PDF:
 
 - `format` — `easa` (AMC1 FCL.050 columns, times in h:mm), `faa`
-  (14 CFR § 61.51 / ASA-Jeppesen columns, decimal hours), or `summary`
-  (grand totals only). Default `easa`.
+  (14 CFR § 61.51 / ASA-Jeppesen columns, decimal hours), `sailplane`
+  (AMC1 SFCL.050: take-off/landing, flight time, launch method, launches,
+  PIC/dual/FI(S); see [SAILPLANES.md](./SAILPLANES.md#printed-logbook)),
+  `ultralight` (registration, type, UL kind, departure/arrival, flight time,
+  landings, PIC/dual/instruction given; see
+  [DOMAIN.md](./DOMAIN.md#printed-logbook-layouts)), or `summary` (grand totals
+  only). Omitted, it is `easa`, except with `logbookLicenseId`: `sailplane` for an
+  SPL, LAPL(S) or FAA glider licence and `ultralight` for an ultralight licence.
+  The sailplane and ultralight layouts have no IFR, night or multi-pilot
+  columns.
 - `layout` — `spread` (default) is a book-style two-page spread (left + right
   facing pages) for double-sided printing; intentionally-blank filler pages
   (one at the start, one before the totals summary) keep each spread on facing
   pages when printed duplex. `single` condenses all columns onto one landscape
   page per batch of flights, designed for single-page A4 landscape printing.
-  Ignored for `summary`.
+  Ignored for `summary`, `sailplane` and `ultralight`, which always print one page
+  per batch.
 - `page_size` — `a4` (default), `a5`, or `letter`; always landscape.
 - `rows_per_page` — optional flight-row count per logbook page (5–60). Row
   height — and, for dense layouts, the body font — scales dynamically to fill
   the page: fewer rows print larger and airier, more rows denser. Clamped to
   what stays legible on the chosen page size; ignored for `summary`.
-- `logbookLicenseId` — restrict flights to the aircraft classes of one licence.
+- `logbookLicenseId` — restrict flights to one licence's logbook: flights on its rated
+  classes (and, for a UL rating with a kind, on ultralights of that kind), plus flights
+  credited toward its ratings from other classes. A credited flight prints `[Credited]` at
+  the start of its remarks, and a towed launch is never credited toward a powered rating.
+  `GET /flights` and `GET /exports/csv` apply the same scope. See
+  [DOMAIN.md](./DOMAIN.md#licence-logbooks).
 
 **Every logged row is printed**, co-pilot (SIC) flights included. Co-pilot time
 is part of total time of flight, and the EASA layout has a CO-PILOT column for it
@@ -708,7 +901,7 @@ A `logbookLicenseId`-filtered export covers only part of the logbook, so the
 career-wide snapshot is deliberately left out of it.
 
 ### Admin
-User management (list, disable/enable, unlock, reset 2FA, delete), platform stats,
+User management (list, disable/enable, unlock, reset 2FA, delete), platform stats (including how pilots override the pilot profile: `pilotProfiles.everythingMode` and per-discipline `on`/`off`/`goal` counts, and `licencePrivileges.{total, byKind}`),
 audit log, config, maintenance (token cleanup, SMTP test, trigger notifications,
 unverified-account sweep), email deliverability, and announcements.
 

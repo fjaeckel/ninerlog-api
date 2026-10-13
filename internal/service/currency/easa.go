@@ -35,15 +35,13 @@ func (e *EASAEvaluator) EvaluateWithPeers(ctx context.Context, rating *models.Cl
 // isEASALAPLA reports whether licenseType is an EASA LAPL for aeroplanes
 // ("LAPL" or "LAPL(A)", case-insensitive).
 func isEASALAPLA(licenseType string) bool {
-	lt := strings.ToUpper(strings.TrimSpace(licenseType))
-	return lt == "LAPL" || lt == "LAPL(A)"
+	return models.ClassifyLicence(licenseType, "") == models.LicenceKindLAPLA
 }
 
 // isEASASailplane reports whether licenseType is an EASA sailplane licence
 // ("SPL" or "LAPL(S)", case-insensitive).
 func isEASASailplane(licenseType string) bool {
-	lt := strings.ToUpper(strings.TrimSpace(licenseType))
-	return lt == "SPL" || lt == "LAPL(S)"
+	return models.ClassifyLicence(licenseType, "").IsEASASailplane()
 }
 
 // easaSelectRule dispatches a (license type, class type) pair to its rule.
@@ -126,7 +124,7 @@ var easaSEPTMGRule = ratingRule{
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
-		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+		if r, closed := applyClosedWindow(nowFrom(ctx), &since, *rt.result); closed {
 			*rt.result = r
 			return
 		}
@@ -142,14 +140,14 @@ var easaSEPTMGRule = ratingRule{
 		rt.result.Requirements = reqs
 		allMet := allReqsMet(reqs)
 
-		if rating.IsExpired() {
+		if rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if !allMet {
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationNotMet, nil)
-		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+		} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+			daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -182,7 +180,7 @@ var easaMEPSETRule = ratingRule{
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
-		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+		if r, closed := applyClosedWindow(nowFrom(ctx), &since, *rt.result); closed {
 			*rt.result = r
 			return
 		}
@@ -216,14 +214,14 @@ var easaMEPSETRule = ratingRule{
 		allMetByExperience := reqSectors.Met && reqInstructor.Met
 		allMet := allMetByExperience || hasProfCheck
 
-		if rating.IsExpired() {
+		if rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if !allMet {
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationNotMetProfCheck, nil)
-		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+		} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+			daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -252,7 +250,7 @@ var easaIRRule = ratingRule{
 			return
 		}
 		since := rating.ExpiryDate.AddDate(-1, 0, 0)
-		if r, closed := applyClosedWindow(rating, &since, *rt.result); closed {
+		if r, closed := applyClosedWindow(nowFrom(ctx), &since, *rt.result); closed {
 			*rt.result = r
 			return
 		}
@@ -284,7 +282,7 @@ var easaIRRule = ratingRule{
 
 		allMet := reqIFRHours.Met && hasProfCheck
 
-		if rating.IsExpired() {
+		if rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if !allMet {
@@ -296,8 +294,8 @@ var easaIRRule = ratingRule{
 			} else {
 				rt.result.setMsg(MsgRatingIRCheckNotMet, nil)
 			}
-		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+		} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+			daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -312,18 +310,18 @@ var easaExpiryOnlyRule = ratingRule{
 	displayKey:  "",
 	description: "EASA class rating — currency tracked by expiry date",
 	scope:       scopeByClass,
-	finalize: func(_ context.Context, rt *ratingRuntime) {
+	finalize: func(ctx context.Context, rt *ratingRuntime) {
 		rating := rt.rating
 		if rating.ExpiryDate == nil {
 			rt.result.Status = StatusUnknown
 			rt.result.setMsg(MsgRatingNoExpiryDate, nil)
 			return
 		}
-		if rating.IsExpired() {
+		if rating.IsExpiredAt(nowFrom(ctx)) {
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
-		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+		} else if rating.IsExpiringSoonAt(nowFrom(ctx), 90) {
+			daysLeft := daysUntil(ctx, *rating.ExpiryDate)
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft))
 		} else {
@@ -336,7 +334,7 @@ var easaExpiryOnlyRule = ratingRule{
 // easaLAPLRule — EASA FCL.140.A recency for LAPL(A), on aeroplanes and TMG pooled:
 //   - 12 hours flight time (as PIC, dual, or solo under supervision)
 //   - 12 takeoffs & landings
-//   - 1 hour dual instruction
+//   - 1 training flight of at least 1 hour total time with an instructor
 //   - NO PIC hour requirement (key difference from FCL.740.A)
 //   - OR a LAPL(A) proficiency check (FCL.140.A(a)(2))
 //   - with both SEP(land) and SEP(sea) ratings: 1 hour and 6 landings in each (FCL.140.A(b))
@@ -354,10 +352,10 @@ var easaLAPLRule = ratingRule{
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyTotalTime, metric: mTotalMinutes, threshold: 720, unit: "minutes"},
 		{nameKey: ReqKeyLandings, metric: mLandings, threshold: 12, unit: "landings"},
-		{nameKey: ReqKeyTrainingFlight, metric: mInstructorMinutes, threshold: 60, unit: "minutes"},
+		{nameKey: ReqKeyTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(rt.now)
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		progress, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -392,13 +390,7 @@ var easaLAPLRule = ratingRule{
 		}
 		rt.result.Requirements = append(reqs, reqProfCheck)
 
-		if !allMetByExperience && !hasProfCheck {
-			rt.result.Status = StatusExpiring
-			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
-		} else {
-			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
-		}
+		setRecencyStatus(rt.result, allMetByExperience || hasProfCheck)
 	},
 }
 
@@ -440,13 +432,14 @@ var easaSPLRule = ratingRule{
 	window:      windowSpec{kind: windowRollingNow, years: 2},
 	scope:       scopeByClass,
 	countsTowed: true,
+	extraCredit: easaSPLExtraCredit,
 	baseReqs: []reqSpec{
-		{nameKey: ReqKeyFlightTime, metric: mPICOrDualMinutes, threshold: 300, unit: "minutes"},
+		{nameKey: ReqKeyFlightTime, metric: mPICDualOrSupervisedMinutes, threshold: 300, unit: "minutes"},
 		{nameKey: ReqKeyLaunches, metric: mLaunches, threshold: 15, unit: "launches"},
 		{nameKey: ReqKeyTrainingFlights, metric: mTrainingFlights, threshold: 2, unit: "flights"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(rt.now)
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		sailplane, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
@@ -455,8 +448,8 @@ var easaSPLRule = ratingRule{
 		}
 		hours := *sailplane
 		tmg := &Progress{}
-		if rt.rating.ClassType == models.ClassTypeGlider {
-			tmg, err = rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeTMG}, false, rt.since)
+		if extra := easaSPLExtraCredit(rt.rating); extra != nil {
+			tmg, err = rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, extra.classes, false, rt.since)
 			if err != nil {
 				rt.result.Status = StatusUnknown
 				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
@@ -464,8 +457,9 @@ var easaSPLRule = ratingRule{
 			}
 			hours.PICMinutes += tmg.PICMinutes
 			hours.InstructorMinutes += tmg.InstructorMinutes
-			rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
-			ulMinutes, err := rt.ulHoursCredit(ctx, models.ULKindSailplane, models.ULKindThreeAxisMotorglider)
+			hours.SPICMinutes += tmg.SPICMinutes
+			rt.result.CountedClasses = append([]models.ClassType{rt.rating.ClassType}, extra.classes...)
+			ulMinutes, err := rt.ulHoursCredit(ctx, extra.ulKinds...)
 			if err != nil {
 				rt.result.Status = StatusUnknown
 				rt.result.setMsg(MsgRatingEvaluationFailed, nil)
@@ -487,14 +481,29 @@ var easaSPLRule = ratingRule{
 
 		rt.result.LaunchMethodCurrency = easaLaunchMethodCurrency(ctx, rt, tmg.Launches)
 
-		if !allMetByExperience && !reqProfCheck.Met {
-			rt.result.Status = StatusExpiring
-			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
-		} else {
-			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
-		}
+		setRecencyStatus(rt.result, allMetByExperience || reqProfCheck.Met)
 	},
+}
+
+// easaSPLExtraCredit returns what SFCL.160(a)(1)(i) counts toward a GLIDER
+// rating beside sailplanes: TMG time and UL sailplane and motorglider PIC time.
+func easaSPLExtraCredit(rating *models.ClassRating) *extraCredit {
+	if rating.ClassType != models.ClassTypeGlider {
+		return nil
+	}
+	return &extraCredit{
+		classes: []models.ClassType{models.ClassTypeTMG},
+		ulKinds: []models.ULKind{models.ULKindSailplane, models.ULKindThreeAxisMotorglider},
+	}
+}
+
+// easaSPLTMGExtraCredit returns what SFCL.160(b)(1)(i) counts toward TMG
+// privileges beside TMGs: sailplane time and UL sailplane and motorglider PIC time.
+func easaSPLTMGExtraCredit(_ *models.ClassRating) *extraCredit {
+	return &extraCredit{
+		classes: []models.ClassType{models.ClassTypeGlider},
+		ulKinds: []models.ULKind{models.ULKindSailplane, models.ULKindThreeAxisMotorglider},
+	}
 }
 
 // launchMethods lists the SFCL.155 launch methods in display order.
@@ -573,21 +582,23 @@ var easaSPLTMGRule = ratingRule{
 	window:        windowSpec{kind: windowRollingNow, years: 2},
 	scope:         scopeByClassOverride,
 	classOverride: models.ClassTypeTMG,
+	extraCredit:   easaSPLTMGExtraCredit,
 	baseReqs: []reqSpec{
-		{nameKey: ReqKeyFlightTime, metric: mPICOrDualMinutes, threshold: 720, unit: "minutes"},
-		{nameKey: ReqKeyTMGTime, metric: mPICOrDualMinutes, threshold: 360, unit: "minutes"},
+		{nameKey: ReqKeyFlightTime, metric: mPICDualOrSupervisedMinutes, threshold: 720, unit: "minutes"},
+		{nameKey: ReqKeyTMGTime, metric: mPICDualOrSupervisedMinutes, threshold: 360, unit: "minutes"},
 		{nameKey: ReqKeyTMGLandings, metric: mLandings, threshold: 12, unit: "landings"},
 		{nameKey: ReqKeyTMGTrainingFlight, metric: mLongestTrainingFlight, threshold: 60, unit: "minutes"},
 	},
 	finalize: func(ctx context.Context, rt *ratingRuntime) {
-		rt.since = rt.rule.window.rollingSince(rt.now)
+		rt.since = rt.rule.window.rollingSince(nowFrom(ctx))
 		tmg, err := rt.fetchProgress(ctx)
 		if err != nil {
 			rt.result.Status = StatusUnknown
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
-		glider, err := rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, []models.ClassType{models.ClassTypeGlider}, true, rt.since)
+		extra := easaSPLTMGExtraCredit(rt.rating)
+		glider, err := rt.dp.GetProgressByAircraftClass(ctx, rt.license.UserID, extra.classes, true, rt.since)
 		if err != nil {
 			rt.result.Status = StatusUnknown
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
@@ -605,13 +616,14 @@ var easaSPLTMGRule = ratingRule{
 			rt.result.setMsg(MsgRatingEvaluationFailed, nil)
 			return
 		}
-		rt.result.CreditedULKinds = []models.ULKind{models.ULKindSailplane, models.ULKindThreeAxisMotorglider}
+		rt.result.CreditedULKinds = extra.ulKinds
 		hours := *tmg
 		hours.PICMinutes += glider.PICMinutes + ulSailplane + ulMotorglider
 		hours.InstructorMinutes += glider.InstructorMinutes
+		hours.SPICMinutes += glider.SPICMinutes
 		tmgHours := *tmg
 		tmgHours.PICMinutes += ulMotorglider
-		rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
+		rt.result.CountedClasses = append(extra.classes, rt.rule.classOverride)
 		rt.result.Progress = tmg
 
 		reqs := []Requirement{buildReq(&hours, rt.rule.baseReqs[0]), buildReq(&tmgHours, rt.rule.baseReqs[1])}
@@ -622,13 +634,7 @@ var easaSPLTMGRule = ratingRule{
 		reqProfCheck := profCheckRequirement(profCheckDate)
 		rt.result.Requirements = append(reqs, reqProfCheck)
 
-		if !allMetByExperience && !reqProfCheck.Met {
-			rt.result.Status = StatusExpiring
-			rt.result.setMsg(MsgRatingRecencyNotMet, nil)
-		} else {
-			rt.result.Status = StatusCurrent
-			rt.result.setMsg(MsgRatingRecencyCurrent, nil)
-		}
+		setRecencyStatus(rt.result, allMetByExperience || reqProfCheck.Met)
 	},
 }
 
@@ -639,10 +645,10 @@ var easaSPLTMGRule = ratingRule{
 // revalidated" message and returns (result, true).
 //
 // `since` must be the 12-month look-back anchor (rating.ExpiryDate − 12mo).
-func applyClosedWindow(rating *models.ClassRating, since *time.Time, result ClassRatingCurrency) (ClassRatingCurrency, bool) {
+func applyClosedWindow(now time.Time, since *time.Time, result ClassRatingCurrency) (ClassRatingCurrency, bool) {
 	windowStr := since.Format("2006-01-02")
 	result.WindowOpensAt = &windowStr
-	if !time.Now().Before(*since) {
+	if !now.Before(*since) {
 		result.WindowOpen = true
 		return result, false
 	}
@@ -663,10 +669,10 @@ func applyClosedWindow(rating *models.ClassRating, since *time.Time, result Clas
 //	(i)  at least 1 takeoff, approach and landing at night in the preceding 90 days, OR
 //	(ii) holds an IR — in which case no night-landing recency is required.
 func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType models.ClassType, license *models.License, peerRatings []*models.ClassRating, dp FlightDataProvider) PassengerCurrency {
-	since := paxWindowStart(time.Now())
+	since := paxWindowStart(nowFrom(ctx))
 
 	hasNightPrivilege := HasNightPrivilege(license.LicenseType, license.RegulatoryAuthority) && classType != models.ClassTypeGlider
-	hasValidIR := hasValidIRRating(peerRatings)
+	hasValidIR := hasValidIRRating(ctx, peerRatings)
 
 	result := PassengerCurrency{
 		ClassType:           classType,
@@ -771,14 +777,15 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 }
 
 // hasValidIRRating returns true if the given list of class ratings contains a
-// current Instrument Rating — one with a non-nil expiry date that has not yet
-// passed. Ratings without an expiry date count as not current.
-func hasValidIRRating(ratings []*models.ClassRating) bool {
+// current Instrument Rating — one with a non-nil expiry date that has not
+// passed at the evaluation instant. Ratings without an expiry date count as
+// not current.
+func hasValidIRRating(ctx context.Context, ratings []*models.ClassRating) bool {
 	for _, r := range ratings {
 		if r == nil || r.ClassType != models.ClassTypeIR {
 			continue
 		}
-		if r.ExpiryDate == nil || r.IsExpired() {
+		if r.ExpiryDate == nil || r.IsExpiredAt(nowFrom(ctx)) {
 			continue
 		}
 		return true

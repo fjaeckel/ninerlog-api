@@ -41,6 +41,33 @@ func (r *FlightCrewRepository) SetCrewMembers(ctx context.Context, flightID uuid
 	return nil
 }
 
+func (r *FlightCrewRepository) SetCrewMembersForFlights(ctx context.Context, flightIDs []uuid.UUID, members []models.FlightCrewMember) error {
+	if len(flightIDs) == 0 {
+		return nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id = ANY($1)`, pq.Array(flightIDs)); err != nil {
+		return err
+	}
+	const insert = `
+		INSERT INTO flight_crew_members (id, flight_id, contact_id, name, role)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+	for _, flightID := range flightIDs {
+		for _, m := range members {
+			if _, err := tx.ExecContext(ctx, insert, uuid.New(), flightID, m.ContactID, m.Name, m.Role); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
+}
+
 func (r *FlightCrewRepository) GetByFlightID(ctx context.Context, flightID uuid.UUID) ([]models.FlightCrewMember, error) {
 	query := `
 		SELECT id, flight_id, contact_id, name, role

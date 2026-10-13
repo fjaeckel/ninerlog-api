@@ -68,6 +68,7 @@ type importSample struct {
 		ArrivalIcao      string `json:"arrivalIcao"`
 		TotalTimeMinutes int    `json:"totalTimeMinutes"`
 		Landings         int    `json:"landings"`
+		LaunchMethod     string `json:"launchMethod"`
 	} `json:"expectFirstRow"`
 }
 
@@ -169,6 +170,16 @@ func TestImportSamples(t *testing.T) {
 			}
 			if want.Landings > 0 && getIntOrDefault(got.Landings, 0) != want.Landings {
 				t.Errorf("landings = %d, want %d", getIntOrDefault(got.Landings, 0), want.Landings)
+			}
+
+			if want.LaunchMethod != "" {
+				gotMethod := ""
+				if got.LaunchMethod != nil {
+					gotMethod = string(*got.LaunchMethod)
+				}
+				if gotMethod != want.LaunchMethod {
+					t.Errorf("launchMethod = %q, want %q", gotMethod, want.LaunchMethod)
+				}
 			}
 
 			// Every row must map, not just the first — a file that imports its

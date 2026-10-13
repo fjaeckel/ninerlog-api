@@ -3,6 +3,7 @@ package currency
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
@@ -26,6 +27,7 @@ func TestGliderULClass_RuleSelection(t *testing.T) {
 		{"EASA SPL TMG unchanged", "EASA", "SPL", models.ClassTypeTMG, &easaSPLTMGRule},
 		{"EASA PPL other unchanged", "EASA", "PPL", models.ClassTypeOther, &easaExpiryOnlyRule},
 		{"FAA private glider", "FAA", "PRIVATE", models.ClassTypeGlider, &faaGliderRule},
+		{"FAA glider licence legacy SEP rating", "FAA", "GLIDER", models.ClassTypeSEPLand, &faaGliderRule},
 		{"FAA private SEP unchanged", "FAA", "PRIVATE", models.ClassTypeSEPLand, &faaPassengerRatingRule},
 		{"FAA ultralight", "FAA", "PRIVATE", models.ClassTypeUL, &otherExpiryRule},
 		{"unknown authority glider", "", "SPL", models.ClassTypeGlider, &easaSPLRule},
@@ -55,7 +57,7 @@ func TestGliderULClass_RuleSelection(t *testing.T) {
 func TestGermanULEvaluator_GliderUsesSPLRule(t *testing.T) {
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeGlider] = &Progress{
-		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, Launches: 20, TrainingFlights: 2,
+		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60, Launches: 20, TrainingFlights: 2,
 	}
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeGlider, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "DAeC", LicenseType: "SPL"}
@@ -72,7 +74,7 @@ func TestGermanULEvaluator_GliderUsesSPLRule(t *testing.T) {
 func TestEASA_GliderClass_CountsGliderFlights(t *testing.T) {
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeGlider] = &Progress{
-		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, Launches: 20, TrainingFlights: 2,
+		TotalMinutes: 600, PICMinutes: 400, Landings: 20, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60, Launches: 20, TrainingFlights: 2,
 	}
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeGlider, LicenseID: uuid.New()}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "SPL"}
@@ -89,7 +91,7 @@ func TestEASA_GliderClass_CountsGliderFlights(t *testing.T) {
 func TestEASA_ULClass_ExpiryOnly(t *testing.T) {
 	dp := newMockFlightDataProvider()
 	dp.progressByClass[models.ClassTypeUL] = &Progress{
-		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120,
+		TotalMinutes: 900, Landings: 20, InstructorMinutes: 120, LongestTrainingFlightMinutes: 60,
 	}
 	rating := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeUL, LicenseID: uuid.New(), ExpiryDate: futureDate(12)}
 	license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "UL"}
@@ -125,7 +127,7 @@ func TestService_ULPassengerCurrency_GermanAuthorityOnly(t *testing.T) {
 			userID := uuid.New()
 			lic := &models.License{ID: uuid.New(), UserID: userID, RegulatoryAuthority: tt.authority, LicenseType: "UL"}
 			licRepo.licenses[lic.ID] = lic
-			crRepo.ratings[lic.ID] = []*models.ClassRating{{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeUL}}
+			crRepo.ratings[lic.ID] = []*models.ClassRating{{ID: uuid.New(), LicenseID: lic.ID, ClassType: models.ClassTypeUL, ULKind: ulKindPtr(models.ULKindThreeAxis)}}
 
 			result, err := NewService(reg, licRepo, crRepo, newMockFlightDataProvider()).EvaluateAll(context.Background(), userID)
 			if err != nil {
@@ -152,13 +154,17 @@ func TestTowedFlights_IncludedOnlyForSailplaneRules(t *testing.T) {
 		{"EASA SPL legacy SEP", NewEASAEvaluator(), "SPL", models.ClassTypeSEPLand, true},
 		{"EASA PPL glider", NewEASAEvaluator(), "PPL", models.ClassTypeGlider, true},
 		{"FAA private SEP", NewFAAEvaluator(), "PRIVATE", models.ClassTypeSEPLand, false},
-		{"FAA glider licence", NewFAAEvaluator(), "GLIDER", models.ClassTypeSEPLand, true},
+		{"FAA glider licence", NewFAAEvaluator(), "GLIDER", models.ClassTypeGlider, true},
+		{"FAA private glider rating", NewFAAEvaluator(), "PRIVATE", models.ClassTypeGlider, true},
 		{"German UL", NewGermanULEvaluator(), "UL", models.ClassTypeUL, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dp := newMockFlightDataProvider()
 			rating := &models.ClassRating{ID: uuid.New(), ClassType: tt.class, LicenseID: uuid.New(), ExpiryDate: futureDate(6)}
+			if tt.class == models.ClassTypeUL {
+				rating.ULKind = ulKindPtr(models.ULKindThreeAxis)
+			}
 			license := &models.License{ID: rating.LicenseID, UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: tt.licType}
 			tt.eval.Evaluate(context.Background(), rating, license, dp)
 			if tt.class == models.ClassTypeUL {
@@ -223,5 +229,30 @@ func TestEASA_Passenger_GliderClass_NoNightPrivilege(t *testing.T) {
 	}
 	if pax.DayStatus != StatusCurrent {
 		t.Errorf("DayStatus = %s, want current", pax.DayStatus)
+	}
+}
+
+func TestEASA_Passenger_IRWaiverAsOf(t *testing.T) {
+	expiry := time.Now().AddDate(0, 0, 10)
+	ir := &models.ClassRating{ID: uuid.New(), ClassType: models.ClassTypeIR, ExpiryDate: &expiry}
+	license := &models.License{UserID: uuid.New(), RegulatoryAuthority: "EASA", LicenseType: "PPL"}
+	tests := []struct {
+		name string
+		ctx  context.Context
+		want int
+	}{
+		{"IR valid now waives night landings", context.Background(), 0},
+		{"IR expired on the date asked does not", withNow(context.Background(), dateAt(time.Now().AddDate(0, 0, 30))), 1},
+		{"IR valid on its expiry day waives night landings", withNow(context.Background(), dateAt(models.DateOnly(expiry))), 0},
+		{"IR expired the day after its expiry date", withNow(context.Background(), dateAt(models.DateOnly(expiry).AddDate(0, 0, 1))), 1},
+	}
+	dayIR := &models.ClassRating{ID: ir.ID, ClassType: models.ClassTypeIR, ExpiryDate: ptrTime(models.DateOnly(expiry))}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pax := NewEASAEvaluator().EvaluatePassengerCurrency(tt.ctx, models.ClassTypeSEPLand, license, []*models.ClassRating{dayIR}, newMockFlightDataProvider())
+			if pax.NightRequired != tt.want {
+				t.Errorf("NightRequired = %d, want %d", pax.NightRequired, tt.want)
+			}
+		})
 	}
 }

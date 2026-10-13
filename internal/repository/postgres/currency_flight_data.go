@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -23,8 +24,23 @@ func NewCurrencyFlightDataProvider(db *sql.DB) currency.FlightDataProvider {
 	return &currencyFlightDataProvider{db: db}
 }
 
+// launchCountExpr is a flight's launch count over flights aliased alias, or
+// the unaliased flights table for "": the stored launches, else 0 on a
+// simulator or passenger row, else its take-offs with at least one.
+func launchCountExpr(alias string) string {
+	p := ""
+	if alias != "" {
+		p = alias + "."
+	}
+	return "COALESCE(" + p + "launches, CASE WHEN " + p + "is_simulator OR " + p + "is_passenger THEN 0 ELSE GREATEST(" +
+		p + "takeoffs_day + " + p + "takeoffs_night, 1) END)"
+}
+
+// launchCountSQL is launchCountExpr over flights aliased f.
+var launchCountSQL = launchCountExpr("f")
+
 // progressSelect aggregates a Progress row over flights aliased f.
-const progressSelect = `
+var progressSelect = `
 			COUNT(*) as flights,
 			COALESCE(SUM(f.total_time), 0) as total_minutes,
 			COALESCE(SUM(f.pic_time), 0) as pic_minutes,
@@ -36,7 +52,8 @@ const progressSelect = `
 			COALESCE(SUM(f.landings_night), 0) as night_landings,
 			COALESCE(SUM(f.approaches_count), 0) as approaches,
 			COALESCE(SUM(f.holds), 0) as holds,
-			COALESCE(SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)), 0) as launches,
+			COALESCE(SUM(` + launchCountSQL + `), 0) as launches,
+			COALESCE(SUM(f.spic_time), 0) as spic_minutes,
 			COUNT(*) FILTER (WHERE f.dual_time > 0) as training_flights,
 			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes`
 
@@ -44,8 +61,17 @@ const progressSelect = `
 // $3, with an MTOM of at least $4 kg when $4 is not 0.
 const ulKindFilter = `upper(trim(a.aircraft_class)) = 'ULTRALIGHT' AND (a.ul_kind = ANY($2) OR ($3 AND a.ul_kind IS NULL)) AND ($4 = 0 OR a.mtom_kg >= $4)`
 
-// towedLaunches lists the launch methods that do not count toward powered classes.
-const towedLaunches = `('winch', 'aerotow', 'car', 'bungee')`
+// towedLaunches is the SQL list of models.TowedLaunchMethods.
+var towedLaunches = sqlStringList(models.TowedLaunchMethods())
+
+// sqlStringList renders constant strings as a parenthesised SQL literal list.
+func sqlStringList(values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = "'" + strings.ReplaceAll(v, "'", "''") + "'"
+	}
+	return "(" + strings.Join(quoted, ", ") + ")"
+}
 
 // scanProgress runs a query selecting progressSelect.
 func (p *currencyFlightDataProvider) scanProgress(ctx context.Context, query string, args ...interface{}) (*currency.Progress, error) {
@@ -63,6 +89,7 @@ func (p *currencyFlightDataProvider) scanProgress(ctx context.Context, query str
 		&progress.Approaches,
 		&progress.Holds,
 		&progress.Launches,
+		&progress.SPICMinutes,
 		&progress.TrainingFlights,
 		&progress.LongestTrainingFlightMinutes,
 	)
@@ -118,13 +145,13 @@ func (p *currencyFlightDataProvider) GetLandingDaysByULKind(ctx context.Context,
 		SELECT
 			f.date,
 			COALESCE(SUM(f.landings_day), 0) as day_landings,
-			COALESCE(SUM(f.landings_night), 0) as night_landings
+			COALESCE(SUM(f.landings_night), 0) as night_landings,
+			COALESCE(SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)), 0) as takeoffs
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $5
 			AND ($6 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 		GROUP BY f.date
-		HAVING SUM(f.landings_day + f.landings_night) > 0
 		ORDER BY f.date DESC
 	`
 	rows, err := p.db.QueryContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, includeTowed)
@@ -132,7 +159,16 @@ func (p *currencyFlightDataProvider) GetLandingDaysByULKind(ctx context.Context,
 		return nil, err
 	}
 	defer rows.Close()
-	return scanLandingDays(rows)
+	var days []currency.LandingDay
+	for rows.Next() {
+		var d currency.LandingDay
+		if err := rows.Scan(&d.Date, &d.DayLandings, &d.NightLandings, &d.Takeoffs); err != nil {
+			return nil, err
+		}
+		d.Date = time.Date(d.Date.Year(), d.Date.Month(), d.Date.Day(), 0, 0, 0, 0, time.UTC)
+		days = append(days, d)
+	}
+	return days, rows.Err()
 }
 
 func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID uuid.UUID, since time.Time) (*currency.Progress, error) {
@@ -238,7 +274,7 @@ func scanLandingDays(rows *sql.Rows) ([]currency.LandingDay, error) {
 
 func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID uuid.UUID, classType models.ClassType, since time.Time) (map[string]int, error) {
 	query := `
-		SELECT f.launch_method, SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)) as launches
+		SELECT f.launch_method, SUM(` + launchCountSQL + `) as launches
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3

@@ -32,6 +32,8 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	stats := &repository.AdminStats{
 		ImportsByFormat:              map[string]int{},
 		BackupDestinationsByProvider: map[string]int{},
+		PilotProfileOverrides:        map[string]map[string]int{},
+		LicencePrivilegesByKind:      map[string]int{},
 	}
 
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users"), &stats.TotalUsers)
@@ -43,6 +45,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM credentials"), &stats.TotalCredentials)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flight_imports"), &stats.TotalImports)
 	r.scanCount(r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM custom_reports"), &stats.TotalCustomReports)
+	r.scanGroupedCounts(ctx, "SELECT kind, COUNT(*) FROM licence_privileges GROUP BY kind", stats.LicencePrivilegesByKind)
 
 	// Flights this month
 	monthStart := now.Format("2006-01") + "-01"
@@ -88,6 +91,11 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 			stats.ImportsByFormat[format] = count
 		}
 	}
+
+	r.scanCount(r.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM pilot_profiles WHERE mode = 'everything'",
+	), &stats.PilotProfilesEverythingMode)
+	r.scanPilotProfileOverrides(ctx, stats.PilotProfileOverrides)
 
 	// Cloud backup destinations: breakdown by provider.
 	rows, err := r.db.QueryContext(ctx,
@@ -239,4 +247,50 @@ func (r *adminRepository) DeleteExpiredPasswordResetTokens(ctx context.Context, 
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+// scanPilotProfileOverrides fills overrides with explicit intent counts per discipline.
+func (r *adminRepository) scanPilotProfileOverrides(ctx context.Context, overrides map[string]map[string]int) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT d.key, d.value->>'intent', COUNT(*)
+		FROM pilot_profiles p, jsonb_each(p.disciplines) d
+		WHERE d.value->>'intent' IN ('on', 'off', 'goal')
+		GROUP BY 1, 2`)
+	if err != nil {
+		slog.Error("admin stats: pilot_profiles overrides query failed", "error", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var discipline, intent string
+		var count int
+		if err := rows.Scan(&discipline, &intent, &count); err != nil {
+			slog.Error("admin stats: pilot_profiles overrides scan failed", "error", err)
+			continue
+		}
+		if overrides[discipline] == nil {
+			overrides[discipline] = map[string]int{}
+		}
+		overrides[discipline][intent] = count
+	}
+}
+
+// scanGroupedCounts fills dest from a (key, count) query, logging and leaving
+// dest partial on error.
+func (r *adminRepository) scanGroupedCounts(ctx context.Context, query string, dest map[string]int) {
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		slog.Error("admin stats: grouped count query failed", "error", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		var count int
+		if err := rows.Scan(&key, &count); err != nil {
+			slog.Error("admin stats: grouped count scan failed", "error", err)
+			continue
+		}
+		dest[key] = count
+	}
 }

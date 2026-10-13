@@ -11,6 +11,8 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
+	"github.com/fjaeckel/ninerlog-api/internal/service/pilotprofile"
+	"github.com/fjaeckel/ninerlog-api/internal/service/readiness"
 	"github.com/fjaeckel/ninerlog-api/internal/updatecheck"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
@@ -33,6 +35,7 @@ type APIHandler struct {
 	contactService         *service.ContactService
 	classRatingService     *service.ClassRatingService
 	currencyService        *currency.Service
+	readinessService       *readiness.Service
 	webauthnService        *service.WebAuthnService
 	// oidcService is nil unless OIDC_ISSUER is configured. Non-nil means the
 	// server runs in OIDC mode, which also switches every local credential
@@ -69,6 +72,15 @@ type APIHandler struct {
 	// customReportService is wired in cmd/api/main.go via
 	// SetCustomReportService.
 	customReportService *customreport.Service
+	// pilotProfileService is wired in cmd/api/main.go via
+	// SetPilotProfileService.
+	pilotProfileService *pilotprofile.Service
+	// soaringSeasonService is wired in cmd/api/main.go via
+	// SetSoaringSeasonService.
+	soaringSeasonService *service.SoaringSeasonService
+	// licencePrivilegeService is wired in cmd/api/main.go via
+	// SetLicencePrivilegeService.
+	licencePrivilegeService *service.LicencePrivilegeService
 }
 
 // NewAPIHandler creates a new unified API handler that implements the OpenAPI ServerInterface
@@ -99,6 +111,7 @@ func NewAPIHandler(
 		contactService:      contactService,
 		classRatingService:  classRatingService,
 		currencyService:     currencyService,
+		readinessService:    readiness.NewService(currencyService, aircraftService, credentialService),
 		webauthnService:     webauthnService,
 		jwtManager:          jwtManager,
 		flightCrewRepo:      flightCrewRepo,

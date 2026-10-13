@@ -13,9 +13,9 @@ import (
 func TestEASA_SEP_ThreeAxisULTimeAndLandingsCount(t *testing.T) {
 	license, ratings := crossClassSetup("PPL", models.ClassTypeSEPLand)
 	dp := newMockFlightDataProvider()
-	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 240, PICMinutes: 120, Landings: 4, InstructorMinutes: 60}
+	dp.progressByClass[models.ClassTypeSEPLand] = &Progress{TotalMinutes: 240, PICMinutes: 120, Landings: 4, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60}
 	dp.progressByUL = map[models.ULKind]*Progress{
-		models.ULKindThreeAxis: {TotalMinutes: 480, PICMinutes: 480, Landings: 8, InstructorMinutes: 120},
+		models.ULKindThreeAxis: {TotalMinutes: 480, PICMinutes: 480, Landings: 8, InstructorMinutes: 120, LongestTrainingFlightMinutes: 60},
 	}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
@@ -37,7 +37,7 @@ func TestEASA_SEP_ULRefresherDoesNotCount(t *testing.T) {
 	license, ratings := crossClassSetup("PPL", models.ClassTypeSEPLand)
 	dp := newMockFlightDataProvider()
 	dp.progressByUL = map[models.ULKind]*Progress{
-		models.ULKindThreeAxis: {TotalMinutes: 900, PICMinutes: 900, Landings: 20, InstructorMinutes: 120},
+		models.ULKindThreeAxis: {TotalMinutes: 900, PICMinutes: 900, Landings: 20, InstructorMinutes: 120, LongestTrainingFlightMinutes: 60},
 	}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
@@ -81,7 +81,7 @@ func TestEASA_LAPL_ULTimeCountsNotTrainingFlight(t *testing.T) {
 	license, ratings := crossClassSetup("LAPL", models.ClassTypeSEPLand)
 	dp := newMockFlightDataProvider()
 	dp.progressByUL = map[models.ULKind]*Progress{
-		models.ULKindThreeAxis: {TotalMinutes: 720, Landings: 12, InstructorMinutes: 60},
+		models.ULKindThreeAxis: {TotalMinutes: 720, Landings: 12, InstructorMinutes: 60, LongestTrainingFlightMinutes: 60},
 	}
 
 	res := NewEASAEvaluator().EvaluateWithPeers(context.Background(), ratings[0], license, ratings, dp)
@@ -91,8 +91,8 @@ func TestEASA_LAPL_ULTimeCountsNotTrainingFlight(t *testing.T) {
 	if got := findReq(res.Requirements, ReqKeyTrainingFlight); got == nil || got.Met {
 		t.Errorf("training flight = %+v, want not met", got)
 	}
-	if res.Status != StatusExpiring {
-		t.Errorf("Status = %s, want expiring", res.Status)
+	if res.Status != StatusLapsed {
+		t.Errorf("Status = %s, want lapsed", res.Status)
 	}
 }
 

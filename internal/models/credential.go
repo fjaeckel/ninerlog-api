@@ -44,17 +44,37 @@ type Credential struct {
 
 // IsExpired checks if the credential has expired
 func (c *Credential) IsExpired() bool {
+	return c.IsExpiredAt(time.Now())
+}
+
+// IsExpiredAt reports whether the credential's expiry date is before the UTC date of now.
+func (c *Credential) IsExpiredAt(now time.Time) bool {
 	if c.ExpiryDate == nil {
 		return false
 	}
-	return c.ExpiryDate.Before(time.Now())
+	return DateOnly(*c.ExpiryDate).Before(DateOnly(now))
+}
+
+// IsMedical reports whether the credential is a medical certificate.
+func (c *Credential) IsMedical() bool {
+	switch c.CredentialType {
+	case CredentialTypeEASAClass1Medical, CredentialTypeEASAClass2Medical, CredentialTypeEASALAPLMedical,
+		CredentialTypeFAAClass1Medical, CredentialTypeFAAClass2Medical, CredentialTypeFAAClass3Medical:
+		return true
+	}
+	return false
 }
 
 // IsExpiringSoon checks if the credential expires within the given number of days
 func (c *Credential) IsExpiringSoon(days int) bool {
+	return c.IsExpiringSoonAt(time.Now(), days)
+}
+
+// IsExpiringSoonAt reports whether the credential expires within days of the UTC date of now.
+func (c *Credential) IsExpiringSoonAt(now time.Time, days int) bool {
 	if c.ExpiryDate == nil {
 		return false
 	}
-	threshold := time.Now().AddDate(0, 0, days)
-	return c.ExpiryDate.Before(threshold) && !c.IsExpired()
+	threshold := DateOnly(now).AddDate(0, 0, days)
+	return !DateOnly(*c.ExpiryDate).After(threshold) && !c.IsExpiredAt(now)
 }
