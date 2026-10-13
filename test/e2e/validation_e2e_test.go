@@ -427,4 +427,18 @@ func TestFlightTimePairValidation(t *testing.T) {
 		})
 		assertStatus(t, r, http.StatusBadRequest)
 	})
+
+	t.Run("simulator session turned into a flight needs a time pair", func(t *testing.T) {
+		r := c.POST("/flights", map[string]interface{}{
+			"date": today(), "aircraftType": "A320", "isSimulator": true,
+			"fstdType": "FFS A320", "simulatedFlightTime": 120,
+		})
+		requireStatus(t, r, http.StatusCreated)
+		var created map[string]interface{}
+		r.JSON(&created)
+
+		r = c.PUT("/flights/"+created["id"].(string), map[string]interface{}{"isSimulator": false})
+		assertStatus(t, r, http.StatusBadRequest)
+		assertErrorContains(t, r, "are required")
+	})
 }

@@ -527,6 +527,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.AircraftType != nil {
 		flight.AircraftType = *req.AircraftType
 	}
+	wasSimulator := flight.IsSimulator
 	if req.IsSimulator != nil {
 		flight.IsSimulator = *req.IsSimulator
 	}
@@ -643,7 +644,8 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	_, _, source, hasPair := clocks.Pair()
 	blockUpdated := req.OffBlockTime.IsSpecified() || req.OnBlockTime.IsSpecified()
 	airborneUpdated := req.DepartureTime.IsSpecified() || req.ArrivalTime.IsSpecified()
-	if !flight.IsSimulator && (blockUpdated || airborneUpdated) {
+	leftSimulator := wasSimulator && !flight.IsSimulator
+	if !flight.IsSimulator && (blockUpdated || airborneUpdated || leftSimulator) {
 		if err := clocks.Validate(); err != nil {
 			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
