@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -157,7 +158,7 @@ func (h *APIHandler) ExchangeOidcCode(c *gin.Context) {
 		switch {
 		case errors.Is(err, service.ErrOIDCHandoffInvalid):
 			OIDCLoginAttemptsTotal.WithLabelValues("handoff_invalid").Inc()
-			h.sendError(c, http.StatusUnauthorized, "Sign-in code is invalid or has expired")
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidSignInCode, "Sign-in code is invalid or has expired")
 		case errors.Is(err, service.ErrAccountDisabled):
 			OIDCLoginAttemptsTotal.WithLabelValues("account_disabled").Inc()
 			h.sendError(c, http.StatusForbidden, "Account disabled. Contact the administrator.")

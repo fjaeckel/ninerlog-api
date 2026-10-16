@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -22,14 +23,14 @@ func AdminMiddleware(jwtManager *jwt.Manager, adminEmail string, getUserEmail fu
 
 		userID, exists := c.Get("userID")
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "code": errcode.SessionInvalid})
 			c.Abort()
 			return
 		}
 
 		id, ok := userID.(uuid.UUID)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "code": errcode.SessionInvalid})
 			c.Abort()
 			return
 		}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
@@ -294,7 +295,7 @@ func (h *APIHandler) respondBackupError(c *gin.Context, err error) {
 	case errors.Is(err, provider.ErrInvalidConfig):
 		h.sendError(c, http.StatusBadRequest, err.Error())
 	case errors.Is(err, provider.ErrInvalidCredentials):
-		h.sendError(c, http.StatusUnauthorized, "Invalid provider credentials")
+		h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidProviderCredentials, "Invalid provider credentials")
 	case errors.Is(err, provider.ErrPermissionDenied):
 		h.sendError(c, http.StatusForbidden, "Provider rejected the request: permission denied")
 	case errors.Is(err, provider.ErrNotFound):

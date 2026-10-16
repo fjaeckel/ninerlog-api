@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
@@ -78,7 +79,7 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 				return
 			}
 			if err := h.authService.VerifyPassword(c.Request.Context(), userID, *req.CurrentPassword); err != nil {
-				h.sendError(c, http.StatusUnauthorized, "Password is incorrect")
+				h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Password is incorrect")
 				return
 			}
 			user.Email = newEmail

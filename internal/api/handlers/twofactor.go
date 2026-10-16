@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -91,7 +92,7 @@ func (h *APIHandler) Disable2FA(c *gin.Context) {
 
 	if err := h.twoFactorService.Disable(c.Request.Context(), userID, req.Password); err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
-			h.sendError(c, http.StatusUnauthorized, "Password is incorrect")
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Password is incorrect")
 			return
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to disable 2FA")
@@ -116,7 +117,7 @@ func (h *APIHandler) Login2FA(c *gin.Context) {
 	claims, err := h.jwtManager.Validate2FAToken(req.TwoFactorToken)
 	if err != nil {
 		Auth2FAAttemptsTotal.WithLabelValues("invalid_token").Inc()
-		h.sendError(c, http.StatusUnauthorized, "Invalid or expired 2FA token. Please login again.")
+		h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidTwoFactorToken, "Invalid or expired 2FA token. Please login again.")
 		return
 	}
 
@@ -129,12 +130,12 @@ func (h *APIHandler) Login2FA(c *gin.Context) {
 			return
 		}
 		Auth2FAAttemptsTotal.WithLabelValues("invalid_code").Inc()
-		h.sendError(c, http.StatusUnauthorized, "Invalid 2FA code")
+		h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidTwoFactorCode, "Invalid 2FA code")
 		return
 	}
 	if !valid {
 		Auth2FAAttemptsTotal.WithLabelValues("invalid_code").Inc()
-		h.sendError(c, http.StatusUnauthorized, "Invalid 2FA code")
+		h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidTwoFactorCode, "Invalid 2FA code")
 		return
 	}
 
