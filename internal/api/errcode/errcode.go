@@ -22,7 +22,7 @@ const (
 	// InvalidCredentials — the user's own password or passkey was refused
 	// (login, change password, change email, delete account, disable 2FA,
 	// passkey login).
-	InvalidCredentials = "invalid_credentials"
+	InvalidCredentials = "invalid_credentials" // #nosec G101 -- a public error-code label sent to clients, not a credential.
 
 	// InvalidRefreshToken — the refresh token is unknown, expired, revoked or
 	// reused. The session cannot be renewed; sign in again.
