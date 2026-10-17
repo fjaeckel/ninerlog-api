@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/pkg/jwt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -57,7 +58,7 @@ func AuthMiddlewareWithState(jwtManager *jwt.Manager, publicPaths []string, stat
 		// Extract and validate Bearer token
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || len(authHeader) < 8 || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required", "code": errcode.SessionInvalid})
 			c.Abort()
 			return
 		}
@@ -65,7 +66,7 @@ func AuthMiddlewareWithState(jwtManager *jwt.Manager, publicPaths []string, stat
 		tokenString := authHeader[7:]
 		claims, err := jwtManager.ValidateAccessToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token", "code": errcode.SessionInvalid})
 			c.Abort()
 			return
 		}
@@ -94,12 +95,12 @@ func sessionUsable(c *gin.Context, state SessionState, userID, sessionID uuid.UU
 		return false
 	case disabled:
 		AccessTokensRejectedTotal.WithLabelValues("account_disabled").Inc()
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session ended, please sign in again"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session ended, please sign in again", "code": errcode.SessionInvalid})
 		c.Abort()
 		return false
 	case !live && sessionID != uuid.Nil:
 		AccessTokensRejectedTotal.WithLabelValues("session_revoked").Inc()
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session ended, please sign in again"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Session ended, please sign in again", "code": errcode.SessionInvalid})
 		c.Abort()
 		return false
 	}

@@ -4657,7 +4657,27 @@ type EmailSuppression struct {
 type Error struct {
 	// Code Optional machine-readable error code, used by clients to distinguish
 	// between conditions that share an HTTP status (e.g. `email_not_verified`
-	// vs `account_disabled` for 403 on /auth/login).
+	// vs `account_disabled` for 403 on /auth/login). Clients branch on the
+	// code, never on the English `error` sentence, which may change.
+	//
+	// Every `401` carries a code, in one of two kinds:
+	//
+	// - `session_invalid` — the bearer token or its session was refused
+	//   (missing, malformed, expired or revoked token, or a disabled or
+	//   deleted account). Refresh once and replay; a second refusal ends
+	//   the session.
+	// - Any other code — a credential presented in the request itself was
+	//   refused. The session is untouched: do not refresh and do not sign
+	//   the user out.
+	//   - `invalid_credentials` — password or passkey (login, change
+	//     password, change email, delete account, disable 2FA, passkey login)
+	//   - `invalid_refresh_token` — the refresh token cannot renew the
+	//     session; the one case of this kind that does mean signing in again
+	//   - `invalid_sign_in_code` — the OIDC hand-off code
+	//   - `invalid_two_factor_token` — the 2FA challenge token; restart the login
+	//   - `two_factor_required` / `invalid_two_factor_code` — the second factor
+	//   - `invalid_provider_credentials` — a cloud-backup provider refused the
+	//     destination's stored credentials
 	//
 	//
 	// Example: email_not_verified
@@ -7139,6 +7159,9 @@ type BadRequest = Error
 // Conflict defines model for Conflict.
 type Conflict = Error
 
+// CredentialRejected defines model for CredentialRejected.
+type CredentialRejected = Error
+
 // DocumentFileLimitReached defines model for DocumentFileLimitReached.
 type DocumentFileLimitReached = Error
 
@@ -7156,6 +7179,9 @@ type NotFound = Error
 
 // PayloadTooLarge defines model for PayloadTooLarge.
 type PayloadTooLarge = Error
+
+// ProviderCredentialsRejected defines model for ProviderCredentialsRejected.
+type ProviderCredentialsRejected = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error

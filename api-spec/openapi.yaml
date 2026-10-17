@@ -264,7 +264,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          description: The code is unknown, expired, or has already been redeemed
+          description: |
+            The code is unknown, expired, or has already been redeemed
+            (`code: invalid_sign_in_code`).
           content:
             application/json:
               schema:
@@ -469,7 +471,8 @@ paths:
                   - $ref: '#/components/schemas/AuthResponse'
                   - $ref: '#/components/schemas/TwoFactorLoginRequired'
         '401':
-          description: Invalid credentials
+          description: |
+            Wrong email or password (`code: invalid_credentials`).
           content:
             application/json:
               schema:
@@ -561,7 +564,13 @@ paths:
                     type: integer
                     description: Token expiry in seconds
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: |
+            The refresh token is unknown, expired, revoked or replayed
+            (`code: invalid_refresh_token`). The session cannot be renewed; sign in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/sessions:
     get:
@@ -684,7 +693,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/CredentialRejected'
         '503':
           $ref: '#/components/responses/LocalAuthDisabled'
 
@@ -937,7 +946,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '401':
-          description: Passkey verification failed or unknown credential
+          description: |
+            Passkey verification failed or the credential is unknown
+            (`code: invalid_credentials`).
           content:
             application/json:
               schema:
@@ -1084,7 +1095,7 @@ paths:
         '204':
           description: 2FA disabled
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/CredentialRejected'
         '503':
           $ref: '#/components/responses/LocalAuthDisabled'
 
@@ -1120,7 +1131,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: |
+            The 2FA challenge token is invalid or expired (`code: invalid_two_factor_token`;
+            restart the login) or the TOTP or recovery code was wrong
+            (`code: invalid_two_factor_code`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '503':
           $ref: '#/components/responses/LocalAuthDisabled'
 
@@ -1221,7 +1239,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/CredentialRejected'
 
     delete:
       tags:
@@ -1261,7 +1279,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/CredentialRejected'
 
   /users/me/notifications:
     get:
@@ -5591,7 +5609,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/ProviderCredentialsRejected'
         '503':
           description: Cloud backups are not configured on this server
 
@@ -5640,7 +5658,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/ProviderCredentialsRejected'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -5680,7 +5698,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BackupTestResult'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/ProviderCredentialsRejected'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -5703,7 +5721,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BackupRun'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/ProviderCredentialsRejected'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -12594,7 +12612,27 @@ components:
           description: |
             Optional machine-readable error code, used by clients to distinguish
             between conditions that share an HTTP status (e.g. `email_not_verified`
-            vs `account_disabled` for 403 on /auth/login).
+            vs `account_disabled` for 403 on /auth/login). Clients branch on the
+            code, never on the English `error` sentence, which may change.
+
+            Every `401` carries a code, in one of two kinds:
+
+            - `session_invalid` — the bearer token or its session was refused
+              (missing, malformed, expired or revoked token, or a disabled or
+              deleted account). Refresh once and replay; a second refusal ends
+              the session.
+            - Any other code — a credential presented in the request itself was
+              refused. The session is untouched: do not refresh and do not sign
+              the user out.
+              - `invalid_credentials` — password or passkey (login, change
+                password, change email, delete account, disable 2FA, passkey login)
+              - `invalid_refresh_token` — the refresh token cannot renew the
+                session; the one case of this kind that does mean signing in again
+              - `invalid_sign_in_code` — the OIDC hand-off code
+              - `invalid_two_factor_token` — the 2FA challenge token; restart the login
+              - `two_factor_required` / `invalid_two_factor_code` — the second factor
+              - `invalid_provider_credentials` — a cloud-backup provider refused the
+                destination's stored credentials
         details:
           type: array
           items:
@@ -12627,12 +12665,41 @@ components:
       description: |
         Unauthorized - missing or invalid token, or a token whose session has
         been revoked or whose account is disabled or deleted
+        (`code: session_invalid`)
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
           example:
             error: Unauthorized
+            code: session_invalid
+
+    CredentialRejected:
+      description: |
+        Either the session was refused (`code: session_invalid`, as for any
+        authenticated request) or the password in the request body was wrong
+        (`code: invalid_credentials`). The latter leaves the session intact.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Password is incorrect
+            code: invalid_credentials
+
+    ProviderCredentialsRejected:
+      description: |
+        Either the session was refused (`code: session_invalid`, as for any
+        authenticated request) or the cloud-backup provider refused the
+        destination's credentials (`code: invalid_provider_credentials`). The
+        latter leaves the NinerLog session intact.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Invalid provider credentials
+            code: invalid_provider_credentials
 
     Forbidden:
       description: Forbidden - admin access required

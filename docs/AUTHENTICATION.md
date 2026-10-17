@@ -281,7 +281,7 @@ In the OpenAPI spec the 200 is a `oneOf` over `AuthResponse` and
 appears only on the challenge, and the token fields only on a completed login —
 so a generated client can switch on it without probing.
 
-**Errors:** `401` invalid credentials, `403` account disabled, `429` account locked (too many failed attempts).
+**Errors:** `401` invalid credentials (`code: invalid_credentials`), `403` account disabled, `429` account locked (too many failed attempts).
 
 Login starts a **new session** and leaves the user's other sessions alone — see
 [Sessions](#sessions). For an account with 2FA enabled the password step issues no tokens at
@@ -351,7 +351,8 @@ The grace window is what lets two browser tabs (or a tab and the installed PWA) 
 same instant without evicting each other. It applies only to rotation: `rotated_at` and
 `revoked_at` are separate columns precisely so that signing out takes effect at once.
 
-**Errors:** `401` invalid, expired, revoked, or replayed refresh token. A client must treat
+**Errors:** `401` invalid, expired, revoked, or replayed refresh token
+(`code: invalid_refresh_token`). A client must treat
 **only** `401` as "the session is over" — `429`, `5xx` and network errors are transient and
 must be retried with the credentials kept. See
 [SESSION_CONTRACT.md](./SESSION_CONTRACT.md#5-what-each-failure-means-to-a-client).
@@ -427,7 +428,8 @@ Requires authentication.
 access tokens go with them: the other device stops working on its next request, not when its
 token expires.
 
-**Errors:** `401` wrong current password, `400` new password fails the
+**Errors:** `401` wrong current password (`code: invalid_credentials` — the session is
+untouched), `400` new password fails the
 [password policy](#password-policy).
 
 ---
@@ -698,11 +700,15 @@ All endpoints except the following require a valid access token in the `Authoriz
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```
 
-**401 responses:**
+**401 responses** — all carry `"code": "session_invalid"`:
 - `{"error": "Authentication required"}` — missing or malformed header
 - `{"error": "Invalid or expired token"}` — token validation failed
 - `{"error": "Session ended, please sign in again"}` — the token is well-formed and unexpired,
   but its session has been revoked or the account is disabled or deleted
+
+A 401 with any other `code` refused a credential sent in the request body (a password, passkey,
+sign-in code or backup provider key), not the session — see
+[SESSION_CONTRACT.md](./SESSION_CONTRACT.md#5-what-each-failure-means-to-a-client).
 
 **503 response:**
 - `{"error": "Session state unavailable"}` — the session state could not be read. This is not a

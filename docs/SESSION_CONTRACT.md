@@ -89,6 +89,21 @@ refresh 401s) handles all of them. When the session state cannot be read at all,
 `503`, not `401`: an unreadable state is not a revocation, and a database blip must not sign
 every client out.
 
+**Not every 401 refuses the session.** Some requests carry a credential of their own — the
+current password on change password, change email, delete account and disable 2FA; a passkey;
+an OIDC sign-in code; a backup provider's keys — and a wrong one answers `401` too. Every 401
+therefore carries a machine-readable `code`, and clients branch on it, never on the English
+sentence:
+
+| `code` | Meaning | The client must |
+|---|---|---|
+| `session_invalid` | The bearer token or its session was refused | Refresh once and replay; sign out if the refresh 401s |
+| `invalid_refresh_token` | The refresh token cannot renew the session (only on `POST /auth/refresh`) | Clear credentials and send the user to sign in |
+| `invalid_credentials`, `invalid_sign_in_code`, `invalid_two_factor_token`, `two_factor_required`, `invalid_two_factor_code`, `invalid_provider_credentials` | A credential in the request was refused | Show the error; **do not refresh and do not sign out** |
+
+The full list and where each is sent lives in the `Error.code` description of the OpenAPI spec
+and in `internal/api/errcode`.
+
 ## 6. Client obligations
 
 Any NinerLog client — the React PWA, the mobile app, anything else — must:

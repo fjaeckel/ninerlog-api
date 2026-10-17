@@ -18,6 +18,7 @@ fit together see [ARCHITECTURE.md](./ARCHITECTURE.md).
 | --- | --- |
 | `internal/api/handlers` | Gin handlers. `APIHandler` aggregates all services and implements the generated `ServerInterface`; one file per domain (`auth.go`, `flight.go`, `license.go`, `aircraft.go`, `credential.go`, `currency.go`, `contact.go`, `notification.go`, `backup.go`, `admin*.go`, `import*.go`, `export*.go`, `maps.go`, `reports.go`, `baseline.go`, `bulk_delete.go`, `twofactor.go`, `webauthn.go`, `oidc.go`, `announcements.go`, `flight_util.go`). |
 | `internal/api/middleware` | Cross-cutting HTTP concerns: `auth.go` (JWT), `admin.go` (admin gate), `ratelimit.go`, `idempotency.go` (replay of `Idempotency-Key` writes), `metrics.go` + `app_metrics.go`, `recovery.go`, `logger.go`, `security_headers.go`. |
+| `internal/api/errcode` | The machine-readable `code` values of the `Error` envelope — a published contract clients branch on. Every 401 carries one: `session_invalid` for a refused session, a credential code (`invalid_credentials`, …) for a refused password, passkey or other credential in the request. See [SESSION_CONTRACT.md](./SESSION_CONTRACT.md#5-what-each-failure-means-to-a-client). |
 | `internal/api/generated` | **Auto-generated** from `api-spec/openapi.yaml` via `oapi-codegen` (`types.go`, `server.go`, `spec.go`, `generate.go`). Do not hand-edit. See [API.md](./API.md). |
 
 ### Business logic

@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -145,10 +147,29 @@ func (h *APIHandler) getUserNameFromContext(c *gin.Context) string {
 	return user.Name
 }
 
-// sendError sends a standardized error response matching OpenAPI Error schema
+// sendError sends a standardized error response matching OpenAPI Error schema.
+//
+// A 401 sent through here is a session refusal and carries
+// errcode.SessionInvalid, which tells clients to refresh and replay. A 401
+// that refuses a credential presented in the request (a password, passkey,
+// sign-in code…) must go through sendCodedError with its own code instead, or
+// a client would sign the user out over a mistyped password.
 func (h *APIHandler) sendError(c *gin.Context, statusCode int, message string, details ...map[string]string) {
+	code := ""
+	if statusCode == http.StatusUnauthorized {
+		code = errcode.SessionInvalid
+	}
+	h.sendCodedError(c, statusCode, code, message, details...)
+}
+
+// sendCodedError is sendError with an explicit machine-readable code (one of
+// the errcode constants); an empty code omits the field.
+func (h *APIHandler) sendCodedError(c *gin.Context, statusCode int, code, message string, details ...map[string]string) {
 	errorResponse := generated.Error{
 		Error: message,
+	}
+	if code != "" {
+		errorResponse.Code = &code
 	}
 
 	if len(details) > 0 {

@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
@@ -186,7 +187,7 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 	if err != nil {
 		if err == service.ErrInvalidCredentials {
 			AuthLoginAttemptsTotal.WithLabelValues("invalid_credentials").Inc()
-			h.sendError(c, http.StatusUnauthorized, "Invalid credentials")
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Invalid credentials")
 			return
 		}
 		if err == service.ErrAccountLocked {
@@ -253,7 +254,7 @@ func (h *APIHandler) RefreshToken(c *gin.Context) {
 		default:
 			AuthTokenRefreshTotal.WithLabelValues("invalid").Inc()
 		}
-		h.sendError(c, http.StatusUnauthorized, "Invalid or expired refresh token")
+		h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidRefreshToken, "Invalid or expired refresh token")
 		return
 	}
 
@@ -303,7 +304,7 @@ func (h *APIHandler) ChangePassword(c *gin.Context) {
 
 	if err := h.authService.ChangePassword(c.Request.Context(), userID, req.CurrentPassword, req.NewPassword); err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
-			h.sendError(c, http.StatusUnauthorized, "Current password is incorrect")
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Current password is incorrect")
 			return
 		}
 		if err == service.ErrPasswordTooShort || err == service.ErrPasswordTooLong ||
@@ -361,7 +362,7 @@ func (h *APIHandler) DeleteCurrentUser(c *gin.Context) {
 
 	if err := h.authService.DeleteUser(c.Request.Context(), userID, *req.Password); err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) || errors.Is(err, service.ErrPasswordNotSet) {
-			h.sendError(c, http.StatusUnauthorized, "Password is incorrect")
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Password is incorrect")
 			return
 		}
 		h.sendError(c, http.StatusInternalServerError, "Failed to delete account")
@@ -453,19 +454,12 @@ func (h *APIHandler) ResetPassword(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, service.ErrTwoFactorRequired) {
-			code := "two_factor_required"
-			c.JSON(http.StatusUnauthorized, generated.Error{
-				Error: "This account uses two-factor authentication. Enter a code from your authenticator app or one of your recovery codes to reset the password.",
-				Code:  &code,
-			})
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.TwoFactorRequired,
+				"This account uses two-factor authentication. Enter a code from your authenticator app or one of your recovery codes to reset the password.")
 			return
 		}
 		if errors.Is(err, service.ErrInvalidTOTPCode) {
-			code := "invalid_two_factor_code"
-			c.JSON(http.StatusUnauthorized, generated.Error{
-				Error: "Invalid two-factor code",
-				Code:  &code,
-			})
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidTwoFactorCode, "Invalid two-factor code")
 			return
 		}
 		if errors.Is(err, service.ErrAccountLocked) {

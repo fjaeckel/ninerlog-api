@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -160,11 +161,11 @@ func (h *APIHandler) WebauthnLoginVerify(c *gin.Context) {
 		case errors.Is(err, service.ErrWebAuthnInvalidResponse):
 			h.sendError(c, http.StatusBadRequest, "Invalid login response")
 		case errors.Is(err, service.ErrWebAuthnUnknownCredential):
-			h.sendError(c, http.StatusUnauthorized, "Unknown passkey")
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Unknown passkey")
 		case errors.Is(err, service.ErrAccountDisabled):
 			h.sendError(c, http.StatusForbidden, "Account disabled. Contact the administrator.")
 		case errors.Is(err, service.ErrWebAuthnVerification):
-			h.sendError(c, http.StatusUnauthorized, "Passkey verification failed")
+			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Passkey verification failed")
 		default:
 			h.sendError(c, http.StatusInternalServerError, "Failed to complete passkey login")
 		}
