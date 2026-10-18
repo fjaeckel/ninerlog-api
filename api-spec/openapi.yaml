@@ -2707,7 +2707,8 @@ paths:
         Get flights for the authenticated user. Each flight carries its
         crewMembers, as on GET /flights/{id}. The response also carries the
         column totals over all matching flights and per month for the months
-        on the page.
+        on the page. An unfiltered list also carries `logbookTotals` and
+        `baseline` when the user has an initial-hours snapshot.
       operationId: listFlights
       security:
         - bearerAuth: []
@@ -8571,6 +8572,26 @@ components:
             date and updatedSince is not set.
           items:
             $ref: '#/components/schemas/FlightMonthTotals'
+        logbookTotals:
+          allOf:
+            - $ref: '#/components/schemas/FlightTotals'
+          description: |
+            `totals` with the user's initial-hours snapshot added: the whole
+            logbook, prior experience included, matching `GET /users/me/statistics`.
+            Present only when `baseline` is. Columns the snapshot does not
+            record (simulator and instrument time, ground training, take-offs,
+            approaches, holds, distance) are the logged flights' sums.
+            `totals` stays the logged flights only, since pagination counts
+            from it.
+        baseline:
+          allOf:
+            - $ref: '#/components/schemas/StatisticsBaselineContribution'
+          description: |
+            The initial-hours snapshot included in `logbookTotals`. Present when
+            the user has a snapshot and the request filters by nothing but a
+            date range that reaches back to its date: no `q`, `search`,
+            aircraft, airport, PIC/dual, logbook-licence or `updatedSince`
+            filter. Month totals never include it.
         data:
           type: array
           items:

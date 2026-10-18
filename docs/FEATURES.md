@@ -148,7 +148,8 @@ rules.
 - CRUD: `POST/GET/PUT/DELETE /flights`.
 - List totals: `GET /flights` returns `totals` (column sums over every flight matching the
   filters) and `monthTotals` (the same per month, for the months on the page) next to
-  `pagination` — see [API.md](./API.md).
+  `pagination`. An unfiltered list also returns `logbookTotals` and `baseline` when the
+  user has an initial-hours snapshot — see [API.md](./API.md).
 - Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
@@ -259,7 +260,8 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Initial hours** — a per-user snapshot of pre-existing experience (`FlightBaseline`).
   It is added to the totals of both the statistics endpoint and the Reports analytics
   totals whenever the requested range reaches back to its cutoff date, so the dashboard
-  and the Reports page show the same career totals. The PDF logbook export applies it
+  and the Reports page show the same career totals. An unfiltered `GET /flights` reports
+  the same figure as `logbookTotals`. The PDF logbook export applies it
   too, as the opening carried-forward balance on the sheets.
 - **Maps** — airport lookup/search backed by the in-memory airport database
   (`internal/airports`), plus route and airport-activity statistics (`maps.go`).

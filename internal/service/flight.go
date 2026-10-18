@@ -160,6 +160,62 @@ func (s *FlightService) FlightTotals(ctx context.Context, userID uuid.UUID, opts
 	return s.flightRepo.TotalsByUserID(ctx, userID, opts)
 }
 
+// LogbookTotals returns totals with the user's initial-hours snapshot added,
+// and the snapshot itself, when opts filters by nothing but a date range that
+// baselineCoversRange admits. Both are nil otherwise.
+func (s *FlightService) LogbookTotals(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, totals *models.FlightTotals) (*models.FlightTotals, *models.FlightBaseline, error) {
+	if s.baselineRepo == nil || totals == nil || !listIsUnfiltered(opts) {
+		return nil, nil, nil
+	}
+	baseline, err := s.baselineRepo.Get(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, nil, nil
+		}
+		return nil, nil, err
+	}
+	if !baselineCoversRange(baseline.BaselineDate, opts.StartDate, opts.EndDate) {
+		return nil, nil, nil
+	}
+
+	sum := *totals
+	sum.Flights += baseline.TotalFlights
+	sum.TotalTime += baseline.TotalMinutes
+	sum.PICTime += baseline.PICMinutes
+	sum.SICTime += baseline.SICMinutes
+	sum.DualTime += baseline.DualMinutes
+	sum.DualGivenTime += baseline.DualGivenMinutes
+	sum.MultiPilotTime += baseline.MultiPilotMinutes
+	sum.NightTime += baseline.NightMinutes
+	sum.IFRTime += baseline.IFRMinutes
+	sum.SoloTime += baseline.SoloMinutes
+	sum.CrossCountryTime += baseline.CrossCountryMinutes
+	sum.PICUSTime += baseline.PICUSMinutes
+	sum.SPICTime += baseline.SPICMinutes
+	sum.ExaminerTime += baseline.ExaminerMinutes
+	sum.ReliefTime += baseline.ReliefMinutes
+	sum.LandingsDay += baseline.LandingsDay
+	sum.LandingsNight += baseline.LandingsNight
+	return &sum, baseline, nil
+}
+
+// listIsUnfiltered reports whether opts selects every flight, apart from a
+// date range.
+func listIsUnfiltered(opts *repository.FlightQueryOptions) bool {
+	if opts == nil {
+		return true
+	}
+	return opts.AircraftReg == nil &&
+		opts.DepartureICAO == nil &&
+		opts.ArrivalICAO == nil &&
+		opts.IsPIC == nil &&
+		opts.IsDual == nil &&
+		(opts.Search == nil || *opts.Search == "") &&
+		opts.UpdatedSince == nil &&
+		opts.Query == nil &&
+		!opts.FilterByRegistrations
+}
+
 // FlightMonthTotals sums the flight columns over the user's filtered flights
 // for each of the given months that has any.
 func (s *FlightService) FlightMonthTotals(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions, months []time.Time) ([]models.FlightMonthTotals, error) {

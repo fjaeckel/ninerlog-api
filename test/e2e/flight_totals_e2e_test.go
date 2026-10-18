@@ -164,3 +164,109 @@ func TestFlightListTotals(t *testing.T) {
 		}
 	})
 }
+
+type flightListLogbookTotals struct {
+	Pagination struct {
+		Total int `json:"total"`
+	} `json:"pagination"`
+	Totals struct {
+		Flights   int `json:"flights"`
+		TotalTime int `json:"totalTime"`
+	} `json:"totals"`
+	LogbookTotals *struct {
+		Flights       int `json:"flights"`
+		TotalTime     int `json:"totalTime"`
+		PicTime       int `json:"picTime"`
+		LandingsDay   int `json:"landingsDay"`
+		LandingsNight int `json:"landingsNight"`
+	} `json:"logbookTotals"`
+	Baseline *struct {
+		BaselineDate string `json:"baselineDate"`
+		TotalFlights int    `json:"totalFlights"`
+		TotalMinutes int    `json:"totalMinutes"`
+	} `json:"baseline"`
+	MonthTotals []struct {
+		Totals struct {
+			TotalTime int `json:"totalTime"`
+		} `json:"totals"`
+	} `json:"monthTotals"`
+}
+
+func TestFlightListLogbookTotals(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("flt-logbook-totals"), "SecurePass123!", "Baseline Pilot")
+
+	requireStatus(t, c.POST("/flights", map[string]interface{}{
+		"date": "2026-08-02", "aircraftReg": "D-ETOT", "aircraftType": "C172",
+		"departureIcao": "EDNY", "arrivalIcao": "EDDS",
+		"offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1,
+	}), http.StatusCreated)
+
+	get := func(path string) flightListLogbookTotals {
+		t.Helper()
+		resp := c.GET(path)
+		requireStatus(t, resp, http.StatusOK)
+		var page flightListLogbookTotals
+		resp.JSON(&page)
+		return page
+	}
+
+	t.Run("without a snapshot neither field is present", func(t *testing.T) {
+		page := get("/flights")
+		if page.LogbookTotals != nil || page.Baseline != nil {
+			t.Errorf("logbookTotals = %+v, baseline = %+v; want both absent", page.LogbookTotals, page.Baseline)
+		}
+	})
+
+	requireStatus(t, c.PUT("/users/me/baseline", map[string]interface{}{
+		"baselineDate":  "2020-12-31",
+		"totalFlights":  12,
+		"totalMinutes":  2000,
+		"picMinutes":    1800,
+		"landingsDay":   36,
+		"landingsNight": 2,
+	}), http.StatusOK)
+
+	t.Run("an unfiltered list carries the whole logbook", func(t *testing.T) {
+		page := get("/flights?pageSize=1")
+		if page.LogbookTotals == nil || page.Baseline == nil {
+			t.Fatalf("logbookTotals = %+v, baseline = %+v; want both present", page.LogbookTotals, page.Baseline)
+		}
+		if page.LogbookTotals.Flights != 13 || page.LogbookTotals.TotalTime != 2090 || page.LogbookTotals.LandingsDay != 37 {
+			t.Errorf("logbookTotals = %+v, want 13 flights / 2090 min / 37 day landings", *page.LogbookTotals)
+		}
+		if page.Baseline.TotalFlights != 12 || page.Baseline.TotalMinutes != 2000 || page.Baseline.BaselineDate != "2020-12-31" {
+			t.Errorf("baseline = %+v", *page.Baseline)
+		}
+		if page.Totals.Flights != 1 || page.Totals.TotalTime != 90 || page.Pagination.Total != 1 {
+			t.Errorf("totals = %+v, pagination.total = %d; want the logged flight only", page.Totals, page.Pagination.Total)
+		}
+		for _, m := range page.MonthTotals {
+			if m.Totals.TotalTime != 90 {
+				t.Errorf("month totals include the snapshot: %+v", m)
+			}
+		}
+	})
+
+	t.Run("a date range reaching back to the snapshot keeps it", func(t *testing.T) {
+		page := get("/flights?startDate=2020-01-01")
+		if page.LogbookTotals == nil || page.LogbookTotals.Flights != 13 {
+			t.Errorf("logbookTotals = %+v, want 13 flights", page.LogbookTotals)
+		}
+	})
+
+	for name, path := range map[string]string{
+		"a filter":                    "/flights?aircraftReg=D-ETOT",
+		"a search":                    "/flights?search=EDNY",
+		"an advanced query":           "/flights?q=" + url.QueryEscape("reg:D-ETOT"),
+		"a window after the snapshot": "/flights?startDate=2026-01-01",
+		"a delta request":             "/flights?updatedSince=" + url.QueryEscape(time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)),
+	} {
+		t.Run(name+" leaves both fields out", func(t *testing.T) {
+			page := get(path)
+			if page.LogbookTotals != nil || page.Baseline != nil {
+				t.Errorf("logbookTotals = %+v, baseline = %+v; want both absent", page.LogbookTotals, page.Baseline)
+			}
+		})
+	}
+}
