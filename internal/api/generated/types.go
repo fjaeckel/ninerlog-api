@@ -6487,7 +6487,22 @@ type PaginatedBackupRuns struct {
 
 // PaginatedFlights defines model for PaginatedFlights.
 type PaginatedFlights struct {
-	Data []Flight `json:"data"`
+	// Baseline The initial-hours snapshot included in `logbookTotals`. Present when
+	// the user has a snapshot and the request filters by nothing but a
+	// date range that reaches back to its date: no `q`, `search`,
+	// aircraft, airport, PIC/dual, logbook-licence or `updatedSince`
+	// filter. Month totals never include it.
+	Baseline *StatisticsBaselineContribution `json:"baseline,omitempty"`
+	Data     []Flight                        `json:"data"`
+
+	// LogbookTotals `totals` with the user's initial-hours snapshot added: the whole
+	// logbook, prior experience included, matching `GET /users/me/statistics`.
+	// Present only when `baseline` is. Columns the snapshot does not
+	// record (simulator and instrument time, ground training, take-offs,
+	// approaches, holds, distance) are the logged flights' sums.
+	// `totals` stays the logged flights only, since pagination counts
+	// from it.
+	LogbookTotals *FlightTotals `json:"logbookTotals,omitempty"`
 
 	// MonthTotals Column sums per calendar month over every flight matching the filters, for each month that has a flight on the returned page. Ordered by month, oldest first. Empty unless the list is sorted by date and updatedSince is not set.
 	MonthTotals []FlightMonthTotals `json:"monthTotals"`

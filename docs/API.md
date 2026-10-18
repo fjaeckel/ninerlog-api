@@ -393,7 +393,11 @@ month for each month that has a flight on the page, so a month heading is comple
 when the month spans two pages. `pagination.total` equals `totals.flights`. `monthTotals` is
 only computed for a date-sorted list without `updatedSince` (otherwise it is an empty
 array), and `updatedSince` narrows `totals` like any other filter, so a delta-sync
-response sums only the changed flights. See
+response sums only the changed flights. When the user has an initial-hours snapshot and
+the request filters by nothing but a date range reaching back to its cutoff, the response
+also carries `logbookTotals` (`totals` with the snapshot added, matching
+`GET /users/me/statistics`) and `baseline` (the snapshot's contribution). `totals`,
+`monthTotals` and `pagination` stay the logged flights only. See
 [FEATURES.md](./FEATURES.md#flight-logging).
 
 `POST /flights` creates either a flight or an FSTD (simulator) session, chosen by

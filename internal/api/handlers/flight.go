@@ -129,6 +129,12 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 	}
 	total := totals.Flights
 
+	logbookTotals, baseline, err := h.flightService.LogbookTotals(c.Request.Context(), userID, opts, totals)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to count flights")
+		return
+	}
+
 	flights, err := h.flightService.ListFlights(c.Request.Context(), userID, opts)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to retrieve flights")
@@ -165,6 +171,7 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 		Data:        flightList,
 		Totals:      convertFlightTotals(*totals),
 		MonthTotals: months,
+		Baseline:    baselineContribution(baseline),
 		Pagination: struct {
 			Page       int "json:\"page\""
 			PageSize   int "json:\"pageSize\""
@@ -176,6 +183,11 @@ func (h *APIHandler) ListFlights(c *gin.Context, params generated.ListFlightsPar
 			Total:      total,
 			TotalPages: totalPages,
 		},
+	}
+
+	if logbookTotals != nil {
+		lt := convertFlightTotals(*logbookTotals)
+		response.LogbookTotals = &lt
 	}
 
 	c.JSON(http.StatusOK, response)
