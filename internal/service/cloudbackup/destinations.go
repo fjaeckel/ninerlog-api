@@ -3,12 +3,9 @@ package cloudbackup
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
-	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup/provider"
 	"github.com/google/uuid"
 )
@@ -328,21 +325,4 @@ func (s *Service) recordSuccess(ctx context.Context, d *models.BackupDestination
 	if err := s.destRepo.Update(ctx, d); err != nil {
 		_ = err
 	}
-}
-
-// nowWithin returns true if last_success_at is within the window relative to
-// now.
-func nowWithin(now time.Time, last *time.Time, window time.Duration) bool {
-	if last == nil {
-		return false
-	}
-	return now.Sub(*last) <= window
-}
-
-// guardUserRepoErr maps a repository error to the appropriate service error.
-func guardUserRepoErr(err error) error {
-	if errors.Is(err, repository.ErrNotFound) {
-		return ErrDestinationNotFound
-	}
-	return err
 }

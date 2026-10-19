@@ -92,7 +92,7 @@ func embeddedIPv4(ip net.IP) net.IP {
 		return net.IPv4(ip[12], ip[13], ip[14], ip[15])
 	}
 	// ::a.b.c.d — all-zero high 96 bits, non-zero low 32; excludes :: and ::1.
-	if isZeros(ip[0:12]) && !(ip[12] == 0 && ip[13] == 0 && ip[14] == 0 && ip[15] <= 1) {
+	if isZeros(ip[0:12]) && (ip[12] != 0 || ip[13] != 0 || ip[14] != 0 || ip[15] > 1) {
 		return net.IPv4(ip[12], ip[13], ip[14], ip[15])
 	}
 	return nil

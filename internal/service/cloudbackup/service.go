@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -209,27 +208,6 @@ func indexOfNewline(s string) int {
 // SetScheduler attaches a scheduler to this service.
 func (s *Service) SetScheduler(sc *Scheduler) {
 	s.scheduler = sc
-}
-
-// stringSlice returns a copy of vals with empty strings removed.
-func stringSlice(vals []string) []string {
-	out := make([]string, 0, len(vals))
-	for _, v := range vals {
-		if v != "" {
-			out = append(out, v)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-// withinClockSkew returns true if t1 and t2 are within d of each other.
-func withinClockSkew(t1, t2 time.Time, d time.Duration) bool {
-	diff := t1.Sub(t2)
-	if diff < 0 {
-		diff = -diff
-	}
-	return diff <= d
 }
 
 // timeOrNil returns &t if t is non-zero, else nil.
