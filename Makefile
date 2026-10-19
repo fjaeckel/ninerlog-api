@@ -8,6 +8,9 @@ BINARY_NAME=ninerlog-api
 BUILD_DIR=bin
 COVERAGE_FILE=coverage.out
 COVERAGE_HTML=coverage.html
+GOLANGCI_LINT_VERSION=v2.15.0
+GO_VERSION=$(shell sed -n 's/^go //p' go.mod)
+GOLANGCI_LINT=GOTOOLCHAIN=go$(GO_VERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 # Upstream list for `make prefix-check`; see docs/AIRCRAFT_REGISTRATIONS.md.
 SOURCE?=https://en.wikipedia.org/w/index.php?title=List_of_aircraft_registration_prefixes&action=raw
 
@@ -64,9 +67,9 @@ coverage: ## Generate HTML coverage report
 	@go tool cover -html=$(COVERAGE_FILE) -o $(COVERAGE_HTML)
 	@echo "Coverage report: $(COVERAGE_HTML)"
 
-lint: ## Lint code with golangci-lint
-	@echo "Linting code..."
-	@golangci-lint run
+lint: ## Lint and format-check code with the pinned golangci-lint
+	@echo "Linting code (golangci-lint $(GOLANGCI_LINT_VERSION))..."
+	@$(GOLANGCI_LINT) run
 
 fmt: ## Format code with go fmt
 	@echo "Formatting code..."

@@ -216,7 +216,11 @@ open coverage.html
 make lint
 ```
 
-Requires [golangci-lint](https://golangci-lint.run/welcome/install/).
+Runs golangci-lint v2.15.0 (pinned in the `Makefile` and in CI's `lint` job) with
+`.golangci.yml`, which also checks gofmt/goimports formatting and covers test files and the
+`integration`/`e2e` build tags. No separate install is needed — the Makefile builds the
+pinned version with the `go.mod` toolchain. CI runs the same check and blocks the image
+publish on it. See [DEVELOPMENT.md](./DEVELOPMENT.md#linting).
 
 ## Quick Reference
 
@@ -229,7 +233,7 @@ Requires [golangci-lint](https://golangci-lint.run/welcome/install/).
 | `make test-e2e-full` | Full E2E suite via Docker Compose |
 | `make test-all` | All tests in sequence |
 | `make coverage` | HTML coverage report |
-| `make lint` | golangci-lint |
+| `make lint` | golangci-lint v2.15.0 (pinned; also enforced in CI) |
 | `bash scripts/run-e2e-tests.sh` | Full E2E in Docker (API + DB + MailPit) |
 | `bash scripts/run-e2e-tests.sh -k` | E2E in Docker, keep env running |
 | `bash scripts/run-all-tests.sh` | All tests (Docker pipeline) |
