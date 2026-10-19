@@ -329,6 +329,25 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   flag set (capped at block time), so a logbook brought from another product keeps the
   night and cross-country hours it was signed with instead of having them re-derived.
 
+  Day and night landings mapped as separate columns are stored as the file's split with
+  both landing override flags set; landings counted only in a larger total column are
+  added to the day landings. Only a file with a single total (or a split that is all
+  zero) has its landings split by sunset/sunrise at the arrival airport, as before.
+  Takeoff, SIC (co-pilot) and multi-pilot columns have no `ImportField` target; a template
+  that lists them as known columns (ForeFlight, NinerLog, LogTen Pro, MyFlightbook,
+  capzlog.aero, FLYLOG.io, Wader, the EASA, FAA and web-logbook layouts) has them read as auxiliary values — never
+  suggested as a mapping, and not read once the pilot maps the column to a field. A
+  day/night takeoff split is stored with its override flags. A positive SIC or
+  multi-pilot value is stored as the pilot's own value with its override flag, capped at
+  block time, and a ForeFlight `Self;SIC` crew entry declares the whole block as SIC
+  time. Either declaration lets a sector flown under another pilot's command keep its
+  time instead of becoming a passenger flight. An aircraft the import creates is marked
+  multi-pilot when one of its imported rows carries multi-pilot time; nothing else marks
+  it, so a file with no such column imports a third-party-PIC sector on an unknown type
+  as before. Aircraft facts for the auto-calculation are read after the import has
+  created its aircraft. A failure to save an imported flight's crew is reported as a row
+  error (`crewMembers`) and makes the import `partial`.
+
   Adding a logbook means adding a `Template` in `importtemplate/sources.go`, the matching
   `ImportFormat` member in `api-spec/openapi.yaml`, and the value in the `import_format`
   database enum — no handler or service changes.

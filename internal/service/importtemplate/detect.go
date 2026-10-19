@@ -89,6 +89,15 @@ func Suggest(tpl *Template, headers []string) []Mapping {
 	return genericTemplate.Suggest(headers)
 }
 
+// AuxColumns returns the auxiliary columns of a file, using the generic
+// template when tpl is nil.
+func AuxColumns(tpl *Template, headers []string) map[string]AuxField {
+	if tpl != nil {
+		return tpl.AuxColumns(headers)
+	}
+	return genericTemplate.AuxColumns(headers)
+}
+
 // DetectAndSuggest is the one call the upload handler needs: it returns the
 // detected template (nil when unrecognised), the import-format value to record,
 // and the suggested mappings.

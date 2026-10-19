@@ -613,6 +613,13 @@ confirm and backup restore. So:
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
 history) and export to CSV, JSON, PDF, and vCard.
 
+CSV mapping rules — the stored day/night landing and takeoff split, SIC and multi-pilot
+columns read from template-known columns, and override flags — are in
+[FEATURES.md](FEATURES.md) under the import templates. The preview carries the mapped
+`sicTime`, `multiPilotTime`, `takeoffsDay` and `takeoffsNight`; a confirm whose flight was
+created but whose crew could not be saved reports a `crewMembers` row error and the status
+`partial`.
+
 `GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, licences and
 class ratings, credentials, contacts, custom currency rules, notification preferences and the
 carried-forward hours baseline. It is the same payload a cloud backup run writes
