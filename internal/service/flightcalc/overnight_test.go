@@ -77,6 +77,35 @@ func TestDayNightSplit_OvernightFlight(t *testing.T) {
 			},
 			wantNight: 30, wantTODay: 1, wantLdgNight: 1, wantAllLanding: 1,
 		},
+		{
+			name: "overnight landing time 00:50Z on D+1 is before dusk 00:56:58Z, so day",
+			dep:  "EGLL", arr: "BIKF", date: "2026-07-25", offBlock: "22:30", onBlock: "01:05",
+			total: 155, landings: 1,
+			setup: func(f *models.Flight) {
+				f.DepartureTime = strPtr("22:45")
+				f.ArrivalTime = strPtr("00:50")
+			},
+			wantNight: 155, wantTONight: 1, wantLdgDay: 1, wantAllLanding: 1,
+		},
+		{
+			name: "EDDF takeoff time 16:30Z after dusk 16:28:09Z is night though off-block is day",
+			dep:  "EDDF", arr: "EDDF", date: "2026-01-15", offBlock: "16:00", onBlock: "17:30",
+			total: 90, landings: 1,
+			setup: func(f *models.Flight) {
+				f.DepartureTime = strPtr("16:30")
+				f.ArrivalTime = strPtr("17:20")
+			},
+			wantNight: 61, wantTONight: 1, wantLdgNight: 1, wantAllLanding: 1,
+		},
+		{
+			name: "EDDF takeoff time outside the block window falls back to off-block",
+			dep:  "EDDF", arr: "EDDF", date: "2026-01-15", offBlock: "16:00", onBlock: "17:30",
+			total: 90, landings: 1,
+			setup: func(f *models.Flight) {
+				f.DepartureTime = strPtr("09:50")
+			},
+			wantNight: 61, wantTODay: 1, wantLdgNight: 1, wantAllLanding: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -143,6 +172,38 @@ func TestInstantsOf_RollsOnBlockPastMidnight(t *testing.T) {
 			in := instantsOf(&models.Flight{Date: date, OffBlockTime: tt.off, OnBlockTime: tt.on})
 			if !in.offBlock.Equal(tt.wantOff) || !in.onBlock.Equal(tt.wantOn) {
 				t.Errorf("instantsOf = %v / %v, want %v / %v", in.offBlock, in.onBlock, tt.wantOff, tt.wantOn)
+			}
+		})
+	}
+}
+
+func TestInstantsOf_TakeoffAndLanding(t *testing.T) {
+	date := time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC)
+	at := func(day, h, m int) time.Time { return time.Date(2026, 7, day, h, m, 0, 0, time.UTC) }
+	tests := []struct {
+		name                      string
+		off, takeoff, landing, on *string
+		wantTakeoffAt, wantLandAt time.Time
+	}{
+		{"takeoff and landing after 00:00Z roll to D+1", strPtr("23:50"), strPtr("00:05"), strPtr("00:55"), strPtr("01:05"),
+			at(26, 0, 5), at(26, 0, 55)},
+		{"no takeoff or landing uses block times", strPtr("22:30"), nil, nil, strPtr("01:05"),
+			at(25, 22, 30), at(26, 1, 5)},
+		{"takeoff after on-block uses off-block", strPtr("10:00"), strPtr("09:50"), strPtr("10:50"), strPtr("11:00"),
+			at(25, 10, 0), at(25, 10, 50)},
+		{"no block times, landing rolls past takeoff", nil, strPtr("23:10"), strPtr("00:40"), nil,
+			at(25, 23, 10), at(26, 0, 40)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := instantsOf(&models.Flight{
+				Date: date, OffBlockTime: tt.off, DepartureTime: tt.takeoff, ArrivalTime: tt.landing, OnBlockTime: tt.on,
+			})
+			if got := in.takeoffAt(); !got.Equal(tt.wantTakeoffAt) {
+				t.Errorf("takeoffAt = %v, want %v", got, tt.wantTakeoffAt)
+			}
+			if got := in.landingAt(); !got.Equal(tt.wantLandAt) {
+				t.Errorf("landingAt = %v, want %v", got, tt.wantLandAt)
 			}
 		})
 	}

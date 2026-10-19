@@ -360,7 +360,7 @@ func calculateTakeoffSplit(flight *models.Flight) {
 		return
 	}
 
-	depTime := instantsOf(flight).offBlock
+	depTime := instantsOf(flight).takeoffAt()
 	if depTime.IsZero() {
 		return
 	}
@@ -389,7 +389,7 @@ func calculateLandingSplit(flight *models.Flight) {
 	if arr := normalizeICAO(flight.ArrivalICAO); arr != "" {
 		arrAP = airports.Lookup(arr)
 	}
-	arrTime := instantsOf(flight).onBlock
+	arrTime := instantsOf(flight).landingAt()
 	if arrAP == nil || arrTime.IsZero() {
 		// Unknown airport or time: all landings by day
 		flight.LandingsDay = total
@@ -428,24 +428,58 @@ func normalizeICAO(icao *string) string {
 	return strings.ToUpper(strings.TrimSpace(*icao))
 }
 
-// flightInstants holds a flight's block times as UTC instants; a zero value
-// marks a time that is absent or unparseable.
+// flightInstants holds a flight's block, takeoff and landing times as UTC
+// instants; a zero value marks a time that is absent or unparseable.
 type flightInstants struct {
 	offBlock time.Time
+	takeoff  time.Time
+	landing  time.Time
 	onBlock  time.Time
 }
 
-// instantsOf places each block time on flight.Date, and on-block on the
-// following day when it is earlier than off-block.
+// instantsOf places each time on flight.Date, and on the following day when
+// it is earlier than the anchor: off-block, or takeoff without off-block.
 func instantsOf(flight *models.Flight) flightInstants {
 	in := flightInstants{
 		offBlock: instantOn(flight.Date, flight.OffBlockTime),
+		takeoff:  instantOn(flight.Date, flight.DepartureTime),
+		landing:  instantOn(flight.Date, flight.ArrivalTime),
 		onBlock:  instantOn(flight.Date, flight.OnBlockTime),
 	}
-	if !in.offBlock.IsZero() && !in.onBlock.IsZero() && in.onBlock.Before(in.offBlock) {
-		in.onBlock = in.onBlock.Add(24 * time.Hour)
+	anchor := in.offBlock
+	if anchor.IsZero() {
+		anchor = in.takeoff
+	}
+	if anchor.IsZero() {
+		return in
+	}
+	for _, t := range []*time.Time{&in.takeoff, &in.landing, &in.onBlock} {
+		if !t.IsZero() && t.Before(anchor) {
+			*t = t.Add(24 * time.Hour)
+		}
 	}
 	return in
+}
+
+// takeoffAt returns the takeoff instant, or off-block when takeoff is absent
+// or outside the block window.
+func (in flightInstants) takeoffAt() time.Time {
+	return inBlockWindow(in.takeoff, in.offBlock, in.onBlock, in.offBlock)
+}
+
+// landingAt returns the landing instant, or on-block when landing is absent
+// or outside the block window.
+func (in flightInstants) landingAt() time.Time {
+	return inBlockWindow(in.landing, in.offBlock, in.onBlock, in.onBlock)
+}
+
+// inBlockWindow returns t when it is set and inside [from, to], a zero bound
+// being open; otherwise fallback.
+func inBlockWindow(t, from, to, fallback time.Time) time.Time {
+	if t.IsZero() || (!from.IsZero() && t.Before(from)) || (!to.IsZero() && t.After(to)) {
+		return fallback
+	}
+	return t
 }
 
 // instantOn returns timeStr on date in UTC, or the zero time when timeStr is
