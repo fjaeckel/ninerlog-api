@@ -220,6 +220,11 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 		clockFormat = models.ClockFormat24h
 	}
 	cf := generated.UserClockFormat(clockFormat)
+	logbookTerms := user.LogbookTerms
+	if logbookTerms == "" {
+		logbookTerms = models.LogbookTermsLocalized
+	}
+	lt := generated.UserLogbookTerms(logbookTerms)
 	ds := generated.UserDecimalSeparator(user.DecimalSeparator)
 	recencyPerModel := user.RecencyPerModel
 	recencyPerRegistration := user.RecencyPerRegistration
@@ -239,6 +244,7 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 		TimeDisplayFormat:      &tdf,
 		DateFormat:             &df,
 		ClockFormat:            &cf,
+		LogbookTerms:           &lt,
 		DecimalSeparator:       &ds,
 		PreferredLocale:        &locale,
 		RecencyPerModel:        &recencyPerModel,
