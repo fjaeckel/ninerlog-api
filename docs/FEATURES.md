@@ -24,7 +24,9 @@ token/2FA/WebAuthn deep-dive.
 - **Brute-force protection** — failed logins increment `FailedLoginAttempts`; after the
   threshold the account is locked (`LockedUntil`).
 - **Display preferences** — `PATCH /users/me` stores how a client should present the
-  logbook: time format, date format, decimal separator, interface language, the
+  logbook: time format, date format, clock format, decimal separator, interface language,
+  whether logbook terms (flight-time columns, pilot functions, crew roles) stay in English
+  under a non-English interface (`logbookTerms`), the
   informational recency toggles, and which optional columns the flights list shows
   (`flightListColumnMode` `auto`/`custom` plus `flightListColumns`). The API stores and
   validates the choice; rendering it — including hiding columns again when the list is

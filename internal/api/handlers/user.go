@@ -105,6 +105,12 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 			user.ClockFormat = cf
 		}
 	}
+	if req.LogbookTerms != nil {
+		lt := string(*req.LogbookTerms)
+		if lt == models.LogbookTermsLocalized || lt == models.LogbookTermsEnglish {
+			user.LogbookTerms = lt
+		}
+	}
 	if req.DecimalSeparator != nil {
 		ds := string(*req.DecimalSeparator)
 		if ds == "comma" || ds == "dot" {

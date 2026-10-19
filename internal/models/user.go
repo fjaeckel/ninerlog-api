@@ -24,6 +24,7 @@ type User struct {
 	TimeDisplayFormat   string         `json:"timeDisplayFormat"`
 	DateFormat          string         `json:"dateFormat"`
 	ClockFormat         string         `json:"clockFormat"`
+	LogbookTerms        string         `json:"logbookTerms"`
 	DecimalSeparator    string         `json:"decimalSeparator"`
 	PreferredLocale     string         `json:"preferredLocale"`
 	// Informational 90-day recency indicator preferences (FCL.060(b)-style)
@@ -47,6 +48,12 @@ func (u *User) HasPassword() bool { return u.PasswordHash != "" }
 const (
 	ClockFormat24h = "24h"
 	ClockFormat12h = "12h"
+)
+
+// Logbook term languages.
+const (
+	LogbookTermsLocalized = "localized"
+	LogbookTermsEnglish   = "english"
 )
 
 // Flight list column modes.
