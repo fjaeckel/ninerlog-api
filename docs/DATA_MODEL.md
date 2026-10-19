@@ -339,8 +339,8 @@ signed-in device; rotation replaces the token but keeps the session:
 | `session_id` | Stable across rotation — every token minted from a login carries it. A session is live while it holds an unrevoked, unexpired row |
 | `device_label`, `user_agent`, `ip_address` | Client details captured at each write, so the profile screen can name a device. Client-supplied and therefore advisory |
 | `last_used_at` | Stamped across the whole chain on each refresh; the ordering the per-user session cap evicts by |
-| `rotated_at` | Set when a token is **superseded by a refresh**, and only then. Inside `REFRESH_REUSE_GRACE` such a token is still accepted, which is what stops two tabs refreshing at once from evicting each other |
-| `revoked_at` | Set on **any** revocation. A token revoked outright — logout, password change, session revocation — has `revoked_at` without `rotated_at` and gets no grace |
+| `rotated_at` | Set when a token is **superseded by a refresh**, and only then. Inside `REFRESH_REUSE_GRACE` such a token is still accepted while its session holds a live row, which is what stops two tabs refreshing at once from evicting each other |
+| `revoked_at` | Set on **any** revocation. A token revoked outright before any rotation has `revoked_at` without `rotated_at` and gets no grace; a superseded token whose session was later revoked keeps `rotated_at` but gets no grace either, because the session holds no live row |
 
 `rotated_at` and `revoked_at` are deliberately separate: collapsing them would give a
 logged-out token a working grace window. The rules are binding across both repos and live in

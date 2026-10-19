@@ -302,11 +302,14 @@ func (m *mockRefreshTokenRepo) GetByTokenHash(_ context.Context, h string) (*mod
 	}
 	return t, nil
 }
-func (m *mockRefreshTokenRepo) RevokeByTokenHash(_ context.Context, h string) error {
-	if t, ok := m.tokens[h]; ok {
-		t.Revoked = true
+func (m *mockRefreshTokenRepo) CreateInLiveSession(ctx context.Context, t *models.RefreshToken) error {
+	for _, existing := range m.tokens {
+		if existing.UserID == t.UserID && existing.SessionID == t.SessionID &&
+			!existing.Revoked && existing.ExpiresAt.After(time.Now()) {
+			return m.Create(ctx, t)
+		}
 	}
-	return nil
+	return repository.ErrNotFound
 }
 func (m *mockRefreshTokenRepo) MarkRotated(_ context.Context, h string) error {
 	t, ok := m.tokens[h]

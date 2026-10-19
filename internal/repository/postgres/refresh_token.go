@@ -20,7 +20,63 @@ func NewRefreshTokenRepository(db *sql.DB) repository.RefreshTokenRepository {
 	return &refreshTokenRepository{db: db}
 }
 
+// execer is satisfied by *sql.DB and *sql.Tx.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// User row lock modes taken by the session-changing statements.
+const (
+	lockUserForRotation   = "FOR SHARE"
+	lockUserForRevocation = "FOR NO KEY UPDATE"
+)
+
+// withUserLock runs fn in a transaction holding a row lock of the given mode
+// on the user.
+func (r *refreshTokenRepository) withUserLock(ctx context.Context, userID uuid.UUID, mode string, fn func(tx *sql.Tx) error) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM users WHERE id = $1 `+mode, userID); err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r *refreshTokenRepository) Create(ctx context.Context, token *models.RefreshToken) error {
+	return insertToken(ctx, r.db, token)
+}
+
+func (r *refreshTokenRepository) CreateInLiveSession(ctx context.Context, token *models.RefreshToken) error {
+	return r.withUserLock(ctx, token.UserID, lockUserForRotation, func(tx *sql.Tx) error {
+		query := `
+			SELECT EXISTS (
+				SELECT 1
+				FROM refresh_tokens
+				WHERE user_id = $1 AND session_id = $2 AND ` + liveSessionPredicate + `
+			)
+		`
+
+		var live bool
+		if err := tx.QueryRowContext(ctx, query, token.UserID, token.SessionID).Scan(&live); err != nil {
+			return err
+		}
+		if !live {
+			return repository.ErrNotFound
+		}
+		return insertToken(ctx, tx, token)
+	})
+}
+
+// insertToken writes a new refresh token row, filling its ID, timestamps
+// and, when absent, its session ID.
+func insertToken(ctx context.Context, db execer, token *models.RefreshToken) error {
 	query := `
 		INSERT INTO refresh_tokens (
 			id, user_id, token_hash, expires_at, revoked, created_at, updated_at,
@@ -40,7 +96,7 @@ func (r *refreshTokenRepository) Create(ctx context.Context, token *models.Refre
 		token.LastUsedAt = token.CreatedAt
 	}
 
-	_, err := r.db.ExecContext(
+	_, err := db.ExecContext(
 		ctx,
 		query,
 		token.ID,
@@ -97,16 +153,6 @@ func (r *refreshTokenRepository) GetByTokenHash(ctx context.Context, tokenHash s
 	return token, nil
 }
 
-func (r *refreshTokenRepository) RevokeByTokenHash(ctx context.Context, tokenHash string) error {
-	query := `
-		UPDATE refresh_tokens
-		SET revoked = true, revoked_at = COALESCE(revoked_at, $1), updated_at = $1
-		WHERE token_hash = $2
-	`
-
-	return r.execExpectingRow(ctx, query, time.Now(), tokenHash)
-}
-
 func (r *refreshTokenRepository) MarkRotated(ctx context.Context, tokenHash string) error {
 	query := `
 		UPDATE refresh_tokens
@@ -147,8 +193,10 @@ func (r *refreshTokenRepository) RevokeAllForUser(ctx context.Context, userID uu
 		WHERE user_id = $2
 	`
 
-	_, err := r.db.ExecContext(ctx, query, time.Now(), userID)
-	return err
+	return r.withUserLock(ctx, userID, lockUserForRevocation, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, query, time.Now(), userID)
+		return err
+	})
 }
 
 func (r *refreshTokenRepository) DeleteForUser(ctx context.Context, userID uuid.UUID) error {
@@ -231,20 +279,22 @@ func (r *refreshTokenRepository) RevokeSession(ctx context.Context, userID, sess
 		WHERE user_id = $2 AND session_id = $3 AND revoked = false
 	`
 
-	result, err := r.db.ExecContext(ctx, query, time.Now(), userID, sessionID)
-	if err != nil {
-		return err
-	}
+	return r.withUserLock(ctx, userID, lockUserForRevocation, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, query, time.Now(), userID, sessionID)
+		if err != nil {
+			return err
+		}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return repository.ErrNotFound
-	}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return repository.ErrNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 func (r *refreshTokenRepository) RevokeSessionsExcept(ctx context.Context, userID, keep uuid.UUID) (int64, error) {
@@ -259,7 +309,10 @@ func (r *refreshTokenRepository) RevokeSessionsExcept(ctx context.Context, userI
 	`
 
 	var count int64
-	if err := r.db.QueryRowContext(ctx, query, time.Now(), userID, keep).Scan(&count); err != nil {
+	err := r.withUserLock(ctx, userID, lockUserForRevocation, func(tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, query, time.Now(), userID, keep).Scan(&count)
+	})
+	if err != nil {
 		return 0, err
 	}
 
@@ -291,7 +344,10 @@ func (r *refreshTokenRepository) EvictOldestSessions(ctx context.Context, userID
 	`
 
 	var count int64
-	if err := r.db.QueryRowContext(ctx, query, userID, keep, time.Now()).Scan(&count); err != nil {
+	err := r.withUserLock(ctx, userID, lockUserForRevocation, func(tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, query, userID, keep, time.Now()).Scan(&count)
+	})
+	if err != nil {
 		return 0, err
 	}
 

@@ -5,10 +5,12 @@ package postgres_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
 	"github.com/fjaeckel/ninerlog-api/internal/testutil"
+	"github.com/google/uuid"
 )
 
 func TestUserRepositoryIntegration(t *testing.T) {
@@ -111,7 +113,7 @@ func TestRefreshTokenRepositoryIntegration(t *testing.T) {
 			t.Fatalf("Failed to create token: %v", err)
 		}
 
-		err = tokenRepo.RevokeByTokenHash(ctx, token.TokenHash)
+		err = tokenRepo.RevokeSession(ctx, user.ID, token.SessionID)
 		if err != nil {
 			t.Fatalf("Failed to revoke token: %v", err)
 		}
@@ -123,6 +125,103 @@ func TestRefreshTokenRepositoryIntegration(t *testing.T) {
 
 		if !retrieved.Revoked {
 			t.Error("Token should be revoked")
+		}
+	})
+
+	t.Run("CreateInLiveSession adds a token to a live session", func(t *testing.T) {
+		first := testutil.CreateTestRefreshToken(user.ID, "livefirst")
+		if err := tokenRepo.Create(ctx, first); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		next := testutil.CreateTestRefreshToken(user.ID, "livenext")
+		next.SessionID = first.SessionID
+		if err := tokenRepo.CreateInLiveSession(ctx, next); err != nil {
+			t.Fatalf("CreateInLiveSession() error = %v, want nil", err)
+		}
+		if _, err := tokenRepo.GetByTokenHash(ctx, next.TokenHash); err != nil {
+			t.Errorf("GetByTokenHash() for the new token error = %v", err)
+		}
+	})
+
+	t.Run("CreateInLiveSession refuses a revoked session", func(t *testing.T) {
+		first := testutil.CreateTestRefreshToken(user.ID, "deadfirst")
+		if err := tokenRepo.Create(ctx, first); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if err := tokenRepo.RevokeSession(ctx, user.ID, first.SessionID); err != nil {
+			t.Fatalf("RevokeSession() error = %v", err)
+		}
+
+		next := testutil.CreateTestRefreshToken(user.ID, "deadnext")
+		next.SessionID = first.SessionID
+		if err := tokenRepo.CreateInLiveSession(ctx, next); err != repository.ErrNotFound {
+			t.Fatalf("CreateInLiveSession() error = %v, want ErrNotFound", err)
+		}
+		if _, err := tokenRepo.GetByTokenHash(ctx, next.TokenHash); err != repository.ErrNotFound {
+			t.Errorf("GetByTokenHash() for the refused token error = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("CreateInLiveSession refuses a session holding only rotated tokens", func(t *testing.T) {
+		first := testutil.CreateTestRefreshToken(user.ID, "rotatedfirst")
+		if err := tokenRepo.Create(ctx, first); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if err := tokenRepo.MarkRotated(ctx, first.TokenHash); err != nil {
+			t.Fatalf("MarkRotated() error = %v", err)
+		}
+
+		next := testutil.CreateTestRefreshToken(user.ID, "rotatednext")
+		next.SessionID = first.SessionID
+		if err := tokenRepo.CreateInLiveSession(ctx, next); err != repository.ErrNotFound {
+			t.Errorf("CreateInLiveSession() error = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("RevokeSession waits for an in-flight rotation and revokes its token", func(t *testing.T) {
+		first := testutil.CreateTestRefreshToken(user.ID, "racefirst")
+		if err := tokenRepo.Create(ctx, first); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTx() error = %v", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		if _, err := tx.ExecContext(ctx, `SELECT 1 FROM users WHERE id = $1 FOR SHARE`, user.ID); err != nil {
+			t.Fatalf("lock user error = %v", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, session_id)
+			VALUES ($1, $2, 'racenext', NOW() + INTERVAL '1 day', $3)`,
+			uuid.New(), user.ID, first.SessionID); err != nil {
+			t.Fatalf("insert in rotation tx error = %v", err)
+		}
+
+		done := make(chan error, 1)
+		go func() { done <- tokenRepo.RevokeSession(ctx, user.ID, first.SessionID) }()
+
+		select {
+		case err := <-done:
+			t.Fatalf("RevokeSession() returned %v before the rotation committed", err)
+		case <-time.After(200 * time.Millisecond):
+		}
+
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+		if err := <-done; err != nil {
+			t.Fatalf("RevokeSession() error = %v", err)
+		}
+
+		next, err := tokenRepo.GetByTokenHash(ctx, "racenext")
+		if err != nil {
+			t.Fatalf("GetByTokenHash() error = %v", err)
+		}
+		if !next.Revoked {
+			t.Error("RevokeSession() left the token written by the concurrent rotation live")
 		}
 	})
 }

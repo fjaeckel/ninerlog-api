@@ -452,7 +452,7 @@ At `OIDC_POST_LOGIN_REDIRECT`, read the query string:
   `account_disabled`, `login_failed`. They are deliberately coarse; the detail is
   in the server log and in the `auth_oidc_login_attempts_total` metric.
 
-Logout is unchanged (`POST /auth/logout` revokes the refresh token). It ends the
+Logout is unchanged (`POST /auth/logout` revokes the session the refresh token belongs to). It ends the
 NinerLog session only — the provider session is untouched, so a user who clicks
 "sign in" again may be signed straight back in without a prompt. RP-initiated
 logout at the provider is not implemented.

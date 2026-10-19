@@ -140,3 +140,144 @@ func TestRefreshTokenNotFound(t *testing.T) {
 		t.Errorf("Unfulfilled expectations: %v", err)
 	}
 }
+
+func TestRefreshTokenCreateInLiveSession_InsertsUnderUserLock(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewRefreshTokenRepository(db)
+	token := &models.RefreshToken{
+		UserID:    uuid.New(),
+		SessionID: uuid.New(),
+		TokenHash: "next_token",
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`SELECT 1 FROM users WHERE id = \$1 FOR SHARE`).
+		WithArgs(token.UserID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT EXISTS`).
+		WithArgs(token.UserID, token.SessionID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectExec("INSERT INTO refresh_tokens").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	if err := repo.CreateInLiveSession(context.Background(), token); err != nil {
+		t.Fatalf("CreateInLiveSession() error = %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestRefreshTokenCreateInLiveSession_RefusesSessionWithoutLiveToken(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewRefreshTokenRepository(db)
+	token := &models.RefreshToken{
+		UserID:    uuid.New(),
+		SessionID: uuid.New(),
+		TokenHash: "next_token",
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`SELECT 1 FROM users WHERE id = \$1 FOR SHARE`).
+		WithArgs(token.UserID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT EXISTS`).
+		WithArgs(token.UserID, token.SessionID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectRollback()
+
+	if err := repo.CreateInLiveSession(context.Background(), token); err != repository.ErrNotFound {
+		t.Fatalf("CreateInLiveSession() error = %v, want ErrNotFound", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Unfulfilled expectations: %v", err)
+	}
+}
+
+func TestRefreshTokenRevocations_TakeTheUserLock(t *testing.T) {
+	userID, sessionID := uuid.New(), uuid.New()
+
+	tests := []struct {
+		name   string
+		expect func(mock sqlmock.Sqlmock)
+		call   func(repo *refreshTokenRepository) error
+	}{
+		{
+			name: "RevokeSession",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec("UPDATE refresh_tokens").WillReturnResult(sqlmock.NewResult(0, 2))
+			},
+			call: func(repo *refreshTokenRepository) error {
+				return repo.RevokeSession(context.Background(), userID, sessionID)
+			},
+		},
+		{
+			name: "RevokeAllForUser",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec("UPDATE refresh_tokens").WillReturnResult(sqlmock.NewResult(0, 2))
+			},
+			call: func(repo *refreshTokenRepository) error {
+				return repo.RevokeAllForUser(context.Background(), userID)
+			},
+		},
+		{
+			name: "RevokeSessionsExcept",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery("UPDATE refresh_tokens").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			},
+			call: func(repo *refreshTokenRepository) error {
+				_, err := repo.RevokeSessionsExcept(context.Background(), userID, sessionID)
+				return err
+			},
+		},
+		{
+			name: "EvictOldestSessions",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery("WITH live AS").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			},
+			call: func(repo *refreshTokenRepository) error {
+				_, err := repo.EvictOldestSessions(context.Background(), userID, 4)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatalf("Failed to create mock: %v", err)
+			}
+			defer db.Close()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`SELECT 1 FROM users WHERE id = \$1 FOR NO KEY UPDATE`).
+				WithArgs(userID).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+			tt.expect(mock)
+			mock.ExpectCommit()
+
+			if err := tt.call(&refreshTokenRepository{db: db}); err != nil {
+				t.Fatalf("%s() error = %v", tt.name, err)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("Unfulfilled expectations: %v", err)
+			}
+		})
+	}
+}
