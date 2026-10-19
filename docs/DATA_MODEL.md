@@ -329,14 +329,14 @@ filter builder `GET /flights` uses.
 | EmailDeliveryEvent | `email_delivery.go` | 56 | Append-only log of send attempts: recipient, message type, SMTP outcome and reply code. `user_id` is `ON DELETE SET NULL` so a bounce history outlives the account it belonged to |
 | EmailSuppression | `email_delivery.go` | 56 | Addresses that refused mail permanently; keyed by lower-cased address. Consulted before every send |
 | NotificationPreference | `notification.go` | 10, 33 | Per-category opt-in + warning windows |
-| NotificationLog | `notification.go` | 10, 33, 76 | Claimed notifications (dedup) and the sent history |
+| NotificationLog | `notification.go` | 10, 33, 77 | Claimed notifications (dedup) and the sent history |
 
 Token-style tables store hashes, never raw secrets. See [AUTHENTICATION.md](./AUTHENTICATION.md)
 and, for the OIDC tables, [OIDC.md](./OIDC.md).
 
 `notification_log` holds one row per notice, unique on `(user_id, notification_type,
 reference_id, days_before_expiry, expiry_reference_date)` (`idx_notification_log_dedup`);
-since migration 76 all five columns are `NOT NULL`, so the index holds for every row on
+since migration 77 all five columns are `NOT NULL`, so the index holds for every row on
 any PostgreSQL version. `expiry_reference_date` is the date the notice concerns: the expiry
 date (last valid day) for warnings and for revalidation notices on a rating with an expiry
 date, the first non-current day for currency and custom-rule lapse notices, and
@@ -346,7 +346,7 @@ marks a farther warning threshold recorded as satisfied without a mail; the hist
 endpoint leaves those rows out. The checker inserts the row before sending
 (`ClaimNotification` / `ClaimLapseNotification`, `INSERT … ON CONFLICT DO NOTHING`) and
 deletes it when the send fails (`ReleaseNotification`); a lapse claim is also refused when
-a row for the same item with a date on or after the lapse date exists. Migration 76
+a row for the same item with a date on or after the lapse date exists. Migration 77
 backfilled rows written before it: a `NULL` `reference_id` became the nil UUID, a `NULL`
 `days_before_expiry` became `0`, a revalidation row's `NULL` date became the rating's
 current expiry date, any other `NULL` date became the UTC date the row was sent, and rows

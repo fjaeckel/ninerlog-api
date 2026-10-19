@@ -130,7 +130,7 @@ func TestNotificationLogMigrationBackfillIntegration(t *testing.T) {
 
 	readMigration := func(t *testing.T, dir string) string {
 		t.Helper()
-		b, err := os.ReadFile("../../../db/migrations/000076_notification_log_concerned_date." + dir + ".sql")
+		b, err := os.ReadFile("../../../db/migrations/000077_notification_log_concerned_date." + dir + ".sql")
 		if err != nil {
 			t.Fatalf("read migration: %v", err)
 		}
