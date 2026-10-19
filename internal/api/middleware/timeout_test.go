@@ -50,3 +50,39 @@ func TestRequestTimeoutMiddleware_CancelsOnTimeout(t *testing.T) {
 		t.Errorf("expected context.DeadlineExceeded, got %v", ctxErr)
 	}
 }
+
+func TestRequestTimeoutWithOverrides_UsesTheBudgetOfTheMatchingPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	api := router.Group("/api/v1")
+	api.Use(RequestTimeoutWithOverrides(time.Second, map[string]time.Duration{"/users/me/data": time.Hour}))
+
+	budget := map[string]time.Duration{}
+	record := func(c *gin.Context) {
+		if d, ok := c.Request.Context().Deadline(); ok {
+			budget[c.Request.Method+" "+c.Request.URL.Path] = time.Until(d)
+		}
+		c.String(http.StatusOK, "ok")
+	}
+	api.GET("/users/me/data", record)
+	api.POST("/users/me/data", record)
+	api.GET("/users/me", record)
+
+	for _, route := range [][2]string{
+		{"GET", "/api/v1/users/me/data"},
+		{"POST", "/api/v1/users/me/data"},
+		{"GET", "/api/v1/users/me"},
+	} {
+		router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(route[0], route[1], nil))
+	}
+
+	if got := budget["GET /api/v1/users/me/data"]; got < 59*time.Minute {
+		t.Errorf("GET /users/me/data budget = %v, want about an hour", got)
+	}
+	if got := budget["POST /api/v1/users/me/data"]; got < 59*time.Minute {
+		t.Errorf("POST /users/me/data budget = %v, want about an hour", got)
+	}
+	if got := budget["GET /api/v1/users/me"]; got > time.Second {
+		t.Errorf("GET /users/me budget = %v, want the default second", got)
+	}
+}

@@ -1,0 +1,204 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/google/uuid"
+)
+
+// Rows per multi-row INSERT; each chunk stays far below PostgreSQL's limit of
+// 65535 bind parameters per statement.
+const (
+	flightInsertChunk  = 500
+	contactInsertChunk = 1000
+	crewInsertChunk    = 1000
+)
+
+// queryExecer is the part of *sql.DB and *sql.Tx that single-row inserts use.
+type queryExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+type restoreStore struct {
+	db               *sql.DB
+	statementTimeout time.Duration
+}
+
+// NewRestoreStore creates the transactional restore store. statementTimeout
+// replaces the connection's statement timeout inside each restore transaction.
+func NewRestoreStore(db *sql.DB, statementTimeout time.Duration) repository.RestoreStore {
+	return &restoreStore{db: db, statementTimeout: statementTimeout}
+}
+
+func (s *restoreStore) InRestoreTx(ctx context.Context, userID uuid.UUID, fn func(tx repository.RestoreTx) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // no-op once committed
+
+	if s.statementTimeout > 0 {
+		stmt := fmt.Sprintf("SET LOCAL statement_timeout = %d", s.statementTimeout.Milliseconds())
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended('user-data-restore:' || $1::text, 0))`, userID); err != nil {
+		return err
+	}
+
+	if err := fn(&restoreTx{tx: tx}); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+type restoreTx struct {
+	tx *sql.Tx
+}
+
+func (t *restoreTx) CountContent(ctx context.Context, userID uuid.UUID) (repository.RestoreContent, error) {
+	var c repository.RestoreContent
+	err := t.tx.QueryRowContext(ctx, `
+		SELECT
+			EXISTS (SELECT 1 FROM flights WHERE user_id = $1),
+			EXISTS (SELECT 1 FROM aircraft WHERE user_id = $1),
+			EXISTS (SELECT 1 FROM licenses WHERE user_id = $1),
+			EXISTS (SELECT 1 FROM credentials WHERE user_id = $1),
+			EXISTS (SELECT 1 FROM contacts WHERE user_id = $1),
+			EXISTS (SELECT 1 FROM custom_currency_rules WHERE user_id = $1),
+			EXISTS (SELECT 1 FROM custom_reports WHERE user_id = $1)
+	`, userID).Scan(&c.Flights, &c.Aircraft, &c.Licenses, &c.Credentials,
+		&c.Contacts, &c.CustomCurrencyRules, &c.CustomReports)
+	return c, err
+}
+
+func (t *restoreTx) CountAttachments(ctx context.Context, userID uuid.UUID) (repository.RestoreAttachments, error) {
+	var a repository.RestoreAttachments
+	err := t.tx.QueryRowContext(ctx, `
+		SELECT
+			EXISTS (SELECT 1 FROM document_files WHERE user_id = $1),
+			EXISTS (SELECT 1 FROM flights WHERE user_id = $1 AND signature_id IS NOT NULL)
+				OR EXISTS (SELECT 1 FROM flight_signatures WHERE user_id = $1)
+	`, userID).Scan(&a.DocumentFiles, &a.SignedFlights)
+	return a, err
+}
+
+func (t *restoreTx) WipeContent(ctx context.Context, userID uuid.UUID) error {
+	queries := append(append([]string{}, logbookWipeQueries...),
+		`DELETE FROM custom_currency_rules WHERE user_id = $1`,
+		`DELETE FROM custom_reports WHERE user_id = $1`,
+	)
+	for _, q := range queries {
+		if _, err := t.tx.ExecContext(ctx, q, userID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *restoreTx) InsertAircraft(ctx context.Context, aircraft *models.Aircraft) error {
+	return (&aircraftRepository{tx: t.tx}).Create(ctx, aircraft)
+}
+
+func (t *restoreTx) InsertLicense(ctx context.Context, license *models.License) error {
+	return (&licenseRepository{tx: t.tx}).Create(ctx, license)
+}
+
+func (t *restoreTx) InsertClassRating(ctx context.Context, rating *models.ClassRating) error {
+	return (&ClassRatingRepository{tx: t.tx}).Create(ctx, rating)
+}
+
+func (t *restoreTx) InsertCredential(ctx context.Context, credential *models.Credential) error {
+	return (&credentialRepository{tx: t.tx}).Create(ctx, credential)
+}
+
+func (t *restoreTx) InsertCustomCurrencyRule(ctx context.Context, rule *models.CustomCurrencyRule) error {
+	return (&customCurrencyRuleRepository{tx: t.tx}).Create(ctx, rule)
+}
+
+func (t *restoreTx) InsertCustomReport(ctx context.Context, report *models.CustomReport) error {
+	return (&customReportRepository{tx: t.tx}).Create(ctx, report)
+}
+
+func (t *restoreTx) UpsertNotificationPreferences(ctx context.Context, prefs *models.NotificationPreferences) error {
+	return (&notificationRepository{tx: t.tx}).UpsertPreferences(ctx, prefs)
+}
+
+func (t *restoreTx) UpsertFlightBaseline(ctx context.Context, baseline *models.FlightBaseline) error {
+	return (&flightBaselineRepository{tx: t.tx}).Upsert(ctx, baseline)
+}
+
+func (t *restoreTx) InsertContacts(ctx context.Context, contacts []*models.Contact) error {
+	const perRow = 6
+	for start := 0; start < len(contacts); start += contactInsertChunk {
+		chunk := contacts[start:min(start+contactInsertChunk, len(contacts))]
+		args := make([]any, 0, len(chunk)*perRow)
+		for _, c := range chunk {
+			args = append(args, c.ID, c.UserID, c.Name, c.Email, c.Phone, c.Notes)
+		}
+		query := `INSERT INTO contacts (id, user_id, name, email, phone, notes) VALUES ` +
+			valueRows(len(chunk), perRow)
+		if _, err := t.tx.ExecContext(ctx, query, args...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *restoreTx) InsertFlights(ctx context.Context, flights []*models.Flight) error {
+	for start := 0; start < len(flights); start += flightInsertChunk {
+		chunk := flights[start:min(start+flightInsertChunk, len(flights))]
+		columns := 1 + len(flightInsertArgs(chunk[0]))
+		args := make([]any, 0, len(chunk)*columns)
+		for _, f := range chunk {
+			args = append(args, f.ID)
+			args = append(args, flightInsertArgs(f)...)
+		}
+		query := `INSERT INTO flights (id, ` + flightInsertColumns + `) VALUES ` +
+			valueRows(len(chunk), columns)
+		if _, err := t.tx.ExecContext(ctx, query, args...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *restoreTx) InsertCrewMembers(ctx context.Context, members []models.FlightCrewMember) error {
+	const perRow = 5
+	for start := 0; start < len(members); start += crewInsertChunk {
+		chunk := members[start:min(start+crewInsertChunk, len(members))]
+		args := make([]any, 0, len(chunk)*perRow)
+		for _, m := range chunk {
+			args = append(args, m.ID, m.FlightID, m.ContactID, m.Name, m.Role)
+		}
+		query := `INSERT INTO flight_crew_members (id, flight_id, contact_id, name, role) VALUES ` +
+			valueRows(len(chunk), perRow)
+		if _, err := t.tx.ExecContext(ctx, query, args...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// valueRows renders "($1, $2), ($3, $4), ..." for rows of perRow parameters.
+func valueRows(rows, perRow int) string {
+	var b strings.Builder
+	for r := 0; r < rows; r++ {
+		if r > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString("(")
+		b.WriteString(placeholders(r*perRow+1, perRow))
+		b.WriteString(")")
+	}
+	return b.String()
+}

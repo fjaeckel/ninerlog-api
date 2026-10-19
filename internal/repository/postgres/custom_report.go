@@ -12,6 +12,7 @@ import (
 
 type customReportRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 // NewCustomReportRepository creates a Postgres-backed custom report repository.
@@ -32,7 +33,7 @@ func scanCustomReport(s interface {
 }
 
 func (r *customReportRepository) Create(ctx context.Context, report *models.CustomReport) error {
-	return r.db.QueryRowContext(ctx, `
+	return r.writer().QueryRowContext(ctx, `
 		INSERT INTO custom_reports (user_id, name, definition, position)
 		VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position) + 1, 0) FROM custom_reports WHERE user_id = $1))
 		RETURNING id, position, created_at, updated_at`,
@@ -177,4 +178,12 @@ func (r *customReportRepository) Aggregate(ctx context.Context, userID uuid.UUID
 		groups = append(groups, g)
 	}
 	return groups, rows.Err()
+}
+
+// writer returns the transaction the repository is bound to, else the pool.
+func (r *customReportRepository) writer() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }

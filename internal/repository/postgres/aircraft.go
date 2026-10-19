@@ -14,6 +14,7 @@ import (
 
 type aircraftRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 func NewAircraftRepository(db *sql.DB) repository.AircraftRepository {
@@ -29,7 +30,7 @@ func (r *aircraftRepository) Create(ctx context.Context, aircraft *models.Aircra
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, created_at, updated_at
 	`
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.writer().QueryRowContext(ctx, query,
 		aircraft.UserID,
 		aircraft.Registration,
 		aircraft.Type,
@@ -366,4 +367,12 @@ func (r *aircraftRepository) GetRecencyRowsByUserID(ctx context.Context, userID 
 		result = append(result, row)
 	}
 	return result, rows.Err()
+}
+
+// writer returns the transaction the repository is bound to, else the pool.
+func (r *aircraftRepository) writer() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }

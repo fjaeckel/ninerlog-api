@@ -12,6 +12,7 @@ import (
 
 type credentialRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 func NewCredentialRepository(db *sql.DB) repository.CredentialRepository {
@@ -24,7 +25,7 @@ func (r *credentialRepository) Create(ctx context.Context, credential *models.Cr
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, created_at, updated_at
 	`
-	return r.db.QueryRowContext(ctx, query,
+	return r.writer().QueryRowContext(ctx, query,
 		credential.UserID,
 		credential.CredentialType,
 		credential.CredentialNumber,
@@ -122,4 +123,12 @@ func (r *credentialRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return repository.ErrNotFound
 	}
 	return nil
+}
+
+// writer returns the transaction the repository is bound to, else the pool.
+func (r *credentialRepository) writer() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }

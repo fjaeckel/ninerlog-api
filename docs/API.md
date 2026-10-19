@@ -178,7 +178,7 @@ Details worth knowing:
   problem. A client may therefore set the header unconditionally.
 - **Fingerprinting.** The stored record carries a SHA-256 of the method, path+query and
   request body, which is what makes the `422` above possible. Bulk payloads — multipart
-  uploads, `POST /imports/json`, anything sent chunked — are fingerprinted by method and
+  uploads, `POST /users/me/data`, anything sent chunked — are fingerprinted by method and
   path only; the replay guarantee is unaffected, only the mismatch diagnostic weakens.
 - **4xx responses are stored** and replayed: a validation failure is a deterministic
   verdict on the request. **5xx responses and panics release the key**, because a server
@@ -295,7 +295,7 @@ GET /api/v1/sync/deletions?since=<watermark>      → removals
 - **Oldest first**, so a client can page forward and advance its watermark as it goes.
   `since` is strictly-after, matching `updatedSince`, so replaying the last `deletedAt`
   returns nothing. It is **required**: a deletions feed with no watermark is unbounded.
-- **Paged** — `DELETE /flights/delete-all` writes one tombstone per flight. Default page
+- **Paged** — `DELETE /users/me/data?scope=flights` writes one tombstone per flight. Default page
   size 100, maximum 500; the response echoes the size actually applied.
 - **Retention is bounded** (`TOMBSTONE_RETENTION`, default 90 days). When `since` predates
   the horizon, swept tombstones may be missing, so the response sets
@@ -367,8 +367,10 @@ fleet list, an aircraft picker — must page until `pagination.page` reaches
 `pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
 
 ### Flights
-CRUD on `/flights`, plus `DELETE /flights/delete-all` and `POST /flights/recalculate`
-(re-run auto-calculations respecting overrides). `nightTime`, `crossCountryTime`,
+CRUD on `/flights`, plus `POST /flights/recalculate`
+(re-run auto-calculations respecting overrides). Deleting every flight is
+`DELETE /users/me/data?scope=flights`; `DELETE /flights/delete-all` is a deprecated alias.
+`nightTime`, `crossCountryTime`,
 `takeoffsDay`, `takeoffsNight`, `sicTime` and `multiPilotTime` are auto-calculated unless
 the request carries them: a number stores that value and sets the matching
 `*Override` flag, JSON `null` on `PUT` clears the flag so the server derives the value
@@ -613,23 +615,73 @@ confirm and backup restore. So:
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
 history) and export to CSV, JSON, PDF, and vCard.
 
-`GET /exports/json` is the full-fidelity backup: flights (with crew), aircraft, licences and
-class ratings, credentials, contacts, custom currency rules, notification preferences and the
+### My data: `/users/me/data`
+
+One resource holds every operation on a pilot's own data. Tag `Users`, bearer auth.
+
+| Method | `operationId` | What it does |
+| --- | --- | --- |
+| `GET /users/me/data` | `exportUserData` | The full-fidelity JSON backup, as an attachment (`Content-Disposition: attachment; filename=ninerlog_backup_<date>.json`). Body schema `BackupPayload`. |
+| `POST /users/me/data` | `restoreUserData` | Restores a backup. Query `mode=restore` (default) or `mode=replace`. Body `BackupPayload`, response `ImportJSONResult`. |
+| `DELETE /users/me/data` | `deleteAllUserData` | Wipes data and keeps the account. Query `scope=all` (default) or `scope=flights`. |
+
+`GET /exports/json`, `POST /imports/json` and `DELETE /flights/delete-all` remain as
+**deprecated aliases** (`deprecated: true` in the spec). They are served by the same code,
+with the same modes, status codes, limits and time budget; `DELETE /flights/delete-all` keeps
+its `{deleted}` response. The frontend moves to the new routes in its own PR; the iOS app
+still calls the old ones, so they are not removed.
+
+**Backup content.** Flights (with crew), aircraft, licences and class ratings, credentials,
+contacts, custom currency rules, custom reports, notification preferences and the
 carried-forward hours baseline. It is the same payload a cloud backup run writes
-(`cloudbackup.Payload` is the single definition of both), and `POST /imports/json` restores
-every section of it.
+(`cloudbackup.Payload` is the single definition of both; `BackupPayload` in the spec mirrors
+it, and `payload_spec_test.go` fails when they drift). Binary document files and instructor
+signatures are not part of it.
 
-Restores are additive — nothing existing is deleted, aircraft are skipped when the
-registration already exists and contacts when the name does — with two exceptions that are
-single-row settings rather than collections: notification preferences and the flight baseline
-replace what the account currently has. All IDs are regenerated, so a backup restores into any
-installation including the one it came from. A custom currency rule's sharing state is never
-carried over: a restored rule is private until shared again.
+**Restore modes.** A restore is all-or-nothing: the whole restore, and the wipe of `replace`,
+run in one database transaction, so a failure writes nothing.
 
-Anything a user owns belongs in this payload. `internal/service/cloudbackup/coverage_test.go`
-classifies every table in `db/migrations` as either exported (naming its payload section) or
-exempt (with the reason — credentials, installation-bound records, operator content, and
-transient state), and fails on any table that is neither.
+- `restore` needs an empty account. *Non-empty* means at least one flight, aircraft, licence,
+  credential, contact, custom currency rule or custom report; notification preferences and
+  the flight baseline are single-row settings and do not count. A non-empty account answers
+  `409` with `code: account_not_empty` and nothing is written, so restoring the same backup
+  twice cannot double the logbook.
+- `replace` deletes those collections plus flight crew and import history, then restores,
+  in the same transaction. While the account holds licence or credential document files or
+  signed flights, which a backup does not carry, it answers `409` with
+  `code: replace_would_drop_attachments` and nothing is written.
+- Notification preferences and the flight baseline are overwritten by a backup that carries
+  them, in both modes. All IDs are regenerated. A custom currency rule's sharing state is
+  never carried over; a custom report scoped to a licence is re-pointed at that licence's
+  restored copy, or loses the scope if the backup does not carry it.
+- Restoring does not go through the per-account limit on custom currency rules or reports,
+  and a rule or report whose definition fails today's validation is still restored: rules
+  come back with `enabled` and `notify` false, and every such row is listed in the
+  `warnings` array of the result as `{section, index, message}` (at most 1000 are listed). A
+  row the database cannot store, such as an unknown crew role or an over-long name, fails the
+  restore with `400` naming the section and position.
+- Errors never carry internal text. Unreadable JSON, a wrong `format` and invalid entries are
+  `400`; a body over the limit is `413`; an unsupported version is `422`.
+
+**Versions.** `version` is `<major>.<minor>`; every release so far writes `1.0`
+(`cloudbackup.PayloadVersion`). A backup without a `version`, or with any `1.x`, is accepted;
+a newer major version answers `422` with `code: backup_version_unsupported`. Unknown fields
+are ignored, so an additive change needs no new major version. Every released version keeps
+a fictional backup in `internal/service/cloudbackup/testdata/backup-v<version>.json`, and a
+test restores each of them: a payload change that breaks one is a breaking change.
+
+**Limits and time.** The body may be up to 200 MiB and hold up to 100,000 flights and
+100,000 contacts (2,000 of each other section). Export and restore run with a 5-minute
+request budget instead of the usual 15 seconds: the request-timeout middleware has a
+per-path override, the handler lifts the server's read and write deadlines for the request,
+and the restore transaction sets `statement_timeout` to 4 minutes. `GET` and `POST` share the
+`expensive` rate-limit bucket (15 per minute per user); `DELETE` stays on the general limiter.
+Flights and crew are written with multi-row `INSERT`s of at most 500 and 1,000 rows.
+
+**Delete scopes.** `scope=all` removes flights, aircraft, licences, class ratings, contacts,
+credentials, import history and notification logs, as it always has; it does not remove
+custom currency rules or custom reports. `scope=flights` removes flights, their crew and
+the import history, and reports the count as `deletedFlights`. Each runs in one transaction.
 
 `GET /exports/csv` writes flights in the standard (ForeFlight-compatible), EASA, FAA or
 vsimakhin/web-logbook column layout (`format`). Without filters it exports the whole logbook in

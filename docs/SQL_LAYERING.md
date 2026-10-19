@@ -21,6 +21,7 @@ currency engine's data providers queried the database directly from
 | Import history (`flight_imports`) | `FlightImportRepository` | `flight_import.go` |
 | Reports, analytics, map aggregates | `ReportsRepository` | `reports.go` |
 | Account-content wipe (`DELETE /users/me/data`) | `UserContentRepository` | `user_content.go` |
+| Backup restore transaction (`POST /users/me/data`) | `RestoreStore`, `RestoreTx` | `restore.go` |
 | Regulatory currency aggregates | `currency.FlightDataProvider` (in `internal/service/currency`) | `currency_flight_data.go` |
 | Custom currency rule aggregates | `currency.CustomFlightDataProvider` (in `internal/service/currency`) | `custom_currency_data.go` |
 

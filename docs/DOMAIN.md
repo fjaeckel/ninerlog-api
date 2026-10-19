@@ -260,7 +260,7 @@ Each flight response reports every flag (`nightTimeOverride`, `crossCountryTimeO
 `takeoffsDayOverride`, `takeoffsNightOverride`, `landingsDayOverride`,
 `landingsNightOverride`, `sicTimeOverride`, `multiPilotTimeOverride`) so a client can show
 which values are the pilot's and offer a way back to the derived one. The flags travel in
-the JSON export and cloud backup and are restored by `POST /imports/json`.
+the JSON export and cloud backup and are restored by `POST /users/me/data`.
 
 Night time and cross-country time carry overrides because no derivation matches every
 rulebook: night is derived from civil twilight at the departure location over block time,

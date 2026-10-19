@@ -6,98 +6,80 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
+	"github.com/fjaeckel/ninerlog-api/internal/testutil/restorefake"
+	"github.com/google/uuid"
 )
+
+// restoreHandler returns a handler whose restores run against an in-memory
+// store, and the id of a user to restore as.
+func restoreHandler(t *testing.T) (*APIHandler, *restorefake.Store, uuid.UUID) {
+	t.Helper()
+	h, _ := setupTestHandler()
+	store := restorefake.New()
+	h.SetRestorer(cloudbackup.NewRestorer(store))
+	return h, store, uuid.New()
+}
+
+func postRestore(h *APIHandler, userID uuid.UUID, body []byte) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	c := authenticatedContext(w, userID)
+	c.Request = httptest.NewRequest("POST", "/imports/json", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.ImportDataJSON(c, generated.ImportDataJSONParams{})
+	return w
+}
 
 // An oversized JSON restore is refused up front.
 func TestImportDataJSON_RejectsOversizedBackup(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, store, userID := restoreHandler(t)
 
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"restore@example.com","password":"Password1234!","name":"R"}`))
-	c.Request.Header.Set("Content-Type", "application/json")
-	h.RegisterUser(c)
-	u, err := userRepo.GetByEmail(c.Request.Context(), "restore@example.com")
-	if err != nil {
-		t.Fatalf("registered user missing: %v", err)
-	}
-
-	flights := make([]map[string]any, maxRestoreFlights+1)
-	for i := range flights {
-		flights[i] = map[string]any{"date": "2026-01-01T00:00:00Z", "aircraftReg": "D-ABCD"}
-	}
-	payload, _ := json.Marshal(map[string]any{
-		"format":  "NinerLog JSON Backup",
-		"version": "1",
-		"flights": flights,
-	})
-
-	w = httptest.NewRecorder()
-	c = authenticatedContext(w, u.ID)
-	c.Request = httptest.NewRequest("POST", "/imports/json", bytes.NewBuffer(payload))
-	c.Request.Header.Set("Content-Type", "application/json")
-	h.ImportDataJSON(c)
+	payload := `{"format":"NinerLog JSON Backup","version":"1","flights":[` +
+		strings.Repeat(`{},`, cloudbackup.MaxRestoreFlights) + `{}]}`
+	w := postRestore(h, userID, []byte(payload))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("oversized backup: status = %d, want 400", w.Code)
 	}
-	if body := w.Body.String(); !bytes.Contains([]byte(body), []byte("too many flights")) {
+	if body := w.Body.String(); !strings.Contains(body, "too many flights") {
 		t.Errorf("expected a flight-count error, got %s", body)
+	}
+	if store.Commits != 0 {
+		t.Errorf("an oversized backup committed %d transaction(s)", store.Commits)
 	}
 }
 
 func TestImportDataJSON_AcceptsBackupWithinCaps(t *testing.T) {
-	h, userRepo := setupTestHandler()
+	h, store, userID := restoreHandler(t)
 
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"restore2@example.com","password":"Password1234!","name":"R"}`))
-	c.Request.Header.Set("Content-Type", "application/json")
-	h.RegisterUser(c)
-	u, _ := userRepo.GetByEmail(c.Request.Context(), "restore2@example.com")
+	w := postRestore(h, userID, []byte(`{"format":"NinerLog JSON Backup","version":"1","flights":[],"aircraft":[],"licenses":[],"credentials":[]}`))
 
-	payload := []byte(`{"format":"NinerLog JSON Backup","version":"1","flights":[],"aircraft":[],"licenses":[],"credentials":[]}`)
-	w = httptest.NewRecorder()
-	c = authenticatedContext(w, u.ID)
-	c.Request = httptest.NewRequest("POST", "/imports/json", bytes.NewBuffer(payload))
-	c.Request.Header.Set("Content-Type", "application/json")
-	h.ImportDataJSON(c)
-
-	if w.Code == http.StatusBadRequest {
-		t.Errorf("an empty in-range backup was rejected: %s", w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Errorf("an empty in-range backup was rejected: %d %s", w.Code, w.Body.String())
+	}
+	if store.Commits != 1 {
+		t.Errorf("commits = %d, want 1", store.Commits)
 	}
 }
 
 // Each entity list has its own ceiling, so a backup can't smuggle a huge
 // aircraft or credential list past the flight cap.
 func TestImportDataJSON_CapsEachEntityList(t *testing.T) {
-	h, userRepo := setupTestHandler()
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/auth/register",
-		bytes.NewBufferString(`{"email":"restore3@example.com","password":"Password1234!","name":"R"}`))
-	c.Request.Header.Set("Content-Type", "application/json")
-	h.RegisterUser(c)
-	u, _ := userRepo.GetByEmail(c.Request.Context(), "restore3@example.com")
+	h, _, userID := restoreHandler(t)
 
 	for _, field := range []string{"aircraft", "credentials"} {
-		items := make([]map[string]any, maxRestoreEntities+1)
+		items := make([]map[string]any, cloudbackup.MaxRestoreEntities+1)
 		for i := range items {
 			items[i] = map[string]any{"registration": fmt.Sprintf("D-%04d", i)}
 		}
 		payload, _ := json.Marshal(map[string]any{
 			"format": "NinerLog JSON Backup", "version": "1", field: items,
 		})
-		w = httptest.NewRecorder()
-		c = authenticatedContext(w, u.ID)
-		c.Request = httptest.NewRequest("POST", "/imports/json", bytes.NewBuffer(payload))
-		c.Request.Header.Set("Content-Type", "application/json")
-		h.ImportDataJSON(c)
+		w := postRestore(h, userID, payload)
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("oversized %s list: status = %d, want 400", field, w.Code)
 		}

@@ -47,3 +47,18 @@ const (
 	// NinerLog session is wrong.
 	InvalidProviderCredentials = "invalid_provider_credentials"
 )
+
+const (
+	// AccountNotEmpty — a restore with mode=restore found data in the
+	// account. Nothing was written.
+	AccountNotEmpty = "account_not_empty"
+
+	// ReplaceWouldDropAttachments — a restore with mode=replace found
+	// document files or signed flights, which a backup does not carry.
+	// Nothing was written.
+	ReplaceWouldDropAttachments = "replace_would_drop_attachments"
+
+	// BackupVersionUnsupported — the backup was written by a newer major
+	// version of the payload than this server reads.
+	BackupVersionUnsupported = "backup_version_unsupported"
+)

@@ -117,38 +117,29 @@ func timeToString(t *time.Time) *string {
 	return &s
 }
 
-func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) error {
+// flightInsertColumns lists the flights columns written on insert, in the
+// order flightInsertArgs supplies them.
+const flightInsertColumns = `
+	user_id, date, aircraft_reg, aircraft_type, departure_icao, arrival_icao, off_block_time,
+	on_block_time, departure_time, arrival_time, total_time, is_pic, is_dual, pic_time, dual_time,
+	night_time, ifr_time, landings_day, landings_night, all_landings, takeoffs_day, takeoffs_night,
+	route, solo_time, cross_country_time, distance, takeoffs_day_override, takeoffs_night_override,
+	landings_day_override, landings_night_override, remarks, instructor_name, instructor_comments,
+	sic_time, dual_given_time, simulated_flight_time, ground_training_time, actual_instrument_time,
+	simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review,
+	is_proficiency_check, launch_method, pic_name, multi_pilot_time, fstd_type, approaches,
+	endorsements, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
+	picus_time, spic_time, examiner_time, relief_time, night_time_override,
+	cross_country_time_override
+`
+
+// flightInsertArgs returns the values for flightInsertColumns.
+func flightInsertArgs(flight *models.Flight) []any {
 	approachesJSON, err := json.Marshal(flight.Approaches)
 	if err != nil {
 		approachesJSON = []byte("[]")
 	}
-
-	query := `
-		INSERT INTO flights (
-			user_id, date, aircraft_reg, aircraft_type,
-			departure_icao, arrival_icao, off_block_time, on_block_time,
-			departure_time, arrival_time,
-			total_time, is_pic, is_dual, pic_time, dual_time, night_time, ifr_time,
-			landings_day, landings_night, all_landings,
-			takeoffs_day, takeoffs_night,
-			route, solo_time, cross_country_time, distance,
-			takeoffs_day_override, takeoffs_night_override,
-			landings_day_override, landings_night_override,
-			remarks,
-			instructor_name, instructor_comments,
-			sic_time, dual_given_time, simulated_flight_time, ground_training_time,
-			actual_instrument_time, simulated_instrument_time, holds, approaches_count, is_ipc, is_flight_review, is_proficiency_check,
-			launch_method,
-			pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
-			is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
-			picus_time, spic_time, examiner_time, relief_time,
-			night_time_override, cross_country_time_override
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60)
-		RETURNING id, created_at, updated_at
-	`
-
-	return r.db.QueryRowContext(
-		ctx, query,
+	return []any{
 		flight.UserID,
 		flight.Date,
 		flight.AircraftReg,
@@ -209,7 +200,27 @@ func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) er
 		flight.ReliefTime,
 		flight.NightTimeOverride,
 		flight.CrossCountryTimeOverride,
-	).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
+	}
+}
+
+func placeholders(first, n int) string {
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(&b, "$%d", first+i)
+	}
+	return b.String()
+}
+
+func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) error {
+	args := flightInsertArgs(flight)
+	query := `INSERT INTO flights (` + flightInsertColumns + `)
+		VALUES (` + placeholders(1, len(args)) + `)
+		RETURNING id, created_at, updated_at`
+
+	return r.db.QueryRowContext(ctx, query, args...).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
 }
 
 func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error) {

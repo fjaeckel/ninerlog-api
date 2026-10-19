@@ -291,14 +291,14 @@ func serialisePayload(p Payload) (io.ReadCloser, BuildMetadata, error) {
 
 func (b *DefaultJSONBuilder) versionOrDefault() string {
 	if b.Version == "" {
-		return "1.0"
+		return PayloadVersion
 	}
 	return b.Version
 }
 
 func (b *DefaultJSONBuilder) formatOrDefault() string {
 	if b.Format == "" {
-		return "NinerLog JSON Backup"
+		return PayloadFormat
 	}
 	return b.Format
 }

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -436,9 +435,8 @@ func fmtHM(v int) string {
 	return fmt.Sprintf("%d:%02d", h, m)
 }
 
-// ExportDataJSON implements GET /exports/json
 // BackupPayloadBuilder composes the services that make up a backup payload.
-// GET /exports/json and every cloud backup run share it, so the two can never
+// GET /users/me/data and every cloud backup run share it, so the two can never
 // carry different sets of a user's data.
 func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 	return &cloudbackup.DefaultJSONBuilder{
@@ -452,30 +450,5 @@ func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 		CustomReports:  h.customReportService,
 		Notifications:  h.notificationService,
 		AttachCrew:     h.AttachCrewMembers,
-	}
-}
-
-// ExportDataJSON implements GET /exports/json.
-func (h *APIHandler) ExportDataJSON(c *gin.Context) {
-	userID, err := h.getUserIDFromContext(c)
-	if err != nil {
-		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
-		return
-	}
-
-	backup, err := h.BackupPayloadBuilder().Gather(c.Request.Context(), userID)
-	if err != nil {
-		slog.Error("json export gather error", "error", err)
-		h.sendError(c, http.StatusInternalServerError, "Failed to build export")
-		return
-	}
-
-	c.Header("Content-Type", "application/json")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_backup_%s.json", time.Now().Format("2006-01-02")))
-
-	encoder := json.NewEncoder(c.Writer)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(backup); err != nil {
-		slog.Error("json export encode error", "error", err)
 	}
 }

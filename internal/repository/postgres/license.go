@@ -12,6 +12,7 @@ import (
 
 type licenseRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 // NewLicenseRepository creates a new license repository
@@ -28,7 +29,7 @@ func (r *licenseRepository) Create(ctx context.Context, license *models.License)
 		RETURNING id, created_at, updated_at
 	`
 
-	return r.db.QueryRowContext(
+	return r.writer().QueryRowContext(
 		ctx, query,
 		license.UserID,
 		license.RegulatoryAuthority,
@@ -174,4 +175,12 @@ func (r *licenseRepository) scanLicenses(rows *sql.Rows) ([]*models.License, err
 	}
 
 	return licenses, nil
+}
+
+// writer returns the transaction the repository is bound to, else the pool.
+func (r *licenseRepository) writer() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }

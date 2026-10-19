@@ -13,6 +13,7 @@ import (
 
 type notificationRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 func NewNotificationRepository(db *sql.DB) repository.NotificationRepository {
@@ -54,7 +55,7 @@ func (r *notificationRepository) UpsertPreferences(ctx context.Context, prefs *m
 			updated_at = NOW()
 		RETURNING id, created_at, updated_at
 	`
-	return r.db.QueryRowContext(ctx, query,
+	return r.writer().QueryRowContext(ctx, query,
 		prefs.UserID, prefs.EmailEnabled, prefs.EnabledCategories,
 		prefs.WarningDays, prefs.CheckHour,
 	).Scan(&prefs.ID, &prefs.CreatedAt, &prefs.UpdatedAt)
@@ -187,4 +188,12 @@ func (r *notificationRepository) GetNotificationHistory(ctx context.Context, use
 	}
 
 	return logs, total, nil
+}
+
+// writer returns the transaction the repository is bound to, else the pool.
+func (r *notificationRepository) writer() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }

@@ -199,16 +199,17 @@ func TestBackupCarriesEveryUserOwnedSection(t *testing.T) {
 	}
 }
 
-// A restore into an account that already holds a contact of the same name
-// skips it rather than failing or duplicating.
-func TestBackupRestoreSkipsContactsAlreadyHeld(t *testing.T) {
+// A restore never adds a second copy to an account that already holds data: a
+// held contact makes the account non-empty, so the default mode refuses and
+// leaves it alone, and mode=replace swaps the address book for the backup's.
+func TestBackupRestoreIntoAccountHoldingAContact(t *testing.T) {
 	source := NewE2EClient(t)
 	registerAndLogin(t, source, uniqueEmail("dupsrc"), "SecurePass123!", "Dup Source")
 	requireStatus(t, source.POST("/contacts", map[string]interface{}{
 		"name": "Robin Vega",
 	}), http.StatusCreated)
 
-	backupResp := source.GET("/exports/json")
+	backupResp := source.GET("/users/me/data")
 	requireStatus(t, backupResp, http.StatusOK)
 	var backup map[string]interface{}
 	if err := json.Unmarshal(backupResp.Body, &backup); err != nil {
@@ -221,7 +222,12 @@ func TestBackupRestoreSkipsContactsAlreadyHeld(t *testing.T) {
 		"name": "Robin Vega",
 	}), http.StatusCreated)
 
-	restoreResp := dest.Do("POST", "/imports/json", backup)
+	refused := dest.Do("POST", "/users/me/data", backup)
+	requireStatus(t, refused, http.StatusConflict)
+	assertErrorCode(t, refused, "account_not_empty")
+	assertContactCount(t, dest, 1)
+
+	restoreResp := dest.Do("POST", "/users/me/data?mode=replace", backup)
 	requireStatus(t, restoreResp, http.StatusOK)
 
 	var summary struct {
@@ -231,16 +237,20 @@ func TestBackupRestoreSkipsContactsAlreadyHeld(t *testing.T) {
 	if err := restoreResp.JSON(&summary); err != nil {
 		t.Fatalf("invalid summary: %v", err)
 	}
-	assertInt(t, "contactsImported", summary.ContactsImported, 0)
-	assertInt(t, "contactsSkipped", summary.ContactsSkipped, 1)
+	assertInt(t, "contactsImported", summary.ContactsImported, 1)
+	assertInt(t, "contactsSkipped", summary.ContactsSkipped, 0)
+	assertContactCount(t, dest, 1)
+}
 
-	r := dest.GET("/contacts")
+func assertContactCount(t *testing.T, c *E2EClient, want int) {
+	t.Helper()
+	r := c.GET("/contacts")
 	requireStatus(t, r, http.StatusOK)
 	var contacts []map[string]interface{}
 	if err := r.JSON(&contacts); err != nil {
 		t.Fatalf("decode contacts: %v", err)
 	}
-	if len(contacts) != 1 {
-		t.Errorf("restore duplicated a contact: %d held", len(contacts))
+	if len(contacts) != want {
+		t.Errorf("account holds %d contacts, want %d", len(contacts), want)
 	}
 }
