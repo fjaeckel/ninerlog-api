@@ -239,9 +239,11 @@ func TestFSTDSessions(t *testing.T) {
 		if r.StatusCode != 200 {
 			t.Skipf("aircraft stats unavailable: %d", r.StatusCode)
 		}
-		var stats []map[string]interface{}
+		var stats struct {
+			Data []map[string]interface{} `json:"data"`
+		}
 		r.MustJSON(t, &stats)
-		for _, a := range stats {
+		for _, a := range stats.Data {
 			reg, _ := a["registration"].(string)
 			if reg == "" || reg == "FNPT II" || reg == "FFS A320" {
 				t.Errorf("fleet contains a simulator entry: %q", reg)
