@@ -284,31 +284,18 @@ func calculateNightTime(flight *models.Flight) {
 		arrTime = arrTime.Add(24 * time.Hour)
 	}
 
-	tw := solar.CivilTwilight(flight.Date, depAP.Latitude, depAP.Longitude)
-	dusk := tw.Dusk
-	dawn := tw.Dawn
-	// Next day morning civil twilight for overnight flights
-	nextDawn := solar.CivilTwilight(flight.Date.AddDate(0, 0, 1), depAP.Latitude, depAP.Longitude).Dawn
-
 	totalMinutes := arrTime.Sub(depTime).Minutes()
 	if totalMinutes <= 0 {
 		flight.NightTime = 0
 		return
 	}
 
+	daylight := solar.DaylightBetween(depTime, arrTime, depAP.Latitude, depAP.Longitude)
 	nightMinutes := 0
-	// Walk through flight time in 1-minute increments
-	current := depTime
-	for current.Before(arrTime) {
-		isNight := current.Before(dawn) || current.After(dusk)
-		// Also check next-day dawn for overnight flights
-		if current.After(dusk) && current.Before(nextDawn) {
-			isNight = true
-		}
-		if isNight {
+	for current := depTime; current.Before(arrTime); current = current.Add(time.Minute) {
+		if daylight.IsNight(current) {
 			nightMinutes++
 		}
-		current = current.Add(time.Minute)
 	}
 
 	if nightMinutes > flight.TotalTime {
