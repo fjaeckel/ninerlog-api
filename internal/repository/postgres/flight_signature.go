@@ -129,7 +129,7 @@ func (r *flightSignatureRepository) GetByIDs(ctx context.Context, ids []uuid.UUI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		s, err := scanFlightSignature(rows)
 		if err != nil {
@@ -181,7 +181,7 @@ func (r *flightSignatureRepository) ListByFlightID(ctx context.Context, flightID
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []*models.FlightSignature
 	for rows.Next() {

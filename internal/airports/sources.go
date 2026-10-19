@@ -86,7 +86,7 @@ func get(ctx context.Context, url string) (*http.Response, *countingReader, erro
 		return nil, nil, failure("request", "HTTP GET failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, nil, failure("status", "unexpected status %d", resp.StatusCode)
 	}
 	return resp, &countingReader{r: io.LimitReader(resp.Body, maxSourceBytes)}, nil
@@ -105,7 +105,7 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	reader := csv.NewReader(body)
 	reader.LazyQuotes = true
@@ -141,7 +141,7 @@ func fetchOurAirports(ctx context.Context) (map[string]AirportInfo, int64, error
 
 	for {
 		record, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -270,7 +270,7 @@ func fetchMWGG(ctx context.Context) (map[string]AirportInfo, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var raw map[string]mwggAirport
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {

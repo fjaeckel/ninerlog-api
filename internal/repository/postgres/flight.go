@@ -345,7 +345,7 @@ func (r *flightRepository) GetByUserID(ctx context.Context, userID uuid.UUID, op
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return r.scanFlights(rows)
 }
@@ -586,7 +586,7 @@ func (r *flightRepository) MonthTotalsByUserID(ctx context.Context, userID uuid.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := []models.FlightMonthTotals{}
 	for rows.Next() {

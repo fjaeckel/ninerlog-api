@@ -54,7 +54,7 @@ func (r *flightImportRepository) ListByUserID(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []*models.FlightImport
 	for rows.Next() {

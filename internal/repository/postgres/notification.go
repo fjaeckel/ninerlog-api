@@ -125,7 +125,7 @@ func (r *notificationRepository) GetAllUsersWithPreferences(ctx context.Context)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var prefs []*models.NotificationPreferences
 	for rows.Next() {
@@ -138,6 +138,9 @@ func (r *notificationRepository) GetAllUsersWithPreferences(ctx context.Context)
 		}
 		prefs = append(prefs, p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	// Also include users without preferences (defaults)
 	defaultQuery := `
@@ -149,7 +152,7 @@ func (r *notificationRepository) GetAllUsersWithPreferences(ctx context.Context)
 	if err != nil {
 		return prefs, nil // non-fatal
 	}
-	defer defaultRows.Close()
+	defer func() { _ = defaultRows.Close() }()
 
 	for defaultRows.Next() {
 		var userID uuid.UUID
@@ -165,6 +168,9 @@ func (r *notificationRepository) GetAllUsersWithPreferences(ctx context.Context)
 			CreatedAt:         time.Now(),
 			UpdatedAt:         time.Now(),
 		})
+	}
+	if err := defaultRows.Err(); err != nil {
+		return prefs, nil // non-fatal
 	}
 
 	return prefs, nil
@@ -191,7 +197,7 @@ func (r *notificationRepository) GetNotificationHistory(ctx context.Context, use
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var logs []*models.NotificationLog
 	for rows.Next() {
@@ -203,6 +209,9 @@ func (r *notificationRepository) GetNotificationHistory(ctx context.Context, use
 			return nil, 0, err
 		}
 		logs = append(logs, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
 	}
 
 	if logs == nil {

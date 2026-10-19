@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -103,7 +104,7 @@ func (r *backupRunRepository) GetByID(ctx context.Context, id uuid.UUID) (*model
 	query := `SELECT ` + backupRunColumns + ` FROM backup_runs WHERE id = $1`
 	row := r.db.QueryRowContext(ctx, query, id)
 	run, err := scanBackupRun(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
 	return run, err
@@ -134,7 +135,7 @@ func (r *backupRunRepository) GetByDestinationID(ctx context.Context, destinatio
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.BackupRun
 	for rows.Next() {

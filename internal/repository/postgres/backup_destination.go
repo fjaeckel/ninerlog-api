@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -74,7 +75,7 @@ func (r *backupDestinationRepository) GetByID(ctx context.Context, id uuid.UUID)
 	query := `SELECT ` + backupDestinationColumns + ` FROM backup_destinations WHERE id = $1`
 	row := r.db.QueryRowContext(ctx, query, id)
 	dest, err := scanBackupDestination(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
 	return dest, err
@@ -86,7 +87,7 @@ func (r *backupDestinationRepository) GetByUserID(ctx context.Context, userID uu
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.BackupDestination
 	for rows.Next() {
@@ -204,7 +205,7 @@ func (r *backupDestinationRepository) ListDueForRun(ctx context.Context, now tim
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.BackupDestination
 	for rows.Next() {

@@ -77,7 +77,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 	); err != nil {
 		slog.Error("admin stats: flight_imports by format query failed", "error", err)
 	} else {
-		defer formatRows.Close()
+		defer func() { _ = formatRows.Close() }()
 		for formatRows.Next() {
 			var format string
 			var count int
@@ -86,6 +86,9 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 				continue
 			}
 			stats.ImportsByFormat[format] = count
+		}
+		if err := formatRows.Err(); err != nil {
+			slog.Error("admin stats: flight_imports by format iteration failed", "error", err)
 		}
 	}
 
@@ -96,7 +99,7 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 		slog.Error("admin stats: backup_destinations query failed", "error", err)
 		return stats, nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var provider string
 		var count int
@@ -105,6 +108,9 @@ func (r *adminRepository) GetStats(ctx context.Context, now time.Time) (*reposit
 			continue
 		}
 		stats.BackupDestinationsByProvider[provider] = count
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("admin stats: backup_destinations iteration failed", "error", err)
 	}
 
 	return stats, nil
@@ -145,7 +151,7 @@ func (r *adminRepository) ListAuditLog(ctx context.Context, limit, offset int) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []*repository.AdminAuditLogEntry
 	for rows.Next() {
@@ -200,7 +206,7 @@ func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, o
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var users []*repository.AdminUserRow
 	for rows.Next() {

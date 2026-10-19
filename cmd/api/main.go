@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -162,7 +163,7 @@ func main() {
 	if err != nil {
 		fatal("failed to connect to database", "error", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := db.Ping(); err != nil {
 		fatal("failed to ping database", "error", err)
@@ -191,7 +192,7 @@ func main() {
 	if err != nil {
 		fatal("failed to initialize migrations", "error", err)
 	}
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		fatal("failed to run migrations", "error", err)
 	}
 	slog.Info("Database migrations applied")

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -64,7 +65,7 @@ func scanCustomCurrencyRule(s interface {
 func (r *customCurrencyRuleRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.CustomCurrencyRule, error) {
 	query := `SELECT ` + customCurrencyColumns + ` FROM custom_currency_rules WHERE id = $1`
 	rule, err := scanCustomCurrencyRule(r.db.QueryRowContext(ctx, query, id))
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
 	return rule, err
@@ -76,7 +77,7 @@ func (r *customCurrencyRuleRepository) GetByUserID(ctx context.Context, userID u
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var rules []*models.CustomCurrencyRule
 	for rows.Next() {
@@ -92,7 +93,7 @@ func (r *customCurrencyRuleRepository) GetByUserID(ctx context.Context, userID u
 func (r *customCurrencyRuleRepository) GetByShareToken(ctx context.Context, token string) (*models.CustomCurrencyRule, error) {
 	query := `SELECT ` + customCurrencyColumns + ` FROM custom_currency_rules WHERE share_token = $1 AND is_shared = true`
 	rule, err := scanCustomCurrencyRule(r.db.QueryRowContext(ctx, query, token))
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
 	return rule, err

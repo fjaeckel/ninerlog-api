@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -44,7 +45,7 @@ func (r *customReportRepository) Create(ctx context.Context, report *models.Cust
 func (r *customReportRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.CustomReport, error) {
 	rep, err := scanCustomReport(r.db.QueryRowContext(ctx,
 		`SELECT `+customReportColumns+` FROM custom_reports WHERE id = $1`, id))
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
 	return rep, err
@@ -57,7 +58,7 @@ func (r *customReportRepository) ListByUserID(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	reports := []*models.CustomReport{}
 	for rows.Next() {
@@ -165,7 +166,7 @@ func (r *customReportRepository) Aggregate(ctx context.Context, userID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	groups := []repository.CustomReportGroup{}
 	for rows.Next() {

@@ -56,7 +56,7 @@ func (r *ClassRatingRepository) GetByLicenseID(ctx context.Context, licenseID uu
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var ratings []*models.ClassRating
 	for rows.Next() {
 		cr := &models.ClassRating{}

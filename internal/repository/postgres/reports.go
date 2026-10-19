@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"time"
 )
 
 type reportsRepository struct {
@@ -76,7 +76,7 @@ func (r *reportsRepository) RouteCounts(ctx context.Context, userID uuid.UUID) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var routes []*repository.RouteCount
 	for rows.Next() {
@@ -104,7 +104,7 @@ func (r *reportsRepository) AirportCounts(ctx context.Context, userID uuid.UUID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var counts []*repository.AirportDirectionCount
 	for rows.Next() {
@@ -140,7 +140,7 @@ func (r *reportsRepository) MonthlyTrends(ctx context.Context, userID uuid.UUID,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var monthly []*repository.MonthlyTrendRow
 	for rows.Next() {
@@ -172,7 +172,7 @@ func (r *reportsRepository) AircraftTypeTrends(ctx context.Context, userID uuid.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var byAircraft []*repository.AircraftTypeTrendRow
 	for rows.Next() {
@@ -203,7 +203,7 @@ func (r *reportsRepository) StatsByClass(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var byClass []*repository.ClassStatRow
 	for rows.Next() {
@@ -241,7 +241,7 @@ func (r *reportsRepository) StatsByCategory(ctx context.Context, userID uuid.UUI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var byCategory []*repository.CategoryStatRow
 	for rows.Next() {
@@ -348,7 +348,7 @@ func (r *reportsRepository) Monthly(ctx context.Context, userID uuid.UUID, month
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := []*repository.AnalyticsMonthRow{}
 	for rows.Next() {
@@ -387,7 +387,7 @@ func (r *reportsRepository) Yearly(ctx context.Context, userID uuid.UUID, months
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := []*repository.AnalyticsYearRow{}
 	for rows.Next() {
@@ -458,7 +458,7 @@ func (r *reportsRepository) ByAircraft(ctx context.Context, userID uuid.UUID, mo
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := []*repository.AnalyticsAircraftRow{}
 	for rows.Next() {
@@ -508,7 +508,7 @@ func (r *reportsRepository) ByClass(ctx context.Context, userID uuid.UUID, month
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanAnalyticsGroupRows(rows)
 }
 
@@ -548,7 +548,7 @@ func (r *reportsRepository) ByCategory(ctx context.Context, userID uuid.UUID, mo
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanAnalyticsGroupRows(rows)
 }
 
@@ -594,7 +594,7 @@ func (r *reportsRepository) ByAirport(ctx context.Context, userID uuid.UUID, mon
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := []*repository.AnalyticsAirportRow{}
 	for rows.Next() {
@@ -627,7 +627,7 @@ func (r *reportsRepository) ByRoute(ctx context.Context, userID uuid.UUID, month
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := []*repository.AnalyticsRouteRow{}
 	for rows.Next() {
@@ -658,7 +658,7 @@ func (r *reportsRepository) ByInstructor(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanAnalyticsPersonRows(rows)
 }
 
@@ -709,7 +709,7 @@ func (r *reportsRepository) ByCrew(ctx context.Context, userID uuid.UUID, months
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := []*repository.AnalyticsPersonRow{}
 	for rows.Next() {
 		p := &repository.AnalyticsPersonRow{}
@@ -776,7 +776,7 @@ func (r *reportsRepository) ApproachTypes(ctx context.Context, userID uuid.UUID,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := []*repository.AnalyticsApproachTypeRow{}
 	for rows.Next() {
@@ -841,7 +841,7 @@ func (r *reportsRepository) buckets(ctx context.Context, userID uuid.UUID, month
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := map[int]repository.AnalyticsBucket{}
 	for rows.Next() {

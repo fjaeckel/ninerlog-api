@@ -165,14 +165,18 @@ func (p *Provider) Upload(ctx context.Context, cfg provider.Config, creds provid
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	defer f.Close()
 
 	reader := in.Reader
 	if reader == nil {
 		reader = strings.NewReader("")
 	}
 	if _, err := io.Copy(f, reader); err != nil {
+		_ = f.Close()
 		// Best-effort cleanup of a half-written file.
+		_ = client.Remove(remotePath)
+		return nil, classifyError(err)
+	}
+	if err := f.Close(); err != nil {
 		_ = client.Remove(remotePath)
 		return nil, classifyError(err)
 	}
