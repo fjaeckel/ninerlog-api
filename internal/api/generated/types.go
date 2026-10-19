@@ -1959,6 +1959,24 @@ func (e UserFlightListColumnMode) Valid() bool {
 	}
 }
 
+// Defines values for UserLogbookTerms.
+const (
+	UserLogbookTermsEnglish   UserLogbookTerms = "english"
+	UserLogbookTermsLocalized UserLogbookTerms = "localized"
+)
+
+// Valid indicates whether the value is a known member of the UserLogbookTerms enum.
+func (e UserLogbookTerms) Valid() bool {
+	switch e {
+	case UserLogbookTermsEnglish:
+		return true
+	case UserLogbookTermsLocalized:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserPreferredLocale.
 const (
 	UserPreferredLocaleDe UserPreferredLocale = "de"
@@ -2349,6 +2367,24 @@ func (e UpdateCurrentUserJSONBodyFlightListColumnMode) Valid() bool {
 	case UpdateCurrentUserJSONBodyFlightListColumnModeAuto:
 		return true
 	case UpdateCurrentUserJSONBodyFlightListColumnModeCustom:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateCurrentUserJSONBodyLogbookTerms.
+const (
+	UpdateCurrentUserJSONBodyLogbookTermsEnglish   UpdateCurrentUserJSONBodyLogbookTerms = "english"
+	UpdateCurrentUserJSONBodyLogbookTermsLocalized UpdateCurrentUserJSONBodyLogbookTerms = "localized"
+)
+
+// Valid indicates whether the value is a known member of the UpdateCurrentUserJSONBodyLogbookTerms enum.
+func (e UpdateCurrentUserJSONBodyLogbookTerms) Valid() bool {
+	switch e {
+	case UpdateCurrentUserJSONBodyLogbookTermsEnglish:
+		return true
+	case UpdateCurrentUserJSONBodyLogbookTermsLocalized:
 		return true
 	default:
 		return false
@@ -7720,6 +7756,11 @@ type User struct {
 	// Example: false
 	IsAdmin *bool `json:"isAdmin,omitempty"`
 
+	// LogbookTerms Language of logbook terms — flight-time column headings, pilot functions and crew roles (PIC, Dual, Instructor, …). "localized" follows preferredLocale; "english" keeps these terms in English while the rest of the interface stays in preferredLocale. Display only: exports, imports and stored values are unaffected.
+	//
+	// Example: localized
+	LogbookTerms *UserLogbookTerms `json:"logbookTerms,omitempty"`
+
 	// Name Example: John Doe
 	Name string `json:"name"`
 
@@ -7771,6 +7812,11 @@ type UserDecimalSeparator string
 //
 // Example: auto
 type UserFlightListColumnMode string
+
+// UserLogbookTerms Language of logbook terms — flight-time column headings, pilot functions and crew roles (PIC, Dual, Instructor, …). "localized" follows preferredLocale; "english" keeps these terms in English while the rest of the interface stays in preferredLocale. Display only: exports, imports and stored values are unaffected.
+//
+// Example: localized
+type UserLogbookTerms string
 
 // UserPreferredLocale User's preferred language for the interface.
 //
@@ -8479,7 +8525,10 @@ type UpdateCurrentUserJSONBody struct {
 
 	// FlightListColumns The optional flights-list columns to show in "custom" mode. Replaces the stored list; an empty array is valid and means no optional columns. Unknown values are ignored.
 	FlightListColumns *[]FlightListColumn `json:"flightListColumns,omitempty"`
-	Name              *string             `json:"name,omitempty"`
+
+	// LogbookTerms Language of logbook terms (flight-time columns, pilot functions, crew roles)
+	LogbookTerms *UpdateCurrentUserJSONBodyLogbookTerms `json:"logbookTerms,omitempty"`
+	Name         *string                                `json:"name,omitempty"`
 
 	// PreferredLocale Preferred language for the interface
 	PreferredLocale *UpdateCurrentUserJSONBodyPreferredLocale `json:"preferredLocale,omitempty"`
@@ -8505,6 +8554,9 @@ type UpdateCurrentUserJSONBodyDecimalSeparator string
 
 // UpdateCurrentUserJSONBodyFlightListColumnMode defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyFlightListColumnMode string
+
+// UpdateCurrentUserJSONBodyLogbookTerms defines parameters for UpdateCurrentUser.
+type UpdateCurrentUserJSONBodyLogbookTerms string
 
 // UpdateCurrentUserJSONBodyPreferredLocale defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyPreferredLocale string

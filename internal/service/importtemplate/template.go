@@ -185,6 +185,34 @@ func (t *Template) looseColumns() map[string]Field {
 	return t.looseCache
 }
 
+// AuxColumns returns the headers this template lists as FieldIgnore that carry
+// an auxiliary value, keyed by the header as written in the file. The first
+// header claiming an AuxField wins.
+func (t *Template) AuxColumns(headers []string) map[string]AuxField {
+	out := make(map[string]AuxField)
+	claimed := make(map[AuxField]bool)
+	for _, h := range headers {
+		key := normalizeHeader(h)
+		if key == "" {
+			continue
+		}
+		field, ok := t.Columns[key]
+		if !ok {
+			field, ok = t.looseColumns()[looseKey(key)]
+		}
+		if !ok || field != FieldIgnore {
+			continue
+		}
+		aux, ok := auxColumns[looseKey(key)]
+		if !ok || claimed[aux] {
+			continue
+		}
+		claimed[aux] = true
+		out[h] = aux
+	}
+	return out
+}
+
 // Matches reports how strongly headers look like this template's format.
 // hits counts recognised columns, sig counts matched signature columns.
 func (t *Template) Matches(headers []string) (score int, sig int) {

@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -370,6 +371,77 @@ func TestImportForeFlight(t *testing.T) {
 			t.Error("Expected suggestedMappings for ForeFlight")
 		}
 	})
+}
+
+// importWithSuggestedMappings uploads csv, previews it with the suggested
+// mappings and confirms it, returning the imported flights.
+func importWithSuggestedMappings(t *testing.T, c *E2EClient, filename, csv string) []map[string]interface{} {
+	t.Helper()
+	up := uploadCSV(t, c, filename, csv)
+	requireStatus(t, up, http.StatusOK)
+	var u map[string]interface{}
+	up.JSON(&u)
+	token, _ := u["uploadToken"].(string)
+
+	requireStatus(t, c.POST("/imports/preview", map[string]interface{}{
+		"uploadToken": token,
+		"mappings":    u["suggestedMappings"],
+	}), http.StatusOK)
+	requireStatus(t, c.POST("/imports/confirm", map[string]interface{}{"uploadToken": token}), http.StatusCreated)
+
+	list := c.GET("/flights")
+	requireStatus(t, list, http.StatusOK)
+	var lr map[string]interface{}
+	list.JSON(&lr)
+	data, _ := lr["data"].([]interface{})
+	out := make([]map[string]interface{}, 0, len(data))
+	for _, d := range data {
+		out = append(out, d.(map[string]interface{}))
+	}
+	return out
+}
+
+// A ForeFlight day/night landing and takeoff split is stored as an override.
+func TestImportForeFlight_NightLandingsKept(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-ff-night"), "SecurePass123!", "Alex Rivera")
+
+	ff := "Date,AircraftID,From,To,TimeOut,TimeIn,TotalTime,PIC,SIC,DayTakeoffs,DayLandingsFullStop,NightTakeoffs,NightLandingsFullStop,AllLandings,Person1,PilotComments\n" +
+		"2025-11-03,N54321,KSFO,KOAK,17:40,18:25,0.8,0.8,0.0,0,0,3,3,3,Alex Rivera,Night currency\n"
+	flights := importWithSuggestedMappings(t, c, "foreflight.csv", ff)
+	if len(flights) != 1 {
+		t.Fatalf("imported %d flights, want 1", len(flights))
+	}
+	f := flights[0]
+	assertInt(t, "landingsDay", gi(f, "landingsDay"), 0)
+	assertInt(t, "landingsNight", gi(f, "landingsNight"), 3)
+	assertBool(t, "landingsNightOverride", gb(f, "landingsNightOverride"), true)
+	assertInt(t, "takeoffsNight", gi(f, "takeoffsNight"), 3)
+	assertBool(t, "takeoffsNightOverride", gb(f, "takeoffsNightOverride"), true)
+}
+
+// G1: an airline first officer's EASA logbook keeps its co-pilot time.
+func TestImportEASA_FirstOfficerKeepsCoPilotTime(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-fo"), "SecurePass123!", "Mark Feld")
+
+	easa := "Date,Dep Place,Dep Time,Arr Place,Arr Time,A/C Type,A/C Reg,SP-SE,SP-ME,Multi-Pilot,Total Time,PIC Name,Ldg Day,Ldg Night,Night,IFR,PIC,Co-Pilot,Dual,Instructor,FSTD Date,FSTD Type,FSTD Time,Remarks & Endorsements\n" +
+		"12.03.2026,EDDF,06:10,LEPA,08:20,A320,D-AIZX,,,2:10,2:10,Erika Sommer,0,0,,2:10,,2:10,,,,,,Pilot monitoring\n"
+	flights := importWithSuggestedMappings(t, c, "fo.csv", easa)
+	if len(flights) != 1 {
+		t.Fatalf("imported %d flights, want 1", len(flights))
+	}
+	f := flights[0]
+	assertBool(t, "isPassenger", gb(f, "isPassenger"), false)
+	assertInt(t, "totalTime", gi(f, "totalTime"), 130)
+	assertInt(t, "sicTime", gi(f, "sicTime"), 130)
+	assertInt(t, "multiPilotTime", gi(f, "multiPilotTime"), 130)
+
+	fleet := c.GET("/aircraft")
+	requireStatus(t, fleet, http.StatusOK)
+	if !strings.Contains(string(fleet.Body), `"isMultiPilot":true`) {
+		t.Errorf("imported D-AIZX is not marked multi-pilot: %s", string(fleet.Body))
+	}
 }
 
 func TestImportEdgeCases(t *testing.T) {

@@ -493,3 +493,53 @@ func TestVereinsfliegerLeavesNoColumnUnaccountedFor(t *testing.T) {
 		})
 	}
 }
+
+func TestAuxColumnsPerTemplate(t *testing.T) {
+	cases := []struct {
+		id      string
+		headers []string
+		want    map[string]AuxField
+	}{
+		{"FOREFLIGHT_CSV", foreFlightHeaders, map[string]AuxField{
+			"SIC": AuxSICTime, "DayTakeoffs": AuxTakeoffsDay, "NightTakeoffs": AuxTakeoffsNight,
+		}},
+		{"NINERLOG_CSV", ninerlogHeaders, map[string]AuxField{
+			"SIC": AuxSICTime, "DayTakeoffs": AuxTakeoffsDay, "NightTakeoffs": AuxTakeoffsNight,
+			"MultiPilotTime": AuxMultiPilotTime,
+		}},
+		{"EASA_CSV", easaHeaders, map[string]AuxField{"Multi-Pilot": AuxMultiPilotTime, "Co-Pilot": AuxSICTime}},
+		{"FAA_CSV", faaHeaders, map[string]AuxField{"SIC": AuxSICTime}},
+		{"LOGTEN_CSV", logTenHumanHeaders, map[string]AuxField{"Day T/O": AuxTakeoffsDay, "Night T/O": AuxTakeoffsNight}},
+		{"FLYLOG_CSV", flylogHeaders, map[string]AuxField{
+			"DURATION_SIC": AuxSICTime, "DURATION_MULTI_PILOT": AuxMultiPilotTime,
+			"TAKEOFFS_DAY": AuxTakeoffsDay, "TAKEOFFS_NIGHT": AuxTakeoffsNight,
+		}},
+		{"WEB_LOGBOOK_CSV", webLogbookHeaders, map[string]AuxField{"Time CoPilot": AuxSICTime}},
+		{"VEREINSFLIEGER_CSV", vereinsfliegerHeaders, map[string]AuxField{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.id, func(t *testing.T) {
+			got := ByID(tc.id).AuxColumns(tc.headers)
+			if len(got) != len(tc.want) {
+				t.Errorf("AuxColumns = %v, want %v", got, tc.want)
+			}
+			for h, f := range tc.want {
+				if got[h] != f {
+					t.Errorf("AuxColumns[%q] = %q, want %q", h, got[h], f)
+				}
+			}
+		})
+	}
+}
+
+func TestAuxColumnsSkipMappedColumns(t *testing.T) {
+	headers := []string{"Datum", "Kennzeichen", "Pilot", "Copilot", "Flugzeit"}
+	if got := AuxColumns(nil, headers); len(got) != 0 {
+		t.Errorf("AuxColumns = %v; a crew-name Copilot column is mapped, not auxiliary", got)
+	}
+	for _, m := range ByID("FOREFLIGHT_CSV").Suggest(foreFlightHeaders) {
+		if m.SourceColumn == "SIC" || m.SourceColumn == "DayTakeoffs" || m.SourceColumn == "NightTakeoffs" {
+			t.Errorf("auxiliary column %q suggested as %s", m.SourceColumn, m.TargetField)
+		}
+	}
+}

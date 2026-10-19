@@ -341,7 +341,7 @@ same in both modes. See [OIDC.md](./OIDC.md).
 In OIDC mode `PATCH /users/me` refuses `name` and `email` with 403 (the provider owns
 them) and `DELETE /users/me` confirms with `confirmEmail` instead of `password`.
 `PATCH /users/me` also carries the display preferences (`timeDisplayFormat`, `dateFormat`,
-`clockFormat`, `decimalSeparator`, `preferredLocale`, the recency toggles, and `flightListColumnMode` /
+`clockFormat`, `logbookTerms`, `decimalSeparator`, `preferredLocale`, the recency toggles, and `flightListColumnMode` /
 `flightListColumns` for the flights-list columns). An unrecognised value for any of these
 is ignored rather than rejected, and the response always echoes what was stored.
 
@@ -614,6 +614,13 @@ confirm and backup restore. So:
 ### Import / Export
 CSV/XLSX/JSON import (upload → preview → confirm, plus direct JSON import and import
 history) and export to CSV, JSON, PDF, and vCard.
+
+CSV mapping rules — the stored day/night landing and takeoff split, SIC and multi-pilot
+columns read from template-known columns, and override flags — are in
+[FEATURES.md](FEATURES.md) under the import templates. The preview carries the mapped
+`sicTime`, `multiPilotTime`, `takeoffsDay` and `takeoffsNight`; a confirm whose flight was
+created but whose crew could not be saved reports a `crewMembers` row error and the status
+`partial`.
 
 ### My data: `/users/me/data`
 

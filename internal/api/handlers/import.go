@@ -332,9 +332,10 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 
 	var flights []generated.ImportPreviewFlight
 	validCount, dupCount, errCount := 0, 0, 0
+	auxColumns := sessionAuxColumns(session)
 
 	for i, row := range session.rows {
-		flight, errs := mapRowToFlight(row, mappingLookup, aircraftTypes)
+		flight, _, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
 		rowIdx := i + 1
 
 		if len(errs) > 0 {
@@ -426,13 +427,11 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	isSelected := func(rowIdx int) bool { return importAll || selectedSet[rowIdx] }
 	includeDups := req.IncludeDuplicates != nil && *req.IncludeDuplicates
 
-	// Resolve the user display name and the fleet once for flight
-	// auto-calculations.
+	// Resolve the user display name once for flight auto-calculations.
 	userName := ""
 	if user, err := h.authService.GetUserByID(c.Request.Context(), userID); err == nil && user != nil {
 		userName = user.Name
 	}
-	fleet := h.aircraftService.AircraftFactsIndexFor(c.Request.Context(), userID)
 
 	// Get existing flights for duplicate check
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
@@ -453,6 +452,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			mappingLookup[m.SourceColumn] = m
 		}
 	}
+	auxColumns := sessionAuxColumns(session)
+	multiPilotRegs := collectMultiPilotRegistrations(session.rows, mappingLookup, auxColumns, isSelected)
 
 	aircraftCreated := 0
 
@@ -507,6 +508,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 				Model:         model_,
 				IsActive:      true,
 				AircraftClass: aircraftClass,
+				IsMultiPilot:  multiPilotRegs[reg],
 			}
 			if err := h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft); err == nil {
 				aircraftCreated++
@@ -556,6 +558,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			Make:         typeCode,
 			Model:        typeCode,
 			IsActive:     true,
+			IsMultiPilot: multiPilotRegs[reg],
 		}
 		if err := h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft); err != nil {
 			// Fleet-entry failures are non-fatal; the flights still import.
@@ -565,6 +568,9 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		aircraftTypes[reg] = typeCode
 	}
 
+	// Fleet facts, including the aircraft created above.
+	fleet := h.aircraftService.AircraftFactsIndexFor(c.Request.Context(), userID)
+
 	for i, row := range session.rows {
 		rowIdx := i + 1
 		if !isSelected(rowIdx) {
@@ -572,7 +578,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			continue
 		}
 
-		flight, errs := mapRowToFlight(row, mappingLookup, aircraftTypes)
+		flight, extras, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
 		if len(errs) > 0 {
 			for _, e := range errs {
 				importErrors = append(importErrors, struct {
@@ -594,114 +600,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			}
 		}
 
-		// Create the flight
-		offBlock := safeStr(flight.OffBlockTime)
-		onBlock := safeStr(flight.OnBlockTime)
-
-		totalTime := 0
-		if offBlock != "" && onBlock != "" {
-			totalTime, _ = calculateBlockTime(offBlock, onBlock)
-		} else if flight.TotalTime != nil {
-			totalTime = *flight.TotalTime
-		}
-
-		flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
-
-		depTime := flight.DepartureTime
-		arrTime := flight.ArrivalTime
-		departureIcao := safeStr(flight.DepartureIcao)
-		arrivalIcao := safeStr(flight.ArrivalIcao)
-
-		newFlight := models.Flight{
-			UserID:                  userID,
-			Date:                    flightDate,
-			AircraftReg:             safeStr(flight.AircraftReg),
-			AircraftType:            flight.AircraftType,
-			DepartureICAO:           &departureIcao,
-			ArrivalICAO:             &arrivalIcao,
-			TotalTime:               totalTime,
-			IFRTime:                 getIntOrDefault(flight.IfrTime, 0),
-			AllLandings:             getIntOrDefault(flight.Landings, 0),
-			ActualInstrumentTime:    getIntOrDefault(flight.ActualInstrumentTime, 0),
-			SimulatedInstrumentTime: getIntOrDefault(flight.SimulatedInstrumentTime, 0),
-			IsSimulator:             isSimulatorCreate(&flight),
-		}
-		if flight.Holds != nil {
-			newFlight.Holds = *flight.Holds
-		}
-		if flight.ApproachesCount != nil {
-			newFlight.ApproachesCount = *flight.ApproachesCount
-		}
-		if flight.Approaches != nil {
-			for _, a := range *flight.Approaches {
-				entry := models.ApproachEntry{Type: string(a.Type)}
-				if a.Airport != nil {
-					ap := *a.Airport
-					entry.Airport = &ap
-				}
-				if a.Runway != nil {
-					rw := *a.Runway
-					entry.Runway = &rw
-				}
-				newFlight.Approaches = append(newFlight.Approaches, entry)
-			}
-		}
-		if flight.IsIpc != nil {
-			newFlight.IsIPC = *flight.IsIpc
-		}
-		if flight.IsFlightReview != nil {
-			newFlight.IsFlightReview = *flight.IsFlightReview
-		}
-		if flight.Route != nil {
-			newFlight.Route = flight.Route
-		}
-		if offBlock != "" {
-			newFlight.OffBlockTime = &offBlock
-		}
-		if onBlock != "" {
-			newFlight.OnBlockTime = &onBlock
-		}
-		if depTime != nil && *depTime != "" {
-			newFlight.DepartureTime = depTime
-		}
-		if arrTime != nil && *arrTime != "" {
-			newFlight.ArrivalTime = arrTime
-		}
-		if flight.Remarks != nil {
-			newFlight.Remarks = flight.Remarks
-		}
-		if flight.InstructorName != nil {
-			newFlight.InstructorName = flight.InstructorName
-		}
-		if flight.InstructorComments != nil {
-			newFlight.InstructorComments = flight.InstructorComments
-		}
-		newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
-		// An imported night or cross-country value is stored as an override,
-		// capped at block time.
-		if flight.NightTime != nil {
-			newFlight.NightTime = min(*flight.NightTime, totalTime)
-			newFlight.NightTimeOverride = true
-		}
-		if flight.CrossCountryTime != nil {
-			newFlight.CrossCountryTime = min(*flight.CrossCountryTime, totalTime)
-			newFlight.CrossCountryTimeOverride = true
-		}
-		newFlight.FSTDType = flight.FstdType
-		newFlight.SimulatedFlightTime = getIntOrDefault(flight.SimulatedFlightTime, 0)
-
-		// Build crew members from FlightCreate into model for auto-calculations
-		if flight.CrewMembers != nil {
-			for _, cm := range *flight.CrewMembers {
-				member := models.FlightCrewMember{
-					Name: strings.TrimSpace(cm.Name),
-					Role: models.CrewRole(cm.Role),
-				}
-				newFlight.CrewMembers = append(newFlight.CrewMembers, member)
-			}
-		}
-
-		// Apply auto-calculations (solo, cross-country, distance, night, landing split, PIC/Dual)
+		newFlight := buildImportedFlight(userID, flight, extras)
 		flightcalc.ApplyAutoCalculations(&newFlight, userName, fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)])
 
 		if err := h.flightService.CreateFlight(c.Request.Context(), &newFlight); err != nil {
@@ -723,16 +622,25 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 				slog.Warn("import: failed to link crew members to contacts",
 					"flightId", newFlight.ID, "error", err)
 			}
-			_ = h.flightCrewRepo.SetCrewMembers(c.Request.Context(), newFlight.ID, newFlight.CrewMembers)
+			if err := h.flightCrewRepo.SetCrewMembers(c.Request.Context(), newFlight.ID, newFlight.CrewMembers); err != nil {
+				slog.Warn("import: failed to save crew members",
+					"flightId", newFlight.ID, "error", err)
+				importErrors = append(importErrors, struct {
+					Field    string  `json:"field"`
+					Message  string  `json:"message"`
+					RawValue *string `json:"rawValue,omitempty"`
+					RowIndex int     `json:"rowIndex"`
+				}{Field: "crewMembers", Message: "Flight imported, but its crew members could not be saved", RowIndex: rowIdx})
+			}
 		}
 
 		importedIDs = append(importedIDs, openapi_types.UUID(newFlight.ID))
 		imported++
 	}
 
-	// Determine status
+	// Determine status; a crew-save error on an imported flight makes it partial.
 	var status generated.ImportStatus
-	if errored == 0 {
+	if errored == 0 && len(importErrors) == 0 {
 		status = "completed"
 	} else if imported > 0 {
 		status = "partial"
@@ -881,6 +789,26 @@ type fieldError struct {
 // resolve the aircraft type when the source row does not provide one. When the lookup
 // has no entry, the registration is used as the type as a last-resort fallback.
 func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping, aircraftTypes map[string]string) (generated.FlightCreate, []fieldError) {
+	flight, _, errs := mapImportRow(row, mappings, nil, aircraftTypes)
+	return flight, errs
+}
+
+// importRowExtras carries mapped row values that FlightCreate has no field for.
+type importRowExtras struct {
+	// landingsDay and landingsNight are the file's own split; nil when the
+	// row has no value in a mapped split column.
+	landingsDay   *int
+	landingsNight *int
+	// selfSIC is set when the row lists the logbook owner with the SIC role.
+	selfSIC bool
+}
+
+// mapImportRow is mapRowToFlight plus the template's auxiliary columns (see
+// importtemplate.AuxColumns) and the values FlightCreate cannot carry. An
+// auxiliary column the mappings assign to a target field is not read as
+// auxiliary.
+func mapImportRow(row map[string]string, mappings map[string]generated.ImportColumnMapping, aux map[string]importtemplate.AuxField, aircraftTypes map[string]string) (generated.FlightCreate, importRowExtras, []fieldError) {
+	var extras importRowExtras
 	// The conditionally-required flight fields are optional in the schema;
 	// a mapped row always fills them, so they start non-nil here.
 	flight := generated.FlightCreate{
@@ -1014,12 +942,14 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		case "landingsDay":
 			if n, err := strconv.Atoi(val); err == nil {
 				*flight.Landings += n
+				extras.landingsDay = addInt(extras.landingsDay, n)
 			} else {
 				errs = append(errs, fieldError{"landingsDay", fmt.Sprintf("Invalid number '%s'", val)})
 			}
 		case "landingsNight":
 			if n, err := strconv.Atoi(val); err == nil {
 				*flight.Landings += n
+				extras.landingsNight = addInt(extras.landingsNight, n)
 			} else {
 				errs = append(errs, fieldError{"landingsNight", fmt.Sprintf("Invalid number '%s'", val)})
 			}
@@ -1064,9 +994,45 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 				// The logbook's owner, not a crew member. Dropping the cell
 				// leaves the slot empty, which is what a file that simply
 				// omitted the owner would have produced.
+				if strings.EqualFold(role, string(generated.SIC)) {
+					extras.selfSIC = true
+				}
 				continue
 			}
 			personNames[slot], personRoles[slot] = name, role
+		}
+	}
+
+	// Auxiliary columns; an unparseable or negative cell is skipped.
+	for col, field := range aux {
+		if m, ok := mappings[col]; ok && m.TargetField != generated.ImportFieldIgnore {
+			continue
+		}
+		val := strings.TrimSpace(row[col])
+		if val == "" {
+			continue
+		}
+		switch field {
+		case importtemplate.AuxSICTime, importtemplate.AuxMultiPilotTime:
+			mins, err := duration.ParseDuration(normalizeDecimalSeparator(val))
+			if err != nil || mins < 0 {
+				continue
+			}
+			if field == importtemplate.AuxSICTime {
+				flight.SicTime = &mins
+			} else {
+				flight.MultiPilotTime = &mins
+			}
+		case importtemplate.AuxTakeoffsDay, importtemplate.AuxTakeoffsNight:
+			n, err := strconv.Atoi(val)
+			if err != nil || n < 0 {
+				continue
+			}
+			if field == importtemplate.AuxTakeoffsDay {
+				flight.TakeoffsDay = &n
+			} else {
+				flight.TakeoffsNight = &n
+			}
 		}
 	}
 
@@ -1257,7 +1223,196 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 		flight.IsSimulator = &isSim
 	}
 
-	return flight, errs
+	return flight, extras, errs
+}
+
+// addInt returns p + n, treating a nil p as zero.
+func addInt(p *int, n int) *int {
+	sum := n
+	if p != nil {
+		sum += *p
+	}
+	return &sum
+}
+
+// buildImportedFlight converts a mapped import row into the flight model the
+// confirm step auto-calculates and stores. File-declared night, cross-country,
+// SIC and multi-pilot time, and a day/night landing or takeoff split, are set
+// with their override flags.
+func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras importRowExtras) models.Flight {
+	offBlock := safeStr(flight.OffBlockTime)
+	onBlock := safeStr(flight.OnBlockTime)
+
+	totalTime := 0
+	if offBlock != "" && onBlock != "" {
+		totalTime, _ = calculateBlockTime(offBlock, onBlock)
+	} else if flight.TotalTime != nil {
+		totalTime = *flight.TotalTime
+	}
+
+	flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
+
+	depTime := flight.DepartureTime
+	arrTime := flight.ArrivalTime
+	departureIcao := safeStr(flight.DepartureIcao)
+	arrivalIcao := safeStr(flight.ArrivalIcao)
+
+	newFlight := models.Flight{
+		UserID:                  userID,
+		Date:                    flightDate,
+		AircraftReg:             safeStr(flight.AircraftReg),
+		AircraftType:            flight.AircraftType,
+		DepartureICAO:           &departureIcao,
+		ArrivalICAO:             &arrivalIcao,
+		TotalTime:               totalTime,
+		IFRTime:                 getIntOrDefault(flight.IfrTime, 0),
+		AllLandings:             getIntOrDefault(flight.Landings, 0),
+		ActualInstrumentTime:    getIntOrDefault(flight.ActualInstrumentTime, 0),
+		SimulatedInstrumentTime: getIntOrDefault(flight.SimulatedInstrumentTime, 0),
+		IsSimulator:             isSimulatorCreate(&flight),
+	}
+	if flight.Holds != nil {
+		newFlight.Holds = *flight.Holds
+	}
+	if flight.ApproachesCount != nil {
+		newFlight.ApproachesCount = *flight.ApproachesCount
+	}
+	if flight.Approaches != nil {
+		for _, a := range *flight.Approaches {
+			entry := models.ApproachEntry{Type: string(a.Type)}
+			if a.Airport != nil {
+				ap := *a.Airport
+				entry.Airport = &ap
+			}
+			if a.Runway != nil {
+				rw := *a.Runway
+				entry.Runway = &rw
+			}
+			newFlight.Approaches = append(newFlight.Approaches, entry)
+		}
+	}
+	if flight.IsIpc != nil {
+		newFlight.IsIPC = *flight.IsIpc
+	}
+	if flight.IsFlightReview != nil {
+		newFlight.IsFlightReview = *flight.IsFlightReview
+	}
+	if flight.Route != nil {
+		newFlight.Route = flight.Route
+	}
+	if offBlock != "" {
+		newFlight.OffBlockTime = &offBlock
+	}
+	if onBlock != "" {
+		newFlight.OnBlockTime = &onBlock
+	}
+	if depTime != nil && *depTime != "" {
+		newFlight.DepartureTime = depTime
+	}
+	if arrTime != nil && *arrTime != "" {
+		newFlight.ArrivalTime = arrTime
+	}
+	if flight.Remarks != nil {
+		newFlight.Remarks = flight.Remarks
+	}
+	if flight.InstructorName != nil {
+		newFlight.InstructorName = flight.InstructorName
+	}
+	if flight.InstructorComments != nil {
+		newFlight.InstructorComments = flight.InstructorComments
+	}
+	newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
+	// An imported night or cross-country value is stored as an override,
+	// capped at block time.
+	if flight.NightTime != nil {
+		newFlight.NightTime = min(*flight.NightTime, totalTime)
+		newFlight.NightTimeOverride = true
+	}
+	if flight.CrossCountryTime != nil {
+		newFlight.CrossCountryTime = min(*flight.CrossCountryTime, totalTime)
+		newFlight.CrossCountryTimeOverride = true
+	}
+	// On a flight, a positive imported SIC or multi-pilot value is stored as an
+	// override, capped at block time; a self-listed SIC declares the whole block.
+	if !newFlight.IsSimulator {
+		if sic := getIntOrDefault(flight.SicTime, 0); sic > 0 {
+			newFlight.SICTime = min(sic, totalTime)
+			newFlight.SICTimeOverride = true
+		} else if extras.selfSIC && totalTime > 0 {
+			newFlight.SICTime = totalTime
+			newFlight.SICTimeOverride = true
+		}
+		if mp := getIntOrDefault(flight.MultiPilotTime, 0); mp > 0 {
+			newFlight.MultiPilotTime = min(mp, totalTime)
+			newFlight.MultiPilotTimeOverride = true
+		}
+	}
+	// A non-zero day/night landing split is stored as an override; landings
+	// counted only in the total column are added to the day landings.
+	if extras.landingsDay != nil || extras.landingsNight != nil {
+		day, night := getIntOrDefault(extras.landingsDay, 0), getIntOrDefault(extras.landingsNight, 0)
+		if day+night > 0 {
+			day += max(newFlight.AllLandings-day-night, 0)
+			newFlight.LandingsDay, newFlight.LandingsNight = day, night
+			newFlight.LandingsDayOverride, newFlight.LandingsNightOverride = true, true
+		}
+	}
+	if flight.TakeoffsDay != nil || flight.TakeoffsNight != nil {
+		day, night := getIntOrDefault(flight.TakeoffsDay, 0), getIntOrDefault(flight.TakeoffsNight, 0)
+		if day+night > 0 {
+			newFlight.TakeoffsDay, newFlight.TakeoffsNight = day, night
+			newFlight.TakeoffsDayOverride, newFlight.TakeoffsNightOverride = true, true
+		}
+	}
+	newFlight.FSTDType = flight.FstdType
+	newFlight.SimulatedFlightTime = getIntOrDefault(flight.SimulatedFlightTime, 0)
+
+	if flight.CrewMembers != nil {
+		for _, cm := range *flight.CrewMembers {
+			newFlight.CrewMembers = append(newFlight.CrewMembers, models.FlightCrewMember{
+				Name: strings.TrimSpace(cm.Name),
+				Role: models.CrewRole(cm.Role),
+			})
+		}
+	}
+	return newFlight
+}
+
+// collectMultiPilotRegistrations returns the canonical registrations of the
+// selected rows that carry a positive multi-pilot time in an auxiliary column.
+// isSelected receives 1-based row indices and may be nil to consider every row.
+func collectMultiPilotRegistrations(rows []map[string]string, mappings map[string]generated.ImportColumnMapping, aux map[string]importtemplate.AuxField, isSelected func(rowIdx int) bool) map[string]bool {
+	out := make(map[string]bool)
+	hasMultiPilotColumn := false
+	for _, field := range aux {
+		hasMultiPilotColumn = hasMultiPilotColumn || field == importtemplate.AuxMultiPilotTime
+	}
+	if !hasMultiPilotColumn {
+		return out
+	}
+	for i, row := range rows {
+		if isSelected != nil && !isSelected(i+1) {
+			continue
+		}
+		flight, _, _ := mapImportRow(row, mappings, aux, nil)
+		if flight.MultiPilotTime == nil || *flight.MultiPilotTime <= 0 || isSimulatorCreate(&flight) {
+			continue
+		}
+		if reg := registration.Canonical(safeStr(flight.AircraftReg)); reg != "" {
+			out[reg] = true
+		}
+	}
+	return out
+}
+
+// sessionAuxColumns returns the auxiliary columns of the template the session
+// was detected as, or nil for a format with no template.
+func sessionAuxColumns(session *uploadSession) map[string]importtemplate.AuxField {
+	tpl := importtemplate.ByID(string(session.format))
+	if tpl == nil {
+		return nil
+	}
+	return tpl.AuxColumns(session.columns)
 }
 
 // captureDateFromTimestamp records the date half of a time cell that carries a
