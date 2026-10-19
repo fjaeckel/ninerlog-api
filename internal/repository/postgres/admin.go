@@ -170,7 +170,11 @@ func (r *adminRepository) ListAuditLog(ctx context.Context, limit, offset int) (
 }
 
 func (r *adminRepository) InsertAuditLog(ctx context.Context, entry *repository.AdminAuditLogEntry) error {
-	_, err := r.db.ExecContext(ctx, `
+	return insertAuditLog(ctx, r.db, entry)
+}
+
+func insertAuditLog(ctx context.Context, db execer, entry *repository.AdminAuditLogEntry) error {
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO admin_audit_log (id, admin_user_id, action, target_user_id, details, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`, entry.ID, entry.AdminUserID, entry.Action, entry.TargetUserID, string(entry.Details), entry.CreatedAt)
@@ -187,7 +191,7 @@ func (r *adminRepository) ListUsers(ctx context.Context, filter repository.Admin
 	if filter.IsAdmin != nil {
 		args = append(args, filter.BootstrapEmail)
 		n := len(args)
-		effective := fmt.Sprintf("(u.email_verified AND (u.is_admin OR ($%d <> '' AND LOWER(u.email) = LOWER($%d))))", n, n)
+		effective := fmt.Sprintf("(u.email_verified AND NOT u.disabled AND (u.is_admin OR ($%d <> '' AND LOWER(u.email) = LOWER($%d))))", n, n)
 		if *filter.IsAdmin {
 			where = append(where, effective)
 		} else {
@@ -274,8 +278,8 @@ func (r *adminRepository) SetAdmin(ctx context.Context, userID uuid.UUID) (repos
 }
 
 func (r *adminRepository) RevokeAdmin(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (repository.AdminChange, error) {
-	return r.guardedWrite(ctx, userID, bootstrapEmail, func(tx *sql.Tx, isAdmin bool) error {
-		if !isAdmin {
+	return r.guardedWrite(ctx, userID, bootstrapEmail, true, func(tx *sql.Tx, target adminRow) error {
+		if !target.isAdmin {
 			return nil
 		}
 		_, err := tx.ExecContext(ctx,
@@ -285,18 +289,36 @@ func (r *adminRepository) RevokeAdmin(ctx context.Context, userID uuid.UUID, boo
 }
 
 func (r *adminRepository) DisableUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (repository.AdminChange, error) {
-	return r.guardedWrite(ctx, userID, bootstrapEmail, func(tx *sql.Tx, _ bool) error {
+	return r.guardedWrite(ctx, userID, bootstrapEmail, true, func(tx *sql.Tx, _ adminRow) error {
 		_, err := tx.ExecContext(ctx,
 			"UPDATE users SET disabled = true, is_admin = false, updated_at = $1 WHERE id = $2", time.Now(), userID)
 		return err
 	})
 }
 
-func (r *adminRepository) DeleteUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (repository.AdminChange, error) {
-	return r.guardedWrite(ctx, userID, bootstrapEmail, func(tx *sql.Tx, _ bool) error {
+func (r *adminRepository) DeleteUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string, audit func(flagCleared bool) []*repository.AdminAuditLogEntry) (repository.AdminChange, error) {
+	return r.guardedWrite(ctx, userID, bootstrapEmail, true, func(tx *sql.Tx, target adminRow) error {
+		for _, e := range audit(target.isAdmin) {
+			if err := insertAuditLog(ctx, tx, e); err != nil {
+				return err
+			}
+		}
 		_, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID)
 		return err
 	})
+}
+
+func (r *adminRepository) ChangeEmail(ctx context.Context, userID uuid.UUID, email, bootstrapEmail string) (repository.AdminChange, error) {
+	change, err := r.guardedWrite(ctx, userID, bootstrapEmail, false, func(tx *sql.Tx, _ adminRow) error {
+		_, err := tx.ExecContext(ctx,
+			"UPDATE users SET email = $1, email_verified = false, updated_at = $2 WHERE id = $3", email, time.Now(), userID)
+		return err
+	})
+	if err != nil && strings.Contains(err.Error(), "unique constraint") && strings.Contains(err.Error(), "email") {
+		return repository.AdminChange{}, repository.ErrDuplicateEmail
+	}
+	change.FlagCleared = false
+	return change, err
 }
 
 // adminRow is one row locked by guardedWrite.
@@ -314,47 +336,42 @@ func (a adminRow) bootstrap(bootstrapEmail string) bool {
 	return a.verified && bootstrapEmail != "" && strings.EqualFold(a.email, bootstrapEmail)
 }
 
-// guardedWrite locks every admin row and the target row, applies the guards
-// described on AdminRepository, then runs write in the same transaction.
-func (r *adminRepository) guardedWrite(ctx context.Context, userID uuid.UUID, bootstrapEmail string, write func(tx *sql.Tx, isAdmin bool) error) (repository.AdminChange, error) {
+// guardedWrite locks the target and every admin row in id order, applies
+// the guards described on AdminRepository, then runs write in the same
+// transaction.
+func (r *adminRepository) guardedWrite(ctx context.Context, userID uuid.UUID, bootstrapEmail string, refuseBootstrap bool, write func(tx *sql.Tx, target adminRow) error) (repository.AdminChange, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return repository.AdminChange{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	admins, err := lockAdminRows(ctx, tx,
-		"SELECT id, email, email_verified, disabled, is_admin FROM users WHERE is_admin OR ($1 <> '' AND LOWER(email) = LOWER($1)) ORDER BY id FOR UPDATE",
-		bootstrapEmail)
+	rows, err := lockAdminRows(ctx, tx, `
+		SELECT id, email, email_verified, disabled, is_admin FROM users
+		WHERE id = $2 OR is_admin OR ($1 <> '' AND LOWER(email) = LOWER($1))
+		ORDER BY id FOR UPDATE`, bootstrapEmail, userID)
 	if err != nil {
 		return repository.AdminChange{}, err
 	}
-	targets, err := lockAdminRows(ctx, tx,
-		"SELECT id, email, email_verified, disabled, is_admin FROM users WHERE id = $1 FOR UPDATE", userID)
-	if err != nil {
-		return repository.AdminChange{}, err
+	var target *adminRow
+	othersActive := false
+	for i := range rows {
+		if rows[i].id == userID {
+			target = &rows[i]
+		} else if rows[i].active(bootstrapEmail) {
+			othersActive = true
+		}
 	}
-	if len(targets) == 0 {
+	switch {
+	case target == nil:
 		return repository.AdminChange{Guard: repository.AdminGuardNotFound}, nil
-	}
-	target := targets[0]
-	if target.bootstrap(bootstrapEmail) {
+	case refuseBootstrap && target.bootstrap(bootstrapEmail):
 		return repository.AdminChange{Guard: repository.AdminGuardBootstrap}, nil
-	}
-	if target.active(bootstrapEmail) {
-		othersActive := false
-		for _, a := range admins {
-			if a.id != userID && a.active(bootstrapEmail) {
-				othersActive = true
-				break
-			}
-		}
-		if !othersActive {
-			return repository.AdminChange{Guard: repository.AdminGuardLastAdmin}, nil
-		}
+	case target.active(bootstrapEmail) && !othersActive:
+		return repository.AdminChange{Guard: repository.AdminGuardLastAdmin}, nil
 	}
 
-	if err := write(tx, target.isAdmin); err != nil {
+	if err := write(tx, *target); err != nil {
 		return repository.AdminChange{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -363,8 +380,8 @@ func (r *adminRepository) guardedWrite(ctx context.Context, userID uuid.UUID, bo
 	return repository.AdminChange{Guard: repository.AdminGuardApplied, FlagCleared: target.isAdmin}, nil
 }
 
-func lockAdminRows(ctx context.Context, tx *sql.Tx, query string, arg any) ([]adminRow, error) {
-	rows, err := tx.QueryContext(ctx, query, arg)
+func lockAdminRows(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]adminRow, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

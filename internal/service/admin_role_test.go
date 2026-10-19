@@ -54,11 +54,15 @@ func (f *fakeAdminRepo) SetAdmin(_ context.Context, id uuid.UUID) (repository.Gr
 }
 
 func (f *fakeAdminRepo) guarded(id uuid.UUID, bootstrap string, write func(u *models.User)) (repository.AdminChange, error) {
+	return f.guardedOpt(id, bootstrap, true, write)
+}
+
+func (f *fakeAdminRepo) guardedOpt(id uuid.UUID, bootstrap string, refuseBootstrap bool, write func(u *models.User)) (repository.AdminChange, error) {
 	u := f.byID(id)
 	if u == nil {
 		return repository.AdminChange{Guard: repository.AdminGuardNotFound}, nil
 	}
-	if isBoot(u, bootstrap) {
+	if refuseBootstrap && isBoot(u, bootstrap) {
 		return repository.AdminChange{Guard: repository.AdminGuardBootstrap}, nil
 	}
 	if active(u, bootstrap) {
@@ -85,8 +89,25 @@ func (f *fakeAdminRepo) DisableUser(_ context.Context, id uuid.UUID, bootstrap s
 	return f.guarded(id, bootstrap, func(u *models.User) { u.IsAdmin = false; u.Disabled = true })
 }
 
-func (f *fakeAdminRepo) DeleteUser(_ context.Context, id uuid.UUID, bootstrap string) (repository.AdminChange, error) {
-	return f.guarded(id, bootstrap, func(u *models.User) { delete(f.users.users, u.Email) })
+func (f *fakeAdminRepo) DeleteUser(_ context.Context, id uuid.UUID, bootstrap string, audit func(bool) []*repository.AdminAuditLogEntry) (repository.AdminChange, error) {
+	return f.guarded(id, bootstrap, func(u *models.User) {
+		f.audit = append(f.audit, audit(u.IsAdmin)...)
+		delete(f.users.users, u.Email)
+	})
+}
+
+func (f *fakeAdminRepo) ChangeEmail(_ context.Context, id uuid.UUID, email, bootstrap string) (repository.AdminChange, error) {
+	for _, o := range f.users.users {
+		if o.ID != id && strings.EqualFold(o.Email, email) {
+			return repository.AdminChange{}, repository.ErrDuplicateEmail
+		}
+	}
+	return f.guardedOpt(id, bootstrap, false, func(u *models.User) {
+		delete(f.users.users, u.Email)
+		u.Email = email
+		u.EmailVerified = false
+		f.users.users[email] = u
+	})
 }
 
 func (f *fakeAdminRepo) PromoteVerifiedByEmail(_ context.Context, email string) (uuid.UUID, error) {
@@ -131,6 +152,8 @@ func TestIsAdmin(t *testing.T) {
 		{"nil user", nil, "a@x.com", false},
 		{"flagged verified", &models.User{Email: "b@x.com", EmailVerified: true, IsAdmin: true}, "", true},
 		{"flagged unverified", &models.User{Email: "b@x.com", IsAdmin: true}, "", false},
+		{"flagged disabled", &models.User{Email: "b@x.com", EmailVerified: true, IsAdmin: true, Disabled: true}, "", false},
+		{"bootstrap disabled", &models.User{Email: "a@x.com", EmailVerified: true, Disabled: true}, "a@x.com", false},
 		{"bootstrap match case-insensitive", &models.User{Email: "A@X.com", EmailVerified: true}, "a@x.COM", true},
 		{"bootstrap match unverified", &models.User{Email: "a@x.com"}, "a@x.com", false},
 		{"no flag no match", &models.User{Email: "c@x.com", EmailVerified: true}, "a@x.com", false},
@@ -227,13 +250,13 @@ func TestAdminRole_Revoke(t *testing.T) {
 
 func TestAdminRole_DisableDelete(t *testing.T) {
 	ctx := context.Background()
-	svc, users, _ := newAdminRoleFixture(t, "boot@x.com")
+	svc, users, admins := newAdminRoleFixture(t, "boot@x.com")
 
 	boot := addUser(t, users, "boot@x.com", true)
 	if _, err := svc.Disable(ctx, boot.ID); !errors.Is(err, service.ErrBootstrapAdmin) {
 		t.Errorf("disable bootstrap: got %v", err)
 	}
-	if _, err := svc.Delete(ctx, boot.ID); !errors.Is(err, service.ErrBootstrapAdmin) {
+	if err := svc.Delete(ctx, uuid.New(), boot); !errors.Is(err, service.ErrBootstrapAdmin) {
 		t.Errorf("delete bootstrap: got %v", err)
 	}
 	if boot.Disabled {
@@ -251,8 +274,12 @@ func TestAdminRole_DisableDelete(t *testing.T) {
 	}
 
 	b := addUser(t, users, "b@x.com", true)
-	if revoked, err := svc.Delete(ctx, b.ID); err != nil || !revoked {
-		t.Errorf("delete admin = %v, %v", revoked, err)
+	actor := uuid.New()
+	if err := svc.Delete(ctx, actor, b); err != nil {
+		t.Errorf("delete admin: %v", err)
+	}
+	if n := len(admins.audit); n != 2 || admins.audit[0].Action != "revoke_admin" || admins.audit[1].Action != "delete_user" || admins.audit[1].AdminUserID != actor {
+		t.Errorf("delete audit = %+v", admins.audit)
 	}
 
 	svc2, users2, _ := newAdminRoleFixture(t, "")
@@ -260,7 +287,7 @@ func TestAdminRole_DisableDelete(t *testing.T) {
 	if _, err := svc2.Disable(ctx, last.ID); !errors.Is(err, service.ErrLastAdmin) {
 		t.Errorf("disable last admin: got %v", err)
 	}
-	if _, err := svc2.Delete(ctx, last.ID); !errors.Is(err, service.ErrLastAdmin) {
+	if err := svc2.Delete(ctx, uuid.New(), last); !errors.Is(err, service.ErrLastAdmin) {
 		t.Errorf("delete last admin: got %v", err)
 	}
 	if !last.IsAdmin || last.Disabled {
@@ -331,6 +358,72 @@ func TestAdminRole_Bootstrap(t *testing.T) {
 		other := addUser(t, users, "other@x.com", false)
 		if err := svc.PersistBootstrap(ctx, other); err != nil || other.IsAdmin {
 			t.Error("non-holder was flagged")
+		}
+	})
+}
+
+func TestAdminRole_CheckResetTwoFactor(t *testing.T) {
+	svc, users, _ := newAdminRoleFixture(t, "boot@x.com")
+	boot := addUser(t, users, "boot@x.com", true)
+	other := addUser(t, users, "other@x.com", true)
+
+	if err := svc.CheckResetTwoFactor(other.ID, boot); !errors.Is(err, service.ErrBootstrapAdmin) {
+		t.Errorf("another admin resetting bootstrap: got %v", err)
+	}
+	if err := svc.CheckResetTwoFactor(boot.ID, boot); err != nil {
+		t.Errorf("bootstrap resetting itself: got %v", err)
+	}
+	if err := svc.CheckResetTwoFactor(boot.ID, other); err != nil {
+		t.Errorf("resetting a regular admin: got %v", err)
+	}
+}
+
+func TestAdminRole_ChangeOwnEmail(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("non-admin is left to the caller", func(t *testing.T) {
+		svc, users, _ := newAdminRoleFixture(t, "")
+		u := addUser(t, users, "pilot@x.com", false)
+		if changed, err := svc.ChangeOwnEmail(ctx, u, "new@x.com"); err != nil || changed || u.Email != "pilot@x.com" {
+			t.Errorf("ChangeOwnEmail = %v, %v; email %s", changed, err, u.Email)
+		}
+	})
+
+	t.Run("last admin is refused", func(t *testing.T) {
+		svc, users, _ := newAdminRoleFixture(t, "")
+		u := addUser(t, users, "only@x.com", true)
+		if _, err := svc.ChangeOwnEmail(ctx, u, "new@x.com"); !errors.Is(err, service.ErrLastAdmin) {
+			t.Errorf("got %v", err)
+		}
+		if u.Email != "only@x.com" || !u.EmailVerified {
+			t.Error("refused change modified the account")
+		}
+	})
+
+	t.Run("admin with another admin left", func(t *testing.T) {
+		svc, users, _ := newAdminRoleFixture(t, "")
+		u := addUser(t, users, "a@x.com", true)
+		addUser(t, users, "b@x.com", true)
+		if changed, err := svc.ChangeOwnEmail(ctx, u, "a2@x.com"); err != nil || !changed || u.Email != "a2@x.com" || u.EmailVerified {
+			t.Errorf("ChangeOwnEmail = %v, %v; email %s verified %v", changed, err, u.Email, u.EmailVerified)
+		}
+	})
+
+	t.Run("bootstrap holder may move away when another admin remains", func(t *testing.T) {
+		svc, users, _ := newAdminRoleFixture(t, "boot@x.com")
+		u := addUser(t, users, "boot@x.com", false)
+		addUser(t, users, "b@x.com", true)
+		if changed, err := svc.ChangeOwnEmail(ctx, u, "elsewhere@x.com"); err != nil || !changed {
+			t.Errorf("ChangeOwnEmail = %v, %v", changed, err)
+		}
+	})
+
+	t.Run("taken address", func(t *testing.T) {
+		svc, users, _ := newAdminRoleFixture(t, "")
+		u := addUser(t, users, "a@x.com", true)
+		addUser(t, users, "b@x.com", true)
+		if _, err := svc.ChangeOwnEmail(ctx, u, "b@x.com"); !errors.Is(err, service.ErrUserAlreadyExists) {
+			t.Errorf("got %v", err)
 		}
 	})
 }

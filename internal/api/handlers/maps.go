@@ -190,11 +190,6 @@ func (h *APIHandler) SetAdminRepository(repo repository.AdminRepository) {
 	h.adminRepo = repo
 }
 
-// SetAdminRoleService stores the service that grants and revokes admin rights.
-func (h *APIHandler) SetAdminRoleService(svc *service.AdminRoleService) {
-	h.adminRoles = svc
-}
-
 // SetAnnouncementRepository stores the system announcement repository.
 func (h *APIHandler) SetAnnouncementRepository(repo repository.AnnouncementRepository) {
 	h.announcementRepo = repo

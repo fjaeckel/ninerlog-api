@@ -797,7 +797,8 @@ Each write records a `bootstrap_admin` entry in the audit log. Once the flag is 
 ### Granting and revoking
 
 An **active admin** is a verified, enabled account that carries the flag or holds the
-`ADMIN_EMAIL` address.
+`ADMIN_EMAIL` address. `isAdmin` everywhere — `/users/me`, the user listing, its filter and
+`adminCount` — uses this definition.
 
 | Method | Path | Result |
 |---|---|---|
@@ -805,8 +806,9 @@ An **active admin** is a verified, enabled account that carries the flag or hold
 | `POST` | `/admin/users/{userId}/revoke-admin` | `200`; idempotent, and an admin may revoke their own rights. `409` when the target holds the `ADMIN_EMAIL` address, or is an active admin and no other active admin would remain. `404` for an unknown account. |
 
 Each records `grant_admin` / `revoke_admin` in the audit log only when the flag actually
-changed. Revoke, disable and delete lock every admin row (flagged accounts and the
-`ADMIN_EMAIL` holder) and the target for the whole check-and-write, so concurrent requests
+changed. Revoke, disable, delete and an admin's own email change lock the target and every
+admin row (flagged accounts and the `ADMIN_EMAIL` holder) in one statement, in id order, for
+the whole check-and-write, so concurrent requests
 cannot leave the instance without an active admin, and a repeated revoke is a no-op rather
 than a conflict.
 
@@ -816,10 +818,14 @@ than a conflict.
 |---|---|---|
 | `POST /admin/users/{userId}/disable` | `409` | Disabled and unflagged in one transaction (`revoke_admin`, `reason: disable_user`); `409` when it is the last active admin. Re-enabling does not restore the flag. |
 | `DELETE /admin/users/{userId}` | `409` | Deleted in the same transaction as the check (`revoke_admin`, `reason: delete_user`); `409` when it is the last active admin. |
-| `POST /admin/users/{userId}/reset-2fa` | `409` | Allowed. |
+| `POST /admin/users/{userId}/reset-2fa` | `409`, unless the caller is the account itself | Allowed. |
+| `PATCH /users/me` changing your own email | Allowed when another active admin remains | `409` when it is the last active admin — the new address starts unverified, and an unverified account is not an admin. Checked under the same lock as revoke. |
 
-The `delete_user` entry and its `revoke_admin` are written after the account is gone, with no
-target reference; `details.user_id` names it. The `ADMIN_EMAIL` account is matched only when
+The `delete_user` entry (and `revoke_admin`, when the account was an admin) is written in the
+same transaction as the delete, before the row goes; the target reference becomes `NULL` with
+the account, and `details.email` names it. Admin delete runs its own `DELETE FROM users`; like
+self-deletion it relies on the `ON DELETE CASCADE` foreign keys for tokens and content, and the
+integration test asserts both delete paths leave no tokens behind. The `ADMIN_EMAIL` account is matched only when
 its address is verified; an unverified account holding that address is an ordinary account.
 Unlock and enable are always allowed. An account deleting itself through `DELETE /users/me` is
 not restricted — a pilot can always leave with their data; if that removes the last admin, set

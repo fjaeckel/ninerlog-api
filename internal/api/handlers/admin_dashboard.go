@@ -179,15 +179,13 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	// SMTP configured?
 	smtpConfigured := h.emailSender != nil
 
-	adminEmailConfigured := h.adminRoles != nil && h.adminRoles.BootstrapEmail() != ""
+	adminEmailConfigured := h.adminRoles.BootstrapEmail() != ""
 
 	var adminCount *int
-	if h.adminRoles != nil {
-		if n, err := h.adminRoles.CountAdmins(c.Request.Context()); err != nil {
-			slog.Error("admin config: admin count query failed", "error", err)
-		} else {
-			adminCount = &n
-		}
+	if n, err := h.adminRoles.CountAdmins(c.Request.Context()); err != nil {
+		slog.Error("admin config: admin count query failed", "error", err)
+	} else {
+		adminCount = &n
 	}
 
 	// Cloud backups configured? (set when BACKUP_CREDENTIALS_KEY is provided)

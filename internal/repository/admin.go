@@ -145,13 +145,19 @@ type AdminRepository interface {
 	// SetAdmin sets the admin flag on a verified, enabled account.
 	SetAdmin(ctx context.Context, userID uuid.UUID) (GrantResult, error)
 
-	// RevokeAdmin, DisableUser and DeleteUser run under a lock on every admin
-	// row. Each refuses the verified holder of bootstrapEmail and an active
-	// admin when no other active admin would remain; DisableUser and
-	// DeleteUser clear the target's admin flag in the same transaction.
+	// RevokeAdmin, DisableUser, DeleteUser and ChangeEmail lock the target
+	// and every admin row in one ordered statement, then refuse an active
+	// admin when no other active admin would remain. All but ChangeEmail
+	// also refuse the verified holder of bootstrapEmail. DisableUser clears
+	// the admin flag in the same UPDATE; DeleteUser inserts the entries
+	// audit returns in the same transaction, before the row goes.
 	RevokeAdmin(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (AdminChange, error)
 	DisableUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (AdminChange, error)
-	DeleteUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (AdminChange, error)
+	DeleteUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string, audit func(flagCleared bool) []*AdminAuditLogEntry) (AdminChange, error)
+
+	// ChangeEmail sets the address and clears email_verified. Returns
+	// ErrDuplicateEmail when another account holds the address.
+	ChangeEmail(ctx context.Context, userID uuid.UUID, email, bootstrapEmail string) (AdminChange, error)
 
 	// PromoteVerifiedByEmail sets the admin flag on the verified, enabled
 	// account whose email matches case-insensitively, returning its id when

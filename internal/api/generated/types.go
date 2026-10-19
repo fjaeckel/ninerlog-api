@@ -2699,10 +2699,10 @@ type AdminUser struct {
 	FlightCount int                `json:"flightCount"`
 	Id          openapi_types.UUID `json:"id"`
 
-	// IsAdmin Whether the account is an admin: its email is verified and it carries the admin flag or holds the ADMIN_EMAIL address
+	// IsAdmin Whether the account is an admin: its email is verified, it is enabled, and it carries the admin flag or holds the ADMIN_EMAIL address
 	IsAdmin bool `json:"isAdmin"`
 
-	// IsBootstrapAdmin Whether the account is the verified holder of the ADMIN_EMAIL address. It cannot be revoked, disabled, deleted or have its 2FA reset by another admin.
+	// IsBootstrapAdmin Whether the account is the verified holder of the ADMIN_EMAIL address. It cannot be revoked, disabled or deleted, and only the account itself may reset its 2FA.
 	IsBootstrapAdmin bool `json:"isBootstrapAdmin"`
 
 	// LastActiveAt Last authenticated API request, or the last sign-in if later. Recorded at a granularity of five minutes, so a session kept alive by refresh tokens still shows when the account was last used.

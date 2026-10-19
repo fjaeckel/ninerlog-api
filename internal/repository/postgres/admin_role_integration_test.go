@@ -4,8 +4,10 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/repository/postgres"
@@ -59,6 +61,8 @@ func TestAdminRoleIntegration(t *testing.T) {
 			t.Fatalf("reset flags: %v", err)
 		}
 	}
+
+	noAudit := func(bool) []*repository.AdminAuditLogEntry { return nil }
 
 	t.Run("new accounts are not admins", func(t *testing.T) {
 		if isAdmin(t, newUser(t, email("plain"), true)) {
@@ -266,7 +270,7 @@ func TestAdminRoleIntegration(t *testing.T) {
 		if ch, _ := adminRepo.DisableUser(ctx, b, ""); ch.Guard != repository.AdminGuardLastAdmin {
 			t.Errorf("disable last admin = %+v", ch)
 		}
-		if ch, _ := adminRepo.DeleteUser(ctx, b, ""); ch.Guard != repository.AdminGuardLastAdmin {
+		if ch, _ := adminRepo.DeleteUser(ctx, b, "", noAudit); ch.Guard != repository.AdminGuardLastAdmin {
 			t.Errorf("delete last admin = %+v", ch)
 		}
 		u, _ = userRepo.GetByID(ctx, b)
@@ -275,13 +279,13 @@ func TestAdminRoleIntegration(t *testing.T) {
 		}
 
 		plain := newUser(t, email("dp"), true)
-		if ch, err := adminRepo.DeleteUser(ctx, plain, ""); err != nil || ch.Guard != repository.AdminGuardApplied || ch.FlagCleared {
+		if ch, err := adminRepo.DeleteUser(ctx, plain, "", noAudit); err != nil || ch.Guard != repository.AdminGuardApplied || ch.FlagCleared {
 			t.Errorf("delete non-admin = %+v, %v", ch, err)
 		}
 		if _, err := userRepo.GetByID(ctx, plain); err == nil {
 			t.Error("deleted account still exists")
 		}
-		if ch, _ := adminRepo.DeleteUser(ctx, plain, ""); ch.Guard != repository.AdminGuardNotFound {
+		if ch, _ := adminRepo.DeleteUser(ctx, plain, "", noAudit); ch.Guard != repository.AdminGuardNotFound {
 			t.Errorf("delete missing = %+v", ch)
 		}
 	})
@@ -301,6 +305,122 @@ func TestAdminRoleIntegration(t *testing.T) {
 			if u.Disabled && u.IsAdmin {
 				t.Fatalf("iteration %d: account is disabled and flagged", i)
 			}
+		}
+	})
+
+	t.Run("DeleteUser writes its audit entries in the transaction and cascades like a self-delete", func(t *testing.T) {
+		reset(t)
+		actor := newUser(t, email("actor"), true)
+		grant(t, actor)
+		target := newUser(t, email("victim"), true)
+		grant(t, target)
+		if err := postgres.NewRefreshTokenRepository(db).Create(ctx, testutil.CreateTestRefreshToken(target, "h-"+uuid.NewString())); err != nil {
+			t.Fatalf("token: %v", err)
+		}
+		if err := postgres.NewPasswordResetTokenRepository(db).Create(ctx, testutil.CreateTestPasswordResetToken(target, "p-"+uuid.NewString())); err != nil {
+			t.Fatalf("reset token: %v", err)
+		}
+
+		var seen bool
+		audit := func(flagCleared bool) []*repository.AdminAuditLogEntry {
+			seen = flagCleared
+			return []*repository.AdminAuditLogEntry{{
+				ID: uuid.New(), AdminUserID: actor, Action: "delete_user", TargetUserID: &target,
+				Details: []byte(`{}`), CreatedAt: time.Now(),
+			}}
+		}
+		ch, err := adminRepo.DeleteUser(ctx, target, "", audit)
+		if err != nil || ch.Guard != repository.AdminGuardApplied || !seen {
+			t.Fatalf("DeleteUser = %+v, %v; flagCleared seen %v", ch, err, seen)
+		}
+		var entries, tokens, resets int
+		_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM admin_audit_log WHERE admin_user_id = $1 AND action = 'delete_user'", actor).Scan(&entries)
+		_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1", target).Scan(&tokens)
+		_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = $1", target).Scan(&resets)
+		if entries != 1 || tokens != 0 || resets != 0 {
+			t.Errorf("audit entries %d, refresh tokens %d, reset tokens %d", entries, tokens, resets)
+		}
+
+		// A refused delete writes nothing.
+		before := 0
+		_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM admin_audit_log").Scan(&before)
+		if ch, _ := adminRepo.DeleteUser(ctx, actor, "", audit); ch.Guard != repository.AdminGuardLastAdmin {
+			t.Fatalf("delete last admin = %+v", ch)
+		}
+		after := 0
+		_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM admin_audit_log").Scan(&after)
+		if after != before {
+			t.Errorf("refused delete wrote %d audit entries", after-before)
+		}
+	})
+
+	t.Run("ChangeEmail is guarded", func(t *testing.T) {
+		reset(t)
+		only := newUser(t, email("ce-only"), true)
+		grant(t, only)
+		if ch, _ := adminRepo.ChangeEmail(ctx, only, email("ce-new"), ""); ch.Guard != repository.AdminGuardLastAdmin {
+			t.Errorf("last admin = %+v", ch)
+		}
+		u, _ := userRepo.GetByID(ctx, only)
+		if !u.EmailVerified {
+			t.Error("refused change cleared verification")
+		}
+
+		other := newUser(t, email("ce-other"), true)
+		grant(t, other)
+		taken, _ := userRepo.GetByID(ctx, other)
+		if _, err := adminRepo.ChangeEmail(ctx, only, taken.Email, ""); !errors.Is(err, repository.ErrDuplicateEmail) {
+			t.Errorf("taken address: got %v", err)
+		}
+		newAddr := email("ce-moved")
+		if ch, err := adminRepo.ChangeEmail(ctx, only, newAddr, ""); err != nil || ch.Guard != repository.AdminGuardApplied {
+			t.Fatalf("change = %+v, %v", ch, err)
+		}
+		u, _ = userRepo.GetByID(ctx, only)
+		if u.Email != newAddr || u.EmailVerified || !u.IsAdmin {
+			t.Errorf("after change: %s verified %v flag %v", u.Email, u.EmailVerified, u.IsAdmin)
+		}
+
+		// The bootstrap holder may change its own address when another admin remains.
+		boot := email("ce-boot")
+		bootID := newUser(t, boot, true)
+		if ch, err := adminRepo.ChangeEmail(ctx, bootID, email("ce-boot-new"), boot); err != nil || ch.Guard != repository.AdminGuardApplied {
+			t.Errorf("bootstrap self change = %+v, %v", ch, err)
+		}
+	})
+
+	t.Run("mixed concurrent admin writes do not deadlock", func(t *testing.T) {
+		reset(t)
+		keep := newUser(t, email("dl-keep"), true)
+		grant(t, keep)
+		var ids []uuid.UUID
+		for i := 0; i < 6; i++ {
+			ids = append(ids, newUser(t, email("dl"), true))
+		}
+		var wg sync.WaitGroup
+		for round := 0; round < 10; round++ {
+			for i, id := range ids {
+				wg.Add(1)
+				go func(i int, id uuid.UUID) {
+					defer wg.Done()
+					var err error
+					switch (i + round) % 3 {
+					case 0:
+						_, err = adminRepo.SetAdmin(ctx, id)
+					case 1:
+						_, err = adminRepo.RevokeAdmin(ctx, id, "")
+					default:
+						_, err = adminRepo.RevokeAdmin(ctx, ids[(i+1)%len(ids)], "")
+					}
+					if err != nil {
+						t.Errorf("round %d: %v", round, err)
+					}
+				}(i, id)
+			}
+			wg.Wait()
+		}
+		if n, _ := adminRepo.CountAdmins(ctx, ""); n < 1 {
+			t.Error("no active admin left")
 		}
 	})
 }

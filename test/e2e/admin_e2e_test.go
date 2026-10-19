@@ -677,8 +677,34 @@ func TestAdminRoles(t *testing.T) {
 		}
 	})
 
+	t.Run("the ADMIN_EMAIL account may reset its own 2FA", func(t *testing.T) {
+		// No second factor is enrolled, so the request gets past the
+		// ADMIN_EMAIL check and stops at the 2FA check.
+		assertStatus(t, ac.POST(fmt.Sprintf("/admin/users/%s/reset-2fa", bootstrapID), nil), http.StatusBadRequest)
+	})
+
 	t.Run("an admin can revoke their own rights", func(t *testing.T) {
 		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/revoke-admin", ba.User.ID), nil), http.StatusOK)
 		assertStatus(t, bc.GET("/admin/stats"), http.StatusForbidden)
+	})
+
+	t.Run("the last admin cannot change their email address", func(t *testing.T) {
+		resp := ac.GET("/admin/config")
+		requireStatus(t, resp, http.StatusOK)
+		var cfg map[string]interface{}
+		resp.MustJSON(t, &cfg)
+		if n, _ := cfg["adminCount"].(float64); n != 1 {
+			t.Skipf("adminCount = %v; another admin exists, so the guard does not apply", cfg["adminCount"])
+		}
+		assertStatus(t, ac.PATCH("/users/me", map[string]string{
+			"email": uniqueEmail("admin-moved"), "currentPassword": "AdminPass123!",
+		}), http.StatusConflict)
+		me := ac.GET("/users/me")
+		requireStatus(t, me, http.StatusOK)
+		var u map[string]interface{}
+		me.MustJSON(t, &u)
+		if u["email"] != "admin@ninerlog-test.com" || u["isAdmin"] != true {
+			t.Errorf("refused change modified the account: %v", u)
+		}
 	})
 }

@@ -88,6 +88,7 @@ func NewAPIHandler(
 	webauthnService *service.WebAuthnService,
 	jwtManager *jwt.Manager,
 	flightCrewRepo repository.FlightCrewRepository,
+	adminRoles *service.AdminRoleService,
 ) *APIHandler {
 	return &APIHandler{
 		authService:         authService,
@@ -103,6 +104,7 @@ func NewAPIHandler(
 		webauthnService:     webauthnService,
 		jwtManager:          jwtManager,
 		flightCrewRepo:      flightCrewRepo,
+		adminRoles:          adminRoles,
 	}
 }
 
@@ -198,9 +200,6 @@ var _ generated.ServerInterface = (*APIHandler)(nil)
 
 // isAdminUser reports whether the user is an admin; see service.IsAdmin.
 func (h *APIHandler) isAdminUser(user *models.User) bool {
-	if h.adminRoles == nil {
-		return service.IsAdmin(user, "")
-	}
 	return h.adminRoles.IsAdmin(user)
 }
 
