@@ -5064,7 +5064,10 @@ paths:
         licenses, contacts, credentials, backups, notifications, etc.) via cascading
         deletes. This action is irreversible. The deletion is recorded in the admin
         audit log (with the target user reference set to NULL after the cascade).
-        An admin cannot delete their own account.
+        An admin cannot delete their own account. Returns 409 when the target
+        holds the ADMIN_EMAIL address, or is an admin whose removal would leave
+        no other verified, enabled admin. Deleting an admin first revokes their
+        admin rights (audited as revoke_admin).
       operationId: deleteUser
       security:
         - bearerAuth: []
@@ -5093,13 +5096,20 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /admin/users/{userId}/disable:
     post:
       tags:
         - Admin
       summary: Disable a user account
-      description: Disable a user account and revoke all tokens. Logged to audit trail.
+      description: |
+        Disable a user account and revoke all tokens. Logged to audit trail.
+        Returns 409 when the target holds the ADMIN_EMAIL address, or is an
+        admin whose removal would leave no other verified, enabled admin.
+        Disabling an admin revokes their admin rights (audited as revoke_admin);
+        re-enabling does not restore them.
       operationId: disableUser
       security:
         - bearerAuth: []
@@ -5126,6 +5136,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /admin/users/{userId}/enable:
     post:
@@ -5198,7 +5210,9 @@ paths:
       tags:
         - Admin
       summary: Reset 2FA for a user
-      description: Disable 2FA for a user who lost their authenticator. Logged to audit trail.
+      description: |
+        Disable 2FA for a user who lost their authenticator. Logged to audit trail.
+        Returns 409 when the target holds the ADMIN_EMAIL address.
       operationId: resetUser2fa
       security:
         - bearerAuth: []
@@ -5225,6 +5239,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /admin/users/{userId}/grant-admin:
     post:
@@ -11645,6 +11661,7 @@ components:
         - twoFactorEnabled
         - disabled
         - isAdmin
+        - isBootstrapAdmin
         - flightCount
         - aircraftCount
       properties:
@@ -11685,6 +11702,12 @@ components:
         isAdmin:
           type: boolean
           description: Whether the account carries the admin flag or holds the ADMIN_EMAIL address
+        isBootstrapAdmin:
+          type: boolean
+          description: >-
+            Whether the account is the verified holder of the ADMIN_EMAIL
+            address. It cannot be revoked, disabled, deleted or have its 2FA
+            reset by another admin.
         locked:
           type: boolean
           description: Whether the account is locked due to brute-force protection

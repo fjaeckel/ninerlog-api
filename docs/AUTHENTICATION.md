@@ -805,7 +805,24 @@ Both record `grant_admin` / `revoke_admin` in the audit log. The last-admin chec
 flagged row, so two admins revoking each other at the same time cannot leave the instance
 with none.
 
-`GET /admin/users?isAdmin=true` lists the flagged accounts; every row carries `isAdmin`.
+### Protected accounts
+
+Other admin actions honour the same two rules:
+
+| Action | `ADMIN_EMAIL` account | Admin account |
+|---|---|---|
+| `POST /admin/users/{userId}/disable` | `409` | Revokes the admin flag first (`revoke_admin`, `reason: disable_user`); `409` when no other verified, enabled admin would remain. Re-enabling does not restore the flag. |
+| `DELETE /admin/users/{userId}` | `409` | Revokes the admin flag first (`reason: delete_user`); `409` when no other verified, enabled admin would remain. |
+| `POST /admin/users/{userId}/reset-2fa` | `409` | Allowed. |
+
+The `ADMIN_EMAIL` account is matched only when its address is verified; an unverified
+account holding that address is an ordinary account. Unlock and enable are always allowed.
+An account deleting itself through `DELETE /users/me` is not restricted — a pilot can always
+leave with their data; if that removes the last admin, set `ADMIN_EMAIL` to a verified
+account and restart.
+
+`GET /admin/users?isAdmin=true` lists the flagged accounts; every row carries `isAdmin` and
+`isBootstrapAdmin` (the verified `ADMIN_EMAIL` holder).
 `GET /admin/config` reports `adminCount` (flagged accounts) and `adminEmailConfigured`.
 `GET /users/me` reports `isAdmin` for the caller.
 

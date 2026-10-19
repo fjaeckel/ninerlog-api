@@ -235,3 +235,38 @@ func TestAdminRole_Bootstrap(t *testing.T) {
 		}
 	})
 }
+
+func TestAdminRole_ReleaseForRemoval(t *testing.T) {
+	ctx := context.Background()
+	svc, users, _ := newAdminRoleFixture(t, "boot@x.com")
+
+	boot := addUser(t, users, "boot@x.com", true)
+	if _, err := svc.ReleaseForRemoval(ctx, boot); !errors.Is(err, service.ErrBootstrapAdmin) {
+		t.Errorf("bootstrap admin: got %v", err)
+	}
+
+	plain := addUser(t, users, "plain@x.com", false)
+	if released, err := svc.ReleaseForRemoval(ctx, plain); err != nil || released {
+		t.Errorf("non-admin: released %v, err %v", released, err)
+	}
+
+	a := addUser(t, users, "a@x.com", true)
+	if released, err := svc.ReleaseForRemoval(ctx, a); err != nil || !released || a.IsAdmin {
+		t.Errorf("admin with others left: released %v, err %v, flag %v", released, err, a.IsAdmin)
+	}
+
+	// Only the bootstrap holder is left besides b; its flag counts.
+	b := addUser(t, users, "b@x.com", true)
+	if released, err := svc.ReleaseForRemoval(ctx, b); err != nil || !released {
+		t.Errorf("admin alongside flagged bootstrap: released %v, err %v", released, err)
+	}
+
+	svc2, users2, _ := newAdminRoleFixture(t, "")
+	last := addUser(t, users2, "last@x.com", true)
+	if _, err := svc2.ReleaseForRemoval(ctx, last); !errors.Is(err, service.ErrLastAdmin) {
+		t.Errorf("last admin: got %v", err)
+	}
+	if !last.IsAdmin {
+		t.Error("last admin lost the flag")
+	}
+}

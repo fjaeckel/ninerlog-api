@@ -2699,6 +2699,9 @@ type AdminUser struct {
 	// IsAdmin Whether the account carries the admin flag or holds the ADMIN_EMAIL address
 	IsAdmin bool `json:"isAdmin"`
 
+	// IsBootstrapAdmin Whether the account is the verified holder of the ADMIN_EMAIL address. It cannot be revoked, disabled, deleted or have its 2FA reset by another admin.
+	IsBootstrapAdmin bool `json:"isBootstrapAdmin"`
+
 	// LastActiveAt Last authenticated API request, or the last sign-in if later. Recorded at a granularity of five minutes, so a session kept alive by refresh tokens still shows when the account was last used.
 	LastActiveAt *time.Time `json:"lastActiveAt,omitempty"`
 

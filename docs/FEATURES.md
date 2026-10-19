@@ -578,9 +578,10 @@ Admin-only endpoints (caller must be an admin — the `users.is_admin` flag or t
 
 - **Users** — list (filterable by `isAdmin`), disable/enable, unlock, reset 2FA (mails the
   user a notice), delete (`admin_users.go`).
-- **Admin roles** — grant and revoke admin rights; any number of admins, the last active
-  admin and the `ADMIN_EMAIL` account cannot be revoked (`admin_users.go`,
-  `service/admin_role.go`). See [AUTHENTICATION.md](./AUTHENTICATION.md#admin-access).
+- **Admin roles** — grant and revoke admin rights; any number of admins. The `ADMIN_EMAIL`
+  account cannot be revoked, disabled, deleted or have its 2FA reset; disabling or deleting
+  an admin revokes their rights first and is refused for the last active admin
+  (`admin_users.go`, `service/admin_role.go`). See [AUTHENTICATION.md](./AUTHENTICATION.md#admin-access).
 - **Platform** — stats/dashboard (`admin_dashboard.go`), audit log (`AdminAuditLog`,
   migration 27), config view. `totalContacts` sits alongside the flight and aircraft
   counts: contacts accumulate on their own as crew names are logged, so it is a growth

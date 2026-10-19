@@ -42,6 +42,35 @@ func (h *APIHandler) persistBootstrapAdmin(c *gin.Context, user *models.User) {
 	}
 }
 
+// releaseAdminForRemoval refuses removing the ADMIN_EMAIL holder or the last
+// active admin and clears a target admin's flag; it writes the error response
+// and returns false when the action must not proceed.
+func (h *APIHandler) releaseAdminForRemoval(c *gin.Context, adminUserID uuid.UUID, target *models.User, action string) bool {
+	if service.IsBootstrapAdmin(target, h.adminEmail) {
+		h.sendError(c, http.StatusConflict, "User holds the ADMIN_EMAIL address")
+		return false
+	}
+	if h.adminRoles == nil {
+		return true
+	}
+	released, err := h.adminRoles.ReleaseForRemoval(c.Request.Context(), target)
+	switch {
+	case errors.Is(err, service.ErrBootstrapAdmin):
+		h.sendError(c, http.StatusConflict, "User holds the ADMIN_EMAIL address")
+		return false
+	case errors.Is(err, service.ErrLastAdmin):
+		h.sendError(c, http.StatusConflict, "Cannot remove the last admin")
+		return false
+	case err != nil:
+		h.sendError(c, http.StatusInternalServerError, "Failed to update admin rights")
+		return false
+	}
+	if released {
+		h.logAdminAction(c, adminUserID, "revoke_admin", &target.ID, map[string]any{"email": target.Email, "reason": action})
+	}
+	return true
+}
+
 // GrantUserAdmin implements POST /admin/users/{userId}/grant-admin
 func (h *APIHandler) GrantUserAdmin(c *gin.Context, userId openapi_types.UUID) {
 	adminUserID, ok := h.requireAdmin(c)
@@ -139,6 +168,7 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 	for _, row := range rows {
 		isLocked := row.LockedUntil != nil && row.LockedUntil.After(time.Now())
 		emailSuppressed := row.EmailSuppressed
+		rowUser := &models.User{Email: row.Email, EmailVerified: row.EmailVerified, IsAdmin: row.IsAdmin}
 		adminUser := generated.AdminUser{
 			Id:               openapi_types.UUID(row.ID),
 			Email:            openapi_types.Email(row.Email),
@@ -147,7 +177,8 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 			EmailVerified:    row.EmailVerified,
 			TwoFactorEnabled: row.TwoFactorEnabled,
 			Disabled:         row.Disabled,
-			IsAdmin:          h.isAdminUser(&models.User{Email: row.Email, EmailVerified: row.EmailVerified, IsAdmin: row.IsAdmin}),
+			IsAdmin:          h.isAdminUser(rowUser),
+			IsBootstrapAdmin: service.IsBootstrapAdmin(rowUser, h.adminEmail),
 			Locked:           &isLocked,
 			EmailSuppressed:  &emailSuppressed,
 			FlightCount:      row.FlightCount,
@@ -207,6 +238,9 @@ func (h *APIHandler) DisableUser(c *gin.Context, userId openapi_types.UUID) {
 	user, err := h.authService.GetUserByID(c.Request.Context(), targetID)
 	if err != nil {
 		h.sendError(c, http.StatusNotFound, "User not found")
+		return
+	}
+	if !h.releaseAdminForRemoval(c, adminUserID, user, "disable_user") {
 		return
 	}
 
@@ -295,6 +329,10 @@ func (h *APIHandler) ResetUser2fa(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
+	if service.IsBootstrapAdmin(user, h.adminEmail) {
+		h.sendError(c, http.StatusConflict, "User holds the ADMIN_EMAIL address")
+		return
+	}
 	if !user.TwoFactorEnabled {
 		h.sendError(c, http.StatusBadRequest, "2FA is not enabled for this user")
 		return
@@ -344,6 +382,9 @@ func (h *APIHandler) DeleteUser(c *gin.Context, userId openapi_types.UUID) {
 	user, err := h.authService.GetUserByID(c.Request.Context(), targetID)
 	if err != nil {
 		h.sendError(c, http.StatusNotFound, "User not found")
+		return
+	}
+	if !h.releaseAdminForRemoval(c, adminUserID, user, "delete_user") {
 		return
 	}
 

@@ -157,3 +157,25 @@ func (s *AdminRoleService) Revoke(ctx context.Context, targetID uuid.UUID) (*mod
 	user.IsAdmin = false
 	return user, nil
 }
+
+// ReleaseForRemoval prepares a target account for disabling or deletion:
+// it refuses the ADMIN_EMAIL holder and clears the admin flag unless no other
+// verified, enabled admin would remain. It reports whether the flag was
+// cleared.
+func (s *AdminRoleService) ReleaseForRemoval(ctx context.Context, target *models.User) (bool, error) {
+	if IsBootstrapAdmin(target, s.bootstrapEmail) {
+		return false, ErrBootstrapAdmin
+	}
+	if !target.IsAdmin {
+		return false, nil
+	}
+	revoked, err := s.admins.RevokeAdmin(ctx, target.ID)
+	if err != nil {
+		return false, err
+	}
+	if !revoked {
+		return false, ErrLastAdmin
+	}
+	target.IsAdmin = false
+	return true, nil
+}

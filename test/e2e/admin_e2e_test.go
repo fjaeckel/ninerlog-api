@@ -642,6 +642,40 @@ func TestAdminRoles(t *testing.T) {
 		assertStatus(t, ac.POST("/admin/users/00000000-0000-0000-0000-000000000000/revoke-admin", nil), http.StatusNotFound)
 	})
 
+	t.Run("the ADMIN_EMAIL account cannot be disabled, deleted or have 2FA reset", func(t *testing.T) {
+		assertStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/disable", bootstrapID), nil), http.StatusConflict)
+		assertStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/reset-2fa", bootstrapID), nil), http.StatusConflict)
+		assertStatus(t, bc.DELETE(fmt.Sprintf("/admin/users/%s", bootstrapID)), http.StatusConflict)
+		assertStatus(t, ac.GET("/admin/stats"), http.StatusOK)
+
+		resp := ac.GET("/admin/users?isAdmin=true&pageSize=100")
+		requireStatus(t, resp, http.StatusOK)
+		var page struct {
+			Data []struct {
+				ID               string `json:"id"`
+				IsBootstrapAdmin bool   `json:"isBootstrapAdmin"`
+			} `json:"data"`
+		}
+		resp.MustJSON(t, &page)
+		for _, u := range page.Data {
+			if (u.ID == bootstrapID) != u.IsBootstrapAdmin {
+				t.Errorf("user %s isBootstrapAdmin = %v", u.ID, u.IsBootstrapAdmin)
+			}
+		}
+	})
+
+	t.Run("disabling an admin revokes their rights", func(t *testing.T) {
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/grant-admin", ca.User.ID), nil), http.StatusOK)
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/disable", ca.User.ID), nil), http.StatusOK)
+		if listAdmins(t, ac)[ca.User.ID] {
+			t.Error("disabled account still carries the admin flag")
+		}
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/enable", ca.User.ID), nil), http.StatusOK)
+		if listAdmins(t, ac)[ca.User.ID] {
+			t.Error("re-enabling restored the admin flag")
+		}
+	})
+
 	t.Run("an admin can revoke their own rights", func(t *testing.T) {
 		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/revoke-admin", ba.User.ID), nil), http.StatusOK)
 		assertStatus(t, bc.GET("/admin/stats"), http.StatusForbidden)

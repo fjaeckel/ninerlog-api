@@ -52,8 +52,9 @@ func TestAdminUserSchema_PrivacyPreserving(t *testing.T) {
 		// administrator needs all three to answer "why is this account still
 		// unverified" without opening anything the user logged.
 		"VerificationReminderSentAt": true, "ScheduledDeletionAt": true,
-		"EmailSuppressed": true,
-		"IsAdmin":         true,
+		"EmailSuppressed":  true,
+		"IsAdmin":          true,
+		"IsBootstrapAdmin": true,
 	}
 
 	// Forbidden field patterns — these would leak private data
