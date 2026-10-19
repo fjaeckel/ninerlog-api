@@ -266,8 +266,9 @@ func (h *APIHandler) RefreshToken(c *gin.Context) {
 	})
 }
 
-// LogoutUser implements POST /auth/logout. It revokes the presented refresh
-// token server-side and always answers 204; revocation is idempotent.
+// LogoutUser implements POST /auth/logout. It revokes the session of the
+// presented refresh token server-side and always answers 204; revocation is
+// idempotent.
 func (h *APIHandler) LogoutUser(c *gin.Context) {
 	var req generated.LogoutUserJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {

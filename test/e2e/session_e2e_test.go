@@ -225,3 +225,59 @@ func TestSessionReplayRevokesTheWholeSession(t *testing.T) {
 	assertStatus(t, c.POST("/auth/refresh",
 		map[string]string{"refreshToken": rotated.RefreshToken}), http.StatusUnauthorized)
 }
+
+func TestSupersededTokenCannotRenewAnEndedSession(t *testing.T) {
+	const password = "SecurePass123!"
+	const agent = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120.0 Safari/537.36"
+
+	cases := []struct {
+		name string
+		end  func(t *testing.T, c *E2EClient, current AuthResponseBody)
+	}{
+		{"logout", func(t *testing.T, c *E2EClient, current AuthResponseBody) {
+			requireStatus(t, c.POST("/auth/logout",
+				map[string]string{"refreshToken": current.RefreshToken}), http.StatusNoContent)
+		}},
+		{"password change", func(t *testing.T, c *E2EClient, current AuthResponseBody) {
+			c.SetToken(current.AccessToken)
+			requireStatus(t, c.POST("/auth/change-password", map[string]string{
+				"currentPassword": password, "newPassword": "EvenMoreSecure456!",
+			}), http.StatusNoContent)
+		}},
+		{"session revocation", func(t *testing.T, c *E2EClient, current AuthResponseBody) {
+			c.SetToken(current.AccessToken)
+			var sessionID string
+			for _, s := range listSessions(t, c).Sessions {
+				if s.Current {
+					sessionID = s.ID
+				}
+			}
+			if sessionID == "" {
+				t.Fatal("Could not identify the current session")
+			}
+			requireStatus(t, c.DELETE("/auth/sessions/"+sessionID), http.StatusNoContent)
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewE2EClient(t)
+			email := uniqueEmail("endedsession")
+			registerOnly(t, c, email, password, "Ended Session")
+
+			superseded := loginAs(t, c, email, password, agent)
+			resp := c.POST("/auth/refresh", map[string]string{"refreshToken": superseded.RefreshToken})
+			requireStatus(t, resp, http.StatusOK)
+			var current AuthResponseBody
+			resp.JSON(&current)
+
+			tc.end(t, c, current)
+
+			// The superseded token was rotated moments ago.
+			assertStatus(t, c.POST("/auth/refresh",
+				map[string]string{"refreshToken": superseded.RefreshToken}), http.StatusUnauthorized)
+			c.SetToken(current.AccessToken)
+			assertStatus(t, c.GET("/users/me"), http.StatusUnauthorized)
+		})
+	}
+}
