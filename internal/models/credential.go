@@ -42,19 +42,24 @@ type Credential struct {
 	UpdatedAt        time.Time      `json:"updatedAt"`
 }
 
-// IsExpired checks if the credential has expired
+// IsExpired reports whether the credential's expiry date, its last valid day,
+// has passed (UTC calendar dates).
 func (c *Credential) IsExpired() bool {
-	if c.ExpiryDate == nil {
-		return false
-	}
-	return c.ExpiryDate.Before(time.Now())
+	return c.IsExpiredAt(time.Now())
 }
 
-// IsExpiringSoon checks if the credential expires within the given number of days
+// IsExpiredAt is IsExpired as of now.
+func (c *Credential) IsExpiredAt(now time.Time) bool {
+	return ExpiredAt(c.ExpiryDate, now)
+}
+
+// IsExpiringSoon reports whether the credential is unexpired and its expiry date
+// is at most `days` calendar days away.
 func (c *Credential) IsExpiringSoon(days int) bool {
-	if c.ExpiryDate == nil {
-		return false
-	}
-	threshold := time.Now().AddDate(0, 0, days)
-	return c.ExpiryDate.Before(threshold) && !c.IsExpired()
+	return c.IsExpiringSoonAt(time.Now(), days)
+}
+
+// IsExpiringSoonAt is IsExpiringSoon as of now.
+func (c *Credential) IsExpiringSoonAt(now time.Time, days int) bool {
+	return ExpiringWithin(c.ExpiryDate, now, days)
 }
