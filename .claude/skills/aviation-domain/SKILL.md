@@ -33,8 +33,9 @@ a flag is set when the pilot sends the value and cleared when `PUT` sends it as 
 `POST /flights/recalculate` — must respect the override flags** and not clobber manual
 entries. The flags are serialised in the backup payload and reported on every flight response.
 
-Day/night classification uses `flightrules.IsNightAt(t, lat, lon)`, backed by sunrise/sunset
-from `pkg/solar` and airport coordinates from the in-memory `internal/airports` database (loaded
+Day/night classification uses `flightrules.IsNightAt(t, lat, lon)`, backed by civil twilight
+from `pkg/solar` (against neighbouring local solar days, never one UTC date's dawn/dusk pair —
+see `docs/DOMAIN.md` "Day and night") and airport coordinates from the in-memory `internal/airports` database (loaded
 at startup, refreshed on a timer). Departure/arrival may also be free-text off-airport locations, which have no
 coordinates — handle the missing-coordinate case rather than assuming a lookup succeeds.
 
