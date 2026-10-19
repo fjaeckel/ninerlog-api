@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // customCurrencyLister lists a user's custom currency rules with their
@@ -30,6 +33,7 @@ type NotificationService struct {
 	emailSender     *email.Sender
 	currencyService *currency.Service
 	customService   customCurrencyLister
+	now             func() time.Time
 }
 
 func NewNotificationService(
@@ -51,6 +55,7 @@ func NewNotificationService(
 		emailSender:     emailSender,
 		currencyService: currencyService,
 		customService:   customService,
+		now:             time.Now,
 	}
 }
 
@@ -73,45 +78,39 @@ func (s *NotificationService) GetNotificationHistory(ctx context.Context, userID
 // bypassing the check-hour gating. Used by admin maintenance endpoint and E2E tests.
 func (s *NotificationService) TriggerCheck(ctx context.Context) {
 	slog.Info("Triggered notification check (bypassing check-hour)...")
-
-	allPrefs, err := s.notifRepo.GetAllUsersWithPreferences(ctx)
-	if err != nil {
-		slog.Error("Error loading preferences", "error", err)
-		NotificationCheckErrorsTotal.Inc()
-		return
-	}
-
-	for _, prefs := range allPrefs {
-		if !prefs.EmailEnabled {
-			continue
-		}
-
-		user, err := s.userRepo.GetByID(ctx, prefs.UserID)
-		if err != nil {
-			continue
-		}
-
-		s.checkCredentialExpiry(ctx, prefs, user.Email, user.Name)
-		s.checkCurrencyNotifications(ctx, prefs, user.Email, user.Name)
-		s.checkCustomCurrencyNotifications(ctx, prefs, user.Email, user.Name)
-	}
+	s.runChecks(ctx, -1)
 }
 
-// GetCheckInterval reads NOTIFICATION_CHECK_INTERVAL env var, defaults to 1h
+// defaultCheckInterval is the notification check interval when
+// NOTIFICATION_CHECK_INTERVAL is unset or invalid.
+const defaultCheckInterval = time.Hour
+
+// GetCheckInterval reads NOTIFICATION_CHECK_INTERVAL; an unparseable or
+// non-positive value logs a warning and returns the 1h default.
 func GetCheckInterval() time.Duration {
-	if val := os.Getenv("NOTIFICATION_CHECK_INTERVAL"); val != "" {
-		if d, err := time.ParseDuration(val); err == nil {
-			return d
-		}
+	raw := os.Getenv("NOTIFICATION_CHECK_INTERVAL")
+	if raw == "" {
+		return defaultCheckInterval
 	}
-	return 1 * time.Hour
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		slog.Warn("Ignoring invalid environment value, using default",
+			"key", "NOTIFICATION_CHECK_INTERVAL", "value", raw, "default", defaultCheckInterval.String())
+		return defaultCheckInterval
+	}
+	return d
 }
 
-// StartBackgroundChecker starts a goroutine that checks for notifications periodically
+// StartBackgroundChecker starts a goroutine that checks for notifications
+// periodically; a non-positive interval falls back to the 1h default.
 func (s *NotificationService) StartBackgroundChecker(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		slog.Warn("Invalid notification check interval, using default",
+			"interval", interval.String(), "default", defaultCheckInterval.String())
+		interval = defaultCheckInterval
+	}
 	go func() {
 		slog.Info("Notification checker started", "interval", interval.String())
-		// Run immediately on start
 		s.checkAndSendNotifications(ctx)
 
 		ticker := time.NewTicker(interval)
@@ -137,22 +136,27 @@ func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 		NotificationCheckDurationSeconds.Observe(time.Since(start).Seconds())
 	}()
 
-	currentHour := time.Now().UTC().Hour()
+	if s.runChecks(ctx, time.Now().UTC().Hour()) {
+		NotificationLastSuccessTimestampSeconds.SetToCurrentTime()
+	}
+}
 
+// runChecks checks every user with email enabled whose check hour is
+// checkHour, or every such user when checkHour is negative. It returns false
+// when preferences could not be loaded.
+func (s *NotificationService) runChecks(ctx context.Context, checkHour int) bool {
 	allPrefs, err := s.notifRepo.GetAllUsersWithPreferences(ctx)
 	if err != nil {
 		slog.Error("Error loading preferences", "error", err)
 		NotificationCheckErrorsTotal.Inc()
-		return
+		return false
 	}
 
 	for _, prefs := range allPrefs {
 		if !prefs.EmailEnabled {
 			continue
 		}
-
-		// Only process users whose check_hour matches current UTC hour
-		if prefs.CheckHour != currentHour {
+		if checkHour >= 0 && prefs.CheckHour != checkHour {
 			continue
 		}
 
@@ -161,266 +165,277 @@ func (s *NotificationService) checkAndSendNotifications(ctx context.Context) {
 			continue
 		}
 
-		// Check credential expiry warnings (per-category)
-		s.checkCredentialExpiry(ctx, prefs, user.Email, user.Name)
-
-		// Check currency/rating warnings using the two-tier currency system
-		s.checkCurrencyNotifications(ctx, prefs, user.Email, user.Name)
-
-		// Check user-authored custom currency rules (per-rule opt-in)
-		s.checkCustomCurrencyNotifications(ctx, prefs, user.Email, user.Name)
+		s.checkCredentialExpiry(ctx, prefs, user)
+		s.checkCurrencyNotifications(ctx, prefs, user)
+		s.checkCustomCurrencyNotifications(ctx, prefs, user)
 	}
-
-	NotificationLastSuccessTimestampSeconds.SetToCurrentTime()
+	return true
 }
 
-func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *models.NotificationPreferences, userEmail, userName string) {
+// notice is one notification keyed by (category, refID, days, date).
+type notice struct {
+	category models.NotificationCategory
+	refID    uuid.UUID
+	refType  string
+	// days is the warning threshold; 0 for a lapse notice.
+	days int
+	// date is the date the notice concerns.
+	date    time.Time
+	subject string
+	body    string
+	// metric is the notifications_sent_total type label.
+	metric string
+}
+
+// logRow builds the notification_log row for n.
+func (n notice) logRow(userID uuid.UUID, skipped bool) *models.NotificationLog {
+	refID, days, date, refType, subject := n.refID, n.days, n.date, n.refType, n.subject
+	return &models.NotificationLog{
+		UserID:              userID,
+		NotificationType:    string(n.category),
+		ReferenceID:         &refID,
+		ReferenceType:       &refType,
+		DaysBeforeExpiry:    &days,
+		ExpiryReferenceDate: &date,
+		Subject:             &subject,
+		Skipped:             skipped,
+	}
+}
+
+// deliver claims n and sends it; a failed send releases the claim. lapse
+// selects ClaimLapseNotification. A claim already held sends nothing.
+func (s *NotificationService) deliver(ctx context.Context, user *models.User, n notice, lapse bool) error {
+	row := n.logRow(user.ID, false)
+	claim := s.notifRepo.ClaimNotification
+	if lapse {
+		claim = s.notifRepo.ClaimLapseNotification
+	}
+	claimed, err := claim(ctx, row)
+	if err != nil {
+		return fmt.Errorf("claim %s notification: %w", n.category, err)
+	}
+	if !claimed {
+		return nil
+	}
+	if err := s.emailSender.SendMessage(ctx, email.Message{
+		To: user.Email, Subject: n.subject, HTMLBody: n.body, Type: email.TypeNotification,
+	}); err != nil {
+		sendErr := fmt.Errorf("send %s notification: %w", n.category, err)
+		if relErr := s.notifRepo.ReleaseNotification(ctx, row.ID); relErr != nil {
+			return errors.Join(sendErr, fmt.Errorf("release %s notification claim: %w", n.category, relErr))
+		}
+		return sendErr
+	}
+	NotificationsSentTotal.WithLabelValues(n.metric).Inc()
+	return nil
+}
+
+// sendWarning sends n for the nearest warning threshold daysUntil has
+// crossed, and records every farther crossed threshold as skipped. n.date is
+// the expiry date.
+func (s *NotificationService) sendWarning(ctx context.Context, prefs *models.NotificationPreferences, user *models.User, n notice, daysUntil int) error {
+	nearest, farther, ok := crossedThresholds(prefs.WarningDays, daysUntil)
+	if !ok {
+		return nil
+	}
+	for _, wd := range farther {
+		skip := n
+		skip.days = wd
+		if _, err := s.notifRepo.ClaimNotification(ctx, skip.logRow(user.ID, true)); err != nil {
+			return fmt.Errorf("record skipped %s threshold: %w", n.category, err)
+		}
+	}
+	n.days = nearest
+	return s.deliver(ctx, user, n, false)
+}
+
+// sendLapse sends n as a lapse notice for the first non-current day
+// lapsedOn, or for models.NeverCurrentDate when lapsedOn is nil.
+func (s *NotificationService) sendLapse(ctx context.Context, user *models.User, n notice, lapsedOn *time.Time) error {
+	n.days = 0
+	n.date = models.NeverCurrentDate
+	if lapsedOn != nil {
+		n.date = models.CalendarDate(*lapsedOn)
+	}
+	return s.deliver(ctx, user, n, true)
+}
+
+// crossedThresholds returns the smallest warning threshold at or above
+// daysUntil and the larger ones, ascending; ok is false when daysUntil is
+// negative or above every threshold.
+func crossedThresholds(warningDays pq.Int64Array, daysUntil int) (nearest int, farther []int, ok bool) {
+	if daysUntil < 0 {
+		return 0, nil, false
+	}
+	var crossed []int
+	for _, w := range warningDays {
+		wd := int(w)
+		if wd >= daysUntil && !slices.Contains(crossed, wd) {
+			crossed = append(crossed, wd)
+		}
+	}
+	if len(crossed) == 0 {
+		return 0, nil, false
+	}
+	slices.Sort(crossed)
+	return crossed[0], crossed[1:], true
+}
+
+// logNotifyError logs a notification that was not delivered.
+func logNotifyError(user *models.User, err error) {
+	if err != nil {
+		slog.Error("Notification not delivered", "user_id", user.ID, "error", err)
+	}
+}
+
+func (s *NotificationService) checkCredentialExpiry(ctx context.Context, prefs *models.NotificationPreferences, user *models.User) {
 	credentials, err := s.credentialRepo.GetByUserID(ctx, prefs.UserID, nil)
 	if err != nil {
-		return
-	}
-
-	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
-	if err != nil {
+		slog.Error("Error loading credentials for notifications", "user_id", prefs.UserID, "error", err)
 		return
 	}
 	tmpl := email.Templates(user.PreferredLocale)
 
-	now := time.Now()
+	now := s.now()
 	for _, cred := range credentials {
 		if cred.ExpiryDate == nil {
 			continue
 		}
-
-		// Map credential type to notification category
 		category := models.CredentialCategoryForType(cred.CredentialType)
 		if !prefs.IsCategoryEnabled(category) {
 			continue
 		}
 
-		daysUntilExpiry := int(cred.ExpiryDate.Sub(now).Hours() / 24)
-		expiryDate := *cred.ExpiryDate
-
-		for _, warningDay := range prefs.WarningDays {
-			wd := int(warningDay)
-			if daysUntilExpiry <= wd && daysUntilExpiry >= 0 {
-				// Cycle-aware dedup: the expiry date is part of the key.
-				sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(category), cred.ID, wd, &expiryDate)
-				if err != nil || sent {
-					continue
-				}
-
-				subject, body := tmpl.CredentialExpiry(email.CredentialExpiryParams{
-					UserName:       userName,
-					CredentialType: string(cred.CredentialType),
-					ExpiryDate:     formatDateForUser(expiryDate, user.DateFormat),
-					DaysRemaining:  daysUntilExpiry,
-				})
-
-				if err := s.emailSender.SendMessage(ctx, email.Message{
-					To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
-				}); err != nil {
-					slog.Error("Failed to send credential warning email", "error", err)
-					continue
-				}
-				NotificationsSentTotal.WithLabelValues("credential_expiry").Inc()
-
-				_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
-					UserID:              prefs.UserID,
-					NotificationType:    string(category),
-					ReferenceID:         &cred.ID,
-					ReferenceType:       strPtr("credential"),
-					DaysBeforeExpiry:    &wd,
-					ExpiryReferenceDate: &expiryDate,
-					Subject:             &subject,
-				})
-				break // Only send one warning per credential per check
-			}
-		}
+		expiryDate := models.CalendarDate(*cred.ExpiryDate)
+		daysUntilExpiry := models.DaysUntilExpiry(expiryDate, now)
+		subject, body := tmpl.CredentialExpiry(email.CredentialExpiryParams{
+			UserName:       user.Name,
+			CredentialType: string(cred.CredentialType),
+			ExpiryDate:     formatDateForUser(expiryDate, user.DateFormat),
+			DaysRemaining:  daysUntilExpiry,
+		})
+		logNotifyError(user, s.sendWarning(ctx, prefs, user, notice{
+			category: category, refID: cred.ID, refType: "credential", date: expiryDate,
+			subject: subject, body: body, metric: "credential_expiry",
+		}, daysUntilExpiry))
 	}
 }
 
-func (s *NotificationService) checkCurrencyNotifications(ctx context.Context, prefs *models.NotificationPreferences, userEmail, userName string) {
+func (s *NotificationService) checkCurrencyNotifications(ctx context.Context, prefs *models.NotificationPreferences, user *models.User) {
 	if s.currencyService == nil {
 		return
 	}
 
-	// Use the two-tier currency service to get current status
-	currencyStatus, err := s.currencyService.EvaluateAll(ctx, prefs.UserID)
+	currencyStatus, err := s.currencyService.EvaluateAll(currency.WithLapseDates(ctx), prefs.UserID)
 	if err != nil {
 		slog.Error("Error evaluating currency for user", "user_id", prefs.UserID, "error", err)
 		return
 	}
 
-	// Check Tier 1: Rating/license currency
 	for _, rating := range currencyStatus.Ratings {
-		s.checkRatingCurrency(ctx, prefs, rating, userEmail, userName)
+		s.checkRatingCurrency(ctx, prefs, rating, user)
 	}
-
-	// Check Tier 2: Passenger currency
 	for _, pax := range currencyStatus.PassengerCurrency {
-		s.checkPassengerCurrency(ctx, prefs, pax, userEmail, userName)
+		s.checkPassengerCurrency(ctx, prefs, pax, user)
 	}
-
-	// Check flight review (FAA)
 	if currencyStatus.FlightReview != nil {
-		s.checkFlightReviewNotification(ctx, prefs, *currencyStatus.FlightReview, userEmail, userName)
+		s.checkFlightReviewNotification(ctx, prefs, *currencyStatus.FlightReview, user)
 	}
 }
 
-func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *models.NotificationPreferences, rating currency.ClassRatingCurrency, userEmail, userName string) {
-	// Determine which category based on rating status
+func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *models.NotificationPreferences, rating currency.ClassRatingCurrency, user *models.User) {
 	if rating.Status == currency.StatusCurrent {
-		return // No notification needed
-	}
-
-	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
-	if err != nil {
 		return
 	}
 	tmpl := email.Templates(user.PreferredLocale)
 
-	// Rating expiry notification
-	if rating.ExpiryDate != nil && prefs.IsCategoryEnabled(models.NotifCategoryRatingExpiry) {
-		expiryTime, err := time.Parse("2006-01-02", *rating.ExpiryDate)
-		if err == nil {
-			daysUntilExpiry := int(time.Until(expiryTime).Hours() / 24)
-			subject, body := tmpl.RatingExpiry(email.RatingExpiryParams{
-				UserName:      userName,
-				LicenseType:   rating.LicenseType,
-				ClassType:     string(rating.ClassType),
-				ExpiryDate:    formatDateForUser(expiryTime, user.DateFormat),
-				DaysRemaining: daysUntilExpiry,
-			})
-			s.sendWarningForDays(ctx, prefs, models.NotifCategoryRatingExpiry, rating.ClassRatingID,
-				"rating", daysUntilExpiry, &expiryTime,
-				subject, body, userEmail)
+	var expiry *time.Time
+	if rating.ExpiryDate != nil {
+		if t, err := time.Parse("2006-01-02", *rating.ExpiryDate); err == nil {
+			expiry = &t
 		}
 	}
 
-	// Revalidation currency notification (EASA — requirements not met approaching expiry)
+	if expiry != nil && prefs.IsCategoryEnabled(models.NotifCategoryRatingExpiry) {
+		daysUntilExpiry := models.DaysUntilExpiry(*expiry, s.now())
+		subject, body := tmpl.RatingExpiry(email.RatingExpiryParams{
+			UserName:      user.Name,
+			LicenseType:   rating.LicenseType,
+			ClassType:     string(rating.ClassType),
+			ExpiryDate:    formatDateForUser(*expiry, user.DateFormat),
+			DaysRemaining: daysUntilExpiry,
+		})
+		logNotifyError(user, s.sendWarning(ctx, prefs, user, notice{
+			category: models.NotifCategoryRatingExpiry, refID: rating.ClassRatingID, refType: "rating", date: *expiry,
+			subject: subject, body: body, metric: string(models.NotifCategoryRatingExpiry),
+		}, daysUntilExpiry))
+	}
+
 	if (rating.Status == currency.StatusExpiring || rating.Status == currency.StatusExpired) &&
 		prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
-		// Reference is the class rating ID; no expiry date key.
-		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyRevalidation), rating.ClassRatingID, 0, nil)
-		if err != nil || sent {
-			return
-		}
-
 		subject, body := tmpl.Revalidation(email.RevalidationParams{
-			UserName:      userName,
+			UserName:      user.Name,
 			LicenseType:   rating.LicenseType,
 			ClassType:     string(rating.ClassType),
 			MessageKey:    rating.MessageKey,
 			MessageParams: emailParams(rating.MessageParams),
 		})
-
-		if err := s.emailSender.SendMessage(ctx, email.Message{
-			To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
-		}); err != nil {
-			slog.Error("Failed to send revalidation warning email", "error", err)
-			return
+		n := notice{
+			category: models.NotifCategoryCurrencyRevalidation, refID: rating.ClassRatingID, refType: "rating",
+			subject: subject, body: body, metric: "revalidation",
 		}
-		NotificationsSentTotal.WithLabelValues("revalidation").Inc()
-
-		zero := 0
-		_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
-			UserID:           prefs.UserID,
-			NotificationType: string(models.NotifCategoryCurrencyRevalidation),
-			ReferenceID:      &rating.ClassRatingID,
-			ReferenceType:    strPtr("rating"),
-			DaysBeforeExpiry: &zero,
-			Subject:          &subject,
-		})
+		var err error
+		if rating.LapsedOn == nil && expiry != nil {
+			n.date = *expiry
+			err = s.deliver(ctx, user, n, false)
+		} else {
+			err = s.sendLapse(ctx, user, n, rating.LapsedOn)
+		}
+		logNotifyError(user, err)
 	}
 }
 
-func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs *models.NotificationPreferences, pax currency.PassengerCurrency, userEmail, userName string) {
-	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
-	if err != nil {
+func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs *models.NotificationPreferences, pax currency.PassengerCurrency, user *models.User) {
+	if pax.LapseUnknown {
+		slog.Error("Passenger currency lapse dates unavailable, skipping", "user_id", user.ID, "class", pax.ClassType)
 		return
 	}
 	tmpl := email.Templates(user.PreferredLocale)
 
-	// Day passenger currency
-	if pax.DayStatus != currency.StatusCurrent && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
-		// Generate a stable reference ID from class type + authority
-		refID := uuidFromString(string(pax.ClassType) + ":" + pax.RegulatoryAuthority + ":day")
-		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyPassenger), refID, 0, nil)
-		if err != nil || sent {
-			goto checkNight
-		}
-
-		{
-			remaining := pax.DayRequired - pax.DayLandings
-			subject, body := tmpl.PassengerCurrency(email.PassengerCurrencyParams{
-				UserName:  userName,
-				ClassType: string(pax.ClassType),
-				Landings:  pax.DayLandings,
-				Required:  pax.DayRequired,
-				Remaining: remaining,
-				Period:    "day",
-			})
-
-			if err := s.emailSender.SendMessage(ctx, email.Message{
-				To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
-			}); err != nil {
-				slog.Error("Failed to send passenger currency email", "error", err)
-			} else {
-				NotificationsSentTotal.WithLabelValues("passenger_currency").Inc()
-				zero := 0
-				_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
-					UserID:           prefs.UserID,
-					NotificationType: string(models.NotifCategoryCurrencyPassenger),
-					ReferenceID:      &refID,
-					ReferenceType:    strPtr("passenger_currency"),
-					DaysBeforeExpiry: &zero,
-					Subject:          &subject,
-				})
-			}
-		}
+	if pax.DayStatus == currency.StatusExpired && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
+		subject, body := tmpl.PassengerCurrency(email.PassengerCurrencyParams{
+			UserName:  user.Name,
+			ClassType: string(pax.ClassType),
+			Landings:  pax.DayLandings,
+			Required:  pax.DayRequired,
+			Remaining: pax.DayRequired - pax.DayLandings,
+			Period:    "day",
+		})
+		logNotifyError(user, s.sendLapse(ctx, user, notice{
+			category: models.NotifCategoryCurrencyPassenger,
+			refID:    uuidFromString(string(pax.ClassType) + ":" + pax.RegulatoryAuthority + ":day"),
+			refType:  "passenger_currency", subject: subject, body: body, metric: "passenger_currency",
+		}, pax.DayLapsedOn))
 	}
 
-checkNight:
-	// Night passenger currency
-	if pax.NightPrivilege && pax.NightStatus != currency.StatusCurrent && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyNight) {
-		refID := uuidFromString(string(pax.ClassType) + ":" + pax.RegulatoryAuthority + ":night")
-		sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyNight), refID, 0, nil)
-		if err != nil || sent {
-			return
-		}
-
-		remaining := pax.NightRequired - pax.NightLandings
+	if pax.NightPrivilege && pax.NightStatus == currency.StatusExpired && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyNight) {
 		subject, body := tmpl.PassengerCurrency(email.PassengerCurrencyParams{
-			UserName:  userName,
+			UserName:  user.Name,
 			ClassType: string(pax.ClassType),
 			Landings:  pax.NightLandings,
 			Required:  pax.NightRequired,
-			Remaining: remaining,
+			Remaining: pax.NightRequired - pax.NightLandings,
 			Period:    "night",
 		})
-
-		if err := s.emailSender.SendMessage(ctx, email.Message{
-			To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
-		}); err != nil {
-			slog.Error("Failed to send night currency email", "error", err)
-			return
-		}
-		NotificationsSentTotal.WithLabelValues("night_currency").Inc()
-
-		zero := 0
-		_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
-			UserID:           prefs.UserID,
-			NotificationType: string(models.NotifCategoryCurrencyNight),
-			ReferenceID:      &refID,
-			ReferenceType:    strPtr("night_currency"),
-			DaysBeforeExpiry: &zero,
-			Subject:          &subject,
-		})
+		logNotifyError(user, s.sendLapse(ctx, user, notice{
+			category: models.NotifCategoryCurrencyNight,
+			refID:    uuidFromString(string(pax.ClassType) + ":" + pax.RegulatoryAuthority + ":night"),
+			refType:  "night_currency", subject: subject, body: body, metric: "night_currency",
+		}, pax.NightLapsedOn))
 	}
 }
 
-func (s *NotificationService) checkFlightReviewNotification(ctx context.Context, prefs *models.NotificationPreferences, fr currency.FlightReviewStatus, userEmail, userName string) {
+func (s *NotificationService) checkFlightReviewNotification(ctx context.Context, prefs *models.NotificationPreferences, fr currency.FlightReviewStatus, user *models.User) {
 	if fr.Status == currency.StatusCurrent {
 		return
 	}
@@ -429,88 +444,47 @@ func (s *NotificationService) checkFlightReviewNotification(ctx context.Context,
 	}
 
 	refID := uuidFromString("flight_review:" + prefs.UserID.String())
-
-	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
-	if err != nil {
-		return
-	}
 	tmpl := email.Templates(user.PreferredLocale)
 
-	// Parse expiry to get days-based warning
 	if fr.ExpiresOn != nil {
 		expiryTime, err := time.Parse("2006-01-02", *fr.ExpiresOn)
 		if err == nil {
-			daysUntilExpiry := int(time.Until(expiryTime).Hours() / 24)
+			daysUntilExpiry := models.DaysUntilExpiry(expiryTime, s.now())
 			subject, body := tmpl.FlightReviewExpiry(email.FlightReviewExpiryParams{
-				UserName:      userName,
+				UserName:      user.Name,
 				ExpiryDate:    formatDateForUser(expiryTime, user.DateFormat),
 				DaysRemaining: daysUntilExpiry,
 			})
-			s.sendWarningForDays(ctx, prefs, models.NotifCategoryCurrencyFlightReview, refID,
-				"flight_review", daysUntilExpiry, &expiryTime,
-				subject, body, userEmail)
+			logNotifyError(user, s.sendWarning(ctx, prefs, user, notice{
+				category: models.NotifCategoryCurrencyFlightReview, refID: refID, refType: "flight_review", date: expiryTime,
+				subject: subject, body: body, metric: string(models.NotifCategoryCurrencyFlightReview),
+			}, daysUntilExpiry))
 			return
 		}
 	}
 
-	// Expired with no expiry date info — send immediately
-	sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCurrencyFlightReview), refID, 0, nil)
-	if err != nil || sent {
-		return
-	}
-
-	tmplFR := email.Templates(user.PreferredLocale)
-	subject, body := tmplFR.FlightReviewRequired(email.FlightReviewRequiredParams{
-		UserName:      userName,
+	subject, body := tmpl.FlightReviewRequired(email.FlightReviewRequiredParams{
+		UserName:      user.Name,
 		MessageKey:    fr.MessageKey,
 		MessageParams: emailParams(fr.MessageParams),
 	})
-
-	if err := s.emailSender.SendMessage(ctx, email.Message{
-		To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
-	}); err != nil {
-		slog.Error("Failed to send flight review email", "error", err)
-		return
-	}
-	NotificationsSentTotal.WithLabelValues("flight_review").Inc()
-
-	zero := 0
-	_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
-		UserID:           prefs.UserID,
-		NotificationType: string(models.NotifCategoryCurrencyFlightReview),
-		ReferenceID:      &refID,
-		ReferenceType:    strPtr("flight_review"),
-		DaysBeforeExpiry: &zero,
-		Subject:          &subject,
-	})
+	logNotifyError(user, s.sendLapse(ctx, user, notice{
+		category: models.NotifCategoryCurrencyFlightReview, refID: refID, refType: "flight_review",
+		subject: subject, body: body, metric: "flight_review",
+	}, nil))
 }
 
 // checkCustomCurrencyNotifications emails for user-authored rules the user has
 // opted into (rule.Notify), when a rule is expiring (lead-time warnings) or has
 // lapsed. Paused rules are skipped (they carry an unknown status and are not
 // evaluated). Opt-in is per rule; the only global gate is EmailEnabled.
-func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Context, prefs *models.NotificationPreferences, userEmail, userName string) {
+func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Context, prefs *models.NotificationPreferences, user *models.User) {
 	if s.customService == nil {
 		return
 	}
-	rules, err := s.customService.List(ctx, prefs.UserID)
+	rules, err := s.customService.List(currency.WithLapseDates(ctx), prefs.UserID)
 	if err != nil {
-		return
-	}
-	// Skip the user lookup when nothing is opted in.
-	anyNotify := false
-	for _, item := range rules {
-		if item.Rule.Enabled && item.Rule.Notify {
-			anyNotify = true
-			break
-		}
-	}
-	if !anyNotify {
-		return
-	}
-
-	user, err := s.userRepo.GetByID(ctx, prefs.UserID)
-	if err != nil {
+		slog.Error("Error evaluating custom currency rules for notifications", "user_id", prefs.UserID, "error", err)
 		return
 	}
 	tmpl := email.Templates(user.PreferredLocale)
@@ -529,75 +503,27 @@ func (s *NotificationService) checkCustomCurrencyNotifications(ctx context.Conte
 			if err != nil {
 				continue
 			}
-			daysUntilExpiry := int(time.Until(expiry).Hours() / 24)
 			subject, body := tmpl.CustomCurrency(email.CustomCurrencyParams{
-				UserName:  userName,
+				UserName:  user.Name,
 				RuleName:  rule.Name,
 				Expiring:  true,
 				ExpiresOn: formatDateForUser(expiry, user.DateFormat),
 			})
-			s.sendWarningForDays(ctx, prefs, models.NotifCategoryCustomCurrency, rule.ID,
-				"custom_currency_rule", daysUntilExpiry, &expiry, subject, body, userEmail)
+			logNotifyError(user, s.sendWarning(ctx, prefs, user, notice{
+				category: models.NotifCategoryCustomCurrency, refID: rule.ID, refType: "custom_currency_rule", date: expiry,
+				subject: subject, body: body, metric: string(models.NotifCategoryCustomCurrency),
+			}, models.DaysUntilExpiry(expiry, s.now())))
 
 		case currency.StatusExpired:
-			// One notice per rule while lapsed.
-			sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(models.NotifCategoryCustomCurrency), rule.ID, 0, nil)
-			if err != nil || sent {
-				continue
-			}
 			subject, body := tmpl.CustomCurrency(email.CustomCurrencyParams{
-				UserName: userName,
+				UserName: user.Name,
 				RuleName: rule.Name,
 				Expiring: false,
 			})
-			if err := s.emailSender.SendMessage(ctx, email.Message{
-				To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
-			}); err != nil {
-				slog.Error("Failed to send custom currency lapse email", "error", err)
-				continue
-			}
-			NotificationsSentTotal.WithLabelValues(string(models.NotifCategoryCustomCurrency)).Inc()
-			zero := 0
-			_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
-				UserID:           prefs.UserID,
-				NotificationType: string(models.NotifCategoryCustomCurrency),
-				ReferenceID:      &rule.ID,
-				ReferenceType:    strPtr("custom_currency_rule"),
-				DaysBeforeExpiry: &zero,
-				Subject:          &subject,
-			})
-		}
-	}
-}
-
-// sendWarningForDays checks warning day thresholds and sends the first matching notification
-func (s *NotificationService) sendWarningForDays(ctx context.Context, prefs *models.NotificationPreferences, category models.NotificationCategory, refID uuid.UUID, refType string, daysUntilExpiry int, expiryDate *time.Time, subject, body, userEmail string) {
-	for _, warningDay := range prefs.WarningDays {
-		wd := int(warningDay)
-		if daysUntilExpiry <= wd && daysUntilExpiry >= 0 {
-			sent, err := s.notifRepo.HasBeenSent(ctx, prefs.UserID, string(category), refID, wd, expiryDate)
-			if err != nil || sent {
-				continue
-			}
-
-			if err := s.emailSender.SendMessage(ctx, email.Message{
-				To: userEmail, Subject: subject, HTMLBody: body, Type: email.TypeNotification,
-			}); err != nil {
-				slog.Error("Failed to send warning email", "category", category, "error", err)
-				continue
-			}
-			NotificationsSentTotal.WithLabelValues(string(category)).Inc()
-
-			_ = s.notifRepo.LogNotification(ctx, &models.NotificationLog{
-				UserID:              prefs.UserID,
-				NotificationType:    string(category),
-				ReferenceID:         &refID,
-				ReferenceType:       strPtr(refType),
-				DaysBeforeExpiry:    &wd,
-				ExpiryReferenceDate: expiryDate,
-				Subject:             &subject,
-			})
-			break // Only send one warning per item per check
+			logNotifyError(user, s.sendLapse(ctx, user, notice{
+				category: models.NotifCategoryCustomCurrency, refID: rule.ID, refType: "custom_currency_rule",
+				subject: subject, body: body, metric: string(models.NotifCategoryCustomCurrency),
+			}, item.Evaluation.LapsedOn))
 		}
 	}
 }

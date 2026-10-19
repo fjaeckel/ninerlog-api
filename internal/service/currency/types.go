@@ -1,6 +1,8 @@
 package currency
 
 import (
+	"time"
+
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
 )
@@ -36,7 +38,10 @@ type ClassRatingCurrency struct {
 	WindowOpen bool `json:"windowOpen"`
 	// RecencyExpiresOn is the last date a rolling-window recency rule stays
 	// met with no further flying. Set only while the rule is current.
-	RecencyExpiresOn     *string                `json:"recencyExpiresOn,omitempty"`
+	RecencyExpiresOn *string `json:"recencyExpiresOn,omitempty"`
+	// LapsedOn is the first day a lapsed rolling-window rule was no longer
+	// met. Set only under WithLapseDates; never serialised.
+	LapsedOn             *time.Time             `json:"-"`
 	MessageKey           string                 `json:"messageKey"`
 	MessageParams        *MessageParams         `json:"messageParams,omitempty"`
 	RuleDescription      string                 `json:"ruleDescription,omitempty"`
@@ -124,7 +129,14 @@ type PassengerCurrency struct {
 	DayExpiresOn *string `json:"dayExpiresOn,omitempty"`
 	// NightExpiresOn is the same for the night requirement. Omitted when the
 	// requirement is not met, not applicable, or waived (EASA IR holders).
-	NightExpiresOn     *string        `json:"nightExpiresOn,omitempty"`
+	NightExpiresOn *string `json:"nightExpiresOn,omitempty"`
+	// DayLapsedOn and NightLapsedOn are the first day a lapsed requirement was
+	// no longer met; nil when it was never met. Set only under
+	// WithLapseDates; never serialised.
+	DayLapsedOn   *time.Time `json:"-"`
+	NightLapsedOn *time.Time `json:"-"`
+	// LapseUnknown is set when the lapse dates could not be read.
+	LapseUnknown       bool           `json:"-"`
 	MessageKey         string         `json:"messageKey"`
 	MessageParams      *MessageParams `json:"messageParams,omitempty"`
 	RuleDescription    string         `json:"ruleDescription"`

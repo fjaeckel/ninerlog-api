@@ -72,19 +72,24 @@ func (cr *ClassRating) NormalizeULKind() error {
 	return nil
 }
 
-// IsExpired checks if the class rating has expired
+// IsExpired reports whether the class rating's expiry date, its last valid day,
+// has passed (UTC calendar dates).
 func (cr *ClassRating) IsExpired() bool {
-	if cr.ExpiryDate == nil {
-		return false
-	}
-	return cr.ExpiryDate.Before(time.Now())
+	return cr.IsExpiredAt(time.Now())
 }
 
-// IsExpiringSoon checks if the class rating expires within N days
+// IsExpiredAt is IsExpired as of now.
+func (cr *ClassRating) IsExpiredAt(now time.Time) bool {
+	return ExpiredAt(cr.ExpiryDate, now)
+}
+
+// IsExpiringSoon reports whether the class rating is unexpired and its expiry date
+// is at most `days` calendar days away.
 func (cr *ClassRating) IsExpiringSoon(days int) bool {
-	if cr.ExpiryDate == nil {
-		return false
-	}
-	threshold := time.Now().AddDate(0, 0, days)
-	return cr.ExpiryDate.Before(threshold) && !cr.IsExpired()
+	return cr.IsExpiringSoonAt(time.Now(), days)
+}
+
+// IsExpiringSoonAt is IsExpiringSoon as of now.
+func (cr *ClassRating) IsExpiringSoonAt(now time.Time, days int) bool {
+	return ExpiringWithin(cr.ExpiryDate, now, days)
 }

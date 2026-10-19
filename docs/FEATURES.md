@@ -507,11 +507,30 @@ currency lapses.
   `credential_other`, `rating_expiry`, `currency_passenger`, `currency_night`,
   `currency_instrument`, `currency_flight_review`, `currency_revalidation`.
 - **Preferences** — per-user, per-category opt-in with configurable warning windows
-  (`NotificationPreference`); sent notifications are recorded in `NotificationLog` for
-  deduplication.
+  (`NotificationPreference`); every notice is recorded in `NotificationLog` for
+  deduplication (see [DATA_MODEL.md](./DATA_MODEL.md#auth-session-and-notification-tables)).
+- **Warnings** (credential, rating and flight-review expiry, expiring custom rules) are keyed
+  by the item's expiry date and a warning threshold. Each check sends only the **nearest**
+  threshold the item has crossed (the smallest warning day at or above the days remaining)
+  and records the farther crossed thresholds as satisfied without a mail: a medical first
+  seen 5 days before expiry with warning days 30/14/7 gets the 7-day warning only, and
+  nothing on the following days. An expiry date is the last valid day, so a warning still
+  goes out on the expiry date itself ("expires in 0 days") and none after it. A renewed
+  item has a new expiry date and is warned again.
+- **Lapse notices** (day and night passenger currency, revalidation, flight review
+  required, lapsed custom rules) are keyed by the date of the lapse — the first day the
+  item was no longer current, or the rating's expiry date for a revalidation notice on a
+  rating that has one (see [DOMAIN.md](./DOMAIN.md#expiry-dates-last-valid-day-vs-first-non-current-day)).
+  The same lapse is notified once; a pilot who regains currency and lapses again is
+  notified again. An item that was never current is notified once.
+- **Claim before send** — the checker inserts the log row first (`INSERT … ON CONFLICT DO
+  NOTHING`); a row that already exists means another run (another replica, or the admin
+  trigger) holds it and nothing is sent. A failed send deletes the claim, so the next run
+  retries; a failed log write is logged as an error and nothing is sent.
 - **Scheduler** — `NotificationService.StartBackgroundChecker(ctx, interval)` runs in a
   goroutine started by `main.go`; the interval comes from `GetCheckInterval()`
-  (`NOTIFICATION_CHECK_INTERVAL`, default 1h).
+  (`NOTIFICATION_CHECK_INTERVAL`, default 1h). An unparseable, zero or negative value logs
+  a warning and uses the 1h default.
 - **Delivery** — emails are sent via `pkg/email` (SMTP) using localized templates
   (`templates_en.go` / `templates_de.go`) chosen by the user's `PreferredLocale`. Email
   metrics are recorded (see [METRICS.md](./METRICS.md)).

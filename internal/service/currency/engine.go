@@ -323,6 +323,9 @@ func evalRatingRuleWithPeers(ctx context.Context, rule *ratingRule, rating *mode
 	if rule.window.isRolling() && result.Status == StatusCurrent {
 		result.RecencyExpiresOn = paxExpiryString(recencyLapseDate(ctx, rule, rating, license, peers, dp, now))
 	}
+	if rule.window.isRolling() && (result.Status == StatusExpiring || result.Status == StatusExpired) && lapseDatesRequested(ctx) {
+		result.LapsedOn = ratingLapseDate(ctx, rule, rating, license, peers, dp, now)
+	}
 	return result
 }
 

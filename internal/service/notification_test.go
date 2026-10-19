@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -15,9 +16,12 @@ import (
 
 // mockNotificationRepo implements repository.NotificationRepository
 type mockNotificationRepo struct {
-	prefs    map[uuid.UUID]*models.NotificationPreferences
-	logs     []*models.NotificationLog
-	allPrefs []*models.NotificationPreferences
+	prefs      map[uuid.UUID]*models.NotificationPreferences
+	logs       []*models.NotificationLog
+	allPrefs   []*models.NotificationPreferences
+	claimErr   error
+	releaseErr error
+	released   int
 }
 
 func newMockNotificationRepo() *mockNotificationRepo {
@@ -43,30 +47,61 @@ func (m *mockNotificationRepo) UpsertPreferences(ctx context.Context, prefs *mod
 	return nil
 }
 
-func (m *mockNotificationRepo) LogNotification(ctx context.Context, log *models.NotificationLog) error {
+// sameKey reports whether two rows share the dedup key.
+func sameKey(a, b *models.NotificationLog) bool {
+	return a.UserID == b.UserID && a.NotificationType == b.NotificationType &&
+		*a.ReferenceID == *b.ReferenceID && *a.DaysBeforeExpiry == *b.DaysBeforeExpiry &&
+		a.ExpiryReferenceDate.Format("2006-01-02") == b.ExpiryReferenceDate.Format("2006-01-02")
+}
+
+func (m *mockNotificationRepo) insert(log *models.NotificationLog) (bool, error) {
+	if m.claimErr != nil {
+		return false, m.claimErr
+	}
+	for _, l := range m.logs {
+		if sameKey(l, log) {
+			return false, nil
+		}
+	}
 	log.ID = uuid.New()
 	log.SentAt = time.Now()
 	m.logs = append(m.logs, log)
+	return true, nil
+}
+
+func (m *mockNotificationRepo) ClaimNotification(_ context.Context, log *models.NotificationLog) (bool, error) {
+	return m.insert(log)
+}
+
+func (m *mockNotificationRepo) ClaimLapseNotification(_ context.Context, log *models.NotificationLog) (bool, error) {
+	for _, l := range m.logs {
+		if l.UserID == log.UserID && l.NotificationType == log.NotificationType &&
+			*l.ReferenceID == *log.ReferenceID && *l.DaysBeforeExpiry == *log.DaysBeforeExpiry &&
+			!l.ExpiryReferenceDate.Before(*log.ExpiryReferenceDate) {
+			return false, nil
+		}
+	}
+	return m.insert(log)
+}
+
+func (m *mockNotificationRepo) ReleaseNotification(_ context.Context, id uuid.UUID) error {
+	if m.releaseErr != nil {
+		return m.releaseErr
+	}
+	m.released++
+	m.logs = slices.DeleteFunc(m.logs, func(l *models.NotificationLog) bool { return l.ID == id })
 	return nil
 }
 
-func (m *mockNotificationRepo) HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int, expiryReferenceDate *time.Time) (bool, error) {
+// sent returns the rows that are not skipped thresholds.
+func (m *mockNotificationRepo) sent() []*models.NotificationLog {
+	var out []*models.NotificationLog
 	for _, l := range m.logs {
-		if l.UserID == userID && l.NotificationType == notificationType && l.ReferenceID != nil && *l.ReferenceID == referenceID {
-			if l.DaysBeforeExpiry != nil && *l.DaysBeforeExpiry == daysBeforeExpiry {
-				// Check expiry reference date match
-				if expiryReferenceDate == nil && l.ExpiryReferenceDate == nil {
-					return true, nil
-				}
-				if expiryReferenceDate != nil && l.ExpiryReferenceDate != nil {
-					if expiryReferenceDate.Format("2006-01-02") == l.ExpiryReferenceDate.Format("2006-01-02") {
-						return true, nil
-					}
-				}
-			}
+		if !l.Skipped {
+			out = append(out, l)
 		}
 	}
-	return false, nil
+	return out
 }
 
 func (m *mockNotificationRepo) GetAllUsersWithPreferences(ctx context.Context) ([]*models.NotificationPreferences, error) {
@@ -619,9 +654,8 @@ func TestTriggerCheck_SendsOnlyOneWarningPerCredential(t *testing.T) {
 
 	svc.TriggerCheck(ctx)
 
-	// Should send exactly one warning per credential per check (breaks after first match)
-	if len(notifRepo.logs) != 1 {
-		t.Errorf("Expected exactly 1 notification per credential per check, got %d", len(notifRepo.logs))
+	if got := len(notifRepo.sent()); got != 1 {
+		t.Errorf("Expected exactly 1 notification per credential per check, got %d", got)
 	}
 }
 

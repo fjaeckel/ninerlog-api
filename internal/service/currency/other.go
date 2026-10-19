@@ -45,7 +45,7 @@ var otherExpiryRule = ratingRule{
 				rt.result.Status = StatusExpired
 				rt.result.setMsg(MsgRatingExpired, nil)
 			} else if rating.IsExpiringSoon(90) {
-				daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+				daysLeft := models.DaysUntilExpiry(*rating.ExpiryDate, time.Now())
 				rt.result.Status = StatusExpiring
 				rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft))
 			} else {

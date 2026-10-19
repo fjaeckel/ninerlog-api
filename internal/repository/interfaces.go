@@ -395,8 +395,15 @@ type AircraftRepository interface {
 type NotificationRepository interface {
 	GetPreferences(ctx context.Context, userID uuid.UUID) (*models.NotificationPreferences, error)
 	UpsertPreferences(ctx context.Context, prefs *models.NotificationPreferences) error
-	LogNotification(ctx context.Context, log *models.NotificationLog) error
-	HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int, expiryReferenceDate *time.Time) (bool, error)
+	// ClaimNotification inserts the log row and reports whether it was
+	// inserted; false means a row with the same key already exists.
+	ClaimNotification(ctx context.Context, log *models.NotificationLog) (bool, error)
+	// ClaimLapseNotification is ClaimNotification that also reports false
+	// when a row for the same user, type, reference and days exists with a
+	// concerned date on or after log.ExpiryReferenceDate.
+	ClaimLapseNotification(ctx context.Context, log *models.NotificationLog) (bool, error)
+	// ReleaseNotification deletes a claimed row.
+	ReleaseNotification(ctx context.Context, id uuid.UUID) error
 	GetAllUsersWithPreferences(ctx context.Context) ([]*models.NotificationPreferences, error)
 	GetNotificationHistory(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.NotificationLog, int, error)
 }

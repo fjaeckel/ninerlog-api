@@ -1967,12 +1967,16 @@ func (m *mockHandlerNotifRepo) UpsertPreferences(_ context.Context, p *models.No
 	m.prefs[p.UserID] = p
 	return nil
 }
-func (m *mockHandlerNotifRepo) LogNotification(_ context.Context, l *models.NotificationLog) error {
+func (m *mockHandlerNotifRepo) ClaimNotification(_ context.Context, l *models.NotificationLog) (bool, error) {
 	m.logs = append(m.logs, l)
-	return nil
+	return true, nil
 }
-func (m *mockHandlerNotifRepo) HasBeenSent(_ context.Context, _ uuid.UUID, _ string, _ uuid.UUID, _ int, _ *time.Time) (bool, error) {
-	return false, nil
+func (m *mockHandlerNotifRepo) ClaimLapseNotification(_ context.Context, l *models.NotificationLog) (bool, error) {
+	m.logs = append(m.logs, l)
+	return true, nil
+}
+func (m *mockHandlerNotifRepo) ReleaseNotification(_ context.Context, _ uuid.UUID) error {
+	return nil
 }
 func (m *mockHandlerNotifRepo) GetAllUsersWithPreferences(_ context.Context) ([]*models.NotificationPreferences, error) {
 	return nil, nil

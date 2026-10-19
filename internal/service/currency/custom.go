@@ -70,6 +70,9 @@ type CustomCurrencyResult struct {
 	// currently met and a lapse date is computable; nil otherwise.
 	ExpiresOn   *string `json:"expiresOn,omitempty"`
 	EvaluatedAt string  `json:"evaluatedAt"`
+	// LapsedOn is the first day a lapsed rule was no longer met; nil when it
+	// was never met. Set only under WithLapseDates; never serialised.
+	LapsedOn *time.Time `json:"-"`
 }
 
 // expiringThresholdDays returns how far ahead a lapse counts as "expiring
@@ -150,6 +153,13 @@ func (e *CustomEvaluator) Evaluate(ctx context.Context, userID uuid.UUID, body *
 		EvaluatedAt:  e.now().UTC().Format(time.RFC3339),
 	}
 	if !allMet {
+		if lapseDatesRequested(ctx) {
+			lapsedOn, err := e.computeLapse(ctx, userID, body, metrics, metricIndex)
+			if err != nil {
+				return result, err
+			}
+			result.LapsedOn = lapsedOn
+		}
 		return result, nil
 	}
 	result.Status = StatusCurrent
@@ -213,6 +223,47 @@ func (e *CustomEvaluator) computeExpiry(
 		}
 	}
 	return earliest, nil
+}
+
+// computeLapse returns the first day the lapsed rule was no longer met, from
+// every matching flight; a flight counts on a day when it is dated after the
+// window start and on or before the day. Nil when the rule was never met.
+func (e *CustomEvaluator) computeLapse(
+	ctx context.Context, userID uuid.UUID,
+	body *models.CustomCurrencyRuleBody, metrics []string, metricIndex map[string]int,
+) (*time.Time, error) {
+	flights, err := e.data.MetricRowsByDate(ctx, userID, lapseSearchFloor, metrics, body.Filters)
+	if err != nil {
+		return nil, err
+	}
+	totals := make([]int64, len(metrics))
+	metAt := func(day, until time.Time) (bool, error) {
+		start := windowSince(day, body.Window)
+		for i := range totals {
+			totals[i] = 0
+		}
+		for _, fr := range flights {
+			d := models.CalendarDate(fr.Date)
+			if !d.After(start) || d.After(until) {
+				continue
+			}
+			for i, v := range fr.Values {
+				totals[i] += v
+			}
+		}
+		for _, r := range body.Requirements {
+			if !buildCustomRequirement(r, totals[metricIndex[r.Metric]]).Met {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+	floor := windowEnd(lapseSearchFloor, body.Window)
+	last, err := lastCurrentDay(models.CalendarDate(e.now()), floor, metAt)
+	if err != nil {
+		return nil, err
+	}
+	return lapseAfter(last), nil
 }
 
 // rawThreshold returns a requirement's threshold in the metric's raw storage

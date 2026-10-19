@@ -63,7 +63,14 @@ func (p *NotificationPreferences) IsCategoryEnabled(category NotificationCategor
 	return false
 }
 
-// NotificationLog records a sent notification
+// NeverCurrentDate is the concerned date of a lapse notice for an item that
+// was never current.
+var NeverCurrentDate = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// NotificationLog records a claimed notification. (UserID, NotificationType,
+// ReferenceID, DaysBeforeExpiry, ExpiryReferenceDate) is unique;
+// ExpiryReferenceDate is the date the notice concerns. Skipped marks a
+// warning threshold recorded as satisfied without a mail.
 type NotificationLog struct {
 	ID                  uuid.UUID  `json:"id"`
 	UserID              uuid.UUID  `json:"userId"`
@@ -73,6 +80,7 @@ type NotificationLog struct {
 	DaysBeforeExpiry    *int       `json:"daysBeforeExpiry,omitempty"`
 	ExpiryReferenceDate *time.Time `json:"expiryReferenceDate,omitempty"`
 	Subject             *string    `json:"subject,omitempty"`
+	Skipped             bool       `json:"skipped,omitempty"`
 	SentAt              time.Time  `json:"sentAt"`
 }
 
