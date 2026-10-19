@@ -302,6 +302,12 @@ func TestAdminAccessControl(t *testing.T) {
 	t.Run("non-admin delete 403", func(t *testing.T) {
 		assertStatus(t, c.DELETE("/admin/users/00000000-0000-0000-0000-000000000000"), http.StatusForbidden)
 	})
+	t.Run("non-admin grant-admin 403", func(t *testing.T) {
+		assertStatus(t, c.POST("/admin/users/00000000-0000-0000-0000-000000000000/grant-admin", nil), http.StatusForbidden)
+	})
+	t.Run("non-admin revoke-admin 403", func(t *testing.T) {
+		assertStatus(t, c.POST("/admin/users/00000000-0000-0000-0000-000000000000/revoke-admin", nil), http.StatusForbidden)
+	})
 	t.Run("unauth admin 401", func(t *testing.T) {
 		c.ClearToken()
 		assertStatus(t, c.GET("/admin/stats"), http.StatusUnauthorized)
@@ -492,6 +498,213 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 		resp := uc.POST("/admin/maintenance/cleanup-unverified", nil)
 		if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("Sweep as non-admin: expected 401/403, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestAdminRoles(t *testing.T) {
+	ac := getAdminClient(t)
+
+	bc := NewE2EClient(t)
+	ba := registerAndLogin(t, bc, uniqueEmail("second-admin"), "UserPass123!", "Second Admin")
+	cc := NewE2EClient(t)
+	ca := registerAndLogin(t, cc, uniqueEmail("third-admin"), "UserPass123!", "Third Admin")
+
+	isAdminSelf := func(t *testing.T, c *E2EClient) bool {
+		t.Helper()
+		resp := c.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		var me map[string]interface{}
+		resp.MustJSON(t, &me)
+		v, _ := me["isAdmin"].(bool)
+		return v
+	}
+	listAdmins := func(t *testing.T, c *E2EClient) map[string]bool {
+		t.Helper()
+		resp := c.GET("/admin/users?isAdmin=true&pageSize=100")
+		requireStatus(t, resp, http.StatusOK)
+		var page struct {
+			Data []struct {
+				ID      string `json:"id"`
+				IsAdmin bool   `json:"isAdmin"`
+			} `json:"data"`
+		}
+		resp.MustJSON(t, &page)
+		out := map[string]bool{}
+		for _, u := range page.Data {
+			if !u.IsAdmin {
+				t.Errorf("isAdmin=true filter returned non-admin %s", u.ID)
+			}
+			out[u.ID] = true
+		}
+		return out
+	}
+
+	var bootstrapID string
+	{
+		resp := ac.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		var me map[string]interface{}
+		resp.MustJSON(t, &me)
+		bootstrapID, _ = me["id"].(string)
+	}
+
+	t.Run("a new account is not an admin", func(t *testing.T) {
+		if isAdminSelf(t, bc) {
+			t.Error("new account reports isAdmin")
+		}
+		assertStatus(t, bc.GET("/admin/stats"), http.StatusForbidden)
+	})
+
+	t.Run("ADMIN_EMAIL account carries the flag", func(t *testing.T) {
+		if !listAdmins(t, ac)[bootstrapID] {
+			t.Error("bootstrap admin missing from isAdmin=true listing")
+		}
+	})
+
+	t.Run("grant admin", func(t *testing.T) {
+		requireStatus(t, ac.POST(fmt.Sprintf("/admin/users/%s/grant-admin", ba.User.ID), nil), http.StatusOK)
+		requireStatus(t, ac.POST(fmt.Sprintf("/admin/users/%s/grant-admin", ba.User.ID), nil), http.StatusOK)
+		if !isAdminSelf(t, bc) {
+			t.Error("granted account does not report isAdmin")
+		}
+		assertStatus(t, bc.GET("/admin/stats"), http.StatusOK)
+		if !listAdmins(t, ac)[ba.User.ID] {
+			t.Error("granted account missing from isAdmin=true listing")
+		}
+
+		resp := ac.GET("/admin/config")
+		requireStatus(t, resp, http.StatusOK)
+		var cfg map[string]interface{}
+		resp.MustJSON(t, &cfg)
+		if n, _ := cfg["adminCount"].(float64); n < 2 {
+			t.Errorf("adminCount = %v, want >= 2", cfg["adminCount"])
+		}
+	})
+
+	t.Run("a granted admin can grant and revoke", func(t *testing.T) {
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/grant-admin", ca.User.ID), nil), http.StatusOK)
+		assertStatus(t, cc.GET("/admin/users"), http.StatusOK)
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/revoke-admin", ca.User.ID), nil), http.StatusOK)
+		assertStatus(t, cc.GET("/admin/users"), http.StatusForbidden)
+		if isAdminSelf(t, cc) {
+			t.Error("revoked account still reports isAdmin")
+		}
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/revoke-admin", ca.User.ID), nil), http.StatusOK)
+	})
+
+	t.Run("grant and revoke are audited", func(t *testing.T) {
+		resp := ac.GET("/admin/audit-log?pageSize=100")
+		requireStatus(t, resp, http.StatusOK)
+		var page struct {
+			Data []struct {
+				Action       string `json:"action"`
+				TargetUserID string `json:"targetUserId"`
+			} `json:"data"`
+		}
+		resp.MustJSON(t, &page)
+		seen := map[string]int{}
+		for _, e := range page.Data {
+			if e.TargetUserID == ca.User.ID {
+				seen[e.Action]++
+			}
+		}
+		// The second revoke was a no-op and must not be audited.
+		if seen["grant_admin"] != 1 || seen["revoke_admin"] != 1 {
+			t.Errorf("audit actions for target = %v, want one grant and one revoke", seen)
+		}
+	})
+
+	t.Run("the ADMIN_EMAIL account cannot be revoked", func(t *testing.T) {
+		assertStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/revoke-admin", bootstrapID), nil), http.StatusConflict)
+	})
+
+	t.Run("granting an unverified account is a conflict", func(t *testing.T) {
+		email := uniqueEmail("unverified-admin")
+		requireStatus(t, NewE2EClient(t).POST("/auth/register", map[string]string{
+			"email": email, "password": "UserPass123!", "name": "Unverified",
+		}), http.StatusCreated)
+		resp := ac.GET("/admin/users?search=" + email)
+		requireStatus(t, resp, http.StatusOK)
+		var page struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		resp.MustJSON(t, &page)
+		if len(page.Data) != 1 {
+			t.Fatalf("search returned %d users", len(page.Data))
+		}
+		assertStatus(t, ac.POST(fmt.Sprintf("/admin/users/%s/grant-admin", page.Data[0].ID), nil), http.StatusConflict)
+	})
+
+	t.Run("unknown account is 404", func(t *testing.T) {
+		assertStatus(t, ac.POST("/admin/users/00000000-0000-0000-0000-000000000000/grant-admin", nil), http.StatusNotFound)
+		assertStatus(t, ac.POST("/admin/users/00000000-0000-0000-0000-000000000000/revoke-admin", nil), http.StatusNotFound)
+	})
+
+	t.Run("the ADMIN_EMAIL account cannot be disabled, deleted or have 2FA reset", func(t *testing.T) {
+		assertStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/disable", bootstrapID), nil), http.StatusConflict)
+		assertStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/reset-2fa", bootstrapID), nil), http.StatusConflict)
+		assertStatus(t, bc.DELETE(fmt.Sprintf("/admin/users/%s", bootstrapID)), http.StatusConflict)
+		assertStatus(t, ac.GET("/admin/stats"), http.StatusOK)
+
+		resp := ac.GET("/admin/users?isAdmin=true&pageSize=100")
+		requireStatus(t, resp, http.StatusOK)
+		var page struct {
+			Data []struct {
+				ID               string `json:"id"`
+				IsBootstrapAdmin bool   `json:"isBootstrapAdmin"`
+			} `json:"data"`
+		}
+		resp.MustJSON(t, &page)
+		for _, u := range page.Data {
+			if (u.ID == bootstrapID) != u.IsBootstrapAdmin {
+				t.Errorf("user %s isBootstrapAdmin = %v", u.ID, u.IsBootstrapAdmin)
+			}
+		}
+	})
+
+	t.Run("disabling an admin revokes their rights", func(t *testing.T) {
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/grant-admin", ca.User.ID), nil), http.StatusOK)
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/disable", ca.User.ID), nil), http.StatusOK)
+		if listAdmins(t, ac)[ca.User.ID] {
+			t.Error("disabled account still carries the admin flag")
+		}
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/enable", ca.User.ID), nil), http.StatusOK)
+		if listAdmins(t, ac)[ca.User.ID] {
+			t.Error("re-enabling restored the admin flag")
+		}
+	})
+
+	t.Run("the ADMIN_EMAIL account may reset its own 2FA", func(t *testing.T) {
+		// No second factor is enrolled, so the request gets past the
+		// ADMIN_EMAIL check and stops at the 2FA check.
+		assertStatus(t, ac.POST(fmt.Sprintf("/admin/users/%s/reset-2fa", bootstrapID), nil), http.StatusBadRequest)
+	})
+
+	t.Run("an admin can revoke their own rights", func(t *testing.T) {
+		requireStatus(t, bc.POST(fmt.Sprintf("/admin/users/%s/revoke-admin", ba.User.ID), nil), http.StatusOK)
+		assertStatus(t, bc.GET("/admin/stats"), http.StatusForbidden)
+	})
+
+	t.Run("the last admin cannot change their email address", func(t *testing.T) {
+		resp := ac.GET("/admin/config")
+		requireStatus(t, resp, http.StatusOK)
+		var cfg map[string]interface{}
+		resp.MustJSON(t, &cfg)
+		if n, _ := cfg["adminCount"].(float64); n != 1 {
+			t.Skipf("adminCount = %v; another admin exists, so the guard does not apply", cfg["adminCount"])
+		}
+		assertStatus(t, ac.PATCH("/users/me", map[string]string{
+			"email": uniqueEmail("admin-moved"), "currentPassword": "AdminPass123!",
+		}), http.StatusConflict)
+		me := ac.GET("/users/me")
+		requireStatus(t, me, http.StatusOK)
+		var u map[string]interface{}
+		me.MustJSON(t, &u)
+		if u["email"] != "admin@ninerlog-test.com" || u["isAdmin"] != true {
+			t.Errorf("refused change modified the account: %v", u)
 		}
 	})
 }

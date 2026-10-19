@@ -45,7 +45,7 @@ flowchart TD
 
 ## Core entities
 
-### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50, 74)
+### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50, 74, 78)
 
 The account holder. Notable fields:
 
@@ -56,6 +56,10 @@ The account holder. Notable fields:
   the 2FA second factor, passkeys, OIDC, and the sign-up verification link — but
   not by a token refresh. See
   [AUTHENTICATION.md](AUTHENTICATION.md#login).
+- Admin: `IsAdmin` (`users.is_admin`, migration 78; never serialized) — the per-account
+  admin flag, partial index `idx_users_is_admin`. Written only by the admin-role
+  repository methods, never by `Update`, and not part of the export. See
+  [AUTHENTICATION.md](AUTHENTICATION.md#admin-access).
 - Activity: `users.last_active_at` (migration 74; not on the Go model) is the last
   authenticated API request, written by the `RecordActivity` middleware at most once
   per five minutes per account and by every login. Exposed only as `lastActiveAt` in

@@ -64,12 +64,51 @@ type AdminUserRow struct {
 	EmailVerified              bool
 	TwoFactorEnabled           bool
 	Disabled                   bool
+	IsAdmin                    bool
 	FailedLoginAttempts        int
 	LockedUntil                *time.Time
 	VerificationReminderSentAt *time.Time
 	EmailSuppressed            bool
 	FlightCount                int
 	AircraftCount              int
+}
+
+// AdminUserFilter narrows the admin user listing. A non-empty Search
+// matches email or name case-insensitively as a substring; a non-nil IsAdmin
+// matches whether the account is an admin: verified, and carrying the admin
+// flag or holding BootstrapEmail.
+type AdminUserFilter struct {
+	Search         string
+	IsAdmin        *bool
+	BootstrapEmail string
+}
+
+// GrantResult is the outcome of SetAdmin.
+type GrantResult int
+
+const (
+	GrantApplied GrantResult = iota
+	GrantAlreadyAdmin
+	GrantNotFound
+	GrantUnverified
+	GrantDisabled
+)
+
+// AdminGuard is the outcome of a guarded admin-affecting write.
+type AdminGuard int
+
+const (
+	AdminGuardApplied AdminGuard = iota
+	AdminGuardNotFound
+	AdminGuardLastAdmin
+	AdminGuardBootstrap
+)
+
+// AdminChange reports a guarded write: whether it was applied and whether the
+// target's admin flag was cleared by it.
+type AdminChange struct {
+	Guard       AdminGuard
+	FlagCleared bool
 }
 
 // AdminRepository backs the admin console: instance-wide statistics, the
@@ -96,9 +135,34 @@ type AdminRepository interface {
 	InsertAuditLog(ctx context.Context, entry *AdminAuditLogEntry) error
 
 	// ListUsers returns one page of the user listing, newest first, plus the
-	// total row count for the (optionally searched) set. A non-empty search
-	// matches email or name case-insensitively as a substring.
-	ListUsers(ctx context.Context, search string, limit, offset int) ([]*AdminUserRow, int, error)
+	// total row count for the filtered set.
+	ListUsers(ctx context.Context, filter AdminUserFilter, limit, offset int) ([]*AdminUserRow, int, error)
+
+	// CountAdmins counts active admins: verified, enabled accounts that carry
+	// the admin flag or hold bootstrapEmail.
+	CountAdmins(ctx context.Context, bootstrapEmail string) (int, error)
+
+	// SetAdmin sets the admin flag on a verified, enabled account.
+	SetAdmin(ctx context.Context, userID uuid.UUID) (GrantResult, error)
+
+	// RevokeAdmin, DisableUser, DeleteUser and ChangeEmail lock the target
+	// and every admin row in one ordered statement, then refuse an active
+	// admin when no other active admin would remain. All but ChangeEmail
+	// also refuse the verified holder of bootstrapEmail. DisableUser clears
+	// the admin flag in the same UPDATE; DeleteUser inserts the entries
+	// audit returns in the same transaction, before the row goes.
+	RevokeAdmin(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (AdminChange, error)
+	DisableUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (AdminChange, error)
+	DeleteUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string, audit func(flagCleared bool) []*AdminAuditLogEntry) (AdminChange, error)
+
+	// ChangeEmail sets the address and clears email_verified. Returns
+	// ErrDuplicateEmail when another account holds the address.
+	ChangeEmail(ctx context.Context, userID uuid.UUID, email, bootstrapEmail string) (AdminChange, error)
+
+	// PromoteVerifiedByEmail sets the admin flag on the verified, enabled
+	// account whose email matches case-insensitively, returning its id when
+	// the flag was newly set and uuid.Nil otherwise.
+	PromoteVerifiedByEmail(ctx context.Context, email string) (uuid.UUID, error)
 
 	// UnlockUser resets the failed-login counter and clears any lockout.
 	UnlockUser(ctx context.Context, userID uuid.UUID) error

@@ -65,9 +65,15 @@ type ServerInterface interface {
 	// EnableUser Re-enable a user account
 	// (POST /admin/users/{userId}/enable)
 	EnableUser(c *gin.Context, userId openapi_types.UUID)
+	// GrantUserAdmin Grant admin rights to a user
+	// (POST /admin/users/{userId}/grant-admin)
+	GrantUserAdmin(c *gin.Context, userId openapi_types.UUID)
 	// ResetUser2fa Reset 2FA for a user
 	// (POST /admin/users/{userId}/reset-2fa)
 	ResetUser2fa(c *gin.Context, userId openapi_types.UUID)
+	// RevokeUserAdmin Revoke admin rights from a user
+	// (POST /admin/users/{userId}/revoke-admin)
+	RevokeUserAdmin(c *gin.Context, userId openapi_types.UUID)
 	// UnlockUser Unlock a locked user account
 	// (POST /admin/users/{userId}/unlock)
 	UnlockUser(c *gin.Context, userId openapi_types.UUID)
@@ -844,6 +850,14 @@ func (siw *ServerInterfaceWrapper) ListAdminUsers(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "isAdmin" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "isAdmin", c.Request.URL.Query(), &params.IsAdmin, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter isAdmin: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -929,6 +943,31 @@ func (siw *ServerInterfaceWrapper) EnableUser(c *gin.Context) {
 	siw.Handler.EnableUser(c, userId)
 }
 
+// GrantUserAdmin operation middleware
+func (siw *ServerInterfaceWrapper) GrantUserAdmin(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GrantUserAdmin(c, userId)
+}
+
 // ResetUser2fa operation middleware
 func (siw *ServerInterfaceWrapper) ResetUser2fa(c *gin.Context) {
 
@@ -952,6 +991,31 @@ func (siw *ServerInterfaceWrapper) ResetUser2fa(c *gin.Context) {
 	}
 
 	siw.Handler.ResetUser2fa(c, userId)
+}
+
+// RevokeUserAdmin operation middleware
+func (siw *ServerInterfaceWrapper) RevokeUserAdmin(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RevokeUserAdmin(c, userId)
 }
 
 // UnlockUser operation middleware
@@ -4663,6 +4727,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/admin/users/:userId/enable", wrapper.EnableUser)
 	router.POST(options.BaseURL+"/admin/users/:userId/unlock", wrapper.UnlockUser)
 	router.POST(options.BaseURL+"/admin/users/:userId/reset-2fa", wrapper.ResetUser2fa)
+	router.POST(options.BaseURL+"/admin/users/:userId/grant-admin", wrapper.GrantUserAdmin)
+	router.POST(options.BaseURL+"/admin/users/:userId/revoke-admin", wrapper.RevokeUserAdmin)
 	router.GET(options.BaseURL+"/admin/stats", wrapper.GetAdminStats)
 	router.GET(options.BaseURL+"/admin/update", wrapper.GetUpdateStatus)
 	router.POST(options.BaseURL+"/admin/maintenance/cleanup-tokens", wrapper.CleanupTokens)

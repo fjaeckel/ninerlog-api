@@ -8,13 +8,14 @@ import (
 	"testing"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // These tests assert admin status requires a verified ADMIN_EMAIL match.
 
 func TestIsAdminUser_RequiresVerifiedEmail(t *testing.T) {
-	h := &APIHandler{adminEmail: "admin@example.com"}
+	h := &APIHandler{adminRoles: service.NewAdminRoleService(nil, "admin@example.com")}
 
 	unverified := &models.User{Email: "admin@example.com", EmailVerified: false}
 	if h.isAdminUser(unverified) {

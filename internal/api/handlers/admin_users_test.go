@@ -6,24 +6,25 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 )
 
 func TestRequireAdmin_BlocksNonAdmin(t *testing.T) {
-	h := &APIHandler{adminEmail: "admin@example.com"}
+	h := &APIHandler{adminRoles: service.NewAdminRoleService(nil, "admin@example.com")}
 	if h.isAdminUser(&models.User{Email: "user@example.com", EmailVerified: true}) {
 		t.Error("Expected non-admin user to be rejected")
 	}
 }
 
 func TestRequireAdmin_AllowsAdmin(t *testing.T) {
-	h := &APIHandler{adminEmail: "admin@example.com"}
+	h := &APIHandler{adminRoles: service.NewAdminRoleService(nil, "admin@example.com")}
 	if !h.isAdminUser(&models.User{Email: "admin@example.com", EmailVerified: true}) {
 		t.Error("Expected admin user to be allowed")
 	}
 }
 
 func TestBuildUserResponse_IncludesDisabledField(t *testing.T) {
-	h := &APIHandler{adminEmail: "admin@example.com"}
+	h := &APIHandler{adminRoles: service.NewAdminRoleService(nil, "admin@example.com")}
 
 	user := createTestUser("pilot@example.com", "Pilot")
 	user.Disabled = true
@@ -52,7 +53,10 @@ func TestAdminUserSchema_PrivacyPreserving(t *testing.T) {
 		// administrator needs all three to answer "why is this account still
 		// unverified" without opening anything the user logged.
 		"VerificationReminderSentAt": true, "ScheduledDeletionAt": true,
-		"EmailSuppressed": true,
+		"EmailSuppressed":  true,
+		"IsAdmin":          true,
+		"IsBootstrapAdmin": true,
+		"AdminFlag":        true,
 	}
 
 	// Forbidden field patterns — these would leak private data

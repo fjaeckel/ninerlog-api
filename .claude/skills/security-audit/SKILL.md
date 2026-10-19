@@ -52,7 +52,7 @@ Before reviewing, list the feature's actual surface — do not guess from the na
 - `userID` comes **only** from `getUserIDFromContext` — never from the body, query, or a path
   param. A user-supplied ID that selects whose data is touched is an IDOR.
 - Admin operations go through `h.isAdminUser` / `requireAdmin` (which requires `EmailVerified`),
-  not an ad-hoc email comparison.
+  not an ad-hoc email comparison or a raw read of `users.is_admin`.
 - Errors returned to the client are generic. No `err.Error()` pass-through of bind/SQL/provider
   errors.
 - New route registered manually? Confirm it is inside the authenticated group and covered by a

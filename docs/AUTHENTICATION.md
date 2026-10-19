@@ -778,17 +778,95 @@ Locked accounts receive `429` with `"Account temporarily locked..."`. An admin c
 
 ## Admin Access
 
-Admin is determined by the `ADMIN_EMAIL` environment variable — the user whose email matches (case-insensitive) gets admin privileges.
+Admin rights are a per-account flag, `users.is_admin` (migration 78). Any number of accounts
+can hold it. An account is an admin when its email address is **verified** and either:
+
+- it carries the flag, or
+- its email matches the `ADMIN_EMAIL` environment variable (case-insensitive) — the
+  *bootstrap admin*.
+
+`ADMIN_EMAIL` is how a fresh installation gets its first admin, and how an operator who has
+lost every admin account gets back in. The API writes the flag onto the bootstrap account:
+
+- at startup, onto the verified, enabled account whose email matches `ADMIN_EMAIL`;
+- on that account's first admin request, when it registered or verified after startup.
+
+Each write records a `bootstrap_admin` entry in the audit log. Once the flag is set,
+`ADMIN_EMAIL` can be removed and the account stays an admin.
+
+### Granting and revoking
+
+An **active admin** is a verified, enabled account that carries the flag or holds the
+`ADMIN_EMAIL` address. `isAdmin` everywhere — `/users/me`, the user listing, its filter and
+`adminCount` — uses this definition.
+
+| Method | Path | Result |
+|---|---|---|
+| `POST` | `/admin/users/{userId}/grant-admin` | `200`; idempotent. `409` when the target's email is unverified or the account is disabled — checked in the same statement that sets the flag. `404` for an unknown account. |
+| `POST` | `/admin/users/{userId}/revoke-admin` | `200`; idempotent, and an admin may revoke their own rights. `409` when the target holds the `ADMIN_EMAIL` address, or is an active admin and no other active admin would remain. `404` for an unknown account. |
+
+Each records `grant_admin` / `revoke_admin` in the audit log only when the flag actually
+changed. Revoke, disable, delete and an admin's own email change lock the target and every
+admin row (flagged accounts and the `ADMIN_EMAIL` holder) in one statement, in id order, for
+the whole check-and-write, so concurrent requests
+cannot leave the instance without an active admin, and a repeated revoke is a no-op rather
+than a conflict.
+
+### Protected accounts
+
+| Action | `ADMIN_EMAIL` account | Admin account |
+|---|---|---|
+| `POST /admin/users/{userId}/disable` | `409` | Disabled and unflagged in one transaction (`revoke_admin`, `reason: disable_user`); `409` when it is the last active admin. Re-enabling does not restore the flag. |
+| `DELETE /admin/users/{userId}` | `409` | Deleted in the same transaction as the check (`revoke_admin`, `reason: delete_user`); `409` when it is the last active admin. |
+| `POST /admin/users/{userId}/reset-2fa` | `409`, unless the caller is the account itself | Allowed. |
+| `PATCH /users/me` changing your own email | Allowed when another active admin remains | `409` when it is the last active admin — the new address starts unverified, and an unverified account is not an admin. Checked under the same lock as revoke. |
+
+The `delete_user` entry (and `revoke_admin`, when the account was an admin) is written in the
+same transaction as the delete, before the row goes; the target reference becomes `NULL` with
+the account, and `details.email` names it. Admin delete runs its own `DELETE FROM users`; like
+self-deletion it relies on the `ON DELETE CASCADE` foreign keys for tokens and content, and the
+integration test asserts both delete paths leave no tokens behind. The `ADMIN_EMAIL` account is matched only when
+its address is verified; an unverified account holding that address is an ordinary account.
+Unlock and enable are always allowed. An account deleting itself through `DELETE /users/me` is
+not restricted — a pilot can always leave with their data; if that removes the last admin, set
+`ADMIN_EMAIL` to a verified account and restart.
+
+### Listing and counting
+
+Every `GET /admin/users` row carries:
+
+- `isAdmin` — the account is an admin right now (verified, flag or `ADMIN_EMAIL`);
+- `isBootstrapAdmin` — the verified `ADMIN_EMAIL` holder;
+- `adminFlag` — the stored flag. It is set without `isAdmin` when a flagged admin changed
+  their address and has not verified it yet; the flag can still be revoked, and comes back
+  into force on verification otherwise.
+
+`?isAdmin=true|false` filters on `isAdmin`. `GET /admin/config` reports `adminCount` (active
+admins; omitted when the count fails) and `adminEmailConfigured`. `GET /users/me` reports
+`isAdmin` for the caller.
+
+The flag is operator state: it is not part of the JSON export, and a restore never sets it.
+
+### Upgrading from `ADMIN_EMAIL`-only installations
+
+No action is needed. Migration 78 adds the column with every account unflagged; the first
+startup with `ADMIN_EMAIL` still set flags the existing admin account. From then on, grant
+further admins from the console. Removing `ADMIN_EMAIL` afterwards is optional; keeping it
+keeps that account non-revocable.
+
+### Admin endpoints
 
 Admin endpoints require both a valid access token and admin status. Non-admin users receive `403 "Admin access required"`.
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/admin/stats` | System statistics |
-| `GET` | `/admin/users` | List users (search, pagination) |
+| `GET` | `/admin/users` | List users (search, `isAdmin` filter, pagination) |
 | `POST` | `/admin/users/{userId}/disable` | Disable account |
 | `POST` | `/admin/users/{userId}/enable` | Enable account |
 | `POST` | `/admin/users/{userId}/unlock` | Unlock locked account |
+| `POST` | `/admin/users/{userId}/grant-admin` | Grant admin rights |
+| `POST` | `/admin/users/{userId}/revoke-admin` | Revoke admin rights |
 | `POST` | `/admin/users/{userId}/reset-2fa` | Force-reset 2FA (last resort — authenticator *and* all recovery codes lost). Clears the secret and recovery codes, ends every session the user holds, and mails the user a notice that their second factor was removed |
 | `GET` | `/admin/audit-log` | View audit log |
 | `GET` | `/admin/config` | View runtime config |

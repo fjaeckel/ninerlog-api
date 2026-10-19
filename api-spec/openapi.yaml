@@ -87,7 +87,7 @@ tags:
   - name: Public Signing
     description: Unauthenticated token-based endpoints used by an instructor to review and sign a flight via an emailed or shared link
   - name: Admin
-    description: Admin-only platform management (requires ADMIN_EMAIL env var match)
+    description: Admin-only platform management (requires an admin account; see User.isAdmin)
   - name: Backups
     description: Cloud backup destinations and scheduled runs (S3 and S3-compatible storage)
   - name: Sync
@@ -1165,7 +1165,11 @@ paths:
       tags:
         - Users
       summary: Update current user profile
-      description: Update the authenticated user's profile information
+      description: |
+        Update the authenticated user's profile information. Returns 409 when
+        the new email address belongs to another account, or when the caller is
+        the last active admin (changing the address unverifies it, which would
+        leave the instance without an admin).
       operationId: updateCurrentUser
       security:
         - bearerAuth: []
@@ -1244,6 +1248,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/CredentialRejected'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
     delete:
       tags:
@@ -5037,6 +5043,11 @@ paths:
           schema:
             type: string
           description: Search by email or name
+        - name: isAdmin
+          in: query
+          schema:
+            type: boolean
+          description: When true, only accounts whose isAdmin is true; when false, only accounts whose isAdmin is false
       responses:
         '200':
           description: Paginated user list
@@ -5059,7 +5070,10 @@ paths:
         licenses, contacts, credentials, backups, notifications, etc.) via cascading
         deletes. This action is irreversible. The deletion is recorded in the admin
         audit log (with the target user reference set to NULL after the cascade).
-        An admin cannot delete their own account.
+        An admin cannot delete their own account. Returns 409 when the target
+        holds the ADMIN_EMAIL address, or is an admin whose removal would leave
+        no other verified, enabled admin. Deleting an admin first revokes their
+        admin rights (audited as revoke_admin).
       operationId: deleteUser
       security:
         - bearerAuth: []
@@ -5088,13 +5102,20 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /admin/users/{userId}/disable:
     post:
       tags:
         - Admin
       summary: Disable a user account
-      description: Disable a user account and revoke all tokens. Logged to audit trail.
+      description: |
+        Disable a user account and revoke all tokens. Logged to audit trail.
+        Returns 409 when the target holds the ADMIN_EMAIL address, or is an
+        admin whose removal would leave no other verified, enabled admin.
+        Disabling an admin revokes their admin rights (audited as revoke_admin);
+        re-enabling does not restore them.
       operationId: disableUser
       security:
         - bearerAuth: []
@@ -5121,6 +5142,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /admin/users/{userId}/enable:
     post:
@@ -5193,7 +5216,9 @@ paths:
       tags:
         - Admin
       summary: Reset 2FA for a user
-      description: Disable 2FA for a user who lost their authenticator. Logged to audit trail.
+      description: |
+        Disable 2FA for a user who lost their authenticator. Logged to audit trail.
+        Returns 409 when the target holds the ADMIN_EMAIL address and is not the caller.
       operationId: resetUser2fa
       security:
         - bearerAuth: []
@@ -5220,6 +5245,85 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /admin/users/{userId}/grant-admin:
+    post:
+      tags:
+        - Admin
+      summary: Grant admin rights to a user
+      description: |
+        Set the admin flag on an account. Any number of accounts may be admins.
+        The target must have a verified email address and must not be disabled
+        (409 otherwise). Idempotent. Logged to audit trail.
+      operationId: grantUserAdmin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Admin rights granted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /admin/users/{userId}/revoke-admin:
+    post:
+      tags:
+        - Admin
+      summary: Revoke admin rights from a user
+      description: |
+        Clear the admin flag on an account. Idempotent. Returns 409 when the
+        target is the last verified, enabled admin, or when the target holds the
+        ADMIN_EMAIL address (that account stays admin while ADMIN_EMAIL is set).
+        An admin may revoke their own rights. Logged to audit trail.
+      operationId: revokeUserAdmin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Admin rights revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /admin/stats:
     get:
@@ -6184,7 +6288,10 @@ components:
         isAdmin:
           type: boolean
           example: false
-          description: Whether this user is the platform admin (computed from ADMIN_EMAIL env var, not stored in DB)
+          description: >-
+            Whether this user is an admin: the account carries the admin flag
+            (granted via POST /admin/users/{userId}/grant-admin) or holds the
+            ADMIN_EMAIL address. Requires a verified email address.
         timeDisplayFormat:
           type: string
           enum: [hm, decimal]
@@ -11377,7 +11484,13 @@ components:
           description: Whether SMTP is configured
         adminEmailConfigured:
           type: boolean
-          description: Whether ADMIN_EMAIL is set
+          description: Whether ADMIN_EMAIL (the bootstrap admin address) is set
+        adminCount:
+          type: integer
+          description: >-
+            Number of active admins: verified, enabled accounts that carry the
+            admin flag or hold the ADMIN_EMAIL address. Omitted when it could
+            not be counted.
         cloudBackupsConfigured:
           type: boolean
           description: Whether cloud backups are enabled (BACKUP_CREDENTIALS_KEY is set)
@@ -11555,6 +11668,9 @@ components:
         - emailVerified
         - twoFactorEnabled
         - disabled
+        - isAdmin
+        - isBootstrapAdmin
+        - adminFlag
         - flightCount
         - aircraftCount
       properties:
@@ -11592,6 +11708,25 @@ components:
         disabled:
           type: boolean
           description: Whether the account is disabled by admin
+        isAdmin:
+          type: boolean
+          description: >-
+            Whether the account is an admin: its email is verified, it is
+            enabled, and it carries the admin flag or holds the ADMIN_EMAIL
+            address
+        isBootstrapAdmin:
+          type: boolean
+          description: >-
+            Whether the account is the verified holder of the ADMIN_EMAIL
+            address. It cannot be revoked, disabled or deleted, and only the
+            account itself may reset its 2FA.
+        adminFlag:
+          type: boolean
+          description: >-
+            Whether the account carries the stored admin flag. It can differ
+            from isAdmin: a flagged account whose email is unverified is not an
+            admin until it verifies, and the ADMIN_EMAIL holder is an admin
+            before its flag is written.
         locked:
           type: boolean
           description: Whether the account is locked due to brute-force protection

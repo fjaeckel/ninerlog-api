@@ -545,7 +545,7 @@ func setupTestHandler() (*APIHandler, *mockUserRepo) {
 		flightService:     flightSvc,
 		twoFactorService:  twoFactorSvc,
 		jwtManager:        jwtMgr,
-		adminEmail:        "admin@test.com",
+		adminRoles:        service.NewAdminRoleService(nil, "admin@test.com"),
 	}
 
 	return handler, userRepo

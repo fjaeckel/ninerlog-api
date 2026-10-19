@@ -143,7 +143,8 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
   authenticated `userID` is stored on the Gin context and read by handlers. The same
   middleware checks that the token's session is still live and the account still enabled,
   so a revoked session cannot be used for the rest of the token's lifetime. Admin-only
-  routes additionally check the admin middleware. See [AUTHENTICATION.md](./AUTHENTICATION.md)
+  routes additionally check `requireAdmin` (the `users.is_admin` flag or the `ADMIN_EMAIL`
+  bootstrap address). See [AUTHENTICATION.md](./AUTHENTICATION.md)
   and [SESSION_CONTRACT.md](./SESSION_CONTRACT.md).
 - **Rate limiting** — layered and backed by `ulule/limiter`. A coarse per-user limiter
   covers every `/api/v1` route; `RateLimitByPath`, `RateLimitByPathPrefix`, and

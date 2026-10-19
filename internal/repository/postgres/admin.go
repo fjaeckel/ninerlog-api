@@ -3,7 +3,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -167,40 +170,53 @@ func (r *adminRepository) ListAuditLog(ctx context.Context, limit, offset int) (
 }
 
 func (r *adminRepository) InsertAuditLog(ctx context.Context, entry *repository.AdminAuditLogEntry) error {
-	_, err := r.db.ExecContext(ctx, `
+	return insertAuditLog(ctx, r.db, entry)
+}
+
+func insertAuditLog(ctx context.Context, db execer, entry *repository.AdminAuditLogEntry) error {
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO admin_audit_log (id, admin_user_id, action, target_user_id, details, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`, entry.ID, entry.AdminUserID, entry.Action, entry.TargetUserID, string(entry.Details), entry.CreatedAt)
 	return err
 }
 
-func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, offset int) ([]*repository.AdminUserRow, int, error) {
-	countQuery := "SELECT COUNT(*) FROM users"
+func (r *adminRepository) ListUsers(ctx context.Context, filter repository.AdminUserFilter, limit, offset int) ([]*repository.AdminUserRow, int, error) {
+	var where []string
+	var args []interface{}
+	if filter.Search != "" {
+		args = append(args, "%"+filter.Search+"%")
+		where = append(where, fmt.Sprintf("(LOWER(u.email) LIKE LOWER($%d) OR LOWER(u.name) LIKE LOWER($%d))", len(args), len(args)))
+	}
+	if filter.IsAdmin != nil {
+		args = append(args, filter.BootstrapEmail)
+		n := len(args)
+		effective := fmt.Sprintf("(u.email_verified AND NOT u.disabled AND (u.is_admin OR ($%d <> '' AND LOWER(u.email) = LOWER($%d))))", n, n)
+		if *filter.IsAdmin {
+			where = append(where, effective)
+		} else {
+			where = append(where, "NOT "+effective)
+		}
+	}
+	whereClause := ""
+	if len(where) > 0 {
+		whereClause = " WHERE " + strings.Join(where, " AND ")
+	}
+
+	countQuery := "SELECT COUNT(*) FROM users u" + whereClause
 	dataQuery := `
 		SELECT u.id, u.email, u.name, u.created_at, u.last_login_at, u.last_active_at,
-		       u.email_verified, u.two_factor_enabled, u.disabled, u.failed_login_attempts,
+		       u.email_verified, u.two_factor_enabled, u.disabled, u.is_admin, u.failed_login_attempts,
 		       u.locked_until, u.verification_reminder_sent_at,
 		       EXISTS (SELECT 1 FROM email_suppressions es WHERE es.email = u.email) as email_suppressed,
 		       (SELECT COUNT(*) FROM flights WHERE user_id = u.id) as flight_count,
 		       (SELECT COUNT(*) FROM aircraft WHERE user_id = u.id) as aircraft_count
-		FROM users u
-	`
-	var countArgs, dataArgs []interface{}
-	if search != "" {
-		searchClause := " WHERE LOWER(email) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1)"
-		pattern := "%" + search + "%"
-		countQuery += searchClause
-		dataQuery += searchClause
-		countArgs = append(countArgs, pattern)
-		dataArgs = append(dataArgs, pattern)
-		dataQuery += " ORDER BY u.created_at DESC LIMIT $2 OFFSET $3"
-	} else {
-		dataQuery += " ORDER BY u.created_at DESC LIMIT $1 OFFSET $2"
-	}
-	dataArgs = append(dataArgs, limit, offset)
+		FROM users u` + whereClause +
+		fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+	dataArgs := append(append([]interface{}{}, args...), limit, offset)
 
 	var total int
-	r.scanCount(r.db.QueryRowContext(ctx, countQuery, countArgs...), &total)
+	r.scanCount(r.db.QueryRowContext(ctx, countQuery, args...), &total)
 
 	rows, err := r.db.QueryContext(ctx, dataQuery, dataArgs...)
 	if err != nil {
@@ -212,7 +228,7 @@ func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, o
 	for rows.Next() {
 		u := &repository.AdminUserRow{}
 		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.CreatedAt, &u.LastLoginAt, &u.LastActiveAt,
-			&u.EmailVerified, &u.TwoFactorEnabled, &u.Disabled, &u.FailedLoginAttempts,
+			&u.EmailVerified, &u.TwoFactorEnabled, &u.Disabled, &u.IsAdmin, &u.FailedLoginAttempts,
 			&u.LockedUntil, &u.VerificationReminderSentAt, &u.EmailSuppressed,
 			&u.FlightCount, &u.AircraftCount); err != nil {
 			continue
@@ -220,6 +236,177 @@ func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, o
 		users = append(users, u)
 	}
 	return users, total, rows.Err()
+}
+
+const activeAdminClause = `email_verified AND NOT disabled AND (is_admin OR ($1 <> '' AND LOWER(email) = LOWER($1)))`
+
+func (r *adminRepository) CountAdmins(ctx context.Context, bootstrapEmail string) (int, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM users WHERE "+activeAdminClause, bootstrapEmail).Scan(&n)
+	return n, err
+}
+
+func (r *adminRepository) SetAdmin(ctx context.Context, userID uuid.UUID) (repository.GrantResult, error) {
+	var id uuid.UUID
+	err := r.db.QueryRowContext(ctx, `
+		UPDATE users SET is_admin = true, updated_at = $1
+		WHERE id = $2 AND email_verified AND NOT disabled AND NOT is_admin
+		RETURNING id`, time.Now(), userID).Scan(&id)
+	if err == nil {
+		return repository.GrantApplied, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+	var verified, disabled, isAdmin bool
+	err = r.db.QueryRowContext(ctx,
+		"SELECT email_verified, disabled, is_admin FROM users WHERE id = $1", userID,
+	).Scan(&verified, &disabled, &isAdmin)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return repository.GrantNotFound, nil
+	case err != nil:
+		return 0, err
+	case isAdmin:
+		return repository.GrantAlreadyAdmin, nil
+	case !verified:
+		return repository.GrantUnverified, nil
+	default:
+		return repository.GrantDisabled, nil
+	}
+}
+
+func (r *adminRepository) RevokeAdmin(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (repository.AdminChange, error) {
+	return r.guardedWrite(ctx, userID, bootstrapEmail, true, func(tx *sql.Tx, target adminRow) error {
+		if !target.isAdmin {
+			return nil
+		}
+		_, err := tx.ExecContext(ctx,
+			"UPDATE users SET is_admin = false, updated_at = $1 WHERE id = $2", time.Now(), userID)
+		return err
+	})
+}
+
+func (r *adminRepository) DisableUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string) (repository.AdminChange, error) {
+	return r.guardedWrite(ctx, userID, bootstrapEmail, true, func(tx *sql.Tx, _ adminRow) error {
+		_, err := tx.ExecContext(ctx,
+			"UPDATE users SET disabled = true, is_admin = false, updated_at = $1 WHERE id = $2", time.Now(), userID)
+		return err
+	})
+}
+
+func (r *adminRepository) DeleteUser(ctx context.Context, userID uuid.UUID, bootstrapEmail string, audit func(flagCleared bool) []*repository.AdminAuditLogEntry) (repository.AdminChange, error) {
+	return r.guardedWrite(ctx, userID, bootstrapEmail, true, func(tx *sql.Tx, target adminRow) error {
+		for _, e := range audit(target.isAdmin) {
+			if err := insertAuditLog(ctx, tx, e); err != nil {
+				return err
+			}
+		}
+		_, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID)
+		return err
+	})
+}
+
+func (r *adminRepository) ChangeEmail(ctx context.Context, userID uuid.UUID, email, bootstrapEmail string) (repository.AdminChange, error) {
+	change, err := r.guardedWrite(ctx, userID, bootstrapEmail, false, func(tx *sql.Tx, _ adminRow) error {
+		_, err := tx.ExecContext(ctx,
+			"UPDATE users SET email = $1, email_verified = false, updated_at = $2 WHERE id = $3", email, time.Now(), userID)
+		return err
+	})
+	if err != nil && strings.Contains(err.Error(), "unique constraint") && strings.Contains(err.Error(), "email") {
+		return repository.AdminChange{}, repository.ErrDuplicateEmail
+	}
+	change.FlagCleared = false
+	return change, err
+}
+
+// adminRow is one row locked by guardedWrite.
+type adminRow struct {
+	id                          uuid.UUID
+	email                       string
+	verified, disabled, isAdmin bool
+}
+
+func (a adminRow) active(bootstrapEmail string) bool {
+	return a.verified && !a.disabled && (a.isAdmin || a.bootstrap(bootstrapEmail))
+}
+
+func (a adminRow) bootstrap(bootstrapEmail string) bool {
+	return a.verified && bootstrapEmail != "" && strings.EqualFold(a.email, bootstrapEmail)
+}
+
+// guardedWrite locks the target and every admin row in id order, applies
+// the guards described on AdminRepository, then runs write in the same
+// transaction.
+func (r *adminRepository) guardedWrite(ctx context.Context, userID uuid.UUID, bootstrapEmail string, refuseBootstrap bool, write func(tx *sql.Tx, target adminRow) error) (repository.AdminChange, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return repository.AdminChange{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	rows, err := lockAdminRows(ctx, tx, `
+		SELECT id, email, email_verified, disabled, is_admin FROM users
+		WHERE id = $2 OR is_admin OR ($1 <> '' AND LOWER(email) = LOWER($1))
+		ORDER BY id FOR UPDATE`, bootstrapEmail, userID)
+	if err != nil {
+		return repository.AdminChange{}, err
+	}
+	var target *adminRow
+	othersActive := false
+	for i := range rows {
+		if rows[i].id == userID {
+			target = &rows[i]
+		} else if rows[i].active(bootstrapEmail) {
+			othersActive = true
+		}
+	}
+	switch {
+	case target == nil:
+		return repository.AdminChange{Guard: repository.AdminGuardNotFound}, nil
+	case refuseBootstrap && target.bootstrap(bootstrapEmail):
+		return repository.AdminChange{Guard: repository.AdminGuardBootstrap}, nil
+	case target.active(bootstrapEmail) && !othersActive:
+		return repository.AdminChange{Guard: repository.AdminGuardLastAdmin}, nil
+	}
+
+	if err := write(tx, *target); err != nil {
+		return repository.AdminChange{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return repository.AdminChange{}, err
+	}
+	return repository.AdminChange{Guard: repository.AdminGuardApplied, FlagCleared: target.isAdmin}, nil
+}
+
+func lockAdminRows(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]adminRow, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []adminRow
+	for rows.Next() {
+		var a adminRow
+		if err := rows.Scan(&a.id, &a.email, &a.verified, &a.disabled, &a.isAdmin); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func (r *adminRepository) PromoteVerifiedByEmail(ctx context.Context, email string) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := r.db.QueryRowContext(ctx, `
+		UPDATE users SET is_admin = true, updated_at = $1
+		WHERE LOWER(email) = LOWER($2) AND email_verified AND NOT disabled AND NOT is_admin
+		RETURNING id`, time.Now(), email).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	return id, err
 }
 
 func (r *adminRepository) UnlockUser(ctx context.Context, userID uuid.UUID) error {

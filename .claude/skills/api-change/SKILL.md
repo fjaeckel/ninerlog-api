@@ -96,7 +96,7 @@ endpoint is a spec entry plus a method on `APIHandler`, never a manual registrat
 - Endpoints are **authenticated by default**. A public endpoint must be added to the allow-list
   passed to `AuthMiddleware` *and* declared `security: []` in the spec.
 - `/auth/*` and `/admin/*` get stricter rate limits; admin endpoints additionally require an
-  admin caller (`ADMIN_EMAIL`).
+  admin caller (`users.is_admin` flag or the `ADMIN_EMAIL` bootstrap address).
 - JSON field names are `camelCase`. Ownership violations return 403. List endpoints that can
   grow large are paginated.
 - Never return raw internal errors to clients — use a static, user-friendly message.

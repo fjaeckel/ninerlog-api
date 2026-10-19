@@ -69,12 +69,4 @@ func TestUnauthorizedCodes_Middleware(t *testing.T) {
 		r := stateRouter(t, func(context.Context, uuid.UUID, uuid.UUID) (bool, bool, error) { return true, true, nil })
 		assertSessionInvalid(t, serveAuthed(r, "Bearer "+token), "Session ended, please sign in again")
 	})
-	t.Run("admin without user", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/admin/audit-log", nil)
-		AdminMiddleware(nil, "admin@example.com", func(uuid.UUID) (string, error) { return "", nil })(c)
-		assertSessionInvalid(t, w, "Unauthorized")
-	})
 }

@@ -82,8 +82,23 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 				h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Password is incorrect")
 				return
 			}
-			user.Email = newEmail
-			user.EmailVerified = false
+			changed, err := h.adminRoles.ChangeOwnEmail(c.Request.Context(), user, newEmail)
+			switch {
+			case errors.Is(err, service.ErrLastAdmin):
+				h.sendError(c, http.StatusConflict,
+					"You are the last admin: grant admin rights to another account before changing your email address")
+				return
+			case errors.Is(err, service.ErrUserAlreadyExists):
+				h.sendError(c, http.StatusConflict, "This email is already in use by another account")
+				return
+			case err != nil:
+				h.sendError(c, http.StatusInternalServerError, "Failed to update user")
+				return
+			}
+			if !changed {
+				user.Email = newEmail
+				user.EmailVerified = false
+			}
 			emailChanged = true
 		}
 	}

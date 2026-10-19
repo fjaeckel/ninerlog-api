@@ -131,7 +131,8 @@ listed there with the reason.
   `general` and `search`. Rejections are reported per limiter — see
   [METRICS.md](./METRICS.md#rate-limiting-metrics).
 - **Admin authorization** — admin endpoints additionally require the caller to be an
-  admin (configured via `ADMIN_EMAIL`).
+  admin: a verified account carrying the `is_admin` flag, or holding the `ADMIN_EMAIL`
+  bootstrap address. See [AUTHENTICATION.md](./AUTHENTICATION.md#admin-access).
 - **Trusted proxies & forwarded IPs** are configured so client IPs are read correctly
   behind a reverse proxy.
 - **Security headers** are added to every response.
