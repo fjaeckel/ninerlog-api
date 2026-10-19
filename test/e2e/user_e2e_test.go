@@ -113,6 +113,39 @@ func TestUserProfile(t *testing.T) {
 		}
 	})
 
+	t.Run("logbookTerms defaults to localized, updates to english, ignores unknown values", func(t *testing.T) {
+		c2 := NewE2EClient(t)
+		registerAndLogin(t, c2, uniqueEmail("logbook-terms"), "SecurePass123!", "Logbook Terms")
+		resp := c2.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		var u map[string]interface{}
+		resp.JSON(&u)
+		if u["logbookTerms"] != "localized" {
+			t.Errorf("Expected default logbookTerms 'localized', got %v", u["logbookTerms"])
+		}
+
+		resp = c2.PATCH("/users/me", map[string]string{"logbookTerms": "english"})
+		requireStatus(t, resp, http.StatusOK)
+		resp.JSON(&u)
+		if u["logbookTerms"] != "english" {
+			t.Errorf("Expected logbookTerms 'english', got %v", u["logbookTerms"])
+		}
+
+		resp = c2.PATCH("/users/me", map[string]string{"logbookTerms": "klingon"})
+		requireStatus(t, resp, http.StatusOK)
+		resp.JSON(&u)
+		if u["logbookTerms"] != "english" {
+			t.Errorf("Expected unknown logbookTerms to be ignored, got %v", u["logbookTerms"])
+		}
+
+		resp = c2.GET("/users/me")
+		requireStatus(t, resp, http.StatusOK)
+		resp.JSON(&u)
+		if u["logbookTerms"] != "english" {
+			t.Errorf("Expected persisted logbookTerms 'english', got %v", u["logbookTerms"])
+		}
+	})
+
 	t.Run("recency preferences default and update", func(t *testing.T) {
 		c2 := NewE2EClient(t)
 		registerAndLogin(t, c2, uniqueEmail("recency-pref"), "SecurePass123!", "Recency Pref")

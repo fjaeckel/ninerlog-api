@@ -1201,6 +1201,10 @@ paths:
                   type: string
                   enum: [24h, 12h]
                   description: Preferred clock format for times of day
+                logbookTerms:
+                  type: string
+                  enum: [localized, english]
+                  description: Language of logbook terms (flight-time columns, pilot functions, crew roles)
                 decimalSeparator:
                   type: string
                   enum: [comma, dot]
@@ -6080,6 +6084,17 @@ components:
           default: 24h
           example: 24h
           description: User's preferred clock format for times of day (block and takeoff/landing times). "24h" for 14:30, "12h" for 2:30 PM. Stored values are always 24-hour UTC.
+        logbookTerms:
+          type: string
+          enum: [localized, english]
+          default: localized
+          example: localized
+          description: >-
+            Language of logbook terms — flight-time column headings, pilot
+            functions and crew roles (PIC, Dual, Instructor, …). "localized"
+            follows preferredLocale; "english" keeps these terms in English
+            while the rest of the interface stays in preferredLocale. Display
+            only: exports, imports and stored values are unaffected.
         decimalSeparator:
           type: string
           enum: [comma, dot]
