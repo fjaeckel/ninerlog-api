@@ -15,7 +15,8 @@ package importtemplate
 //
 // Column tables list known-but-unmappable columns as FieldIgnore rather than
 // omitting them: they still count towards recognition, but are skipped when
-// suggesting mappings.
+// suggesting mappings. The SIC, multi-pilot and takeoff columns among them are
+// read as auxiliary values (see AuxColumns).
 
 // FormatGenericCSV is the import_format recorded when no template matched.
 const FormatGenericCSV = "CSV"
@@ -135,7 +136,8 @@ var easaColumns = map[string]Field{
 	"remarks and endorsements": FieldRemarks,
 
 	// Present in the EASA table, but with no NinerLog import field: recognised
-	// for scoring, skipped when mapping.
+	// for scoring, skipped when mapping. Multi-pilot and co-pilot are read as
+	// auxiliary values.
 	"sp-se":           FieldIgnore,
 	"sp se":           FieldIgnore,
 	"single pilot se": FieldIgnore,

@@ -272,6 +272,15 @@ including one returning to the departure aerodrome. A value the pilot enters is 
 column in a CSV import is taken as the pilot's record and stored as an override, capped at
 block time.
 
+A CSV import treats the file's other splits the same way. Separate day and night landing
+columns, and day and night takeoff columns, are stored with their override flags, so the
+civil-twilight split runs only for a file with a single landings total; landings counted
+only in a larger total go to the day landings. A positive SIC or multi-pilot column is stored
+as an override capped at block time, and a self-listed SIC crew entry declares the whole
+block as SIC time. These declarations are what `MayLogCoPilotTime` reads (below), so a
+co-pilot sector does not resolve to a passenger flight. An aircraft created by the import is
+marked multi-pilot only when its rows carry multi-pilot time.
+
 ### Day and night
 
 An instant is **day** when it lies inside the civil-twilight interval `[dawn, dusk]` of

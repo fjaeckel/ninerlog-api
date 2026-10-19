@@ -69,3 +69,33 @@ type Mapping struct {
 	// a wrong guess degrades rather than fails.
 	DateFormat string
 }
+
+// AuxField is an import value with no ImportField target, read from a column
+// the template recognises as FieldIgnore.
+type AuxField string
+
+const (
+	AuxSICTime        AuxField = "sicTime"
+	AuxMultiPilotTime AuxField = "multiPilotTime"
+	AuxTakeoffsDay    AuxField = "takeoffsDay"
+	AuxTakeoffsNight  AuxField = "takeoffsNight"
+)
+
+// auxColumns maps a loose header key (see looseKey) to its auxiliary field.
+var auxColumns = map[string]AuxField{
+	"sic":                AuxSICTime,
+	"sictime":            AuxSICTime,
+	"flightsic":          AuxSICTime,
+	"durationsic":        AuxSICTime,
+	"copilot":            AuxSICTime,
+	"timecopilot":        AuxSICTime,
+	"multipilot":         AuxMultiPilotTime,
+	"multipilottime":     AuxMultiPilotTime,
+	"durationmultipilot": AuxMultiPilotTime,
+	"daytakeoffs":        AuxTakeoffsDay,
+	"dayto":              AuxTakeoffsDay,
+	"takeoffsday":        AuxTakeoffsDay,
+	"nighttakeoffs":      AuxTakeoffsNight,
+	"nightto":            AuxTakeoffsNight,
+	"takeoffsnight":      AuxTakeoffsNight,
+}
