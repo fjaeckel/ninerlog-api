@@ -12,6 +12,7 @@ import (
 
 type flightBaselineRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 // NewFlightBaselineRepository returns a postgres-backed FlightBaselineRepository.
@@ -105,7 +106,7 @@ func (r *flightBaselineRepository) Upsert(ctx context.Context, b *models.FlightB
 			notes = EXCLUDED.notes
 		RETURNING created_at, updated_at
 	`
-	return r.db.QueryRowContext(ctx, query,
+	return r.writer().QueryRowContext(ctx, query,
 		b.UserID,
 		b.BaselineDate,
 		b.TotalFlights,
@@ -142,4 +143,12 @@ func (r *flightBaselineRepository) Delete(ctx context.Context, userID uuid.UUID)
 		return repository.ErrNotFound
 	}
 	return nil
+}
+
+// writer returns the transaction the repository is bound to, else the pool.
+func (r *flightBaselineRepository) writer() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }

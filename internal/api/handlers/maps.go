@@ -205,9 +205,15 @@ func (h *APIHandler) SetReportsRepository(repo repository.ReportsRepository) {
 	h.reportsRepo = repo
 }
 
-// SetUserContentRepository stores the account-content wipe repository.
+// SetUserContentRepository wires the account-content wipe behind the user
+// data service.
 func (h *APIHandler) SetUserContentRepository(repo repository.UserContentRepository) {
-	h.userContentRepo = repo
+	h.userDataService = service.NewUserDataService(repo)
+}
+
+// SetRestorer wires the backup restore service.
+func (h *APIHandler) SetRestorer(r *cloudbackup.Restorer) {
+	h.restorer = r
 }
 
 // SetEmailSender stores the email sender for admin SMTP test

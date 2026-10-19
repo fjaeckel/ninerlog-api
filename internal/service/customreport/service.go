@@ -193,6 +193,18 @@ func (s *Service) Evaluate(ctx context.Context, userID uuid.UUID, def models.Cus
 }
 
 func (s *Service) validateInput(ctx context.Context, userID uuid.UUID, in *Input) error {
+	if err := ValidateInput(in); err != nil {
+		return err
+	}
+	if _, err := s.queryOptions(ctx, userID, in.Definition, nil, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ValidateInput normalizes and validates a report's name and definition,
+// including its search query, without touching storage.
+func ValidateInput(in *Input) error {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
 		return invalid("a report needs a name")
@@ -207,8 +219,23 @@ func (s *Service) validateInput(ctx context.Context, userID uuid.UUID, in *Input
 	if err := in.Definition.Validate(); err != nil {
 		return invalid("%s", err.Error())
 	}
-	if _, err := s.queryOptions(ctx, userID, in.Definition, nil, nil); err != nil {
-		return err
+	if q := in.Definition.Filter.Q; q != nil {
+		if _, err := flightsearch.Parse(*q); err != nil {
+			return invalid("invalid search query: %s", err.Error())
+		}
+	}
+	return nil
+}
+
+// CheckStorable reports whether the report's name fits its column, whatever
+// the state of its definition.
+func CheckStorable(in Input) error {
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return invalid("a report needs a name")
+	}
+	if utf8.RuneCountInString(name) > MaxNameLen {
+		return invalid("name is too long")
 	}
 	return nil
 }

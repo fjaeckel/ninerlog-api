@@ -109,6 +109,28 @@ func validateInput(in *CustomRuleInput) error {
 	return nil
 }
 
+// ValidateRuleInput normalizes and validates rule metadata and definition
+// exactly as Create does, without storing anything.
+func ValidateRuleInput(in *CustomRuleInput) error {
+	return validateInput(in)
+}
+
+// CheckRuleStorable reports whether the rule's name and emoji fit their
+// columns, whatever the state of its definition.
+func CheckRuleStorable(in CustomRuleInput) error {
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return newValidationError("a rule needs a name")
+	}
+	if utf8.RuneCountInString(name) > maxRuleNameLen {
+		return newValidationError("name is too long")
+	}
+	if in.Emoji != nil && utf8.RuneCountInString(*in.Emoji) > maxRuleEmojiLen {
+		return newValidationError("emoji is too long")
+	}
+	return nil
+}
+
 // containsForbiddenDescriptionChar rejects control characters in a
 // description, except the plain newline (\n).
 func containsForbiddenDescriptionChar(s string) bool {

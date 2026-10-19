@@ -263,6 +263,9 @@ type capturingWriter struct {
 	wroteHeader bool
 }
 
+// Unwrap exposes the underlying writer to http.ResponseController.
+func (w *capturingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 func (w *capturingWriter) WriteHeader(code int) {
 	w.wroteHeader = true
 	w.ResponseWriter.WriteHeader(code)

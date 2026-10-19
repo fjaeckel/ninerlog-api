@@ -42,6 +42,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+const (
+	// maxBackupBodyBytes caps the body of a backup restore.
+	maxBackupBodyBytes = 200 << 20
+	// restoreStatementTimeout is the statement timeout inside a restore
+	// transaction.
+	restoreStatementTimeout = 4 * time.Minute
+)
+
 // fatal logs a structured error and exits. Structured attributes (e.g. an
 // "error" key) may be passed after the message, matching slog's variadic API.
 func fatal(msg string, args ...any) {
@@ -352,6 +360,7 @@ func main() {
 	apiHandler.SetFlightImportRepository(postgres.NewFlightImportRepository(db))
 	apiHandler.SetReportsRepository(postgres.NewReportsRepository(db))
 	apiHandler.SetUserContentRepository(postgres.NewUserContentRepository(db))
+	apiHandler.SetRestorer(cloudbackup.NewRestorer(postgres.NewRestoreStore(db, restoreStatementTimeout)))
 	apiHandler.SetEmailSender(emailSender)
 	flightSessionService := service.NewFlightSessionService(flightSessionRepo, aircraftRepo, flightService)
 	apiHandler.SetFlightSessionService(flightSessionService)
@@ -443,10 +452,11 @@ func main() {
 	// Request body size limit for multipart uploads (10 MB)
 	router.MaxMultipartMemory = 10 << 20
 
-	// Cap request bodies: 1 MB non-multipart, 12 MB multipart, 50 MB for
-	// POST /imports/json.
+	// Cap request bodies: 1 MB non-multipart, 12 MB multipart, 200 MiB for
+	// backup restores.
 	router.Use(middleware.MaxBodyBytesMiddleware(1<<20, 12<<20, map[string]int64{
-		"/imports/json": 50 << 20,
+		"/users/me/data": maxBackupBodyBytes,
+		"/imports/json":  maxBackupBodyBytes,
 	}))
 
 	// Health check with DB connectivity.
@@ -499,8 +509,13 @@ func main() {
 
 	api := router.Group("/api/v1")
 
-	// 15s deadline on every request context.
-	api.Use(middleware.RequestTimeoutMiddleware(15 * time.Second))
+	// 15s deadline on every request context; backup export and restore get
+	// handlers.UserDataRequestBudget.
+	api.Use(middleware.RequestTimeoutWithOverrides(15*time.Second, map[string]time.Duration{
+		"/users/me/data": handlers.UserDataRequestBudget,
+		"/exports/json":  handlers.UserDataRequestBudget,
+		"/imports/json":  handlers.UserDataRequestBudget,
+	}))
 
 	// Client details for session records.
 	api.Use(middleware.DeviceContext())
@@ -542,10 +557,15 @@ func main() {
 		expensiveRateLimit := middleware.NewUserRateLimitMiddleware("expensive", 15, 1*time.Minute)
 		api.Use(middleware.RateLimitByPath(expensiveRateLimit,
 			"/exports/pdf",
+			"/exports/json",
 			"/custom-currency/preview",
 			"/reports/custom/preview",
 			"/export", // /reports/custom/{reportId}/export
 		))
+		// Backup export and restore share the expensive bucket; the wipe
+		// (DELETE) stays on the general limiter.
+		api.Use(middleware.RateLimitByPathSegmentForMethods(expensiveRateLimit,
+			[]string{http.MethodGet, http.MethodPost}, "/users/me/data"))
 		// GET /imports/templates is exempt: it serves a static catalogue and is
 		// read every time the import screen opens, so it must not spend the
 		// budget reserved for actual imports.

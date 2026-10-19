@@ -13,6 +13,7 @@ import (
 
 type ClassRatingRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 func NewClassRatingRepository(db *sql.DB) *ClassRatingRepository {
@@ -28,7 +29,7 @@ func (r *ClassRatingRepository) Create(ctx context.Context, cr *models.ClassRati
 	now := time.Now()
 	cr.CreatedAt = now
 	cr.UpdatedAt = now
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.writer().ExecContext(ctx, query,
 		cr.ID, cr.LicenseID, cr.ClassType, cr.ULKind, cr.IssueDate, cr.ExpiryDate, cr.Notes, cr.CreatedAt, cr.UpdatedAt,
 	)
 	return err
@@ -98,4 +99,12 @@ func (r *ClassRatingRepository) Delete(ctx context.Context, id uuid.UUID) error 
 		return repository.ErrNotFound
 	}
 	return nil
+}
+
+// writer returns the transaction the repository is bound to, else the pool.
+func (r *ClassRatingRepository) writer() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }

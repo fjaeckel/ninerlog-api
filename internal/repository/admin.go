@@ -150,4 +150,8 @@ type FlightImportRepository interface {
 // notification history) in one transaction, keeping the account itself.
 type UserContentRepository interface {
 	DeleteAllContent(ctx context.Context, userID uuid.UUID) error
+
+	// DeleteFlightsAndHistory deletes the user's flights, their crew rows and
+	// the import history in one transaction, returning the flights deleted.
+	DeleteFlightsAndHistory(ctx context.Context, userID uuid.UUID) (int64, error)
 }

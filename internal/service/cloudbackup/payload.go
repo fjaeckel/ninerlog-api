@@ -7,13 +7,21 @@ import (
 	"github.com/google/uuid"
 )
 
+// Identity of the payload this build writes and the newest major version it
+// reads.
+const (
+	PayloadFormat         = "NinerLog JSON Backup"
+	PayloadVersion        = "1.0"
+	SupportedMajorVersion = 1
+)
+
 // Payload is the wire layout of one backup, shared by GET /exports/json,
 // POST /imports/json and every cloud backup run. Field order matches the
 // original ExportDataJSON output; new sections are appended.
 //
 // Every section holds data a user owns and would expect to survive moving to
-// another server. Sections added here must be restored by ImportDataJSON in
-// the same change.
+// another server. Sections added here must be restored by Restorer in the
+// same change.
 type Payload struct {
 	ExportedAt          string               `json:"exportedAt"`
 	Version             string               `json:"version"`

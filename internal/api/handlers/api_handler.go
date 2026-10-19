@@ -48,7 +48,8 @@ type APIHandler struct {
 	announcementRepo repository.AnnouncementRepository
 	flightImportRepo repository.FlightImportRepository
 	reportsRepo      repository.ReportsRepository
-	userContentRepo  repository.UserContentRepository
+	userDataService  *service.UserDataService
+	restorer         *cloudbackup.Restorer
 	adminEmail       string
 	emailSender      *email.Sender
 	startedAt        time.Time

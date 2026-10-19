@@ -1630,7 +1630,7 @@ func TestDeleteAllUserData_Unauthorized(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("DELETE", "/users/me/data", nil)
 
-	h.DeleteAllUserData(c)
+	h.DeleteAllUserData(c, generated.DeleteAllUserDataParams{})
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("DeleteAllUserData(unauth) status = %d, want 401", w.Code)

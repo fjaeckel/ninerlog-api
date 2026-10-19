@@ -11,6 +11,7 @@ import (
 
 type customCurrencyRuleRepository struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 // NewCustomCurrencyRuleRepository creates a Postgres-backed repository for
@@ -26,7 +27,7 @@ func (r *customCurrencyRuleRepository) Create(ctx context.Context, rule *models.
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id, created_at, updated_at
 	`
-	return r.db.QueryRowContext(ctx, query,
+	return r.writer().QueryRowContext(ctx, query,
 		rule.UserID,
 		rule.Name,
 		rule.Description,
@@ -134,4 +135,12 @@ func (r *customCurrencyRuleRepository) Delete(ctx context.Context, id uuid.UUID)
 		return repository.ErrNotFound
 	}
 	return nil
+}
+
+// writer returns the transaction the repository is bound to, else the pool.
+func (r *customCurrencyRuleRepository) writer() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }

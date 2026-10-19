@@ -299,8 +299,10 @@ type ServerInterface interface {
 	// ExportFlightsCSV Export flights as CSV
 	// (GET /exports/csv)
 	ExportFlightsCSV(c *gin.Context, params ExportFlightsCSVParams)
-	// ExportDataJSON Export full data backup as JSON
+	// ExportDataJSON Export full data backup as JSON (deprecated)
 	// (GET /exports/json)
+	//
+	// Deprecated: this operation has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	ExportDataJSON(c *gin.Context)
 	// ExportFlightsPDF Export flights as PDF logbook
 	// (GET /exports/pdf)
@@ -326,8 +328,10 @@ type ServerInterface interface {
 	// CreateFlight Create flight log
 	// (POST /flights)
 	CreateFlight(c *gin.Context)
-	// DeleteAllFlights Delete all flights
+	// DeleteAllFlights Delete all flights (deprecated)
 	// (DELETE /flights/delete-all)
+	//
+	// Deprecated: this operation has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	DeleteAllFlights(c *gin.Context)
 	// RecalculateFlights Recalculate all flights
 	// (POST /flights/recalculate)
@@ -371,9 +375,11 @@ type ServerInterface interface {
 	// ConfirmImport Confirm and execute import
 	// (POST /imports/confirm)
 	ConfirmImport(c *gin.Context)
-	// ImportDataJSON Restore a NinerLog JSON backup
+	// ImportDataJSON Restore a NinerLog JSON backup (deprecated)
 	// (POST /imports/json)
-	ImportDataJSON(c *gin.Context)
+	//
+	// Deprecated: this operation has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	ImportDataJSON(c *gin.Context, params ImportDataJSONParams)
 	// PreviewImport Preview mapped flights
 	// (POST /imports/preview)
 	PreviewImport(c *gin.Context)
@@ -500,9 +506,15 @@ type ServerInterface interface {
 	// PutMyBaseline Create or replace the user's initial hours snapshot
 	// (PUT /users/me/baseline)
 	PutMyBaseline(c *gin.Context)
-	// DeleteAllUserData Delete all user data
+	// DeleteAllUserData Delete user data
 	// (DELETE /users/me/data)
-	DeleteAllUserData(c *gin.Context)
+	DeleteAllUserData(c *gin.Context, params DeleteAllUserDataParams)
+	// ExportUserData Export all user data as a JSON backup
+	// (GET /users/me/data)
+	ExportUserData(c *gin.Context)
+	// RestoreUserData Restore a NinerLog JSON backup
+	// (POST /users/me/data)
+	RestoreUserData(c *gin.Context, params RestoreUserDataParams)
 	// GetNotificationPreferences Get notification preferences
 	// (GET /users/me/notifications)
 	GetNotificationPreferences(c *gin.Context)
@@ -3326,6 +3338,20 @@ func (siw *ServerInterfaceWrapper) ConfirmImport(c *gin.Context) {
 // ImportDataJSON operation middleware
 func (siw *ServerInterfaceWrapper) ImportDataJSON(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ImportDataJSONParams
+
+	// ------------- Optional query parameter "mode" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "mode", c.Request.URL.Query(), &params.Mode, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter mode: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3333,7 +3359,7 @@ func (siw *ServerInterfaceWrapper) ImportDataJSON(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ImportDataJSON(c)
+	siw.Handler.ImportDataJSON(c, params)
 }
 
 // PreviewImport operation middleware
@@ -4305,6 +4331,20 @@ func (siw *ServerInterfaceWrapper) PutMyBaseline(c *gin.Context) {
 // DeleteAllUserData operation middleware
 func (siw *ServerInterfaceWrapper) DeleteAllUserData(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAllUserDataParams
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", c.Request.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter scope: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -4312,7 +4352,47 @@ func (siw *ServerInterfaceWrapper) DeleteAllUserData(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.DeleteAllUserData(c)
+	siw.Handler.DeleteAllUserData(c, params)
+}
+
+// ExportUserData operation middleware
+func (siw *ServerInterfaceWrapper) ExportUserData(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportUserData(c)
+}
+
+// RestoreUserData operation middleware
+func (siw *ServerInterfaceWrapper) RestoreUserData(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RestoreUserDataParams
+
+	// ------------- Optional query parameter "mode" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "mode", c.Request.URL.Query(), &params.Mode, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter mode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RestoreUserData(c, params)
 }
 
 // GetNotificationPreferences operation middleware
@@ -4570,6 +4650,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/contacts/:contactId", wrapper.UpdateContact)
 	router.DELETE(options.BaseURL+"/flights/delete-all", wrapper.DeleteAllFlights)
 	router.DELETE(options.BaseURL+"/users/me/data", wrapper.DeleteAllUserData)
+	router.GET(options.BaseURL+"/users/me/data", wrapper.ExportUserData)
+	router.POST(options.BaseURL+"/users/me/data", wrapper.RestoreUserData)
 	router.POST(options.BaseURL+"/flights/recalculate", wrapper.RecalculateFlights)
 	router.DELETE(options.BaseURL+"/flight-sessions/current", wrapper.DiscardCurrentFlightSession)
 	router.GET(options.BaseURL+"/flight-sessions/current", wrapper.GetCurrentFlightSession)

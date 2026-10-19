@@ -152,7 +152,7 @@ rules.
   filters) and `monthTotals` (the same per month, for the months on the page) next to
   `pagination`. An unfiltered list also returns `logbookTotals` and `baseline` when the
   user has an initial-hours snapshot — see [API.md](./API.md).
-- Bulk: `DELETE /flights/delete-all` (`bulk_delete.go`).
+- Bulk: `DELETE /users/me/data?scope=flights` (`user_data.go`); `DELETE /flights/delete-all` is a deprecated alias.
 - Recalculate: `POST /flights/recalculate` re-runs auto-calculations across flights while
   respecting manual `*Override` flags. It also canonicalises the user's fleet and flight
   registrations into the notation their state of registry uses, reporting the outcome as
@@ -289,8 +289,9 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 
 ## Import & export
 
-- **Import** (`internal/api/handlers/import.go`, `import_json.go`) — upload a file
-  (CSV/XLSX) → preview → confirm, or import JSON directly.
+- **Import** (`internal/api/handlers/import.go`) — upload a file
+  (CSV/XLSX) → preview → confirm. Restoring a JSON backup is `POST /users/me/data`
+  (`internal/api/handlers/user_data.go`, `internal/service/cloudbackup/restore.go`).
   Import sessions are tracked (history endpoints).
 - **Import templates** (`internal/service/importtemplate`) — the catalogue of logbook
   export formats NinerLog reads. Each template is data: header aliases pointing at import
@@ -486,16 +487,25 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   `GET /exports/vcard` exports the address book as a vCard 3.0 `.vcf` for a phone or mail
   client, carrying each contact's logged crew roles as `CATEGORIES` and a stable `UID` so
   re-importing updates the existing cards.
-- **Full backup / restore** (`GET /exports/json`, `POST /imports/json`) — everything the
+- **Full backup / restore** (`GET /users/me/data`, `POST /users/me/data`; the old
+  `GET /exports/json` and `POST /imports/json` are deprecated aliases) — everything the
   pilot owns in one document: flights with crew, aircraft, licences and class ratings,
   credentials, contacts, custom currency rules, custom reports, notification preferences and
   the carried-forward hours baseline. `cloudbackup.Payload` is the single definition of that
   shape, shared with cloud backup runs, so a manual export and a scheduled backup always
-  carry the same data. Restores are additive and regenerate all IDs, so a backup moves
-  between installations; a custom report scoped to a licence is re-pointed at that licence's
-  restored copy, or loses the scope if the backup does not carry it.
+  carry the same data. A restore is one transaction: all of it or none. It needs an empty
+  account (`409 account_not_empty` otherwise, so restoring twice never doubles the logbook),
+  or `mode=replace`, which wipes the account's collections first and is refused while
+  document files or signed flights exist. IDs are regenerated, so a backup moves between
+  installations; a custom report scoped to a licence is re-pointed at that licence's
+  restored copy, or loses the scope if the backup does not carry it. A backup from any
+  released export restores: outdated custom rules come back paused with a warning in the
+  result. See [API.md](./API.md) for modes, limits and the version policy.
   `internal/service/cloudbackup/coverage_test.go` fails the build if a new table holding
   user rows is left out.
+- **Delete my data** (`DELETE /users/me/data`) — `scope=all` wipes the logbook content and
+  keeps the account; `scope=flights` deletes flights, crew and import history and reports how
+  many flights went.
 
 ## Notifications
 
@@ -554,7 +564,7 @@ back up their data to their own storage on a schedule.
   comes from the environment, never the database.
 - **Runs** (`runner.go`, `BackupRun`) — execute a backup, record outcome, enforce
   retention; `jsonbuilder.go` gathers the user's data set into `cloudbackup.Payload` — the
-  same payload `GET /exports/json` writes — and gzips it. A SHA-256 over the payload
+  same payload `GET /users/me/data` writes — and gzips it. A SHA-256 over the payload
   (excluding `exportedAt`) skips a run whose data has not changed.
 - **Scheduler** (`scheduler.go`) — a goroutine that triggers due backups; manual runs via
   `POST /backups/destinations/{id}/run`, connectivity check via `…/test`.

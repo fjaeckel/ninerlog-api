@@ -344,20 +344,67 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 	}
 
 	// ----------------------------------------------------------------------
-	// 5. Re-running the import is additive: existing aircraft regs are
-	//    skipped, the rest is re-imported.
+	// 5. A second restore never doubles the account: the default mode refuses
+	//    a non-empty account, and mode=replace yields exactly one copy.
 	// ----------------------------------------------------------------------
 	secondResp := dest.Do("POST", "/imports/json", backupShape)
-	requireStatus(t, secondResp, http.StatusOK)
-	var second struct {
-		AircraftImported int `json:"aircraftImported"`
-		AircraftSkipped  int `json:"aircraftSkipped"`
-		FlightsImported  int `json:"flightsImported"`
+	requireStatus(t, secondResp, http.StatusConflict)
+	assertErrorCode(t, secondResp, "account_not_empty")
+	assertFlightCount(t, dest, len(flights))
+
+	replaceResp := dest.Do("POST", "/imports/json?mode=replace", backupShape)
+	requireStatus(t, replaceResp, http.StatusOK)
+	var replaced struct {
+		Mode             string `json:"mode"`
+		AircraftImported int    `json:"aircraftImported"`
+		AircraftSkipped  int    `json:"aircraftSkipped"`
+		FlightsImported  int    `json:"flightsImported"`
 	}
-	secondResp.JSON(&second)
-	assertInt(t, "second-run aircraftImported", second.AircraftImported, 0)
-	assertInt(t, "second-run aircraftSkipped", second.AircraftSkipped, len(aircraftFleet))
-	assertInt(t, "second-run flightsImported", second.FlightsImported, len(flights))
+	replaceResp.JSON(&replaced)
+	if replaced.Mode != "replace" {
+		t.Errorf("replace mode = %q, want replace", replaced.Mode)
+	}
+	assertInt(t, "replace aircraftImported", replaced.AircraftImported, len(aircraftFleet))
+	assertInt(t, "replace aircraftSkipped", replaced.AircraftSkipped, 0)
+	assertInt(t, "replace flightsImported", replaced.FlightsImported, len(flights))
+	assertFlightCount(t, dest, len(flights))
+	{
+		r := dest.GET("/aircraft")
+		requireStatus(t, r, http.StatusOK)
+		var page struct {
+			Data []map[string]interface{} `json:"data"`
+		}
+		r.JSON(&page)
+		assertInt(t, "aircraft after replace", len(page.Data), len(aircraftFleet))
+	}
+}
+
+// assertFlightCount checks the number of flights the account's backup carries.
+func assertFlightCount(t *testing.T, c *E2EClient, want int) {
+	t.Helper()
+	r := c.GET("/users/me/data")
+	requireStatus(t, r, http.StatusOK)
+	var backup struct {
+		Flights []json.RawMessage `json:"flights"`
+	}
+	if err := r.JSON(&backup); err != nil {
+		t.Fatalf("backup is not valid JSON: %v", err)
+	}
+	assertInt(t, "flights in backup", len(backup.Flights), want)
+}
+
+// assertErrorCode checks the machine-readable code of an error response.
+func assertErrorCode(t *testing.T, r *Response, want string) {
+	t.Helper()
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := r.JSON(&body); err != nil {
+		t.Fatalf("error body is not JSON: %v (%s)", err, r.Body)
+	}
+	if body.Code != want {
+		t.Errorf("error code = %q, want %q (%s)", body.Code, want, r.Body)
+	}
 }
 
 // TestJSONImportRejectsForeignBackup covers the import endpoint refusing input

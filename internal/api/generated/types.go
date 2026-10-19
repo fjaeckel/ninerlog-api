@@ -210,6 +210,36 @@ func (e AuthProvidersMode) Valid() bool {
 	}
 }
 
+// Defines values for BackupClassRatingUlKind.
+const (
+	BackupClassRatingUlKindGYROPLANE         BackupClassRatingUlKind = "GYROPLANE"
+	BackupClassRatingUlKindHELICOPTER        BackupClassRatingUlKind = "HELICOPTER"
+	BackupClassRatingUlKindPOWEREDPARAGLIDER BackupClassRatingUlKind = "POWERED_PARAGLIDER"
+	BackupClassRatingUlKindSAILPLANE         BackupClassRatingUlKind = "SAILPLANE"
+	BackupClassRatingUlKindTHREEAXIS         BackupClassRatingUlKind = "THREE_AXIS"
+	BackupClassRatingUlKindWEIGHTSHIFT       BackupClassRatingUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the BackupClassRatingUlKind enum.
+func (e BackupClassRatingUlKind) Valid() bool {
+	switch e {
+	case BackupClassRatingUlKindGYROPLANE:
+		return true
+	case BackupClassRatingUlKindHELICOPTER:
+		return true
+	case BackupClassRatingUlKindPOWEREDPARAGLIDER:
+		return true
+	case BackupClassRatingUlKindSAILPLANE:
+		return true
+	case BackupClassRatingUlKindTHREEAXIS:
+		return true
+	case BackupClassRatingUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackupFieldType.
 const (
 	Bool     BackupFieldType = "bool"
@@ -231,6 +261,48 @@ func (e BackupFieldType) Valid() bool {
 	case String:
 		return true
 	case Url:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BackupFlightLaunchMethod.
+const (
+	BackupFlightLaunchMethodAerotow    BackupFlightLaunchMethod = "aerotow"
+	BackupFlightLaunchMethodBungee     BackupFlightLaunchMethod = "bungee"
+	BackupFlightLaunchMethodCar        BackupFlightLaunchMethod = "car"
+	BackupFlightLaunchMethodSelfLaunch BackupFlightLaunchMethod = "self-launch"
+	BackupFlightLaunchMethodWinch      BackupFlightLaunchMethod = "winch"
+)
+
+// Valid indicates whether the value is a known member of the BackupFlightLaunchMethod enum.
+func (e BackupFlightLaunchMethod) Valid() bool {
+	switch e {
+	case BackupFlightLaunchMethodAerotow:
+		return true
+	case BackupFlightLaunchMethodBungee:
+		return true
+	case BackupFlightLaunchMethodCar:
+		return true
+	case BackupFlightLaunchMethodSelfLaunch:
+		return true
+	case BackupFlightLaunchMethodWinch:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BackupPayloadFormat.
+const (
+	NinerLogJSONBackup BackupPayloadFormat = "NinerLog JSON Backup"
+)
+
+// Valid indicates whether the value is a known member of the BackupPayloadFormat enum.
+func (e BackupPayloadFormat) Valid() bool {
+	switch e {
+	case NinerLogJSONBackup:
 		return true
 	default:
 		return false
@@ -383,13 +455,12 @@ func (e ClassRatingCreateUlKind) Valid() bool {
 
 // Defines values for ClassRatingCurrencyCreditedUltralightKinds.
 const (
-	ClassRatingCurrencyCreditedUltralightKindsGYROPLANE            ClassRatingCurrencyCreditedUltralightKinds = "GYROPLANE"
-	ClassRatingCurrencyCreditedUltralightKindsHELICOPTER           ClassRatingCurrencyCreditedUltralightKinds = "HELICOPTER"
-	ClassRatingCurrencyCreditedUltralightKindsPOWEREDPARAGLIDER    ClassRatingCurrencyCreditedUltralightKinds = "POWERED_PARAGLIDER"
-	ClassRatingCurrencyCreditedUltralightKindsSAILPLANE            ClassRatingCurrencyCreditedUltralightKinds = "SAILPLANE"
-	ClassRatingCurrencyCreditedUltralightKindsTHREEAXIS            ClassRatingCurrencyCreditedUltralightKinds = "THREE_AXIS"
-	ClassRatingCurrencyCreditedUltralightKindsTHREEAXISMOTORGLIDER ClassRatingCurrencyCreditedUltralightKinds = "THREE_AXIS_MOTORGLIDER"
-	ClassRatingCurrencyCreditedUltralightKindsWEIGHTSHIFT          ClassRatingCurrencyCreditedUltralightKinds = "WEIGHT_SHIFT"
+	ClassRatingCurrencyCreditedUltralightKindsGYROPLANE         ClassRatingCurrencyCreditedUltralightKinds = "GYROPLANE"
+	ClassRatingCurrencyCreditedUltralightKindsHELICOPTER        ClassRatingCurrencyCreditedUltralightKinds = "HELICOPTER"
+	ClassRatingCurrencyCreditedUltralightKindsPOWEREDPARAGLIDER ClassRatingCurrencyCreditedUltralightKinds = "POWERED_PARAGLIDER"
+	ClassRatingCurrencyCreditedUltralightKindsSAILPLANE         ClassRatingCurrencyCreditedUltralightKinds = "SAILPLANE"
+	ClassRatingCurrencyCreditedUltralightKindsTHREEAXIS         ClassRatingCurrencyCreditedUltralightKinds = "THREE_AXIS"
+	ClassRatingCurrencyCreditedUltralightKindsWEIGHTSHIFT       ClassRatingCurrencyCreditedUltralightKinds = "WEIGHT_SHIFT"
 )
 
 // Valid indicates whether the value is a known member of the ClassRatingCurrencyCreditedUltralightKinds enum.
@@ -404,8 +475,6 @@ func (e ClassRatingCurrencyCreditedUltralightKinds) Valid() bool {
 	case ClassRatingCurrencyCreditedUltralightKindsSAILPLANE:
 		return true
 	case ClassRatingCurrencyCreditedUltralightKindsTHREEAXIS:
-		return true
-	case ClassRatingCurrencyCreditedUltralightKindsTHREEAXISMOTORGLIDER:
 		return true
 	case ClassRatingCurrencyCreditedUltralightKindsWEIGHTSHIFT:
 		return true
@@ -878,22 +947,22 @@ func (e CustomReportMetric) Valid() bool {
 
 // Defines values for CustomReportWindowKind.
 const (
-	All        CustomReportWindowKind = "all"
-	LastMonths CustomReportWindowKind = "lastMonths"
-	Range      CustomReportWindowKind = "range"
-	YearToDate CustomReportWindowKind = "yearToDate"
+	CustomReportWindowKindAll        CustomReportWindowKind = "all"
+	CustomReportWindowKindLastMonths CustomReportWindowKind = "lastMonths"
+	CustomReportWindowKindRange      CustomReportWindowKind = "range"
+	CustomReportWindowKindYearToDate CustomReportWindowKind = "yearToDate"
 )
 
 // Valid indicates whether the value is a known member of the CustomReportWindowKind enum.
 func (e CustomReportWindowKind) Valid() bool {
 	switch e {
-	case All:
+	case CustomReportWindowKindAll:
 		return true
-	case LastMonths:
+	case CustomReportWindowKindLastMonths:
 		return true
-	case Range:
+	case CustomReportWindowKindRange:
 		return true
-	case YearToDate:
+	case CustomReportWindowKindYearToDate:
 		return true
 	default:
 		return false
@@ -1455,6 +1524,24 @@ func (e ImportFormat) Valid() bool {
 	}
 }
 
+// Defines values for ImportJSONResultMode.
+const (
+	ImportJSONResultModeReplace ImportJSONResultMode = "replace"
+	ImportJSONResultModeRestore ImportJSONResultMode = "restore"
+)
+
+// Valid indicates whether the value is a known member of the ImportJSONResultMode enum.
+func (e ImportJSONResultMode) Valid() bool {
+	switch e {
+	case ImportJSONResultModeReplace:
+		return true
+	case ImportJSONResultModeRestore:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImportPreviewFlightStatus.
 const (
 	ImportPreviewFlightStatusDuplicate ImportPreviewFlightStatus = "duplicate"
@@ -1926,6 +2013,24 @@ func (e UserTimeDisplayFormat) Valid() bool {
 	}
 }
 
+// Defines values for RestoreMode.
+const (
+	RestoreModeReplace RestoreMode = "replace"
+	RestoreModeRestore RestoreMode = "restore"
+)
+
+// Valid indicates whether the value is a known member of the RestoreMode enum.
+func (e RestoreMode) Valid() bool {
+	switch e {
+	case RestoreModeReplace:
+		return true
+	case RestoreModeRestore:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateAnnouncementJSONBodySeverity.
 const (
 	CreateAnnouncementJSONBodySeverityCritical CreateAnnouncementJSONBodySeverity = "critical"
@@ -2130,6 +2235,24 @@ func (e ListFlightsParamsSortOrder) Valid() bool {
 	}
 }
 
+// Defines values for ImportDataJSONParamsMode.
+const (
+	ImportDataJSONParamsModeReplace ImportDataJSONParamsMode = "replace"
+	ImportDataJSONParamsModeRestore ImportDataJSONParamsMode = "restore"
+)
+
+// Valid indicates whether the value is a known member of the ImportDataJSONParamsMode enum.
+func (e ImportDataJSONParamsMode) Valid() bool {
+	switch e {
+	case ImportDataJSONParamsModeReplace:
+		return true
+	case ImportDataJSONParamsModeRestore:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExportCustomReportParamsFormat.
 const (
 	Csv ExportCustomReportParamsFormat = "csv"
@@ -2298,6 +2421,42 @@ func (e UpdateCurrentUserJSONBodyTimeDisplayFormat) Valid() bool {
 	case UpdateCurrentUserJSONBodyTimeDisplayFormatDecimal:
 		return true
 	case UpdateCurrentUserJSONBodyTimeDisplayFormatHm:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DeleteAllUserDataParamsScope.
+const (
+	DeleteAllUserDataParamsScopeAll     DeleteAllUserDataParamsScope = "all"
+	DeleteAllUserDataParamsScopeFlights DeleteAllUserDataParamsScope = "flights"
+)
+
+// Valid indicates whether the value is a known member of the DeleteAllUserDataParamsScope enum.
+func (e DeleteAllUserDataParamsScope) Valid() bool {
+	switch e {
+	case DeleteAllUserDataParamsScopeAll:
+		return true
+	case DeleteAllUserDataParamsScopeFlights:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RestoreUserDataParamsMode.
+const (
+	RestoreUserDataParamsModeReplace RestoreUserDataParamsMode = "replace"
+	RestoreUserDataParamsModeRestore RestoreUserDataParamsMode = "restore"
+)
+
+// Valid indicates whether the value is a known member of the RestoreUserDataParamsMode enum.
+func (e RestoreUserDataParamsMode) Valid() bool {
+	switch e {
+	case RestoreUserDataParamsModeReplace:
+		return true
+	case RestoreUserDataParamsModeRestore:
 		return true
 	default:
 		return false
@@ -3497,6 +3656,94 @@ type AuthResponse struct {
 	User         User   `json:"user"`
 }
 
+// BackupClassRating defines model for BackupClassRating.
+type BackupClassRating struct {
+	// ClassType Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
+	// - GYROPLANE: Gyroplane (EASA GPL, FCL.240.G recency)
+	ClassType ClassType `json:"classType"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// ExpiryDate Example: 2026-03-15T00:00:00Z
+	ExpiryDate *time.Time         `json:"expiryDate,omitempty"`
+	Id         openapi_types.UUID `json:"id"`
+
+	// IssueDate Example: 2024-03-15T00:00:00Z
+	IssueDate time.Time          `json:"issueDate"`
+	LicenseId openapi_types.UUID `json:"licenseId"`
+	Notes     *string            `json:"notes,omitempty"`
+
+	// UlKind Set only when classType is ULTRALIGHT
+	UlKind    *BackupClassRatingUlKind `json:"ulKind,omitempty"`
+	UpdatedAt time.Time                `json:"updatedAt"`
+}
+
+// BackupClassRatingUlKind Set only when classType is ULTRALIGHT
+type BackupClassRatingUlKind string
+
+// BackupCredential defines model for BackupCredential.
+type BackupCredential struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// CredentialNumber Example: MED-2026-001
+	CredentialNumber *string `json:"credentialNumber,omitempty"`
+
+	// CredentialType Credential type:
+	// - EASA_CLASS1_MEDICAL: EASA Class 1 Medical Certificate
+	// - EASA_CLASS2_MEDICAL: EASA Class 2 Medical Certificate
+	// - EASA_LAPL_MEDICAL: EASA LAPL Medical Certificate
+	// - FAA_CLASS1_MEDICAL: FAA First-Class Medical Certificate
+	// - FAA_CLASS2_MEDICAL: FAA Second-Class Medical Certificate
+	// - FAA_CLASS3_MEDICAL: FAA Third-Class Medical Certificate
+	// - LANG_ICAO_LEVEL4: Language Proficiency ICAO Level 4
+	// - LANG_ICAO_LEVEL5: Language Proficiency ICAO Level 5
+	// - LANG_ICAO_LEVEL6: Language Proficiency ICAO Level 6 (Expert)
+	// - SEC_CLEARANCE_ZUP: Security Clearance ZÜP (Germany)
+	// - SEC_CLEARANCE_ZUBB: Security Clearance ZüBB (Germany)
+	// - RADIO_BZF2: Beschränktes Sprechfunkzeugnis II (Germany, VFR, German only)
+	// - RADIO_BZF1: Beschränktes Sprechfunkzeugnis I (Germany, VFR, German and English)
+	// - RADIO_AZF: Allgemeines Sprechfunkzeugnis (Germany, VFR and IFR)
+	// - OTHER: Other credential
+	CredentialType CredentialType `json:"credentialType"`
+
+	// ExpiryDate Example: 2027-01-15T00:00:00Z
+	ExpiryDate *time.Time         `json:"expiryDate,omitempty"`
+	Id         openapi_types.UUID `json:"id"`
+
+	// IssueDate Example: 2026-01-15T00:00:00Z
+	IssueDate time.Time `json:"issueDate"`
+
+	// IssuingAuthority Example: EASA AME
+	IssuingAuthority string             `json:"issuingAuthority"`
+	Notes            *string            `json:"notes,omitempty"`
+	UpdatedAt        time.Time          `json:"updatedAt"`
+	UserId           openapi_types.UUID `json:"userId"`
+}
+
+// BackupCustomCurrencyRule The portable half of a user-authored currency rule. Sharing state is never part of a backup.
+type BackupCustomCurrencyRule struct {
+	// Definition The declarative rule document: a lookback window, filters selecting which flights count, and requirements measured against the aggregated flight metrics.
+	Definition  CustomCurrencyRuleBody `json:"definition"`
+	Description *string                `json:"description,omitempty"`
+	Emoji       *string                `json:"emoji,omitempty"`
+	Enabled     bool                   `json:"enabled"`
+	Name        string                 `json:"name"`
+	Notify      bool                   `json:"notify"`
+}
+
+// BackupCustomReport The portable half of a saved custom report. A licence-scoped report names the licence by its id in this backup.
+type BackupCustomReport struct {
+	Definition CustomReportDefinition `json:"definition"`
+	Name       string                 `json:"name"`
+}
+
 // BackupDestination defines model for BackupDestination.
 type BackupDestination struct {
 	// Config Provider-specific non-secret configuration (e.g. bucket, region, prefix).
@@ -3591,6 +3838,419 @@ type BackupFieldSchema struct {
 
 // BackupFieldType Hint for rendering provider config/credential form fields.
 type BackupFieldType string
+
+// BackupFlight A flight as written to a backup: the stored columns of the flight, its crew and its approaches. Identifiers and timestamps are reassigned on restore.
+type BackupFlight struct {
+	// ActualInstrumentTime Actual instrument flight time in minutes (under IMC or simulated IMC with view-limiting device)
+	//
+	// Example: 30
+	ActualInstrumentTime int `json:"actualInstrumentTime"`
+
+	// AircraftReg Aircraft registration
+	//
+	// Example: D-EFGH
+	AircraftReg string `json:"aircraftReg"`
+
+	// AircraftType Aircraft type
+	//
+	// Example: C172
+	AircraftType string `json:"aircraftType"`
+
+	// AllLandings Total landings (day + night). Auto-calculated by the server.
+	//
+	// Example: 4
+	AllLandings int `json:"allLandings"`
+
+	// Approaches Structured instrument approach details (FAA §61.51(g)(3)) — type, airport, and runway for each approach
+	Approaches *[]ApproachEntry `json:"approaches,omitempty"`
+
+	// ApproachesCount Number of instrument approaches performed
+	//
+	// Example: 2
+	ApproachesCount int `json:"approachesCount"`
+
+	// ArrivalIcao Arrival location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
+	//
+	// Example: EDDH
+	ArrivalIcao *string `json:"arrivalIcao,omitempty"`
+
+	// ArrivalTime Landing time in UTC. Marks the end of airborne/flight time.
+	//
+	// Example: 16:45:00
+	ArrivalTime *string `json:"arrivalTime,omitempty"`
+
+	// CreatedAt Example: 2026-01-30T16:00:00Z
+	CreatedAt time.Time `json:"createdAt"`
+
+	// CrewMembers People on board this flight with their roles
+	CrewMembers *[]FlightCrewMember `json:"crewMembers,omitempty"`
+
+	// CrossCountryTime Cross-country time in minutes. Auto-calculated as the full block time when departure ≠ arrival unless crossCountryTimeOverride is true.
+	//
+	// Example: 150
+	CrossCountryTime int `json:"crossCountryTime"`
+
+	// CrossCountryTimeOverride True when crossCountryTime was entered by the pilot. Recalculation keeps the entered value. Send crossCountryTime: null on update to return to auto-calculation.
+	//
+	// Example: false
+	CrossCountryTimeOverride *bool `json:"crossCountryTimeOverride,omitempty"`
+
+	// Date Example: 2026-01-30T00:00:00Z
+	Date time.Time `json:"date"`
+
+	// DepartureIcao Departure location — an ICAO code (resolved to coordinates for maps/distance) or a free-text place name for off-airport sites
+	//
+	// Example: EDDF
+	DepartureIcao *string `json:"departureIcao,omitempty"`
+
+	// DepartureTime Takeoff time in UTC. Marks the beginning of airborne/flight time.
+	//
+	// Example: 14:30:00
+	DepartureTime *string `json:"departureTime,omitempty"`
+
+	// Distance Distance in nautical miles. Auto-calculated from airport coordinates.
+	//
+	// Example: 185.3
+	Distance float32 `json:"distance"`
+
+	// DualGivenTime Dual instruction given time in minutes. Auto-calculated when user acts as instructor.
+	//
+	// Example: 0
+	DualGivenTime int `json:"dualGivenTime"`
+
+	// DualTime Dual instruction block time in minutes (computed from isDual and totalTime)
+	//
+	// Example: 0
+	DualTime int `json:"dualTime"`
+
+	// Endorsements Instructor endorsements, skill test references, examiner notes. EASA AMC1 FCL.050 Col 24 / FAA §61.51(h). Separate from pilot remarks.
+	//
+	// Example: Skill test passed
+	Endorsements *string `json:"endorsements,omitempty"`
+
+	// ExaminerTime Time conducting a check as examiner, in minutes. Overlays the pilot function time like dualGivenTime; bounded by totalTime only.
+	//
+	// Example: 0
+	ExaminerTime int `json:"examinerTime"`
+
+	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320", "FTD Level 5", "BATD", "AATD"). Required by EASA AMC1 FCL.050 Col 22 and FAA §61.51(b)(1)(iv).
+	//
+	// Example: FNPT II
+	FstdType *string `json:"fstdType,omitempty"`
+
+	// GroundTrainingTime Ground training time in minutes
+	//
+	// Example: 0
+	GroundTrainingTime int `json:"groundTrainingTime"`
+
+	// Holds Number of holding procedures performed
+	//
+	// Example: 1
+	Holds int `json:"holds"`
+
+	// Id Example: 770e8400-e29b-41d4-a716-446655440002
+	Id openapi_types.UUID `json:"id"`
+
+	// IfrTime Instrument block time in minutes
+	//
+	// Example: 60
+	IfrTime int `json:"ifrTime"`
+
+	// InstructorComments Instructor comments about the flight
+	InstructorComments *string `json:"instructorComments,omitempty"`
+
+	// InstructorName Name of the instructor for this flight
+	InstructorName *string `json:"instructorName,omitempty"`
+
+	// IsDual Whether this flight was logged as dual instruction received. Mutually exclusive with isPic.
+	//
+	// Example: false
+	IsDual bool `json:"isDual"`
+
+	// IsFlightReview Whether this flight was a Flight Review (FAA 61.56) or equivalent
+	//
+	// Example: false
+	IsFlightReview bool `json:"isFlightReview"`
+
+	// IsIpc Whether this flight included an Instrument Proficiency Check (IPC)
+	//
+	// Example: false
+	IsIpc bool `json:"isIpc"`
+
+	// IsPassenger True when the user was carried on this flight rather than crewing it.
+	// Derived on save: another person is pilot-in-command and the operation
+	// carries no co-pilot seat the user may occupy — the aircraft is not
+	// certificated for a minimum crew of two, the user is not a required
+	// safety pilot, and no co-pilot seat was declared. The row keeps its
+	// route and block times as the record of the trip and carries zero in
+	// every flight-time column, contributing to no total, statistic or
+	// currency calculation.
+	//
+	//
+	// Example: false
+	IsPassenger bool `json:"isPassenger"`
+
+	// IsPic Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
+	//
+	// Example: true
+	IsPic bool `json:"isPic"`
+
+	// IsProficiencyCheck Whether this flight was a Proficiency Check (EASA FCL.740.A MEP/SET, FCL.625.A IR, or FAA §61.58)
+	//
+	// Example: false
+	IsProficiencyCheck bool `json:"isProficiencyCheck"`
+
+	// IsSimulator True when this entry is an FSTD (simulator) session rather than a flight.
+	// A session carries its duration in simulatedFlightTime and zero in every
+	// flight-time column — totalTime, picTime, dualTime, sicTime, dualGivenTime,
+	// multiPilotTime, soloTime, crossCountryTime, nightTime and ifrTime — and
+	// contributes to no flight total, statistic or currency calculation
+	// (EASA AMC1 FCL.050: session time is recorded separately and is never
+	// summed with flight time).
+	//
+	//
+	// Example: false
+	IsSimulator bool `json:"isSimulator"`
+
+	// LandingsDay Number of day landings. Auto-calculated from sunset/sunrise at arrival airport.
+	//
+	// Example: 3
+	LandingsDay int `json:"landingsDay"`
+
+	// LandingsDayOverride True when landingsDay was entered by the pilot rather than auto-calculated.
+	//
+	// Example: false
+	LandingsDayOverride *bool `json:"landingsDayOverride,omitempty"`
+
+	// LandingsNight Number of night landings. Auto-calculated from sunset/sunrise at arrival airport.
+	//
+	// Example: 1
+	LandingsNight int `json:"landingsNight"`
+
+	// LandingsNightOverride True when landingsNight was entered by the pilot rather than auto-calculated.
+	//
+	// Example: false
+	LandingsNightOverride *bool `json:"landingsNightOverride,omitempty"`
+
+	// LaunchMethod Launch method for glider/SPL flights (winch, aerotow, self-launch, car or bungee)
+	//
+	// Example: winch
+	LaunchMethod *BackupFlightLaunchMethod `json:"launchMethod,omitempty"`
+
+	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
+	//
+	// Example: 0
+	MultiPilotTime int `json:"multiPilotTime"`
+
+	// MultiPilotTimeOverride True when multiPilotTime was declared by the pilot rather than derived from the crew list.
+	//
+	// Example: false
+	MultiPilotTimeOverride *bool `json:"multiPilotTimeOverride,omitempty"`
+
+	// NightTime Night block time in minutes. Auto-calculated from the block times and civil twilight at the departure location unless nightTimeOverride is true.
+	//
+	// Example: 30
+	NightTime int `json:"nightTime"`
+
+	// NightTimeOverride True when nightTime was entered by the pilot. Recalculation keeps the entered value. Send nightTime: null on update to return to auto-calculation.
+	//
+	// Example: false
+	NightTimeOverride *bool `json:"nightTimeOverride,omitempty"`
+
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+	//
+	// Example: 14:15:00
+	OffBlockTime *string `json:"offBlockTime,omitempty"`
+
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+	//
+	// Example: 16:55:00
+	OnBlockTime *string `json:"onBlockTime,omitempty"`
+
+	// PicName Name of the pilot-in-command for this flight (EASA AMC1 FCL.050 Col 12). Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
+	//
+	// Example: Self
+	PicName *string `json:"picName,omitempty"`
+
+	// PicTime Pilot-in-command block time in minutes (computed from isPic and totalTime)
+	//
+	// Example: 150
+	PicTime int `json:"picTime"`
+
+	// PicusTime PIC under supervision (PICUS) time in minutes (EASA FCL.030, Part-FCL). Declared by the pilot, never auto-calculated; carved out of the derived function time. Counts toward PIC experience requirements (e.g. unfreezing an ATPL) but is kept distinct from PIC and SIC time.
+	//
+	// Example: 0
+	PicusTime int `json:"picusTime"`
+
+	// ReliefTime Cruise relief co-pilot time in minutes (augmented crew). Declared by the pilot, never auto-calculated; carved out of the derived function time.
+	//
+	// Example: 0
+	ReliefTime int `json:"reliefTime"`
+
+	// Remarks Free text notes
+	//
+	// Example: Training flight - touch and go practice
+	Remarks *string `json:"remarks,omitempty"`
+
+	// Route Route waypoints as comma-separated ICAO codes for VFR/IFR flight plans
+	//
+	// Example: EDDF,EDDS,EDDM
+	Route *string `json:"route,omitempty"`
+
+	// SicTime Second-in-command time in minutes. Auto-calculated when SIC crew role assigned.
+	//
+	// Example: 0
+	SicTime int `json:"sicTime"`
+
+	// SicTimeOverride True when sicTime was declared by the pilot rather than derived from the crew list.
+	//
+	// Example: false
+	SicTimeOverride *bool `json:"sicTimeOverride,omitempty"`
+
+	// SignatureId Present on a signed flight. Signatures are bound to the installation that minted them, so a restore ignores this field.
+	SignatureId *openapi_types.UUID `json:"signatureId,omitempty"`
+
+	// SimulatedFlightTime Simulated flight time in minutes (FTD/FSTD)
+	//
+	// Example: 0
+	SimulatedFlightTime int `json:"simulatedFlightTime"`
+
+	// SimulatedInstrumentTime Simulated instrument time in minutes (FSTD/FTD/ATD)
+	//
+	// Example: 18
+	SimulatedInstrumentTime int `json:"simulatedInstrumentTime"`
+
+	// SoloTime Solo time in minutes. Auto-calculated when no crew and not dual instruction.
+	//
+	// Example: 90
+	SoloTime int `json:"soloTime"`
+
+	// SpicTime Student pilot-in-command (SPIC) time in minutes (EASA integrated course). Declared by the pilot, never auto-calculated; carved out of the derived function time.
+	//
+	// Example: 0
+	SpicTime int `json:"spicTime"`
+
+	// TakeoffsDay Number of day takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
+	//
+	// Example: 3
+	TakeoffsDay int `json:"takeoffsDay"`
+
+	// TakeoffsDayOverride True when takeoffsDay was entered by the pilot rather than auto-calculated.
+	//
+	// Example: false
+	TakeoffsDayOverride *bool `json:"takeoffsDayOverride,omitempty"`
+
+	// TakeoffsNight Number of night takeoffs. Auto-calculated from sunset/sunrise at departure airport unless overridden.
+	//
+	// Example: 1
+	TakeoffsNight int `json:"takeoffsNight"`
+
+	// TakeoffsNightOverride True when takeoffsNight was entered by the pilot rather than auto-calculated.
+	//
+	// Example: false
+	TakeoffsNightOverride *bool `json:"takeoffsNightOverride,omitempty"`
+
+	// TotalTime Total block time in minutes (off-block to on-block)
+	//
+	// Example: 150
+	TotalTime int `json:"totalTime"`
+
+	// UpdatedAt Example: 2026-01-30T16:00:00Z
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
+	UserId openapi_types.UUID `json:"userId"`
+}
+
+// BackupFlightLaunchMethod Launch method for glider/SPL flights (winch, aerotow, self-launch, car or bungee)
+//
+// Example: winch
+type BackupFlightLaunchMethod string
+
+// BackupFlightBaseline The carried-forward hours snapshot
+type BackupFlightBaseline struct {
+	// BaselineDate Example: 2024-01-01T00:00:00Z
+	BaselineDate        time.Time `json:"baselineDate"`
+	CrossCountryMinutes int       `json:"crossCountryMinutes"`
+	DualGivenMinutes    int       `json:"dualGivenMinutes"`
+	DualMinutes         int       `json:"dualMinutes"`
+	ExaminerMinutes     int       `json:"examinerMinutes"`
+	IfrMinutes          int       `json:"ifrMinutes"`
+	LandingsDay         int       `json:"landingsDay"`
+	LandingsNight       int       `json:"landingsNight"`
+	MultiPilotMinutes   int       `json:"multiPilotMinutes"`
+	NightMinutes        int       `json:"nightMinutes"`
+	Notes               *string   `json:"notes,omitempty"`
+	PicMinutes          int       `json:"picMinutes"`
+	PicusMinutes        int       `json:"picusMinutes"`
+	ReliefMinutes       int       `json:"reliefMinutes"`
+	SicMinutes          int       `json:"sicMinutes"`
+	SoloMinutes         int       `json:"soloMinutes"`
+	SpicMinutes         int       `json:"spicMinutes"`
+	TotalFlights        int       `json:"totalFlights"`
+	TotalMinutes        int       `json:"totalMinutes"`
+}
+
+// BackupLicense defines model for BackupLicense.
+type BackupLicense struct {
+	CreatedAt time.Time          `json:"createdAt"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// IssueDate Example: 2020-01-15T00:00:00Z
+	IssueDate time.Time `json:"issueDate"`
+
+	// IssuingAuthority Example: EASA
+	IssuingAuthority string `json:"issuingAuthority"`
+
+	// LicenseNumber Example: PPL-123456
+	LicenseNumber string `json:"licenseNumber"`
+
+	// LicenseType Example: PPL
+	LicenseType string `json:"licenseType"`
+
+	// RegulatoryAuthority Example: EASA
+	RegulatoryAuthority     string             `json:"regulatoryAuthority"`
+	RequiresSeparateLogbook bool               `json:"requiresSeparateLogbook"`
+	UpdatedAt               time.Time          `json:"updatedAt"`
+	UserId                  openapi_types.UUID `json:"userId"`
+}
+
+// BackupLicenseWithRatings A licence together with its class ratings
+type BackupLicenseWithRatings struct {
+	ClassRatings []BackupClassRating `json:"classRatings"`
+	License      BackupLicense       `json:"license"`
+}
+
+// BackupPayload A NinerLog JSON backup, as written by `GET /users/me/data` and by every cloud backup run, and as read by `POST /users/me/data`. A restore also accepts older backups that lack `version` or the later sections.
+type BackupPayload struct {
+	Aircraft            []Aircraft                 `json:"aircraft"`
+	Contacts            []Contact                  `json:"contacts"`
+	Credentials         []BackupCredential         `json:"credentials"`
+	CustomCurrencyRules []BackupCustomCurrencyRule `json:"customCurrencyRules"`
+
+	// CustomReports Saved custom reports in display order
+	CustomReports []BackupCustomReport `json:"customReports"`
+
+	// ExportedAt Example: 2026-03-07T10:15:00Z
+	ExportedAt time.Time `json:"exportedAt"`
+
+	// FlightBaseline The carried-forward hours snapshot
+	FlightBaseline *BackupFlightBaseline `json:"flightBaseline,omitempty"`
+	Flights        []BackupFlight        `json:"flights"`
+
+	// Format Always `NinerLog JSON Backup`
+	Format                  BackupPayloadFormat        `json:"format"`
+	Licenses                []BackupLicenseWithRatings `json:"licenses"`
+	NotificationPreferences *NotificationPreferences   `json:"notificationPreferences,omitempty"`
+
+	// Version Payload version, `<major>.<minor>`. A restore refuses a major version newer than the server's.
+	//
+	// Example: 1.0
+	Version string `json:"version"`
+}
+
+// BackupPayloadFormat Always `NinerLog JSON Backup`
+type BackupPayloadFormat string
 
 // BackupProvider defines model for BackupProvider.
 type BackupProvider struct {
@@ -4714,6 +5374,13 @@ type Error struct {
 	//   - `two_factor_required` / `invalid_two_factor_code` — the second factor
 	//   - `invalid_provider_credentials` — a cloud-backup provider refused the
 	//     destination's stored credentials
+	//
+	// Backup restores (`POST /users/me/data`) add three codes on non-401 statuses:
+	//
+	// - `account_not_empty` (409) — `mode=restore` found data in the account
+	// - `replace_would_drop_attachments` (409) — `mode=replace` found document
+	//   files or signed flights
+	// - `backup_version_unsupported` (422) — the backup is from a newer major version
 	//
 	//
 	// Example: email_not_verified
@@ -5886,7 +6553,7 @@ type ImportField string
 // - XLSX: Microsoft Excel 2007+ workbook (Open XML)
 type ImportFormat string
 
-// ImportJSONResult Summary returned by `POST /imports/json` after restoring a backup.
+// ImportJSONResult Summary returned by `POST /users/me/data` (and the deprecated `POST /imports/json`) after restoring a backup.
 type ImportJSONResult struct {
 	// AircraftImported Number of aircraft created from the backup
 	//
@@ -5941,9 +6608,18 @@ type ImportJSONResult struct {
 	// LicensesImported Example: 2
 	LicensesImported int `json:"licensesImported"`
 
+	// Mode The mode the restore ran in
+	Mode ImportJSONResultMode `json:"mode"`
+
 	// NotificationPreferencesImported Whether the backup carried notification preferences that were applied
 	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
+
+	// Warnings Rows that were restored although they no longer pass validation (custom currency rules are restored with `enabled` and `notify` false), or that carry values worth a second look. Empty when the backup restored cleanly.
+	Warnings []RestoreWarning `json:"warnings"`
 }
+
+// ImportJSONResultMode The mode the restore ran in
+type ImportJSONResultMode string
 
 // ImportPreviewFlight defines model for ImportPreviewFlight.
 type ImportPreviewFlight struct {
@@ -6727,6 +7403,22 @@ type ResendSignatureRequestRequest struct {
 	InstructorEmail *openapi_types.Email `json:"instructorEmail,omitempty"`
 }
 
+// RestoreWarning defines model for RestoreWarning.
+type RestoreWarning struct {
+	// Index Zero-based position of the row within its section
+	//
+	// Example: 2
+	Index int `json:"index"`
+
+	// Message Example: restored paused - the definition no longer passes validation
+	Message string `json:"message"`
+
+	// Section Backup section the row belongs to
+	//
+	// Example: customCurrencyRules
+	Section string `json:"section"`
+}
+
 // Session One signed-in device holding a live session.
 type Session struct {
 	// CreatedAt When the session was created by signing in
@@ -7205,6 +7897,9 @@ type ImportId = openapi_types.UUID
 // LicenseId Example: 550e8400-e29b-41d4-a716-446655440000
 type LicenseId = openapi_types.UUID
 
+// RestoreMode defines model for RestoreMode.
+type RestoreMode string
+
 // SignatureId Example: 880e8400-e29b-41d4-a716-446655440003
 type SignatureId = openapi_types.UUID
 
@@ -7213,6 +7908,12 @@ type SignatureToken = string
 
 // UpdatedSince Example: 2026-08-05T10:08:45.123456Z
 type UpdatedSince = time.Time
+
+// BackupTooLarge defines model for BackupTooLarge.
+type BackupTooLarge = Error
+
+// BackupVersionUnsupported defines model for BackupVersionUnsupported.
+type BackupVersionUnsupported = Error
 
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
@@ -7243,6 +7944,9 @@ type PayloadTooLarge = Error
 
 // ProviderCredentialsRejected defines model for ProviderCredentialsRejected.
 type ProviderCredentialsRejected = Error
+
+// RestoreRefused defines model for RestoreRefused.
+type RestoreRefused = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
@@ -7703,22 +8407,14 @@ type ListImportsParams struct {
 	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
-// ImportDataJSONJSONBody defines parameters for ImportDataJSON.
-type ImportDataJSONJSONBody struct {
-	Aircraft            *[]map[string]interface{} `json:"aircraft,omitempty"`
-	Contacts            *[]map[string]interface{} `json:"contacts,omitempty"`
-	Credentials         *[]map[string]interface{} `json:"credentials,omitempty"`
-	CustomCurrencyRules *[]map[string]interface{} `json:"customCurrencyRules,omitempty"`
-	ExportedAt          *time.Time                `json:"exportedAt,omitempty"`
-	FlightBaseline      *map[string]interface{}   `json:"flightBaseline,omitempty"`
-	Flights             *[]map[string]interface{} `json:"flights,omitempty"`
-
-	// Format Example: NinerLog JSON Backup
-	Format                  string                    `json:"format"`
-	Licenses                *[]map[string]interface{} `json:"licenses,omitempty"`
-	NotificationPreferences *map[string]interface{}   `json:"notificationPreferences,omitempty"`
-	Version                 *string                   `json:"version,omitempty"`
+// ImportDataJSONParams defines parameters for ImportDataJSON.
+type ImportDataJSONParams struct {
+	// Mode How to treat data already in the account. `restore` (default) requires an empty account and answers `409 account_not_empty` otherwise; `replace` wipes the account's collections and restores in the same transaction, and is refused with `409 replace_would_drop_attachments` while the account holds document files or signed flights.
+	Mode *ImportDataJSONParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
 }
+
+// ImportDataJSONParamsMode defines parameters for ImportDataJSON.
+type ImportDataJSONParamsMode string
 
 // UploadImportFileMultipartBody defines parameters for UploadImportFile.
 type UploadImportFileMultipartBody struct {
@@ -7868,6 +8564,24 @@ type UpdateCurrentUserJSONBodyPreferredLocale string
 // UpdateCurrentUserJSONBodyTimeDisplayFormat defines parameters for UpdateCurrentUser.
 type UpdateCurrentUserJSONBodyTimeDisplayFormat string
 
+// DeleteAllUserDataParams defines parameters for DeleteAllUserData.
+type DeleteAllUserDataParams struct {
+	// Scope What to delete. `all` is the default.
+	Scope *DeleteAllUserDataParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+}
+
+// DeleteAllUserDataParamsScope defines parameters for DeleteAllUserData.
+type DeleteAllUserDataParamsScope string
+
+// RestoreUserDataParams defines parameters for RestoreUserData.
+type RestoreUserDataParams struct {
+	// Mode How to treat data already in the account. `restore` (default) requires an empty account and answers `409 account_not_empty` otherwise; `replace` wipes the account's collections and restores in the same transaction, and is refused with `409 replace_would_drop_attachments` while the account holds document files or signed flights.
+	Mode *RestoreUserDataParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+}
+
+// RestoreUserDataParamsMode defines parameters for RestoreUserData.
+type RestoreUserDataParamsMode string
+
 // GetNotificationHistoryParams defines parameters for GetNotificationHistory.
 type GetNotificationHistoryParams struct {
 	// Limit Maximum number of results to return
@@ -8004,7 +8718,9 @@ type VoidFlightSignatureJSONRequestBody = VoidSignatureRequest
 type ConfirmImportJSONRequestBody = ImportConfirmRequest
 
 // ImportDataJSONJSONRequestBody defines body for ImportDataJSON for application/json ContentType.
-type ImportDataJSONJSONRequestBody ImportDataJSONJSONBody
+//
+// Deprecated: this type has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+type ImportDataJSONJSONRequestBody = BackupPayload
 
 // PreviewImportJSONRequestBody defines body for PreviewImport for application/json ContentType.
 type PreviewImportJSONRequestBody = ImportPreviewRequest
@@ -8050,6 +8766,9 @@ type UpdateCurrentUserJSONRequestBody UpdateCurrentUserJSONBody
 
 // PutMyBaselineJSONRequestBody defines body for PutMyBaseline for application/json ContentType.
 type PutMyBaselineJSONRequestBody = FlightBaselineInput
+
+// RestoreUserDataJSONRequestBody defines body for RestoreUserData for application/json ContentType.
+type RestoreUserDataJSONRequestBody = BackupPayload
 
 // UpdateNotificationPreferencesJSONRequestBody defines body for UpdateNotificationPreferences for application/json ContentType.
 type UpdateNotificationPreferencesJSONRequestBody = NotificationPreferencesUpdate
