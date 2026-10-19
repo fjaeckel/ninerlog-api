@@ -133,10 +133,20 @@ jobs:
           go-version: '1.27.2'
           cache: true
 
-      - name: Run integration tests
-        run: go test -v -count=1 -run Integration ./internal/repository/postgres/...
+      - name: Seed test database
+        run: bash scripts/seed-test-db.sh
         env:
-          DATABASE_URL: postgresql://testuser:testpass@localhost:5433/ninerlog_test?sslmode=disable
+          PGPASSWORD: testpass
+          PSQL_CMD: psql -h localhost -p 5433 -U testuser -d ninerlog_test -v ON_ERROR_STOP=1 -q
+
+      - name: Run integration tests
+        run: go test -v -count=1 -tags=integration ./internal/repository/postgres/...
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: '5433'
+          TEST_DB_USER: testuser
+          TEST_DB_PASSWORD: testpass
+          TEST_DB_NAME: ninerlog_test
 
   publish:
     name: Publish Docker Image

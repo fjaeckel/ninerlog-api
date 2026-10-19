@@ -125,7 +125,7 @@ func TestNotificationLogMigrationBackfillIntegration(t *testing.T) {
 	}
 
 	db := testutil.SetupTestDB(t)
-	defer testutil.TeardownTestDB(t, db)
+	t.Cleanup(func() { testutil.TeardownTestDB(t, db) })
 	ctx := context.Background()
 
 	readMigration := func(t *testing.T, dir string) string {
@@ -139,7 +139,11 @@ func TestNotificationLogMigrationBackfillIntegration(t *testing.T) {
 	if _, err := db.ExecContext(ctx, readMigration(t, "down")); err != nil {
 		t.Fatalf("down migration: %v", err)
 	}
+	upApplied := false
 	t.Cleanup(func() {
+		if upApplied {
+			return
+		}
 		if _, err := db.ExecContext(ctx, readMigration(t, "up")); err != nil {
 			t.Errorf("restore up migration: %v", err)
 		}
@@ -182,6 +186,7 @@ func TestNotificationLogMigrationBackfillIntegration(t *testing.T) {
 	if _, err := db.ExecContext(ctx, readMigration(t, "up")); err != nil {
 		t.Fatalf("up migration: %v", err)
 	}
+	upApplied = true
 
 	type got struct {
 		kind string
