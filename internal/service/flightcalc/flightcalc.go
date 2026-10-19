@@ -260,29 +260,16 @@ func calculateNightTime(flight *models.Flight) {
 		return
 	}
 
-	if flight.OffBlockTime == nil || flight.OnBlockTime == nil ||
-		strings.TrimSpace(*flight.OffBlockTime) == "" ||
-		strings.TrimSpace(*flight.OnBlockTime) == "" {
-		return
-	}
-
 	depAP := airports.Lookup(dep)
 	if depAP == nil {
 		return
 	}
 
-	depTime, err := parseTimeOfDay(flight.Date, *flight.OffBlockTime)
-	if err != nil {
+	in := instantsOf(flight)
+	if in.offBlock.IsZero() || in.onBlock.IsZero() {
 		return
 	}
-	arrTime, err := parseTimeOfDay(flight.Date, *flight.OnBlockTime)
-	if err != nil {
-		return
-	}
-	// Handle overnight flights
-	if arrTime.Before(depTime) {
-		arrTime = arrTime.Add(24 * time.Hour)
-	}
+	depTime, arrTime := in.offBlock, in.onBlock
 
 	totalMinutes := arrTime.Sub(depTime).Minutes()
 	if totalMinutes <= 0 {
@@ -364,7 +351,7 @@ func calculateTakeoffSplit(flight *models.Flight) {
 	}
 
 	dep := normalizeICAO(flight.DepartureICAO)
-	if dep == "" || flight.OffBlockTime == nil || strings.TrimSpace(*flight.OffBlockTime) == "" {
+	if dep == "" {
 		return
 	}
 
@@ -373,8 +360,8 @@ func calculateTakeoffSplit(flight *models.Flight) {
 		return
 	}
 
-	depTime, err := parseTimeOfDay(flight.Date, *flight.OffBlockTime)
-	if err != nil {
+	depTime := instantsOf(flight).takeoffAt()
+	if depTime.IsZero() {
 		return
 	}
 
@@ -398,25 +385,13 @@ func calculateLandingSplit(flight *models.Flight) {
 		return
 	}
 
-	arr := normalizeICAO(flight.ArrivalICAO)
-	if arr == "" || flight.OnBlockTime == nil || strings.TrimSpace(*flight.OnBlockTime) == "" {
-		// Can't determine day/night — default all landings to day
-		flight.LandingsDay = total
-		flight.LandingsNight = 0
-		return
+	var arrAP *airports.AirportInfo
+	if arr := normalizeICAO(flight.ArrivalICAO); arr != "" {
+		arrAP = airports.Lookup(arr)
 	}
-
-	arrAP := airports.Lookup(arr)
-	if arrAP == nil {
-		// Unknown airport — default all landings to day
-		flight.LandingsDay = total
-		flight.LandingsNight = 0
-		return
-	}
-
-	arrTime, err := parseTimeOfDay(flight.Date, *flight.OnBlockTime)
-	if err != nil {
-		// Can't parse time — default all landings to day
+	arrTime := instantsOf(flight).landingAt()
+	if arrAP == nil || arrTime.IsZero() {
+		// Unknown airport or time: all landings by day
 		flight.LandingsDay = total
 		flight.LandingsNight = 0
 		return
@@ -451,6 +426,73 @@ func normalizeICAO(icao *string) string {
 		return ""
 	}
 	return strings.ToUpper(strings.TrimSpace(*icao))
+}
+
+// flightInstants holds a flight's block, takeoff and landing times as UTC
+// instants; a zero value marks a time that is absent or unparseable.
+type flightInstants struct {
+	offBlock time.Time
+	takeoff  time.Time
+	landing  time.Time
+	onBlock  time.Time
+}
+
+// instantsOf places each time on flight.Date, and on the following day when
+// it is earlier than the anchor: off-block, or takeoff without off-block.
+func instantsOf(flight *models.Flight) flightInstants {
+	in := flightInstants{
+		offBlock: instantOn(flight.Date, flight.OffBlockTime),
+		takeoff:  instantOn(flight.Date, flight.DepartureTime),
+		landing:  instantOn(flight.Date, flight.ArrivalTime),
+		onBlock:  instantOn(flight.Date, flight.OnBlockTime),
+	}
+	anchor := in.offBlock
+	if anchor.IsZero() {
+		anchor = in.takeoff
+	}
+	if anchor.IsZero() {
+		return in
+	}
+	for _, t := range []*time.Time{&in.takeoff, &in.landing, &in.onBlock} {
+		if !t.IsZero() && t.Before(anchor) {
+			*t = t.Add(24 * time.Hour)
+		}
+	}
+	return in
+}
+
+// takeoffAt returns the takeoff instant, or off-block when takeoff is absent
+// or outside the block window.
+func (in flightInstants) takeoffAt() time.Time {
+	return inBlockWindow(in.takeoff, in.offBlock, in.onBlock, in.offBlock)
+}
+
+// landingAt returns the landing instant, or on-block when landing is absent
+// or outside the block window.
+func (in flightInstants) landingAt() time.Time {
+	return inBlockWindow(in.landing, in.offBlock, in.onBlock, in.onBlock)
+}
+
+// inBlockWindow returns t when it is set and inside [from, to], a zero bound
+// being open; otherwise fallback.
+func inBlockWindow(t, from, to, fallback time.Time) time.Time {
+	if t.IsZero() || (!from.IsZero() && t.Before(from)) || (!to.IsZero() && t.After(to)) {
+		return fallback
+	}
+	return t
+}
+
+// instantOn returns timeStr on date in UTC, or the zero time when timeStr is
+// nil or unparseable.
+func instantOn(date time.Time, timeStr *string) time.Time {
+	if timeStr == nil {
+		return time.Time{}
+	}
+	t, err := parseTimeOfDay(date, *timeStr)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
 
 func parseTimeOfDay(date time.Time, timeStr string) (time.Time, error) {

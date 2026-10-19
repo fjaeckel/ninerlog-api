@@ -1042,6 +1042,7 @@ func TestTakeoffSplit_WithAirportData_NightTakeoff(t *testing.T) {
 	f := baseFlight()
 	f.Date = time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
 	f.OffBlockTime = strPtr("22:00:00")
+	f.DepartureTime = nil
 	f.TakeoffsDay = 0
 	f.TakeoffsNight = 0
 	f.AllLandings = 1
@@ -1139,6 +1140,7 @@ func TestLandingSplit_WithAirportData_NightLanding(t *testing.T) {
 	f := baseFlight()
 	f.Date = time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
 	f.OnBlockTime = strPtr("22:00:00")
+	f.ArrivalTime = nil
 	f.AllLandings = 3
 	f.LandingsDay = 0
 	f.LandingsNight = 0
