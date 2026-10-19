@@ -283,6 +283,13 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 	} else {
 		result.DayStatus = StatusExpired
 	}
+	if hasNight && nightCount < 3 {
+		result.NightStatus = StatusExpired
+	}
+	includeTowed := includeTowedFlights(classType, strings.EqualFold(license.LicenseType, "GLIDER"))
+	fillPaxLapseDates(ctx, &result, func(from time.Time) ([]LandingDay, error) {
+		return dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowed, false, from)
+	}, nil, time.Now())
 
 	if !hasNight {
 		// Night not applicable — mark as N/A (unknown = not evaluated)

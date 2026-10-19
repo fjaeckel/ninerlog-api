@@ -499,6 +499,50 @@ flight whose departure breaks the first requirement is the binding one; a profic
 check extends the date to its own window end when that is later. Expiry-anchored
 revalidation rules (FCL.740.A, FCL.625.A) omit the field — their limit is `expiryDate`.
 
+### Expiry dates: last valid day vs first non-current day
+
+An **expiry date is the last valid day**. A class rating or credential (medical, language
+proficiency, security clearance) is valid through the end of its `expiryDate` and expired
+from the next day (`models.ClassRating.IsExpired`, `models.Credential.IsExpired`, built on
+`models.ExpiredAt`). Dates are compared as **UTC calendar dates**, never as instants: the
+expiry value's own year/month/day against the UTC date of now, so a server clock in any
+time zone gives the same answer for the whole UTC day. "Days remaining" is
+`models.DaysUntilExpiry` — whole calendar days, `0` on the expiry date itself, negative
+once it has passed — and "expiring soon within N days" means `0 <= days remaining <= N`.
+Everything derived from rating or credential validity uses these helpers: the evaluators'
+`expired` / `expiring` status and `days` message param, the FCL.060(b)(2)(ii) night
+waiver (an IR counts as valid through its expiry date, `hasValidIRRating`), and the
+notification day counts.
+
+The date fields in currency results differ in which day they name:
+
+| Field | Names |
+| --- | --- |
+| `ClassRating.expiryDate`, `Credential.expiryDate`, `ClassRatingCurrency.expiryDate` | last valid day |
+| `PassengerCurrency.dayExpiresOn` / `nightExpiresOn` | last day still current |
+| `ClassRatingCurrency.recencyExpiresOn` | last day still met (probed at midnight UTC) |
+| `FlightReviewStatus.expiresOn` | last valid day (end of the 24th calendar month) |
+| `CustomCurrencyResult.expiresOn` (custom rules) | **first day no longer current** — the day the binding flight leaves the window |
+| Lapse dates (internal, notifications only) | first day no longer current |
+
+Custom-rule `expiresOn` therefore sits one day later than a regulatory "expires on" for
+the same situation; it is kept as is.
+
+**Lapse dates** are internal (`json:"-"`, never in an API response) and computed only for
+the notification checker (`currency.WithLapseDates`): `ClassRatingCurrency.LapsedOn` for a
+lapsed rolling-window rule, `PassengerCurrency.DayLapsedOn` / `NightLapsedOn`, and
+`CustomCurrencyResult.LapsedOn`. Each is the first day the requirement was no longer met,
+or nil when it was never met. `lastCurrentDay` (`lapse.go`) finds the latest past day on
+which the requirement held, counting only flights dated on or before that day — so
+flights logged after the lapse that did not restore currency do not move it. It
+binary-searches a monotone bound (flights up to a fixed day, window start moving back) and
+narrows the bound until the day it finds is current on its own data. Passenger lapses
+read the full landing history (an IR's expiry date extends night currency); custom rules
+read their per-flight rows; rolling rating rules are re-evaluated at noon UTC of each
+probed day through a provider restricted to flights up to that day
+(`currency.AsOfProvider`, implemented by the PostgreSQL provider). A provider without
+`AsOf` yields no rating lapse date.
+
 ### Regulatory differences (EASA vs FAA)
 
 The two main rule sets differ substantially, which is why each has its own evaluator:

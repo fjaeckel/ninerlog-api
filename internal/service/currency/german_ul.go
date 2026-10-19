@@ -275,6 +275,9 @@ func (e *GermanULEvaluator) EvaluateRatingPassengerCurrency(ctx context.Context,
 		result.DayStatus = StatusExpired
 		result.setMsg(MsgPaxNotCurrent, msgNeeded(3-landings))
 	}
+	fillPaxLapseDates(ctx, &result, func(from time.Time) ([]LandingDay, error) {
+		return dp.GetLandingDaysByULKind(ctx, license.UserID, sel, kind == models.ULKindSailplane, from)
+	}, nil, time.Now())
 
 	return result
 }

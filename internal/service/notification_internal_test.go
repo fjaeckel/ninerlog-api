@@ -77,7 +77,3 @@ func TestStrPtr(t *testing.T) {
 		t.Errorf("strPtr = %q, want hello", *p)
 	}
 }
-
-func TestSendWarningForDays_NoMatchingThreshold(t *testing.T) {
-	// daysUntilExpiry beyond all warning thresholds sends nothing.
-}

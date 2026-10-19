@@ -14,13 +14,28 @@ import (
 // currencyFlightDataProvider implements currency.FlightDataProvider — the
 // aggregate flight reads the regulatory currency evaluators run on.
 type currencyFlightDataProvider struct {
-	db *sql.DB
+	db    *sql.DB
+	until *time.Time
 }
 
 // NewCurrencyFlightDataProvider creates a currency.FlightDataProvider backed
 // by PostgreSQL.
 func NewCurrencyFlightDataProvider(db *sql.DB) currency.FlightDataProvider {
 	return &currencyFlightDataProvider{db: db}
+}
+
+// AsOf returns a provider that reads only flights dated on or before day.
+func (p *currencyFlightDataProvider) AsOf(day time.Time) currency.FlightDataProvider {
+	d := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
+	return &currencyFlightDataProvider{db: p.db, until: &d}
+}
+
+// untilArg is the as-of day query argument; NULL reads every flight.
+func (p *currencyFlightDataProvider) untilArg() interface{} {
+	if p.until == nil {
+		return nil
+	}
+	return *p.until
 }
 
 // progressSelect aggregates a Progress row over flights aliased f.
@@ -79,8 +94,9 @@ func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = ANY($2) AND f.date >= $3
 			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
+			AND ($5::date IS NULL OR f.date <= $5::date)
 	`
-	return p.scanProgress(ctx, query, userID, classTypeArray(classTypes), since, includeTowed)
+	return p.scanProgress(ctx, query, userID, classTypeArray(classTypes), since, includeTowed, p.untilArg())
 }
 
 func (p *currencyFlightDataProvider) GetProgressByULKind(ctx context.Context, userID uuid.UUID, sel currency.ULSelector, includeTowed bool, since time.Time) (*currency.Progress, error) {
@@ -90,8 +106,9 @@ func (p *currencyFlightDataProvider) GetProgressByULKind(ctx context.Context, us
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $5
 			AND ($6 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
+			AND ($7::date IS NULL OR f.date <= $7::date)
 	`
-	return p.scanProgress(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, includeTowed)
+	return p.scanProgress(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, includeTowed, p.untilArg())
 }
 
 func (p *currencyFlightDataProvider) GetLastProficiencyCheckByULKind(ctx context.Context, userID uuid.UUID, sel currency.ULSelector, since time.Time) (*time.Time, error) {
@@ -99,11 +116,12 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheckByULKind(ctx context
 		SELECT f.date FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.is_proficiency_check = true AND f.date >= $5
+			AND ($6::date IS NULL OR f.date <= $6::date)
 		ORDER BY f.date DESC
 		LIMIT 1
 	`
 	var checkDate time.Time
-	err := p.db.QueryRowContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since).Scan(&checkDate)
+	err := p.db.QueryRowContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, p.untilArg()).Scan(&checkDate)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -123,11 +141,12 @@ func (p *currencyFlightDataProvider) GetLandingDaysByULKind(ctx context.Context,
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $5
 			AND ($6 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
+			AND ($7::date IS NULL OR f.date <= $7::date)
 		GROUP BY f.date
 		HAVING SUM(f.landings_day + f.landings_night) > 0
 		ORDER BY f.date DESC
 	`
-	rows, err := p.db.QueryContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, includeTowed)
+	rows, err := p.db.QueryContext(ctx, query, userID, ulKindArray(sel.Kinds), sel.IncludeUnspecified, sel.MinMTOMKg, since, includeTowed, p.untilArg())
 	if err != nil {
 		return nil, err
 	}
@@ -140,19 +159,21 @@ func (p *currencyFlightDataProvider) GetProgressAll(ctx context.Context, userID 
 		SELECT` + progressSelect + `
 		FROM flights f
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND f.date >= $2
+			AND ($3::date IS NULL OR f.date <= $3::date)
 	`
-	return p.scanProgress(ctx, query, userID, since)
+	return p.scanProgress(ctx, query, userID, since, p.untilArg())
 }
 
 func (p *currencyFlightDataProvider) GetLastFlightReview(ctx context.Context, userID uuid.UUID) (*time.Time, error) {
 	query := `
 		SELECT date FROM flights
 		WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND is_flight_review = true
+			AND ($2::date IS NULL OR date <= $2::date)
 		ORDER BY date DESC
 		LIMIT 1
 	`
 	var reviewDate time.Time
-	err := p.db.QueryRowContext(ctx, query, userID).Scan(&reviewDate)
+	err := p.db.QueryRowContext(ctx, query, userID, p.untilArg()).Scan(&reviewDate)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -171,20 +192,22 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 		query = `
 			SELECT date FROM flights
 			WHERE user_id = $1 AND NOT is_simulator AND NOT is_passenger AND is_proficiency_check = true AND date >= $2
+				AND ($3::date IS NULL OR date <= $3::date)
 			ORDER BY date DESC
 			LIMIT 1
 		`
-		args = []interface{}{userID, since}
+		args = []interface{}{userID, since, p.untilArg()}
 	} else {
 		query = `
 			SELECT f.date FROM flights f
 			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = ANY($2) AND f.is_proficiency_check = true AND f.date >= $3
 				AND (upper(trim(a.aircraft_class)) = 'GLIDER' OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
+				AND ($4::date IS NULL OR f.date <= $4::date)
 			ORDER BY f.date DESC
 			LIMIT 1
 		`
-		args = []interface{}{userID, classTypeArray(classTypes), since}
+		args = []interface{}{userID, classTypeArray(classTypes), since, p.untilArg()}
 	}
 
 	var checkDate time.Time
@@ -209,12 +232,13 @@ func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.C
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
 			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 			AND (NOT $5 OR f.pic_time > 0)
+			AND ($6::date IS NULL OR f.date <= $6::date)
 		GROUP BY f.date
 		HAVING SUM(f.landings_day + f.landings_night) > 0
 		ORDER BY f.date DESC
 	`
 
-	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since, includeTowed, picOnly)
+	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since, includeTowed, picOnly, p.untilArg())
 	if err != nil {
 		return nil, err
 	}
@@ -243,9 +267,10 @@ func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
 			AND f.launch_method IS NOT NULL AND f.launch_method != ''
+			AND ($4::date IS NULL OR f.date <= $4::date)
 		GROUP BY f.launch_method
 	`
-	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since)
+	rows, err := p.db.QueryContext(ctx, query, userID, string(classType), since, p.untilArg())
 	if err != nil {
 		return nil, err
 	}

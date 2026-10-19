@@ -69,6 +69,11 @@ fixture keeps passing while covering a surface the API cannot produce.
    `regulatoryAuthority`, `licenseType`, `expiryDate`, `current`/`required`/`unit`,
    `launches`/`method`, `dayExpiresOn`/`nightExpiresOn` are all fields; the client
    composes from them. `messageParams` carries only `days`, `needed` and `date`.
+   On the rating keys, `days` is the whole UTC calendar days until `expiryDate`, the last
+   valid day: `0` on the expiry date itself, and the status turns `expired` only the day
+   after (see [DOMAIN.md](./DOMAIN.md#expiry-dates-last-valid-day-vs-first-non-current-day)).
+   Notification emails render the same keys; their de-duplication by expiry and lapse
+   date is described in [FEATURES.md](./FEATURES.md#notifications).
 3. **A key means one statement, not one authority.** LAPL, SPL, SPL-TMG and German UL
    all report `rating.recency_current`; which regulation to cite comes from
    `ruleDescriptionKey`.

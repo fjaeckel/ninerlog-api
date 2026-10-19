@@ -149,7 +149,7 @@ var easaSEPTMGRule = ratingRule{
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationNotMet, nil)
 		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			daysLeft := models.DaysUntilExpiry(*rating.ExpiryDate, time.Now())
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -223,7 +223,7 @@ var easaMEPSETRule = ratingRule{
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationNotMetProfCheck, nil)
 		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			daysLeft := models.DaysUntilExpiry(*rating.ExpiryDate, time.Now())
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -297,7 +297,7 @@ var easaIRRule = ratingRule{
 				rt.result.setMsg(MsgRatingIRCheckNotMet, nil)
 			}
 		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			daysLeft := models.DaysUntilExpiry(*rating.ExpiryDate, time.Now())
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingRevalidationExpiringMet, msgDays(daysLeft))
 		} else {
@@ -323,7 +323,7 @@ var easaExpiryOnlyRule = ratingRule{
 			rt.result.Status = StatusExpired
 			rt.result.setMsg(MsgRatingExpired, nil)
 		} else if rating.IsExpiringSoon(90) {
-			daysLeft := int(time.Until(*rating.ExpiryDate).Hours() / 24)
+			daysLeft := models.DaysUntilExpiry(*rating.ExpiryDate, time.Now())
 			rt.result.Status = StatusExpiring
 			rt.result.setMsg(MsgRatingExpiring, msgDays(daysLeft))
 		} else {
@@ -750,6 +750,14 @@ func (e *EASAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType
 		}
 	}
 
+	includeTowed := includeTowedFlights(classType, isEASASailplane(license.LicenseType))
+	fillPaxLapseDates(ctx, &result, func(from time.Time) ([]LandingDay, error) {
+		return dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowed, picOnly, from)
+	}, latestIRExpiry(peerRatings), time.Now())
+	if gplShortfall > 0 {
+		result.DayLapsedOn = nil
+	}
+
 	// Summary message
 	switch {
 	case gplShortfall > 0:
@@ -792,5 +800,6 @@ func applySFCLTMGExemption(result *ClassRatingCurrency) {
 	result.Status = StatusCurrent
 	result.Requirements = nil
 	result.RecencyExpiresOn = nil
+	result.LapsedOn = nil
 	result.setMsg(MsgRatingSFCLTMGExempt, nil)
 }

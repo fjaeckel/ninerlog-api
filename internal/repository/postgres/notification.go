@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -60,34 +61,55 @@ func (r *notificationRepository) UpsertPreferences(ctx context.Context, prefs *m
 	).Scan(&prefs.ID, &prefs.CreatedAt, &prefs.UpdatedAt)
 }
 
-func (r *notificationRepository) LogNotification(ctx context.Context, log *models.NotificationLog) error {
+// notificationClaimColumns lists the inserted notification_log columns.
+const notificationClaimColumns = `user_id, notification_type, reference_id, reference_type, days_before_expiry, expiry_reference_date, subject, skipped`
+
+func (r *notificationRepository) ClaimNotification(ctx context.Context, log *models.NotificationLog) (bool, error) {
 	query := `
-		INSERT INTO notification_log (user_id, notification_type, reference_id, reference_type, days_before_expiry, expiry_reference_date, subject)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO notification_log (` + notificationClaimColumns + `)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (user_id, notification_type, reference_id, days_before_expiry, expiry_reference_date) DO NOTHING
 		RETURNING id, sent_at
 	`
-	err := r.db.QueryRowContext(ctx, query,
-		log.UserID, log.NotificationType, log.ReferenceID, log.ReferenceType,
-		log.DaysBeforeExpiry, log.ExpiryReferenceDate, log.Subject,
-	).Scan(&log.ID, &log.SentAt)
-	// If ON CONFLICT DO NOTHING fires, no row is returned — treat as already sent
-	if err == sql.ErrNoRows {
-		return nil
-	}
-	return err
+	return r.claim(ctx, query, log)
 }
 
-func (r *notificationRepository) HasBeenSent(ctx context.Context, userID uuid.UUID, notificationType string, referenceID uuid.UUID, daysBeforeExpiry int, expiryReferenceDate *time.Time) (bool, error) {
+func (r *notificationRepository) ClaimLapseNotification(ctx context.Context, log *models.NotificationLog) (bool, error) {
 	query := `
-		SELECT COUNT(*) > 0 FROM notification_log
-		WHERE user_id = $1 AND notification_type = $2 AND reference_id = $3
-		  AND days_before_expiry = $4
-		  AND (($5::DATE IS NULL AND expiry_reference_date IS NULL) OR expiry_reference_date = $5)
+		INSERT INTO notification_log (` + notificationClaimColumns + `)
+		SELECT $1, $2, $3, $4, $5, $6::date, $7, $8
+		WHERE NOT EXISTS (
+			SELECT 1 FROM notification_log
+			WHERE user_id = $1 AND notification_type = $2 AND reference_id = $3
+			  AND days_before_expiry = $5 AND expiry_reference_date >= $6::date
+		)
+		ON CONFLICT (user_id, notification_type, reference_id, days_before_expiry, expiry_reference_date) DO NOTHING
+		RETURNING id, sent_at
 	`
-	var exists bool
-	err := r.db.QueryRowContext(ctx, query, userID, notificationType, referenceID, daysBeforeExpiry, expiryReferenceDate).Scan(&exists)
-	return exists, err
+	return r.claim(ctx, query, log)
+}
+
+// claim runs an INSERT … RETURNING id, sent_at; no row returned means not claimed.
+func (r *notificationRepository) claim(ctx context.Context, query string, log *models.NotificationLog) (bool, error) {
+	if log.ReferenceID == nil || log.DaysBeforeExpiry == nil || log.ExpiryReferenceDate == nil {
+		return false, fmt.Errorf("notification claim: reference, days and date are required")
+	}
+	err := r.db.QueryRowContext(ctx, query,
+		log.UserID, log.NotificationType, *log.ReferenceID, log.ReferenceType,
+		*log.DaysBeforeExpiry, log.ExpiryReferenceDate.Format("2006-01-02"), log.Subject, log.Skipped,
+	).Scan(&log.ID, &log.SentAt)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *notificationRepository) ReleaseNotification(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM notification_log WHERE id = $1`, id)
+	return err
 }
 
 func (r *notificationRepository) GetAllUsersWithPreferences(ctx context.Context) ([]*models.NotificationPreferences, error) {
@@ -149,7 +171,7 @@ func (r *notificationRepository) GetAllUsersWithPreferences(ctx context.Context)
 
 func (r *notificationRepository) GetNotificationHistory(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.NotificationLog, int, error) {
 	// Get total count
-	countQuery := `SELECT COUNT(*) FROM notification_log WHERE user_id = $1`
+	countQuery := `SELECT COUNT(*) FROM notification_log WHERE user_id = $1 AND NOT skipped`
 	var total int
 	if err := r.db.QueryRowContext(ctx, countQuery, userID).Scan(&total); err != nil {
 		return nil, 0, err
@@ -160,7 +182,7 @@ func (r *notificationRepository) GetNotificationHistory(ctx context.Context, use
 		SELECT id, user_id, notification_type, reference_id, reference_type,
 		       days_before_expiry, expiry_reference_date, subject, sent_at
 		FROM notification_log
-		WHERE user_id = $1
+		WHERE user_id = $1 AND NOT skipped
 		ORDER BY sent_at DESC
 		LIMIT $2 OFFSET $3
 	`
