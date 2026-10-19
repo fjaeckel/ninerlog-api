@@ -25,11 +25,12 @@ var (
 	// disabled account.
 	ErrAdminTargetDisabled = errors.New("account is disabled")
 
-	// ErrLastAdmin is returned when revoking the last verified, enabled admin.
-	ErrLastAdmin = errors.New("cannot revoke the last admin")
+	// ErrLastAdmin is returned when revoking, disabling or deleting the last
+	// verified, enabled admin.
+	ErrLastAdmin = errors.New("cannot remove the last admin")
 
-	// ErrBootstrapAdmin is returned when revoking the account that holds the
-	// ADMIN_EMAIL address.
+	// ErrBootstrapAdmin is returned when revoking, disabling, deleting or
+	// resetting 2FA on the account that holds the ADMIN_EMAIL address.
 	ErrBootstrapAdmin = errors.New("account holds the ADMIN_EMAIL address")
 )
 
@@ -49,24 +50,43 @@ func IsBootstrapAdmin(user *models.User, bootstrapEmail string) bool {
 		strings.EqualFold(user.Email, bootstrapEmail)
 }
 
-// AdminRoleService grants and revokes the per-account admin flag.
-// bootstrapEmail is ADMIN_EMAIL; its verified holder is always an admin.
+// AdminRoleService owns admin rights: the per-account flag and the
+// ADMIN_EMAIL bootstrap address, whose verified holder is always an admin.
 type AdminRoleService struct {
-	users          repository.UserRepository
 	admins         repository.AdminRepository
 	bootstrapEmail string
 }
 
-func NewAdminRoleService(users repository.UserRepository, admins repository.AdminRepository, bootstrapEmail string) *AdminRoleService {
-	return &AdminRoleService{users: users, admins: admins, bootstrapEmail: bootstrapEmail}
+func NewAdminRoleService(admins repository.AdminRepository, bootstrapEmail string) *AdminRoleService {
+	return &AdminRoleService{admins: admins, bootstrapEmail: bootstrapEmail}
 }
 
 // BootstrapEmail returns the configured ADMIN_EMAIL.
 func (s *AdminRoleService) BootstrapEmail() string { return s.bootstrapEmail }
 
-// PromoteBootstrap sets the admin flag on the verified ADMIN_EMAIL holder and
-// records a bootstrap_admin audit entry, returning its id when the flag was
-// newly set and uuid.Nil otherwise.
+// IsAdmin reports whether user is an admin under this service's ADMIN_EMAIL.
+func (s *AdminRoleService) IsAdmin(user *models.User) bool { return IsAdmin(user, s.bootstrapEmail) }
+
+// IsBootstrapAdmin reports whether user is the verified ADMIN_EMAIL holder.
+func (s *AdminRoleService) IsBootstrapAdmin(user *models.User) bool {
+	return IsBootstrapAdmin(user, s.bootstrapEmail)
+}
+
+// CountAdmins counts verified, enabled admins.
+func (s *AdminRoleService) CountAdmins(ctx context.Context) (int, error) {
+	return s.admins.CountAdmins(ctx, s.bootstrapEmail)
+}
+
+// ListUsers returns one page of the admin user listing; filter.IsAdmin
+// matches IsAdmin.
+func (s *AdminRoleService) ListUsers(ctx context.Context, filter repository.AdminUserFilter, limit, offset int) ([]*repository.AdminUserRow, int, error) {
+	filter.BootstrapEmail = s.bootstrapEmail
+	return s.admins.ListUsers(ctx, filter, limit, offset)
+}
+
+// PromoteBootstrap sets the admin flag on the verified, enabled ADMIN_EMAIL
+// holder and records a bootstrap_admin audit entry, returning its id when the
+// flag was newly set and uuid.Nil otherwise.
 func (s *AdminRoleService) PromoteBootstrap(ctx context.Context) (uuid.UUID, error) {
 	if s.bootstrapEmail == "" {
 		return uuid.Nil, nil
@@ -80,16 +100,20 @@ func (s *AdminRoleService) PromoteBootstrap(ctx context.Context) (uuid.UUID, err
 }
 
 // PersistBootstrap sets the admin flag on user when it is the unflagged
-// ADMIN_EMAIL holder and records a bootstrap_admin audit entry.
+// ADMIN_EMAIL holder, recording a bootstrap_admin audit entry only for the
+// write that set it.
 func (s *AdminRoleService) PersistBootstrap(ctx context.Context, user *models.User) error {
-	if user.IsAdmin || !IsBootstrapAdmin(user, s.bootstrapEmail) {
+	if user.IsAdmin || !s.IsBootstrapAdmin(user) {
 		return nil
 	}
-	if err := s.admins.SetAdmin(ctx, user.ID); err != nil {
+	result, err := s.admins.SetAdmin(ctx, user.ID)
+	if err != nil {
 		return err
 	}
-	user.IsAdmin = true
-	s.recordBootstrap(ctx, user.ID, user.Email)
+	if result == repository.GrantApplied {
+		user.IsAdmin = true
+		s.recordBootstrap(ctx, user.ID, user.Email)
+	}
 	return nil
 }
 
@@ -107,75 +131,54 @@ func (s *AdminRoleService) recordBootstrap(ctx context.Context, userID uuid.UUID
 	}
 }
 
-// Grant sets the admin flag on the target account and returns it.
-func (s *AdminRoleService) Grant(ctx context.Context, targetID uuid.UUID) (*models.User, error) {
-	user, err := s.users.GetByID(ctx, targetID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrAdminTargetNotFound
-		}
-		return nil, err
-	}
-	if !user.EmailVerified {
-		return nil, ErrAdminTargetUnverified
-	}
-	if user.Disabled {
-		return nil, ErrAdminTargetDisabled
-	}
-	if err := s.admins.SetAdmin(ctx, targetID); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrAdminTargetNotFound
-		}
-		return nil, err
-	}
-	user.IsAdmin = true
-	return user, nil
-}
-
-// Revoke clears the admin flag on the target account and returns it.
-func (s *AdminRoleService) Revoke(ctx context.Context, targetID uuid.UUID) (*models.User, error) {
-	user, err := s.users.GetByID(ctx, targetID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrAdminTargetNotFound
-		}
-		return nil, err
-	}
-	if IsBootstrapAdmin(user, s.bootstrapEmail) {
-		return nil, ErrBootstrapAdmin
-	}
-	if !user.IsAdmin {
-		return user, nil
-	}
-	revoked, err := s.admins.RevokeAdmin(ctx, targetID)
-	if err != nil {
-		return nil, err
-	}
-	if !revoked {
-		return nil, ErrLastAdmin
-	}
-	user.IsAdmin = false
-	return user, nil
-}
-
-// ReleaseForRemoval prepares a target account for disabling or deletion:
-// it refuses the ADMIN_EMAIL holder and clears the admin flag unless no other
-// verified, enabled admin would remain. It reports whether the flag was
-// cleared.
-func (s *AdminRoleService) ReleaseForRemoval(ctx context.Context, target *models.User) (bool, error) {
-	if IsBootstrapAdmin(target, s.bootstrapEmail) {
-		return false, ErrBootstrapAdmin
-	}
-	if !target.IsAdmin {
-		return false, nil
-	}
-	revoked, err := s.admins.RevokeAdmin(ctx, target.ID)
+// Grant sets the admin flag on a verified, enabled account, reporting whether
+// the flag was newly set.
+func (s *AdminRoleService) Grant(ctx context.Context, targetID uuid.UUID) (bool, error) {
+	result, err := s.admins.SetAdmin(ctx, targetID)
 	if err != nil {
 		return false, err
 	}
-	if !revoked {
+	switch result {
+	case repository.GrantApplied:
+		return true, nil
+	case repository.GrantAlreadyAdmin:
+		return false, nil
+	case repository.GrantNotFound:
+		return false, ErrAdminTargetNotFound
+	case repository.GrantUnverified:
+		return false, ErrAdminTargetUnverified
+	default:
+		return false, ErrAdminTargetDisabled
+	}
+}
+
+// Revoke clears the admin flag, reporting whether it was set.
+func (s *AdminRoleService) Revoke(ctx context.Context, targetID uuid.UUID) (bool, error) {
+	return guardResult(s.admins.RevokeAdmin(ctx, targetID, s.bootstrapEmail))
+}
+
+// Disable disables the account and clears its admin flag, reporting whether
+// the flag was set.
+func (s *AdminRoleService) Disable(ctx context.Context, targetID uuid.UUID) (bool, error) {
+	return guardResult(s.admins.DisableUser(ctx, targetID, s.bootstrapEmail))
+}
+
+// Delete deletes the account, reporting whether it carried the admin flag.
+func (s *AdminRoleService) Delete(ctx context.Context, targetID uuid.UUID) (bool, error) {
+	return guardResult(s.admins.DeleteUser(ctx, targetID, s.bootstrapEmail))
+}
+
+func guardResult(change repository.AdminChange, err error) (bool, error) {
+	if err != nil {
+		return false, err
+	}
+	switch change.Guard {
+	case repository.AdminGuardNotFound:
+		return false, ErrAdminTargetNotFound
+	case repository.AdminGuardBootstrap:
+		return false, ErrBootstrapAdmin
+	case repository.AdminGuardLastAdmin:
 		return false, ErrLastAdmin
 	}
-	target.IsAdmin = false
-	return true, nil
+	return change.FlagCleared, nil
 }

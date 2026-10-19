@@ -603,14 +603,15 @@ func TestAdminRoles(t *testing.T) {
 			} `json:"data"`
 		}
 		resp.MustJSON(t, &page)
-		seen := map[string]bool{}
+		seen := map[string]int{}
 		for _, e := range page.Data {
 			if e.TargetUserID == ca.User.ID {
-				seen[e.Action] = true
+				seen[e.Action]++
 			}
 		}
-		if !seen["grant_admin"] || !seen["revoke_admin"] {
-			t.Errorf("audit actions for target = %v", seen)
+		// The second revoke was a no-op and must not be audited.
+		if seen["grant_admin"] != 1 || seen["revoke_admin"] != 1 {
+			t.Errorf("audit actions for target = %v, want one grant and one revoke", seen)
 		}
 	})
 

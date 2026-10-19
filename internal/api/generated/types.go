@@ -2494,8 +2494,8 @@ type AdminAuditLogEntry struct {
 
 // AdminConfig defines model for AdminConfig.
 type AdminConfig struct {
-	// AdminCount Number of accounts carrying the admin flag
-	AdminCount int `json:"adminCount"`
+	// AdminCount Number of active admins: verified, enabled accounts that carry the admin flag or hold the ADMIN_EMAIL address. Omitted when it could not be counted.
+	AdminCount *int `json:"adminCount,omitempty"`
 
 	// AdminEmailConfigured Whether ADMIN_EMAIL (the bootstrap admin address) is set
 	AdminEmailConfigured bool `json:"adminEmailConfigured"`
@@ -2676,6 +2676,9 @@ type AdminStats struct {
 
 // AdminUser defines model for AdminUser.
 type AdminUser struct {
+	// AdminFlag Whether the account carries the stored admin flag. It can differ from isAdmin: a flagged account whose email is unverified is not an admin until it verifies, and the ADMIN_EMAIL holder is an admin before its flag is written.
+	AdminFlag bool `json:"adminFlag"`
+
 	// AircraftCount Number of aircraft in database
 	AircraftCount int       `json:"aircraftCount"`
 	CreatedAt     time.Time `json:"createdAt"`
@@ -2696,7 +2699,7 @@ type AdminUser struct {
 	FlightCount int                `json:"flightCount"`
 	Id          openapi_types.UUID `json:"id"`
 
-	// IsAdmin Whether the account carries the admin flag or holds the ADMIN_EMAIL address
+	// IsAdmin Whether the account is an admin: its email is verified and it carries the admin flag or holds the ADMIN_EMAIL address
 	IsAdmin bool `json:"isAdmin"`
 
 	// IsBootstrapAdmin Whether the account is the verified holder of the ADMIN_EMAIL address. It cannot be revoked, disabled, deleted or have its 2FA reset by another admin.
@@ -8012,7 +8015,7 @@ type ListAdminUsersParams struct {
 	// Search Search by email or name
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 
-	// IsAdmin When true, only admin accounts; when false, only non-admin accounts
+	// IsAdmin When true, only accounts whose isAdmin is true; when false, only accounts whose isAdmin is false
 	IsAdmin *bool `form:"isAdmin,omitempty" json:"isAdmin,omitempty"`
 }
 

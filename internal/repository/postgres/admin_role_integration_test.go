@@ -4,7 +4,6 @@ package postgres_test
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 
@@ -39,6 +38,7 @@ func TestAdminRoleIntegration(t *testing.T) {
 		}
 		return u.ID
 	}
+	email := func(prefix string) string { return prefix + "-" + uuid.NewString() + "@example.com" }
 	isAdmin := func(t *testing.T, id uuid.UUID) bool {
 		t.Helper()
 		u, err := userRepo.GetByID(ctx, id)
@@ -47,38 +47,61 @@ func TestAdminRoleIntegration(t *testing.T) {
 		}
 		return u.IsAdmin
 	}
+	grant := func(t *testing.T, id uuid.UUID) {
+		t.Helper()
+		if r, err := adminRepo.SetAdmin(ctx, id); err != nil || r != repository.GrantApplied {
+			t.Fatalf("SetAdmin = %v, %v", r, err)
+		}
+	}
+	reset := func(t *testing.T) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, "UPDATE users SET is_admin = false"); err != nil {
+			t.Fatalf("reset flags: %v", err)
+		}
+	}
 
 	t.Run("new accounts are not admins", func(t *testing.T) {
-		id := newUser(t, "plain-"+uuid.NewString()+"@example.com", true)
-		if isAdmin(t, id) {
+		if isAdmin(t, newUser(t, email("plain"), true)) {
 			t.Error("new account has the admin flag")
 		}
 	})
 
-	t.Run("SetAdmin and missing account", func(t *testing.T) {
-		id := newUser(t, "set-"+uuid.NewString()+"@example.com", true)
-		if err := adminRepo.SetAdmin(ctx, id); err != nil {
-			t.Fatalf("SetAdmin: %v", err)
+	t.Run("SetAdmin outcomes", func(t *testing.T) {
+		id := newUser(t, email("set"), true)
+		grant(t, id)
+		if r, _ := adminRepo.SetAdmin(ctx, id); r != repository.GrantAlreadyAdmin {
+			t.Errorf("second SetAdmin = %v", r)
 		}
-		if err := adminRepo.SetAdmin(ctx, id); err != nil {
-			t.Fatalf("SetAdmin twice: %v", err)
+		if r, _ := adminRepo.SetAdmin(ctx, uuid.New()); r != repository.GrantNotFound {
+			t.Errorf("missing = %v", r)
 		}
-		if !isAdmin(t, id) {
-			t.Error("flag not set")
+		unverified := newUser(t, email("unv"), false)
+		if r, _ := adminRepo.SetAdmin(ctx, unverified); r != repository.GrantUnverified || isAdmin(t, unverified) {
+			t.Errorf("unverified = %v", r)
 		}
-		if err := adminRepo.SetAdmin(ctx, uuid.New()); !errors.Is(err, repository.ErrNotFound) {
-			t.Errorf("missing account: got %v", err)
+		disabled := newUser(t, email("dis"), true)
+		if _, err := db.ExecContext(ctx, "UPDATE users SET disabled = true WHERE id = $1", disabled); err != nil {
+			t.Fatal(err)
+		}
+		if r, _ := adminRepo.SetAdmin(ctx, disabled); r != repository.GrantDisabled || isAdmin(t, disabled) {
+			t.Errorf("disabled = %v", r)
 		}
 	})
 
 	t.Run("PromoteVerifiedByEmail", func(t *testing.T) {
 		local := "Boot-" + uuid.NewString()
 		unverified := newUser(t, local+"-u@example.com", false)
-		if id, err := adminRepo.PromoteVerifiedByEmail(ctx, local+"-u@example.com"); err != nil || id != uuid.Nil {
+		if id, err := adminRepo.PromoteVerifiedByEmail(ctx, local+"-u@example.com"); err != nil || id != uuid.Nil || isAdmin(t, unverified) {
 			t.Errorf("unverified promoted: %v, %v", id, err)
 		}
-		if isAdmin(t, unverified) {
-			t.Error("unverified account flagged")
+
+		disabledLocal := "Off-" + uuid.NewString()
+		disabled := newUser(t, disabledLocal+"@example.com", true)
+		if _, err := db.ExecContext(ctx, "UPDATE users SET disabled = true WHERE id = $1", disabled); err != nil {
+			t.Fatal(err)
+		}
+		if id, _ := adminRepo.PromoteVerifiedByEmail(ctx, disabledLocal+"@example.com"); id != uuid.Nil || isAdmin(t, disabled) {
+			t.Error("disabled account promoted")
 		}
 
 		verified := newUser(t, local+"@example.com", true)
@@ -91,73 +114,193 @@ func TestAdminRoleIntegration(t *testing.T) {
 		}
 	})
 
-	// Clear every flag so the guard below sees only this subtest's admins.
-	if _, err := db.ExecContext(ctx, "UPDATE users SET is_admin = false"); err != nil {
-		t.Fatalf("reset flags: %v", err)
-	}
-
-	t.Run("RevokeAdmin keeps one active admin", func(t *testing.T) {
-		a := newUser(t, "ra-"+uuid.NewString()+"@example.com", true)
-		b := newUser(t, "rb-"+uuid.NewString()+"@example.com", true)
-		for _, id := range []uuid.UUID{a, b} {
-			if err := adminRepo.SetAdmin(ctx, id); err != nil {
-				t.Fatalf("SetAdmin: %v", err)
-			}
-		}
-		if n, err := adminRepo.CountAdmins(ctx); err != nil || n != 2 {
+	t.Run("RevokeAdmin keeps one active admin under concurrency", func(t *testing.T) {
+		reset(t)
+		a := newUser(t, email("ra"), true)
+		b := newUser(t, email("rb"), true)
+		grant(t, a)
+		grant(t, b)
+		if n, err := adminRepo.CountAdmins(ctx, ""); err != nil || n != 2 {
 			t.Fatalf("CountAdmins = %d, %v", n, err)
 		}
 
-		yes := true
-		rows, total, err := adminRepo.ListUsers(ctx, repository.AdminUserFilter{IsAdmin: &yes}, 50, 0)
-		if err != nil || total != 2 || len(rows) != 2 {
-			t.Fatalf("ListUsers(isAdmin) = %d rows, total %d, %v", len(rows), total, err)
-		}
-		for _, r := range rows {
-			if !r.IsAdmin {
-				t.Errorf("row %s not flagged", r.Email)
-			}
-		}
-
-		// Concurrent revocations of both admins: exactly one succeeds.
 		var wg sync.WaitGroup
-		results := make([]bool, 2)
+		results := make([]repository.AdminChange, 2)
 		for i, id := range []uuid.UUID{a, b} {
 			wg.Add(1)
 			go func(i int, id uuid.UUID) {
 				defer wg.Done()
-				ok, err := adminRepo.RevokeAdmin(ctx, id)
+				ch, err := adminRepo.RevokeAdmin(ctx, id, "")
 				if err != nil {
 					t.Errorf("RevokeAdmin: %v", err)
 				}
-				results[i] = ok
+				results[i] = ch
 			}(i, id)
 		}
 		wg.Wait()
-		if results[0] == results[1] {
-			t.Fatalf("revocations = %v, want exactly one success", results)
+		applied := 0
+		for _, r := range results {
+			if r.Guard == repository.AdminGuardApplied {
+				applied++
+			} else if r.Guard != repository.AdminGuardLastAdmin {
+				t.Errorf("unexpected guard %v", r.Guard)
+			}
 		}
-		if n, _ := adminRepo.CountAdmins(ctx); n != 1 {
+		if applied != 1 {
+			t.Fatalf("revocations = %+v, want exactly one applied", results)
+		}
+		if n, _ := adminRepo.CountAdmins(ctx, ""); n != 1 {
 			t.Errorf("CountAdmins after race = %d, want 1", n)
 		}
+	})
 
-		// A disabled admin does not keep the last active one revocable.
-		c := newUser(t, "rc-"+uuid.NewString()+"@example.com", true)
-		if err := adminRepo.SetAdmin(ctx, c); err != nil {
-			t.Fatalf("SetAdmin: %v", err)
+	t.Run("concurrent revokes of the same admin are idempotent", func(t *testing.T) {
+		reset(t)
+		keep := newUser(t, email("keep"), true)
+		target := newUser(t, email("target"), true)
+		grant(t, keep)
+		grant(t, target)
+
+		var wg sync.WaitGroup
+		results := make([]repository.AdminChange, 4)
+		for i := range results {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				ch, err := adminRepo.RevokeAdmin(ctx, target, "")
+				if err != nil {
+					t.Errorf("RevokeAdmin: %v", err)
+				}
+				results[i] = ch
+			}(i)
 		}
-		if _, err := db.ExecContext(ctx, "UPDATE users SET disabled = true WHERE id = $1", c); err != nil {
-			t.Fatalf("disable: %v", err)
+		wg.Wait()
+		cleared := 0
+		for _, r := range results {
+			if r.Guard != repository.AdminGuardApplied {
+				t.Errorf("guard = %v, want applied", r.Guard)
+			}
+			if r.FlagCleared {
+				cleared++
+			}
 		}
-		remaining := a
-		if results[0] {
-			remaining = b
+		if cleared != 1 {
+			t.Errorf("FlagCleared reported %d times, want 1", cleared)
 		}
-		if ok, err := adminRepo.RevokeAdmin(ctx, remaining); err != nil || ok {
-			t.Errorf("revoked the last active admin: %v, %v", ok, err)
+	})
+
+	t.Run("an unflagged ADMIN_EMAIL holder counts as an active admin", func(t *testing.T) {
+		reset(t)
+		boot := email("boot")
+		bootID := newUser(t, boot, true)
+		only := newUser(t, email("only"), true)
+		grant(t, only)
+
+		if n, _ := adminRepo.CountAdmins(ctx, boot); n != 2 {
+			t.Errorf("CountAdmins with bootstrap = %d, want 2", n)
 		}
-		if ok, err := adminRepo.RevokeAdmin(ctx, c); err != nil || !ok {
-			t.Errorf("revoking the disabled admin: %v, %v", ok, err)
+		if ch, err := adminRepo.RevokeAdmin(ctx, bootID, boot); err != nil || ch.Guard != repository.AdminGuardBootstrap {
+			t.Errorf("revoke bootstrap = %+v, %v", ch, err)
+		}
+		if ch, err := adminRepo.RevokeAdmin(ctx, only, boot); err != nil || ch.Guard != repository.AdminGuardApplied || !ch.FlagCleared {
+			t.Errorf("revoke beside unflagged bootstrap = %+v, %v", ch, err)
+		}
+
+		yes, no := true, false
+		rows, _, err := adminRepo.ListUsers(ctx, repository.AdminUserFilter{IsAdmin: &yes, BootstrapEmail: boot}, 100, 0)
+		if err != nil || len(rows) != 1 || rows[0].ID != bootID {
+			t.Errorf("isAdmin=true listing = %d rows, %v", len(rows), err)
+		}
+		rows, _, _ = adminRepo.ListUsers(ctx, repository.AdminUserFilter{IsAdmin: &no, BootstrapEmail: boot}, 1000, 0)
+		for _, r := range rows {
+			if r.ID == bootID {
+				t.Error("isAdmin=false listing includes the bootstrap holder")
+			}
+		}
+	})
+
+	t.Run("a flagged unverified account is not counted or listed as admin", func(t *testing.T) {
+		reset(t)
+		active := newUser(t, email("act"), true)
+		stale := newUser(t, email("stale"), true)
+		grant(t, active)
+		grant(t, stale)
+		if _, err := db.ExecContext(ctx, "UPDATE users SET email_verified = false WHERE id = $1", stale); err != nil {
+			t.Fatal(err)
+		}
+		if n, _ := adminRepo.CountAdmins(ctx, ""); n != 1 {
+			t.Errorf("CountAdmins = %d, want 1", n)
+		}
+		yes := true
+		rows, _, _ := adminRepo.ListUsers(ctx, repository.AdminUserFilter{IsAdmin: &yes}, 100, 0)
+		if len(rows) != 1 || rows[0].ID != active {
+			t.Errorf("isAdmin=true listing = %d rows", len(rows))
+		}
+
+		// The only active admin's last-admin guard is not satisfied by it,
+		// but the stale flag itself can always be revoked.
+		if ch, _ := adminRepo.RevokeAdmin(ctx, active, ""); ch.Guard != repository.AdminGuardLastAdmin {
+			t.Errorf("revoke last active = %+v", ch)
+		}
+		if ch, _ := adminRepo.RevokeAdmin(ctx, stale, ""); ch.Guard != repository.AdminGuardApplied || !ch.FlagCleared {
+			t.Errorf("revoke stale flag = %+v", ch)
+		}
+	})
+
+	t.Run("DisableUser and DeleteUser are guarded and atomic", func(t *testing.T) {
+		reset(t)
+		a := newUser(t, email("da"), true)
+		b := newUser(t, email("db"), true)
+		grant(t, a)
+		grant(t, b)
+
+		ch, err := adminRepo.DisableUser(ctx, a, "")
+		if err != nil || ch.Guard != repository.AdminGuardApplied || !ch.FlagCleared {
+			t.Fatalf("disable admin = %+v, %v", ch, err)
+		}
+		u, _ := userRepo.GetByID(ctx, a)
+		if !u.Disabled || u.IsAdmin {
+			t.Errorf("after disable: disabled %v, flag %v", u.Disabled, u.IsAdmin)
+		}
+
+		if ch, _ := adminRepo.DisableUser(ctx, b, ""); ch.Guard != repository.AdminGuardLastAdmin {
+			t.Errorf("disable last admin = %+v", ch)
+		}
+		if ch, _ := adminRepo.DeleteUser(ctx, b, ""); ch.Guard != repository.AdminGuardLastAdmin {
+			t.Errorf("delete last admin = %+v", ch)
+		}
+		u, _ = userRepo.GetByID(ctx, b)
+		if u == nil || u.Disabled || !u.IsAdmin {
+			t.Error("refused removal changed the last admin")
+		}
+
+		plain := newUser(t, email("dp"), true)
+		if ch, err := adminRepo.DeleteUser(ctx, plain, ""); err != nil || ch.Guard != repository.AdminGuardApplied || ch.FlagCleared {
+			t.Errorf("delete non-admin = %+v, %v", ch, err)
+		}
+		if _, err := userRepo.GetByID(ctx, plain); err == nil {
+			t.Error("deleted account still exists")
+		}
+		if ch, _ := adminRepo.DeleteUser(ctx, plain, ""); ch.Guard != repository.AdminGuardNotFound {
+			t.Errorf("delete missing = %+v", ch)
+		}
+	})
+
+	t.Run("grant and disable race leaves no disabled admin", func(t *testing.T) {
+		reset(t)
+		keep := newUser(t, email("gk"), true)
+		grant(t, keep)
+		for i := 0; i < 20; i++ {
+			target := newUser(t, email("gr"), true)
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() { defer wg.Done(); _, _ = adminRepo.SetAdmin(ctx, target) }()
+			go func() { defer wg.Done(); _, _ = adminRepo.DisableUser(ctx, target, "") }()
+			wg.Wait()
+			u, _ := userRepo.GetByID(ctx, target)
+			if u.Disabled && u.IsAdmin {
+				t.Fatalf("iteration %d: account is disabled and flagged", i)
+			}
 		}
 	})
 }

@@ -49,7 +49,6 @@ type APIHandler struct {
 	reportsRepo      repository.ReportsRepository
 	userDataService  *service.UserDataService
 	restorer         *cloudbackup.Restorer
-	adminEmail       string
 	adminRoles       *service.AdminRoleService
 	emailSender      *email.Sender
 	startedAt        time.Time
@@ -89,7 +88,6 @@ func NewAPIHandler(
 	webauthnService *service.WebAuthnService,
 	jwtManager *jwt.Manager,
 	flightCrewRepo repository.FlightCrewRepository,
-	adminEmail string,
 ) *APIHandler {
 	return &APIHandler{
 		authService:         authService,
@@ -105,7 +103,6 @@ func NewAPIHandler(
 		webauthnService:     webauthnService,
 		jwtManager:          jwtManager,
 		flightCrewRepo:      flightCrewRepo,
-		adminEmail:          adminEmail,
 	}
 }
 
@@ -199,10 +196,12 @@ func (h *APIHandler) sendCodedError(c *gin.Context, statusCode int, code, messag
 // Verify that APIHandler implements the generated.ServerInterface
 var _ generated.ServerInterface = (*APIHandler)(nil)
 
-// isAdminUser reports whether the user carries the admin flag or holds the
-// configured admin address; the email must be verified.
+// isAdminUser reports whether the user is an admin; see service.IsAdmin.
 func (h *APIHandler) isAdminUser(user *models.User) bool {
-	return service.IsAdmin(user, h.adminEmail)
+	if h.adminRoles == nil {
+		return service.IsAdmin(user, "")
+	}
+	return h.adminRoles.IsAdmin(user)
 }
 
 // buildUserResponse creates a generated.User from a models.User, including isAdmin

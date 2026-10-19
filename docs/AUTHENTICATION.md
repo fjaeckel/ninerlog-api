@@ -788,7 +788,7 @@ can hold it. An account is an admin when its email address is **verified** and e
 `ADMIN_EMAIL` is how a fresh installation gets its first admin, and how an operator who has
 lost every admin account gets back in. The API writes the flag onto the bootstrap account:
 
-- at startup, onto the verified account whose email matches `ADMIN_EMAIL`;
+- at startup, onto the verified, enabled account whose email matches `ADMIN_EMAIL`;
 - on that account's first admin request, when it registered or verified after startup.
 
 Each write records a `bootstrap_admin` entry in the audit log. Once the flag is set,
@@ -796,35 +796,48 @@ Each write records a `bootstrap_admin` entry in the audit log. Once the flag is 
 
 ### Granting and revoking
 
+An **active admin** is a verified, enabled account that carries the flag or holds the
+`ADMIN_EMAIL` address.
+
 | Method | Path | Result |
 |---|---|---|
-| `POST` | `/admin/users/{userId}/grant-admin` | `200`; idempotent. `409` when the target's email is unverified or the account is disabled. `404` for an unknown account. |
-| `POST` | `/admin/users/{userId}/revoke-admin` | `200`; idempotent, and an admin may revoke their own rights. `409` when the target holds the `ADMIN_EMAIL` address, or when no other verified, enabled admin would remain. `404` for an unknown account. |
+| `POST` | `/admin/users/{userId}/grant-admin` | `200`; idempotent. `409` when the target's email is unverified or the account is disabled — checked in the same statement that sets the flag. `404` for an unknown account. |
+| `POST` | `/admin/users/{userId}/revoke-admin` | `200`; idempotent, and an admin may revoke their own rights. `409` when the target holds the `ADMIN_EMAIL` address, or is an active admin and no other active admin would remain. `404` for an unknown account. |
 
-Both record `grant_admin` / `revoke_admin` in the audit log. The last-admin check locks every
-flagged row, so two admins revoking each other at the same time cannot leave the instance
-with none.
+Each records `grant_admin` / `revoke_admin` in the audit log only when the flag actually
+changed. Revoke, disable and delete lock every admin row (flagged accounts and the
+`ADMIN_EMAIL` holder) and the target for the whole check-and-write, so concurrent requests
+cannot leave the instance without an active admin, and a repeated revoke is a no-op rather
+than a conflict.
 
 ### Protected accounts
 
-Other admin actions honour the same two rules:
-
 | Action | `ADMIN_EMAIL` account | Admin account |
 |---|---|---|
-| `POST /admin/users/{userId}/disable` | `409` | Revokes the admin flag first (`revoke_admin`, `reason: disable_user`); `409` when no other verified, enabled admin would remain. Re-enabling does not restore the flag. |
-| `DELETE /admin/users/{userId}` | `409` | Revokes the admin flag first (`reason: delete_user`); `409` when no other verified, enabled admin would remain. |
+| `POST /admin/users/{userId}/disable` | `409` | Disabled and unflagged in one transaction (`revoke_admin`, `reason: disable_user`); `409` when it is the last active admin. Re-enabling does not restore the flag. |
+| `DELETE /admin/users/{userId}` | `409` | Deleted in the same transaction as the check (`revoke_admin`, `reason: delete_user`); `409` when it is the last active admin. |
 | `POST /admin/users/{userId}/reset-2fa` | `409` | Allowed. |
 
-The `ADMIN_EMAIL` account is matched only when its address is verified; an unverified
-account holding that address is an ordinary account. Unlock and enable are always allowed.
-An account deleting itself through `DELETE /users/me` is not restricted — a pilot can always
-leave with their data; if that removes the last admin, set `ADMIN_EMAIL` to a verified
-account and restart.
+The `delete_user` entry and its `revoke_admin` are written after the account is gone, with no
+target reference; `details.user_id` names it. The `ADMIN_EMAIL` account is matched only when
+its address is verified; an unverified account holding that address is an ordinary account.
+Unlock and enable are always allowed. An account deleting itself through `DELETE /users/me` is
+not restricted — a pilot can always leave with their data; if that removes the last admin, set
+`ADMIN_EMAIL` to a verified account and restart.
 
-`GET /admin/users?isAdmin=true` lists the flagged accounts; every row carries `isAdmin` and
-`isBootstrapAdmin` (the verified `ADMIN_EMAIL` holder).
-`GET /admin/config` reports `adminCount` (flagged accounts) and `adminEmailConfigured`.
-`GET /users/me` reports `isAdmin` for the caller.
+### Listing and counting
+
+Every `GET /admin/users` row carries:
+
+- `isAdmin` — the account is an admin right now (verified, flag or `ADMIN_EMAIL`);
+- `isBootstrapAdmin` — the verified `ADMIN_EMAIL` holder;
+- `adminFlag` — the stored flag. It is set without `isAdmin` when a flagged admin changed
+  their address and has not verified it yet; the flag can still be revoked, and comes back
+  into force on verification otherwise.
+
+`?isAdmin=true|false` filters on `isAdmin`. `GET /admin/config` reports `adminCount` (active
+admins; omitted when the count fails) and `adminEmailConfigured`. `GET /users/me` reports
+`isAdmin` for the caller.
 
 The flag is operator state: it is not part of the JSON export, and a restore never sets it.
 

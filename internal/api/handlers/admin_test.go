@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/google/uuid"
 )
 
@@ -76,7 +77,7 @@ func TestIsAdminUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := &APIHandler{adminEmail: tt.adminEmail}
+			h := &APIHandler{adminRoles: service.NewAdminRoleService(nil, tt.adminEmail)}
 			user := &models.User{Email: tt.userEmail, EmailVerified: true, IsAdmin: tt.flagged}
 			if got := h.isAdminUser(user); got != tt.want {
 				t.Errorf("isAdminUser(%q) = %v, want %v", tt.userEmail, got, tt.want)
@@ -87,7 +88,7 @@ func TestIsAdminUser(t *testing.T) {
 
 func TestBuildUserResponse_IncludesIsAdmin(t *testing.T) {
 	// Create a minimal handler with admin email set
-	h := &APIHandler{adminEmail: "admin@ninerlog.app"}
+	h := &APIHandler{adminRoles: service.NewAdminRoleService(nil, "admin@ninerlog.app")}
 
 	t.Run("admin user", func(t *testing.T) {
 		user := createTestUser("admin@ninerlog.app", "Admin User")
@@ -106,7 +107,7 @@ func TestBuildUserResponse_IncludesIsAdmin(t *testing.T) {
 	})
 
 	t.Run("no admin configured", func(t *testing.T) {
-		h2 := &APIHandler{adminEmail: ""}
+		h2 := &APIHandler{adminRoles: service.NewAdminRoleService(nil, "")}
 		user := createTestUser("admin@ninerlog.app", "Admin User")
 		resp := h2.buildUserResponse(user)
 		if resp.IsAdmin == nil || *resp.IsAdmin {

@@ -149,7 +149,7 @@ func setupSignatureTestHandlerSharedRepo(t *testing.T) (h *APIHandler, userID uu
 		flightService:          flightSvc,
 		flightSignatureService: sigSvc,
 		jwtManager:             jwtMgr,
-		adminEmail:             "admin@test.com",
+		adminRoles:             service.NewAdminRoleService(nil, "admin@test.com"),
 	}
 
 	flight = &models.Flight{

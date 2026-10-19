@@ -42,31 +42,30 @@ func (h *APIHandler) persistBootstrapAdmin(c *gin.Context, user *models.User) {
 	}
 }
 
-// releaseAdminForRemoval refuses removing the ADMIN_EMAIL holder or the last
-// active admin and clears a target admin's flag; it writes the error response
-// and returns false when the action must not proceed.
-func (h *APIHandler) releaseAdminForRemoval(c *gin.Context, adminUserID uuid.UUID, target *models.User, action string) bool {
-	if service.IsBootstrapAdmin(target, h.adminEmail) {
-		h.sendError(c, http.StatusConflict, "User holds the ADMIN_EMAIL address")
-		return false
-	}
-	if h.adminRoles == nil {
-		return true
-	}
-	released, err := h.adminRoles.ReleaseForRemoval(c.Request.Context(), target)
+// sendAdminRoleError writes the response for an AdminRoleService error.
+func (h *APIHandler) sendAdminRoleError(c *gin.Context, err error, fallback string) {
 	switch {
+	case errors.Is(err, service.ErrAdminTargetNotFound):
+		h.sendError(c, http.StatusNotFound, "User not found")
+	case errors.Is(err, service.ErrAdminTargetUnverified):
+		h.sendError(c, http.StatusConflict, "User has not verified their email address")
+	case errors.Is(err, service.ErrAdminTargetDisabled):
+		h.sendError(c, http.StatusConflict, "User account is disabled")
 	case errors.Is(err, service.ErrBootstrapAdmin):
 		h.sendError(c, http.StatusConflict, "User holds the ADMIN_EMAIL address")
-		return false
 	case errors.Is(err, service.ErrLastAdmin):
 		h.sendError(c, http.StatusConflict, "Cannot remove the last admin")
-		return false
-	case err != nil:
-		h.sendError(c, http.StatusInternalServerError, "Failed to update admin rights")
-		return false
+	default:
+		h.sendError(c, http.StatusInternalServerError, fallback)
 	}
-	if released {
-		h.logAdminAction(c, adminUserID, "revoke_admin", &target.ID, map[string]any{"email": target.Email, "reason": action})
+}
+
+// requireAdminRoles writes 503 and returns false when the admin role service
+// is not wired.
+func (h *APIHandler) requireAdminRoles(c *gin.Context) bool {
+	if h.adminRoles == nil {
+		h.sendError(c, http.StatusServiceUnavailable, "Admin roles not configured")
+		return false
 	}
 	return true
 }
@@ -74,32 +73,24 @@ func (h *APIHandler) releaseAdminForRemoval(c *gin.Context, adminUserID uuid.UUI
 // GrantUserAdmin implements POST /admin/users/{userId}/grant-admin
 func (h *APIHandler) GrantUserAdmin(c *gin.Context, userId openapi_types.UUID) {
 	adminUserID, ok := h.requireAdmin(c)
-	if !ok {
-		return
-	}
-	if h.adminRoles == nil {
-		h.sendError(c, http.StatusServiceUnavailable, "Admin roles not configured")
+	if !ok || !h.requireAdminRoles(c) {
 		return
 	}
 
 	targetID := uuid.UUID(userId)
-	user, err := h.adminRoles.Grant(c.Request.Context(), targetID)
-	switch {
-	case errors.Is(err, service.ErrAdminTargetNotFound):
+	user, err := h.authService.GetUserByID(c.Request.Context(), targetID)
+	if err != nil {
 		h.sendError(c, http.StatusNotFound, "User not found")
 		return
-	case errors.Is(err, service.ErrAdminTargetUnverified):
-		h.sendError(c, http.StatusConflict, "User has not verified their email address")
-		return
-	case errors.Is(err, service.ErrAdminTargetDisabled):
-		h.sendError(c, http.StatusConflict, "User account is disabled")
-		return
-	case err != nil:
-		h.sendError(c, http.StatusInternalServerError, "Failed to grant admin rights")
+	}
+	granted, err := h.adminRoles.Grant(c.Request.Context(), targetID)
+	if err != nil {
+		h.sendAdminRoleError(c, err, "Failed to grant admin rights")
 		return
 	}
-
-	h.logAdminAction(c, adminUserID, "grant_admin", &targetID, map[string]any{"email": user.Email})
+	if granted {
+		h.logAdminAction(c, adminUserID, "grant_admin", &targetID, map[string]any{"email": user.Email})
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Admin rights granted"})
 }
@@ -107,32 +98,24 @@ func (h *APIHandler) GrantUserAdmin(c *gin.Context, userId openapi_types.UUID) {
 // RevokeUserAdmin implements POST /admin/users/{userId}/revoke-admin
 func (h *APIHandler) RevokeUserAdmin(c *gin.Context, userId openapi_types.UUID) {
 	adminUserID, ok := h.requireAdmin(c)
-	if !ok {
-		return
-	}
-	if h.adminRoles == nil {
-		h.sendError(c, http.StatusServiceUnavailable, "Admin roles not configured")
+	if !ok || !h.requireAdminRoles(c) {
 		return
 	}
 
 	targetID := uuid.UUID(userId)
-	user, err := h.adminRoles.Revoke(c.Request.Context(), targetID)
-	switch {
-	case errors.Is(err, service.ErrAdminTargetNotFound):
+	user, err := h.authService.GetUserByID(c.Request.Context(), targetID)
+	if err != nil {
 		h.sendError(c, http.StatusNotFound, "User not found")
 		return
-	case errors.Is(err, service.ErrBootstrapAdmin):
-		h.sendError(c, http.StatusConflict, "User holds the ADMIN_EMAIL address")
-		return
-	case errors.Is(err, service.ErrLastAdmin):
-		h.sendError(c, http.StatusConflict, "Cannot revoke the last admin")
-		return
-	case err != nil:
-		h.sendError(c, http.StatusInternalServerError, "Failed to revoke admin rights")
+	}
+	revoked, err := h.adminRoles.Revoke(c.Request.Context(), targetID)
+	if err != nil {
+		h.sendAdminRoleError(c, err, "Failed to revoke admin rights")
 		return
 	}
-
-	h.logAdminAction(c, adminUserID, "revoke_admin", &targetID, map[string]any{"email": user.Email})
+	if revoked {
+		h.logAdminAction(c, adminUserID, "revoke_admin", &targetID, map[string]any{"email": user.Email})
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Admin rights revoked"})
 }
@@ -158,7 +141,14 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 	if params.Search != nil {
 		filter.Search = *params.Search
 	}
-	rows, total, err := h.adminRepo.ListUsers(c.Request.Context(), filter, pageSize, (page-1)*pageSize)
+	var rows []*repository.AdminUserRow
+	var total int
+	var err error
+	if h.adminRoles != nil {
+		rows, total, err = h.adminRoles.ListUsers(c.Request.Context(), filter, pageSize, (page-1)*pageSize)
+	} else {
+		rows, total, err = h.adminRepo.ListUsers(c.Request.Context(), filter, pageSize, (page-1)*pageSize)
+	}
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query users")
 		return
@@ -178,7 +168,8 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 			TwoFactorEnabled: row.TwoFactorEnabled,
 			Disabled:         row.Disabled,
 			IsAdmin:          h.isAdminUser(rowUser),
-			IsBootstrapAdmin: service.IsBootstrapAdmin(rowUser, h.adminEmail),
+			IsBootstrapAdmin: h.adminRoles != nil && h.adminRoles.IsBootstrapAdmin(rowUser),
+			AdminFlag:        row.IsAdmin,
 			Locked:           &isLocked,
 			EmailSuppressed:  &emailSuppressed,
 			FlightCount:      row.FlightCount,
@@ -240,15 +231,16 @@ func (h *APIHandler) DisableUser(c *gin.Context, userId openapi_types.UUID) {
 		h.sendError(c, http.StatusNotFound, "User not found")
 		return
 	}
-	if !h.releaseAdminForRemoval(c, adminUserID, user, "disable_user") {
+	if !h.requireAdminRoles(c) {
 		return
 	}
-
-	user.Disabled = true
-	user.UpdatedAt = time.Now()
-	if err := h.authService.UpdateUser(c.Request.Context(), user); err != nil {
-		h.sendError(c, http.StatusInternalServerError, "Failed to disable user")
+	revoked, err := h.adminRoles.Disable(c.Request.Context(), targetID)
+	if err != nil {
+		h.sendAdminRoleError(c, err, "Failed to disable user")
 		return
+	}
+	if revoked {
+		h.logAdminAction(c, adminUserID, "revoke_admin", &targetID, map[string]any{"email": user.Email, "reason": "disable_user"})
 	}
 
 	// Revoke all tokens
@@ -329,7 +321,7 @@ func (h *APIHandler) ResetUser2fa(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
-	if service.IsBootstrapAdmin(user, h.adminEmail) {
+	if h.adminRoles != nil && h.adminRoles.IsBootstrapAdmin(user) {
 		h.sendError(c, http.StatusConflict, "User holds the ADMIN_EMAIL address")
 		return
 	}
@@ -384,22 +376,22 @@ func (h *APIHandler) DeleteUser(c *gin.Context, userId openapi_types.UUID) {
 		h.sendError(c, http.StatusNotFound, "User not found")
 		return
 	}
-	if !h.releaseAdminForRemoval(c, adminUserID, user, "delete_user") {
+	if !h.requireAdminRoles(c) {
 		return
 	}
 
-	// Log the action BEFORE deleting so the audit log captures the email in
-	// metadata. The audit row's target_user_id will be set to NULL by the FK
-	// cascade, which is the intended retention behaviour.
-	h.logAdminAction(c, adminUserID, "delete_user", &targetID,
-		map[string]any{"email": user.Email, "name": user.Name})
-
-	// Cascading FKs handle removal of flights, aircraft, licenses, contacts,
-	// credentials, refresh tokens, backups, notifications, etc.
-	if err := h.authService.DeleteUserConfirmed(c.Request.Context(), targetID); err != nil {
-		h.sendError(c, http.StatusInternalServerError, "Failed to delete user")
+	// Cascading FKs remove the account's content, tokens and sessions.
+	revoked, err := h.adminRoles.Delete(c.Request.Context(), targetID)
+	if err != nil {
+		h.sendAdminRoleError(c, err, "Failed to delete user")
 		return
 	}
+
+	details := map[string]any{"email": user.Email, "name": user.Name, "user_id": targetID.String()}
+	if revoked {
+		h.logAdminAction(c, adminUserID, "revoke_admin", nil, map[string]any{"email": user.Email, "user_id": targetID.String(), "reason": "delete_user"})
+	}
+	h.logAdminAction(c, adminUserID, "delete_user", nil, details)
 
 	c.JSON(http.StatusOK, gin.H{"message": "User and all their content deleted"})
 }

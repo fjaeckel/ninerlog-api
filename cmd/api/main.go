@@ -348,7 +348,7 @@ func main() {
 		_ = webauthnSessionRepo
 	}
 
-	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminEmail)
+	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo)
 	apiHandler.SetOIDCService(oidcService)
 	apiHandler.SetCustomCurrencyService(customCurrencyService)
 	apiHandler.SetCustomReportService(customreport.NewService(
@@ -359,7 +359,7 @@ func main() {
 	// history, announcements, bulk wipes) — no raw *sql.DB reaches a handler.
 	adminRepo := postgres.NewAdminRepository(db)
 	apiHandler.SetAdminRepository(adminRepo)
-	adminRoleService := service.NewAdminRoleService(userRepo, adminRepo, adminEmail)
+	adminRoleService := service.NewAdminRoleService(adminRepo, adminEmail)
 	apiHandler.SetAdminRoleService(adminRoleService)
 	if id, err := adminRoleService.PromoteBootstrap(context.Background()); err != nil {
 		slog.Error("Failed to promote ADMIN_EMAIL account", "error", err)
