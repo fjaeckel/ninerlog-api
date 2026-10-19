@@ -21,8 +21,8 @@ and `testify` assertions; repositories are mocked at the interface level for uni
 
 **Build tags matter.** Files under `test/e2e/` start with `//go:build e2e` and are invisible
 without `-tags=e2e`. Likewise `internal/repository/postgres/*_integration_test.go` carry
-`//go:build integration` — and neither `make test-integration` nor CI passes that tag, so those
-files only run when you add it yourself:
+`//go:build integration`; `make test-integration` and the CI "Integration Tests" job pass that
+tag after seeding the schema with `scripts/seed-test-db.sh`. To run them by hand:
 
 ```bash
 export TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=testuser \

@@ -78,7 +78,7 @@ func (r *notificationRepository) ClaimNotification(ctx context.Context, log *mod
 func (r *notificationRepository) ClaimLapseNotification(ctx context.Context, log *models.NotificationLog) (bool, error) {
 	query := `
 		INSERT INTO notification_log (` + notificationClaimColumns + `)
-		SELECT $1, $2, $3, $4, $5, $6::date, $7, $8
+		SELECT $1::uuid, $2::varchar, $3::uuid, $4::varchar, $5::integer, $6::date, $7::text, $8::boolean
 		WHERE NOT EXISTS (
 			SELECT 1 FROM notification_log
 			WHERE user_id = $1 AND notification_type = $2 AND reference_id = $3
