@@ -213,7 +213,7 @@ OIDC_PROVIDER_NAME=Keycloak
 Set the client to *Client authentication: On* (confidential) with the standard
 flow enabled. Keycloak's `email_verified` mirrors the user's verified flag in
 the realm — users created by an admin without verification will land in NinerLog
-unverified, which matters only for `ADMIN_EMAIL`.
+unverified, which matters only for admin rights.
 
 ### Authelia
 
@@ -399,13 +399,17 @@ back to local mode, those credentials work again, and OIDC-provisioned accounts
 
 ## Administrators
 
-Admin rights still come from `ADMIN_EMAIL`, matched against the account's email —
-which in OIDC mode is the address from the ID token.
+Admin rights are a per-account flag granted from the admin console
+(`POST /api/v1/admin/users/{userId}/grant-admin`). The first admin comes from
+`ADMIN_EMAIL`, matched against the account's email — which in OIDC mode is the
+address from the ID token — and is flagged on startup or on its first admin
+request. See [AUTHENTICATION.md](./AUTHENTICATION.md#admin-access).
 
-Admin status additionally requires the address to be **verified**. With a
-provider that emits `email_verified: true` this is automatic. With one that
-omits the claim you must set `OIDC_TRUST_EMAIL_VERIFIED=true`, otherwise the
-admin account is provisioned unverified and `ADMIN_EMAIL` has no effect.
+Admin status additionally requires the address to be **verified**, for flagged
+accounts and `ADMIN_EMAIL` alike. With a provider that emits
+`email_verified: true` this is automatic. With one that omits the claim you must
+set `OIDC_TRUST_EMAIL_VERIFIED=true`, otherwise accounts are provisioned
+unverified, `ADMIN_EMAIL` has no effect and grants are refused.
 
 `GET /api/v1/admin/config` reports `authMode` and `oidcIssuer` so you can
 confirm which mode a running instance is in. The client secret is never exposed

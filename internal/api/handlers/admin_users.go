@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/pkg/email"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -23,7 +28,84 @@ func (h *APIHandler) requireAdmin(c *gin.Context) (uuid.UUID, bool) {
 		h.sendError(c, http.StatusForbidden, "Admin access required")
 		return uuid.Nil, false
 	}
+	h.persistBootstrapAdmin(c, user)
 	return userID, true
+}
+
+// persistBootstrapAdmin sets the admin flag on the unflagged ADMIN_EMAIL holder.
+func (h *APIHandler) persistBootstrapAdmin(c *gin.Context, user *models.User) {
+	if h.adminRoles == nil {
+		return
+	}
+	if err := h.adminRoles.PersistBootstrap(c.Request.Context(), user); err != nil {
+		slog.Error("admin bootstrap: persist flag failed", "user_id", user.ID, "error", err)
+	}
+}
+
+// GrantUserAdmin implements POST /admin/users/{userId}/grant-admin
+func (h *APIHandler) GrantUserAdmin(c *gin.Context, userId openapi_types.UUID) {
+	adminUserID, ok := h.requireAdmin(c)
+	if !ok {
+		return
+	}
+	if h.adminRoles == nil {
+		h.sendError(c, http.StatusServiceUnavailable, "Admin roles not configured")
+		return
+	}
+
+	targetID := uuid.UUID(userId)
+	user, err := h.adminRoles.Grant(c.Request.Context(), targetID)
+	switch {
+	case errors.Is(err, service.ErrAdminTargetNotFound):
+		h.sendError(c, http.StatusNotFound, "User not found")
+		return
+	case errors.Is(err, service.ErrAdminTargetUnverified):
+		h.sendError(c, http.StatusConflict, "User has not verified their email address")
+		return
+	case errors.Is(err, service.ErrAdminTargetDisabled):
+		h.sendError(c, http.StatusConflict, "User account is disabled")
+		return
+	case err != nil:
+		h.sendError(c, http.StatusInternalServerError, "Failed to grant admin rights")
+		return
+	}
+
+	h.logAdminAction(c, adminUserID, "grant_admin", &targetID, map[string]any{"email": user.Email})
+
+	c.JSON(http.StatusOK, gin.H{"message": "Admin rights granted"})
+}
+
+// RevokeUserAdmin implements POST /admin/users/{userId}/revoke-admin
+func (h *APIHandler) RevokeUserAdmin(c *gin.Context, userId openapi_types.UUID) {
+	adminUserID, ok := h.requireAdmin(c)
+	if !ok {
+		return
+	}
+	if h.adminRoles == nil {
+		h.sendError(c, http.StatusServiceUnavailable, "Admin roles not configured")
+		return
+	}
+
+	targetID := uuid.UUID(userId)
+	user, err := h.adminRoles.Revoke(c.Request.Context(), targetID)
+	switch {
+	case errors.Is(err, service.ErrAdminTargetNotFound):
+		h.sendError(c, http.StatusNotFound, "User not found")
+		return
+	case errors.Is(err, service.ErrBootstrapAdmin):
+		h.sendError(c, http.StatusConflict, "User holds the ADMIN_EMAIL address")
+		return
+	case errors.Is(err, service.ErrLastAdmin):
+		h.sendError(c, http.StatusConflict, "Cannot revoke the last admin")
+		return
+	case err != nil:
+		h.sendError(c, http.StatusInternalServerError, "Failed to revoke admin rights")
+		return
+	}
+
+	h.logAdminAction(c, adminUserID, "revoke_admin", &targetID, map[string]any{"email": user.Email})
+
+	c.JSON(http.StatusOK, gin.H{"message": "Admin rights revoked"})
 }
 
 // ListAdminUsers implements GET /admin/users
@@ -43,11 +125,11 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 		pageSize = *params.PageSize
 	}
 
-	search := ""
+	filter := repository.AdminUserFilter{IsAdmin: params.IsAdmin}
 	if params.Search != nil {
-		search = *params.Search
+		filter.Search = *params.Search
 	}
-	rows, total, err := h.adminRepo.ListUsers(c.Request.Context(), search, pageSize, (page-1)*pageSize)
+	rows, total, err := h.adminRepo.ListUsers(c.Request.Context(), filter, pageSize, (page-1)*pageSize)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to query users")
 		return
@@ -65,6 +147,7 @@ func (h *APIHandler) ListAdminUsers(c *gin.Context, params generated.ListAdminUs
 			EmailVerified:    row.EmailVerified,
 			TwoFactorEnabled: row.TwoFactorEnabled,
 			Disabled:         row.Disabled,
+			IsAdmin:          h.isAdminUser(&models.User{Email: row.Email, EmailVerified: row.EmailVerified, IsAdmin: row.IsAdmin}),
 			Locked:           &isLocked,
 			EmailSuppressed:  &emailSuppressed,
 			FlightCount:      row.FlightCount,

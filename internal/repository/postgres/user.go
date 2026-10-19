@@ -61,7 +61,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, clock_format, logbook_terms, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, is_admin, last_login_at, time_display_format, date_format, clock_format, logbook_terms, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -79,6 +79,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.FailedLoginAttempts,
 		&user.LockedUntil,
 		&user.Disabled,
+		&user.IsAdmin,
 		&user.LastLoginAt,
 		&user.TimeDisplayFormat,
 		&user.DateFormat,
@@ -107,7 +108,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, last_login_at, time_display_format, date_format, clock_format, logbook_terms, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, is_admin, last_login_at, time_display_format, date_format, clock_format, logbook_terms, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -125,6 +126,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.FailedLoginAttempts,
 		&user.LockedUntil,
 		&user.Disabled,
+		&user.IsAdmin,
 		&user.LastLoginAt,
 		&user.TimeDisplayFormat,
 		&user.DateFormat,

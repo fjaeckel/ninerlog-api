@@ -53,6 +53,7 @@ func TestAdminUserSchema_PrivacyPreserving(t *testing.T) {
 		// unverified" without opening anything the user logged.
 		"VerificationReminderSentAt": true, "ScheduledDeletionAt": true,
 		"EmailSuppressed": true,
+		"IsAdmin":         true,
 	}
 
 	// Forbidden field patterns — these would leak private data

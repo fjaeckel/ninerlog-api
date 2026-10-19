@@ -38,6 +38,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	migratepg "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -152,10 +153,10 @@ func main() {
 		corsOrigins[i] = strings.TrimSpace(corsOrigins[i])
 	}
 
-	// Admin email (optional — designates admin user)
+	// Bootstrap admin address (optional — its verified holder is always admin)
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail != "" {
-		slog.Info("Admin email configured", "email", adminEmail)
+		slog.Info("Bootstrap admin email configured", "email", adminEmail)
 	}
 
 	slog.Info("Connecting to database...")
@@ -356,7 +357,15 @@ func main() {
 	))
 	// Repositories the handler uses directly (admin console, reports, import
 	// history, announcements, bulk wipes) — no raw *sql.DB reaches a handler.
-	apiHandler.SetAdminRepository(postgres.NewAdminRepository(db))
+	adminRepo := postgres.NewAdminRepository(db)
+	apiHandler.SetAdminRepository(adminRepo)
+	adminRoleService := service.NewAdminRoleService(userRepo, adminRepo, adminEmail)
+	apiHandler.SetAdminRoleService(adminRoleService)
+	if id, err := adminRoleService.PromoteBootstrap(context.Background()); err != nil {
+		slog.Error("Failed to promote ADMIN_EMAIL account", "error", err)
+	} else if id != uuid.Nil {
+		slog.Info("Promoted ADMIN_EMAIL account to admin", "user_id", id)
+	}
 	apiHandler.SetAnnouncementRepository(postgres.NewAnnouncementRepository(db))
 	apiHandler.SetFlightImportRepository(postgres.NewFlightImportRepository(db))
 	apiHandler.SetReportsRepository(postgres.NewReportsRepository(db))

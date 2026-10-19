@@ -64,12 +64,21 @@ type AdminUserRow struct {
 	EmailVerified              bool
 	TwoFactorEnabled           bool
 	Disabled                   bool
+	IsAdmin                    bool
 	FailedLoginAttempts        int
 	LockedUntil                *time.Time
 	VerificationReminderSentAt *time.Time
 	EmailSuppressed            bool
 	FlightCount                int
 	AircraftCount              int
+}
+
+// AdminUserFilter narrows the admin user listing. A non-empty Search
+// matches email or name case-insensitively as a substring; a non-nil IsAdmin
+// matches the admin flag.
+type AdminUserFilter struct {
+	Search  string
+	IsAdmin *bool
 }
 
 // AdminRepository backs the admin console: instance-wide statistics, the
@@ -96,9 +105,24 @@ type AdminRepository interface {
 	InsertAuditLog(ctx context.Context, entry *AdminAuditLogEntry) error
 
 	// ListUsers returns one page of the user listing, newest first, plus the
-	// total row count for the (optionally searched) set. A non-empty search
-	// matches email or name case-insensitively as a substring.
-	ListUsers(ctx context.Context, search string, limit, offset int) ([]*AdminUserRow, int, error)
+	// total row count for the filtered set.
+	ListUsers(ctx context.Context, filter AdminUserFilter, limit, offset int) ([]*AdminUserRow, int, error)
+
+	// CountAdmins counts accounts carrying the admin flag.
+	CountAdmins(ctx context.Context) (int, error)
+
+	// SetAdmin sets the admin flag on an account. Returns ErrNotFound when no
+	// row had this id.
+	SetAdmin(ctx context.Context, userID uuid.UUID) error
+
+	// RevokeAdmin clears the admin flag unless no other verified, enabled
+	// admin would remain; it reports whether the flag was cleared.
+	RevokeAdmin(ctx context.Context, userID uuid.UUID) (bool, error)
+
+	// PromoteVerifiedByEmail sets the admin flag on the verified account
+	// whose email matches case-insensitively, returning its id when the flag
+	// was newly set and uuid.Nil otherwise.
+	PromoteVerifiedByEmail(ctx context.Context, email string) (uuid.UUID, error)
 
 	// UnlockUser resets the failed-login counter and clears any lockout.
 	UnlockUser(ctx context.Context, userID uuid.UUID) error

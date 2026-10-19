@@ -2494,7 +2494,10 @@ type AdminAuditLogEntry struct {
 
 // AdminConfig defines model for AdminConfig.
 type AdminConfig struct {
-	// AdminEmailConfigured Whether ADMIN_EMAIL is set
+	// AdminCount Number of accounts carrying the admin flag
+	AdminCount int `json:"adminCount"`
+
+	// AdminEmailConfigured Whether ADMIN_EMAIL (the bootstrap admin address) is set
 	AdminEmailConfigured bool `json:"adminEmailConfigured"`
 
 	// AirportDatabaseSize Number of airports loaded
@@ -2692,6 +2695,9 @@ type AdminUser struct {
 	// FlightCount Total number of flights logged
 	FlightCount int                `json:"flightCount"`
 	Id          openapi_types.UUID `json:"id"`
+
+	// IsAdmin Whether the account carries the admin flag or holds the ADMIN_EMAIL address
+	IsAdmin bool `json:"isAdmin"`
 
 	// LastActiveAt Last authenticated API request, or the last sign-in if later. Recorded at a granularity of five minutes, so a session kept alive by refresh tokens still shows when the account was last used.
 	LastActiveAt *time.Time `json:"lastActiveAt,omitempty"`
@@ -7751,7 +7757,7 @@ type User struct {
 	// Id Example: 550e8400-e29b-41d4-a716-446655440000
 	Id openapi_types.UUID `json:"id"`
 
-	// IsAdmin Whether this user is the platform admin (computed from ADMIN_EMAIL env var, not stored in DB)
+	// IsAdmin Whether this user is an admin: the account carries the admin flag (granted via POST /admin/users/{userId}/grant-admin) or holds the ADMIN_EMAIL address. Requires a verified email address.
 	//
 	// Example: false
 	IsAdmin *bool `json:"isAdmin,omitempty"`
@@ -8002,6 +8008,9 @@ type ListAdminUsersParams struct {
 
 	// Search Search by email or name
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// IsAdmin When true, only admin accounts; when false, only non-admin accounts
+	IsAdmin *bool `form:"isAdmin,omitempty" json:"isAdmin,omitempty"`
 }
 
 // ListAircraftParams defines parameters for ListAircraft.

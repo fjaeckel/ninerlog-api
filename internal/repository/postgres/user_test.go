@@ -56,8 +56,8 @@ func TestUserGetByEmail(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := context.Background()
 
-	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "email_verified", "two_factor_enabled", "two_factor_secret", "recovery_codes", "failed_login_attempts", "locked_until", "disabled", "last_login_at", "time_display_format", "date_format", "clock_format", "logbook_terms", "decimal_separator", "preferred_locale", "recency_per_model", "recency_per_registration", "flight_list_column_mode", "flight_list_columns", "created_at", "updated_at"}).
-		AddRow(uuid.New(), "test@example.com", "hashed_password", "Test User", true, false, nil, nil, 0, nil, false, nil, "hm", "DD.MM.YYYY", "24h", "localized", "comma", "en", true, false, "auto", pq.StringArray{}, time.Now(), time.Now())
+	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "email_verified", "two_factor_enabled", "two_factor_secret", "recovery_codes", "failed_login_attempts", "locked_until", "disabled", "is_admin", "last_login_at", "time_display_format", "date_format", "clock_format", "logbook_terms", "decimal_separator", "preferred_locale", "recency_per_model", "recency_per_registration", "flight_list_column_mode", "flight_list_columns", "created_at", "updated_at"}).
+		AddRow(uuid.New(), "test@example.com", "hashed_password", "Test User", true, false, nil, nil, 0, nil, false, false, nil, "hm", "DD.MM.YYYY", "24h", "localized", "comma", "en", true, false, "auto", pq.StringArray{}, time.Now(), time.Now())
 
 	mock.ExpectQuery("SELECT (.+) FROM users WHERE email").
 		WithArgs("test@example.com").

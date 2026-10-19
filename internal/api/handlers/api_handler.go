@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
@@ -51,6 +50,7 @@ type APIHandler struct {
 	userDataService  *service.UserDataService
 	restorer         *cloudbackup.Restorer
 	adminEmail       string
+	adminRoles       *service.AdminRoleService
 	emailSender      *email.Sender
 	startedAt        time.Time
 	corsOrigins      []string
@@ -199,13 +199,10 @@ func (h *APIHandler) sendCodedError(c *gin.Context, statusCode int, code, messag
 // Verify that APIHandler implements the generated.ServerInterface
 var _ generated.ServerInterface = (*APIHandler)(nil)
 
-// isAdminUser reports whether the user holds the configured admin address;
-// the email must be verified.
+// isAdminUser reports whether the user carries the admin flag or holds the
+// configured admin address; the email must be verified.
 func (h *APIHandler) isAdminUser(user *models.User) bool {
-	if user == nil || h.adminEmail == "" {
-		return false
-	}
-	return user.EmailVerified && strings.EqualFold(user.Email, h.adminEmail)
+	return service.IsAdmin(user, h.adminEmail)
 }
 
 // buildUserResponse creates a generated.User from a models.User, including isAdmin

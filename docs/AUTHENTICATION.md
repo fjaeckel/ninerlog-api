@@ -778,17 +778,59 @@ Locked accounts receive `429` with `"Account temporarily locked..."`. An admin c
 
 ## Admin Access
 
-Admin is determined by the `ADMIN_EMAIL` environment variable — the user whose email matches (case-insensitive) gets admin privileges.
+Admin rights are a per-account flag, `users.is_admin` (migration 78). Any number of accounts
+can hold it. An account is an admin when its email address is **verified** and either:
+
+- it carries the flag, or
+- its email matches the `ADMIN_EMAIL` environment variable (case-insensitive) — the
+  *bootstrap admin*.
+
+`ADMIN_EMAIL` is how a fresh installation gets its first admin, and how an operator who has
+lost every admin account gets back in. The API writes the flag onto the bootstrap account:
+
+- at startup, onto the verified account whose email matches `ADMIN_EMAIL`;
+- on that account's first admin request, when it registered or verified after startup.
+
+Each write records a `bootstrap_admin` entry in the audit log. Once the flag is set,
+`ADMIN_EMAIL` can be removed and the account stays an admin.
+
+### Granting and revoking
+
+| Method | Path | Result |
+|---|---|---|
+| `POST` | `/admin/users/{userId}/grant-admin` | `200`; idempotent. `409` when the target's email is unverified or the account is disabled. `404` for an unknown account. |
+| `POST` | `/admin/users/{userId}/revoke-admin` | `200`; idempotent, and an admin may revoke their own rights. `409` when the target holds the `ADMIN_EMAIL` address, or when no other verified, enabled admin would remain. `404` for an unknown account. |
+
+Both record `grant_admin` / `revoke_admin` in the audit log. The last-admin check locks every
+flagged row, so two admins revoking each other at the same time cannot leave the instance
+with none.
+
+`GET /admin/users?isAdmin=true` lists the flagged accounts; every row carries `isAdmin`.
+`GET /admin/config` reports `adminCount` (flagged accounts) and `adminEmailConfigured`.
+`GET /users/me` reports `isAdmin` for the caller.
+
+The flag is operator state: it is not part of the JSON export, and a restore never sets it.
+
+### Upgrading from `ADMIN_EMAIL`-only installations
+
+No action is needed. Migration 78 adds the column with every account unflagged; the first
+startup with `ADMIN_EMAIL` still set flags the existing admin account. From then on, grant
+further admins from the console. Removing `ADMIN_EMAIL` afterwards is optional; keeping it
+keeps that account non-revocable.
+
+### Admin endpoints
 
 Admin endpoints require both a valid access token and admin status. Non-admin users receive `403 "Admin access required"`.
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/admin/stats` | System statistics |
-| `GET` | `/admin/users` | List users (search, pagination) |
+| `GET` | `/admin/users` | List users (search, `isAdmin` filter, pagination) |
 | `POST` | `/admin/users/{userId}/disable` | Disable account |
 | `POST` | `/admin/users/{userId}/enable` | Enable account |
 | `POST` | `/admin/users/{userId}/unlock` | Unlock locked account |
+| `POST` | `/admin/users/{userId}/grant-admin` | Grant admin rights |
+| `POST` | `/admin/users/{userId}/revoke-admin` | Revoke admin rights |
 | `POST` | `/admin/users/{userId}/reset-2fa` | Force-reset 2FA (last resort — authenticator *and* all recovery codes lost). Clears the secret and recovery codes, ends every session the user holds, and mails the user a notice that their second factor was removed |
 | `GET` | `/admin/audit-log` | View audit log |
 | `GET` | `/admin/config` | View runtime config |

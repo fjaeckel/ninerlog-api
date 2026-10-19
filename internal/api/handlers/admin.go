@@ -15,16 +15,7 @@ import (
 
 // ListAdminAuditLog implements GET /admin/audit-log
 func (h *APIHandler) ListAdminAuditLog(c *gin.Context, params generated.ListAdminAuditLogParams) {
-	userID, err := h.getUserIDFromContext(c)
-	if err != nil {
-		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
-		return
-	}
-
-	// Verify admin access
-	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
-	if err != nil || !h.isAdminUser(user) {
-		h.sendError(c, http.StatusForbidden, "Admin access required")
+	if _, ok := h.requireAdmin(c); !ok {
 		return
 	}
 

@@ -26,8 +26,22 @@ func TestIsAdminUser(t *testing.T) {
 		name       string
 		adminEmail string
 		userEmail  string
+		flagged    bool
 		want       bool
 	}{
+		{
+			name:      "flagged account without admin email",
+			userEmail: "second-admin@example.com",
+			flagged:   true,
+			want:      true,
+		},
+		{
+			name:       "flagged account alongside admin email",
+			adminEmail: "admin@example.com",
+			userEmail:  "second-admin@example.com",
+			flagged:    true,
+			want:       true,
+		},
 		{
 			name:       "matching email",
 			adminEmail: "admin@example.com",
@@ -63,7 +77,7 @@ func TestIsAdminUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &APIHandler{adminEmail: tt.adminEmail}
-			user := &models.User{Email: tt.userEmail, EmailVerified: true}
+			user := &models.User{Email: tt.userEmail, EmailVerified: true, IsAdmin: tt.flagged}
 			if got := h.isAdminUser(user); got != tt.want {
 				t.Errorf("isAdminUser(%q) = %v, want %v", tt.userEmail, got, tt.want)
 			}

@@ -182,6 +182,12 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 	// Admin email configured?
 	adminEmailConfigured := h.adminEmail != ""
 
+	adminCount, err := h.adminRepo.CountAdmins(c.Request.Context())
+	if err != nil {
+		slog.Error("admin config: admin count query failed", "error", err)
+		adminCount = 0
+	}
+
 	// Cloud backups configured? (set when BACKUP_CREDENTIALS_KEY is provided)
 	cloudBackupsConfigured := h.backupService != nil
 	cloudBackupProviders := []string{}
@@ -232,6 +238,7 @@ func (h *APIHandler) GetAdminConfig(c *gin.Context) {
 		RefreshReuseGrace:            &reuseGrace,
 		SmtpConfigured:               smtpConfigured,
 		AdminEmailConfigured:         adminEmailConfigured,
+		AdminCount:                   adminCount,
 		CloudBackupsConfigured:       cloudBackupsConfigured,
 		CloudBackupProviders:         cloudBackupProviders,
 		DocumentFilesEnabled:         &documentFilesEnabled,

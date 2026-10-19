@@ -3,7 +3,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -174,33 +177,36 @@ func (r *adminRepository) InsertAuditLog(ctx context.Context, entry *repository.
 	return err
 }
 
-func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, offset int) ([]*repository.AdminUserRow, int, error) {
-	countQuery := "SELECT COUNT(*) FROM users"
+func (r *adminRepository) ListUsers(ctx context.Context, filter repository.AdminUserFilter, limit, offset int) ([]*repository.AdminUserRow, int, error) {
+	var where []string
+	var args []interface{}
+	if filter.Search != "" {
+		args = append(args, "%"+filter.Search+"%")
+		where = append(where, fmt.Sprintf("(LOWER(u.email) LIKE LOWER($%d) OR LOWER(u.name) LIKE LOWER($%d))", len(args), len(args)))
+	}
+	if filter.IsAdmin != nil {
+		args = append(args, *filter.IsAdmin)
+		where = append(where, fmt.Sprintf("u.is_admin = $%d", len(args)))
+	}
+	whereClause := ""
+	if len(where) > 0 {
+		whereClause = " WHERE " + strings.Join(where, " AND ")
+	}
+
+	countQuery := "SELECT COUNT(*) FROM users u" + whereClause
 	dataQuery := `
 		SELECT u.id, u.email, u.name, u.created_at, u.last_login_at, u.last_active_at,
-		       u.email_verified, u.two_factor_enabled, u.disabled, u.failed_login_attempts,
+		       u.email_verified, u.two_factor_enabled, u.disabled, u.is_admin, u.failed_login_attempts,
 		       u.locked_until, u.verification_reminder_sent_at,
 		       EXISTS (SELECT 1 FROM email_suppressions es WHERE es.email = u.email) as email_suppressed,
 		       (SELECT COUNT(*) FROM flights WHERE user_id = u.id) as flight_count,
 		       (SELECT COUNT(*) FROM aircraft WHERE user_id = u.id) as aircraft_count
-		FROM users u
-	`
-	var countArgs, dataArgs []interface{}
-	if search != "" {
-		searchClause := " WHERE LOWER(email) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1)"
-		pattern := "%" + search + "%"
-		countQuery += searchClause
-		dataQuery += searchClause
-		countArgs = append(countArgs, pattern)
-		dataArgs = append(dataArgs, pattern)
-		dataQuery += " ORDER BY u.created_at DESC LIMIT $2 OFFSET $3"
-	} else {
-		dataQuery += " ORDER BY u.created_at DESC LIMIT $1 OFFSET $2"
-	}
-	dataArgs = append(dataArgs, limit, offset)
+		FROM users u` + whereClause +
+		fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+	dataArgs := append(append([]interface{}{}, args...), limit, offset)
 
 	var total int
-	r.scanCount(r.db.QueryRowContext(ctx, countQuery, countArgs...), &total)
+	r.scanCount(r.db.QueryRowContext(ctx, countQuery, args...), &total)
 
 	rows, err := r.db.QueryContext(ctx, dataQuery, dataArgs...)
 	if err != nil {
@@ -212,7 +218,7 @@ func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, o
 	for rows.Next() {
 		u := &repository.AdminUserRow{}
 		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.CreatedAt, &u.LastLoginAt, &u.LastActiveAt,
-			&u.EmailVerified, &u.TwoFactorEnabled, &u.Disabled, &u.FailedLoginAttempts,
+			&u.EmailVerified, &u.TwoFactorEnabled, &u.Disabled, &u.IsAdmin, &u.FailedLoginAttempts,
 			&u.LockedUntil, &u.VerificationReminderSentAt, &u.EmailSuppressed,
 			&u.FlightCount, &u.AircraftCount); err != nil {
 			continue
@@ -220,6 +226,91 @@ func (r *adminRepository) ListUsers(ctx context.Context, search string, limit, o
 		users = append(users, u)
 	}
 	return users, total, rows.Err()
+}
+
+func (r *adminRepository) CountAdmins(ctx context.Context) (int, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE is_admin").Scan(&n)
+	return n, err
+}
+
+func (r *adminRepository) SetAdmin(ctx context.Context, userID uuid.UUID) error {
+	result, err := r.db.ExecContext(ctx,
+		"UPDATE users SET is_admin = true, updated_at = $1 WHERE id = $2 AND NOT is_admin",
+		time.Now(), userID)
+	if err != nil {
+		return err
+	}
+	if n, err := result.RowsAffected(); err != nil || n > 0 {
+		return err
+	}
+	var exists bool
+	if err := r.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+
+func (r *adminRepository) RevokeAdmin(ctx context.Context, userID uuid.UUID) (bool, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	isTarget, othersActive, err := lockAdmins(ctx, tx, userID)
+	if err != nil {
+		return false, err
+	}
+	if !isTarget || !othersActive {
+		return false, nil
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE users SET is_admin = false, updated_at = $1 WHERE id = $2",
+		time.Now(), userID); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
+}
+
+// lockAdmins row-locks every flagged account and reports whether userID is
+// among them and whether another verified, enabled admin is.
+func lockAdmins(ctx context.Context, tx *sql.Tx, userID uuid.UUID) (isTarget, othersActive bool, err error) {
+	rows, err := tx.QueryContext(ctx,
+		"SELECT id, email_verified, disabled FROM users WHERE is_admin ORDER BY id FOR UPDATE")
+	if err != nil {
+		return false, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id uuid.UUID
+		var verified, disabled bool
+		if err := rows.Scan(&id, &verified, &disabled); err != nil {
+			return false, false, err
+		}
+		if id == userID {
+			isTarget = true
+		} else if verified && !disabled {
+			othersActive = true
+		}
+	}
+	return isTarget, othersActive, rows.Err()
+}
+
+func (r *adminRepository) PromoteVerifiedByEmail(ctx context.Context, email string) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := r.db.QueryRowContext(ctx, `
+		UPDATE users SET is_admin = true, updated_at = $1
+		WHERE LOWER(email) = LOWER($2) AND email_verified AND NOT is_admin
+		RETURNING id`, time.Now(), email).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	return id, err
 }
 
 func (r *adminRepository) UnlockUser(ctx context.Context, userID uuid.UUID) error {
