@@ -389,8 +389,9 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*models.User
 
 // RefreshToken rotates a refresh token, returning a new pair on the same
 // session. A token superseded within the policy's reuse grace is still
-// accepted; presenting one after the grace revokes the whole session and
-// returns ErrTokenReuseDetected.
+// accepted while its session is live; presenting one after the grace revokes
+// the whole session and returns ErrTokenReuseDetected. A session that holds
+// no live token returns ErrTokenRevoked.
 func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair, error) {
 	if _, err := s.jwtManager.ValidateRefreshToken(refreshToken); err != nil {
 		if errors.Is(err, jwt.ErrExpiredToken) {
@@ -428,21 +429,27 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 			RefreshReuseDetectedTotal.Inc()
 			return nil, ErrTokenReuseDetected
 		}
-		RefreshGraceTotal.Inc()
 	} else {
 		rotate = true
 	}
 
-	// The replacement row is written before the presented token is superseded.
-	pair, err := s.generateTokenPair(ctx, storedToken.UserID, storedToken.SessionID, deviceForRotation(ctx, storedToken))
+	// The replacement row is written before the presented token is superseded,
+	// and only while the session still holds a live token.
+	pair, err := s.mintTokenPair(ctx, storedToken.UserID, storedToken.SessionID,
+		deviceForRotation(ctx, storedToken), s.refreshTokenRepo.CreateInLiveSession)
+	if errors.Is(err, repository.ErrNotFound) {
+		return nil, ErrTokenRevoked
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	if rotate {
-		if err := s.refreshTokenRepo.MarkRotated(ctx, tokenHash); err != nil {
-			return nil, err
-		}
+	if !rotate {
+		RefreshGraceTotal.Inc()
+		return pair, nil
+	}
+	if err := s.refreshTokenRepo.MarkRotated(ctx, tokenHash); err != nil {
+		return nil, err
 	}
 
 	return pair, nil
@@ -457,10 +464,19 @@ func (s *AuthService) withinReuseGrace(token *models.RefreshToken) bool {
 	return time.Since(*token.RotatedAt) <= s.sessionPolicy.normalized().ReuseGrace
 }
 
-// Logout revokes a refresh token
+// Logout revokes every token of the session the refresh token belongs to.
+// It returns repository.ErrNotFound for an unknown token; a session that is
+// already revoked is not an error.
 func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
-	tokenHash := hash.HashToken(refreshToken)
-	return s.refreshTokenRepo.RevokeByTokenHash(ctx, tokenHash)
+	storedToken, err := s.refreshTokenRepo.GetByTokenHash(ctx, hash.HashToken(refreshToken))
+	if err != nil {
+		return err
+	}
+	err = s.refreshTokenRepo.RevokeSession(ctx, storedToken.UserID, storedToken.SessionID)
+	if errors.Is(err, repository.ErrNotFound) {
+		return nil
+	}
+	return err
 }
 
 // PasswordResetRequest describes the recipient of a password-reset mail. All
@@ -637,6 +653,17 @@ func (s *AuthService) generateTokenPair(
 	userID, sessionID uuid.UUID,
 	device DeviceInfo,
 ) (*TokenPair, error) {
+	return s.mintTokenPair(ctx, userID, sessionID, device, s.refreshTokenRepo.Create)
+}
+
+// mintTokenPair creates an access/refresh pair bound to sessionID and stores
+// the refresh token through store, returning store's error unchanged.
+func (s *AuthService) mintTokenPair(
+	ctx context.Context,
+	userID, sessionID uuid.UUID,
+	device DeviceInfo,
+	store func(context.Context, *models.RefreshToken) error,
+) (*TokenPair, error) {
 	if sessionID == uuid.Nil {
 		sessionID = uuid.New()
 	}
@@ -664,7 +691,7 @@ func (s *AuthService) generateTokenPair(
 		LastUsedAt:  now,
 	}
 
-	if err := s.refreshTokenRepo.Create(ctx, storedToken); err != nil {
+	if err := store(ctx, storedToken); err != nil {
 		return nil, err
 	}
 

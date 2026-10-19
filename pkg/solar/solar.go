@@ -55,12 +55,12 @@ type TwilightTimes struct {
 }
 
 // CivilTwilight computes the morning-civil-twilight start (Dawn) and
-// evening-civil-twilight end (Dusk) in UTC for the given date and location.
-// These are the EASA "night" boundaries: any time between Dusk and the next
-// day's Dawn is night.
+// evening-civil-twilight end (Dusk) in UTC of the local solar day go-solar
+// associates with the given UTC date; either may fall on an adjacent UTC
+// date. Classify instants with IsNight or DaylightBetween, not with one pair.
 //
-// Edge cases: polar night collapses the window to zero width (the entire UTC
-// day is night); midnight sun spans the whole UTC day (the entire day is day).
+// Edge cases: polar night collapses the window to zero width at the start of
+// the UTC day; midnight sun spans the whole UTC day.
 func CivilTwilight(date time.Time, latitude, longitude float64) TwilightTimes {
 	loc := gosolar.NewLocation(latitude, longitude)
 	t := gosolar.NewTime(date.Year(), date.Month(), date.Day())
@@ -84,10 +84,70 @@ func CivilTwilight(date time.Time, latitude, longitude float64) TwilightTimes {
 	return TwilightTimes{Dawn: dawn, Dusk: dusk}
 }
 
-// IsNight returns true if the given UTC time falls in the aeronautical
-// definition of night: before the morning civil twilight begins, or after
-// the evening civil twilight ends, at the supplied latitude and longitude.
+// Interval is a closed UTC time range [Start, End].
+type Interval struct {
+	Start time.Time
+	End   time.Time
+}
+
+// Contains reports whether t lies in [Start, End].
+func (iv Interval) Contains(t time.Time) bool {
+	return !t.Before(iv.Start) && !t.After(iv.End)
+}
+
+// Daylight is a set of civil-twilight day intervals at one location.
+type Daylight []Interval
+
+// IsNight reports whether t lies outside every interval in d.
+func (d Daylight) IsNight(t time.Time) bool {
+	for _, iv := range d {
+		if iv.Contains(t) {
+			return false
+		}
+	}
+	return true
+}
+
+// solarDay returns the civil-twilight day interval of the local solar day
+// that go-solar associates with the given UTC date: [dawn, dusk] on a normal
+// day, the whole solar day (mean solar noon ± 12h) under midnight sun, and
+// ok=false under polar night.
+func solarDay(date time.Time, latitude, longitude float64) (Interval, bool) {
+	loc := gosolar.NewLocation(latitude, longitude)
+	t := gosolar.NewTime(date.Year(), date.Month(), date.Day())
+
+	dawn, dusk := gosolar.DawnDusk(loc, t, gosolar.Civil)
+	if !dawn.IsZero() && !dusk.IsZero() {
+		return Interval{Start: dawn, End: dusk}, true
+	}
+
+	noon := gosolar.MeanSolarNoon(loc, t)
+	if gosolar.Elevation(loc, noon) <= -6 {
+		return Interval{}, false
+	}
+	return Interval{Start: noon.Add(-12 * time.Hour), End: noon.Add(12 * time.Hour)}, true
+}
+
+// DaylightBetween returns the civil-twilight day intervals at the location
+// for every UTC date from the day before from's date to the day after to's
+// date. Every instant in [from, to] is day iff the result contains it.
+func DaylightBetween(from, to time.Time, latitude, longitude float64) Daylight {
+	from, to = from.UTC(), to.UTC()
+	first := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -1)
+	last := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
+
+	var d Daylight
+	for day := first; !day.After(last); day = day.AddDate(0, 0, 1) {
+		if iv, ok := solarDay(day, latitude, longitude); ok {
+			d = append(d, iv)
+		}
+	}
+	return d
+}
+
+// IsNight returns true if the given instant falls in the aeronautical
+// definition of night at the supplied latitude and longitude: outside every
+// civil-twilight day interval of the local solar days around t's UTC date.
 func IsNight(t time.Time, latitude, longitude float64) bool {
-	tw := CivilTwilight(t, latitude, longitude)
-	return t.Before(tw.Dawn) || t.After(tw.Dusk)
+	return DaylightBetween(t, t, latitude, longitude).IsNight(t)
 }

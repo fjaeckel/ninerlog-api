@@ -50,7 +50,8 @@ rows alone stops a session being *extended*, not being *used*.
 Refreshing rotates the refresh token: the presented token is marked **superseded** and a new
 pair is issued on the same session.
 
-- A superseded token stays usable for `REFRESH_REUSE_GRACE` (default **30s**).
+- A superseded token stays usable for `REFRESH_REUSE_GRACE` (default **30s**) **while its
+  session is live**.
 - Within the grace window, presenting it returns a new pair on the same session and does
   **not** disturb any pair already issued. Two clients racing a refresh both end up holding
   working tokens.
@@ -58,9 +59,17 @@ pair is issued on the same session.
   revoked and the call returns 401.
 - A token revoked *outright* — logout, password change, session revocation, admin disable —
   gets **no grace**. Signing out takes effect immediately.
+- **A superseded token never renews an ended session.** Once a session holds no live row —
+  whatever ended it: logout, password change or reset, session revocation, eviction, a
+  detected replay — every one of its tokens, superseded ones included, answers 401, even
+  inside the grace window.
 
 The distinction is stored in two separate columns: `rotated_at` (superseded, grace applies) and
-`revoked_at` (revoked, no grace). They must never be collapsed into one.
+`revoked_at` (revoked, no grace). They must never be collapsed into one. A row carrying
+`rotated_at` is served from the grace only when the session still holds a live row; the
+check and the insert of the new row run in one transaction that is serialised (by a lock on
+the user row) against every statement that revokes sessions, so a refresh racing a revocation
+either lands before it and is revoked with the session, or sees the session ended.
 
 A rotation writes the replacement row **before** superseding the presented one, so the session
 never momentarily holds zero live rows. A request arriving in that gap would otherwise be read as
@@ -138,6 +147,9 @@ renewing from a client that sends none never degrades the label to "Unknown devi
 Revocation is always scoped to the authenticated user in SQL — a session ID alone never
 authorises anything.
 
+`POST /auth/logout` ends the whole session the presented refresh token belongs to — every
+row of it, including pairs issued from a superseded token inside the grace window.
+
 ## 8. What still ends every session at once
 
 These are deliberate and must stay:
@@ -175,6 +187,7 @@ An unparseable or non-positive value falls back to the default. Both are reporte
 | Session UI | `ninerlog-frontend/src/pages/ProfilePage.tsx`, `src/hooks/useSessions.ts` |
 
 Tests that hold these rules in place: `internal/service/session_test.go`,
+`internal/service/session_revocation_test.go`,
 `internal/service/access_token_state_test.go`,
 `internal/api/middleware/auth_session_state_test.go`, `test/e2e/session_e2e_test.go`,
 `test/e2e/access_token_revocation_e2e_test.go`, and

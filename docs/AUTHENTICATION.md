@@ -343,9 +343,14 @@ for `REFRESH_REUSE_GRACE` (default `30s`):
 | Token presented | Result |
 |---|---|
 | Live | Rotated; a new pair is issued |
-| Superseded less than the grace ago | Accepted; a new pair is issued, and any pair already issued keeps working |
+| Superseded less than the grace ago, session still live | Accepted; a new pair is issued, and any pair already issued keeps working |
+| Superseded less than the grace ago, session ended | `401` — no new pair |
 | Superseded longer than the grace ago | **Replay** — the whole session is revoked, `401` |
 | Revoked outright (logout, password change, session revocation) | `401`, with no grace |
+
+A session is ended once it holds no unrevoked, unexpired row — after a logout (which revokes
+the whole session the token belongs to), a password change or reset, a session revocation,
+eviction, or a detected replay. A superseded token never renews it.
 
 The grace window is what lets two browser tabs (or a tab and the installed PWA) refresh at the
 same instant without evicting each other. It applies only to rotation: `rotated_at` and

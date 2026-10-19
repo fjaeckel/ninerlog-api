@@ -258,13 +258,13 @@ func (m *mockRefreshTokenRepo) GetByTokenHash(ctx context.Context, tokenHash str
 	return token, nil
 }
 
-func (m *mockRefreshTokenRepo) RevokeByTokenHash(ctx context.Context, tokenHash string) error {
-	token, exists := m.tokens[tokenHash]
-	if !exists {
-		return repository.ErrNotFound
+func (m *mockRefreshTokenRepo) CreateInLiveSession(ctx context.Context, token *models.RefreshToken) error {
+	for _, existing := range m.tokens {
+		if existing.UserID == token.UserID && existing.SessionID == token.SessionID && live(existing) {
+			return m.Create(ctx, token)
+		}
 	}
-	revoke(token)
-	return nil
+	return repository.ErrNotFound
 }
 
 func (m *mockRefreshTokenRepo) RevokeAllForUser(ctx context.Context, userID uuid.UUID) error {

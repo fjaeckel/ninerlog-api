@@ -332,7 +332,7 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   Day and night landings mapped as separate columns are stored as the file's split with
   both landing override flags set; landings counted only in a larger total column are
   added to the day landings. Only a file with a single total (or a split that is all
-  zero) has its landings split by sunset/sunrise at the arrival airport, as before.
+  zero) has its landings split by civil twilight at the arrival airport, as before.
   Takeoff, SIC (co-pilot) and multi-pilot columns have no `ImportField` target; a template
   that lists them as known columns (ForeFlight, NinerLog, LogTen Pro, MyFlightbook,
   capzlog.aero, FLYLOG.io, Wader, the EASA, FAA and web-logbook layouts) has them read as auxiliary values — never

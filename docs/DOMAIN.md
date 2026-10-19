@@ -215,10 +215,11 @@ have to compute them by hand. The entry point is
 (`internal/service/flightcalc/flightcalc.go`), which composes helpers from
 `internal/service/flightrules`:
 
-- **Day/night split** — `flightrules.IsNightAt(t, lat, lon)` uses
-  sunrise/sunset (`pkg/solar`) at the relevant airport to classify takeoffs/landings as
-  day or night, and to derive `NightTime`. The astronomical computation lives in
-  `pkg/solar`.
+- **Day/night split** — `flightrules.IsNightAt(t, lat, lon)` (`solar.IsNight`) uses
+  civil twilight (sun 6° below the horizon) at the relevant airport to classify
+  takeoffs/landings as day or night, and `NightTime` counts the block-time minutes that
+  are night at the departure airport. The astronomical computation lives in `pkg/solar`;
+  see [Day and night](#day-and-night).
 - **Total landings** — `AllLandings = LandingsDay + LandingsNight`.
 - **Takeoffs** — one takeoff per landing: `TakeoffsDay + TakeoffsNight = AllLandings`,
   all classified day or night by the off-block time at the departure airport (day when
@@ -273,12 +274,36 @@ block time.
 
 A CSV import treats the file's other splits the same way. Separate day and night landing
 columns, and day and night takeoff columns, are stored with their override flags, so the
-sunset/sunrise split runs only for a file with a single landings total; landings counted
+civil-twilight split runs only for a file with a single landings total; landings counted
 only in a larger total go to the day landings. A positive SIC or multi-pilot column is stored
 as an override capped at block time, and a self-listed SIC crew entry declares the whole
 block as SIC time. These declarations are what `MayLogCoPilotTime` reads (below), so a
 co-pilot sector does not resolve to a passenger flight. An aircraft created by the import is
 marked multi-pilot only when its rows carry multi-pilot time.
+
+### Day and night
+
+An instant is **day** when it lies inside the civil-twilight interval `[dawn, dusk]` of
+any local solar day around it, and **night** otherwise (ICAO/EASA: night runs from the
+end of evening civil twilight to the beginning of morning civil twilight; boundaries
+count as day). `go-solar` computes one `[dawn, dusk]` pair per *local solar day*, the
+24 hours centred on mean solar noon at the airport's longitude, so a pair requested for
+a UTC date can start or end on the neighbouring UTC date: at KFDK (77° W) the pair for
+2026-06-19 ends at 01:11:48Z on 06-20, at YSSY (151° E) the pair for 2026-10-20 starts at
+18:42Z on 10-19. `solar.DaylightBetween(from, to, lat, lon)` therefore collects the pairs
+for every UTC date from the day before `from` to the day after `to`; `solar.IsNight`
+and the `NightTime` minute count both test against that set, so the takeoff/landing
+split and night minutes always agree.
+
+- **Polar night** (sun below −6° all solar day): the day contributes no interval.
+- **Midnight sun** (sun above −6° all solar day): the day contributes the whole solar
+  day, mean solar noon ± 12 h. Consecutive solar days tile without a gap, and a
+  midnight-sun day next to a normal day leaves night only where the normal day's
+  twilight leaves it.
+
+`NightTime` samples each block-time minute from off-block (`[off, on)`) and is capped at
+`TotalTime`. Stored flights keep the values derived when they were last saved;
+`POST /flights/recalculate` re-derives non-overridden ones.
 
 ## Flight validation
 

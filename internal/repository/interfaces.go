@@ -103,8 +103,10 @@ type RefreshTokenRepository interface {
 	// GetByTokenHash retrieves a refresh token by its hash
 	GetByTokenHash(ctx context.Context, tokenHash string) (*models.RefreshToken, error)
 
-	// RevokeByTokenHash revokes a refresh token outright, with no reuse grace.
-	RevokeByTokenHash(ctx context.Context, tokenHash string) error
+	// CreateInLiveSession creates a refresh token on token.SessionID only while
+	// that session holds a live token for token.UserID, serialised against the
+	// revocation methods. It returns ErrNotFound when the session is not live.
+	CreateInLiveSession(ctx context.Context, token *models.RefreshToken) error
 
 	// MarkRotated revokes a refresh token as superseded by a refresh, making
 	// it eligible for the reuse grace window.
