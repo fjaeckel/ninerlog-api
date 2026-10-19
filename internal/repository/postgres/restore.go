@@ -157,14 +157,13 @@ func (t *restoreTx) InsertContacts(ctx context.Context, contacts []*models.Conta
 func (t *restoreTx) InsertFlights(ctx context.Context, flights []*models.Flight) error {
 	for start := 0; start < len(flights); start += flightInsertChunk {
 		chunk := flights[start:min(start+flightInsertChunk, len(flights))]
-		columns := 1 + len(flightInsertArgs(chunk[0]))
-		args := make([]any, 0, len(chunk)*columns)
+		var args []any
 		for _, f := range chunk {
 			args = append(args, f.ID)
 			args = append(args, flightInsertArgs(f)...)
 		}
 		query := `INSERT INTO flights (id, ` + flightInsertColumns + `) VALUES ` +
-			valueRows(len(chunk), columns)
+			valueRows(len(chunk), len(args)/len(chunk))
 		if _, err := t.tx.ExecContext(ctx, query, args...); err != nil {
 			return err
 		}

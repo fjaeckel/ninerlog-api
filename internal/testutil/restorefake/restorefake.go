@@ -64,7 +64,7 @@ const (
 	OpAircraft         = "insert_aircraft"
 	OpLicense          = "insert_license"
 	OpClassRating      = "insert_class_rating"
-	OpCredential       = "insert_credential"
+	OpCredential       = "insert_credential" // #nosec G101 -- an operation label, not a credential.
 	OpRule             = "insert_custom_currency_rule"
 	OpReport           = "insert_custom_report"
 	OpContacts         = "insert_contacts"
