@@ -301,6 +301,12 @@ split and night minutes always agree.
   midnight-sun day next to a normal day leaves night only where the normal day's
   twilight leaves it.
 
+The instants classified are built by one helper (`flightcalc.instantsOf`): each block time
+is placed on the flight's `Date` in UTC, and an on-block time earlier than off-block falls
+on the following day (a flight across 00:00Z). `NightTime`, the takeoff split (off-block
+at the departure airport) and the landing split (on-block at the arrival airport) all use
+these instants, so an overnight landing is classified against the next day's twilight.
+
 `NightTime` samples each block-time minute from off-block (`[off, on)`) and is capped at
 `TotalTime`. Stored flights keep the values derived when they were last saved;
 `POST /flights/recalculate` re-derives non-overridden ones.
