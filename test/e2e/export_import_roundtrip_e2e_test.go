@@ -95,7 +95,7 @@ func TestExportImportRoundTrip_EveryLayoutAndPreference(t *testing.T) {
 			})
 			requireStatus(t, created, http.StatusCreated)
 			var original map[string]interface{}
-			created.JSON(&original)
+			created.MustJSON(t, &original)
 			originalTotal, _ := original["totalTime"].(float64)
 
 			exportResp := c.GET("/exports/csv?format=" + tc.layout)
@@ -110,7 +110,7 @@ func TestExportImportRoundTrip_EveryLayoutAndPreference(t *testing.T) {
 			upload := uploadCSV(t, c2, "ninerlog_"+tc.layout+".csv", exported)
 			requireStatus(t, upload, http.StatusOK)
 			var up map[string]interface{}
-			upload.JSON(&up)
+			upload.MustJSON(t, &up)
 
 			if up["format"] != tc.wantFmt {
 				t.Errorf("our own %s export was detected as %v, want %s",
@@ -134,7 +134,7 @@ func TestExportImportRoundTrip_EveryLayoutAndPreference(t *testing.T) {
 			})
 			requireStatus(t, prev, http.StatusOK)
 			var preview map[string]interface{}
-			prev.JSON(&preview)
+			prev.MustJSON(t, &preview)
 
 			flights, _ := preview["flights"].([]interface{})
 			if len(flights) != 1 {
@@ -157,7 +157,7 @@ func TestExportImportRoundTrip_EveryLayoutAndPreference(t *testing.T) {
 			conf := c2.POST("/imports/confirm", map[string]interface{}{"uploadToken": token})
 			requireStatus(t, conf, http.StatusCreated)
 			var result map[string]interface{}
-			conf.JSON(&result)
+			conf.MustJSON(t, &result)
 			if imported, _ := result["importedCount"].(float64); imported != 1 {
 				t.Fatalf("importedCount = %v, want 1: %s", result["importedCount"], string(conf.Body))
 			}
@@ -168,7 +168,7 @@ func TestExportImportRoundTrip_EveryLayoutAndPreference(t *testing.T) {
 			list := c2.GET("/flights")
 			requireStatus(t, list, http.StatusOK)
 			var page map[string]interface{}
-			list.JSON(&page)
+			list.MustJSON(t, &page)
 			data, _ := page["data"].([]interface{})
 			if len(data) != 1 {
 				t.Fatalf("target account holds %d flights after import, want 1", len(data))
@@ -193,7 +193,7 @@ func TestExportImportRoundTrip_EveryLayoutAndPreference(t *testing.T) {
 			fleetResp := c2.GET("/aircraft")
 			requireStatus(t, fleetResp, http.StatusOK)
 			var fleetPage map[string]interface{}
-			fleetResp.JSON(&fleetPage)
+			fleetResp.MustJSON(t, &fleetPage)
 			fleet, _ := fleetPage["data"].([]interface{})
 			if len(fleet) != 1 {
 				t.Errorf("target fleet has %d aircraft after import, want 1: %s",
@@ -229,7 +229,7 @@ func TestExportImportRoundTrip_ReimportIntoSameAccountIsDeduplicated(t *testing.
 			upload := uploadCSV(t, c, "own_export.csv", string(exportResp.Body))
 			requireStatus(t, upload, http.StatusOK)
 			var up map[string]interface{}
-			upload.JSON(&up)
+			upload.MustJSON(t, &up)
 			token := up["uploadToken"].(string)
 			suggested, _ := up["suggestedMappings"].([]interface{})
 
@@ -240,7 +240,7 @@ func TestExportImportRoundTrip_ReimportIntoSameAccountIsDeduplicated(t *testing.
 			})
 			requireStatus(t, prev, http.StatusOK)
 			var preview map[string]interface{}
-			prev.JSON(&preview)
+			prev.MustJSON(t, &preview)
 
 			if dupes, _ := preview["duplicateCount"].(float64); dupes != 2 {
 				t.Errorf("re-importing our own %s export flags %v of 2 rows as duplicates: %s",
@@ -253,7 +253,7 @@ func TestExportImportRoundTrip_ReimportIntoSameAccountIsDeduplicated(t *testing.
 			list := c.GET("/flights")
 			requireStatus(t, list, http.StatusOK)
 			var page map[string]interface{}
-			list.JSON(&page)
+			list.MustJSON(t, &page)
 			data, _ := page["data"].([]interface{})
 			if len(data) != 2 {
 				t.Errorf("logbook holds %d flights after re-importing its own %s export, want 2",

@@ -38,7 +38,7 @@ func TestCoPilotEligibility(t *testing.T) {
 		resp := c.POST("/flights", body)
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		return f
 	}
 
@@ -88,7 +88,7 @@ func TestCoPilotEligibility(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 
 		if f["isPassenger"] == true {
 			t.Fatal("a required safety pilot is a crew member, not a passenger")
@@ -110,7 +110,7 @@ func TestCoPilotEligibility_RecalculateAfterMarkingFleet(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ac map[string]interface{}
-	resp.JSON(&ac)
+	resp.MustJSON(t, &ac)
 
 	resp = c.POST("/flights", map[string]interface{}{
 		"date": today(), "aircraftReg": "D-ARCA", "aircraftType": "B737",
@@ -122,7 +122,7 @@ func TestCoPilotEligibility_RecalculateAfterMarkingFleet(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var f map[string]interface{}
-	resp.JSON(&f)
+	resp.MustJSON(t, &f)
 	if f["isPassenger"] != true {
 		t.Fatalf("isPassenger = %v, want true before the fleet is marked", f["isPassenger"])
 	}
@@ -137,7 +137,7 @@ func TestCoPilotEligibility_RecalculateAfterMarkingFleet(t *testing.T) {
 	resp = c.GET("/flights/" + flightID)
 	requireStatus(t, resp, http.StatusOK)
 	var after map[string]interface{}
-	resp.JSON(&after)
+	resp.MustJSON(t, &after)
 
 	if after["isPassenger"] == true {
 		t.Error("isPassenger = true after the aircraft was marked multi-pilot")

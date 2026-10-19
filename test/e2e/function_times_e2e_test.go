@@ -33,7 +33,7 @@ func TestFunctionTimes(t *testing.T) {
 		resp := c.POST("/flights", body)
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		return f
 	}
 
@@ -111,7 +111,7 @@ func TestFunctionTimes(t *testing.T) {
 		resp := c.PUT("/flights/"+id, map[string]interface{}{"picusTime": 90})
 		requireStatus(t, resp, http.StatusOK)
 		var updated map[string]interface{}
-		resp.JSON(&updated)
+		resp.MustJSON(t, &updated)
 		assertInt(t, "picusTime", gi(updated, "picusTime"), 90)
 		assertInt(t, "sicTime", gi(updated, "sicTime"), 0)
 
@@ -119,7 +119,7 @@ func TestFunctionTimes(t *testing.T) {
 		resp = c.GET("/flights/" + id)
 		requireStatus(t, resp, http.StatusOK)
 		var after map[string]interface{}
-		resp.JSON(&after)
+		resp.MustJSON(t, &after)
 		assertInt(t, "picusTime", gi(after, "picusTime"), 90)
 		assertInt(t, "sicTime", gi(after, "sicTime"), 0)
 	})
@@ -128,7 +128,7 @@ func TestFunctionTimes(t *testing.T) {
 		resp := c.GET("/reports/analytics?months=0")
 		requireStatus(t, resp, http.StatusOK)
 		var out map[string]interface{}
-		resp.JSON(&out)
+		resp.MustJSON(t, &out)
 		totals, ok := out["totals"].(map[string]interface{})
 		if !ok {
 			t.Fatal("analytics response has no totals object")
@@ -151,7 +151,7 @@ func TestFunctionTimes(t *testing.T) {
 		resp := c.GET("/users/me/statistics")
 		requireStatus(t, resp, http.StatusOK)
 		var s map[string]interface{}
-		resp.JSON(&s)
+		resp.MustJSON(t, &s)
 		if gi(s, "picusMinutes") < 90 {
 			t.Errorf("picusMinutes = %d, want >= 90", gi(s, "picusMinutes"))
 		}
@@ -185,7 +185,7 @@ func TestFunctionTimesBaseline(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusOK)
 	var b map[string]interface{}
-	resp.JSON(&b)
+	resp.MustJSON(t, &b)
 	assertInt(t, "picusMinutes", gi(b, "picusMinutes"), 1200)
 	assertInt(t, "spicMinutes", gi(b, "spicMinutes"), 300)
 	assertInt(t, "examinerMinutes", gi(b, "examinerMinutes"), 60)
@@ -193,14 +193,14 @@ func TestFunctionTimesBaseline(t *testing.T) {
 
 	resp = c.GET("/users/me/baseline")
 	requireStatus(t, resp, http.StatusOK)
-	resp.JSON(&b)
+	resp.MustJSON(t, &b)
 	assertInt(t, "picusMinutes", gi(b, "picusMinutes"), 1200)
 
 	// The baseline flows into the analytics totals.
 	resp = c.GET("/reports/analytics?months=0")
 	requireStatus(t, resp, http.StatusOK)
 	var out map[string]interface{}
-	resp.JSON(&out)
+	resp.MustJSON(t, &out)
 	totals := out["totals"].(map[string]interface{})
 	assertInt(t, "picusMinutes", gi(totals, "picusMinutes"), 1200)
 	assertInt(t, "reliefMinutes", gi(totals, "reliefMinutes"), 240)

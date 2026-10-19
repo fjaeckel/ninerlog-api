@@ -28,7 +28,7 @@ func getAdminClient(t *testing.T) *E2EClient {
 		verifyResp := ac.POST("/auth/verify-email", map[string]string{"token": token})
 		requireStatus(t, verifyResp, http.StatusOK)
 		var auth AuthResponseBody
-		verifyResp.JSON(&auth)
+		verifyResp.MustJSON(t, &auth)
 		ac.SetToken(auth.AccessToken)
 	}
 	return ac
@@ -45,7 +45,7 @@ func TestAdminEndpoints(t *testing.T) {
 		resp := ac.GET("/admin/stats")
 		requireStatus(t, resp, http.StatusOK)
 		var s map[string]interface{}
-		resp.JSON(&s)
+		resp.MustJSON(t, &s)
 		if s["totalUsers"] == nil {
 			t.Error("Expected totalUsers")
 		}
@@ -71,7 +71,7 @@ func TestAdminEndpoints(t *testing.T) {
 		resp := ac.GET("/admin/config")
 		requireStatus(t, resp, http.StatusOK)
 		var cfg map[string]interface{}
-		resp.JSON(&cfg)
+		resp.MustJSON(t, &cfg)
 		if cfg["jwtSecret"] != nil {
 			t.Error("Should not expose JWT secret")
 		}
@@ -93,7 +93,7 @@ func TestAdminEndpoints(t *testing.T) {
 		resp := ac.GET("/admin/update")
 		requireStatus(t, resp, http.StatusOK)
 		var status map[string]interface{}
-		resp.JSON(&status)
+		resp.MustJSON(t, &status)
 
 		if _, ok := status["checkEnabled"].(bool); !ok {
 			t.Errorf("Expected checkEnabled boolean, got %T", status["checkEnabled"])
@@ -135,7 +135,7 @@ func TestAdminEndpoints(t *testing.T) {
 		resp := ac.GET("/admin/update?frontendVersion=v1.0.0&frontendCommit=4f2c1ab9d3e5c6178b0a2d4e6f8091a2b3c4d5e6")
 		requireStatus(t, resp, http.StatusOK)
 		var status map[string]interface{}
-		resp.JSON(&status)
+		resp.MustJSON(t, &status)
 
 		components, _ := status["components"].([]interface{})
 		for _, entry := range components {
@@ -180,7 +180,7 @@ func TestAdminEndpoints(t *testing.T) {
 
 		// Signing in again issues a new session.
 		var reauth AuthResponseBody
-		resp.JSON(&reauth)
+		resp.MustJSON(t, &reauth)
 		uc.SetToken(reauth.AccessToken)
 		assertStatus(t, uc.GET("/users/me"), http.StatusOK)
 	})
@@ -217,7 +217,7 @@ func TestAdminEndpoints(t *testing.T) {
 				LastActiveAt *string `json:"lastActiveAt"`
 			} `json:"data"`
 		}
-		listResp.JSON(&list)
+		listResp.MustJSON(t, &list)
 
 		found := false
 		for _, u := range list.Data {
@@ -256,7 +256,7 @@ func TestAdminEndpoints(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		selfResp.JSON(&selfList)
+		selfResp.MustJSON(t, &selfList)
 		if len(selfList.Data) > 0 {
 			assertStatus(t, ar.DELETE(fmt.Sprintf("/admin/users/%s", selfList.Data[0].ID)), http.StatusBadRequest)
 		}
@@ -314,7 +314,7 @@ func TestAnnouncements(t *testing.T) {
 	resp := ac.POST("/admin/announcements", map[string]interface{}{"message": "For listing", "severity": "info"})
 	requireStatus(t, resp, http.StatusCreated)
 	var ann map[string]interface{}
-	resp.JSON(&ann)
+	resp.MustJSON(t, &ann)
 	aid := ann["id"].(string)
 
 	uc := NewE2EClient(t)
@@ -353,7 +353,7 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 				Status    string `json:"status"`
 			} `json:"data"`
 		}
-		logResp.JSON(&body)
+		logResp.MustJSON(t, &body)
 
 		if len(body.Data) == 0 {
 			t.Fatalf("Expected a delivery event for %s", email)
@@ -381,7 +381,7 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 		var body struct {
 			Data []map[string]interface{} `json:"data"`
 		}
-		resp.JSON(&body)
+		resp.MustJSON(t, &body)
 		if len(body.Data) > 1 {
 			t.Errorf("Expected at most 1 event, got %d", len(body.Data))
 		}
@@ -393,7 +393,7 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 		var body struct {
 			Data []map[string]interface{} `json:"data"`
 		}
-		resp.JSON(&body)
+		resp.MustJSON(t, &body)
 		if body.Data == nil {
 			t.Error("Expected a data array, even when empty")
 		}
@@ -417,7 +417,7 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 			RemindersSent   int `json:"remindersSent"`
 			AccountsDeleted int `json:"accountsDeleted"`
 		}
-		resp.JSON(&body)
+		resp.MustJSON(t, &body)
 		if body.RemindersSent < 0 || body.AccountsDeleted < 0 {
 			t.Errorf("Nonsensical sweep result: %+v", body)
 		}
@@ -453,7 +453,7 @@ func TestEmailDeliveryAdminEndpoints(t *testing.T) {
 			UnverifiedCleanupEnabled        *bool   `json:"unverifiedCleanupEnabled"`
 			UnverifiedCleanupDisabledReason *string `json:"unverifiedCleanupDisabledReason"`
 		}
-		resp.JSON(&cfg)
+		resp.MustJSON(t, &cfg)
 
 		if cfg.UnverifiedCleanupEnabled == nil {
 			t.Fatal("Expected unverifiedCleanupEnabled to be reported")

@@ -67,7 +67,7 @@ func jsonFields(t *testing.T, typ reflect.Type) []jsonField {
 }
 
 func deref(typ reflect.Type) reflect.Type {
-	for typ.Kind() == reflect.Ptr || typ.Kind() == reflect.Slice {
+	for typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Slice {
 		typ = typ.Elem()
 	}
 	return typ

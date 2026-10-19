@@ -20,7 +20,7 @@ func TestLicenseCRUD(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var lic map[string]interface{}
-		resp.JSON(&lic)
+		resp.MustJSON(t, &lic)
 		licID = lic["id"].(string)
 	})
 
@@ -36,7 +36,7 @@ func TestLicenseCRUD(t *testing.T) {
 		resp := c.GET("/licenses")
 		requireStatus(t, resp, http.StatusOK)
 		var lics []map[string]interface{}
-		resp.JSON(&lics)
+		resp.MustJSON(t, &lics)
 		if len(lics) < 2 {
 			t.Errorf("Expected >=2 licenses, got %d", len(lics))
 		}
@@ -100,14 +100,14 @@ func TestLicenseIsolation(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	lid := lic["id"].(string)
 
 	t.Run("user2 cannot see", func(t *testing.T) {
 		resp := c2.GET("/licenses")
 		requireStatus(t, resp, http.StatusOK)
 		var lics []interface{}
-		resp.JSON(&lics)
+		resp.MustJSON(t, &lics)
 		if len(lics) != 0 {
 			t.Errorf("Expected 0, got %d", len(lics))
 		}
@@ -132,7 +132,7 @@ func TestClassRatings(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	lid := lic["id"].(string)
 	var rid string
 
@@ -142,7 +142,7 @@ func TestClassRatings(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		rid = r["id"].(string)
 	})
 
@@ -164,7 +164,7 @@ func TestClassRatings(t *testing.T) {
 		resp := c.GET(fmt.Sprintf("/licenses/%s/ratings", lid))
 		requireStatus(t, resp, http.StatusOK)
 		var ratings []interface{}
-		resp.JSON(&ratings)
+		resp.MustJSON(t, &ratings)
 		if len(ratings) < 3 {
 			t.Errorf("Expected >=3, got %d", len(ratings))
 		}

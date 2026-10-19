@@ -22,7 +22,7 @@ func TestPICNameAutoPopulation(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertStr(t, "picName", f["picName"], "Self")
 	})
 
@@ -36,7 +36,7 @@ func TestPICNameAutoPopulation(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		picName, _ := f["picName"].(string)
 		if picName != "CFI Mueller" {
 			t.Logf("picName for dual: %v (expected CFI Mueller)", f["picName"])
@@ -52,7 +52,7 @@ func TestPICNameAutoPopulation(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertStr(t, "picName", f["picName"], "Capt. Smith")
 	})
 
@@ -65,12 +65,12 @@ func TestPICNameAutoPopulation(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var created map[string]interface{}
-		r.JSON(&created)
+		r.MustJSON(t, &created)
 
 		r = c.GET("/flights/" + created["id"].(string))
 		requireStatus(t, r, 200)
 		var fetched map[string]interface{}
-		r.JSON(&fetched)
+		r.MustJSON(t, &fetched)
 		assertStr(t, "picName on GET", fetched["picName"], "Jones")
 	})
 
@@ -82,13 +82,13 @@ func TestPICNameAutoPopulation(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var created map[string]interface{}
-		r.JSON(&created)
+		r.MustJSON(t, &created)
 		fid := created["id"].(string)
 
 		r = c.PUT("/flights/"+fid, map[string]interface{}{"picName": "Updated PIC"})
 		requireStatus(t, r, 200)
 		var updated map[string]interface{}
-		r.JSON(&updated)
+		r.MustJSON(t, &updated)
 		assertStr(t, "updated picName", updated["picName"], "Updated PIC")
 	})
 }

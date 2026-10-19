@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -97,7 +98,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 			t.Fatalf("first consume: %v", err)
 		}
 		_, err := repo.Consume(ctx, hashHandle("handle-single-use"), models.WebAuthnCeremonyLogin)
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("expected ErrNotFound on replay, got %v", err)
 		}
 	})
@@ -129,7 +130,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 					switch {
 					case err == nil:
 						wins++
-					case err == repository.ErrNotFound:
+					case errors.Is(err, repository.ErrNotFound):
 						notFound++
 					default:
 						t.Errorf("unexpected consume error: %v", err)
@@ -154,7 +155,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 		}
 
 		_, err := repo.Consume(ctx, hashHandle("handle-expired"), models.WebAuthnCeremonyLogin)
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("expected ErrNotFound for expired session, got %v", err)
 		}
 
@@ -177,7 +178,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 		}
 
 		_, err := repo.Consume(ctx, hashHandle("handle-ceremony"), models.WebAuthnCeremonyLogin)
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("expected ErrNotFound for ceremony mismatch, got %v", err)
 		}
 
@@ -245,7 +246,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 			}
 		}
 		for _, h := range []string{"cap-1", "cap-2", "cap-3"} {
-			if _, err := repo.Consume(ctx, hashHandle(h), models.WebAuthnCeremonyLogin); err != repository.ErrNotFound {
+			if _, err := repo.Consume(ctx, hashHandle(h), models.WebAuthnCeremonyLogin); !errors.Is(err, repository.ErrNotFound) {
 				t.Errorf("expected %s to be evicted, got %v", h, err)
 			}
 		}
@@ -271,7 +272,7 @@ func TestWebAuthnSessionRepositoryIntegration(t *testing.T) {
 		}
 
 		_, err := repo.Consume(ctx, hashHandle("handle-cascade"), models.WebAuthnCeremonyRegistration)
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("expected session to cascade away with the user, got %v", err)
 		}
 	})

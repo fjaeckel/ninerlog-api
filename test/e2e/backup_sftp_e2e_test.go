@@ -238,7 +238,7 @@ func TestBackup_SFTP_UserIsolation(t *testing.T) {
 	createResp := cA.POST("/backups/destinations", newSFTPDestPayload("userA"+time.Now().Format("150405")))
 	requireStatus(t, createResp, http.StatusCreated)
 	var dest backupDestination
-	createResp.JSON(&dest)
+	createResp.MustJSON(t, &dest)
 
 	cB := NewE2EClient(t)
 	registerAndLogin(t, cB, uniqueEmail("backup-sftp-userB"), "Password123!", "User B")

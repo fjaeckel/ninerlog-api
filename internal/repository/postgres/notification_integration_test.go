@@ -198,7 +198,7 @@ func TestNotificationLogMigrationBackfillIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var all []got
 	for rows.Next() {
 		var g got
@@ -206,6 +206,9 @@ func TestNotificationLogMigrationBackfillIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		all = append(all, g)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	want := []got{
 		{"credential_medical", uuid.Nil, 0, "2025-01-05"},

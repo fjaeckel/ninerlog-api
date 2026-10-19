@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func TestRefreshTokenCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -56,7 +57,7 @@ func TestRefreshTokenCreate_MintsSessionWhenAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewRefreshTokenRepository(db)
 
@@ -86,7 +87,7 @@ func TestRefreshTokenGetByTokenHash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -122,7 +123,7 @@ func TestRefreshTokenNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -132,7 +133,7 @@ func TestRefreshTokenNotFound(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	_, err = repo.GetByTokenHash(ctx, "nonexistent")
-	if err != repository.ErrNotFound {
+	if !errors.Is(err, repository.ErrNotFound) {
 		t.Errorf("Expected ErrNotFound, got %v", err)
 	}
 
@@ -146,7 +147,7 @@ func TestRefreshTokenCreateInLiveSession_InsertsUnderUserLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewRefreshTokenRepository(db)
 	token := &models.RefreshToken{
@@ -180,7 +181,7 @@ func TestRefreshTokenCreateInLiveSession_RefusesSessionWithoutLiveToken(t *testi
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewRefreshTokenRepository(db)
 	token := &models.RefreshToken{
@@ -199,7 +200,7 @@ func TestRefreshTokenCreateInLiveSession_RefusesSessionWithoutLiveToken(t *testi
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 	mock.ExpectRollback()
 
-	if err := repo.CreateInLiveSession(context.Background(), token); err != repository.ErrNotFound {
+	if err := repo.CreateInLiveSession(context.Background(), token); !errors.Is(err, repository.ErrNotFound) {
 		t.Fatalf("CreateInLiveSession() error = %v, want ErrNotFound", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -263,7 +264,7 @@ func TestRefreshTokenRevocations_TakeTheUserLock(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create mock: %v", err)
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 
 			mock.ExpectBegin()
 			mock.ExpectExec(`SELECT 1 FROM users WHERE id = \$1 FOR NO KEY UPDATE`).

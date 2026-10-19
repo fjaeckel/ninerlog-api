@@ -26,7 +26,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 	})
 	requireStatus(t, r, 201)
 	var orig map[string]interface{}
-	r.JSON(&orig)
+	r.MustJSON(t, &orig)
 	fid := orig["id"].(string)
 
 	t.Run("PUT updates all fields and recalculates", func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		})
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		// Verify recalculated fields
 		assertFloat(t, "totalTime", gf(f, "totalTime"), 120, 6)
@@ -77,7 +77,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		})
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		assertBool(t, "isPic (no instructor)", gb(f, "isPic"), true)
 		assertBool(t, "isDual (no instructor)", gb(f, "isDual"), false)
@@ -89,7 +89,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		r := c.GET(fmt.Sprintf("/flights/%s", fid))
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		assertFloat(t, "totalTime on GET", gf(f, "totalTime"), 120, 6)
 		assertBool(t, "isPic on GET", gb(f, "isPic"), true)
@@ -104,7 +104,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 		})
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		assertFloat(t, "crossCountryTime (local)", gf(f, "crossCountryTime"), 0, 1)
 		assertFloat(t, "distance (local)", gf(f, "distance"), 0.0, 0.1)
@@ -116,7 +116,7 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 			"offBlockTime": "06:00", "onBlockTime": "14:00", "landings": 1,
 		})
 		requireStatus(t, r, 200)
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		assertFloat(t, "crossCountryTime (XC)", gf(f, "crossCountryTime"), 480, 6)
 		d := gf(f, "distance")

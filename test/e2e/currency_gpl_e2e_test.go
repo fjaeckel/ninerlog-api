@@ -56,7 +56,7 @@ func TestGPL_GyroplaneRecencyWithAnnexICredit(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ul map[string]interface{}
-	resp.JSON(&ul)
+	resp.MustJSON(t, &ul)
 	if gf(ul, "maxTakeoffMassKg") != 472 {
 		t.Fatalf("maxTakeoffMassKg = %v, want 472", ul["maxTakeoffMassKg"])
 	}
@@ -111,11 +111,11 @@ func TestAircraft_MaxTakeoffMass(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ac map[string]interface{}
-	resp.JSON(&ac)
+	resp.MustJSON(t, &ac)
 	resp = c.PATCH(fmt.Sprintf("/aircraft/%s", ac["id"]), map[string]interface{}{"maxTakeoffMassKg": nil})
 	requireStatus(t, resp, http.StatusOK)
 	var got map[string]interface{}
-	resp.JSON(&got)
+	resp.MustJSON(t, &got)
 	if _, ok := got["maxTakeoffMassKg"]; ok {
 		t.Errorf("maxTakeoffMassKg = %v, want cleared", got["maxTakeoffMassKg"])
 	}

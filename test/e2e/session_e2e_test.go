@@ -48,7 +48,7 @@ func loginAs(t *testing.T, c *E2EClient, email, password, userAgent string) Auth
 		map[string]string{"User-Agent": userAgent})
 	requireStatus(t, resp, http.StatusOK)
 	var auth AuthResponseBody
-	resp.JSON(&auth)
+	resp.MustJSON(t, &auth)
 	return auth
 }
 
@@ -57,7 +57,7 @@ func listSessions(t *testing.T, c *E2EClient) sessionListBody {
 	resp := c.GET("/auth/sessions")
 	requireStatus(t, resp, http.StatusOK)
 	var body sessionListBody
-	resp.JSON(&body)
+	resp.MustJSON(t, &body)
 	return body
 }
 
@@ -77,7 +77,7 @@ func TestSessionsSurviveASecondDevice(t *testing.T) {
 		resp := c.POST("/auth/refresh", map[string]string{"refreshToken": phone.RefreshToken})
 		requireStatus(t, resp, http.StatusOK)
 		var refreshed AuthResponseBody
-		resp.JSON(&refreshed)
+		resp.MustJSON(t, &refreshed)
 		phone.RefreshToken = refreshed.RefreshToken
 	})
 
@@ -169,7 +169,7 @@ func TestSessionsRevokeAllOthers(t *testing.T) {
 	var body struct {
 		Revoked int `json:"revoked"`
 	}
-	resp.JSON(&body)
+	resp.MustJSON(t, &body)
 	if body.Revoked != 2 {
 		t.Errorf("Expected 2 sessions revoked, got %d", body.Revoked)
 	}
@@ -214,7 +214,7 @@ func TestSessionReplayRevokesTheWholeSession(t *testing.T) {
 	resp := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
 	requireStatus(t, resp, http.StatusOK)
 	var rotated AuthResponseBody
-	resp.JSON(&rotated)
+	resp.MustJSON(t, &rotated)
 
 	time.Sleep(refreshReuseGrace + 500*time.Millisecond)
 
@@ -269,7 +269,7 @@ func TestSupersededTokenCannotRenewAnEndedSession(t *testing.T) {
 			resp := c.POST("/auth/refresh", map[string]string{"refreshToken": superseded.RefreshToken})
 			requireStatus(t, resp, http.StatusOK)
 			var current AuthResponseBody
-			resp.JSON(&current)
+			resp.MustJSON(t, &current)
 
 			tc.end(t, c, current)
 

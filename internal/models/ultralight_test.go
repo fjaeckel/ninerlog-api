@@ -1,6 +1,9 @@
 package models
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func strPtr(s string) *string { return &s }
 
@@ -51,7 +54,7 @@ func TestClassRatingNormalizeULKind(t *testing.T) {
 		t.Errorf("SEP rating: err = %v, kind = %v, want cleared", err, cr.ULKind)
 	}
 	cr = &ClassRating{ClassType: ClassTypeUL, ULKind: &motorglider}
-	if err := cr.NormalizeULKind(); err != ErrInvalidULKind {
+	if err := cr.NormalizeULKind(); !errors.Is(err, ErrInvalidULKind) {
 		t.Errorf("motorglider rating: err = %v, want ErrInvalidULKind", err)
 	}
 }
@@ -84,7 +87,7 @@ func TestAircraftValidateMTOM(t *testing.T) {
 		{nil, false}, {intPtr(472), false}, {intPtr(0), true}, {intPtr(-5), true}, {intPtr(1000001), true},
 	} {
 		a := &Aircraft{Registration: "D-MGYR", Type: "MTO", Make: "AutoGyro", Model: "MTOsport", MTOMKg: tt.mtom}
-		if err := a.Validate(); (err == ErrInvalidAircraftMTOM) != tt.wantErr {
+		if err := a.Validate(); errors.Is(err, ErrInvalidAircraftMTOM) != tt.wantErr {
 			t.Errorf("MTOM %v: err = %v, wantErr %v", tt.mtom, err, tt.wantErr)
 		}
 	}

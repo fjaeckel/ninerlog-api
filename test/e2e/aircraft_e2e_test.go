@@ -21,7 +21,7 @@ func TestAircraftCRUD(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		resp.MustJSON(t, &ac)
 		acID = ac["id"].(string)
 	})
 
@@ -45,7 +45,7 @@ func TestAircraftCRUD(t *testing.T) {
 		resp := c.GET("/aircraft")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		data := r["data"].([]interface{})
 		if len(data) < 2 {
 			t.Errorf("Expected >=2, got %d", len(data))
@@ -92,7 +92,7 @@ func TestAircraftLoggingDefaults(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ac map[string]interface{}
-	resp.JSON(&ac)
+	resp.MustJSON(t, &ac)
 	acID := ac["id"].(string)
 
 	t.Run("defaults are uppercased on create", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestAircraftLoggingDefaults(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		var updated map[string]interface{}
-		resp.JSON(&updated)
+		resp.MustJSON(t, &updated)
 		assertStr(t, "defaultDepartureIcao", updated["defaultDepartureIcao"], "EDDM")
 		assertStr(t, "defaultArrivalIcao", updated["defaultArrivalIcao"], "LSZH")
 	})
@@ -119,7 +119,7 @@ func TestAircraftLoggingDefaults(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		var updated map[string]interface{}
-		resp.JSON(&updated)
+		resp.MustJSON(t, &updated)
 		assertStr(t, "defaultDepartureIcao", updated["defaultDepartureIcao"], "HAUSEN AM ALBIS")
 	})
 
@@ -146,7 +146,7 @@ func TestAircraftStats(t *testing.T) {
 	resp := c.GET("/aircraft/stats")
 	requireStatus(t, resp, http.StatusOK)
 	var r map[string]interface{}
-	resp.JSON(&r)
+	resp.MustJSON(t, &r)
 	data := r["data"].([]interface{})
 	if len(data) != 2 {
 		t.Fatalf("Expected stats for 2 registrations, got %d", len(data))
@@ -221,7 +221,7 @@ func TestAircraftRenameFlights(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ac map[string]interface{}
-	resp.JSON(&ac)
+	resp.MustJSON(t, &ac)
 	acID := ac["id"].(string)
 
 	for i := 0; i < 2; i++ {
@@ -237,7 +237,7 @@ func TestAircraftRenameFlights(t *testing.T) {
 		resp := c.GET("/aircraft/stats")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		stats := map[string]map[string]interface{}{}
 		for _, item := range r["data"].([]interface{}) {
 			s := item.(map[string]interface{})
@@ -287,14 +287,14 @@ func TestAircraftIsolation(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ac map[string]interface{}
-	resp.JSON(&ac)
+	resp.MustJSON(t, &ac)
 	aid := ac["id"].(string)
 
 	t.Run("user2 cannot see", func(t *testing.T) {
 		resp := c2.GET("/aircraft")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		data := r["data"].([]interface{})
 		if len(data) != 0 {
 			t.Errorf("Expected 0, got %d", len(data))

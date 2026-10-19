@@ -18,7 +18,7 @@ func TestClassRatingDuplicateType(t *testing.T) {
 	})
 	requireStatus(t, r, 201)
 	var lic map[string]interface{}
-	r.JSON(&lic)
+	r.MustJSON(t, &lic)
 	lid := lic["id"].(string)
 
 	requireStatus(t, c.POST(fmt.Sprintf("/licenses/%s/ratings", lid), map[string]interface{}{
@@ -29,11 +29,12 @@ func TestClassRatingDuplicateType(t *testing.T) {
 		r := c.POST(fmt.Sprintf("/licenses/%s/ratings", lid), map[string]interface{}{
 			"classType": "SEP_LAND", "issueDate": "2024-01-01",
 		})
-		if r.StatusCode == 201 {
+		switch r.StatusCode {
+		case 201:
 			t.Log("INFO: API allows duplicate class types on same license")
-		} else if r.StatusCode == 409 {
+		case 409:
 			t.Log("INFO: API rejects duplicate class types (409)")
-		} else {
+		default:
 			t.Logf("Duplicate rating status: %d %s", r.StatusCode, string(r.Body))
 		}
 	})
@@ -71,7 +72,7 @@ func TestCredentialExpiryEdgeCases(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var cred map[string]interface{}
-		r.JSON(&cred)
+		r.MustJSON(t, &cred)
 		if cred["expiryDate"] != nil {
 			t.Errorf("Expected null expiryDate, got %v", cred["expiryDate"])
 		}
@@ -84,7 +85,7 @@ func TestCredentialExpiryEdgeCases(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var cred map[string]interface{}
-		r.JSON(&cred)
+		r.MustJSON(t, &cred)
 		credID := cred["id"].(string)
 
 		r = c.PATCH(fmt.Sprintf("/credentials/%s", credID), map[string]interface{}{
@@ -103,14 +104,14 @@ func TestAircraftActiveFlag(t *testing.T) {
 	})
 	requireStatus(t, r, 201)
 	var ac map[string]interface{}
-	r.JSON(&ac)
+	r.MustJSON(t, &ac)
 	acID := ac["id"].(string)
 
 	t.Run("deactivate aircraft", func(t *testing.T) {
 		r := c.PATCH(fmt.Sprintf("/aircraft/%s", acID), map[string]interface{}{"isActive": false})
 		requireStatus(t, r, 200)
 		var a map[string]interface{}
-		r.JSON(&a)
+		r.MustJSON(t, &a)
 		assertBool(t, "isActive", gb(a, "isActive"), false)
 	})
 
@@ -118,7 +119,7 @@ func TestAircraftActiveFlag(t *testing.T) {
 		r := c.GET("/aircraft")
 		requireStatus(t, r, 200)
 		var result map[string]interface{}
-		r.JSON(&result)
+		r.MustJSON(t, &result)
 		data := result["data"].([]interface{})
 		found := false
 		for _, a := range data {
@@ -149,7 +150,7 @@ func TestAircraftActiveFlag(t *testing.T) {
 		r := c.PATCH(fmt.Sprintf("/aircraft/%s", acID), map[string]interface{}{"isActive": true})
 		requireStatus(t, r, 200)
 		var a map[string]interface{}
-		r.JSON(&a)
+		r.MustJSON(t, &a)
 		assertBool(t, "isActive", gb(a, "isActive"), true)
 	})
 }
@@ -216,7 +217,7 @@ func TestPDFExportWithLogbookFilter(t *testing.T) {
 	})
 	requireStatus(t, r, 201)
 	var lic map[string]interface{}
-	r.JSON(&lic)
+	r.MustJSON(t, &lic)
 	splID := lic["id"].(string)
 
 	// Create flights
@@ -312,7 +313,7 @@ func TestAdminSelfProtection(t *testing.T) {
 	r := ac.GET("/users/me")
 	requireStatus(t, r, 200)
 	var me map[string]interface{}
-	r.JSON(&me)
+	r.MustJSON(t, &me)
 	adminID := me["id"].(string)
 
 	t.Run("admin cannot disable self", func(t *testing.T) {
@@ -348,7 +349,7 @@ func TestAdminPaginationEdgeCases(t *testing.T) {
 		r := ac.GET("/admin/users?page=99999")
 		requireStatus(t, r, 200)
 		var result map[string]interface{}
-		r.JSON(&result)
+		r.MustJSON(t, &result)
 		data := result["data"].([]interface{})
 		if len(data) != 0 {
 			t.Error("Expected empty data for very large page")
@@ -367,7 +368,7 @@ func TestCurrencyNoFlights(t *testing.T) {
 	})
 	requireStatus(t, r, 201)
 	var lic map[string]interface{}
-	r.JSON(&lic)
+	r.MustJSON(t, &lic)
 	lid := lic["id"].(string)
 
 	requireStatus(t, c.POST(fmt.Sprintf("/licenses/%s/ratings", lid), map[string]interface{}{
@@ -382,7 +383,7 @@ func TestCurrencyNoFlights(t *testing.T) {
 		r := c.GET("/currency")
 		requireStatus(t, r, 200)
 		var result map[string]interface{}
-		r.JSON(&result)
+		r.MustJSON(t, &result)
 		if result["ratings"] == nil {
 			t.Error("Expected ratings array")
 		} else {
@@ -406,7 +407,7 @@ func TestAirportSearchEdgeCases(t *testing.T) {
 		r := c.GET("/airports/search?q=E")
 		if r.StatusCode == 200 {
 			var a []interface{}
-			r.JSON(&a)
+			r.MustJSON(t, &a)
 			t.Logf("Single char 'E': %d results", len(a))
 		}
 	})
@@ -415,7 +416,7 @@ func TestAirportSearchEdgeCases(t *testing.T) {
 		r := c.GET("/airports/search?q=edny")
 		requireStatus(t, r, 200)
 		var a []interface{}
-		r.JSON(&a)
+		r.MustJSON(t, &a)
 		if len(a) < 1 {
 			t.Log("REGRESSION: Lowercase ICAO search returns no results")
 		}
@@ -484,7 +485,7 @@ func TestFlightSearchSpecialChars(t *testing.T) {
 		} else {
 			requireStatus(t, r, 200)
 			var m map[string]interface{}
-			r.JSON(&m)
+			r.MustJSON(t, &m)
 			data := m["data"].([]interface{})
 			if len(data) < 1 {
 				t.Error("Expected to find flight with O'Reilly")
@@ -496,7 +497,7 @@ func TestFlightSearchSpecialChars(t *testing.T) {
 		r := c.GET("/flights?search=Müller")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		data := m["data"].([]interface{})
 		if len(data) < 1 {
 			t.Error("Expected to find flight with Müller")

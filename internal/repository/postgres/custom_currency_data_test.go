@@ -16,7 +16,7 @@ func newCustomDataProvider(t *testing.T) (*customCurrencyDataProvider, sqlmock.S
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	return &customCurrencyDataProvider{db: db}, mock, func() { db.Close() }
+	return &customCurrencyDataProvider{db: db}, mock, func() { _ = db.Close() }
 }
 
 func TestAggregateMetrics_FilterValuesAreBound(t *testing.T) {

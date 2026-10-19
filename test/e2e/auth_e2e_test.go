@@ -97,13 +97,13 @@ func TestAuthRegistration(t *testing.T) {
 		verifyResp := ac.POST("/auth/verify-email", map[string]string{"token": token})
 		requireStatus(t, verifyResp, http.StatusOK)
 		var auth AuthResponseBody
-		verifyResp.JSON(&auth)
+		verifyResp.MustJSON(t, &auth)
 		ac.SetToken(auth.AccessToken)
 
 		meResp := ac.GET("/users/me")
 		requireStatus(t, meResp, http.StatusOK)
 		var u map[string]interface{}
-		meResp.JSON(&u)
+		meResp.MustJSON(t, &u)
 		if u["preferredLocale"] != "de" {
 			t.Errorf("Expected preferredLocale 'de', got %v", u["preferredLocale"])
 		}
@@ -118,7 +118,7 @@ func TestAuthRegistration(t *testing.T) {
 		meResp := ac.GET("/users/me")
 		requireStatus(t, meResp, http.StatusOK)
 		var u map[string]interface{}
-		meResp.JSON(&u)
+		meResp.MustJSON(t, &u)
 		if u["preferredLocale"] != "en" {
 			t.Errorf("Expected default preferredLocale 'en', got %v", u["preferredLocale"])
 		}
@@ -157,7 +157,7 @@ func TestAuthTokenRefresh(t *testing.T) {
 		resp := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
 		requireStatus(t, resp, http.StatusOK)
 		var newAuth AuthResponseBody
-		resp.JSON(&newAuth)
+		resp.MustJSON(t, &newAuth)
 		if newAuth.AccessToken == "" {
 			t.Error("Expected new accessToken")
 		}
@@ -170,7 +170,7 @@ func TestAuthTokenRefresh(t *testing.T) {
 		resp := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
 		requireStatus(t, resp, http.StatusOK)
 		var graced AuthResponseBody
-		resp.JSON(&graced)
+		resp.MustJSON(t, &graced)
 		if graced.RefreshToken == "" {
 			t.Error("Expected a refresh token from the grace path")
 		}
@@ -264,7 +264,7 @@ func TestEmailVerification(t *testing.T) {
 		requireStatus(t, resp, http.StatusCreated)
 		// Body should not contain tokens — only registration confirmation.
 		var body map[string]any
-		resp.JSON(&body)
+		resp.MustJSON(t, &body)
 		if _, hasAccess := body["accessToken"]; hasAccess {
 			t.Errorf("Expected no accessToken in register response, got %v", body)
 		}
@@ -285,7 +285,7 @@ func TestEmailVerification(t *testing.T) {
 		var errBody struct {
 			Code string `json:"code"`
 		}
-		loginResp.JSON(&errBody)
+		loginResp.MustJSON(t, &errBody)
 		if errBody.Code != "email_not_verified" {
 			t.Errorf("Expected error code 'email_not_verified', got %q (body: %s)", errBody.Code, string(loginResp.Body))
 		}
@@ -303,7 +303,7 @@ func TestEmailVerification(t *testing.T) {
 		verifyResp := c.POST("/auth/verify-email", map[string]string{"token": token})
 		requireStatus(t, verifyResp, http.StatusOK)
 		var auth AuthResponseBody
-		verifyResp.JSON(&auth)
+		verifyResp.MustJSON(t, &auth)
 		if auth.AccessToken == "" || auth.RefreshToken == "" {
 			t.Errorf("Expected tokens after verify-email, got %+v", auth)
 		}

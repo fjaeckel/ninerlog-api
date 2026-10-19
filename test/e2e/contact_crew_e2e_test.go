@@ -15,7 +15,7 @@ func TestContactDeletionWithCrewReferences(t *testing.T) {
 	r := c.POST("/contacts", map[string]interface{}{"name": "Instructor Linked"})
 	requireStatus(t, r, 201)
 	var cnt map[string]interface{}
-	r.JSON(&cnt)
+	r.MustJSON(t, &cnt)
 	contactID := cnt["id"].(string)
 
 	// Create flight referencing this contact as crew
@@ -29,7 +29,7 @@ func TestContactDeletionWithCrewReferences(t *testing.T) {
 	})
 	requireStatus(t, r, 201)
 	var flt map[string]interface{}
-	r.JSON(&flt)
+	r.MustJSON(t, &flt)
 	fltID := flt["id"].(string)
 
 	t.Run("flight list carries crew", func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestContactDeletionWithCrewReferences(t *testing.T) {
 		var page struct {
 			Data []map[string]interface{} `json:"data"`
 		}
-		r.JSON(&page)
+		r.MustJSON(t, &page)
 		for _, f := range page.Data {
 			if f["id"] != fltID {
 				continue
@@ -63,7 +63,7 @@ func TestContactDeletionWithCrewReferences(t *testing.T) {
 		r := c.GET(fmt.Sprintf("/flights/%s", fltID))
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		crew, ok := f["crewMembers"].([]interface{})
 		if !ok || len(crew) == 0 {
@@ -96,7 +96,7 @@ func TestContactSpecialCharSearch(t *testing.T) {
 		r := c.GET("/contacts/search?q=O'Brien")
 		requireStatus(t, r, 200)
 		var cts []interface{}
-		r.JSON(&cts)
+		r.MustJSON(t, &cts)
 		if len(cts) < 1 {
 			t.Error("Expected to find O'Brien")
 		}
@@ -106,7 +106,7 @@ func TestContactSpecialCharSearch(t *testing.T) {
 		r := c.GET("/contacts/search?q=Müller")
 		requireStatus(t, r, 200)
 		var cts []interface{}
-		r.JSON(&cts)
+		r.MustJSON(t, &cts)
 		if len(cts) < 1 {
 			t.Error("Expected to find Müller-Schmidt")
 		}
@@ -116,7 +116,7 @@ func TestContactSpecialCharSearch(t *testing.T) {
 		r := c.GET("/contacts/search?q=García")
 		requireStatus(t, r, 200)
 		var cts []interface{}
-		r.JSON(&cts)
+		r.MustJSON(t, &cts)
 		if len(cts) < 1 {
 			t.Error("Expected to find García")
 		}

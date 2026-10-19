@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ func TestUserCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -50,7 +51,7 @@ func TestUserGetByEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -80,7 +81,7 @@ func TestUserGetByEmailNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -90,7 +91,7 @@ func TestUserGetByEmailNotFound(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	_, err = repo.GetByEmail(ctx, "notfound@example.com")
-	if err != repository.ErrNotFound {
+	if !errors.Is(err, repository.ErrNotFound) {
 		t.Errorf("Expected ErrNotFound, got %v", err)
 	}
 
@@ -104,7 +105,7 @@ func TestUserUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -139,7 +140,7 @@ func TestUserDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()

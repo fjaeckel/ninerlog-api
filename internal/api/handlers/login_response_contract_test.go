@@ -20,9 +20,9 @@ import (
 func login200Schema(t *testing.T) *openapi3.Schema {
 	t.Helper()
 
-	swagger, err := generated.GetSwagger()
+	swagger, err := generated.GetSpec()
 	if err != nil {
-		t.Fatalf("GetSwagger failed: %v", err)
+		t.Fatalf("GetSpec failed: %v", err)
 	}
 	path := swagger.Paths.Find("/auth/login")
 	if path == nil || path.Post == nil {

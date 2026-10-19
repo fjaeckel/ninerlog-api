@@ -26,7 +26,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		fid := f["id"].(string)
 		if f["remarks"] != "Original remarks" || f["launchMethod"] != "winch" {
 			t.Fatalf("expected seeded remarks/launchMethod, got %v / %v", f["remarks"], f["launchMethod"])
@@ -42,7 +42,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		// Decode into a fresh map: a cleared field is omitted from the
 		// response JSON, not sent as null.
 		f = map[string]interface{}{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		if f["remarks"] != "Original remarks" {
 			t.Errorf("omitted remarks should be unchanged, got %v", f["remarks"])
 		}
@@ -59,7 +59,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		f = map[string]interface{}{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		if f["remarks"] != nil {
 			t.Errorf("expected remarks cleared to null, got %v", f["remarks"])
 		}
@@ -74,7 +74,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		resp = c.GET(fmt.Sprintf("/flights/%s", fid))
 		requireStatus(t, resp, http.StatusOK)
 		f = map[string]interface{}{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		if f["remarks"] != nil || f["launchMethod"] != nil {
 			t.Errorf("expected cleared fields to persist, got remarks=%v launchMethod=%v", f["remarks"], f["launchMethod"])
 		}
@@ -87,7 +87,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var a map[string]interface{}
-		resp.JSON(&a)
+		resp.MustJSON(t, &a)
 		acID := a["id"].(string)
 
 		// Omitting notes/aircraftClass on an unrelated update leaves them unchanged.
@@ -96,7 +96,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		// Decode into a fresh map: a cleared field is omitted from the
 		// response JSON, not sent as null.
 		a = map[string]interface{}{}
-		resp.JSON(&a)
+		resp.MustJSON(t, &a)
 		if a["notes"] != "Club aircraft" || a["aircraftClass"] != "SEP_LAND" {
 			t.Errorf("omitted fields should be unchanged, got notes=%v aircraftClass=%v", a["notes"], a["aircraftClass"])
 		}
@@ -106,7 +106,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		a = map[string]interface{}{}
-		resp.JSON(&a)
+		resp.MustJSON(t, &a)
 		if a["notes"] != nil {
 			t.Errorf("expected notes cleared to null, got %v", a["notes"])
 		}
@@ -123,7 +123,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var cr map[string]interface{}
-		resp.JSON(&cr)
+		resp.MustJSON(t, &cr)
 		credID := cr["id"].(string)
 
 		// Omitting expiryDate/notes leaves them unchanged.
@@ -132,7 +132,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		// Decode into a fresh map: a cleared field is omitted from the
 		// response JSON, not sent as null.
 		cr = map[string]interface{}{}
-		resp.JSON(&cr)
+		resp.MustJSON(t, &cr)
 		if cr["expiryDate"] == nil || cr["notes"] != "Annual" {
 			t.Errorf("omitted fields should be unchanged, got expiryDate=%v notes=%v", cr["expiryDate"], cr["notes"])
 		}
@@ -143,7 +143,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		cr = map[string]interface{}{}
-		resp.JSON(&cr)
+		resp.MustJSON(t, &cr)
 		if cr["expiryDate"] != nil {
 			t.Errorf("expected expiryDate cleared to null, got %v", cr["expiryDate"])
 		}
@@ -162,7 +162,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var lic map[string]interface{}
-		resp.JSON(&lic)
+		resp.MustJSON(t, &lic)
 		lid := lic["id"].(string)
 
 		resp = c.POST(fmt.Sprintf("/licenses/%s/ratings", lid), map[string]interface{}{
@@ -171,7 +171,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var cr map[string]interface{}
-		resp.JSON(&cr)
+		resp.MustJSON(t, &cr)
 		rid := cr["id"].(string)
 
 		// Updating one field leaves issueDate/expiryDate unchanged.
@@ -182,7 +182,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		// Decode into a fresh map: a cleared field is omitted from the
 		// response JSON, not sent as null.
 		cr = map[string]interface{}{}
-		resp.JSON(&cr)
+		resp.MustJSON(t, &cr)
 		if !strings.HasPrefix(fmt.Sprint(cr["issueDate"]), "2023-01-15") {
 			t.Errorf("omitted issueDate should be unchanged, got %v", cr["issueDate"])
 		}
@@ -198,7 +198,7 @@ func TestNullableFieldsClearOnNull(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		cr = map[string]interface{}{}
-		resp.JSON(&cr)
+		resp.MustJSON(t, &cr)
 		if cr["expiryDate"] != nil {
 			t.Errorf("expected expiryDate cleared to null, got %v", cr["expiryDate"])
 		}

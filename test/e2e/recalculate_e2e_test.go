@@ -21,7 +21,7 @@ func TestRecalculatePreservesDualFlights(t *testing.T) {
 	})
 	requireStatus(t, r, 201)
 	var picFlight map[string]interface{}
-	r.JSON(&picFlight)
+	r.MustJSON(t, &picFlight)
 	picID := picFlight["id"].(string)
 
 	// Verify PIC flight is correctly set up
@@ -43,7 +43,7 @@ func TestRecalculatePreservesDualFlights(t *testing.T) {
 	})
 	requireStatus(t, r, 201)
 	var dualFlight map[string]interface{}
-	r.JSON(&dualFlight)
+	r.MustJSON(t, &dualFlight)
 	dualID := dualFlight["id"].(string)
 
 	// Verify dual flight is correctly set up
@@ -56,7 +56,7 @@ func TestRecalculatePreservesDualFlights(t *testing.T) {
 	r = c.POST("/flights/recalculate", nil)
 	requireStatus(t, r, 200)
 	var recalcResult map[string]interface{}
-	r.JSON(&recalcResult)
+	r.MustJSON(t, &recalcResult)
 	assertInt(t, "recalc total", gi(recalcResult, "total"), 2)
 	assertInt(t, "recalc errors", gi(recalcResult, "errors"), 0)
 
@@ -65,7 +65,7 @@ func TestRecalculatePreservesDualFlights(t *testing.T) {
 		r := c.GET(fmt.Sprintf("/flights/%s", picID))
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		assertBool(t, "isPic", gb(f, "isPic"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), false)
@@ -78,7 +78,7 @@ func TestRecalculatePreservesDualFlights(t *testing.T) {
 		r := c.GET(fmt.Sprintf("/flights/%s", dualID))
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		assertBool(t, "isPic", gb(f, "isPic"), false)
 		assertBool(t, "isDual", gb(f, "isDual"), true)

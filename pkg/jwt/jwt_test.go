@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestValidateExpiredToken(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	_, err := manager.ValidateAccessToken(token)
-	if err != ErrExpiredToken {
+	if !errors.Is(err, ErrExpiredToken) {
 		t.Errorf("Expected ErrExpiredToken, got %v", err)
 	}
 }
@@ -111,7 +112,7 @@ func TestValidate2FAToken_RejectsRegularAccessToken(t *testing.T) {
 	accessToken, _ := manager.GenerateAccessToken(userID, uuid.New())
 
 	_, err := manager.Validate2FAToken(accessToken)
-	if err != ErrInvalidToken {
+	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("Validate2FAToken(accessToken) error = %v, want ErrInvalidToken", err)
 	}
 }
@@ -140,7 +141,7 @@ func TestValidateAccessToken_Rejects2FAToken(t *testing.T) {
 		t.Fatalf("Generate2FAToken() error = %v", err)
 	}
 
-	if _, err := manager.ValidateAccessToken(twoFAToken); err != ErrInvalidToken {
+	if _, err := manager.ValidateAccessToken(twoFAToken); !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("ValidateAccessToken(2faToken) error = %v, want ErrInvalidToken (2FA bypass!)", err)
 	}
 }
@@ -173,7 +174,7 @@ func TestValidateAccessToken_MalformedToken(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
 	_, err := manager.ValidateAccessToken("not-a-jwt")
-	if err != ErrInvalidToken {
+	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("ValidateAccessToken(malformed) error = %v, want ErrInvalidToken", err)
 	}
 }
@@ -182,7 +183,7 @@ func TestValidateRefreshToken_MalformedToken(t *testing.T) {
 	manager := NewManager("secret", "refresh-secret", 15*time.Minute, 7*24*time.Hour)
 
 	_, err := manager.ValidateRefreshToken("not-a-jwt")
-	if err != ErrInvalidToken {
+	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("ValidateRefreshToken(malformed) error = %v, want ErrInvalidToken", err)
 	}
 }

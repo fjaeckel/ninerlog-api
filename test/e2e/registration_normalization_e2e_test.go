@@ -21,7 +21,7 @@ func TestAircraftRegistrationNormalization(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		resp.MustJSON(t, &ac)
 		assertStr(t, "registration", ac["registration"], "D-EABC")
 	})
 
@@ -38,7 +38,7 @@ func TestAircraftRegistrationNormalization(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		resp.MustJSON(t, &ac)
 		assertStr(t, "registration", ac["registration"], "N12345")
 	})
 
@@ -48,7 +48,7 @@ func TestAircraftRegistrationNormalization(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		resp.MustJSON(t, &ac)
 		assertStr(t, "registration", ac["registration"], "SIM")
 	})
 }
@@ -64,7 +64,7 @@ func TestFlightRegistrationNormalization(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var created map[string]interface{}
-	resp.JSON(&created)
+	resp.MustJSON(t, &created)
 	assertStr(t, "aircraftReg", created["aircraftReg"], "D-EABC")
 	flightID := created["id"].(string)
 
@@ -72,7 +72,7 @@ func TestFlightRegistrationNormalization(t *testing.T) {
 		r := c.GET(fmt.Sprintf("/flights/%s", flightID))
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertStr(t, "aircraftReg", f["aircraftReg"], "D-EABC")
 	})
 }
@@ -99,7 +99,7 @@ func TestImportCSV_NormalizesRegistrations(t *testing.T) {
 	resp := uploadCSV(t, c, "logbuch.csv", csv)
 	requireStatus(t, resp, http.StatusOK)
 	var upload map[string]interface{}
-	resp.JSON(&upload)
+	resp.MustJSON(t, &upload)
 	uploadToken, _ := upload["uploadToken"].(string)
 	if uploadToken == "" {
 		t.Fatalf("expected an uploadToken, got: %s", string(resp.Body))
@@ -114,7 +114,7 @@ func TestImportCSV_NormalizesRegistrations(t *testing.T) {
 		t.Fatalf("Expected 200 or 201, got %d: %s", cr.StatusCode, string(cr.Body))
 	}
 	var result map[string]interface{}
-	cr.JSON(&result)
+	cr.MustJSON(t, &result)
 	if got, _ := result["importedCount"].(float64); got != 2 {
 		t.Fatalf("importedCount = %v, want 2: %s", result["importedCount"], string(cr.Body))
 	}
@@ -128,7 +128,7 @@ func TestImportCSV_NormalizesRegistrations(t *testing.T) {
 		resp := c.GET("/aircraft")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		fleet := r["data"].([]interface{})
 		if len(fleet) != 1 {
 			t.Fatalf("fleet has %d aircraft, want 1: %s", len(fleet), string(resp.Body))
@@ -140,7 +140,7 @@ func TestImportCSV_NormalizesRegistrations(t *testing.T) {
 		resp := c.GET("/flights")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		flights := r["data"].([]interface{})
 		if len(flights) != 2 {
 			t.Fatalf("got %d flights, want 2: %s", len(flights), string(resp.Body))
@@ -168,7 +168,7 @@ func TestRecalculateReportsFleetNormalization(t *testing.T) {
 	r := c.POST("/flights/recalculate", nil)
 	requireStatus(t, r, http.StatusOK)
 	var result map[string]interface{}
-	r.JSON(&result)
+	r.MustJSON(t, &result)
 
 	for _, key := range []string{"aircraftNormalized", "aircraftConflicts"} {
 		v, ok := result[key]
@@ -188,7 +188,7 @@ func TestRecalculateReportsFleetNormalization(t *testing.T) {
 		resp := c.GET("/flights")
 		requireStatus(t, resp, http.StatusOK)
 		var body map[string]interface{}
-		resp.JSON(&body)
+		resp.MustJSON(t, &body)
 		flights := body["data"].([]interface{})
 		if len(flights) != 1 {
 			t.Fatalf("got %d flights, want 1: %s", len(flights), string(resp.Body))

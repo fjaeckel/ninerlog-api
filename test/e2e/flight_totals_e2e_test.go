@@ -49,7 +49,7 @@ func TestFlightListTotals(t *testing.T) {
 		resp := c.GET("/flights?pageSize=1&sortBy=date&sortOrder=desc")
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 
 		if len(page.Data) != 1 {
 			t.Fatalf("page has %d flights, want 1", len(page.Data))
@@ -66,7 +66,7 @@ func TestFlightListTotals(t *testing.T) {
 		resp := c.GET("/flights?pageSize=1&sortBy=date&sortOrder=desc")
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 
 		if len(page.MonthTotals) != 1 {
 			t.Fatalf("monthTotals = %+v, want only August", page.MonthTotals)
@@ -81,7 +81,7 @@ func TestFlightListTotals(t *testing.T) {
 		resp := c.GET("/flights?aircraftReg=D-ETOT")
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 
 		if page.Totals.Flights != 2 || page.Totals.TotalTime != 150 {
 			t.Errorf("filtered totals = %+v, want 2 flights / 150 min", page.Totals)
@@ -95,7 +95,7 @@ func TestFlightListTotals(t *testing.T) {
 		resp := c.GET("/flights?search=D-EOTH")
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 
 		if page.Totals.Flights != 1 || page.Totals.TotalTime != 45 {
 			t.Errorf("search totals = %+v, want 1 flight / 45 min", page.Totals)
@@ -109,7 +109,7 @@ func TestFlightListTotals(t *testing.T) {
 		resp := c.GET("/flights?q=" + url.QueryEscape("reg:D-ETOT AND total>=90"))
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 
 		if page.Totals.Flights != 1 || page.Totals.TotalTime != 90 {
 			t.Errorf("query totals = %+v, want 1 flight / 90 min", page.Totals)
@@ -123,7 +123,7 @@ func TestFlightListTotals(t *testing.T) {
 		resp := c.GET("/flights?sortBy=totalTime")
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 
 		if page.MonthTotals == nil || len(page.MonthTotals) != 0 {
 			t.Errorf("monthTotals = %v, want an empty array", page.MonthTotals)
@@ -138,7 +138,7 @@ func TestFlightListTotals(t *testing.T) {
 		resp := c.GET("/flights?updatedSince=" + since)
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 
 		if len(page.MonthTotals) != 0 {
 			t.Errorf("monthTotals = %v, want none on a delta request", page.MonthTotals)
@@ -154,7 +154,7 @@ func TestFlightListTotals(t *testing.T) {
 		resp := empty.GET("/flights")
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 
 		if page.Totals.Flights != 0 || page.Totals.TotalTime != 0 {
 			t.Errorf("totals = %+v, want zeros", page.Totals)
@@ -207,7 +207,7 @@ func TestFlightListLogbookTotals(t *testing.T) {
 		resp := c.GET(path)
 		requireStatus(t, resp, http.StatusOK)
 		var page flightListLogbookTotals
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 		return page
 	}
 

@@ -22,8 +22,12 @@ func uploadCSV(t *testing.T, c *E2EClient, filename, content string) *Response {
 	if err != nil {
 		t.Fatalf("Failed to create form file: %v", err)
 	}
-	part.Write([]byte(content))
-	w.Close()
+	if _, err := part.Write([]byte(content)); err != nil {
+		t.Fatalf("Failed to write form file: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Failed to close multipart writer: %v", err)
+	}
 
 	url := baseURL + "/api/v1/imports/upload"
 	req, _ := http.NewRequest("POST", url, &buf)
@@ -35,7 +39,7 @@ func uploadCSV(t *testing.T, c *E2EClient, filename, content string) *Response {
 	if err != nil {
 		t.Fatalf("Upload failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	return &Response{StatusCode: resp.StatusCode, Body: body, Headers: resp.Header}
 }
@@ -55,7 +59,7 @@ func TestImportCSV(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		if result["uploadToken"] == nil {
 			t.Fatal("Expected uploadToken")
 		}
@@ -86,7 +90,7 @@ func TestImportCSV(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		t.Logf("Preview result: %s", string(resp.Body))
 	})
 
@@ -98,7 +102,7 @@ func TestImportCSV(t *testing.T) {
 			t.Fatalf("Expected 200 or 201, got %d: %s", resp.StatusCode, string(resp.Body))
 		}
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		t.Logf("Import result: %s", string(resp.Body))
 	})
 
@@ -106,7 +110,7 @@ func TestImportCSV(t *testing.T) {
 		resp := c.GET("/flights")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		data := r["data"].([]interface{})
 		if len(data) < 2 {
 			t.Logf("Imported flights: %d (import may have validation errors)", len(data))
@@ -155,7 +159,7 @@ func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 		resp := uploadCSV(t, c, "ninerlog_export.csv", exportedCSV)
 		requireStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		uploadToken = result["uploadToken"].(string)
 		suggested, _ = result["suggestedMappings"].([]interface{})
 		if len(suggested) == 0 {
@@ -171,7 +175,7 @@ func TestImportCSV_ReimportsOwnExport(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 
 		flights, _ := result["flights"].([]interface{})
 		if len(flights) == 0 {
@@ -221,7 +225,7 @@ func TestImportCSV_CreatesAircraft(t *testing.T) {
 		resp := uploadCSV(t, c, "logbuch.csv", csv)
 		requireStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		uploadToken, _ = result["uploadToken"].(string)
 		if uploadToken == "" {
 			t.Fatalf("expected an uploadToken, got: %s", string(resp.Body))
@@ -240,7 +244,7 @@ func TestImportCSV_CreatesAircraft(t *testing.T) {
 			t.Fatalf("Expected 200 or 201, got %d: %s", resp.StatusCode, string(resp.Body))
 		}
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		if got, _ := result["importedCount"].(float64); got != 3 {
 			t.Fatalf("importedCount = %v, want 3: %s", result["importedCount"], string(resp.Body))
 		}
@@ -253,7 +257,7 @@ func TestImportCSV_CreatesAircraft(t *testing.T) {
 		resp := c.GET("/aircraft")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 
 		types := make(map[string]string)
 		for _, item := range r["data"].([]interface{}) {
@@ -310,7 +314,7 @@ func TestImportCSV_DuplicateRowsStillCreateAircraft(t *testing.T) {
 		resp := uploadCSV(t, c, "logbook.csv", csv)
 		requireStatus(t, resp, http.StatusOK)
 		var upload map[string]interface{}
-		resp.JSON(&upload)
+		resp.MustJSON(t, &upload)
 		token := upload["uploadToken"].(string)
 
 		requireStatus(t, c.POST("/imports/preview", map[string]interface{}{
@@ -322,7 +326,7 @@ func TestImportCSV_DuplicateRowsStillCreateAircraft(t *testing.T) {
 			t.Fatalf("Expected 200 or 201, got %d: %s", cr.StatusCode, string(cr.Body))
 		}
 		var result map[string]interface{}
-		cr.JSON(&result)
+		cr.MustJSON(t, &result)
 		return result
 	}
 
@@ -342,7 +346,7 @@ func TestImportCSV_DuplicateRowsStillCreateAircraft(t *testing.T) {
 	resp := c.GET("/aircraft")
 	requireStatus(t, resp, http.StatusOK)
 	var r map[string]interface{}
-	resp.JSON(&r)
+	resp.MustJSON(t, &r)
 	fleet := r["data"].([]interface{})
 	if len(fleet) != 1 {
 		t.Fatalf("fleet has %d aircraft after two imports of the same file, want 1: %s", len(fleet), string(resp.Body))
@@ -364,7 +368,7 @@ func TestImportForeFlight(t *testing.T) {
 		resp := uploadCSV(t, c, "foreflight.csv", ff)
 		requireStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		format := result["format"]
 		t.Logf("Detected format: %v", format)
 		if result["suggestedMappings"] == nil {
@@ -380,7 +384,7 @@ func importWithSuggestedMappings(t *testing.T, c *E2EClient, filename, csv strin
 	up := uploadCSV(t, c, filename, csv)
 	requireStatus(t, up, http.StatusOK)
 	var u map[string]interface{}
-	up.JSON(&u)
+	up.MustJSON(t, &u)
 	token, _ := u["uploadToken"].(string)
 
 	requireStatus(t, c.POST("/imports/preview", map[string]interface{}{
@@ -392,7 +396,7 @@ func importWithSuggestedMappings(t *testing.T, c *E2EClient, filename, csv strin
 	list := c.GET("/flights")
 	requireStatus(t, list, http.StatusOK)
 	var lr map[string]interface{}
-	list.JSON(&lr)
+	list.MustJSON(t, &lr)
 	data, _ := lr["data"].([]interface{})
 	out := make([]map[string]interface{}, 0, len(data))
 	for _, d := range data {

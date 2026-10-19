@@ -28,7 +28,7 @@ func createULRatingCur(t *testing.T, c *E2EClient, licID, kind string) string {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var r map[string]interface{}
-	resp.JSON(&r)
+	resp.MustJSON(t, &r)
 	return r["id"].(string)
 }
 
@@ -78,7 +78,7 @@ func TestAircraft_ULKind(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ac map[string]interface{}
-	resp.JSON(&ac)
+	resp.MustJSON(t, &ac)
 	assertStr(t, "ulKind", ac["ulKind"], "THREE_AXIS")
 	id := ac["id"].(string)
 
@@ -97,7 +97,7 @@ func TestAircraft_ULKind(t *testing.T) {
 		resp := c.PATCH("/aircraft/"+id, map[string]interface{}{"ulKind": "THREE_AXIS_MOTORGLIDER"})
 		requireStatus(t, resp, http.StatusOK)
 		var got map[string]interface{}
-		resp.JSON(&got)
+		resp.MustJSON(t, &got)
 		assertStr(t, "ulKind", got["ulKind"], "THREE_AXIS_MOTORGLIDER")
 	})
 
@@ -105,7 +105,7 @@ func TestAircraft_ULKind(t *testing.T) {
 		resp := c.PATCH("/aircraft/"+id, map[string]interface{}{"aircraftClass": "SEP_LAND"})
 		requireStatus(t, resp, http.StatusOK)
 		var got map[string]interface{}
-		resp.JSON(&got)
+		resp.MustJSON(t, &got)
 		if _, ok := got["ulKind"]; ok {
 			t.Errorf("ulKind = %v, want cleared on SEP_LAND", got["ulKind"])
 		}
@@ -116,7 +116,7 @@ func TestAircraft_ULKind(t *testing.T) {
 		resp := c.PATCH("/aircraft/"+id, map[string]interface{}{"ulKind": nil})
 		requireStatus(t, resp, http.StatusOK)
 		var got map[string]interface{}
-		resp.JSON(&got)
+		resp.MustJSON(t, &got)
 		if _, ok := got["ulKind"]; ok {
 			t.Errorf("ulKind = %v, want cleared by null", got["ulKind"])
 		}
@@ -132,7 +132,7 @@ func TestClassRating_ULKind(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var cr map[string]interface{}
-	resp.JSON(&cr)
+	resp.MustJSON(t, &cr)
 	assertStr(t, "ulKind", cr["ulKind"], "GYROPLANE")
 
 	t.Run("aircraft-only kind rejected on a rating", func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestClassRating_ULKind(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var got map[string]interface{}
-		resp.JSON(&got)
+		resp.MustJSON(t, &got)
 		if _, ok := got["ulKind"]; ok {
 			t.Errorf("ulKind = %v, want none on SEP_LAND", got["ulKind"])
 		}
@@ -161,7 +161,7 @@ func TestClassRating_ULKind(t *testing.T) {
 		resp := c.PATCH(fmt.Sprintf("/licenses/%s/ratings/%s", licID, cr["id"]), map[string]interface{}{"ulKind": "THREE_AXIS"})
 		requireStatus(t, resp, http.StatusOK)
 		var got map[string]interface{}
-		resp.JSON(&got)
+		resp.MustJSON(t, &got)
 		assertStr(t, "ulKind", got["ulKind"], "THREE_AXIS")
 	})
 }
@@ -321,7 +321,7 @@ func TestBackup_ULKindRoundTrips(t *testing.T) {
 	var page struct {
 		Data []map[string]interface{} `json:"data"`
 	}
-	resp.JSON(&page)
+	resp.MustJSON(t, &page)
 	if len(page.Data) != 1 {
 		t.Fatalf("aircraft = %d, want 1", len(page.Data))
 	}
@@ -330,14 +330,14 @@ func TestBackup_ULKindRoundTrips(t *testing.T) {
 	resp = dest.GET("/licenses")
 	requireStatus(t, resp, http.StatusOK)
 	var licenses []map[string]interface{}
-	resp.JSON(&licenses)
+	resp.MustJSON(t, &licenses)
 	if len(licenses) != 1 {
 		t.Fatalf("licenses = %d, want 1", len(licenses))
 	}
 	resp = dest.GET(fmt.Sprintf("/licenses/%s/ratings", licenses[0]["id"]))
 	requireStatus(t, resp, http.StatusOK)
 	var ratings []map[string]interface{}
-	resp.JSON(&ratings)
+	resp.MustJSON(t, &ratings)
 	if len(ratings) != 1 {
 		t.Fatalf("ratings = %d, want 1", len(ratings))
 	}

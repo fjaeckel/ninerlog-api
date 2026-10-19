@@ -23,7 +23,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 		resp := c.POST("/auth/2fa/setup", nil)
 		requireStatus(t, resp, http.StatusOK)
 		var setup map[string]interface{}
-		resp.JSON(&setup)
+		resp.MustJSON(t, &setup)
 		if setup["secret"] == nil {
 			t.Fatal("Expected secret")
 		}
@@ -51,7 +51,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 			t.Skip("Skipping remaining 2FA tests - verify failed")
 		}
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		if result["recoveryCodes"] != nil {
 			recoveryCodes = result["recoveryCodes"].([]interface{})
 			t.Logf("Got %d recovery codes", len(recoveryCodes))
@@ -74,7 +74,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 		resp := c.POST("/auth/login", map[string]string{"email": email, "password": pw})
 		requireStatus(t, resp, http.StatusOK)
 		var auth AuthResponseBody
-		resp.JSON(&auth)
+		resp.MustJSON(t, &auth)
 		if !auth.RequiresTwoFactor {
 			t.Error("Expected requiresTwoFactor=true")
 		}
@@ -91,7 +91,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 		resp := c.POST("/auth/login", map[string]string{"email": email, "password": pw})
 		requireStatus(t, resp, http.StatusOK)
 		var loginResp AuthResponseBody
-		resp.JSON(&loginResp)
+		resp.MustJSON(t, &loginResp)
 
 		code, _ := totp.GenerateCode(secret, time.Now())
 		resp = c.POST("/auth/2fa/login", map[string]interface{}{
@@ -100,7 +100,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		var auth AuthResponseBody
-		resp.JSON(&auth)
+		resp.MustJSON(t, &auth)
 		if auth.AccessToken == "" {
 			t.Error("Expected accessToken after 2FA login")
 		}
@@ -115,7 +115,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 		resp := c.POST("/auth/login", map[string]string{"email": email, "password": pw})
 		requireStatus(t, resp, http.StatusOK)
 		var loginResp AuthResponseBody
-		resp.JSON(&loginResp)
+		resp.MustJSON(t, &loginResp)
 		resp = c.POST("/auth/2fa/login", map[string]interface{}{
 			"twoFactorToken": loginResp.TwoFactorToken, "code": "000000",
 		})
@@ -137,7 +137,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 		resp := c.POST("/auth/login", map[string]string{"email": email, "password": pw})
 		requireStatus(t, resp, http.StatusOK)
 		var loginResp AuthResponseBody
-		resp.JSON(&loginResp)
+		resp.MustJSON(t, &loginResp)
 
 		resp = c.POST("/auth/2fa/login", map[string]interface{}{
 			"twoFactorToken": loginResp.TwoFactorToken,
@@ -145,7 +145,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		var auth AuthResponseBody
-		resp.JSON(&auth)
+		resp.MustJSON(t, &auth)
 		c.SetToken(auth.AccessToken)
 	})
 
@@ -157,7 +157,7 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 		resp := c.POST("/auth/login", map[string]string{"email": email, "password": pw})
 		requireStatus(t, resp, http.StatusOK)
 		var loginResp AuthResponseBody
-		resp.JSON(&loginResp)
+		resp.MustJSON(t, &loginResp)
 		resp = c.POST("/auth/2fa/login", map[string]interface{}{
 			"twoFactorToken": loginResp.TwoFactorToken,
 			"code":           recoveryCodes[0].(string),
@@ -175,14 +175,14 @@ func TestTwoFactorSetupAndLogin(t *testing.T) {
 			resp := c.POST("/auth/login", map[string]string{"email": email, "password": pw})
 			requireStatus(t, resp, http.StatusOK)
 			var lr AuthResponseBody
-			resp.JSON(&lr)
+			resp.MustJSON(t, &lr)
 			code, _ := totp.GenerateCode(secret, time.Now())
 			resp = c.POST("/auth/2fa/login", map[string]interface{}{
 				"twoFactorToken": lr.TwoFactorToken, "code": code,
 			})
 			requireStatus(t, resp, http.StatusOK)
 			var auth AuthResponseBody
-			resp.JSON(&auth)
+			resp.MustJSON(t, &auth)
 			c.SetToken(auth.AccessToken)
 		}
 		resp := c.POST("/auth/2fa/disable", map[string]string{"password": pw})

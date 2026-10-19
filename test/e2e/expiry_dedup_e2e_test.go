@@ -80,7 +80,7 @@ func TestNotificationEmailNearestThresholdOnly(t *testing.T) {
 	resp := c.GET("/users/me/notifications/history")
 	requireStatus(t, resp, http.StatusOK)
 	var history map[string]interface{}
-	resp.JSON(&history)
+	resp.MustJSON(t, &history)
 	if total := int(history["total"].(float64)); total != 1 {
 		t.Errorf("history total = %d, want 1 (skipped thresholds are not listed)", total)
 	}

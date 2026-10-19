@@ -3,6 +3,7 @@ package cryptoutil
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -107,7 +108,7 @@ func TestDecryptRejectsShortNonce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encrypt: %v", err)
 	}
-	if _, err := a.Decrypt(ct, []byte{0x01}); err != ErrInvalidCiphertext {
+	if _, err := a.Decrypt(ct, []byte{0x01}); !errors.Is(err, ErrInvalidCiphertext) {
 		t.Fatalf("expected ErrInvalidCiphertext, got %v", err)
 	}
 }
@@ -115,7 +116,7 @@ func TestDecryptRejectsShortNonce(t *testing.T) {
 func TestNewRejectsWrongKeySize(t *testing.T) {
 	for _, n := range []int{0, 1, 16, 31, 33, 64} {
 		key := make([]byte, n)
-		if _, err := New(key); err != ErrInvalidKey {
+		if _, err := New(key); !errors.Is(err, ErrInvalidKey) {
 			t.Errorf("New(len=%d): expected ErrInvalidKey, got %v", n, err)
 		}
 	}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -102,7 +103,7 @@ func TestCreateInvalidLicense(t *testing.T) {
 	}
 
 	err := service.CreateLicense(ctx, license)
-	if err != ErrInvalidLicense {
+	if !errors.Is(err, ErrInvalidLicense) {
 		t.Errorf("Expected ErrInvalidLicense, got %v", err)
 	}
 }
@@ -157,7 +158,7 @@ func TestGetLicenseUnauthorized(t *testing.T) {
 	_ = service.CreateLicense(ctx, license)
 
 	_, err := service.GetLicense(ctx, license.ID, otherUserID)
-	if err != ErrUnauthorizedAccess {
+	if !errors.Is(err, ErrUnauthorizedAccess) {
 		t.Errorf("Expected ErrUnauthorizedAccess, got %v", err)
 	}
 }
@@ -266,7 +267,7 @@ func TestDeleteLicense(t *testing.T) {
 
 	// Verify deletion
 	_, err = service.GetLicense(ctx, license.ID, userID)
-	if err != ErrLicenseNotFound {
+	if !errors.Is(err, ErrLicenseNotFound) {
 		t.Errorf("Expected ErrLicenseNotFound, got %v", err)
 	}
 }

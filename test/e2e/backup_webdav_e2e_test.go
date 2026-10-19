@@ -220,7 +220,7 @@ func TestBackup_WebDAV_UserIsolation(t *testing.T) {
 	createResp := cA.POST("/backups/destinations", newWebDAVDestPayload("userA"+time.Now().Format("150405")))
 	requireStatus(t, createResp, http.StatusCreated)
 	var dest backupDestination
-	createResp.JSON(&dest)
+	createResp.MustJSON(t, &dest)
 
 	cB := NewE2EClient(t)
 	registerAndLogin(t, cB, uniqueEmail("backup-webdav-userB"), "Password123!", "User B")

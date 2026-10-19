@@ -6,11 +6,11 @@ import (
 )
 
 func TestLoadSMTPConfig_Defaults(t *testing.T) {
-	os.Unsetenv("SMTP_HOST")
-	os.Unsetenv("SMTP_PORT")
-	os.Unsetenv("SMTP_USERNAME")
-	os.Unsetenv("SMTP_PASSWORD")
-	os.Unsetenv("SMTP_FROM")
+	for _, k := range []string{"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM"} {
+		if err := os.Unsetenv(k); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	cfg := LoadSMTPConfig()
 	if cfg.Host != "" {
@@ -102,7 +102,9 @@ func TestGetEnv_WithValue(t *testing.T) {
 }
 
 func TestGetEnv_WithDefault(t *testing.T) {
-	os.Unsetenv("TEST_SMTP_MISSING")
+	if err := os.Unsetenv("TEST_SMTP_MISSING"); err != nil {
+		t.Fatal(err)
+	}
 	val := getEnv("TEST_SMTP_MISSING", "default_val")
 	if val != "default_val" {
 		t.Errorf("getEnv() = %q, want default_val", val)
