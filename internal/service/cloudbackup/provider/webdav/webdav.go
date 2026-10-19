@@ -257,7 +257,7 @@ func parseConfig(cfg provider.Config, creds provider.Credentials) (*parsedConfig
 	if err != nil {
 		return nil, "", "", fmt.Errorf("%w: base_url is not a valid URL: %v", provider.ErrInvalidConfig, err)
 	}
-	if u.Scheme != "https" && !(allowInsecure && u.Scheme == "http") {
+	if u.Scheme != "https" && (!allowInsecure || u.Scheme != "http") {
 		return nil, "", "", fmt.Errorf("%w: base_url must use https://", provider.ErrInvalidConfig)
 	}
 	if u.Host == "" {

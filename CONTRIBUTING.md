@@ -9,7 +9,7 @@ For general project guidelines, see the [project-level CONTRIBUTING.md](https://
 - **Go 1.27.2+**
 - **PostgreSQL 16+** (or Docker)
 - **Docker & Docker Compose**
-- **golangci-lint**
+- **golangci-lint** — `make lint` runs the pinned v2.15.0; no separate install needed
 - **k6** (for performance tests, optional)
 
 ## Getting Started
@@ -165,7 +165,7 @@ bash scripts/run-all-tests.sh         # Everything
 Before committing, **all** of these must pass:
 
 ```bash
-make lint              # golangci-lint
+make lint              # golangci-lint v2.15.0 (pinned, enforced in CI)
 make fmt               # go fmt
 go test ./...          # Unit tests
 bash scripts/run-e2e-tests.sh   # E2E tests

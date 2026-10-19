@@ -1276,3 +1276,10 @@ var genericExtraColumns = map[string]Field{
 	"flight review": FieldIsFlightReview,
 	"ipc":           FieldIsIpc,
 }
+
+// Templates referenced only through the registry.
+var _ = []*Template{
+	ninerlogTemplate, logTenTemplate, myFlightbookTemplate, capzlogTemplate,
+	flylogTemplate, waderTemplate, vereinsfliegerTemplate, vereinsfliegerExtendedTemplate,
+	skyDemonTemplate, webLogbookTemplate, easaTemplate, faaTemplate,
+}

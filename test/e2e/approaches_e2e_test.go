@@ -26,7 +26,7 @@ func TestInstrumentApproaches(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		approaches := f["approaches"].([]interface{})
 		if len(approaches) != 2 {
@@ -57,7 +57,7 @@ func TestInstrumentApproaches(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "approachesCount", gi(f, "approachesCount"), 3)
 	})
 
@@ -85,7 +85,7 @@ func TestInstrumentApproaches(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var created map[string]interface{}
-		r.JSON(&created)
+		r.MustJSON(t, &created)
 		fid := created["id"].(string)
 
 		r = c.PUT("/flights/"+fid, map[string]interface{}{
@@ -97,7 +97,7 @@ func TestInstrumentApproaches(t *testing.T) {
 		})
 		requireStatus(t, r, 200)
 		var updated map[string]interface{}
-		r.JSON(&updated)
+		r.MustJSON(t, &updated)
 		assertInt(t, "approachesCount after update", gi(updated, "approachesCount"), 3)
 
 		approaches := updated["approaches"].([]interface{})
@@ -116,12 +116,12 @@ func TestInstrumentApproaches(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var created map[string]interface{}
-		r.JSON(&created)
+		r.MustJSON(t, &created)
 
 		r = c.GET("/flights/" + created["id"].(string))
 		requireStatus(t, r, 200)
 		var fetched map[string]interface{}
-		r.JSON(&fetched)
+		r.MustJSON(t, &fetched)
 
 		approaches := fetched["approaches"].([]interface{})
 		if len(approaches) != 1 {
@@ -141,7 +141,7 @@ func TestInstrumentApproaches(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "approachesCount zero", gi(f, "approachesCount"), 0)
 	})
 }

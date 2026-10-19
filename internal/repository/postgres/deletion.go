@@ -49,7 +49,7 @@ func (r *deletionRepository) ListSince(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var deletions []*models.Deletion
 	for rows.Next() {

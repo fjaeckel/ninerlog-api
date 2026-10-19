@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func TestUserRepositoryIntegration(t *testing.T) {
 
 	t.Run("Get non-existent user", func(t *testing.T) {
 		_, err := repo.GetByEmail(ctx, "nonexistent@example.com")
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("Expected ErrNotFound, got %v", err)
 		}
 	})
@@ -61,7 +62,7 @@ func TestUserRepositoryIntegration(t *testing.T) {
 
 		user2 := testutil.CreateTestUser("duplicate@example.com", "User 2", "hash2")
 		err = repo.Create(ctx, user2)
-		if err != repository.ErrDuplicateEmail {
+		if !errors.Is(err, repository.ErrDuplicateEmail) {
 			t.Errorf("Expected ErrDuplicateEmail, got %v", err)
 		}
 	})
@@ -155,10 +156,10 @@ func TestRefreshTokenRepositoryIntegration(t *testing.T) {
 
 		next := testutil.CreateTestRefreshToken(user.ID, "deadnext")
 		next.SessionID = first.SessionID
-		if err := tokenRepo.CreateInLiveSession(ctx, next); err != repository.ErrNotFound {
+		if err := tokenRepo.CreateInLiveSession(ctx, next); !errors.Is(err, repository.ErrNotFound) {
 			t.Fatalf("CreateInLiveSession() error = %v, want ErrNotFound", err)
 		}
-		if _, err := tokenRepo.GetByTokenHash(ctx, next.TokenHash); err != repository.ErrNotFound {
+		if _, err := tokenRepo.GetByTokenHash(ctx, next.TokenHash); !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("GetByTokenHash() for the refused token error = %v, want ErrNotFound", err)
 		}
 	})
@@ -174,7 +175,7 @@ func TestRefreshTokenRepositoryIntegration(t *testing.T) {
 
 		next := testutil.CreateTestRefreshToken(user.ID, "rotatednext")
 		next.SessionID = first.SessionID
-		if err := tokenRepo.CreateInLiveSession(ctx, next); err != repository.ErrNotFound {
+		if err := tokenRepo.CreateInLiveSession(ctx, next); !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("CreateInLiveSession() error = %v, want ErrNotFound", err)
 		}
 	})

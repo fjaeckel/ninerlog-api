@@ -18,7 +18,7 @@ func TestNotificationPreferencesDefaults(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		if prefs["emailEnabled"] != true {
 			t.Errorf("Default emailEnabled should be true, got %v", prefs["emailEnabled"])
@@ -61,7 +61,7 @@ func TestNotificationPreferencesUpdate(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		categories := prefs["enabledCategories"].([]interface{})
 		if len(categories) != 2 {
@@ -87,7 +87,7 @@ func TestNotificationPreferencesUpdate(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		if int(prefs["checkHour"].(float64)) != 14 {
 			t.Errorf("Expected checkHour 14, got %v", prefs["checkHour"])
@@ -101,7 +101,7 @@ func TestNotificationPreferencesUpdate(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		days := prefs["warningDays"].([]interface{})
 		if len(days) != 4 {
@@ -116,7 +116,7 @@ func TestNotificationPreferencesUpdate(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		if prefs["emailEnabled"] != false {
 			t.Errorf("Expected emailEnabled false, got %v", prefs["emailEnabled"])
@@ -130,7 +130,7 @@ func TestNotificationPreferencesUpdate(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		if prefs["emailEnabled"] != true {
 			t.Errorf("Expected emailEnabled true, got %v", prefs["emailEnabled"])
@@ -158,7 +158,7 @@ func TestNotificationPreferencesUpdate(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		if prefs["emailEnabled"] != true {
 			t.Error("Expected emailEnabled true")
@@ -198,7 +198,7 @@ func TestNotificationPreferencesValidation(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		categories := prefs["enabledCategories"].([]interface{})
 		if len(categories) != 0 {
@@ -213,7 +213,7 @@ func TestNotificationPreferencesValidation(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		days := prefs["warningDays"].([]interface{})
 		if len(days) != 0 {
@@ -252,7 +252,7 @@ func TestNotificationHistory(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var history map[string]interface{}
-		resp.JSON(&history)
+		resp.MustJSON(t, &history)
 
 		items := history["items"].([]interface{})
 		if len(items) != 0 {
@@ -270,7 +270,7 @@ func TestNotificationHistory(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var history map[string]interface{}
-		resp.JSON(&history)
+		resp.MustJSON(t, &history)
 
 		if _, ok := history["items"]; !ok {
 			t.Error("Response should have 'items' field")
@@ -299,7 +299,7 @@ func TestNotificationPreferencesIsolation(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		if prefs["emailEnabled"] != true {
 			t.Error("User2 emailEnabled should still be true (defaults)")
@@ -332,7 +332,7 @@ func TestNotificationAllCategories(t *testing.T) {
 			requireStatus(t, resp, http.StatusOK)
 
 			var prefs map[string]interface{}
-			resp.JSON(&prefs)
+			resp.MustJSON(t, &prefs)
 
 			categories := prefs["enabledCategories"].([]interface{})
 			if len(categories) != 1 {
@@ -351,7 +351,7 @@ func TestNotificationAllCategories(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 
 		var prefs map[string]interface{}
-		resp.JSON(&prefs)
+		resp.MustJSON(t, &prefs)
 
 		categories := prefs["enabledCategories"].([]interface{})
 		if len(categories) != 10 {
@@ -575,7 +575,7 @@ func TestNotificationEmailAppearsInHistory(t *testing.T) {
 	requireStatus(t, resp, http.StatusOK)
 
 	var history map[string]interface{}
-	resp.JSON(&history)
+	resp.MustJSON(t, &history)
 
 	total := int(history["total"].(float64))
 	if total == 0 {

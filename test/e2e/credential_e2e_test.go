@@ -21,7 +21,7 @@ func TestCredentialCRUD(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var cr map[string]interface{}
-		resp.JSON(&cr)
+		resp.MustJSON(t, &cr)
 		credID = cr["id"].(string)
 	})
 
@@ -49,7 +49,7 @@ func TestCredentialCRUD(t *testing.T) {
 		resp := c.GET("/credentials")
 		requireStatus(t, resp, http.StatusOK)
 		var creds []interface{}
-		resp.JSON(&creds)
+		resp.MustJSON(t, &creds)
 		if len(creds) < 4 {
 			t.Errorf("Expected >=4, got %d", len(creds))
 		}
@@ -98,14 +98,14 @@ func TestCredentialIsolation(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var cr map[string]interface{}
-	resp.JSON(&cr)
+	resp.MustJSON(t, &cr)
 	cid := cr["id"].(string)
 
 	t.Run("user2 cannot see", func(t *testing.T) {
 		resp := c2.GET("/credentials")
 		requireStatus(t, resp, http.StatusOK)
 		var creds []interface{}
-		resp.JSON(&creds)
+		resp.MustJSON(t, &creds)
 		if len(creds) != 0 {
 			t.Errorf("Expected 0, got %d", len(creds))
 		}

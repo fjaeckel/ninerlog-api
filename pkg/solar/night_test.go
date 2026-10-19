@@ -68,8 +68,8 @@ func TestIsNight_Airports(t *testing.T) {
 		{"PHNL October 06:00 HST before civil dawn", phnl, "2026-10-20T16:00:00Z", true},
 		{"WSSS equinox 07:30 SGT", wsss, "2026-03-21T23:30:00Z", false},
 		{"WSSS equinox 06:30 SGT", wsss, "2026-03-21T22:30:00Z", true},
-		{"SEQM equinox 18:30 ECT", seqm, "2026-03-21T23:30:00Z", false},
-		{"SEQM equinox 19:00 ECT", seqm, "2026-03-22T00:00:00Z", true},
+		{"SEQM equinox 18:30 ECT", seqm, "2026-03-21T23:30:00Z", false}, //nolint:misspell // ECT is Ecuador Time
+		{"SEQM equinox 19:00 ECT", seqm, "2026-03-22T00:00:00Z", true},  //nolint:misspell // ECT is Ecuador Time
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

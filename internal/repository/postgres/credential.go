@@ -68,7 +68,7 @@ func (r *credentialRepository) GetByUserID(ctx context.Context, userID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var credentials []*models.Credential
 	for rows.Next() {

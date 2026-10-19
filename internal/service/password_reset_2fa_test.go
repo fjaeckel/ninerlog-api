@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -129,7 +130,7 @@ func TestResetPasswordWithoutTwoFactorCodeIsRejected(t *testing.T) {
 	token := f.requestToken(t)
 
 	_, err := f.auth.ResetPassword(context.Background(), token, "brandnewPassword1234!", "")
-	if err != service.ErrTwoFactorRequired {
+	if !errors.Is(err, service.ErrTwoFactorRequired) {
 		t.Fatalf("Expected ErrTwoFactorRequired, got %v", err)
 	}
 
@@ -151,7 +152,7 @@ func TestResetPasswordWithWrongTwoFactorCodeIsRejected(t *testing.T) {
 	token := f.requestToken(t)
 
 	_, err := f.auth.ResetPassword(context.Background(), token, "brandnewPassword1234!", "000000")
-	if err != service.ErrInvalidTOTPCode {
+	if !errors.Is(err, service.ErrInvalidTOTPCode) {
 		t.Fatalf("Expected ErrInvalidTOTPCode, got %v", err)
 	}
 
@@ -262,7 +263,7 @@ func TestResetPasswordWithoutValidatorFailsClosed(t *testing.T) {
 	}
 
 	_, err = auth.ResetPassword(ctx, reset.Token, "brandnewPassword1234!", "123456")
-	if err != service.ErrTwoFactorUnavailable {
+	if !errors.Is(err, service.ErrTwoFactorUnavailable) {
 		t.Fatalf("Expected ErrTwoFactorUnavailable, got %v", err)
 	}
 }

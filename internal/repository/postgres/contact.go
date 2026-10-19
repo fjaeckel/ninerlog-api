@@ -122,7 +122,7 @@ func (r *ContactRepository) GetByUserID(ctx context.Context, userID uuid.UUID, u
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var contacts []*models.Contact
 	for rows.Next() {
@@ -160,7 +160,7 @@ func (r *ContactRepository) Search(ctx context.Context, userID uuid.UUID, query 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var contacts []*models.Contact
 	for rows.Next() {
@@ -269,7 +269,7 @@ func (r *ContactRepository) RolesByContact(ctx context.Context, userID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make(map[uuid.UUID][]string)
 	for rows.Next() {

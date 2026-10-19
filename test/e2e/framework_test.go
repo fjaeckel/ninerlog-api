@@ -56,6 +56,14 @@ func (r *Response) JSON(target interface{}) error {
 	return json.Unmarshal(r.Body, target)
 }
 
+// MustJSON decodes the body into target and fails the test on error.
+func (r *Response) MustJSON(t *testing.T, target interface{}) {
+	t.Helper()
+	if err := r.JSON(target); err != nil {
+		t.Fatalf("decode response body (status %d): %v: %s", r.StatusCode, err, r.Body)
+	}
+}
+
 func (c *E2EClient) Do(method, path string, body interface{}) *Response {
 	c.t.Helper()
 	return c.DoWithHeaders(method, path, body, nil)
@@ -90,7 +98,7 @@ func (c *E2EClient) DoWithHeaders(method, path string, body interface{}, headers
 	if err != nil {
 		c.t.Fatalf("Request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	return &Response{StatusCode: resp.StatusCode, Body: respBody, Headers: resp.Header}
 }
@@ -122,7 +130,7 @@ func (c *E2EClient) DoRaw(method, url string, body interface{}) *Response {
 	if err != nil {
 		c.t.Fatalf("Raw request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	return &Response{StatusCode: resp.StatusCode, Body: respBody, Headers: resp.Header}
 }
@@ -165,7 +173,7 @@ func registerUser(t *testing.T, c *E2EClient, email, password, name string) Auth
 	verifyResp := c.POST("/auth/verify-email", map[string]string{"token": token})
 	requireStatus(t, verifyResp, http.StatusOK)
 	var auth AuthResponseBody
-	verifyResp.JSON(&auth)
+	verifyResp.MustJSON(t, &auth)
 	return auth
 }
 
@@ -197,7 +205,7 @@ func loginUser(t *testing.T, c *E2EClient, email, password string) AuthResponseB
 	resp := c.POST("/auth/login", map[string]string{"email": email, "password": password})
 	requireStatus(t, resp, http.StatusOK)
 	var auth AuthResponseBody
-	resp.JSON(&auth)
+	resp.MustJSON(t, &auth)
 	return auth
 }
 
@@ -251,7 +259,7 @@ func mailpitDeleteAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to clear MailPit: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 }
 
 // mailpitSearchByRecipient searches MailPit for messages to a specific email
@@ -265,7 +273,7 @@ func mailpitSearchByRecipient(t *testing.T, email string) MailPitSearchResult {
 	if err != nil {
 		t.Fatalf("Failed to query MailPit: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	var result MailPitSearchResult
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -282,7 +290,7 @@ func mailpitGetMessages(t *testing.T) MailPitSearchResult {
 	if err != nil {
 		t.Fatalf("Failed to query MailPit messages: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	var result MailPitSearchResult
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -333,7 +341,7 @@ func mailpitGetMessage(t *testing.T, messageID string) MailPitFullMessage {
 	if err != nil {
 		t.Fatalf("Failed to get MailPit message %s: %v", messageID, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	var msg MailPitFullMessage
 	if err := json.Unmarshal(body, &msg); err != nil {
@@ -376,7 +384,7 @@ func TestHealthCheck(t *testing.T) {
 	resp := c.DoRaw("GET", "/health", nil)
 	requireStatus(t, resp, http.StatusOK)
 	var body map[string]string
-	resp.JSON(&body)
+	resp.MustJSON(t, &body)
 	if body["status"] != "ok" {
 		t.Errorf("Expected status ok, got %s", body["status"])
 	}

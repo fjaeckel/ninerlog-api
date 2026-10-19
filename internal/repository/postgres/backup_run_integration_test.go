@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -159,7 +160,7 @@ func TestBackupRunRepositoryIntegration(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		_, err := runRepo.GetByID(ctx, uuid.Nil)
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
 	})

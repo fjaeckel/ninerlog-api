@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -104,7 +105,7 @@ func TestBackupDestinationRepositoryIntegration(t *testing.T) {
 		if err := repo.Delete(ctx, d.ID); err != nil {
 			t.Fatalf("Delete: %v", err)
 		}
-		if _, err := repo.GetByID(ctx, d.ID); err != repository.ErrNotFound {
+		if _, err := repo.GetByID(ctx, d.ID); !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
 	})
@@ -170,7 +171,7 @@ func TestBackupDestinationRepositoryIntegration(t *testing.T) {
 
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		_, err := repo.GetByID(ctx, uuid.Nil)
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
 	})

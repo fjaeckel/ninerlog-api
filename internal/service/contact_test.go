@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -189,7 +190,7 @@ func TestGetContactUnauthorized(t *testing.T) {
 	_ = svc.CreateContact(ctx, contact)
 
 	_, err := svc.GetContact(ctx, contact.ID, uuid.New())
-	if err != service.ErrUnauthorizedContact {
+	if !errors.Is(err, service.ErrUnauthorizedContact) {
 		t.Errorf("Expected ErrUnauthorizedContact, got %v", err)
 	}
 }
@@ -199,7 +200,7 @@ func TestGetContactNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := svc.GetContact(ctx, uuid.New(), uuid.New())
-	if err != service.ErrContactNotFound {
+	if !errors.Is(err, service.ErrContactNotFound) {
 		t.Errorf("Expected ErrContactNotFound, got %v", err)
 	}
 }
@@ -262,7 +263,7 @@ func TestUpdateContactUnauthorized(t *testing.T) {
 
 	contact.Name = "Updated"
 	_, err := svc.UpdateContact(ctx, contact, uuid.New())
-	if err != service.ErrUnauthorizedContact {
+	if !errors.Is(err, service.ErrUnauthorizedContact) {
 		t.Errorf("Expected ErrUnauthorizedContact, got %v", err)
 	}
 }
@@ -281,7 +282,7 @@ func TestDeleteContact(t *testing.T) {
 	}
 
 	_, err = svc.GetContact(ctx, contact.ID, userID)
-	if err != service.ErrContactNotFound {
+	if !errors.Is(err, service.ErrContactNotFound) {
 		t.Errorf("Expected ErrContactNotFound after delete, got %v", err)
 	}
 }
@@ -291,7 +292,7 @@ func TestDeleteContactNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := svc.DeleteContact(ctx, uuid.New(), uuid.New())
-	if err != service.ErrContactNotFound {
+	if !errors.Is(err, service.ErrContactNotFound) {
 		t.Errorf("Expected ErrContactNotFound, got %v", err)
 	}
 }
@@ -376,7 +377,7 @@ func TestDeleteContact_Unauthorized(t *testing.T) {
 	_ = svc.CreateContact(ctx, contact)
 
 	err := svc.DeleteContact(ctx, contact.ID, otherID)
-	if err != service.ErrUnauthorizedContact {
+	if !errors.Is(err, service.ErrUnauthorizedContact) {
 		t.Errorf("Expected ErrUnauthorizedContact, got %v", err)
 	}
 }
@@ -387,7 +388,7 @@ func TestUpdateContact_NotFound(t *testing.T) {
 
 	contact := &models.Contact{ID: uuid.New(), Name: "Updated"}
 	_, err := svc.UpdateContact(ctx, contact, uuid.New())
-	if err != service.ErrContactNotFound {
+	if !errors.Is(err, service.ErrContactNotFound) {
 		t.Errorf("Expected ErrContactNotFound, got %v", err)
 	}
 }
@@ -416,18 +417,12 @@ func TestSearchContacts_LimitCapping(t *testing.T) {
 	userID := uuid.New()
 
 	// With limit 0, should default to 10
-	results, err := svc.SearchContacts(ctx, userID, "test", 0)
-	if err != nil {
+	if _, err := svc.SearchContacts(ctx, userID, "test", 0); err != nil {
 		t.Fatalf("SearchContacts() error = %v", err)
-	}
-	// Should return empty, not error
-	if results == nil {
-		// nil is acceptable for empty results
 	}
 
 	// With negative limit, should default to 10
-	_, err = svc.SearchContacts(ctx, userID, "test", -5)
-	if err != nil {
+	if _, err := svc.SearchContacts(ctx, userID, "test", -5); err != nil {
 		t.Fatalf("SearchContacts() with negative limit error = %v", err)
 	}
 }

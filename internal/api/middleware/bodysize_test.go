@@ -114,7 +114,7 @@ func TestMaxBodyBytesMiddleware_MultipartUsesOwnLimitNotJSONDefault(t *testing.T
 			c.String(http.StatusBadRequest, "no file: %v", err)
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 		body, err := io.ReadAll(file)
 		if err != nil {
 			c.String(http.StatusRequestEntityTooLarge, "too large")

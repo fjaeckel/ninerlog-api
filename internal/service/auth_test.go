@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
@@ -577,7 +578,7 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 
 	// Second registration with same email should fail
 	_, _, err = authService.Register(ctx, input)
-	if err != service.ErrUserAlreadyExists {
+	if !errors.Is(err, service.ErrUserAlreadyExists) {
 		t.Errorf("Expected ErrUserAlreadyExists, got %v", err)
 	}
 }
@@ -671,7 +672,7 @@ func TestLoginInvalidPassword(t *testing.T) {
 	}
 
 	_, _, err = authService.Login(ctx, loginInput)
-	if err != service.ErrInvalidCredentials {
+	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
 	}
 }
@@ -733,7 +734,7 @@ func TestRefreshTokenInvalid(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := authService.RefreshToken(ctx, "invalid-token")
-	if err != service.ErrInvalidToken {
+	if !errors.Is(err, service.ErrInvalidToken) {
 		t.Errorf("Expected ErrInvalidToken, got %v", err)
 	}
 }
@@ -763,7 +764,7 @@ func TestRefreshTokenRevoked(t *testing.T) {
 	}
 
 	_, err = authService.RefreshToken(ctx, tokens.RefreshToken)
-	if err != service.ErrTokenRevoked {
+	if !errors.Is(err, service.ErrTokenRevoked) {
 		t.Errorf("Expected ErrTokenRevoked, got %v", err)
 	}
 }
@@ -885,7 +886,7 @@ func TestResetPasswordInvalidToken(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := authService.ResetPassword(ctx, "invalid-token", "newpassword", "")
-	if err != service.ErrInvalidToken {
+	if !errors.Is(err, service.ErrInvalidToken) {
 		t.Errorf("Expected ErrInvalidToken, got %v", err)
 	}
 }
@@ -915,7 +916,7 @@ func TestResetPasswordUsedToken(t *testing.T) {
 	}
 
 	_, err = authService.ResetPassword(ctx, reset.Token, "anotherpassword", "")
-	if err != service.ErrTokenUsed {
+	if !errors.Is(err, service.ErrTokenUsed) {
 		t.Errorf("Expected ErrTokenUsed, got %v", err)
 	}
 }
@@ -958,7 +959,7 @@ func TestChangePassword(t *testing.T) {
 
 	// Change password with wrong current password should fail
 	err = authService.ChangePassword(ctx, user.ID, "WrongPassword1!", "another123")
-	if err != service.ErrInvalidCredentials {
+	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
 	}
 
@@ -995,7 +996,7 @@ func TestDeleteUser(t *testing.T) {
 
 	// Delete with wrong password should fail
 	err = authService.DeleteUser(ctx, userID, "WrongPassword1!")
-	if err != service.ErrInvalidCredentials {
+	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
 	}
 
@@ -1022,7 +1023,7 @@ func TestRegister_EmptyEmail(t *testing.T) {
 		Name:     "Test User",
 	}
 	_, _, err := authService.Register(ctx, input)
-	if err != service.ErrEmailRequired {
+	if !errors.Is(err, service.ErrEmailRequired) {
 		t.Errorf("Expected ErrEmailRequired, got %v", err)
 	}
 }
@@ -1037,7 +1038,7 @@ func TestRegister_EmptyPassword(t *testing.T) {
 		Name:     "Test User",
 	}
 	_, _, err := authService.Register(ctx, input)
-	if err != service.ErrPasswordRequired {
+	if !errors.Is(err, service.ErrPasswordRequired) {
 		t.Errorf("Expected ErrPasswordRequired, got %v", err)
 	}
 }
@@ -1052,7 +1053,7 @@ func TestRegister_EmptyName(t *testing.T) {
 		Name:     "",
 	}
 	_, _, err := authService.Register(ctx, input)
-	if err != service.ErrNameRequired {
+	if !errors.Is(err, service.ErrNameRequired) {
 		t.Errorf("Expected ErrNameRequired, got %v", err)
 	}
 }
@@ -1067,7 +1068,7 @@ func TestRegister_ShortPassword(t *testing.T) {
 		Name:     "Test User",
 	}
 	_, _, err := authService.Register(ctx, input)
-	if err != service.ErrPasswordTooShort {
+	if !errors.Is(err, service.ErrPasswordTooShort) {
 		t.Errorf("Expected ErrPasswordTooShort, got %v", err)
 	}
 }
@@ -1092,7 +1093,7 @@ func TestRegister_WeakPassword(t *testing.T) {
 				Password: password,
 				Name:     "Test User",
 			})
-			if err != service.ErrPasswordTooWeak {
+			if !errors.Is(err, service.ErrPasswordTooWeak) {
 				t.Errorf("Register(%q) = %v, want ErrPasswordTooWeak", password, err)
 			}
 		})
@@ -1109,7 +1110,7 @@ func TestRegister_InvalidEmail(t *testing.T) {
 		Name:     "Test User",
 	}
 	_, _, err := authService.Register(ctx, input)
-	if err != service.ErrInvalidEmail {
+	if !errors.Is(err, service.ErrInvalidEmail) {
 		t.Errorf("Expected ErrInvalidEmail, got %v", err)
 	}
 }
@@ -1123,7 +1124,7 @@ func TestLogin_NonexistentUser(t *testing.T) {
 		Password: "Password1234!",
 	}
 	_, _, err := authService.Login(ctx, loginInput)
-	if err != service.ErrInvalidCredentials {
+	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("Expected ErrInvalidCredentials, got %v", err)
 	}
 }
@@ -1223,7 +1224,7 @@ func TestRegister_LongPassword(t *testing.T) {
 		Name:     "Test User",
 	}
 	_, _, err := authService.Register(ctx, input)
-	if err != service.ErrPasswordTooLong {
+	if !errors.Is(err, service.ErrPasswordTooLong) {
 		t.Errorf("Expected ErrPasswordTooLong, got %v", err)
 	}
 }
@@ -1285,7 +1286,7 @@ func TestResetPassword_ShortPassword(t *testing.T) {
 	reset, _ := authService.RequestPasswordReset(ctx, "test@example.com")
 
 	_, err := authService.ResetPassword(ctx, reset.Token, "short", "")
-	if err != service.ErrPasswordTooShort {
+	if !errors.Is(err, service.ErrPasswordTooShort) {
 		t.Errorf("Expected ErrPasswordTooShort, got %v", err)
 	}
 }
@@ -1305,7 +1306,7 @@ func TestResetPassword_WeakPassword(t *testing.T) {
 
 	// Long enough, but no special character.
 	_, err := authService.ResetPassword(ctx, reset.Token, "Abcdefghij12", "")
-	if err != service.ErrPasswordTooWeak {
+	if !errors.Is(err, service.ErrPasswordTooWeak) {
 		t.Errorf("ResetPassword with weak password = %v, want ErrPasswordTooWeak", err)
 	}
 }
@@ -1322,13 +1323,13 @@ func TestChangePassword_WeakPassword(t *testing.T) {
 	})
 
 	err := authService.ChangePassword(ctx, user.ID, "Password1234!", "Abcdefghij12")
-	if err != service.ErrPasswordTooWeak {
+	if !errors.Is(err, service.ErrPasswordTooWeak) {
 		t.Errorf("ChangePassword with weak password = %v, want ErrPasswordTooWeak", err)
 	}
 
 	// The upper length bound applies to ChangePassword too.
 	long := strings.Repeat("aB1!", 18) + "x"
-	if err := authService.ChangePassword(ctx, user.ID, "Password1234!", long); err != service.ErrPasswordTooLong {
+	if err := authService.ChangePassword(ctx, user.ID, "Password1234!", long); !errors.Is(err, service.ErrPasswordTooLong) {
 		t.Errorf("ChangePassword with %d-byte password = %v, want ErrPasswordTooLong", len(long), err)
 	}
 }

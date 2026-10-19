@@ -67,7 +67,7 @@ func TestAuthorizationBoundaries(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var f map[string]interface{}
-	resp.JSON(&f)
+	resp.MustJSON(t, &f)
 	fid := f["id"].(string)
 
 	resp = c1.POST("/credentials", map[string]interface{}{
@@ -75,7 +75,7 @@ func TestAuthorizationBoundaries(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var cr map[string]interface{}
-	resp.JSON(&cr)
+	resp.MustJSON(t, &cr)
 	crid := cr["id"].(string)
 
 	t.Run("user2 cannot update user1 flight", func(t *testing.T) {
@@ -94,7 +94,7 @@ func TestAuthorizationBoundaries(t *testing.T) {
 		resp := c2.GET("/exports/json")
 		requireStatus(t, resp, http.StatusOK)
 		var data map[string]interface{}
-		resp.JSON(&data)
+		resp.MustJSON(t, &data)
 		if flights, ok := data["flights"].([]interface{}); ok {
 			for _, fl := range flights {
 				if fl.(map[string]interface{})["id"] == fid {

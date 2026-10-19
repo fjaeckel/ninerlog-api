@@ -22,7 +22,7 @@ func TestEndorsements(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		assertStr(t, "remarks", f["remarks"], "Normal training flight")
 		assertStr(t, "endorsements", f["endorsements"], "I certify that the above pilot has completed...")
@@ -36,7 +36,7 @@ func TestEndorsements(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		if f["endorsements"] != nil {
 			t.Logf("endorsements when not set: %v (expected nil)", f["endorsements"])
 		}
@@ -50,14 +50,14 @@ func TestEndorsements(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var created map[string]interface{}
-		r.JSON(&created)
+		r.MustJSON(t, &created)
 
 		r = c.PUT("/flights/"+created["id"].(string), map[string]interface{}{
 			"endorsements": "Added endorsement on update",
 		})
 		requireStatus(t, r, 200)
 		var updated map[string]interface{}
-		r.JSON(&updated)
+		r.MustJSON(t, &updated)
 		assertStr(t, "endorsements after update", updated["endorsements"], "Added endorsement on update")
 	})
 }
@@ -78,7 +78,7 @@ func TestMultiPilotTime(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		assertInt(t, "multiPilotTime", gi(f, "multiPilotTime"), 90)
 		assertStr(t, "picName", f["picName"], "Capt. Alpha")
@@ -92,7 +92,7 @@ func TestMultiPilotTime(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "multiPilotTime default", gi(f, "multiPilotTime"), 0)
 	})
 
@@ -104,14 +104,14 @@ func TestMultiPilotTime(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var created map[string]interface{}
-		r.JSON(&created)
+		r.MustJSON(t, &created)
 
 		r = c.PUT("/flights/"+created["id"].(string), map[string]interface{}{
 			"multiPilotTime": 75,
 		})
 		requireStatus(t, r, 200)
 		var updated map[string]interface{}
-		r.JSON(&updated)
+		r.MustJSON(t, &updated)
 		assertInt(t, "multiPilotTime after update", gi(updated, "multiPilotTime"), 75)
 	})
 }
@@ -139,7 +139,7 @@ func TestFSTDSessions(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 
 		if f["isSimulator"] != true {
 			t.Fatalf("isSimulator = %v, want true", f["isSimulator"])
@@ -212,7 +212,7 @@ func TestFSTDSessions(t *testing.T) {
 		before := c2.GET("/users/me/statistics")
 		requireStatus(t, before, 200)
 		var s1 map[string]interface{}
-		before.JSON(&s1)
+		before.MustJSON(t, &s1)
 
 		r = c2.POST("/flights", map[string]interface{}{
 			"date": today(), "aircraftType": "A320",
@@ -223,7 +223,7 @@ func TestFSTDSessions(t *testing.T) {
 		after := c2.GET("/users/me/statistics")
 		requireStatus(t, after, 200)
 		var s2 map[string]interface{}
-		after.JSON(&s2)
+		after.MustJSON(t, &s2)
 
 		for _, field := range []string{"totalFlights", "totalMinutes", "picMinutes", "dualMinutes", "nightMinutes", "ifrMinutes"} {
 			if gi(s1, field) != gi(s2, field) {
@@ -239,9 +239,11 @@ func TestFSTDSessions(t *testing.T) {
 		if r.StatusCode != 200 {
 			t.Skipf("aircraft stats unavailable: %d", r.StatusCode)
 		}
-		var stats []map[string]interface{}
-		r.JSON(&stats)
-		for _, a := range stats {
+		var stats struct {
+			Data []map[string]interface{} `json:"data"`
+		}
+		r.MustJSON(t, &stats)
+		for _, a := range stats.Data {
 			reg, _ := a["registration"].(string)
 			if reg == "" || reg == "FNPT II" || reg == "FFS A320" {
 				t.Errorf("fleet contains a simulator entry: %q", reg)
@@ -257,7 +259,7 @@ func TestFSTDSessions(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		if f["fstdType"] != nil {
 			t.Errorf("fstdType should be nil for a flight, got %v", f["fstdType"])
 		}

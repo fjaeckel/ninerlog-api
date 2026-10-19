@@ -11,11 +11,6 @@ import (
 
 // ─── Currency Test Helpers ──────────────────────────────────────────────────
 
-// pastMonth returns a date string N months ago.
-func pastMonth(months int) string {
-	return time.Now().AddDate(0, -months, 0).Format("2006-01-02")
-}
-
 // plusDays shifts a YYYY-MM-DD date string by n days.
 func plusDays(date string, n int) string {
 	d, err := time.Parse("2006-01-02", date)
@@ -58,7 +53,7 @@ func createLicenseCur(t *testing.T, c *E2EClient, authority, licType string) str
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	return lic["id"].(string)
 }
 
@@ -75,7 +70,7 @@ func createRatingCur(t *testing.T, c *E2EClient, licID, classType string, expiry
 	resp := c.POST(fmt.Sprintf("/licenses/%s/ratings", licID), body)
 	requireStatus(t, resp, http.StatusCreated)
 	var r map[string]interface{}
-	resp.JSON(&r)
+	resp.MustJSON(t, &r)
 	return r["id"].(string)
 }
 
@@ -92,7 +87,7 @@ func getCurrencyStatus(t *testing.T, c *E2EClient) map[string]interface{} {
 	resp := c.GET("/currency")
 	requireStatus(t, resp, http.StatusOK)
 	var result map[string]interface{}
-	resp.JSON(&result)
+	resp.MustJSON(t, &result)
 	return result
 }
 
@@ -173,7 +168,7 @@ func TestCurrencyStatus(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	lid := lic["id"].(string)
 
 	resp = c.POST(fmt.Sprintf("/licenses/%s/ratings", lid), map[string]interface{}{
@@ -185,7 +180,7 @@ func TestCurrencyStatus(t *testing.T) {
 		resp := c.GET("/currency")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		if r["ratings"] == nil {
 			t.Error("Expected ratings")
 		}
@@ -219,7 +214,7 @@ func TestLicenseStatistics(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	lid := lic["id"].(string)
 
 	for i := 0; i < 5; i++ {

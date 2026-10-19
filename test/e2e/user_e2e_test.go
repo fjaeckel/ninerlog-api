@@ -17,7 +17,7 @@ func TestUserProfile(t *testing.T) {
 		resp := c.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["email"] != email {
 			t.Errorf("Expected %s, got %v", email, u["email"])
 		}
@@ -27,7 +27,7 @@ func TestUserProfile(t *testing.T) {
 		resp := c.PATCH("/users/me", map[string]string{"name": "Updated"})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["name"] != "Updated" {
 			t.Errorf("Expected Updated, got %v", u["name"])
 		}
@@ -62,7 +62,7 @@ func TestUserProfile(t *testing.T) {
 		resp := c2.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["timeDisplayFormat"] != "hm" {
 			t.Errorf("Expected default timeDisplayFormat 'hm', got %v", u["timeDisplayFormat"])
 		}
@@ -74,14 +74,14 @@ func TestUserProfile(t *testing.T) {
 		resp := c2.PATCH("/users/me", map[string]string{"timeDisplayFormat": "decimal"})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["timeDisplayFormat"] != "decimal" {
 			t.Errorf("Expected timeDisplayFormat 'decimal', got %v", u["timeDisplayFormat"])
 		}
 		// Verify it persists on GET
 		resp = c2.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["timeDisplayFormat"] != "decimal" {
 			t.Errorf("Expected persisted timeDisplayFormat 'decimal', got %v", u["timeDisplayFormat"])
 		}
@@ -93,21 +93,21 @@ func TestUserProfile(t *testing.T) {
 		resp := c2.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["clockFormat"] != "24h" {
 			t.Errorf("Expected default clockFormat '24h', got %v", u["clockFormat"])
 		}
 
 		resp = c2.PATCH("/users/me", map[string]string{"clockFormat": "12h"})
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["clockFormat"] != "12h" {
 			t.Errorf("Expected clockFormat '12h', got %v", u["clockFormat"])
 		}
 
 		resp = c2.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["clockFormat"] != "12h" {
 			t.Errorf("Expected persisted clockFormat '12h', got %v", u["clockFormat"])
 		}
@@ -119,28 +119,28 @@ func TestUserProfile(t *testing.T) {
 		resp := c2.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["logbookTerms"] != "localized" {
 			t.Errorf("Expected default logbookTerms 'localized', got %v", u["logbookTerms"])
 		}
 
 		resp = c2.PATCH("/users/me", map[string]string{"logbookTerms": "english"})
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["logbookTerms"] != "english" {
 			t.Errorf("Expected logbookTerms 'english', got %v", u["logbookTerms"])
 		}
 
 		resp = c2.PATCH("/users/me", map[string]string{"logbookTerms": "klingon"})
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["logbookTerms"] != "english" {
 			t.Errorf("Expected unknown logbookTerms to be ignored, got %v", u["logbookTerms"])
 		}
 
 		resp = c2.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["logbookTerms"] != "english" {
 			t.Errorf("Expected persisted logbookTerms 'english', got %v", u["logbookTerms"])
 		}
@@ -154,7 +154,7 @@ func TestUserProfile(t *testing.T) {
 		resp := c2.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["recencyPerModel"] != true {
 			t.Errorf("Expected default recencyPerModel true, got %v", u["recencyPerModel"])
 		}
@@ -169,7 +169,7 @@ func TestUserProfile(t *testing.T) {
 		requireStatus(t, resp, http.StatusOK)
 		resp = c2.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["recencyPerModel"] != false {
 			t.Errorf("Expected recencyPerModel false after update, got %v", u["recencyPerModel"])
 		}
@@ -185,7 +185,7 @@ func TestUserProfile(t *testing.T) {
 		resp := c2.PATCH("/users/me", map[string]string{"timeDisplayFormat": "hm"})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["timeDisplayFormat"] != "hm" {
 			t.Errorf("Expected timeDisplayFormat 'hm', got %v", u["timeDisplayFormat"])
 		}
@@ -197,7 +197,7 @@ func TestUserProfile(t *testing.T) {
 		resp := c2.PATCH("/users/me", map[string]string{"timeDisplayFormat": "invalid_value"})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		// Should remain 'hm' (default), invalid value ignored
 		if u["timeDisplayFormat"] != "hm" {
 			t.Errorf("Expected timeDisplayFormat 'hm' after invalid update, got %v", u["timeDisplayFormat"])
@@ -229,7 +229,7 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		resp := c.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["flightListColumnMode"] != "auto" {
 			t.Errorf("Expected default flightListColumnMode 'auto', got %v", u["flightListColumnMode"])
 		}
@@ -248,7 +248,7 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["flightListColumnMode"] != "custom" {
 			t.Errorf("Expected flightListColumnMode 'custom', got %v", u["flightListColumnMode"])
 		}
@@ -260,7 +260,7 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		// And it survives a reload.
 		resp = c.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if got := columnsOf(t, u); !reflect.DeepEqual(got, want) {
 			t.Errorf("Persisted flightListColumns = %v, want %v", got, want)
 		}
@@ -280,7 +280,7 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		want := []string{
 			"actualInstrumentTime", "simulatedInstrumentTime", "groundTrainingTime",
 			"takeoffLandingTime", "takeoffs", "approaches", "approachTypes", "holds", "distance",
@@ -302,7 +302,7 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		resp := c.PATCH("/users/me", map[string]interface{}{"flightListColumns": []string{}})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["flightListColumnMode"] != "custom" {
 			t.Errorf("Expected flightListColumnMode to stay 'custom', got %v", u["flightListColumnMode"])
 		}
@@ -321,7 +321,7 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		resp := c.PATCH("/users/me", map[string]interface{}{"flightListColumnMode": "auto"})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["flightListColumnMode"] != "auto" {
 			t.Errorf("Expected flightListColumnMode 'auto', got %v", u["flightListColumnMode"])
 		}
@@ -337,7 +337,7 @@ func TestUserFlightListColumnPreferences(t *testing.T) {
 		resp := c.PATCH("/users/me", map[string]interface{}{"flightListColumnMode": "whatever"})
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["flightListColumnMode"] != "auto" {
 			t.Errorf("Expected flightListColumnMode to stay 'auto', got %v", u["flightListColumnMode"])
 		}
@@ -413,7 +413,7 @@ func TestDeleteAllUserData(t *testing.T) {
 		resp = c.GET("/licenses")
 		requireStatus(t, resp, http.StatusOK)
 		var lics []interface{}
-		resp.JSON(&lics)
+		resp.MustJSON(t, &lics)
 		if len(lics) != 0 {
 			t.Errorf("Expected 0 licenses, got %d", len(lics))
 		}

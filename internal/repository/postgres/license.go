@@ -88,7 +88,7 @@ func (r *licenseRepository) GetByUserID(ctx context.Context, userID uuid.UUID, u
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return r.scanLicenses(rows)
 }

@@ -159,7 +159,7 @@ func (p *customCurrencyDataProvider) MetricRowsByDate(ctx context.Context, userI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var flights []currency.FlightMetricRow
 	for rows.Next() {

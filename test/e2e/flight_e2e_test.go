@@ -58,7 +58,7 @@ func TestFlightCRUD(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EFLY", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		fid = f["id"].(string)
 		assertStr(t, "reg", f["aircraftReg"], "D-EFLY")
 	})
@@ -66,7 +66,7 @@ func TestFlightCRUD(t *testing.T) {
 		r := c.GET("/flights")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		if len(m["data"].([]interface{})) < 1 {
 			t.Error("empty")
 		}
@@ -76,7 +76,7 @@ func TestFlightCRUD(t *testing.T) {
 		r := c.PUT("/flights/"+fid, map[string]interface{}{"date": today(), "aircraftReg": "D-EFLY", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "10:00", "landings": 1, "remarks": "Updated"})
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertFloat(t, "totalTime", gf(f, "totalTime"), 120, 6)
 	})
 	t.Run("delete", func(t *testing.T) {
@@ -113,7 +113,7 @@ func TestFlightTotalTimeCalc(t *testing.T) {
 			r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-ETT", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": tc.off, "onBlockTime": tc.on, "landings": 1})
 			requireStatus(t, r, 201)
 			var f map[string]interface{}
-			r.JSON(&f)
+			r.MustJSON(t, &f)
 			assertFloat(t, "totalTime", gf(f, "totalTime"), tc.want, 6)
 		})
 	}
@@ -127,7 +127,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EPIC", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "10:00", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertBool(t, "isPic", gb(f, "isPic"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), false)
 		assertFloat(t, "picTime", gf(f, "picTime"), 120, 6)
@@ -139,7 +139,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EPIC", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "10:00", "onBlockTime": "12:00", "landings": 1, "crewMembers": []map[string]interface{}{{"name": "CFI Smith", "role": "Instructor"}}})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertBool(t, "isPic", gb(f, "isPic"), false)
 		assertBool(t, "isDual", gb(f, "isDual"), true)
 		assertFloat(t, "dualTime", gf(f, "dualTime"), 120, 6)
@@ -151,7 +151,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EPIC", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "13:00", "onBlockTime": "14:30", "landings": 1, "crewMembers": []map[string]interface{}{{"name": "Bob", "role": "Passenger"}}})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertBool(t, "isPic", gb(f, "isPic"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), false)
 		assertFloat(t, "picTime", gf(f, "picTime"), 90, 6)
@@ -162,7 +162,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-ESIC", "aircraftType": "PA44", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "15:00", "onBlockTime": "17:00", "landings": 1, "crewMembers": []map[string]interface{}{{"name": "FO", "role": "SIC"}}})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		t.Logf("sicTime with SIC crew: %.2f", gf(f, "sicTime"))
 	})
 
@@ -170,7 +170,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EINST", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "10:00", "landings": 1, "crewMembers": []map[string]interface{}{{"name": "Student", "role": "Student"}}, "dualGivenTime": 120})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		t.Logf("dualGivenTime: %.2f", gf(f, "dualGivenTime"))
 	})
 
@@ -178,7 +178,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-ESTU", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "11:00", "onBlockTime": "12:30", "landings": 3, "crewMembers": []map[string]interface{}{{"name": "PDS", "role": "Student"}}})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertFloat(t, "dualGivenTime", gf(f, "dualGivenTime"), 0, 0)
 		assertBool(t, "isPic", gb(f, "isPic"), true)
 		assertFloat(t, "picTime", gf(f, "picTime"), 90, 0)
@@ -189,7 +189,7 @@ func TestFlightPICDualSolo(t *testing.T) {
 			r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-ESTU", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "13:00", "onBlockTime": "14:30", "landings": 3, "crewMembers": []map[string]interface{}{{"name": "PDS", "role": "Student"}}, fn: 90})
 			requireStatus(t, r, 201)
 			var f map[string]interface{}
-			r.JSON(&f)
+			r.MustJSON(t, &f)
 			assertFloat(t, "dualGivenTime", gf(f, "dualGivenTime"), 0, 0)
 			assertFloat(t, fn, gf(f, fn), 90, 0)
 			assertFloat(t, "picTime", gf(f, "picTime"), 0, 0)
@@ -205,7 +205,7 @@ func TestFlightXCDistance(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EXC", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 90, 9)
 		d := gf(f, "distance")
 		if d < 50 || d > 80 {
@@ -218,7 +218,7 @@ func TestFlightXCDistance(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EXC", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "10:00", "onBlockTime": "11:00", "landings": 5})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertFloat(t, "crossCountryTime", gf(f, "crossCountryTime"), 0, 1)
 		assertFloat(t, "distance", gf(f, "distance"), 0.0, 0.1)
 	})
@@ -227,7 +227,7 @@ func TestFlightXCDistance(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EXC", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDM", "offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		d := gf(f, "distance")
 		if d < 70 || d > 120 {
 			t.Errorf("EDNY-EDDM: want ~90NM, got %.1f", d)
@@ -239,7 +239,7 @@ func TestFlightXCDistance(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "N12345", "aircraftType": "B738", "departureIcao": "KJFK", "arrivalIcao": "EGLL", "offBlockTime": "10:00", "onBlockTime": "17:30", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		d := gf(f, "distance")
 		assertFloat(t, "totalTime", gf(f, "totalTime"), 450, 6)
 		if d < 2900 || d > 3100 {
@@ -252,7 +252,7 @@ func TestFlightXCDistance(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EXC", "aircraftType": "C172", "departureIcao": "EDDS", "arrivalIcao": "EDTL", "offBlockTime": "08:00", "onBlockTime": "08:30", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		d := gf(f, "distance")
 		if d <= 0 {
 			t.Error("Expected positive distance")
@@ -269,7 +269,7 @@ func TestFlightNightTime(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": "2025-07-15", "aircraftReg": "D-ENGT", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "10:00", "onBlockTime": "11:30", "departureTime": "10:10", "arrivalTime": "11:20", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertFloat(t, "nightTime", gf(f, "nightTime"), 0, 6)
 		assertInt(t, "landingsDay", gi(f, "landingsDay"), 1)
 		assertInt(t, "landingsNight", gi(f, "landingsNight"), 0)
@@ -281,7 +281,7 @@ func TestFlightNightTime(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": "2025-12-15", "aircraftReg": "D-ENGT", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "18:00", "onBlockTime": "19:30", "departureTime": "18:10", "arrivalTime": "19:20", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		nt := gf(f, "nightTime")
 		// Night calc uses dep/arr times (1h10m), not block time (1.5h).
 		if nt < 1.0 {
@@ -298,7 +298,7 @@ func TestFlightNightTime(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": "2025-03-15", "aircraftReg": "D-ENGT", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "16:00", "onBlockTime": "18:30", "departureTime": "16:10", "arrivalTime": "18:20", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		nt := gf(f, "nightTime")
 		tt := gf(f, "totalTime")
 		if nt <= 0 {
@@ -318,7 +318,7 @@ func TestFlightNightTime(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": "2025-07-15", "aircraftReg": "D-ENGT", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "10:00", "onBlockTime": "11:30", "departureTime": "10:10", "arrivalTime": "11:20", "landings": 5})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "allLandings", gi(f, "allLandings"), 5)
 		assertInt(t, "landingsDay", gi(f, "landingsDay"), 5)
 		assertInt(t, "landingsNight", gi(f, "landingsNight"), 0)
@@ -328,7 +328,7 @@ func TestFlightNightTime(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": "2025-12-15", "aircraftReg": "D-ENGT", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "20:00", "onBlockTime": "21:30", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		t.Logf("Night without dep/arr times: nightTime=%.2f", gf(f, "nightTime"))
 	})
 }
@@ -352,7 +352,7 @@ func TestFlightAllFields(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		if f["id"] == nil {
 			t.Fatal("no id")
 		}
@@ -408,7 +408,7 @@ func TestFlightAllFields(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertBool(t, "isIpc", gb(f, "isIpc"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), true)
 		assertFloat(t, "dualTime", gf(f, "dualTime"), 120, 6)
@@ -433,7 +433,7 @@ func TestFlightAllFields(t *testing.T) {
 		})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertBool(t, "isProficiencyCheck", gb(f, "isProficiencyCheck"), true)
 		if crew, ok := f["crewMembers"].([]interface{}); ok {
 			assertStr(t, "role", crew[0].(map[string]interface{})["role"], "Examiner")
@@ -449,7 +449,7 @@ func TestFlightGliderLaunch(t *testing.T) {
 			r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-1234", "aircraftType": "ASK21", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "10:00", "onBlockTime": "10:45", "landings": 1, "launchMethod": m})
 			requireStatus(t, r, 201)
 			var f map[string]interface{}
-			r.JSON(&f)
+			r.MustJSON(t, &f)
 			if lm, ok := f["launchMethod"].(string); ok {
 				assertStr(t, "launchMethod", lm, m)
 			}
@@ -465,7 +465,7 @@ func TestFlightCrewConfigs(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-ECRW", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "09:00", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertBool(t, "isPic", gb(f, "isPic"), true)
 		assertBool(t, "isDual", gb(f, "isDual"), false)
 	})
@@ -474,7 +474,7 @@ func TestFlightCrewConfigs(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-ECRW", "aircraftType": "B738", "departureIcao": "EDDS", "arrivalIcao": "EDDM", "offBlockTime": "08:00", "onBlockTime": "09:30", "landings": 1, "crewMembers": []map[string]interface{}{{"name": "A", "role": "PIC"}, {"name": "B", "role": "SIC"}, {"name": "C", "role": "Instructor"}, {"name": "D", "role": "Student"}, {"name": "E", "role": "Passenger"}, {"name": "F", "role": "SafetyPilot"}, {"name": "G", "role": "Examiner"}}})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		if crew, ok := f["crewMembers"].([]interface{}); ok {
 			assertInt(t, "crewLen", len(crew), 7)
 			roles := map[string]bool{}
@@ -499,13 +499,13 @@ func TestFlightIsolation(t *testing.T) {
 	r := c1.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-EONE", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "09:00", "landings": 1})
 	requireStatus(t, r, 201)
 	var f map[string]interface{}
-	r.JSON(&f)
+	r.MustJSON(t, &f)
 	fid := f["id"].(string)
 	t.Run("u2 empty", func(t *testing.T) {
 		r := c2.GET("/flights")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		if len(m["data"].([]interface{})) != 0 {
 			t.Error("not 0")
 		}
@@ -529,7 +529,7 @@ func TestFlightBulk(t *testing.T) {
 		r := c.GET("/flights")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		if len(m["data"].([]interface{})) != 0 {
 			t.Error("not 0")
 		}
@@ -552,21 +552,21 @@ func TestFlightEdgeCases(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-E", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "10:00", "onBlockTime": "10:05", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertFloat(t, "tt", gf(f, "totalTime"), 6, 6)
 	})
 	t.Run("12h flight", func(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "N999", "aircraftType": "B738", "departureIcao": "KJFK", "arrivalIcao": "KLAX", "offBlockTime": "06:00", "onBlockTime": "18:00", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertFloat(t, "tt", gf(f, "totalTime"), 720, 6)
 	})
 	t.Run("15 landings pattern", func(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": "2025-07-15", "aircraftReg": "D-E", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDNY", "offBlockTime": "10:00", "onBlockTime": "12:00", "departureTime": "10:10", "arrivalTime": "11:50", "landings": 15})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "allLandings", gi(f, "allLandings"), 15)
 		assertInt(t, "landingsDay", gi(f, "landingsDay"), 15)
 		assertInt(t, "landingsNight", gi(f, "landingsNight"), 0)
@@ -575,11 +575,11 @@ func TestFlightEdgeCases(t *testing.T) {
 		r := c.POST("/flights", map[string]interface{}{"date": today(), "aircraftReg": "D-UPD", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDS", "offBlockTime": "08:00", "onBlockTime": "09:00", "landings": 1})
 		requireStatus(t, r, 201)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		fid := f["id"].(string)
 		r = c.PUT(fmt.Sprintf("/flights/%s", fid), map[string]interface{}{"date": today(), "aircraftReg": "D-UPD", "aircraftType": "C172", "departureIcao": "EDNY", "arrivalIcao": "EDDM", "offBlockTime": "08:00", "onBlockTime": "10:00", "landings": 1})
 		requireStatus(t, r, 200)
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertFloat(t, "totalTime", gf(f, "totalTime"), 120, 6)
 		d := gf(f, "distance")
 		if d < 70 {
@@ -606,7 +606,7 @@ func TestFlightFilterSort(t *testing.T) {
 		r := c.GET("/flights?aircraftReg=D-GXYZ")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		data := m["data"].([]interface{})
 		assertInt(t, "count", len(data), 2)
 	})
@@ -614,7 +614,7 @@ func TestFlightFilterSort(t *testing.T) {
 		r := c.GET("/flights?departureIcao=EDNY")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		if len(m["data"].([]interface{})) < 2 {
 			t.Error("expected >=2")
 		}
@@ -627,14 +627,14 @@ func TestFlightFilterSort(t *testing.T) {
 		r := c.GET(fmt.Sprintf("/flights?startDate=%s&endDate=%s", pastDate(25), pastDate(5)))
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		assertInt(t, "count", len(m["data"].([]interface{})), 2)
 	})
 	t.Run("search text", func(t *testing.T) {
 		r := c.GET("/flights?search=Pattern")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		if len(m["data"].([]interface{})) < 1 {
 			t.Error("no match")
 		}
@@ -643,7 +643,7 @@ func TestFlightFilterSort(t *testing.T) {
 		r := c.GET("/flights?pageSize=2&page=1")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		if len(m["data"].([]interface{})) > 2 {
 			t.Error(">2")
 		}
@@ -652,7 +652,7 @@ func TestFlightFilterSort(t *testing.T) {
 		r := c.GET("/flights?sortBy=totalTime&sortOrder=desc")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		data := m["data"].([]interface{})
 		if len(data) >= 2 {
 			a := gf(data[0].(map[string]interface{}), "totalTime")
@@ -666,7 +666,7 @@ func TestFlightFilterSort(t *testing.T) {
 		r := c.GET("/flights?sortBy=date&sortOrder=asc")
 		requireStatus(t, r, 200)
 		var m map[string]interface{}
-		r.JSON(&m)
+		r.MustJSON(t, &m)
 		data := m["data"].([]interface{})
 		if len(data) >= 2 {
 			a := data[0].(map[string]interface{})["date"].(string)

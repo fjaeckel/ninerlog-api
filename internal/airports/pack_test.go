@@ -23,7 +23,7 @@ func decodePack(t *testing.T, gz []byte) packEnvelope {
 	if err != nil {
 		t.Fatalf("gzip.NewReader: %v", err)
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 	body, err := io.ReadAll(zr)
 	if err != nil {
 		t.Fatalf("reading pack: %v", err)

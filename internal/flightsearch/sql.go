@@ -88,7 +88,7 @@ func newFieldLeaf(field *Field, op, value string) (node, error) {
 	case FieldDuration:
 		minutes, err := parseDurationMinutes(value)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %s", field.Name, err)
+			return nil, fmt.Errorf("%s: %w", field.Name, err)
 		}
 		return newCompareLeaf(field, op, minutes)
 	case FieldInt:
@@ -106,19 +106,19 @@ func newFieldLeaf(field *Field, op, value string) (node, error) {
 	case FieldBool:
 		v, err := parseBool(value)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %s", field.Name, err)
+			return nil, fmt.Errorf("%s: %w", field.Name, err)
 		}
 		return newBoolLeaf(field.Column, op, v)
 	case FieldDate:
 		start, next, err := parseDateRange(value)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %s", field.Name, err)
+			return nil, fmt.Errorf("%s: %w", field.Name, err)
 		}
 		return newDateLeaf(field, op, start, next)
 	case FieldClock:
 		t, err := parseClock(value)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %s", field.Name, err)
+			return nil, fmt.Errorf("%s: %w", field.Name, err)
 		}
 		return newCompareLeaf(field, op, t)
 	}
@@ -220,7 +220,7 @@ func newApproachTypeLeaf(op, value string) (node, error) {
 func newSignedLeaf(op, value string) (node, error) {
 	v, err := parseBool(value)
 	if err != nil {
-		return nil, fmt.Errorf("signed: %s", err)
+		return nil, fmt.Errorf("signed: %w", err)
 	}
 	if op == "!=" {
 		v = !v

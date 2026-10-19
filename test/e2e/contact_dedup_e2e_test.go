@@ -20,7 +20,7 @@ func listContacts(t *testing.T, c *E2EClient) []e2eContact {
 	r := c.GET("/contacts")
 	requireStatus(t, r, 200)
 	var out []e2eContact
-	r.JSON(&out)
+	r.MustJSON(t, &out)
 	return out
 }
 
@@ -39,7 +39,7 @@ func createFlightWithCrew(t *testing.T, c *E2EClient, reg string, crew []map[str
 		ID          string                   `json:"id"`
 		CrewMembers []map[string]interface{} `json:"crewMembers"`
 	}
-	r.JSON(&flight)
+	r.MustJSON(t, &flight)
 	return flight.ID, flight.CrewMembers
 }
 
@@ -51,7 +51,7 @@ func flightCrew(t *testing.T, c *E2EClient, flightID string) []map[string]interf
 	var flight struct {
 		CrewMembers []map[string]interface{} `json:"crewMembers"`
 	}
-	r.JSON(&flight)
+	r.MustJSON(t, &flight)
 	return flight.CrewMembers
 }
 
@@ -226,12 +226,12 @@ func TestContactRenameOntoExistingNameConflicts(t *testing.T) {
 	r := c.POST("/contacts", map[string]interface{}{"name": "Anna Berg"})
 	requireStatus(t, r, 201)
 	var anna e2eContact
-	r.JSON(&anna)
+	r.MustJSON(t, &anna)
 
 	r = c.POST("/contacts", map[string]interface{}{"name": "Bert Stein"})
 	requireStatus(t, r, 201)
 	var bert e2eContact
-	r.JSON(&bert)
+	r.MustJSON(t, &bert)
 
 	assertStatus(t, c.PUT("/contacts/"+bert.ID, map[string]interface{}{"name": "anna berg"}), 409)
 
@@ -284,7 +284,7 @@ func TestCrewContactIDFromAnotherUserIsRejected(t *testing.T) {
 	r := stranger.POST("/contacts", map[string]interface{}{"name": "Someone Else"})
 	requireStatus(t, r, 201)
 	var foreign e2eContact
-	r.JSON(&foreign)
+	r.MustJSON(t, &foreign)
 
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("cnt-owner"), "SecurePass123!", "Owner")
@@ -371,7 +371,7 @@ func TestBackupRestoreRestoresContacts(t *testing.T) {
 	r := source.GET("/exports/json")
 	requireStatus(t, r, 200)
 	var backup map[string]interface{}
-	r.JSON(&backup)
+	r.MustJSON(t, &backup)
 
 	dest := NewE2EClient(t)
 	registerAndLogin(t, dest, uniqueEmail("cnt-restore-dst"), "SecurePass123!", "RestoreDst")
@@ -383,7 +383,7 @@ func TestBackupRestoreRestoresContacts(t *testing.T) {
 		ContactsImported int `json:"contactsImported"`
 		ContactsCreated  int `json:"contactsCreated"`
 	}
-	r.JSON(&summary)
+	r.MustJSON(t, &summary)
 	if summary.FlightsImported != 1 {
 		t.Fatalf("flightsImported = %d, want 1", summary.FlightsImported)
 	}
@@ -414,7 +414,7 @@ func TestBackupRestoreRebuildsContactsFromLegacyBackup(t *testing.T) {
 	r := source.GET("/exports/json")
 	requireStatus(t, r, 200)
 	var backup map[string]interface{}
-	r.JSON(&backup)
+	r.MustJSON(t, &backup)
 
 	// Age the backup: drop the sections a pre-contacts export never had.
 	delete(backup, "contacts")
@@ -432,7 +432,7 @@ func TestBackupRestoreRebuildsContactsFromLegacyBackup(t *testing.T) {
 		ContactsImported int `json:"contactsImported"`
 		ContactsCreated  int `json:"contactsCreated"`
 	}
-	r.JSON(&summary)
+	r.MustJSON(t, &summary)
 	if summary.FlightsImported != 1 {
 		t.Fatalf("flightsImported = %d, want 1", summary.FlightsImported)
 	}

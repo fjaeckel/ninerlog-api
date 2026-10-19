@@ -23,7 +23,7 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	pplID := lic["id"].(string)
 
 	resp = c.POST(fmt.Sprintf("/licenses/%s/ratings", pplID), map[string]interface{}{
@@ -81,7 +81,7 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 		resp := c.GET("/flights?pageSize=100")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		assertInt(t, "unfiltered total", totalOf(r), sepCount+gliderCount)
 	})
 
@@ -90,7 +90,7 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 		resp := c.GET(fmt.Sprintf("/flights?logbookLicenseId=%s", pplID)) // default page size (20)
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 
 		if got := totalOf(r); got != sepCount {
 			t.Errorf("filtered total: want %d eligible SEP flights, got %d (regression: filter applied after pagination undercounts)", sepCount, got)
@@ -113,7 +113,7 @@ func TestLogbookFilterPaginationRegression(t *testing.T) {
 			resp := c.GET(fmt.Sprintf("/flights?logbookLicenseId=%s&pageSize=%d&page=%d", pplID, pageSize, page))
 			requireStatus(t, resp, http.StatusOK)
 			var r map[string]interface{}
-			resp.JSON(&r)
+			resp.MustJSON(t, &r)
 			data := r["data"].([]interface{})
 			if len(data) == 0 {
 				break

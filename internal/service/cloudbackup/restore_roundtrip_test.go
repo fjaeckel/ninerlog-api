@@ -31,7 +31,7 @@ func fill(v reflect.Value, name string) {
 		v.SetFloat(2.5)
 	case reflect.Bool:
 		v.SetBool(true)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		v.Set(reflect.New(v.Type().Elem()))
 		fill(v.Elem(), name)
 	case reflect.Slice:

@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -154,7 +155,7 @@ func TestSetupTOTP_AlreadyEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	_, _, err := svc.SetupTOTP(ctx, user.ID)
-	if err != service.ErrTwoFactorAlreadyEnabled {
+	if !errors.Is(err, service.ErrTwoFactorAlreadyEnabled) {
 		t.Errorf("Expected ErrTwoFactorAlreadyEnabled, got %v", err)
 	}
 }
@@ -211,7 +212,7 @@ func TestVerifyAndEnable_InvalidCode(t *testing.T) {
 	_, _, _ = svc.SetupTOTP(ctx, user.ID)
 
 	_, err := svc.VerifyAndEnable(ctx, user.ID, "000000")
-	if err != service.ErrInvalidTOTPCode {
+	if !errors.Is(err, service.ErrInvalidTOTPCode) {
 		t.Errorf("Expected ErrInvalidTOTPCode, got %v", err)
 	}
 }
@@ -223,7 +224,7 @@ func TestVerifyAndEnable_AlreadyEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := svc.VerifyAndEnable(ctx, user.ID, "123456")
-	if err != service.ErrTwoFactorAlreadyEnabled {
+	if !errors.Is(err, service.ErrTwoFactorAlreadyEnabled) {
 		t.Errorf("Expected ErrTwoFactorAlreadyEnabled, got %v", err)
 	}
 }
@@ -274,7 +275,7 @@ func TestDisable2FA_NotEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	err := svc.Disable(ctx, user.ID, "testpassword")
-	if err != service.ErrTwoFactorNotEnabled {
+	if !errors.Is(err, service.ErrTwoFactorNotEnabled) {
 		t.Errorf("Expected ErrTwoFactorNotEnabled, got %v", err)
 	}
 	_ = repo
@@ -324,7 +325,7 @@ func TestValidateTOTP_NotEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := svc.ValidateTOTP(ctx, user.ID, "123456")
-	if err != service.ErrTwoFactorNotEnabled {
+	if !errors.Is(err, service.ErrTwoFactorNotEnabled) {
 		t.Errorf("Expected ErrTwoFactorNotEnabled, got %v", err)
 	}
 	_ = repo

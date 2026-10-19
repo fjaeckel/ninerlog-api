@@ -95,7 +95,7 @@ const maxSignatureEmailsPerDay = 20
 func (s *FlightSignatureService) checkEmailQuota(ctx context.Context, userID uuid.UUID) error {
 	n, err := s.sigRepo.CountEmailsSentSince(ctx, userID, time.Now().Add(-24*time.Hour))
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // counting failure is not a quota breach
 	}
 	if n >= maxSignatureEmailsPerDay {
 		return ErrSignatureEmailQuota

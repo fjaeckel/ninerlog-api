@@ -33,7 +33,7 @@ func (f *fakeIdempotencyRepo) Claim(_ context.Context, rec *models.IdempotencyRe
 		f.rec.UserID == rec.UserID &&
 		f.rec.Key == rec.Key &&
 		f.rec.ExpiresAt.After(rec.CreatedAt) &&
-		!(f.rec.State == models.IdempotencyStateInProgress && !f.rec.CreatedAt.After(staleBefore))
+		(f.rec.State != models.IdempotencyStateInProgress || f.rec.CreatedAt.After(staleBefore))
 	if live {
 		return f.rec, nil
 	}

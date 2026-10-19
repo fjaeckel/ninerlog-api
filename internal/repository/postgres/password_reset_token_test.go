@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func TestPasswordResetTokenCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewPasswordResetTokenRepository(db)
 	ctx := context.Background()
@@ -48,7 +49,7 @@ func TestPasswordResetTokenGetByTokenHash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewPasswordResetTokenRepository(db)
 	ctx := context.Background()
@@ -78,7 +79,7 @@ func TestPasswordResetTokenMarkAsUsed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewPasswordResetTokenRepository(db)
 	ctx := context.Background()
@@ -102,7 +103,7 @@ func TestPasswordResetTokenNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewPasswordResetTokenRepository(db)
 	ctx := context.Background()
@@ -112,7 +113,7 @@ func TestPasswordResetTokenNotFound(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	_, err = repo.GetByTokenHash(ctx, "nonexistent")
-	if err != repository.ErrNotFound {
+	if !errors.Is(err, repository.ErrNotFound) {
 		t.Errorf("Expected ErrNotFound, got %v", err)
 	}
 

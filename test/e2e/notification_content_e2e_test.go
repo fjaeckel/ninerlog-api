@@ -388,7 +388,7 @@ func TestEmailContent_RatingExpiry(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	licID := lic["id"].(string)
 
 	resp = c.POST(fmt.Sprintf("/licenses/%s/ratings", licID), map[string]interface{}{
@@ -446,7 +446,7 @@ func TestEmailContent_PassengerCurrency(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	licID := lic["id"].(string)
 
 	c.POST(fmt.Sprintf("/licenses/%s/ratings", licID), map[string]interface{}{
@@ -510,7 +510,7 @@ func TestEmailContent_NightCurrency(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	licID := lic["id"].(string)
 
 	c.POST(fmt.Sprintf("/licenses/%s/ratings", licID), map[string]interface{}{
@@ -570,7 +570,7 @@ func TestEmailContent_FlightReview(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	licID := lic["id"].(string)
 
 	c.POST(fmt.Sprintf("/licenses/%s/ratings", licID), map[string]interface{}{
@@ -926,7 +926,7 @@ func TestEmailContent_HistoryMatchesEmail(t *testing.T) {
 	requireStatus(t, resp, http.StatusOK)
 
 	var history map[string]interface{}
-	resp.JSON(&history)
+	resp.MustJSON(t, &history)
 
 	items := history["items"].([]interface{})
 	if len(items) == 0 {

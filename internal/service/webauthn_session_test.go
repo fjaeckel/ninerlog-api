@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
@@ -220,7 +221,7 @@ func TestWebAuthnSessionIsSingleUse(t *testing.T) {
 		t.Fatalf("expected the session to be accepted on first use, got %v", err)
 	}
 	// Replay must be rejected as an unknown session, not re-parsed.
-	if _, err := svc.FinishRegistration(ctx, user.ID, handle, nil, garbage); err != ErrWebAuthnSessionNotFound {
+	if _, err := svc.FinishRegistration(ctx, user.ID, handle, nil, garbage); !errors.Is(err, ErrWebAuthnSessionNotFound) {
 		t.Errorf("expected replay to be rejected, got %v", err)
 	}
 }
@@ -236,7 +237,7 @@ func TestWebAuthnRegistrationHandleRejectedByLogin(t *testing.T) {
 		t.Fatalf("begin registration: %v", err)
 	}
 
-	if _, _, err := svc.FinishLogin(ctx, handle, garbage); err != ErrWebAuthnSessionNotFound {
+	if _, _, err := svc.FinishLogin(ctx, handle, garbage); !errors.Is(err, ErrWebAuthnSessionNotFound) {
 		t.Errorf("registration handle must not satisfy a login finish, got %v", err)
 	}
 	// The mismatched attempt must not have burned the registration session.
@@ -258,7 +259,7 @@ func TestWebAuthnRegistrationSessionIsScopedToItsUser(t *testing.T) {
 	}
 
 	// A stolen handle must not let another account attach a credential.
-	if _, err := svc.FinishRegistration(ctx, attacker.ID, handle, nil, garbage); err != ErrWebAuthnSessionNotFound {
+	if _, err := svc.FinishRegistration(ctx, attacker.ID, handle, nil, garbage); !errors.Is(err, ErrWebAuthnSessionNotFound) {
 		t.Errorf("expected uniform rejection for a mismatched user, got %v", err)
 	}
 }
@@ -278,7 +279,7 @@ func TestWebAuthnCorruptSessionDataIsRejected(t *testing.T) {
 
 	// Must be rejected as an unusable session rather than panicking or
 	// surfacing a decode error the caller cannot act on.
-	if _, err := svc.FinishRegistration(ctx, user.ID, handle, nil, garbage); err != ErrWebAuthnSessionNotFound {
+	if _, err := svc.FinishRegistration(ctx, user.ID, handle, nil, garbage); !errors.Is(err, ErrWebAuthnSessionNotFound) {
 		t.Errorf("expected corrupt session to be rejected, got %v", err)
 	}
 }
@@ -290,7 +291,7 @@ func TestWebAuthnUnknownAndEmptyHandlesRejectedUniformly(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range []string{"", "not-a-real-handle", base64.RawURLEncoding.EncodeToString([]byte("0123456789abcdef"))} {
-		if _, err := svc.FinishRegistration(ctx, user.ID, handle, nil, garbage); err != ErrWebAuthnSessionNotFound {
+		if _, err := svc.FinishRegistration(ctx, user.ID, handle, nil, garbage); !errors.Is(err, ErrWebAuthnSessionNotFound) {
 			t.Errorf("handle %q: expected ErrWebAuthnSessionNotFound, got %v", handle, err)
 		}
 	}
@@ -310,7 +311,7 @@ func TestWebAuthnExpiredSessionIsRejected(t *testing.T) {
 	// expiry check, not from the row having been swept away.
 	sessions.rows[key(hashWebAuthnHandle(handle))].ExpiresAt = time.Now().Add(-time.Second)
 
-	if _, err := svc.FinishRegistration(ctx, user.ID, handle, nil, garbage); err != ErrWebAuthnSessionNotFound {
+	if _, err := svc.FinishRegistration(ctx, user.ID, handle, nil, garbage); !errors.Is(err, ErrWebAuthnSessionNotFound) {
 		t.Errorf("expected expired session to be rejected, got %v", err)
 	}
 	if sessions.count() != 1 {
@@ -407,7 +408,7 @@ func TestWebAuthnOpenCeremoniesAreBoundedEvictingOldest(t *testing.T) {
 		t.Errorf("newest ceremony must survive the cap, got %v", err)
 	}
 	// The oldest was evicted rather than the newest rejected.
-	if _, err := svc.FinishRegistration(ctx, user.ID, issued[0], nil, garbage); err != ErrWebAuthnSessionNotFound {
+	if _, err := svc.FinishRegistration(ctx, user.ID, issued[0], nil, garbage); !errors.Is(err, ErrWebAuthnSessionNotFound) {
 		t.Errorf("oldest ceremony should have been evicted, got %v", err)
 	}
 }

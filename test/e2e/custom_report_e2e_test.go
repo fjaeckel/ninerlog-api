@@ -173,7 +173,7 @@ func TestCustomReports(t *testing.T) {
 		}})
 		requireStatus(t, resp, http.StatusOK)
 		var res customReportResult
-		resp.JSON(&res)
+		resp.MustJSON(t, &res)
 		if len(res.Rows) != 1 || res.Rows[0].Key != "EDNY-EDTL" || res.Rows[0].Value != 120 {
 			t.Fatalf("rows = %+v", res.Rows)
 		}
@@ -198,7 +198,7 @@ func TestCustomReports(t *testing.T) {
 		resp := c.PUT("/reports/custom/"+monthly.ID, map[string]interface{}{"name": "Monthly flights", "definition": def})
 		requireStatus(t, resp, http.StatusOK)
 		var rep customReportBody
-		resp.JSON(&rep)
+		resp.MustJSON(t, &rep)
 		assertStr(t, "name", rep.Name, "Monthly flights")
 		assertInt(t, "position kept", rep.Position, 1)
 		res := customReportResultOf(t, c, monthly.ID)
@@ -329,13 +329,13 @@ func TestCustomReportLicenceScopeAndPortability(t *testing.T) {
 		var summary struct {
 			CustomReportsImported int `json:"customReportsImported"`
 		}
-		restore.JSON(&summary)
+		restore.MustJSON(t, &summary)
 		assertInt(t, "customReportsImported", summary.CustomReportsImported, 2)
 
 		list := dest.GET("/reports/custom")
 		requireStatus(t, list, http.StatusOK)
 		var restored []customReportBody
-		list.JSON(&restored)
+		list.MustJSON(t, &restored)
 		if len(restored) != 2 || restored[0].Name != "SEP logbook" || restored[1].Name != "Monthly hours" {
 			t.Fatalf("restored = %+v", restored)
 		}

@@ -203,7 +203,7 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 		h.sendError(c, http.StatusBadRequest, "No file uploaded")
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if header.Size > 10*1024*1024 {
 		h.sendError(c, http.StatusBadRequest, "File too large (max 10 MB)")
@@ -1683,13 +1683,6 @@ func foreFlightPersonNameRole(s string) (name, role string) {
 		role = strings.TrimSpace(parts[1])
 	}
 	return name, role
-}
-
-// foreFlightPersonName is retained for callers that only need the name
-// portion of a ForeFlight Person cell.
-func foreFlightPersonName(s string) string {
-	name, _ := foreFlightPersonNameRole(s)
-	return name
 }
 
 func findDuplicate(flight generated.FlightCreate, existing []*models.Flight) *openapi_types.UUID {

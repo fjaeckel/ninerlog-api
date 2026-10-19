@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"reflect"
 	"testing"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
 func TestRequireAdmin_BlocksNonAdmin(t *testing.T) {
@@ -19,13 +19,6 @@ func TestRequireAdmin_AllowsAdmin(t *testing.T) {
 	h := &APIHandler{adminEmail: "admin@example.com"}
 	if !h.isAdminUser(&models.User{Email: "admin@example.com", EmailVerified: true}) {
 		t.Error("Expected admin user to be allowed")
-	}
-}
-
-func TestAdminCannotDisableSelf(t *testing.T) {
-	adminID := createTestUser("admin@example.com", "Admin")
-	if adminID.ID != adminID.ID {
-		t.Error("UUID equality check failed")
 	}
 }
 

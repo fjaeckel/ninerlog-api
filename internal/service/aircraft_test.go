@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"testing"
@@ -220,7 +221,7 @@ func TestCreateAircraftWhitespaceRegistrationStillRequired(t *testing.T) {
 		IsActive:     true,
 	}
 	err := svc.CreateAircraft(ctx, aircraft)
-	if err != models.ErrAircraftRegistrationRequired {
+	if !errors.Is(err, models.ErrAircraftRegistrationRequired) {
 		t.Errorf("Expected ErrAircraftRegistrationRequired, got %v", err)
 	}
 }
@@ -375,7 +376,7 @@ func TestCreateAircraftDuplicateRegistration(t *testing.T) {
 		IsActive:     true,
 	}
 	err = svc.CreateAircraft(ctx, aircraft2)
-	if err != service.ErrDuplicateRegistration {
+	if !errors.Is(err, service.ErrDuplicateRegistration) {
 		t.Errorf("Expected ErrDuplicateRegistration, got %v", err)
 	}
 }
@@ -440,7 +441,7 @@ func TestGetAircraftNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := svc.GetAircraft(ctx, uuid.New(), uuid.New())
-	if err != service.ErrAircraftNotFound {
+	if !errors.Is(err, service.ErrAircraftNotFound) {
 		t.Errorf("Expected ErrAircraftNotFound, got %v", err)
 	}
 }
@@ -462,7 +463,7 @@ func TestGetAircraftUnauthorized(t *testing.T) {
 	_ = svc.CreateAircraft(ctx, aircraft)
 
 	_, err := svc.GetAircraft(ctx, aircraft.ID, otherID)
-	if err != service.ErrUnauthorizedAircraft {
+	if !errors.Is(err, service.ErrUnauthorizedAircraft) {
 		t.Errorf("Expected ErrUnauthorizedAircraft, got %v", err)
 	}
 }
@@ -640,7 +641,7 @@ func TestUpdateAircraftUnauthorized(t *testing.T) {
 
 	aircraft.Model = "Hacked"
 	_, err := svc.UpdateAircraft(ctx, aircraft, otherID, false)
-	if err != service.ErrUnauthorizedAircraft {
+	if !errors.Is(err, service.ErrUnauthorizedAircraft) {
 		t.Errorf("Expected ErrUnauthorizedAircraft, got %v", err)
 	}
 }
@@ -703,7 +704,7 @@ func TestDeleteAircraft(t *testing.T) {
 	}
 
 	_, err = svc.GetAircraft(ctx, aircraft.ID, userID)
-	if err != service.ErrAircraftNotFound {
+	if !errors.Is(err, service.ErrAircraftNotFound) {
 		t.Errorf("Expected ErrAircraftNotFound after delete, got %v", err)
 	}
 }
@@ -713,7 +714,7 @@ func TestDeleteAircraftNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := svc.DeleteAircraft(ctx, uuid.New(), uuid.New())
-	if err != service.ErrAircraftNotFound {
+	if !errors.Is(err, service.ErrAircraftNotFound) {
 		t.Errorf("Expected ErrAircraftNotFound, got %v", err)
 	}
 }
@@ -735,7 +736,7 @@ func TestDeleteAircraftUnauthorized(t *testing.T) {
 	_ = svc.CreateAircraft(ctx, aircraft)
 
 	err := svc.DeleteAircraft(ctx, aircraft.ID, otherID)
-	if err != service.ErrUnauthorizedAircraft {
+	if !errors.Is(err, service.ErrUnauthorizedAircraft) {
 		t.Errorf("Expected ErrUnauthorizedAircraft, got %v", err)
 	}
 }

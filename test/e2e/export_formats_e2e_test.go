@@ -531,7 +531,7 @@ func TestExportPDFExcludesPassengerFlights(t *testing.T) {
 	requireStatus(t, resp, http.StatusCreated)
 
 	var pax map[string]interface{}
-	resp.JSON(&pax)
+	resp.MustJSON(t, &pax)
 	if pax["isPassenger"] != true {
 		t.Fatalf("isPassenger = %v, want true — a C172 has no co-pilot seat", pax["isPassenger"])
 	}

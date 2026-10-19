@@ -108,7 +108,7 @@ func TestRotationKeepsTheCurrentAccessTokenValid(t *testing.T) {
 	resp := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
 	requireStatus(t, resp, http.StatusOK)
 	var refreshed AuthResponseBody
-	resp.JSON(&refreshed)
+	resp.MustJSON(t, &refreshed)
 
 	t.Run("the pre-rotation access token still works", func(t *testing.T) {
 		c.SetToken(auth.AccessToken)

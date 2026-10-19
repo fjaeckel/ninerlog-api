@@ -246,7 +246,7 @@ func TestBackup_UserIsolation(t *testing.T) {
 	createResp := cA.POST("/backups/destinations", newBackupDestPayload("userA"))
 	requireStatus(t, createResp, http.StatusCreated)
 	var dest backupDestination
-	createResp.JSON(&dest)
+	createResp.MustJSON(t, &dest)
 
 	// User B should not see A's destination, nor be able to fetch or delete it.
 	cB := NewE2EClient(t)

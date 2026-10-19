@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -28,7 +29,7 @@ func TestAircraftValidate_Valid(t *testing.T) {
 func TestAircraftValidate_MissingRegistration(t *testing.T) {
 	a := validAircraft()
 	a.Registration = ""
-	if err := a.Validate(); err != ErrAircraftRegistrationRequired {
+	if err := a.Validate(); !errors.Is(err, ErrAircraftRegistrationRequired) {
 		t.Errorf("Validate() = %v, want ErrAircraftRegistrationRequired", err)
 	}
 }
@@ -36,7 +37,7 @@ func TestAircraftValidate_MissingRegistration(t *testing.T) {
 func TestAircraftValidate_MissingType(t *testing.T) {
 	a := validAircraft()
 	a.Type = ""
-	if err := a.Validate(); err != ErrAircraftTypeRequired {
+	if err := a.Validate(); !errors.Is(err, ErrAircraftTypeRequired) {
 		t.Errorf("Validate() = %v, want ErrAircraftTypeRequired", err)
 	}
 }
@@ -44,7 +45,7 @@ func TestAircraftValidate_MissingType(t *testing.T) {
 func TestAircraftValidate_MissingMake(t *testing.T) {
 	a := validAircraft()
 	a.Make = ""
-	if err := a.Validate(); err != ErrAircraftMakeRequired {
+	if err := a.Validate(); !errors.Is(err, ErrAircraftMakeRequired) {
 		t.Errorf("Validate() = %v, want ErrAircraftMakeRequired", err)
 	}
 }
@@ -52,7 +53,7 @@ func TestAircraftValidate_MissingMake(t *testing.T) {
 func TestAircraftValidate_MissingModel(t *testing.T) {
 	a := validAircraft()
 	a.Model = ""
-	if err := a.Validate(); err != ErrAircraftModelRequired {
+	if err := a.Validate(); !errors.Is(err, ErrAircraftModelRequired) {
 		t.Errorf("Validate() = %v, want ErrAircraftModelRequired", err)
 	}
 }

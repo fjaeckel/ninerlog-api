@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestCreateContact_DuplicateNameConflicts(t *testing.T) {
 
 	// Different case and padding, same person.
 	err := svc.CreateContact(ctx, &models.Contact{UserID: userID, Name: "  hans müller  "})
-	if err != service.ErrContactNameExists {
+	if !errors.Is(err, service.ErrContactNameExists) {
 		t.Errorf("CreateContact() error = %v, want ErrContactNameExists", err)
 	}
 }
@@ -76,7 +77,7 @@ func TestUpdateContact_RenameOntoExistingNameConflicts(t *testing.T) {
 	// Renaming one onto the other would be an implicit merge; it is refused.
 	second.Name = "anna berg"
 	_, err := svc.UpdateContact(ctx, second, userID)
-	if err != service.ErrContactNameExists {
+	if !errors.Is(err, service.ErrContactNameExists) {
 		t.Errorf("UpdateContact() error = %v, want ErrContactNameExists", err)
 	}
 }

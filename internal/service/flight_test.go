@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -190,7 +191,7 @@ func TestCreateFlightInvalidTimeDistribution(t *testing.T) {
 	}
 
 	err := service.CreateFlight(ctx, flight)
-	if err != models.ErrInvalidTimeDistribution {
+	if !errors.Is(err, models.ErrInvalidTimeDistribution) {
 		t.Errorf("Expected ErrInvalidTimeDistribution, got %v", err)
 	}
 }
@@ -342,7 +343,7 @@ func TestUpdateFlight_Locked_ReturnsErrFlightLocked(t *testing.T) {
 	}
 
 	flight.TotalTime = 180
-	if err := svc.UpdateFlight(ctx, flight, userID); err != ErrFlightLocked {
+	if err := svc.UpdateFlight(ctx, flight, userID); !errors.Is(err, ErrFlightLocked) {
 		t.Errorf("UpdateFlight() on locked flight error = %v, want ErrFlightLocked", err)
 	}
 }
@@ -370,7 +371,7 @@ func TestDeleteFlight_Locked_ReturnsErrFlightLocked(t *testing.T) {
 		t.Fatalf("SetSignatureLock() error = %v", err)
 	}
 
-	if err := svc.DeleteFlight(ctx, flight.ID, userID); err != ErrFlightLocked {
+	if err := svc.DeleteFlight(ctx, flight.ID, userID); !errors.Is(err, ErrFlightLocked) {
 		t.Errorf("DeleteFlight() on locked flight error = %v, want ErrFlightLocked", err)
 	}
 }
@@ -403,7 +404,7 @@ func TestDeleteFlight(t *testing.T) {
 
 	// Verify deletion
 	_, err = service.GetFlight(ctx, flight.ID, userID)
-	if err != ErrFlightNotFound {
+	if !errors.Is(err, ErrFlightNotFound) {
 		t.Errorf("Expected ErrFlightNotFound, got %v", err)
 	}
 }
@@ -441,7 +442,7 @@ func TestGetFlight_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := svc.GetFlight(ctx, uuid.New(), uuid.New())
-	if err != ErrFlightNotFound {
+	if !errors.Is(err, ErrFlightNotFound) {
 		t.Errorf("GetFlight(nonexistent) error = %v, want ErrFlightNotFound", err)
 	}
 }
@@ -466,7 +467,7 @@ func TestGetFlight_WrongUser(t *testing.T) {
 	_ = svc.CreateFlight(ctx, flight)
 
 	_, err := svc.GetFlight(ctx, flight.ID, otherID)
-	if err != ErrUnauthorizedFlight {
+	if !errors.Is(err, ErrUnauthorizedFlight) {
 		t.Errorf("GetFlight(wrong user) error = %v, want ErrUnauthorizedFlight", err)
 	}
 }
@@ -547,7 +548,7 @@ func TestUpdateFlight_NotFound(t *testing.T) {
 	}
 
 	err := svc.UpdateFlight(ctx, flight, flight.UserID)
-	if err != ErrFlightNotFound {
+	if !errors.Is(err, ErrFlightNotFound) {
 		t.Errorf("UpdateFlight(nonexistent) error = %v, want ErrFlightNotFound", err)
 	}
 }
@@ -574,7 +575,7 @@ func TestUpdateFlight_WrongUser(t *testing.T) {
 	flight.TotalTime = 120
 	flight.PICTime = 120
 	err := svc.UpdateFlight(ctx, flight, otherID)
-	if err != ErrUnauthorizedFlight {
+	if !errors.Is(err, ErrUnauthorizedFlight) {
 		t.Errorf("UpdateFlight(wrong user) error = %v, want ErrUnauthorizedFlight", err)
 	}
 }
@@ -585,7 +586,7 @@ func TestDeleteFlight_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := svc.DeleteFlight(ctx, uuid.New(), uuid.New())
-	if err != ErrFlightNotFound {
+	if !errors.Is(err, ErrFlightNotFound) {
 		t.Errorf("DeleteFlight(nonexistent) error = %v, want ErrFlightNotFound", err)
 	}
 }
@@ -610,7 +611,7 @@ func TestDeleteFlight_WrongUser(t *testing.T) {
 	_ = svc.CreateFlight(ctx, flight)
 
 	err := svc.DeleteFlight(ctx, flight.ID, otherID)
-	if err != ErrUnauthorizedFlight {
+	if !errors.Is(err, ErrUnauthorizedFlight) {
 		t.Errorf("DeleteFlight(wrong user) error = %v, want ErrUnauthorizedFlight", err)
 	}
 }

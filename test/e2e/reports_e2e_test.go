@@ -14,7 +14,7 @@ func TestAirportSearch(t *testing.T) {
 		resp := c.GET("/airports/search?q=EDNY")
 		requireStatus(t, resp, http.StatusOK)
 		var a []interface{}
-		resp.JSON(&a)
+		resp.MustJSON(t, &a)
 		if len(a) < 1 {
 			t.Error("Expected results for EDNY")
 		}
@@ -28,7 +28,7 @@ func TestAirportSearch(t *testing.T) {
 		resp := c.GET("/airports/search?q=ED&limit=3")
 		requireStatus(t, resp, http.StatusOK)
 		var a []interface{}
-		resp.JSON(&a)
+		resp.MustJSON(t, &a)
 		if len(a) > 3 {
 			t.Errorf("Expected <=3, got %d", len(a))
 		}
@@ -41,7 +41,7 @@ func TestAirportSearch(t *testing.T) {
 		resp := c.GET("/airports/EDNY")
 		requireStatus(t, resp, http.StatusOK)
 		var ap map[string]interface{}
-		resp.JSON(&ap)
+		resp.MustJSON(t, &ap)
 		if ap["icao"] != "EDNY" {
 			t.Errorf("Expected EDNY, got %v", ap["icao"])
 		}
@@ -55,7 +55,7 @@ func TestAirportSearch(t *testing.T) {
 		resp := c.GET("/airports/DE-0249")
 		requireStatus(t, resp, http.StatusOK)
 		var ap map[string]interface{}
-		resp.JSON(&ap)
+		resp.MustJSON(t, &ap)
 		if ap["icao"] != "DE-0249" {
 			t.Errorf("Expected DE-0249, got %v", ap["icao"])
 		}
@@ -65,7 +65,7 @@ func TestAirportSearch(t *testing.T) {
 		resp := c.GET("/airports/search?q=LF0723")
 		requireStatus(t, resp, http.StatusOK)
 		var results []map[string]interface{}
-		resp.JSON(&results)
+		resp.MustJSON(t, &results)
 		if len(results) == 0 || results[0]["icao"] != "FR-0009" || results[0]["localCode"] != "LF0723" {
 			t.Errorf("Search(LF0723) = %v, want FR-0009 with localCode LF0723", results)
 		}
@@ -75,7 +75,7 @@ func TestAirportSearch(t *testing.T) {
 		resp := c.GET("/airports/search?q=K%C3%B6nen&limit=50")
 		requireStatus(t, resp, http.StatusOK)
 		var results []map[string]interface{}
-		resp.JSON(&results)
+		resp.MustJSON(t, &results)
 		found := false
 		for _, a := range results {
 			if a["icao"] == "DE-0249" {

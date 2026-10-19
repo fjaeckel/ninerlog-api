@@ -46,7 +46,7 @@ func TestImportTemplates_Catalogue(t *testing.T) {
 			AutoDetected bool     `json:"autoDetected"`
 		} `json:"templates"`
 	}
-	resp.JSON(&result)
+	resp.MustJSON(t, &result)
 
 	if len(result.Templates) < 10 {
 		t.Fatalf("catalogue returned %d templates, want at least 10", len(result.Templates))
@@ -181,7 +181,7 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 					ExportSteps []string `json:"exportSteps"`
 				} `json:"detectedTemplate"`
 			}
-			resp.JSON(&result)
+			resp.MustJSON(t, &result)
 
 			if len(result.SuggestedMappings) == 0 {
 				t.Fatalf("no suggested mappings for %s", tc.name)
@@ -215,7 +215,7 @@ func TestImportTemplates_DetectedOnUpload(t *testing.T) {
 				})
 				requireStatus(t, prev, http.StatusOK)
 				var preview map[string]interface{}
-				prev.JSON(&preview)
+				prev.MustJSON(t, &preview)
 
 				flights, _ := preview["flights"].([]interface{})
 				if len(flights) == 0 {
@@ -266,7 +266,7 @@ func TestImportTemplates_MyFlightbookEndToEnd(t *testing.T) {
 	resp := uploadCSV(t, c, "myflightbook.csv", csv)
 	requireStatus(t, resp, http.StatusOK)
 	var upload map[string]interface{}
-	resp.JSON(&upload)
+	resp.MustJSON(t, &upload)
 	token := upload["uploadToken"].(string)
 	suggested, _ := upload["suggestedMappings"].([]interface{})
 
@@ -278,7 +278,7 @@ func TestImportTemplates_MyFlightbookEndToEnd(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 
 		flights, _ := result["flights"].([]interface{})
 		if len(flights) != 1 {
@@ -301,7 +301,7 @@ func TestImportTemplates_MyFlightbookEndToEnd(t *testing.T) {
 		resp := c.POST("/imports/confirm", map[string]interface{}{"uploadToken": token})
 		requireStatus(t, resp, http.StatusCreated)
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 
 		if result["format"] != "MYFLIGHTBOOK_CSV" {
 			t.Errorf("import format = %v, want MYFLIGHTBOOK_CSV", result["format"])
@@ -315,7 +315,7 @@ func TestImportTemplates_MyFlightbookEndToEnd(t *testing.T) {
 		hist := c.GET("/imports")
 		requireStatus(t, hist, http.StatusOK)
 		var page map[string]interface{}
-		hist.JSON(&page)
+		hist.MustJSON(t, &page)
 		rows, _ := page["data"].([]interface{})
 		if len(rows) == 0 {
 			t.Fatal("no import history rows")
@@ -343,7 +343,7 @@ func TestImportTemplates_VereinsfliegerPlaceWithoutICAO(t *testing.T) {
 	resp := uploadCSV(t, c, "vereinsflieger.csv", csv)
 	requireStatus(t, resp, http.StatusOK)
 	var upload map[string]interface{}
-	resp.JSON(&upload)
+	resp.MustJSON(t, &upload)
 
 	prev := c.POST("/imports/preview", map[string]interface{}{
 		"uploadToken":    upload["uploadToken"],
@@ -352,7 +352,7 @@ func TestImportTemplates_VereinsfliegerPlaceWithoutICAO(t *testing.T) {
 	})
 	requireStatus(t, prev, http.StatusOK)
 	var result map[string]interface{}
-	prev.JSON(&result)
+	prev.MustJSON(t, &result)
 
 	flights, _ := result["flights"].([]interface{})
 	if len(flights) != 2 {

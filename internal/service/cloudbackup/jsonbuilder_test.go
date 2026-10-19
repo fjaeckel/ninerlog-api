@@ -45,7 +45,7 @@ func TestBuildPayloadGzipRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("serialisePayload: %v", err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	body, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatalf("read: %v", err)
@@ -67,7 +67,7 @@ func TestBuildPayloadGzipRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gzip reader: %v", err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 	raw, err := io.ReadAll(gz)
 	if err != nil {
 		t.Fatalf("gunzip: %v", err)

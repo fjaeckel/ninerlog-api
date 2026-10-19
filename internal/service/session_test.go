@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -141,7 +142,7 @@ func TestRefreshToken_ReplayAfterGraceRevokesTheSession(t *testing.T) {
 	}
 
 	time.Sleep(time.Millisecond)
-	if _, err := f.auth.RefreshToken(ctx, tokens.RefreshToken); err != service.ErrTokenReuseDetected {
+	if _, err := f.auth.RefreshToken(ctx, tokens.RefreshToken); !errors.Is(err, service.ErrTokenReuseDetected) {
 		t.Errorf("RefreshToken() replay error = %v, want ErrTokenReuseDetected", err)
 	}
 
@@ -160,7 +161,7 @@ func TestRefreshToken_LogoutGetsNoGrace(t *testing.T) {
 		t.Fatalf("Logout() error = %v", err)
 	}
 
-	if _, err := f.auth.RefreshToken(ctx, tokens.RefreshToken); err != service.ErrTokenRevoked {
+	if _, err := f.auth.RefreshToken(ctx, tokens.RefreshToken); !errors.Is(err, service.ErrTokenRevoked) {
 		t.Errorf("RefreshToken() after logout error = %v, want ErrTokenRevoked", err)
 	}
 }
@@ -293,7 +294,7 @@ func TestRevokeSession_RejectsAnotherUsersSession(t *testing.T) {
 	victim := f.login(t, "Mozilla/5.0 (iPhone) Safari/605.1")
 
 	err := f.auth.RevokeSession(ctx, uuid.New(), victim.SessionID)
-	if err != service.ErrSessionNotFound {
+	if !errors.Is(err, service.ErrSessionNotFound) {
 		t.Errorf("RevokeSession() for a foreign user error = %v, want ErrSessionNotFound", err)
 	}
 

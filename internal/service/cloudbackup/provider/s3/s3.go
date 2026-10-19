@@ -108,17 +108,16 @@ func (p *Provider) Validate(ctx context.Context, cfg provider.Config, creds prov
 	}
 
 	// Probe list permission first.
-	ch := client.ListObjects(ctx, parsed.Bucket, minio.ListObjectsOptions{
+	listCtx, cancelList := context.WithCancel(ctx)
+	ch := client.ListObjects(listCtx, parsed.Bucket, minio.ListObjectsOptions{
 		Prefix:    parsed.Prefix,
 		Recursive: false,
 		MaxKeys:   1,
 	})
-	for obj := range ch {
-		if obj.Err != nil {
-			return classifyError(obj.Err)
-		}
-		// One listed object is enough.
-		break
+	obj, ok := <-ch
+	cancelList()
+	if ok && obj.Err != nil {
+		return classifyError(obj.Err)
 	}
 
 	exists, err := client.BucketExists(ctx, parsed.Bucket)

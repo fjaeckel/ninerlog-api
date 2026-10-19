@@ -178,7 +178,7 @@ func writePropfindEntry(b *strings.Builder, href string, size int64, isDir bool)
 		b.WriteString(`<D:resourcetype><D:collection/></D:resourcetype>`)
 	} else {
 		b.WriteString(`<D:resourcetype/>`)
-		b.WriteString(fmt.Sprintf(`<D:getcontentlength>%d</D:getcontentlength>`, size))
+		fmt.Fprintf(b, `<D:getcontentlength>%d</D:getcontentlength>`, size)
 	}
 	b.WriteString(`<D:getlastmodified>Mon, 01 Jan 2024 00:00:00 GMT</D:getlastmodified>`)
 	b.WriteString(`</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`)

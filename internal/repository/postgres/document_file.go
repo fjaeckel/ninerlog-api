@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -142,7 +143,7 @@ func (r *documentFileRepository) ListBySubject(ctx context.Context, userID uuid.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	images := make([]*models.DocumentFile, 0)
 	for rows.Next() {
@@ -166,7 +167,7 @@ func (r *documentFileRepository) GetWithData(ctx context.Context, userID uuid.UU
 	`, documentFileColumns, col)
 
 	img, err := scanDocumentFile(r.db.QueryRowContext(ctx, query, imageID, userID, subjectID).Scan, true)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
 	if err != nil {

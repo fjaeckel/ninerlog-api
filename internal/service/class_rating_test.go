@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -139,7 +140,7 @@ func TestCreateClassRating_InvalidType(t *testing.T) {
 
 	cr := &models.ClassRating{LicenseID: lic.ID, ClassType: "INVALID", IssueDate: time.Now()}
 	err := svc.CreateClassRating(ctx, cr, userID)
-	if err != service.ErrInvalidClassType {
+	if !errors.Is(err, service.ErrInvalidClassType) {
 		t.Errorf("Expected ErrInvalidClassType, got %v", err)
 	}
 }
@@ -153,7 +154,7 @@ func TestCreateClassRating_Unauthorized(t *testing.T) {
 
 	cr := &models.ClassRating{LicenseID: lic.ID, ClassType: models.ClassTypeSEPLand, IssueDate: time.Now()}
 	err := svc.CreateClassRating(ctx, cr, uuid.New())
-	if err != service.ErrUnauthorizedAccess {
+	if !errors.Is(err, service.ErrUnauthorizedAccess) {
 		t.Errorf("Expected ErrUnauthorizedAccess, got %v", err)
 	}
 }
@@ -203,7 +204,7 @@ func TestDeleteClassRating(t *testing.T) {
 func TestDeleteClassRating_NotFound(t *testing.T) {
 	svc, _ := setupClassRatingTest()
 	err := svc.DeleteClassRating(context.Background(), uuid.New(), uuid.New())
-	if err != service.ErrClassRatingNotFound {
+	if !errors.Is(err, service.ErrClassRatingNotFound) {
 		t.Errorf("Expected ErrClassRatingNotFound, got %v", err)
 	}
 }
@@ -242,7 +243,7 @@ func TestUpdateClassRating_NotFound(t *testing.T) {
 
 	cr := &models.ClassRating{ID: uuid.New()}
 	err := svc.UpdateClassRating(ctx, cr, uuid.New())
-	if err != service.ErrClassRatingNotFound {
+	if !errors.Is(err, service.ErrClassRatingNotFound) {
 		t.Errorf("Expected ErrClassRatingNotFound, got %v", err)
 	}
 }
@@ -264,7 +265,7 @@ func TestUpdateClassRating_Unauthorized(t *testing.T) {
 	_ = svc.CreateClassRating(ctx, cr, ownerID)
 
 	err := svc.UpdateClassRating(ctx, cr, otherID)
-	if err != service.ErrUnauthorizedClassRating {
+	if !errors.Is(err, service.ErrUnauthorizedClassRating) {
 		t.Errorf("Expected ErrUnauthorizedClassRating, got %v", err)
 	}
 }
@@ -286,7 +287,7 @@ func TestDeleteClassRating_Unauthorized(t *testing.T) {
 	_ = svc.CreateClassRating(ctx, cr, ownerID)
 
 	err := svc.DeleteClassRating(ctx, cr.ID, otherID)
-	if err != service.ErrUnauthorizedClassRating {
+	if !errors.Is(err, service.ErrUnauthorizedClassRating) {
 		t.Errorf("Expected ErrUnauthorizedClassRating, got %v", err)
 	}
 }
@@ -301,7 +302,7 @@ func TestListClassRatings_Unauthorized(t *testing.T) {
 	licRepo.licenses[lic.ID] = lic
 
 	_, err := svc.ListClassRatings(ctx, lic.ID, otherID)
-	if err != service.ErrUnauthorizedAccess {
+	if !errors.Is(err, service.ErrUnauthorizedAccess) {
 		t.Errorf("Expected ErrUnauthorizedAccess, got %v", err)
 	}
 }
@@ -311,7 +312,7 @@ func TestListClassRatings_LicenseNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := svc.ListClassRatings(ctx, uuid.New(), uuid.New())
-	if err != service.ErrLicenseNotFound {
+	if !errors.Is(err, service.ErrLicenseNotFound) {
 		t.Errorf("Expected ErrLicenseNotFound, got %v", err)
 	}
 }
@@ -326,7 +327,7 @@ func TestCreateClassRating_LicenseNotFound(t *testing.T) {
 		IssueDate: time.Now(),
 	}
 	err := svc.CreateClassRating(ctx, cr, uuid.New())
-	if err != service.ErrLicenseNotFound {
+	if !errors.Is(err, service.ErrLicenseNotFound) {
 		t.Errorf("Expected ErrLicenseNotFound, got %v", err)
 	}
 }

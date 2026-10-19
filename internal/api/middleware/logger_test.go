@@ -98,7 +98,7 @@ func TestLoggerMiddlewareWithError(t *testing.T) {
 	router := gin.New()
 	router.Use(LoggerMiddleware(nil))
 	router.GET("/test", func(c *gin.Context) {
-		c.Error(gin.Error{
+		_ = c.Error(gin.Error{
 			Err:  http.ErrAbortHandler,
 			Type: gin.ErrorTypePrivate,
 		})

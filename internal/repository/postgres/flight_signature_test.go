@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func TestFlightSignatureCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewFlightSignatureRepository(db)
 	ctx := context.Background()
@@ -48,7 +49,7 @@ func TestFlightSignatureCreate_DuplicatePendingReturnsErrDuplicate(t *testing.T)
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewFlightSignatureRepository(db)
 	ctx := context.Background()
@@ -64,7 +65,7 @@ func TestFlightSignatureCreate_DuplicatePendingReturnsErrDuplicate(t *testing.T)
 		WillReturnError(&pqUniqueViolationError{constraint: "flight_signatures_one_pending_per_flight"})
 
 	err = repo.Create(ctx, sig)
-	if err != repository.ErrDuplicate {
+	if !errors.Is(err, repository.ErrDuplicate) {
 		t.Errorf("Create() error = %v, want ErrDuplicate", err)
 	}
 }
@@ -84,7 +85,7 @@ func TestFlightSignatureGetByTokenHash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewFlightSignatureRepository(db)
 	ctx := context.Background()
@@ -130,7 +131,7 @@ func TestFlightSignatureGetByTokenHash_NotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewFlightSignatureRepository(db)
 	ctx := context.Background()
@@ -140,7 +141,7 @@ func TestFlightSignatureGetByTokenHash_NotFound(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	_, err = repo.GetByTokenHash(ctx, "nonexistent")
-	if err != repository.ErrNotFound {
+	if !errors.Is(err, repository.ErrNotFound) {
 		t.Errorf("Expected ErrNotFound, got %v", err)
 	}
 }
@@ -150,7 +151,7 @@ func TestFlightSignatureUpdate_NotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewFlightSignatureRepository(db)
 	ctx := context.Background()
@@ -161,7 +162,7 @@ func TestFlightSignatureUpdate_NotFound(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	err = repo.Update(ctx, sig)
-	if err != repository.ErrNotFound {
+	if !errors.Is(err, repository.ErrNotFound) {
 		t.Errorf("Expected ErrNotFound, got %v", err)
 	}
 }
@@ -171,7 +172,7 @@ func TestFlightSignatureExpirePendingPastDue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewFlightSignatureRepository(db)
 	ctx := context.Background()

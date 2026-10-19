@@ -41,7 +41,7 @@ func TestGetAirportPack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("body is not gzip: %v", err)
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 	body, err := io.ReadAll(zr)
 	if err != nil {
 		t.Fatalf("reading pack: %v", err)

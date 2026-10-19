@@ -52,7 +52,7 @@ func (r *FlightCrewRepository) GetByFlightID(ctx context.Context, flightID uuid.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var members []models.FlightCrewMember
 	for rows.Next() {
@@ -88,7 +88,7 @@ func (r *FlightCrewRepository) GetByFlightIDs(ctx context.Context, flightIDs []u
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		m := models.FlightCrewMember{}
 		if err := rows.Scan(&m.ID, &m.FlightID, &m.ContactID, &m.Name, &m.Role); err != nil {

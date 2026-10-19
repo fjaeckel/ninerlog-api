@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func TestLogin_DisabledAccount_WrongPassword_IsGeneric(t *testing.T) {
 	_ = repo.Update(ctx, u)
 
 	_, _, err := svc.Login(ctx, service.LoginInput{Email: "disabled@example.com", Password: "wrong-password"})
-	if err != service.ErrInvalidCredentials {
+	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("disabled account + wrong password: got %v, want ErrInvalidCredentials (state leak)", err)
 	}
 }
@@ -63,7 +64,7 @@ func TestLogin_DisabledAccount_CorrectPassword_RevealsDisabled(t *testing.T) {
 	_ = repo.Update(ctx, u)
 
 	_, _, err := svc.Login(ctx, service.LoginInput{Email: "disabled2@example.com", Password: enumPassword})
-	if err != service.ErrAccountDisabled {
+	if !errors.Is(err, service.ErrAccountDisabled) {
 		t.Errorf("disabled account + correct password: got %v, want ErrAccountDisabled", err)
 	}
 }
@@ -79,7 +80,7 @@ func TestLogin_UnverifiedAccount_WrongPassword_IsGeneric(t *testing.T) {
 	_ = repo.Update(ctx, u)
 
 	_, _, err := svc.Login(ctx, service.LoginInput{Email: "unverified@example.com", Password: "wrong-password"})
-	if err != service.ErrInvalidCredentials {
+	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("unverified account + wrong password: got %v, want ErrInvalidCredentials (state leak)", err)
 	}
 }
@@ -95,7 +96,7 @@ func TestLogin_UnverifiedAccount_CorrectPassword_RevealsUnverified(t *testing.T)
 	_ = repo.Update(ctx, u)
 
 	_, _, err := svc.Login(ctx, service.LoginInput{Email: "unverified2@example.com", Password: enumPassword})
-	if err != service.ErrEmailNotVerified {
+	if !errors.Is(err, service.ErrEmailNotVerified) {
 		t.Errorf("unverified account + correct password: got %v, want ErrEmailNotVerified", err)
 	}
 }
@@ -110,13 +111,13 @@ func TestLogin_UnknownVsWrongPassword_SameError(t *testing.T) {
 	_, _, errUnknown := svc.Login(ctx, service.LoginInput{Email: "nobody@example.com", Password: "Whatever-123!"})
 	_, _, errWrong := svc.Login(ctx, service.LoginInput{Email: "known@example.com", Password: "wrong-password"})
 
-	if errUnknown != service.ErrInvalidCredentials {
+	if !errors.Is(errUnknown, service.ErrInvalidCredentials) {
 		t.Errorf("unknown user: got %v, want ErrInvalidCredentials", errUnknown)
 	}
-	if errWrong != service.ErrInvalidCredentials {
+	if !errors.Is(errWrong, service.ErrInvalidCredentials) {
 		t.Errorf("wrong password: got %v, want ErrInvalidCredentials", errWrong)
 	}
-	if errUnknown != errWrong {
+	if !errors.Is(errUnknown, errWrong) {
 		t.Errorf("responses differ (enumeration): unknown=%v wrong=%v", errUnknown, errWrong)
 	}
 }

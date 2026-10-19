@@ -19,7 +19,7 @@ func TestUpdateWithCrewRename_SkipsSignedFlights(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewContactRepository(db)
 	ctx := context.Background()
@@ -59,7 +59,7 @@ func TestUpdateWithCrewRename_DuplicateNameRollsBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewContactRepository(db)
 

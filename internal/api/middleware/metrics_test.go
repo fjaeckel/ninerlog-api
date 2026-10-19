@@ -19,16 +19,6 @@ func getCounterValue(counter *prometheus.CounterVec, labels ...string) float64 {
 	return m.GetCounter().GetValue()
 }
 
-func getGaugeValue(gauge prometheus.Gauge) float64 {
-	m := &dto.Metric{}
-	if c, ok := gauge.(prometheus.Metric); ok {
-		if err := c.Write(m); err != nil {
-			return 0
-		}
-	}
-	return m.GetGauge().GetValue()
-}
-
 func getHistogramCount(hist *prometheus.HistogramVec, labels ...string) uint64 {
 	m := &dto.Metric{}
 	observer := hist.WithLabelValues(labels...)
@@ -152,7 +142,9 @@ func TestRecoveryWithMetrics_IncrementsOnPanic(t *testing.T) {
 	})
 
 	m := &dto.Metric{}
-	APIPanicsRecoveredTotal.Write(m)
+	if err := APIPanicsRecoveredTotal.Write(m); err != nil {
+		t.Fatal(err)
+	}
 	before := m.GetCounter().GetValue()
 
 	req := httptest.NewRequest("GET", "/test/panic", nil)
@@ -163,7 +155,9 @@ func TestRecoveryWithMetrics_IncrementsOnPanic(t *testing.T) {
 		t.Fatalf("expected 500 after panic, got %d", w.Code)
 	}
 
-	APIPanicsRecoveredTotal.Write(m)
+	if err := APIPanicsRecoveredTotal.Write(m); err != nil {
+		t.Fatal(err)
+	}
 	after := m.GetCounter().GetValue()
 	if after != before+1 {
 		t.Errorf("api_panics_recovered_total did not increment: before=%f, after=%f", before, after)
@@ -221,7 +215,7 @@ func TestMetricsEndpoint_ReturnsPrometheusFormat(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "text/plain")
 		for _, mf := range mfs {
-			w.Write([]byte(mf.GetName() + "\n"))
+			_, _ = w.Write([]byte(mf.GetName() + "\n"))
 		}
 	})))
 

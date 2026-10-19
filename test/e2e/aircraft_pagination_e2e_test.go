@@ -44,7 +44,7 @@ func TestAircraftPaginationLargeFleet(t *testing.T) {
 		resp := c.GET("/aircraft")
 		requireStatus(t, resp, http.StatusOK)
 		var r aircraftPage
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		if r.Pagination.Total != paginationFleetSize {
 			t.Errorf("total = %d, want %d", r.Pagination.Total, paginationFleetSize)
 		}
@@ -60,7 +60,7 @@ func TestAircraftPaginationLargeFleet(t *testing.T) {
 		resp := c.GET("/aircraft?pageSize=500")
 		requireStatus(t, resp, http.StatusOK)
 		var r aircraftPage
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		if len(r.Data) != paginationFleetSize {
 			t.Errorf("returned %d aircraft, want all %d", len(r.Data), paginationFleetSize)
 		}
@@ -75,7 +75,7 @@ func TestAircraftPaginationLargeFleet(t *testing.T) {
 			resp := c.GET(fmt.Sprintf("/aircraft?page=%d&pageSize=40", page))
 			requireStatus(t, resp, http.StatusOK)
 			var r aircraftPage
-			resp.JSON(&r)
+			resp.MustJSON(t, &r)
 			for _, a := range r.Data {
 				if seen[a.Registration] {
 					t.Errorf("registration %s returned on more than one page", a.Registration)
@@ -95,7 +95,7 @@ func TestAircraftPaginationLargeFleet(t *testing.T) {
 		resp := c.GET("/aircraft?pageSize=5000")
 		requireStatus(t, resp, http.StatusOK)
 		var r aircraftPage
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		if r.Pagination.PageSize > 500 {
 			t.Errorf("pageSize = %d, want it clamped to at most 500", r.Pagination.PageSize)
 		}
@@ -108,7 +108,7 @@ func TestAircraftPaginationLargeFleet(t *testing.T) {
 		resp := c.GET("/aircraft?page=99&pageSize=100")
 		requireStatus(t, resp, http.StatusOK)
 		var r aircraftPage
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		if len(r.Data) != 0 {
 			t.Errorf("returned %d aircraft past the end, want 0", len(r.Data))
 		}

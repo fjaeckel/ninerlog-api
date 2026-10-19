@@ -274,7 +274,7 @@ func (pl *restorePlan) planCrewMember(m models.FlightCrewMember, flightID uuid.U
 	if !ok {
 		c := &models.Contact{Name: name}
 		if models.ValidateContactTextFields(c) != nil {
-			return member, nil
+			return member, nil //nolint:nilerr // crew member kept without a contact link
 		}
 		c.ID = uuid.New()
 		c.UserID = pl.userID

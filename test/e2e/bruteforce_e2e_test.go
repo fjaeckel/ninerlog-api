@@ -37,7 +37,7 @@ func TestBruteForceProtection(t *testing.T) {
 		resp := ac.GET("/admin/users?search=" + email)
 		requireStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		data := result["data"].([]interface{})
 		if len(data) == 0 {
 			t.Fatal("Could not find locked user")

@@ -118,7 +118,7 @@ func (s *fakeSSHServer) acceptLoop(cfg *ssh.ServerConfig) {
 }
 
 func (s *fakeSSHServer) handleConn(c net.Conn, cfg *ssh.ServerConfig) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_, chans, reqs, err := ssh.NewServerConn(c, cfg)
 	if err != nil {
 		return

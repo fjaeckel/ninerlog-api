@@ -126,7 +126,15 @@ func TestTombstonesReportDeletions(t *testing.T) {
 
 	t.Run("oldest first", func(t *testing.T) {
 		for i := 1; i < len(feed.Data); i++ {
-			if feed.Data[i].DeletedAt < feed.Data[i-1].DeletedAt {
+			prev, err := time.Parse(time.RFC3339Nano, feed.Data[i-1].DeletedAt)
+			if err != nil {
+				t.Fatalf("deletedAt %q: %v", feed.Data[i-1].DeletedAt, err)
+			}
+			cur, err := time.Parse(time.RFC3339Nano, feed.Data[i].DeletedAt)
+			if err != nil {
+				t.Fatalf("deletedAt %q: %v", feed.Data[i].DeletedAt, err)
+			}
+			if cur.Before(prev) {
 				t.Fatalf("feed is not oldest-first: %s before %s",
 					feed.Data[i-1].DeletedAt, feed.Data[i].DeletedAt)
 			}

@@ -21,7 +21,7 @@ func TestDeleteUserCascade(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	licID := lic["id"].(string)
 
 	resp = c.POST(fmt.Sprintf("/licenses/%s/ratings", licID), map[string]interface{}{
@@ -104,7 +104,7 @@ func TestDeleteAllDataKeepsAccount(t *testing.T) {
 		resp := c.GET("/users/me")
 		requireStatus(t, resp, http.StatusOK)
 		var u map[string]interface{}
-		resp.JSON(&u)
+		resp.MustJSON(t, &u)
 		if u["email"] != email {
 			t.Errorf("Expected email %s, got %v", email, u["email"])
 		}
@@ -114,7 +114,7 @@ func TestDeleteAllDataKeepsAccount(t *testing.T) {
 		resp := c.GET("/flights")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		if len(r["data"].([]interface{})) != 0 {
 			t.Error("Expected 0 flights")
 		}
@@ -124,7 +124,7 @@ func TestDeleteAllDataKeepsAccount(t *testing.T) {
 		resp := c.GET("/licenses")
 		requireStatus(t, resp, http.StatusOK)
 		var lics []interface{}
-		resp.JSON(&lics)
+		resp.MustJSON(t, &lics)
 		if len(lics) != 0 {
 			t.Error("Expected 0 licenses")
 		}
@@ -134,7 +134,7 @@ func TestDeleteAllDataKeepsAccount(t *testing.T) {
 		resp := c.GET("/aircraft")
 		requireStatus(t, resp, http.StatusOK)
 		var r map[string]interface{}
-		resp.JSON(&r)
+		resp.MustJSON(t, &r)
 		if len(r["data"].([]interface{})) != 0 {
 			t.Error("Expected 0 aircraft")
 		}
@@ -144,7 +144,7 @@ func TestDeleteAllDataKeepsAccount(t *testing.T) {
 		resp := c.GET("/credentials")
 		requireStatus(t, resp, http.StatusOK)
 		var creds []interface{}
-		resp.JSON(&creds)
+		resp.MustJSON(t, &creds)
 		if len(creds) != 0 {
 			t.Error("Expected 0 credentials")
 		}
@@ -154,7 +154,7 @@ func TestDeleteAllDataKeepsAccount(t *testing.T) {
 		resp := c.GET("/contacts")
 		requireStatus(t, resp, http.StatusOK)
 		var contacts []interface{}
-		resp.JSON(&contacts)
+		resp.MustJSON(t, &contacts)
 		if len(contacts) != 0 {
 			t.Error("Expected 0 contacts")
 		}
@@ -171,7 +171,7 @@ func TestDeleteLicenseCascadesRatings(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	lid := lic["id"].(string)
 
 	// Add ratings
@@ -185,7 +185,7 @@ func TestDeleteLicenseCascadesRatings(t *testing.T) {
 	resp = c.GET(fmt.Sprintf("/licenses/%s/ratings", lid))
 	requireStatus(t, resp, http.StatusOK)
 	var ratings []interface{}
-	resp.JSON(&ratings)
+	resp.MustJSON(t, &ratings)
 	if len(ratings) != 3 {
 		t.Fatalf("Expected 3 ratings, got %d", len(ratings))
 	}
@@ -207,7 +207,7 @@ func TestDeleteAircraftFlightsRetainData(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ac map[string]interface{}
-	resp.JSON(&ac)
+	resp.MustJSON(t, &ac)
 	acID := ac["id"].(string)
 
 	// Create flight referencing this aircraft
@@ -218,7 +218,7 @@ func TestDeleteAircraftFlightsRetainData(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var flt map[string]interface{}
-	resp.JSON(&flt)
+	resp.MustJSON(t, &flt)
 	fltID := flt["id"].(string)
 
 	// Delete aircraft
@@ -227,7 +227,7 @@ func TestDeleteAircraftFlightsRetainData(t *testing.T) {
 	// Flight should still exist with registration as text
 	resp = c.GET(fmt.Sprintf("/flights/%s", fltID))
 	requireStatus(t, resp, http.StatusOK)
-	resp.JSON(&flt)
+	resp.MustJSON(t, &flt)
 	if flt["aircraftReg"] != "D-EDEL" {
 		t.Errorf("Flight should retain aircraft reg, got %v", flt["aircraftReg"])
 	}

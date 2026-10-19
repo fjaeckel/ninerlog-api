@@ -150,7 +150,7 @@ func (p *currencyFlightDataProvider) GetLandingDaysByULKind(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanLandingDays(rows)
 }
 
@@ -242,7 +242,7 @@ func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.C
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanLandingDays(rows)
 }
 
@@ -274,7 +274,7 @@ func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	counts := make(map[string]int)
 	for rows.Next() {

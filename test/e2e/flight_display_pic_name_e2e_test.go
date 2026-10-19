@@ -17,7 +17,7 @@ func TestFlightDisplayPICName(t *testing.T) {
 		resp := c.POST("/flights", body)
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		return f
 	}
 	flight := func(extra map[string]interface{}) map[string]interface{} {
@@ -55,7 +55,7 @@ func TestFlightDisplayPICName(t *testing.T) {
 		var page struct {
 			Data []map[string]interface{} `json:"data"`
 		}
-		resp.JSON(&page)
+		resp.MustJSON(t, &page)
 		got := map[string]interface{}{}
 		for _, f := range page.Data {
 			got[f["id"].(string)] = f["displayPicName"]
@@ -68,7 +68,7 @@ func TestFlightDisplayPICName(t *testing.T) {
 		resp := c.PUT(fmt.Sprintf("/flights/%s", dual["id"]), map[string]interface{}{"remarks": "circuits"})
 		requireStatus(t, resp, http.StatusOK)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		assertStr(t, "after update", f["displayPicName"], "Jacqueline Cochran")
 	})
 

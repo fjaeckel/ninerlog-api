@@ -13,7 +13,7 @@ func TestDBStatsCollector_DescribeAndCollect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create sqlmock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	collector := NewDBStatsCollector(db)
 

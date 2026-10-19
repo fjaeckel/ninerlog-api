@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -67,7 +68,7 @@ func TestLicenseRepositoryIntegration(t *testing.T) {
 
 	t.Run("Get non-existent license", func(t *testing.T) {
 		_, err := licenseRepo.GetByID(ctx, uuid.New())
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("Expected ErrNotFound, got %v", err)
 		}
 	})
@@ -135,7 +136,7 @@ func TestLicenseRepositoryIntegration(t *testing.T) {
 
 		// Verify deletion
 		_, err = licenseRepo.GetByID(ctx, license.ID)
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Error("Expected license to be deleted")
 		}
 	})
@@ -209,7 +210,7 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 
 	t.Run("Get non-existent flight", func(t *testing.T) {
 		_, err := flightRepo.GetByID(ctx, uuid.New())
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("Expected ErrNotFound, got %v", err)
 		}
 	})
@@ -310,7 +311,7 @@ func TestFlightRepositoryIntegration(t *testing.T) {
 
 		// Verify deletion
 		_, err = flightRepo.GetByID(ctx, flight.ID)
-		if err != repository.ErrNotFound {
+		if !errors.Is(err, repository.ErrNotFound) {
 			t.Error("Expected flight to be deleted")
 		}
 	})

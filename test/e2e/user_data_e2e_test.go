@@ -107,7 +107,7 @@ func TestUserData_ExportRestoreLifecycle(t *testing.T) {
 			CustomReportsImported       int           `json:"customReportsImported"`
 			Warnings                    []interface{} `json:"warnings"`
 		}
-		r.JSON(&summary)
+		r.MustJSON(t, &summary)
 		if summary.Mode != "restore" {
 			t.Errorf("mode = %q", summary.Mode)
 		}
@@ -221,7 +221,7 @@ func TestUserData_ExportRestoreLifecycle(t *testing.T) {
 				Index   int    `json:"index"`
 			} `json:"warnings"`
 		}
-		r.JSON(&summary)
+		r.MustJSON(t, &summary)
 		assertInt(t, "customCurrencyRulesImported", summary.CustomCurrencyRulesImported, 1)
 		if len(summary.Warnings) != 1 || summary.Warnings[0].Section != "customCurrencyRules" || summary.Warnings[0].Index != 0 {
 			t.Fatalf("warnings = %+v", summary.Warnings)
@@ -254,7 +254,7 @@ func TestUserData_DeleteScopes(t *testing.T) {
 			Message        string `json:"message"`
 			DeletedFlights *int   `json:"deletedFlights"`
 		}
-		r.JSON(&body)
+		r.MustJSON(t, &body)
 		if body.DeletedFlights == nil {
 			t.Fatalf("deletedFlights missing: %s", r.Body)
 		}
@@ -276,7 +276,7 @@ func TestUserData_DeleteScopes(t *testing.T) {
 		r := c.DELETE("/users/me/data")
 		requireStatus(t, r, http.StatusOK)
 		var body map[string]interface{}
-		r.JSON(&body)
+		r.MustJSON(t, &body)
 		if _, ok := body["deletedFlights"]; ok {
 			t.Errorf("scope=all reported deletedFlights: %s", r.Body)
 		}
@@ -316,7 +316,7 @@ func TestUserData_DeleteScopes(t *testing.T) {
 		var body struct {
 			Deleted *int `json:"deleted"`
 		}
-		r.JSON(&body)
+		r.MustJSON(t, &body)
 		if body.Deleted == nil {
 			t.Fatalf("deleted missing: %s", r.Body)
 		}

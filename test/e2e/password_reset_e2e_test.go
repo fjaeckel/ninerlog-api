@@ -214,7 +214,7 @@ func TestPasswordReset(t *testing.T) {
 		resp := c.POST("/auth/2fa/setup", nil)
 		requireStatus(t, resp, http.StatusOK)
 		var setup map[string]interface{}
-		resp.JSON(&setup)
+		resp.MustJSON(t, &setup)
 		secret := setup["secret"].(string)
 
 		// Verify 2FA with valid TOTP code
@@ -230,7 +230,7 @@ func TestPasswordReset(t *testing.T) {
 		resp = c.POST("/auth/login", map[string]string{"email": email, "password": pw})
 		requireStatus(t, resp, http.StatusOK)
 		var loginResp AuthResponseBody
-		resp.JSON(&loginResp)
+		resp.MustJSON(t, &loginResp)
 		if !loginResp.RequiresTwoFactor {
 			t.Fatal("Expected 2FA to be required before reset")
 		}
@@ -246,7 +246,7 @@ func TestPasswordReset(t *testing.T) {
 		var errBody struct {
 			Code string `json:"code"`
 		}
-		resp.JSON(&errBody)
+		resp.MustJSON(t, &errBody)
 		if errBody.Code != "two_factor_required" {
 			t.Errorf("Expected code two_factor_required, got %q", errBody.Code)
 		}
@@ -258,7 +258,7 @@ func TestPasswordReset(t *testing.T) {
 			"twoFactorCode": "000000",
 		})
 		assertStatus(t, resp, http.StatusUnauthorized)
-		resp.JSON(&errBody)
+		resp.MustJSON(t, &errBody)
 		if errBody.Code != "invalid_two_factor_code" {
 			t.Errorf("Expected code invalid_two_factor_code, got %q", errBody.Code)
 		}
@@ -283,7 +283,7 @@ func TestPasswordReset(t *testing.T) {
 		resp = c.POST("/auth/login", map[string]string{"email": email, "password": newPw})
 		requireStatus(t, resp, http.StatusOK)
 		var afterReset AuthResponseBody
-		resp.JSON(&afterReset)
+		resp.MustJSON(t, &afterReset)
 		if !afterReset.RequiresTwoFactor {
 			t.Error("Expected 2FA to still be required after the password reset")
 		}
@@ -304,7 +304,7 @@ func TestPasswordReset(t *testing.T) {
 		resp := c.POST("/auth/2fa/setup", nil)
 		requireStatus(t, resp, http.StatusOK)
 		var setup map[string]interface{}
-		resp.JSON(&setup)
+		resp.MustJSON(t, &setup)
 		secret := setup["secret"].(string)
 
 		code, err := totp.GenerateCode(secret, time.Now())
@@ -316,7 +316,7 @@ func TestPasswordReset(t *testing.T) {
 		var verify struct {
 			RecoveryCodes []string `json:"recoveryCodes"`
 		}
-		resp.JSON(&verify)
+		resp.MustJSON(t, &verify)
 		if len(verify.RecoveryCodes) == 0 {
 			t.Fatal("Expected recovery codes after enabling 2FA")
 		}
@@ -334,7 +334,7 @@ func TestPasswordReset(t *testing.T) {
 		resp = c.POST("/auth/login", map[string]string{"email": email, "password": newPw})
 		requireStatus(t, resp, http.StatusOK)
 		var afterReset AuthResponseBody
-		resp.JSON(&afterReset)
+		resp.MustJSON(t, &afterReset)
 		if !afterReset.RequiresTwoFactor {
 			t.Error("Expected 2FA to still be required after a recovery-code reset")
 		}

@@ -32,7 +32,7 @@ func TestFlightNightAndCrossCountryOverride(t *testing.T) {
 		r := c.POST("/flights", overrideFlightBody(nil))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "nightTime", gi(f, "nightTime"), 0)
 		assertInt(t, "crossCountryTime", gi(f, "crossCountryTime"), 90)
 		assertBool(t, "nightTimeOverride", gb(f, "nightTimeOverride"), false)
@@ -48,7 +48,7 @@ func TestFlightNightAndCrossCountryOverride(t *testing.T) {
 		r := c.POST("/flights", overrideFlightBody(map[string]interface{}{"nightTime": 30, "crossCountryTime": 20}))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		fid = f["id"].(string)
 		assertInt(t, "nightTime", gi(f, "nightTime"), 30)
 		assertInt(t, "crossCountryTime", gi(f, "crossCountryTime"), 20)
@@ -62,7 +62,7 @@ func TestFlightNightAndCrossCountryOverride(t *testing.T) {
 		g := c.GET("/flights/" + fid)
 		requireStatus(t, g, http.StatusOK)
 		var f map[string]interface{}
-		g.JSON(&f)
+		g.MustJSON(t, &f)
 		assertInt(t, "nightTime after recalculate", gi(f, "nightTime"), 30)
 		assertInt(t, "crossCountryTime after recalculate", gi(f, "crossCountryTime"), 20)
 		assertBool(t, "nightTimeOverride", gb(f, "nightTimeOverride"), true)
@@ -72,7 +72,7 @@ func TestFlightNightAndCrossCountryOverride(t *testing.T) {
 		r := c.PUT("/flights/"+fid, map[string]interface{}{"remarks": "touched"})
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "nightTime", gi(f, "nightTime"), 30)
 		assertInt(t, "crossCountryTime", gi(f, "crossCountryTime"), 20)
 		assertBool(t, "nightTimeOverride", gb(f, "nightTimeOverride"), true)
@@ -83,7 +83,7 @@ func TestFlightNightAndCrossCountryOverride(t *testing.T) {
 		r := c.PUT("/flights/"+fid, map[string]interface{}{"nightTime": 45})
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "nightTime", gi(f, "nightTime"), 45)
 		assertBool(t, "nightTimeOverride", gb(f, "nightTimeOverride"), true)
 	})
@@ -92,7 +92,7 @@ func TestFlightNightAndCrossCountryOverride(t *testing.T) {
 		r := c.PUT("/flights/"+fid, map[string]interface{}{"nightTime": nil, "crossCountryTime": nil})
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "nightTime", gi(f, "nightTime"), 0)
 		assertInt(t, "crossCountryTime", gi(f, "crossCountryTime"), 90)
 		assertBool(t, "nightTimeOverride", gb(f, "nightTimeOverride"), false)
@@ -112,13 +112,13 @@ func TestFlightNightAndCrossCountryOverride(t *testing.T) {
 		r := c.PUT("/flights/"+fid, map[string]interface{}{"takeoffsDay": 4})
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 4)
 		assertBool(t, "takeoffsDayOverride", gb(f, "takeoffsDayOverride"), true)
 
 		r = c.PUT("/flights/"+fid, map[string]interface{}{"takeoffsDay": nil})
 		requireStatus(t, r, http.StatusOK)
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 1)
 		assertBool(t, "takeoffsDayOverride", gb(f, "takeoffsDayOverride"), false)
 	})
@@ -135,7 +135,7 @@ func TestFlightOverrideSurvivesJSONRoundTrip(t *testing.T) {
 	exp := c.GET("/exports/json")
 	requireStatus(t, exp, http.StatusOK)
 	var payload map[string]interface{}
-	exp.JSON(&payload)
+	exp.MustJSON(t, &payload)
 	flights, _ := payload["flights"].([]interface{})
 	if len(flights) != 1 {
 		t.Fatalf("exported %d flights, want 1", len(flights))
@@ -152,7 +152,7 @@ func TestFlightOverrideSurvivesJSONRoundTrip(t *testing.T) {
 	list := c2.GET("/flights")
 	requireStatus(t, list, http.StatusOK)
 	var lr map[string]interface{}
-	list.JSON(&lr)
+	list.MustJSON(t, &lr)
 	data, _ := lr["data"].([]interface{})
 	if len(data) != 1 {
 		t.Fatalf("restored %d flights, want 1", len(data))
@@ -175,7 +175,7 @@ func TestImportCSV_NightAndCrossCountryKept(t *testing.T) {
 	up := uploadCSV(t, c, "night.csv", csv)
 	requireStatus(t, up, http.StatusOK)
 	var u map[string]interface{}
-	up.JSON(&u)
+	up.MustJSON(t, &u)
 	token, _ := u["uploadToken"].(string)
 
 	prev := c.POST("/imports/preview", map[string]interface{}{
@@ -203,7 +203,7 @@ func TestImportCSV_NightAndCrossCountryKept(t *testing.T) {
 	list := c.GET("/flights")
 	requireStatus(t, list, http.StatusOK)
 	var lr map[string]interface{}
-	list.JSON(&lr)
+	list.MustJSON(t, &lr)
 	data, _ := lr["data"].([]interface{})
 	if len(data) != 1 {
 		t.Fatalf("imported %d flights, want 1: %s", len(data), string(conf.Body))
@@ -225,7 +225,7 @@ func TestFlightTakeoffsFollowLandings(t *testing.T) {
 		r := c.POST("/flights", overrideFlightBody(map[string]interface{}{"landings": 3}))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		fid = f["id"].(string)
 		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 3)
 		assertInt(t, "takeoffsNight", gi(f, "takeoffsNight"), 0)
@@ -236,7 +236,7 @@ func TestFlightTakeoffsFollowLandings(t *testing.T) {
 		r := c.PUT("/flights/"+fid, map[string]interface{}{"landings": 5})
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 5)
 	})
 
@@ -246,7 +246,7 @@ func TestFlightTakeoffsFollowLandings(t *testing.T) {
 		r = c.PUT("/flights/"+fid, map[string]interface{}{"takeoffsDay": nil})
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		r.MustJSON(t, &f)
 		assertInt(t, "takeoffsDay", gi(f, "takeoffsDay"), 5)
 		assertBool(t, "takeoffsDayOverride", gb(f, "takeoffsDayOverride"), false)
 	})

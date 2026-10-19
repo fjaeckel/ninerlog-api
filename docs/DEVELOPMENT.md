@@ -9,7 +9,8 @@ developer workflow and how it ties into the architecture.
 - **Go** — the toolchain version pinned in `go.mod` (`go` directive).
 - **PostgreSQL** — provided via Docker for local development.
 - **Docker & Docker Compose** — for the database and the e2e/perf stacks.
-- **golangci-lint** — for linting.
+- **golangci-lint** — nothing to install: `make lint` runs the pinned version (see
+  [Linting](#linting)).
 - **k6** (optional) — for performance tests.
 
 ## First-time setup
@@ -33,7 +34,7 @@ check `GET /health`.
 | `make build` | Build the binary |
 | `make generate` | Regenerate OpenAPI server types (`scripts/generate-server-types.sh`) |
 | `make fmt` | `go fmt ./...` |
-| `make lint` | `golangci-lint run` |
+| `make lint` | golangci-lint v2.15.0 (pinned) with `.golangci.yml`, including gofmt/goimports checks |
 | `make test` | Unit tests (`-short`) |
 | `make test-integration` | Integration tests (spins up a test DB via Docker) |
 | `make test-e2e` / `make test-e2e-full` | End-to-end tests (full Docker stack) |
@@ -94,6 +95,30 @@ Before committing or pushing:
 Do not push with failing tests. If you discover a regression, **document it as a GitHub
 issue** rather than working around it in tests.
 
+### Linting
+
+`make lint` runs golangci-lint **v2.15.0** with the repo's `.golangci.yml`. The version is
+pinned in the `Makefile` (`GOLANGCI_LINT_VERSION`) and in the `lint` job of
+`.github/workflows/ci.yml`; change both together. The Makefile runs it via
+`go run …@v2.15.0` under the `go.mod` toolchain, because prebuilt golangci-lint binaries
+are compiled with an older Go and refuse this module's `go` directive. To use a binary
+directly, build it with the repo toolchain:
+
+```bash
+GOTOOLCHAIN=go1.27.2 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+```
+
+The config enables the standard set (errcheck, govet, ineffassign, staticcheck, unused)
+plus errorlint, bodyclose, rowserrcheck, sqlclosecheck, misspell and nilerr, and the gofmt
+and goimports formatters. It lints test files and the `integration` and `e2e` build tags;
+`internal/api/generated/` is excluded. gosec runs separately in `security-audit.yml`.
+Fix findings rather than suppressing them; where ignoring an error is deliberate, use
+`_ =` (`defer func() { _ = rows.Close() }()`) or a targeted
+`//nolint:<linter> // <terse reason>`.
+
+CI's `lint` job runs the same check on every push and PR, and the image publish depends on
+it.
+
 ## Coding conventions
 
 - **Layering** — handlers call services; services call repository interfaces; no SQL in
@@ -127,8 +152,9 @@ See [PACKAGES.md](./PACKAGES.md) for a package-by-package reference.
 
 GitHub Actions workflows live in `.github/workflows/`:
 
-- **ci.yml** — migration, dashboard, route and generated-code checks, unit tests, integration
-  tests on push/PR, and the Docker image publish on push to `main` and on tags.
+- **ci.yml** — migration, dashboard, route and generated-code checks, golangci-lint, unit
+  tests, integration tests on push/PR, and the Docker image publish on push to `main` and on
+  tags.
 - **e2e.yml** — manual end-to-end suite against the Docker stack.
 - **generate-server.yml** — manual/dispatch-only. Regenerates server types and opens a pull
   request; it never pushes to `main`.

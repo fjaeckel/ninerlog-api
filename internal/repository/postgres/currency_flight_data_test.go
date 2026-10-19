@@ -19,7 +19,7 @@ func newCurrencyDataProvider(t *testing.T) (*currencyFlightDataProvider, sqlmock
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	return &currencyFlightDataProvider{db: db}, mock, func() { db.Close() }
+	return &currencyFlightDataProvider{db: db}, mock, func() { _ = db.Close() }
 }
 
 var progressColumns = []string{

@@ -33,14 +33,14 @@ func TestFlightFieldRetrieval(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var created map[string]interface{}
-	resp.JSON(&created)
+	resp.MustJSON(t, &created)
 	fid := created["id"].(string)
 
 	t.Run("GET returns all stored fields", func(t *testing.T) {
 		resp := c.GET(fmt.Sprintf("/flights/%s", fid))
 		requireStatus(t, resp, http.StatusOK)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 
 		// Verify every field round-trips
 		assertStr(t, "aircraftReg", f["aircraftReg"], "D-ERET")
@@ -216,7 +216,7 @@ func TestFlightLogbookFilter(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	splID := lic["id"].(string)
 
 	// Create PPL license (no separate logbook)
@@ -244,7 +244,7 @@ func TestFlightLogbookFilter(t *testing.T) {
 		resp := c.GET(fmt.Sprintf("/flights?logbookLicenseId=%s", splID))
 		if resp.StatusCode == http.StatusOK {
 			var r map[string]interface{}
-			resp.JSON(&r)
+			resp.MustJSON(t, &r)
 			t.Logf("logbookLicenseId filter: %d flights", len(r["data"].([]interface{})))
 		} else {
 			t.Logf("logbookLicenseId filter status: %d", resp.StatusCode)
@@ -266,7 +266,7 @@ func TestAuditLogContents(t *testing.T) {
 		resp := ac.GET("/admin/audit-log")
 		requireStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
-		resp.JSON(&result)
+		resp.MustJSON(t, &result)
 		data := result["data"].([]interface{})
 		if len(data) < 2 {
 			t.Errorf("Expected >=2 audit entries, got %d", len(data))
@@ -293,13 +293,13 @@ func TestConcurrentTokenRefresh(t *testing.T) {
 		resp1 := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
 		requireStatus(t, resp1, http.StatusOK)
 		var first AuthResponseBody
-		resp1.JSON(&first)
+		resp1.MustJSON(t, &first)
 
 		// A second client still holding the token the first just rotated.
 		resp2 := c.POST("/auth/refresh", map[string]string{"refreshToken": auth.RefreshToken})
 		requireStatus(t, resp2, http.StatusOK)
 		var second AuthResponseBody
-		resp2.JSON(&second)
+		resp2.MustJSON(t, &second)
 
 		// Neither client may be evicted by the other.
 		requireStatus(t, c.POST("/auth/refresh",

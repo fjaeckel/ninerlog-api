@@ -19,7 +19,7 @@ func TestContactCRUD(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ct map[string]interface{}
-		resp.JSON(&ct)
+		resp.MustJSON(t, &ct)
 		cid = ct["id"].(string)
 	})
 
@@ -31,7 +31,7 @@ func TestContactCRUD(t *testing.T) {
 		resp := c.GET("/contacts")
 		requireStatus(t, resp, http.StatusOK)
 		var cts []interface{}
-		resp.JSON(&cts)
+		resp.MustJSON(t, &cts)
 		if len(cts) < 2 {
 			t.Errorf("Expected >=2, got %d", len(cts))
 		}
@@ -41,7 +41,7 @@ func TestContactCRUD(t *testing.T) {
 		resp := c.GET("/contacts/search?q=Johnson")
 		requireStatus(t, resp, http.StatusOK)
 		var cts []interface{}
-		resp.JSON(&cts)
+		resp.MustJSON(t, &cts)
 		if len(cts) < 1 {
 			t.Error("Expected match for Johnson")
 		}
@@ -51,7 +51,7 @@ func TestContactCRUD(t *testing.T) {
 		resp := c.GET("/contacts/search?q=ZZZZZ")
 		requireStatus(t, resp, http.StatusOK)
 		var cts []interface{}
-		resp.JSON(&cts)
+		resp.MustJSON(t, &cts)
 		if len(cts) != 0 {
 			t.Errorf("Expected 0, got %d", len(cts))
 		}
@@ -96,14 +96,14 @@ func TestContactIsolation(t *testing.T) {
 	resp := c1.POST("/contacts", map[string]interface{}{"name": "Private"})
 	requireStatus(t, resp, http.StatusCreated)
 	var ct map[string]interface{}
-	resp.JSON(&ct)
+	resp.MustJSON(t, &ct)
 	cid := ct["id"].(string)
 
 	t.Run("user2 cannot see", func(t *testing.T) {
 		resp := c2.GET("/contacts")
 		requireStatus(t, resp, http.StatusOK)
 		var cts []interface{}
-		resp.JSON(&cts)
+		resp.MustJSON(t, &cts)
 		if len(cts) != 0 {
 			t.Errorf("Expected 0, got %d", len(cts))
 		}
@@ -117,7 +117,7 @@ func TestContactIsolation(t *testing.T) {
 		resp := c2.GET("/contacts/search?q=Private")
 		requireStatus(t, resp, http.StatusOK)
 		var cts []interface{}
-		resp.JSON(&cts)
+		resp.MustJSON(t, &cts)
 		if len(cts) != 0 {
 			t.Errorf("Expected 0, got %d", len(cts))
 		}

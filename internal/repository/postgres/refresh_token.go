@@ -251,7 +251,7 @@ func (r *refreshTokenRepository) ListSessions(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	sessions := []*models.Session{}
 	for rows.Next() {

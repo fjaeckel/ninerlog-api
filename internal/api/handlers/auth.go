@@ -40,15 +40,15 @@ func (h *APIHandler) RegisterUser(c *gin.Context) {
 	})
 
 	if err != nil {
-		if err == service.ErrUserAlreadyExists {
+		if errors.Is(err, service.ErrUserAlreadyExists) {
 			h.sendError(c, http.StatusConflict, "Email already exists")
 			return
 		}
-		if err == service.ErrPasswordTooShort || err == service.ErrPasswordTooLong ||
-			err == service.ErrPasswordTooWeak ||
-			err == service.ErrEmailRequired || err == service.ErrPasswordRequired ||
-			err == service.ErrNameRequired || err == service.ErrInvalidEmail ||
-			err == service.ErrEmailTooLong {
+		if errors.Is(err, service.ErrPasswordTooShort) || errors.Is(err, service.ErrPasswordTooLong) ||
+			errors.Is(err, service.ErrPasswordTooWeak) ||
+			errors.Is(err, service.ErrEmailRequired) || errors.Is(err, service.ErrPasswordRequired) ||
+			errors.Is(err, service.ErrNameRequired) || errors.Is(err, service.ErrInvalidEmail) ||
+			errors.Is(err, service.ErrEmailTooLong) {
 			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -185,22 +185,22 @@ func (h *APIHandler) LoginUser(c *gin.Context) {
 	})
 
 	if err != nil {
-		if err == service.ErrInvalidCredentials {
+		if errors.Is(err, service.ErrInvalidCredentials) {
 			AuthLoginAttemptsTotal.WithLabelValues("invalid_credentials").Inc()
 			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Invalid credentials")
 			return
 		}
-		if err == service.ErrAccountLocked {
+		if errors.Is(err, service.ErrAccountLocked) {
 			AuthLoginAttemptsTotal.WithLabelValues("account_locked").Inc()
 			h.sendError(c, http.StatusTooManyRequests, "Account temporarily locked due to too many failed login attempts. Please try again later.")
 			return
 		}
-		if err == service.ErrAccountDisabled {
+		if errors.Is(err, service.ErrAccountDisabled) {
 			AuthLoginAttemptsTotal.WithLabelValues("account_disabled").Inc()
 			h.sendError(c, http.StatusForbidden, "Account disabled. Contact the administrator.")
 			return
 		}
-		if err == service.ErrEmailNotVerified {
+		if errors.Is(err, service.ErrEmailNotVerified) {
 			AuthLoginAttemptsTotal.WithLabelValues("email_not_verified").Inc()
 			code := "email_not_verified"
 			c.JSON(http.StatusForbidden, generated.Error{
@@ -308,8 +308,8 @@ func (h *APIHandler) ChangePassword(c *gin.Context) {
 			h.sendCodedError(c, http.StatusUnauthorized, errcode.InvalidCredentials, "Current password is incorrect")
 			return
 		}
-		if err == service.ErrPasswordTooShort || err == service.ErrPasswordTooLong ||
-			err == service.ErrPasswordTooWeak {
+		if errors.Is(err, service.ErrPasswordTooShort) || errors.Is(err, service.ErrPasswordTooLong) ||
+			errors.Is(err, service.ErrPasswordTooWeak) {
 			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}

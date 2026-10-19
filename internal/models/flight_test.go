@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -78,7 +79,7 @@ func TestFlightValidateTimeDistribution_PICAndDual(t *testing.T) {
 	f := validFlight()
 	f.IsPIC = true
 	f.IsDual = true
-	if err := f.ValidateTimeDistribution(); err != ErrInvalidTimeDistribution {
+	if err := f.ValidateTimeDistribution(); !errors.Is(err, ErrInvalidTimeDistribution) {
 		t.Errorf("ValidateTimeDistribution() = %v, want ErrInvalidTimeDistribution", err)
 	}
 }
@@ -86,7 +87,7 @@ func TestFlightValidateTimeDistribution_PICAndDual(t *testing.T) {
 func TestFlightValidateTimeDistribution_NightExceedsTotal(t *testing.T) {
 	f := validFlight()
 	f.NightTime = f.TotalTime + 1
-	if err := f.ValidateTimeDistribution(); err != ErrInvalidNightTime {
+	if err := f.ValidateTimeDistribution(); !errors.Is(err, ErrInvalidNightTime) {
 		t.Errorf("ValidateTimeDistribution() = %v, want ErrInvalidNightTime", err)
 	}
 }
@@ -94,7 +95,7 @@ func TestFlightValidateTimeDistribution_NightExceedsTotal(t *testing.T) {
 func TestFlightValidateTimeDistribution_IFRExceedsTotal(t *testing.T) {
 	f := validFlight()
 	f.IFRTime = f.TotalTime + 1
-	if err := f.ValidateTimeDistribution(); err != ErrInvalidIFRTime {
+	if err := f.ValidateTimeDistribution(); !errors.Is(err, ErrInvalidIFRTime) {
 		t.Errorf("ValidateTimeDistribution() = %v, want ErrInvalidIFRTime", err)
 	}
 }
@@ -113,7 +114,7 @@ func TestFlightValidateTimeDistribution_NegativeTime(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := validFlight()
 			tt.setup(f)
-			if err := f.ValidateTimeDistribution(); err != tt.wantErr {
+			if err := f.ValidateTimeDistribution(); !errors.Is(err, tt.wantErr) {
 				t.Errorf("ValidateTimeDistribution() = %v, want %v", err, tt.wantErr)
 			}
 		})
@@ -132,7 +133,7 @@ func TestFlightValidateTimeDistribution_NegativeLandings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := validFlight()
 			tt.setup(f)
-			if err := f.ValidateTimeDistribution(); err != ErrNegativeLandings {
+			if err := f.ValidateTimeDistribution(); !errors.Is(err, ErrNegativeLandings) {
 				t.Errorf("ValidateTimeDistribution() = %v, want ErrNegativeLandings", err)
 			}
 		})

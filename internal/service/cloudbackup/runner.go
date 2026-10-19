@@ -136,7 +136,7 @@ func (s *Service) RunOnce(ctx context.Context, req RunRequest) (*models.BackupRu
 	if err != nil {
 		return finalize(models.BackupRunStatusFailed, err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Snapshot counts before the upload.
 	run.SHA256 = meta.SHA256

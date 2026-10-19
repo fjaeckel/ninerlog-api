@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -114,7 +115,7 @@ func TestGetCredentialNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := svc.GetCredential(ctx, uuid.New(), uuid.New())
-	if err != service.ErrCredentialNotFound {
+	if !errors.Is(err, service.ErrCredentialNotFound) {
 		t.Errorf("Expected ErrCredentialNotFound, got %v", err)
 	}
 }
@@ -134,7 +135,7 @@ func TestGetCredentialUnauthorized(t *testing.T) {
 	_ = svc.CreateCredential(ctx, cred)
 
 	_, err := svc.GetCredential(ctx, cred.ID, otherUserID)
-	if err != service.ErrUnauthorizedCredential {
+	if !errors.Is(err, service.ErrUnauthorizedCredential) {
 		t.Errorf("Expected ErrUnauthorizedCredential, got %v", err)
 	}
 }
@@ -206,7 +207,7 @@ func TestUpdateCredentialUnauthorized(t *testing.T) {
 	_ = svc.CreateCredential(ctx, cred)
 
 	err := svc.UpdateCredential(ctx, cred, uuid.New())
-	if err != service.ErrUnauthorizedCredential {
+	if !errors.Is(err, service.ErrUnauthorizedCredential) {
 		t.Errorf("Expected ErrUnauthorizedCredential, got %v", err)
 	}
 }
@@ -217,7 +218,7 @@ func TestUpdateCredentialNotFound(t *testing.T) {
 
 	cred := &models.Credential{ID: uuid.New()}
 	err := svc.UpdateCredential(ctx, cred, uuid.New())
-	if err != service.ErrCredentialNotFound {
+	if !errors.Is(err, service.ErrCredentialNotFound) {
 		t.Errorf("Expected ErrCredentialNotFound, got %v", err)
 	}
 }
@@ -241,7 +242,7 @@ func TestDeleteCredential(t *testing.T) {
 	}
 
 	_, err = svc.GetCredential(ctx, cred.ID, userID)
-	if err != service.ErrCredentialNotFound {
+	if !errors.Is(err, service.ErrCredentialNotFound) {
 		t.Errorf("Expected ErrCredentialNotFound after delete, got %v", err)
 	}
 }
@@ -260,7 +261,7 @@ func TestDeleteCredentialUnauthorized(t *testing.T) {
 	_ = svc.CreateCredential(ctx, cred)
 
 	err := svc.DeleteCredential(ctx, cred.ID, uuid.New())
-	if err != service.ErrUnauthorizedCredential {
+	if !errors.Is(err, service.ErrUnauthorizedCredential) {
 		t.Errorf("Expected ErrUnauthorizedCredential, got %v", err)
 	}
 }
@@ -270,7 +271,7 @@ func TestDeleteCredentialNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := svc.DeleteCredential(ctx, uuid.New(), uuid.New())
-	if err != service.ErrCredentialNotFound {
+	if !errors.Is(err, service.ErrCredentialNotFound) {
 		t.Errorf("Expected ErrCredentialNotFound, got %v", err)
 	}
 }
@@ -292,7 +293,7 @@ func TestCreateCredential_ExpiryBeforeIssue(t *testing.T) {
 	}
 
 	err := svc.CreateCredential(ctx, cred)
-	if err != service.ErrExpiryBeforeIssue {
+	if !errors.Is(err, service.ErrExpiryBeforeIssue) {
 		t.Errorf("Expected ErrExpiryBeforeIssue, got %v", err)
 	}
 }
@@ -313,7 +314,7 @@ func TestUpdateCredential_ExpiryBeforeIssue(t *testing.T) {
 	expiryDate := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	cred.ExpiryDate = &expiryDate
 	err := svc.UpdateCredential(ctx, cred, userID)
-	if err != service.ErrExpiryBeforeIssue {
+	if !errors.Is(err, service.ErrExpiryBeforeIssue) {
 		t.Errorf("Expected ErrExpiryBeforeIssue, got %v", err)
 	}
 }

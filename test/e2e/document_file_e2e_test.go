@@ -74,7 +74,7 @@ func uploadDocumentFile(t *testing.T, c *E2EClient, path, filename, partContentT
 	if err != nil {
 		t.Fatalf("upload failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	return &Response{StatusCode: resp.StatusCode, Body: body, Headers: resp.Header}
 }
@@ -87,7 +87,7 @@ func createFileTestLicense(t *testing.T, c *E2EClient, number string) string {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	resp.MustJSON(t, &lic)
 	return lic["id"].(string)
 }
 
@@ -104,7 +104,7 @@ func TestLicenseFiles(t *testing.T) {
 		resp := c.GET("/features")
 		requireStatus(t, resp, http.StatusOK)
 		var features map[string]interface{}
-		resp.JSON(&features)
+		resp.MustJSON(t, &features)
 		docs, ok := features["documentFiles"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("expected documentFiles in %v", features)
@@ -121,7 +121,7 @@ func TestLicenseFiles(t *testing.T) {
 		resp := c.GET(base)
 		requireStatus(t, resp, http.StatusOK)
 		var images []interface{}
-		resp.JSON(&images)
+		resp.MustJSON(t, &images)
 		if len(images) != 0 {
 			t.Errorf("expected no images, got %d", len(images))
 		}
@@ -132,7 +132,7 @@ func TestLicenseFiles(t *testing.T) {
 		requireStatus(t, resp, http.StatusCreated)
 
 		var img map[string]interface{}
-		resp.JSON(&img)
+		resp.MustJSON(t, &img)
 		imageID = img["id"].(string)
 		if img["contentType"] != "image/png" {
 			t.Errorf("contentType = %v, want image/png", img["contentType"])
@@ -155,7 +155,7 @@ func TestLicenseFiles(t *testing.T) {
 		resp := uploadDocumentFile(t, c, base, "licence-back.jpg", "image/jpeg", "", e2eJPEG(t, 64, 64))
 		requireStatus(t, resp, http.StatusCreated)
 		var img map[string]interface{}
-		resp.JSON(&img)
+		resp.MustJSON(t, &img)
 		if img["contentType"] != "image/jpeg" {
 			t.Errorf("contentType = %v, want image/jpeg", img["contentType"])
 		}
@@ -165,7 +165,7 @@ func TestLicenseFiles(t *testing.T) {
 		resp := c.GET(base)
 		requireStatus(t, resp, http.StatusOK)
 		var images []map[string]interface{}
-		resp.JSON(&images)
+		resp.MustJSON(t, &images)
 		if len(images) != 2 {
 			t.Fatalf("len(images) = %d, want 2", len(images))
 		}
@@ -202,7 +202,7 @@ func TestLicenseFiles(t *testing.T) {
 		resp := uploadDocumentFile(t, c, base, "mislabelled.jpg", "image/jpeg", "", e2ePNG(t, 32, 32))
 		requireStatus(t, resp, http.StatusCreated)
 		var img map[string]interface{}
-		resp.JSON(&img)
+		resp.MustJSON(t, &img)
 		if img["contentType"] != "image/png" {
 			t.Errorf("contentType = %v, want image/png (sniffed, not declared)", img["contentType"])
 		}
@@ -265,7 +265,7 @@ func TestCredentialFiles(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var cred map[string]interface{}
-	resp.JSON(&cred)
+	resp.MustJSON(t, &cred)
 	credID := cred["id"].(string)
 	base := fmt.Sprintf("/credentials/%s/files", credID)
 
@@ -276,7 +276,7 @@ func TestCredentialFiles(t *testing.T) {
 		resp := uploadDocumentFile(t, c, base, "azf.jpg", "image/jpeg", "Scan", data)
 		requireStatus(t, resp, http.StatusCreated)
 		var img map[string]interface{}
-		resp.JSON(&img)
+		resp.MustJSON(t, &img)
 		imageID = img["id"].(string)
 		if img["credentialId"] != credID {
 			t.Errorf("credentialId = %v, want %v", img["credentialId"], credID)
@@ -324,7 +324,7 @@ func TestGermanRadioCredentialTypes(t *testing.T) {
 			})
 			requireStatus(t, resp, http.StatusCreated)
 			var cred map[string]interface{}
-			resp.JSON(&cred)
+			resp.MustJSON(t, &cred)
 			if cred["credentialType"] != credType {
 				t.Errorf("credentialType = %v, want %v", cred["credentialType"], credType)
 			}
@@ -361,7 +361,7 @@ func TestDocumentFilePDF(t *testing.T) {
 		resp := uploadDocumentFile(t, c, base, "licence.pdf", "application/pdf", "Official scan", data)
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 		fileID = f["id"].(string)
 		if f["contentType"] != "application/pdf" {
 			t.Errorf("contentType = %v, want application/pdf", f["contentType"])
@@ -391,7 +391,7 @@ func TestDocumentFilePDF(t *testing.T) {
 		resp := uploadDocumentFile(t, c, base, "front.png", "image/png", "", e2ePNG(t, 32, 32))
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		resp.MustJSON(t, &f)
 
 		got := c.GET(base + "/" + f["id"].(string))
 		requireStatus(t, got, http.StatusOK)

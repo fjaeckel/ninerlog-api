@@ -17,7 +17,7 @@ func TestUpdateWithFlightRename_SkipsSignedFlights(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewAircraftRepository(db)
 	ctx := context.Background()

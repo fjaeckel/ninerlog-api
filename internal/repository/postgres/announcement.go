@@ -3,11 +3,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
-	"time"
 )
 
 type announcementRepository struct {
@@ -29,7 +29,7 @@ func (r *announcementRepository) ListActive(ctx context.Context, now time.Time) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var announcements []*models.SystemAnnouncement
 	for rows.Next() {

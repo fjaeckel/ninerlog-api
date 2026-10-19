@@ -22,14 +22,14 @@ func TestFlightSession_LocalIdentAirport(t *testing.T) {
 		t.Fatalf("offblock status = %d: %s", resp.StatusCode, string(resp.Body))
 	}
 	var session map[string]interface{}
-	resp.JSON(&session)
+	resp.MustJSON(t, &session)
 	if session["departureIcao"] != "DE-0249" {
 		t.Errorf("departureIcao = %v, want DE-0249", session["departureIcao"])
 	}
 
 	cur := c.GET("/flight-sessions/current")
 	requireStatus(t, cur, http.StatusOK)
-	cur.JSON(&session)
+	cur.MustJSON(t, &session)
 	if session["departureIcao"] != "DE-0249" {
 		t.Errorf("stored departureIcao = %v, want DE-0249", session["departureIcao"])
 	}

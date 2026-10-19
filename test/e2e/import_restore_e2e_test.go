@@ -56,7 +56,7 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 	})
 	requireStatus(t, pplResp, http.StatusCreated)
 	var pplLic map[string]interface{}
-	pplResp.JSON(&pplLic)
+	pplResp.MustJSON(t, &pplLic)
 	pplID := pplLic["id"].(string)
 
 	atplResp := source.POST("/licenses", map[string]interface{}{
@@ -198,7 +198,7 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 		var page struct {
 			Data []map[string]interface{} `json:"data"`
 		}
-		r.JSON(&page)
+		r.MustJSON(t, &page)
 
 		gotRegs := registrations(page.Data)
 		wantRegs := []string{"D-EBKP", "D-MBKP", "N747BK"}
@@ -222,7 +222,7 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 		r := dest.GET("/licenses")
 		requireStatus(t, r, http.StatusOK)
 		var lics []map[string]interface{}
-		r.JSON(&lics)
+		r.MustJSON(t, &lics)
 		if len(lics) != 2 {
 			t.Fatalf("expected 2 licenses, got %d", len(lics))
 		}
@@ -243,7 +243,7 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 		r := dest.GET(fmt.Sprintf("/licenses/%s/ratings", destPPLID))
 		requireStatus(t, r, http.StatusOK)
 		var got []map[string]interface{}
-		r.JSON(&got)
+		r.MustJSON(t, &got)
 		if len(got) != len(ratings) {
 			t.Fatalf("expected %d class ratings on PPL, got %d", len(ratings), len(got))
 		}
@@ -263,7 +263,7 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 		r := dest.GET("/credentials")
 		requireStatus(t, r, http.StatusOK)
 		var got []map[string]interface{}
-		r.JSON(&got)
+		r.MustJSON(t, &got)
 		if len(got) != len(creds) {
 			t.Fatalf("expected %d credentials, got %d", len(creds), len(got))
 		}
@@ -360,7 +360,7 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 		AircraftSkipped  int    `json:"aircraftSkipped"`
 		FlightsImported  int    `json:"flightsImported"`
 	}
-	replaceResp.JSON(&replaced)
+	replaceResp.MustJSON(t, &replaced)
 	if replaced.Mode != "replace" {
 		t.Errorf("replace mode = %q, want replace", replaced.Mode)
 	}
@@ -374,7 +374,7 @@ func TestJSONExportImportRoundTrip(t *testing.T) {
 		var page struct {
 			Data []map[string]interface{} `json:"data"`
 		}
-		r.JSON(&page)
+		r.MustJSON(t, &page)
 		assertInt(t, "aircraft after replace", len(page.Data), len(aircraftFleet))
 	}
 }

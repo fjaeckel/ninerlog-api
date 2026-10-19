@@ -98,7 +98,7 @@ func (r *aircraftRepository) GetByUserID(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanAircraftRows(rows)
 }
@@ -131,7 +131,7 @@ func (r *aircraftRepository) GetPageByUserID(ctx context.Context, userID uuid.UU
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	aircraft, err := scanAircraftRows(rows)
 	if err != nil {
@@ -205,7 +205,7 @@ func (r *aircraftRepository) UpdateWithFlightRename(ctx context.Context, aircraf
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	now := time.Now()
 	result, err := tx.ExecContext(ctx, aircraftUpdateQuery, aircraftUpdateArgs(aircraft, now)...)
@@ -291,7 +291,7 @@ func (r *aircraftRepository) GetStatsByUserID(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var stats []*models.AircraftStats
 	for rows.Next() {
@@ -326,7 +326,7 @@ func (r *aircraftRepository) GetTypeStatsByUserID(ctx context.Context, userID uu
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var stats []*models.AircraftTypeStats
 	for rows.Next() {
@@ -356,7 +356,7 @@ func (r *aircraftRepository) GetRecencyRowsByUserID(ctx context.Context, userID 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []*models.AircraftRecencyRow
 	for rows.Next() {
