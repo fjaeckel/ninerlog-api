@@ -222,8 +222,9 @@ have to compute them by hand. The entry point is
   see [Day and night](#day-and-night).
 - **Total landings** — `AllLandings = LandingsDay + LandingsNight`.
 - **Takeoffs** — one takeoff per landing: `TakeoffsDay + TakeoffsNight = AllLandings`,
-  all classified day or night by the off-block time at the departure airport (day when
-  departure or off-block time is missing or unknown). Re-derived from the landing count on
+  all classified day or night by the takeoff time (else off-block time) at the departure
+  airport (day when departure or both times are missing or unknown); see
+  [Day and night](#day-and-night). Re-derived from the landing count on
   every save, so a stored value is never reused.
 - **Solo time** — derived when the flight is neither dual nor flown as PIC with other
   crew.
@@ -300,6 +301,19 @@ split and night minutes always agree.
   day, mean solar noon ± 12 h. Consecutive solar days tile without a gap, and a
   midnight-sun day next to a normal day leaves night only where the normal day's
   twilight leaves it.
+
+The instants classified are built by one helper (`flightcalc.instantsOf`): off-block,
+takeoff (`DepartureTime`), landing (`ArrivalTime`) and on-block are placed on the flight's
+`Date` in UTC, and any of them earlier than off-block (or than takeoff, when off-block is
+absent) falls on the following day (a flight across 00:00Z). `NightTime`, the takeoff split
+and the landing split all use these instants, so an overnight landing is classified
+against the next day's twilight.
+
+- The **takeoff split** classifies the takeoff time at the departure airport, and the
+  **landing split** the landing time at the arrival airport. Each falls back to the block
+  time (off-block, on-block) when it is absent, unparseable or outside the
+  `[off-block, on-block]` window.
+- `NightTime` uses block times only.
 
 `NightTime` samples each block-time minute from off-block (`[off, on)`) and is capped at
 `TotalTime`. Stored flights keep the values derived when they were last saved;
